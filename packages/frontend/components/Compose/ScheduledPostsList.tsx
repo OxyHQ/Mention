@@ -5,6 +5,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxyhq/bloom/toast';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 import type { HydratedPost } from '@mention/shared-types';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { isPastDue, scheduledDate } from '@/utils/postSchedule';
@@ -20,6 +21,20 @@ export interface ScheduledPostsListProps {
   isLoading: boolean;
   isError: boolean;
   onRetry: () => void;
+  /**
+   * The signed-in reader, so a row can say whose queue it is in.
+   *
+   * This list is no longer only the reader's own: `GET /posts/scheduled` returns
+   * the shared editorial queue of every CHANNEL they operate, so that two people
+   * publishing under one byline can see each other's plans instead of both
+   * booking Tuesday. Every entry names its authoring account (`post.user`, which
+   * IS the channel — a channel authors its own posts), and the id is what tells
+   * "mine" from "the channel's".
+   *
+   * Optional because the sheet can render for a split second before the session
+   * lands; an absent viewer labels nothing rather than labelling everything.
+   */
+  viewerId?: string;
   /** Open the full preview for one post. */
   onPreview: (post: HydratedPost) => void;
   /** Load one post back into the composer to rewrite or reschedule it. */
@@ -90,6 +105,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
   onPreview,
   onEdit,
   onCancel,
+  viewerId,
 }) => {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -115,9 +131,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
     }
     const mediaCount = post.content?.media?.length ?? 0;
     if (mediaCount > 0) {
-      return mediaCount === 1
-        ? t('compose.draftWithMedia', { count: mediaCount })
-        : t('compose.draftWithMedia_plural', { count: mediaCount });
+      return t('compose.draftWithMedia', { count: mediaCount });
     }
     if (post.content?.poll ?? post.content?.pollId) {
       return t('compose.draftWithPoll');
@@ -139,6 +153,25 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
         ? t('compose.scheduled.publishing', { defaultValue: 'Publishing now…' })
         : formatScheduledLabel(publishAt);
 
+    // Whose queue this entry is in. Only shown for an account that is NOT the
+    // reader — labelling their own posts "you" on every row would be noise, and
+    // the absence of a label is already the clearest possible "mine".
+    //
+    // It deliberately names the ACCOUNT and never the person who queued it: a
+    // channel's writers are anonymous unless it signs its posts, and that
+    // decision is made on the server. When a channel DOES sign, the writer is
+    // already in `authors[]` and the preview's byline draws them — so this row
+    // never has to make a disclosure judgement of its own.
+    // `viewerId` is checked FIRST and not merely compared: it is absent for the
+    // moment between mount and the session landing, and `author.id !== undefined`
+    // is true of every row — so comparing alone labels the reader's own posts as
+    // somebody else's during exactly the window nobody watches.
+    const author = item.user;
+    const queuedFor =
+      author !== undefined && viewerId !== undefined && author.id !== viewerId
+        ? author.name?.displayName?.trim() || getNormalizedUserHandle(author) || undefined
+        : undefined;
+
     return (
       <View className="flex-row items-center px-4 py-3 bg-background border-b border-border">
         <TouchableOpacity
@@ -155,6 +188,18 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
               <Text className="text-xs font-semibold" style={{ color: theme.colors.primary }}>
                 {timeLabel}
               </Text>
+              {queuedFor !== undefined && (
+                <Text
+                  className="text-xs text-muted-foreground flex-shrink"
+                  numberOfLines={1}
+                  accessibilityLabel={t('compose.scheduled.queuedForA11y', {
+                    defaultValue: 'Queued for {{account}}',
+                    account: queuedFor,
+                  })}
+                >
+                  {queuedFor}
+                </Text>
+              )}
             </View>
             <Text className="text-sm text-foreground mb-1" numberOfLines={2}>
               {getPreview(item)}
@@ -205,7 +250,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
         </TouchableOpacity>
       </View>
     );
-  }, [cancellingId, getPreview, handleCancel, onEdit, onPreview, t, theme]);
+  }, [cancellingId, getPreview, handleCancel, onEdit, onPreview, t, theme, viewerId]);
 
   if (isLoading) {
     return (

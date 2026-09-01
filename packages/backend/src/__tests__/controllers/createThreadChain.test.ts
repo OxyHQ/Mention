@@ -52,10 +52,6 @@ vi.mock('../../utils/notificationUtils', () => ({
   createPostAuthorNotifications: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../models/PostSubscription', () => ({
-  default: { find: () => ({ lean: () => Promise.resolve([]) }) },
-}));
-
 vi.mock('../../services/serviceRegistry', () => ({
   getPostFederator: () => ({ federateNewPost: vi.fn().mockResolvedValue(undefined) }),
   registerPostCreator: vi.fn(),
@@ -69,7 +65,7 @@ vi.mock('../../utils/linkPreviewWarm', () => ({
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, readScopePosts, serviceScope } from '../helpers/serviceFixtures';
-import { createThread } from '../../controllers/posts.controller';
+import { createThread } from '../../controllers/posts/createThread';
 import { posts } from '../../db/schema/posts';
 
 const scope = serviceScope('create-thread-chain');

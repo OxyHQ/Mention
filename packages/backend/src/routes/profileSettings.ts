@@ -111,7 +111,7 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
  * The READ half of the route below, and a SEPARATE endpoint from
  * `GET /settings/:userId` on purpose. That route answers a VIEWER's question
  * ("what may I see of this profile's design?") and a channel is never its own
- * viewer — `isActAsEligibleKind` refuses `channel`, so no session can ever be
+ * viewer — `isDelegatedActAsEligibleKind` refuses `channel`, so no session can ever be
  * minted whose subject is one, so `targetUserId === viewerUserId` is unreachable
  * for a channel and the response is always the public profile-design DTO. That
  * DTO has no `channel` key, so reading `signPosts` back off it yielded `undefined`
@@ -426,11 +426,22 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
       if (privacy.profileVisibility && ['public', 'private', 'followers_only'].includes(privacy.profileVisibility)) {
         update['privacy.profileVisibility'] = privacy.profileVisibility;
       }
+      // ELEMENTS filtered, not just the container — the same thing
+      // `interests.tags` does a dozen lines below, and the reason it does it.
+      // Both of these land in a `text[]` column, and `privacy.hiddenWords` is
+      // then read by `services/safety/muteWordMatcher.ts` on EVERY feed page
+      // this viewer loads: one non-string element accepted here is not a single
+      // bad request, it is a stored value that breaks that viewer's feed until
+      // somebody notices and rewrites the row.
       if (Array.isArray(privacy.hiddenWords)) {
-        update['privacy.hiddenWords'] = privacy.hiddenWords;
+        update['privacy.hiddenWords'] = privacy.hiddenWords.filter(
+          (word: unknown): word is string => typeof word === 'string',
+        );
       }
       if (Array.isArray(privacy.restrictedUsers)) {
-        update['privacy.restrictedUsers'] = privacy.restrictedUsers;
+        update['privacy.restrictedUsers'] = privacy.restrictedUsers.filter(
+          (id: unknown): id is string => typeof id === 'string',
+        );
       }
     }
 
@@ -680,8 +691,9 @@ router.post('/export', async (req: AuthRequest, res: Response) => {
       const last = page[page.length - 1];
       exportCursor = ChronoCursor.build(last.id, last.createdAt);
     }
-    // Postgres, like the posts above. These two read Mongo until now, which had
-    // stopped receiving engagement when the command service moved — so this
+    // Postgres, like the posts above. These two read the abandoned store until
+    // the port reached them, and it had stopped receiving engagement when the
+    // command service moved — so this
     // export, the artefact a user downloads to have their own data, would have
     // silently omitted every like and bookmark made after the cutover while
     // still listing their posts. An export that is quietly incomplete is worse

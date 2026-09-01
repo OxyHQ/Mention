@@ -26,6 +26,10 @@ import {
   type MeasureThumb,
   type MeasuredRect,
 } from '@oxyhq/bloom/zoomable-media-gallery';
+import { useMediaFlight } from '@oxyhq/bloom/media-flight';
+import { holdAcrossTransition, peekVideoPlayer, videoPlayerKey } from '@/stores/videoPlayerRegistry';
+import { measurePanelSurface } from '@/components/shell/panelSurface';
+import { createLogger } from '@oxyhq/core/logger';
 import type { RegisterThumbHost } from '@/components/Post/Attachments/PostAttachmentMedia';
 import {
   PostAttachmentArticle,
@@ -124,6 +128,16 @@ const areLinkPreviewsEqual = (a?: PostLinkPreview[], b?: PostLinkPreview[]): boo
   if (prev.length !== next.length) return false;
   return prev.every((preview, index) => preview.url === next[index].url);
 };
+
+const logger = createLogger('PostAttachmentsRow');
+
+/**
+ * Ceiling on each leg of the hand-off before the tap goes through regardless.
+ * Short enough that a viewer whose transition failed feels a normal tap rather
+ * than a stall, long enough that a measurement and a surface commit on a slow
+ * device still make it.
+ */
+const FLIGHT_STEP_TIMEOUT_MS = 250;
 
 const PostAttachmentsRow: React.FC<Props> = React.memo(({
   media,
@@ -393,18 +407,113 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     [items, embedPrefs],
   );
 
-  const hasMultipleMedia = mediaItems.length > 1;
-  const hasSingleMedia = mediaItems.length === 1 && !items.some(item => item.type === 'poll' || item.type === 'article' || item.type === 'nested' || item.type === 'link');
+  // A media cell takes the hero form only when it is the ONLY thing in the row.
+  // Derived from what the row actually HOLDS, never from a list of item types
+  // that disqualify it: such a list is wrong the moment an attachment type is
+  // added and nothing says so. It already was — `event`, `room` and `podcast`
+  // were never on it, so a video beside one of those still claimed the hero form
+  // while its neighbour was constrained to the card height.
+  const hasSingleMedia = items.length === 1 && mediaItems.length === 1;
+
+  const { measureAnchor, flyTo } = useMediaFlight();
+
+  // The still the flying surface shows until the destination's first frame —
+  // the same poster the row is already displaying, so the hand-off cannot flash
+  // a different image.
+  // The playable source per media, so a transition can re-acquire the exact
+  // video the row is showing rather than guessing one.
+  const mediaSrcById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const item of mediaItems) {
+      if (item.type === 'video') map.set(item.mediaId, item.src);
+    }
+    return map;
+  }, [mediaItems]);
+
+  const posterByMediaId = useMemo(() => {
+    const map = new Map<string, string | undefined>();
+    for (const item of mediaItems) {
+      if (item.type === 'video') map.set(item.mediaId, item.poster);
+    }
+    return map;
+  }, [mediaItems]);
 
   // Open the fullscreen reels viewer seeded at the tapped video. The reels route
   // selects the correct media item via the `mediaIndex` query param, so a post
   // containing several videos (or a video among images) opens at the right one.
-  const handleVideoPress = useCallback((mediaId: string) => {
+  const handleVideoPress = useCallback(async (mediaId: string) => {
     if (!postId) return;
     const mediaIndex = mediaArray.findIndex(m => String(m?.id) === String(mediaId));
     const query = mediaIndex >= 0 ? `?postId=${postId}&mediaIndex=${mediaIndex}` : `?postId=${postId}`;
+
+    // AWAIT the layer, then navigate — the order is the mechanism, not politeness.
+    // `flyTo` resolves once the flying surface has actually committed, which is
+    // what puts it in expo-video's mounted set while this row is still there;
+    // on web `_synchronizeWithFirstVideo` copies the position from the first
+    // element STILL MOUNTED, and against an empty set it silently starts at
+    // zero. Bloom resolves the promise on a short timeout too, so a video that
+    // never loads delays the push briefly instead of trapping the viewer here.
+    //
+    // Every step degrades to a plain push: no player (the row never took a
+    // lease), no anchor (virtualised away), or a media id we cannot key on all
+    // mean there is nothing to carry, not that navigation should fail.
+    const flightId = videoPlayerKey(postId, mediaId);
+    const player = peekVideoPlayer(flightId);
+    if (player) {
+      try {
+        // Take a reference for the transition itself. Between this row
+        // unmounting with its route and the reel slide mounting to take its
+        // own, NOBODY owns the player — measured, the count reaches zero in
+        // that gap and the registry does the correct thing with it, which is
+        // to destroy the video being handed over.
+        holdAcrossTransition(flightId, mediaSrcById.get(mediaId) ?? '');
+
+        // Bounded, and on purpose. `measureAnchor` resolves ONLY from inside
+        // `measureInWindow`'s callback, so a host node that never calls back —
+        // or that has no such method to begin with — leaves this awaiting for
+        // ever, and the tap that was meant to open a video does nothing at all.
+        // A transition is decoration; it must never be able to swallow the
+        // navigation it decorates, so both legs are raced and a failure of
+        // either just means no flight.
+        const from = await Promise.race([
+          measureAnchor(flightId),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), FLIGHT_STEP_TIMEOUT_MS)),
+        ]);
+        if (from) {
+          // Aim at the COLUMN the reel paints in, not at the browser window.
+          // On desktop the shell puts every route in a ~592px centre panel
+          // while the window is 1100-1920 wide, so targeting the window flew
+          // the video to 2.4x the size it lands at and then snapped it back —
+          // measured at 385ms of full-window video before the hand-off. On
+          // mobile the panel IS the window, so this is the same rect as before.
+          //
+          // Width comes from the panel and height from the window on purpose:
+          // the reel draws the full window height while the panel keeps its
+          // gutter, so neither source describes the destination alone.
+          const window = Dimensions.get('window');
+          const panel = await measurePanelSurface();
+          const destination = panel
+            ? { x: panel.x, y: 0, width: panel.width, height: window.height }
+            : { x: 0, y: 0, width: window.width, height: window.height };
+          await Promise.race([
+            flyTo(
+              flightId,
+              destination,
+              { kind: 'video', player, poster: posterByMediaId.get(mediaId) },
+              // The reel letterboxes rather than crops, so the surface stops
+              // cropping on the way in or the picture would jump at the landing.
+              { from, contentFit: 'contain', cornerRadius: 0 },
+            ),
+            new Promise<void>((resolve) => setTimeout(resolve, FLIGHT_STEP_TIMEOUT_MS)),
+          ]);
+        }
+      } catch (error) {
+        logger.warn('Video flight skipped; opening the reel without it', { postId, mediaId, error });
+      }
+    }
+
     router.push(`/videos${query}`);
-  }, [postId, mediaArray, router]);
+  }, [postId, mediaArray, router, measureAnchor, flyTo, posterByMediaId, mediaSrcById]);
 
   // Images-only subset (in render order) powering the zoom gallery. Each entry's
   // position is the index the gallery opens at when its thumbnail is tapped;
@@ -711,7 +820,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               height={item.height}
               aspectRatio={item.aspectRatio}
               hasSingleMedia={hasSingleMedia}
-              hasMultipleMedia={hasMultipleMedia}
               availableWidth={availableWidth}
               sensitive={sensitive}
             />
@@ -738,7 +846,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               onPress={pressHandlerByMedia(mediaId, item.type)}
               registerHost={imageIndex !== undefined ? registerThumbHost(imageIndex) : undefined}
               hasSingleMedia={hasSingleMedia}
-              hasMultipleMedia={hasMultipleMedia}
               availableWidth={availableWidth}
               sensitive={sensitive}
             />

@@ -1,10 +1,11 @@
 import React from "react";
-import { Platform, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { ExperimentalStack, Slot, usePathname } from "expo-router";
 
 import { useAuth } from '@oxyhq/services/ui/client';
 import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
 import { ContentPanel } from '@oxyhq/bloom/content-panel';
+import { registerPanelSurface } from '@/components/shell/panelSurface';
 
 import { BottomBar, useBottomBarReservedSpace } from "@/components/BottomBar";
 import { DrawerOverlay } from "@/components/DrawerOverlay";
@@ -100,6 +101,18 @@ export default function AppLayout() {
         <ExperimentalStack screenOptions={{ headerShown: false }}>
           <ExperimentalStack.Screen name="compose" />
           <ExperimentalStack.Screen name="p/[id]/boost" />
+          {/* The reels screen has to mount over the feed rather than replacing
+              it.
+
+              A flying video is one surface handed from the origin to the
+              destination, so the destination must exist while the origin is
+              still there — a screen swap would unmount the feed first and leave
+              the flight nothing to hand over from. ExperimentalStack keeps the
+              previous screen attached while the next route becomes active; its
+              deliberately narrow API has no per-screen presentation/animation
+              options, so the media-flight layer remains the single owner of the
+              shared video surface. */}
+          <ExperimentalStack.Screen name="videos" />
         </ExperimentalStack>
       )}
       {/* Show the anon CTA only once auth is resolved: during cold-boot restore
@@ -144,6 +157,11 @@ export default function AppLayout() {
                 maskColor={theme.colors.background}
                 contentStyle={{ paddingBottom: mobileWebBottomInset }}
               >
+                {/* Registers the panel's content box so anything aiming at a
+                    route that has not mounted yet has something real to
+                    measure — see `registerPanelSurface`. A plain wrapper: it
+                    adds no style, so it cannot change the layout it reports. */}
+                <View style={StyleSheet.absoluteFill} pointerEvents="box-none" ref={registerPanelSurface} />
                 {centerContent}
               </ContentPanel>
             </BloomColorScope>

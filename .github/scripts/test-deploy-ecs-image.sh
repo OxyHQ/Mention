@@ -25,6 +25,7 @@ export DEPLOY_TEST_EXPECT_METRICS_ARN=false
 export DEPLOY_TEST_METRICS_PARAMETER=/oxy/sampleapp/INTERNAL_METRICS_TOKEN
 export DEPLOY_TEST_TASK_EXIT_CODE=0
 export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN=false
+export DEPLOY_TEST_EXPECT_SECRET_REMOVED=
 export DEPLOY_TEST_SERVICE_DESIRED_COUNT=1
 export DEPLOY_TEST_ROLLOUT_SCENARIO=healthy
 # The `lastStatus` a mocked one-shot reports. `RUNNING` never resolves, which is
@@ -126,6 +127,16 @@ aws() {
           "name": "deploy-test",
           "image": "example.invalid/deploy-test:old",
           "essential": true,
+          "secrets": [
+            {
+              "name": "DOOMED_TASK_SECRET",
+              "valueFrom": "arn:aws:ssm:test:123456789012:parameter/oxy/sample-app/DOOMED_TASK_SECRET"
+            },
+            {
+              "name": "KEPT_TASK_SECRET",
+              "valueFrom": "arn:aws:ssm:test:123456789012:parameter/oxy/sample-app/KEPT_TASK_SECRET"
+            }
+          ],
           "logConfiguration": {
             "logDriver": "awslogs",
             "options": {
@@ -172,6 +183,32 @@ aws() {
           printf 'metrics:arn\n' >>"$DEPLOY_TEST_LOG"
         else
           printf 'metrics:arn:MISMATCH\n' >>"$DEPLOY_TEST_LOG"
+        fi
+      fi
+      if [[ "$DEPLOY_TEST_EXPECT_SECRET_REMOVED" != "" ]]; then
+        local previous_argument=""
+        local input_json=""
+        local argument
+        for argument in "$@"; do
+          if [[ "$previous_argument" == "--cli-input-json" ]]; then
+            input_json="${argument#file://}"
+            break
+          fi
+          previous_argument="$argument"
+        done
+        # Two verdicts, not one. Asserting only the ABSENCE of the removed name
+        # passes just as well against a render that dropped every secret, or
+        # against a definition that never carried it -- so the surviving secret
+        # is asserted in the same breath. Both are logged, so a wrong answer
+        # names itself in the expected.log diff rather than vanishing into an
+        # exit status.
+        if jq -e --arg name "$DEPLOY_TEST_EXPECT_SECRET_REMOVED" '
+          [.containerDefinitions[] | select(.name == "deploy-test") | .secrets[] | .name]
+          | (index($name) | not) and (index("KEPT_TASK_SECRET") != null)
+        ' "$input_json" >/dev/null; then
+          printf 'secret-removed\n' >>"$DEPLOY_TEST_LOG"
+        else
+          printf 'secret-removed:MISMATCH\n' >>"$DEPLOY_TEST_LOG"
         fi
       fi
       if [[ "$DEPLOY_TEST_EXPECT_TASK_SECRET_ARN" == "true" ]]; then
@@ -417,9 +454,9 @@ diff -u \
   "$test_directory/reconciliation-failure/expected.log" \
   "$test_directory/reconciliation-failure/aws.log"
 
-# A migration one-shot that exits non-zero stops the release. The FIRST task run
-# is the Postgres migrator, and the Mongo one never runs -- previously this case
-# expected a bare "reconcile" here, because the mock could not tell a migration
+# A migration one-shot that exits non-zero stops the release, and nothing after
+# it runs. The assertion names the FIRST task by its full command -- this case
+# used to expect a bare "reconcile", because the mock could not tell a migration
 # task from the reconciliation task and so recorded the wrong one by name.
 run_release migration-failure false true false 1
 printf '%s\n' \
@@ -437,22 +474,24 @@ if grep -q '^service:' "$test_directory/migration-failure/aws.log"; then
   echo "Failed migration reached update-service." >&2
   exit 1
 fi
-if grep -qF 'packages/backend/dist/scripts/migrate.js' \
+if grep -qF 'assertPostgresPopulated.js' \
   "$test_directory/migration-failure/aws.log"; then
-  echo "A failed Postgres migration still ran the Mongo migration." >&2
+  echo "A failed migration still ran the step after it." >&2
   exit 1
 fi
 
-# Both stores migrate on one release, and the ORDER is the assertion: Postgres
-# first, because a task that boots without its schema becomes ready and then
-# fails every query, while a missed Mongo data migration leaves the previous
-# release's behaviour standing. A `diff` of the whole log is what notices a
-# reordering -- grepping for both entries would pass either way round.
+# Every pre-rollout one-shot on one release, and the ORDER is the assertion. The
+# schema migration is first, because a task that boots without its schema becomes
+# ready and then fails every query. The blocked-domain reconciliation is LAST
+# because it is the only one that deletes rows, so it must not run before the
+# schema is current and the store is known to be populated. A
+# `diff` of the whole log is what notices a reordering -- grepping for the
+# entries would pass in any order.
 run_release migration-order true true false 0
 printf '%s\n' \
   'task:bun packages/backend/dist/src/db/migrate.js --target-database=mention' \
-  'task:bun packages/backend/dist/scripts/migrate.js' \
   'task:bun packages/backend/dist/src/scripts/assertPostgresPopulated.js' \
+  'task:bun packages/backend/dist/src/scripts/reconcileBlockedDomains.js' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
   task:reconcile \
@@ -602,10 +641,11 @@ grep -F \
 
 # ALLOW_ZERO_DESIRED_COUNT, in the four states that matter.
 #
-# The cutover deploys `mention` while it is deliberately scaled to zero, because
-# the running image is Mongo-backed and bringing it up after the copy would let
-# real writes land in the store being abandoned. Every OTHER deploy must still
-# refuse a zero-count service, and the exemption must not outlive the window.
+# A planned window may deploy a service while it is deliberately scaled to zero
+# -- the Postgres cutover was the case this was written for, where bringing the
+# old image up after the copy would have let real writes land in the store being
+# abandoned. Every OTHER deploy must still refuse a zero-count service, and the
+# exemption must not outlive the window.
 #
 # The value is `<service>:<YYYY-MM-DD>`. Two cases carry the design:
 #   - WRONG SERVICE proves the value is compared against APP rather than read as
@@ -668,5 +708,31 @@ if grep -qF "refusing to accept a zero-task steady state" \
   echo "The exemption was applied to the pre-check only; both zero-checks need it." >&2
   exit 1
 fi
+
+# A secret NAMED in TASK_SECRET_REMOVALS must leave the registered definition,
+# and the one beside it must stay. The live definition the script derives from
+# carries both, so this cannot pass by removing a secret that was never there --
+# the mirror assertion on KEPT_TASK_SECRET is what rules out a render that simply
+# dropped them all.
+DEPLOY_TEST_EXPECT_SECRET_REMOVED=DOOMED_TASK_SECRET \
+  TASK_SECRET_REMOVALS=DOOMED_TASK_SECRET \
+  run_release secret-removal true false false 0
+grep -qx 'secret-removed' "$test_directory/secret-removal/aws.log" || {
+  echo "TASK_SECRET_REMOVALS did not remove the secret from the registered definition." >&2
+  grep -n 'secret-removed' "$test_directory/secret-removal/aws.log" >&2 || true
+  exit 1
+}
+
+# A name in BOTH lists is refused rather than resolved: the render filters by
+# name and then concatenates the overrides, so the outcome would depend on the
+# order of two operations nobody reads.
+TASK_SECRET_REMOVALS=EXTRA_TASK_SECRET \
+  TASK_SECRET_OVERRIDES_JSON='{"EXTRA_TASK_SECRET":"arn:aws:ssm:test:123456789012:parameter/oxy/sample-app/EXTRA_TASK_SECRET"}' \
+  run_release secret-conflict false false false 0
+grep -q 'in both TASK_SECRET_OVERRIDES_JSON and TASK_SECRET_REMOVALS' \
+  "$test_directory/secret-conflict/output.log" || {
+  echo "The conflicting-name refusal must name BOTH lists, or it is indistinguishable from any other failure." >&2
+  exit 1
+}
 
 echo "Deployment script transaction tests passed."

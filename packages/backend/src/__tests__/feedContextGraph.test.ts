@@ -13,8 +13,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // privacyHelpers (imported by feedContext for the extract* helpers) pulls in the
 vi.mock('../runtime/oxyClient', () => ({ getRuntimeOxyClient: () => ({}) }));
-vi.mock('../models/FederatedFollow', () => ({ default: { distinct: vi.fn(async () => []) } }));
-vi.mock('../models/FederatedActor', () => ({ default: { find: vi.fn(() => ({ lean: vi.fn(async () => []) })) } }));
 vi.mock('../services/ListSubscriptionService', () => ({
   listSubscriptionService: { getSubscribedListMemberIds: vi.fn(async () => []) },
 }));

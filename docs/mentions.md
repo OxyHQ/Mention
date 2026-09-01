@@ -80,7 +80,7 @@ invented handle.
 
 `Post.content` stores the placeholder text and `Post.mentions` stores the
 identity references used by queries and readers. Readers normalize and
-deduplicate this array. MongoDB indexes `mentions` together with `createdAt`.
+deduplicate this array. `mentions` is indexed together with `created_at`.
 
 All post DTOs go through `PostHydrationService`. For each post it:
 
@@ -96,7 +96,7 @@ All post DTOs go through `PostHydrationService`. For each post it:
 
 An undeclared or unresolved placeholder is not linked and is left unchanged
 rather than inventing an identity. Consumers must render hydrated DTOs, not raw
-MongoDB posts.
+post rows.
 
 `packages/frontend/components/common/LinkifiedText.tsx` recognizes the hydrated
 form, renders its label with link styling, normalizes the handle, and navigates

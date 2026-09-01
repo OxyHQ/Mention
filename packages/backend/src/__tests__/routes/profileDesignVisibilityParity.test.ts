@@ -14,7 +14,7 @@ import { eq } from 'drizzle-orm';
  *
  * Both handlers now share ONE rule (`canViewProfileDesign`), and these tests run
  * the REAL handlers, the REAL DTO builders and the REAL gate — only the Oxy
- * follow graph and the (still-Mongo) `UserSettings` document are stubbed — so the
+ * follow graph is stubbed — so the
  * two routes are asserted to agree on the same seeded document.
  *
  * The design route also reports the profile's post counters, and those are a
@@ -91,8 +91,6 @@ vi.mock('../../utils/syraPodcast', () => ({ syraClient: {} }));
 vi.mock('../../connectors/outboundFederation', () => ({
   federateAsResolvedActor: vi.fn(),
 }));
-vi.mock('../../models/Bookmark', () => ({ default: {} }));
-vi.mock('../../models/Like', () => ({ default: {} }));
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { userSettings } from '../../db/schema/userProfile';

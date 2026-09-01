@@ -2,10 +2,6 @@ import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../utils/database', () => ({
-  isDatabaseConnected: vi.fn(),
-}));
-
 vi.mock('../db/postgres', () => ({
   checkPostgresHealth: vi.fn(),
 }));
@@ -17,7 +13,6 @@ vi.mock('../utils/redis', () => ({
 import healthRoutes from '../routes/health.routes';
 import { legacyApiRootReadiness } from '../routes/legacyRoot.routes';
 import { checkPostgresHealth } from '../db/postgres';
-import { isDatabaseConnected } from '../utils/database';
 import { getRedisStats } from '../utils/redis';
 import {
   markMigrationsComplete,
@@ -26,7 +21,6 @@ import {
   resetRuntimeHealthState,
 } from '../utils/runtimeHealth';
 
-const mockIsDatabaseConnected = isDatabaseConnected as unknown as ReturnType<typeof vi.fn>;
 const mockCheckPostgresHealth = checkPostgresHealth as unknown as ReturnType<typeof vi.fn>;
 const mockGetRedisStats = getRedisStats as unknown as ReturnType<typeof vi.fn>;
 
@@ -38,7 +32,6 @@ describe('health routes', () => {
 
   beforeEach(() => {
     resetRuntimeHealthState();
-    mockIsDatabaseConnected.mockReturnValue(false);
     // Healthy by default so each case states the ONE dependency it is about.
     mockCheckPostgresHealth.mockResolvedValue(true);
     mockGetRedisStats.mockReturnValue({
@@ -55,11 +48,16 @@ describe('health routes', () => {
   it('returns 503 readiness before boot and migrations complete', async () => {
     const response = await request(app).get('/health/ready').expect(503);
     expect(response.body.status).toBe('not_ready');
-    expect(response.body.dependencies.mongo).toBe('unavailable');
+    expect(response.body.dependencies.migrations).toBe('pending');
   });
 
-  it('becomes ready only after migrations and Mongo are ready', async () => {
-    mockIsDatabaseConnected.mockReturnValue(true);
+  /**
+   * The dependency list is asserted WHOLE, which is what makes this the
+   * regression test for the decommission: `mongo` is gone from the payload, and
+   * a `toEqual` fails if it comes back. The endpoint must not report a store
+   * this process never opens.
+   */
+  it('becomes ready on migrations and Postgres alone, with no Mongo dependency', async () => {
     mockGetRedisStats.mockReturnValue({
       connected: false,
       status: 'disconnected',
@@ -69,42 +67,50 @@ describe('health routes', () => {
 
     const response = await request(app).get('/health/ready').expect(200);
     expect(response.body.dependencies).toEqual({
-      mongo: 'ready',
       postgres: 'ready',
       migrations: 'ready',
       redis: 'degraded',
     });
   });
 
-  it('drops readiness immediately when Mongo disconnects', async () => {
+  /**
+   * THE case this change exists to make true, and the one that would have been
+   * an outage if the gate had been left behind when the boot connection went.
+   *
+   * `health.routes.ts` used to `&&` in `isDatabaseConnected()`, a read on the
+   * default mongoose connection `server.ts` opened at boot. With that connection
+   * gone the read is permanently false, so every task would answer 503 here for
+   * as long as it lived — the ALB drains the fleet, the deploy's smoke checks
+   * fail, over a store no request touches. Nothing in this suite is arranged to
+   * be Mongo-ready, because nothing can be any more: readiness is 200 anyway.
+   */
+  it('is ready with no Mongo connection in the process at all', async () => {
     markMigrationsComplete();
     markRuntimeReady();
 
-    await request(app).get('/health/ready').expect(503);
+    await request(app).get('/health/ready').expect(200);
   });
 
   it('drops readiness when POSTGRES stops answering', async () => {
     // The case this endpoint was blind to. Before the cutover it checked Mongo
     // and not Postgres at all, so a task whose Postgres had become unreachable
     // kept reporting ready and kept taking traffic while erroring on every
-    // request. Everything else here is healthy, so only the new gate can fail.
-    mockIsDatabaseConnected.mockReturnValue(true);
+    // request. Everything else here is healthy, so only this gate can fail.
     mockCheckPostgresHealth.mockResolvedValue(false);
     markMigrationsComplete();
     markRuntimeReady();
 
     const response = await request(app).get('/health/ready').expect(503);
+    // And it says WHICH one, because "not_ready" alone sends an operator to
+    // check every dependency in the list.
     expect(response.body.dependencies.postgres).toBe('unavailable');
-    // And it says which one, because "not_ready" alone sends an operator to
-    // check all four.
-    expect(response.body.dependencies.mongo).toBe('ready');
+    expect(response.body.dependencies.migrations).toBe('ready');
   });
 
   it('is a real query, not a pool-exists check', async () => {
     // `isPostgresConnected()` would answer "was a pool ever built", which is
     // TRUE of exactly the task that is failing every query. The endpoint has to
     // call the one that issues `select 1`.
-    mockIsDatabaseConnected.mockReturnValue(true);
     markMigrationsComplete();
     markRuntimeReady();
 
@@ -113,7 +119,6 @@ describe('health routes', () => {
   });
 
   it('keeps liveness but drops readiness while draining', async () => {
-    mockIsDatabaseConnected.mockReturnValue(true);
     markMigrationsComplete();
     markRuntimeReady();
     markRuntimeShuttingDown();
@@ -129,7 +134,6 @@ describe('health routes', () => {
       .expect(503);
     expect(starting.body.status).toBe('not_ready');
 
-    mockIsDatabaseConnected.mockReturnValue(true);
     markMigrationsComplete();
     markRuntimeReady();
 

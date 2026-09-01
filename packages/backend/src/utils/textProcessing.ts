@@ -187,9 +187,13 @@ export interface NormalizedPostHashtags {
  *   4. Hashtags used naturally inside sentence text (not part of a 4+ block)
  *      stay in `content` untouched.
  *
- * Pure and side-effect free so it is unit-testable in isolation; the persistence
- * layer (Post schema `pre('validate')` hook and the federated batch insert)
- * invokes it immediately before writing.
+ * Pure and side-effect free so it is unit-testable in isolation. The Mongoose
+ * `pre('validate')` hook that used to invoke it for every document write is
+ * gone with the model; its callers are now named individually — the federated
+ * ingest (`connectors/activitypub/apPostContent.ts`) reads both halves, and the
+ * native write paths read the cleaned `content` through
+ * `services/postVariants.ts`'s `stripSpamHashtagBlocks` while deriving the
+ * `hashtags` column with `mergeHashtags` over the RAW body.
  */
 export function normalizePostHashtags(text: string | undefined | null, userProvided?: string[]): NormalizedPostHashtags {
   const source = typeof text === 'string' ? text : '';

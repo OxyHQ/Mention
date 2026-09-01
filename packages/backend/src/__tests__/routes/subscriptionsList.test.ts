@@ -39,7 +39,7 @@ vi.mock('../../services/PostHydrationService', async () => {
 });
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { postSubscriptions } from '../../db/schema/engagement';
 import subscriptionsRouter from '../../routes/subscriptions';
 

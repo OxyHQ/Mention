@@ -1,0 +1,40 @@
+-- Drop the two bookkeeping tables `0016_backfill_bookkeeping_tables` created.
+--
+-- They were the Mongo→Postgres copier's own ledger: where a collection's copy
+-- had got to (`mention_backfill_checkpoints`) and every resolution rule that
+-- fired while copying (`mention_backfill_resolution_log`). The copier is gone —
+-- `src/db/backfill/` and its CLI were deleted with the rest of Mongo in #706 /
+-- PR #707 — so both tables have been inert since, holding rows about a program
+-- no image contains.
+--
+-- NOTHING READS THEM, and that is a measurement rather than a reading of the
+-- deletion commit. Three censuses over `git grep` across the whole repository,
+-- each with the migration file itself as its positive control (it is the only
+-- hit, which is what proves the pattern could match at all):
+--
+--   * the two table names, in any file type — one hit, this file's ancestor;
+--   * the deleted modules' every export — `CHECKPOINT_TABLE`,
+--     `RESOLUTION_LOG_TABLE`, `saveCheckpoint`, `markCompleted`, `loadState`,
+--     `clearState`, `writeResolutionLog` — zero hits;
+--   * their co-located types, which is the class of importer a table-name grep
+--     cannot see: a module's constants and interfaces outlive the table in other
+--     files' imports. `BackfillState` has seven hits and every one of them is
+--     `FederatedOutboxBackfillState` in `db/federation/`, the ActivityPub outbox
+--     backfill, which shares a word and nothing else.
+--
+-- `if exists`, where 0016 deliberately spelled its `create table` WITHOUT
+-- `if not exists`. The asymmetry is deliberate and it is not a softening. 0016
+-- refused a pre-existing table because its SHAPE mattered: a runtime-created
+-- leftover could disagree with the versioned definition and go on being written
+-- to. A drop has no shape to get wrong — the post-condition is absence, it is
+-- identical under both spellings, and it is asserted after the migration applies
+-- by `__tests__/db/backfillBookkeepingDropped.test.ts` rather than inferred from
+-- this file. What the bare spelling would buy is a failed deploy, blocking every
+-- later migration behind it, to report that somebody had already removed a table
+-- nothing reads. That is not information worth an outage.
+--
+-- The two indexes on the resolution log go with their table; Postgres drops them
+-- as part of the `DROP TABLE`, and naming them here would only add two
+-- statements that can fail on their own.
+DROP TABLE IF EXISTS "mention_backfill_resolution_log";--> statement-breakpoint
+DROP TABLE IF EXISTS "mention_backfill_checkpoints";

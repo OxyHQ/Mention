@@ -23,7 +23,10 @@ import type { OxyAuthRequest } from '@oxyhq/core/server';
 import { inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
-const { resolveUserSummaries } = vi.hoisted(() => ({ resolveUserSummaries: vi.fn() }));
+const { resolveUserSummaries, listAccountMembers } = vi.hoisted(() => ({
+  resolveUserSummaries: vi.fn(),
+  listAccountMembers: vi.fn(async () => [] as unknown[]),
+}));
 
 // Oxy owns identity and is reached over HTTP; the ROW is what this suite is
 // about, so the identity resolver is the one thing still doubled.
@@ -32,12 +35,17 @@ vi.mock('../../services/PostHydrationService', () => ({
   isFallbackUserSummary: (user: { username?: string }) => !user.username,
 }));
 
-// `utils/oxyHelpers` is deliberately NOT doubled. The controller only reaches
-// it for `createUserScopedOxyServices(req)`, and the real one returns
-// `undefined` for a request carrying no bearer — which is exactly what a stub
-// would have returned, while a module factory would silently blank every other
-// export the controller graph reads. `utils/logger` is already mocked globally
-// in `__tests__/setup.ts`.
+// `utils/oxyHelpers` is doubled for ONE export and spread from the original for
+// the rest, so no other export the controller graph reads silently becomes
+// `undefined`. It has to be doubled at all because the gate behind this route
+// asks Oxy who currently operates a channel — the real
+// `createUserScopedOxyServices` answers `undefined` for a request carrying no
+// bearer, and an absent reader is a refusal. `utils/logger` is already mocked
+// globally in `__tests__/setup.ts`.
+vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
+  createUserScopedOxyServices: () => ({ listAccountMembers }),
+}));
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { insertPostRecord } from '../../db/posts/postRepository';
@@ -71,6 +79,9 @@ beforeAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   resolveUserSummaries.mockResolvedValue(new Map());
+  // Nobody operates anything unless a case stages it — `clearAllMocks` drops the
+  // implementation, so the empty roster is restated rather than assumed.
+  listAccountMembers.mockResolvedValue([]);
 });
 
 afterEach(async () => {
@@ -206,16 +217,21 @@ describe('getPostEditSource', () => {
     expect(res.json).toHaveBeenCalledWith({ message: 'Post not found' });
   });
 
-  it("lets a CHANNEL post's writer open it, though the channel is the author", async () => {
+  it("lets a CURRENT member of a CHANNEL open its post, though the channel is the author", async () => {
     // The defect this route shares with `updatePost`: a channel post is authored
     // by an account nobody can sign in as, so an owner-scoped lookup refused the
     // composer to the very person who wrote it. The row here is the real shape —
     // `oxy_user_id` is the CHANNEL and `written_by_oxy_user_id` is the human — so
     // a query narrowed back to the viewer finds nothing and this goes red.
     //
-    // It costs no Oxy round trip: `canManagePostWithoutLookup` answers from the
-    // two columns already in hand, which is why the writer is admitted even
-    // though `memberReader` is `undefined` here.
+    // The membership is STAGED. Being named on the row as its writer is not what
+    // opens the composer: that column is written once and never revised, so it
+    // goes on naming somebody after they leave the channel, and this route hands
+    // back the whole body of a story that may still be embargoed.
+    resolveUserSummaries.mockResolvedValue(
+      new Map([[CHANNEL, { user: { id: CHANNEL, username: 'thechannel', kind: 'channel' } }]]),
+    );
+    listAccountMembers.mockResolvedValue([{ memberUserId: OWNER, status: 'active' }]);
     const post = await insertPostRecord({
       oxyUserId: CHANNEL,
       writtenByOxyUserId: OWNER,
@@ -236,6 +252,77 @@ describe('getPostEditSource', () => {
         content: expect.objectContaining({ text: 'from the channel' }),
       }),
     );
+  });
+
+  it("tells the composer the author is a CHANNEL, so it does not promise a deadline", async () => {
+    // The composer shows one of three notices, and the difference is not
+    // cosmetic: a channel post has no 30-minute window at all, so the sentence
+    // about one would be false. The kind is answered here, by the SERVER, out of
+    // the same identity read `updatePost` decides the rule from — a client
+    // re-deriving it could disagree with what the server will actually allow.
+    const post = await insertPostRecord({
+      oxyUserId: CHANNEL,
+      writtenByOxyUserId: OWNER,
+      authorship: [{ oxyUserId: CHANNEL, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { variants: [{ source: 'author', text: 'from the channel' }] },
+    });
+    resolveUserSummaries.mockResolvedValue(
+      new Map([[CHANNEL, { user: { id: CHANNEL, username: 'thechannel', kind: 'channel' } }]]),
+    );
+    listAccountMembers.mockResolvedValue([{ memberUserId: OWNER, status: 'active' }]);
+
+    const res = responseDouble();
+    await getPostEditSource(request(post.id, OWNER), res as unknown as Response);
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ authorKind: 'channel' }));
+  });
+
+  it('reports an ordinary author as what they are, not as a channel', async () => {
+    // The control. Without it a handler that hardcoded `'channel'`, or that
+    // reported the kind of whoever asked rather than of the author, would pass
+    // the case above.
+    const post = await insertPostRecord({
+      oxyUserId: OWNER,
+      authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { variants: [{ source: 'author', text: 'my own post' }] },
+    });
+    resolveUserSummaries.mockResolvedValue(
+      new Map([[OWNER, { user: { id: OWNER, username: 'owner', kind: 'personal' } }]]),
+    );
+
+    const res = responseDouble();
+    await getPostEditSource(request(post.id, OWNER), res as unknown as Response);
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ authorKind: 'personal' }));
+  });
+
+  it('omits the kind entirely when the author cannot be resolved', async () => {
+    // Absent is not a gap to fill in with a default: the server APPLIES the
+    // window when it cannot resolve the author, so an absent kind and "the
+    // window binds this post" are the same answer, and the composer needs no
+    // separate outage branch to say the right thing.
+    const post = await insertPostRecord({
+      oxyUserId: OWNER,
+      authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
+      type: PostType.TEXT,
+      visibility: PostVisibility.PUBLIC,
+      status: 'published',
+      content: { variants: [{ source: 'author', text: 'my own post' }] },
+    });
+    resolveUserSummaries.mockRejectedValue(new Error('oxy unreachable'));
+
+    const res = responseDouble();
+    await getPostEditSource(request(post.id, OWNER), res as unknown as Response);
+
+    expect(res.status).not.toHaveBeenCalled();
+    const [payload] = res.json.mock.calls[0] as [Record<string, unknown>];
+    expect('authorKind' in payload).toBe(false);
   });
 
   it('refuses the same channel post to somebody who neither wrote it nor operates it', async () => {

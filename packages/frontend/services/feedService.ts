@@ -20,6 +20,7 @@ import type {
   FeedInteractionInput,
   FeedPostViewCounts,
   FeedInterstitialEventInput,
+  PostCorrectionsResponse,
   PostEditSource,
   PostUser,
 } from '@mention/shared-types';
@@ -678,6 +679,28 @@ class FeedService {
   async getPostEditSource(postId: string, signal?: AbortSignal): Promise<PostEditSource> {
     const response = await authenticatedClient.get<PostEditSource>(
       `/posts/${postId}/edit-source`,
+      { signal },
+    );
+    return response.data;
+  }
+
+  /**
+   * A post's public correction trail, oldest first.
+   *
+   * The endpoint is public — a publication's corrections are addressed to
+   * whoever read the post, signed in or not — but it goes through the same
+   * client as everything else so a signed-in reader's request is not a second,
+   * differently-configured code path.
+   *
+   * `total` can exceed `corrections.length`: retention bounds how many
+   * superseded bodies one post keeps, and the counter never goes down.
+   */
+  async getPostCorrections(
+    postId: string,
+    signal?: AbortSignal,
+  ): Promise<PostCorrectionsResponse> {
+    const response = await authenticatedClient.get<PostCorrectionsResponse>(
+      `/posts/${postId}/corrections`,
       { signal },
     );
     return response.data;

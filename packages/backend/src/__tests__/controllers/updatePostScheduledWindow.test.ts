@@ -31,6 +31,7 @@ const hoisted = vi.hoisted(() => ({
   autoAcceptInvites: vi.fn(),
   notifyPendingInvites: vi.fn(),
   emitPostCreated: vi.fn(),
+  listAccountMembers: vi.fn(),
 }));
 
 /**
@@ -45,7 +46,13 @@ const hoisted = vi.hoisted(() => ({
  */
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: hoisted.createScopedOxyClient,
-  createUserScopedOxyServices: vi.fn(() => undefined),
+  // A real member reader, because the CHANNEL case below is authorized through
+  // `postManagementRefusal` rather than by owning the row. Every other case in
+  // this file edits its own post, which `canManagePostWithoutLookup` settles
+  // before any account read — so none of them reaches this.
+  createUserScopedOxyServices: vi.fn(() => ({
+    listAccountMembers: (accountId: string) => hoisted.listAccountMembers(accountId),
+  })),
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({
@@ -69,7 +76,15 @@ vi.mock('../../services/PostCollaborationService', () => ({
   CollabStateError: class extends Error {},
 }));
 
-vi.mock('../../services/mtn/postRecords', () => ({
+// `MentionRecordEmitter`, the module the controller actually imports. This mock
+// named `services/mtn/postRecords`, the path the emitter was renamed AWAY from —
+// and `vi.mock` keys on a RESOLVED id, so a mock naming a module that does not
+// exist matches nothing and reports nothing. The real emitter ran on every edit
+// below (`resolvePostRecordEmbeds` batches an Oxy asset lookup before the
+// env gate can turn the write into a no-op), while `hoisted.emitPostCreated`
+// stayed permanently uncalled — which is indistinguishable from a stub that is
+// working. The assertions on that spy are what stop it going quiet again.
+vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
   emitPostCreated: hoisted.emitPostCreated,
   emitTombstone: vi.fn(),
   postRecordUri: () => 'at://test',
@@ -79,7 +94,7 @@ import { closePostgres, connectPostgres } from '../../db/postgres';
 import { claimScheduledPost } from '../../db/posts/postRepository';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import type { PostRecordInput } from '../../db/posts/postRecord';
-import { updatePost } from '../../controllers/posts.controller';
+import { updatePost } from '../../controllers/posts/updatePost';
 
 const scope = serviceScope('update-post-scheduled-window');
 const USER_ID = scope.user('author');
@@ -172,6 +187,10 @@ describe('updatePost — the 30-minute window still binds a PUBLISHED post', () 
 
     expect(captured.status).toBe(403);
     expect(await storedText()).toBe('original');
+    // A refusal emits nothing. Its negative control is the INSIDE-the-window
+    // case below, which asserts the same spy DOES fire — without it, "never
+    // called" is also what an orphaned mock reports.
+    expect(hoisted.emitPostCreated).not.toHaveBeenCalled();
   });
 
   /**
@@ -198,6 +217,16 @@ describe('updatePost — the 30-minute window still binds a PUBLISHED post', () 
 
     expect(captured.status).toBeUndefined();
     expect(await storedText()).toBe('quick fix');
+    // The MTN dual-write re-emits the record under the SAME rkey, carrying the
+    // EDITED body — the chain is append-only and materialization is
+    // last-writer-wins, so an emit of the pre-edit record would silently
+    // publish the old text forever. Also the one assertion that fails when the
+    // emitter mock stops intercepting.
+    expect(hoisted.emitPostCreated).toHaveBeenCalledTimes(1);
+    expect(hoisted.emitPostCreated.mock.calls[0]?.[0]).toMatchObject({
+      id: POST_ID,
+      content: { variants: [expect.objectContaining({ text: 'quick fix' })] },
+    });
   });
 
   it('cannot be talked out of the window by the request body', async () => {
@@ -386,5 +415,66 @@ describe('updatePost — rescheduling moves the whole thread', () => {
 
     expect(await scheduledTimes()).toEqual(before);
     expect(await storedText()).toBe('reworded');
+  });
+
+  /**
+   * A CHANNEL'S thread, moved by a member who is not its owner.
+   *
+   * The chain is walked as the post's OWNER, never as the caller, and a channel
+   * is the one case where those differ: a channel AUTHORS its own posts and no
+   * session can ever be one. Scoped to the caller, the descendant query matched
+   * nothing, so the edited post moved alone and its continuations stayed where
+   * they were — silently producing the exact split queue this whole block exists
+   * to prevent, with no error and nothing in the response to suggest it.
+   *
+   * The caller's RIGHT to be here is a separate question, already settled by
+   * `postManagementRefusal` above; this is only about which account's chain the
+   * walk names.
+   */
+  it('carries a CHANNEL’s continuations, walked as the channel and not the caller', async () => {
+    const channel = scope.user('channel');
+    const member = scope.user('channel-member');
+    hoisted.resolveUserSummaries.mockResolvedValue(
+      new Map([[channel, { user: { id: channel, username: 'thechannel', kind: 'channel' } }]]),
+    );
+    hoisted.listAccountMembers.mockResolvedValue([
+      {
+        _id: `member-${channel}-${member}`,
+        accountId: channel,
+        memberUserId: member,
+        role: 'editor',
+        permissions: ['account:read', 'account:act_as'],
+        inherit: true,
+        status: 'active',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+
+    await seedTarget({
+      oxyUserId: channel,
+      writtenByOxyUserId: scope.user('some-writer'),
+      status: 'scheduled',
+      scheduledFor: ORIGINAL_TIME(),
+    });
+    const continuation = await seedPost(scope, {
+      oxyUserId: channel,
+      status: 'scheduled',
+      scheduledFor: ORIGINAL_TIME(),
+      parentPostId: POST_ID,
+    });
+    continuationIds = [continuation.id];
+
+    const later = new Date(Date.now() + 4 * HOUR_MS);
+    const { res, captured } = buildResponse();
+
+    await updatePost(
+      buildRequest({ scheduledFor: later.toISOString() }, { id: member }) as never,
+      res as never,
+    );
+
+    expect(captured.status).toBeUndefined();
+    expect((await stored())?.scheduledFor?.toISOString()).toBe(later.toISOString());
+    expect(await scheduledTimes()).toEqual([later.toISOString()]);
   });
 });

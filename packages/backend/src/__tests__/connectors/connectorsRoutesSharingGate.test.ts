@@ -91,8 +91,6 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ getUserById }),
 }));
 
-vi.mock('../../models/Post', () => ({ Post: { find: vi.fn() } }));
-
 vi.mock('../../services/fediverseSharing', () => ({
   isFediverseSharingEnabled: (...args: unknown[]) => isFediverseSharingEnabled(...args),
 }));

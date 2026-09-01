@@ -36,16 +36,6 @@
  *  5. Every network fetch goes through the same signed, SSRF-safe, depth-capped
  *     import ingest uses. A failure leaves the post exactly as it is.
  *
- * ── WHY THIS FILE IS POSTGRES ────────────────────────────────────────────────
- *
- * It arrived from `main` writing Mongo (`import mongoose`, `models/Post`) and
- * merged into the port with ZERO conflicts and ZERO type errors, because
- * `models/Post` is among the models the port KEPT — the second instance of that
- * shape in as many absorbs. Post-cutover it would have reported a truthful write
- * count about a table nothing reads, which is strictly worse than a wrong one:
- * a fabricated number invites suspicion and a correct number about the wrong
- * subject does not.
- *
  * ── THREE DELIBERATE DIVERGENCES FROM THE MONGO ORIGINAL ─────────────────────
  *
  * 1. THE `RE:` FILTER IS IN SQL, NOT IN JS AFTER THE LIMIT. Mongo fetched `MAX`
@@ -79,6 +69,7 @@ import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
+import { registerAdminScriptServices } from './lib/adminScriptLifecycle';
 import { posts } from '../db/schema/posts';
 import { postContentVariants } from '../db/schema/postContent';
 import { extractApQuoteUri, resolvePostIdFromObjectUri, signedFetch } from '../connectors/activitypub/helpers';
@@ -279,6 +270,9 @@ async function main(): Promise<void> {
 
   assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun });
   await connectPostgres();
+  // `getPostCreator()` throws without this, and the throw is counted as
+  // un-importable — see `registerAdminScriptServices`.
+  await registerAdminScriptServices();
   logger.info('[Backfill] quoted posts starting', { dryRun, max });
   try {
     await backfillQuotedPosts({ dryRun, max });

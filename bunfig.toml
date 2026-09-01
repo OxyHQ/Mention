@@ -10,35 +10,3 @@
 # bundle segments. Hoisting keeps a single flat tree that resolves the same in
 # local dev, CI, and the native dev client.
 linker = "hoisted"
-
-# Supply-chain quarantine. A compromised release is typically caught and
-# unpublished within hours to a couple of days, so refusing to RESOLVE anything
-# published in the last week removes most of that window at no cost to the
-# builds that matter: the gate applies only when a version is being chosen, so
-# `bun install --frozen-lockfile` (CI, both Dockerfiles) installs an
-# already-locked fresh package with no complaint. It fires for a developer
-# adding or bumping a dependency, which is exactly when the decision is being
-# made. Override deliberately with `bun install --minimum-release-age=0`.
-#
-# Our own packages are excluded because publishing an Oxy package and bumping
-# the consumer in the same session is the normal workflow, and a week-old
-# quarantine on ourselves would only teach everyone to pass the override flag by
-# reflex. minimumReleaseAgeExcludes matches EXACT names — a scope glob
-# ("@oxyhq/*") is accepted by the parser and silently matches nothing — so a new
-# first-party dependency has to be listed here. That failure is loud and names
-# the package, which is the right way round.
-minimumReleaseAge = 604800
-minimumReleaseAgeExcludes = [
-  "@alia.onl/sdk",
-  "@oxyhq/bloom",
-  "@oxyhq/contracts",
-  "@oxyhq/core",
-  "@oxyhq/crowdsource",
-  "@oxyhq/crowdsource-contracts",
-  "@oxyhq/crowdsource-express",
-  "@oxyhq/crowdsource-testing",
-  "@oxyhq/federation",
-  "@oxyhq/protocol",
-  "@oxyhq/services",
-  "@syra.fm/sdk",
-]

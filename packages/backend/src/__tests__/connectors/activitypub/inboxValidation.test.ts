@@ -39,13 +39,8 @@ const mocks = vi.hoisted(() => ({
   signRequest: vi.fn(),
   findOneAndUpdate: vi.fn(),
   updateOne: vi.fn(),
-  postFind: vi.fn(),
-  postFindOne: vi.fn(),
-  postFindById: vi.fn(),
   postUpdateOne: vi.fn(),
-  postCreate: vi.fn(),
   postInsertMany: vi.fn(),
-  postExists: vi.fn(),
   postDeleteOne: vi.fn(),
   materializeEngagementRelationship: vi.fn(),
   materializeEngagementTombstone: vi.fn(),
@@ -75,21 +70,6 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   getPublicKey: mocks.getPublicKey,
   signViaOxy: mocks.signViaOxy,
   signRequest: mocks.signRequest,
-}));
-
-vi.mock('../../../models/Post', () => ({
-  POST_CLASSIFICATION_PENDING: 'pending',
-  Post: {
-    find: mocks.postFind,
-    findOne: mocks.postFindOne,
-    findById: mocks.postFindById,
-    updateOne: mocks.postUpdateOne,
-    exists: mocks.postExists,
-    deleteOne: mocks.postDeleteOne,
-    collection: {
-      insertMany: mocks.postInsertMany,
-    },
-  },
 }));
 
 vi.mock('../../../services/PostEngagementCommandService', () => ({
@@ -178,13 +158,9 @@ beforeEach(async () => {
   mocks.signRequest.mockResolvedValue({ Signature: 'signature' });
   mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({ _id: 'actor_1', ...update?.$set }));
   mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
-  mocks.postFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
-  mocks.postFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
-  mocks.postFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
   mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.postDeleteOne.mockResolvedValue({ deletedCount: 1 });
   mocks.postInsertMany.mockResolvedValue({ insertedCount: 0 });
-  mocks.postExists.mockResolvedValue(null);
   mocks.materializeEngagementRelationship.mockResolvedValue({ changed: true });
   mocks.materializeEngagementTombstone.mockResolvedValue({ changed: true });
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
@@ -266,7 +242,6 @@ describe('processInboxActivity validation gate — valid Create{Note} preserves 
 
   it('processes the Create and stores the PAST Note published as createdAt (no date regression)', async () => {
     await seedResolvedActor('oxy_bob');
-    mocks.postExists.mockResolvedValue(null); // not a duplicate
 
     const past = '2022-03-10T14:00:00Z';
 
@@ -304,7 +279,6 @@ describe('processInboxActivity validation gate — valid Create{Note} preserves 
 
   it('omits createdAt (schema default = now) when the Note carries no published date', async () => {
     await seedResolvedActor('oxy_bob');
-    mocks.postExists.mockResolvedValue(null);
 
     await federationService.processInboxActivity(
       {

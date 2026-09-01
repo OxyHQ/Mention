@@ -162,12 +162,19 @@ export interface PostRecord {
   /** The PRIMARY language (ISO 639-1) — the AP protocol field. */
   language?: string;
   curated?: boolean;
-  tags?: string[];
   hashtags: string[];
   editHistory: string[];
   replyPermission: ReplyPermission[];
   reviewReplies: boolean;
   quotesDisabled: boolean;
+  /**
+   * How many times this post's body has been corrected — the denormalized public
+   * counter behind `post_corrections`. Zero on every post that never was, which
+   * includes every personal post: only a channel post records corrections.
+   */
+  correctionCount: number;
+  /** When the most recent correction was made; absent when never corrected. */
+  lastCorrectedAt: Date | null;
 
   boostOf: string | null;
   quoteOf: string | null;
@@ -258,9 +265,7 @@ export interface PostRecordInput {
   type: PostType;
   visibility: PostVisibility;
   status: PostPublicationStatus;
-  hasLinks?: boolean;
   language?: string;
-  tags?: string[];
   hashtags?: string[];
   replyPermission?: ReplyPermission[];
   reviewReplies?: boolean;

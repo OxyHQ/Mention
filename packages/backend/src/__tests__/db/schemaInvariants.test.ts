@@ -14,8 +14,7 @@ import { sql } from 'drizzle-orm';
 import { getTableColumns, getTableName } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { sqlColumnName } from '../../db/casing';
-import { STAGING_TABLE_PREFIX } from '../../db/backfill/bulkLoad';
+import { sqlColumnName } from '@oxyhq/db';
 import * as schema from '../../db/schema';
 
 /** Only lower-case letters, digits and underscores, never starting with a digit. */
@@ -85,21 +84,19 @@ describe('schema invariants', () => {
     // the schema agrees with itself and would miss a table a migration added by
     // hand.
     //
-    // The one exclusion is the bulk loader's staging tables, which are transient
-    // by construction, have no primary key on purpose, and belong to no
-    // migration. Vitest runs test files in parallel against ONE database, so
-    // some of them exist for the few milliseconds a concurrent `backfillBulkLoad`
-    // case is mid-load — which made this invariant fail intermittently, in a
-    // file that had touched nothing, naming tables nobody had heard of. The
-    // prefix is the loader's own exported constant so the exclusion cannot drift
-    // from the name it excludes.
+    // There is no exclusion any more. The Mongo->Postgres bulk loader created
+    // transient, primary-key-less staging tables on every load, and because
+    // vitest runs files in parallel against ONE database some of them existed
+    // for the few milliseconds a concurrent load was in flight — which made this
+    // invariant fail intermittently, in a file that had touched nothing, naming
+    // tables nobody had heard of. The loader is deleted, so nothing creates an
+    // unkeyed table here and every row this scan returns is a real offender.
     const rows = await db.execute<{ table_name: string }>(sql`
       select c.relname as table_name
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace
       where n.nspname = 'public'
         and c.relkind = 'r'
-        and c.relname not like ${`${STAGING_TABLE_PREFIX}%`}
         and not exists (
           select 1 from pg_constraint k
           where k.conrelid = c.oid and k.contype = 'p'
@@ -110,17 +107,15 @@ describe('schema invariants', () => {
   });
 
   it('is not vacuous — the primary-key scan sees the real tables', async () => {
-    // A `not like` that matched everything, or a namespace filter that matched
-    // nothing, would make the case above pass over an empty scan. This asserts
-    // the scan's population, so "no offenders" means "none among many" rather
-    // than "none among none".
+    // A namespace filter that matched nothing would make the case above pass
+    // over an empty scan. This asserts the scan's population, so "no offenders"
+    // means "none among many" rather than "none among none".
     const rows = await db.execute<{ n: string }>(sql`
       select count(*)::text as n
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace
       where n.nspname = 'public'
         and c.relkind = 'r'
-        and c.relname not like ${`${STAGING_TABLE_PREFIX}%`}
     `);
     expect(Number(rows[0]?.n)).toBeGreaterThan(50);
   });

@@ -35,10 +35,15 @@ These routes are mounted before authentication and before the apex web proxy:
 | GET | `/ap/users/:username/posts/:id` | Dereference a post |
 
 ActivityPub endpoint paths must return directly from the backend. Redirecting
-an inbox request breaks HTTP signatures and delivery. The separate browser
-profile route `/@username` may redirect a GET with an ActivityPub `Accept`
-header to the canonical actor URL; browser requests receive an OG-injected app
-shell instead.
+an inbox request breaks HTTP signatures and delivery — signatures are
+verified against `X-Forwarded-Host`, so the federation routers mount before
+`apexFrontendProxy`. The separate browser profile route `/@username` may
+redirect a GET with an ActivityPub `Accept` header to the canonical actor
+URL; browser requests receive an OG-injected app shell instead.
+
+The actor document's `publicKey.id` host MUST equal the actor `id` host,
+`icon.url` must be absolute and reachable, and `/.well-known/host-meta`
+must be mounted before auth middleware.
 
 ## App-facing federation API
 
@@ -71,6 +76,11 @@ When sharing is disabled:
 - Outbound connector delivery is blocked.
 - Undo activities remain allowed so remote and local state can converge.
 
+All federation UI lives under `settings/fediverse/` — add a new row
+inside that hub, never beside it. `/transparency` (the bridge-relabelling
+and blocklist page) stays a public top-level route, not nested under
+settings.
+
 The sharing-change endpoint re-reads the value server-side. Turning sharing off
 queues cleanup that broadcasts actor deletion, removes bridged follows, clears
 user-scoped federation rows, and invalidates discovery cache. An unavailable
@@ -94,7 +104,9 @@ activities are dispatched by the shared federation engine and the Mention
 content handlers. An inbound follow creates the Oxy graph edge before Mention
 sends Accept; the protocol-side follow record is not the app's graph authority.
 
-Remote outbox discovery uses the actor's advertised outbox URL. An empty first
+Remote outbox discovery uses the actor's advertised outbox URL —
+guessing `actorUri + '/outbox'` as a fallback breaks PeerTube, Lemmy and
+some Pleroma instances, so it is fallback-only. An empty first
 author-feed page can schedule a background sync and return `pending: true`, so
 the client waits and refetches rather than caching a temporary empty result.
 Imported boosts are stored as boost posts and hydrated with their original.
@@ -103,8 +115,16 @@ Imported boosts are stored as boost posts and hydrated with their original.
 
 Eligible local mutations call the connector registry after their native write.
 The ActivityPub connector can emit Create, Update, Delete, Like, Undo, and
-Announce activities. Delivery is consent-gated and uses server-side resolution
-of the author's Oxy identity.
+Announce activities. Delivery is consent-gated and uses server-side
+resolution of the author's Oxy identity: fan-out resolves the username
+through `resolveFederationUsername` from `oxyUserId`, never from
+`req.user.username` — the auth middleware runs without `loadUser`, so
+gating on it federates zero posts while everything looks healthy. Callers
+pass the post DOCUMENT to `post.create`/`post.update`, never a hand-picked
+literal — `LocalPostEventPayload` names fewer fields than the Note builder
+reads, so a literal silently drops `sensitive` and quote fields (gate:
+`__tests__/connectors/outboundPostPayloadShape.test.ts`). A bare boost must
+never federate as an empty `Create(Note)`.
 
 Delivery work is isolated with `Promise.allSettled` and queued when Redis is
 available. A connector failure does not roll back a successful native post.
@@ -145,18 +165,83 @@ revalidation, content-type checks, byte limits, stream abort, and timeouts.
 SVG is rejected. Frequently used remote media can be cached in Oxy object
 storage when the cache-write feature is enabled.
 
+## Identity and safety on federated surfaces
+
+**Author hydration must NEVER emit a raw `oxyUserId` as a handle.**
+Unresolved authors get the degraded summary (empty username, `'Unknown
+user'`), never cached.
+
+**OG cards are safety-gated** (`/p/:id`) — a post carrying any sensitivity
+signal, or a boost whose original carries one, gets NO `og:image`/body
+text; the verdict comes from `requiresContentWarning` and is a REQUIRED
+argument to `mapPostOg`.
+
 ## Optional AT Protocol connector
 
 AT Protocol handle resolution and read/discovery are independently gated by
 `ATPROTO_ENABLED`. A separate bridge gate controls repository exposure. These
-features do not change the ActivityPub routes or the native MongoDB authority.
+features do not change the ActivityPub routes or the native PostgreSQL
+authority.
+
+## The connector contract
+
+Mention's content core (`PostCreationService`, the feed engine, notifications)
+never imports ActivityPub or AT Protocol code directly. It talks to
+`ConnectorRegistry`, which fans a `LocalNetworkEvent` out to every enabled
+`NetworkConnector`. Both the contract and the normalized DTOs it trades in
+(`NormalizedExternalActor`, `NormalizedExternalPost`, the `LocalNetworkEvent`
+union) ship from the shared `@oxyhq/federation` package — not a Mention-local
+type — so `ActivityPubConnector` and `AtprotoConnector` are two
+implementations of one interface Mention does not own:
+
+```ts
+interface NetworkConnector<TContent = unknown> {
+  readonly id: NetworkId;
+  readonly enabled: boolean;
+  matches(subject: string): boolean;
+  resolve(handle: string): Promise<NormalizedExternalActor | null>;
+  fetchProfile(externalId: string): Promise<NormalizedExternalActor | null>;
+  fetchPosts(externalId: string, opts?: FetchPostsOptions): Promise<FetchPostsResult>;
+  deliver(event: LocalNetworkEvent<TContent>): Promise<void>;
+  receive(payload: unknown, ctx: ReceiveContext): Promise<void>;
+  mapIdentity(actor: NormalizedExternalActor): Promise<string | null>;
+}
+```
+
+**What capability discovery looks like today.** There is no `getCapabilities()`
+method — instead, `AtprotoConnector.deliver()` switches on every
+`LocalNetworkEvent` kind and no-ops the write-side ones with an in-source
+comment explaining why ("Mention does not publish posts, reposts, edits,
+deletes, likes, or actor changes into a foreign atproto PDS"). That is a
+documented, deliberate design choice, not an unimplemented method throwing —
+`ConnectorRegistry.deliver` fans out via `Promise.allSettled`, so a connector
+that has nothing to do for an event kind returning cleanly is the intended
+shape.
+
+**The real gap** is that this is legible to a person reading the source, not
+to a caller asking the interface a question before it acts — there is no
+machine-checkable "can connector X publish/delete/follow" a caller could use
+to skip the call, or a contract-test suite every implementation of
+`NetworkConnector` must pass for the operations it actually performs. Adding
+either is a change to `@oxyhq/federation` itself, which Mention does not own
+(`@oxyhq/services`/`@oxyhq/core`'s home repository does) — per this repo's
+"fix upstream, never patch" rule, that is upstream work, tracked as
+[OxyHQ/oxy#971](https://github.com/OxyHQ/oxy/issues/971), not a local
+reimplementation of the interface.
+
+Adding a third protocol to Mention means writing one more `NetworkConnector`
+implementation under `connectors/<protocol>/` and registering it in
+`ConnectorRegistry` — no changes to `PostCreationService`, the feed engine, or
+any other product code, because none of it references a protocol by name.
 
 ## Deployment routing
 
 Both `mention.earth` and `api.mention.earth` reach the Mention backend on AWS
 ECS. The apex is Cloudflare-proxied to the same load balancer; the API host is
 DNS-only. The backend mounts `/.well-known`, `/ap`, protocol bridge routes, and
-`/media` before web-shell and static-proxy handling.
+`/media` before web-shell and static-proxy handling. Do not reintroduce a
+Cloudflare Worker or Pages Functions in front of the apex — it is served
+entirely by the Mention backend.
 
 No application worker sits in front of the apex. Signed inbox requests must
 reach the backend without a zone-level redirect.

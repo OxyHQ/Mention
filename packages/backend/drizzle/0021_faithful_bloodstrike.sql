@@ -1,0 +1,54 @@
+-- `post_authorships` carries a copy of `posts.created_at`, so ONE index can
+-- answer the profile feed's whole question: this author, accepted, newest first.
+--
+-- WHY: the author lives on `post_authorships` and the timestamp lives on
+-- `posts`, and an index cannot span two tables. So the planner had two bad
+-- choices and picked whichever the statistics favoured, with no third option:
+--
+--   * walk a chronological index over the WHOLE of `posts`, probing
+--     `post_authorships` once per candidate row — 42,394 probes to return 21
+--     rows, 84-99 ms for an ordinary account, and it degrades as the author's
+--     share of recent posts FALLS, so it is worst for the typical user;
+--   * or gather every one of the author's posts and sort them — cost
+--     proportional to their lifetime output, 243 ms at 20,000 posts.
+--
+-- Neither is bounded by the page size. Measured on 624k posts, page of 21, with
+-- this column and index in place the profile feed is flat across author size:
+--
+--   ordinary account (2,003 posts)    5.0 ms  ->  0.81-0.95 ms
+--   prolific account (20,000 posts)   5.8 ms  ->  0.93-1.00 ms
+--
+-- (The 5.0/5.8 ms baseline is already the improved `or`-form from the previous
+-- change, not the 84-99 ms original. This removes what that one left behind: a
+-- deliberate regression on prolific accounts, which is now gone in both
+-- directions rather than traded.)
+--
+-- WHY A COPY IS SAFE HERE, which is not a general licence. `posts.created_at` is
+-- written once by an insert default and never updated — `db/schema/columns.ts`
+-- says so and `posts_created_at_ms_precision_check` is built on the same
+-- assumption — so there is no update path for a copy to miss. The two writers
+-- that create authorship rows (`insertChildRows`, `replacePostAuthorship`) read
+-- the value back out of `posts` in the same statement rather than being handed
+-- it, so a caller cannot pass a value that disagrees; and
+-- `__tests__/authorshipChronoSync.test.ts` asserts the agreement rather than
+-- trusting it. A column whose source DID change under it would need a trigger or
+-- a generated column, and neither is available across tables.
+--
+-- NULLABLE, deliberately. A `NOT NULL` column with no default cannot be added to
+-- a populated table without rewriting it under an ACCESS EXCLUSIVE lock, and the
+-- backfill below cannot run before the column exists. Under `DESC NULLS LAST` a
+-- NULL sorts last, so a missed row would surface as a post at the bottom of a
+-- profile rather than as a corrupted order — visible, and recoverable by
+-- re-running the UPDATE.
+--
+-- NOT online, matching `0003` and `0004`: `CREATE INDEX CONCURRENTLY` cannot run
+-- inside the migrator's transaction. `ADD COLUMN` with no default is a catalogue
+-- change and does not rewrite the table; the `UPDATE` and the `CREATE INDEX` are
+-- the costly halves and both scale with `post_authorships`, which holds one row
+-- per post plus one per collaborator. If that table grows to where the lock
+-- matters, split this into the column plus a batched backfill and build the
+-- index concurrently outside the migrator.
+
+ALTER TABLE "post_authorships" ADD COLUMN "post_created_at" timestamp with time zone;--> statement-breakpoint
+UPDATE "post_authorships" a SET "post_created_at" = p."created_at" FROM "posts" p WHERE p."id" = a."post_id" AND a."post_created_at" IS DISTINCT FROM p."created_at";--> statement-breakpoint
+CREATE INDEX "post_authorships_author_chrono_idx" ON "post_authorships" USING btree ("oxy_user_id","status","post_created_at" DESC NULLS LAST,"post_id" DESC NULLS LAST);

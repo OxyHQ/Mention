@@ -2,31 +2,23 @@ name: CI
 
 on:
   push:
-    # `drizzle/channels-plans` is the Mongo->Postgres migration trunk, and it is
-    # here because on `pull_request` alone its CI is hostage to a branch it does
-    # not control.
-    #
-    # A `pull_request` run builds `refs/pull/N/merge`, which GitHub cannot create
-    # while the PR conflicts — so the MOMENT `main` lands a commit that touches
-    # anything the trunk also touched, every push to the trunk dispatches NOTHING.
-    # Not a failure, not a queued run: no run at all. Measured 2026-08-04, four
-    # consecutive trunk pushes carrying five merged fixes produced zero runs over
-    # an hour, and the silence was read as "CI is running" four times before
-    # anybody checked. A gate whose absence is indistinguishable from its success
-    # is the failure mode this repo has already paid for once, in the deploy
-    # workflows above.
-    #
-    # Safe on both counts that matter, checked rather than assumed:
-    #  - the three deploy workflows trigger on `workflow_run` with
-    #    `branches: [main]`, so a green run here CANNOT deploy this branch; and
-    #  - `concurrency.group` keys on `github.ref`, so trunk runs share no lane
-    #    with main's and hold at most one running plus one pending, same bound.
-    #
-    # REMOVE THIS ENTRY when the migration trunk merges and the branch is deleted.
-    # It is the only branch-specific line in this file and it should stay that way.
-    branches: [main, drizzle/channels-plans]
+    # No branch-specific entry here, and it should stay that way. A long-lived
+    # branch was listed while the Postgres migration trunk existed, because on
+    # `pull_request` alone a run builds `refs/pull/N/merge`, which GitHub cannot
+    # create while the PR conflicts — so a conflicted branch dispatches NO run at
+    # all, which looks exactly like a green one. That branch has merged and been
+    # deleted; the escape hatch below covers the same failure mode generally.
+    branches: [main]
   pull_request:
     branches: [main]
+  # The escape hatch the comment above is missing. A push that dispatches NO run
+  # is indistinguishable from one whose run passed, and the three deploy
+  # workflows key on `workflow_run` of this one — so a skipped dispatch is a
+  # release that silently never happens, with nothing red to notice. Measured on
+  # `ea100282`: the only run GitHub recorded for that commit was CodeQL, this
+  # workflow never dispatched, and the merge sat undeployed with `main` green.
+  # Without this, the only way to recover is to push another commit.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -61,7 +53,7 @@ concurrency:
 
 env:
   BUN_VERSION: '1.3.14'
-  NODE_VERSION: '22.17.0'
+  NODE_VERSION: '24.20.0'
 
 jobs:
   quality:
@@ -94,6 +86,7 @@ jobs:
           bash .github/scripts/test-smoke-mention.sh
           bash .github/scripts/test-check-schema-migration-parity.sh
           bun .github/scripts/test-runtime-image-audit.mjs
+          bun run --cwd packages/frontend coverage:policy-selftest
 
   # Ported from bluesky-social/social-app 513a188a2 ("Add a GitHub Action
   # verifying lockfile against base", MIT (c) 2023-2026 Bluesky Social PBC).
@@ -151,7 +144,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
-    # PostgreSQL for the Mongo->Postgres migration. The backend suite creates ONE
+    # PostgreSQL, the backend's only data store. The suite creates ONE
     # throwaway, fully-migrated database per run against this server
     # (packages/backend/src/db/testDatabase.ts) and drops it afterwards.
     #
@@ -208,18 +201,11 @@ jobs:
             command: bun run --cwd packages/mcp test
             coverage: false
     steps:
-      # fetch-depth: 0 for TWO independent reasons, arrived at separately. Either
-      # one alone justifies it, so do not remove it on the strength of retiring
-      # just one of them:
-      #
-      #  1. The backend suite resolves DELETED Mongoose models out of git
-      #     history. The Mongo->Postgres port removes each model as its
-      #     collection lands, so on a shallow checkout the closed-value-set gate
-      #     (packages/backend/src/__tests__/db/closedValueSets.test.ts) would
-      #     find no deletions — indistinguishable from a port that has deleted
-      #     none — and would silently stop comparing those vocabularies. It
-      #     refuses on a shallow clone rather than pass vacuously.
-      #  2. The scope diff below needs both ends of the comparison.
+      # fetch-depth: 0 because the scope diff below needs both ends of the
+      # comparison. It used to carry a second, independent reason — a gate that
+      # resolved deleted Mongoose models out of git history and refused on a
+      # shallow clone rather than pass vacuously — which retired with the models
+      # themselves.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
@@ -264,6 +250,24 @@ jobs:
       - name: Assert the suite collected what it claims to run
         if: always() && matrix.package == 'backend' && steps.scope.outputs.run == 'true'
         run: bun run check:suite-collection "$RUNNER_TEMP/backend-report.json" packages/backend/src
+      # The frontend's critical-path floor and no-regression ratchet. Kept out of
+      # `test:coverage` itself because CI appends `--coverageDirectory` to that
+      # script, and an appended flag lands on the LAST command of a chain — so
+      # `jest && policy` would hand the flag to the policy and instrument nothing.
+      #
+      # `always()`: jest's own thresholds can fail for a reason the policy would
+      # explain — which file, and how to reproduce it — and a step that runs only
+      # after a green suite never gets to say so.
+      #
+      # The base revision is the one the scope step diffs against. It is what
+      # stops a pull request lowering the recorded baseline in the same commit
+      # that removes the tests; the script REFUSES an unresolvable base rather
+      # than skipping, so a shallow clone fails loudly instead of vacuously.
+      - name: Enforce the frontend coverage policy
+        if: always() && matrix.package == 'frontend' && steps.scope.outputs.run == 'true'
+        env:
+          COVERAGE_POLICY_BASE: ${{ github.base_ref && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: bun run --cwd packages/frontend coverage:check -- --coverage-dir "$RUNNER_TEMP/frontend-coverage"
       - name: Upload coverage summary
         if: always() && matrix.coverage && steps.scope.outputs.run == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -283,7 +287,13 @@ jobs:
   # both paths.
   frontend-bundle-baseline:
     name: Frontend bundle baseline
-    if: github.event_name == 'push'
+    # `workflow_dispatch` rides the push path deliberately. A manual run is a
+    # run of `main`, so it should record a baseline exactly as a push does —
+    # and `CI complete` requires the bundle to have run on EXACTLY one of the
+    # two paths, so leaving a third event matching neither made the required
+    # check fail by construction on every dispatch. Measured: baseline=skipped
+    # pull-request=skipped on run 31127222964, with every other job green.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:

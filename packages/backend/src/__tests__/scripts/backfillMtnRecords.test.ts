@@ -33,7 +33,7 @@
  * a row whose `created_at` came from the database clock: `timestamptz` carries
  * microseconds, a JS `Date` carries milliseconds, so the cursor compared against
  * a value smaller than the row that produced it and matched its own anchor
- * forever. Fixed at the source — `columns.ts` now defaults to
+ * forever. Fixed at the source — `@oxyhq/db`'s `createdAt()` defaults to
  * `date_trunc('milliseconds', now())`, with a CHECK on `posts` so it cannot come
  * back — and the fixtures here use the database clock again precisely so the
  * ordinary cases exercise it.

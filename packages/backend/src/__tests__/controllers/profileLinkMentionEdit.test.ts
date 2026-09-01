@@ -27,7 +27,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * leaving a stored id with no placeholder behind it. Reading the row back asserts
  * exactly that pairing landed — `mentions` lives in `post_mentions` and the body
  * in `post_contents`, so a fold that reached one table and not the other fails
- * here. `posts.controller` writes the whole `content` column back rather than a
+ * here. `updatePost` writes the whole `content` column back rather than a
  * tracked subtree, which is why no `markModified` equivalent exists to call.
  *
  * Same seams as the sibling `controllers/profileLinkMentionReply.test.ts`: the
@@ -99,7 +99,7 @@ vi.mock('../../db/federation/actorRepository', async (importOriginal) => ({
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { updatePost } from '../../controllers/posts.controller';
+import { updatePost } from '../../controllers/posts/updatePost';
 
 const scope = serviceScope('profile-link-mention-edit');
 

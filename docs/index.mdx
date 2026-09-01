@@ -17,18 +17,18 @@ Mention is a cross-platform social application with four Bun workspaces:
 
 The frontend uses React Native 0.85, React 19, Expo Router, Bloom,
 NativeWind/Tailwind, TanStack Query, Zustand, Socket.IO, and lazy-loaded
-Syra/LiveKit room support. The backend uses Express 5, Mongoose 8, MongoDB,
-Valkey-compatible Redis clients, BullMQ, Socket.IO, Zod, and Prometheus
-instrumentation.
+Syra/LiveKit room support. The backend uses Express 5, PostgreSQL through
+Drizzle ORM, Valkey-compatible Redis clients, BullMQ, Socket.IO, Zod, and
+Prometheus instrumentation.
 
 ## Data ownership
 
 - **Oxy** is authoritative for users, authentication, profile identity, blocks,
   restrictions, and the social graph.
-- **Mention MongoDB** is authoritative for posts, feeds, engagement,
+- **Mention PostgreSQL** is authoritative for posts, feeds, engagement,
   notifications, Mention mutes, federation records, and MCP connection data.
 - **MTN** appends verifiable signed records for eligible local writes. It does
-  not replace the application's MongoDB read model.
+  not replace the application's PostgreSQL read model.
 - **External connectors** isolate ActivityPub and optional AT Protocol behavior
   from post creation and feed code.
 
@@ -38,7 +38,7 @@ the canonical Oxy user shape rather than an app-specific identity adapter.
 ## Request flow
 
 ```text
-Expo app ── REST / Socket.IO ──> Mention backend ──> MongoDB
+Expo app ── REST / Socket.IO ──> Mention backend ──> PostgreSQL
                                      │   │
                                      │   ├──> Valkey: cache, queues, locks, pub/sub
                                      │   └──> Oxy: identity and graph
@@ -63,7 +63,7 @@ AWS is the only application runtime deployment target.
 ## Health and observability
 
 - `/health/live` is process liveness.
-- `/health/ready` requires startup, schema migrations, and MongoDB.
+- `/health/ready` requires startup, schema migrations, and PostgreSQL.
 - Redis/Valkey is reported as degraded without making HTTP readiness fail.
 - `/internal/metrics` is protected by a service token and network restriction.
 - `/telemetry/web` accepts bounded Core Web Vitals and browser runtime events.
@@ -75,9 +75,18 @@ belong in metric labels.
 ## Read next
 
 - [Architecture](/developers/docs/mention/architecture)
+- [The architecture boundary gate](./architecture-boundary-gate.md)
 - [API](/developers/docs/mention/api)
 - [Compatibility retirement](./COMPATIBILITY_RETIREMENT.md)
 - [Fediverse](/developers/docs/mention/fediverse)
+- [Federation behaviors and edge cases](./federation-behaviors.md)
+- [Lanes and channels](./channels-and-lanes.md)
+- [Feed ranking, classification and safety](./feed-ranking.md)
+- [Post lifecycle and identity](./post-lifecycle.md)
+- [Frontend rules](./frontend-rules.md)
+- [React Compiler and web virtualization](./frontend-compiler-notes.md)
+- [Moderation (CrowdSource) design detail](./moderation-crowdsource.md)
+- [Development](./development.md)
 - [User mentions](/developers/docs/mention/mentions)
 - [MCP server](../packages/mcp/README.md)
 - [Production deployment](./AWS_DEPLOYMENT.md)

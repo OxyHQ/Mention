@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { getDb } from '../db/postgres';
-import { isUniqueViolation } from '../db/pgErrors';
+import { isUniqueViolation } from '@oxyhq/db';
 import { ENTITY_FOLLOW_TYPES, entityFollows } from '../db/schema/engagement';
 import { logger } from '../utils/logger';
 import { listSubscriptionService, LIST_ENTITY_TYPE } from '../services/ListSubscriptionService';

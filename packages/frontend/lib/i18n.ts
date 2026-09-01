@@ -21,7 +21,7 @@ import { logger } from '@oxyhq/core/logger';
 /**
  * `en-US` is both `DEFAULT_LANGUAGE` and `fallbackLng`, so it is needed on every
  * boot and stays in the initial graph. The other locales are fetched on demand:
- * statically importing all three put every translation of every string into the
+ * statically importing every catalog would put every translation of every string into the
  * web app's initial chunk, ~40 KB gzip of which no single user can ever read.
  *
  * Same shape as bluesky-social/social-app 41b374236, which moved its message
@@ -30,6 +30,18 @@ import { logger } from '@oxyhq/core/logger';
 const TRANSLATION_LOADERS: Record<string, () => Promise<ResourceKey>> = {
   'es-ES': async () => (await import('@/locales/es.json')).default,
   'it-IT': async () => (await import('@/locales/it.json')).default,
+  'ca-ES': async () => (await import('@/locales/ca.json')).default,
+  'fr-FR': async () => (await import('@/locales/fr.json')).default,
+  'pt-BR': async () => (await import('@/locales/pt.json')).default,
+  'de-DE': async () => (await import('@/locales/de.json')).default,
+  'ru-RU': async () => (await import('@/locales/ru.json')).default,
+  'zh-CN': async () => (await import('@/locales/zh.json')).default,
+  'hi-IN': async () => (await import('@/locales/hi.json')).default,
+  'ar-SA': async () => (await import('@/locales/ar.json')).default,
+  'bn-BD': async () => (await import('@/locales/bn.json')).default,
+  'ja-JP': async () => (await import('@/locales/ja.json')).default,
+  'id-ID': async () => (await import('@/locales/id.json')).default,
+  'tr-TR': async () => (await import('@/locales/tr.json')).default,
 };
 
 const baseResources: Resource = { 'en-US': { translation: enUS } };

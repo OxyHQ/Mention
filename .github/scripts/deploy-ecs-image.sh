@@ -17,6 +17,25 @@ POLL_INTERVAL="${POLL_INTERVAL:-15}"
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-false}"
 INTERNAL_METRICS_PARAMETER="${INTERNAL_METRICS_PARAMETER:-}"
 TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
+# Secret NAMES to REMOVE from the rendered task definition, space-separated.
+#
+# The script derives each release's definition from the LIVE one and rewrites
+# only what it is told about, so a secret nobody names survives indefinitely —
+# which is how the connection string for a retired datastore once outlived the
+# store it pointed at. Removal has to be expressible, and it has to be a STANDING
+# assertion rather than a one-off manual registration: the definition is also
+# recorded in Terraform, so an apply or a hand-registered revision can
+# reintroduce a secret that was deleted once. Naming it here re-asserts its
+# absence on every deploy.
+#
+# Removing the secret does NOT delete its SSM parameter, and the two decisions
+# are deliberately independent: a parameter may still be needed by a one-shot
+# that is not this service. Retiring the parameter is a separate, irreversible
+# step — and note the ORDER matters, because a definition that still names a
+# parameter which no longer exists fails every task launch on
+# `unable to pull secrets`. Strip the secret here first, ship a deploy, then
+# delete the parameter.
+TASK_SECRET_REMOVALS="${TASK_SECRET_REMOVALS:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
@@ -27,12 +46,12 @@ POST_DEPLOY_TASK_COMMAND_JSON="${POST_DEPLOY_TASK_COMMAND_JSON:-}"
 # lost, and rolling a new image onto nothing produces a green deploy and an
 # outage. That guard stays.
 #
-# The exception it exists for is the Mongo->Postgres cutover. Traffic is stopped
-# at desiredCount 0 for the whole window ON PURPOSE, because the running image
-# is Mongo-backed: bringing it up after the copy has finished would let real
-# user writes land in the store being abandoned, and the copy is not
-# incremental, so nothing recovers them. Downtime is acceptable there; losing
-# writes is not.
+# The exception it exists for is a planned window that holds traffic at
+# desiredCount 0 ON PURPOSE. The case it was written for was the Postgres
+# cutover: bringing the old image up after the copy had finished would have let
+# real user writes land in the store being abandoned, and the copy was not
+# incremental, so nothing would have recovered them. Downtime was acceptable
+# there; losing writes was not. Any future window with that shape uses this.
 #
 # It names the SERVICE rather than being a boolean, for the same reason
 # `--confirm-truncate` names the database instead of taking `true`: a bare
@@ -85,27 +104,29 @@ fi
 # image being rolled out. A non-zero exit from any of them stops the release
 # before `update-service`.
 #
-# ORDER IS LOAD-BEARING, AND POSTGRES IS FIRST.
+# ORDER IS LOAD-BEARING, AND THE SCHEMA IS FIRST.
 #
-# The two stores fail differently. The Mongo migrations are data migrations
-# against a schema that already exists, and skipping them leaves the previous
-# release's behaviour in place. The Postgres migrations are the SCHEMA: a task
-# that boots against a database they never reached connects, answers the health
-# check, is given traffic, and only then fails every query — the damage lands
-# after the point of no return rather than before it. So the store that can
-# invalidate the whole rollout is settled first, and a failure there costs
-# nothing because nothing has been routed yet.
+# The Postgres migrations are the SCHEMA: a task that boots against a database
+# they never reached connects, answers the health check, is given traffic, and
+# only then fails every query — the damage lands after the point of no return
+# rather than before it. So the step that can invalidate the whole rollout is
+# settled first, and a failure there costs nothing because nothing has been
+# routed yet.
 #
-# `assertPostgresMigrationsCurrent` in packages/backend/src/db/migrationLedger.ts
-# is the other half: it refuses to let a task become ready when this step did not
-# run. Neither replaces the other — this one applies the migrations, that one
+# `assertPostgresMigrationsCurrent` in packages/backend/src/db/migrationsFolder.ts
+# (wrapping @oxyhq/db/migrate's assertPostgresMigrationsCurrentAgainst) is the
+# other half: it refuses to let a task become ready when this step did not run.
+# Neither replaces the other — this one applies the migrations, that one
 # survives the case where somebody bypassed this one.
 #
-# Both migration entries run during the dual-run. Postgres does not replace
-# Mongo yet.
+# THE MONGO MIGRATION ENTRY IS GONE. It ran a ledger-guarded runner whose every
+# migration was already recorded applied in production, so it applied nothing;
+# its one live payload was the blocked-domain purge, which is Postgres-only and
+# now has its own entry below. Verified by SET INCLUSION before removal — every
+# id the runner declared was present in production's ledger — not by comparing
+# counts.
 #
-# THE THIRD ENTRY IS THE POPULATION FLOOR, and it is last because it is the only
-# one that reads rows: the schema has to exist before rows can be counted.
+# THE POPULATION FLOOR reads rows, so it comes after the schema exists.
 #
 # It exists because a 200 is not evidence of a database. A trunk image went live
 # against an empty Postgres on 2026-08-04, every post-deploy smoke check passed
@@ -114,24 +135,25 @@ fi
 # smoke checks because a failure here has routed nothing; a smoke failure rolls
 # back after the image has already served.
 #
-# ITS LIFETIME IS THE CUTOVER'S. It asserts that Postgres is authoritative,
-# which is false before the cutover and false again after a rollback to Mongo —
-# the planned contingency. It therefore ships INSIDE the cutover commit, so
-# reverting the cutover reverts it. Landing it separately would leave a guard
-# that blocks every deploy after a Mongo rollback, for a reason nothing about
-# that rollback would lead anyone to look for.
+# THE BLOCKED-DOMAIN PURGE IS LAST because it is the only one that DELETES: the
+# schema has to be current and the store has to be populated before content is
+# removed from it. It used to ride inside the retired Mongo migration one-shot
+# and was split out precisely because it is Postgres-only — carrying it inside a
+# step named after Mongo meant removing that step would have removed the purge
+# with it, silently. It exits 0 even when it fails (fail-soft by design), so it
+# cannot roll a healthy release back over a cleanup.
 MIGRATION_TASK_COMMANDS_JSON='[
   {
     "label": "Postgres migration",
     "command": ["bun", "packages/backend/dist/src/db/migrate.js", "--target-database=mention"]
   },
   {
-    "label": "Mongo migration",
-    "command": ["bun", "packages/backend/dist/scripts/migrate.js"]
-  },
-  {
     "label": "Postgres population floor",
     "command": ["bun", "packages/backend/dist/src/scripts/assertPostgresPopulated.js"]
+  },
+  {
+    "label": "Blocked-domain reconciliation",
+    "command": ["bun", "packages/backend/dist/src/scripts/reconcileBlockedDomains.js"]
   }
 ]'
 # Exit code a smoke script uses to say "this failed, and rolling back cannot fix
@@ -178,6 +200,21 @@ fi
 if [[ -z "$TASK_SECRET_OVERRIDES_JSON" ]]; then
   TASK_SECRET_OVERRIDES_JSON='{}'
 fi
+for removal_name in $TASK_SECRET_REMOVALS; do
+  if ! [[ "$removal_name" =~ ^[A-Z][A-Z0-9_]{0,127}$ ]]; then
+    echo "::error::TASK_SECRET_REMOVALS must be space-separated environment variable names; got '$removal_name'."
+    exit 1
+  fi
+  # A name in BOTH lists is refused rather than resolved. The render filters by
+  # name and then concatenates the overrides, so such a name would be dropped and
+  # immediately re-added — the outcome would depend on the order of two
+  # operations nobody is reading, in a render of SECRETS. Whoever wrote both
+  # entries meant one of them; the script must not pick.
+  if jq -e --arg name "$removal_name" 'has($name)' <<<"$TASK_SECRET_OVERRIDES_JSON" >/dev/null; then
+    echo "::error::$removal_name is in both TASK_SECRET_OVERRIDES_JSON and TASK_SECRET_REMOVALS. Remove it from one."
+    exit 1
+  fi
+done
 if ! jq -e '
   type == "object" and
   length <= 20 and
@@ -512,6 +549,10 @@ task_secret_overrides="$(jq -c '
   ]
 ' <<<"$TASK_SECRET_OVERRIDES_JSON")"
 
+# The removals ride the SAME filter as the overrides — both are "drop any secret
+# with this name" — and only the overrides are concatenated back afterwards.
+task_secret_removals="$(jq -cRn '[inputs | select(length > 0)]' <<<"$(printf '%s\n' $TASK_SECRET_REMOVALS)")"
+
 aws ecs describe-task-definition \
   --task-definition "$current_task_definition" \
   --query taskDefinition \
@@ -529,6 +570,7 @@ jq \
   --arg image "$IMAGE_URI" \
   --arg internalMetricsSecretArn "$internal_metrics_secret_arn" \
   --argjson taskSecretOverrides "$task_secret_overrides" \
+  --argjson taskSecretRemovals "$task_secret_removals" \
   '
     del(
       .taskDefinitionArn,
@@ -539,7 +581,7 @@ jq \
       .registeredAt,
       .registeredBy
     )
-    | ($taskSecretOverrides | map(.name)) as $taskSecretNames
+    | (($taskSecretOverrides | map(.name)) + $taskSecretRemovals) as $taskSecretNames
     | .containerDefinitions |= map(
         if .name == $name then
           .image = $image

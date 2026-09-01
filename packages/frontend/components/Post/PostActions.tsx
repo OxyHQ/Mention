@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, type PressableProps } from 'react-native';
 import { SpinnerIcon } from '@oxyhq/bloom/loading';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CommentIcon } from '@/assets/icons/comment-icon';
@@ -55,7 +55,18 @@ interface Props {
   onLikesPress?: () => void;
   onBoostsPress?: () => void;
   onInsightsPress?: () => void;
+  /**
+   * Translate into the reader's own language, or undo it. Absent for a post
+   * already written in that language — translating it would do nothing, so it
+   * gets no icon rather than a dead one.
+   */
   onTranslate?: () => void;
+  /**
+   * Read this post in some OTHER language. Reached by a long press on the same
+   * icon, and — because a long press is neither discoverable nor operable by a
+   * screen reader — by the `translateTo` accessibility action beside it.
+   */
+  onTranslateLongPress?: () => void;
   isTranslated?: boolean;
   isTranslating?: boolean;
   postId?: string;
@@ -77,6 +88,7 @@ const PostActions: React.FC<Props> = ({
   onBoostsPress,
   onInsightsPress,
   onTranslate,
+  onTranslateLongPress,
   isTranslated,
   isTranslating,
 }) => {
@@ -90,6 +102,25 @@ const PostActions: React.FC<Props> = ({
   const saves = engagement?.saves ?? 0;
   const downvotes = engagement?.downvotes ?? 0;
   const replierAvatars = engagement?.recentReplierAvatars ?? [];
+
+  // The translate icon's SECOND job — reading the post in some other language —
+  // hung off a long press, which no screen reader performs, so the accessibility
+  // action carries the same call. Both arrive together or not at all: an
+  // advertised action that does nothing is worse than an absent one.
+  const otherLanguagesProps: Partial<
+    Pick<PressableProps, 'onLongPress' | 'accessibilityActions' | 'onAccessibilityAction'>
+  > = onTranslateLongPress
+    ? {
+        onLongPress: () => {
+          haptic('medium');
+          onTranslateLongPress();
+        },
+        accessibilityActions: [{ name: 'translateTo', label: 'Read in another language' }],
+        onAccessibilityAction: (event) => {
+          if (event.nativeEvent.actionName === 'translateTo') onTranslateLongPress();
+        },
+      }
+    : {};
 
   // ONE action bar, rendered identically wherever a post appears — a feed row
   // and the focused post on `/p/:id` included. A focused post adds
@@ -211,6 +242,7 @@ const PostActions: React.FC<Props> = ({
             haptic('light');
             onTranslate();
           }}
+          {...otherLanguagesProps}
           hitSlop={HIT_SLOP_MD}
           accessibilityLabel={isTranslated ? 'Show original' : 'Translate'}
           disabled={isTranslating}

@@ -6,9 +6,9 @@
  * query API — a table that is not re-exported here is invisible to both, so it
  * gets neither a migration nor a typed query.
  *
- * Only TABLE modules belong here. `columns.ts`, `deferredForeignKeys.ts` and
+ * Only TABLE modules belong here. `deferredForeignKeys.ts` and
  * `protectedColumns.ts` are schema support, imported directly by the code that
- * needs them.
+ * needs them; the shared column builders come from `@oxyhq/db`.
  *
  * The conventions every table follows — naming, ids, enums, timestamps, foreign
  * keys, expiry, protected columns — are in `CONVENTIONS.md`. Read it before

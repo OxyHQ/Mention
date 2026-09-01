@@ -10,8 +10,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * not catch:
  *
  *  1. The bound covers the WHOLE router, not just the route the CodeQL dataflow
- *     reached. Every handler in `statistics.controller` queries Mongo — the
- *     insights route runs three parallel `countDocuments`, and the public
+ *     reached. Every handler in `statistics.controller` queries the database —
+ *     the insights route runs three parallel counts, and the public
  *     heatmap aggregates a caller-chosen window — so a fix that guarded one line
  *     and left five siblings would be a fix in name only. Each route is
  *     exercised individually rather than sampled.

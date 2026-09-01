@@ -72,14 +72,14 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to ECR
-        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Build and push immutable backend image
         id: build
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: ${{ env.DOCKERFILE }}
@@ -114,7 +114,6 @@ jobs:
           MENTION_OXY_CLIENT_ID: ${{ secrets.MENTION_OXY_CLIENT_ID }}
           MENTION_PRIVATE_KEY: ${{ secrets.MENTION_PRIVATE_KEY }}
           MENTION_PUBLIC_KEY: ${{ secrets.MENTION_PUBLIC_KEY }}
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
           OXY_SERVICE_API_KEY: ${{ secrets.OXY_SERVICE_API_KEY }}
           OXY_SERVICE_API_SECRET: ${{ secrets.OXY_SERVICE_API_SECRET }}
           OXY_SERVICE_TOKEN: ${{ secrets.OXY_SERVICE_TOKEN }}
@@ -122,10 +121,18 @@ jobs:
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           REDIS_URI: ${{ secrets.REDIS_URI }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
+          # The allowlist below is the whole set. A name absent from it is never
+          # written: the sync loop only ever calls `put-parameter --overwrite`,
+          # so dropping a name does not delete anything — it leaves any existing
+          # parameter of that name in place, frozen at its last synced value.
+          # A frozen parameter is invisible until something reads it and gets a
+          # stale answer, so retiring a secret means dropping it from here AND
+          # deciding separately whether the parameter itself goes. That second
+          # decision is irreversible and belongs to whoever owns SSM.
           SSM_SECRET_ALLOWLIST: >-
             ALIA_API_KEY DATABASE_URL FIREBASE_SERVICE_ACCOUNT_BASE64 FIREBASE_PROJECT_ID
             INTERNAL_METRICS_TOKEN KLIPY_APP_KEY MENTION_OXY_CLIENT_ID
-            MENTION_DID MENTION_PRIVATE_KEY MENTION_PUBLIC_KEY MONGODB_URI
+            MENTION_DID MENTION_PRIVATE_KEY MENTION_PUBLIC_KEY
             OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET OXY_SERVICE_TOKEN
             REDIS_URL REDIS_URI
             REDIS_HOST REDIS_PASSWORD
@@ -190,13 +197,11 @@ jobs:
           # a service scaled to zero, which is what a lost-capacity incident
           # looks like.
           #
-          # Set to `mention:<YYYY-MM-DD>` for the Mongo->Postgres cutover ONLY,
-          # where traffic
-          # is deliberately held at zero for the whole window because the running
-          # image is Mongo-backed and bringing it up after the copy would let
-          # real writes land in the store being abandoned. The runbook sets it in
-          # the same step that scales to 0 and unsets it in the step that scales
-          # back up, so its lifetime is the window's.
+          # Set to `mention:<YYYY-MM-DD>` only for a planned window where traffic
+          # is deliberately held at zero — a store migration is the case it was
+          # written for, and the last one is done. Set it in the same step that
+          # scales to 0 and unset it in the step that scales back up, so its
+          # lifetime is the window's.
           #
           # It is inert on its own: `deploy-ecs-image.sh` only consults it when
           # `desiredCount` is already 0, which takes a deliberate scale-down. A
@@ -210,15 +215,62 @@ jobs:
           # digest-pinned image this pipeline runs. Anything that must reach
           # production therefore goes HERE as well as in the Terraform record.
           #
-          # DATABASE_URL: the Mongo->Postgres port requires it at boot. Added
-          # ahead of the port so the wiring is proven against an image that
-          # ignores the variable; a missing parameter would otherwise surface as
-          # `ResourceInitializationError: unable to pull secrets` during a cutover.
+          # DATABASE_URL: the backend opens Postgres at boot and refuses to come
+          # up without it, so a missing parameter surfaces as
+          # `ResourceInitializationError: unable to pull secrets` before any task
+          # runs.
           TASK_SECRET_OVERRIDES_JSON: >-
             {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_MCP_JWT_SECRET",
              "DATABASE_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/DATABASE_URL"}
-          POST_DEPLOY_TASK_COMMAND_JSON: >-
-            ["bun","packages/backend/dist/scripts/reconcile-engagement-projections.js"]
+          # DELIBERATELY UNSET, and it must stay that way — this is the variable
+          # that used to run `reconcile-engagement-projections.js` after every
+          # rollout. `deploy-ecs-image.sh` still supports it; nothing here needs
+          # it. Reasons, in the order that matters:
+          #
+          # 1. IT NEVER FIT, not even with the table empty — AND THE REASON
+          #    GENERALISES TO EVERY POST-DEPLOY ONE-SHOT. `deploy-ecs-image.sh`
+          #    passes `--task-definition "$new_task_definition"` to `run-task`
+          #    (`:593`), and that revision is registered from the LIVE SERVICE's
+          #    own definition (`:515`, `:577`) with only `image`, `secrets` and
+          #    `environment` rewritten. `cpu` and `memory` are copied verbatim,
+          #    and nothing here can override them. So the one-shot runs on the
+          #    WEB CONTAINER's sizing — `oxy-mention:211` is 512 CPU / 1024 MiB,
+          #    against 8192 CPU / 61440 MiB for the sizing this sweep was timed
+          #    on. 16x the CPU. The 12-minute measurement extrapolates to roughly
+          #    3 HOURS inside a 20-minute deadline. **Any post-deploy one-shot
+          #    doing heavy work inherits a container sized to serve HTTP
+          #    requests.** Whatever gets coupled here next hits this too, and it
+          #    is invisible from the workflow — the sizing is never named in this
+          #    file.
+          # 2. A FAILING ONE-SHOT ROLLS THE SERVICE BACK (`:689`). On 2026-08-05
+          #    a healthy release that had already reached steady state and passed
+          #    its smoke checks was reverted because this sweep did not finish
+          #    inside MAX_WAIT_SECS. Release health and maintenance work are
+          #    different questions, and only one of them may cancel a deploy.
+          # 3. IT IS NOT INCREMENTAL, so the cost is paid in full every time.
+          #    Measured against a 624,116-post copy of production's shape: a
+          #    second run over already-converged data still processed 300,000
+          #    posts in 210s, deleting and reinserting 300,000 rows to produce a
+          #    byte-identical result. Converging beforehand shortens it by
+          #    nothing — which is also why converging out of band did not rescue
+          #    the deploy that this removal follows.
+          # 4. THE COST GROWS WITH THE TABLE, so no timeout survives. Work is
+          #    O(distinct reply parents), which grows with content — production
+          #    was at 156,945 of them, reconciled twice per run. Raising
+          #    MAX_WAIT_SECS would not have bought months even before (1); with
+          #    it, there was never a value that worked.
+          # 5. IT IS A MIGRATION-WINDOW CLOSER, not a release step — its own
+          #    docblock says so. It repairs what the writers that predate the
+          #    Postgres cutover left wrong: a fixed, historical set. Today's
+          #    writers maintain both projections transactionally
+          #    (`PostEngagementCommandService`, `recordRecentReplierForPost`) and
+          #    the backfill loads both, so on an ordinary deploy it recomputes
+          #    correct values into themselves.
+          #
+          # It now runs BY HAND when there is a reason to — after a restore, or
+          # after any window where those writers were not the only ones writing.
+          # `packages/backend/scripts/reconcile-engagement-projections.ts` holds
+          # the command and how to launch it.
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-mention.sh
         # The existing target group remains on `/`, which server.ts now serves
         # as the same readiness gate as `/health/ready`. ELB mutations belong

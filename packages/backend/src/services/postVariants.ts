@@ -11,6 +11,7 @@ import {
 } from '@mention/shared-types';
 import { config } from '../config';
 import { normalizeAltInput, normalizeMediaItems } from '../utils/mediaInput';
+import { normalizePostHashtags } from '../utils/textProcessing';
 
 /**
  * Multilingual post content: the ONE place that knows how a localized rendition
@@ -142,6 +143,40 @@ export function applyDetectedPrimaryTag(
 }
 
 /**
+ * Remove a spammy 4+ consecutive-hashtag block from every AUTHOR rendition.
+ *
+ * This is the surviving half of the Mongoose `pre('validate')` hook that the
+ * Postgres cutover retired. The hook ran on `.save()`, which is how BOTH native
+ * write paths persisted a post (`new Post(...).save()` in `PostCreationService`,
+ * `post.save()` in `updatePost`), so it fired on every native create and every
+ * native edit right up to the cutover — it is a behaviour that was lost, not a
+ * validator that never ran. The federated ingest path never depended on it
+ * (`connectors/activitypub/apPostContent.ts` calls `normalizePostHashtags`
+ * directly), which is why the gap presented as Mention cleaning other instances'
+ * bodies while storing its own users' verbatim.
+ *
+ * MACHINE renditions are deliberately untouched: a translation is produced FROM
+ * the already-cleaned primary, so only the author's own words can carry a block
+ * of their own — the same predicate the hook used.
+ *
+ * The `hashtags` COLUMN is not this function's business and never loses a tag to
+ * the strip: both writers derive it with `mergeHashtags` over the RAW body before
+ * the clean, which is exactly what the hook did (`normalizePostHashtags` returns
+ * the full tag set alongside the cleaned text, from the same call).
+ *
+ * Idempotent — a cleaned block leaves at most one hashtag behind, which is no
+ * longer a block — so a body that already came through `normalizePostHashtags`
+ * on ingest passes through unchanged.
+ */
+export function stripSpamHashtagBlocks(variants: PostContentVariant[]): PostContentVariant[] {
+  return variants.map((variant) => {
+    if (variant.source !== 'author') return variant;
+    const cleaned = normalizePostHashtags(variant.text).content;
+    return cleaned === variant.text ? variant : { ...variant, text: cleaned };
+  });
+}
+
+/**
  * The API's content shape → the STORED one: renditions only.
  *
  * The single conversion, shared by every write path (`PostCreationService`, the
@@ -155,6 +190,11 @@ export function applyDetectedPrimaryTag(
  * becomes the primary variant. A post with no body at all — a boost — keeps no
  * variant.
  *
+ * Every rendition it produces goes through {@link stripSpamHashtagBlocks} on the
+ * way out — this conversion is the create/reply/boost half of the two native
+ * writers that the retired `pre('validate')` hook used to cover; `updatePost`
+ * calls it for itself on the edit half.
+ *
  * The post-level facts are copied by an explicit whitelist, not a spread of the
  * request: `text` (and the hydration-only `textLang`) must NOT reach storage,
  * and everything below is deliberately not per-language — a poll's votes must
@@ -167,9 +207,11 @@ export function toStoredContent(
 ): StoredPostContent {
   const declared = authorVariants(content);
   const primary = buildPrimaryVariant(content.text, primaryLanguage);
-  const variants = declared.length > 0
-    ? applyDetectedPrimaryTag(declared, primaryLanguage)
-    : (primary ? [primary] : []);
+  const variants = stripSpamHashtagBlocks(
+    declared.length > 0
+      ? applyDetectedPrimaryTag(declared, primaryLanguage)
+      : (primary ? [primary] : []),
+  );
 
   return {
     ...(variants.length > 0 ? { variants } : {}),

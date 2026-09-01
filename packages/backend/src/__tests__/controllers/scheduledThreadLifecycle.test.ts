@@ -19,7 +19,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 const hoisted = vi.hoisted(() => ({
   claim: vi.fn(),
   hydratePosts: vi.fn(),
-  pollDeleteMany: vi.fn(),
 }));
 
 /**
@@ -66,31 +65,12 @@ vi.mock('../../connectors/outboundFederation', () => ({ federateAsResolvedActor:
 // it existed only to keep the Mongoose model out of the way — so once the
 // article write path moved to Postgres it proved nothing in either direction.
 
-vi.mock('../../models/Poll', () => ({
-  default: { deleteOne: () => ({ exec: async () => undefined }), deleteMany: hoisted.pollDeleteMany },
-}));
-
-vi.mock('../../models/Like', () => ({ default: { deleteMany: () => ({ exec: async () => undefined }) } }));
-vi.mock('../../models/Bookmark', () => ({ default: { deleteMany: () => ({ exec: async () => undefined }) } }));
-vi.mock('../../models/PostSubscription', () => ({ default: { deleteMany: () => ({ exec: async () => undefined }) } }));
-
-vi.mock('mongoose', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    default: {
-      ...(actual.default as Record<string, unknown>),
-      model: () => ({ deleteMany: () => ({ exec: async () => undefined }) }),
-      Types: (actual.default as { Types: unknown }).Types,
-    },
-  };
-});
-
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { findArticleById, insertArticle, newArticleId } from '../../db/posts/articleRepository';
 import { claimScheduledPost } from '../../db/posts/postRepository';
 import { clearServiceScope, readScopePosts, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { deletePost, publishScheduledPostNow } from '../../controllers/posts.controller';
+import { deletePost } from '../../controllers/posts/deletePost';
+import { publishScheduledPostNow } from '../../controllers/posts/scheduledPosts';
 
 const scope = serviceScope('scheduled-thread-lifecycle');
 const AUTHOR = scope.user('author');
@@ -173,7 +153,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   idByLabel = new Map();
   labelById = new Map();
-  hoisted.pollDeleteMany.mockReturnValue({ exec: async () => undefined });
   hoisted.hydratePosts.mockImplementation(async (posts: unknown[]) => posts);
   // The claim is the real one's CONTRACT, not its body: flip a still-scheduled
   // post and answer `null` otherwise. Its own transaction is covered by

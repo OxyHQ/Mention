@@ -2,14 +2,14 @@
  * Bluesky's sentinel for a handle that does not verify — one protocol fact,
  * deliberately in its own module.
  *
- * It lives here rather than in `./constants` because it has TWO consumers on
- * opposite sides of the app: the atproto connector, which must not key an actor
- * on it, and the Mongo→Postgres backfill, which has to recognise the rows
- * already written under it. `./constants` reads `../../config` at module load,
- * and `config/index.ts` THROWS on an incomplete environment — so importing it
- * from `db/backfill/**` would make a migration tool refuse to start without the
- * app's full runtime configuration, which is a worse tool. Nothing in
- * `db/backfill` imports an app module today and this keeps it that way.
+ * It lives here rather than in `./constants` because it once had TWO consumers
+ * on opposite sides of the app: the atproto connector, which must not key an
+ * actor on it, and the Mongo→Postgres copier, which had to recognise the rows
+ * already written under it. `./constants` reads `../../config` at module load
+ * and `config/index.ts` THROWS on an incomplete environment, so a standalone
+ * tool importing it would have refused to start without the app's full runtime
+ * configuration. The copier is gone; the separation stays, because the reason it
+ * was worth having applies to the next one-shot too.
  *
  * The alternative was a second copy of the string. A duplicated sentinel drifts
  * silently, and the whole failure this guards against is a value that identifies

@@ -21,8 +21,8 @@ import LanguageTabs from '../LanguageTabs';
  * tapping it is the ONLY route to `setPrimaryLanguage` — what the post declares,
  * which decides who the feed serves it to and what federates. Hiding it as "a
  * tab with nowhere to switch" reads plausible and silently deletes that. (The
- * reader-side `PostLanguageChip` DOES hide below two renditions; it only
- * switches between bodies that already exist, so it really does nothing there.)
+ * reader-side translate icon IS absent on a post already in the reader's own
+ * language; translating that really does nothing.)
  */
 
 jest.mock('react-i18next', () => ({

@@ -47,11 +47,11 @@
  *   Ingest is live: the federated corpus grows while a purge runs, so this is
  *   not a one-shot that gets ticked off. Each domain is walked in `limit`-sized
  *   passes, `nextCursor` echoed back as `afterId`, until the endpoint reports
- *   `done`. Progress is recorded in Mongo per domain after every pass — a
+ *   `done`. Progress is recorded in the database per domain after every pass — a
  *   Fargate one-shot's filesystem dies with the task — so a run that is killed
  *   resumes where it stopped, and a re-run costs one short pass per finished
- *   domain while still catching actors ingested since (an `_id` cursor advances
- *   into new arrivals by construction).
+ *   domain while still catching actors ingested since (the cursor advances into
+ *   new arrivals by construction).
  *
  *   `done` is THE loop condition, never `remaining`: retained rows keep matching
  *   forever and a dry run deletes nothing, so a caller looping on "anything
@@ -80,10 +80,8 @@
  *     bun packages/backend/dist/src/scripts/purgeBlockedDomainPlatformData.js
  */
 
-import mongoose from 'mongoose';
 import { canonicalFederationHost } from '@oxyhq/federation';
 import { getOxyServiceCredentials } from '../config';
-import { connectToDatabase } from '../utils/database';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 import { getBlockedDomainPolicy } from '../connectors/activitypub/federationBlockPolicy';
@@ -844,9 +842,11 @@ async function main(): Promise<void> {
 
     const domains = resolvePurgeTargets(options);
 
-    // The cursor rows live in Mongo; the purge itself happens entirely over the
-    // Oxy API.
-    await connectToDatabase();
+    // No store is opened here. The comment that used to sit here said the cursor
+    // rows live in Mongo; they live in POSTGRES — `lib/adminScriptCursor` reads
+    // and writes them through the Postgres pool — and the purge itself happens
+    // entirely over the Oxy API. Nothing on this path has needed Mongo since the
+    // cursor was ported.
     logger.info(`[${SCRIPT_NAME}] connected`, {
       dryRun: options.dryRun,
       domains: domains.size,
@@ -878,7 +878,6 @@ async function main(): Promise<void> {
     throw error;
   } finally {
     await closeAdminScriptResources();
-    await mongoose.disconnect();
   }
 }
 

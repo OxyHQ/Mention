@@ -252,6 +252,20 @@ export interface FeedExecution {
 /** The two execution modes a feed definition can run in. */
 export type FeedDefinitionMode = 'ranked' | 'chronological';
 
+/**
+ * The persisted subset of a {@link FeedDefinition}: the composable module lists
+ * the engine runs. `id`/`title` are NOT stored with it — they live on the custom
+ * feed row itself and are re-attached when the definition is resolved.
+ *
+ * Typed off `FeedDefinition` so the stored shape can never drift from the one
+ * the engine executes. It lived on the Mongoose `CustomFeed` model until that
+ * model was deleted; it was never a Mongo concept, only a field on one.
+ */
+export type StoredFeedDefinition = Pick<
+  FeedDefinition,
+  'mode' | 'sources' | 'signals' | 'filters'
+>;
+
 export interface FeedDefinition {
   id: string;
   title: string;

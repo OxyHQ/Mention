@@ -224,12 +224,12 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'text. The suite calls it with `dryRun: false`.',
   },
   {
-    path: 'src/__tests__/scripts/purgeGoneFederatedActors.test.ts',
-    jobEntryPoint: 'purgeGoneFederatedActors',
+    path: 'src/__tests__/scripts/reconcileBlockedDomains.test.ts',
+    jobEntryPoint: 'reconcileBlockedDomains',
     reason:
-      'The most destructive of the set: its candidate set is every SUSPENDED federated actor in ' +
-      'the database, and for each it DELETEs that actor\'s posts, boosts, mentions and MTN ' +
-      'chain rows. Another file\'s suspended actor is a candidate.',
+      'Its candidate set is every domain in the COMMITTED blocklist policy, and for each it ' +
+      'deletes that domain\'s posts and actor rows. Another file\'s federated post from a ' +
+      'blocked domain is a candidate, and the run also writes the shared purge ledger.',
   },
   {
     path: 'src/__tests__/scripts/repairFederatedMentions.test.ts',
@@ -261,13 +261,6 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'record for each — so it emits chain records for posts other files own.',
   },
   {
-    path: 'src/__tests__/scripts/backfillFederatedBanners.test.ts',
-    jobEntryPoint: 'backfillFederatedBanners',
-    reason:
-      'Pages `federated_actors` through `countActors`/`scanActors` with a table-wide filter and ' +
-      'writes a banner onto each, so another file\'s federated actor is in the page.',
-  },
-  {
     path: 'src/__tests__/scripts/backfillFederatedHandleQualificationRows.test.ts',
     jobEntryPoint: 'backfillFederatedHandleQualification',
     reason:
@@ -282,6 +275,16 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'Selects every federated post with a null `quote_of` whose body renders as `RE: <url>` and ' +
       'UPDATEs `quote_of` on it. Its suite mocks `signedFetch` to answer with a quote for ANY ' +
       'candidate, so a foreign row entering the scan is linked to this file\'s fixture.',
+  },
+  {
+    path: 'src/__tests__/scripts/backfillPostHasLinksRows.test.ts',
+    jobEntryPoint: 'backfillPostHasLinks',
+    reason:
+      'Sweeps every post in the table whose `has_links` column disagrees with its stored ' +
+      'renditions and rewrites the column on each — it takes no scope, because a repair that ' +
+      'only fixed the caller\'s rows would repair nothing in production. Its suite runs it with ' +
+      '`dryRun: false`, and the rows it would eat are the deliberately-disagreeing ones ' +
+      '`routes/searchPosts.test.ts` seeds to prove `has:links` reads the column, not the body.',
   },
 
   /*

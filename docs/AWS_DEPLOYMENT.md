@@ -6,11 +6,14 @@ mutation, and serialize releases per service.
 
 ## Surfaces
 
-| Surface | Runtime | Workflow |
-| --- | --- | --- |
-| `api.mention.earth` and the `mention.earth` apex | AWS ECS service `mention` | `.github/workflows/deploy-aws.yml` |
-| `mcp.mention.earth` | AWS ECS service `mention-mcp` | `.github/workflows/deploy-mcp-aws.yml` |
-| Static Expo web export | Cloudflare Pages project `mention-frontend` | `.github/workflows/deploy-frontends.yml` |
+| Surface | Runtime | ECR | Workflow |
+| --- | --- | --- | --- |
+| `api.mention.earth` and the `mention.earth` apex | AWS ECS service `mention`, port `3000` | `oxy/mention` | `.github/workflows/deploy-aws.yml` |
+| `mcp.mention.earth` | AWS ECS service `mention-mcp`, port `3100` | `oxy/mention-mcp` | `.github/workflows/deploy-mcp-aws.yml` |
+| Static Expo web export | Cloudflare Pages project `mention-frontend` | — | `.github/workflows/deploy-frontends.yml` |
+
+GitHub Actions assumes the OIDC role `oxy-github-deploy` to push images and
+deploy; secrets sync to SSM `/oxy/mention/*` and `/oxy/mention-mcp/*`.
 
 The backend serves API, ActivityPub, OG shells and the apex proxy. ActivityPub
 paths (`/.well-known/*`, `/ap/*`, nodeinfo and inboxes) are routed directly to
@@ -40,7 +43,10 @@ a failed production smoke rolls back to the previously captured deployment.
 ## Health and secrets
 
 - Liveness: `GET /health/live`.
-- Readiness: `GET /health/ready`; Mongo and the expected schema are mandatory.
+- Readiness: `GET /health/ready`; it checks `postgres`, `migrations` and `redis`.
+  Mongo is NOT among them and has not been since the cutover — a task that fails
+  readiness is failing one of those three, so debugging the store this line used
+  to name would be debugging a store the service no longer opens.
 - Redis degradation does not fail HTTP readiness, but singleton workers never
   claim leadership without their distributed lock.
 - GitHub authenticates to AWS with OIDC. Runtime secrets are stored in SSM and

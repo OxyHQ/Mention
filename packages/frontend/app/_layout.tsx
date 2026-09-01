@@ -16,7 +16,8 @@ import { NotificationPermissionGate } from '@/components/NotificationPermissionG
 import { PwaHead } from '@/components/PwaHead';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { AuthRouter } from '@/components/providers/AuthRouter';
-import { PortalProvider, PortalOutlet } from '@oxyhq/bloom/portal';
+import { PortalOutlet, PortalProvider } from '@oxyhq/bloom/portal';
+import { MediaFlightLayer } from '@oxyhq/bloom/media-flight';
 
 // Hooks
 import { useHapticsStore } from '@/stores/hapticsStore';
@@ -196,6 +197,12 @@ export default function RootLayout() {
               <PortalProvider>
                 <AuthRouter />
                 <PortalOutlet />
+                {/* The shared media surface that carries a playing video across a
+                    route change. Renders null whenever nothing is in flight, so it
+                    costs nothing here and never competes with the portal outlet
+                    above it. It must sit at the ROOT: a flight outlives the screen
+                    that started it, which is the entire point. */}
+                <MediaFlightLayer />
               </PortalProvider>
             </>
           ) : Platform.OS === 'web' ? (

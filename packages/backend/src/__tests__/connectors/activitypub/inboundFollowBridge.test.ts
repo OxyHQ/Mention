@@ -35,15 +35,6 @@ const mocks = vi.hoisted(() => ({
   getPublicKey: vi.fn(),
   signViaOxy: vi.fn(),
   signRequest: vi.fn(),
-  postFind: vi.fn(),
-  postFindOne: vi.fn(),
-  postFindById: vi.fn(),
-  postUpdateOne: vi.fn(),
-  postInsertMany: vi.fn(),
-  postExists: vi.fn(),
-  postDeleteOne: vi.fn(),
-  likeCreate: vi.fn(),
-  likeFindOneAndDelete: vi.fn(),
   getServiceOxyClient: vi.fn(),
   makeServiceRequest: vi.fn(),
   resolveOxyUser: vi.fn(),
@@ -73,28 +64,6 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
   getPublicKey: mocks.getPublicKey,
   signViaOxy: mocks.signViaOxy,
   signRequest: mocks.signRequest,
-}));
-
-vi.mock('../../../models/Post', () => ({
-  POST_CLASSIFICATION_PENDING: 'pending',
-  Post: {
-    find: mocks.postFind,
-    findOne: mocks.postFindOne,
-    findById: mocks.postFindById,
-    updateOne: mocks.postUpdateOne,
-    exists: mocks.postExists,
-    deleteOne: mocks.postDeleteOne,
-    collection: {
-      insertMany: mocks.postInsertMany,
-    },
-  },
-}));
-
-vi.mock('../../../models/Like', () => ({
-  default: {
-    create: mocks.likeCreate,
-    findOneAndDelete: mocks.likeFindOneAndDelete,
-  },
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({

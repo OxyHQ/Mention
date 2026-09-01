@@ -9,6 +9,7 @@ import { qualifyBareHandles } from '@mention/shared-types/textEntities';
 import { isBridgeFlattenedRetweet } from './flattenedRetweet';
 import { htmlToInlineLabel, htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { normalizePostHashtags } from '../../utils/textProcessing';
+import type { PostRecordFederation } from '../../db/posts/postRecord';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
 import { extractApHashtags, extractApMedia } from './helpers';
 import { extractApLanguage, getApContentMap } from './apLanguage';
@@ -468,6 +469,59 @@ export async function buildFederatedNoteContent(
   }
 
   return built;
+}
+
+/**
+ * The provenance every federated Note ingest site must stamp on the post it
+ * stores — the counterpart of {@link buildFederatedNoteContent}, which owns the
+ * BODY the same three sites store.
+ *
+ * ## Why this is a function and not an object literal
+ *
+ * `PostRecordFederation` is entirely optional, so an ingest site that names four
+ * of its fields and forgets the fifth type-checks exactly like one that names
+ * all five. `ensureFederatedNote` — the boost-original / reply-ancestor / quoted-
+ * note importer — shipped without `actorUri` for precisely that reason: the
+ * value was in scope one line above (it is handed to
+ * {@link buildFederatedNoteContent}), and nothing anywhere objected.
+ *
+ * A missing `actorUri` does not degrade gracefully. It is the AUTHORIZATION key
+ * for an inbound `Delete`/`Update` (both scope their query by it, so a remote
+ * deletion silently matches no row), the delivery address for an outbound
+ * `Like`/reply/`Announce` about the post (`resolveFederationTarget` reads it, and
+ * every caller returns early without an inbox), and the discriminator every
+ * "is this post federated?" query uses (`isNotNull(posts.federationActorUri)`) —
+ * including the blocked-domain purge and the `instance` feed source, which
+ * therefore count the post as LOCAL.
+ *
+ * Making both identity fields REQUIRED arguments is what stops the next site
+ * repeating it: there is no shape of this call that omits one.
+ *
+ * `noteUrl` is raw remote JSON (hence `unknown`) and falls back to the activity
+ * id, which is what all three sites did inline.
+ */
+export function buildFederatedNoteProvenance(input: {
+  /** The Note's own AP id — the post's globally unique federated identity. */
+  activityId: string;
+  /** The verified AP actor URI that authored the Note. */
+  actorUri: string;
+  /** The parent's AP URI, for a reply. */
+  inReplyTo?: string;
+  /** The Note's `url` as it arrived, unvalidated. */
+  noteUrl?: unknown;
+  /** The remote instance's own sensitivity flag. */
+  sensitive?: boolean;
+  /** The remote content warning (the Note's `summary`). */
+  spoilerText?: string;
+}): PostRecordFederation {
+  return {
+    activityId: input.activityId,
+    actorUri: input.actorUri,
+    inReplyTo: input.inReplyTo,
+    url: typeof input.noteUrl === 'string' ? input.noteUrl : input.activityId,
+    sensitive: input.sensitive,
+    spoilerText: input.spoilerText,
+  };
 }
 
 /**

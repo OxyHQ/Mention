@@ -37,10 +37,10 @@ export default function HashtagScreen() {
     return (
         <SafeAreaView className="flex-1" edges={['top']}>
             <SEO
-                title={t('seo.hashtag.title', { hashtag: displayTag, defaultValue: `${displayTag} - Mention` })}
+                title={t('seo.hashtag.title', { hashtag: displayTag, defaultValue: '{{hashtag}} - Mention' })}
                 description={t('seo.hashtag.description', {
                     hashtag: displayTag,
-                    defaultValue: `Posts tagged with ${displayTag} on Mention`
+                    defaultValue: 'Posts tagged with {{hashtag}} on Mention'
                 })}
             />
             {/* PanelStickyHeader owns the web sticky position/inset + opaque

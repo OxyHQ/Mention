@@ -60,6 +60,7 @@ jest.mock('@/hooks/usePostLanguage', () => ({
     options: [],
     activeTag: undefined,
     isTranslating: false,
+    canTranslate: false,
     selectLanguage: () => undefined,
   }),
 }));
@@ -68,7 +69,7 @@ jest.mock('@/context/BottomSheetContext', () => {
   return { BottomSheetContext: ReactActual.createContext(null) };
 });
 jest.mock('@/components/Post/PostContentText', () => ({ __esModule: true, default: () => null }));
-jest.mock('@/components/Post/PostLanguageChip', () => ({ __esModule: true, default: () => null }));
+jest.mock('@/hooks/usePostLanguagePicker', () => ({ usePostLanguagePicker: () => () => undefined }));
 jest.mock('@/components/Post/PostLaneChip', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/Post/ContentWarning', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/components/Post/PostActions', () => ({ __esModule: true, default: () => null }));

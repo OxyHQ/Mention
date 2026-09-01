@@ -23,7 +23,7 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  * ## Why a channel needed its own door
  *
  * `/insights` reports on the SESSION, and a channel can never be a session:
- * `isActAsEligibleKind` refuses `channel`, so no token's subject is ever one.
+ * `isDelegatedActAsEligibleKind` refuses `channel`, so no token's subject is ever one.
  * Its numbers were computable the whole time — a channel post's `authorship`
  * owner IS the channel, which is what the account-level aggregation matches on —
  * and simply unaskable. This route asks, by naming the account.

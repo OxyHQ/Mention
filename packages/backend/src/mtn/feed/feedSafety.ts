@@ -30,44 +30,12 @@
  */
 
 import { sql, type SQL } from 'drizzle-orm';
-import { qualified } from '../../db/casing';
-import { inList } from '../../db/schema/columns';
+import { inList, qualified } from '@oxyhq/db';
 import { posts } from '../../db/schema/posts';
 import { NSFW_HASHTAGS, isNsfwHashtag } from '../../services/contentClassification/nsfw';
 
 /**
- * Mongo `$match` clauses — RETAINED ONLY for the consumers that are still on
- * Mongoose, and deleted by the batch that ports them.
- *
- * `routes/search.ts` and `services/TrendingService.ts` still issue Mongo
- * queries. A helper that spans an unfinished, deliberately BATCHED cutover has
- * to speak both stores for exactly as long as that is true, and the alternative
- * — each of those files inlining its own copy of the sensitive-flag rule — is
- * how this module came to exist in the first place (`ForYouFeed.fetchPopular`
- * shipped without the filter and leaked NSFW into For You).
- *
- * The three flags are stated ONCE per store, immediately adjacent, so a reviewer
- * comparing them sees both in one screen.
- */
-export const SENSITIVE_EXCLUDE_MATCH: Readonly<Record<string, unknown>> = Object.freeze({
-  'postClassification.sensitive': { $ne: true },
-  'metadata.isSensitive': { $ne: true },
-  'federation.sensitive': { $ne: true },
-});
-
-/** Mongo counterpart of {@link nsfwHashtagExcludeSql}. See above for its lifetime. */
-export const NSFW_HASHTAG_EXCLUDE_MATCH: Readonly<Record<string, unknown>> = Object.freeze({
-  hashtags: { $nin: Array.from(NSFW_HASHTAGS) },
-});
-
-/** Mongo counterpart of {@link discoverySafeSql}. See above for its lifetime. */
-export const DISCOVERY_SAFE_MATCH: Readonly<Record<string, unknown>> = Object.freeze({
-  ...SENSITIVE_EXCLUDE_MATCH,
-  ...NSFW_HASHTAG_EXCLUDE_MATCH,
-});
-
-/**
- * The Postgres form of {@link SENSITIVE_EXCLUDE_MATCH}, for `posts`.
+ * Excludes sensitive posts from `posts`.
  * Compose at the call site: `and(eq(posts.visibility, 'public'), sensitiveExcludeSql())`.
  *
  * Two ports of this predicate were written independently and merged here; where
@@ -104,7 +72,7 @@ export function sensitiveExcludeSql(): SQL {
 }
 
 /**
- * The Postgres form of {@link NSFW_HASHTAG_EXCLUDE_MATCH}, for `posts`.
+ * Excludes posts carrying an NSFW/adult hashtag from `posts`.
  *
  * `&&` is array OVERLAP, so `not (hashtags && blocklist)` is "no stored hashtag is
  * on the blocklist" — Mongo's `$nin` over a multikey field. Hashtags are stored
@@ -128,7 +96,7 @@ export function nsfwHashtagExcludeSql(): SQL {
     && array[${sql.raw(inList([...NSFW_HASHTAGS]))}]::text[], false)`;
 }
 
-/** The Postgres form of {@link DISCOVERY_SAFE_MATCH}, for `posts`. */
+/** Both discovery gates at once — sensitive flags AND NSFW hashtags — for `posts`. */
 export function discoverySafeSql(): SQL {
   return sql`(${sensitiveExcludeSql()} and ${nsfwHashtagExcludeSql()})`;
 }
@@ -149,7 +117,7 @@ export interface FeedSafetyPostShape {
 /**
  * Whether a post is sensitive/NSFW and therefore must be kept OUT of discovery
  * surfaces and ranked feeds. The in-memory counterpart to
- * {@link DISCOVERY_SAFE_MATCH}, so every surface (candidate merge, popular
+ * {@link discoverySafeSql}, so every surface (candidate merge, popular
  * fallback, ranking guard) agrees on what "sensitive" means.
  *
  * A post is sensitive when ANY of these hold:

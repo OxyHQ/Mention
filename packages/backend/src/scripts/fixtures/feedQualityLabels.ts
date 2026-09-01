@@ -15,11 +15,11 @@
  *   3/4. legitimate humans but off-language (German),
  *   5. an off-language / off-interest webcomic (French).
  *
- * This module is PURE (no Mongoose import): the labels are data, and
+ * This module is PURE (it opens no database): the labels are data, and
  * {@link resolveLabeledPosts} takes its data access — INCLUDING how to read a
  * post's federated actor uri — as injected functions, so it is fully decoupled
  * from any concrete post shape and trivially unit-testable with in-memory mocks.
- * The eval script supplies the Mongo-backed dependencies over `CandidatePost`.
+ * The eval script supplies the database-backed dependencies over `CandidatePost`.
  */
 
 export type FeedQualityLabel = 'junk' | 'good';

@@ -85,10 +85,6 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'whole-table',
     reason: 'POST_SCAN_FILTER is the literal `undefined` — the entire posts table.',
   },
-  purgeGoneFederatedActors: {
-    scope: 'whole-table',
-    reason: 'Candidates are every suspended federated actor; it deletes their posts.',
-  },
   repairFederatedMentions: {
     scope: 'whole-table',
     reason: 'Bounded by options.actorUri, which the suite does not pass.',
@@ -105,10 +101,6 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'whole-table',
     reason: 'Every local published public non-boost post in the database.',
   },
-  backfillFederatedBanners: {
-    scope: 'whole-table',
-    reason: 'Pages federated_actors through countActors/scanActors with a table-wide filter.',
-  },
   backfillFederatedHandleQualification: {
     scope: 'whole-table',
     reason: 'Every federated actor, then every variant body authored by one of them.',
@@ -116,6 +108,11 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
   backfillQuotedPosts: {
     scope: 'whole-table',
     reason: 'Every federated post with a null quote_of whose body renders as `RE: <url>`.',
+  },
+  backfillPostHasLinks: {
+    scope: 'whole-table',
+    reason:
+      'Every post whose has_links column disagrees with its own renditions, in both directions.',
   },
   backfillPostLanguages: {
     scope: 'whole-table',

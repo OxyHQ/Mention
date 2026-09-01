@@ -1,6 +1,6 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
 
 /**
@@ -18,21 +18,44 @@ import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
  * and adds nothing of its own. A component that appends to a list it does not
  * control cannot express a restriction, whatever the appended values are.
  *
- * The preset table is MOCKED, as it is in every other suite here (jest cannot
- * parse Bloom's `react-native` export condition, which resolves to source). That
- * is the right seam anyway: which presets are gated is Bloom's own question and
- * is asserted there, in `theme/__tests__/color-preset-gates.test.ts`. Importing
- * the real lists through a mock would make this file look like it checked them
- * while checking a fixture.
+ * The registry groups are MOCKED (jest cannot parse Bloom's `react-native`
+ * export condition, which resolves to source). That is the right seam: Bloom
+ * owns catalog completeness and gate metadata; this suite owns the consumer's
+ * filtering, grouping and paint behavior.
  */
 jest.mock('@oxyhq/bloom/theme', () => ({
-  APP_COLOR_PRESETS: {
-    teal: { name: 'teal', hex: '#005c67' },
-    blue: { name: 'blue', hex: '#0085fe' },
-    red: { name: 'red', hex: '#ef4444' },
-    oxy: { name: 'oxy', hex: '#c46ede' },
-    faircoin: { name: 'faircoin', hex: '#9ffb50' },
-    mono: { name: 'mono', hex: '#000000' },
+  COLOR_PRESET_FAMILIES: ['brand', 'ocean', 'sunset', 'neutral'],
+  COLOR_PRESET_GROUPS: {
+    brand: {
+      name: 'brand',
+      displayName: 'Brand',
+      description: 'Reserved identities.',
+      presets: [
+        { name: 'oxy', displayName: 'Oxy', family: 'brand', hex: '#c46ede' },
+        { name: 'faircoin', displayName: 'FairCoin', family: 'brand', hex: '#9ffb50' },
+      ],
+    },
+    ocean: {
+      name: 'ocean',
+      displayName: 'Ocean',
+      description: 'Aquatic identities.',
+      presets: [
+        { name: 'teal', displayName: 'Teal', family: 'ocean', hex: '#005c67' },
+        { name: 'blue', displayName: 'Blue + Signal', family: 'ocean', hex: '#0085fe', tertiaryHex: '#ffd000' },
+      ],
+    },
+    sunset: {
+      name: 'sunset',
+      displayName: 'Sunset',
+      description: 'Warm identities.',
+      presets: [{ name: 'red', displayName: 'Red', family: 'sunset', hex: '#ef4444' }],
+    },
+    neutral: {
+      name: 'neutral',
+      displayName: 'Neutral',
+      description: 'Colorless identities.',
+      presets: [{ name: 'mono', displayName: 'Monochrome', family: 'neutral', hex: '#000000', variant: 'monochrome' }],
+    },
   },
 }));
 
@@ -48,6 +71,10 @@ const HEX: Record<Name, string> = {
   oxy: '#c46ede',
   faircoin: '#9ffb50',
   mono: '#000000',
+};
+
+const TERTIARY: Partial<Record<Name, string>> = {
+  blue: '#ffd000',
 };
 
 /**
@@ -77,11 +104,16 @@ function swatchColors(colors: readonly Name[]): string[] {
   return painted;
 }
 
+const FAMILY_ORDER: readonly Name[] = ['oxy', 'faircoin', 'teal', 'blue', 'red', 'mono'];
+
 const expected = (colors: readonly Name[]): string[] =>
-  colors.flatMap((name) => (name === 'mono' ? ['#000000', '#ffffff'] : [HEX[name]]));
+  FAMILY_ORDER.filter((name) => colors.includes(name)).flatMap((name) => {
+    if (name === 'mono') return ['#000000', '#ffffff'];
+    return TERTIARY[name] ? [HEX[name], TERTIARY[name]] : [HEX[name]];
+  });
 
 describe('ColorSwatchPicker', () => {
-  it('renders exactly the presets it is given, in order', () => {
+  it('renders exactly the presets it is given in Bloom family order', () => {
     const given: readonly Name[] = ['blue', 'teal', 'red'];
     expect(swatchColors(given)).toEqual(expected(given));
   });
@@ -98,6 +130,27 @@ describe('ColorSwatchPicker', () => {
     const rendered = swatchColors(given);
     expect(rendered).toEqual(expected(given));
     expect(new Set(rendered).size).toBe(rendered.length);
+  });
+
+  it('shows curated identity and action colors without inventing the pairing', () => {
+    expect(swatchColors(['blue'])).toEqual(['#0085fe', '#ffd000']);
+  });
+
+  it('reads family and preset labels from Bloom metadata', () => {
+    let created: TestRenderer.ReactTestRenderer | undefined;
+    act(() => {
+      created = TestRenderer.create(
+        <ColorSwatchPicker value="teal" onChange={() => undefined} colors={['blue'] as never} />,
+      );
+    });
+    const tree = created as TestRenderer.ReactTestRenderer;
+    const labels = tree.root.findAllByType(Text).map((node) => node.props.children);
+    act(() => tree.unmount());
+
+    expect(labels).toContain('Ocean');
+    expect(labels).toContain('Aquatic identities.');
+    expect(labels).toContain('Blue + Signal');
+    expect(labels).not.toContain('blue');
   });
 
   // The colourless preset's seed is pure black, so a single-colour chip vanishes

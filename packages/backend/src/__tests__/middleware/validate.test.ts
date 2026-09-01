@@ -1,11 +1,22 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
-import mongoose from 'mongoose';
-import { uuidv7 } from '../../db/schema/columns';
+import { randomBytes } from 'node:crypto';
+import { z } from 'zod';
+import { uuidv7 } from '@oxyhq/db';
 import { validateBody, validateObjectId, schemas } from '../../middleware/validate';
 import { ErrorCodes } from '../../utils/apiResponse';
 
 // --- helpers ----------------------------------------------------------------
+
+/**
+ * A 24-char ObjectId hex — one of the two shapes `isLiveEntityId` accepts, and
+ * the one every pre-cutover row still carries. Generated here rather than taken
+ * from a driver: the middleware matches a regex, so the only property a fixture
+ * needs is the shape.
+ */
+function objectIdHex(): string {
+  return randomBytes(12).toString('hex');
+}
 
 function makeReq(body: unknown = {}, params: Record<string, string> = {}): Request {
   return { body, params } as unknown as Request;
@@ -29,26 +40,39 @@ function getJsonBody(res: Response): unknown {
 
 // --- validateBody -----------------------------------------------------------
 
+/**
+ * A schema declared HERE, not borrowed from `schemas`.
+ *
+ * These cases are about `validateBody` — that it calls `next()`, that it
+ * replaces `req.body` with the PARSED value, that a failure is a 400 in the
+ * `ErrorCodes.VALIDATION_ERROR` envelope. They used to borrow `schemas.createPost`
+ * and `schemas.likeRequest`, two schemas no route ever mounted, which made this
+ * file the only thing keeping them alive. A fixture states the property under
+ * test without pretending to describe a request anybody sends.
+ */
+const fixtureSchema = z.object({
+  postId: z.string().min(1),
+  type: z.string().optional().default('post'),
+});
+
 describe('validateBody', () => {
   it('calls next() and replaces req.body when input is valid', () => {
-    const schema = schemas.likeRequest;
     const req = makeReq({ postId: 'abc123' });
     const res = makeRes();
     const next = makeNext();
 
-    validateBody(schema)(req, res, next);
+    validateBody(fixtureSchema)(req, res, next);
 
     expect(next).toHaveBeenCalledOnce();
     expect(req.body).toMatchObject({ postId: 'abc123' });
   });
 
   it('returns 400 with VALIDATION_ERROR when body is missing required fields', () => {
-    const schema = schemas.likeRequest;
     const req = makeReq({});
     const res = makeRes();
     const next = makeNext();
 
-    validateBody(schema)(req, res, next);
+    validateBody(fixtureSchema)(req, res, next);
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(400);
@@ -56,114 +80,75 @@ describe('validateBody', () => {
     expect(body.error.code).toBe(ErrorCodes.VALIDATION_ERROR);
   });
 
-  it('returns 400 when postId is an empty string (fails min(1))', () => {
-    const schema = schemas.likeRequest;
+  it('returns 400 when a string field is empty (fails min(1))', () => {
     const req = makeReq({ postId: '' });
     const res = makeRes();
     const next = makeNext();
 
-    validateBody(schema)(req, res, next);
+    validateBody(fixtureSchema)(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('applies defaults — likeRequest type defaults to "post"', () => {
-    const schema = schemas.likeRequest;
+  it('applies defaults, which is why the parsed value replaces req.body', () => {
     const req = makeReq({ postId: 'abc123' });
     const res = makeRes();
     const next = makeNext();
 
-    validateBody(schema)(req, res, next);
+    validateBody(fixtureSchema)(req, res, next);
 
     expect(req.body.type).toBe('post');
   });
-});
 
-// --- validateBody with createPost schema ------------------------------------
-
-describe('validateBody — createPost schema', () => {
-  it('accepts a minimal createPost body (all fields optional/defaulted)', () => {
-    const req = makeReq({});
+  it('names the failing PATH in the message, which is what the caller reads', () => {
+    const req = makeReq({ userIds: [] });
     const res = makeRes();
     const next = makeNext();
 
-    validateBody(schemas.createPost)(req, res, next);
-
-    expect(next).toHaveBeenCalledOnce();
-    // defaults applied
-    expect(req.body.visibility).toBe('public');
-    expect(req.body.replyPermission).toEqual(['anyone']);
-    expect(req.body.reviewReplies).toBe(false);
-    expect(req.body.quotesDisabled).toBe(false);
-  });
-
-  it('accepts a createPost body with content text', () => {
-    const req = makeReq({ content: { text: 'Hello world' }, visibility: 'public' });
-    const res = makeRes();
-    const next = makeNext();
-
-    validateBody(schemas.createPost)(req, res, next);
-
-    expect(next).toHaveBeenCalledOnce();
-    expect(req.body.content.text).toBe('Hello world');
-  });
-
-  it('rejects createPost when visibility is an unknown value', () => {
-    const req = makeReq({ visibility: 'secret' });
-    const res = makeRes();
-    const next = makeNext();
-
-    validateBody(schemas.createPost)(req, res, next);
+    validateBody(schemas.manageFeedMembers)(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(next).not.toHaveBeenCalled();
-  });
-
-  it('rejects createPost when content text exceeds 25000 characters', () => {
-    const req = makeReq({ content: { text: 'x'.repeat(25001) } });
-    const res = makeRes();
-    const next = makeNext();
-
-    validateBody(schemas.createPost)(req, res, next);
-
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(next).not.toHaveBeenCalled();
-  });
-
-  it('rejects createPost when media array has more than 10 items', () => {
-    const media = Array.from({ length: 11 }, (_, i) => ({ id: `file-${i}`, type: 'image' }));
-    const req = makeReq({ content: { media } });
-    const res = makeRes();
-    const next = makeNext();
-
-    validateBody(schemas.createPost)(req, res, next);
-
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(next).not.toHaveBeenCalled();
+    const body = getJsonBody(res) as { error: { message: string } };
+    expect(body.error.message).toContain('userIds');
   });
 });
 
-// --- validateBody with likeRequest schema -----------------------------------
+// --- validateBody with the schemas routes actually mount ---------------------
 
-describe('validateBody — likeRequest schema', () => {
-  it('accepts valid likeRequest body', () => {
-    const req = makeReq({ postId: 'post-abc', type: 'post' });
-    const res = makeRes();
-    const next = makeNext();
+describe('validateBody — the mounted schemas', () => {
+  it('accepts and refuses a feed review by its rating bounds', () => {
+    const ok = makeRes();
+    const okNext = makeNext();
+    validateBody(schemas.createFeedReview)(makeReq({ rating: 5, reviewText: 'good' }), ok, okNext);
+    expect(okNext).toHaveBeenCalledOnce();
 
-    validateBody(schemas.likeRequest)(req, res, next);
-
-    expect(next).toHaveBeenCalledOnce();
+    for (const rating of [0, 6, 2.5, '5']) {
+      const res = makeRes();
+      const next = makeNext();
+      validateBody(schemas.createFeedReview)(makeReq({ rating }), res, next);
+      expect(next, `expected rating ${JSON.stringify(rating)} to be rejected`).not.toHaveBeenCalled();
+    }
   });
 
-  it('rejects likeRequest when postId is missing', () => {
-    const req = makeReq({ type: 'post' });
+  it('bounds a member-management request at 100 ids', () => {
+    const ok = makeRes();
+    const okNext = makeNext();
+    validateBody(schemas.manageFeedMembers)(
+      makeReq({ userIds: Array.from({ length: 100 }, (_, i) => `u${i}`) }),
+      ok,
+      okNext,
+    );
+    expect(okNext).toHaveBeenCalledOnce();
+
     const res = makeRes();
     const next = makeNext();
-
-    validateBody(schemas.likeRequest)(req, res, next);
-
+    validateBody(schemas.manageFeedMembers)(
+      makeReq({ userIds: Array.from({ length: 101 }, (_, i) => `u${i}`) }),
+      res,
+      next,
+    );
+    expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(400);
   });
 });
@@ -172,7 +157,7 @@ describe('validateBody — likeRequest schema', () => {
 
 describe('validateObjectId middleware', () => {
   it('calls next() when the param is a valid ObjectId', () => {
-    const validId = new mongoose.Types.ObjectId().toHexString();
+    const validId = objectIdHex();
     const req = makeReq({}, { id: validId });
     const res = makeRes();
     const next = makeNext();
@@ -208,7 +193,7 @@ describe('validateObjectId middleware', () => {
   });
 
   it('accepts a custom param name', () => {
-    const validId = new mongoose.Types.ObjectId().toHexString();
+    const validId = objectIdHex();
     const req = makeReq({}, { postId: validId });
     const res = makeRes();
     const next = makeNext();

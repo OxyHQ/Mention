@@ -31,7 +31,7 @@ import { decisionFixture } from '@oxyhq/crowdsource-testing';
 import { closePostgres, connectPostgres, type Database } from '../../../db/postgres';
 import { moderationEnforcements } from '../../../db/schema/moderation';
 import { posts } from '../../../db/schema/posts';
-import { uuidv7 } from '../../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { applyDecisionEnforcement } from '../../../services/moderation/ModerationEnforcementService';
 
 let db: Database;

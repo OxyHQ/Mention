@@ -55,6 +55,7 @@ import { logger } from '../../../utils/logger';
 import { followedAuthorsSql } from '../../../utils/postAuthorship';
 import { excludeSeenSql, notABoostSql } from '../../../utils/feedQueryBuilder';
 import { engagementScoreSql } from '../engine/sources/discoverySources';
+import { chronoOrderBy } from '../CursorBuilder';
 import type { CandidatePost as EngineCandidatePost } from '../engine/types';
 import type { OxyClient } from '../../../utils/privacyHelpers';
 
@@ -162,8 +163,15 @@ async function runSource(
       .where(and(...conditions))
       // `created_at` leads; the id is the uniqueness tiebreak that makes the
       // order total. Sorting by id alone would be meaningless here — see
-      // `chronoOrderBy` in `CursorBuilder.ts`.
-      .orderBy(desc(posts.createdAt), desc(posts.id))
+      // `chronoOrderBy` in `CursorBuilder.ts`, which is now CALLED rather than
+      // cited: the bare `desc()` this replaces spells `DESC NULLS FIRST`, which
+      // matches none of the chronological indexes on `posts` (drizzle emits
+      // `.desc()` in index DDL as `DESC NULLS LAST`), so every lane sorted its
+      // whole match set instead of streaming the first `cap` rows out of an
+      // index. Measured on 624k posts with a 7-day window: 6.04 ms → 0.54 ms per
+      // lane, and the gap grows with the WINDOW rather than the page — seven
+      // lanes run this per For You request.
+      .orderBy(...chronoOrderBy())
       .limit(cap);
     return assemblePostRecords(rows, db);
   } catch (error) {

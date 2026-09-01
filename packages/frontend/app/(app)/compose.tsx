@@ -210,6 +210,15 @@ const ComposeScreenBody = () => {
   // not guess: that the 30-minute edit window does not apply, and that saving
   // has to carry the schedule forward rather than drop it.
   const [editingScheduledPost, setEditingScheduledPost] = useState(false);
+  // The post under edit belongs to a CHANNEL. A channel is a publication: its
+  // posts stay editable for their whole life, so the banner must not promise a
+  // 30-minute deadline that does not apply to them — and must say what replaces
+  // it, since a change to the body appends to a public correction trail.
+  //
+  // Server-decided too (`edit-source` reports `authorKind`, resolved from the
+  // same identity read that decides the edit rule), so the notice and the rule
+  // cannot disagree.
+  const [editingChannelPost, setEditingChannelPost] = useState(false);
   const [editCollabEligible, setEditCollabEligible] = useState(false);
   const [replyToPost, setReplyToPost] = useState<HydratedPost | null>(null);
   const [replyLoading, setReplyLoading] = useState(false);
@@ -1040,6 +1049,10 @@ const ComposeScreenBody = () => {
         // composer's empty schedule rather than an Invalid Date.
         const stillScheduled = source.status === 'scheduled';
         setEditingScheduledPost(stillScheduled);
+        // Absent when the server could not resolve the author — which is the
+        // case where it applies the 30-minute window, so the banner saying so is
+        // the correct reading rather than a fallback.
+        setEditingChannelPost(source.authorKind === 'channel');
         if (stillScheduled && source.scheduledFor) {
           const publishAt = new Date(source.scheduledFor);
           if (!Number.isNaN(publishAt.getTime())) {
@@ -2355,7 +2368,13 @@ const ComposeScreenBody = () => {
                   ? t('Loading post...')
                   : editingScheduledPost
                     ? t('compose.scheduled.editingNotice', { defaultValue: 'Editing a scheduled post — nobody has seen it yet, so there is no time limit. You can change when it publishes.' })
-                    : t('Editing post - changes must be saved within 30 minutes of creation')}</Text>
+                    : editingChannelPost
+                      // A channel post has no deadline, and saying "30 minutes"
+                      // here would be false. What replaces the window is the
+                      // trail, so the notice states that instead of stating
+                      // nothing.
+                      ? t('compose.channel.editingNotice', { defaultValue: 'Editing a published post. There is no time limit, and your change is recorded in this post’s public correction history.' })
+                      : t('compose.editingNotice', { defaultValue: 'Editing post — changes must be saved within 30 minutes of creation.' })}</Text>
               </View>
             )}
 
@@ -2364,7 +2383,10 @@ const ComposeScreenBody = () => {
               <View className="bg-muted border-border" style={styles.modeToggleContainer}>
                 <View style={styles.modeToggleRow}>
                   <View style={styles.modeOption}>
-                    <Text className="text-foreground" style={[styles.modeLabel, postingMode === 'thread' && styles.activeModeLabel]}>
+                    <Text
+                      className={postingMode === 'thread' ? 'text-primary' : 'text-foreground'}
+                      style={styles.modeLabel}
+                    >
                       {t('Thread')}
                     </Text>
                     <Text className="text-muted-foreground" style={styles.modeDescription}>
@@ -2377,7 +2399,10 @@ const ComposeScreenBody = () => {
                     containerStyle={styles.modeToggle}
                   />
                   <View style={styles.modeOption}>
-                    <Text className="text-foreground" style={[styles.modeLabel, postingMode === 'beast' && styles.activeModeLabel]}>
+                    <Text
+                      className={postingMode === 'beast' ? 'text-primary' : 'text-foreground'}
+                      style={styles.modeLabel}
+                    >
                       {t('Beast')}
                     </Text>
                     <Text className="text-muted-foreground" style={styles.modeDescription}>
@@ -2525,14 +2550,14 @@ const ComposeScreenBody = () => {
                                           className="border-border bg-background" style={styles.pollAttachmentOption}
                                         >
                                           <Text className="text-muted-foreground" style={styles.pollAttachmentOptionText} numberOfLines={1}>
-                                            {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: `Option ${optionIndex + 1}` })}
+                                            {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: 'Option {{index}}', index: optionIndex + 1 })}
                                           </Text>
                                         </View>
                                       );
                                     })}
                                     {pollOptions.length > 2 ? (
                                       <Text style={[styles.pollAttachmentMore, { color: theme.colors.textTertiary }]}>
-                                        {t('compose.poll.moreOptions', { count: pollOptions.length - 2, defaultValue: `+${pollOptions.length - 2} more` })}
+                                        {t('compose.poll.moreOptions', { count: pollOptions.length - 2, defaultValue: '+{{count}} more' })}
                                       </Text>
                                     ) : null}
                                   </View>
@@ -3872,15 +3897,10 @@ const styles = StyleSheet.create({
   modeLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#5e5e5e',
     marginBottom: 2,
-  },
-  activeModeLabel: {
-    color: '#005c67',
   },
   modeDescription: {
     fontSize: 12,
-    color: '#949494',
     textAlign: 'center',
   },
   modeToggle: {

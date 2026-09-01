@@ -39,7 +39,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../controllers/feed.controller', () => ({
   feedController: { transformPostsWithProfiles: mocks.transformPostsWithProfiles },
 }));
-// The endorsement outbox is a fire-and-forget Oxy signal that still reads Mongo.
+// The endorsement outbox is a fire-and-forget Oxy signal with its own queries.
 vi.mock('../../services/EndorsementSignalService', () => ({
   endorsementSignalService: {
     syncScope: vi.fn().mockResolvedValue(undefined),
@@ -50,7 +50,7 @@ vi.mock('../../services/EndorsementSignalService', () => ({
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { accountListMembers, accountLists } from '../../db/schema/lists';
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import listRoutes from '../../routes/lists';
 

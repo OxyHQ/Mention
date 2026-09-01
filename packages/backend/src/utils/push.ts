@@ -1,4 +1,7 @@
-import admin from 'firebase-admin';
+// firebase-admin 14 removed the `admin.*` namespace (`admin.credential`,
+// `admin.messaging()`); the modular subpath entries below are the whole API now.
+import { cert, initializeApp, type ServiceAccount } from 'firebase-admin/app';
+import { getMessaging, type MulticastMessage } from 'firebase-admin/messaging';
 import { and, eq, inArray } from 'drizzle-orm';
 import { normalizeInlineText } from '@oxyhq/core';
 import { getFirebaseConfig } from '../config';
@@ -20,9 +23,9 @@ function initFirebase() {
   }
   try {
     const json = Buffer.from(firebase.serviceAccountBase64, 'base64').toString('utf-8');
-    const serviceAccount = JSON.parse(json) as admin.ServiceAccount;
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
+    const serviceAccount = JSON.parse(json) as ServiceAccount;
+    initializeApp({
+      credential: cert(serviceAccount),
       projectId: firebase.projectId,
     });
     firebaseInitialized = true;
@@ -77,7 +80,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
     const tokenChunks = chunk(fcmTokens, 500); // FCM limit per multicast
     const toDisable: string[] = [];
     for (const tkChunk of tokenChunks) {
-      const message: admin.messaging.MulticastMessage = {
+      const message: MulticastMessage = {
         tokens: tkChunk,
         notification: {
           title: payload.title,
@@ -92,7 +95,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
           payload: { aps: { sound: 'default' } },
         },
       };
-      const resp = await admin.messaging().sendEachForMulticast(message);
+      const resp = await getMessaging().sendEachForMulticast(message);
       // Cleanup invalid tokens in this chunk
       if (resp.responses) {
         resp.responses.forEach((r, idx) => {
@@ -167,9 +170,8 @@ export async function formatPushForNotification(n: PushNotificationSource) {
   let f = map[n.type] || { title: 'Notification', body: 'You have a new notification' };
   let preview: string | undefined;
   // For post notifications, try to include a short preview in the push body.
-  // The POST row is deliberately still read from Mongo: `posts` and
-  // `resolveVariant`'s content shape belong to the posts batch, and reading a
-  // half-migrated table here would produce an empty preview rather than an error.
+  // Best-effort: a preview is a nicety, so every failure below is swallowed and
+  // logged at debug. A push with a generic body is better than no push.
   try {
     if (n.type === 'post' && n.entityType === 'post' && n.entityId) {
       const post = await loadPostRecord(String(n.entityId));

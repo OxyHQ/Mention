@@ -18,7 +18,7 @@ React Native, React Query, Zustand, Bloom, Socket.IO, and the shared
 
 ## Setup
 
-Use the versions pinned at the monorepo root (Bun 1.3.14 and Node 22.17.0):
+Use the versions pinned at the monorepo root (Bun 1.3.14 and Node 24.20.0):
 
 ```bash
 cp packages/frontend/.env.example packages/frontend/.env
@@ -101,4 +101,4 @@ client that still depends on Metro.
 - [Compose intent URL](docs/INTENT_URL.md)
 - [MCP OAuth and linked accounts](../mcp/README.md)
 
-The repository is available under the [MIT License](../../LICENSE).
+The repository is available under [the Breathe License 1.0](../../LICENSE) — source available, not open source. See the [root README](../../README.md#license).

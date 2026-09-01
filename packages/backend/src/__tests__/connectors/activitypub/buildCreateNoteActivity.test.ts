@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * `attachment`s built through the canonical media chokepoint — and its fail-soft
  * behavior (a bad media item never breaks the Note).
  *
- * The builder's transitive deps (actor/crypto/queue/models) are stubbed so it
+ * The builder's transitive deps (actor/crypto/queue) are stubbed so it
  * imports in isolation; only `resolveMediaRef` (the media chokepoint) is given
  * controllable output for attachment-URL assertions.
  */
@@ -15,9 +15,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../../connectors/activitypub/actor.service', () => ({ actorService: {} }));
 vi.mock('../../../connectors/activitypub/crypto', () => ({ getPublicKey: vi.fn(), signRequest: vi.fn() }));
 vi.mock('../../../queue/producers', () => ({ enqueueDelivery: vi.fn(), enqueueInboxActivity: vi.fn() }));
-vi.mock('../../../models/FederatedActor', () => ({ default: {} }));
-vi.mock('../../../models/FederatedFollow', () => ({ default: {} }));
-vi.mock('../../../models/FederationDeliveryQueue', () => ({ default: {} }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxyhq/core/server')>()),

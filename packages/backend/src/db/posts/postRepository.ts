@@ -61,8 +61,9 @@ import type {
   StoredPostContent,
 } from '@mention/shared-types';
 import { followedAuthorsSql } from '../../utils/postAuthorship';
+import { postTextHasHttpLink } from '../../utils/postSearchMetadata';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
-import { uuidv7 } from '../schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { posts } from '../schema/posts';
 import {
   postAttachments,
@@ -260,7 +261,7 @@ async function loadChildRows(
       //
       // COLLABORATORS AMONG THEMSELVES ARE ARBITRARY, NOT IN INVITE ORDER, and
       // this comment used to claim otherwise. `asc(id)` cannot deliver insertion
-      // order here: `uuidv7()` (`db/schema/columns.ts`) is a millisecond
+      // order here: `uuidv7()` (`@oxyhq/db`) is a millisecond
       // timestamp plus pure randomness with NO monotonic counter, and every
       // authorship row for a post is written by ONE multi-row insert — so the
       // ids share a millisecond and their relative order is random. It is STABLE
@@ -532,12 +533,13 @@ function assembleRecord(row: PostRow, children: PostChildRows): PostRecord {
     isEdited: row.isEdited,
     language: optional(row.language),
     curated: optional(row.curated),
-    tags: optional(row.tags),
     hashtags: row.hashtags ?? [],
     editHistory: row.editHistory ?? [],
     replyPermission: (row.replyPermission ?? DEFAULT_REPLY_PERMISSION) as ReplyPermission[],
     reviewReplies: row.reviewReplies,
     quotesDisabled: row.quotesDisabled,
+    correctionCount: row.correctionCount,
+    lastCorrectedAt: row.lastCorrectedAt,
 
     boostOf: row.boostOf,
     writtenByOxyUserId: row.writtenByOxyUserId,
@@ -742,15 +744,24 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     // stored discriminator can never disagree with the links the CHECK
     // constraints police.
     isReply: derivesReplyIntent(input),
-    hasLinks: input.hasLinks ?? false,
+    // Derived HERE and in `replacePostContent`, for the same reason `isReply` is:
+    // it is a projection of the body, so a caller-supplied value could only ever
+    // agree with the content in the same statement or be wrong. It WAS
+    // caller-supplied, and only the outbox backfill remembered to supply it — so
+    // every post written by any other path stored `has_links = false` however
+    // many URLs it contained, and `filter:links` matched none of them.
+    hasLinks: postTextHasHttpLink(content.variants),
     isEdited: false,
     language: input.language ?? null,
-    tags: input.tags ?? null,
     hashtags: input.hashtags ?? [],
     editHistory: [],
     replyPermission: input.replyPermission ?? DEFAULT_REPLY_PERMISSION,
     reviewReplies: input.reviewReplies ?? false,
     quotesDisabled: input.quotesDisabled ?? false,
+    // A post cannot arrive already corrected: a correction is recorded by the
+    // edit path against a post that already exists. Not a caller-supplied value.
+    correctionCount: 0,
+    lastCorrectedAt: null,
 
     boostOf: input.boostOf ?? null,
     // Ordinary nullable values. Mongo had to set them ONLY when present,
@@ -846,6 +857,36 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
 }
 
 /**
+ * `post_authorships.post_created_at` READ BACK FROM THE POST, in the statement
+ * that writes the row.
+ *
+ * A denormalized copy is only as good as the thing that writes it, and the
+ * obvious spelling — thread the `Date` in as a parameter — makes "the copy
+ * disagrees with `posts.created_at`" a thing a caller can do by passing the
+ * wrong value, silently, with the index then ordering a profile by a timestamp
+ * that post never had. Deriving it from the authority in the same `INSERT`
+ * removes the parameter, so there is nothing to pass wrongly: the row is written
+ * from the post or it is not written at all.
+ *
+ * Safe in both writers because the `posts` row is already visible to the
+ * transaction — `insertPostRecord` inserts it immediately before calling
+ * {@link insertChildRows}, and `replacePostAuthorship` only ever runs against a
+ * post that already exists. A subquery on the primary key costs a single index
+ * lookup per statement.
+ *
+ * Returns a bare `SQL`, deliberately NOT `SQL<Date>`. A type argument on a raw
+ * expression describes how the value DECODES, and this one is never decoded —
+ * it goes out in an `INSERT` and never comes back. Annotating it `Date` would be
+ * the same unfalsifiable assertion the SELECT-side sites carried, differing only
+ * in that nothing here could ever contradict it; `src/__tests__/db/bareSqlDate.test.ts`
+ * refuses the annotation everywhere rather than maintaining a list of the
+ * positions where it happens to be harmless.
+ */
+function postCreatedAtSql(postId: string): SQL {
+  return sql`(select ${posts.createdAt} from ${posts} where ${posts.id} = ${postId})`;
+}
+
+/**
  * Write every child row a post owns.
  *
  * Shared by insert and by the content-replacing half of {@link updatePostContent}
@@ -870,6 +911,7 @@ async function insertChildRows(
         status: entry.status,
         invitedAt: entry.invitedAt ? new Date(entry.invitedAt) : null,
         respondedAt: entry.respondedAt ? new Date(entry.respondedAt) : null,
+        postCreatedAt: postCreatedAtSql(postId),
       })),
     );
   }
@@ -1020,7 +1062,6 @@ export interface PostRecordPatch {
   visibility?: PostRecord['visibility'];
   language?: string | null;
   hashtags?: string[];
-  tags?: string[] | null;
   isEdited?: boolean;
   editHistory?: string[];
   threadId?: string | null;
@@ -1057,7 +1098,6 @@ export async function updatePostRecord(
     visibility: patch.visibility,
     language: patch.language,
     hashtags: patch.hashtags,
-    tags: patch.tags,
     isEdited: patch.isEdited,
     editHistory: patch.editHistory,
     threadId: patch.threadId,
@@ -1278,6 +1318,23 @@ export async function replacePostContent(
     await tx
       .update(posts)
       .set({
+        // The edit half of the `has_links` derivation `toPostInsert` performs on
+        // create. It belongs here rather than at a caller because this statement
+        // is where the new body lands: an edit that adds or removes a URL is
+        // exactly an edit that changes this column, and every content-changing
+        // path in the tree goes through this one function. The eight callers that
+        // pass their EXISTING variants through unchanged (the media backfill, the
+        // metadata enrich job, the federated repair paths) recompute the same
+        // value from the same text, so a derivation — unlike a body REWRITE, which
+        // `stripSpamHashtagBlocks` keeps out of here for that very reason — is
+        // safe at this seam.
+        //
+        // Not covered, and deliberately: the two one-shot repair scripts that
+        // `UPDATE post_content_variants` directly (`normalizeFederatedText`,
+        // `repairFederatedMentions` — the latter can fold a profile URL into a
+        // `[mention:<id>]` placeholder, removing a link). `backfillPostHasLinks`
+        // is the repair for any row they leave stale.
+        hasLinks: postTextHasHttpLink(content.variants),
         contentPollId: content.pollId ?? null,
         contentArticleId: content.article?.articleId ?? null,
         contentArticleTitle: content.article?.title ?? null,
@@ -1338,6 +1395,7 @@ export async function replacePostAuthorship(
           status: entry.status,
           invitedAt: entry.invitedAt ? new Date(entry.invitedAt) : null,
           respondedAt: entry.respondedAt ? new Date(entry.respondedAt) : null,
+          postCreatedAt: postCreatedAtSql(postId),
         })),
       );
     }

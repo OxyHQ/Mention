@@ -54,7 +54,6 @@ vi.mock('../services/ListSubscriptionService', () => ({
 vi.mock('../services/UserPreferenceService', () => ({
   userPreferenceService: { getUserBehavior: vi.fn(async () => undefined), getTopRegion: vi.fn(() => undefined) },
 }));
-vi.mock('../models/MuteWord', () => ({ MuteWord: { find: vi.fn(() => ({ lean: vi.fn(async () => []) })) } }));
 
 import { mtnFeedController } from '../mtn/controllers/feed.controller';
 

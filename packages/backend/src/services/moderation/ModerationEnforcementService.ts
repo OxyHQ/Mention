@@ -5,7 +5,7 @@ import type {
   ModerationEnforcementMode,
 } from '@mention/shared-types';
 import { getDb } from '../../db/postgres';
-import { isUniqueViolation } from '../../db/pgErrors';
+import { isUniqueViolation } from '@oxyhq/db';
 import { moderationEnforcements } from '../../db/schema/moderation';
 import { POST_STATUSES, posts } from '../../db/schema/posts';
 import { config } from '../../config';

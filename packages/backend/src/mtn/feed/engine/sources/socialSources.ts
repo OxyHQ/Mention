@@ -421,11 +421,11 @@ export const starterPackSource: SourceModule = {
  * when `params.scope === 'follows'`) from earlier years on today's month/day.
  *
  * `extract(... from created_at)` is the port of Mongo's `$month`/`$dayOfMonth`
- * `$expr`. Both stores evaluate it per row, so it is bounded by the author-id
- * filter exactly as before — the timestamps are `timestamptz`, so the extraction
- * runs in the session time zone; `at time zone 'utc'` pins it to the same UTC
- * calendar day Mongo's operators used, which is also what the JS side computes
- * with `getUTCMonth`/`getUTCDate`.
+ * `$expr`, and like it, it is evaluated per row — so the query is bounded by the
+ * author-id filter exactly as before. The timestamps are `timestamptz`, so the
+ * extraction runs in the session time zone; `at time zone 'utc'` pins it to the
+ * same UTC calendar day the original operators used, which is also what the JS
+ * side computes with `getUTCMonth`/`getUTCDate`.
  */
 export const onThisDaySource: SourceModule = {
   id: 'onThisDay',
@@ -597,6 +597,19 @@ export const linksSource: SourceModule = {
  * with `DISTINCT ON` over the real `(created_at DESC, id DESC)` order — which is
  * also strictly more correct for federated posts, whose import-time id bears no
  * relation to when they were written.
+ *
+ * "Earliest-arriving first" is the `ORDER BY min(created_at) DESC` below and
+ * nothing else. `min(created_at)` was ALSO selected, as a bare `sql<Date>` no
+ * caller ever read — a false assertion (the value arrives as the driver's
+ * string) sitting on a column with no consumer, so it was deleted rather than
+ * mapped. The ordering is a separate expression and is untouched.
+ *
+ * A `recentCount` (`count(*)::int`) went the same way, for the weaker reason:
+ * its annotation was TRUE, so it was dead code rather than a lie. The `HAVING`
+ * clause below is what the count is FOR, and that is untouched — the projection
+ * was the only part nothing read. `oxy_user_id` is likewise unread by the
+ * caller, and stays: it is the `GROUP BY` key, and a select list that names it
+ * is what makes the grouping legible at the call site.
  */
 export const newVoicesSource: SourceModule = {
   id: 'newVoices',
@@ -610,8 +623,6 @@ export const newVoicesSource: SourceModule = {
       .select({
         oxyUserId: posts.oxyUserId,
         latestPostId: sql<string>`(array_agg(${posts.id} order by ${posts.createdAt} desc, ${posts.id} desc))[1]`,
-        recentCount: sql<number>`count(*)::int`,
-        firstPostAt: sql<Date>`min(${posts.createdAt})`,
       })
       .from(posts)
       .where(

@@ -25,7 +25,7 @@ import { closePostgres, connectPostgres, type Database } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { insertPostRecord } from '../db/posts/postRepository';
 import type { PostRecordInput } from '../db/posts/postRecord';
-import { uuidv7 } from '../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 import { popularSource } from '../mtn/feed/engine/sources/discoverySources';
 import type { FeedEngineContext } from '../mtn/feed/engine/types';
 

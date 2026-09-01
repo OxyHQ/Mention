@@ -11,16 +11,16 @@ import {
   lanes,
   likes,
   postAttachments,
+  postAuthorships,
   postContentVariants,
   postMedia,
   posts,
   trending,
   userSettings,
 } from '../../../../db/schema';
-import type { PgColumn } from 'drizzle-orm/pg-core';
-import { assemblePostRecords } from '../../../../db/posts/postRepository';
+import { union, type PgColumn } from 'drizzle-orm/pg-core';
+import { assemblePostRecords, loadPostRecords } from '../../../../db/posts/postRepository';
 import { ProfileVisibility, requiresAccessCheck } from '../../../../utils/privacyHelpers';
-import { authorFeedSql } from '../../../../utils/postAuthorship';
 import { excludedDisplayModesForTab, loadExcludedLaneIds } from '../../../../services/laneVisibility';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { notABoostSql } from '../../../../utils/feedQueryBuilder';
@@ -28,6 +28,91 @@ import { trendTermMatchSql } from '../../../../services/trending/termSpace';
 import { logger } from '../../../../utils/logger';
 import type { AuthorFeedFilter } from '@mention/shared-types';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
+
+/**
+ * The profile feed, fetched down BOTH indexed routes to an author's posts and
+ * merged.
+ *
+ * One predicate cannot do this. "Whose post is this?" is answered by
+ * `post_authorships` (the authority) OR by the denormalized `posts.oxy_user_id`,
+ * and the two are not redundant — each reaches rows the other cannot:
+ *
+ *  - the authorship row alone covers accepted COLLABORATORS, and any post whose
+ *    denormalized owner is NULL or stale;
+ *  - the owner column alone covers a post with NO authorship row at all, which
+ *    `insertChildRows` produces whenever it is handed an empty authorship list.
+ *
+ * Written as `or(...)` in a single scan — the previous shape — both are served,
+ * but only `posts_owner_chrono_idx` can be used for the ORDER, so the
+ * authorship half degrades into a probe-per-candidate walk. Split into two
+ * branches, each one is an index scan on its own axis:
+ * `posts_owner_chrono_idx` for the owner branch and
+ * `post_authorships_author_chrono_idx` for the authorship branch, the latter
+ * being why `post_authorships.post_created_at` exists at all.
+ *
+ * `union`, NOT `union all`, and this is a correctness bound rather than tidiness:
+ * an ordinary post appears in BOTH branches (it has an owner column and an
+ * authorship row), so `union all` returns it twice and the outer `LIMIT cap`
+ * spends the page on duplicates. Measured — a page of 21 came back with 12
+ * distinct posts. `union` de-duplicates on `(id, created_at)`, and `id` is the
+ * primary key, so the pair is exactly as unique as the id.
+ *
+ * Both branches take the SAME `cap`, which is what makes the merge correct: the
+ * newest `cap` rows overall must be among the newest `cap` of each branch.
+ *
+ * Measured on 624k posts, page of 21 — flat across author size, where every
+ * previous shape traded one size against the other:
+ *
+ *   ordinary account (2,003 posts)    5.0 ms  ->  0.81-0.95 ms
+ *   prolific account (20,000 posts)   5.8 ms  ->  0.93-1.00 ms
+ */
+export async function fetchAuthored(
+  authorId: string,
+  scope: SQL[],
+  cursor: string | undefined,
+  cap: number,
+): Promise<CandidatePost[]> {
+  const keyset = await chronoCursorSql(cursor);
+  const where = keyset ? [...scope, keyset] : scope;
+  const db = getDb();
+
+  const ownerBranch = db
+    .select({ id: posts.id, createdAt: posts.createdAt })
+    .from(posts)
+    .where(and(eq(posts.oxyUserId, authorId), ...where))
+    .orderBy(...chronoOrderBy())
+    .limit(cap);
+
+  // Ordered by the AUTHORSHIP row's copy of the timestamp, not the post's, so
+  // the whole branch is served by `post_authorships_author_chrono_idx`. The two
+  // are equal by construction (`0021_faithful_bloodstrike`), which
+  // `__tests__/authorshipChronoSync.test.ts` asserts rather than assumes.
+  const authorshipBranch = db
+    .select({ id: posts.id, createdAt: posts.createdAt })
+    .from(postAuthorships)
+    .innerJoin(posts, eq(posts.id, postAuthorships.postId))
+    .where(
+      and(
+        eq(postAuthorships.oxyUserId, authorId),
+        eq(postAuthorships.status, 'accepted'),
+        ...where,
+      ),
+    )
+    .orderBy(
+      sql`${postAuthorships.postCreatedAt} desc nulls last`,
+      sql`${postAuthorships.postId} desc nulls last`,
+    )
+    .limit(cap);
+
+  const merged = await union(ownerBranch, authorshipBranch)
+    .orderBy(sql`created_at desc nulls last`, sql`id desc nulls last`)
+    .limit(cap);
+
+  // `loadPostRecords` returns them in the order asked for, which is the order
+  // the merge just established — the ids carry it, the second read must not
+  // re-derive it.
+  return loadPostRecords(merged.map((row) => row.id), db);
+}
 
 /** Run a chronological post scan with the shared keyset + order. */
 async function fetchChrono(
@@ -210,14 +295,21 @@ function hasMediaSql(): SQL {
   ) as SQL;
 }
 
-/** Author query: posts owned by or accepted-collaborated by the profile user. */
+/**
+ * The profile feed's conditions APART from who wrote the post — visibility, the
+ * author's own lane curation, and the tab's content filter.
+ *
+ * The author term used to lead this list and now does not, because it stopped
+ * being a predicate: {@link fetchAuthored} reaches the author's posts down two
+ * separately-indexed routes and needs to attach this scope to each of them
+ * independently. Keeping it here would apply it twice and, worse, would tie the
+ * shared scope to one of the two routes.
+ */
 function buildAuthoredConditions(
-  authorId: string,
   filter: AuthorFeedFilter,
   excludedLaneIds: readonly string[],
 ): SQL[] {
   const conditions: SQL[] = [
-    authorFeedSql(authorId),
     eq(posts.visibility, PostVisibility.PUBLIC),
     eq(posts.status, 'published'),
   ];
@@ -451,8 +543,9 @@ export const authoredSource: SourceModule = {
     // `createdAt`, so an id sort behind a `createdAt` cursor permanently skips
     // backfilled posts at the page boundary (the "boost disappears from the
     // profile feed" bug).
-    return fetchChrono(
-      buildAuthoredConditions(authorId, filter, excludedLaneIds),
+    return fetchAuthored(
+      authorId,
+      buildAuthoredConditions(filter, excludedLaneIds),
       ctx.cursor,
       cap,
     );
@@ -475,9 +568,10 @@ export const authoredSource: SourceModule = {
  *     lane its owner took down.
  *
  * The query is `lane_id = …` plus the publisher's scope, deliberately NOT
- * `authorFeedSql`: that correlated `EXISTS` over `post_authorships` would pull
- * the planner onto `post_author_chrono_v1` instead of `post_lane_chrono_v1`, and
- * the literal `lane_id` term is also what lets the PARTIAL index be used at all.
+ * `authorFeedSql`: that correlated `EXISTS` over `post_authorships` leaves the
+ * statement with no literal `lane_id` term, and `post_lane_chrono_v1` is a
+ * PARTIAL index (`where lane_id is not null`) — so without that term it cannot
+ * be used at all, whatever the planner reaches for instead.
  * The scope is `oxy_user_id` — ONE term, because a publisher is always an Oxy
  * account now — and a lane's posts and its publisher's posts are the same set by
  * construction (`assertLaneAssignable` refuses any other pairing), so the scope

@@ -148,6 +148,48 @@
       "when": 1785809956027,
       "tag": "0020_moderation_outbox_urgency",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1785903871646,
+      "tag": "0021_faithful_bloodstrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786042468188,
+      "tag": "0022_a_channel_queue_is_shared",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1786045126774,
+      "tag": "0023_a_publication_corrects_in_the_open",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786811476871,
+      "tag": "0024_drop_backfill_bookkeeping_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786814217255,
+      "tag": "0025_posts_indexes_stop_indexing_absence",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1786836000708,
+      "tag": "0026_the_queue_index_indexes_the_queue",
+      "breakpoints": true
     }
   ]
 }

@@ -24,10 +24,6 @@ vi.mock('../../utils/oxyHelpers', () => ({
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
   }),
 }));
-vi.mock('../../models/Post', () => ({ Post: {} }));
-vi.mock('../../models/Poll', () => ({ default: {} }));
-vi.mock('../../models/Like', () => ({ default: {} }));
-vi.mock('../../models/Bookmark', () => ({ default: {} }));
 vi.mock('../../services/userSummaryCache', () => ({
   mget: vi.fn(async () => new Map()),
   mset: vi.fn(async () => undefined),

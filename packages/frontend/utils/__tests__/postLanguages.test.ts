@@ -5,7 +5,7 @@ import {
   findOptionForLanguage,
   languageLabel,
   servedLanguageTag,
-  shouldAutoTranslate,
+  shouldOfferTranslation,
   translateTargets,
 } from '../postLanguages';
 
@@ -120,9 +120,9 @@ describe('findOptionForLanguage', () => {
   });
 });
 
-describe('shouldAutoTranslate', () => {
+describe('shouldOfferTranslation', () => {
   const autoTranslate = (content: PostContent, readerLanguage: string, postLanguage?: string) =>
-    shouldAutoTranslate({
+    shouldOfferTranslation({
       content,
       postLanguage,
       readerLanguage,

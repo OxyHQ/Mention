@@ -170,12 +170,22 @@ export function usePostActions({
             });
         }
 
-        // Edit action - only for owner, within 30-minute window
+        // Edit action — owner only, and the deadline depends on WHO published.
+        //
+        // A personal post keeps its 30-minute window: the bargain there is that
+        // the change lands before the post has really been read, so there is
+        // nothing to disclose. A CHANNEL is a publication and its posts stay
+        // editable for their whole life, because every change to the body
+        // appends to a public correction trail the reader can open — the trail
+        // is what buys the permanence, so the window has nothing left to
+        // protect. `isOwner` is server-computed and is already true for a
+        // channel post's writer, so it needs no widening here.
         if (isOwner) {
+            const isChannelPost = viewPost?.user?.kind === 'channel';
             const createdAtRaw = viewPost?.metadata?.createdAt;
             const createdAtMs = createdAtRaw ? new Date(createdAtRaw).getTime() : 0;
             const withinEditWindow = createdAtMs > 0 && (Date.now() - createdAtMs) < 30 * 60 * 1000;
-            if (withinEditWindow) {
+            if (isChannelPost || withinEditWindow) {
                 saveActionGroup.push({
                     icon: <Ionicons name="create-outline" size={20} color={theme.colors.textSecondary} />,
                     label: t('postActions.edit'),

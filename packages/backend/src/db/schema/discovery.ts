@@ -24,7 +24,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { TREND_CATEGORIES } from '@mention/shared-types';
 import type { TrendGraphEdgeDTO, TrendGraphNodeDTO } from '@mention/shared-types';
-import { createdAt, generatedId, inList, timestamptz, tsvector, updatedAt } from './columns';
+import { createdAt, generatedId, inList, timestamptz, tsvector, updatedAt } from '@oxyhq/db';
 
 /** The vocabulary the `trending.type` CHECK enforces. */
 export const TRENDING_TYPES = ['hashtag', 'topic', 'entity'] as const;
@@ -32,7 +32,7 @@ export const TRENDING_TYPES = ['hashtag', 'topic', 'entity'] as const;
 /**
  * The same three strings as a string ENUM — the PUBLIC vocabulary.
  *
- * Both spellings exist on purpose, and `TrendingService.ts` explains why:
+ * Both spellings exist on purpose, and `services/trending/trendRow.ts` explains why:
  * TypeScript treats enums nominally, so an enum member is not assignable to
  * `'hashtag'` and vice versa. The enum is what `routes/trending.routes.ts`
  * validates `?type=` against; everything that touches a row uses the column's
@@ -134,9 +134,9 @@ export const PUSH_TOKEN_PLATFORMS = ['android', 'ios', 'unknown'] as const;
 
 /**
  * Retention windows, in seconds, for the three tables in this module that had a
- * Mongo TTL index. Declared here beside the table and asserted EQUAL to the
- * Mongoose model's own constant by `__tests__/expiry.test.ts`, so the two cannot
- * drift while both stores are live.
+ * Mongo TTL index. Declared here beside the table, and now the only declaration
+ * of each: the Mongoose models these were once asserted equal to are gone, so
+ * the sweep in `db/expiry.ts` is the whole bound.
  */
 export const TRENDING_RETENTION_SECONDS = 90 * 24 * 60 * 60;
 /**

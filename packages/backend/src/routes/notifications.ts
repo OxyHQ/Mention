@@ -161,7 +161,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       // client reads, and dropping it would be a fail-open change of the wire
       // contract: every column in the keyset is comparable against nonsense, so
       // a malformed token would silently serve an arbitrary page instead of the
-      // 400 it used to. The codec accepts both live id shapes (`db/ids.ts`), so
+      // 400 it used to. The codec accepts both live id shapes (`@oxyhq/db`), so
       // no cursor this server minted is ever refused.
       return res.status(400).json({
         message: "Invalid cursor format",
@@ -308,6 +308,16 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         oxyClient: scopedOxyClient,
         maxDepth: 1,
         includeLinkMetadata: true,
+        // Already resolved above, for the recipient scope — so the ACL gets the
+        // SAME answer the inbox query was built from, and gets it for free. The
+        // rows come from `loadPostRecords`, which applies no status filter, so
+        // without this an operator's notification about their channel's own
+        // withheld post would arrive with the embed silently stripped: the one
+        // reader entitled to it, refused. `operatedAccountIds` rather than a
+        // reader precisely BECAUSE the answer is in hand — supplying it also
+        // suppresses hydration's own lazy lookup, which would be a second
+        // resolution free to disagree with the one that chose these rows.
+        operatedAccountIds: [...operatedChannelIds],
       });
 
       const compiledMuteWords = compileMuteWords(muteWords);

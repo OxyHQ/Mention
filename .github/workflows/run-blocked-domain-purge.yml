@@ -12,7 +12,7 @@ name: Purge blocked-domain data from the platform
 # definition. So it runs as an ECS Fargate one-shot, exactly like
 # `run-federated-text-backfill.yml`, and for the same two reasons:
 #
-# 1. In-VPC, or it reaches neither Mongo nor the credential.
+# 1. In-VPC, or it reaches neither the database nor the credential.
 # 2. From `main` only. The task reuses the live service's role, secrets, subnets
 #    and security groups, so accepting an arbitrary ref here would turn a branch
 #    workflow into production code execution.
@@ -25,11 +25,13 @@ name: Purge blocked-domain data from the platform
 #   but erasing an instance's history from a shared platform waits for a reviewed
 #   entry with an author and a diff.
 #
-# TWO GATES, AND THE SECOND ONE IS NOT IN THIS REPO
-#   A real run needs `confirm_write` here AND `FEDERATION_DOMAIN_PURGE_ENABLED=true`
-#   on the oxy-api deployment, which answers 409 otherwise. Arming the endpoint is
-#   an operator decision made over in the oxy repo, on purpose — this workflow
-#   cannot talk itself into a deletion.
+# AUTHORIZATION PLUS TWO SAFETY GATES
+#   Dispatches are accepted only from an actor in the repository-administered
+#   `BLOCKED_DOMAIN_PURGE_OPERATORS` variable. A real run then needs
+#   `confirm_write` here AND `FEDERATION_DOMAIN_PURGE_ENABLED=true` on the oxy-api
+#   deployment, which answers 409 otherwise. Arming the endpoint is an operator
+#   decision made over in the oxy repo, on purpose — this workflow cannot talk
+#   itself into a deletion.
 #
 # ALWAYS PLAN FIRST (`dry_run=true`, the default). `dryRun` is the ONLY field the
 # script derives from the mode, so the numbers a plan reports are the numbers the
@@ -40,9 +42,9 @@ name: Purge blocked-domain data from the platform
 # Start with ONE domain (`purge_domain`) before sweeping the whole policy.
 #
 # Ingest is live and the corpus grows while a purge runs, so this is expected to
-# be re-run rather than ticked off. Progress is recorded per domain in Mongo, so a
-# killed run resumes; a re-run costs one short pass per finished domain and still
-# catches actors ingested since.
+# be re-run rather than ticked off. Progress is recorded per domain in the
+# database, so a killed run resumes; a re-run costs one short pass per finished
+# domain and still catches actors ingested since.
 
 on:
   workflow_dispatch:
@@ -90,7 +92,15 @@ permissions:
 
 jobs:
   purge:
-    if: github.ref == 'refs/heads/main'
+    # This is authorization, not another typo guard: Actions dispatch access is
+    # broader than permission to delete production data. Repository admins own
+    # this comma-separated, no-spaces allowlist outside the workflow, so changing
+    # a public confirmation phrase cannot grant an operator capability. Re-runs
+    # must also be initiated by the original authorized dispatcher.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      contains(format(',{0},', vars.BLOCKED_DOMAIN_PURGE_OPERATORS), format(',{0},', github.actor)) &&
+      github.triggering_actor == github.actor
     # Same arch as the deployed image — the service runs linux/arm64.
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
@@ -111,14 +121,14 @@ jobs:
 
       - name: Login to ECR
         id: ecr
-        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Build and push the purge image (its own tag; never `latest`)
         id: build
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: ${{ env.DOCKERFILE }}

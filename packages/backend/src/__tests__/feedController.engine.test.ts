@@ -66,9 +66,6 @@ vi.mock('../services/laneVisibility', () => ({
 vi.mock('../services/UserPreferenceService', () => ({
   userPreferenceService: { getUserBehavior: vi.fn(async () => undefined), getTopRegion: vi.fn(() => undefined) },
 }));
-vi.mock('../models/FederatedFollow', () => ({ default: { distinct: vi.fn(async () => []) } }));
-vi.mock('../models/FederatedActor', () => ({ default: { find: vi.fn(() => ({ lean: vi.fn(async () => []) })) } }));
-vi.mock('../models/MuteWord', () => ({ MuteWord: { find: vi.fn(() => ({ lean: vi.fn(async () => []) })) } }));
 
 // Driveable anon-feed cache: read defaults to a miss so the engine still runs
 // (existing tests unaffected); individual tests override to assert hit/gating.

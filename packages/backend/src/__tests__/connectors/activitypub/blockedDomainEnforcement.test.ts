@@ -38,14 +38,10 @@ const mocks = vi.hoisted(() => {
     actorFind: vi.fn(),
     actorFindOne: vi.fn(),
     findOneAndUpdate: vi.fn(),
-    updateOne: vi.fn(),
-    postFind: vi.fn(),
     postFindOne: vi.fn(),
-    postFindById: vi.fn(),
     postUpdateOne: vi.fn(),
     postCreate: vi.fn(),
     postInsertMany: vi.fn(),
-    postExists: vi.fn(),
     postDeleteOne: vi.fn(),
     materializeEngagementRelationship: vi.fn(),
     materializeEngagementTombstone: vi.fn(),
@@ -54,9 +50,7 @@ const mocks = vi.hoisted(() => {
     persistRemoteMedia: vi.fn(),
     recordAccess: vi.fn(),
     postCreatorCreate: vi.fn(),
-    followExists: vi.fn(),
     followFindOneAndUpdate: vi.fn(),
-    followDeleteOne: vi.fn(),
     resolveOxyUser: vi.fn(),
     createNotification: vi.fn(),
     isFediverseSharingEnabledFromUser: vi.fn(),
@@ -105,33 +99,6 @@ vi.mock('../../../db/federation/actorRepository', async (importOriginal) => {
     },
   };
 });
-
-vi.mock('../../../models/FederatedFollow', () => ({
-  default: {
-    exists: mocks.followExists,
-    findOneAndUpdate: mocks.followFindOneAndUpdate,
-    deleteOne: mocks.followDeleteOne,
-    updateOne: mocks.updateOne,
-  },
-}));
-
-vi.mock('../../../models/FederationDeliveryQueue', () => ({
-  default: {},
-  getNextRetryTime: vi.fn(),
-}));
-
-vi.mock('../../../models/Post', () => ({
-  POST_CLASSIFICATION_PENDING: 'pending',
-  Post: {
-    find: mocks.postFind,
-    findOne: mocks.postFindOne,
-    findById: mocks.postFindById,
-    updateOne: mocks.postUpdateOne,
-    exists: mocks.postExists,
-    deleteOne: mocks.postDeleteOne,
-    collection: { insertMany: mocks.postInsertMany },
-  },
-}));
 
 vi.mock('../../../services/PostEngagementCommandService', () => ({
   materializeEngagementRelationship: (...args: unknown[]) =>
@@ -295,19 +262,13 @@ beforeEach(() => {
   mocks.signViaOxy.mockResolvedValue('signature');
   mocks.signRequest.mockResolvedValue({ Signature: 'signature' });
   mocks.findOneAndUpdate.mockImplementation(async (_query, update) => ({ _id: 'actor_1', ...update?.$set }));
-  mocks.updateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.followFindOneAndUpdate.mockResolvedValue({ _id: 'follow_1' });
-  mocks.followDeleteOne.mockResolvedValue({ deletedCount: 1 });
   mocks.actorFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
   mocks.actorFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
-  mocks.postFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) });
   mocks.postFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
-  mocks.postFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
   mocks.postUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mocks.postDeleteOne.mockResolvedValue({ deletedCount: 1 });
   mocks.postInsertMany.mockResolvedValue({ insertedCount: 0 });
-  mocks.postExists.mockResolvedValue(null);
-  mocks.followExists.mockResolvedValue({ _id: 'follow_1' });
   mocks.materializeEngagementRelationship.mockResolvedValue({ changed: true });
   mocks.materializeEngagementTombstone.mockResolvedValue({ changed: true });
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });

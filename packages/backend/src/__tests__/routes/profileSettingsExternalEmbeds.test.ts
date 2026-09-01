@@ -118,11 +118,6 @@ vi.mock('../../utils/syraPodcast', () => ({
   syraClient: {},
 }));
 
-// Models only used by unrelated routes in this file (export / behavior reset).
-vi.mock('../../models/Post', () => ({ default: {} }));
-vi.mock('../../models/Bookmark', () => ({ default: {} }));
-vi.mock('../../models/Like', () => ({ default: {} }));
-
 import profileSettingsRoutes from '../../routes/profileSettings';
 
 const app = express();

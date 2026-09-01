@@ -106,7 +106,11 @@ export function createAppRoutes({
   publicApi.use('/feed', optionalAuth, feedRoutes);
   publicApi.use('/posts', optionalAuth, publicPostsRouter);
   publicApi.use('/profile/design', profileDesignRoutes);
-  publicApi.use('/articles', articlesRoutes);
+  // An article body is as readable as the post it belongs to, and the
+  // controller asks the post ACL for that. Auth stays OPTIONAL so a public
+  // article is still readable anonymously; it is what supplies the viewer the
+  // gate needs to recognize an owner, a collaborator or a follower.
+  publicApi.use('/articles', optionalAuth, articlesRoutes);
   publicApi.use('/trending', trendingRoutes);
   publicApi.use('/topics', topicsRoutes);
   publicApi.use('/federation', optionalAuth, federationApiRoutes);

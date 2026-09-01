@@ -55,10 +55,6 @@ vi.mock('../../utils/notificationUtils', () => ({
   createPostAuthorNotifications: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../models/PostSubscription', () => ({
-  default: { find: () => ({ lean: () => Promise.resolve([]) }) },
-}));
-
 vi.mock('../../services/serviceRegistry', () => ({
   getPostFederator: () => ({ federateNewPost: vi.fn().mockResolvedValue(undefined) }),
   registerPostCreator: vi.fn(),
@@ -199,7 +195,7 @@ describe('POST /posts — a pasted profile link becomes a real mention', () => {
     // `post.mentions` is read back from `post_mentions` ordered by `id`, and the
     // whole allowlist is inserted in ONE batch — so every row's `uuidv7()` carries
     // the same millisecond and the tie is broken by the RANDOM tail, there being
-    // no monotonic counter in `db/schema/columns.ts`. Asserting the array order
+    // no monotonic counter in `@oxyhq/db`. Asserting the array order
     // was a ~50/50 coin flip, measured at 4 passes to 6 failures over ten runs of
     // this file ALONE. Order carries no meaning here either: the column is an
     // authorization allowlist with a UNIQUE `(post_id, oxy_user_id)`, and nothing

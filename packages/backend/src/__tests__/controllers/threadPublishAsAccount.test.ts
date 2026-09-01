@@ -85,7 +85,7 @@ import { getDb } from '../../db/postgres';
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { lanes } from '../../db/schema/channels';
 import { eq } from 'drizzle-orm';
-import { createThread } from '../../controllers/posts.controller';
+import { createThread } from '../../controllers/posts/createThread';
 
 const CALLER = 'tpaa-caller-1';
 const CHANNEL = 'tpaa-channel-account-1';

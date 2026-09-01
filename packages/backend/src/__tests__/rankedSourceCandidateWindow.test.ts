@@ -118,6 +118,7 @@ import type {
   FeedEngineContext,
   SourceModule,
 } from '../mtn/feed/engine/types';
+import { sameMillisecondIds } from './helpers/tiedIds';
 
 let db: Database;
 const created: string[] = [];
@@ -150,9 +151,10 @@ function authorFor(index: number): string {
   return `ranked-window-author-${index}`;
 }
 
-async function create(index: number, likes: number): Promise<string> {
+async function create(index: number, likes: number, id?: string): Promise<string> {
   const author = authorFor(index);
   const input: PostRecordInput = {
+    id,
     oxyUserId: author,
     authorship: [{ oxyUserId: author, role: 'owner', status: 'accepted' }],
     type: PostType.VIDEO,
@@ -199,8 +201,12 @@ describe.each([
   ['media', mediaSource],
 ])('the %s candidate window', (_name, source: SourceModule) => {
   /**
-   * Five posts, created oldest-first, so ids ascend with insertion (uuid v7 is
-   * monotonic).
+   * Five posts whose ids ASCEND, because they are supplied that way.
+   *
+   * They are not left to `uuidv7()`: it has no monotonic counter, so five rows
+   * written back to back do not ascend at all once any two share a millisecond —
+   * their order is decided by the random tail. The vacuity floor below would then
+   * fail at random and name the candidate window for what is really a fixture.
    *
    * The ANCHOR is the middle row and carries the HIGHEST engagement — a page-one
    * cursor anchor is the lowest-scoring slice of the page, and its position in id
@@ -208,12 +214,13 @@ describe.each([
    * id order and two below, so an id bound in EITHER direction is visible here.
    */
   async function fixtures(): Promise<{ ids: string[]; anchor: string; pageTwoCandidate: string }> {
+    const ascending = sameMillisecondIds(5);
     const ids = [
-      await create(0, 4),
-      await create(1, 3),
-      await create(2, 9),
-      await create(3, 2),
-      await create(4, 1),
+      await create(0, 4, ascending[0]),
+      await create(1, 3, ascending[1]),
+      await create(2, 9, ascending[2]),
+      await create(3, 2, ascending[3]),
+      await create(4, 1, ascending[4]),
     ];
     return { ids, anchor: ids[2], pageTwoCandidate: ids[4] };
   }

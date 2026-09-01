@@ -110,6 +110,18 @@ interface PlayerRegistration {
    * order, so the topmost viewable video wins.
    */
   order: number;
+  /**
+   * Web: read this player's CURRENT centre-Y, called at selection time.
+   *
+   * `order` is published from an `IntersectionObserver`, which only fires when a
+   * threshold is crossed — so a player that stays visible while the page scrolls
+   * keeps reporting the position it had when it last crossed. Measured on a
+   * profile with two video rows: the upper one sat 159px from the ideal line and
+   * the lower one 370px, and the LOWER one held the slot in four runs out of
+   * four, because the upper one's published position was the one it had on the
+   * way in. Ranking by a remembered position ranks the past.
+   */
+  measureOrder?: () => number | undefined;
   /** This player owns the OS Picture-in-Picture window (see the session note above). */
   ownsSession: boolean;
 }
@@ -214,7 +226,13 @@ export function VideoPlaybackProvider({ children }: { children: React.ReactNode 
     let bestRank = Infinity;
     for (const [id, registration] of players) {
       if (registration.silent || !registration.eligible) continue;
-      const rank = IS_WEB ? Math.abs(registration.order - idealY) : registration.order;
+      // Measured HERE rather than read from the registration: this runs in an
+      // event handler or an effect, never in render, so touching the DOM is
+      // safe — and it is the only moment at which "closest to the line" can be
+      // answered about now instead of about the last threshold crossing.
+      const current = IS_WEB ? registration.measureOrder?.() : undefined;
+      const order = current ?? registration.order;
+      const rank = IS_WEB ? Math.abs(order - idealY) : order;
       // Equal rank is real, not theoretical: two videos in ONE multi-media post
       // share a viewability key and therefore a rank. Resolve it on the id, so the
       // winner is a function of the CANDIDATES alone — never of Map insertion or
@@ -328,6 +346,11 @@ export function VideoViewabilityScope({
 export interface UseVideoPlaybackOptions {
   /** Stable identity of this player instance. */
   id: string;
+  /**
+   * Web: read this player's current viewport centre-Y. Memoize it — it is a
+   * registration field, so a new identity on every render republishes.
+   */
+  measureOrder?: () => number | undefined;
   /** Key this player is known by to the nearest viewability source; omit outside a list. */
   viewabilityKey?: string;
   /** Silent players (GIF mode) never compete for the single audible slot. */
@@ -365,6 +388,7 @@ export function useVideoPlayback({
   viewabilityKey,
   silent = false,
   ownsSession = false,
+  measureOrder,
 }: UseVideoPlaybackOptions): UseVideoPlaybackResult {
   const authority = useContext(VideoPlaybackContext);
   if (!authority) {
@@ -401,8 +425,8 @@ export function useVideoPlayback({
   // Split in two so a scroll-driven position update never momentarily unpublishes
   // the player and hands the slot to someone else for a frame.
   useEffect(() => {
-    publish(id, { silent, eligible, order, ownsSession });
-  }, [publish, id, silent, eligible, order, ownsSession]);
+    publish(id, { silent, eligible, order, ownsSession, measureOrder });
+  }, [publish, id, silent, eligible, order, ownsSession, measureOrder]);
 
   useEffect(() => () => unpublish(id), [unpublish, id]);
 

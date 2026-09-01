@@ -26,8 +26,8 @@ router.use(statisticsRateLimiter);
 // gate applied to the authenticated API group in appRoutes.ts).
 router.get("/user", getUserStatistics);
 router.get("/post/:postId", getPostInsights);
-// The one WRITE here, and the only route that touches Mongo on every call, so it
-// carries a second, tighter bound of its own on top of the router's. See
+// The one WRITE here, and the only route that hits the database on every single
+// call, so it carries a second, tighter bound of its own on top of the router's. See
 // `postViewRateLimiter` for the ceiling and why it is not the feed's.
 router.post("/post/:postId/view", postViewRateLimiter, trackPostView);
 router.get("/followers", getFollowerChanges);

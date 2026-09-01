@@ -50,36 +50,6 @@ vi.mock('../../utils/privacyHelpers', () => ({
   extractFollowersIds: vi.fn(() => []),
 }));
 
-function chainable(rows: unknown[]) {
-  const query: Record<string, unknown> = {};
-  query.select = () => query;
-  query.lean = async () => rows;
-  return query;
-}
-
-vi.mock('../../models/Post', () => ({
-  Post: { find: () => chainable([]), findOne: () => chainable([]) },
-}));
-vi.mock('../../models/Poll', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Like', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/Bookmark', () => ({ default: { find: () => chainable([]) } }));
-vi.mock('../../models/StarterPack', () => ({
-  StarterPack: { aggregate: async () => [] },
-  default: { aggregate: async () => [] },
-}));
-vi.mock('../../models/FederatedActor', () => ({
-  FederatedActor: {
-    find: (...args: unknown[]) => ({
-      select: () => ({ lean: () => federatedActorFind(...args) }),
-    }),
-  },
-  default: {
-    find: (...args: unknown[]) => ({
-      select: () => ({ lean: () => federatedActorFind(...args) }),
-    }),
-  },
-}));
-
 import {
   OXY_USER_FALLBACK_CONCURRENCY,
   OXY_USER_RESOLUTION_DEADLINE_MS,

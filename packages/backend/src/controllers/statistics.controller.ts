@@ -4,7 +4,7 @@ import { getBaseLanguage, getPrimaryLanguage } from '@oxyhq/core';
 import { and, asc, desc, eq, gte, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { qualified } from '../db/casing';
+import { qualified } from '@oxyhq/db';
 import { getDb, type Transaction } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { postAuthorships, postContentVariants } from '../db/schema/postContent';
@@ -355,7 +355,7 @@ type StatisticsSubject =
  * channel (`PostCreationService` resolves `authorId` through the publish-as gate
  * and builds `authorship` from it, recording the human as `writtenByOxyUserId`
  * OUTSIDE the array). So a channel's totals were always computable and were never
- * reachable: the subject was hard-wired to `req.user.id`, and `isActAsEligibleKind`
+ * reachable: the subject was hard-wired to `req.user.id`, and `isDelegatedActAsEligibleKind`
  * refuses `channel`, so no session's subject can ever BE a channel. The numbers
  * were correct and unaskable — which is why this takes a subject rather than
  * touching the pipeline.
@@ -557,7 +557,6 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
         .select({
           id: posts.id,
           oxyUserId: posts.oxyUserId,
-          writtenByOxyUserId: posts.writtenByOxyUserId,
           createdAt: posts.createdAt,
           likesCount: posts.statsLikesCount,
           boostsCount: posts.statsBoostsCount,
@@ -574,11 +573,18 @@ export const getPostInsights = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    // Same authority as editing or deleting it: the author, the person who wrote
-    // it for an account that authored it, or somebody who operates that account.
-    // A channel post's author is the channel, so the plain `oxyUserId === userId`
-    // test this replaces refused its own writer. `writtenByOxyUserId` is
-    // projected above for exactly this reason and is never sent to the client.
+    // Same authority as editing or deleting it: the account that authored the
+    // post, or somebody who currently operates that account. A channel post's
+    // author is the channel, so the plain `oxyUserId === userId` test this
+    // replaces refused its own writer.
+    //
+    // This route is read-only, which is exactly why it is gated the same way
+    // rather than more loosely. A post's insights are the channel's private
+    // engagement figures, and "who is allowed to read what this channel
+    // published, and how it performed" is a membership question that stops
+    // having a `yes` the moment somebody leaves — the same disclosure the
+    // hydration ACL refuses on the queue itself. A cheaper test here would have
+    // reopened it one endpoint over.
     //
     // The refusal keeps this route's own 403 rather than adopting the 404 the
     // write routes answer with. Nothing here is protecting the existence of the

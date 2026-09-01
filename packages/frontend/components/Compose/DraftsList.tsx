@@ -79,17 +79,11 @@ const DraftsList: React.FC<DraftsListProps> = ({ onLoadDraft, onPreviewDraft, cu
     if (diffMins < 1) {
       return t('compose.justNow');
     } else if (diffMins < 60) {
-      return diffMins === 1
-        ? t('compose.minutesAgo', { count: diffMins })
-        : t('compose.minutesAgo_plural', { count: diffMins });
+      return t('compose.minutesAgo', { count: diffMins });
     } else if (diffHours < 24) {
-      return diffHours === 1
-        ? t('compose.hoursAgo', { count: diffHours })
-        : t('compose.hoursAgo_plural', { count: diffHours });
+      return t('compose.hoursAgo', { count: diffHours });
     } else if (diffDays < 7) {
-      return diffDays === 1
-        ? t('compose.daysAgo', { count: diffDays })
-        : t('compose.daysAgo_plural', { count: diffDays });
+      return t('compose.daysAgo', { count: diffDays });
     } else {
       return date.toLocaleDateString();
     }
@@ -100,9 +94,7 @@ const DraftsList: React.FC<DraftsListProps> = ({ onLoadDraft, onPreviewDraft, cu
       return draft.postContent.trim().substring(0, 100) + (draft.postContent.length > 100 ? '...' : '');
     }
     if (draft.mediaIds.length > 0) {
-      return draft.mediaIds.length === 1
-        ? t('compose.draftWithMedia', { count: draft.mediaIds.length })
-        : t('compose.draftWithMedia_plural', { count: draft.mediaIds.length });
+      return t('compose.draftWithMedia', { count: draft.mediaIds.length });
     }
     if (draft.pollOptions.length > 0) {
       return t('compose.draftWithPoll');
@@ -112,9 +104,7 @@ const DraftsList: React.FC<DraftsListProps> = ({ onLoadDraft, onPreviewDraft, cu
     }
     if (draft.threadItems.length > 0) {
       const totalPosts = draft.threadItems.length + 1;
-      return totalPosts === 2
-        ? t('compose.draftWithThread', { count: totalPosts })
-        : t('compose.draftWithThread_plural', { count: totalPosts });
+      return t('compose.draftWithThread', { count: totalPosts });
     }
     return t('compose.emptyDraft');
   }, [t]);

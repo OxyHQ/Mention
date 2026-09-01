@@ -125,9 +125,10 @@ export const ZEmbeddedPost = z
 // Raw notification as received from API
 export const ZRawNotification = z.looseObject({
   _id: z.string(),
-  // `recipientId` and `actorId` hold Oxy user ids (the backend model types both
-  // as `String`, never a Mongoose ref — hence the separate `actorId_populated`).
-  // `entityId` is an ObjectId that serializes to its hex string over JSON.
+  // `recipientId` and `actorId` hold Oxy user ids — foreign keys into a service
+  // the backend reaches over HTTP, so neither is ever expanded server-side,
+  // hence the separate `actorId_populated`. `entityId` is a local record id,
+  // always a string over JSON.
   recipientId: z.string(),
   actorId: z.string(),
   type: z.string(),

@@ -1,0 +1,72 @@
+# Put every new issue on the Oxy Roadmap.
+#
+# https://github.com/orgs/OxyHQ/projects/14 spans BOTH organisations. GitHub
+# refuses to LINK a repository to a project owned by a different organisation
+# ("Only projects owned by the same owner as the repository can be linked"),
+# so the project's own built-in auto-add cannot cover the FairCoin
+# repositories. Adding an ITEM across organisations IS allowed, which is what
+# this does, so one workflow covers both.
+#
+# Inert until ADD_TO_PROJECT_TOKEN exists. It must be a CLASSIC token with the
+# `project` scope: a fine-grained token is scoped to one owner and cannot reach
+# both organisations, and `public_repo` does not cover Projects v2.
+#
+# WHY NOT actions/add-to-project: it is not idempotent. Adding an issue that is
+# already on the board fails the run with "Content already exists in this
+# project", which is the normal outcome for `reopened` and for any issue put on
+# the board by hand. A workflow that goes red on a non-problem is a workflow
+# everyone learns to ignore, so the mutation is called directly and that one
+# response is treated as the success it is.
+
+name: Add to roadmap
+
+on:
+  issues:
+    types: [opened, reopened, transferred]
+
+permissions: {}
+
+concurrency:
+  group: add-to-roadmap-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add the issue to the roadmap
+        env:
+          GH_TOKEN: ${{ secrets.ADD_TO_PROJECT_TOKEN }}
+          ISSUE_NODE_ID: ${{ github.event.issue.node_id }}
+        run: |
+          set -uo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::notice::ADD_TO_PROJECT_TOKEN is not set, so this issue was not added to the roadmap."
+            exit 0
+          fi
+
+          project_id=$(gh api graphql \
+            -f query='query($org:String!,$num:Int!){organization(login:$org){projectV2(number:$num){id}}}' \
+            -f org=OxyHQ -F num=14 --jq '.data.organization.projectV2.id') || {
+              echo "::error::Could not resolve the roadmap project. Check that ADD_TO_PROJECT_TOKEN carries the 'project' scope."
+              exit 1
+            }
+
+          response=$(gh api graphql \
+            -f query='mutation($project:ID!,$content:ID!){addProjectV2ItemById(input:{projectId:$project,contentId:$content}){item{id}}}' \
+            -f project="$project_id" -f content="$ISSUE_NODE_ID" 2>&1)
+
+          if printf '%s' "$response" | grep -q 'already exists'; then
+            echo "Already on the roadmap, nothing to do."
+            exit 0
+          fi
+
+          if printf '%s' "$response" | grep -q '"addProjectV2ItemById"'; then
+            echo "Added to the roadmap."
+            exit 0
+          fi
+
+          echo "::error::Adding the issue to the roadmap failed."
+          printf '%s\n' "$response"
+          exit 1

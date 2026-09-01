@@ -213,9 +213,6 @@ describe('signPosts has exactly one reader', () => {
     'routes/profileSettings.ts',
     // The read: the one authority this file is about.
     'services/channelWriterDisclosure.ts',
-    // The one-time copy out of Mongo. Names the OLD path (`channel.signPosts`)
-    // on the source side, which is why it mentions the flag at all.
-    'db/backfill/plans/userProfile.ts',
   ]);
 
   /** Strip block and line comments so a docstring is not read as a usage. */

@@ -1,7 +1,7 @@
 import express, { Response } from "express";
-import { and, arrayContains, desc, eq, exists, gte, lte, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, arrayContains, eq, exists, gte, lte, lt, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
-import { QUERY_CANCELED, sqlStateOf } from '../db/pgErrors';
+import { QUERY_CANCELED, sqlStateOf } from '@oxyhq/db';
 import { posts } from '../db/schema/posts';
 import { postAuthorships, postContentVariants, postMedia, postMentions } from '../db/schema/postContent';
 import { findPostRecords } from '../db/posts/postRepository';
@@ -14,6 +14,7 @@ import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { queryInt } from '../utils/queryParams';
 import { PostVisibility } from '@mention/shared-types';
 import { decodeChronoCursor, encodeChronoCursor } from '../utils/chronoCursor';
+import { chronoOrderBy } from '../mtn/feed/CursorBuilder';
 import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { isAbsoluteHttpUrl } from '../connectors/shared/url';
 import { discoverySafeSql } from '../mtn/feed/feedSafety';
@@ -438,8 +439,19 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       const limitNum = Math.min(Math.max(queryInt(req.query.limit) || DEFAULT_SEARCH_LIMIT, 1), MAX_SEARCH_LIMIT);
 
       // Execute query with lean() for read-only performance
+      // `chronoOrderBy()`, never a bare `desc()` — see `CursorBuilder.ts`, which
+      // owns the reason: drizzle emits `.desc()` in INDEX DDL as
+      // `DESC NULLS LAST`, while a QUERY's `desc()` means `DESC NULLS FIRST`, so
+      // the bare spelling matches none of the thirteen chronological indexes on
+      // `posts` and the whole search fell back to a scan. Both columns are
+      // `NOT NULL`, so this changes no row and no order — only whether an index
+      // can serve the sort. Measured on 624k posts, page of 21: a text search
+      // went from a parallel Seq Scan of every post at 177 ms to an index-served
+      // 1.6 ms, and `has:links` from 51.5 ms to 0.2 ms — the latter being the
+      // only query `post_links_chrono_v1` exists for, so that index was
+      // unreachable and purely paying for itself on every insert.
       const page = await findPostRecords(and(...conditions), {
-        orderBy: [desc(posts.createdAt), desc(posts.id)],
+        orderBy: chronoOrderBy(),
         limit: limitNum + 1, // Fetch one extra to check if there are more
       });
 

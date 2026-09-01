@@ -1,39 +1,39 @@
 import { Router, Response } from 'express';
+import { createPost } from '../controllers/posts/createPost';
+import { createThread } from '../controllers/posts/createThread';
 import {
-  createPost,
-  createThread,
-  getPosts,
   getPostById,
-  updatePost,
-  updatePostSettings,
-  updatePostLane,
-  deletePost,
-  publishScheduledPostNow,
-  likePost,
-  unlikePost,
-  savePost,
-  unsavePost,
+  getPostCorrections,
+  getPosts,
   getPostsByHashtag,
   getPostsByTopic,
-  getSavedPosts,
+} from '../controllers/posts/readPosts';
+import { updatePost } from '../controllers/posts/updatePost';
+import { updatePostLane, updatePostSettings } from '../controllers/posts/postSettings';
+import { deletePost } from '../controllers/posts/deletePost';
+import { likePost, unlikePost } from '../controllers/posts/likes';
+import {
   getBookmarkFolders,
+  getSavedPosts,
   moveBookmarkToFolder,
   moveBookmarkToFolderByPostId,
-  getDrafts,
-  getScheduledPosts,
-  getNearbyPosts,
-  getPostsInArea,
-  getNearbyPostsBothLocations,
+  savePost,
+  unsavePost,
+} from '../controllers/posts/bookmarks';
+import { getDrafts, getScheduledPosts, publishScheduledPostNow } from '../controllers/posts/scheduledPosts';
+import {
   getLocationStats,
-  getPostLikes,
-  getKnownPostLikers,
-  getPostBoosts,
-  translatePost,
-  translateDraft,
+  getNearbyPosts,
+  getNearbyPostsBothLocations,
+  getPostsInArea,
+} from '../controllers/posts/geo';
+import { getKnownPostLikers, getPostBoosts, getPostLikes } from '../controllers/posts/engagementLists';
+import { translateDraft, translatePost } from '../controllers/posts/translation';
+import {
   acceptCollabInvite,
   declineCollabInvite,
   stopCollabSharing,
-} from '../controllers/posts.controller';
+} from '../controllers/posts/collaboration';
 import { getPostEditSource } from '../controllers/postEditSource.controller';
 import {
   deletePostgate,
@@ -118,6 +118,12 @@ publicPostsRouter.get('/saved', getSavedPosts);
 // anonymous viewer could not already see — it is scoped to the viewer's own
 // follow graph, so signed-out callers get an empty result rather than a 401.
 publicPostsRouter.get('/:id/likes/known', getKnownPostLikers);
+
+// A channel post's public correction trail. Public for the same reason the post
+// detail below is: a publication corrects in the open, and most of the people it
+// owes that to are not signed in. The handler hydrates the post first and 404s
+// when this viewer may not read it, so it discloses nothing `/:id` would not.
+publicPostsRouter.get('/:id/corrections', getPostCorrections);
 
 // Public post detail — parameterized, MUST be registered LAST so every literal
 // read above resolves first. Anonymous viewers receive ONLY public+published

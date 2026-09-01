@@ -134,23 +134,26 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
 
   /*
    * The admin one-shots, added by the second scan. Each is keyed on the IMPORTED
-   * script rather than on whatever local wrapper a suite happens to define —
-   * `backfillFederatedBanners.test.ts` calls it through a local `runBackfill()`,
-   * and keying on that name would match any file that coined the same helper.
+   * script rather than on whatever local wrapper a suite happens to define: a
+   * suite that coins its own `runBackfill()` would otherwise match any other
+   * file that coined the same helper name.
    */
   { name: 'backfillFederatedThreadLinks', call: /\bbackfillFederatedThreadLinks\s*\(/ },
   { name: 'normalizeStoredText', call: /\bnormalizeStoredText\s*\(/ },
-  { name: 'purgeGoneFederatedActors', call: /\bpurgeGoneFederatedActors\s*\(/ },
+  // Keyed on the FILE, not on a call: its suite runs the entry point as a
+  // subprocess rather than importing it, which is the only way to exercise the
+  // `require.main === module` block where the pool is opened.
+  { name: 'reconcileBlockedDomains', call: /'scripts',\s*'reconcileBlockedDomains\.ts'/ },
   { name: 'repairFederatedMentions', call: /\brepairFederatedMentions\s*\(/ },
   { name: 'backfillThreadRootThreadId', call: /\bbackfillThreadRootThreadId\s*\(/ },
   { name: 'migrateThreadFanToChain', call: /\bmigrateThreadFanToChain\s*\(/ },
   { name: 'backfillMtnRecords', call: /\bbackfillMtnRecords\s*\(/ },
-  { name: 'backfillFederatedBanners', call: /\bbackfillFederatedBanners\s*\(/ },
   {
     name: 'backfillFederatedHandleQualification',
     call: /\bbackfillFederatedHandleQualification\s*\(/,
   },
   { name: 'backfillQuotedPosts', call: /\bbackfillQuotedPosts\s*\(/ },
+  { name: 'backfillPostHasLinks', call: /\bbackfillPostHasLinks\s*\(/ },
   { name: 'backfillPostLanguages', call: /\bbackfillPostLanguages\s*\(/ },
   { name: 'backfillCustomFeedDefinitions', call: /\bbackfillCustomFeedDefinitions\s*\(/ },
 ];

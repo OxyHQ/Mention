@@ -74,11 +74,21 @@ export class InterestScoreService {
      * `sum()` and `count()` back as STRINGS (they are `numeric`/`int8` on the
      * wire), so an unmapped column would flow into `Math.log1p` as a string and
      * silently score every author 0 — the read-side shape of the trap
-     * `MIGRATION-CONTRACT.md` describes for `db.execute`.
+     * `db/schema/CONVENTIONS.md` describes for `db.execute`.
      *
      * The five `stats_*` columns are `NOT NULL DEFAULT 0`, so Mongo's `$ifNull`
      * wrappers have nothing left to guard and are dropped rather than ported as
      * `coalesce` noise.
+     *
+     * `lastPost` carries the SAME trap in its date-shaped form, and the fix is
+     * the same one `routes/channelWriters.routes.ts` documents: a bare
+     * `sql<Date>` is an ASSERTION over a raw expression, not a conversion.
+     * Drizzle owns timestamp decoding per DECLARED COLUMN and a raw `sql`
+     * expression has no column behind it, so `max(created_at)` came back as the
+     * driver's string — measured, `'2026-08-15 17:01:48.833+00'`, with
+     * `.getTime` undefined. `.mapWith(posts.createdAt)` borrows the column's own
+     * decoder, so the annotation is DERIVED from what actually runs and cannot
+     * drift from it.
      */
     const rows = await getDb()
       .select({
@@ -88,7 +98,7 @@ export class InterestScoreService {
           + ${posts.statsViewsCount} + ${posts.statsSharesCount}
         )`.mapWith(Number),
         postCount: sql`count(*)`.mapWith(Number),
-        lastPost: sql<Date>`max(${posts.createdAt})`,
+        lastPost: sql`max(${posts.createdAt})`.mapWith(posts.createdAt),
       })
       .from(posts)
       .where(
@@ -106,6 +116,12 @@ export class InterestScoreService {
     // `flatMap` rather than `filter`+`map`: it narrows `oxy_user_id` from
     // `string | null` to `string` without a cast. The empty-string check stays —
     // the column is nullable and the WHERE only excludes NULL.
+    //
+    // `r.lastPost.getTime()` directly: a group exists only because it has at
+    // least one row, and `created_at` is `NOT NULL`, so `max()` over it cannot
+    // be NULL. The `now` fallback that stood here guarded a state the grouping
+    // cannot produce, and it read as though `lastPost` might be absent when the
+    // real hazard was that it was a STRING.
     return rows.flatMap((r) => {
       const oxyUserId = r.oxyUserId;
       if (typeof oxyUserId !== 'string' || oxyUserId.length === 0) return [];
@@ -113,7 +129,7 @@ export class InterestScoreService {
         oxyUserId,
         raw: r.raw,
         postCount: r.postCount,
-        lastPostMs: r.lastPost ? new Date(r.lastPost).getTime() : now,
+        lastPostMs: r.lastPost.getTime(),
       }];
     });
   }

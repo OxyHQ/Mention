@@ -95,8 +95,8 @@ describe('the pre-rollout population floor', () => {
     //
     // "Above zero" and "holds production" are different questions, and only the
     // second one is worth a deploy gate. Residue is not hypothetical here:
-    // federated ingest writes `federated_actors` continuously while the site
-    // still serves Mongo, so the number it accrues only ever grows.
+    // federated ingest writes `federated_actors` continuously, so an empty or
+    // wrong database does not stay recognisably empty for long.
     const OBSERVED_RESIDUE_HIGH_WATER = 100;
     for (const floor of POPULATION_FLOORS) {
       expect(floor.minimum).toBeGreaterThan(OBSERVED_RESIDUE_HIGH_WATER * 10);

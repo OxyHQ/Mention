@@ -229,26 +229,47 @@ const environmentSchema = z
     // the per-app port map so several Oxy backends can run side by side.
     PORT: integerFromEnv(4_110, { minimum: 1, maximum: 65_535 }),
 
-    MONGODB_URI: trimmedOptionalString,
-    MONGODB_READ_PREFERENCE: z
-      .enum(['primary', 'primaryPreferred', 'secondary', 'secondaryPreferred', 'nearest'])
-      .optional(),
-    MONGODB_SOCKET_TIMEOUT_MS: integerFromEnv(45_000, { minimum: 1 }),
-    MONGODB_SERVER_SELECTION_TIMEOUT_MS: integerFromEnv(20_000, { minimum: 1 }),
-    MONGODB_MAX_RETRIES: integerFromEnv(5, { minimum: 1, maximum: 100 }),
-    MONGODB_MAX_POOL_SIZE: integerFromEnv(100, { minimum: 1, maximum: 10_000 }),
-    MONGODB_MIN_POOL_SIZE: integerFromEnv(10, { maximum: 10_000 }),
-    MONGODB_MAX_IDLE_TIME_MS: integerFromEnv(60_000, { minimum: 1 }),
-    MONGODB_HEARTBEAT_FREQUENCY_MS: integerFromEnv(10_000, { minimum: 1 }),
-
-    // PostgreSQL — the Mongo→Postgres migration target. Optional while the
-    // migration is additive: absent means no pool is opened and every query
-    // still runs against Mongo. It becomes required at cutover, not before.
+    // PostgreSQL — the only store this service opens. Optional in the schema so
+    // a task that does not touch the database (and every unit test) still
+    // parses; every entry point that needs a pool asserts it for itself.
     DATABASE_URL: trimmedOptionalString,
     PG_MAX_POOL_SIZE: integerFromEnv(20, { minimum: 1, maximum: 1_000 }),
     PG_IDLE_TIMEOUT_SECONDS: integerFromEnv(30, { minimum: 1 }),
     PG_CONNECT_TIMEOUT_SECONDS: integerFromEnv(10, { minimum: 1 }),
     PG_MAX_LIFETIME_SECONDS: integerFromEnv(1_800, { minimum: 1 }),
+    /**
+     * Per-statement timing, the per-request roundtrip tally, and the slow-query
+     * log (`db/queryMetrics.ts`).
+     *
+     * DEFAULT ON, because the cost is one `hrtime` pair and one histogram
+     * observation per statement — immeasurable beside the round trip it
+     * measures — and a database metric that is off in production measures
+     * nothing. The switch exists so it can be taken out of the path entirely
+     * (the client is then left completely unpatched) if it is ever implicated
+     * in an incident, not because it is expected to be.
+     *
+     * DEFAULT OFF UNDER TEST, because the slow-query line goes through the same
+     * `logger.warn` the application uses. A suite that asserts "this path warns
+     * about nothing" would then pass or fail on how fast the machine running it
+     * happens to be: `listSubscriptionVisibility` asserted exactly that, and its
+     * own multi-row fixture insert took 350 ms on a CI runner and under the
+     * 200 ms threshold here, so the failure appeared only in CI. Instrumentation
+     * is observability, not behaviour, and must not decide whether a suite is
+     * green. The two suites that exercise it set `queryMetricsEnabled` before
+     * connecting, so nothing about it goes unmeasured; an explicit
+     * `DB_QUERY_METRICS_ENABLED` still wins in every environment.
+     */
+    DB_QUERY_METRICS_ENABLED: booleanFromEnv(process.env.NODE_ENV !== 'test'),
+    /**
+     * Statements at or above this take a `warn` line carrying the SQL text.
+     *
+     * 200 ms is roughly two orders of magnitude above an indexed point lookup
+     * against this schema, so an ordinary request logs nothing and a statement
+     * that trips it is genuinely worth reading. Lower it to profile; raising it
+     * past a second makes the line redundant with the shared slow-operation
+     * warning `recordLatency` already emits.
+     */
+    DB_SLOW_QUERY_MS: integerFromEnv(200, { minimum: 1, maximum: 600_000 }),
 
     REDIS_URL: optionalRedisUrl,
     REDIS_URI: optionalRedisUrl,
@@ -391,13 +412,6 @@ const environmentSchema = z
     METRICS_ALLOWED_IPS: exactIpList,
   })
   .superRefine((environment, context) => {
-    if (environment.MONGODB_MIN_POOL_SIZE > environment.MONGODB_MAX_POOL_SIZE) {
-      context.addIssue({
-        code: 'custom',
-        path: ['MONGODB_MIN_POOL_SIZE'],
-        message: 'must not exceed MONGODB_MAX_POOL_SIZE',
-      });
-    }
     if (
       environment.REDIS_URL &&
       environment.REDIS_URI &&
@@ -698,27 +712,24 @@ export const config = {
   logging: {
     level: environment.LOG_LEVEL ?? (environment.NODE_ENV === 'production' ? 'info' : 'debug'),
   },
-  mongoUri: environment.MONGODB_URI,
   postgres: {
     /**
-     * Absent until the cutover. Every Postgres entry point treats "no URL" as
-     * "this deployment has not migrated yet" and leaves Mongo untouched, so a
-     * task without the variable boots exactly as it does today.
+     * Absent means no pool is opened. A task that never queries boots fine
+     * without it; anything that does asserts it at its own entry point.
      */
     url: environment.DATABASE_URL,
     /**
-     * Sized well below the Mongo pool above: a Postgres connection is a
-     * server-side PROCESS, not a thread, so an oversized pool costs the
-     * database real memory. Raise deliberately, against a measurement.
+     * A Postgres connection is a server-side PROCESS, not a thread, so an
+     * oversized pool costs the database real memory. Raise deliberately,
+     * against a measurement.
      */
     maxPoolSize: environment.PG_MAX_POOL_SIZE,
     idleTimeoutSeconds: environment.PG_IDLE_TIMEOUT_SECONDS,
     connectTimeoutSeconds: environment.PG_CONNECT_TIMEOUT_SECONDS,
     maxLifetimeSeconds: environment.PG_MAX_LIFETIME_SECONDS,
+    queryMetricsEnabled: environment.DB_QUERY_METRICS_ENABLED,
+    slowQueryMs: environment.DB_SLOW_QUERY_MS,
   },
-  mongoReadPreference:
-    environment.MONGODB_READ_PREFERENCE ??
-    (environment.NODE_ENV === 'production' ? 'secondaryPreferred' : 'primary'),
   frontendUrl: environment.FRONTEND_URL,
   oxyApiUrl: environment.OXY_API_URL,
   federationDomain: environment.FEDERATION_DOMAIN,
@@ -802,15 +813,6 @@ export const config = {
     maxBufferSize: 1e6,
     compressionThreshold: 1_024,
   },
-  db: {
-    socketTimeoutMS: environment.MONGODB_SOCKET_TIMEOUT_MS,
-    serverSelectionTimeoutMS: environment.MONGODB_SERVER_SELECTION_TIMEOUT_MS,
-    maxRetries: environment.MONGODB_MAX_RETRIES,
-    maxPoolSize: environment.MONGODB_MAX_POOL_SIZE,
-    minPoolSize: environment.MONGODB_MIN_POOL_SIZE,
-    maxIdleTimeMS: environment.MONGODB_MAX_IDLE_TIME_MS,
-    heartbeatFrequencyMS: environment.MONGODB_HEARTBEAT_FREQUENCY_MS,
-  },
   feed: {
     defaultLimit: 20,
     maxLimit: 100,
@@ -826,6 +828,14 @@ export const config = {
     maxArticleExcerptLength: 280,
     defaultPollDurationDays: 7,
     maxPollDurationDays: 30,
+    // What a poll may CONTAIN, shared by the two writers of one. `POST /polls`
+    // stated these locally while the composer path (`POST /posts`,
+    // `POST /posts/thread`) stated none at all, so one poll surface bounded a
+    // poll and the other inserted whatever arrived. `db/polls/pollRepository.ts`
+    // is the single writer; these are the single envelope.
+    maxPollQuestionLength: 280,
+    maxPollOptions: 4,
+    maxPollOptionLength: 100,
     maxEventNameLength: 200,
     maxEventLocationLength: 200,
     maxEventDescriptionLength: 500,
@@ -867,9 +877,15 @@ export const config = {
   },
 } as const;
 
+/**
+ * The variables a task cannot boot without.
+ *
+ * **No `MONGODB_*` variable is among them, and none may come back.** Mongo is
+ * gone from this package — no driver, no models, no copier — so a variable
+ * naming it could only ever be read by something that should not exist.
+ */
 export function validateEnvironment(): void {
   const missing: string[] = [];
-  if (!config.mongoUri) missing.push('MONGODB_URI');
   if (config.runtime.isProduction && !config.frontendUrl) missing.push('FRONTEND_URL');
   if (config.runtime.isProduction && !environment.MENTION_PUBLIC_API_URL) {
     missing.push('MENTION_PUBLIC_API_URL');

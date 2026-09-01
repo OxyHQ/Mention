@@ -111,10 +111,6 @@ vi.mock('../../utils/syraPodcast', () => ({
   syraClient: {},
 }));
 
-vi.mock('../../models/Post', () => ({ default: {} }));
-vi.mock('../../models/Bookmark', () => ({ default: {} }));
-vi.mock('../../models/Like', () => ({ default: {} }));
-
 import profileSettingsRoutes from '../../routes/profileSettings';
 
 const app = express();

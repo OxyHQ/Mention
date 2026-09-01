@@ -18,21 +18,39 @@ import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { clearPostScope, postScope, seedLane, seedPost } from '../helpers/postFixtures';
 
+/**
+ * Oxy's account graph, which is what `postManagementRefusal` asks whenever the
+ * caller is not the authoring account itself. Empty by default: a case that
+ * wants a channel member has to say so, because being NAMED on the row as its
+ * writer is deliberately not enough any more.
+ */
+const oxy = vi.hoisted(() => ({
+  listAccountMembers: vi.fn(async () => [] as unknown[]),
+  accountKinds: new Map<string, string>(),
+}));
+
 vi.mock('../../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn(async (objs: object[]) => objs) },
-  resolveUserSummaries: vi.fn(async () => new Map()),
+  resolveUserSummaries: vi.fn(async (ids: string[]) => {
+    const summaries = new Map();
+    for (const id of ids) {
+      const kind = oxy.accountKinds.get(id);
+      if (kind) summaries.set(id, { user: { id, kind } });
+    }
+    return summaries;
+  }),
   degradedActorSummary: vi.fn(() => ({ id: 'unknown', username: '' })),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
-  createUserScopedOxyServices: vi.fn(() => undefined),
+  createUserScopedOxyServices: vi.fn(() => ({ listAccountMembers: oxy.listAccountMembers })),
   getServiceOxyClient: vi.fn(() => ({})),
 }));
 
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 
-import { updatePostLane } from '../../controllers/posts.controller';
+import { updatePostLane } from '../../controllers/posts/postSettings';
 import type { OxyAuthRequest } from '@oxyhq/core/server';
 
 const scope = postScope('post-lane-write');
@@ -81,6 +99,10 @@ beforeAll(async () => {
 
 afterEach(async () => {
   vi.clearAllMocks();
+  // `clearAllMocks` drops the implementation too, so the empty account graph is
+  // restated rather than assumed to survive.
+  oxy.accountKinds.clear();
+  oxy.listAccountMembers.mockResolvedValue([]);
   await clearPostScope(scope);
 });
 
@@ -260,7 +282,17 @@ describe('PATCH /posts/:id/lane — a channel post moves against the CHANNEL\'s 
   const CHANNEL_ACCOUNT = scope.user('channel-account');
   const OTHER_HUMAN = scope.user('other-human');
 
-  it('lets the WRITER move it, though the channel is the author', async () => {
+  /** Oxy says the caller is an active member of the channel, as of right now. */
+  function callerOperatesTheChannel(): void {
+    oxy.accountKinds.set(CHANNEL_ACCOUNT, 'channel');
+    oxy.listAccountMembers.mockResolvedValue([{ memberUserId: USER_ID, status: 'active' }]);
+  }
+
+  it('lets a CURRENT member move it, though the channel is the author', async () => {
+    // Staged, not taken off the row: `written_by_oxy_user_id` names whoever
+    // wrote the post and is never revised, so the route stopped treating it as
+    // authority and asks Oxy who runs the channel today.
+    callerOperatesTheChannel();
     const channelLane = await seedLane(scope, { ownerId: CHANNEL_ACCOUNT });
     const post = await seedPost(scope, {
       oxyUserId: CHANNEL_ACCOUNT,
@@ -279,6 +311,7 @@ describe('PATCH /posts/:id/lane — a channel post moves against the CHANNEL\'s 
   });
 
   it('refuses the writer’s OWN lane, which is what would deanonymize them', async () => {
+    callerOperatesTheChannel();
     const personalLane = await seedLane(scope, { ownerId: USER_ID });
     const post = await seedPost(scope, {
       oxyUserId: CHANNEL_ACCOUNT,
@@ -296,7 +329,10 @@ describe('PATCH /posts/:id/lane — a channel post moves against the CHANNEL\'s 
     expect(await storedLaneId(post.id)).toBeNull();
   });
 
-  it('refuses a stranger who neither authored nor wrote it', async () => {
+  it('refuses a stranger who neither authored it nor operates the channel', async () => {
+    // No `callerOperatesTheChannel()`: Oxy answers with an empty roster, which is
+    // what makes this a refusal rather than an omission.
+    oxy.accountKinds.set(CHANNEL_ACCOUNT, 'channel');
     const channelLane = await seedLane(scope, { ownerId: CHANNEL_ACCOUNT });
     const post = await seedPost(scope, {
       oxyUserId: CHANNEL_ACCOUNT,

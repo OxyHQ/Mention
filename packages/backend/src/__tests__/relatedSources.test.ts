@@ -35,17 +35,19 @@
  * {@link suiteIdsOf} and fixtures are stamped fractionally in the future.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres, type Database } from '../db/postgres';
+import { FOLLOWER_SNAPSHOT_INTERVAL_MS } from '../services/followerSnapshotJob';
 import { authorFollowerSnapshots, posts } from '../db/schema';
 import { insertPostRecord } from '../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../db/posts/postRecord';
 import {
   moreLikeThisSource,
   nearbySource,
+  resetRisingCreatorsCache,
   risingCreatorsSource,
 } from '../mtn/feed/engine/sources/relatedSources';
 import type { CandidatePost, FeedEngineContext } from '../mtn/feed/engine/types';
@@ -120,6 +122,12 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  // `risingCreators` memoizes its ranking for a full snapshot interval, so
+  // without this every case after the first would rank the PREVIOUS case's
+  // fixtures — the ranking outlives the rows it was computed from. Deleting the
+  // snapshots below is not enough on its own, which is exactly the property the
+  // cache exists to have.
+  resetRisingCreatorsCache();
   const ids = created.splice(0);
   if (ids.length > 0) await db.delete(posts).where(inArray(posts.id, ids));
   const owners = snapshotOwners.splice(0);
@@ -434,5 +442,160 @@ describe('the risingCreators source', () => {
     await create({ oxyUserId: 'relsrc-flat' });
 
     expect(suiteIdsOf(await risingCreatorsSource.gather({}, {}, 30))).toEqual([]);
+  });
+});
+
+/**
+ * The RANKING is memoized for one snapshot interval; the posts query is not.
+ *
+ * The aggregation it removes has no `LIMIT` and cannot have one — every author's
+ * first and last sample in the window is needed before any of them can be
+ * ranked — so on a production-shaped corpus (2M snapshots, 12k authors, ~466k
+ * rows in window) it sorted 466k rows for ~1.4s and 19MB of temp spill on EVERY
+ * `gather`, uncached, at a user's refresh rate.
+ *
+ * Every case below is written so that it fails if the memo is removed AND if the
+ * memo is wrong, which are different failures: the fixtures are DELETED between
+ * calls, so a second `gather` that re-ran the aggregation would find nothing and
+ * return `[]`. Each such assertion is paired with a reset-and-retry that proves
+ * the deletion really happened — otherwise "still returns the same rows" would
+ * pass just as well if the delete had silently matched nothing.
+ */
+describe('the risingCreators ranking cache', () => {
+  async function snapshot(oxyUserId: string, followerCount: number, sampledAt: Date): Promise<void> {
+    snapshotOwners.push(oxyUserId);
+    await db.insert(authorFollowerSnapshots).values({ oxyUserId, followerCount, at: sampledAt });
+  }
+
+  const RISER = 'relsrc-cache-riser';
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+
+  /** Seed one rising author with one post, and return that post's id. */
+  async function seedRiser(): Promise<string> {
+    await snapshot(RISER, 5, twoDaysAgo);
+    await snapshot(RISER, 50, dayAgo);
+    const post = await create({ oxyUserId: RISER, createdAt: at(0) });
+    return post.id;
+  }
+
+  /** Remove every snapshot row this describe seeded. */
+  async function deleteSnapshots(): Promise<void> {
+    await db
+      .delete(authorFollowerSnapshots)
+      .where(inArray(authorFollowerSnapshots.oxyUserId, [RISER]));
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('issues ZERO aggregation queries on a second gather', async () => {
+    const postId = await seedRiser();
+    await risingCreatorsSource.gather({}, {}, 30);
+
+    // Counted, not inferred: the aggregation is the only `select` whose
+    // projection names `first` and `last`, so this distinguishes it from the
+    // posts query and from everything `assemblePostRecords` reads.
+    const select = vi.spyOn(db, 'select');
+    const gathered = await risingCreatorsSource.gather({}, {}, 30);
+    const aggregations = select.mock.calls.filter(([projection]) => {
+      const keys = Object.keys((projection ?? {}) as Record<string, unknown>);
+      return keys.includes('first') && keys.includes('last');
+    });
+
+    expect(aggregations).toHaveLength(0);
+    // FLOOR: the spy really did observe this gather's queries, so the zero above
+    // is an absence and not a spy that saw nothing at all.
+    expect(select.mock.calls.length).toBeGreaterThan(0);
+    expect(suiteIdsOf(gathered)).toEqual([postId]);
+  });
+
+  it('serves the same ranking from the memo after the snapshots are gone', async () => {
+    const postId = await seedRiser();
+    const first = await risingCreatorsSource.gather({}, {}, 30);
+    expect(suiteIdsOf(first)).toEqual([postId]);
+
+    await deleteSnapshots();
+
+    const second = await risingCreatorsSource.gather({}, {}, 30);
+    // Same authors, same order, same rates — a cache that changed the answer
+    // would be a different feature.
+    expect(suiteIdsOf(second)).toEqual([postId]);
+    expect(second[0].finalScore).toBeCloseTo(first[0].finalScore ?? 0, 10);
+
+    // POSITIVE CONTROL for the delete: without this, the assertion above would
+    // pass identically if `deleteSnapshots` had matched nothing.
+    resetRisingCreatorsCache();
+    expect(suiteIdsOf(await risingCreatorsSource.gather({}, {}, 30))).toEqual([]);
+  });
+
+  it('reuses the ranking for exactly one snapshot interval, and no longer', async () => {
+    const postId = await seedRiser();
+
+    // Only `Date` is faked: the Postgres driver's own timers must keep running.
+    const start = Date.now();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(start);
+
+    expect(suiteIdsOf(await risingCreatorsSource.gather({}, {}, 30))).toEqual([postId]);
+    await deleteSnapshots();
+
+    // One millisecond inside the interval: still the memo, and the rows behind
+    // it no longer exist.
+    vi.setSystemTime(start + FOLLOWER_SNAPSHOT_INTERVAL_MS - 1);
+    expect(suiteIdsOf(await risingCreatorsSource.gather({}, {}, 30))).toEqual([postId]);
+
+    // One millisecond past it: recomputed, and the recompute sees the deletion.
+    // This is what ties the TTL to the SAMPLING CADENCE rather than to a number
+    // chosen here — retune `FOLLOWER_SNAPSHOT_INTERVAL_MS` and this moves with
+    // it, which is the property that keeps the two from drifting.
+    vi.setSystemTime(start + FOLLOWER_SNAPSHOT_INTERVAL_MS + 1);
+    expect(suiteIdsOf(await risingCreatorsSource.gather({}, {}, 30))).toEqual([]);
+  });
+
+  it('does NOT memoize a failure, which at this TTL would blank the source for hours', async () => {
+    const postId = await seedRiser();
+
+    // The aggregation is the first `select` a cold gather makes.
+    vi.spyOn(db, 'select').mockImplementationOnce(() => {
+      throw new Error('connection reset');
+    });
+
+    // Soft-fails, as it always did.
+    expect(await risingCreatorsSource.gather({}, {}, 30)).toEqual([]);
+
+    vi.restoreAllMocks();
+
+    // And the very next gather tries again rather than serving the empty answer
+    // for a full snapshot interval. `storyIndex` memoizes its empty answer on
+    // purpose; at five minutes that is a retry bound, at six hours it would be
+    // an outage.
+    expect(suiteIdsOf(await risingCreatorsSource.gather({}, {}, 30))).toEqual([postId]);
+  });
+
+  it('runs ONE aggregation for concurrent cold gathers', async () => {
+    const postId = await seedRiser();
+    const select = vi.spyOn(db, 'select');
+
+    const [a, b, c] = await Promise.all([
+      risingCreatorsSource.gather({}, {}, 30),
+      risingCreatorsSource.gather({}, {}, 30),
+      risingCreatorsSource.gather({}, {}, 30),
+    ]);
+
+    const aggregations = select.mock.calls.filter(([projection]) => {
+      const keys = Object.keys((projection ?? {}) as Record<string, unknown>);
+      return keys.includes('first') && keys.includes('last');
+    });
+
+    // Without the shared in-flight promise this is 3 — the first request after
+    // a restart is the worst case the cache exists to remove, multiplied by
+    // however many arrive together.
+    expect(aggregations).toHaveLength(1);
+    expect(suiteIdsOf(a)).toEqual([postId]);
+    expect(suiteIdsOf(b)).toEqual([postId]);
+    expect(suiteIdsOf(c)).toEqual([postId]);
   });
 });

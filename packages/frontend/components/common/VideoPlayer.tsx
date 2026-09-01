@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { View, Pressable, StyleSheet, Text, Platform, type StyleProp, type ViewStyle, type GestureResponderEvent } from 'react-native';
 import { Image } from 'expo-image';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import { VideoView, useVideoPlayer, type VideoPlayer as ExpoVideoPlayer } from 'expo-video';
+import { MediaFlightHost, type MediaFlightHostProps } from '@oxyhq/bloom/media-flight';
 import { useEvent, useEventListener } from 'expo';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
@@ -53,6 +54,46 @@ interface VideoPlayerProps {
    * expose video-track metadata there, and the HTML `<video>` auto-sizes instead.
    */
   onAspectRatio?: (ratio: number) => void;
+  /**
+   * A player somebody else owns, used INSTEAD of building one here.
+   *
+   * `useVideoPlayer` ties a player's life to this component, which is right for
+   * a surface that owns its video and wrong for one whose video has to survive
+   * the route change — the shared registry owns those. When this is set the
+   * internal player is built with a `null` source so it opens no decoder, and
+   * every presentation setting below is applied to the player passed in
+   * instead: the registry deliberately configures nothing, because two surfaces
+   * showing one video may legitimately disagree about `loop` or `muted`.
+   */
+  player?: ExpoVideoPlayer;
+  /**
+   * Paint through the shared media node under this id instead of mounting an
+   * element of this component's own. One node moves between hosts, so the
+   * picture survives this row unmounting mid-flight — and there is no element
+   * here to be detached, which is what used to pause the flying video.
+   */
+  flightHostId?: string;
+}
+
+/**
+ * The slot's own props. `MediaVideoSlotProps` is not exported from
+ * `@oxyhq/bloom/media-flight`, so it is derived from the prop that takes it —
+ * which is exported, and which stays right if the slot's shape ever changes.
+ */
+type FlightVideoSlotProps = Parameters<NonNullable<MediaFlightHostProps['renderVideo']>>[0];
+
+/**
+ * The DOM node behind a react-native-web `View` ref.
+ *
+ * RNW exposes it as `_nativeNode` or `getNode()`, neither of which is on the
+ * typed ref, with the ref itself as a last resort — narrowed structurally so
+ * this needs no `as any`. Two callers need it: the visibility observer, and the
+ * position the authority reads when it elects.
+ */
+function resolveDomElement(ref: View | null): Element | null {
+  const candidate = ref as (View & { _nativeNode?: Element; getNode?: () => Element }) | null;
+  const node: Element | View | null = candidate?._nativeNode ?? candidate?.getNode?.() ?? candidate;
+  return node && (node as Partial<Element>).nodeType !== undefined ? (node as Element) : null;
 }
 
 const CONTROLS_HIDE_DELAY = 3000;
@@ -69,6 +110,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   gif = false,
   viewabilityKey,
   onAspectRatio,
+  player: externalPlayer,
+  flightHostId,
 }) => {
   const isPreviewMode = onPress !== undefined && !gif;
   const { isMuted, toggleMuted } = useVideoMuteStore();
@@ -78,10 +121,27 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // audible slot. GIF mode is `silent`: still visibility-gated, but it never
   // competes for that slot, so several visible GIFs may loop at once.
   const playerInstanceId = useId();
+  // Read at SELECTION time, not published from the observer: an
+  // `IntersectionObserver` only fires on a threshold crossing, so a player that
+  // stays visible while the page scrolls would otherwise be ranked by where it
+  // was when it last crossed. Returns `undefined` off-web and before the node
+  // resolves, and the authority falls back to the published value.
+  const measureOrder = useCallback((): number | undefined => {
+    const element = resolveDomElement(containerRef.current);
+    // `undefined`, never 0: with no node there is no position, and 0 is a real
+    // one — the top of the viewport. Returning it made a row whose node had gone
+    // (mid-flight, mid-unmount) rank as if it were up there, which took the slot
+    // away from the row that was actually playing.
+    if (!element) return undefined;
+    const rect = element.getBoundingClientRect();
+    return rect.y + rect.height / 2;
+  }, []);
+
   const { shouldPlay, claimActive, reportVisibility } = useVideoPlayback({
     id: playerInstanceId,
     viewabilityKey,
     silent: gif,
+    measureOrder,
   });
 
   const [showControls, setShowControls] = useState(true);
@@ -139,11 +199,23 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // Inert on native: ExoPlayer/AVPlayer decode HLS themselves.
   const hls = useHlsPlayback(src, videoViewRef);
 
-  const player = useVideoPlayer(hls.active ? null : src, (p) => {
+  // Built unconditionally so the hook order never depends on a prop, but with a
+  // `null` source when a player was handed in — a null-sourced player opens no
+  // decoder, so the unused one costs nothing.
+  const ownPlayer = useVideoPlayer(externalPlayer || hls.active ? null : src, (p) => {
     p.loop = gif ? true : loop;
     p.muted = gif ? true : isMuted;
     p.timeUpdateEventInterval = TIME_UPDATE_INTERVAL;
   });
+  const player = externalPlayer ?? ownPlayer;
+
+  // The setup callback above only ever runs for the player built here, so a
+  // borrowed one is configured from this effect instead. Idempotent property
+  // writes, so running it for both is simpler than branching and cannot drift.
+  useEffect(() => {
+    player.loop = gif ? true : loop;
+    player.timeUpdateEventInterval = TIME_UPDATE_INTERVAL;
+  }, [player, gif, loop]);
 
   const scheduleHideControls = useCallback(() => {
     if (hideControlsTimer.current) {
@@ -206,16 +278,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   useEffect(() => {
     if (Platform.OS !== 'web') return;
 
-    // Resolve the underlying DOM node from the react-native-web View ref. RNW
-    // exposes it via `_nativeNode`/`getNode()` (neither is on the typed ref),
-    // with the ref itself as a last resort — narrow structurally, no `as any`.
-    const ref = containerRef.current as
-      | (View & { _nativeNode?: Element; getNode?: () => Element })
-      | null;
-    const node: Element | View | null = ref?._nativeNode ?? ref?.getNode?.() ?? ref;
-    const element = node && (node as Partial<Element>).nodeType !== undefined
-      ? (node as Element)
-      : null;
+    const element = resolveDomElement(containerRef.current);
 
     if (!element || typeof window === 'undefined' || !('IntersectionObserver' in window)) {
       // No observer to report with (no DOM node resolved, or a runtime without
@@ -335,19 +398,65 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     [player, duration, scheduleHideControls]
   );
 
-  const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
-
-  return (
-    <View ref={containerRef} style={[styles.container, style]}>
+  // The slot Bloom paints the shared node through. `style` is SPREAD because a
+  // `<video>` is a replaced element: without a size it paints at 300x150 inside
+  // whatever box it was given. `player` goes through untouched INCLUDING `null`,
+  // which is how expo-video empties a source without an event — the silence that
+  // stops an outgoing surface pausing the one that just landed.
+  const renderFlightVideo = useCallback(
+    ({ player: slotPlayer, style: slotStyle, contentFit: slotFit }: FlightVideoSlotProps) => (
       <VideoView
         ref={videoViewRef}
-        player={player}
-        style={styles.video}
-        contentFit={contentFit}
+                // `null` is forwarded verbatim — it is the instruction to unbind
+                // this element, and expo-video answers it by emptying the source
+                // without an event, which is what stops an outgoing surface
+                // pausing the one that just landed. Anything else is OUR player:
+                // Bloom never makes one, it hands back what it was given, and
+                // that is the object this component already holds, fully typed.
+                // Narrowed rather than cast, because `VideoPlayerLike` is
+                // deliberately smaller than expo-video's `VideoPlayer`.
+                player={slotPlayer === null ? null : player}
+        style={slotStyle}
+        contentFit={slotFit}
         nativeControls={false}
         fullscreenOptions={{ enable: !isPreviewMode && !gif }}
         allowsPictureInPicture={false}
       />
+    ),
+    [player, isPreviewMode, gif],
+  );
+
+  const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
+
+  return (
+    <View ref={containerRef} style={[styles.container, style]}>
+      {flightHostId === undefined ? (
+        <VideoView
+          ref={videoViewRef}
+          player={player}
+          style={styles.video}
+          contentFit={contentFit}
+          nativeControls={false}
+          fullscreenOptions={{ enable: !isPreviewMode && !gif }}
+          allowsPictureInPicture={false}
+        />
+      ) : (
+        // The host registers itself as the flight's anchor, so it measures the
+        // box the MEDIA paints in rather than the card around it. The element
+        // inside is still THIS component's: `useHlsPlayback` drives it through
+        // `videoViewRef`, and a host that built its own would leave that ref
+        // unattached — HLS and fullscreen broken on the flight path only.
+        <MediaFlightHost
+          id={flightHostId}
+          content={{ kind: 'video', player }}
+          style={styles.video}
+          // The shared node fills its box or letterboxes inside it; `fill`, which
+          // stretches, has no equivalent there and is not what any flight uses.
+          contentFit={contentFit === 'fill' ? 'cover' : contentFit}
+          renderVideo={renderFlightVideo}
+          pointerEvents="none"
+        />
+      )}
 
       {poster && !hasRenderedFrame && !posterFailed && (
         <Image

@@ -147,12 +147,11 @@ async function gatherListTimeline(listId: string, ctx: FeedEngineContext, cap: n
 /**
  * CHRONOLOGICAL Topic-feed query. Matches the SAME post set TrendingService
  * counts for the slug: a post is on the topic through EITHER the registry-linked
- * `postClassification.topicRefs.name` OR the slug-only `postClassification.topics`
- * (see {@link buildTopicSlugMatch}). Matching only `topics` here was the "topic
- * trends but its page is empty" bug — a post classified with a canonical
- * `topicRefs` entry but no matching slug in `topics` was counted as trending yet
- * never returned by this feed. The topic `$or` is nested under `$and` so the
- * cursor `$or` that {@link ChronoCursor.applyToQuery} may add cannot clobber it.
+ * `post_classification_topic_refs.name` OR the slug-only
+ * `posts.classification_topics` (see {@link topicSlugSql}). Matching only the
+ * slug array here was the "topic trends but its page is empty" bug — a post
+ * classified with a canonical ref but no matching slug in the array was counted
+ * as trending yet never returned by this feed.
  */
 async function gatherTopicTimeline(slug: string, ctx: FeedEngineContext, cap: number): Promise<CandidatePost[]> {
   return fetchChrono(

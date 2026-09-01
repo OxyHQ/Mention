@@ -52,37 +52,9 @@ import { closePostgres, connectPostgres, type Database } from '../../db/postgres
 import { trendBatches, trending } from '../../db/schema/discovery';
 import { posts } from '../../db/schema/posts';
 import { trendingService } from '../../services/TrendingService';
-
-interface TrendItemInput {
-  type: 'hashtag' | 'topic' | 'entity';
-  name: string;
-  description: string;
-  score: number;
-  volume: number;
-  momentum: number;
-  topicId?: string;
-  displayName?: string;
-  category?: string;
-  burstScore?: number;
-  authorCount?: number;
-  startedAt?: Date;
-  status?: 'hot';
-  actorIds?: string[];
-  languages?: string[];
-}
-
-/**
- * `saveTrendingBatch` and `cleanupOldTrends` are private; reach them through a
- * typed structural view rather than `as any`, so the tests stay type-checked.
- */
-type PrivateTrending = {
-  saveTrendingBatch(
-    items: TrendItemInput[],
-    calculatedAt: Date,
-  ): Promise<{ insertedCount: number; rejected: string[] }>;
-  cleanupOldTrends(): Promise<void>;
-};
-const svc = trendingService as unknown as PrivateTrending;
+import { cleanupOldTrends, saveTrendingBatch } from '../../services/trending/trendBatchStore';
+import { getTrendingHistory } from '../../services/trending/trendHistory';
+import type { TrendItem } from '../../services/trending/trendItems';
 
 let db: Database;
 const createdPostIds: string[] = [];
@@ -92,9 +64,9 @@ function uniqueName(prefix: string): string {
   return `${prefix}-${randomUUID().slice(0, 8)}`;
 }
 
-function item(overrides: Partial<TrendItemInput> & { name: string }): TrendItemInput {
+function item(overrides: Partial<TrendItem> & { name: string }): TrendItem {
   return {
-    type: 'hashtag',
+    type: TrendingType.HASHTAG,
     displayName: overrides.name,
     category: 'other',
     description: '',
@@ -168,8 +140,8 @@ describe('saveTrendingBatch — a collision costs ONE trend, never the batch', (
     const name = uniqueName('business');
     const at = batchStamp();
 
-    const write = await svc.saveTrendingBatch(
-      [item({ name, type: 'hashtag', score: 20 }), item({ name, type: 'topic', score: 10 })],
+    const write = await saveTrendingBatch(
+      [item({ name, type: TrendingType.HASHTAG, score: 20 }), item({ name, type: TrendingType.TOPIC, score: 10 })],
       at,
     );
 
@@ -194,9 +166,9 @@ describe('saveTrendingBatch — a collision costs ONE trend, never the batch', (
     const survivorB = uniqueName('survivor-b');
     const at = batchStamp();
 
-    await svc.saveTrendingBatch([item({ name: duplicated, score: 99 })], at);
+    await saveTrendingBatch([item({ name: duplicated, score: 99 })], at);
 
-    const write = await svc.saveTrendingBatch(
+    const write = await saveTrendingBatch(
       [
         item({ name: survivorA, score: 30 }),
         item({ name: duplicated, score: 20 }),
@@ -219,7 +191,7 @@ describe('saveTrendingBatch — a collision costs ONE trend, never the batch', (
     const name = uniqueName('collide');
     const at = batchStamp();
 
-    const write = await svc.saveTrendingBatch(
+    const write = await saveTrendingBatch(
       [item({ name, score: 30 }), item({ name, score: 20 })],
       at,
     );
@@ -236,17 +208,17 @@ describe('saveTrendingBatch — a collision costs ONE trend, never the batch', (
     const clash = uniqueName('accounting');
     const fresh = uniqueName('accounting-fresh');
     const at = batchStamp();
-    await svc.saveTrendingBatch([item({ name: clash })], at);
+    await saveTrendingBatch([item({ name: clash })], at);
 
     const batch = [item({ name: clash }), item({ name: fresh }), item({ name: clash })];
-    const write = await svc.saveTrendingBatch(batch, at);
+    const write = await saveTrendingBatch(batch, at);
 
     expect(write.insertedCount + write.rejected.length).toBe(batch.length);
     expect(write.rejected).toEqual([`hashtag:${clash}`, `hashtag:${clash}`]);
   });
 
   it('reports an empty batch without touching the database', async () => {
-    expect(await svc.saveTrendingBatch([], batchStamp())).toEqual({
+    expect(await saveTrendingBatch([], batchStamp())).toEqual({
       insertedCount: 0,
       rejected: [],
     });
@@ -257,8 +229,8 @@ describe('saveTrendingBatch — a collision costs ONE trend, never the batch', (
     const unlinked = uniqueName('unlinked');
     const at = batchStamp();
 
-    await svc.saveTrendingBatch(
-      [item({ name: linked, type: 'topic', topicId: 'oxy-topic-42' }), item({ name: unlinked })],
+    await saveTrendingBatch(
+      [item({ name: linked, type: TrendingType.TOPIC, topicId: 'oxy-topic-42' }), item({ name: unlinked })],
       at,
     );
 
@@ -271,7 +243,7 @@ describe('saveTrendingBatch — a collision costs ONE trend, never the batch', (
 
 describe('getTrending — the wire format is the contract', () => {
   async function publishBatch(names: string[], at: Date, summary = 'a summary'): Promise<void> {
-    await svc.saveTrendingBatch(
+    await saveTrendingBatch(
       names.map((name, index) => item({ name, score: 100 - index, volume: 10 - index })),
       at,
     );
@@ -323,7 +295,7 @@ describe('getTrending — the wire format is the contract', () => {
   it('carries topicId as a string when the trend resolved one', async () => {
     const name = uniqueName('wire-topic');
     const at = batchStamp();
-    await svc.saveTrendingBatch([item({ name, type: 'topic', topicId: 'oxy-topic-7' })], at);
+    await saveTrendingBatch([item({ name, type: TrendingType.TOPIC, topicId: 'oxy-topic-7' })], at);
     await db.insert(trendBatches).values({ calculatedAt: at, summary: '' });
 
     const result = await trendingService.getTrending(500);
@@ -339,8 +311,8 @@ describe('getTrending — the wire format is the contract', () => {
     await publishBatch([older], batchStamp(-60_000));
 
     const latest = batchStamp();
-    await svc.saveTrendingBatch(
-      [item({ name: newer, score: 50 }), item({ name: newerTopic, type: 'topic', score: 40 })],
+    await saveTrendingBatch(
+      [item({ name: newer, score: 50 }), item({ name: newerTopic, type: TrendingType.TOPIC, score: 40 })],
       latest,
     );
     await db.insert(trendBatches).values({ calculatedAt: latest, summary: '' });
@@ -359,7 +331,7 @@ describe('getTrending — the wire format is the contract', () => {
     // Vacuity floor: the reads above must not be passing because everything
     // passes. These rows exist but no `trend_batches` row points at them.
     const orphan = uniqueName('orphan');
-    await svc.saveTrendingBatch([item({ name: orphan })], batchStamp(60_000));
+    await saveTrendingBatch([item({ name: orphan })], batchStamp(60_000));
 
     const result = await trendingService.getTrending(500);
     expect(result.trending.map((row) => row.name)).not.toContain(orphan);
@@ -379,7 +351,7 @@ describe('loadVolumeSeries — one series per TERM, in time order', () => {
     const volumes = [3, 9, 4, 7, 5, 8];
     for (const [index, volume] of volumes.entries()) {
       const at = batchStamp(-(volumes.length - index) * 60_000);
-      await svc.saveTrendingBatch([item({ name, volume, score: 50 })], at);
+      await saveTrendingBatch([item({ name, volume, score: 50 })], at);
       if (index === volumes.length - 1) {
         await db.insert(trendBatches).values({ calculatedAt: at, summary: '' });
       }
@@ -406,8 +378,8 @@ describe('loadVolumeSeries — one series per TERM, in time order', () => {
     for (const [index, volume] of volumes.entries()) {
       const at = batchStamp(-(volumes.length - index) * 60_000);
       // The provenance flips halfway through the run.
-      const type = index < 3 ? 'hashtag' : 'topic';
-      await svc.saveTrendingBatch([item({ name, type, volume, score: 50 })], at);
+      const type = index < 3 ? TrendingType.HASHTAG : TrendingType.TOPIC;
+      await saveTrendingBatch([item({ name, type, volume, score: 50 })], at);
       if (index === volumes.length - 1) {
         await db.insert(trendBatches).values({ calculatedAt: at, summary: '' });
       }
@@ -424,7 +396,7 @@ describe('loadVolumeSeries — one series per TERM, in time order', () => {
     // flattened stand-in would be invented data.
     const name = uniqueName('short');
     const at = batchStamp();
-    await svc.saveTrendingBatch([item({ name })], at);
+    await saveTrendingBatch([item({ name })], at);
     await db.insert(trendBatches).values({ calculatedAt: at, summary: '' });
 
     const result = await trendingService.getTrending(500);
@@ -449,7 +421,7 @@ describe('getTrending — the reader\'s language orders, never filters', () => {
     const it = uniqueName('it-trend');
     const none = uniqueName('no-lang-trend');
     const at = batchStamp();
-    await svc.saveTrendingBatch(
+    await saveTrendingBatch(
       [
         item({ name: it, score: 30, languages: ['it'] }),
         item({ name: none, score: 20, languages: [] }),
@@ -502,10 +474,10 @@ describe('getTrendingHistory — one row per (day, name, type)', () => {
     const first = batchStamp(-120_000);
     const second = batchStamp(-60_000);
 
-    await svc.saveTrendingBatch([item({ name, score: 10, volume: 1 })], first);
-    await svc.saveTrendingBatch([item({ name, score: 40, volume: 4 })], second);
+    await saveTrendingBatch([item({ name, score: 10, volume: 1 })], first);
+    await saveTrendingBatch([item({ name, score: 40, volume: 4 })], second);
 
-    const history = await trendingService.getTrendingHistory(1, 20);
+    const history = await getTrendingHistory(1, 20);
     const mine = history.days.flatMap((day) => day.trends).filter((trend) => trend.name === name);
 
     expect(mine).toHaveLength(1);
@@ -529,7 +501,7 @@ describe('getTrendingHistory — one row per (day, name, type)', () => {
     const marker = uniqueName('tied');
     const at = batchStamp();
     const names = Array.from({ length: 21 }, (_, index) => `${marker}-${index}`);
-    await svc.saveTrendingBatch(names.map((name) => item({ name, score: 5 })), at);
+    await saveTrendingBatch(names.map((name) => item({ name, score: 5 })), at);
 
     const stored = await db.select().from(trending).where(eq(trending.calculatedAt, at));
     const expected = stored
@@ -537,7 +509,7 @@ describe('getTrendingHistory — one row per (day, name, type)', () => {
       .slice(0, 20)
       .map((row) => row.name);
 
-    const history = await trendingService.getTrendingHistory(1, 20);
+    const history = await getTrendingHistory(1, 20);
     const returned = history.days
       .flatMap((day) => day.trends)
       .filter((trend) => trend.name.startsWith(marker))
@@ -550,12 +522,12 @@ describe('getTrendingHistory — one row per (day, name, type)', () => {
   it('keeps a hashtag and a topic of the same name as two archived trends', async () => {
     const name = uniqueName('archived-both');
     const at = batchStamp();
-    await svc.saveTrendingBatch(
-      [item({ name, score: 30 }), item({ name, type: 'topic', score: 20 })],
+    await saveTrendingBatch(
+      [item({ name, score: 30 }), item({ name, type: TrendingType.TOPIC, score: 20 })],
       at,
     );
 
-    const history = await trendingService.getTrendingHistory(1, 20);
+    const history = await getTrendingHistory(1, 20);
     const mine = history.days.flatMap((day) => day.trends).filter((trend) => trend.name === name);
 
     expect(mine.map((trend) => trend.type).sort()).toEqual(['hashtag', 'topic']);
@@ -615,12 +587,12 @@ describe('cleanupOldTrends', () => {
     const old = batchStamp(-100 * 24 * 60 * 60 * 1000);
     const fresh = batchStamp();
 
-    await svc.saveTrendingBatch([item({ name: oldName })], old);
+    await saveTrendingBatch([item({ name: oldName })], old);
     await db.insert(trendBatches).values({ calculatedAt: old, summary: '' });
-    await svc.saveTrendingBatch([item({ name: freshName })], fresh);
+    await saveTrendingBatch([item({ name: freshName })], fresh);
     await db.insert(trendBatches).values({ calculatedAt: fresh, summary: '' });
 
-    await svc.cleanupOldTrends();
+    await cleanupOldTrends();
 
     const remaining = await db
       .select()

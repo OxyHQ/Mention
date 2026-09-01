@@ -20,7 +20,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * ## Why the assertions are all about rows
  *
  * There is nothing else left to assert on. The Mongoose models are gone from
- * `posts.controller.ts`, so there is no filter object to inspect and no `find`
+ * `controllers/posts/`, so there is no filter object to inspect and no `find`
  * to count — and that is the point, because a filter assertion could not have
  * distinguished any of the three failures above from correct behaviour anyway.
  * Everything below seeds rows that must match next to rows that must not.
@@ -42,6 +42,11 @@ const hoisted = vi.hoisted(() => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: hoisted.createScopedOxyClient,
   getServiceOxyClient: () => ({ getUserById: vi.fn(), getUsersByIds: vi.fn(async () => []) }),
+  // `getSavedPosts` hands hydration a way to resolve the viewer's channels,
+  // because bookmarks are selected by id alone and can therefore hold a post the
+  // ACL withholds. Irrelevant to the SELECTION this suite is about — hydration
+  // is a passthrough here — but the export has to exist or the route throws.
+  createUserScopedOxyServices: () => undefined,
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({
@@ -60,11 +65,8 @@ import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { bookmarks, likes } from '../../db/schema/engagement';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import {
-  getBookmarkFolders,
-  getPostLikes,
-  getSavedPosts,
-} from '../../controllers/posts.controller';
+import { getBookmarkFolders, getSavedPosts } from '../../controllers/posts/bookmarks';
+import { getPostLikes } from '../../controllers/posts/engagementLists';
 import type { PostRecord } from '../../db/posts/postRecord';
 
 const scope = serviceScope('post-likes-bookmarks');

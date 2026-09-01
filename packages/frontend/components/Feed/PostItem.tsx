@@ -18,9 +18,9 @@ import { usePostSelector } from '../../stores/postsStore';
 import PostHeader, { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post/PostHeader';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import PostContentText from '../Post/PostContentText';
-import PostLanguageChip from '../Post/PostLanguageChip';
 import PostLaneChip from '../Post/PostLaneChip';
 import ContentWarning from '../Post/ContentWarning';
+import PostCorrectionNotice from '../Post/PostCorrectionNotice';
 import PostActions from '../Post/PostActions';
 import PostDetailStats from '../Post/PostDetailStats';
 import PostLocation from '../Post/PostLocation';
@@ -40,6 +40,7 @@ import { usePostActions } from '@/hooks/usePostActions';
 import { PinIcon } from '@/assets/icons/pin-icon';
 import { BoostIcon } from '@/assets/icons/boost-icon';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
+import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
 import { showActionMenu } from '@/components/common/ActionMenu';
 import { showContentDialog } from '@/components/common/ContentDialog';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
@@ -224,6 +225,11 @@ const PostItem: React.FC<PostItemProps> = ({
     // `metadata.spoilerText`. Rendered as a visible label above the body — media blur
     // is handled separately via `isSensitiveContent`; this never gates the body text.
     const spoilerText = typeof metadata.spoilerText === 'string' ? metadata.spoilerText.trim() : '';
+    // The post's public correction trail. Absent — not zeroed — on a post that
+    // has never been corrected, so presence IS the whole condition for the
+    // marker. In practice only a channel post carries one: a personal post keeps
+    // its 30-minute edit window and leaves no trail.
+    const corrections = metadata.corrections;
 
     const isOwner = viewerState.isOwner ?? false;
     const canViewInsights = permissions.canViewInsights ?? isOwner;
@@ -426,16 +432,20 @@ const PostItem: React.FC<PostItemProps> = ({
     // Reading this post in another language. The server already resolved ONE body
     // for this viewer, so everything here is the reader deliberately overruling
     // that choice: `displayText` overrides the body, and it is `null` whenever the
-    // server's own resolution is what's on screen.
+    // server's own resolution is what's on screen. There is no standing control
+    // for any of it — a multilingual post reads as one post, and the action bar's
+    // translate icon is the whole surface.
     const {
         options: languageOptions,
         activeTag: activeLanguageTag,
         displayText: languageDisplayText,
         isTranslating,
         isTranslated,
+        canTranslate,
         selectLanguage,
         toggleReaderTranslation,
     } = usePostLanguage(content, viewPostId, metadata.language);
+    const openLanguagePicker = usePostLanguagePicker(languageOptions, activeLanguageTag, selectLanguage);
 
     const closeSourcesSheet = useCallback(() => {
         bottomSheet.setBottomSheetContent(null);
@@ -875,6 +885,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         // the clothes of a rule.
                         boostedBy={reposter}
                         date={metadata.createdAt}
+                        isEdited={metadata.isEdited}
                         showBoost={Boolean(viewPost.boost) && !isNested}
                         showReply={false}
                         laneSlot={laneSlot}
@@ -891,13 +902,8 @@ const PostItem: React.FC<PostItemProps> = ({
                     >
                         {spoilerText ? <ContentWarning text={spoilerText} /> : null}
                         {content.text ? <PostContentText content={content} postId={viewPostId} overrideText={languageDisplayText} linkPreviewUrls={linkPreviewUrls} /> : null}
-                        {content.text ? (
-                            <PostLanguageChip
-                                options={languageOptions}
-                                activeTag={activeLanguageTag}
-                                isTranslating={isTranslating}
-                                onSelect={selectLanguage}
-                            />
+                        {corrections && viewPostId ? (
+                            <PostCorrectionNotice postId={viewPostId} count={corrections.count} />
                         ) : null}
                     </PostHeader>
 
@@ -983,7 +989,8 @@ const PostItem: React.FC<PostItemProps> = ({
                             onSave={handleSave}
                             onShare={handleShare}
                             postId={viewPostId}
-                            onTranslate={content.text ? toggleReaderTranslation : undefined}
+                            onTranslate={canTranslate ? toggleReaderTranslation : undefined}
+                            onTranslateLongPress={openLanguagePicker}
                             isTranslated={isTranslated}
                             isTranslating={isTranslating}
                             onInsightsPress={isOwner ? handleInsightsPress : undefined}

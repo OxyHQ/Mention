@@ -57,7 +57,7 @@ import {
   inList,
   timestamptz,
   updatedAt,
-} from './columns';
+} from '@oxyhq/db';
 
 /**
  * `PostType` (`@mention/shared-types`). Declared as a local tuple so the column
@@ -195,13 +195,20 @@ export const posts = pgTable(
      */
     curated: boolean(),
 
-    /** Free-form author tags (distinct from `hashtags`). Scalar set → `text[]`. */
-    tags: text().array(),
     /**
-     * Canonical hashtags: lowercase, `#`-stripped, deduped, first-seen order
-     * preserved. Multikey in Mongo; a `text[]` with a GIN index answers the same
-     * `$in` predicate natively.
+     * Free-form author tags. NOTHING has ever written this column, in any store,
+     * at any point in its life — measured, with a `hashtags` positive control on
+     * every census. It is no longer read: `PostRecord`, the repository mapping,
+     * the DTO and `@mention/shared-types` all dropped it.
+     *
+     * The DECLARATION stays only because `drizzle-kit generate` would otherwise
+     * emit `DROP COLUMN "tags"`, and that must not land yet: migrations run as a
+     * one-shot BEFORE the rolling update, so the previous image — whose
+     * `select()` still names the column — would answer `42703` on every post
+     * read for the length of the rollout. Drop it in a LATER release, once no
+     * running image selects it.
      */
+    tags: text().array(),
     hashtags: text().array(),
     /** Prior body revisions, oldest first. Opaque strings. */
     editHistory: text().array(),
@@ -225,6 +232,31 @@ export const posts = pgTable(
 
     reviewReplies: boolean().notNull().default(false),
     quotesDisabled: boolean().notNull().default(false),
+
+    /**
+     * How many times this post's body has been CORRECTED — the public count a
+     * channel post carries, denormalized here so a feed row can say "corrected"
+     * without a per-post lookup.
+     *
+     * It counts corrections MADE, never rows retained. `post_corrections` keeps a
+     * bounded window of superseded bodies (see that table), so an aggregate over
+     * it would silently shrink the moment the cap bit — a trail that quietly
+     * under-reports how often a publication rewrote itself is worse than no trail,
+     * because it reads as authoritative. This column only ever increments.
+     *
+     * Zero for every post that has never been corrected, which is nearly all of
+     * them, and for personal posts always: only a channel post records a
+     * correction (see `updatePost`).
+     */
+    correctionCount: integer().notNull().default(0),
+    /**
+     * When the most recent correction was made.
+     *
+     * Distinct from `updated_at`, which moves for a pin, a lane change or a
+     * settings write — none of which is a correction and none of which a reader
+     * should be told about. NULL means never corrected.
+     */
+    lastCorrectedAt: timestamptz(),
 
     /**
      * The boosted original. CASCADE: a `type:'boost'` row carries an
@@ -473,7 +505,8 @@ export const posts = pgTable(
      * own anchor and pages forever (`backfill-mtn-records` did), and a DESC one
      * silently skips rows sharing the anchor's millisecond.
      *
-     * `columns.ts` removes the precision at the source, in the DEFAULT. This
+     * `@oxyhq/db`'s `createdAt()` removes the precision at the source, in the
+     * DEFAULT. This
      * constraint is what stops it coming back: a future writer reaching for raw
      * `now()` fails loudly here instead of arming the same trap for whichever
      * keyset is written next. Every current writer is either that default or an
@@ -588,9 +621,10 @@ export const posts = pgTable(
       .on(t.federationActivityId)
       .where(sql`${t.federationActivityId} is not null`),
 
-    // ── Hot paths, ported from `indexes/manifest.ts` + the model's own list ──
-    // Named after the manifest entries so a DBA reading `pg_indexes` and a
-    // developer reading the migration see the same names.
+    // ── Hot paths, ported from the Mongo index manifest + the model's own list ──
+    // The names are the manifest's, kept so a DBA reading `pg_indexes` and a
+    // developer reading the migration see the same ones. Both the manifest and
+    // the model are deleted; these declarations are now the only record.
     index('post_public_chrono_v1').on(t.visibility, t.status, t.createdAt.desc(), t.id.desc()),
     // The root-feed predicate, which is now a column test rather than the
     // `parent_post_id IS NULL` + `federation.inReplyTo` disjunction it used to
@@ -617,7 +651,43 @@ export const posts = pgTable(
     index('posts_owner_chrono_idx').on(t.oxyUserId, t.visibility, t.status, t.createdAt.desc(), t.id.desc()),
     index('posts_type_chrono_idx').on(t.type, t.visibility, t.status, t.createdAt.desc()),
     index('posts_created_at_idx').on(t.createdAt.desc()),
-    index('posts_thread_idx').on(t.threadId, t.oxyUserId, t.parentPostId, t.createdAt),
+    /**
+     * The self-thread spine — `(thread_id, author)`, oldest first.
+     *
+     * PARTIAL on `thread_id is not null`, and the predicate is doing real work
+     * rather than tidying: a thread is a rare shape, so the full index spent
+     * ~90% of its entries on rows whose `thread_id` is NULL and which no query
+     * reaching this index can ever return. Both consumers —
+     * `feed.controller.getSelfThreadContinuations` and `ThreadSlicingService` —
+     * spell it `eq(thread_id, X)`, which is strict, so Postgres proves the
+     * implication and still chooses the index. Measured on 300k seeded posts
+     * (30k threaded): 23 MB → 2992 kB, same `Index Scan using posts_thread_idx`
+     * with `parent_post_id IS NOT NULL` still in the Index Cond.
+     *
+     * There is NO `thread_id is null` predicate anywhere in the tree, which is
+     * what makes the narrowing safe — see `posts_boost_of_idx` below for the
+     * case where there IS one and the index therefore stays full.
+     */
+    index('posts_thread_idx')
+      .on(t.threadId, t.oxyUserId, t.parentPostId, t.createdAt)
+      .where(sql`${t.threadId} is not null`),
+    /**
+     * DELIBERATELY NOT PARTIAL, unlike its three neighbours above and below.
+     *
+     * `boost_of` is NULL on ~95% of rows, so `where boost_of is not null` would
+     * shrink this the way it shrank `posts_thread_idx` — and it is refused
+     * anyway, because `notABoostSql()` (`utils/feedQueryBuilder.ts`) is
+     * `isNull(posts.boostOf)` and runs on hot feed paths, with two more
+     * `isNull(boostOf)` predicates in `PostClassificationService` and
+     * `scripts/backfill-mtn-records.ts`. A partial index cannot serve a query
+     * asking for the rows it excludes, and the failure has no symptom: those
+     * queries would silently stop having this index available and get slower
+     * under a row count no local corpus reproduces.
+     *
+     * The same reasoning holds `posts_quote_of_idx` full — `backfillQuotedPosts`
+     * spells `isNull(posts.quoteOf)`. Both were measured and kept: the rule that
+     * decides is "does anything ask for the NULL side", not the NULL fraction.
+     */
     index('posts_boost_of_idx').on(t.boostOf, t.createdAt.desc()),
     /**
      * One NATIVE boost per account per post — the constraint that makes "have
@@ -662,6 +732,35 @@ export const posts = pgTable(
       .where(sql`${t.status} = 'scheduled'`),
 
     /**
+     * ONE ACCOUNT'S QUEUE — `GET /posts/scheduled`, which reads the caller's own
+     * pending posts UNION those of every channel they operate.
+     *
+     * `posts_scheduled_idx` above serves the SWEEP, which wants every due post
+     * regardless of owner, and it cannot serve this: with only that index the
+     * planner walks the entire site-wide scheduled set in `scheduled_for` order
+     * and filters by owner, so one member's queue read costs a scan proportional
+     * to how much EVERYBODY ELSE has scheduled. Measured on 403k posts of which
+     * 3k scheduled, reading 20 accounts' entries: 200 rows returned, **2,800
+     * removed by filter**, 0.407 ms — against 0.125 ms and no wasted rows here.
+     * The absolute numbers are small; the coupling is the defect, because it
+     * grows with global scheduled volume rather than with the caller's own.
+     *
+     * PARTIAL on `status = 'scheduled'`, which is what makes it nearly free: a
+     * post enters the index when it is scheduled and leaves when it publishes, so
+     * this indexes a set that drains every 60 seconds rather than the table. The
+     * query carries `status = 'scheduled'` as a literal term, so the planner can
+     * prove eligibility.
+     *
+     * `scheduled_for` second gives the ORDER BY for free per account; `id` is
+     * deliberately NOT a third column — it is the sort's tie-break only, and it
+     * holds both pre-cutover ObjectId hex and post-cutover uuid v7, so it is not
+     * a chronological axis worth widening every index entry for.
+     */
+    index('post_owner_scheduled_v1')
+      .on(t.oxyUserId, t.scheduledFor)
+      .where(sql`${t.status} = 'scheduled'`),
+
+    /**
      * The lane tab's keyset — `laneSource` pages ONE lane on `(created_at, id)`,
      * and this serves the predicate and the order end to end.
      *
@@ -684,9 +783,49 @@ export const posts = pgTable(
     index('posts_classification_topics_gin').using('gin', t.classificationTopics),
     index('posts_classification_languages_gin').using('gin', t.classificationLanguages),
     index('posts_classification_trend_terms_gin').using('gin', t.classificationTrendTerms),
-    index('posts_classification_region_idx').on(t.classificationRegion, t.createdAt.desc()),
-    // The classification batch queue drains oldest-first within one status.
-    index('posts_classification_queue_idx').on(t.classificationStatus, t.createdAt),
+    /**
+     * PARTIAL on `classification_region is not null`. The only two predicates
+     * are `eq(posts.classificationRegion, region)` (`forYouCandidateSources`,
+     * `relatedSources`) — strict, so the implication is provable — and nothing
+     * anywhere asks for the unclassified-region side. Measured on the seeded
+     * corpus (22% of rows carry a region): 9264 kB → 2080 kB, still
+     * `Index Scan using posts_classification_region_idx`.
+     *
+     * `TrendingService` and `discoverySources` also name the column, but as a
+     * SELECT projection and inside a `case when` scoring expression — neither is
+     * a predicate and neither can reach an index either way.
+     */
+    index('posts_classification_region_idx')
+      .on(t.classificationRegion, t.createdAt.desc())
+      .where(sql`${t.classificationRegion} is not null`),
+    /**
+     * The classification batch queue drains oldest-first within one status.
+     *
+     * PARTIAL on `classification_status = 'pending'`, which is the whole set the
+     * queue is: `PostClassificationService` holds ONE predicate on this column
+     * (`UNCLASSIFIED`, `eq(…, 'pending')`), shared by `markEmptyPosts` and by
+     * `classifyBatch` — the `order by created_at asc, id asc limit 25` this
+     * index exists for. `'baseline'`, `'classified'` and `'failed'` are read only
+     * off an already-hydrated record (`contentClassification/trustedScores.ts`,
+     * `ranking/signals/optIn.ts`), which is memory, not a query, and cannot reach
+     * an index either way.
+     *
+     * The leading column stays even though the predicate pins it — `eq` is
+     * strict, so Postgres proves the implication, and the entry it costs is
+     * paid on the pending set rather than on the table.
+     *
+     * Measured on 300k seeded posts with a drained queue (3% pending): 11 MB
+     * rebuilt (21 MB as the inserts grew it) → 296 kB, with both queries still
+     * on `posts_classification_queue_idx` — an Index Scan for `classifyBatch`
+     * that no longer even rechecks the status, and a Bitmap Index Scan for
+     * `markEmptyPosts`. The half worth checking rather than asserting: a
+     * predicate on any OTHER status now falls off it onto a parallel sequential
+     * scan. That is the trade, and the census in
+     * `__tests__/db/hotPathIndexes.test.ts` is what keeps it licensed.
+     */
+    index('posts_classification_queue_idx')
+      .on(t.classificationStatus, t.createdAt)
+      .where(sql`${t.classificationStatus} = 'pending'`),
 
     // Mongo indexed `curated` SPARSE. A partial index is the analogue and keeps
     // the index the size of the curated set rather than the whole table.
@@ -694,9 +833,29 @@ export const posts = pgTable(
       .on(t.createdAt.desc())
       .where(sql`${t.curated} is true`),
 
-    // The two spatial indexes, replacing the `2dsphere` pair. GiST over the
-    // GENERATED point, so there is nothing to keep in sync.
-    index('posts_geo_gist').using('gist', t.geo),
-    index('posts_content_geo_gist').using('gist', t.contentGeo),
+    /**
+     * The two spatial indexes, replacing the `2dsphere` pair. GiST over the
+     * GENERATED point, so there is nothing to keep in sync.
+     *
+     * PARTIAL on `is not null`, and here the predicate is worth more than
+     * anywhere else on this table: a location is rare (2.2% and 1.3% of the
+     * seeded corpus), and a GiST index indexes the NULLs too, so the full form
+     * paid a GiST insert on every ordinary post to store an entry no
+     * `ST_DWithin` can ever match. Measured: `posts_geo_gist` 20 MB → 488 kB,
+     * `posts_content_geo_gist` 19 MB → 264 kB — the two largest single wins in
+     * the audit, and together most of the 352 MB → 287 MB it recovered.
+     *
+     * `ST_DWithin` is strict, so Postgres proves the implication; the `nearby`
+     * controller's OR over BOTH columns (`posts.controller.ts`) still plans as a
+     * `BitmapOr` of the two, which was checked rather than assumed because that
+     * is the shape a naive narrowing would break.
+     *
+     * `postgis.test.ts` asserts these two by NAME (`am.amname = 'gist'`), so it
+     * keeps passing; `hotPathIndexes.test.ts` is what pins the predicate.
+     */
+    index('posts_geo_gist').using('gist', t.geo).where(sql`${t.geo} is not null`),
+    index('posts_content_geo_gist')
+      .using('gist', t.contentGeo)
+      .where(sql`${t.contentGeo} is not null`),
   ]
 );

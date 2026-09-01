@@ -116,7 +116,8 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
                                 <Text className="text-[13px] font-medium text-muted-foreground" numberOfLines={1}>
                                     {trimmed ||
                                         t("compose.poll.optionPlaceholder", {
-                                            defaultValue: `Option ${index + 1}`,
+                                            defaultValue: "Option {{index}}",
+                                            index: index + 1,
                                         })}
                                 </Text>
                             </View>
@@ -126,7 +127,7 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
                         <Text style={{ fontSize: 12, fontWeight: "500", color: theme.colors.textTertiary }}>
                             {t("compose.poll.moreOptions", {
                                 count: pollOptions.length - 2,
-                                defaultValue: `+${pollOptions.length - 2} more`,
+                                defaultValue: "+{{count}} more",
                             })}
                         </Text>
                     )}

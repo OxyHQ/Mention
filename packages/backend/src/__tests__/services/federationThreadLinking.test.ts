@@ -1,5 +1,6 @@
 import { PassThrough } from 'node:stream';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { and, eq, like, ne } from 'drizzle-orm';
 
 /**
@@ -47,10 +48,7 @@ const h = vi.hoisted(() => ({
   fetchUpstreamFollowingRedirects: vi.fn(),
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
-  likeCreate: vi.fn(),
-  likeFindOneAndDelete: vi.fn(),
   getServiceOxyClient: vi.fn(),
-  followExists: vi.fn(),
 }));
 
 vi.mock('../../connectors/activitypub/crypto', () => ({
@@ -59,20 +57,9 @@ vi.mock('../../connectors/activitypub/crypto', () => ({
   signRequest: h.signRequest,
 }));
 
-vi.mock('../../models/FederatedFollow', () => ({ default: { exists: h.followExists } }));
-
 vi.mock('@oxyhq/core/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
   assertSafePublicUrl: h.assertSafePublicUrl,
-}));
-
-vi.mock('../../models/FederationDeliveryQueue', () => ({
-  default: {},
-  getNextRetryTime: vi.fn(),
-}));
-
-vi.mock('../../models/Like', () => ({
-  default: { create: h.likeCreate, findOneAndDelete: h.likeFindOneAndDelete },
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: h.getServiceOxyClient }));
@@ -114,10 +101,6 @@ vi.mock('../../utils/notificationUtils', () => ({
   createMentionNotifications: vi.fn().mockResolvedValue(undefined),
   createBatchNotifications: vi.fn().mockResolvedValue(undefined),
   createPostAuthorNotifications: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('../../models/PostSubscription', () => ({
-  default: { find: () => ({ lean: () => Promise.resolve([]) }) },
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({
@@ -203,10 +186,16 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   });
 }
 
-/** A Create activity wrapping a Note (optionally a reply). */
-function replyCreateActivity(id: string, inReplyTo?: string) {
+/**
+ * A Create activity wrapping a Note (optionally a reply).
+ *
+ * `base` is the activity-id namespace the Note is minted in. It defaults to the
+ * actor's own `/statuses`, which every case sharing ids with no other case uses;
+ * the ancestor-boundary cases pass their own (see `caseNamespace` below).
+ */
+function replyCreateActivity(id: string, inReplyTo?: string, base = `${ACTOR_URI}/statuses`) {
   const note: Record<string, unknown> = {
-    id: `${ACTOR_URI}/statuses/${id}`,
+    id: `${base}/${id}`,
     type: 'Note',
     attributedTo: ACTOR_URI,
     content: `<p>post ${id}</p>`,
@@ -215,7 +204,7 @@ function replyCreateActivity(id: string, inReplyTo?: string) {
   };
   if (inReplyTo) note.inReplyTo = inReplyTo;
   return {
-    id: `${ACTOR_URI}/statuses/${id}/activity`,
+    id: `${base}/${id}/activity`,
     type: 'Create',
     actor: ACTOR_URI,
     published: '2026-06-18T12:00:00Z',
@@ -266,8 +255,6 @@ beforeEach(async () => {
   h.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   h.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   h.recordAccess.mockResolvedValue(undefined);
-  h.likeCreate.mockResolvedValue({ _id: 'like_1' });
-  h.likeFindOneAndDelete.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
   h.getServiceOxyClient.mockReturnValue({
     makeServiceRequest: vi.fn(),
     getUserById: vi.fn(async () => ({ id: AUTHOR_OXY, username: 'alice' })),
@@ -411,6 +398,83 @@ describe('outbox backfill — bounded ancestor backfill', () => {
   const outboxUrl = `${ACTOR_URI}/outbox`;
   const firstPageUrl = `${ACTOR_URI}/outbox?page=true`;
 
+  /**
+   * The ancestor-walking cases below each import THIRTY posts — thirty fetches
+   * and thirty real writes against a database ten worker processes share.
+   * Measured here: ~0.8s each on an idle machine, ~3.5s each with one other
+   * suite running against the same server, which is 1.4x off the default 5s.
+   *
+   * That default is therefore a bound on how loaded the machine is rather than
+   * on anything these cases are testing — what they assert about the walk is
+   * asserted explicitly, by counting fetches and materialised rows. CI hit it
+   * (`Test timed out in 5000ms`, green on re-run), and a timeout here does not
+   * stop at failing its own case: see `caseNamespace` for what the abandoned
+   * work then does to the NEXT one.
+   */
+  const CHAIN_WALK_TIMEOUT_MS = 30_000;
+
+  /**
+   * A private activity-id namespace for ONE case, and the reason every chain
+   * case below owns one.
+   *
+   * These cases used to number their chains from 1 inside the FILE-wide
+   * `${ACTOR_URI}/statuses/` namespace, and two of them then COUNT what a single
+   * pass materialised — over that same file-wide prefix. The counts therefore
+   * spanned each other almost completely (1..31 against 2..32), so a row
+   * surviving from a sibling case was indistinguishable from an ancestor of this
+   * one. `31` — the value CI reported against an expected `30` — is exactly that
+   * shape.
+   *
+   * A surviving row is reachable, and not through sloppy cleanup:
+   * `clearScopePosts` runs in `beforeEach` AND `afterEach`, and the code under
+   * test detaches nothing — `processInboxActivity` awaits the whole ancestor
+   * backfill. **Vitest does not cancel a timed-out test's work.** When the TEST
+   * times out, vitest fails it and moves on while that awaited chain keeps
+   * writing, straight through both cleanups and into the next case.
+   *
+   * Measured, by capping the infinite-chain case at 400ms: it times out, and the
+   * next case counts 38 ancestors instead of 30 — CI's two failures, which
+   * arrived one per run, reproduced together in one run.
+   *
+   * Hence three parts, and each is load-bearing: `CHAIN_WALK_TIMEOUT_MS` removes
+   * the mechanism; a namespace per case makes a straggler's rows UNCOUNTABLE by
+   * anyone else; and each chain's fetch stub REFUSES a URL outside its own
+   * namespace. That last one is not tidiness — the stub is `globalThis.fetch`,
+   * so a straggler's next ancestor fetch is served by whichever case is running
+   * NOW. Left permissive, the new case answers with a Note in ITS namespace and
+   * the straggler materialises ancestors the running case then counts: measured
+   * at 47 with the namespaces in place and the stub still permissive.
+   */
+  const caseNamespace = (caseName: string) => `${ACTOR_URI}/${caseName}/statuses`;
+
+  /**
+   * The ancestor number in `base`'s namespace, or null for any other URL — which
+   * every chain stub below refuses.
+   */
+  const ancestorNumber = (base: string, url: string): number | null => {
+    if (!url.startsWith(`${base}/`)) return null;
+    const n = Number(url.slice(base.length + 1));
+    return Number.isInteger(n) ? n : null;
+  };
+
+  /**
+   * Ancestor fetches this case's OWN chain was asked for.
+   *
+   * Filtered for the same reason the row counts are, and it is the same stub
+   * that makes it necessary: a straggler's next fetch is RECORDED by whichever
+   * case's spy is installed now. Refusing it stops the rows but not the call —
+   * measured at 32 against an expected 30, on a case that did nothing wrong.
+   *
+   * Nothing real is lost. Every URL this walk can reach is one this stub minted,
+   * so a fetch outside the namespace is not something the code under test can
+   * do; if it somehow did, the stub refuses it and the shortfall lands on the
+   * row count instead.
+   */
+  const ancestorFetches = (
+    fetchMock: Mock<(url: string) => Promise<Response>>,
+    base: string,
+  ): number => fetchMock.mock.calls.filter(([url]) => url.startsWith(`${base}/`)).length;
+
   it('fetches + imports a NON-local parent and links the reply to it', async () => {
     const parentUri = `${ACTOR_URI}/statuses/500`;
     const replyActivity = replyCreateActivity('501', parentUri);
@@ -457,43 +521,41 @@ describe('outbox backfill — bounded ancestor backfill', () => {
   });
 
   it('respects the depth cap on an infinite ancestor chain (no runaway, reply still linked)', async () => {
+    const base = caseNamespace('infinite-chain');
     // Every fetched status N is a reply to status N+1 — an unbounded ascending
     // chain. The depth cap must terminate the backfill.
     const fetchMock = vi.fn(async (url: string) => {
-      const match = url.match(/\/statuses\/(\d+)$/);
-      if (match) {
-        const n = Number(match[1]);
-        return jsonResponse({
-          id: url,
-          type: 'Note',
-          attributedTo: ACTOR_URI,
-          content: `<p>ancestor ${n}</p>`,
-          inReplyTo: `${ACTOR_URI}/statuses/${n + 1}`,
-          to: ['https://www.w3.org/ns/activitystreams#Public'],
-        });
-      }
-      throw new Error(`unexpected fetch ${url}`);
+      const n = ancestorNumber(base, url);
+      if (n === null) throw new Error(`unexpected fetch ${url}`);
+      return jsonResponse({
+        id: url,
+        type: 'Note',
+        attributedTo: ACTOR_URI,
+        content: `<p>ancestor ${n}</p>`,
+        inReplyTo: `${base}/${n + 1}`,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+      });
     });
     vi.stubGlobal('fetch', fetchMock);
 
     // Inbox reply whose parent starts the infinite chain.
     await federationService.processInboxActivity(
-      replyCreateActivity('1000', `${ACTOR_URI}/statuses/1001`),
+      replyCreateActivity('1000', `${base}/1001`, base),
       ACTOR_URI,
     );
 
     // Terminated (the test did not hang) and bounded: the on-demand parent
     // fetches never exceed the depth cap (30) by more than a small constant.
-    expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(32);
+    expect(ancestorFetches(fetchMock, base)).toBeLessThanOrEqual(32);
 
     // The original reply is still stored (best-effort) and linked to its
     // immediate parent, which was itself imported by the backfill.
-    const reply = await rowByActivityId(`${ACTOR_URI}/statuses/1000`);
-    const immediateParent = await rowByActivityId(`${ACTOR_URI}/statuses/1001`);
+    const reply = await rowByActivityId(`${base}/1000`);
+    const immediateParent = await rowByActivityId(`${base}/1001`);
     expect(reply).toBeDefined();
     expect(immediateParent).toBeDefined();
     expect(reply?.parentPostId).toBe(immediateParent?.id);
-  });
+  }, CHAIN_WALK_TIMEOUT_MS);
 
   /**
    * How much of a thread ONE ingest pass will pull.
@@ -514,21 +576,22 @@ describe('outbox backfill — bounded ancestor backfill', () => {
    */
   describe('per-pass ancestor materialisation boundary', () => {
     /**
-     * `length` ancestors above the inbound reply, ending at a real root. Returns the
-     * fetch mock so the caller can count on-demand ancestor fetches.
+     * `length` ancestors above the inbound reply, ending at a real root, minted
+     * in `base`. Returns the fetch mock so the caller can count on-demand
+     * ancestor fetches.
      */
-    const finiteChain = (length: number) => {
-      // statuses/1 is the root; statuses/N replies to statuses/N-1. The inbound
-      // reply is statuses/(length + 1), so `length` ancestors sit above it.
+    const finiteChain = (base: string, length: number) => {
+      // <base>/1 is the root; <base>/N replies to <base>/N-1. The inbound reply
+      // is <base>/(length + 1), so `length` ancestors sit above it.
       const fetchMock = vi.fn(async (url: string) => {
-        const n = Number(url.match(/\/statuses\/(\d+)$/)?.[1]);
-        if (!Number.isFinite(n)) throw new Error(`unexpected fetch ${url}`);
+        const n = ancestorNumber(base, url);
+        if (n === null) throw new Error(`unexpected fetch ${url}`);
         return jsonResponse({
           id: url,
           type: 'Note',
           attributedTo: ACTOR_URI,
           content: `<p>ancestor ${n}</p>`,
-          ...(n > 1 ? { inReplyTo: `${ACTOR_URI}/statuses/${n - 1}` } : {}),
+          ...(n > 1 ? { inReplyTo: `${base}/${n - 1}` } : {}),
           to: ['https://www.w3.org/ns/activitystreams#Public'],
         });
       });
@@ -537,63 +600,68 @@ describe('outbox backfill — bounded ancestor backfill', () => {
     };
 
     /**
-     * Ancestor posts this pass actually WROTE, counted from the rows (excludes
-     * the inbound reply itself).
+     * Ancestor posts this pass actually WROTE, counted from the rows in the
+     * calling case's OWN namespace (excludes the inbound reply itself).
      *
      * Counted from `posts` rather than from a creator spy, because the spy
      * answers "how many creates were attempted" and the boundary is about how
      * many ancestors EXIST afterwards — a create that lost a unique race on
      * `federation_activity_id` attempted and stored nothing.
      */
-    const materialisedAncestors = async (replyActivityId: string): Promise<number> => {
+    const materialisedAncestors = async (
+      base: string,
+      replyActivityId: string,
+    ): Promise<number> => {
       const rows = await getDb()
         .select({ activityId: posts.federationActivityId })
         .from(posts)
         .where(and(
-          like(posts.federationActivityId, `${ACTOR_URI}/statuses/%`),
+          like(posts.federationActivityId, `${base}/%`),
           ne(posts.federationActivityId, replyActivityId),
         ));
       return rows.length;
     };
 
     it('pulls a whole 30-ancestor chain — AT the depth cap nothing is left behind', async () => {
-      const fetchMock = finiteChain(30);
+      const base = caseNamespace('chain-of-30');
+      const fetchMock = finiteChain(base, 30);
 
       await federationService.processInboxActivity(
-        replyCreateActivity('31', `${ACTOR_URI}/statuses/30`),
+        replyCreateActivity('31', `${base}/30`, base),
         ACTOR_URI,
       );
 
-      expect(await materialisedAncestors(`${ACTOR_URI}/statuses/31`)).toBe(30);
-      expect(fetchMock).toHaveBeenCalledTimes(30);
+      expect(await materialisedAncestors(base, `${base}/31`)).toBe(30);
+      expect(ancestorFetches(fetchMock, base)).toBe(30);
       // Reached the real root, so the reply carries the true thread id.
-      const root = await rowByActivityId(`${ACTOR_URI}/statuses/1`);
+      const root = await rowByActivityId(`${base}/1`);
       expect(root).toBeDefined();
-      const reply = await rowByActivityId(`${ACTOR_URI}/statuses/31`);
+      const reply = await rowByActivityId(`${base}/31`);
       expect(reply?.threadId).toBe(root?.id);
-    });
+    }, CHAIN_WALK_TIMEOUT_MS);
 
     it('stops at 30 on a 31-ancestor chain — the reply still lands, unlinked above', async () => {
-      const fetchMock = finiteChain(31);
+      const base = caseNamespace('chain-of-31');
+      const fetchMock = finiteChain(base, 31);
 
       await federationService.processInboxActivity(
-        replyCreateActivity('32', `${ACTOR_URI}/statuses/31`),
+        replyCreateActivity('32', `${base}/31`, base),
         ACTOR_URI,
       );
 
-      // One over the chain length the cap allows: the 31st ancestor (the real root,
-      // statuses/1) is never fetched and never written.
-      expect(await materialisedAncestors(`${ACTOR_URI}/statuses/32`)).toBe(30);
-      expect(fetchMock).toHaveBeenCalledTimes(30);
-      expect(fetchMock).not.toHaveBeenCalledWith(`${ACTOR_URI}/statuses/1`, expect.anything());
-      expect(await rowByActivityId(`${ACTOR_URI}/statuses/1`)).toBeUndefined();
+      // One over the chain length the cap allows: the 31st ancestor (the real
+      // root, <base>/1) is never fetched and never written.
+      expect(await materialisedAncestors(base, `${base}/32`)).toBe(30);
+      expect(ancestorFetches(fetchMock, base)).toBe(30);
+      expect(fetchMock).not.toHaveBeenCalledWith(`${base}/1`, expect.anything());
+      expect(await rowByActivityId(`${base}/1`)).toBeUndefined();
 
       // Best-effort, never a dropped post: the reply exists and is linked to its
       // immediate parent, rooted at the deepest ancestor the pass did reach.
-      const reply = await rowByActivityId(`${ACTOR_URI}/statuses/32`);
-      expect(reply?.parentPostId).toBe((await rowByActivityId(`${ACTOR_URI}/statuses/31`))?.id);
-      expect(reply?.threadId).toBe((await rowByActivityId(`${ACTOR_URI}/statuses/2`))?.id);
-    });
+      const reply = await rowByActivityId(`${base}/32`);
+      expect(reply?.parentPostId).toBe((await rowByActivityId(`${base}/31`))?.id);
+      expect(reply?.threadId).toBe((await rowByActivityId(`${base}/2`))?.id);
+    }, CHAIN_WALK_TIMEOUT_MS);
   });
 });
 

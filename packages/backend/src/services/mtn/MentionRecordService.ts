@@ -21,7 +21,7 @@
  *
  * INERT-WITHOUT-ENV: when the custodial key is unconfigured the service is a
  * logged no-op (returns `{ ok: false, reason: 'disabled' }`), so the dual-write
- * degrades gracefully — Mongo stays authoritative and nothing else changes.
+ * degrades gracefully — Postgres stays authoritative and nothing else changes.
  *
  * This NEVER throws to its callers in the dual-write path; all emission is
  * best-effort and isolated by the caller's `Promise.allSettled`.

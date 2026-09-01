@@ -55,7 +55,7 @@ describe('channel and person profiles are separate screens', () => {
   /**
    * DEFECT: the poke button appeared on a channel.
    *
-   * A poke is addressed to a person, and `isActAsEligibleKind` refuses
+   * A poke is addressed to a person, and `isDelegatedActAsEligibleKind` refuses
    * `channel`, so nobody is ever signed in as one to receive it. The fix is
    * structural: the channel's header components do not render a poke, so there
    * is no flag to get wrong and no `isChannel` prop threaded through a shared

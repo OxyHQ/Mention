@@ -73,7 +73,7 @@ export const ChannelHeader = memo(function ChannelHeader({
   return (
     <View className="items-center w-full">
       {/* No live badge and no presence dot, and neither is an omission: both
-          report on a SESSION, and `isActAsEligibleKind` refuses `channel`, so no
+          report on a SESSION, and `isDelegatedActAsEligibleKind` refuses `channel`, so no
           session can ever have one as its subject. A channel cannot be online
           and cannot host a live room — the states could not occur, rather than
           being hidden. */}
@@ -143,7 +143,7 @@ export const ChannelHeader = memo(function ChannelHeader({
  *
  * There is no poke here, and its absence is structural rather than suppressed: a
  * poke is addressed to a person, and a channel account can never be signed in as
- * (`isActAsEligibleKind` refuses the kind), so no human is ever at the other end
+ * (`isDelegatedActAsEligibleKind` refuses the kind), so no human is ever at the other end
  * to receive one. The row could not exist, which is why this component simply
  * does not render one rather than hiding it behind a flag.
  *

@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import { getPlayerAspect, type EmbedPlayerParams } from '@/utils/embedPlayer';
+import { WEB_BASE_URL } from '@/config';
 import { ExternalEmbedPoster } from './ExternalEmbedPoster';
 
 // Exact hostname allowlist for in-WebView navigation on YouTube embeds.
@@ -61,7 +62,17 @@ export function ExternalEmbedPlayer({
   );
 
   // Stable source object so the WebView isn't handed a new `{ uri }` each render.
-  const webViewSource = useMemo(() => ({ uri: params.playerUri }), [params.playerUri]);
+  //
+  // The `Referer` is what identifies the embedder. A WebView has no document to
+  // derive one from, so a bare `{ uri }` sends none, and YouTube answers error
+  // 153 (`ERROR_CODE_EMBEDDER_IDENTITY_MISSING_REFERRER`) instead of the player.
+  // Sent for every provider rather than only YouTube: the requirement is not
+  // YouTube's alone, and a provider-conditional header would be a branch only
+  // the conditioned provider ever exercises.
+  const webViewSource = useMemo(
+    () => ({ uri: params.playerUri, headers: { Referer: `${WEB_BASE_URL}/` } }),
+    [params.playerUri],
+  );
 
   const viewRef = useAnimatedRef<Animated.View>();
   const frameCallback = useFrameCallback(() => {

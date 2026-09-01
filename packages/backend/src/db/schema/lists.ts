@@ -16,7 +16,7 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, integer, pgTable, text, unique, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz, updatedAt } from './columns';
+import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxyhq/db';
 
 /** The external networks a list/pack can be mirrored FROM. */
 export const EXTERNAL_LIST_NETWORKS = ['atproto'] as const;

@@ -11,13 +11,13 @@
 
 import { sql } from 'drizzle-orm';
 import { check, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, numericInList, updatedAt } from './columns';
+import { createdAt, generatedId, inList, numericInList, updatedAt } from '@oxyhq/db';
 import { posts } from './posts';
 
 /** `Like.value` — an up-vote or a down-vote. */
 export const LIKE_VALUES = [1, -1] as const;
 
-/** `EntityFollow.entityType` — `ENTITY_FOLLOW_TYPES` in `models/EntityFollow.ts`. */
+/** The entity kinds a follow row may name. This declaration is the authority. */
 export const ENTITY_FOLLOW_TYPES = ['hashtag', 'list'] as const;
 
 /** `MuteWord.targets` element. */

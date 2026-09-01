@@ -71,16 +71,6 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ getUserById }),
 }));
 
-vi.mock('../../models/Post', () => ({ Post: { find: vi.fn() } }));
-
-vi.mock('../../models/FederatedFollow', () => ({
-  default: { find: vi.fn(() => ({ lean: async () => [] })) },
-}));
-
-vi.mock('../../models/FederatedActor', () => ({
-  default: { findOne: vi.fn(() => ({ select: () => ({ lean: async () => null }) })) },
-}));
-
 vi.mock('../../services/fediverseSharing', () => ({
   isFediverseSharingEnabled: (...args: unknown[]) => isFediverseSharingEnabled(...args),
   invalidateFediverseSharing: (...args: unknown[]) => invalidateFediverseSharing(...args),

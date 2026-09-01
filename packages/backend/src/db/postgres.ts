@@ -9,20 +9,22 @@
  * global and hard-fails the moment anything loads it outside Bun, which is
  * exactly what every test run does.
  *
- * Placement note: Mongo's connector lives in `src/utils/database.ts` in this
- * package (the sibling oxy-api port puts its Postgres connector in
- * `src/config/postgres.ts`). Everything Postgres is kept together under
- * `src/db/` here rather than split across two directories.
+ * Placement note: everything Postgres is kept together under `src/db/` rather
+ * than split across two directories (the sibling oxy-api port puts its connector
+ * in `src/config/postgres.ts`). This note used to orient the reader by naming
+ * Mongo's connector at `src/utils/database.ts`; that file no longer exists, and
+ * a pointer to a deleted path is worse than no pointer.
  *
- * Shape mirrors the Mongo setup: connect once at boot, then read the handle
- * synchronously from anywhere via `getDb()`.
+ * Connect once at boot, then read the handle synchronously from anywhere via
+ * `getDb()`.
  */
 
-import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type postgres from 'postgres';
+import { createDatabase } from '@oxyhq/db';
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { DATABASE_CASING } from './casing';
+import { instrumentPostgresClient } from './queryMetrics';
 import * as schema from './schema';
 
 /** Seconds `closePostgres` waits for in-flight queries before forcing the socket shut. */
@@ -75,31 +77,42 @@ export async function connectPostgres(): Promise<Database> {
   }
 
   const maxPoolSize = config.postgres.maxPoolSize;
-  const instanceClient = postgres(url, {
-    max: maxPoolSize,
-    idle_timeout: config.postgres.idleTimeoutSeconds,
-    connect_timeout: config.postgres.connectTimeoutSeconds,
-    max_lifetime: config.postgres.maxLifetimeSeconds,
-    onnotice: (notice) => logger.debug('Postgres notice', { notice: notice.message }),
+  // `createDatabase` is what guarantees this handle is built with
+  // `DATABASE_CASING`: drizzle applies `casing` at RUNTIME when building SQL,
+  // drizzle-kit applies it at GENERATE time when emitting DDL, and they must
+  // agree or queries reference columns the migrations never created — see
+  // `@oxyhq/db`'s `casing.ts`.
+  const created = createDatabase({
+    databaseUrl: url,
+    schema,
+    client: {
+      max: maxPoolSize,
+      idle_timeout: config.postgres.idleTimeoutSeconds,
+      connect_timeout: config.postgres.connectTimeoutSeconds,
+      max_lifetime: config.postgres.maxLifetimeSeconds,
+      onnotice: (notice) => logger.debug('Postgres notice', { notice: notice.message }),
+    },
   });
+
+  // Patch the client BEFORE the boot probe, and before anything can query
+  // through the drizzle handle. `createDatabase` already handed that handle the
+  // client by reference, so this mutates the very object drizzle will use —
+  // see `queryMetrics.ts` for why a wrapper returned here would measure nothing.
+  instrumentPostgresClient(created.client);
 
   // postgres.js connects lazily, so constructing the pool proves nothing. Issue
   // a real round trip here so an unreachable/misconfigured database fails during
   // startup instead of on the first user request — and only publish the handle
   // once that round trip succeeded.
   try {
-    await instanceClient`select 1`;
+    await created.client`select 1`;
   } catch (error) {
-    await instanceClient.end({ timeout: CLOSE_TIMEOUT_SECONDS });
+    await created.client.end({ timeout: CLOSE_TIMEOUT_SECONDS });
     throw error;
   }
 
-  client = instanceClient;
-  // Drizzle applies `casing` at RUNTIME when building SQL; drizzle-kit applies
-  // it at GENERATE time when emitting DDL. They must agree or queries reference
-  // columns the migrations never created — so both read the SAME constant, and
-  // `db/casing.ts` owns it.
-  db = drizzle(instanceClient, { schema, casing: DATABASE_CASING });
+  client = created.client;
+  db = created.db;
 
   logger.info('Connected to PostgreSQL successfully', { maxPoolSize });
   return db;
@@ -125,16 +138,15 @@ export function getDb(): Database {
 /**
  * The raw `postgres.js` handle underneath the drizzle instance.
  *
- * Narrow on purpose, and it has exactly TWO legitimate callers — both one-shot
- * migration paths, never request-path code:
+ * Narrow on purpose, and it has exactly ONE legitimate caller — a boot-time
+ * check, never request-path code: the migration LEDGER, which lives in the
+ * `drizzle` schema and is deliberately absent from `db/schema`. Drizzle owns
+ * those rows, so modelling them here would invite application code to write to a
+ * table the migrator treats as its own; reading them needs raw SQL.
  *
- *  - the migration LEDGER, which lives in the `drizzle` schema and is
- *    deliberately absent from `db/schema`. Drizzle owns those rows, so
- *    modelling them here would invite application code to write to a table the
- *    migrator treats as its own; reading them needs raw SQL.
- *  - the backfill's bulk loader (`db/backfill/`), because drizzle does not wrap
- *    `COPY` — it is a protocol-level operation with no query-builder equivalent
- *    — and `ANALYZE` after a bulk load has no builder form either.
+ * A second caller used to sit here — the retired backfill's bulk loader, which
+ * needed `COPY` and `ANALYZE`, neither of which drizzle wraps. That remains the
+ * only other shape that would justify reaching for this handle.
  *
  * Everything serving a request goes through {@link getDb}. A caller reaching
  * for this to run ordinary SQL is bypassing the schema types and the casing

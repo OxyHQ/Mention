@@ -1,6 +1,6 @@
 # @mention/backend
 
-Mention's Express, MongoDB, Redis/Valkey, Socket.IO, federation, and MTN
+Mention's Express, PostgreSQL, Redis/Valkey, Socket.IO, federation, and MTN
 backend. The production service listens on port 3000 and serves both
 `api.mention.earth` and the `mention.earth` web/federation surface.
 
@@ -17,11 +17,11 @@ backend. The production service listens on port 3000 and serves both
 - `src/connectors/` isolates ActivityPub and AT Protocol integrations.
 - `src/mtn/` contains the feed engine; `src/services/mtn/` contains Mention's
   signed-record integration.
-- `src/migrations/` contains versioned schema/data migrations.
+- `drizzle/` contains the versioned schema migrations, applied by `src/db/migrate.ts`.
 
-MongoDB must be a replica set or mongos because engagement writes use
-multi-document transactions. The deployment migration task verifies topology
-before changing schema or rolling out a new web task. Redis may degrade API
+Engagement writes use multi-statement transactions, which Postgres provides
+with no topology requirement — the replica-set/mongos constraint that used to
+sit here belonged to Mongo and no longer applies. Redis may degrade API
 features, but a process never assumes singleton leadership without a lock.
 
 ## Setup
@@ -35,8 +35,8 @@ bun run doctor
 bun run dev:backend
 ```
 
-The root `docker-compose.yml` starts a local single-node Mongo replica set,
-Valkey, a one-shot migration task, and then the backend.
+The root `docker-compose.yml` starts Postgres, Valkey, a one-shot migration
+task, and then the backend.
 
 ## Commands
 
@@ -66,7 +66,8 @@ Production migrations run only as the deployment one-shot. Do not run
 ## Operational endpoints
 
 - `GET /health/live` checks that the process can answer.
-- `GET /health/ready` requires completed startup, Mongo connectivity, and the
+- `GET /health/ready` requires completed startup, Postgres connectivity, applied
+  migrations, Redis, and the
   expected migration version.
 - `GET /internal/metrics` is disabled unless configured and additionally
   requires an allowed network source plus a service bearer token.

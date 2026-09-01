@@ -87,13 +87,13 @@ jest.mock('@/assets/icons/pin-icon', () => ({ PinIcon: () => null }));
 jest.mock('@/assets/icons/boost-icon', () => ({ BoostIcon: () => null }));
 
 jest.mock('../../Post/PostContentText', () => ({ __esModule: true, default: () => null }));
-jest.mock('../../Post/PostLanguageChip', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/PostLaneChip', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/ContentWarning', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/PostActions', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/PostDetailStats', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/PostLocation', () => ({ __esModule: true, default: () => null }));
 jest.mock('../../Post/PostAttachmentsRow', () => ({ __esModule: true, default: () => null }));
+jest.mock('@/hooks/usePostLanguagePicker', () => ({ usePostLanguagePicker: () => () => undefined }));
 jest.mock('../../ProfileHoverCard', () => ({
   ProfileHoverCard: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -113,6 +113,7 @@ jest.mock('@/hooks/usePostLanguage', () => ({
     displayText: null,
     isTranslating: false,
     isTranslated: false,
+    canTranslate: false,
     selectLanguage: () => undefined,
     toggleReaderTranslation: () => undefined,
   }),

@@ -6,9 +6,8 @@ import {
   markOutboxBackfillUnavailable as markActorOutboxBackfillUnavailable,
 } from '../../db/federation/actorRepository';
 import { getDb } from '../../db/postgres';
-import { isUniqueViolation } from '../../db/pgErrors';
+import { isUniqueViolation, uuidv7 } from '@oxyhq/db';
 import { posts } from '../../db/schema/posts';
-import { uuidv7 } from '../../db/schema/columns';
 import {
   bumpPostCounters,
   CHRONO_DESC,
@@ -32,9 +31,12 @@ import {
 import { parentIsChannelPost } from '../../utils/channelReplyGate';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
-import { buildFederatedNoteContent, buildFederatedNoteVariants } from './apPostContent';
+import {
+  buildFederatedNoteContent,
+  buildFederatedNoteProvenance,
+  buildFederatedNoteVariants,
+} from './apPostContent';
 import { normalizeMentionIds } from '../../utils/textProcessing';
-import { postTextHasHttpLink } from '../../utils/postSearchMetadata';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { enrichIngestedPosts } from '../../services/postEnrichment';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
@@ -53,7 +55,6 @@ import {
   fetchActivityPubObject,
   fetchVerifiedAnnouncedNote,
   runWithTimeout,
-  isDuplicateKeyError,
   extractAnnouncedObjectUri,
   extractActorUri,
   extractInReplyToUri,
@@ -891,14 +892,14 @@ export class OutboxSyncService {
           id: uuidv7(),
           oxyUserId: resolvedOxyUserId,
           authorship: buildAuthorship(resolvedOxyUserId, []),
-          federation: {
+          federation: buildFederatedNoteProvenance({
             activityId,
             actorUri,
             inReplyTo: inReplyToUri,
-            url: typeof note.url === 'string' ? note.url : activityId,
+            noteUrl: note.url,
             sensitive,
             spoilerText: summary,
-          },
+          }),
           type: media.length > 0
             ? (media.some((m) => m.type === 'video') ? PostType.VIDEO : PostType.IMAGE)
             : PostType.TEXT,
@@ -910,7 +911,6 @@ export class OutboxSyncService {
             media: media.length > 0 ? media : undefined,
             attachments: attachments.length > 0 ? attachments : undefined,
           },
-          hasLinks: postTextHasHttpLink(variants),
           visibility,
           hashtags,
           // Resolved @mention Oxy user ids (federated + local) — the SAME allowlist
@@ -1375,9 +1375,9 @@ export class OutboxSyncService {
         ...(published ? { createdAt: published, updatedAt: published } : {}),
       });
     } catch (err) {
-      // A duplicate-key error means a concurrent import already created the
+      // A unique violation means a concurrent import already created the
       // boost — treat as already-imported, not a failure.
-      if (isDuplicateKeyError(err)) return false;
+      if (isUniqueViolation(err)) return false;
       const message = err instanceof Error ? err.message : String(err);
       logger.warn('[FedSync] failed to create boost', {
         error: message,
@@ -1595,13 +1595,14 @@ export class OutboxSyncService {
     try {
       const created = await getPostCreator().create({
         oxyUserId: authorOxyUserId,
-        federation: {
+        federation: buildFederatedNoteProvenance({
           activityId: noteActivityId,
+          actorUri: authorUri,
           inReplyTo: inReplyToUri,
-          url: typeof note.url === 'string' ? note.url : noteActivityId,
+          noteUrl: note.url,
           sensitive,
           spoilerText: summary,
-        },
+        }),
         parentPostId: threadLink?.parentPostId ?? null,
         threadId: threadLink?.threadId ?? null,
         content: {
@@ -1619,6 +1620,12 @@ export class OutboxSyncService {
         language: extractApLanguage(note),
         languages: extractApLanguages(note),
         instanceDomain: authorUri ? getRemoteHost(authorUri) : undefined,
+        // The author's AP type feeds the Stage-A RSS/bot-mirror spam signal, as
+        // it does on the inbox `Create` and outbox-backfill paths. Dropped here
+        // for the same reason `actorUri` was — the actor is resolved above and
+        // nothing objected to leaving it out — which classified the SAME remote
+        // Note differently depending on which path happened to import it.
+        actorType: authorActor?.type,
         status: 'published',
         metadata: { isSensitive: sensitive },
         skipNotifications: true,
@@ -1629,7 +1636,7 @@ export class OutboxSyncService {
       return created.id;
     } catch (err) {
       // Concurrent import may have created it — re-read to return the id.
-      if (isDuplicateKeyError(err)) {
+      if (isUniqueViolation(err)) {
         const [raced] = await getDb()
           .select({ id: posts.id })
           .from(posts)

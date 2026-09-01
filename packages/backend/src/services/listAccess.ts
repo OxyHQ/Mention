@@ -47,7 +47,7 @@ export function canViewList(list: ListVisibility, viewerId: string | undefined):
  * any shape at all. The Mongoose version needed an `ObjectId.isValid` guard in
  * front of `findById` to keep a malformed id from throwing a `CastError`; a
  * `text` primary key simply matches no row, so the guard is deleted rather than
- * widened (see `db/MIGRATION-CONTRACT.md`).
+ * widened (see `db/schema/CONVENTIONS.md`).
  */
 export async function loadListVisibility(listId: string): Promise<ListVisibility | null> {
   const [row] = await getDb()

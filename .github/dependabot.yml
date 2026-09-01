@@ -2,9 +2,18 @@
 #
 # This repo uses Bun (`bun.lock`) with npm-style workspaces. Dependabot has no
 # native "bun" ecosystem, but the `npm` ecosystem reads `package.json` across
-# the workspace, so it works for surfacing dependency updates here. After a
-# Dependabot PR is merged, the lockfile is reconciled by our normal flow
-# (`bun install` regenerated `bun.lock`, committed alongside the manifest).
+# the workspace, so it works for SURFACING dependency updates here.
+#
+# What it cannot do is write `bun.lock`, and that is not a cosmetic gap: the
+# `Lockfile resolves cleanly from the base` gate resolves the base lockfile
+# against the head's manifests and fails on any difference, so a Dependabot PR
+# that touches a `package.json` is red the moment it opens and stays red. Nine
+# such PRs sat open for weeks before anyone read the gate rather than the
+# ecosystem name. Treat a Dependabot npm PR as a NOTIFICATION of an available
+# version, not as a mergeable change: adopt the bump on a branch of your own
+# with `bun install` and the regenerated `bun.lock` in the same commit, then
+# close the Dependabot PR. Only the `github-actions` ecosystem below merges
+# as-opened, because it has no lockfile to keep in step.
 #
 # Deliberately conservative:
 #   * The carefully pinned ecosystem packages (@oxyhq/*, expo*, react / react
@@ -18,10 +27,13 @@ updates:
   # ---------------------------------------------------------------------------
   # npm / Bun workspaces — root + every package.
   # ---------------------------------------------------------------------------
+  # One entry, rooted at the workspace root. Dependabot's npm ecosystem follows
+  # the root manifest's `workspaces` globs and edits the child `package.json`
+  # that actually declares the dependency, so adding `/packages/*` alongside `/`
+  # does not widen coverage — it opens a second, identical PR for every bump
+  # (#783/#787, #784/#788, #785/#789, #786/#790 were four such pairs).
   - package-ecosystem: "npm"
-    directories:
-      - "/"
-      - "/packages/*"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -65,6 +77,32 @@ updates:
       - dependency-name: "react-dom"
       - dependency-name: "react-native"
       - dependency-name: "react-native-web"
+      # The React Native toolchain packages ship on RN's own release train, so
+      # they are only correct at the RN minor this app is on — Dependabot
+      # offered `@react-native/jest-preset` and `@react-native/metro-config`
+      # 0.87.0 against RN 0.86.
+      - dependency-name: "@react-native/*"
+      # Pinned to the exact `react` version, never to its own latest: a
+      # `react-test-renderer` ahead of `react` renders against a reconciler the
+      # app does not ship (offered 19.2.8 against react 19.2.3).
+      - dependency-name: "react-test-renderer"
+      # Third-party native modules that the Expo SDK itself version-pins. These
+      # are named individually rather than as `react-native-*` on purpose: the
+      # list below is exactly `packages/frontend`'s dependencies intersected
+      # with `expo/bundledNativeModules.json`, and a `react-native-*` wildcard
+      # would also freeze react-native-compressor, react-native-css,
+      # react-native-nitro-modules, react-native-popup-menu and
+      # react-native-qrcode-svg, none of which Expo pins. Bump these with
+      # `bunx expo install` at SDK-upgrade time, never one at a time.
+      - dependency-name: "@react-native-async-storage/async-storage"
+      - dependency-name: "@react-native-community/netinfo"
+      - dependency-name: "@shopify/flash-list"
+      - dependency-name: "react-native-gesture-handler"
+      - dependency-name: "react-native-keyboard-controller"
+      - dependency-name: "react-native-safe-area-context"
+      - dependency-name: "react-native-screens"
+      - dependency-name: "react-native-svg"
+      - dependency-name: "react-native-webview"
       # Metro / RN build + animation stack — must move in lockstep with Expo.
       - dependency-name: "react-native-reanimated"
       - dependency-name: "react-native-worklets"

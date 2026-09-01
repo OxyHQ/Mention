@@ -37,23 +37,36 @@ git show "${base_revision}:bun.lock" >bun.lock
 # --lockfile-only resolves and writes the lockfile without downloading or
 # linking any package, so no lifecycle script runs. Verified to produce a
 # byte-identical lockfile to a full `bun install` on this repo.
-#
-# --minimum-release-age=0 opts out of the supply-chain quarantine in
-# bunfig.toml, which belongs at AUTHORING time and would be wrong here. This job
-# RE-RESOLVES rather than installing frozen, so on a cold manifest cache the
-# quarantine judges every dependency afresh — including ones already committed
-# to the lockfile — and refuses any published inside the window
-# (`@playwright/test@1.62.0` was the first casualty). A developer adding a
-# too-fresh dependency is blocked by their own `bun install` long before this
-# runs, so the decision has already been made by the time a lockfile exists to
-# reproduce; blocking here would only mean a week of red CI per fresh dependency,
-# which is how a gate gets disabled by whoever hits it next. A frozen install is
-# unaffected either way, cold cache included: the `quality` job installs 1588
-# packages with the quarantine active and never sees it.
-bun install --lockfile-only --minimum-release-age=0
+bun install --lockfile-only
 
 if git diff --quiet --exit-code -- bun.lock; then
   echo "bun.lock is what bun resolves from ${base_revision} plus this revision's manifests."
+  exit 0
+fi
+
+# A difference is not automatically a defect, and the reason is in this script's
+# own notes above: bun carries a resolution forward from the lockfile it starts
+# with. So an edge the BASE pinned at a stale version survives this
+# reproduction, and the only way to move a transitive dependency off a published
+# advisory without inventing an override — deleting the stale record and
+# re-resolving — reads here as drift.
+#
+# That cost a real outage: a security exception for GHSA-rgw5-rvv9-x895 was
+# written with the reason "the patch satisfies the range its dependent already
+# declares, no override needed", and then expired unactioned, because nothing
+# re-resolves an edge already in the lockfile and this gate refused the commit
+# that would have.
+#
+# So: ahead is allowed, behind is not. Forgetting `bun install` leaves the
+# committed file BEHIND the reproduction or missing edges, and both still fail.
+# This run gets its own copy, not a fixed path: several agents and CI jobs can
+# run this on one machine at once, and a shared /tmp filename means one run
+# silently compares against a lockfile another run wrote from a different tree.
+committed_lockfile="$(mktemp)"
+trap 'rm -f "${committed_lockfile}"' EXIT
+git show HEAD:bun.lock >"${committed_lockfile}"
+if bun .github/scripts/compare-lockfile-resolutions.mjs "${committed_lockfile}" bun.lock; then
+  echo "::notice::bun.lock differs from a clean resolve only by being ahead on some edges; accepted."
   exit 0
 fi
 

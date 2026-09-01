@@ -40,11 +40,11 @@ interface RawPost {
 }
 
 /**
- * A lean document from THIS service's own two Mongo queries, as a {@link RawPost}.
+ * A lean document from THIS service's own two queries, as a {@link RawPost}.
  *
- * `models/Post` is still Mongoose, so it yields `_id` and has no stored
- * `is_reply`; `RawPost` speaks the ported vocabulary. Bridging them with a bare
- * cast produced objects whose `id` was `undefined`, and the damage was silent:
+ * The Mongoose `Post` model yielded `_id` and had no stored `is_reply`, while
+ * `RawPost` speaks the ported vocabulary. Bridging them with a bare cast
+ * produced objects whose `id` was `undefined`, and the damage was silent:
  * `_sliceKey` became `"undefined+…"`, `additionalPostIds` handed hydration an
  * `undefined` id, and the `seenPostIds` guard deduped every fetched parent
  * against the single key `undefined` — so on a page with two replies to two

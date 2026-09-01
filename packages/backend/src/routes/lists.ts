@@ -1,4 +1,5 @@
 import express, { Response } from 'express';
+import { z } from 'zod';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { config } from '../config';
@@ -35,6 +36,40 @@ const MAX_TIMELINE_PAGE_SIZE = 100;
 
 /** Hard cap on the `GET /lists` page size — `?limit` can only narrow it. */
 const MAX_LIST_PAGE_SIZE = 100;
+
+/**
+ * What a list's own two text fields may be.
+ *
+ * `title` was tested for TRUTHINESS and then written through `String(title)`, so
+ * `{}` became the literal `"[object Object]"` and `[1,2]` became `"1,2"` — a 201
+ * and a persisted row, with nothing to tell anyone it had happened. The PUT was
+ * worse: it branched on `title === undefined`, so `title: null` wrote the
+ * four-character string `"null"` over a real title, and `title: ''` wrote an
+ * empty one the POST refuses.
+ *
+ * NO length cap is imposed. The columns are unbounded `text` and always have
+ * been; capping them here would refuse rows that already exist, which is a
+ * different decision from refusing a value that was never a title.
+ *
+ * `isPublic` and `memberOxyUserIds` are deliberately `unknown`: `!!isPublic` and
+ * `normalizeMemberIds` are already total over any JSON value, so giving them a
+ * shape would NARROW what the route accepts for no safety gain. They are named
+ * here only because zod strips a key it was not told about.
+ */
+const createListSchema = z.object({
+  title: z.string('Title is required').min(1, 'Title is required'),
+  description: z.string('description must be a string').nullish(),
+  isPublic: z.unknown().optional(),
+  memberOxyUserIds: z.unknown().optional(),
+});
+
+/** The same fields, all optional: an absent one leaves the stored value alone. */
+const updateListSchema = z.object({
+  title: z.string('title must be a non-empty string').min(1, 'title must be a non-empty string').optional(),
+  description: z.string('description must be a string').nullish(),
+  isPublic: z.unknown().optional(),
+  memberOxyUserIds: z.unknown().optional(),
+});
 
 /**
  * Escape the characters `LIKE` treats as wildcards.
@@ -185,8 +220,11 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const { title, description, isPublic = true, memberOxyUserIds } = req.body || {};
-    if (!title) return res.status(400).json({ error: 'Title is required' });
+    const parsed = createListSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues.map((issue) => issue.message).join('; ') });
+    }
+    const { title, description, isPublic = true, memberOxyUserIds } = parsed.data;
 
     const members = normalizeMemberIds(memberOxyUserIds);
     const list = await getDb().transaction(async (tx) => {
@@ -194,11 +232,11 @@ router.post('/', async (req: AuthRequest, res: Response) => {
         .insert(accountLists)
         .values({
           ownerOxyUserId: userId,
-          title: String(title),
+          title,
           // NULL, never `''` — an empty string is a VALUE, and the client's
           // `if (list.description)` would then render an empty field instead of
           // none. Mongoose stored `undefined` for exactly this.
-          description: description ? String(description) : null,
+          description: description ? description : null,
           isPublic: !!isPublic,
         })
         .returning();
@@ -350,7 +388,11 @@ type ListWriteOutcome =
 router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { title, description, isPublic, memberOxyUserIds } = req.body || {};
+    const parsed = updateListSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues.map((issue) => issue.message).join('; ') });
+    }
+    const { title, description, isPublic, memberOxyUserIds } = parsed.data;
     const replacesMembers = Array.isArray(memberOxyUserIds);
 
     const outcome = await getDb().transaction<ListWriteOutcome>(async (tx) => {
@@ -373,8 +415,8 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
       await tx
         .update(accountLists)
         .set({
-          ...(title === undefined ? {} : { title: String(title) }),
-          ...(description === undefined ? {} : { description: description ? String(description) : null }),
+          ...(title === undefined ? {} : { title }),
+          ...(description === undefined ? {} : { description: description ? description : null }),
           ...(isPublic === undefined ? {} : { isPublic: !!isPublic }),
           // Always stamped, matching Mongoose's `save()`: the previous route
           // bumped `updatedAt` on every PUT whether or not a field changed, and
@@ -528,13 +570,8 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
 /**
  * Timeline of a list (chronological posts from members).
  *
- * The LIST half is Postgres; the POST half is still Mongo, and deliberately so.
- * `Post` and the hydration path it feeds (`feedController.transformPostsWithProfiles`
- * → `PostHydrationService`) belong to a different batch of this migration and
- * still read Mongo documents, so selecting posts from Postgres here would hand
- * hydration rows of a shape it cannot read. This is an entity boundary, not a
- * half-ported entity: every `account_lists` access in this file is Postgres.
- * When posts move, this query moves with them.
+ * Both halves are Postgres: the list and its membership, and the posts fed to
+ * `feedController.transformPostsWithProfiles` → `PostHydrationService`.
  */
 router.get('/:id/timeline', ...timelineRateLimiters, async (req: AuthRequest, res: Response) => {
   try {

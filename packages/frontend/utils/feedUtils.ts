@@ -35,8 +35,10 @@ export interface FeedFilters extends SharedFeedFilters {
 }
 
 /**
- * An id as it can reach the feed key helpers: a string, a numeric id, or a
- * Mongo `ObjectId`-like object that stringifies to its hex form.
+ * An id as it can reach the feed key helpers: a string, a numeric id, or any
+ * object that stringifies to its id — the last shape dates from the Mongo
+ * `ObjectId`s the API used to serialize, and is kept because nothing has proven
+ * every caller now hands over a plain string.
  */
 type FeedEntityId = string | number | { toString(): string };
 

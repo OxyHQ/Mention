@@ -45,7 +45,7 @@ vi.mock('../../utils/notificationUtils', async (importOriginal) => ({
   createMentionNotifications: hoisted.createMentionNotifications,
 }));
 
-import { uuidv7 } from '../../db/schema/columns';
+import { uuidv7 } from '@oxyhq/db';
 
 /**
  * A PLAIN record, not a Mongoose document.
@@ -76,7 +76,7 @@ vi.mock('../../services/PostCreationService', () => ({
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import { createThread } from '../../controllers/posts.controller';
+import { createThread } from '../../controllers/posts/createThread';
 
 const FUTURE = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 const PAST = new Date(Date.now() - 60 * 60 * 1000).toISOString();

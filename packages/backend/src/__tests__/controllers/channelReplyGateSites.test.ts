@@ -74,7 +74,7 @@ vi.mock('../../services/publishAsAccount', () => ({
 }));
 
 import { feedController } from '../../controllers/feed.controller';
-import { createPost } from '../../controllers/posts.controller';
+import { createPost } from '../../controllers/posts/createPost';
 import type { OxyAuthRequest } from '@oxyhq/core/server';
 import type { ReplyPermission } from '@mention/shared-types';
 
@@ -155,7 +155,7 @@ describe('site 1 — feed.controller.createReply', () => {
     //
     // The only fixture that ISOLATES that escape is a caller whose id IS the
     // author's, which for a channel post means asking as the channel. No real
-    // session can be one (`isActAsEligibleKind` refuses `channel`), so this shape
+    // session can be one (`isDelegatedActAsEligibleKind` refuses `channel`), so this shape
     // is synthetic on purpose: without it the case is answered by the `['nobody']`
     // permission itself and cannot tell the gate from the block. Mutation-tested —
     // stubbing `isChannelAccount` to `false` turns it red.

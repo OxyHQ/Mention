@@ -24,7 +24,7 @@
 import { PostVisibility } from '@mention/shared-types';
 import { and, eq, gte, isNotNull, sql } from 'drizzle-orm';
 import { isRedisRuntimeConfigured } from '../config';
-import { qualified } from '../db/casing';
+import { qualified } from '@oxyhq/db';
 import { getDb } from '../db/postgres';
 import { authorFollowerSnapshots } from '../db/schema/discovery';
 import { posts } from '../db/schema/posts';

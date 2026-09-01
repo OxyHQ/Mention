@@ -27,7 +27,7 @@ import {
   unique,
 } from 'drizzle-orm/pg-core';
 import { FEED_CATEGORIES } from '@mention/shared-types';
-import { createdAt, generatedId, inList, timestamptz, updatedAt } from './columns';
+import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxyhq/db';
 import { accountLists } from './lists';
 
 /**

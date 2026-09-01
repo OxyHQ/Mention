@@ -1,12 +1,22 @@
 # Postgres schema conventions — Mention
 
-Binding for every table in this migration. Decision + reason, nothing else.
-Two prime directives: **no relational link may be lost**, and **no Mongo baggage
-travels**. Where they conflict, STOP and escalate rather than resolving it
-silently — `posts.parent_post_id` is the one place that happened, and it is
+Binding for every table in this schema. Decision + reason, nothing else. The
+two prime directives that shaped it during the port from MongoDB — **no
+relational link may be lost**, and **no Mongo baggage travels** — still decide
+new tables. Where they conflict, STOP and escalate rather than resolving it
+silently: `posts.parent_post_id` is the one place that happened, and it is
 recorded as an open decision rather than settled here.
 
 Several of these are enforced by tests, not by discipline — see the bottom.
+
+## The driver is `postgres.js`, never `bun-sql`
+
+Drizzle over `postgres.js` (`drizzle-orm/postgres-js`), migrations applied by
+`db/migrate.ts`. The ECS image runs the backend under Bun, so
+`drizzle-orm/bun-sql` looks tempting; it is wrong, because the test suite runs
+under node and `bun-sql` reaches for the `Bun` global and hard-fails the moment
+anything loads it outside Bun. `postgres.js` serves the container, `bun --watch`
+and vitest from one code path.
 
 ---
 
@@ -28,19 +38,18 @@ the build.
 
 ## Naming
 
-**Tables: explicit snake_case, plural.** `post_authorships`, not Mongoose's
-derived `postauthorships`. The derived name is a `pluralize()` artifact, not a
-design, and nothing reads a collection name — call sites are being rewritten,
-not shimmed. The backfill therefore needs an explicit collection → table map;
-write it out, one entry per table.
+**Tables: explicit snake_case, plural.** `post_authorships`, not the
+Mongoose-derived `postauthorships` this data arrived under. The derived name was
+a `pluralize()` artifact rather than a design, and no call site was shimmed to
+keep it.
 
 **Columns: camelCase in TypeScript, snake_case in SQL**, derived by drizzle. Do
 not pass an explicit column name unless the SQL name genuinely differs from the
 property.
 
-**`db/casing.ts` is the naming authority.** `DATABASE_CASING` is read by
-`drizzle()` (what queries reference), by `drizzle.config.ts` (what the DDL
-creates), and by `sqlColumnName`. One setting, not three copies.
+**`@oxyhq/db`'s `casing.ts` is the naming authority.** `DATABASE_CASING` is read
+by `createDatabase()` (what queries reference), by `drizzle.config.ts` (what the
+DDL creates), and by `sqlColumnName`. One setting, not three copies.
 
 > **Trap:** `column.name` on a drizzle column is the TypeScript **property** name
 > (`expiresAt`), never the SQL name (`expires_at`) — casing is applied when SQL
@@ -57,7 +66,7 @@ creates), and by `sqlColumnName`. One setting, not three copies.
 > of its columns to each other, and the query returns `[]` **with no error at
 > all**. This shipped in the sibling oxy-api port: follow counts read zero on
 > every public profile until a test caught it. Qualify every correlated reference
-> with `qualified(column)` from `db/casing.ts`, and treat "a correlated subquery
+> with `qualified(column)` from `@oxyhq/db`, and treat "a correlated subquery
 > returned nothing" as a bug in the SQL until proven otherwise.
 >
 > Related: `${col} <> all(${jsArray})` binds a TUPLE, not an array, and Postgres
@@ -87,20 +96,56 @@ quotes every identifier it emits. Hand-written SQL must quote it too.
 - CrowdSource holds `Post._id` as `subject.externalId` and `Report._id` as
   `externalReportId`.
 
-**v7 is generated in the application** (`generatedId()` in `columns.ts`, via
+**v7 is generated in the application** (`generatedId()` from `@oxyhq/db`, via
 `$defaultFn`), not by a database `DEFAULT`. Postgres 17 has no native
-`uuidv7()`. Rows inserted by raw SQL get no id — intended: the backfill supplies
-`_id` verbatim, which is how every foreign key survives by construction.
+`uuidv7()`. Rows inserted by raw SQL get no id — intended: the backfill supplied
+each `_id` verbatim, which is how every foreign key survived the copy by
+construction.
 
 `uuidv7()` is implemented here rather than taken from the `uuid` package, for a
 measured reason: `uuid@14` is ESM-only under the node condition and this package
 emits CommonJS, while `uuid@11` would collide with the transitive `uuid@3.4.0`
 already hoisted at the workspace root.
 
+**It carries NO monotonic counter, so id order is not insertion order within a
+millisecond.** `uuidv7()` is 48 bits of `Date.now()` followed by
+`randomFillSync`; RFC 9562's optional `rand_a` sub-millisecond sequence is not
+implemented. Two rows minted in the same millisecond therefore order on their
+random tail — measured at 49.3% inversion over 20,000 pairs, a coin flip rather
+than an edge case. The id is still a UNIQUE and STABLE total order, which is
+exactly what the keyset pagination in `mtn/feed/CursorBuilder.ts` needs from it:
+every feed sort spells the id LAST, after `score` and/or `created_at`, so
+chronology is carried by `created_at` and the id only breaks the remaining ties.
+
+Two consequences, both of which have already cost real debugging time:
+
+- **Never assert which of two rows written back to back leads.** A database round
+  trip usually spreads inserts across milliseconds, so such an assertion passes
+  for months and then fails at random, reading as a ranking or pagination
+  regression. Test fixtures state the tie instead —
+  `__tests__/helpers/tiedIds.ts`.
+- **If true insertion order is ever load-bearing, it needs a `position` column
+  and a migration, not a different sort.** `post_content_variants` and
+  `post_sources` already have one; `db/posts/postRepository.ts` records where the
+  absence of one is deliberate.
+
 **Two exceptions, both caller-supplied ids with no generator:**
 `moderation_outbox.id` (deterministic, so a retry re-derives the same row) and
 `moderation_events.id` (the CrowdSource event id — the primary key IS the §10.8
 dedupe). A table whose id is supplied by its caller says so by having no default.
+
+**`@oxyhq/db`'s `isLiveEntityId` is the ONLY place either id shape is spelled out,
+and it is not a query precondition.** It exists for the one documented-400 case
+(`middleware/validate.ts` `validateObjectId`, which accepts both shapes).
+Reaching for it to guard a QUERY re-introduces the fail-open bug the port
+removed: the ObjectId-validity guards that used to sit in front of reads did not
+merely reject bad input, they made a real record invisible and the caller answer
+"it no longer exists". A `text` id that matches no rows needs no guard.
+
+**`MediaMetadataService.isOxyFileId` is a DISCRIMINATOR, not an id validator, and
+must not widen.** It answers "is this an Oxy file id or a raw federated URL". The
+shape belongs to oxy-api, so it widens if and when Oxy's file ids change and
+never because Mention started minting uuid v7.
 
 ## Closed value sets
 
@@ -113,15 +158,15 @@ dedupe). A table whose id is supplied by its caller says so by having no default
 - Declare the values once as a `const` tuple and derive both the column type and
   the CHECK from it, so they cannot drift.
 
-**Mongoose enums were never enforced on an update.** `Post.updateOne` runs no
-validators, so the live collection contains values the schema forbids —
-`posts.status` is `'restricted'` in production while `models/Post.ts` declares
-only three values, and `post_attachments.type` includes `'room'` in
-`@mention/shared-types` but not in the Mongoose enum. **Porting a narrow enum
-verbatim starts rejecting real rows.** Every CHECK here is the union of the
-Mongoose enum, the shared-types union, and every literal written anywhere in the
-code. A production `distinct()` audit is still REQUIRED before the backfill —
-this list is derived from the code, and only the data can confirm it.
+**Every CHECK here is WIDER than the model it came from, on purpose.** Mongoose
+enums were never enforced on an update — `Post.updateOne` ran no validators — so
+the collection this data was copied from held values its own schema forbade:
+`posts.status` was already `'restricted'` in production while the model declared
+three values, and `post_attachments.type` included `'room'` in
+`@mention/shared-types` but not in the model's enum. A narrow CHECK would have
+rejected real rows at backfill time. Each one is the union of the old enum, the
+shared-types union, and every literal written anywhere in the code; widen a CHECK
+the same way rather than trusting one declaration.
 
 For an ARRAY column the constraint is on the ELEMENTS, which a scalar enum cannot
 express: `posts.reply_permission <@ array[...]`. A CHECK may not contain a
@@ -130,7 +175,7 @@ subquery, so "every element is in range" is written as array CONTAINMENT
 
 ## Timestamps
 
-Always `timestamptz`, always `mode: 'date'` (`timestamptz()` in `columns.ts`).
+Always `timestamptz`, always `mode: 'date'` (`timestamptz()` from `@oxyhq/db`).
 `timestamp` without a time zone reinterprets the value in the session's
 `TimeZone` on every read, silently changing what a Mongo `Date` meant.
 
@@ -189,13 +234,13 @@ Every registered column MUST have a supporting btree index (the sweep's predicat
 is a range scan; Mongo's TTL index carried the same obligation). Deletion is
 batched via `ctid` so a backlog cannot hold one long transaction open.
 
-**Check every TTL for INTENT before replicating it.** A Mongo TTL index DELETES
-the document, and the sibling oxy-api port found one written meaning "mark
-expired" that had been destroying subscription history. Six of Mention's seven
-are genuine housekeeping. The seventh — `engagement_outbox` — deletes
-**unprocessed work**: the predicate is the deadline alone, not the status, so a
-`pending` event whose dispatcher stalled for the whole window is destroyed rather
-than retried. That is documented as deliberate in `models/EngagementOutbox.ts`
+**Check every registry entry for INTENT, not just for a deadline.** A Mongo TTL
+index DELETED the document, and the sibling oxy-api port found one written
+meaning "mark expired" that had been destroying subscription history. Six of
+Mention's seven are genuine housekeeping. The seventh — `engagement_outbox` —
+deletes **unprocessed work**: the predicate is the deadline alone, not the
+status, so a `pending` event whose dispatcher stalled for the whole window is
+destroyed rather than retried. That was deliberate in the original model
 ("operational alerts must fire well before this deadline"), and the alerting is
 what makes it safe — so the sweep must not be scheduled into an environment that
 lacks it.
@@ -259,28 +304,24 @@ and it is the correct failure mode: a NUL byte fails the INSERT loudly.
 
 ## Mongoose behaviour that has no schema counterpart
 
-`trim: true`, `lowercase: true` and setter-style defaults are Mongoose
-APPLICATION behaviour. Postgres has no equivalent, and dropping them silently
-changes what gets stored. **Re-apply each at the call site during the port.**
-They are deliberately NOT encoded as CHECK constraints: a CHECK would reject
-existing production rows during backfill and convert a silent normalization into
-a 500.
+`trim: true`, `lowercase: true` and setter-style defaults were Mongoose
+APPLICATION behaviour. Postgres has no equivalent, so normalization lives at the
+CALL SITE and belongs there for anything new too. It is deliberately NOT encoded
+as CHECK constraints: a CHECK would have rejected existing rows at backfill time
+and turns a silent normalization into a 500.
 
-`models/FederatedActor.ts` is the instructive case — it REMOVED its `trim`
+The federated-actor model was the instructive case — it REMOVED its `trim`
 because it was worse than nothing (it strips the ends of a string and does
 nothing to the newline inside a display name, which is the actual bug).
 Normalization there belongs to the three ingest paths that must strip HTML and
-decode entities BEFORE normalizing. Nothing is added back here.
-
-`select: false` likewise does not survive, and Mention never used it anyway —
-see the next section.
+decode entities BEFORE normalizing. Nothing was added back.
 
 ## Protected columns — the `select: false` replacement
 
-**Mongoose has `select: false`; Mention uses it nowhere, on any model.** That is
-the reason to have this module, not to skip it: a column only stayed out of a
-response because no DTO happened to include it, and `db.select().from(t)` returns
-EVERY column. The first naive port of a query is the first time
+**Mongoose had `select: false`; Mention used it on no model.** That is the reason
+to have this module, not to skip it: a column only stayed out of a response
+because no DTO happened to include it, and `db.select().from(t)` returns EVERY
+column. The first naive port of a query was the first time
 `actor_key_pairs.private_key_pem` — the key that signs every outbound
 ActivityPub request for a user — can leave the process.
 

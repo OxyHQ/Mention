@@ -46,6 +46,16 @@ export const publicQueryKeys = {
     'marketplace-categories',
   ] as const,
   /**
+   * One post's correction trail. Public because the endpoint is: a publication's
+   * corrections are addressed to whoever read the post, so the answer does not
+   * depend on who is asking and two readers must not hold separate copies of it.
+   */
+  postCorrections: (postId: string) => [
+    ...PUBLIC_ROOT,
+    'post-corrections',
+    postId,
+  ] as const,
+  /**
    * The topic catalogue behind the interests picker — the default grid when the
    * search box is empty, and the matches for a query otherwise.
    *
@@ -91,9 +101,15 @@ export const viewerQueryKeys = {
     profileId,
   ] as const,
   /**
-   * The viewer's own not-yet-published scheduled posts. Strictly private: the
-   * list is the caller's alone, so it can never be shared across viewers the way
-   * a public post detail can.
+   * The not-yet-published posts this viewer can act on — their own, plus the
+   * shared editorial queue of every channel they operate.
+   *
+   * Still strictly VIEWER-scoped, and the distinction matters: the entries are no
+   * longer the caller's alone, but WHICH entries they are depends on the caller's
+   * channel memberships, so this response can never be shared across viewers the
+   * way a public post detail can. Two members of one channel see overlapping
+   * lists that are not equal — each also holds their own posts — so keying on the
+   * channel instead would serve one member the other's personal queue.
    */
   scheduledPosts: (viewerId: ViewerId) => [
     ...viewerQueryKeys.postsRoot(viewerId),

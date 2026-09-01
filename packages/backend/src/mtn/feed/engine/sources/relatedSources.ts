@@ -17,6 +17,7 @@ import { authorFollowerSnapshots, posts } from '../../../../db/schema';
 import { assemblePostRecords } from '../../../../db/posts/postRepository';
 import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { discoverySafeSql } from '../../feedSafety';
+import { FOLLOWER_SNAPSHOT_INTERVAL_MS } from '../../../../services/followerSnapshotJob';
 import { logger } from '../../../../utils/logger';
 import { notABoostSql } from '../../../../utils/feedQueryBuilder';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
@@ -85,7 +86,7 @@ function isSeedAuthorized(visibility: unknown, seedAuthorId: string, ctx: FeedEn
  * is not authorized to view that seed post.
  *
  * The Mongo original guarded the lookup with `ObjectId.isValid`. That guard is
- * DELETED per `db/ids.ts`: it existed only to dodge a `CastError`, and a text id
+ * DELETED per `@oxyhq/db`: it existed only to dodge a `CastError`, and a text id
  * naming no row already produces the `null` this returns.
  */
 async function resolveSeed(
@@ -347,6 +348,140 @@ const RISING_CREATORS_MAX_AUTHORS = 100;
 const RISING_CREATORS_POST_MULTIPLIER = 3;
 
 /**
+ * How long a computed ranking is reused, DERIVED from the sampling cadence
+ * rather than chosen.
+ *
+ * `followerSnapshotJob` appends a sample every `FOLLOWER_SNAPSHOT_INTERVAL_MS`,
+ * and the ranking is a function of those samples alone — so it CANNOT change
+ * more often than that, and a shorter TTL would buy nothing but a repeat of the
+ * aggregation below. Importing the constant instead of restating it is what
+ * keeps the two from drifting: retune the sampling cadence and this follows.
+ */
+const RISING_CREATORS_CACHE_TTL_MS = FOLLOWER_SNAPSHOT_INTERVAL_MS;
+
+/** One author's follower growth over the window, as the ranking sees it. */
+interface RankedCreator {
+  id: string;
+  delta: number;
+  rate: number;
+}
+
+/**
+ * The ranking, memoized in process.
+ *
+ * ## What this is worth
+ *
+ * The aggregation below has NO `LIMIT` and cannot have one: every author's first
+ * and last sample in the window is needed before any of them can be ranked.
+ * Measured against a production-shaped corpus (2,000,000 snapshots over the real
+ * 30-day retention, 12,000 authors, ~466k rows inside the 7-day window):
+ *
+ * ```
+ *   GroupAggregate over 466,260 rows -> 12,000 groups
+ *   Sort Method: external merge  Disk: 19176kB
+ *   Buffers: shared hit=200,431  temp read=2,397 written=2,398
+ *   Execution Time: ~1,450 ms
+ * ```
+ *
+ * Uncached, that was the cost of EVERY `gather`. `risingCreators` is
+ * `userComposable` and sits in no preset feed, so it only runs when someone
+ * composes a custom feed with it — but nothing stopped one person refreshing
+ * such a feed from holding ~1.4 s of sort and 19 MB of temp I/O continuously.
+ *
+ * ## Deliberately in process, and deliberately without a timer
+ *
+ * Same reasoning as `services/trending/storyIndex.ts`: the value is small,
+ * derived and read-only, and any task can rebuild it from one query — so a
+ * shared cache would buy a consistency nobody can observe, at the cost of a
+ * round trip and a second failure mode. A module-level `setInterval` would hold
+ * the event loop open (see AGENTS.md); a lazy check on read costs nothing when
+ * nobody is reading.
+ *
+ * ## A FAILURE IS NEVER MEMOIZED, which is where this parts company with
+ * `storyIndex`
+ *
+ * That module caches its empty answer so a database in trouble is not retried on
+ * every request — sound at a 5-minute TTL. At SIX HOURS it would turn one
+ * transient error into a source that returns nothing until tomorrow. The soft
+ * failure below therefore returns `[]` without storing it, so the next `gather`
+ * tries again.
+ */
+let rankedCreatorsCache: { ranked: RankedCreator[]; expiresAt: number } | null = null;
+
+/**
+ * The refresh in flight, so N concurrent cold `gather`s run ONE aggregation
+ * rather than N. Without it the first request after a restart is the worst case
+ * this cache exists to remove, multiplied by however many arrive together.
+ */
+let rankedCreatorsInFlight: Promise<RankedCreator[]> | null = null;
+
+/** Drop the memo. Tests only — production refreshes on its own. */
+export function resetRisingCreatorsCache(): void {
+  rankedCreatorsCache = null;
+  rankedCreatorsInFlight = null;
+}
+
+/**
+ * Aggregate every author's follower delta over the window and rank by growth
+ * RATE. Soft-fails to `[]`.
+ *
+ * The window is the one the CALLER computed, so a refresh always measures the
+ * seven days ending now. Between refreshes the answer is frozen with it, which
+ * is the trade the TTL states: the window slides six hours out of a hundred and
+ * sixty-eight, and nothing inside it can have changed anyway.
+ */
+async function refreshRankedCreators(windowStart: Date, now: number): Promise<RankedCreator[]> {
+  let groups: Array<{ oxyUserId: string; first: number; last: number }>;
+  try {
+    groups = await getDb()
+      .select({
+        oxyUserId: authorFollowerSnapshots.oxyUserId,
+        first: sql<number>`(array_agg(${authorFollowerSnapshots.followerCount} order by ${authorFollowerSnapshots.at} asc))[1]`,
+        last: sql<number>`(array_agg(${authorFollowerSnapshots.followerCount} order by ${authorFollowerSnapshots.at} desc))[1]`,
+      })
+      .from(authorFollowerSnapshots)
+      .where(gte(authorFollowerSnapshots.at, windowStart))
+      .groupBy(authorFollowerSnapshots.oxyUserId);
+  } catch (error) {
+    logger.warn('[risingCreators source] Failed to aggregate follower snapshots', error);
+    return [];
+  }
+
+  const ranked = groups
+    .map((group) => {
+      const first = typeof group.first === 'number' ? group.first : 0;
+      const last = typeof group.last === 'number' ? group.last : 0;
+      const delta = last - first;
+      return {
+        id: group.oxyUserId,
+        delta,
+        rate: delta / Math.max(first, RISING_FOLLOWER_SMOOTHING),
+      };
+    })
+    .filter((group) => group.id.length > 0 && group.delta > 0)
+    .sort((a, b) => b.rate - a.rate)
+    .slice(0, RISING_CREATORS_MAX_AUTHORS);
+
+  rankedCreatorsCache = { ranked, expiresAt: now + RISING_CREATORS_CACHE_TTL_MS };
+  return ranked;
+}
+
+/** The ranking: from the memo when it is live, otherwise one shared refresh. */
+function loadRankedCreators(windowStart: Date, now: number): Promise<RankedCreator[]> {
+  if (rankedCreatorsCache && rankedCreatorsCache.expiresAt > now) {
+    return Promise.resolve(rankedCreatorsCache.ranked);
+  }
+  if (!rankedCreatorsInFlight) {
+    const pending = refreshRankedCreators(windowStart, now);
+    rankedCreatorsInFlight = pending;
+    void pending.finally(() => {
+      if (rankedCreatorsInFlight === pending) rankedCreatorsInFlight = null;
+    });
+  }
+  return rankedCreatorsInFlight;
+}
+
+/**
  * `risingCreators`: creators gaining followers fastest right now.
  *
  * Reads `author_follower_snapshots` (populated by the leader-gated
@@ -369,39 +504,16 @@ export const risingCreatorsSource: SourceModule = {
   kind: 'source',
   userComposable: true,
   gather: async (_ctx, _params, cap) => {
-    const windowStart = new Date(Date.now() - RISING_CREATORS_WINDOW_MS);
+    const now = Date.now();
+    const windowStart = new Date(now - RISING_CREATORS_WINDOW_MS);
     const db = getDb();
 
-    let groups: Array<{ oxyUserId: string; first: number; last: number }>;
-    try {
-      groups = await db
-        .select({
-          oxyUserId: authorFollowerSnapshots.oxyUserId,
-          first: sql<number>`(array_agg(${authorFollowerSnapshots.followerCount} order by ${authorFollowerSnapshots.at} asc))[1]`,
-          last: sql<number>`(array_agg(${authorFollowerSnapshots.followerCount} order by ${authorFollowerSnapshots.at} desc))[1]`,
-        })
-        .from(authorFollowerSnapshots)
-        .where(gte(authorFollowerSnapshots.at, windowStart))
-        .groupBy(authorFollowerSnapshots.oxyUserId);
-    } catch (error) {
-      logger.warn('[risingCreators source] Failed to aggregate follower snapshots', error);
-      return [];
-    }
-
-    const ranked = groups
-      .map((group) => {
-        const first = typeof group.first === 'number' ? group.first : 0;
-        const last = typeof group.last === 'number' ? group.last : 0;
-        const delta = last - first;
-        return {
-          id: group.oxyUserId,
-          delta,
-          rate: delta / Math.max(first, RISING_FOLLOWER_SMOOTHING),
-        };
-      })
-      .filter((group) => group.id.length > 0 && group.delta > 0)
-      .sort((a, b) => b.rate - a.rate)
-      .slice(0, RISING_CREATORS_MAX_AUTHORS);
+    // The RANKING is memoized; the posts query below is not, and that split is
+    // the point. Which authors are rising cannot change between snapshot sweeps,
+    // but which posts they have just published changes constantly — so a reader
+    // refreshing a custom feed still sees new posts, from a ranking that is at
+    // most one sampling interval old.
+    const ranked = await loadRankedCreators(windowStart, now);
     if (ranked.length === 0) return [];
 
     const rateById = new Map(ranked.map((group) => [group.id, group.rate]));

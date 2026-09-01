@@ -25,9 +25,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * behaviour row exists afterwards, not merely that a `save` spy went uncalled.
  */
 
-vi.mock('../../models/Like', () => ({ __esModule: true, default: { find: vi.fn() } }));
-vi.mock('../../models/Bookmark', () => ({ __esModule: true, default: { find: vi.fn() } }));
-
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import {
   deleteUserBehavior,
