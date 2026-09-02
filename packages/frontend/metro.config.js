@@ -52,17 +52,12 @@ config.resolver = {
     path.join(projectRoot, 'node_modules'),
     path.join(monorepoRoot, 'node_modules'),
   ],
-  // Enable symlinks for npm workspace resolution
-  unstable_enableSymlinks: true,
-  // Enable package.json "exports" field resolution (required by @oxyhq/bloom subpath exports)
-  unstable_enablePackageExports: true,
-  sourceExts: [...config.resolver.sourceExts, 'ts', 'tsx'],
   // Bloom imports its four `.woff2` web fonts straight from JS so the browser
   // downloads and caches them separately from the bundle (`fonts/font-urls.web.ts`).
   // Metro does not carry `woff2` in its default `assetExts`, and only the web
   // graph reaches those imports — native loads the `.ttf` variants through
   // `useFonts` instead.
-  assetExts: [...config.resolver.assetExts.filter((ext) => ext !== 'svg'), 'wasm', 'woff2', 'woff'],
+  assetExts: [...config.resolver.assetExts, 'wasm', 'woff2', 'woff'],
 };
 
 config.transformer = {

@@ -18,10 +18,10 @@
     // `bun` must come last: its globals refine Node's rather than replace them.
     "types": ["node", "bun"],
     // --- Intentional override of the root base: emit CommonJS for Node/Bun.
-    // The ECS image executes the emitted `dist/**` as CommonJS; `node`
-    // resolution matches that runtime.
-    "module": "commonjs",
-    "moduleResolution": "node",
+    // Node16 is TypeScript's supported Node resolver; this package's
+    // `type: commonjs` keeps the emitted `dist/**` runtime format CommonJS.
+    "module": "Node16",
+    "moduleResolution": "Node16",
 
     // --- Emit settings (the root base is type-check only / noEmit).
     // `rootDir: "./"` because the entrypoint `server.ts` lives at the package
@@ -36,7 +36,6 @@
 
     // Resolve the workspace dependency to shared-types SOURCE during type-check
     // so backend changes see un-built type updates immediately.
-    "baseUrl": ".",
     "paths": {
       "@mention/shared-types": ["../shared-types/src"],
       "@mention/shared-types/*": ["../shared-types/src/*"]

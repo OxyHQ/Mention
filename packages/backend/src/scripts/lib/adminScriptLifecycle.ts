@@ -42,8 +42,8 @@ export async function closeAdminScriptResources(): Promise<void> {
  * Dynamic on purpose: nineteen scripts import this module, most only for
  * {@link closeAdminScriptResources}, and a static import here would load the
  * whole post-creation stack — `firebase-admin` included — for every one of them.
- * Under `"module": "commonjs"` this emits a plain `require` behind one
- * microtask, so the laziness costs nothing where it is used.
+ * The explicit `.js` specifier resolves to this package's compiled CommonJS
+ * output in production while Bun maps it back to the TypeScript source in dev.
  *
  * The deeper fix is for `getPostCreator()` to resolve the module itself, so that
  * no caller can forget. Not done here: the accessor is synchronous, `require` on
@@ -51,7 +51,7 @@ export async function closeAdminScriptResources(): Promise<void> {
  * and making it async would change every call site in the connectors.
  */
 export async function registerAdminScriptServices(): Promise<void> {
-  await import('../../services/PostCreationService');
+  await import('../../services/PostCreationService.js');
 }
 
 /**

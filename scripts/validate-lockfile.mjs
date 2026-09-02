@@ -105,13 +105,11 @@ const OXY_RUNTIME_SINGLETONS = ["@oxyhq/bloom", "@oxyhq/core", "@oxyhq/services"
  * too, so this cannot rot into a list of claims nothing tests.
  */
 const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
-      "markdown-it -> linkify-it@^2.0.0":
+  "markdown-it -> linkify-it@^2.0.0":
     "linkify-it is held at one copy for hardened link matching; markdown-it works against the newer API.",
   "@tailwindcss/node -> lightningcss@1.32.0":
     "lightningcss is pinned to 1.30.1 so its linux-x64 gnu/musl native binaries stay on a single version through the image build.",
   "vite -> lightningcss@^1.32.0": "Same single-copy native-binary pin as @tailwindcss/node.",
-  "expo -> expo-modules-core@~57.0.8":
-    "expo-modules-core is pinned to the version the installed native runtime was built against; two copies break the native module registry.",
   "@alia.onl/sdk -> @oxyhq/services@^23.0.1":
     "Peer range on a third-party SDK that trails our release cadence. Forward-compatible: it consumes a stable subset of the services surface.",
 };

@@ -212,6 +212,8 @@ return {
                         asyncRoutes: { web: "production" },
                     },
                 ],
+                "expo-asset",
+                "expo-font",
                 [
                     "expo-splash-screen",
                     {

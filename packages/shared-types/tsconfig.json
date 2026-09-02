@@ -14,10 +14,12 @@
   // ---------------------------------------------------------------------------
   "extends": "../../tsconfig.json",
   "compilerOptions": {
+    "lib": ["ES2020", "DOM"],
     // --- Intentional override of the root base: emit CommonJS for the backend.
-    // `node` resolution matches the CJS module format the backend runtime uses.
-    "module": "commonjs",
-    "moduleResolution": "node",
+    // Node16 is TypeScript's supported Node resolver; this package's
+    // `type: commonjs` keeps the emitted runtime format CommonJS.
+    "module": "Node16",
+    "moduleResolution": "Node16",
 
     // --- Emit settings (the root base is type-check only / noEmit).
     "noEmit": false,
