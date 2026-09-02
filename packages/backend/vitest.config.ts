@@ -336,23 +336,42 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
-      '@mention/shared-types': path.resolve(__dirname, '../shared-types/src'),
+    alias: [
+      {
+        find: /^@mention\/shared-types$/,
+        replacement: path.resolve(__dirname, '../shared-types/src'),
+      },
       // The backend production build is CommonJS. Resolve the Oxy dual packages
       // to their CJS entrypoints in tests as well; Bun's Vitest runner otherwise
       // selects the ESM build and mis-interops its nested Zod 3 named export.
-      '@oxyhq/protocol/node': path.resolve(
-        __dirname,
-        '../../node_modules/@oxyhq/protocol/dist/cjs/node/index.js',
-      ),
-      '@oxyhq/protocol': path.resolve(
-        __dirname,
-        '../../node_modules/@oxyhq/protocol/dist/cjs/index.js',
-      ),
-      '@oxyhq/contracts': path.resolve(
-        __dirname,
-        '../../node_modules/@oxyhq/contracts/dist/cjs/index.js',
-      ),
-    },
+      {
+        find: /^@oxyhq\/protocol\/node$/,
+        replacement: path.resolve(
+          __dirname,
+          '../../node_modules/@oxyhq/protocol/dist/cjs/node/index.js',
+        ),
+      },
+      {
+        find: /^@oxyhq\/protocol\/secp256k1$/,
+        replacement: path.resolve(
+          __dirname,
+          '../../node_modules/@oxyhq/protocol/dist/cjs/secp256k1.js',
+        ),
+      },
+      {
+        find: /^@oxyhq\/protocol$/,
+        replacement: path.resolve(
+          __dirname,
+          '../../node_modules/@oxyhq/protocol/dist/cjs/index.js',
+        ),
+      },
+      {
+        find: /^@oxyhq\/contracts$/,
+        replacement: path.resolve(
+          __dirname,
+          '../../node_modules/@oxyhq/contracts/dist/cjs/index.js',
+        ),
+      },
+    ],
   },
 });

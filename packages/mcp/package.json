@@ -9,7 +9,9 @@
   "dependencies": {
     "@mention/shared-types": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "@oxyhq/contracts": "catalog:",
     "@oxyhq/core": "catalog:",
+    "@oxyhq/mcp": "catalog:",
     "jsonwebtoken": "catalog:",
     "zod": "catalog:"
   },

@@ -114,8 +114,6 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
     "expo-modules-core is pinned to the version the installed native runtime was built against; two copies break the native module registry.",
   "@alia.onl/sdk -> @oxyhq/services@^23.0.1":
     "Peer range on a third-party SDK that trails our release cadence. Forward-compatible: it consumes a stable subset of the services surface.",
-  "@oxyhq/federation -> @oxyhq/core@^20.1.0 || ^21.0.0":
-    "Federation 0.16.1 consumes only stable server helpers from core; those surfaces remain present in core 23 and the backend federation suite exercises them. Remove this exception when the widened 0.16.2 manifest is published.",
 };
 
 /**
