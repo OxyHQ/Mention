@@ -83,6 +83,7 @@ jobs:
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-ci-scope.sh
           bash .github/scripts/test-deploy-ecs-image.sh
+          bash .github/scripts/test-smoke-mcp.sh
           bash .github/scripts/test-smoke-mention.sh
           bash .github/scripts/test-check-schema-migration-parity.sh
           bun .github/scripts/test-runtime-image-audit.mjs
