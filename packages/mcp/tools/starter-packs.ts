@@ -1,7 +1,7 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
 import { withAuthGuard } from "../lib/auth-guard.js";
+import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 
 /**
  * Format a starter pack — the raw pack doc (create/update/member writes) or the
@@ -40,7 +40,7 @@ function formatStarterPack(pack: Record<string, unknown>): string {
   return lines.join("\n");
 }
 
-export function registerStarterPackTools(server: McpServer): void {
+export function registerStarterPackTools(server: MentionToolRegistrar): void {
   server.tool(
     "get-starter-pack",
     "Get a starter pack by ID with member list (public).",

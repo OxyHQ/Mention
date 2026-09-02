@@ -1,10 +1,10 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
 import { withAuthGuard } from "../lib/auth-guard.js";
 import { formatPoll } from "../lib/formatters.js";
+import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 
-export function registerPollsTools(server: McpServer): void {
+export function registerPollsTools(server: MentionToolRegistrar): void {
   server.tool(
     "get-poll",
     "Get a poll by ID (requires authorization).",

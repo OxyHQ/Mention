@@ -1,10 +1,10 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
 import { withAuthGuard } from "../lib/auth-guard.js";
 import { formatNotification } from "../lib/formatters.js";
+import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 
-export function registerNotificationsTools(server: McpServer): void {
+export function registerNotificationsTools(server: MentionToolRegistrar): void {
   server.tool(
     "get-notifications",
     "Get your notifications (requires authorization).",

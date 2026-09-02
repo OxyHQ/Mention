@@ -1,10 +1,10 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
 import { withAuthGuard } from "../lib/auth-guard.js";
 import { formatFeed } from "../lib/formatters.js";
+import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 
-export function registerSearchTools(server: McpServer): void {
+export function registerSearchTools(server: MentionToolRegistrar): void {
   server.tool(
     "search",
     `Search posts on Mention (requires authorization). Supports operators: from:username, since:YYYY-MM-DD, until:YYYY-MM-DD, has:media, has:links, min_likes:N, min_boosts:N`,

@@ -4,6 +4,7 @@ FROM oven/bun:1.3.14-slim AS manifests
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml tsconfig.json ./
+COPY patches/ patches/
 COPY packages/shared-types/package.json packages/shared-types/
 COPY packages/backend/package.json packages/backend/
 COPY packages/mcp/package.json packages/mcp/
@@ -33,6 +34,7 @@ ENV MENTION_MCP_PUBLIC_URL=https://mcp.mention.earth
 ENV MENTION_OAUTH_AS_URL=https://api.mention.earth
 
 COPY --from=manifests /app/package.json /app/bun.lock /app/bunfig.toml ./
+COPY --from=manifests /app/patches/ patches/
 COPY --from=manifests /app/packages/shared-types/package.json packages/shared-types/
 COPY --from=manifests /app/packages/mcp/package.json packages/mcp/
 COPY --from=manifests /app/packages/backend/package.json packages/backend/

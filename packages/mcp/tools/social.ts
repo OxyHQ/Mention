@@ -1,9 +1,9 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
 import { withAuthGuard } from "../lib/auth-guard.js";
+import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 
-export function registerSocialTools(server: McpServer): void {
+export function registerSocialTools(server: MentionToolRegistrar): void {
   server.tool(
     "follow-user",
     "Follow a user or federated actor (requires authorization). Pass actorUri (ActivityPub URI or acct handle like user@domain.com).",

@@ -1,10 +1,10 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
 import { fetchMtnFeed } from "../lib/mtn-feed.js";
 import { formatFeed } from "../lib/formatters.js";
+import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 
-export function registerHashtagsTools(server: McpServer): void {
+export function registerHashtagsTools(server: MentionToolRegistrar): void {
   server.tool(
     "get-trending-hashtags",
     "Get currently trending hashtags and topics on Mention (public).",

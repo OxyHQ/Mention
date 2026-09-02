@@ -100,6 +100,8 @@ jobs:
       - name: Sync MCP signing secret to both services
         env:
           MENTION_MCP_JWT_SECRET: ${{ secrets.MENTION_MCP_JWT_SECRET }}
+          OXY_SERVICE_API_KEY: ${{ secrets.OXY_SERVICE_API_KEY }}
+          OXY_SERVICE_API_SECRET: ${{ secrets.OXY_SERVICE_API_SECRET }}
         run: |
           set -euo pipefail
           if [[ -z "$MENTION_MCP_JWT_SECRET" || "$MENTION_MCP_JWT_SECRET" == "-" ]]; then
@@ -121,6 +123,21 @@ jobs:
             echo "Synced $path"
           done
 
+          for key in OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET; do
+            value="${!key:-}"
+            if [[ -z "$value" || "$value" == "-" ]]; then
+              echo "::error::$key is empty; catalog registration cannot authenticate."
+              exit 1
+            fi
+            aws ssm put-parameter \
+              --name "/oxy/mention-mcp/$key" \
+              --value "$value" \
+              --type SecureString \
+              --overwrite \
+              >/dev/null
+            echo "Synced /oxy/mention-mcp/$key"
+          done
+
       - name: Re-verify current main before ECS rollout
         run: bash .github/scripts/require-current-main.sh
 
@@ -128,8 +145,9 @@ jobs:
         env:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-mcp.sh
+          POST_DEPLOY_TASK_COMMAND_JSON: '["bun","packages/mcp/dist/register-capability-catalog.js"]'
           TASK_SECRET_OVERRIDES_JSON: >-
-            {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention-mcp/MENTION_MCP_JWT_SECRET"}
+            {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention-mcp/MENTION_MCP_JWT_SECRET","OXY_SERVICE_API_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention-mcp/OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention-mcp/OXY_SERVICE_API_SECRET"}
         # Session stickiness must be declared in oxy-infra. The deploy role has
         # no ELB mutation permissions, so this workflow cannot safely enable it.
         run: bash .github/scripts/deploy-ecs-image.sh

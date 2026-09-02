@@ -1,9 +1,9 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
 import { withAuthGuard } from "../lib/auth-guard.js";
+import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 
-export function registerMediaTools(server: McpServer): void {
+export function registerMediaTools(server: MentionToolRegistrar): void {
   server.tool(
     "upload-media-from-url",
     "Fetch a remote image/video URL and upload it to your Mention account (returns fileId for create-post).",
