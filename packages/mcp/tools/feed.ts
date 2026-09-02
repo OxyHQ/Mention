@@ -1,11 +1,11 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
 import { withAuthGuard } from "../lib/auth-guard.js";
 import { fetchMtnFeed, paginationParams } from "../lib/mtn-feed.js";
 import { formatFeed } from "../lib/formatters.js";
+import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 
-export function registerFeedTools(server: McpServer): void {
+export function registerFeedTools(server: MentionToolRegistrar): void {
   server.tool(
     "get-feed",
     "Get the main discovery feed (public trending/explore content).",

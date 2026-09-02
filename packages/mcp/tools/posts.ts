@@ -1,4 +1,3 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
 import { normalizeVisibility, unwrapApiResponse } from "../lib/api-response.js";
@@ -20,6 +19,7 @@ import {
   threadPostSchema,
   visibilitySchema,
 } from "../lib/post-content-schema.js";
+import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 
 const createPostFields = {
   text: z.string().optional().describe("The text content of the post"),
@@ -57,7 +57,7 @@ const collaboratorFields = {
   collaboratorHandles: createPostFields.collaboratorHandles,
 };
 
-export function registerPostsTools(server: McpServer): void {
+export function registerPostsTools(server: MentionToolRegistrar): void {
   server.tool(
     "create-post",
     "Create a new post on Mention with optional media, poll, article, event, room, podcast, location, sources, and collaborators (requires authorization). Invite up to 5 local users via collaboratorIds or collaboratorHandles; linked MCP bundle accounts are auto-accepted by the backend.",

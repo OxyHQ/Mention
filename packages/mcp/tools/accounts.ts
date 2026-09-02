@@ -1,9 +1,9 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
 import { withAuthGuard } from "../lib/auth-guard.js";
+import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 
-export function registerAccountTools(server: McpServer): void {
+export function registerAccountTools(server: MentionToolRegistrar): void {
   server.tool(
     "whoami",
     "Return the Mention account currently active for this MCP connector (handle, display name, user id). Call before posting when multiple accounts are linked.",

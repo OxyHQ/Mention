@@ -1,4 +1,3 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
 import { unwrapApiResponse } from "../lib/api-response.js";
@@ -6,8 +5,9 @@ import { withAuthGuard } from "../lib/auth-guard.js";
 import { formatPost } from "../lib/formatters.js";
 import { buildPostContentPayload } from "../lib/resolve-media.js";
 import { mediaInputSchema } from "../lib/post-content-schema.js";
+import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 
-export function registerInteractionsTools(server: McpServer): void {
+export function registerInteractionsTools(server: MentionToolRegistrar): void {
   server.tool(
     "like-post",
     "Like a post (requires authorization).",

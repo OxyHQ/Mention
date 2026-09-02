@@ -1,8 +1,8 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
+import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 
-export function registerProfileTools(server: McpServer): void {
+export function registerProfileTools(server: MentionToolRegistrar): void {
   server.tool(
     "get-profile",
     "Get public profile design data for a Mention user by Oxy user ID.",

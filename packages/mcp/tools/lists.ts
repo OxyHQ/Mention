@@ -1,10 +1,10 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
 import { withAuthGuard } from "../lib/auth-guard.js";
 import { formatList, formatFeed } from "../lib/formatters.js";
+import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 
-export function registerListsTools(server: McpServer): void {
+export function registerListsTools(server: MentionToolRegistrar): void {
   server.tool(
     "create-list",
     "Create a user list (requires authorization).",

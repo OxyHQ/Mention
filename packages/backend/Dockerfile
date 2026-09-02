@@ -4,6 +4,7 @@ FROM oven/bun:1.3.14-alpine AS manifests
 WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml tsconfig.json ./
+COPY patches/ patches/
 COPY packages/shared-types/package.json packages/shared-types/
 COPY packages/backend/package.json packages/backend/
 COPY packages/mcp/package.json packages/mcp/
@@ -32,6 +33,7 @@ RUN addgroup -g 1001 -S appgroup && adduser -u 1001 -S appuser -G appgroup
 ENV NODE_ENV=production
 
 COPY --from=manifests /app/package.json /app/bun.lock /app/bunfig.toml ./
+COPY --from=manifests /app/patches/ patches/
 COPY --from=manifests /app/packages/shared-types/package.json packages/shared-types/
 COPY --from=manifests /app/packages/backend/package.json packages/backend/
 COPY --from=manifests /app/packages/mcp/package.json packages/mcp/
