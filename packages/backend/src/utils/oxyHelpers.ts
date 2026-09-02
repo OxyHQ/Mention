@@ -1,4 +1,5 @@
 import { OxyServices } from '@oxyhq/core';
+import { extractBearerToken } from '@oxyhq/mcp';
 import type { OxyClient } from './privacyHelpers';
 import {
   config,
@@ -11,30 +12,15 @@ const OXY_VIEWER_GRAPH_PATH = '/users/me/graph';
 
 interface ScopedOxyRequest {
   accessToken?: string;
-  headers?: { authorization?: string };
+  headers?: { authorization?: string | readonly string[] };
   mcp?: { activeUserId?: string };
-}
-
-/**
- * Parsed by slicing rather than with a regex. `/^Bearer\s+(.+)$/` puts two greedy
- * quantifiers side by side over a caller-supplied header, which is quadratic on a
- * long run of whitespace (`js/polynomial-redos`). This is linear and says the
- * same thing.
- */
-function bearerToken(header: string | undefined): string | undefined {
-  if (!header) return undefined;
-  const scheme = 'bearer ';
-  if (header.length <= scheme.length) return undefined;
-  if (header.slice(0, scheme.length).toLowerCase() !== scheme) return undefined;
-  const token = header.slice(scheme.length).trim();
-  return token.length > 0 ? token : undefined;
 }
 
 /**
  * Create the Oxy client appropriate for the verified request identity.
  *
  * Normal Oxy sessions receive an isolated token-scoped client. MCP requests
- * MUST NOT plant the Mention-issued MCP bearer into OxyServices; instead they
+ * MUST NOT plant the resource-bound MCP bearer into OxyServices; instead they
  * use Mention's service credential delegated to the already-verified active
  * bundle account via `X-Oxy-User-Id`.
  */
@@ -47,7 +33,7 @@ export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefi
     return createServiceDelegatedOxyClient(activeMcpUserId);
   }
 
-  const token = req.accessToken || bearerToken(req.headers?.authorization);
+  const token = req.accessToken || extractBearerToken(req.headers ?? {});
   if (!token) return undefined;
   const client = new OxyServices({ baseURL: OXY_BASE_URL });
   client.setTokens(token);
@@ -72,7 +58,7 @@ export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefi
  */
 export function createUserScopedOxyServices(req: ScopedOxyRequest): OxyServices | undefined {
   if (req.mcp) return undefined;
-  const token = req.accessToken || bearerToken(req.headers?.authorization);
+  const token = req.accessToken || extractBearerToken(req.headers ?? {});
   if (!token) return undefined;
   const client = new OxyServices({ baseURL: OXY_BASE_URL });
   client.setTokens(token);

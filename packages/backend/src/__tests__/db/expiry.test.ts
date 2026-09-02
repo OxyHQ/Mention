@@ -79,6 +79,8 @@ describe('the sweep registry', () => {
       'feed_interactions',
       // The MCP OAuth surface; Mongo reaped these for free, nothing else does.
       'mcp_auth_codes',
+      // One bounded, hash-only deduplication receipt per external MCP effect.
+      'mcp_effect_receipts',
       // Every row is a webhook dedupe claim, written once per delivery and never
       // revisited after its handler runs; the id IS the primary key.
       'moderation_events',

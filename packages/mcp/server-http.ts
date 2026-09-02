@@ -6,7 +6,9 @@
  * Environment variables:
  *   MENTION_API_URL              — Mention REST API (default: https://api.mention.earth)
  *   MENTION_MCP_PUBLIC_URL       — This server's public URL (default: https://mcp.mention.earth)
- *   MENTION_OAUTH_AS_URL         — OAuth authorization server (default: https://api.mention.earth)
+ *   OXY_API_URL                  — Central Oxy OAuth authority (default: https://api.oxy.so)
+ *   OXY_SERVICE_API_KEY          — Mention MCP service credential id (required)
+ *   OXY_SERVICE_API_SECRET       — Mention MCP service credential secret (required)
  *   MCP_PORT                     — Listen port (default: 3100)
  *   MCP_ALLOWED_ORIGINS          — CORS allowlist (comma-separated)
  *   MCP_MAX_REQUEST_BODY_BYTES   — Max JSON body size (default: 1048576)
@@ -18,26 +20,34 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
+  buildProtectedResourceMetadata,
+  extractBearerToken,
+} from "@oxyhq/mcp";
+import { MENTION_MCP_CAPABILITIES } from "@mention/shared-types/mcpCapabilities";
+import {
   loadMcpHttpConfig,
   type McpHttpConfig,
 } from "./lib/config.js";
 import { createMcpServer } from "./lib/create-server.js";
 import { requestContext } from "./lib/context.js";
 import {
-  extractBearerToken,
   fingerprintMcpPrincipal,
-  type McpAccessTokenClaims,
-  verifyMcpAccessToken,
+  type AuthenticatedMcpToken,
 } from "./lib/http-security.js";
 import { logError, logInfo, logWarn } from "./lib/logger.js";
 import { McpSessionRegistry } from "./lib/session-registry.js";
+import {
+  authenticateMcpAccessToken,
+  createCentralTokenIntrospector,
+} from "./lib/token-authenticator.js";
 
 const config = loadConfiguration();
 const PORT = config.port;
 const MAX_REQUEST_BODY_BYTES = config.maxRequestBodyBytes;
 const MAX_SESSIONS = config.maxSessions;
 const MCP_PUBLIC_URL = config.publicUrl;
-const OAUTH_AS_URL = config.oauthAuthorizationServerUrl;
+const OAUTH_AS_URL = config.oxyApiUrl;
+const introspectCentralToken = createCentralTokenIntrospector(config);
 
 /** Canonical protected-resource metadata URL advertised in 401 challenges. */
 const RESOURCE_METADATA_URL = `${MCP_PUBLIC_URL}/.well-known/oauth-protected-resource`;
@@ -134,16 +144,34 @@ function sendUnauthorized(res: ServerResponse): void {
   }));
 }
 
-function verifyUserToken(userToken: string): McpAccessTokenClaims | undefined {
+async function verifyUserToken(
+  userToken: string,
+): Promise<AuthenticatedMcpToken | undefined> {
   try {
-    return verifyMcpAccessToken(userToken, {
-      secret: config.jwtSecret,
-      audience: MCP_PUBLIC_URL,
-      issuer: OAUTH_AS_URL,
+    return (await authenticateMcpAccessToken(userToken, {
+      config,
+      introspectCentral: introspectCentralToken,
+    })) ?? undefined;
+  } catch (error) {
+    logWarn("MCP token validation unavailable", {
+      reason: error instanceof Error ? error.message : "unknown",
     });
-  } catch {
     return undefined;
   }
+}
+
+function requestAuthContext(
+  userToken: string,
+  token: AuthenticatedMcpToken,
+) {
+  return {
+    userToken,
+    authMode: token.authMode,
+    tokenId: token.jti,
+    clientId: token.client_id,
+    accountId: token.accountId,
+    scopes: token.scopes,
+  } as const;
 }
 
 function setCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
@@ -174,7 +202,7 @@ async function handleStreamableMcp(
   method: "POST" | "GET" | "DELETE",
 ): Promise<void> {
   const userToken = extractBearerToken(headers);
-  const tokenClaims = userToken ? verifyUserToken(userToken) : undefined;
+  const tokenClaims = userToken ? await verifyUserToken(userToken) : undefined;
   if (!userToken || !tokenClaims) {
     sendUnauthorized(res);
     return;
@@ -245,7 +273,7 @@ async function handleStreamableMcp(
       await server.connect(transport);
     }
 
-    await requestContext.run({ userToken }, () =>
+    await requestContext.run(requestAuthContext(userToken, tokenClaims), () =>
       transport.handleRequest(req, res, body),
     );
 
@@ -318,13 +346,11 @@ async function main() {
 
     if (pathname === "/.well-known/oauth-protected-resource" && req.method === "GET") {
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({
-        // No trailing slash — MUST match the URL the user enters in the client.
+      res.end(JSON.stringify(buildProtectedResourceMetadata({
         resource: MCP_PUBLIC_URL,
-        authorization_servers: [OAUTH_AS_URL],
-        bearer_methods_supported: ["header"],
-        scopes_supported: ["mcp:read", "mcp:write", "offline_access"],
-      }));
+        authorizationServer: OAUTH_AS_URL,
+        scopes: MENTION_MCP_CAPABILITIES,
+      })));
       return;
     }
 
@@ -338,7 +364,7 @@ async function main() {
 
     if (pathname === "/sse" && req.method === "GET") {
       const userToken = extractBearerToken(headers);
-      const tokenClaims = userToken ? verifyUserToken(userToken) : undefined;
+      const tokenClaims = userToken ? await verifyUserToken(userToken) : undefined;
       if (!userToken || !tokenClaims) {
         sendUnauthorized(res);
         return;
@@ -368,7 +394,7 @@ async function main() {
     if (pathname === "/messages" && req.method === "POST") {
       setLegacyTransportHeaders(res);
       const userToken = extractBearerToken(headers);
-      const tokenClaims = userToken ? verifyUserToken(userToken) : undefined;
+      const tokenClaims = userToken ? await verifyUserToken(userToken) : undefined;
       if (!userToken || !tokenClaims) {
         sendUnauthorized(res);
         return;
@@ -387,7 +413,7 @@ async function main() {
 
       try {
         const body = await readBody(req);
-        await requestContext.run({ userToken }, () =>
+        await requestContext.run(requestAuthContext(userToken, tokenClaims), () =>
           transport.handlePostMessage(req, res, body),
         );
       } catch (error) {

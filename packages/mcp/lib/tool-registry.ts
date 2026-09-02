@@ -3,9 +3,15 @@ import {
   type AppCapabilityCatalog,
   type CatalogTool,
 } from "@oxyhq/contracts";
+import { createHash } from "node:crypto";
 import { McpServer, type ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import { toJSONSchema } from "zod/v4-mini";
+import {
+  MENTION_CAPABILITY_AUDIENCE,
+  MENTION_MCP_RESOURCE,
+} from "@mention/shared-types/mcpCapabilities";
+import { requestContext } from "./context.js";
 
 export type MentionToolPolicy = Pick<
   CatalogTool,
@@ -108,7 +114,57 @@ export class MentionToolRegistry implements MentionToolRegistrar {
             "oxy/resourceTypes": definition.policy.resourceTypes,
           },
         },
-        definition.handler,
+        async (...args: Parameters<typeof definition.handler>) => {
+          const context = requestContext.getStore();
+          if (
+            context?.authMode === "central" &&
+            !definition.policy.requiredCapabilities.every((capability) =>
+              context.scopes.has(capability)
+            )
+          ) {
+            return {
+              content: [{
+                type: "text" as const,
+                text: `This tool requires: ${definition.policy.requiredCapabilities.join(", ")}.`,
+              }],
+              isError: true,
+            };
+          }
+          if (definition.policy.effect === "read" || !context) {
+            return definition.handler(...args);
+          }
+
+          const extra = args.at(-1) as {
+            requestId?: string | number;
+            sessionId?: string;
+          } | undefined;
+          if (
+            !context.accountId ||
+            !context.clientId ||
+            !context.tokenId ||
+            extra?.requestId === undefined
+          ) {
+            return {
+              content: [{
+                type: "text" as const,
+                text: "This write could not be bound to an authenticated MCP request. Start a new connection and try again.",
+              }],
+              isError: true,
+            };
+          }
+
+          const idempotencyKey = effectIdempotencyKey({
+            accountId: context.accountId,
+            clientId: context.clientId,
+            transportId: extra.sessionId ?? `token:${context.tokenId}`,
+            requestId: extra.requestId,
+            toolName: definition.name,
+          });
+          return requestContext.run(
+            { ...context, idempotencyKey, toolName: definition.name },
+            () => definition.handler(...args),
+          );
+        },
       );
     }
   }
@@ -134,12 +190,36 @@ export class MentionToolRegistry implements MentionToolRegistrar {
     return appCapabilityCatalogSchema.parse({
       schemaVersion: "1",
       appId: "mention",
-      version: "1.0.0",
-      audience: "mention-api",
+      version: "1.2.0",
+      audience: MENTION_CAPABILITY_AUDIENCE,
       internalBaseUrl: "https://api.mention.earth",
+      externalMcp: { resource: MENTION_MCP_RESOURCE },
       accountResourceType: "mention_account",
       tools,
       events: [],
     });
   }
+}
+
+export function effectIdempotencyKey(input: {
+  accountId: string;
+  clientId: string;
+  transportId: string;
+  requestId: string | number;
+  toolName: string;
+}): string {
+  const digest = createHash("sha256")
+    .update(input.accountId)
+    .update("\0")
+    .update(input.clientId)
+    .update("\0")
+    .update(input.transportId)
+    .update("\0")
+    .update(typeof input.requestId)
+    .update(":")
+    .update(String(input.requestId))
+    .update("\0")
+    .update(input.toolName)
+    .digest("hex");
+  return `mcp:${digest}`;
 }

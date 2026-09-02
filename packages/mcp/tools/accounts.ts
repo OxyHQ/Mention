@@ -6,7 +6,7 @@ import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 export function registerAccountTools(server: MentionToolRegistrar): void {
   server.tool(
     "whoami",
-    "Return the Mention account currently active for this MCP connector (handle, display name, user id). Call before posting when multiple accounts are linked.",
+    "Return the exact Mention account bound to this MCP connection (handle, display name, user id). Call before publishing.",
     {},
     withAuthGuard(async () => {
       try {
@@ -33,7 +33,7 @@ export function registerAccountTools(server: MentionToolRegistrar): void {
 
   server.tool(
     "list-accounts",
-    "List all Mention accounts linked to this MCP connector.",
+    "List the Mention account bound to this connection. Transitional legacy bundles may return their linked accounts.",
     {},
     withAuthGuard(async () => {
       try {
@@ -47,7 +47,7 @@ export function registerAccountTools(server: MentionToolRegistrar): void {
           }>;
         }>("/mcp/bundles/accounts");
         if (!result.accounts?.length) {
-          return { content: [{ type: "text" as const, text: "No linked accounts found." }] };
+          return { content: [{ type: "text" as const, text: "No bound account found." }] };
         }
         const lines = result.accounts.map((account) => {
           const flags = [
@@ -61,7 +61,7 @@ export function registerAccountTools(server: MentionToolRegistrar): void {
           content: [
             {
               type: "text" as const,
-              text: `Linked accounts (${result.accounts.length}):\n${lines.join("\n")}`,
+              text: `Accounts visible to this connection (${result.accounts.length}):\n${lines.join("\n")}`,
             },
           ],
         };
@@ -73,7 +73,7 @@ export function registerAccountTools(server: MentionToolRegistrar): void {
 
   server.tool(
     "link-account",
-    "Get a browser link to add another Mention account to this MCP connector. Open the URL, sign in as the other account, and approve linking.",
+    "Legacy transition only. Central Oxy connections require a separate authorization for every Mention account.",
     {},
     withAuthGuard(async () => {
       try {
@@ -103,7 +103,7 @@ export function registerAccountTools(server: MentionToolRegistrar): void {
 
   server.tool(
     "switch-account",
-    "Switch the active Mention account for this MCP connector. Use whoami to confirm before posting.",
+    "Legacy transition only. Central Oxy connections are fixed to the account selected during authorization.",
     {
       handle: z
         .string()

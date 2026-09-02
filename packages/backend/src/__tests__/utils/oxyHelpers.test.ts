@@ -36,12 +36,51 @@ vi.mock('@oxyhq/core', () => {
 
 vi.mock('../../utils/privacyHelpers', () => ({}));
 
-import { ensureProfileMediaPublic } from '../../utils/oxyHelpers';
+import {
+  createScopedOxyClient,
+  createUserScopedOxyServices,
+  ensureProfileMediaPublic,
+} from '../../utils/oxyHelpers';
 
 /** The scoped client is the LAST constructed instance (after the module-level singleton). */
 function lastScopedClient() {
   return mockState.instances[mockState.instances.length - 1];
 }
+
+describe('request-scoped Oxy clients', () => {
+  it('accepts one well-formed session bearer', () => {
+    const before = mockState.instances.length;
+    const client = createScopedOxyClient({
+      headers: { authorization: 'Bearer owner-token' },
+    });
+
+    expect(client).toBeDefined();
+    expect(mockState.instances.length).toBe(before + 1);
+    expect(lastScopedClient().setTokens).toHaveBeenCalledWith('owner-token');
+  });
+
+  it('rejects combined and duplicate bearer credentials', () => {
+    const before = mockState.instances.length;
+
+    expect(createScopedOxyClient({
+      headers: { authorization: 'Bearer first, Bearer second' },
+    })).toBeUndefined();
+    expect(createUserScopedOxyServices({
+      headers: { authorization: ['Bearer first', 'Bearer second'] },
+    })).toBeUndefined();
+    expect(mockState.instances.length).toBe(before);
+  });
+
+  it('never forwards a resource-bound MCP bearer into OxyServices', () => {
+    const before = mockState.instances.length;
+
+    expect(createUserScopedOxyServices({
+      headers: { authorization: 'Bearer mcp-access-token' },
+      mcp: { activeUserId: 'assigned-account' },
+    })).toBeUndefined();
+    expect(mockState.instances.length).toBe(before);
+  });
+});
 
 describe('ensureProfileMediaPublic', () => {
   beforeEach(() => {

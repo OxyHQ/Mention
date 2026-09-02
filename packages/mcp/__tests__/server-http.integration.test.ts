@@ -16,7 +16,10 @@ describe("MCP HTTP resource server", () => {
           MCP_PORT: "0",
           MENTION_MCP_JWT_SECRET: "integration-test-secret",
           MENTION_MCP_PUBLIC_URL: "http://127.0.0.1",
-          MENTION_OAUTH_AS_URL: "https://api.mention.test",
+          OXY_API_URL: "https://api.oxy.test",
+          OXY_SERVICE_API_KEY: "service-key",
+          OXY_SERVICE_API_SECRET: "service-secret",
+          MENTION_LEGACY_OAUTH_ISSUER: "https://api.mention.test",
         },
         stdout: "pipe",
         stderr: "pipe",
@@ -32,7 +35,11 @@ describe("MCP HTTP resource server", () => {
         const metadata = await fetch(`${baseUrl}/.well-known/oauth-protected-resource`);
         expect(await metadata.json()).toMatchObject({
           resource: "http://127.0.0.1",
-          authorization_servers: ["https://api.mention.test"],
+          authorization_servers: ["https://api.oxy.test"],
+          scopes_supported: expect.arrayContaining([
+            "social.read",
+            "social.posts.publish",
+          ]),
         });
 
         const challenge = await fetch(`${baseUrl}/`);

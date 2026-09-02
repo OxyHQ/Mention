@@ -60,7 +60,7 @@ const collaboratorFields = {
 export function registerPostsTools(server: MentionToolRegistrar): void {
   server.tool(
     "create-post",
-    "Create a new post on Mention with optional media, poll, article, event, room, podcast, location, sources, and collaborators (requires authorization). Invite up to 5 local users via collaboratorIds or collaboratorHandles; linked MCP bundle accounts are auto-accepted by the backend.",
+    "Create a new post on Mention with optional media, poll, article, event, room, podcast, location, sources, and collaborators (requires authorization). Invite up to 5 local users via collaboratorIds or collaboratorHandles; invitees accept through their own authorized account connection.",
     createPostFields,
     withAuthGuard(async (args) => {
       try {
@@ -195,7 +195,7 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
 
   server.tool(
     "accept-collab-invite",
-    "Accept a pending collaboration invite on a post (requires authorization). Use switch-account first if the invite is for another linked account.",
+    "Accept a pending collaboration invite on a post as the account bound to this connection (requires authorization).",
     { id: z.string().describe("Post ID") },
     withAuthGuard(async ({ id }) => {
       try {

@@ -126,7 +126,7 @@ jobs:
           for key in OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET; do
             value="${!key:-}"
             if [[ -z "$value" || "$value" == "-" ]]; then
-              echo "::error::$key is empty; catalog registration cannot authenticate."
+              echo "::error::$key is empty; central MCP auth and catalog registration cannot authenticate."
               exit 1
             fi
             aws ssm put-parameter \

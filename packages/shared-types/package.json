@@ -58,6 +58,12 @@
       "import": "./dist/interaction.js",
       "require": "./dist/interaction.js"
     },
+    "./mcpCapabilities": {
+      "types": "./dist/mcpCapabilities.d.ts",
+      "import": "./dist/mcpCapabilities.js",
+      "require": "./dist/mcpCapabilities.js",
+      "default": "./dist/mcpCapabilities.js"
+    },
     "./customFeed": {
       "types": "./dist/customFeed.d.ts",
       "import": "./dist/customFeed.js",

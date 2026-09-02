@@ -1,291 +1,75 @@
-import { Router, Request, Response } from 'express';
+import { MENTION_LEGACY_MCP_AUTH_CUTOFF_MS } from '@mention/shared-types/mcpCapabilities';
 import type { OxyServices } from '@oxyhq/core';
-import type { OxyAuthRequest } from '@oxyhq/core/server';
-import crypto from 'crypto';
+import type { Request, Response } from 'express';
+import { Router } from 'express';
 import {
-  claimAuthCode,
-  createAuthCode,
-  findAuthCodeByCode,
-} from '../../db/mcp/mcpAuthCodeRepository';
-import {
-  createConnection,
   findConnectionByRefreshTokenHash,
-  findLiveBundlePrimary,
   rotateRefreshTokenFamily,
 } from '../../db/mcp/mcpConnectionRepository';
-import { createRegisteredClient } from '../../db/mcp/mcpRegisteredClientRepository';
-import { areTrustedDynamicRedirectUris, getMcpClientAsync, isAllowedRedirectUri } from '../config/mcpClients';
+import { logger } from '../../utils/logger';
+import { getMcpClientAsync } from '../config/mcpClients';
+import { MCP_ACCESS_TOKEN_TTL_SECONDS } from '../config/constants';
+import { revokeJti } from '../services/mcpRevocationService';
 import {
-  MCP_ACCESS_TOKEN_TTL_SECONDS,
-  MCP_AUTH_CODE_TTL_SECONDS,
-  MCP_CONSENT_PATH,
-  MCP_DEFAULT_SCOPES,
-  MCP_FRONTEND_ORIGIN,
-  MCP_ISSUER,
-  MCP_RESOURCE_URL,
-  MCP_SUPPORTED_SCOPES,
-} from '../config/constants';
-import {
-  generateAuthCode,
   generateJti,
   generateRefreshToken,
   hashToken,
   signAccessToken,
-  verifyPkceS256,
 } from '../services/mcpTokenService';
-import { revokeJti } from '../services/mcpRevocationService';
-import { verifyLinkToken } from '../services/mcpBundleService';
-import { logger } from '../../utils/logger';
+
+const CENTRAL_AUTHORIZATION_SERVER = 'https://api.oxy.so';
+
+function singleString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function legacyRetired(res: Response): Response {
+  return res.status(410).json({
+    error: 'legacy_mcp_oauth_retired',
+    error_description:
+      'New Mention MCP authorizations use the central Oxy authorization server.',
+    authorization_server: CENTRAL_AUTHORIZATION_SERVER,
+  });
+}
 
 /**
- * MCP OAuth 2.0 endpoints (authorization-code + PKCE S256, plus refresh_token).
- *
- * Mounted PUBLICLY at the app root, BEFORE the authenticated router — the
- * discovery document and the authorize/token endpoints must be reachable
- * without an existing session. `POST /mcp/oauth/approve` is the one exception:
- * it is guarded by `oxy.auth()` inline because it acts on behalf of the
- * signed-in user (it turns their consent into an authorization code).
+ * Transitional endpoints for connectors created by Mention's former OAuth
+ * authority. New registration, consent and account linking are closed. Only a
+ * live pre-migration refresh family can rotate until the fixed cutoff.
  */
-
-/** Only S256 PKCE is accepted (plain is disallowed). */
-const PKCE_METHOD = 'S256';
-
-/** First string value of a query/body field that may arrive as string | string[]. */
-function firstString(value: unknown): string | undefined {
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
-  return undefined;
-}
-
-/** Normalize a requested scope string to the supported, non-empty set. */
-function resolveScopes(requested: string | undefined): string[] {
-  const parsed = (requested ?? '')
-    .split(/\s+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
-    .filter((s) => MCP_SUPPORTED_SCOPES.includes(s));
-  const deduped = Array.from(new Set(parsed));
-  return deduped.length > 0 ? deduped : [...MCP_DEFAULT_SCOPES];
-}
-
-export function createMcpOAuthRoutes(oxy: OxyServices): Router {
+export function createMcpOAuthRoutes(
+  _oxy: OxyServices,
+  options: { now?: () => number } = {},
+): Router {
   const router = Router();
+  const now = options.now ?? Date.now;
 
-  // --- Discovery (RFC 8414) ---
-  router.get('/.well-known/oauth-authorization-server', (_req: Request, res: Response) => {
-    res.json({
-      issuer: MCP_ISSUER,
-      authorization_endpoint: `${MCP_ISSUER}/mcp/oauth/authorize`,
-      token_endpoint: `${MCP_ISSUER}/mcp/oauth/token`,
-      // RFC 7591 dynamic client registration — Claude refuses to connect
-      // against a fixed client_id and requires this endpoint to be advertised.
-      registration_endpoint: `${MCP_ISSUER}/mcp/oauth/register`,
-      response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code', 'refresh_token'],
-      code_challenge_methods_supported: [PKCE_METHOD],
-      token_endpoint_auth_methods_supported: ['none'],
-      scopes_supported: MCP_SUPPORTED_SCOPES,
-    });
-  });
+  router.get('/.well-known/oauth-authorization-server', (_req, res) =>
+    legacyRetired(res));
+  router.get('/.well-known/oauth-protected-resource', (_req, res) =>
+    legacyRetired(res));
+  router.post('/mcp/oauth/register', (_req, res) => legacyRetired(res));
+  router.get('/mcp/oauth/authorize', (_req, res) => legacyRetired(res));
+  router.post('/mcp/oauth/approve', (_req, res) => legacyRetired(res));
+  router.get('/mcp/bundles/link/preview', (_req, res) => legacyRetired(res));
 
-  // --- Protected-resource metadata (RFC 9728) — helps MCP clients discover the AS ---
-  router.get('/.well-known/oauth-protected-resource', (_req: Request, res: Response) => {
-    res.json({
-      // MUST byte-for-byte equal the URL the user enters into their client
-      // (no trailing slash) — Claude rejects a mismatched resource identifier.
-      resource: MCP_RESOURCE_URL,
-      authorization_servers: [MCP_ISSUER],
-      scopes_supported: MCP_SUPPORTED_SCOPES,
-      bearer_methods_supported: ['header'],
-    });
-  });
-
-  // --- Public preview for add-account link flow (no auth) ---
-  router.get('/mcp/bundles/link/preview', async (req: Request, res: Response) => {
-    try {
-      const token = firstString(req.query.token);
-      if (!token) {
-        return res.status(400).json({ message: 'token is required' });
-      }
-      const parsed = verifyLinkToken(token);
-      if (!parsed) {
-        return res.status(400).json({ message: 'Invalid or expired link token' });
-      }
-      const primary = await findLiveBundlePrimary(parsed.bundleId);
-      const client = primary ? await getMcpClientAsync(primary.clientId) : null;
-      return res.json({
-        clientLabel: client?.label ?? primary?.clientLabel ?? parsed.clientId,
-        bundleId: parsed.bundleId,
-      });
-    } catch (error) {
-      logger.error('[McpOAuth] link preview failed', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return res.status(500).json({ message: 'Error previewing link' });
-    }
-  });
-
-  // --- Dynamic client registration (RFC 7591) ---
-  // Public clients only: no secret is issued and token_endpoint_auth_method is
-  // `none`. Because these tokens authenticate to Mention APIs, public DCR does
-  // NOT establish new trust: requested callbacks must already match a trusted
-  // first-party redirect URI from the static MCP client config.
-  router.post('/mcp/oauth/register', async (req: Request, res: Response) => {
-    try {
-      const rawRedirects = req.body?.redirect_uris;
-      const redirectUris = Array.isArray(rawRedirects)
-        ? rawRedirects.filter((uri): uri is string => typeof uri === 'string' && uri.length > 0)
-        : [];
-
-      if (redirectUris.length === 0) {
-        return res.status(400).json({
-          error: 'invalid_redirect_uri',
-          error_description: 'At least one redirect_uri is required',
-        });
-      }
-
-      const allHttps = redirectUris.every((uri) => {
-        try {
-          return new URL(uri).protocol === 'https:';
-        } catch {
-          return false;
-        }
-      });
-      if (!allHttps) {
-        return res.status(400).json({
-          error: 'invalid_redirect_uri',
-          error_description: 'All redirect_uris must be valid HTTPS URLs',
-        });
-      }
-
-      if (!areTrustedDynamicRedirectUris(redirectUris)) {
-        return res.status(400).json({
-          error: 'invalid_redirect_uri',
-          error_description: 'redirect_uris must match a trusted MCP client callback',
-        });
-      }
-
-      const requestedName = firstString(req.body?.client_name);
-      const clientId = `mcp-dcr-${crypto.randomUUID()}`;
-      const label = requestedName && requestedName.length <= 200 ? requestedName : 'MCP Client';
-
-      await createRegisteredClient({ clientId, redirectUris, label });
-
-      // RFC 7591 client information response for a public client.
-      return res.status(201).json({
-        client_id: clientId,
-        redirect_uris: redirectUris,
-        token_endpoint_auth_method: 'none',
-        grant_types: ['authorization_code', 'refresh_token'],
-        response_types: ['code'],
-        client_name: label,
-      });
-    } catch (error) {
-      logger.error('[McpOAuth] register failed', { error: error instanceof Error ? error.message : String(error) });
-      return res.status(500).json({ error: 'server_error' });
-    }
-  });
-
-  // --- Authorization endpoint: bounce the user to the frontend consent screen ---
-  router.get('/mcp/oauth/authorize', async (req: Request, res: Response) => {
-    const responseType = firstString(req.query.response_type);
-    const clientId = firstString(req.query.client_id);
-    const redirectUri = firstString(req.query.redirect_uri);
-    const codeChallenge = firstString(req.query.code_challenge);
-    const codeChallengeMethod = firstString(req.query.code_challenge_method);
-    const scope = firstString(req.query.scope);
-    const state = firstString(req.query.state);
-
-    if (responseType !== 'code') {
-      return res.status(400).json({ error: 'unsupported_response_type' });
-    }
-    if (!(await getMcpClientAsync(clientId))) {
-      return res.status(400).json({ error: 'invalid_client', message: 'Unknown client_id' });
-    }
-    if (!(await isAllowedRedirectUri(clientId, redirectUri))) {
-      return res.status(400).json({ error: 'invalid_request', message: 'redirect_uri not allowed for this client' });
-    }
-    if (!codeChallenge || codeChallengeMethod !== PKCE_METHOD) {
-      return res.status(400).json({ error: 'invalid_request', message: 'PKCE S256 code_challenge is required' });
-    }
-
-    const consent = new URL(`${MCP_FRONTEND_ORIGIN}${MCP_CONSENT_PATH}`);
-    consent.searchParams.set('response_type', 'code');
-    consent.searchParams.set('client_id', clientId as string);
-    consent.searchParams.set('redirect_uri', redirectUri as string);
-    consent.searchParams.set('code_challenge', codeChallenge);
-    consent.searchParams.set('code_challenge_method', PKCE_METHOD);
-    consent.searchParams.set('scope', resolveScopes(scope).join(' '));
-    if (state) consent.searchParams.set('state', state);
-
-    return res.redirect(302, consent.toString());
-  });
-
-  // --- Approval endpoint (Oxy auth): user consent -> authorization code ---
-  router.post('/mcp/oauth/approve', oxy.auth(), async (req: OxyAuthRequest, res: Response) => {
-    try {
-      const oxyUserId = req.user?.id;
-      if (!oxyUserId) {
-        return res.status(401).json({ error: 'unauthorized' });
-      }
-
-      const clientId = firstString(req.body?.client_id);
-      const redirectUri = firstString(req.body?.redirect_uri);
-      const codeChallenge = firstString(req.body?.code_challenge);
-      const codeChallengeMethod = firstString(req.body?.code_challenge_method);
-      const scope = firstString(req.body?.scope);
-      const state = firstString(req.body?.state);
-
-      // The resolved client, not the raw query value: `client.clientId` is the
-      // canonical id (static config or the registered row) and is a `string`,
-      // which is what the code row stores.
-      const client = await getMcpClientAsync(clientId);
-      if (!client) {
-        return res.status(400).json({ error: 'invalid_client', message: 'Unknown client_id' });
-      }
-      if (!redirectUri || !(await isAllowedRedirectUri(clientId, redirectUri))) {
-        return res.status(400).json({ error: 'invalid_request', message: 'redirect_uri not allowed for this client' });
-      }
-      if (!codeChallenge || codeChallengeMethod !== PKCE_METHOD) {
-        return res.status(400).json({ error: 'invalid_request', message: 'PKCE S256 code_challenge is required' });
-      }
-
-      const scopes = resolveScopes(scope);
-      const code = generateAuthCode();
-      await createAuthCode({
-        code,
-        clientId: client.clientId,
-        oxyUserId,
-        redirectUri,
-        codeChallenge,
-        scopes,
-        expiresAt: new Date(Date.now() + MCP_AUTH_CODE_TTL_SECONDS * 1000),
-      });
-
-      const redirect = new URL(redirectUri);
-      redirect.searchParams.set('code', code);
-      if (state) redirect.searchParams.set('state', state);
-
-      return res.json({ redirectUrl: redirect.toString() });
-    } catch (error) {
-      logger.error('[McpOAuth] approve failed', { error: error instanceof Error ? error.message : String(error) });
-      return res.status(500).json({ error: 'server_error' });
-    }
-  });
-
-  // --- Token endpoint: authorization_code + refresh_token grants ---
   router.post('/mcp/oauth/token', async (req: Request, res: Response) => {
     try {
-      const grantType = firstString(req.body?.grant_type);
-      if (grantType === 'authorization_code') {
-        return await handleAuthorizationCodeGrant(req, res);
+      if (now() >= MENTION_LEGACY_MCP_AUTH_CUTOFF_MS) {
+        return legacyRetired(res);
       }
-      if (grantType === 'refresh_token') {
-        return await handleRefreshTokenGrant(req, res);
+      if (singleString(req.body?.grant_type) !== 'refresh_token') {
+        return res.status(400).json({
+          error: 'unsupported_grant_type',
+          error_description:
+            'Mention no longer issues legacy authorization-code grants; reconnect through Oxy.',
+        });
       }
-      return res.status(400).json({ error: 'unsupported_grant_type' });
+      return await handleRefreshTokenGrant(req, res);
     } catch (error) {
-      logger.error('[McpOAuth] token failed', { error: error instanceof Error ? error.message : String(error) });
+      logger.error('[McpOAuth] legacy refresh failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return res.status(500).json({ error: 'server_error' });
     }
   });
@@ -293,83 +77,15 @@ export function createMcpOAuthRoutes(oxy: OxyServices): Router {
   return router;
 }
 
-/** authorization_code grant: redeem a code (PKCE-verified) for a token pair. */
-async function handleAuthorizationCodeGrant(req: Request, res: Response): Promise<Response> {
-  const code = firstString(req.body?.code);
-  const clientId = firstString(req.body?.client_id);
-  const redirectUri = firstString(req.body?.redirect_uri);
-  const codeVerifier = firstString(req.body?.code_verifier);
-
-  if (!code || !clientId || !redirectUri || !codeVerifier) {
-    return res.status(400).json({ error: 'invalid_request', message: 'Missing required parameters' });
-  }
-  const client = await getMcpClientAsync(clientId);
-  if (!client) {
-    return res.status(400).json({ error: 'invalid_client' });
-  }
-
-  const authCode = await findAuthCodeByCode(code);
-  if (!authCode || authCode.usedAt || authCode.expiresAt.getTime() < Date.now()) {
-    return res.status(400).json({ error: 'invalid_grant', message: 'Authorization code is invalid or expired' });
-  }
-  if (authCode.clientId !== clientId || authCode.redirectUri !== redirectUri) {
-    return res.status(400).json({ error: 'invalid_grant', message: 'Client or redirect_uri mismatch' });
-  }
-  if (!verifyPkceS256(codeVerifier, authCode.codeChallenge)) {
-    return res.status(400).json({ error: 'invalid_grant', message: 'PKCE verification failed' });
-  }
-
-  // Single-use: ONE conditional UPDATE carrying `used_at IS NULL`, so the
-  // database decides the race. The read above cannot stand in for it — two
-  // requests both observing "not yet used" is exactly the case this rejects,
-  // and its false answer points toward permission (a code redeemed twice),
-  // never toward silence.
-  if (!(await claimAuthCode(authCode.id))) {
-    return res.status(400).json({ error: 'invalid_grant', message: 'Authorization code already used' });
-  }
-
-  const jti = generateJti();
-  const refresh = generateRefreshToken();
-  const bundleId = crypto.randomUUID();
-  await createConnection({
-    oxyUserId: authCode.oxyUserId,
-    clientId,
-    clientLabel: client.label,
-    scopes: authCode.scopes,
-    bundleId,
-    isBundlePrimary: true,
-    activeOxyUserId: authCode.oxyUserId,
-    refreshTokenHash: refresh.hash,
-    jti,
-    lastUsedAt: new Date(),
-  });
-
-  const { setActiveAccount } = await import('../services/mcpBundleService');
-  await setActiveAccount(bundleId, authCode.oxyUserId);
-
-  const accessToken = signAccessToken({
-    oxyUserId: authCode.oxyUserId,
-    clientId,
-    scopes: authCode.scopes,
-    jti,
-  });
-
-  return res.json({
-    access_token: accessToken,
-    token_type: 'Bearer',
-    expires_in: MCP_ACCESS_TOKEN_TTL_SECONDS,
-    refresh_token: refresh.token,
-    scope: authCode.scopes.join(' '),
-  });
-}
-
-/** refresh_token grant: rotate the refresh token + mint a fresh access token. */
 async function handleRefreshTokenGrant(req: Request, res: Response): Promise<Response> {
-  const refreshToken = firstString(req.body?.refresh_token);
-  const clientId = firstString(req.body?.client_id);
+  const refreshToken = singleString(req.body?.refresh_token);
+  const clientId = singleString(req.body?.client_id);
 
   if (!refreshToken || !clientId) {
-    return res.status(400).json({ error: 'invalid_request', message: 'Missing required parameters' });
+    return res.status(400).json({
+      error: 'invalid_request',
+      message: 'Missing required parameters',
+    });
   }
   if (!(await getMcpClientAsync(clientId))) {
     return res.status(400).json({ error: 'invalid_client' });
@@ -378,32 +94,12 @@ async function handleRefreshTokenGrant(req: Request, res: Response): Promise<Res
   const presentedHash = hashToken(refreshToken);
   const connection = await findConnectionByRefreshTokenHash(presentedHash);
   if (!connection || connection.revokedAt || connection.clientId !== clientId) {
-    return res.status(400).json({ error: 'invalid_grant', message: 'Refresh token is invalid or revoked' });
+    return res.status(400).json({
+      error: 'invalid_grant',
+      message: 'Refresh token is invalid or revoked',
+    });
   }
 
-  // Rotate the family FIRST, conditional on the presented hash still being the
-  // current one, so two concurrent refreshes of one token cannot both mint a
-  // live family — the loser matches no row. Only the winner then blocklists the
-  // outgoing `jti`; a loser doing it would revoke the family the winner just
-  // rotated to nothing, since the row it read is already superseded.
-  //
-  // This is the FORGIVING half of rotation semantics, and it is a decision
-  // rather than the only option. The strict alternative is reuse-detection:
-  // treat a replayed refresh token as possible THEFT and revoke the whole
-  // family, on the theory that the legitimate holder and an attacker cannot
-  // both present the same token innocently. That is the right default for a
-  // browser session, where a replay is anomalous.
-  //
-  // It is the wrong default HERE, because an MCP connector's clients
-  // legitimately race their own refreshes — Claude holds one grant per URL and
-  // may have several requests in flight when a short access token expires
-  // together. Under strict semantics that ordinary race logs the user out and
-  // costs them the entire OAuth flow to recover, since Claude allows only one
-  // connector per URL. Failing only the loser makes the race a retry instead.
-  //
-  // If reuse-detection is ever wanted, it needs a way to tell a client race
-  // from a replay — a per-client rotation nonce, or a grace window in which the
-  // PREVIOUS hash is still accepted once — not just flipping this branch.
   const newJti = generateJti();
   const newRefresh = generateRefreshToken();
   const rotated = await rotateRefreshTokenFamily(connection.id, presentedHash, {
@@ -411,7 +107,10 @@ async function handleRefreshTokenGrant(req: Request, res: Response): Promise<Res
     refreshTokenHash: newRefresh.hash,
   });
   if (!rotated) {
-    return res.status(400).json({ error: 'invalid_grant', message: 'Refresh token is invalid or revoked' });
+    return res.status(400).json({
+      error: 'invalid_grant',
+      message: 'Refresh token is invalid or revoked',
+    });
   }
   await revokeJti(connection.jti);
 
@@ -430,3 +129,5 @@ async function handleRefreshTokenGrant(req: Request, res: Response): Promise<Res
     scope: connection.scopes.join(' '),
   });
 }
+
+export default createMcpOAuthRoutes;

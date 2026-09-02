@@ -9,17 +9,15 @@ Mention (mention.earth) is a social platform. Connect at **https://mcp.mention.e
 ## Public vs authorized access
 All MCP connections require OAuth authorization in Claude (Settings → Connectors). After connecting, you can read public feeds and profiles and perform account actions (post, like, boost, follow, personalized feeds, search, lists, starter packs, notifications).
 
-When authentication fails, reconnect Mention in Claude connector settings and approve access on mention.earth. Revoke old access under Settings → Connected AI if reconnecting.
+When authentication fails, reconnect Mention in the client and approve the exact account on auth.oxy.so. Revoke access from Oxy Settings when reconnecting.
 
-## Multiple accounts (one connector)
-Claude allows only **one** connector per MCP URL. To post as different Mention accounts:
-1. Connect once at https://mcp.mention.earth
-2. Call **link-account** → open the URL in a browser → sign in as the other account → approve
-3. Call **switch-account** with the target @handle
-4. Call **whoami** to confirm before **create-post**
+## Account binding
+Each OAuth authorization is permanently bound to the one Oxy account selected
+during consent. It cannot switch or link another account. Authorize a separate
+connection for every additional account, and call **whoami** before publishing.
 
 ## OAuth
-Authorization is handled by Mention (not manual tokens). The user approves on mention.earth and can revoke access under Settings → Connected AI.
+Oxy is the central authorization server; Mention never asks for or stores a manual user token. Access can be revoked immediately from Oxy Settings.
 
 ## Feeds (MTN)
 All feed tools use the unified MTN feed engine via descriptors: \`for_you\`, \`following\`, \`explore\`, \`videos\`, \`author|<userId>\`, \`hashtag|<tag>\`.
@@ -42,8 +40,8 @@ Feed and list tools support \`cursor\` and \`limit\`. Responses include \`hasMor
 ## Collaborative posts
 Invite up to **5 local** co-authors on \`create-post\` or \`update-post\` (within the 30-minute edit window) via \`collaboratorIds\` or \`collaboratorHandles\` (@username). Federated users and threads are not supported.
 
-- **Linked MCP accounts:** when you invite another account linked to the same connector, the backend auto-accepts that invite (no notification).
-- **External users:** the invite stays \`pending\` until they accept. The invitee should \`switch-account\` to their account, then call \`accept-collab-invite\` or \`decline-collab-invite\`.
+- **Invited accounts:** the invite stays \`pending\` until that account accepts or declines through its own authorized connection.
+- **Legacy transition:** already-issued multi-account bundles can retain their historical auto-accept behavior only until the fixed migration cutoff.
 - **Stop sharing:** an accepted collaborator can call \`stop-collab-sharing\`.
 - **Federation:** posts with pending invites are not federated until every invite is resolved.
 

@@ -94,7 +94,12 @@ import {
   trending,
 } from './schema/discovery';
 import { FEED_INTERACTION_RETENTION_SECONDS, feedInteractions } from './schema/feeds';
-import { MCP_AUTH_CODE_RETENTION_SECONDS, mcpAuthCodes } from './schema/mcp';
+import {
+  MCP_AUTH_CODE_RETENTION_SECONDS,
+  MCP_EFFECT_RECEIPT_RETENTION_SECONDS,
+  mcpAuthCodes,
+  mcpEffectReceipts,
+} from './schema/mcp';
 // `MODERATION_*_RETENTION_SECONDS` are deliberately NOT imported: those two
 // tables carry a written `expires_at` that the WRITER already computed from the
 // retention constant, so the sweep's own retention is 0 (the column IS the
@@ -176,6 +181,15 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'has not reached yet is already inert. This entry is the whole reason the ' +
       'table does not grow forever — Mongo reaped these with a TTL index, and a ' +
       'TTL is a behaviour of the SOURCE that does not survive the port on its own.',
+  },
+  {
+    table: mcpEffectReceipts,
+    column: mcpEffectReceipts.createdAt,
+    retentionSeconds: MCP_EFFECT_RECEIPT_RETENTION_SECONDS,
+    reason:
+      'Contains only hashes and completion status used to reject a retried MCP ' +
+      'write. Thirty days covers delayed transport retries while bounding a row ' +
+      'per external effect; no domain read or audit history depends on it.',
   },
   {
     table: moderationEvents,

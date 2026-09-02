@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { fingerprintMcpPrincipal, type McpAccessTokenClaims } from "../lib/http-security.js";
+import { fingerprintMcpPrincipal, type AuthenticatedMcpToken } from "../lib/http-security.js";
 import {
   McpSessionRegistry,
   type McpHttpTransport,
@@ -7,9 +7,13 @@ import {
 
 const claims = {
   sub: "user-1",
+  accountId: "account-1",
   client_id: "client-1",
   jti: "token-family-1",
-} as McpAccessTokenClaims;
+  scope: "social.read",
+  scopes: new Set(["social.read"]),
+  authMode: "central",
+} as AuthenticatedMcpToken;
 
 describe("MCP session registry", () => {
   test("keeps transport, activity and principal state in sync", () => {

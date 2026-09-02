@@ -1,25 +1,16 @@
 import { Router, Response } from 'express';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import {
-  createConnection,
-  findLiveBundleMember,
-  findLiveBundlePrimary,
-} from '../../db/mcp/mcpConnectionRepository';
-import { isUniqueViolation } from '@oxyhq/db';
+import { findLiveBundleMember } from '../../db/mcp/mcpConnectionRepository';
 import {
   listBundleMembers,
   setActiveAccount,
-  signLinkToken,
-  verifyLinkToken,
-  consumeLinkToken,
-  countBundleMembers,
 } from '../services/mcpBundleService';
-import { generateJti, generateRefreshToken } from '../services/mcpTokenService';
-import { getMcpClientAsync } from '../config/mcpClients';
-import { MCP_FRONTEND_ORIGIN, MCP_LINK_PATH, MCP_MAX_BUNDLE_MEMBERS } from '../config/constants';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { stripMentionHandle } from '../../utils/resolveLocalMentionHandles';
-import type { OxyAuthRequestWithMcp } from '../middleware/mcpAuth';
+import type {
+  McpRequestContext,
+  OxyAuthRequestWithMcp,
+} from '../middleware/mcpAuth';
 import { logger } from '../../utils/logger';
 import { toMcpUserSummary, type McpUserSummary } from '../utils/mcpUserSummary';
 
@@ -34,18 +25,46 @@ async function hydrateUserSummary(oxyUserId: string): Promise<McpUserSummary> {
   }
 }
 
-function requireMcpBundle(req: AuthRequest, res: Response): OxyAuthRequestWithMcp['mcp'] | null {
+type LegacyBundleContext = McpRequestContext & {
+  authMode: 'legacy';
+  bundleId: string;
+};
+
+function requireMcpBundle(req: AuthRequest, res: Response): LegacyBundleContext | null {
   const mcp = (req as OxyAuthRequestWithMcp).mcp;
-  if (!mcp?.bundleId) {
+  if (mcp?.authMode !== 'legacy' || !mcp.bundleId) {
     res.status(403).json({ message: 'MCP bundle context required' });
     return null;
   }
-  return mcp;
+  return mcp as LegacyBundleContext;
+}
+
+function requireSeparateCentralConnection(res: Response): Response {
+  return res.status(409).json({
+    code: 'separate_connection_required',
+    message:
+      'Oxy MCP connections are bound to one account. Authorize a separate Mention connection for another account.',
+  });
 }
 
 /** GET /mcp/bundles/accounts — list linked accounts for the caller's MCP bundle. */
 router.get('/accounts', async (req: AuthRequest, res: Response) => {
   try {
+    const context = (req as OxyAuthRequestWithMcp).mcp;
+    if (context?.authMode === 'central') {
+      const summary = await hydrateUserSummary(context.activeUserId);
+      return res.json({
+        accounts: [{
+          oxyUserId: context.activeUserId,
+          handle: summary.handle,
+          displayName: summary.displayName,
+          isPrimary: true,
+          isActive: true,
+        }],
+        activeUserId: context.activeUserId,
+        bundleId: null,
+      });
+    }
     const mcp = requireMcpBundle(req, res);
     if (!mcp) return;
 
@@ -84,7 +103,7 @@ router.get('/me', async (req: AuthRequest, res: Response) => {
     const summary = await hydrateUserSummary(userId);
     return res.json({
       ...summary,
-      isPrimary: mcp?.primaryUserId === userId,
+      isPrimary: mcp?.authMode === 'central' || mcp?.primaryUserId === userId,
       bundleId: mcp?.bundleId ?? null,
     });
   } catch (error) {
@@ -95,126 +114,29 @@ router.get('/me', async (req: AuthRequest, res: Response) => {
   }
 });
 
-/** POST /mcp/bundles/link-token — mint a browser link token for add-account flow. */
-router.post('/link-token', async (req: AuthRequest, res: Response) => {
-  try {
-    const mcp = requireMcpBundle(req, res);
-    if (!mcp) return;
-
-    const token = signLinkToken(mcp.bundleId, mcp.clientId);
-    const linkUrl = `${MCP_FRONTEND_ORIGIN}${MCP_LINK_PATH}?token=${encodeURIComponent(token)}`;
-
-    return res.json({
-      token,
-      linkUrl,
-      expiresInSeconds: 900,
-    });
-  } catch (error) {
-    logger.error('[McpBundles] link-token failed', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return res.status(500).json({ message: 'Error creating link token' });
+/** New accounts always require their own central Oxy authorization. */
+router.post('/link-token', (req: AuthRequest, res: Response) => {
+  if ((req as OxyAuthRequestWithMcp).mcp?.authMode === 'central') {
+    return requireSeparateCentralConnection(res);
   }
+  return res.status(410).json({
+    code: 'legacy_account_linking_retired',
+    message: 'Legacy bundle linking is retired. Reconnect each account through Oxy.',
+  });
 });
 
-/** POST /mcp/bundles/link/complete — link the signed-in user to an MCP bundle. */
-router.post('/link/complete', async (req: AuthRequest, res: Response) => {
-  try {
-    const oxyUserId = req.user?.id;
-    if (!oxyUserId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const linkToken = typeof req.body?.token === 'string' ? req.body.token : undefined;
-    if (!linkToken) {
-      return res.status(400).json({ message: 'token is required' });
-    }
-    const parsed = verifyLinkToken(linkToken);
-    if (!parsed) {
-      return res.status(400).json({ message: 'Invalid or expired link token' });
-    }
-
-    const consumed = await consumeLinkToken(linkToken);
-    if (!consumed) {
-      return res.status(400).json({ message: 'Link token already used or unavailable' });
-    }
-
-    const existing = await findLiveBundleMember(parsed.bundleId, oxyUserId);
-    if (existing) {
-      const summary = await hydrateUserSummary(oxyUserId);
-      return res.json({
-        message: 'Already linked',
-        handle: summary.handle,
-        bundleId: parsed.bundleId,
-      });
-    }
-
-    const primary = await findLiveBundlePrimary(parsed.bundleId, parsed.clientId);
-    if (!primary) {
-      return res.status(404).json({ message: 'Bundle not found' });
-    }
-
-    const client = await getMcpClientAsync(parsed.clientId);
-    if (!client) {
-      return res.status(400).json({ message: 'Unknown client' });
-    }
-
-    const memberCount = await countBundleMembers(parsed.bundleId);
-    if (memberCount >= MCP_MAX_BUNDLE_MEMBERS) {
-      return res.status(400).json({
-        message: `This connector already has the maximum of ${MCP_MAX_BUNDLE_MEMBERS} linked accounts`,
-      });
-    }
-
-    const refresh = generateRefreshToken();
-    try {
-      await createConnection({
-        oxyUserId,
-        clientId: parsed.clientId,
-        clientLabel: client.label,
-        scopes: primary.scopes,
-        bundleId: parsed.bundleId,
-        isBundlePrimary: false,
-        refreshTokenHash: refresh.hash,
-        jti: generateJti(),
-        lastUsedAt: new Date(),
-      });
-    } catch (createError: unknown) {
-      // The PARTIAL unique index — one LIVE connection per (bundle, account) —
-      // refusing a concurrent duplicate. Named, because an unnamed
-      // unique-violation check would also swallow a clash on
-      // `refresh_token_hash`, which is a token-generation defect and must not be
-      // reported to the user as "already linked".
-      if (isUniqueViolation(createError, 'mcp_connections_bundle_id_oxy_user_id_key')) {
-        const summary = await hydrateUserSummary(oxyUserId);
-        return res.json({
-          message: 'Already linked',
-          handle: summary.handle,
-          bundleId: parsed.bundleId,
-        });
-      }
-      throw createError;
-    }
-
-    const summary = await hydrateUserSummary(oxyUserId);
-    return res.json({
-      message: 'Account linked',
-      handle: summary.handle,
-      displayName: summary.displayName,
-      bundleId: parsed.bundleId,
-    });
-  } catch (error) {
-    logger.error('[McpBundles] link complete failed', {
-      userId: req.user?.id,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return res.status(500).json({ message: 'Error linking account' });
-  }
-});
+router.post('/link/complete', (_req: AuthRequest, res: Response) =>
+  res.status(410).json({
+    code: 'legacy_account_linking_retired',
+    message: 'Legacy bundle linking is retired. Reconnect each account through Oxy.',
+  }));
 
 /** POST /mcp/bundles/active — switch the active account in the bundle. */
 router.post('/active', async (req: AuthRequest, res: Response) => {
   try {
+    if ((req as OxyAuthRequestWithMcp).mcp?.authMode === 'central') {
+      return requireSeparateCentralConnection(res);
+    }
     const mcp = requireMcpBundle(req, res);
     if (!mcp) return;
 

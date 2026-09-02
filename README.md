@@ -162,7 +162,7 @@ Reports go to [**CrowdSource**](https://github.com/OxyHQ/CrowdSource), which dra
 | [Compose intent URLs](./docs/compose-intent.mdx) | Linking into the composer from outside the app |
 | [User mentions](./docs/mentions.md) | How handles resolve, local and federated |
 | [Theming](./docs/THEMING.md) | Bloom and NativeWind in this app |
-| [MCP server](./packages/mcp/README.md) | Connecting Claude, linking accounts, the tool list |
+| [MCP server](./packages/mcp/README.md) | Connecting Claude through central Oxy OAuth, account binding, and the tool list |
 | [Compatibility retirement](./docs/COMPATIBILITY_RETIREMENT.md) | What we removed and why |
 
 Instructions for AI coding agents live in [`AGENTS.md`](./AGENTS.md). The parent files it references apply as well.

@@ -2,7 +2,8 @@ import { z } from "zod/v4";
 
 const DEFAULT_API_URL = "https://api.mention.earth";
 const DEFAULT_MCP_PUBLIC_URL = "https://mcp.mention.earth";
-const DEFAULT_OAUTH_AS_URL = "https://api.mention.earth";
+const DEFAULT_OXY_API_URL = "https://api.oxy.so";
+const DEFAULT_LEGACY_OAUTH_ISSUER = "https://api.mention.earth";
 
 const apiClientEnvSchema = z.object({
   MENTION_API_URL: z.string().url().default(DEFAULT_API_URL),
@@ -20,7 +21,10 @@ const httpEnvSchema = z.object({
   MCP_MAX_SESSIONS: z.coerce.number().int().positive().max(100_000).default(1_000),
   MCP_ALLOWED_ORIGINS: z.string().optional(),
   MENTION_MCP_PUBLIC_URL: z.string().url().default(DEFAULT_MCP_PUBLIC_URL),
-  MENTION_OAUTH_AS_URL: z.string().url().default(DEFAULT_OAUTH_AS_URL),
+  OXY_API_URL: z.string().url().default(DEFAULT_OXY_API_URL),
+  OXY_SERVICE_API_KEY: z.string().trim().min(1),
+  OXY_SERVICE_API_SECRET: z.string().trim().min(1),
+  MENTION_LEGACY_OAUTH_ISSUER: z.string().url().default(DEFAULT_LEGACY_OAUTH_ISSUER),
   MENTION_MCP_JWT_SECRET: z.string().trim().min(1),
 });
 
@@ -40,7 +44,10 @@ export interface McpHttpConfig {
   maxRequestBodyBytes: number;
   maxSessions: number;
   publicUrl: string;
-  oauthAuthorizationServerUrl: string;
+  oxyApiUrl: string;
+  oxyServiceApiKey: string;
+  oxyServiceApiSecret: string;
+  legacyOauthIssuer: string;
   jwtSecret: string;
   allowedOrigins: ReadonlySet<string>;
 }
@@ -70,7 +77,10 @@ export function loadMcpHttpConfig(
     maxRequestBodyBytes: parsed.MCP_MAX_REQUEST_BODY_BYTES,
     maxSessions: parsed.MCP_MAX_SESSIONS,
     publicUrl: stripTrailingSlashes(parsed.MENTION_MCP_PUBLIC_URL),
-    oauthAuthorizationServerUrl: stripTrailingSlashes(parsed.MENTION_OAUTH_AS_URL),
+    oxyApiUrl: stripTrailingSlashes(parsed.OXY_API_URL),
+    oxyServiceApiKey: parsed.OXY_SERVICE_API_KEY,
+    oxyServiceApiSecret: parsed.OXY_SERVICE_API_SECRET,
+    legacyOauthIssuer: stripTrailingSlashes(parsed.MENTION_LEGACY_OAUTH_ISSUER),
     jwtSecret: parsed.MENTION_MCP_JWT_SECRET,
     allowedOrigins: new Set([...DEFAULT_CORS_ORIGINS, ...configuredOrigins]),
   };
