@@ -91,7 +91,7 @@
     "@oxyhq/bloom": "catalog:",
     "@oxyhq/core": "^23.0.2",
     "@oxyhq/services": "^30.2.4",
-    "fast-uri": "3.1.5",
+    "fast-uri": "3.1.6",
     "fast-xml-parser": "5.10.1",
     "linkify-it": "5.0.2",
     "ioredis": "5.11.1",
