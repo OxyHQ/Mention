@@ -7,7 +7,13 @@
 
 import { Response } from 'express';
 import { isValidFeedDescriptor, MtnConfig, createPostUri, parseFeedDescriptor } from '@mention/shared-types';
-import type { FeedDescriptor, FeedPostViewCounts, SlicedFeedResponse } from '@mention/shared-types';
+import type {
+  FeedDescriptor,
+  FeedPostSlice,
+  FeedPostViewCounts,
+  HydratedPost,
+  SlicedFeedResponse,
+} from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { resolveDefinition } from '../feed/definitions/resolveDefinition';
 import { forYouUsesSocialProof } from '../feed/definitions/presets';
@@ -37,10 +43,94 @@ import { distinctRemoteActorUris } from '../../db/federation/followRepository';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
 import { anonFeedCache } from '../../services/anonFeedCache';
 import { loadMuteWords } from '../../services/safety/viewerSafety';
+import { assignThreadState } from '../../services/ThreadSlicingService';
 
+/**
+ * Re-derive the flat `items` mirror from `slices`.
+ *
+ * ONLY call this when `slices` is the authoritative representation — i.e. the
+ * response actually came back sliced. A FLAT feed (`slices: []`, posts in
+ * `items`) is the sole representation for `saved`, the profile likes tab,
+ * `feedgen|<uri>` and the popular fallback, and re-flattening one of those wipes
+ * its entire page to `items: []`.
+ */
 function syncFlattenedItemsWithSlices(response: Pick<SlicedFeedResponse, 'slices' | 'items' | 'totalCount'>): void {
   response.items = FeedResponseBuilder.flattenSlicesToItems(response.slices);
   response.totalCount = response.items.length;
+}
+
+/**
+ * Which item in a slice is the post the feed actually SELECTED, as opposed to
+ * the context stitched around it.
+ *
+ * - `replyContext` slices are `[parent, reply]` (or `[reply]`) — the reply is the
+ *   candidate, the parent was only prepended to give it context.
+ * - Every other shape anchors on `items[0]`: a single-post slice is its own
+ *   subject, and a `selfThread` is `[root, …continuations]`, all by the same
+ *   author, so anchor and continuations stand or fall together anyway.
+ */
+function sliceSubjectIndex(slice: FeedPostSlice): number {
+  return slice.reason?.type === 'replyContext' ? slice.items.length - 1 : 0;
+}
+
+/**
+ * Drop every post by an author the viewer blocked or muted, from BOTH
+ * representations of the response.
+ *
+ * The two representations are mutually exclusive (`buildSlicedResponse` derives
+ * `items` from `slices`; the flat paths emit `slices: []`), so the branch is on
+ * which one the feed produced — NOT on doing both and then re-flattening, which
+ * emptied every flat feed and simultaneously undid the item-level pass.
+ *
+ * Within a slice the judgement differs by role:
+ * - the SUBJECT post is excluded → the whole slice goes. It is the only reason
+ *   the slice was in the page; serving its leftover context alone would inject a
+ *   post the feed never selected, rendered as if it were a top-level item.
+ * - a CONTEXT post is excluded (a `replyContext` parent by a muted author, the
+ *   only mixed-author shape we build) → drop just that item and keep the reply.
+ *   Blocking or muting someone means "hide their posts", not "hide everyone who
+ *   answers them"; dropping the slice would censor an allowed author's post
+ *   because of who they replied to. The degraded slice is a shape the feed
+ *   already produces on its own (`ThreadSlicingService` emits a bare `[reply]`
+ *   whenever the parent is unavailable), and `PostHydrationService.hydrateSlices`
+ *   trims ACL-denied items from a slice exactly this way — thread flags and
+ *   `_sliceKey` recomputed, `reason` retained so `hideReplies` still sees it.
+ */
+function excludeAuthorsFromResponse(
+  response: Pick<SlicedFeedResponse, 'slices' | 'items' | 'totalCount'>,
+  excludedUserIds: ReadonlySet<string>,
+): void {
+  const isExcluded = (post: HydratedPost | undefined): boolean => {
+    const authorId = post?.user?.id;
+    return typeof authorId === 'string' && excludedUserIds.has(authorId);
+  };
+
+  if (response.slices.length === 0) {
+    response.items = response.items.filter((post) => !isExcluded(post));
+    response.totalCount = response.items.length;
+    return;
+  }
+
+  const kept: FeedPostSlice[] = [];
+  for (const slice of response.slices) {
+    const items = slice.items ?? [];
+    const subject = items[sliceSubjectIndex(slice)];
+    if (!subject || isExcluded(subject.post)) continue;
+
+    const survivors = items.filter((item) => !isExcluded(item.post));
+    if (survivors.length === items.length) {
+      kept.push(slice);
+      continue;
+    }
+    kept.push({
+      ...slice,
+      _sliceKey: survivors.map((item) => item.post.id).join('+'),
+      items: assignThreadState(survivors),
+    });
+  }
+
+  response.slices = kept;
+  syncFlattenedItemsWithSlices(response);
 }
 
 /** Hard cap on the mutual-id set threaded into the Mutuals feed context. */
@@ -396,15 +486,7 @@ class MtnFeedController {
 
       // Filter out posts from blocked/muted users
       if (privacyState && privacyState.excludedUserIds.size > 0) {
-        response.items = response.items.filter((item) => {
-          const authorId = item.user?.id;
-          return !authorId || !privacyState.excludedUserIds.has(authorId);
-        });
-        response.slices = response.slices.filter((slice) => {
-          const anchorAuthor = slice.items?.[0]?.post?.user?.id;
-          return !anchorAuthor || !privacyState.excludedUserIds.has(anchorAuthor);
-        });
-        syncFlattenedItemsWithSlices(response);
+        excludeAuthorsFromResponse(response, privacyState.excludedUserIds);
       }
 
       // Apply tuner pipeline
