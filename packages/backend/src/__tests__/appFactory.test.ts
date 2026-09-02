@@ -375,4 +375,32 @@ describe('createApp', () => {
       .expect(200);
     expect(mediaProxy.headers['content-encoding']).toBeUndefined();
   });
+
+  it('states a referrer policy that still identifies this origin', async () => {
+    // helmet's default is `no-referrer`, which sends nothing at all. That is not
+    // a privacy win worth its cost here: the path never travels under either
+    // policy, so the only difference is whether a third party learns the reader
+    // came from Mention. Sending nothing made every outbound link look like
+    // direct traffic to the site receiving it, and made YouTube refuse to embed
+    // (error 153, ERROR_CODE_EMBEDDER_IDENTITY_MISSING_REFERRER).
+    //
+    // Pinned because the failure mode is silent: delete the option in `app.ts`
+    // and helmet quietly restores `no-referrer` with nothing to notice.
+    // Deliberately NOT `/health/live`: the health router is mounted ahead of
+    // `createOxySecurityHeaders`, so it carries no security headers at all and
+    // would assert nothing. Asserting `no-referrer` is absent is not enough
+    // either — an endpoint outside the middleware satisfies that too.
+    const { createApp } = await import('../app');
+    const deps = createDependencies();
+    const publicApi = express.Router();
+    publicApi.get('/probe', (_req, res) => res.type('text/plain').send('probe'));
+    deps.routes.publicApi = publicApi;
+
+    const response = await request(createApp(deps))
+      .get('/probe')
+      .set('Host', 'api.mention.earth')
+      .expect(200);
+
+    expect(response.headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+  });
 });
