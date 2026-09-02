@@ -22,6 +22,7 @@
     // same safety guarantees as the rest of the monorepo.
     "strict": true,
     "composite": true,
+    "types": ["jest", "node"],
 
     // Expo's generated type plumbing (.expo/types, expo-router) expects
     // `noEmit: false`; Metro — not tsc — owns the actual bundle, so this only

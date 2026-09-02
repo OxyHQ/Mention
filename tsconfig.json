@@ -12,7 +12,7 @@
   //     base sets `customConditions: ["react-native"]`, which is only valid
   //     with bundler/node16/nodenext module resolution and therefore conflicts
   //     with the Node/CommonJS packages (backend, shared-types) that resolve
-  //     with `moduleResolution: "node"`. Leaking it into every package caused
+  //     with legacy Node resolution. Leaking it into every package caused
   //     `TS5098`. Instead, the Expo frontend extends BOTH this base AND
   //     `expo/tsconfig.base` (array `extends`), so the React-Native
   //     condition lands only where bundler resolution is in effect.
@@ -29,7 +29,7 @@
     "lib": ["ES2020"],
 
     // Default module system for the type-check baseline. Emitting Node packages
-    // override this with the format their runtime requires (commonjs); Expo
+    // override this with the Node mode their runtime requires; Expo
     // apps inherit `module: "preserve"` from the Expo base they also extend.
     "module": "ES2020",
     "moduleResolution": "bundler",

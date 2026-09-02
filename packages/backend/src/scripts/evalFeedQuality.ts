@@ -636,23 +636,26 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
 
   // Imports local to main() keep the pure core free of heavy runtime coupling.
-  const { logger } = await import('../utils/logger');
+  const { logger } = await import('../utils/logger.js');
   const { MtnConfig } = await import('@mention/shared-types');
-  const { findActorByAcct, findActorByUri, findActorsByUris } = await import('../db/federation/actorRepository');
-  const { connectPostgres, closePostgres, getDb } = await import('../db/postgres');
-  const { and, eq, gte, isNotNull, or, sql } = await import('drizzle-orm');
-  const { posts } = await import('../db/schema/posts');
-  const { feedInteractions } = await import('../db/schema/feeds');
-  const { CHRONO_DESC, findPostRecords, loadPostRecord } = await import('../db/posts/postRepository');
-  const { baselineContentClassifier } = await import('../services/BaselineContentClassifier');
-  const { feedRankingService } = await import('../services/FeedRankingService');
-  const { registerAllModules } = await import('../mtn/feed/engine');
-  const { feedModuleRegistry } = await import('../mtn/feed/engine/FeedModuleRegistry');
-  const { resolveDiscoveryGate, resolvePhase2bSignals } = await import('../mtn/feed/definitions/presets');
-  const { loadViewerFeedContext } = await import('../mtn/feed/feedContext');
-  const { gatherForYouCandidates } = await import('../mtn/feed/feeds/forYouCandidateSources');
-  const { getServiceOxyClient } = await import('../utils/oxyHelpers');
-  const { FEED_QUALITY_LABELS, resolveLabeledPosts } = await import('./fixtures/feedQualityLabels');
+  const { findActorByAcct, findActorByUri, findActorsByUris } = await import('../db/federation/actorRepository.js');
+  const { connectPostgres, closePostgres, getDb } = await import('../db/postgres.js');
+  const { and, eq, gte, isNotNull, or, sql } = require('drizzle-orm') as typeof import(
+    'drizzle-orm',
+    { with: { 'resolution-mode': 'require' } }
+  );
+  const { posts } = await import('../db/schema/posts.js');
+  const { feedInteractions } = await import('../db/schema/feeds.js');
+  const { CHRONO_DESC, findPostRecords, loadPostRecord } = await import('../db/posts/postRepository.js');
+  const { baselineContentClassifier } = await import('../services/BaselineContentClassifier.js');
+  const { feedRankingService } = await import('../services/FeedRankingService.js');
+  const { registerAllModules } = await import('../mtn/feed/engine/index.js');
+  const { feedModuleRegistry } = await import('../mtn/feed/engine/FeedModuleRegistry.js');
+  const { resolveDiscoveryGate, resolvePhase2bSignals } = await import('../mtn/feed/definitions/presets.js');
+  const { loadViewerFeedContext } = await import('../mtn/feed/feedContext.js');
+  const { gatherForYouCandidates } = await import('../mtn/feed/feeds/forYouCandidateSources.js');
+  const { getServiceOxyClient } = await import('../utils/oxyHelpers.js');
+  const { FEED_QUALITY_LABELS, resolveLabeledPosts } = await import('./fixtures/feedQualityLabels.js');
 
   try {
     // Postgres only. This script connected to Mongo as well until
@@ -798,7 +801,7 @@ async function main(): Promise<void> {
 
     // ---- Online mode: engagement-per-impression + report-rate from `feed_interactions` ----
     if (args.online) {
-      const { resolveDiscoveryGateBucket } = await import('../mtn/feed/discoveryGateExperiment');
+      const { resolveDiscoveryGateBucket } = await import('../mtn/feed/discoveryGateExperiment.js');
       const since = new Date(Date.now() - args.onlineWindowMs);
       // Reads POSTGRES, because `trackFeedInteraction` writes Postgres. This
       // moved with the writer rather than after it: a reader left on Mongo would
@@ -824,7 +827,7 @@ async function main(): Promise<void> {
     await closePostgres();
     process.exit(0);
   } catch (error) {
-    const { logger } = await import('../utils/logger');
+    const { logger } = await import('../utils/logger.js');
     logger.error('[evalFeedQuality] failed', error);
     await closePostgres();
     process.exit(1);
