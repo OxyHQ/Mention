@@ -8,43 +8,54 @@ Canonical user + operator guide. Mention agents: see also [`AGENTS.md`](../../AG
 
 1. Settings → Connectors → Add custom connector
 2. URL: `https://mcp.mention.earth` (no trailing slash)
-3. Complete OAuth on mention.earth when prompted
-4. Revoke anytime: Mention → Settings → **Connected AI**
+3. Complete OAuth on `auth.oxy.so`, selecting the exact Oxy account to use
+4. Revoke anytime from Oxy Settings
 
-Claude blocks duplicate URLs — you cannot add the same MCP URL twice. Use **linked accounts** (below) to post as multiple Mention users from one connector.
+Each authorization is bound to one account. It never grants a general Oxy
+session and cannot switch to another account after issuance.
 
-## Multiple accounts (one connector)
+## Multiple accounts
 
 | Step | Action |
 |------|--------|
-| 1 | Connect once → OAuth as your first account (primary) |
-| 2 | In chat: **`link-account`** → open URL in browser → sign in as other account → **Link to Claude** |
-| 3 | **`switch-account`** with target `@handle` |
-| 4 | **`whoami`** to confirm → **`create-post`** |
+| 1 | Authorize Mention for the first Oxy account |
+| 2 | Create a separate connector authorization for the second account |
+| 3 | Use **`whoami`** before a public action to verify the bound account |
 
 | Tool | Purpose |
 |------|---------|
 | `whoami` | Active account (@handle, display name, user id) |
-| `list-accounts` | All accounts linked to this connector |
-| `link-account` | Browser URL to add another account (single-use, 15 min) |
-| `switch-account` | Set active account by `@handle` |
-
-Max **8** linked accounts per connector (`MCP_MAX_BUNDLE_MEMBERS`).
+| `list-accounts` | The one account bound to this central Oxy connection |
+| `link-account` | Transitional legacy bundles only; central connections require a separate authorization |
+| `switch-account` | Transitional legacy bundles only; central connections cannot change account |
 
 ## Architecture
 
 ```
-Claude Web  →  mcp.mention.earth (ECS mention-mcp)  →  api.mention.earth (ECS mention)
-                     ↑ OAuth consent + link UI on mention.earth
+MCP client → mcp.mention.earth → api.mention.earth
+                   ↘ live token introspection ↗
+                         api.oxy.so
+                              ↑ account selection + consent on auth.oxy.so
 ```
 
 | Component | Role |
 |-----------|------|
 | `@mention/mcp` | MCP protocol (streamable HTTP), tool handlers |
-| `api.mention.earth` | REST API + OAuth authorization server (RFC 8414 / 9728 / 7591 DCR) |
-| `mention.earth` | Consent UI (`/oauth/mcp/authorize`), link UI (`/oauth/mcp/link`), Settings revoke |
+| `api.oxy.so` | Central OAuth authorization server, DCR, refresh, revocation and live introspection |
+| `auth.oxy.so` | Account selection and consent UI |
+| `api.mention.earth` | Domain API; re-introspects central tokens and enforces the catalog capability for the exact route |
 
-**Identity model:** Claude holds one OAuth token (primary account). The backend resolves the **active account** per request via `bundleId` + Redis/Postgres (`activeOxyUserId` on the primary `McpConnection`). Linked accounts approve via browser link flow — not a second Claude OAuth grant.
+**Identity model:** the token carries the approving user as `sub` and the one
+effective account as `account_id`. Every request is checked live against Oxy's
+grant, current account authority and registered Mention catalog. Mention never
+receives an Oxy user session or a connection secret.
+
+**Effect safety:** every mutating tool derives an account-bound key from its
+authenticated JSON-RPC request. The API stores only hashes, reserves the key
+before entering domain code, and refuses concurrent or later duplicates. A
+connection loss after a write therefore leaves an indeterminate reservation
+rather than risking a second post, follow, moderation action, or notification
+change. Receipts expire after 30 days; reads never create them.
 
 ## MCP tools (59 total)
 
@@ -80,8 +91,8 @@ user bearer, so intent-media uploads through the service-token
 ### Collaborative posts
 
 - Invite up to **5 local** co-authors on `create-post` or `update-post` via `collaboratorIds` or `collaboratorHandles` (@username). The **backend** resolves handles to user IDs (MCP passes them through unchanged).
-- **Linked bundle accounts** are auto-accepted when invited (backend intersects with bundle members).
-- External users stay `pending` until they `switch-account` and call `accept-collab-invite` or `decline-collab-invite`.
+- A central connection acts only as its bound account. A collaborator accepts or declines through a separate connection authorized for that account.
+- Auto-acceptance across linked accounts exists only for already-issued legacy bundles during the fixed migration window.
 - Accepted collaborators can call `stop-collab-sharing`.
 - Threads do not support collaborators (backend returns 400).
 - Federation is deferred until all invites resolve.
@@ -132,48 +143,46 @@ through `lib/auth-guard.ts`.
 
 **Session note:** Claude must complete OAuth before `initialize` (POST requires Bearer). Some tools are callable without extra per-tool auth once the session is open, but the connector itself always needs OAuth first.
 
-## Backend OAuth & bundle API
+## OAuth authority and transition
 
-Implemented in `packages/backend/src/mcp/`.
+New connections use Oxy's central endpoints under `/auth/mcp/oauth/*`. Mention's
+old authorization server and multi-account bundles remain accepted only for
+already-issued tokens until **2026-10-02T00:00:00Z**. They are not advertised by
+the protected-resource metadata and must be removed after that deadline.
 
-### Public OAuth (no session)
-
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /.well-known/oauth-authorization-server` | AS discovery (includes `registration_endpoint`) |
-| `GET /.well-known/oauth-protected-resource` | Resource metadata (`resource` = `https://mcp.mention.earth`, no slash) |
-| `POST /mcp/oauth/register` | RFC 7591 dynamic client registration |
-| `GET /mcp/oauth/authorize` | Start auth code + PKCE flow |
-| `POST /mcp/oauth/token` | Exchange code / refresh token |
-| `GET /mcp/bundles/link/preview?token=` | Link-flow preview (public) |
-
-### Authenticated (MCP JWT or Oxy session)
+### Central OAuth
 
 | Endpoint | Purpose |
 |----------|---------|
-| `POST /mcp/oauth/approve` | Consent approval (Oxy session) |
-| `GET /mcp/connections` | List authorized clients (Settings data) |
-| `DELETE /mcp/connections/:id` | Revoke connection |
-| `GET /mcp/bundles/accounts` | Linked accounts in bundle |
-| `GET /mcp/bundles/me` | Active account summary |
-| `POST /mcp/bundles/link-token` | Mint single-use browser link token |
-| `POST /mcp/bundles/link/complete` | Complete link (Oxy session + token) |
-| `POST /mcp/bundles/active` | Switch active account |
+| `GET https://api.oxy.so/.well-known/oauth-authorization-server` | AS discovery |
+| `POST https://api.oxy.so/auth/mcp/oauth/register` | Dynamic client registration |
+| `POST https://api.oxy.so/auth/mcp/oauth/token` | Code exchange and refresh |
+| `POST https://api.oxy.so/auth/mcp/oauth/revoke` | Token revocation |
+| `POST https://api.oxy.so/auth/mcp/oauth/introspect` | Service-authenticated live validation |
+
+### Mention resource API
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /mcp/bundles/accounts` | One bound account for central tokens |
+| `GET /mcp/bundles/me` | Bound account summary |
+| `POST /mcp/bundles/link-token` | Refuses central tokens with `separate_connection_required` |
+| `POST /mcp/bundles/active` | Refuses central tokens with `separate_connection_required` |
 
 ### Key backend files
 
-- `src/mcp/routes/mcpOAuth.routes.ts` — OAuth AS + link preview
-- `src/mcp/routes/mcpBundles.routes.ts` — multi-account bundle API
+- `src/mcp/routes/mcpOAuth.routes.ts` — legacy transition only
+- `src/mcp/routes/mcpBundles.routes.ts` — one-account central views plus legacy bundle transition
 - `src/mcp/routes/mcpConnections.routes.ts` — list/revoke
-- `src/mcp/middleware/mcpAuth.ts` — dual MCP/Oxy auth + active account resolution
-- `src/mcp/services/mcpBundleService.ts` — bundles, link tokens, Redis active account
-- `db/schema/mcp.ts` + `db/mcp/mcpConnectionRepository.ts` — connection grants (`bundleId`, `isBundlePrimary`, `activeOxyUserId`)
+- `src/mcp/middleware/mcpAuth.ts` — central introspection, exact capability gate, legacy transition
+- `src/mcp/services/mcpBundleService.ts` — legacy bundle lookup during the fixed transition
+- `db/schema/mcp.ts` + `db/mcp/mcpConnectionRepository.ts` — legacy connection records retained until retirement
 
 ### Frontend UI
 
-- `packages/frontend/app/(app)/oauth/mcp/authorize.tsx` — initial OAuth consent (@handle shown)
-- `packages/frontend/app/(app)/oauth/mcp/link.tsx` — link additional account
-- `packages/frontend/app/(app)/settings/connected-ai.tsx` — revoke + bundle handles
+- `auth.oxy.so` — central account selection and consent for all new connections
+- `packages/frontend/app/(app)/oauth/mcp/*` — legacy Mention-owned consent screens pending deletion after cutoff
+- `packages/frontend/app/(app)/settings/connected-ai.tsx` — legacy connection visibility and revocation during transition
 
 ## Environment variables
 
@@ -183,10 +192,13 @@ Implemented in `packages/backend/src/mcp/`.
 |----------|---------|---------|
 | `MENTION_API_URL` | `https://api.mention.earth` | Mention REST API |
 | `MENTION_API_TIMEOUT_MS` | `10000` | Per-attempt Mention API timeout; GET retries once |
-| `MENTION_MCP_PUBLIC_URL` | `https://mcp.mention.earth` | Public MCP URL (JWT `aud`) |
-| `MENTION_OAUTH_AS_URL` | `https://api.mention.earth` | OAuth AS origin |
+| `MENTION_MCP_PUBLIC_URL` | `https://mcp.mention.earth` | Exact protected resource |
+| `OXY_API_URL` | `https://api.oxy.so` | Central OAuth issuer and introspection API |
+| `OXY_SERVICE_API_KEY` | (required) | Mention service credential id |
+| `OXY_SERVICE_API_SECRET` | (required) | Mention service credential secret |
+| `MENTION_LEGACY_OAUTH_ISSUER` | `https://api.mention.earth` | Legacy verification only, until the fixed cutoff |
 | `MCP_PORT` | `3100` | HTTP listen port |
-| `MENTION_MCP_JWT_SECRET` | (required) | Must match backend secret |
+| `MENTION_MCP_JWT_SECRET` | (required during transition) | Legacy HS256 verification only |
 | `MCP_ALLOWED_ORIGINS` | Claude defaults | Extra CORS origins |
 | `MCP_MAX_REQUEST_BODY_BYTES` | `1048576` | Maximum JSON request body retained in memory |
 | `MCP_MAX_SESSIONS` | `1000` | Per-task cap for active HTTP/SSE sessions |
@@ -195,12 +207,11 @@ Implemented in `packages/backend/src/mcp/`.
 
 | Variable | Purpose |
 |----------|---------|
-| `MENTION_MCP_JWT_SECRET` | Sign/verify MCP access tokens |
-| `MENTION_MCP_PUBLIC_URL` | Protected-resource `resource` + JWT `aud` |
-| `MENTION_FRONTEND_ORIGIN` | Consent redirect (`https://mention.earth`) |
-| `MENTION_PUBLIC_API_URL` | OAuth issuer (`https://api.mention.earth`) |
-| `MCP_LINK_TOKEN_TTL_SECONDS` | Link token lifetime (default 900) |
-| `MCP_MAX_BUNDLE_MEMBERS` | Max accounts per bundle (default 8) |
+| `OXY_API_URL` | Central introspection API |
+| `OXY_SERVICE_API_KEY` / `OXY_SERVICE_API_SECRET` | Live service authentication to Oxy |
+| `MENTION_MCP_JWT_SECRET` | Legacy verification only, until the fixed cutoff |
+| `MCP_LINK_TOKEN_TTL_SECONDS` | Legacy link token lifetime (default 900; no new link tokens issued) |
+| `MCP_MAX_BUNDLE_MEMBERS` | Legacy bundle limit retained until cutoff |
 
 Secrets: GitHub Actions → SSM `/oxy/mention/*` and `/oxy/mention-mcp/*`.
 
@@ -213,7 +224,9 @@ Secrets: GitHub Actions → SSM `/oxy/mention/*` and `/oxy/mention-mcp/*`.
 
 Infra: `oxy-infra` — ALB rule priority 140, ACM cert `mcp.mention.earth`, DNS CNAME → ALB (DNS-only/grey cloud like `api.mention.earth`).
 
-Backend MCP OAuth changes deploy with **mention**; tool/protocol changes deploy with **mention-mcp**. Frontend consent/link UI deploys with **mention** (apex web shell).
+Capability enforcement changes deploy with **mention**; tool/protocol and
+protected-resource metadata changes deploy with **mention-mcp**. The OAuth
+authority and consent UI deploy from OxyHQServices.
 
 ## Local development
 
@@ -233,15 +246,19 @@ From repo root: `bun run dev:mcp:http`
 1. `curl https://mcp.mention.earth/health` → 200
 2. `curl -D - -o /dev/null https://mcp.mention.earth/` → **401** + `WWW-Authenticate: Bearer ...`
 3. `curl https://mcp.mention.earth/.well-known/oauth-protected-resource` → `resource` without trailing slash
-4. `curl https://api.mention.earth/.well-known/oauth-authorization-server` → includes `registration_endpoint`
+4. `curl https://api.oxy.so/.well-known/oauth-authorization-server` → includes central DCR/token/revocation endpoints
 5. Claude connector → OAuth → `whoami` / `create-post` succeed
-6. `link-account` → browser link → second account → `switch-account` → `whoami` shows second account
-7. Settings → Connected AI → revoke → writes fail
-8. `MENTION_MCP_JWT_SECRET` set in GitHub secrets (synced to SSM)
+6. Revoke the Oxy MCP grant → the next MCP and backend request fail
+7. Authorize a second account separately → each `whoami` stays isolated
+8. Verify the deployed catalog digest and the Mention service principal used for introspection
 
 ## Security
 
-- Link tokens: HMAC-signed, TTL 15 min, **single-use** (Redis `NX`)
-- Bundle membership: explicit approve on `/oauth/mcp/link`; unique index on `(bundleId, oxyUserId)` when not revoked
-- Active account: persisted on primary `McpConnection.activeOxyUserId` + Redis; switch fails closed (`503`) if neither persists
-- No `as_user` on `create-post` — must `switch-account` first
+- Oxy stores authorization codes and refresh tokens only as hashes; access
+  tokens are short-lived and resource/audience/account bound.
+- MCP and Mention API introspect on every request, so revocation and lost account
+  authority apply without waiting for a cache.
+- The semantic capability comes from the same 59-tool catalog at the MCP tool
+  boundary and at the corresponding Mention route.
+- Legacy bundles and HS256 verification are disabled at the source-controlled
+  cutoff; the protected metadata never advertises that authorization server.

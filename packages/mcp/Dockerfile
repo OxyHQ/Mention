@@ -31,7 +31,8 @@ ENV MCP_PORT=3100
 ENV MENTION_API_URL=https://api.mention.earth
 ENV MENTION_API_TIMEOUT_MS=10000
 ENV MENTION_MCP_PUBLIC_URL=https://mcp.mention.earth
-ENV MENTION_OAUTH_AS_URL=https://api.mention.earth
+ENV OXY_API_URL=https://api.oxy.so
+ENV MENTION_LEGACY_OAUTH_ISSUER=https://api.mention.earth
 
 COPY --from=manifests /app/package.json /app/bun.lock /app/bunfig.toml ./
 COPY --from=manifests /app/patches/ patches/

@@ -38,8 +38,8 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { boolean, index, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, timestamptz } from '@oxyhq/db';
+import { boolean, check, index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { createdAt, generatedId, inList, timestamptz } from '@oxyhq/db';
 
 /**
  * How long a redeemed or expired authorization code is kept before the sweep
@@ -51,6 +51,16 @@ import { createdAt, generatedId, timestamptz } from '@oxyhq/db';
  * the schema rather than restating a literal.
  */
 export const MCP_AUTH_CODE_RETENTION_SECONDS = 0;
+
+/** Keep transport deduplication receipts long enough to cover delayed retries. */
+export const MCP_EFFECT_RECEIPT_RETENTION_SECONDS = 30 * 24 * 60 * 60;
+
+export const MCP_EFFECT_RECEIPT_STATUSES = [
+  'started',
+  'succeeded',
+  'failed',
+  'indeterminate',
+] as const;
 
 /**
  * `mcp_connections` — one row per active authorization grant between an MCP
@@ -160,7 +170,44 @@ export const mcpRegisteredClients = pgTable(
   (t) => [uniqueIndex('mcp_registered_clients_client_id_key').on(t.clientId)]
 );
 
+/**
+ * One durable reservation for each effectful JSON-RPC tool invocation.
+ *
+ * The plaintext transport key and request body are never stored. A unique
+ * account/client/key tuple is inserted before domain execution; therefore a
+ * timeout, retry, or concurrent duplicate cannot execute the effect twice.
+ */
+export const mcpEffectReceipts = pgTable(
+  'mcp_effect_receipts',
+  {
+    id: generatedId(),
+    /** Oxy account selected explicitly by the external OAuth connection. */
+    oxyUserId: text().notNull(),
+    clientId: text().notNull(),
+    toolName: text().notNull(),
+    idempotencyKeyHash: text().notNull(),
+    requestHash: text().notNull(),
+    status: text({ enum: MCP_EFFECT_RECEIPT_STATUSES }).notNull().default('started'),
+    responseStatus: integer(),
+    createdAt: createdAt(),
+    completedAt: timestamptz(),
+  },
+  (t) => [
+    uniqueIndex('mcp_effect_receipts_account_client_key_unique').on(
+      t.oxyUserId,
+      t.clientId,
+      t.idempotencyKeyHash,
+    ),
+    index('mcp_effect_receipts_created_at_idx').on(t.createdAt),
+    check(
+      'mcp_effect_receipts_status_check',
+      sql`${t.status} in (${sql.raw(inList(MCP_EFFECT_RECEIPT_STATUSES))})`,
+    ),
+  ],
+);
+
 /** Row types, for the call sites being ported off Mongoose. */
 export type McpConnectionRow = typeof mcpConnections.$inferSelect;
 export type McpAuthCodeRow = typeof mcpAuthCodes.$inferSelect;
 export type McpRegisteredClientRow = typeof mcpRegisteredClients.$inferSelect;
+export type McpEffectReceiptRow = typeof mcpEffectReceipts.$inferSelect;

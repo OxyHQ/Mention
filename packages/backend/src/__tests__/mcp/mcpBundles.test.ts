@@ -1,7 +1,7 @@
 import express from 'express';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret-that-is-at-least-32-bytes';
 
@@ -60,7 +60,6 @@ import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { mcpConnections } from '../../db/schema/mcp';
 import { createConnection } from '../../db/mcp/mcpConnectionRepository';
 import mcpBundlesRoutes from '../../mcp/routes/mcpBundles.routes';
-import { signLinkToken } from '../../mcp/services/mcpBundleService';
 import type { OxyAuthRequestWithMcp } from '../../mcp/middleware/mcpAuth';
 
 /** Per-file namespace — vitest runs files in parallel against one database. */
@@ -115,11 +114,21 @@ function buildApp(userId: string, mcpContext?: OxyAuthRequestWithMcp['mcp']) {
 }
 
 const bundleContext: OxyAuthRequestWithMcp['mcp'] = {
+  authMode: 'legacy',
   jti: 'jti-1',
   scope: 'mcp:read mcp:write',
   clientId: 'claude-web',
   bundleId: BUNDLE,
   primaryUserId: USER_A,
+  activeUserId: USER_A,
+};
+
+const centralContext: OxyAuthRequestWithMcp['mcp'] = {
+  authMode: 'central',
+  jti: 'central-jti',
+  scope: 'social.accounts.read social.accounts.link social.accounts.switch',
+  clientId: 'central-client',
+  primaryUserId: 'owner-user',
   activeUserId: USER_A,
 };
 
@@ -146,12 +155,16 @@ describe('MCP bundles routes', () => {
     await getDb().delete(mcpConnections).where(inArray(mcpConnections.oxyUserId, OWNED_USER_IDS));
   });
 
-  it('POST /mcp/bundles/link-token returns a frontend link URL', async () => {
+  it('retires new account links on a legacy bundle', async () => {
     const app = buildApp(USER_A, bundleContext);
-    const res = await request(app).post('/mcp/bundles/link-token');
-    expect(res.status).toBe(200);
-    expect(res.body.linkUrl).toContain('/oauth/mcp/link?token=');
-    expect(res.body.token).toBeTruthy();
+    const [start, complete] = await Promise.all([
+      request(app).post('/mcp/bundles/link-token'),
+      request(app).post('/mcp/bundles/link/complete').send({ token: 'old-link' }),
+    ]);
+    expect(start.status).toBe(410);
+    expect(complete.status).toBe(410);
+    expect(start.body.code).toBe('legacy_account_linking_retired');
+    expect(complete.body.code).toBe('legacy_account_linking_retired');
   });
 
   it('GET /mcp/bundles/accounts lists live members and marks the active one', async () => {
@@ -174,6 +187,31 @@ describe('MCP bundles routes', () => {
     expect(res.body.accounts[0].isPrimary).toBe(true);
     expect(res.body.accounts[0].isActive).toBe(true);
     expect(res.body.accounts[1].isPrimary).toBe(false);
+  });
+
+  it('keeps a central connection isolated to its one bound account', async () => {
+    const res = await request(buildApp(USER_A, centralContext)).get('/mcp/bundles/accounts');
+
+    expect(res.status).toBe(200);
+    expect(res.body.bundleId).toBeNull();
+    expect(res.body.accounts).toEqual([expect.objectContaining({
+      oxyUserId: USER_A,
+      isPrimary: true,
+      isActive: true,
+    })]);
+  });
+
+  it('requires separate central authorizations instead of linking or switching accounts', async () => {
+    const app = buildApp(USER_A, centralContext);
+    const [link, active] = await Promise.all([
+      request(app).post('/mcp/bundles/link-token'),
+      request(app).post('/mcp/bundles/active').send({ handle: '@brand' }),
+    ]);
+
+    expect(link.status).toBe(409);
+    expect(active.status).toBe(409);
+    expect(link.body.code).toBe('separate_connection_required');
+    expect(active.body.code).toBe('separate_connection_required');
   });
 
   it('GET /mcp/bundles/accounts omits a revoked member', async () => {
@@ -280,103 +318,4 @@ describe('MCP bundles routes', () => {
     expect(res.status).toBe(503);
   });
 
-  it('POST /mcp/bundles/link/complete creates a linked connection', async () => {
-    await seedConnection(USER_A, { isBundlePrimary: true });
-    const token = signLinkToken(BUNDLE, 'claude-web');
-    mocks.getUserById.mockResolvedValue({
-      id: USER_B,
-      username: 'brand',
-      name: { displayName: 'Brand' },
-    });
-
-    const res = await request(buildApp(USER_B))
-      .post('/mcp/bundles/link/complete')
-      .send({ token });
-
-    expect(res.status).toBe(200);
-    expect(res.body.handle).toBeTruthy();
-
-    const [linked] = await getDb()
-      .select()
-      .from(mcpConnections)
-      .where(and(eq(mcpConnections.oxyUserId, USER_B), isNull(mcpConnections.revokedAt)));
-    expect(linked.bundleId).toBe(BUNDLE);
-    expect(linked.isBundlePrimary).toBe(false);
-    // Scopes are inherited from the primary — a linked account must never gain
-    // more than the grant Claude actually holds.
-    expect(linked.scopes).toEqual(['mcp:read', 'mcp:write']);
-  });
-
-  it('POST /mcp/bundles/link/complete is idempotent for an already-linked account', async () => {
-    await seedConnection(USER_A, { isBundlePrimary: true });
-    await seedConnection(USER_B);
-    mocks.getUserById.mockResolvedValue({
-      id: USER_B,
-      username: 'brand',
-      name: { displayName: 'Brand' },
-    });
-
-    const res = await request(buildApp(USER_B))
-      .post('/mcp/bundles/link/complete')
-      .send({ token: signLinkToken(BUNDLE, 'claude-web') });
-
-    expect(res.status).toBe(200);
-    expect(res.body.message).toBe('Already linked');
-
-    // One LIVE row, not two. The partial unique index allows revoked history
-    // beside it, so this is about live rows specifically.
-    const live = await getDb()
-      .select()
-      .from(mcpConnections)
-      .where(and(eq(mcpConnections.oxyUserId, USER_B), isNull(mcpConnections.revokedAt)));
-    expect(live).toHaveLength(1);
-  });
-
-  it('POST /mcp/bundles/link/complete re-links an account whose previous link was revoked', async () => {
-    await seedConnection(USER_A, { isBundlePrimary: true });
-    await seedConnection(USER_B, { isBundlePrimary: false, revoked: true });
-    mocks.getUserById.mockResolvedValue({
-      id: USER_B,
-      username: 'brand',
-      name: { displayName: 'Brand' },
-    });
-
-    const res = await request(buildApp(USER_B))
-      .post('/mcp/bundles/link/complete')
-      .send({ token: signLinkToken(BUNDLE, 'claude-web') });
-
-    expect(res.status).toBe(200);
-    expect(res.body.message).toBe('Account linked');
-
-    // Revoke-and-re-link is the ordinary recovery path, so BOTH rows survive:
-    // one live, one as the revocation record. A dedupe here would destroy the
-    // history or, worse, the live row.
-    const all = await getDb()
-      .select()
-      .from(mcpConnections)
-      .where(eq(mcpConnections.oxyUserId, USER_B));
-    expect(all).toHaveLength(2);
-    expect(all.filter((row) => row.revokedAt === null)).toHaveLength(1);
-  });
-
-  it('POST /mcp/bundles/link/complete rejects reused link tokens', async () => {
-    mocks.redisSet.mockResolvedValue(null);
-
-    const res = await request(buildApp(USER_B))
-      .post('/mcp/bundles/link/complete')
-      .send({ token: signLinkToken(BUNDLE, 'claude-web') });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toContain('already used');
-  });
-
-  it('POST /mcp/bundles/link/complete refuses a bundle with no live primary', async () => {
-    await seedConnection(USER_A, { isBundlePrimary: true, revoked: true });
-
-    const res = await request(buildApp(USER_B))
-      .post('/mcp/bundles/link/complete')
-      .send({ token: signLinkToken(BUNDLE, 'claude-web') });
-
-    expect(res.status).toBe(404);
-  });
 });

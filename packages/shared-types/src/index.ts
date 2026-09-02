@@ -62,5 +62,8 @@ export * from './realtime';
 // Local moderation-integration state (CrowdSource reports, decisions, enforcement)
 export * from './moderation';
 
+// Canonical MCP tool policy metadata shared by the transport and API guard.
+export * from './mcpCapabilities';
+
 // MTN Protocol types
 export * from './mtn';

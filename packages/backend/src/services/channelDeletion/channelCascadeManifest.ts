@@ -1108,6 +1108,16 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
       'A short-lived OAuth code minted for the channel; same structural impossibility as the connection ' +
       'above, swept for the same reason. A code outliving its account is a credential nobody can revoke.',
   },
+  {
+    table: 'mcp_effect_receipts',
+    column: 'oxyUserId',
+    scope: 'channel-account',
+    action: 'delete-row',
+    why:
+      'A hash-only MCP deduplication receipt bound to the deleted account. It is ' +
+      'operational state rather than audit history and cannot protect any future ' +
+      'effect once the account itself no longer exists.',
+  },
 ];
 
 /**
@@ -1158,6 +1168,7 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ['mcp_auth_codes.redirectUri', 'the OAuth redirect the code was issued for — a client URL, never a post'],
   ['mcp_connections.bundleId', 'a grouping token; the bundle IS the set of rows sharing it, so there is no parent row'],
   ['mcp_connections.clientId', 'an OAuth client id'],
+  ['mcp_effect_receipts.clientId', 'the OAuth client that invoked the external MCP effect'],
   ['mcp_registered_clients.clientId', 'the dynamically registered client\'s own id'],
   ['mcp_registered_clients.redirectUris', 'the OAuth redirects a client registered — client URLs, never posts'],
   ['mention_node_ingest_witnesses.recordId', 'a signed-record id within a chain'],

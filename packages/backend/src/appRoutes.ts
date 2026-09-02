@@ -52,6 +52,7 @@ import {
   createOptionalMcpAuth,
   createRequireMcpOrOxyAuth,
 } from './mcp/middleware/mcpAuth';
+import { createMcpEffectIdempotency } from './mcp/middleware/mcpEffectIdempotency';
 import {
   webfingerRouter,
   actorRouter,
@@ -102,6 +103,8 @@ export function createAppRoutes({
 }: CreateAppRoutesDependencies): AppRoutes {
   const publicApi = express.Router();
   publicApi.use(createOptionalMcpAuth());
+  const mcpEffectIdempotency = createMcpEffectIdempotency();
+  publicApi.use(mcpEffectIdempotency);
   publicApi.use('/hashtags', hashtagsRoutes);
   publicApi.use('/feed', optionalAuth, feedRoutes);
   publicApi.use('/posts', optionalAuth, publicPostsRouter);

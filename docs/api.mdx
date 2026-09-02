@@ -71,7 +71,7 @@ as metric labels.
 | `/pokes` | Authenticated | Pokes |
 | `/entity-follows` | Authenticated | Non-user entity follows |
 | `/mcp/connections` | Authenticated | MCP connection management |
-| `/mcp/bundles` | Authenticated | MCP multi-account bundles |
+| `/mcp/bundles` | Authenticated | Bound-account views; legacy bundle transition |
 
 Some `/posts` read paths such as drafts, scheduled posts, and saved posts sit
 on the public-read router but enforce the current viewer themselves.
@@ -188,25 +188,31 @@ Public guarded media endpoints are:
 - `GET /media/poster`
 - `GET /media/gif`
 
-## MCP OAuth and account bundles
+## MCP OAuth and account binding
 
-OAuth routes are mounted outside the main API authentication wall. Approval
-still authenticates the Oxy user directly:
+New MCP connections authorize through Oxy's central authorization server at
+`api.oxy.so`. Consent selects exactly one account, and Mention validates every
+central token through live, service-authenticated introspection before applying
+the catalog capability required by the exact API route.
+
+Mention-owned OAuth routes remain mounted only as a retirement surface:
 
 | Method | Path | Access |
 | --- | --- | --- |
-| GET | `/.well-known/oauth-authorization-server` | Public |
-| GET | `/.well-known/oauth-protected-resource` | Public |
-| POST | `/mcp/oauth/register` | Public |
-| GET | `/mcp/oauth/authorize` | Public |
-| POST | `/mcp/oauth/approve` | Oxy user |
-| POST | `/mcp/oauth/token` | Public |
-| GET | `/mcp/bundles/link/preview` | Public |
+| GET | `/.well-known/oauth-authorization-server` | `410 Gone`; points clients to Oxy |
+| GET | `/.well-known/oauth-protected-resource` | `410 Gone`; resource metadata is served by `mcp.mention.earth` |
+| POST | `/mcp/oauth/register` | `410 Gone` |
+| GET | `/mcp/oauth/authorize` | `410 Gone` |
+| POST | `/mcp/oauth/approve` | `410 Gone` |
+| POST | `/mcp/oauth/token` authorization-code grant | `410 Gone` |
+| POST | `/mcp/oauth/token` legacy refresh grant | Existing legacy families only, until `2026-10-02T00:00:00Z` |
+| GET | `/mcp/bundles/link/preview` | `410 Gone` |
 
-Authenticated users manage connections through `/mcp/connections`. Bundle
-members and active-account selection use `/mcp/bundles/accounts`,
-`/mcp/bundles/me`, `/mcp/bundles/link-token`,
-`/mcp/bundles/link/complete`, and `/mcp/bundles/active`.
+For central tokens, `/mcp/bundles/accounts` and `/mcp/bundles/me` expose only
+the account selected at Oxy consent. Link and switch endpoints reject central
+tokens with `separate_connection_required`; each additional account requires a
+separate authorization. Existing legacy bundle records remain usable only until
+the fixed cutoff.
 
 The MCP resource and JWT audience are exactly `https://mcp.mention.earth`
 without a trailing slash. Unauthenticated MCP requests receive a bearer

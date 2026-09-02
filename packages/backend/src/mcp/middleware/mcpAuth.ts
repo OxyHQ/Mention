@@ -1,231 +1,253 @@
-import type { RequestHandler, Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import {
+  MENTION_CAPABILITY_AUDIENCE,
+  MENTION_LEGACY_MCP_AUTH_CUTOFF_MS,
+  MENTION_MCP_RESOURCE,
+  mentionCapabilityRequirementsForRequest,
+} from '@mention/shared-types/mcpCapabilities';
 import type { OxyServices } from '@oxyhq/core';
 import type { OxyAuthRequest } from '@oxyhq/core/server';
-import { verifyAccessToken } from '../services/mcpTokenService';
-import { isRevoked } from '../services/mcpRevocationService';
-import { MCP_TOKEN_AUDIENCE } from '../config/constants';
-import { resolveBundleContext } from '../services/mcpBundleService';
-import type { McpBundleContext } from '../services/mcpBundleService';
+import { extractBearerToken, introspectOxyMcpAccessToken } from '@oxyhq/mcp';
+import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import jwt from 'jsonwebtoken';
+import { config } from '../../config';
 import { logger } from '../../utils/logger';
+import { getServiceOxyClient } from '../../utils/oxyHelpers';
+import { MCP_TOKEN_AUDIENCE } from '../config/constants';
+import { resolveBundleContext, type McpBundleContext } from '../services/mcpBundleService';
+import { isRevoked } from '../services/mcpRevocationService';
+import { verifyAccessToken } from '../services/mcpTokenService';
 
 export interface McpRequestContext {
+  authMode: 'central' | 'legacy';
   jti: string;
   scope: string;
   clientId: string;
-  bundleId: string;
+  bundleId?: string;
   primaryUserId: string;
   activeUserId: string;
 }
 
 export type OxyAuthRequestWithMcp = OxyAuthRequest & { mcp?: McpRequestContext };
 
-/**
- * Dual-auth for MCP.
- *
- * The MCP OAuth flow mints first-party JWT access tokens (`aud: mention-mcp`)
- * that Mention itself validates, in ADDITION to the normal Oxy session tokens
- * that `oxy.auth()` validates against the Oxy API. These middlewares let a
- * request authenticate with EITHER credential:
- *
- *  - {@link createOptionalMcpAuth} — if the request carries a valid MCP token,
- *    resolve `req.user`/`req.userId` from it; otherwise pass through untouched
- *    (for a later Oxy pass or anonymous access).
- *  - {@link createRequireMcpOrOxyAuth} — resolve an MCP token if present and
- *    valid; otherwise delegate to `oxy.auth()` (which enforces a valid Oxy
- *    session). A bearer token that IS an MCP token but fails validation is
- *    rejected 401 rather than falling through to Oxy (which would reject it too,
- *    but with a misleading error).
- *
- * On success both set `req.user = { id: sub }` and `req.userId = sub`, matching
- * the shape `oxy.auth()` produces so downstream handlers (`req.user?.id`,
- * `getRequiredOxyUserId`) work identically regardless of credential type.
- */
-
-/** Whether the request carries a bearer token whose `aud` is the MCP resource. */
-export function bearerLooksLikeMcpToken(req: Request): boolean {
-  const token = extractBearer(req);
-  return token ? looksLikeMcpToken(token) : false;
-}
-
-/** Pull a bearer token from the Authorization header, or `undefined`. */
-function extractBearer(req: Request): string | undefined {
-  const header = req.headers.authorization;
-  if (!header) return undefined;
-  const match = /^Bearer\s+(.+)$/i.exec(header);
-  return match ? match[1].trim() : undefined;
-}
-
-/**
- * Whether a bearer token is (claims to be) an MCP token — decoded WITHOUT
- * signature verification, purely to route it down the MCP validation path vs.
- * the Oxy path. Real validation happens in {@link resolveMcpUser}.
- */
-function looksLikeMcpToken(token: string): boolean {
-  try {
-    const decoded = jwt.decode(token, { json: true });
-    if (!decoded || typeof decoded !== 'object') return false;
-    const aud = decoded.aud;
-    return aud === MCP_TOKEN_AUDIENCE || (Array.isArray(aud) && aud.includes(MCP_TOKEN_AUDIENCE));
-  } catch {
-    return false;
-  }
-}
-
 type McpAuthOutcome =
-  | {
-      status: 'ok';
-      userId: string;
-      jti: string;
-      scope: string;
-      clientId: string;
-      bundle: McpBundleContext;
-    }
+  | { status: 'ok'; context: McpRequestContext }
   | { status: 'invalid' }
   | { status: 'revoked' };
 
-/** Verify + revocation-check an MCP token. Never throws. */
-async function resolveMcpUser(token: string): Promise<McpAuthOutcome> {
+/** Whether the request carries a bearer that claims either MCP token audience. */
+export function bearerLooksLikeMcpToken(req: Request): boolean {
+  const token = extractBearerToken(req.headers);
+  return token ? tokenKind(token) !== null : false;
+}
+
+function tokenKind(token: string): 'central' | 'legacy' | null {
+  try {
+    const decoded = jwt.decode(token, { json: true });
+    if (!decoded || typeof decoded !== 'object') return null;
+    const audiences = Array.isArray(decoded.aud) ? decoded.aud : [decoded.aud];
+    if (audiences.includes(MENTION_CAPABILITY_AUDIENCE)) return 'central';
+    if (audiences.includes(MCP_TOKEN_AUDIENCE)) return 'legacy';
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeScope(value: string | string[]): string {
+  const scopes = Array.isArray(value) ? value : value.split(/\s+/);
+  return [...new Set(scopes.map((scope) => scope.trim()).filter(Boolean))]
+    .sort()
+    .join(' ');
+}
+
+async function resolveCentralMcpUser(token: string): Promise<McpAuthOutcome> {
+  try {
+    const oxy = getServiceOxyClient();
+    const oxyApiUrl = config.oxyApiUrl.replace(/\/+$/, '');
+    const claims = await introspectOxyMcpAccessToken(token, {
+      endpoint: `${oxyApiUrl}/auth/mcp/oauth/introspect`,
+      getServiceToken: () => oxy.getServiceToken(),
+      invalidateServiceToken: () => oxy.invalidateServiceToken(),
+    });
+    if (!claims) return { status: 'revoked' };
+    if (
+      claims.iss !== oxyApiUrl
+      || claims.aud !== MENTION_CAPABILITY_AUDIENCE
+      || claims.resource !== MENTION_MCP_RESOURCE
+    ) {
+      return { status: 'invalid' };
+    }
+    return {
+      status: 'ok',
+      context: {
+        authMode: 'central',
+        jti: claims.jti,
+        scope: normalizeScope(claims.scope),
+        clientId: claims.client_id,
+        primaryUserId: claims.sub,
+        activeUserId: claims.account_id,
+      },
+    };
+  } catch (error) {
+    logger.warn('[McpAuth] Central token introspection failed', {
+      reason: error instanceof Error ? error.message : 'unknown',
+    });
+    return { status: 'invalid' };
+  }
+}
+
+async function resolveLegacyMcpUser(token: string): Promise<McpAuthOutcome> {
+  if (Date.now() >= MENTION_LEGACY_MCP_AUTH_CUTOFF_MS) {
+    return { status: 'revoked' };
+  }
+
   let claims: ReturnType<typeof verifyAccessToken>;
   try {
     claims = verifyAccessToken(token);
   } catch (error) {
-    logger.debug('[McpAuth] Access token verification failed', {
+    logger.debug('[McpAuth] Legacy access token verification failed', {
       reason: error instanceof Error ? error.message : 'unknown',
     });
     return { status: 'invalid' };
   }
 
-  if (await isRevoked(claims.jti)) {
-    return { status: 'revoked' };
-  }
+  if (await isRevoked(claims.jti)) return { status: 'revoked' };
 
-  // The Mongo connection row is the durable authorization grant and revocation
-  // backstop. Never accept a self-contained JWT by `sub` alone: Redis can be
-  // degraded and a revoked/missing connection must still fail closed.
   let bundle: McpBundleContext | null;
   try {
     bundle = await resolveBundleContext(claims.jti, claims.sub);
   } catch (error) {
-    logger.warn('[McpAuth] Durable connection lookup failed', {
+    logger.warn('[McpAuth] Durable legacy connection lookup failed', {
       reason: error instanceof Error ? error.message : 'unknown',
     });
     return { status: 'invalid' };
   }
-  if (!bundle) {
-    return { status: 'revoked' };
-  }
+  if (!bundle) return { status: 'revoked' };
 
   return {
     status: 'ok',
-    userId: claims.sub,
-    jti: claims.jti,
-    scope: claims.scope ?? '',
-    clientId: claims.client_id ?? '',
-    bundle,
+    context: {
+      authMode: 'legacy',
+      jti: bundle.jti,
+      scope: claims.scope ?? '',
+      clientId: bundle.clientId,
+      bundleId: bundle.bundleId,
+      primaryUserId: bundle.primaryUserId,
+      activeUserId: bundle.activeUserId,
+    },
   };
 }
 
-function parseScopeSet(scope: string): Set<string> {
+async function resolveMcpUser(token: string): Promise<McpAuthOutcome> {
+  return tokenKind(token) === 'central'
+    ? resolveCentralMcpUser(token)
+    : resolveLegacyMcpUser(token);
+}
+
+function scopeSet(scope: string): Set<string> {
   return new Set(scope.split(/\s+/).map((value) => value.trim()).filter(Boolean));
 }
 
-function requiredMcpScopeForRequest(req: Request): 'mcp:read' | 'mcp:write' {
-  return ['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase()) ? 'mcp:read' : 'mcp:write';
+function requestHasMcpScope(req: Request, context: McpRequestContext): boolean {
+  const scopes = scopeSet(context.scope);
+  if (context.authMode === 'legacy') {
+    const required = ['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase())
+      ? 'mcp:read'
+      : 'mcp:write';
+    return scopes.has(required);
+  }
+  return mentionCapabilityRequirementsForRequest(req.method, req.path).some(
+    (requirement) =>
+      requirement.requiredCapabilities.every((capability) => scopes.has(capability)),
+  );
 }
 
-function enforceMcpRequestScope(req: Request, res: Response, scope: string): boolean {
-  const requiredScope = requiredMcpScopeForRequest(req);
-  if (parseScopeSet(scope).has(requiredScope)) {
-    return true;
+function enforceMcpRequestScope(
+  req: Request,
+  res: Response,
+  context: McpRequestContext,
+): boolean {
+  if (requestHasMcpScope(req, context)) return true;
+
+  if (context.authMode === 'legacy') {
+    const required = ['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase())
+      ? 'mcp:read'
+      : 'mcp:write';
+    res.status(403).json({
+      error: 'insufficient_scope',
+      message: `MCP token requires ${required} scope for this request`,
+      required_scope: required,
+    });
+    return false;
   }
 
+  const requirements = mentionCapabilityRequirementsForRequest(req.method, req.path);
+  const required = [...new Set(
+    requirements.flatMap((requirement) => requirement.requiredCapabilities),
+  )].sort();
   res.status(403).json({
     error: 'insufficient_scope',
-    message: `MCP token requires ${requiredScope} scope for this request`,
-    required_scope: requiredScope,
+    message: required.length > 0
+      ? `MCP token lacks a capability required for ${req.method} ${req.path}`
+      : 'This Mention endpoint is not exposed to external MCP tokens',
+    required_scope: required,
   });
   return false;
 }
 
-/** Attach the resolved MCP identity to the request in the Oxy-compatible shape. */
-function attachMcpIdentity(
-  req: OxyAuthRequest,
-  outcome: Extract<McpAuthOutcome, { status: 'ok' }>,
-): void {
-  const { bundle } = outcome;
-  req.user = { id: bundle.activeUserId } as OxyAuthRequest['user'];
-  req.userId = bundle.activeUserId;
+function attachMcpIdentity(req: OxyAuthRequest, context: McpRequestContext): void {
+  req.user = { id: context.activeUserId } as OxyAuthRequest['user'];
+  req.userId = context.activeUserId;
   req.accessToken = undefined;
-  (req as OxyAuthRequestWithMcp).mcp = {
-    jti: bundle.jti,
-    scope: outcome.scope,
-    clientId: bundle.clientId,
-    bundleId: bundle.bundleId,
-    primaryUserId: bundle.primaryUserId,
-    activeUserId: bundle.activeUserId,
-  };
+  (req as OxyAuthRequestWithMcp).mcp = context;
 }
 
 /**
- * Optional MCP auth: resolve `req.user` from a valid MCP token if present, else
- * pass through untouched. Never rejects the request.
+ * Resolve optional MCP identity only when the exact public route is covered by
+ * the token. An insufficient central token remains anonymous on public reads.
  */
 export function createOptionalMcpAuth(): RequestHandler {
   return async (req: Request, _res: Response, next: NextFunction) => {
-    const token = extractBearer(req);
-    if (!token || !looksLikeMcpToken(token)) {
-      next();
-      return;
-    }
+    const token = extractBearerToken(req.headers);
+    if (!token || !tokenKind(token)) return next();
     const outcome = await resolveMcpUser(token);
-    if (outcome.status === 'ok') {
-      attachMcpIdentity(req as OxyAuthRequest, outcome);
+    if (outcome.status === 'ok' && requestHasMcpScope(req, outcome.context)) {
+      attachMcpIdentity(req as OxyAuthRequest, outcome.context);
     }
     next();
   };
 }
 
-/**
- * Require EITHER a valid MCP token OR a valid Oxy session. If the bearer token
- * is an MCP token it is validated here (and a bad one is rejected 401 without
- * falling through to Oxy). Otherwise the request is delegated to `oxy.auth()`.
- */
+/** Require either a capability-scoped MCP token or a normal Oxy session. */
 export function createRequireMcpOrOxyAuth(oxy: OxyServices): RequestHandler {
   const oxyAuth = oxy.auth();
 
   return async (req: Request, res: Response, next: NextFunction) => {
-    // An earlier pass (e.g. the global rate limiter's optional auth) may have
-    // already resolved an identity. MCP identities still need the scope for
-    // this route enforced before their pre-resolved user can be trusted.
     if ((req as OxyAuthRequest).user?.id) {
       const mcp = (req as OxyAuthRequestWithMcp).mcp;
-      if (mcp && !enforceMcpRequestScope(req, res, mcp.scope)) {
-        return;
-      }
+      if (mcp && !enforceMcpRequestScope(req, res, mcp)) return;
       next();
       return;
     }
 
-    const token = extractBearer(req);
-    if (token && looksLikeMcpToken(token)) {
+    const token = extractBearerToken(req.headers);
+    if (token && tokenKind(token)) {
       const outcome = await resolveMcpUser(token);
       if (outcome.status === 'ok') {
-        if (!enforceMcpRequestScope(req, res, outcome.scope)) {
-          return;
-        }
-        attachMcpIdentity(req as OxyAuthRequest, outcome);
+        if (!enforceMcpRequestScope(req, res, outcome.context)) return;
+        attachMcpIdentity(req as OxyAuthRequest, outcome.context);
         next();
         return;
       }
       res.status(401).json({
         error: 'invalid_token',
-        message: outcome.status === 'revoked' ? 'MCP token has been revoked' : 'Invalid MCP token',
+        message: outcome.status === 'revoked'
+          ? 'MCP token has been revoked'
+          : 'Invalid MCP token',
       });
       return;
     }
 
-    // Not an MCP token — enforce a normal Oxy session.
     oxyAuth(req, res, next);
   };
 }

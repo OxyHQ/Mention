@@ -34,7 +34,12 @@ import {
   blockedDomainPurges,
   blocklistProposalRuns,
 } from './blocklist';
-import { mcpAuthCodes, mcpConnections, mcpRegisteredClients } from './mcp';
+import {
+  mcpAuthCodes,
+  mcpConnections,
+  mcpEffectReceipts,
+  mcpRegisteredClients,
+} from './mcp';
 import { entityFollows } from './engagement';
 import { actorKeyPairs, federatedActors, federatedMediaCache } from './federation';
 import { laneMutes, lanes } from './channels';
@@ -583,6 +588,14 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'The same OAuth `client_id` as on `mcp_connections`, and unconstrained for ' +
       'the same reason: a code may be issued to a configured client that has no ' +
       'row anywhere.',
+  },
+  {
+    table: mcpEffectReceipts,
+    column: mcpEffectReceipts.clientId,
+    reason:
+      'The OAuth client that invoked the tool. Like `mcp_connections.client_id`, ' +
+      'it may name a statically configured client and therefore cannot reference ' +
+      'only the dynamically registered client table.',
   },
   {
     table: mcpRegisteredClients,

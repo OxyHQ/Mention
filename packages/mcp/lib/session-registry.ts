@@ -2,7 +2,7 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
   mcpPrincipalMatchesFingerprint,
-  type McpAccessTokenClaims,
+  type AuthenticatedMcpToken,
 } from "./http-security.js";
 
 export type McpHttpTransport =
@@ -50,7 +50,7 @@ export class McpSessionRegistry {
     }
   }
 
-  isAuthorized(id: string, claims: McpAccessTokenClaims): boolean {
+  isAuthorized(id: string, claims: AuthenticatedMcpToken): boolean {
     return mcpPrincipalMatchesFingerprint(
       claims,
       this.#principalFingerprints.get(id),

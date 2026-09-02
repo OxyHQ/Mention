@@ -1,8 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import jwt from "jsonwebtoken";
 
-type HttpHeaders = Record<string, string | string[] | undefined>;
-
 export interface McpAccessTokenClaims {
   sub: string;
   jti: string;
@@ -14,23 +12,26 @@ export interface McpAccessTokenClaims {
   exp: number;
 }
 
+export interface AuthenticatedMcpToken {
+  sub: string;
+  jti: string;
+  client_id: string;
+  scope: string;
+  scopes: ReadonlySet<string>;
+  accountId: string;
+  authMode: "central" | "legacy";
+}
+
 export interface VerifyMcpAccessTokenOptions {
   secret: string | undefined;
   audience: string;
   issuer: string;
 }
 
-/**
- * Parse a single RFC 6750 Bearer credential. The auth scheme is
- * case-insensitive; malformed, empty and duplicate headers are rejected.
- */
-export function extractBearerToken(headers: HttpHeaders): string | undefined {
-  const authHeader = headers.authorization;
-  if (Array.isArray(authHeader)) {
-    if (authHeader.length !== 1) return undefined;
-    return parseBearerValue(authHeader[0]);
-  }
-  return parseBearerValue(authHeader);
+export interface VerifyLegacyMcpAccessTokenOptions
+  extends VerifyMcpAccessTokenOptions {
+  cutoffMs: number;
+  nowMs?: number;
 }
 
 /**
@@ -40,16 +41,19 @@ export function extractBearerToken(headers: HttpHeaders): string | undefined {
  * taking over a leaked session id.
  */
 export function fingerprintMcpPrincipal(
-  claims: Pick<McpAccessTokenClaims, "sub" | "client_id" | "jti">,
+  claims: Pick<AuthenticatedMcpToken, "sub" | "client_id" | "jti" | "accountId">,
 ): string {
   return createHash("sha256")
-    .update(`${claims.jti}\0${claims.sub}\0${claims.client_id}`, "utf8")
+    .update(
+      `${claims.jti}\0${claims.sub}\0${claims.client_id}\0${claims.accountId}`,
+      "utf8",
+    )
     .digest("hex");
 }
 
 /** Constant-time comparison prevents a session from being reused with another token. */
 export function mcpPrincipalMatchesFingerprint(
-  claims: Pick<McpAccessTokenClaims, "sub" | "client_id" | "jti">,
+  claims: Pick<AuthenticatedMcpToken, "sub" | "client_id" | "jti" | "accountId">,
   expectedFingerprint: string | undefined,
 ): boolean {
   if (!expectedFingerprint) return false;
@@ -64,10 +68,13 @@ export function mcpPrincipalMatchesFingerprint(
  * resuming a transport. Backend API middleware remains responsible for the
  * connection revocation lookup.
  */
-export function verifyMcpAccessToken(
+export function verifyLegacyMcpAccessToken(
   token: string,
-  options: VerifyMcpAccessTokenOptions,
-): McpAccessTokenClaims {
+  options: VerifyLegacyMcpAccessTokenOptions,
+): AuthenticatedMcpToken {
+  if ((options.nowMs ?? Date.now()) >= options.cutoffMs) {
+    throw new jwt.JsonWebTokenError("Legacy MCP token migration window has ended");
+  }
   if (!options.secret) {
     throw new Error("MENTION_MCP_JWT_SECRET is not configured");
   }
@@ -92,11 +99,14 @@ export function verifyMcpAccessToken(
     throw new jwt.JsonWebTokenError("MCP access token has no resource scope");
   }
 
-  return decoded as unknown as McpAccessTokenClaims;
-}
-
-function parseBearerValue(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  const match = /^Bearer[ \t]+([^ \t,]+)[ \t]*$/i.exec(value);
-  return match?.[1] || undefined;
+  const claims = decoded as unknown as McpAccessTokenClaims;
+  return {
+    sub: claims.sub,
+    jti: claims.jti,
+    client_id: claims.client_id,
+    scope: claims.scope,
+    scopes,
+    accountId: claims.sub,
+    authMode: "legacy",
+  };
 }

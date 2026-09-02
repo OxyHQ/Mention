@@ -42,7 +42,7 @@ import { endorsementOutbox, engagementOutbox } from '../../db/schema/outbox';
 import { repairFetchFailures } from '../../db/schema/adminScripts';
 import { lanes, laneMutes } from '../../db/schema/channels';
 import { actorKeyPairs, federatedActors, federatedFollows, federationDeliveryQueue } from '../../db/schema/federation';
-import { mcpAuthCodes, mcpConnections } from '../../db/schema/mcp';
+import { mcpAuthCodes, mcpConnections, mcpEffectReceipts } from '../../db/schema/mcp';
 import {
   mentionNodeIngestWitnesses,
   mentionRepoHeads,
@@ -559,5 +559,10 @@ export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
     phase: 'account',
     table: mcpAuthCodes,
     where: accountEq(mcpAuthCodes.oxyUserId),
+  },
+  'mcp_effect_receipts.oxyUserId|channel-account': {
+    phase: 'account',
+    table: mcpEffectReceipts,
+    where: accountEq(mcpEffectReceipts.oxyUserId),
   },
 };

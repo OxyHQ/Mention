@@ -8,8 +8,17 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 export interface RequestContext {
-  /** The user's Oxy JWT, extracted from the incoming MCP request's Bearer token. */
+  /** The resource-bound bearer forwarded only to Mention's own backend. */
   userToken?: string;
+  authMode?: "central" | "legacy";
+  /** OAuth token/client identity used only to bind transport state and effects. */
+  tokenId?: string;
+  clientId?: string;
+  accountId?: string;
+  scopes: ReadonlySet<string>;
+  /** Present only while one effectful tool invocation is running. */
+  idempotencyKey?: string;
+  toolName?: string;
 }
 
 export const requestContext = new AsyncLocalStorage<RequestContext>();
