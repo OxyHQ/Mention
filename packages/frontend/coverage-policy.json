@@ -149,11 +149,6 @@
     "clearing the bar is reported as a failure until it is deleted."
   ],
   "belowBarExemptions": {
-    "components/providers/AuthRouter.tsx": {
-      "since": "2026-08-15",
-      "measured": "78.94% statements / 50% branches",
-      "reason": "components/providers/__tests__/AuthRouter.test.tsx exists and covers the redirect decisions; the branch half is what falls short. Which branches are uncovered has not been traced to lines — run the suite with an lcov reporter before writing that down."
-    },
     "hooks/usePostLike.ts": {
       "since": "2026-08-15",
       "measured": "0%",
@@ -289,7 +284,7 @@
     "domainFiles": 240,
     "pins": 237,
     "unenforceable": 3,
-    "belowBarExemptions": 16,
+    "belowBarExemptions": 15,
     "criticalPaths": 34,
     "allowedBaselineDecreases": 0,
     "snapshotAssertions": 0
