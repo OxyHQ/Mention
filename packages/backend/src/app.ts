@@ -124,6 +124,21 @@ export function createApp(deps: CreateAppDependencies): express.Express {
       // Match the baseline's `frame-ancestors 'none'`; helmet's SAMEORIGIN
       // default would state a different policy to pre-CSP browsers.
       frameguard: { action: 'deny' },
+      // Stated rather than inherited. helmet defaults to `no-referrer`, which
+      // nobody here chose — it appears nowhere in `@oxyhq/core` — and which is
+      // stricter than the web assumes. It sends nothing at all, so every site
+      // Mention links to records the visit as direct traffic, and any third
+      // party that identifies an embedder by referrer refuses to load: YouTube
+      // answered error 153 (`ERROR_CODE_EMBEDDER_IDENTITY_MISSING_REFERRER`)
+      // for exactly this reason until the player started overriding it.
+      //
+      // `strict-origin-when-cross-origin` is what a browser does with no header
+      // at all. Cross-origin it sends the ORIGIN only — never the path, so
+      // which post a reader is on still never leaves — and it sends nothing at
+      // all when HTTPS downgrades to HTTP. The embed player keeps its own
+      // element-level policy so a future tightening here cannot silently break
+      // playback again.
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     },
   }));
 
