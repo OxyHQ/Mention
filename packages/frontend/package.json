@@ -137,7 +137,7 @@
     "expo-splash-screen": "~57.0.5",
     "expo-sqlite": "~57.0.1",
     "expo-status-bar": "~57.0.1",
-    "expo-symbols": "~57.0.1",
+    "expo-symbols": "~57.0.2",
     "expo-video": "~57.0.2",
     "expo-web-browser": "~57.0.2",
     "hls.js": "^1.6.16",
