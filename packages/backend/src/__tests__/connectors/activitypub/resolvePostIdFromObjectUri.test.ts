@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PostType, PostVisibility } from '@mention/shared-types';
+import { randomUUID } from 'node:crypto';
 
 /**
  * `resolvePostIdFromObjectUri` — the one function thirteen inbound-federation
@@ -124,12 +125,12 @@ describe('resolvePostIdFromObjectUri', () => {
   it('answers null for a URI naming nothing here, whatever its id shape', async () => {
     // An id of any shape is a bound parameter that matches no row: a uuid we
     // never minted, a 24-char ObjectId hex, and a value that is neither.
+    const absentUuid = randomUUID();
+    const absentLegacyId = randomUUID().replaceAll('-', '').slice(0, 24);
     await expect(
-      resolvePostIdFromObjectUri(localNoteUri('0195b2a6-0000-7000-8000-000000000000')),
+      resolvePostIdFromObjectUri(localNoteUri(absentUuid)),
     ).resolves.toBeNull();
-    await expect(
-      resolvePostIdFromObjectUri(localNoteUri('507f1f77bcf86cd799439011')),
-    ).resolves.toBeNull();
+    await expect(resolvePostIdFromObjectUri(localNoteUri(absentLegacyId))).resolves.toBeNull();
     await expect(resolvePostIdFromObjectUri(localNoteUri('nonsense'))).resolves.toBeNull();
     await expect(resolvePostIdFromObjectUri('https://remote.example/never/seen')).resolves.toBeNull();
   });

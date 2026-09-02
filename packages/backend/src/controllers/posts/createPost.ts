@@ -123,7 +123,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     let processedContentLocation = null;
     if (contentLocationData) {
       let longitude, latitude, address;
-      
+
       // Handle GeoJSON format: { type: 'Point', coordinates: [lng, lat], address?: string }
       if (contentLocationData.type === 'Point' && Array.isArray(contentLocationData.coordinates) && contentLocationData.coordinates.length === 2) {
         longitude = contentLocationData.coordinates[0];
@@ -139,7 +139,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         latitude = contentLocationData.latitude;
         address = contentLocationData.address;
       }
-      
+
       // Validate coordinates
       if (typeof longitude === 'number' && typeof latitude === 'number' &&
           latitude >= -90 && latitude <= 90 &&
@@ -150,8 +150,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
           address: address || undefined
         };
       } else {
-        return res.status(400).json({ 
-          error: 'Invalid location coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.' 
+        return res.status(400).json({
+          error: 'Invalid location coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.',
         });
       }
     }
@@ -160,7 +160,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     let processedPostLocation = null;
     if (postLocation) {
       let longitude, latitude, address;
-      
+
       // Handle GeoJSON format: { type: 'Point', coordinates: [lng, lat], address?: string }
       if (postLocation.type === 'Point' && Array.isArray(postLocation.coordinates) && postLocation.coordinates.length === 2) {
         longitude = postLocation.coordinates[0];
@@ -177,7 +177,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
         address = postLocation.address;
         logger.debug('Received legacy format post location');
       }
-      
+
       // Validate coordinates
       if (typeof longitude === 'number' && typeof latitude === 'number' &&
           latitude >= -90 && latitude <= 90 &&
@@ -188,8 +188,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
           address: address || undefined
         };
       } else {
-        return res.status(400).json({ 
-          error: 'Invalid post location coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.' 
+        return res.status(400).json({
+          error: 'Invalid post location coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.',
         });
       }
     }

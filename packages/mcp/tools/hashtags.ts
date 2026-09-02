@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
 import { fetchMtnFeed } from "../lib/mtn-feed.js";
 import { formatFeed } from "../lib/formatters.js";

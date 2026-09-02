@@ -63,7 +63,7 @@ interface ChannelProfileProps {
  *
  * - **No banner.** `UpdateAccountInput` has no banner field, so there is nothing
  *   to set and no band left empty.
- * - **No poke.** A poke is addressed to a person; `isActAsEligibleKind` refuses
+ * - **No poke.** A poke is addressed to a person; `isDelegatedActAsEligibleKind` refuses
  *   `channel`, so no human is ever signed in as one to receive it.
  * - **No self view.** For the same reason, `isOwnProfile` can never be true for
  *   a channel — so no edit/analytics/settings cluster, no "your own lanes"

@@ -9,7 +9,7 @@
  * authors its own posts, so every engagement notification for a channel post is
  * addressed to the channel — `createPostAuthorNotifications` derives the
  * recipient from `post.authorship`, whose owner IS the channel. But
- * `isActAsEligibleKind` refuses `channel`, so no session can ever be minted whose
+ * `isDelegatedActAsEligibleKind` refuses `channel`, so no session can ever be minted whose
  * subject is a channel, and `GET /notifications` filters on `req.user.id`. Those
  * rows were therefore written, indexed, TTL-reaped 90 days later, and read by
  * nobody. This module is the read-side expansion that makes them reachable.

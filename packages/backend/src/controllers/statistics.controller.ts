@@ -355,7 +355,7 @@ type StatisticsSubject =
  * channel (`PostCreationService` resolves `authorId` through the publish-as gate
  * and builds `authorship` from it, recording the human as `writtenByOxyUserId`
  * OUTSIDE the array). So a channel's totals were always computable and were never
- * reachable: the subject was hard-wired to `req.user.id`, and `isActAsEligibleKind`
+ * reachable: the subject was hard-wired to `req.user.id`, and `isDelegatedActAsEligibleKind`
  * refuses `channel`, so no session's subject can ever BE a channel. The numbers
  * were correct and unaskable — which is why this takes a subject rather than
  * touching the pipeline.

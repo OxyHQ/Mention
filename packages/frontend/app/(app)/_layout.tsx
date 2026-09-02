@@ -1,6 +1,6 @@
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
-import { Slot, Stack, usePathname } from "expo-router";
+import { ExperimentalStack, Slot, usePathname } from "expo-router";
 
 import { useAuth } from '@oxyhq/services/ui/client';
 import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
@@ -90,42 +90,30 @@ export default function AppLayout() {
   // Same center content on both platforms; only the host differs. WEB uses <Slot/>
   // so the route flows in document scroll (the BODY is the scroller) and sticky
   // works — a <Stack>'s viewport-clamped scene would break document scroll + sticky.
-  // NATIVE keeps <Stack> for real push/pop + freezeOnBlur (pushed screens stay
-  // mounted so `back` restores scroll).
+  // NATIVE uses Expo Router's predictive-back-aware stack. The standard Stack
+  // cannot consume Android's predictive callback and lets the Activity close;
+  // all native stacks must use ExperimentalStack together on Android.
   const centerContent = (
     <>
       {IS_WEB ? (
         <Slot />
       ) : (
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: 'default',
-            freezeOnBlur: true,
-            contentStyle: { flex: 1, backgroundColor: 'transparent' },
-          }}
-        >
-          <Stack.Screen name="compose" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="p/[id]/boost" options={{ presentation: 'modal' }} />
-          {/* The reels screen has to mount OVER the feed rather than replacing
-              it, and without a push of its own.
+        <ExperimentalStack screenOptions={{ headerShown: false }}>
+          <ExperimentalStack.Screen name="compose" />
+          <ExperimentalStack.Screen name="p/[id]/boost" />
+          {/* The reels screen has to mount over the feed rather than replacing
+              it.
 
               A flying video is one surface handed from the origin to the
               destination, so the destination must exist while the origin is
               still there — a screen swap would unmount the feed first and leave
-              the flight nothing to hand over from. `animation: 'none'` is the
-              other half: the flight IS the animation, and a push sliding
-              underneath it would show the same video moving twice, in two
-              directions.
-
-              Accepted cost: reaching Videos from the tab bar loses its push
-              animation, because a screen cannot be told to animate for one
-              caller and not another. */}
-          <Stack.Screen
-            name="videos"
-            options={{ presentation: 'transparentModal', animation: 'none' }}
-          />
-        </Stack>
+              the flight nothing to hand over from. ExperimentalStack keeps the
+              previous screen attached while the next route becomes active; its
+              deliberately narrow API has no per-screen presentation/animation
+              options, so the media-flight layer remains the single owner of the
+              shared video surface. */}
+          <ExperimentalStack.Screen name="videos" />
+        </ExperimentalStack>
       )}
       {/* Show the anon CTA only once auth is resolved: during cold-boot restore
           `isAuthenticated` is undetermined and would flash the banner to a user

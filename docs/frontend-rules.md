@@ -33,4 +33,3 @@ in `~/Oxy/docs/frontend-conventions.md`, not here. Mention's own gate is
 real `app/` tree and asserts every route a settings screen navigates to
 exists. Scoped to settings on purpose (all-static routes there) — widen it
 before trusting it to catch a bad route anywhere else in the app.
-

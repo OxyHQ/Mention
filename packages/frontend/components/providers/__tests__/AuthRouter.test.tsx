@@ -17,10 +17,9 @@
  * returning null breaks (1).
  */
 import React from 'react';
-import { Platform } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { useAuth } from '@oxyhq/services/ui/client';
-import { Slot, Stack } from 'expo-router';
+import { Slot } from 'expo-router';
 import AppSplashScreen from '@/components/AppSplashScreen';
 import { AuthRouter } from '../AuthRouter';
 
@@ -115,7 +114,6 @@ describe('AuthRouter boot gate', () => {
     // Unresolved: no router surface of any kind is mounted, on either platform,
     // so nothing can navigate or redirect off unresolved state.
     expect(has(renderer, Slot)).toBe(false);
-    expect(has(renderer, Stack)).toBe(false);
 
     mockIsAuthResolved = true;
     act(() => {
@@ -123,7 +121,7 @@ describe('AuthRouter boot gate', () => {
     });
 
     // Resolved: the swap runs and the boot visual is gone.
-    expect(Platform.OS === 'web' ? has(renderer, Slot) : has(renderer, Stack)).toBe(true);
+    expect(has(renderer, Slot)).toBe(true);
     expect(has(renderer, AppSplashScreen)).toBe(false);
 
     act(() => {
@@ -142,6 +140,21 @@ describe('AuthRouter boot gate', () => {
 
     expect(renderer.root.findAllByProps({ href: '/' }).length).toBe(0);
     expect(has(renderer, AppSplashScreen)).toBe(true);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('redirects an authenticated viewer out of (auth) after auth resolves', () => {
+    mockSegments = ['(auth)'];
+    mockIsAuthenticated = true;
+    mockIsAuthResolved = true;
+
+    const renderer = render();
+
+    expect(renderer.toJSON()).toMatchObject({ type: 'MockRedirect', props: { href: '/' } });
+    expect(has(renderer, AppSplashScreen)).toBe(false);
 
     act(() => {
       renderer.unmount();

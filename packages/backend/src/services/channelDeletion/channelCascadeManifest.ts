@@ -1081,7 +1081,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     scope: 'channel-account',
     action: 'delete-row',
     why:
-      'A Claude connector bound to the channel. `isActAsEligibleKind` refuses a channel as a session ' +
+      'A Claude connector bound to the channel. `isDelegatedActAsEligibleKind` refuses a channel as a session ' +
       'subject and the OAuth consent screen is authorized against a person, so this must be empty — swept ' +
       'because a row here would be a live credential naming a deleted account. Absent from the Mongo-era ' +
       'manifest entirely, which is what re-pointing the gate at the real schema surfaced.',

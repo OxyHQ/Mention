@@ -67,7 +67,7 @@ export type ProfileTab =
  *   `Like` collection keyed by the LIKER (`gatherAuthorLikes` →
  *   `Like.find({ userId })`). Every writer of that row takes the liker from an
  *   authenticated session (`likePost`) or from a resolved remote actor (the AP
- *   inbox). A channel can never be a session subject — `isActAsEligibleKind`
+ *   inbox). A channel can never be a session subject — `isDelegatedActAsEligibleKind`
  *   refuses the kind — so no row can ever name one.
  *
  * - **`feeds`, `starter_packs`, `lists`** — all three are OWNED resources, and in

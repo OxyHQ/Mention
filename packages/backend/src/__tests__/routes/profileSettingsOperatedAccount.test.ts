@@ -247,7 +247,7 @@ describe('PUT /profile/settings/:userId — an operated account', () => {
  * Those two answer different questions. The bare route serves a VIEWER the
  * profile-design DTO, and `buildSettingsResponseForViewer` returns the stored
  * document only when `targetUserId === viewerUserId` — an equality that is
- * structurally unreachable for a channel, because `isActAsEligibleKind` refuses
+ * structurally unreachable for a channel, because `isDelegatedActAsEligibleKind` refuses
  * `channel`, so no session can ever be minted whose subject is one. Every other
  * exit of that serialiser is a fixed-key design DTO with no `channel` block, so an
  * operator who turned the byline ON read it back as OFF for as long as this screen

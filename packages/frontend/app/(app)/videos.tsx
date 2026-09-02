@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxyhq/bloom/theme';
+import { useHaptics } from '@oxyhq/bloom/hooks';
 import { useTranslation } from 'react-i18next';
 import { useAuth, FollowButton } from '@oxyhq/services/ui/client';
 import { VideoView, useVideoPlayer, type VideoPlayer } from 'expo-video';
@@ -875,6 +876,7 @@ FeedTab.displayName = 'FeedTab';
 export default function VideosScreen() {
     const { t } = useTranslation();
     const theme = useTheme();
+    const haptic = useHaptics();
     const insets = useSafeAreaInsets();
     const { height: WINDOW_HEIGHT } = useWindowDimensions();
     const isFocused = useIsFocused();
@@ -1377,6 +1379,7 @@ export default function VideosScreen() {
     }, [prev, next]);
 
     const handleLike = useCallback(async (postId: string, isLiked: boolean) => {
+        haptic('light');
         try {
             if (isLiked) {
                 await unlikePost({ postId, type: 'post' });
@@ -1402,7 +1405,7 @@ export default function VideosScreen() {
         } catch {
             toast(t('common.error'), { type: 'error' });
         }
-    }, [likePost, unlikePost, t]);
+    }, [haptic, likePost, unlikePost, t]);
 
     const handleCommentPosted = useCallback((postId: string) => {
         setPosts(prev => prev.map(p =>
@@ -1439,6 +1442,7 @@ export default function VideosScreen() {
     }, [isDesktop, requestComposerFocus, setBottomSheetContent, openBottomSheet, handleCommentPosted]);
 
     const handleBoost = useCallback(async (postId: string, isBoosted: boolean) => {
+        haptic('light');
         try {
             if (isBoosted) {
                 await unboostPost({ postId });
@@ -1464,12 +1468,13 @@ export default function VideosScreen() {
         } catch {
             toast(t('common.error'), { type: 'error' });
         }
-    }, [boostPost, unboostPost, t]);
+    }, [haptic, boostPost, unboostPost, t]);
 
     // Same optimistic shape as like/boost: the store's own update lands on its
     // copy of the post, which this screen's local `posts` state never reads, so
     // the rail's icon only flips if the screen updates itself.
     const handleSave = useCallback(async (postId: string, isSaved: boolean) => {
+        haptic('light');
         try {
             if (isSaved) {
                 await unsavePost({ postId });
@@ -1498,7 +1503,7 @@ export default function VideosScreen() {
         } catch {
             toast(t('common.error'), { type: 'error' });
         }
-    }, [savePost, unsavePost, t]);
+    }, [haptic, savePost, unsavePost, t]);
 
     const handleShare = useCallback(async (post: VideoPost) => {
         try {

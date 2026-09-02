@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 const DEFAULT_API_URL = "https://api.mention.earth";
 const DEFAULT_MCP_PUBLIC_URL = "https://mcp.mention.earth";

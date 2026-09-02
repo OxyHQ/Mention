@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const rootManifest = await readJson("package.json");
 const expectedBunVersion = String(rootManifest.packageManager || "").replace(/^bun@/, "");
-const expectedNodeVersion = "22.17.0";
+const expectedNodeVersion = "24.20.0";
 const failures = [];
 
 // Shared dependency versions live in ONE place: the root `workspaces.catalog`.

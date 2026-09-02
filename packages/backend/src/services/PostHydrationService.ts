@@ -222,7 +222,7 @@ interface HydrationOptions {
    * of, as resolved by `listOperatedChannelIds`.
    *
    * A channel AUTHORS its own posts, so `oxyUserId` on a channel post is an
-   * account NOBODY can be signed in as (`isActAsEligibleKind` refuses a channel as
+   * account NOBODY can be signed in as (`isDelegatedActAsEligibleKind` refuses a channel as
    * a session subject). The ACL's ownership test is an id comparison against that
    * author, so without this every unpublished channel post is unreadable by every
    * human alive — measured, including by the person who wrote it.

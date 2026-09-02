@@ -57,7 +57,7 @@ interface PublishAsDialogProps {
  * Selecting one never switches the session. The caller stays themselves; only
  * the post's author changes. That is what makes this a per-post control instead
  * of an account switcher — and the only way a channel can author anything at
- * all, since `isActAsEligibleKind` refuses to mint a session whose subject is a
+ * all, since `isDelegatedActAsEligibleKind` refuses to mint a session whose subject is a
  * channel.
  *
  * The second control follows from the first: the post lands on the CHOSEN

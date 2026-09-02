@@ -396,13 +396,13 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       if (content?.location) {
         const locationData = content.location;
         let longitude, latitude, address;
-        
+
         if (locationData.type === 'Point' && Array.isArray(locationData.coordinates)) {
           longitude = locationData.coordinates[0];
           latitude = locationData.coordinates[1];
           address = locationData.address;
         }
-        
+
         if (typeof longitude === 'number' && typeof latitude === 'number' &&
             latitude >= -90 && latitude <= 90 &&
             longitude >= -180 && longitude <= 180) {

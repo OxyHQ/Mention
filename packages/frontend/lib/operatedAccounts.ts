@@ -1,4 +1,4 @@
-import { isActAsEligibleKind } from '@oxyhq/contracts';
+import { isDelegatedActAsEligibleKind } from '@oxyhq/contracts';
 import type { AccountNode } from '@oxyhq/core';
 
 /**
@@ -23,10 +23,10 @@ const ACCOUNT_ACT_AS_PERMISSION = 'account:act_as';
  *
  *  - A **channel** can never be acted as, so there is no stronger right to ask
  *    for than membership: an active member operates it.
- *  - An **act-as-eligible** account (organization / project / bot) CAN be
- *    switched into, so publishing under its name is gated on the same permission
- *    as becoming it. An account's `viewer`, `billing` and `developer` members are
- *    members who deliberately may NOT act as it.
+ *  - A **delegation-eligible** account (organization / project / bot) can have
+ *    an application speak for it, so publishing under its name requires
+ *    `account:act_as`. An account's `viewer`, `billing` and `developer` members
+ *    deliberately do not hold that authority.
  *
  * The permission is READ off `callerMembership.permissions`, which Oxy resolves
  * from the role at write time — never inferred from `callerMembership.role`, which
@@ -54,7 +54,7 @@ const ACCOUNT_ACT_AS_PERMISSION = 'account:act_as';
 export function operatesAccountNode(node: AccountNode): boolean {
   const membership = node.callerMembership;
   if (!membership || membership.status !== 'active') return false;
-  if (!isActAsEligibleKind(node.kind)) return true;
+  if (!isDelegatedActAsEligibleKind(node.kind)) return true;
   return (
     Array.isArray(membership.permissions) &&
     membership.permissions.includes(ACCOUNT_ACT_AS_PERMISSION)

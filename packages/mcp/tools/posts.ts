@@ -1,5 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
 import { normalizeVisibility, unwrapApiResponse } from "../lib/api-response.js";
 import { withAuthGuard } from "../lib/auth-guard.js";

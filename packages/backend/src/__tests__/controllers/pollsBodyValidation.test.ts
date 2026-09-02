@@ -60,15 +60,16 @@ async function call(
 /** `POST /polls` with a body, as the composer's pre-post placeholder sends it. */
 async function createPoll(body: Record<string, unknown>) {
   const { createPoll: handler } = pollsController;
-  const result = await call(handler, { body, user: { id: `author-${randomUUID()}` } });
+  const authorId = `author-${randomUUID()}`;
+  const result = await call(handler, { body, user: { id: authorId } });
   const created = (result.captured.body as { data?: { _id?: string } } | undefined)?.data;
   if (created?._id) createdPollIds.push(created._id);
-  return result;
+  return { ...result, authorId };
 }
 
-/** How many polls exist right now — the vacuity floor for a "nothing was written". */
-async function countPolls(): Promise<number> {
-  const rows = await db.select({ id: polls.id }).from(polls);
+/** Rows attributable only to this request, isolated from parallel DB suites. */
+async function countPollsByAuthor(authorId: string): Promise<number> {
+  const rows = await db.select({ id: polls.id }).from(polls).where(eq(polls.createdBy, authorId));
   return rows.length;
 }
 
@@ -130,8 +131,7 @@ describe('POST /polls body validation', () => {
   });
 
   it('refuses a `question` that is not a string, instead of writing it as a row', async () => {
-    const before = await countPolls();
-    const { captured } = await createPoll({
+    const { captured, authorId } = await createPoll({
       question: { $ne: null },
       options: ['yes', 'no'],
       postId: `temp_${randomUUID()}`,
@@ -139,19 +139,18 @@ describe('POST /polls body validation', () => {
 
     expect(captured.status).toBe(400);
     expect(captured.body).toMatchObject({ error: 'Validation Error' });
-    expect(await countPolls()).toBe(before);
+    expect(await countPollsByAuthor(authorId)).toBe(0);
   });
 
   it('refuses an unbounded `options` array, instead of inserting a row per entry', async () => {
-    const before = await countPolls();
-    const { captured } = await createPoll({
+    const { captured, authorId } = await createPoll({
       question: 'Pick one',
       options: Array.from({ length: 500 }, (_unused, index) => `option ${index}`),
       postId: `temp_${randomUUID()}`,
     });
 
     expect(captured.status).toBe(400);
-    expect(await countPolls()).toBe(before);
+    expect(await countPollsByAuthor(authorId)).toBe(0);
   });
 
   it('refuses a non-boolean `isMultipleChoice`, instead of letting Postgres decide', async () => {

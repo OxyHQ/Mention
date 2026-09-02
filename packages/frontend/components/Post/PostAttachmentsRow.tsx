@@ -25,7 +25,7 @@ import {
   type GalleryImage,
   type MeasureThumb,
   type MeasuredRect,
-} from '@oxyhq/bloom/zoomable-image-gallery';
+} from '@oxyhq/bloom/zoomable-media-gallery';
 import { useMediaFlight } from '@oxyhq/bloom/media-flight';
 import { holdAcrossTransition, peekVideoPlayer, videoPlayerKey } from '@/stores/videoPlayerRegistry';
 import { measurePanelSurface } from '@/components/shell/panelSurface';

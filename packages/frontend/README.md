@@ -18,7 +18,7 @@ React Native, React Query, Zustand, Bloom, Socket.IO, and the shared
 
 ## Setup
 
-Use the versions pinned at the monorepo root (Bun 1.3.14 and Node 22.17.0):
+Use the versions pinned at the monorepo root (Bun 1.3.14 and Node 24.20.0):
 
 ```bash
 cp packages/frontend/.env.example packages/frontend/.env

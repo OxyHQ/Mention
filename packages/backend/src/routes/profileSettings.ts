@@ -111,7 +111,7 @@ router.get('/settings/:userId', async (req: AuthRequest, res: Response) => {
  * The READ half of the route below, and a SEPARATE endpoint from
  * `GET /settings/:userId` on purpose. That route answers a VIEWER's question
  * ("what may I see of this profile's design?") and a channel is never its own
- * viewer — `isActAsEligibleKind` refuses `channel`, so no session can ever be
+ * viewer — `isDelegatedActAsEligibleKind` refuses `channel`, so no session can ever be
  * minted whose subject is one, so `targetUserId === viewerUserId` is unreachable
  * for a channel and the response is always the public profile-design DTO. That
  * DTO has no `channel` key, so reading `signPosts` back off it yielded `undefined`

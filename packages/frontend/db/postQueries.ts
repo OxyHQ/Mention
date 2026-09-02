@@ -22,7 +22,7 @@ const logger = createLogger('PostQueries');
 // ── Prepared statement SQL ───────────────────────────────────────
 
 const UPSERT_POST_SQL = `
-  INSERT OR REPLACE INTO posts (
+  INSERT INTO posts (
     id, user_id, type, parent_post_id, original_post_id, quoted_post_id,
     content_json, attachments_json, link_previews_json, permissions_json,
     boost_json, context_json, user_json,
@@ -39,12 +39,44 @@ const UPSERT_POST_SQL = `
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?
   )
+  ON CONFLICT(id) DO UPDATE SET
+    user_id = excluded.user_id,
+    type = excluded.type,
+    parent_post_id = excluded.parent_post_id,
+    original_post_id = excluded.original_post_id,
+    quoted_post_id = excluded.quoted_post_id,
+    content_json = excluded.content_json,
+    attachments_json = excluded.attachments_json,
+    link_previews_json = excluded.link_previews_json,
+    permissions_json = excluded.permissions_json,
+    boost_json = excluded.boost_json,
+    context_json = excluded.context_json,
+    user_json = excluded.user_json,
+    likes_count = excluded.likes_count,
+    downvotes_count = excluded.downvotes_count,
+    boosts_count = excluded.boosts_count,
+    replies_count = excluded.replies_count,
+    saves_count = excluded.saves_count,
+    views_count = excluded.views_count,
+    impressions_count = excluded.impressions_count,
+    is_liked = excluded.is_liked,
+    is_downvoted = excluded.is_downvoted,
+    is_boosted = excluded.is_boosted,
+    is_saved = excluded.is_saved,
+    is_owner = excluded.is_owner,
+    visibility = excluded.visibility,
+    created_at = excluded.created_at,
+    updated_at = excluded.updated_at,
+    fetched_at = excluded.fetched_at,
+    raw_json = excluded.raw_json
 `;
 
 // ── Single post operations ───────────────────────────────────────
 
 /**
- * Insert or replace a single post.
+ * Insert or update a single post without replacing the SQLite row. `REPLACE`
+ * deletes the old row before inserting the new one, which triggers the
+ * `feed_items.post_id` cascade and removes the post from every native feed.
  */
 export function upsertPost(post: FeedItem): void {
   if (!post.id) return;
@@ -72,7 +104,7 @@ export function upsertPost(post: FeedItem): void {
 }
 
 /**
- * Batch insert/replace posts in a single transaction.
+ * Batch insert/update posts in a single transaction.
  */
 export function upsertPosts(posts: FeedItem[]): void {
   if (!posts || posts.length === 0) return;

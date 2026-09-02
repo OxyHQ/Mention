@@ -20,7 +20,7 @@ import {
   ZoomableMediaGallery,
   type MeasuredRect,
   type ZoomableMediaGalleryHandle,
-} from '@oxyhq/bloom/zoomable-image-gallery';
+} from '@oxyhq/bloom/zoomable-media-gallery';
 import { useAuth } from '@oxyhq/services/ui/client';
 
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';

@@ -735,7 +735,7 @@ export interface CreatePostRequest {
    * TWO FAMILIES OF ACCOUNT ARE ACCEPTED, on two different authorities:
    *
    *  - A **channel**, where accepted membership is the whole right. A channel can
-   *    never be acted as (`isActAsEligibleKind` refuses it — it is a content
+   *    never be acted as (`isDelegatedActAsEligibleKind` refuses it — it is a content
    *    identity, not a seat), so this field, not a session switch, is the ONLY way
    *    a post comes to be authored by one. A channel post is additionally
    *    persisted `replyPermission: ['nobody']` — a channel takes no replies.

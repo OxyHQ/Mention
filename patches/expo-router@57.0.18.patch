@@ -1,0 +1,13 @@
+diff --git a/build/layouts/experimental-stack/ExperimentalStackView.js b/build/layouts/experimental-stack/ExperimentalStackView.js
+index 78ce514ee726c13d820bacfa3097445fed006ff7..c952ec09f92cb2e84068897d4e5eeea1dff02acb 100644
+--- a/build/layouts/experimental-stack/ExperimentalStackView.js
++++ b/build/layouts/experimental-stack/ExperimentalStackView.js
+@@ -109,7 +109,7 @@ function ScreenView({ routeKey, descriptor, options, isPreloaded, preventNativeD
+         transparent: options.headerTransparent,
+         backButtonHidden: options.headerBackVisible === undefined ? undefined : !options.headerBackVisible,
+     };
+-    return ((0, jsx_runtime_1.jsxs)(experimental_1.Stack.Screen, { activityMode: isPreloaded ? 'detached' : 'attached', screenKey: routeKey, preventNativeDismiss: preventNativeDismiss, ...lifecycle, children: [(0, jsx_runtime_1.jsx)(react_native_1.View, { style: styles.scene, children: descriptor.render() }), (0, jsx_runtime_1.jsx)(experimental_1.Stack.HeaderConfig, { ...headerConfigProps })] }));
++    return ((0, jsx_runtime_1.jsxs)(experimental_1.Stack.Screen, { activityMode: isPreloaded ? 'detached' : 'attached', screenKey: routeKey, preventNativeDismiss: preventNativeDismiss, ...lifecycle, children: [(0, jsx_runtime_1.jsx)(react_native_1.View, { style: styles.scene, children: descriptor.render() }), options.headerShown === false ? null : (0, jsx_runtime_1.jsx)(experimental_1.Stack.HeaderConfig, { ...headerConfigProps })] }));
+ }
+ // Composition components like <Stack.Screen.Title> and <Stack.Header> emit benign
+ // extras such as `headerTitleStyle: {}`, `headerLargeTitle: undefined`, or

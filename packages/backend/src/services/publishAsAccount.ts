@@ -18,7 +18,7 @@
  * TWO FAMILIES OF ACCOUNT, TWO DIFFERENT AUTHORITIES — this is the part that is
  * easy to get wrong by collapsing it into one membership test.
  *
- *  - A **channel** can never be acted as (`isActAsEligibleKind` refuses it: it is
+ *  - A **channel** can never be acted as (`isDelegatedActAsEligibleKind` refuses it: it is
  *    a content identity, not a seat). There is no session anybody could switch
  *    into, so there is no stronger right than membership to ask for — acting for
  *    a channel simply IS being one of its members.
@@ -53,7 +53,7 @@
  */
 
 import type { AccountKind } from '@oxyhq/contracts';
-import { isActAsEligibleKind } from '@oxyhq/contracts';
+import { isDelegatedActAsEligibleKind } from '@oxyhq/contracts';
 import type { AccountMember, AccountNode } from '@oxyhq/core';
 import { resolveUserSummaries } from './PostHydrationService';
 import { logger } from '../utils/logger';
@@ -133,9 +133,9 @@ export interface OperatedAccountReader {
  *
  * The two families are graded differently, and the module docstring says why:
  * membership alone is the whole right over a `channel` (nothing stronger exists,
- * since a channel can never be acted as), while an act-as-eligible account
- * additionally demands `account:act_as` — the same permission
- * `POST /accounts/:id/switch` gates on.
+ * since a channel can never be acted as), while a delegation-eligible account
+ * additionally demands `account:act_as`. Human account switching is a separate,
+ * narrower question that excludes bots.
  *
  * Every "no" is a refusal rather than an assumption: a missing row, a membership
  * that is `invited`/`removed` rather than `active`, a kind that is neither family,
@@ -147,7 +147,7 @@ export function membershipAuthorizesActingFor(
 ): boolean {
   if (!membership || membership.status !== 'active') return false;
   if (kind === 'channel') return true;
-  if (!isActAsEligibleKind(kind)) return false;
+  if (!isDelegatedActAsEligibleKind(kind)) return false;
   return (
     Array.isArray(membership.permissions) &&
     membership.permissions.includes(ACCOUNT_ACT_AS_PERMISSION)
@@ -159,7 +159,7 @@ export function membershipAuthorizesActingFor(
  * notifications (`services/notificationInbox`).
  *
  * WHY THIS EXISTS AS THE INVERSE OF THE GATE ABOVE. A channel has no session
- * (`isActAsEligibleKind` refuses it), so a notification addressed to one is
+ * (`isDelegatedActAsEligibleKind` refuses it), so a notification addressed to one is
  * addressed to a mailbox nobody can open. The humans who can act on it are its
  * members — but nothing server-side can ask Oxy "who are the members of channel
  * C": `GET /accounts/:id/members` is authorized against the CALLER, and the
@@ -169,11 +169,11 @@ export function membershipAuthorizesActingFor(
  * account list in one call, with no second membership read.
  *
  * **Filtered to `channel` deliberately, not to "every account I operate".** An
- * organization / project / bot CAN be acted as, so its members reach its
- * notifications by switching into it — and that switch is gated on
- * `account:act_as`, which a `viewer` or `billing` member does not hold. Widening
- * this to those kinds would hand exactly that refused view to exactly those
- * members, through a door the switch keeps shut.
+ * organization / project / bot can be delegated, so their notifications belong
+ * to the effective account session or service lane rather than being fanned out
+ * to every member. That authority requires `account:act_as`, which a `viewer` or
+ * `billing` member does not hold. Widening this to those kinds would hand the
+ * refused view to exactly those members through a separate notification path.
  *
  * Where this set can differ from what {@link assertCanPublishAsAccount} would
  * allow: that gate reads `GET /accounts/:id/members`, which returns DIRECT rows
@@ -413,7 +413,7 @@ export async function assertCanPublishAsAccount(params: {
   // Publishing as an account is the delegation question, so this is the right
   // half of the split; it simply no longer matches the switch.
   const authorKind = await resolveAccountKind(target);
-  const requiresActAs = isActAsEligibleKind(authorKind);
+  const requiresActAs = isDelegatedActAsEligibleKind(authorKind);
   if (authorKind !== 'channel' && !requiresActAs) {
     throw new PublishAsAccessError(400, 'That account cannot be published as');
   }
