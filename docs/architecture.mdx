@@ -66,6 +66,29 @@ Configuration is parsed with Zod during startup. Feature-specific variables
 become required only when that feature is enabled. Request handling uses one
 central PostgreSQL pool; handlers do not open a connection per request.
 
+### AI boundaries
+
+Mention has two different AI paths, and neither owns a provider adapter or
+provider key. Chat, memory, tools and agent behavior go to Alia, which invokes
+inference as `Mention -> Alia -> Oxy -> Kaana`. Bounded point features such as
+post classification go directly through the Oxy inference SDK as
+`Mention -> Oxy -> Kaana`.
+
+For point inference, `OXY_INFERENCE_ROUTING_PROFILE_ID` is the exact opaque
+Oxy routing-profile primary key. Mention never substitutes a slug or display
+name, never chooses the first returned profile and never constructs Kaana's
+route list. Oxy authorizes and orders exact deployments; Kaana executes only
+that signed order. Kaana's only canonical signed origin is
+`https://kaana.ai`, and Mention never calls it directly or through an `oxy.so`
+alias. Upstream provider credentials live only as KMS ciphertext in Kaana's
+PostgreSQL store; Mention's Oxy service credential is an application identity,
+not a provider key.
+
+This is the source contract, not proof that production classification is
+enabled. A live cutover additionally requires the exact task-definition
+readback, a real classified post, Oxy attribution and a settled Kaana usage
+receipt.
+
 Public and authenticated routers are separate. Authentication accepts an Oxy
 access token or an eligible MCP JWT. Public reads may use optional identity for
 viewer state, while mutations enforce identity.

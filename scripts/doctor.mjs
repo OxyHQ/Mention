@@ -113,7 +113,7 @@ if (installedBloom.version !== expectedBloomVersion) {
 //
 // Bun 1.3.14 does not apply a `catalog:` override to incompatible auto-installed
 // peers. Alia/Syra would therefore receive Services 28 (and Core 20) beside the
-// app's Services 30 even though both packages are overridden. These two literal
+// app's Services 30 / Core 23 even though both packages are overridden. These two literal
 // overrides are the narrow workaround; equality with the catalog keeps the
 // catalog authoritative, and validate-lockfile additionally proves one resolved
 // runtime copy.

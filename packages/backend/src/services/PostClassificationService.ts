@@ -6,7 +6,7 @@ import { postContentVariants } from '../db/schema/postContent';
 import { findPostRecords, updatePostRecord } from '../db/posts/postRepository';
 import type { PostRecord } from '../db/posts/postRecord';
 import type { PostClassificationScores } from '@mention/shared-types';
-import { aliaJSON, isAliaEnabled } from '../utils/alia';
+import { inferenceJSON, isInferenceEnabled } from '../utils/oxyInference';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 import { topicService } from './TopicService';
@@ -17,7 +17,7 @@ import type { ClassificationTopicRef } from '@mention/shared-types';
  * AI-powered post classification service.
  *
  * A leader-gated batch processor that finds unclassified posts, sends them to the
- * Alia AI gateway for strict structured-JSON classification, validates the
+ * Oxy inference edge for strict structured-JSON classification, validates the
  * response with zod, and persists internal `postClassification` metadata (topics,
  * topicRefs, sentiment, intent, quality/safety scores). This is the ONE topic
  * system: it refines the canonical `postClassification.topics`/`topicRefs` list
@@ -27,7 +27,7 @@ import type { ClassificationTopicRef } from '@mention/shared-types';
  * - Classification is asynchronous and NEVER blocks post creation. New posts are
  *   created with `postClassification.status = 'pending'` (a Mongoose default on
  *   the subdoc) and picked up here on the next cycle.
- * - The AI provider/model is an Alia infrastructure concern — it is NEVER
+ * - The AI provider/model is a Kaana infrastructure concern — it is NEVER
  *   written to the post document.
  * - Failures are isolated per batch: a parse/validation/network failure marks
  *   the affected posts for retry and flips them to `failed` only after the retry
@@ -126,7 +126,6 @@ class PostClassificationService {
   private readonly BATCH_SIZE = 25;
   private readonly MAX_TEXT_LENGTH = 1000;
   private readonly MAX_ATTEMPTS = 3;
-  private readonly AI_MODEL = 'alia-lite';
   private readonly AI_TEMPERATURE = 0.2;
   private readonly AI_MAX_TOKENS = 4000;
 
@@ -175,7 +174,7 @@ class PostClassificationService {
    */
   public async processQueue(): Promise<void> {
     if (this.isClassifying) return;
-    if (!config.classification.enabled || !isAliaEnabled()) return;
+    if (!config.classification.enabled || !isInferenceEnabled()) return;
     this.isClassifying = true;
 
     try {
@@ -206,7 +205,7 @@ class PostClassificationService {
   }
 
   /**
-   * Find unclassified posts, batch them, call Alia AI, and persist the results.
+   * Find unclassified posts, batch them, call Oxy inference, and persist the results.
    * On any failure the affected posts are marked for retry (and flipped to
    * `failed` once the retry budget is exhausted) — never thrown out of the loop.
    */
@@ -237,12 +236,16 @@ class PostClassificationService {
 
     let results: ClassificationResult[];
     try {
-      const rawResult = await aliaJSON<unknown>(
+      const rawResult = await inferenceJSON<unknown>(
         [
           { role: 'system', content: CLASSIFICATION_PROMPT },
           { role: 'user', content: JSON.stringify(payload) },
         ],
-        { model: this.AI_MODEL, temperature: this.AI_TEMPERATURE, maxTokens: this.AI_MAX_TOKENS },
+        {
+          feature: 'post-classification',
+          temperature: this.AI_TEMPERATURE,
+          maxTokens: this.AI_MAX_TOKENS,
+        },
       );
 
       const parseResult = ClassificationResponseSchema.safeParse(rawResult);

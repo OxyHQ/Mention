@@ -32,7 +32,10 @@ pure/sync). Runs at all ingest chokepoints: `PostCreationService`,
   above this version. Bump it whenever a Stage-A signal changes meaning so
   older stamps stop being honored.
 
-**Stage B — async AI enrichment** (`PostClassificationService`, Alia).
+**Stage B — async AI enrichment** (`PostClassificationService`, Oxy inference
+backed by Kaana). Mention names the reviewed routing profile only by its opaque
+primary key through `OXY_INFERENCE_ROUTING_PROFILE_ID`; a slug, display name,
+list order or "first profile" fallback is never a routing input.
 `updatePostRecord` takes a PARTIAL patch of only the AI-owned fields — the
 Stage-A deterministic fields (languages, region, hashtagsNorm, version,
 sensitive) survive by the patch TYPE, the guarantee a dotted Mongo `$set`

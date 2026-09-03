@@ -103,7 +103,6 @@ jobs:
 
       - name: Sync GitHub secrets to SSM
         env:
-          ALIA_API_KEY: ${{ secrets.ALIA_API_KEY }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
@@ -116,7 +115,6 @@ jobs:
           MENTION_PUBLIC_KEY: ${{ secrets.MENTION_PUBLIC_KEY }}
           OXY_SERVICE_API_KEY: ${{ secrets.OXY_SERVICE_API_KEY }}
           OXY_SERVICE_API_SECRET: ${{ secrets.OXY_SERVICE_API_SECRET }}
-          OXY_SERVICE_TOKEN: ${{ secrets.OXY_SERVICE_TOKEN }}
           REDIS_HOST: ${{ secrets.REDIS_HOST }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           REDIS_URI: ${{ secrets.REDIS_URI }}
@@ -130,10 +128,10 @@ jobs:
           # deciding separately whether the parameter itself goes. That second
           # decision is irreversible and belongs to whoever owns SSM.
           SSM_SECRET_ALLOWLIST: >-
-            ALIA_API_KEY DATABASE_URL FIREBASE_SERVICE_ACCOUNT_BASE64 FIREBASE_PROJECT_ID
+            DATABASE_URL FIREBASE_SERVICE_ACCOUNT_BASE64 FIREBASE_PROJECT_ID
             INTERNAL_METRICS_TOKEN KLIPY_APP_KEY MENTION_OXY_CLIENT_ID
             MENTION_DID MENTION_PRIVATE_KEY MENTION_PUBLIC_KEY
-            OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET OXY_SERVICE_TOKEN
+            OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET
             REDIS_URL REDIS_URI
             REDIS_HOST REDIS_PASSWORD
         run: |
@@ -222,6 +220,16 @@ jobs:
           TASK_SECRET_OVERRIDES_JSON: >-
             {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_MCP_JWT_SECRET",
              "DATABASE_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/DATABASE_URL"}
+          # Provider credentials never enter this task. Mention selects its
+          # reviewed profile by exact opaque primary key; Oxy resolves and signs
+          # concrete Kaana routes. Slugs, display names and row order are not
+          # routing inputs.
+          TASK_ENV_OVERRIDES_JSON: >-
+            {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}
+          # A standing absence assertion: every revision is derived from the
+          # live one, so merely stopping the GitHub-to-SSM sync would otherwise
+          # keep injecting this retired provider credential forever.
+          TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN
           # DELIBERATELY UNSET, and it must stay that way — this is the variable
           # that used to run `reconcile-engagement-projections.js` after every
           # rollout. `deploy-ecs-image.sh` still supports it; nothing here needs

@@ -31,7 +31,7 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { isUniqueViolation } from '@oxyhq/db';
 import { trendSummaries } from '../../db/schema/discovery';
-import { aliaChat, isAliaEnabled } from '../../utils/alia';
+import { inferenceChat, isInferenceEnabled } from '../../utils/oxyInference';
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
 import { getRedisClient } from '../../utils/redis';
@@ -76,7 +76,7 @@ export async function resolveTrendSummary(input: {
   if (!stored.ok) return {};
   if (stored.description) return { description: stored.description };
 
-  if (!isAliaEnabled()) return {};
+  if (!isInferenceEnabled()) return {};
 
   const views = await recordView(term, input.runStartedAt);
   if (views === null || views < MtnConfig.trending.summary.minViews) return {};
@@ -166,7 +166,7 @@ async function generateSummary(
     // alone is how a summary becomes confident fiction.
     if (excerpts.length === 0) return undefined;
 
-    const raw = await aliaChat(
+    const raw = await inferenceChat(
       [
         {
           role: 'system',
@@ -180,7 +180,7 @@ async function generateSummary(
         },
         { role: 'user', content: JSON.stringify({ topic: term, posts: excerpts }) },
       ],
-      { temperature: 0.3 },
+      { feature: 'trend-summary', temperature: 0.3 },
     );
 
     const description = raw.trim().replace(/\s+/g, ' ').slice(0, MtnConfig.trending.summary.maxLength);

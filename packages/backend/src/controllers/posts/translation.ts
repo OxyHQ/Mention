@@ -1,11 +1,12 @@
 /**
  * The AI translation endpoints: a published post, and a draft the author has
- * not posted yet. Both spend an Alia inference, so both carry the translation
+ * not posted yet. Both spend an Oxy inference, so both carry the translation
  * rate limiter at the route.
  */
 
 import { Response } from 'express';
 import { loadPostRecord } from '../../db/posts/postRepository';
+import { OxyInferenceError } from '@oxyhq/core';
 import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
@@ -16,9 +17,8 @@ import { MAX_TEXT_LENGTH } from './composeInput';
 
 /**
  * Map a failed translation onto a response. A {@link TranslationRequestError} is
- * the caller's fault and carries its own status; everything else is an Alia
- * outage, whose upstream status is parsed out of the thrown error so a rate limit
- * or a provider outage is not reported to the client as our own 500.
+ * the caller's fault and carries its own status; an Oxy edge refusal carries a
+ * typed status so a rate limit or data-plane outage is not reported as our 500.
  */
 const respondTranslationError = (res: Response, error: unknown, context: string): void => {
   if (error instanceof TranslationRequestError) {
@@ -26,17 +26,15 @@ const respondTranslationError = (res: Response, error: unknown, context: string)
     return;
   }
 
-  const errorMessage = error instanceof Error ? error.message : '';
-  const statusMatch = errorMessage.match(/Alia API error (\d+)/);
-  const aliaStatus = statusMatch ? parseInt(statusMatch[1], 10) : 0;
+  const edgeStatus = error instanceof OxyInferenceError ? error.status : 0;
 
-  if (aliaStatus === 429) {
+  if (edgeStatus === 429) {
     logger.warn(`${context}: rate limited`, error);
     res.status(429).json({ message: 'Too many requests. Please try again later.' });
-  } else if (aliaStatus === 503 || aliaStatus === 502) {
+  } else if (edgeStatus === 503 || edgeStatus === 502) {
     logger.warn(`${context}: translation service unavailable`, error);
     res.status(503).json({ message: 'Translation service temporarily unavailable.' });
-  } else if (aliaStatus === 402) {
+  } else if (edgeStatus === 402) {
     logger.warn(`${context}: translation credits issue`, error);
     res.status(502).json({ message: 'Translation service unavailable.' });
   } else {
@@ -88,7 +86,7 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
       post.id,
       post.content,
       targetLanguage,
-      { force: force === true },
+      { force: force === true, delegatedUserId: req.user?.id },
     );
 
     res.json({
@@ -124,7 +122,9 @@ export const translateDraft = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    const translated = await postTranslationService.translateDraft(text, targetLanguage);
+    const translated = await postTranslationService.translateDraft(text, targetLanguage, {
+      delegatedUserId: userId,
+    });
     res.json({ translatedText: translated.text, tag: translated.tag });
   } catch (error) {
     respondTranslationError(res, error, 'translateDraft');

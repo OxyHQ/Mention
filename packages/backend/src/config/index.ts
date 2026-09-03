@@ -1,5 +1,8 @@
 import * as z from 'zod';
 
+export const MENTION_INFERENCE_ROUTING_PROFILE_ID =
+  '01a06477-94f5-74f0-bc25-4c5c13b93ccd' as const;
+
 const withoutTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
 
 const emptyAsUndefined = (value: unknown): unknown =>
@@ -354,7 +357,10 @@ const environmentSchema = z
 
     OXY_SERVICE_API_KEY: trimmedOptionalString,
     OXY_SERVICE_API_SECRET: optionalString(),
-    OXY_SERVICE_TOKEN: optionalString(),
+    OXY_INFERENCE_ROUTING_PROFILE_ID: z.preprocess(
+      emptyAsUndefined,
+      z.literal(MENTION_INFERENCE_ROUTING_PROFILE_ID).optional(),
+    ),
     MENTION_OXY_CLIENT_ID: trimmedOptionalString,
     IP_HASH_SALT: optionalString(16),
     DEVICE_ID_SALT: optionalString(16),
@@ -367,8 +373,6 @@ const environmentSchema = z
     MENTION_NODE_PUBLIC_KEY: optionalString(),
     MENTION_NODE_BASE_URL: optionalHttpOrigin,
 
-    ALIA_API_URL: z.preprocess(emptyAsUndefined, httpOrigin.default('https://api.alia.onl')),
-    ALIA_API_KEY: optionalString(),
     SYRA_API_URL: z.preprocess(emptyAsUndefined, httpOrigin.default('https://api.syra.fm')),
     POST_CLASSIFICATION_ENABLED: booleanFromEnv(false),
 
@@ -589,14 +593,12 @@ export function getMcpJwtSecret(): string {
 export interface OxyServiceCredentials {
   apiKey?: string;
   apiSecret?: string;
-  token?: string;
 }
 
 export function getOxyServiceCredentials(): OxyServiceCredentials {
   return {
     apiKey: environment.OXY_SERVICE_API_KEY,
     apiSecret: environment.OXY_SERVICE_API_SECRET,
-    token: environment.OXY_SERVICE_TOKEN,
   };
 }
 
@@ -606,10 +608,6 @@ export function getGifMediaProxySecret(): string | undefined {
 
 export function getKlipyAppKey(): string {
   return environment.KLIPY_APP_KEY ?? '';
-}
-
-export function getAliaApiKey(): string | undefined {
-  return environment.ALIA_API_KEY;
 }
 
 export function getIpHashSalt(
@@ -854,9 +852,8 @@ export const config = {
     maxDateRangeDays: 365,
     maxTimeMS: 3_000,
   },
-  alia: {
-    apiUrl: environment.ALIA_API_URL,
-    model: 'alia-v1',
+  inference: {
+    routingProfileId: environment.OXY_INFERENCE_ROUTING_PROFILE_ID,
     timeoutMs: 30_000,
   },
   syra: {
@@ -896,8 +893,14 @@ export function validateEnvironment(): void {
   if (config.runtime.isProduction && !environment.MENTION_MCP_JWT_SECRET) {
     missing.push('MENTION_MCP_JWT_SECRET');
   }
-  if (config.classification.enabled && !getAliaApiKey()) {
-    missing.push('ALIA_API_KEY');
+  if (config.classification.enabled && !config.inference.routingProfileId) {
+    missing.push('OXY_INFERENCE_ROUTING_PROFILE_ID');
+  }
+  if (
+    config.classification.enabled &&
+    !(environment.OXY_SERVICE_API_KEY && environment.OXY_SERVICE_API_SECRET)
+  ) {
+    missing.push('OXY_SERVICE_API_KEY/OXY_SERVICE_API_SECRET');
   }
   if (
     config.gif.libraryWriteEnabled &&

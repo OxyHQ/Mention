@@ -35,12 +35,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { randomUUID } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
 
-const { aliaChat, followingIds } = vi.hoisted(() => ({
-  aliaChat: vi.fn(async () => 'a summary'),
+const { inferenceChat, followingIds } = vi.hoisted(() => ({
+  inferenceChat: vi.fn(async () => 'a summary'),
   followingIds: { value: [] as string[] },
 }));
 
-vi.mock('../../utils/alia', () => ({ isAliaEnabled: () => true, aliaChat }));
+vi.mock('../../utils/oxyInference', () => ({ isInferenceEnabled: () => true, inferenceChat }));
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({ getUserById: async () => ({}) }),
 }));
@@ -199,7 +199,7 @@ beforeAll(async () => {
 
 afterEach(async () => {
   followingIds.value = [];
-  aliaChat.mockClear();
+  inferenceChat.mockClear();
   if (createdPostIds.length > 0) {
     // `posts` self-references cascade/set-null; delete newest first so a reply
     // never outlives the row it points at.
@@ -516,9 +516,9 @@ describe('GET /statistics/weekly-summary', () => {
 
     const res = await call(getWeeklySummary, { user: { id: userId }, query: {} });
     expect(res.body).toEqual({ summary: 'a summary' });
-    expect(aliaChat).toHaveBeenCalledTimes(1);
+    expect(inferenceChat).toHaveBeenCalledTimes(1);
 
-    const messages = aliaChat.mock.calls[0][0] as Array<{ role: string; content: string }>;
+    const messages = inferenceChat.mock.calls[0][0] as Array<{ role: string; content: string }>;
     const userMessage = messages.find((message) => message.role === 'user');
     expect(userMessage?.content).toContain('the author own words about tabs');
     expect(userMessage?.content).toContain('This week: 1 posts, 30 views, 9 interactions');
@@ -527,6 +527,6 @@ describe('GET /statistics/weekly-summary', () => {
   it('skips the AI call entirely when there was no activity in either week', async () => {
     const res = await call(getWeeklySummary, { user: { id: owner() }, query: {} });
     expect(res.body).toEqual({ summary: null });
-    expect(aliaChat).not.toHaveBeenCalled();
+    expect(inferenceChat).not.toHaveBeenCalled();
   });
 });

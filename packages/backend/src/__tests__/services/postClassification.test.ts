@@ -4,9 +4,9 @@ import type { ClassificationTopicRef, PostType as PostTypeValue } from '@mention
 /**
  * Coverage for the Stage-B AI post-classification batch service.
  *
- * The Alia gateway and the Topic registry are mocked — no network — but the
+ * The Oxy inference edge and the Topic registry are mocked — no network — but the
  * QUEUE is real. We drive `processQueue()` against rows in Postgres with canned
- * Alia responses across every category the issue requires (positive, neutral,
+ * edge responses across every category the issue requires (positive, neutral,
  * mixed/constructive, toxic, spammy, low-quality) plus the failure/retry path,
  * and assert on the `postClassification` each post is left holding.
  *
@@ -39,14 +39,14 @@ import type { ClassificationTopicRef, PostType as PostTypeValue } from '@mention
  * IN THE WHOLE TABLE — it has no notion of a test scope, and vitest runs ten
  * files at once against one database. So each test seeds its subjects with an
  * ancient `createdAt` and pads the rest of the batch with its OWN filler posts,
- * and `expectBatchWasOurs` asserts that every entry Alia was handed belongs to
+ * and `expectBatchWasOurs` asserts that every entry the edge was handed belongs to
  * this suite. Without that guard a passing run could have been classifying
  * another file's rows out from under it.
  */
 
-const { aliaJSON, isAliaEnabled, resolveTopicRefs } = vi.hoisted(() => ({
-  aliaJSON: vi.fn(),
-  isAliaEnabled: vi.fn().mockReturnValue(true),
+const { inferenceJSON, isInferenceEnabled, resolveTopicRefs } = vi.hoisted(() => ({
+  inferenceJSON: vi.fn(),
+  isInferenceEnabled: vi.fn().mockReturnValue(true),
   resolveTopicRefs: vi.fn(),
 }));
 
@@ -62,9 +62,9 @@ vi.mock('../../config', async (importOriginal) => {
   };
 });
 
-vi.mock('../../utils/alia', () => ({
-  aliaJSON: (...args: unknown[]) => aliaJSON(...args),
-  isAliaEnabled: () => isAliaEnabled(),
+vi.mock('../../utils/oxyInference', () => ({
+  inferenceJSON: (...args: unknown[]) => inferenceJSON(...args),
+  isInferenceEnabled: () => isInferenceEnabled(),
 }));
 
 // Mock ONLY the Topic registry resolution (an Oxy round trip). By default each
@@ -109,7 +109,7 @@ interface AiResult {
   confidence: number;
 }
 
-/** A neutral, schema-valid Alia result — what a filler post gets. */
+/** A neutral, schema-valid inference result — what a filler post gets. */
 function neutralResult(postIndex: number): AiResult {
   return {
     postIndex,
@@ -128,7 +128,7 @@ let seedClock = 0;
  * `classification_status` left at the column default of `pending`.
  *
  * Returned in seeding order, and each gets a `createdAt` one second after the
- * last, so subject N is at `postIndex` N in the Alia payload.
+ * last, so subject N is at `postIndex` N in the inference payload.
  */
 async function seedSubject(text: string, overrides: {
   hashtags?: string[];
@@ -173,11 +173,11 @@ async function padBatch(subjectCount: number): Promise<void> {
   );
 }
 
-/** The batch Alia was handed, as the service serialized it. */
-function aliaPayload(): Array<{ postIndex: number; text: string }> {
-  const [messages] = aliaJSON.mock.calls[0] as [Array<{ role: string; content: string }>];
+/** The batch the edge was handed, as the service serialized it. */
+function inferencePayload(): Array<{ postIndex: number; text: string }> {
+  const [messages] = inferenceJSON.mock.calls[0] as [Array<{ role: string; content: string }>];
   const user = messages.find((message) => message.role === 'user');
-  if (!user) throw new Error('no user message was sent to Alia');
+  if (!user) throw new Error('no user message was sent to the inference edge');
   return JSON.parse(user.content);
 }
 
@@ -189,7 +189,7 @@ function aliaPayload(): Array<{ postIndex: number; text: string }> {
  * assertions meaningless AND would corrupt that file mid-run.
  */
 function expectBatchWasOurs(): void {
-  const payload = aliaPayload();
+  const payload = inferencePayload();
   expect(payload).toHaveLength(BATCH_SIZE);
   for (const entry of payload) {
     expect(entry.text.startsWith(OWNED_PREFIX)).toBe(true);
@@ -197,11 +197,11 @@ function expectBatchWasOurs(): void {
 }
 
 /**
- * Answer Alia with the canned results for the SUBJECTS and a neutral verdict for
+ * Answer the inference edge with the canned results for the SUBJECTS and a neutral verdict for
  * every filler, so nothing in the batch is left to retry.
  */
 function respondWith(subjectResults: AiResult[]): void {
-  aliaJSON.mockImplementation(async (messages: Array<{ role: string; content: string }>) => {
+  inferenceJSON.mockImplementation(async (messages: Array<{ role: string; content: string }>) => {
     const user = messages.find((message) => message.role === 'user');
     const payload = JSON.parse(user?.content ?? '[]') as Array<{ postIndex: number }>;
     const canned = new Map(subjectResults.map((result) => [result.postIndex, result]));
@@ -224,7 +224,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   await clearServiceScope(scope);
   seedClock = 0;
-  isAliaEnabled.mockReturnValue(true);
+  isInferenceEnabled.mockReturnValue(true);
   resolveTopicRefs.mockImplementation(
     async (topics: Array<{ name: string }>): Promise<ClassificationTopicRef[]> =>
       topics.map((topic) => ({ name: topic.name, topicId: `topic:${topic.name}` })),
@@ -436,7 +436,7 @@ describe('PostClassificationService — provider/model isolation', () => {
     expectBatchWasOurs();
 
     const serialized = JSON.stringify(await classificationOf(post.id)).toLowerCase();
-    for (const banned of ['gemini', 'openai', 'anthropic', 'alia', 'gpt', 'claude', 'model', 'provider']) {
+    for (const banned of ['gemini', 'openai', 'anthropic', 'gpt', 'claude', 'model', 'provider']) {
       expect(serialized).not.toContain(banned);
     }
   });
@@ -818,7 +818,7 @@ describe('PostClassificationService — failure and retry behavior', () => {
   it('leaves posts pending (retry) on AI network failure under the retry budget', async () => {
     const post = await seedSubject('A post that will fail to classify.');
     await padBatch(1);
-    aliaJSON.mockRejectedValue(new Error('network down'));
+    inferenceJSON.mockRejectedValue(new Error('network down'));
 
     await postClassificationService.processQueue();
     expectBatchWasOurs();
@@ -836,7 +836,7 @@ describe('PostClassificationService — failure and retry behavior', () => {
       classification: { status: 'pending', attempts: 2 },
     });
     await padBatch(1);
-    aliaJSON.mockRejectedValue(new Error('still down'));
+    inferenceJSON.mockRejectedValue(new Error('still down'));
 
     await postClassificationService.processQueue();
     expectBatchWasOurs();
@@ -851,7 +851,7 @@ describe('PostClassificationService — failure and retry behavior', () => {
     const post = await seedSubject('Schema-busting response incoming.');
     await padBatch(1);
     // Score out of range → zod validation fails → the WHOLE batch is retried.
-    aliaJSON.mockResolvedValue([
+    inferenceJSON.mockResolvedValue([
       {
         postIndex: 0,
         topics: ['x'],
@@ -885,7 +885,7 @@ describe('PostClassificationService — failure and retry behavior', () => {
         confidence: 0.7,
       },
     ]);
-    aliaJSON.mockImplementation(async (messages: Array<{ role: string; content: string }>) => {
+    inferenceJSON.mockImplementation(async (messages: Array<{ role: string; content: string }>) => {
       const user = messages.find((message) => message.role === 'user');
       const payload = JSON.parse(user?.content ?? '[]') as Array<{ postIndex: number }>;
       return payload
@@ -913,14 +913,14 @@ describe('PostClassificationService — failure and retry behavior', () => {
     expect(dropped.attempts).toBe(1);
   });
 
-  it('no-ops when Alia is unavailable, leaving the queue exactly as it was', async () => {
-    const post = await seedSubject('Should not be processed when Alia is off.');
+  it('no-ops when inference is unavailable, leaving the queue exactly as it was', async () => {
+    const post = await seedSubject('Should not be processed when inference is off.');
     await padBatch(1);
-    isAliaEnabled.mockReturnValue(false);
+    isInferenceEnabled.mockReturnValue(false);
 
     await postClassificationService.processQueue();
 
-    expect(aliaJSON).not.toHaveBeenCalled();
+    expect(inferenceJSON).not.toHaveBeenCalled();
     const classification = await classificationOf(post.id);
     expect(classification.status).toBe('pending');
     expect(classification.attempts).toBe(0);
@@ -968,7 +968,7 @@ describe('PostClassificationService — the batch selector reads the body’s RE
     expect(classified.status).toBe('classified');
     expect(classified.sentiment).toBe('neutral');
     expect(classified.topics).toEqual(['general']);
-    // …and the body-less one never reached Alia: `markEmptyPosts` retired it
+    // …and the body-less one never reached inference: `markEmptyPosts` retired it
     // with the neutral column defaults, so it is `classified` with NO sentiment
     // the model chose and no topics. The two are distinguishable, which is the
     // whole point.
@@ -976,7 +976,7 @@ describe('PostClassificationService — the batch selector reads the body’s RE
     expect(retired.status).toBe('classified');
     expect(retired.topics).toBeUndefined();
     expect(retired.confidence).toBe(0);
-    expect(aliaPayload().some((entry) => entry.text.includes('ordinary sentence'))).toBe(true);
+    expect(inferencePayload().some((entry) => entry.text.includes('ordinary sentence'))).toBe(true);
   });
 
   it('sends the PRIMARY rendition’s body to the classifier, never a machine translation', async () => {
@@ -1008,7 +1008,7 @@ describe('PostClassificationService — the batch selector reads the body’s RE
     await postClassificationService.processQueue();
     expectBatchWasOurs();
 
-    const sent = JSON.stringify(aliaPayload());
+    const sent = JSON.stringify(inferencePayload());
     expect(sent).toContain('el cuerpo primario que hay que clasificar');
     expect(sent).not.toContain('must NOT be classified');
     expect((await classificationOf(post.id)).status).toBe('classified');
@@ -1045,7 +1045,7 @@ describe('PostClassificationService — the batch selector reads the body’s RE
     // Listed rather than `.some(...) === false`, so a failure prints the body
     // that reached the classifier instead of `expected true to be false`.
     expect(
-      aliaPayload().map((entry) => entry.text).filter((text) => text.includes('boost body')),
+      inferencePayload().map((entry) => entry.text).filter((text) => text.includes('boost body')),
     ).toEqual([]);
     // The original WAS classified — proving the queue ran at all, so "the boost
     // was skipped" cannot be satisfied by an empty batch.
@@ -1078,7 +1078,7 @@ describe('PostClassificationService — the batch selector reads the body’s RE
     expectBatchWasOurs();
 
     expect(
-      aliaPayload().map((entry) => entry.text).filter((text) => text.includes('a draft body')),
+      inferencePayload().map((entry) => entry.text).filter((text) => text.includes('a draft body')),
     ).toEqual([]);
     expect((await classificationOf(published.id)).status).toBe('classified');
     expect((await classificationOf(draft.id)).status).toBe('pending');

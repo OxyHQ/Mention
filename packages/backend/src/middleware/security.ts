@@ -122,7 +122,7 @@ export const feedIPRateLimiter = rateLimit({
  * Rate limiter for the AI translation endpoints.
  *
  * These are the only routes where a cheap request buys EXPENSIVE work: a call can
- * trigger an Alia inference, and translation is free to every user, so nothing
+ * trigger an Oxy inference, and translation is free to every user, so nothing
  * else bounds the spend. `POST /posts/:id/translate` is cached per post+language,
  * so a determined caller is bounded by the number of posts — but
  * `POST /posts/translate-draft` takes arbitrary text and therefore CANNOT be

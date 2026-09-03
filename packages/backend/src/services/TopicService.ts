@@ -5,7 +5,7 @@ import { asc, desc, gte, sql } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { topicStats } from '../db/schema/discovery';
 import { logger } from '../utils/logger';
-import { aliaJSON, isAliaEnabled } from '../utils/alia';
+import { inferenceJSON, isInferenceEnabled } from '../utils/oxyInference';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { z } from 'zod';
 
@@ -304,7 +304,7 @@ Return ONLY valid JSON.`;
    * Finds popular topics from local stats, then writes metadata back to Oxy.
    */
   async enrichTopics(limit: number = 20): Promise<number> {
-    if (!isAliaEnabled()) return 0;
+    if (!isInferenceEnabled()) return 0;
 
     try {
       // Topics with high local engagement that might need enrichment. `topic_id`
@@ -332,12 +332,12 @@ Return ONLY valid JSON.`;
 
       const names = unenriched.map(t => t.name);
 
-      const rawResult = await aliaJSON<unknown>(
+      const rawResult = await inferenceJSON<unknown>(
         [
           { role: 'system', content: this.ENRICHMENT_PROMPT },
           { role: 'user', content: JSON.stringify(names) },
         ],
-        { model: 'alia-lite', temperature: 0.3, maxTokens: 4000 },
+        { feature: 'topic-enrichment', temperature: 0.3, maxTokens: 4000 },
       );
 
       const parseResult = this.EnrichmentSchema.safeParse(rawResult);

@@ -823,11 +823,11 @@ export function totalsOf(report: PlatformPurgeReport): Record<string, number> {
  * spend five domains discovering a configuration problem it could state up front.
  */
 function assertServiceCredentialConfigured(): void {
-  const { apiKey, apiSecret, token } = getOxyServiceCredentials();
-  if ((apiKey && apiSecret) || token) return;
+  const { apiKey, apiSecret } = getOxyServiceCredentials();
+  if (apiKey && apiSecret) return;
   throw new Error(
     `[${SCRIPT_NAME}] no Oxy service credential is configured `
-    + '(OXY_SERVICE_API_KEY + OXY_SERVICE_API_SECRET, or OXY_SERVICE_TOKEN). '
+    + '(OXY_SERVICE_API_KEY + OXY_SERVICE_API_SECRET). '
     + 'The purge endpoint resolves whose data may be deleted from that credential.',
   );
 }

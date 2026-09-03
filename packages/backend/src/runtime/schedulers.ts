@@ -23,7 +23,7 @@ export function startSchedulers(): void {
     logger.warn("Failed to initialize trending service", error);
   }
 
-  // Post Classification Service (5-min interval; no-ops unless enabled + Alia configured)
+  // Post Classification Service (5-min interval; no-ops unless inference is configured)
   try {
     const { postClassificationService } = require("../services/PostClassificationService");
     postClassificationService.start();

@@ -40,7 +40,7 @@ const mocks = vi.hoisted(() => ({
 // database and a stale cache entry can never make an assertion pass.
 vi.mock('../../utils/redis', () => ({ getRedisClient: () => null }));
 vi.mock('../../utils/socket', () => ({ emitTrendsUpdated: mocks.emitTrendsUpdated }));
-vi.mock('../../utils/alia', () => ({ aliaChat: vi.fn(), isAliaEnabled: () => false }));
+vi.mock('../../utils/oxyInference', () => ({ inferenceChat: vi.fn(), isInferenceEnabled: () => false }));
 vi.mock('../../services/TopicService', () => ({
   topicService: {
     resolveNames: mocks.resolveNames,

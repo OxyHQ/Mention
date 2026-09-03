@@ -14,7 +14,6 @@ gone.
 | MCP `/sse` and `/messages` | Released MCP clients may still use the pre-Streamable-HTTP transport. It is authenticated, session-bound, and emits a deprecation header. | Thirty consecutive days with zero normalized `/legacy-sse` requests across a representative deployment window, plus confirmation that supported connector versions use `/mcp`. |
 | `POST /hashtags/search` | Older released app builds use the tag-only response; current clients use `GET /hashtags/search`. | Thirty consecutive days with zero calls from supported clients, then removal in the backend and shared client contract in the same release. |
 | Legacy post-create payload aliases | Released clients may still send `content.images`, top-level media, or the old location object. Reads and stored DTOs are canonical. | The minimum supported mobile build emits only the canonical request, and normalized route/version telemetry records no legacy payloads for thirty days. |
-| Static `OXY_SERVICE_TOKEN` credential fallback | Some non-production and recovery environments have not migrated to short-lived service credentials. Production prefers client ID/secret token acquisition. | Every environment has a verified client credential, token-acquisition failures alert, and the static token is absent for one normal release window. |
 
 ## Persisted data transitions
 
