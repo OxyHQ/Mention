@@ -38,9 +38,7 @@ function client(): OxyInferenceClient {
  */
 export function isInferenceEnabled(): boolean {
   const credentials = getOxyServiceCredentials();
-  const hasServiceIdentity = Boolean(
-    credentials.token || (credentials.apiKey && credentials.apiSecret),
-  );
+  const hasServiceIdentity = Boolean(credentials.apiKey && credentials.apiSecret);
   return Boolean(config.inference.routingProfileId && hasServiceIdentity);
 }
 

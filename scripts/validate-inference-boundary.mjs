@@ -40,6 +40,7 @@ if (sourceFiles.length < (process.env.INFERENCE_BOUNDARY_FIXTURE === '1' ? 1 : 9
 const forbiddenSourcePatterns = [
   [/\b(?:OPENAI|ANTHROPIC|GROQ|OPENROUTER|MISTRAL|DEEPSEEK|CEREBRAS|TOGETHER|FIREWORKS|XAI)_API_KEY\b/, 'provider API-key environment variable'],
   [/\bALIA_API_(?:KEY|URL)\b/, 'retired Alia provider gateway variable'],
+  [/\bOXY_SERVICE_TOKEN\b/, 'retired static Oxy service-token fallback'],
   [/(?:api\.openai\.com|api\.anthropic\.com|api\.groq\.com|openrouter\.ai\/api)/, 'direct provider endpoint'],
   [/(?:from\s+|require\()['"](?:openai|@anthropic-ai\/sdk|groq-sdk|@ai-sdk\/(?:openai|anthropic|groq|mistral|xai))['"]/, 'direct provider SDK import'],
   [/(?:from\s+|require\()['"][^'"]*\/utils\/alia['"]/, 'retired Alia inference utility import'],
@@ -91,8 +92,12 @@ if (existsSync(workflowPath)) {
   if (/secrets\.ALIA_API_KEY/.test(workflow)) {
     failures.push('.github/workflows/deploy-aws.yml: still reads the retired ALIA_API_KEY GitHub secret');
   }
-  if (!/^\s*TASK_SECRET_REMOVALS:\s*ALIA_API_KEY\s*$/m.test(workflow)) {
-    failures.push('.github/workflows/deploy-aws.yml: must re-assert removal of ALIA_API_KEY from every ECS task revision');
+  const removals = workflow.match(/^\s*TASK_SECRET_REMOVALS:\s*(.+?)\s*$/m)?.[1]
+    ?.split(/\s+/) ?? [];
+  for (const retiredSecret of ['ALIA_API_KEY', 'OXY_SERVICE_TOKEN']) {
+    if (!removals.includes(retiredSecret)) {
+      failures.push(`.github/workflows/deploy-aws.yml: must re-assert removal of ${retiredSecret} from every ECS task revision`);
+    }
   }
   if (/\bOXY_INFERENCE_ROUTING_PROFILE\b/.test(workflow)) {
     failures.push('.github/workflows/deploy-aws.yml: still injects the retired mutable routing-profile selector');

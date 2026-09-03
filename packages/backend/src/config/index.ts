@@ -357,7 +357,6 @@ const environmentSchema = z
 
     OXY_SERVICE_API_KEY: trimmedOptionalString,
     OXY_SERVICE_API_SECRET: optionalString(),
-    OXY_SERVICE_TOKEN: optionalString(),
     OXY_INFERENCE_ROUTING_PROFILE_ID: z.preprocess(
       emptyAsUndefined,
       z.literal(MENTION_INFERENCE_ROUTING_PROFILE_ID).optional(),
@@ -594,14 +593,12 @@ export function getMcpJwtSecret(): string {
 export interface OxyServiceCredentials {
   apiKey?: string;
   apiSecret?: string;
-  token?: string;
 }
 
 export function getOxyServiceCredentials(): OxyServiceCredentials {
   return {
     apiKey: environment.OXY_SERVICE_API_KEY,
     apiSecret: environment.OXY_SERVICE_API_SECRET,
-    token: environment.OXY_SERVICE_TOKEN,
   };
 }
 
@@ -901,7 +898,6 @@ export function validateEnvironment(): void {
   }
   if (
     config.classification.enabled &&
-    !environment.OXY_SERVICE_TOKEN &&
     !(environment.OXY_SERVICE_API_KEY && environment.OXY_SERVICE_API_SECRET)
   ) {
     missing.push('OXY_SERVICE_API_KEY/OXY_SERVICE_API_SECRET');

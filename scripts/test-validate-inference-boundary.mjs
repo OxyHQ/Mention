@@ -16,7 +16,7 @@ const cleanFiles = {
     'env:',
     '  TASK_ENV_OVERRIDES_JSON: >-',
     '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
-    '  TASK_SECRET_REMOVALS: ALIA_API_KEY',
+    '  TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN',
     '',
   ].join('\n'),
 };
@@ -62,6 +62,9 @@ await runCase('provider sdk', {
 await runCase('legacy gateway', {
   'packages/backend/src/legacy.ts': 'export const url = process.env.ALIA_API_URL;\n',
 }, 'retired Alia provider gateway variable');
+await runCase('static Oxy service token', {
+  'packages/backend/src/legacy-token.ts': 'export const token = process.env.OXY_SERVICE_TOKEN;\n',
+}, 'retired static Oxy service-token fallback');
 await runCase('routing-profile slug selector', {
   'packages/backend/src/legacy-routing.ts': "export const request = { routingProfile: 'mention-default' };\n",
 }, 'routing-profile slug request field');
@@ -80,4 +83,4 @@ await runCase('lost retirement assertion', {
   ].join('\n'),
 }, 'must re-assert removal of ALIA_API_KEY');
 
-console.log('Inference boundary mutation tests passed (8 cases).');
+console.log('Inference boundary mutation tests passed (9 cases).');

@@ -9,9 +9,8 @@ const state = vi.hoisted(() => ({
     },
   },
   credentials: {
-    token: 'service-token' as string | undefined,
-    apiKey: undefined as string | undefined,
-    apiSecret: undefined as string | undefined,
+    apiKey: 'application-id' as string | undefined,
+    apiSecret: 'application-secret' as string | undefined,
   },
   respond: vi.fn(),
   getServiceToken: vi.fn(async () => 'service-token'),
@@ -44,9 +43,8 @@ describe('Oxy inference boundary', () => {
     vi.clearAllMocks();
     clearInferenceClient();
     state.config.inference.routingProfileId = '01a06477-94f5-74f0-bc25-4c5c13b93ccd';
-    state.credentials.token = 'service-token';
-    state.credentials.apiKey = undefined;
-    state.credentials.apiSecret = undefined;
+    state.credentials.apiKey = 'application-id';
+    state.credentials.apiSecret = 'application-secret';
     state.respond.mockResolvedValue({
       output: [{ role: 'assistant', content: [{ type: 'text', text: 'answer' }] }],
     });
@@ -93,7 +91,8 @@ describe('Oxy inference boundary', () => {
     )).rejects.toThrow('OXY_INFERENCE_ROUTING_PROFILE_ID');
 
     state.config.inference.routingProfileId = '01a06477-94f5-74f0-bc25-4c5c13b93ccd';
-    state.credentials.token = undefined;
+    state.credentials.apiKey = undefined;
+    state.credentials.apiSecret = undefined;
     expect(isInferenceEnabled()).toBe(false);
 
     state.credentials.apiKey = 'application-id';

@@ -115,7 +115,6 @@ jobs:
           MENTION_PUBLIC_KEY: ${{ secrets.MENTION_PUBLIC_KEY }}
           OXY_SERVICE_API_KEY: ${{ secrets.OXY_SERVICE_API_KEY }}
           OXY_SERVICE_API_SECRET: ${{ secrets.OXY_SERVICE_API_SECRET }}
-          OXY_SERVICE_TOKEN: ${{ secrets.OXY_SERVICE_TOKEN }}
           REDIS_HOST: ${{ secrets.REDIS_HOST }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           REDIS_URI: ${{ secrets.REDIS_URI }}
@@ -132,7 +131,7 @@ jobs:
             DATABASE_URL FIREBASE_SERVICE_ACCOUNT_BASE64 FIREBASE_PROJECT_ID
             INTERNAL_METRICS_TOKEN KLIPY_APP_KEY MENTION_OXY_CLIENT_ID
             MENTION_DID MENTION_PRIVATE_KEY MENTION_PUBLIC_KEY
-            OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET OXY_SERVICE_TOKEN
+            OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET
             REDIS_URL REDIS_URI
             REDIS_HOST REDIS_PASSWORD
         run: |
@@ -230,7 +229,7 @@ jobs:
           # A standing absence assertion: every revision is derived from the
           # live one, so merely stopping the GitHub-to-SSM sync would otherwise
           # keep injecting this retired provider credential forever.
-          TASK_SECRET_REMOVALS: ALIA_API_KEY
+          TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN
           # DELIBERATELY UNSET, and it must stay that way — this is the variable
           # that used to run `reconcile-engagement-projections.js` after every
           # rollout. `deploy-ecs-image.sh` still supports it; nothing here needs
