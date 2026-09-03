@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   },
   respond: vi.fn(),
   getServiceToken: vi.fn(async () => 'service-token'),
+  logError: vi.fn(),
 }));
 
 vi.mock('../../config', () => ({
@@ -23,6 +24,10 @@ vi.mock('../../config', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ getServiceToken: state.getServiceToken }),
+}));
+
+vi.mock('../../utils/logger', () => ({
+  logger: { error: state.logError },
 }));
 
 vi.mock('@oxyhq/core', () => ({
@@ -109,12 +114,22 @@ describe('Oxy inference boundary', () => {
       { feature: 'test-json' },
     )).resolves.toEqual({ ok: true });
 
+    const sensitiveOutput = 'private-user-content-that-must-not-leak';
     state.respond.mockResolvedValueOnce({
-      output: [{ role: 'assistant', content: [{ type: 'text', text: 'not-json' }] }],
+      output: [{ role: 'assistant', content: [{ type: 'text', text: sensitiveOutput }] }],
     });
     await expect(inferenceJSON(
       [{ role: 'user', content: 'Return JSON' }],
       { feature: 'test-json' },
     )).rejects.toThrow('invalid JSON');
+    expect(state.logError).toHaveBeenCalledWith(
+      '[Inference] Failed to parse JSON response:',
+      {
+        status: 'rejected',
+        code: 'invalid_json',
+        responseBytes: Buffer.byteLength(sensitiveOutput, 'utf8'),
+      },
+    );
+    expect(JSON.stringify(state.logError.mock.calls)).not.toContain(sensitiveOutput);
   });
 });

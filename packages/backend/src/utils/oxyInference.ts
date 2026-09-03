@@ -105,10 +105,11 @@ export async function inferenceJSON<T>(
 
   try {
     return JSON.parse(cleaned) as T;
-  } catch (parseError) {
+  } catch {
     logger.error('[Inference] Failed to parse JSON response:', {
-      raw: raw.slice(0, 500),
-      parseError,
+      status: 'rejected',
+      code: 'invalid_json',
+      responseBytes: Buffer.byteLength(raw, 'utf8'),
     });
     throw new Error('Oxy inference returned invalid JSON');
   }
