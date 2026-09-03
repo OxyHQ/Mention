@@ -16,6 +16,8 @@ import type { ComponentType } from 'react';
  * layout utilities like `flex-1`) applies again.
  */
 export const SafeAreaView: ComponentType<SafeAreaViewProps & { className?: string }> = styled(
-  RawSafeAreaView,
+  function NativeSafeAreaView(props: SafeAreaViewProps) {
+    return <RawSafeAreaView {...props} />;
+  },
   { className: 'style' },
 );

@@ -77,7 +77,7 @@
     }
   },
   "dependencies": {
-    "@alia.onl/sdk": "^5.0.0",
+    "@alia.onl/sdk": "^7.1.1",
     "@babel/plugin-transform-export-namespace-from": "^7.29.7",
     "@expo/vector-icons": "^15.1.1",
     "@floating-ui/react-dom": "^2.1.9",
@@ -149,7 +149,7 @@
     "react-native-popup-menu": "^0.19.0",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-reanimated": "4.5.1",
-    "react-native-safe-area-context": "~5.7.0",
+    "react-native-safe-area-context": "~5.8.0",
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
     "react-native-web": "~0.21.0",

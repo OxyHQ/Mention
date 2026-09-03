@@ -85,7 +85,7 @@ const ALLOWED_PACKAGE_NAME_ALIASES = [
 ];
 
 // Bloom 1.x, Services 30 and Core 21 are one compatibility unit. Bun can
-// auto-install an older peer under Alia/Syra when their declared range trails
+// auto-install an older peer under Syra when its declared range trails
 // the Oxy release cadence, even though the root override is authoritative. That
 // leaves the bundle able to reach Services code importing removed Bloom APIs.
 // Keep this a lockfile property rather than trusting the hoisted package only.
@@ -110,8 +110,6 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
   "@tailwindcss/node -> lightningcss@1.32.0":
     "lightningcss is pinned to 1.30.1 so its linux-x64 gnu/musl native binaries stay on a single version through the image build.",
   "vite -> lightningcss@^1.32.0": "Same single-copy native-binary pin as @tailwindcss/node.",
-  "@alia.onl/sdk -> @oxyhq/services@^23.0.1":
-    "Peer range on a third-party SDK that trails our release cadence. Forward-compatible: it consumes a stable subset of the services surface.",
 };
 
 /**
