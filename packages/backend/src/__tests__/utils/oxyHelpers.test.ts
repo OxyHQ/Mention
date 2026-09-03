@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mockState = vi.hoisted(() => {
   const instances: Array<{
     setTokens: ReturnType<typeof vi.fn>;
+    makeServiceRequest: ReturnType<typeof vi.fn>;
     assetUpdateVisibility: ReturnType<typeof vi.fn>;
   }> = [];
   const control: { reject?: unknown } = {};
@@ -21,6 +22,9 @@ vi.mock('@oxyhq/core', () => {
   class OxyServices {
     setTokens = vi.fn();
     configureServiceAuth = vi.fn();
+    makeServiceRequest = vi.fn().mockResolvedValue({
+      data: { blockedIds: [], restrictedIds: [], followingIds: [], mutualIds: [] },
+    });
     assetUpdateVisibility = vi.fn().mockImplementation(() =>
       mockState.control.reject !== undefined
         ? Promise.reject(mockState.control.reject)
@@ -79,6 +83,33 @@ describe('request-scoped Oxy clients', () => {
       mcp: { activeUserId: 'assigned-account' },
     })).toBeUndefined();
     expect(mockState.instances.length).toBe(before);
+  });
+
+  it('uses service delegation for the capability-assigned account without forwarding the ticket', async () => {
+    const serviceClient = mockState.instances[0];
+    const before = mockState.instances.length;
+    const client = createScopedOxyClient({
+      headers: { authorization: 'Capability signed-ticket' },
+      capability: {
+        claims: { resource: { effectiveAccountId: 'assigned-account' } },
+      },
+    });
+
+    await expect(client?.getViewerGraph()).resolves.toMatchObject({ blockedIds: [] });
+    expect(mockState.instances.length).toBe(before);
+    expect(serviceClient.makeServiceRequest).toHaveBeenCalledWith(
+      'GET',
+      '/users/me/graph',
+      undefined,
+      'assigned-account',
+    );
+    expect(serviceClient.setTokens).not.toHaveBeenCalledWith('signed-ticket');
+    expect(createUserScopedOxyServices({
+      headers: { authorization: 'Capability signed-ticket' },
+      capability: {
+        claims: { resource: { effectiveAccountId: 'assigned-account' } },
+      },
+    })).toBeUndefined();
   });
 });
 

@@ -14,6 +14,7 @@ interface ScopedOxyRequest {
   accessToken?: string;
   headers?: { authorization?: string | readonly string[] };
   mcp?: { activeUserId?: string };
+  capability?: { claims?: { resource?: { effectiveAccountId?: string } } };
 }
 
 /**
@@ -25,12 +26,15 @@ interface ScopedOxyRequest {
  * bundle account via `X-Oxy-User-Id`.
  */
 export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefined {
-  const activeMcpUserId = req.mcp?.activeUserId?.trim();
-  if (req.mcp) {
-    if (!activeMcpUserId) {
-      throw new Error('Verified MCP request is missing its active Oxy user');
+  const delegatedUserId = (
+    req.mcp?.activeUserId
+    ?? req.capability?.claims?.resource?.effectiveAccountId
+  )?.trim();
+  if (req.mcp || req.capability) {
+    if (!delegatedUserId) {
+      throw new Error('Verified delegated request is missing its effective Oxy account');
     }
-    return createServiceDelegatedOxyClient(activeMcpUserId);
+    return createServiceDelegatedOxyClient(delegatedUserId);
   }
 
   const token = req.accessToken || extractBearerToken(req.headers ?? {});
@@ -57,7 +61,7 @@ export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefi
  * membership list.
  */
 export function createUserScopedOxyServices(req: ScopedOxyRequest): OxyServices | undefined {
-  if (req.mcp) return undefined;
+  if (req.mcp || req.capability) return undefined;
   const token = req.accessToken || extractBearerToken(req.headers ?? {});
   if (!token) return undefined;
   const client = new OxyServices({ baseURL: OXY_BASE_URL });

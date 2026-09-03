@@ -35,9 +35,19 @@ function headers(method: string): Record<string, string> {
   };
   const token = resolveToken();
   if (token) {
-    h["Authorization"] = `Bearer ${token}`;
+    h["Authorization"] = `${requestContext.getStore()?.authorizationScheme ?? "Bearer"} ${token}`;
   }
   const context = requestContext.getStore();
+  if (context?.authMode === "capability" && context.userToken) {
+    if (!context.toolName) {
+      throw {
+        status: 500,
+        message: "Mention refused a capability request without an exact tool binding.",
+        body: null,
+      } satisfies ApiError;
+    }
+    h["X-Oxy-Capability-Tool"] = context.toolName;
+  }
   if (method !== "GET" && context?.userToken) {
     if (!context.idempotencyKey || !context.toolName) {
       throw {
@@ -47,7 +57,9 @@ function headers(method: string): Record<string, string> {
       } satisfies ApiError;
     }
     h["Idempotency-Key"] = context.idempotencyKey;
-    h["X-Oxy-MCP-Tool"] = context.toolName;
+    if (context.authMode !== "capability") {
+      h["X-Oxy-MCP-Tool"] = context.toolName;
+    }
   }
   return h;
 }
