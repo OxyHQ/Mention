@@ -9,13 +9,13 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const validator = resolve(repositoryRoot, 'scripts/validate-inference-boundary.mjs');
 
 const cleanFiles = {
-  'packages/backend/package.json': JSON.stringify({ dependencies: { '@oxyhq/core': '^23.0.0' } }),
+  'packages/backend/package.json': JSON.stringify({ dependencies: { '@oxyhq/core': '^23.2.0' } }),
   'packages/backend/src/edge.ts': "import { OxyInferenceClient } from '@oxyhq/core';\nexport { OxyInferenceClient };\n",
-  'packages/backend/.env.example': 'OXY_INFERENCE_ROUTING_PROFILE=mention-default\n',
+  'packages/backend/.env.example': 'OXY_INFERENCE_ROUTING_PROFILE_ID=01a06477-94f5-74f0-bc25-4c5c13b93ccd\n',
   '.github/workflows/deploy-aws.yml': [
     'env:',
     '  TASK_ENV_OVERRIDES_JSON: >-',
-    '    {"OXY_INFERENCE_ROUTING_PROFILE":"mention-default"}',
+    '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
     '  TASK_SECRET_REMOVALS: ALIA_API_KEY',
     '',
   ].join('\n'),
@@ -62,13 +62,22 @@ await runCase('provider sdk', {
 await runCase('legacy gateway', {
   'packages/backend/src/legacy.ts': 'export const url = process.env.ALIA_API_URL;\n',
 }, 'retired Alia provider gateway variable');
+await runCase('routing-profile slug selector', {
+  'packages/backend/src/legacy-routing.ts': "export const request = { routingProfile: 'mention-default' };\n",
+}, 'routing-profile slug request field');
+await runCase('retired routing-profile environment variable', {
+  'packages/backend/.env.example': 'OXY_INFERENCE_ROUTING_PROFILE=mention-default\n',
+}, 'retired mutable routing-profile selector');
+await runCase('wrong routing-profile ID', {
+  'packages/backend/.env.example': 'OXY_INFERENCE_ROUTING_PROFILE_ID=other-profile-id\n',
+}, 'must pin Mention\'s exact opaque routing-profile ID');
 await runCase('lost retirement assertion', {
   '.github/workflows/deploy-aws.yml': [
     'env:',
     '  TASK_ENV_OVERRIDES_JSON: >-',
-    '    {"OXY_INFERENCE_ROUTING_PROFILE":"mention-default"}',
+    '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
     '',
   ].join('\n'),
 }, 'must re-assert removal of ALIA_API_KEY');
 
-console.log('Inference boundary mutation tests passed (5 cases).');
+console.log('Inference boundary mutation tests passed (8 cases).');

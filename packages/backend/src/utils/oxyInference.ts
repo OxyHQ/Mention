@@ -31,16 +31,17 @@ function client(): OxyInferenceClient {
 }
 
 /**
- * Mention is an Oxy-edge caller, never a provider client. A routing profile is
- * the product-owned target; Oxy resolves its permitted concrete routes and
- * signs `authorizedRoutes` before Kaana sees the request.
+ * Mention is an Oxy-edge caller, never a provider client. The exact opaque
+ * routing-profile primary key is the product-owned target; Oxy resolves its
+ * permitted concrete routes and signs `authorizedRoutes` before Kaana sees the
+ * request. Mention never selects by a mutable slug, display name or ordering.
  */
 export function isInferenceEnabled(): boolean {
   const credentials = getOxyServiceCredentials();
   const hasServiceIdentity = Boolean(
     credentials.token || (credentials.apiKey && credentials.apiSecret),
   );
-  return Boolean(config.inference.routingProfile && hasServiceIdentity);
+  return Boolean(config.inference.routingProfileId && hasServiceIdentity);
 }
 
 function textFromResponse(response: OxyInferenceResponse): string {
@@ -57,10 +58,10 @@ export async function inferenceChat(
   messages: InferenceChatMessage[],
   options: InferenceChatOptions,
 ): Promise<string> {
-  const routingProfile = config.inference.routingProfile;
-  if (!isInferenceEnabled() || !routingProfile) {
+  const routingProfileId = config.inference.routingProfileId;
+  if (!isInferenceEnabled() || !routingProfileId) {
     throw new Error(
-      'Oxy inference requires OXY_INFERENCE_ROUTING_PROFILE and a complete Oxy service identity',
+      'Oxy inference requires OXY_INFERENCE_ROUTING_PROFILE_ID and a complete Oxy service identity',
     );
   }
 
@@ -69,7 +70,7 @@ export async function inferenceChat(
     content: [{ type: 'text', text: message.content }],
   }));
   const request: OxyResponsesRequest = {
-    routingProfile,
+    routingProfileId,
     input,
     labels: { product: 'mention', feature: options.feature },
     ...(options.temperature === undefined ? {} : { temperature: options.temperature }),

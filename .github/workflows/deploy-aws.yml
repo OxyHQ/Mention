@@ -221,10 +221,12 @@ jobs:
           TASK_SECRET_OVERRIDES_JSON: >-
             {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_MCP_JWT_SECRET",
              "DATABASE_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/DATABASE_URL"}
-          # Provider credentials never enter this task. Mention selects only a
-          # product-owned profile; Oxy resolves and signs concrete Kaana routes.
+          # Provider credentials never enter this task. Mention selects its
+          # reviewed profile by exact opaque primary key; Oxy resolves and signs
+          # concrete Kaana routes. Slugs, display names and row order are not
+          # routing inputs.
           TASK_ENV_OVERRIDES_JSON: >-
-            {"OXY_INFERENCE_ROUTING_PROFILE":"mention-default"}
+            {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}
           # A standing absence assertion: every revision is derived from the
           # live one, so merely stopping the GitHub-to-SSM sync would otherwise
           # keep injecting this retired provider credential forever.

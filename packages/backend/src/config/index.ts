@@ -1,5 +1,8 @@
 import * as z from 'zod';
 
+export const MENTION_INFERENCE_ROUTING_PROFILE_ID =
+  '01a06477-94f5-74f0-bc25-4c5c13b93ccd' as const;
+
 const withoutTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
 
 const emptyAsUndefined = (value: unknown): unknown =>
@@ -355,7 +358,10 @@ const environmentSchema = z
     OXY_SERVICE_API_KEY: trimmedOptionalString,
     OXY_SERVICE_API_SECRET: optionalString(),
     OXY_SERVICE_TOKEN: optionalString(),
-    OXY_INFERENCE_ROUTING_PROFILE: trimmedOptionalString,
+    OXY_INFERENCE_ROUTING_PROFILE_ID: z.preprocess(
+      emptyAsUndefined,
+      z.literal(MENTION_INFERENCE_ROUTING_PROFILE_ID).optional(),
+    ),
     MENTION_OXY_CLIENT_ID: trimmedOptionalString,
     IP_HASH_SALT: optionalString(16),
     DEVICE_ID_SALT: optionalString(16),
@@ -850,7 +856,7 @@ export const config = {
     maxTimeMS: 3_000,
   },
   inference: {
-    routingProfile: environment.OXY_INFERENCE_ROUTING_PROFILE,
+    routingProfileId: environment.OXY_INFERENCE_ROUTING_PROFILE_ID,
     timeoutMs: 30_000,
   },
   syra: {
@@ -890,8 +896,8 @@ export function validateEnvironment(): void {
   if (config.runtime.isProduction && !environment.MENTION_MCP_JWT_SECRET) {
     missing.push('MENTION_MCP_JWT_SECRET');
   }
-  if (config.classification.enabled && !config.inference.routingProfile) {
-    missing.push('OXY_INFERENCE_ROUTING_PROFILE');
+  if (config.classification.enabled && !config.inference.routingProfileId) {
+    missing.push('OXY_INFERENCE_ROUTING_PROFILE_ID');
   }
   if (
     config.classification.enabled &&

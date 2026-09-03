@@ -2,7 +2,8 @@
 
 /**
  * Mention is an inference CONSUMER. Provider credentials, endpoints and SDKs
- * belong to Kaana; this repository may select only an Oxy routing profile.
+ * belong to Kaana; this repository may select only Mention's reviewed Oxy
+ * routing profile by its exact opaque primary key.
  */
 
 import { existsSync } from 'node:fs';
@@ -13,6 +14,8 @@ import { fileURLToPath } from 'node:url';
 const repositoryRoot = process.env.INFERENCE_BOUNDARY_ROOT
   ? resolve(process.env.INFERENCE_BOUNDARY_ROOT)
   : resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const routingProfileIdName = 'OXY_INFERENCE_ROUTING_PROFILE_ID';
+const routingProfileId = '01a06477-94f5-74f0-bc25-4c5c13b93ccd';
 
 const listed = Bun.spawnSync({
   cmd: ['git', 'ls-files', '--cached', '--others', '--exclude-standard'],
@@ -40,6 +43,8 @@ const forbiddenSourcePatterns = [
   [/(?:api\.openai\.com|api\.anthropic\.com|api\.groq\.com|openrouter\.ai\/api)/, 'direct provider endpoint'],
   [/(?:from\s+|require\()['"](?:openai|@anthropic-ai\/sdk|groq-sdk|@ai-sdk\/(?:openai|anthropic|groq|mistral|xai))['"]/, 'direct provider SDK import'],
   [/(?:from\s+|require\()['"][^'"]*\/utils\/alia['"]/, 'retired Alia inference utility import'],
+  [/\bOXY_INFERENCE_ROUTING_PROFILE\b/, 'retired mutable routing-profile selector'],
+  [/\broutingProfile\s*:/, 'routing-profile slug request field'],
 ];
 
 for (const file of sourceFiles) {
@@ -67,8 +72,16 @@ for (const relativePath of ['packages/backend/.env.example', 'packages/backend/D
   const path = resolve(repositoryRoot, relativePath);
   if (!existsSync(path)) continue;
   const text = await readFile(path, 'utf8');
-  for (const [pattern, label] of forbiddenSourcePatterns.slice(0, 3)) {
+  for (const [pattern, label] of forbiddenSourcePatterns) {
     if (pattern.test(text)) failures.push(`${relativePath}: ${label}`);
+  }
+}
+
+const environmentExamplePath = resolve(repositoryRoot, 'packages/backend/.env.example');
+if (existsSync(environmentExamplePath)) {
+  const environmentExample = await readFile(environmentExamplePath, 'utf8');
+  if (!environmentExample.includes(`${routingProfileIdName}=${routingProfileId}`)) {
+    failures.push('packages/backend/.env.example: must pin Mention\'s exact opaque routing-profile ID');
   }
 }
 
@@ -81,8 +94,11 @@ if (existsSync(workflowPath)) {
   if (!/^\s*TASK_SECRET_REMOVALS:\s*ALIA_API_KEY\s*$/m.test(workflow)) {
     failures.push('.github/workflows/deploy-aws.yml: must re-assert removal of ALIA_API_KEY from every ECS task revision');
   }
-  if (!/TASK_ENV_OVERRIDES_JSON:[\s\S]{0,200}OXY_INFERENCE_ROUTING_PROFILE/.test(workflow)) {
-    failures.push('.github/workflows/deploy-aws.yml: must inject the non-secret Oxy routing profile durably');
+  if (/\bOXY_INFERENCE_ROUTING_PROFILE\b/.test(workflow)) {
+    failures.push('.github/workflows/deploy-aws.yml: still injects the retired mutable routing-profile selector');
+  }
+  if (!workflow.includes(`{"${routingProfileIdName}":"${routingProfileId}"}`)) {
+    failures.push('.github/workflows/deploy-aws.yml: must inject Mention\'s exact opaque routing-profile ID durably');
   }
 }
 

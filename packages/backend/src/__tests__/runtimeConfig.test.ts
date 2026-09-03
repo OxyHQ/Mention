@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  MENTION_INFERENCE_ROUTING_PROFILE_ID,
   getIpHashSalt,
   getMcpJwtSecret,
   getMentionSigningConfig,
@@ -55,6 +56,18 @@ describe('runtime configuration', () => {
         REDIS_URI: 'redis://other.example:6379',
       }),
     ).toThrow('REDIS_URI');
+  });
+
+  it('accepts only Mention\'s reviewed opaque inference routing-profile ID', () => {
+    expect(
+      parseRuntimeEnvironment({
+        OXY_INFERENCE_ROUTING_PROFILE_ID: MENTION_INFERENCE_ROUTING_PROFILE_ID,
+      }).OXY_INFERENCE_ROUTING_PROFILE_ID,
+    ).toBe(MENTION_INFERENCE_ROUTING_PROFILE_ID);
+
+    expect(() =>
+      parseRuntimeEnvironment({ OXY_INFERENCE_ROUTING_PROFILE_ID: 'mention-default' }),
+    ).toThrow('OXY_INFERENCE_ROUTING_PROFILE_ID');
   });
 
   it('rejects partial credential groups', () => {

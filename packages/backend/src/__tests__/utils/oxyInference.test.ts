@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   config: {
     oxyApiUrl: 'https://api.oxy.test',
-    inference: { routingProfile: 'mention-default' as string | undefined, timeoutMs: 1_000 },
+    inference: {
+      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd' as string | undefined,
+      timeoutMs: 1_000,
+    },
   },
   credentials: {
     token: 'service-token' as string | undefined,
@@ -40,7 +43,7 @@ describe('Oxy inference boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearInferenceClient();
-    state.config.inference.routingProfile = 'mention-default';
+    state.config.inference.routingProfileId = '01a06477-94f5-74f0-bc25-4c5c13b93ccd';
     state.credentials.token = 'service-token';
     state.credentials.apiKey = undefined;
     state.credentials.apiSecret = undefined;
@@ -49,7 +52,7 @@ describe('Oxy inference boundary', () => {
     });
   });
 
-  it('submits only a routing profile and product labels, delegating the end user', async () => {
+  it('submits only the exact routing profile ID and product labels, delegating the end user', async () => {
     await expect(inferenceChat(
       [
         { role: 'system', content: 'Be concise.' },
@@ -66,7 +69,7 @@ describe('Oxy inference boundary', () => {
     expect(state.respond).toHaveBeenCalledOnce();
     const [request, options] = state.respond.mock.calls[0];
     expect(request).toEqual({
-      routingProfile: 'mention-default',
+      routingProfileId: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
       input: [
         { role: 'system', content: [{ type: 'text', text: 'Be concise.' }] },
         { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
@@ -76,19 +79,20 @@ describe('Oxy inference boundary', () => {
       maxOutputTokens: 128,
     });
     expect(request).not.toHaveProperty('model');
+    expect(request).not.toHaveProperty('routingProfile');
     expect(request).not.toHaveProperty('authorizedRoutes');
     expect(options).toMatchObject({ delegatedUserId: 'user-123' });
   });
 
-  it('fails closed unless both a routing profile and service identity exist', async () => {
-    state.config.inference.routingProfile = undefined;
+  it('fails closed unless both the exact routing profile ID and service identity exist', async () => {
+    state.config.inference.routingProfileId = undefined;
     expect(isInferenceEnabled()).toBe(false);
     await expect(inferenceChat(
       [{ role: 'user', content: 'Hello' }],
       { feature: 'test-feature' },
-    )).rejects.toThrow('OXY_INFERENCE_ROUTING_PROFILE');
+    )).rejects.toThrow('OXY_INFERENCE_ROUTING_PROFILE_ID');
 
-    state.config.inference.routingProfile = 'mention-default';
+    state.config.inference.routingProfileId = '01a06477-94f5-74f0-bc25-4c5c13b93ccd';
     state.credentials.token = undefined;
     expect(isInferenceEnabled()).toBe(false);
 
