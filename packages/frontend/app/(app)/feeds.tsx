@@ -21,7 +21,7 @@ import type { Trend } from '@/interfaces/Trend';
 
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
-import { Fab } from '@oxyhq/bloom/fab';
+import { ChromeFab } from '@/components/ChromeFab';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
@@ -545,8 +545,7 @@ const FeedsScreen: React.FC = () => {
         {/* Clears the BottomBar on every platform — Bloom's Fab reads the
               bottom edge's occupancy, which the bar publishes. */}
         {canEdit ? (
-          <Fab
-            size={48}
+          <ChromeFab
             onPress={() => router.push('/feeds/new')}
             icon={<Ionicons name="add" size={24} color={theme.colors.tertiaryForeground} />}
             accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}

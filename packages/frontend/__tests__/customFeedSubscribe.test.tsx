@@ -161,9 +161,9 @@ jest.mock('@/components/common/AnimatedTabBar', () => {
   return { __esModule: true, default: () => <RNView testID="tab-bar" /> };
 });
 
-jest.mock('@oxyhq/bloom/fab', () => {
+jest.mock('@/components/ChromeFab', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Fab: () => <RNView testID="fab" /> };
+  return { ChromeFab: () => <RNView testID="fab" /> };
 });
 
 jest.mock('@/components/ui/Button', () => {

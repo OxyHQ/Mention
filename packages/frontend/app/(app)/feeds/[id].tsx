@@ -26,7 +26,7 @@ import { useAuth, FollowButton } from '@oxyhq/services/ui/client';
 import Feed from '@/components/Feed/Feed';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
-import { Fab } from '@oxyhq/bloom/fab';
+import { ChromeFab } from '@/components/ChromeFab';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
@@ -852,8 +852,7 @@ export default function CustomFeedTimelineScreen() {
       {/* Clears the BottomBar on every platform — Bloom's Fab reads the
               bottom edge's occupancy, which the bar publishes. */}
       {!isLoading && !hasError && (
-        <Fab
-          size={48}
+        <ChromeFab
           onPress={() => router.push('/compose')}
           icon={<ComposeIcon size={22} className="text-tertiary-foreground" />}
           accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
