@@ -40,6 +40,8 @@ const MENTION_CSP_EXTENSIONS: OxyCspExtensions = {
     'data:',
     'https://api.mention.earth',
     'wss://api.mention.earth',
+    // The embedded Alia SDK reads its model catalogue and streams chat here.
+    'https://api.alia.onl',
     // Live rooms are served by Syra's backend and LiveKit, not api.mention.earth.
     'https://api.syra.fm',
     'wss://api.syra.fm',
