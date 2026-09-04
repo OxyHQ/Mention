@@ -239,8 +239,8 @@ export const BottomBar = () => {
     // `web:` prefix, so the wrapper is inert on native.
     return (
         <View className="web:fixed web:inset-x-0 web:bottom-0 web:z-[1000]">
-            {/* Bloom paints a progressive blur across the bottom 114px of the window
-                (120px in an iOS PWA) behind the pill. Everywhere else that band is
+            {/* Bloom paints a progressive blur across the bottom 118px of the window
+                (a device inset makes it taller) behind the pill. Everywhere else that band is
                 what dissolves scrolling content behind the bar, so it stays on. On
                 /videos it is turned OFF: the band covered the Reels controls and
                 smeared `scrubberHitArea`, the 3px progress line pinned at `bottom: 0`,

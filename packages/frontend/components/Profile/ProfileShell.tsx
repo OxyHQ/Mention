@@ -3,7 +3,7 @@ import { Animated, Platform, StatusBar, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
+import { Fab } from '@oxyhq/bloom/fab';
 import { EmptyState } from '@/components/common/EmptyState';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
@@ -211,8 +211,10 @@ export function ProfileShell({
             </Animated.ScrollView>
           )}
 
-          {/* FAB that rides the BottomBar's show/hide (web mobile). */}
-          <BottomBarAwareFab
+          {/* Clears the BottomBar on every platform — Bloom's Fab reads the
+              bottom edge's occupancy, which the bar publishes. */}
+          <Fab
+            size={48}
             onPress={() => router.push('/compose')}
             icon={<ComposeIcon size={20} className="text-primary-foreground" />}
             accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
