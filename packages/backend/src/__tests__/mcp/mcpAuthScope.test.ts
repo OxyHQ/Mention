@@ -51,7 +51,10 @@ function token(scopes: string[]): string {
   });
 }
 
-function centralToken(scopes: string[]): string {
+function centralToken(
+  scopes: string[],
+  connection?: Record<string, unknown>,
+): string {
   const value = jwt.sign(
     { aud: 'mention-api' },
     'routing-only-test-secret',
@@ -68,8 +71,22 @@ function centralToken(scopes: string[]): string {
     iat: 1,
     exp: 4_102_444_800,
     account_id: 'account-1',
+    ...(connection ? { connection } : {}),
   });
   return value;
+}
+
+/** A connection Oxy reports as covering two accounts, acting as `activeId`. */
+function connectionState(activeId: string): Record<string, unknown> {
+  return {
+    connection_id: 'connection-1',
+    origin_account_id: 'account-1',
+    active_account_id: activeId,
+    accounts: [
+      { account_id: 'account-1', is_origin: true, linked_at: '2026-01-01T00:00:00.000Z' },
+      { account_id: 'account-2', is_origin: false, linked_at: '2026-02-01T00:00:00.000Z' },
+    ],
+  };
 }
 
 function buildApp() {
@@ -186,5 +203,39 @@ describe('createRequireMcpOrOxyAuth MCP scope enforcement', () => {
 
     expect(res.status).toBe(403);
     expect(res.body.required_scope).toEqual([]);
+  });
+  it('serves the connection member Oxy selected, not the token account', async () => {
+    const res = await request(app)
+      .get('/notifications')
+      .set(
+        'Authorization',
+        `Bearer ${centralToken(['social.notifications.read'], connectionState('account-2'))}`,
+      );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ userId: 'account-2' });
+  });
+
+  it('ignores a connection block that names an account it does not list', async () => {
+    const invalid = {
+      ...connectionState('account-2'),
+      accounts: [{ account_id: 'account-1', is_origin: true, linked_at: '2026-01-01T00:00:00.000Z' }],
+    };
+    const res = await request(app)
+      .get('/notifications')
+      .set('Authorization', `Bearer ${centralToken(['social.notifications.read'], invalid)}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ userId: 'account-1' });
+  });
+
+  it('ignores a connection block belonging to another connection', async () => {
+    const foreign = { ...connectionState('account-2'), origin_account_id: 'account-9' };
+    const res = await request(app)
+      .get('/notifications')
+      .set('Authorization', `Bearer ${centralToken(['social.notifications.read'], foreign)}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ userId: 'account-1' });
   });
 });

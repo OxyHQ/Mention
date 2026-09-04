@@ -11,23 +11,31 @@ Canonical user + operator guide. Mention agents: see also [`AGENTS.md`](../../AG
 3. Complete OAuth on `auth.oxy.so`, selecting the exact Oxy account to use
 4. Revoke anytime from Oxy Settings
 
-Each authorization is bound to one account. It never grants a general Oxy
-session and cannot switch to another account after issuance.
+The authorization never grants a general Oxy session, and the access token stays
+bound to the account it was issued for. Adding more accounts does not change
+that: each one gets its own authorization, on the same connector.
 
 ## Multiple accounts
+
+One connector, several accounts. Ask the assistant, in words:
 
 | Step | Action |
 |------|--------|
 | 1 | Authorize Mention for the first Oxy account |
-| 2 | Create a separate connector authorization for the second account |
-| 3 | Use **`whoami`** before a public action to verify the bound account |
+| 2 | Ask for **`link-account`** — you get a single-use `auth.oxy.so` link, valid for 15 minutes |
+| 3 | Open it signed in as the account you want to add, and approve it there |
+| 4 | Ask to **`switch-account`** to that account, and **`whoami`** before a public action |
 
 | Tool | Purpose |
 |------|---------|
-| `whoami` | Active account (@handle, display name, user id) |
-| `list-accounts` | The one account bound to this central Oxy connection |
-| `link-account` | Transitional legacy bundles only; central connections require a separate authorization |
-| `switch-account` | Transitional legacy bundles only; central connections cannot change account |
+| `whoami` | The account this connection is acting as right now |
+| `list-accounts` | Every account the connection can act as, active one marked |
+| `link-account` | A single-use Oxy link that adds another account to this connection |
+| `switch-account` | Act as another account already on the connection |
+
+Oxy owns the account set (ADR 0020): each account approves its own membership on
+`auth.oxy.so` and can revoke it from its own Oxy Settings without affecting the
+others. Mention stores none of it — it reads the set from live introspection.
 
 ## Architecture
 
@@ -45,10 +53,13 @@ MCP client → mcp.mention.earth → api.mention.earth
 | `auth.oxy.so` | Account selection and consent UI |
 | `api.mention.earth` | Domain API; re-introspects central tokens and enforces the catalog capability for the exact route |
 
-**Identity model:** the token carries the approving user as `sub` and the one
-effective account as `account_id`. Every request is checked live against Oxy's
-grant, current account authority and registered Mention catalog. Mention never
-receives an Oxy user session or a connection secret.
+**Identity model:** the token carries the approving user as `sub` and the account
+it was minted for as `account_id`. When the connection covers more accounts,
+introspection also returns `connection.active_account_id` — the member Oxy says
+the connector is acting as, and the account Mention serves. Every request is
+checked live against Oxy's grant, current account authority, connection
+membership and registered Mention catalog. Mention never receives an Oxy user
+session or a connection secret.
 
 **Effect safety:** every mutating tool derives an account-bound key from its
 authenticated JSON-RPC request. The API stores only hashes, reserves the key

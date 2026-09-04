@@ -9,12 +9,17 @@ Mention (mention.earth) is a social platform. Connect at **https://mcp.mention.e
 ## Public vs authorized access
 All MCP connections require OAuth authorization in Claude (Settings → Connectors). After connecting, you can read public feeds and profiles and perform account actions (post, like, boost, follow, personalized feeds, search, lists, starter packs, notifications).
 
-When authentication fails, reconnect Mention in the client and approve the exact account on auth.oxy.so. Revoke access from Oxy Settings when reconnecting.
+When authentication fails, reconnect Mention in the client and approve the account on auth.oxy.so. Revoke access from Oxy Settings when reconnecting.
 
-## Account binding
-Each OAuth authorization is permanently bound to the one Oxy account selected
-during consent. It cannot switch or link another account. Authorize a separate
-connection for every additional account, and call **whoami** before publishing.
+## Accounts on one connection
+A connection starts with the one account approved during consent, and can cover
+more. Ask for **link-account** to get a single-use Oxy link; whoever opens it
+approves adding the account they are signed in as, on auth.oxy.so. **list-accounts**
+shows every account the connection can act as, **switch-account** selects one, and
+**whoami** says which one is active — call it before publishing.
+
+Oxy owns all of this: each account approves its own participation and can revoke
+it from its own Oxy settings without affecting the others.
 
 ## OAuth
 Oxy is the central authorization server; Mention never asks for or stores a manual user token. Access can be revoked immediately from Oxy Settings.

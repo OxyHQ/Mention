@@ -6,7 +6,7 @@ import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 export function registerAccountTools(server: MentionToolRegistrar): void {
   server.tool(
     "whoami",
-    "Return the exact Mention account bound to this MCP connection (handle, display name, user id). Call before publishing.",
+    "Return the Mention account this connection is acting as right now (handle, display name, user id). Call before publishing.",
     {},
     withAuthGuard(async () => {
       try {
@@ -21,9 +21,11 @@ export function registerAccountTools(server: MentionToolRegistrar): void {
           `Display name: ${result.displayName}`,
           `User ID: ${result.oxyUserId}`,
         ];
-        if (result.isPrimary === true) {
-          lines.push("This is the primary account (the one Claude authorized).");
-        }
+        lines.push(
+          result.isPrimary === true
+            ? "This is the account the connection was authorized for."
+            : "This account was connected later; the connection is acting as it.",
+        );
         return { content: [{ type: "text" as const, text: lines.join("\n") }] };
       } catch (error) {
         return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
@@ -33,7 +35,7 @@ export function registerAccountTools(server: MentionToolRegistrar): void {
 
   server.tool(
     "list-accounts",
-    "List the Mention account bound to this connection. Transitional legacy bundles may return their linked accounts.",
+    "List every Mention account this connection can act as, marking the active one. Use link-account to add more.",
     {},
     withAuthGuard(async () => {
       try {
@@ -57,11 +59,14 @@ export function registerAccountTools(server: MentionToolRegistrar): void {
           const suffix = flags.length > 0 ? ` (${flags.join(", ")})` : "";
           return `@${account.handle} — ${account.displayName}${suffix}`;
         });
+        const hint = result.accounts.length > 1
+          ? "Use switch-account to act as another one."
+          : "Use link-account to connect another account to this connection.";
         return {
           content: [
             {
               type: "text" as const,
-              text: `Accounts visible to this connection (${result.accounts.length}):\n${lines.join("\n")}`,
+              text: `Accounts on this connection (${result.accounts.length}):\n${lines.join("\n")}\n\n${hint}`,
             },
           ],
         };
@@ -73,7 +78,7 @@ export function registerAccountTools(server: MentionToolRegistrar): void {
 
   server.tool(
     "link-account",
-    "Legacy transition only. Central Oxy connections require a separate authorization for every Mention account.",
+    "Generate a single-use Oxy link the user opens to connect another Mention account to this connection.",
     {},
     withAuthGuard(async () => {
       try {
@@ -86,11 +91,11 @@ export function registerAccountTools(server: MentionToolRegistrar): void {
             {
               type: "text" as const,
               text: [
-                "Open this link in your browser to link another Mention account:",
+                "Open this link and approve it while signed in as the account you want to add:",
                 result.linkUrl,
                 "",
-                `The link expires in ${Math.round(expiry / 60)} minutes.`,
-                "After linking, use switch-account before posting as that account.",
+                `It can be used once and expires in ${Math.round(expiry / 60)} minutes.`,
+                "Once approved, call switch-account to act as that account.",
               ].join("\n"),
             },
           ],
@@ -103,7 +108,7 @@ export function registerAccountTools(server: MentionToolRegistrar): void {
 
   server.tool(
     "switch-account",
-    "Legacy transition only. Central Oxy connections are fixed to the account selected during authorization.",
+    "Act as another account already connected to this connection. Call list-accounts to see which ones are available.",
     {
       handle: z
         .string()
