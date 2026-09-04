@@ -403,4 +403,28 @@ describe('createApp', () => {
 
     expect(response.headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
   });
+
+  it('allows the embedded Alia client to reach only its exact API origin', async () => {
+    const { createApp } = await import('../app');
+    const deps = createDependencies();
+    const publicApi = express.Router();
+    publicApi.get('/probe', (_req, res) => res.type('text/plain').send('probe'));
+    deps.routes.publicApi = publicApi;
+
+    const response = await request(createApp(deps))
+      .get('/probe')
+      .set('Host', 'api.mention.earth')
+      .expect(200);
+
+    const policy = response.headers['content-security-policy'];
+    expect(policy).toBeTypeOf('string');
+    const connectSources = String(policy)
+      .split(';')
+      .find((directive) => directive.startsWith('connect-src '))
+      ?.split(/\s+/)
+      .slice(1);
+
+    expect(connectSources).toContain('https://api.alia.onl');
+    expect(connectSources).not.toContain('https:');
+  });
 });

@@ -208,11 +208,14 @@ Mention-owned OAuth routes remain mounted only as a retirement surface:
 | POST | `/mcp/oauth/token` legacy refresh grant | Existing legacy families only, until `2026-10-02T00:00:00Z` |
 | GET | `/mcp/bundles/link/preview` | `410 Gone` |
 
-For central tokens, `/mcp/bundles/accounts` and `/mcp/bundles/me` expose only
-the account selected at Oxy consent. Link and switch endpoints reject central
-tokens with `separate_connection_required`; each additional account requires a
-separate authorization. Existing legacy bundle records remain usable only until
-the fixed cutoff.
+For central tokens, the account routes read Oxy's connection, not a Mention
+table: `/mcp/bundles/accounts` lists every account the connection may act as,
+`/mcp/bundles/me` names the one it is acting as, `POST /mcp/bundles/link-token`
+returns a single-use `auth.oxy.so` link that adds another account (approved
+there, as that account), and `POST /mcp/bundles/active` asks Oxy to act as a
+member — Oxy refuses one that never approved this connection. Legacy bundles keep
+their existing members until the fixed cutoff but cannot be widened: their link
+endpoints stay `410 Gone`.
 
 The MCP resource and JWT audience are exactly `https://mcp.mention.earth`
 without a trailing slash. Unauthenticated MCP requests receive a bearer

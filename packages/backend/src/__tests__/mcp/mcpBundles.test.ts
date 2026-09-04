@@ -22,6 +22,7 @@ process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret-that-is-at-least-32-bytes'
 const mocks = vi.hoisted(() => ({
   getUserById: vi.fn(),
   getProfileByUsername: vi.fn(),
+  makeServiceRequest: vi.fn(),
   redisGet: vi.fn(),
   redisSet: vi.fn(),
   redisReady: true,
@@ -32,6 +33,9 @@ vi.mock('../../utils/oxyHelpers', () => ({
     getUserById: mocks.getUserById,
     getProfileByUsername: mocks.getProfileByUsername,
     getUsersByIds: vi.fn(),
+    // The connection routes reach Oxy through the SERVICE credential; the MCP
+    // bearer travels as the subject of the call, never as its credential.
+    makeServiceRequest: mocks.makeServiceRequest,
   }),
 }));
 
@@ -132,6 +136,20 @@ const centralContext: OxyAuthRequestWithMcp['mcp'] = {
   activeUserId: USER_A,
 };
 
+/** A central connection Oxy says covers two accounts, acting as the first. */
+const connectedCentralContext: OxyAuthRequestWithMcp['mcp'] = {
+  ...centralContext,
+  connection: {
+    connectionId: 'connection-1',
+    originAccountId: USER_A,
+    activeAccountId: USER_A,
+    accounts: [
+      { accountId: USER_A, isOrigin: true, linkedAt: '2026-01-01T00:00:00.000Z' },
+      { accountId: USER_B, isOrigin: false, linkedAt: '2026-02-01T00:00:00.000Z' },
+    ],
+  },
+};
+
 beforeAll(async () => {
   await connectPostgres();
 }, 60_000);
@@ -156,6 +174,8 @@ describe('MCP bundles routes', () => {
   });
 
   it('retires new account links on a legacy bundle', async () => {
+    // Legacy bundles keep their members but cannot grow: widening a connection
+    // is Oxy's now, and a legacy bundle has no Oxy connection to widen.
     const app = buildApp(USER_A, bundleContext);
     const [start, complete] = await Promise.all([
       request(app).post('/mcp/bundles/link-token'),
@@ -201,17 +221,102 @@ describe('MCP bundles routes', () => {
     })]);
   });
 
-  it('requires separate central authorizations instead of linking or switching accounts', async () => {
-    const app = buildApp(USER_A, centralContext);
-    const [link, active] = await Promise.all([
-      request(app).post('/mcp/bundles/link-token'),
-      request(app).post('/mcp/bundles/active').send({ handle: '@brand' }),
-    ]);
+  it('lists every account Oxy says the central connection covers', async () => {
+    mocks.getUserById.mockImplementation(async (id: string) => ({
+      id,
+      username: id === USER_A ? 'alice' : 'brand',
+      name: { displayName: id === USER_A ? 'Alice' : 'Brand' },
+    }));
 
-    expect(link.status).toBe(409);
-    expect(active.status).toBe(409);
-    expect(link.body.code).toBe('separate_connection_required');
-    expect(active.body.code).toBe('separate_connection_required');
+    const res = await request(buildApp(USER_A, connectedCentralContext))
+      .get('/mcp/bundles/accounts');
+
+    expect(res.status).toBe(200);
+    expect(res.body.connectionId).toBe('connection-1');
+    expect(res.body.accounts).toEqual([
+      expect.objectContaining({ oxyUserId: USER_A, isPrimary: true, isActive: true }),
+      expect.objectContaining({ oxyUserId: USER_B, isPrimary: false, isActive: false }),
+    ]);
+  });
+
+  it('hands back the Oxy link that connects another account', async () => {
+    mocks.makeServiceRequest.mockResolvedValue({
+      link_url: 'https://auth.oxy.so/mcp/link?intent=oxy_mli_test',
+      expires_in: 900,
+      connection_id: 'connection-1',
+    });
+
+    const res = await request(buildApp(USER_A, centralContext))
+      .post('/mcp/bundles/link-token')
+      .set('Authorization', 'Bearer mcp-access-token');
+
+    expect(res.status).toBe(200);
+    expect(res.body.linkUrl).toBe('https://auth.oxy.so/mcp/link?intent=oxy_mli_test');
+    expect(res.body.expiresInSeconds).toBe(900);
+    expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
+      'POST',
+      '/auth/mcp/oauth/connections/link-intent',
+      { token: 'mcp-access-token' },
+    );
+  });
+
+  it('switches a central connection to another connected account by handle', async () => {
+    mocks.getProfileByUsername.mockResolvedValue({ id: USER_B, username: 'brand' });
+    mocks.getUserById.mockResolvedValue({
+      id: USER_B,
+      username: 'brand',
+      name: { displayName: 'Brand' },
+    });
+    mocks.makeServiceRequest.mockResolvedValue({
+      connection: {
+        connection_id: 'connection-1',
+        origin_account_id: USER_A,
+        active_account_id: USER_B,
+        accounts: [
+          { account_id: USER_A, is_origin: true, linked_at: '2026-01-01T00:00:00.000Z' },
+          { account_id: USER_B, is_origin: false, linked_at: '2026-02-01T00:00:00.000Z' },
+        ],
+      },
+    });
+
+    const res = await request(buildApp(USER_A, connectedCentralContext))
+      .post('/mcp/bundles/active')
+      .set('Authorization', 'Bearer mcp-access-token')
+      .send({ handle: '@brand' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.activeUserId).toBe(USER_B);
+    expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
+      'POST',
+      '/auth/mcp/oauth/connections/active',
+      { token: 'mcp-access-token', account_id: USER_B },
+    );
+  });
+
+  it('relays Oxy\'s refusal to act as an account that never approved the connection', async () => {
+    mocks.getProfileByUsername.mockResolvedValue({ id: USER_B, username: 'brand' });
+    // The SDK normalizes an OAuth refusal into this shape, with
+    // `error_description` already promoted to `message`.
+    mocks.makeServiceRequest.mockRejectedValue({
+      status: 404,
+      code: 'invalid_request',
+      message: 'That account is not connected to this MCP connection',
+    });
+
+    const res = await request(buildApp(USER_A, connectedCentralContext))
+      .post('/mcp/bundles/active')
+      .set('Authorization', 'Bearer mcp-access-token')
+      .send({ handle: '@brand' });
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toBe('That account is not connected to this MCP connection');
+  });
+
+  it('refuses a central connection request that carries no MCP bearer', async () => {
+    const res = await request(buildApp(USER_A, centralContext)).post('/mcp/bundles/link-token');
+
+    expect(res.status).toBe(401);
+    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
   });
 
   it('GET /mcp/bundles/accounts omits a revoked member', async () => {

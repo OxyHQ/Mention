@@ -42,7 +42,7 @@ function read(
     effect: "read",
     idempotency: "none",
     rollback: "none",
-    exposure: ["mcp"],
+    exposure: ["internal", "mcp"],
     limitKeys: limit ? [{ key: "limit", kind: "maximum_number" }] : [],
     invocation: { method: "GET", path },
   };
@@ -66,9 +66,9 @@ function effect(
     effect: "external",
     // The MCP transport derives a stable key from the authenticated JSON-RPC
     // invocation and Mention reserves it durably before entering the route.
-    idempotency: options.idempotency ?? "supported",
+    idempotency: options.idempotency ?? "required",
     rollback: options.rollback ?? "manual",
-    exposure: ["mcp"],
+    exposure: ["internal", "mcp"],
     limitKeys: [],
     invocation: { method, path },
   };
@@ -89,6 +89,10 @@ function write(
     ...effect(method, path, capabilityPackage, capability, resourceTypes, options),
     effect: "write",
   };
+}
+
+function mcpOnly(policy: MentionToolPolicy): MentionToolPolicy {
+  return { ...policy, exposure: ["mcp"] };
 }
 
 /** Policy-only metadata. Tool names, descriptions, schemas and handlers live once in the tool modules. */
@@ -119,8 +123,8 @@ export const MENTION_TOOL_POLICIES: Readonly<Record<string, MentionToolPolicy>> 
   "get-starter-pack": read("/starter-packs/{id}", "social.starter_packs.read", ["mention_account", "starter_pack"]),
   "get-starter-packs": read("/starter-packs", "social.starter_packs.read", ["mention_account", "starter_pack"], true),
   "search-gifs": read("/gifs/search", "social.media.read", ["mention_account", "media"], true),
-  whoami: read("/mcp/bundles/me", "social.accounts.read", account),
-  "list-accounts": read("/mcp/bundles/accounts", "social.accounts.read", account),
+  whoami: mcpOnly(read("/mcp/bundles/me", "social.accounts.read", account)),
+  "list-accounts": mcpOnly(read("/mcp/bundles/accounts", "social.accounts.read", account)),
 
   "create-post": effect("POST", "/posts", "publish", "social.posts.publish", post, { rollback: "none" }),
   "create-thread": effect("POST", "/posts/thread", "publish", "social.posts.publish", post, { rollback: "none" }),
@@ -152,8 +156,8 @@ export const MENTION_TOOL_POLICIES: Readonly<Record<string, MentionToolPolicy>> 
   "upload-media-from-url": write("POST", "/posts/intent-media", "create", "social.media.create", ["mention_account", "media"], { rollback: "supported" }),
   "upload-media": write("POST", "/posts/intent-media", "create", "social.media.create", ["mention_account", "media"], { rollback: "supported" }),
   "use-gif": write("POST", "/gifs/use", "create", "social.media.create", ["mention_account", "media"], { rollback: "supported" }),
-  "link-account": write("POST", "/mcp/bundles/link-token", "delegate", "social.accounts.link", account, { rollback: "none" }),
-  "switch-account": write("POST", "/mcp/bundles/active", "administer", "social.accounts.switch", account, { rollback: "supported" }),
+  "link-account": mcpOnly(write("POST", "/mcp/bundles/link-token", "delegate", "social.accounts.link", account, { rollback: "none" })),
+  "switch-account": mcpOnly(write("POST", "/mcp/bundles/active", "administer", "social.accounts.switch", account, { rollback: "supported" })),
 };
 
 export const MENTION_MCP_CAPABILITIES = Object.freeze(

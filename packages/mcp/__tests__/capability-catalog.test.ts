@@ -18,6 +18,8 @@ describe("Mention canonical capability catalog", () => {
     expect(MENTION_CAPABILITY_CATALOG.externalMcp).toEqual({
       resource: "https://mcp.mention.earth",
     });
+    expect(MENTION_CAPABILITY_CATALOG.internalBaseUrl)
+      .toBe("https://mcp.mention.earth");
     expect(MENTION_TOOL_REGISTRY.definitions()).toHaveLength(59);
     expect(new Set(MENTION_CAPABILITY_CATALOG.tools.map((tool) => tool.name)).size).toBe(59);
   });
@@ -37,6 +39,19 @@ describe("Mention canonical capability catalog", () => {
       expect(listed.tools).toHaveLength(MENTION_CAPABILITY_CATALOG.tools.length);
 
       for (const catalogTool of MENTION_CAPABILITY_CATALOG.tools) {
+        const externalConnectionTool = [
+          "whoami",
+          "list-accounts",
+          "link-account",
+          "switch-account",
+        ].includes(catalogTool.name);
+        expect(catalogTool.exposure).toEqual(
+          externalConnectionTool ? ["mcp"] : ["internal", "mcp"],
+        );
+        expect(catalogTool.invocation).toEqual({
+          method: "POST",
+          path: `/_oxy/capabilities/${catalogTool.name}`,
+        });
         const mcpTool = listed.tools.find((tool) => tool.name === catalogTool.name);
         expect(mcpTool).toBeDefined();
         expect(mcpTool?.description).toBe(catalogTool.description);
@@ -58,7 +73,7 @@ describe("Mention canonical capability catalog", () => {
       expect(
         MENTION_CAPABILITY_CATALOG.tools.find((tool) => tool.name === "create-post")
           ?.idempotency,
-      ).toBe("supported");
+      ).toBe("required");
     } finally {
       await client.close();
       await server.close();

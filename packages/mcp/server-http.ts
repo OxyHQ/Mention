@@ -40,6 +40,8 @@ import {
   authenticateMcpAccessToken,
   createCentralTokenIntrospector,
 } from "./lib/token-authenticator.js";
+import { createMentionCapabilityAuthority } from "./lib/capability-authority.js";
+import { handleMentionCapabilityRequest } from "./lib/capability-http.js";
 
 const config = loadConfiguration();
 const PORT = config.port;
@@ -48,6 +50,7 @@ const MAX_SESSIONS = config.maxSessions;
 const MCP_PUBLIC_URL = config.publicUrl;
 const OAUTH_AS_URL = config.oxyApiUrl;
 const introspectCentralToken = createCentralTokenIntrospector(config);
+const capabilityAuthority = createMentionCapabilityAuthority(config);
 
 /** Canonical protected-resource metadata URL advertised in 401 challenges. */
 const RESOURCE_METADATA_URL = `${MCP_PUBLIC_URL}/.well-known/oauth-protected-resource`;
@@ -182,7 +185,10 @@ function setCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
     res.setHeader("Vary", "Origin");
   }
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Mcp-Session-Id");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, Idempotency-Key, Mcp-Session-Id",
+  );
   // The client reads the session id assigned on `initialize` from the response;
   // it is invisible to browser fetch() unless explicitly exposed.
   res.setHeader(
@@ -354,6 +360,39 @@ async function main() {
       return;
     }
 
+    if (pathname.startsWith("/_oxy/capabilities/")) {
+      let body: unknown;
+      try {
+        body = await readBody(req);
+      } catch (error) {
+        const status = error instanceof BodyTooLargeError ? 413 : 400;
+        res.setHeader("Content-Type", "application/json");
+        res.writeHead(status);
+        res.end(JSON.stringify({
+          error: error instanceof BodyTooLargeError
+            ? "capability_request_too_large"
+            : "invalid_capability_json",
+        }));
+        return;
+      }
+      const result = await handleMentionCapabilityRequest({
+        method: req.method ?? "",
+        pathname,
+        authorization: typeof req.headers.authorization === "string"
+          ? req.headers.authorization
+          : undefined,
+        idempotencyKey: typeof req.headers["idempotency-key"] === "string"
+          ? req.headers["idempotency-key"]
+          : undefined,
+        body,
+      }, capabilityAuthority);
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Cache-Control", "no-store");
+      res.writeHead(result.status);
+      res.end(JSON.stringify(result.body));
+      return;
+    }
+
     if (isMcpPath(pathname)) {
       const method = req.method;
       if (method === "POST" || method === "GET" || method === "DELETE") {
@@ -497,6 +536,7 @@ function normalizedRoute(pathname: string): string {
   if (pathname === "/.well-known/oauth-protected-resource") {
     return "/.well-known/oauth-protected-resource";
   }
+  if (pathname.startsWith("/_oxy/capabilities/")) return "/_oxy/capabilities/:tool";
   return "unmatched";
 }
 

@@ -196,6 +196,25 @@ for (const workflowName of workflowNames) {
           );
         }
         if (
+          source.includes('secrets.OXY_SERVICE_API_KEY') ||
+          source.includes('secrets.OXY_SERVICE_API_SECRET')
+        ) {
+          failures.push(
+            `${workflowName}: Oxy owns the Mention service credential in SSM; a deploy must not overwrite it from GitHub secrets`,
+          );
+        }
+        if (
+          workflowName === "deploy-mcp-aws.yml" &&
+          (
+            !source.includes("parameter/oxy/mention/OXY_SERVICE_API_KEY") ||
+            !source.includes("parameter/oxy/mention/OXY_SERVICE_API_SECRET")
+          )
+        ) {
+          failures.push(
+            `${workflowName}: backend and MCP must consume the same app-owned Mention service credential`,
+          );
+        }
+        if (
           workflowName === "deploy-aws.yml" &&
           (
             !source.includes("TASK_SECRET_OVERRIDES_JSON") ||

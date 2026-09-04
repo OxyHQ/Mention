@@ -26,17 +26,18 @@ const respondTranslationError = (res: Response, error: unknown, context: string)
     return;
   }
 
-  const edgeStatus = error instanceof OxyInferenceError ? error.status : 0;
-
-  if (edgeStatus === 429) {
+  if (error instanceof OxyInferenceError && error.status === 429) {
     logger.warn(`${context}: rate limited`, error);
     res.status(429).json({ message: 'Too many requests. Please try again later.' });
-  } else if (edgeStatus === 503 || edgeStatus === 502) {
-    logger.warn(`${context}: translation service unavailable`, error);
-    res.status(503).json({ message: 'Translation service temporarily unavailable.' });
-  } else if (edgeStatus === 402) {
+  } else if (error instanceof OxyInferenceError && error.status === 402) {
     logger.warn(`${context}: translation credits issue`, error);
     res.status(502).json({ message: 'Translation service unavailable.' });
+  } else if (error instanceof OxyInferenceError) {
+    // Authentication, scope, policy, routing and provider refusals are all
+    // failures of Mention's configured inference dependency. They are not an
+    // unclassified exception in this API and must never surface as our own 500.
+    logger.warn(`${context}: translation service unavailable`, error);
+    res.status(503).json({ message: 'Translation service temporarily unavailable.' });
   } else {
     logger.error(`${context}: translation failed`, error);
     res.status(500).json({ message: 'Translation failed' });

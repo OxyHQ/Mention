@@ -14,6 +14,10 @@ import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { MCP_TOKEN_AUDIENCE } from '../config/constants';
 import { resolveBundleContext, type McpBundleContext } from '../services/mcpBundleService';
+import {
+  connectionStateFromClaims,
+  type McpConnectionState,
+} from '../services/mcpConnectionDirectory';
 import { isRevoked } from '../services/mcpRevocationService';
 import { verifyAccessToken } from '../services/mcpTokenService';
 
@@ -25,6 +29,12 @@ export interface McpRequestContext {
   bundleId?: string;
   primaryUserId: string;
   activeUserId: string;
+  /**
+   * The account set Oxy says this connection may act as, when it covers more
+   * than the account its token was minted for. Central connections only —
+   * membership is Oxy's, and it is re-read on every request.
+   */
+  connection?: McpConnectionState;
 }
 
 export type OxyAuthRequestWithMcp = OxyAuthRequest & { mcp?: McpRequestContext };
@@ -77,6 +87,11 @@ async function resolveCentralMcpUser(token: string): Promise<McpAuthOutcome> {
     ) {
       return { status: 'invalid' };
     }
+    // Which account to SERVE is the connection's selected member, not the
+    // token's own: one connector can hold several accounts, each of which
+    // approved its own participation on auth.oxy.so. The token stays bound to
+    // the account it was minted for and is never re-issued for the switch.
+    const connection = connectionStateFromClaims(claims, claims.account_id);
     return {
       status: 'ok',
       context: {
@@ -85,7 +100,8 @@ async function resolveCentralMcpUser(token: string): Promise<McpAuthOutcome> {
         scope: normalizeScope(claims.scope),
         clientId: claims.client_id,
         primaryUserId: claims.sub,
-        activeUserId: claims.account_id,
+        activeUserId: connection?.activeAccountId ?? claims.account_id,
+        ...(connection ? { connection } : {}),
       },
     };
   } catch (error) {
