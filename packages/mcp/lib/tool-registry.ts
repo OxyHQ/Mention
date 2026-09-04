@@ -4,7 +4,8 @@ import {
   type CatalogTool,
 } from "@oxyhq/contracts";
 import { createHash } from "node:crypto";
-import { McpServer, type ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod/v4";
 import { toJSONSchema } from "zod/v4-mini";
 import {
@@ -31,11 +32,15 @@ export type MentionToolPolicy = Pick<
 // mutable object literal.
 export type MentionToolShape = Record<string, z.ZodType>;
 
+export type MentionToolHandler<Shape extends MentionToolShape> = (
+  args: z.infer<z.ZodObject<Shape>>,
+) => CallToolResult | Promise<CallToolResult>;
+
 export interface MentionToolDefinition {
   readonly name: string;
   readonly description: string;
   readonly inputShape: MentionToolShape;
-  readonly handler: ToolCallback<MentionToolShape>;
+  readonly handler: MentionToolHandler<MentionToolShape>;
   readonly policy: MentionToolPolicy;
 }
 
@@ -49,7 +54,7 @@ export interface MentionToolRegistrar {
     name: string,
     description: string,
     inputShape: Shape,
-    handler: ToolCallback<Shape>,
+    handler: MentionToolHandler<Shape>,
   ): void;
 }
 
@@ -63,7 +68,7 @@ export class MentionToolRegistry implements MentionToolRegistrar {
     name: string,
     description: string,
     inputShape: Shape,
-    handler: ToolCallback<Shape>,
+    handler: MentionToolHandler<Shape>,
   ): void {
     if (this.#names.has(name)) {
       throw new Error(`Duplicate Mention tool definition: ${name}`);
@@ -78,7 +83,7 @@ export class MentionToolRegistry implements MentionToolRegistrar {
       name,
       description,
       inputShape,
-      handler: handler as ToolCallback<MentionToolShape>,
+      handler: handler as MentionToolHandler<MentionToolShape>,
       policy,
     }));
   }
@@ -114,11 +119,11 @@ export class MentionToolRegistry implements MentionToolRegistrar {
             "oxy/resourceTypes": definition.policy.resourceTypes,
           },
         },
-        async (...args: Parameters<typeof definition.handler>) => {
+        async (args, extra) => {
           const context = requestContext.getStore();
           if (
             context?.authMode === "central" &&
-            !definition.policy.requiredCapabilities.every((capability) =>
+            !definition.policy.requiredCapabilities.every((capability: string) =>
               context.scopes.has(capability)
             )
           ) {
@@ -131,18 +136,14 @@ export class MentionToolRegistry implements MentionToolRegistrar {
             };
           }
           if (definition.policy.effect === "read" || !context) {
-            return definition.handler(...args);
+            return definition.handler(args);
           }
 
-          const extra = args.at(-1) as {
-            requestId?: string | number;
-            sessionId?: string;
-          } | undefined;
           if (
             !context.accountId ||
             !context.clientId ||
             !context.tokenId ||
-            extra?.requestId === undefined
+            extra.requestId === undefined
           ) {
             return {
               content: [{
@@ -162,11 +163,21 @@ export class MentionToolRegistry implements MentionToolRegistrar {
           });
           return requestContext.run(
             { ...context, idempotencyKey, toolName: definition.name },
-            () => definition.handler(...args),
+            () => definition.handler(args),
           );
         },
       );
     }
+  }
+
+  async invoke(
+    name: string,
+    input: Readonly<Record<string, unknown>>,
+  ): Promise<CallToolResult> {
+    const definition = this.#definitions.find((candidate) => candidate.name === name);
+    if (!definition) throw new Error(`Unknown Mention tool: ${name}`);
+    const parsed = z.object(definition.inputShape).parse(input);
+    return definition.handler(parsed);
   }
 
   capabilityCatalog(): AppCapabilityCatalog {
@@ -184,15 +195,19 @@ export class MentionToolRegistry implements MentionToolRegistrar {
         description: definition.description,
         inputSchema,
         ...definition.policy,
+        invocation: {
+          method: "POST",
+          path: `/_oxy/capabilities/${definition.name}`,
+        },
       };
     });
 
     return appCapabilityCatalogSchema.parse({
       schemaVersion: "1",
       appId: "mention",
-      version: "1.2.0",
+      version: "1.3.0",
       audience: MENTION_CAPABILITY_AUDIENCE,
-      internalBaseUrl: "https://api.mention.earth",
+      internalBaseUrl: MENTION_MCP_RESOURCE,
       externalMcp: { resource: MENTION_MCP_RESOURCE },
       accountResourceType: "mention_account",
       tools,

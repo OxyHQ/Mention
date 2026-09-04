@@ -38,12 +38,21 @@ MCP client → mcp.mention.earth → api.mention.earth
                               ↑ account selection + consent on auth.oxy.so
 ```
 
+Native Oxy execution uses a separate HTTP surface on the same adapter, never
+the MCP protocol or an OAuth token:
+
+```text
+Alia → Capability ticket → mcp.mention.earth/_oxy/capabilities/:tool
+                              → Capability ticket → api.mention.earth
+                              ↘ live reauthorization + audit ↗ api.oxy.so
+```
+
 | Component | Role |
 |-----------|------|
 | `@mention/mcp` | MCP protocol (streamable HTTP), tool handlers |
 | `api.oxy.so` | Central OAuth authorization server, DCR, refresh, revocation and live introspection |
 | `auth.oxy.so` | Account selection and consent UI |
-| `api.mention.earth` | Domain API; re-introspects central tokens and enforces the catalog capability for the exact route |
+| `api.mention.earth` | Domain API; reauthorizes external tokens or native capability tickets and fixes the exact effective account before domain execution |
 
 **Identity model:** the token carries the approving user as `sub` and the one
 effective account as `account_id`. Every request is checked live against Oxy's
@@ -56,6 +65,13 @@ before entering domain code, and refuses concurrent or later duplicates. A
 connection loss after a write therefore leaves an indeterminate reservation
 rather than risking a second post, follow, moderation action, or notification
 change. Receipts expire after 30 days; reads never create them.
+
+Native effects use the same durable receipt invariant, keyed by effective
+account, Alia coordinator credential, real actor and idempotency key. The Oxy
+audit receives the raw key once and stores only its SHA-256 correlation digest.
+The four external connection-management tools (`whoami`, `list-accounts`,
+`link-account`, `switch-account`) remain MCP-only; a native agent never gains
+OAuth bundle administration through a Mention content grant.
 
 ## MCP tools (59 total)
 
@@ -194,8 +210,8 @@ the protected-resource metadata and must be removed after that deadline.
 | `MENTION_API_TIMEOUT_MS` | `10000` | Per-attempt Mention API timeout; GET retries once |
 | `MENTION_MCP_PUBLIC_URL` | `https://mcp.mention.earth` | Exact protected resource |
 | `OXY_API_URL` | `https://api.oxy.so` | Central OAuth issuer and introspection API |
-| `OXY_SERVICE_API_KEY` | (required) | Mention service credential id |
-| `OXY_SERVICE_API_SECRET` | (required) | Mention service credential secret |
+| `OXY_SERVICE_API_KEY` | (required) | Mention service credential id (`catalogs:write`, `capabilities:read`, `capability-audit:write`) |
+| `OXY_SERVICE_API_SECRET` | (required) | Rotating Mention service credential secret |
 | `MENTION_LEGACY_OAUTH_ISSUER` | `https://api.mention.earth` | Legacy verification only, until the fixed cutoff |
 | `MCP_PORT` | `3100` | HTTP listen port |
 | `MENTION_MCP_JWT_SECRET` | (required during transition) | Legacy HS256 verification only |
