@@ -175,15 +175,16 @@ the protected-resource metadata and must be removed after that deadline.
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /mcp/bundles/accounts` | One bound account for central tokens |
-| `GET /mcp/bundles/me` | Bound account summary |
-| `POST /mcp/bundles/link-token` | Refuses central tokens with `separate_connection_required` |
-| `POST /mcp/bundles/active` | Refuses central tokens with `separate_connection_required` |
+| `GET /mcp/bundles/accounts` | Every account on the connection, from Oxy's introspection |
+| `GET /mcp/bundles/me` | The account being acted as |
+| `POST /mcp/bundles/link-token` | Single-use `auth.oxy.so` link that adds another account |
+| `POST /mcp/bundles/active` | Asks Oxy to act as a member account |
 
 ### Key backend files
 
 - `src/mcp/routes/mcpOAuth.routes.ts` — legacy transition only
-- `src/mcp/routes/mcpBundles.routes.ts` — one-account central views plus legacy bundle transition
+- `src/mcp/routes/mcpBundles.routes.ts` — the connection's account views, plus legacy bundle transition
+- `src/mcp/services/mcpConnectionDirectory.ts` — the Oxy connection calls (link URL, act-as) and the introspected account set
 - `src/mcp/routes/mcpConnections.routes.ts` — list/revoke
 - `src/mcp/middleware/mcpAuth.ts` — central introspection, exact capability gate, legacy transition
 - `src/mcp/services/mcpBundleService.ts` — legacy bundle lookup during the fixed transition
