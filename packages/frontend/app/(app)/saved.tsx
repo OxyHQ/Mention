@@ -36,7 +36,7 @@ import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
-import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
+import { Fab } from '@oxyhq/bloom/fab';
 import {
     feedService,
     type SavedPostsPage,
@@ -390,7 +390,8 @@ const SavedPostsScreen: React.FC = () => {
                 {/* Create-folder FAB — same anchor and BottomBar clearance as the
                     create action on feeds, lists and the home feed. */}
                 {canUsePrivateApi ? (
-                    <BottomBarAwareFab
+                    <Fab
+                        size={48}
                         onPress={newFolderControl.open}
                         icon={<Ionicons name="add" size={24} color={theme.colors.tertiaryForeground} />}
                         accessibilityLabel={t('saved.newFolder', 'New folder')}

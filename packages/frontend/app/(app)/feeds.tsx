@@ -21,7 +21,7 @@ import type { Trend } from '@/interfaces/Trend';
 
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
-import { BottomBarAwareFab } from '@/components/BottomBarAwareFab';
+import { Fab } from '@oxyhq/bloom/fab';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
@@ -542,9 +542,11 @@ const FeedsScreen: React.FC = () => {
           </ScrollView>
         )}
 
-        {/* FAB that rides the BottomBar's show/hide (web mobile). */}
+        {/* Clears the BottomBar on every platform — Bloom's Fab reads the
+              bottom edge's occupancy, which the bar publishes. */}
         {canEdit ? (
-          <BottomBarAwareFab
+          <Fab
+            size={48}
             onPress={() => router.push('/feeds/new')}
             icon={<Ionicons name="add" size={24} color={theme.colors.tertiaryForeground} />}
             accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}
