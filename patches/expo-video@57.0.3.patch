@@ -1,0 +1,75 @@
+diff --git a/build/VideoPlayer.web.js b/build/VideoPlayer.web.js
+index 46dfa8353eab9ab89ca0ff591b0235114185bc33..14a7be74cd527ccd2d4b8725c9dc496b2eae3afe 100644
+--- a/build/VideoPlayer.web.js
++++ b/build/VideoPlayer.web.js
+@@ -24,6 +24,25 @@ export function createVideoPlayer(source) {
+     const parsedSource = typeof source === 'string' ? { uri: source } : source;
+     return new VideoPlayerWeb(parsedSource);
+ }
++/**
++ * `HTMLMediaElement.play()` rejects with `AbortError` when the element leaves the
++ * document, is paused, or is reloaded before the request settles. All three are
++ * routine teardown — a React view unmounting mid-play is the common one — so the
++ * dropped promise turned ordinary navigation into an uncaught rejection.
++ *
++ * Only `AbortError` is absorbed. Every other rejection is rethrown, which leaves
++ * it exactly as unhandled as it is today, so an autoplay-policy refusal
++ * (`NotAllowedError`) still surfaces.
++ */
++function playIgnoringTeardownAbort(video) {
++    const started = video.play();
++    started?.catch((error) => {
++        if (error?.name !== 'AbortError') {
++            throw error;
++        }
++    });
++}
++
+ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+     constructor(source) {
+         super();
+@@ -228,7 +247,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+     }
+     play() {
+         this._mountedVideos.forEach((video) => {
+-            video.play();
++            playIgnoringTeardownAbort(video);
+         });
+     }
+     pause() {
+@@ -243,7 +262,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+             if (uri) {
+                 video.setAttribute('src', uri);
+                 video.load();
+-                video.play();
++                playIgnoringTeardownAbort(video);
+             }
+             else {
+                 video.removeAttribute('src');
+@@ -268,7 +287,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+     replay() {
+         this._mountedVideos.forEach((video) => {
+             video.currentTime = 0;
+-            video.play();
++            playIgnoringTeardownAbort(video);
+         });
+         this.playing = true;
+     }
+@@ -283,7 +302,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+             video.pause();
+         }
+         else {
+-            video.play();
++            playIgnoringTeardownAbort(video);
+         }
+         video.currentTime = firstVideo.currentTime;
+         video.volume = firstVideo.volume;
+@@ -309,7 +328,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+             this.playing = true;
+             this._mountedVideos.forEach((mountedVideo) => {
+                 if (e.target !== mountedVideo) {
+-                    mountedVideo.play();
++                    playIgnoringTeardownAbort(mountedVideo);
+                 }
+             });
+         };

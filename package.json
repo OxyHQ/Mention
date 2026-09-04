@@ -132,6 +132,7 @@
   },
   "dependencies": {},
   "patchedDependencies": {
-    "expo-router@57.0.18": "patches/expo-router@57.0.18.patch"
+    "expo-router@57.0.18": "patches/expo-router@57.0.18.patch",
+    "expo-video@57.0.3": "patches/expo-video@57.0.3.patch"
   }
 }
