@@ -63,17 +63,25 @@ function centralAccessToken(req: AuthRequest, res: Response): string | null {
   return token;
 }
 
-/** Status and message off a failed Oxy service call, without leaking internals. */
-function oxyFailure(error: unknown): { status: number; message: string } {
-  const status = (error as { status?: number } | undefined)?.status
-    ?? (error as { response?: { status?: number } } | undefined)?.response?.status;
-  const description = (error as { data?: { error_description?: string } } | undefined)
-    ?.data?.error_description;
+/**
+ * Status and message off a failed Oxy service call.
+ *
+ * The SDK normalizes an OAuth-shaped refusal into `{ status, code, message }`
+ * with `error_description` as the message, so Oxy's own reason for refusing —
+ * "that account is not connected to this MCP connection" — reaches the caller
+ * instead of a generic 502. Anything that is not a client-side refusal is one:
+ * an Oxy outage is not the caller's mistake.
+ */
+function oxyFailure(error: unknown): { status: number; message: string; code?: string } {
+  const failure = error as { status?: number; message?: string; code?: string } | undefined;
+  const clientRefusal = typeof failure?.status === 'number'
+    && failure.status >= 400 && failure.status < 500;
   return {
-    status: typeof status === 'number' && status >= 400 && status < 500 ? status : 502,
-    message: typeof description === 'string' && description.length > 0
-      ? description
+    status: clientRefusal ? failure.status as number : 502,
+    message: clientRefusal && typeof failure?.message === 'string' && failure.message.length > 0
+      ? failure.message
       : 'Oxy could not complete this connection request',
+    ...(typeof failure?.code === 'string' ? { code: failure.code } : {}),
   };
 }
 
@@ -182,7 +190,7 @@ router.post('/link-token', async (req: AuthRequest, res: Response) => {
     const failure = oxyFailure(error);
     logger.warn('[McpBundles] account link request failed', {
       status: failure.status,
-      reason: error instanceof Error ? error.message : String(error),
+      code: failure.code,
     });
     return res.status(failure.status).json({ message: failure.message });
   }
@@ -245,7 +253,7 @@ router.post('/active', async (req: AuthRequest, res: Response) => {
         const failure = oxyFailure(error);
         logger.warn('[McpBundles] account switch failed', {
           status: failure.status,
-          reason: error instanceof Error ? error.message : String(error),
+          code: failure.code,
         });
         return res.status(failure.status).json({ message: failure.message });
       }

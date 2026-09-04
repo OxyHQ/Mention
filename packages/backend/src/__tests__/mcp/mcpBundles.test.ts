@@ -295,10 +295,13 @@ describe('MCP bundles routes', () => {
 
   it('relays Oxy\'s refusal to act as an account that never approved the connection', async () => {
     mocks.getProfileByUsername.mockResolvedValue({ id: USER_B, username: 'brand' });
-    mocks.makeServiceRequest.mockRejectedValue(Object.assign(new Error('refused'), {
+    // The SDK normalizes an OAuth refusal into this shape, with
+    // `error_description` already promoted to `message`.
+    mocks.makeServiceRequest.mockRejectedValue({
       status: 404,
-      data: { error_description: 'That account is not connected to this MCP connection' },
-    }));
+      code: 'invalid_request',
+      message: 'That account is not connected to this MCP connection',
+    });
 
     const res = await request(buildApp(USER_A, connectedCentralContext))
       .post('/mcp/bundles/active')
