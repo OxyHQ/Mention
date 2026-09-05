@@ -97,6 +97,21 @@ const persistRelatedPosts = (items: readonly FeedItem[]): void => {
 // ── Request tracking ─────────────────────────────────────────────
 
 const pendingRequests = new Map<string, { timestamp: number; abortController?: AbortController }>();
+/**
+ * Plain single-post READS in flight, by post id — shared, not aborted.
+ *
+ * `getPostById` and `revalidatePostById` both key `pendingRequests` on
+ * `post:<id>` and both abort whatever they find there, so two reads of the same
+ * post cancel each other. That is right for a revalidation (a deliberate
+ * cache-buster: the newer answer wins) and wrong for two plain reads, which are
+ * the same question asked twice moments apart — the press-in prefetch and the
+ * detail screen's own mount. Without this map the second read aborts the first
+ * and the prefetch buys a cancelled request and nothing else.
+ *
+ * Only `getPostById` shares through here. `revalidatePostById` keeps its
+ * abort-and-refetch semantics untouched.
+ */
+const inFlightPostReads = new Map<string, Promise<FeedItem | null>>();
 const inFlightEngagements = new Map<string, string>();
 const getEngagementKey = (postId: string, action: string) => `${postId}:${action.replace('un', '')}`;
 let viewerStateEpoch = 0;
@@ -1310,48 +1325,66 @@ export const usePostsStore = create<PostsStoreState>()(
 
     // ── getPostById ──────────────────────────────────────────
     getPostById: async (postId: string) => {
-      const operationEpoch = captureViewerStateEpoch();
-      let requestKey: string | null = null;
-      let timestamp = 0;
-      let abortController: AbortController | null = null;
-      try {
-        // Check SQLite first
-        const cached = dbGetPostById(postId);
-        if (cached) return cached;
+      // Check SQLite first — a hit costs no request, so it never reaches the
+      // in-flight map.
+      const cached = dbGetPostById(postId);
+      if (cached) return cached;
 
-        // Fetch from API
-        requestKey = `post:${postId}`;
-        pendingRequests.get(requestKey)?.abortController?.abort();
-        abortController = new AbortController();
-        timestamp = Date.now();
-        pendingRequests.set(requestKey, { timestamp, abortController });
-        const response = await feedService.getPostById(
-          postId,
-          abortController.signal,
-        );
-        if (
-          abortController.signal.aborted ||
-          !isCurrentViewerStateEpoch(operationEpoch)
-        ) return null;
-        const item = toFeedItem(response);
-        dbUpsertPost(item);
-        persistRelatedPosts([item]);
-        notifyPostChanges(collectWrittenPostIds([item]));
-        return item;
-      } catch (error) {
-        if (
-          abortController?.signal.aborted ||
-          !isCurrentViewerStateEpoch(operationEpoch)
-        ) return null;
-        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch post';
-        set({ error: errorMessage });
-        throw error;
-      } finally {
-        if (requestKey) {
-          const current = pendingRequests.get(requestKey);
-          if (current?.abortController === abortController) {
-            pendingRequests.delete(requestKey);
+      // Same question already on the wire (see `inFlightPostReads`): join it.
+      const alreadyReading = inFlightPostReads.get(postId);
+      if (alreadyReading) return alreadyReading;
+
+      const read = (async (): Promise<FeedItem | null> => {
+        const operationEpoch = captureViewerStateEpoch();
+        let requestKey: string | null = null;
+        let timestamp = 0;
+        let abortController: AbortController | null = null;
+        try {
+          // Fetch from API
+          requestKey = `post:${postId}`;
+          pendingRequests.get(requestKey)?.abortController?.abort();
+          abortController = new AbortController();
+          timestamp = Date.now();
+          pendingRequests.set(requestKey, { timestamp, abortController });
+          const response = await feedService.getPostById(
+            postId,
+            abortController.signal,
+          );
+          if (
+            abortController.signal.aborted ||
+            !isCurrentViewerStateEpoch(operationEpoch)
+          ) return null;
+          const item = toFeedItem(response);
+          dbUpsertPost(item);
+          persistRelatedPosts([item]);
+          notifyPostChanges(collectWrittenPostIds([item]));
+          return item;
+        } catch (error) {
+          if (
+            abortController?.signal.aborted ||
+            !isCurrentViewerStateEpoch(operationEpoch)
+          ) return null;
+          const errorMessage = error instanceof Error ? error.message : 'Failed to fetch post';
+          set({ error: errorMessage });
+          throw error;
+        } finally {
+          if (requestKey) {
+            const current = pendingRequests.get(requestKey);
+            if (current?.abortController === abortController) {
+              pendingRequests.delete(requestKey);
+            }
           }
+        }
+      })();
+
+      inFlightPostReads.set(postId, read);
+      try {
+        return await read;
+      } finally {
+        // Only the entry this call created — `resetViewerState` may have cleared
+        // the map and a later read may already own the id.
+        if (inFlightPostReads.get(postId) === read) {
+          inFlightPostReads.delete(postId);
         }
       }
     },
@@ -1545,6 +1578,10 @@ export const usePostsStore = create<PostsStoreState>()(
         pending.abortController?.abort();
       }
       pendingRequests.clear();
+      // A read that started for the previous viewer must not be handed to the
+      // new one: its promise is already epoch-guarded to resolve `null`, so a
+      // joiner would get "post not found" instead of reading it fresh.
+      inFlightPostReads.clear();
       inFlightEngagements.clear();
 
       if (options?.clearCachedData !== false) {
