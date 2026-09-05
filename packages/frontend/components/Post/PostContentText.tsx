@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { LinkifiedText } from '../common/LinkifiedText';
-import { useRouter, usePathname } from 'expo-router';
+import { useRouter } from 'expo-router';
 import type { PostContent } from '@mention/shared-types';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useExpandableText } from '@/hooks/useExpandableText';
@@ -33,7 +33,6 @@ const PREVIEW_CHARS = { default: 280, more: 600, muchMore: 1200, all: Infinity }
 
 const PostContentText: React.FC<Props> = ({ content, postId, previewChars, overrideText, linkPreviewUrls }) => {
   const router = useRouter();
-  const pathname = usePathname();
   const { t } = useTranslation();
   const postTextExpand = useAppearanceStore((s) => s.mySettings?.appearance?.postTextExpand) ?? 'default';
   const postReadMoreAction = useAppearanceStore((s) => s.mySettings?.appearance?.postReadMoreAction) ?? 'openPost';
@@ -45,13 +44,15 @@ const PostContentText: React.FC<Props> = ({ content, postId, previewChars, overr
     ? rawText.replace(TRAILING_URL_RE, (match: string, url: string) => linkPreviewUrls.includes(url) ? '' : match)
     : rawText;
 
-  const isDetailPage = pathname?.startsWith('/p');
-  // On the detail page, never truncate — feed it Infinity so the hook is a no-op.
+  // Surfaces that never truncate (the focused post on a detail screen, the boost
+  // screen) pass `previewChars={Infinity}`, which makes the hook a no-op — the
+  // caller knows whether it is the focused post, and reading the route here would
+  // re-render every mounted row on every navigation.
   // `postReadMoreAction` is passed as the reset key so toggling it in Settings
   // (or reusing this component for different content) collapses back to false.
   const { displayText, isTruncated, isExpanded, toggle } = useExpandableText(
     textContent,
-    isDetailPage ? Infinity : effectivePreviewChars,
+    effectivePreviewChars,
     postReadMoreAction
   );
 

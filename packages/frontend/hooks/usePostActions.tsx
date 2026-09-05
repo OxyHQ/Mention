@@ -1,5 +1,5 @@
 import React, { useMemo, useContext } from 'react';
-import { useRouter, usePathname } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -47,6 +47,13 @@ const logger = createLogger('usePostActions');
 interface UsePostActionsParams {
     viewPost: HydratedPost;
     isOwner: boolean;
+    /**
+     * True only for the FOCUSED post on `/p/<id>` — the one surface where deleting
+     * the post must also leave the screen. Passed in rather than read off the
+     * route: every mounted row calls this hook, and a route subscription here
+     * rebuilds all nine action arrays for every row on every navigation.
+     */
+    isPostDetail: boolean;
     canViewInsights: boolean;
     canStopSharing: boolean;
     isSaved: boolean;
@@ -72,6 +79,7 @@ interface PostActionsResult {
 export function usePostActions({
     viewPost,
     isOwner,
+    isPostDetail,
     canViewInsights,
     canStopSharing,
     isSaved,
@@ -85,7 +93,6 @@ export function usePostActions({
     const { user } = useAuth();
     const { t } = useTranslation();
     const router = useRouter();
-    const pathname = usePathname();
     const safeBack = useSafeBack();
     const bottomSheet = useContext(BottomSheetContext);
     const queryClient = useQueryClient();
@@ -97,7 +104,6 @@ export function usePostActions({
         const postId = viewPost?.id;
         const postUrl = `https://mention.earth/p/${postId}`;
         const isPinned = Boolean(viewPost?.metadata?.isPinned);
-        const isPostDetail = (pathname || '').startsWith('/p/');
 
         const handleDelete = async () => {
             const confirmed = await confirmDialog({
@@ -542,5 +548,5 @@ export function usePostActions({
             muteReportAction,
             copyLinkAction,
         };
-    }, [viewPost, isOwner, canViewInsights, canStopSharing, isSaved, hasArticle, hasSources, onSave, onOpenArticle, onOpenSources, theme, t, bottomSheet, router, pathname, safeBack, removePostEverywhere, reinsertPost, updatePostEverywhere, queryClient]);
+    }, [viewPost, isOwner, isPostDetail, canViewInsights, canStopSharing, isSaved, hasArticle, hasSources, onSave, onOpenArticle, onOpenSources, theme, t, bottomSheet, router, safeBack, removePostEverywhere, reinsertPost, updatePostEverywhere, queryClient]);
 }

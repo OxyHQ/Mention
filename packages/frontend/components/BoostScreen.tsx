@@ -163,7 +163,7 @@ const BoostScreen: React.FC = () => {
                             />
                         </View>
                     </View>
-                    <PostContentText content={originalPost.content} postId={originalPost.id} />
+                    <PostContentText content={originalPost.content} postId={originalPost.id} previewChars={Infinity} />
                 </View>
 
                 {/* Boost Input */}
