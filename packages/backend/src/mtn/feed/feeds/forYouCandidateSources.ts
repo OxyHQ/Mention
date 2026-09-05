@@ -172,7 +172,7 @@ function buildBaseConditions(seenPostIds: string[], since: Date): SQL[] {
  * query-level safety filter at all) and operates on an already-bounded pool.
  */
 function withDiscoveryGuards(conditions: SQL[], params: GatherForYouCandidatesParams): SQL[] {
-  return withViewerLanguage([...conditions, sensitiveExcludeSql()], params);
+  return withViewerLanguage([...conditions, sensitiveExcludeSql()], params.viewerLanguages);
 }
 
 /**
@@ -198,8 +198,8 @@ function withDiscoveryGuards(conditions: SQL[], params: GatherForYouCandidatesPa
  * its author a PERMANENT exemption from the filter. Same self-reinforcing shape
  * as the learned `preferredLanguages` array this replaced, one level up.
  */
-function withViewerLanguage(conditions: SQL[], params: GatherForYouCandidatesParams): SQL[] {
-  const language = viewerLanguageSql(params.viewerLanguages);
+function withViewerLanguage(conditions: SQL[], viewerLanguages: readonly string[] | undefined): SQL[] {
+  const language = viewerLanguageSql(viewerLanguages);
   return language ? [...conditions, language] : conditions;
 }
 
@@ -340,11 +340,8 @@ export async function gatherSubscribedListsLane(params: GatherForYouCandidatesPa
 /**
  * AFFINITY: posts from affinity authors (sensitive allowed at query level).
  *
- * Language-filtered, unlike the other two `trusted` lanes — see
- * {@link withViewerLanguage}. Following and subscribed lists are authors the
- * reader CHOSE; affinity is authors the reader was INFERRED to like, and it
- * excludes everyone they follow, so it is precisely the "people I do not follow"
- * the language filter exists for.
+ * Language-filtered, unlike the other two lanes the engine marks `trusted` — see
+ * {@link withViewerLanguage} for why.
  */
 export async function gatherAffinityLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
   const affinityAuthorIds = await resolveAffinityAuthorIds(params);
@@ -356,7 +353,7 @@ export async function gatherAffinityLane(params: GatherForYouCandidatesParams): 
         ...buildBaseConditions(params.seenPostIds, recencyStart()),
         followedAuthorsSql(affinityAuthorIds),
       ],
-      params,
+      params.viewerLanguages,
     ),
     MtnConfig.feed.candidateSources.perSource.affinity,
   );

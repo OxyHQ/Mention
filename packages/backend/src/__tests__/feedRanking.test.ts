@@ -606,13 +606,13 @@ describe('FeedRankingService language personalization (ANY-overlap on postClassi
    * `userBehavior.preferredLanguages`, an array appended to on any recorded
    * interaction — a SKIP included — never weighted and never decayed, so
    * scrolling past a post in a language you do not read taught this boost to
-   * favor that language. It now reads `ctx.viewerLanguages`, the reader's own
+   * favor that language. It now reads `ctx.viewerBaseLanguages`, the reader's own
    * declaration (Oxy account, else `Accept-Language`).
    */
   async function scoreWithSpanishPref(post: Record<string, unknown>): Promise<number> {
     return service.calculatePostScore(post, VIEWER, {
       userBehavior: {},
-      viewerLanguages: ['es'],
+      viewerBaseLanguages: ['es'],
       behaviorSets: {
         hiddenAuthors: new Set<string>(),
         mutedAuthors: new Set<string>(),

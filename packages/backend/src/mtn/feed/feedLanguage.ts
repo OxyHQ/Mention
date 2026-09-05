@@ -15,11 +15,18 @@
  *   - DISCOVERY lanes (topics / region / trending / global) and the popular
  *     fallback: FILTERED. Nobody asked for these posts, so they have to be
  *     readable to be worth a slot.
- *   - TRUSTED lanes (following / affinity / subscribed lists): NEVER filtered. A
- *     post from an account the reader deliberately follows is the reader's own
- *     business, whatever language it is in.
- *   - Discover (`explore`): NEVER filtered. It is the open window on the whole
- *     network and keeps only its in-language relevance BOOST.
+ *   - CHOSEN lanes (following / subscribed lists): NEVER filtered. A post from an
+ *     account the reader deliberately followed is the reader's own business,
+ *     whatever language it is in.
+ *   - AFFINITY: FILTERED, despite being `trusted` to the discovery gate.
+ *     `resolveAffinityAuthorIds` excludes everyone the viewer follows, so the lane
+ *     is by construction "people you did not choose". Engagement vouches for an
+ *     author's quality; it does not teach the reader a language.
+ *   - Discover (`explore`), Videos and Media: FILTERED. Discover was exempt at
+ *     first, as the open window on the whole network — but measured on production
+ *     2026-09-05 the window was 56% `ja`, from misskey.io / fedibird.com posts
+ *     carrying likes=0, replies=0 and only federated boosts, riding pure recency.
+ *     An open window onto one language nobody asked for is not discovery.
  *
  * It is a SQL predicate rather than an in-memory filter because each discovery
  * lane is capped at 15–30 rows: filtering after the fetch shrinks the pool,
@@ -33,18 +40,9 @@
  */
 
 import { MtnConfig } from '@mention/shared-types';
-import { arrayOverlaps, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { arrayOverlaps, type SQL } from 'drizzle-orm';
 import { posts } from '../../db/schema';
 import { isDiscoveryLanguageFilterEnabled } from '../../config';
-
-/**
- * Whether the discovery language filter is active. The env flag
- * (`FOR_YOU_DISCOVERY_LANGUAGE=off`) wins over the config default so the filter
- * can be rolled back at runtime, exactly like the discovery gate beside it.
- */
-export function isDiscoveryLanguageEnabled(): boolean {
-  return isDiscoveryLanguageFilterEnabled() ?? MtnConfig.feed.discoveryLanguage.enabled;
-}
 
 /**
  * The reader-language predicate for a DISCOVERY query, or `undefined` when no
@@ -57,28 +55,29 @@ export function isDiscoveryLanguageEnabled(): boolean {
  * only an unmatched one. That is the same fail-soft contract
  * `languageMismatchPenalty` already holds.
  *
- * `allowUnclassified` widens the match to posts with no resolvable language.
- * Default `false`: an unverifiable language is not a match. Measured cost is 1.9%
- * of production (4 of 212 sampled posts) — measured on `classification_languages`
- * itself, since the scalar `language` diverges from it and reads lower. What it
- * drops is media-only/sub-12-character posts plus legacy pre-port rows the
- * language backfill has not swept; see `MtnConfig.feed.discoveryLanguage`.
+ * A post with NO resolvable language does not match: an unverifiable language is
+ * not a match. Measured cost is 1.9% of production (4 of 212 sampled posts) —
+ * measured on `classification_languages` itself, since the scalar `language`
+ * diverges from it and reads lower. What it drops is media-only/sub-12-character
+ * posts plus legacy pre-port rows the language backfill has not swept.
+ *
+ * This was briefly an `allowUnclassified` config knob. It was not one: `MtnConfig`
+ * is `as const`, so the flag's type was the literal `false` and the widening
+ * branch behind it could never execute — a documented lever that was really a
+ * dead branch.
  *
  * @param viewerLanguages ISO 639-1 base subtags, primary first. Already
  *   normalized by `loadViewerFeedContext`.
  */
 export function viewerLanguageSql(viewerLanguages: readonly string[] | undefined): SQL | undefined {
-  if (!isDiscoveryLanguageEnabled()) return undefined;
+  // Cheapest guard first. Both branches return `undefined`, so the order is only
+  // about cost: an undeclared reader (anonymous, no `Accept-Language`) is the
+  // common case on the anonymous feed, and this way they never reach the env
+  // parse behind the flag.
   if (!viewerLanguages || viewerLanguages.length === 0) return undefined;
+  if (!(isDiscoveryLanguageFilterEnabled() ?? MtnConfig.feed.discoveryLanguage.enabled)) {
+    return undefined;
+  }
 
-  const match = arrayOverlaps(posts.classificationLanguages, [...viewerLanguages]);
-  if (!MtnConfig.feed.discoveryLanguage.allowUnclassified) return match;
-
-  // A NULL array and an EMPTY array are distinct in Postgres and both mean "no
-  // resolvable language" here, so the escape has to test each one.
-  return or(
-    match,
-    isNull(posts.classificationLanguages),
-    sql`cardinality(${posts.classificationLanguages}) = 0`,
-  );
+  return arrayOverlaps(posts.classificationLanguages, [...viewerLanguages]);
 }

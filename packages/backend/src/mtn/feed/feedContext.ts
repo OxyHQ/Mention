@@ -12,7 +12,7 @@
  * never break a feed or relax the sensitivity gate.
  */
 
-import { toBaseLanguages, type FeedTuning } from '@mention/shared-types';
+import { MtnConfig, toBaseLanguages, type FeedTuning } from '@mention/shared-types';
 import type { FeedRankingSettings } from '../../services/ranking/signalContext';
 import type { OxyClient } from '../../utils/privacyHelpers';
 import { extractFollowingIds, extractFollowersIds } from '../../utils/privacyHelpers';
@@ -33,7 +33,7 @@ import type { FeedEngineContext } from './engine/types';
  * the discovery lanes, and the cardinality of the anonymous feed cache, whose
  * key now carries this set.
  */
-const MAX_VIEWER_LANGUAGES = 3;
+const MAX_VIEWER_LANGUAGES = MtnConfig.feed.discoveryLanguage.maxViewerLanguages;
 
 /**
  * The reader's READABILITY set: which languages they can read at all, as ISO
@@ -97,16 +97,6 @@ export async function loadViewerLanguages(userId: string | undefined): Promise<s
 }
 
 /**
- * The viewer's Mention-local per-user feed tuning (`UserSettings.feedTuning`,
- * Phase 4B). `undefined` for anonymous viewers, viewers with no stored tuning, or
- * on any load failure — so the For You gate falls back to its config defaults.
- * Read-only hot path: the value was validated on write, so it is returned as-is.
- */
-export async function loadFeedTuning(userId: string | undefined): Promise<FeedTuning | undefined> {
-  return (await loadFeedPreferences(userId)).feedTuning;
-}
-
-/**
  * The viewer's two Mention-local feed preference documents, from ONE read.
  *
  * They live on the same `UserSettings` row and were loaded separately — except
@@ -167,8 +157,6 @@ export async function loadViewerFeedContext(
   let userBehavior: UserBehaviorRecord | undefined;
   let feedPreferences: { feedTuning?: FeedTuning; feedSettings?: FeedRankingSettings } = {};
   let showSensitiveContent = false;
-  let feedTuning: FeedTuning | undefined;
-  let feedSettings: FeedRankingSettings | undefined;
   let viewerLanguages: string[] = [];
   let mutedLaneIds: string[] = [];
 
@@ -261,8 +249,6 @@ export async function loadViewerFeedContext(
       languagesPromise,
       mutedLanesPromise,
     ]);
-    feedTuning = feedPreferences.feedTuning;
-    feedSettings = feedPreferences.feedSettings;
   }
 
   return {
@@ -273,15 +259,15 @@ export async function loadViewerFeedContext(
     userBehavior,
     oxyClient,
     showSensitiveContent,
-    feedTuning,
+    feedTuning: feedPreferences.feedTuning,
     // The viewer's own ranking knobs from `/settings/feed`. Loaded alongside
     // `feedTuning` from the same row; `undefined` leaves every knob at its
     // `MtnConfig.ranking` default.
-    feedSettings,
+    feedSettings: feedPreferences.feedSettings,
     viewerRegion: userPreferenceService.getTopRegion(userBehavior),
     // The viewer's Oxy account locales (BCP-47, primary first) — `[]` for an
-    // anonymous viewer, an account with no languages, or any lookup failure, in
-    // which case `languageMismatchPenalty` stays neutral.
+    // anonymous viewer, an account with no languages, or any lookup failure.
+    // Consumed by hydration's VARIANT selection, where the region matters.
     viewerLanguages,
     // The readability set, from the SAME two rungs as `viewerLanguages` but in
     // base form. Resolved for an ANONYMOUS reader too — they have no account, but

@@ -229,7 +229,10 @@ export const affinitySource: SourceModule = {
   id: 'affinity',
   kind: 'source',
   userComposable: false,
-  // TRUSTED: affinity authors are learned from the viewer's own engagement, never gated.
+  // TRUSTED to the discovery GATE — the viewer's own engagement vouches for these
+  // authors' quality. NOT trusted for LANGUAGE: the lane excludes everyone the
+  // viewer follows, so it is people they never chose, and `gatherAffinityLane`
+  // filters it. See `feedLanguage.ts`.
   trusted: true,
   gather: async (ctx) => runForYouLane(ctx, gatherAffinityLane),
 };

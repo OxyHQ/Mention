@@ -1025,8 +1025,10 @@ export async function insertPostRecord(
 ): Promise<PostRecord> {
   const id = input.id ?? uuidv7();
 
+  const insert = toPostInsert(input, id);
+
   const write = async (tx: DatabaseOrTransaction): Promise<void> => {
-    await tx.insert(posts).values(toPostInsert(input, id));
+    await tx.insert(posts).values(insert);
     await insertChildRows(
       tx,
       id,
@@ -1035,6 +1037,24 @@ export async function insertPostRecord(
       input.mentions ?? [],
       input.postClassification?.topicRefs,
     );
+    // A reply COUNTS on its parent, from whichever path created it.
+    //
+    // This lived in the callers, and only two of the five ever did it — the
+    // native `createReply` and the federated inbox. `PostCreationService`
+    // (`POST /posts` and threads) and `PostMaterializer` (atproto) both write
+    // `parentPostId` and neither bumped, so their replies existed without ever
+    // being counted. Since `deletePostRecord` decrements for EVERY reply, that
+    // asymmetry could drive a parent's count below the truth.
+    //
+    // It belongs here for the same reason the decrement belongs in the delete:
+    // this function already derives `isReply` itself (`derivesReplyIntent`, in
+    // `toPostInsert`), so it is the one place that knows a reply was created, and
+    // no future creation path can forget. Inside the transaction, so the counter
+    // and the row it counts land together — which is the contract
+    // `scripts/reconcile-engagement-projections.ts` states for these projections.
+    if (insert.isReply && insert.parentPostId) {
+      await bumpPostCounters(insert.parentPostId, { comments: 1 }, tx);
+    }
   };
 
   // A caller already inside a transaction passes its handle; a `Transaction` has
@@ -1239,6 +1259,19 @@ export interface PostCounterDelta {
  * and what the numbers now are. Reading the author separately would be a second
  * query that could answer about a different version of the row.
  */
+/** The counter projection, shared by the bump and the read so they cannot drift. */
+const POST_COUNTER_COLUMNS = {
+  oxyUserId: posts.oxyUserId,
+  likesCount: posts.statsLikesCount,
+  downvotesCount: posts.statsDownvotesCount,
+  boostsCount: posts.statsBoostsCount,
+  federatedBoostsCount: posts.statsFederatedBoostsCount,
+  commentsCount: posts.statsCommentsCount,
+  viewsCount: posts.statsViewsCount,
+  sharesCount: posts.statsSharesCount,
+  savesCount: posts.statsSavesCount,
+} as const;
+
 export async function bumpPostCounters(
   postId: string,
   delta: PostCounterDelta,
@@ -1269,17 +1302,32 @@ export async function bumpPostCounters(
     .update(posts)
     .set(values)
     .where(eq(posts.id, postId))
-    .returning({
-      oxyUserId: posts.oxyUserId,
-      likesCount: posts.statsLikesCount,
-      downvotesCount: posts.statsDownvotesCount,
-      boostsCount: posts.statsBoostsCount,
-      federatedBoostsCount: posts.statsFederatedBoostsCount,
-      commentsCount: posts.statsCommentsCount,
-      viewsCount: posts.statsViewsCount,
-      sharesCount: posts.statsSharesCount,
-      savesCount: posts.statsSavesCount,
-    });
+    .returning(POST_COUNTER_COLUMNS);
+  return row ?? null;
+}
+
+/**
+ * Read a post's counters, in the SAME shape {@link bumpPostCounters} returns.
+ *
+ * The counter WRITE moved into `insertPostRecord`/`deletePostRecord` so that
+ * every path that creates or removes a reply moves its parent's count without
+ * having to remember. A caller that needs the number afterwards — the reply
+ * endpoint, which broadcasts the parent's new count to the post's room — then
+ * needs a read rather than a second bump, and reading is what it actually wanted
+ * all along: `UPDATE … RETURNING` was only ever the way it got the number back.
+ *
+ * Shares `POST_COUNTER_COLUMNS` with the bump so the two can never report
+ * different shapes of the same row.
+ */
+export async function readPostCounters(
+  postId: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<(PostStats & { oxyUserId: string | null }) | null> {
+  const [row] = await db
+    .select(POST_COUNTER_COLUMNS)
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .limit(1);
   return row ?? null;
 }
 

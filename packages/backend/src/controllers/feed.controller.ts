@@ -14,6 +14,7 @@ import {
 import { posts as postsTable } from '../db/schema/posts';
 import {
   bumpPostCounters,
+  readPostCounters,
   CHRONO_DESC,
   deletePostRecord,
   findPostRecords,
@@ -530,11 +531,12 @@ class FeedController {
           .catch(() => undefined);
       }
 
-      // Update parent post comment count. `bumpPostCounters` is one
-      // `UPDATE … RETURNING`, so the broadcast below carries the number the
-      // database now holds rather than a count this request computed and hoped
-      // was still current.
-      const updatedParent = await bumpPostCounters(postId, { comments: 1 });
+      // The parent's count was already moved by `insertPostRecord`, inside the
+      // same transaction as the reply row — every creation path counts now, not
+      // just this one. This READS it back, which is what the broadcast wanted all
+      // along: the number the database holds, rather than a count this request
+      // computed and hoped was still current.
+      const updatedParent = await readPostCounters(postId);
 
       // Outbound federation: deliver the reply as a Create(Note) with `inReplyTo`
       // + a parent-author Mention to the replier's remote followers AND (when the

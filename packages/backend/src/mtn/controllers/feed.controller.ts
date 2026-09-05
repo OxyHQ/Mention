@@ -513,45 +513,61 @@ class MtnFeedController {
       const feedOxyClient = requestOxyClient
         ?? (getRuntimeOxyClient() as unknown as OxyClient);
 
+      // `?lang=` then `Accept-Language`. Synchronous; the account rung below wins
+      // when it has anything.
+      const requestLanguages = requestLanguageCandidates(req);
+
       let followingIds: string[] = [];
       let subscribedListMemberIds: string[] = [];
+      let accountLanguages: string[] = [];
       if (currentUserId) {
-        try {
-          const followingRes = await feedOxyClient.getUserFollowing(currentUserId);
-          followingIds = extractFollowingIds(followingRes);
-        } catch (error) {
-          logger.warn('[MtnFeedController] Failed to load following list', error);
-        }
+        // Three INDEPENDENT reads. They ran as a serial chain, and the languages
+        // this needs would have made it four; only the federated-follow merge is
+        // genuinely chained, because it appends onto the Oxy list. Each branch
+        // keeps its own soft-fail, so one failure degrades one signal.
+        const followingPromise = (async (): Promise<string[]> => {
+          let ids: string[] = [];
+          try {
+            ids = extractFollowingIds(await feedOxyClient.getUserFollowing(currentUserId));
+          } catch (error) {
+            logger.warn('[MtnFeedController] Failed to load following list', error);
+          }
+          try {
+            await mergeFederatedFollowIds(currentUserId, ids);
+          } catch (error) {
+            logger.warn('[MtnFeedController] Failed to load federated following', error);
+          }
+          return ids;
+        })();
 
-        try {
-          await mergeFederatedFollowIds(currentUserId, followingIds);
-        } catch (error) {
-          logger.warn('[MtnFeedController] Failed to load federated following', error);
-        }
+        const subscribedPromise = listSubscriptionService
+          .getSubscribedListMemberIds(currentUserId)
+          .catch((error): string[] => {
+            logger.warn('[MtnFeedController] Failed to load subscribed-list members', error);
+            return [];
+          });
 
-        try {
-          subscribedListMemberIds = await listSubscriptionService.getSubscribedListMemberIds(currentUserId);
-        } catch (error) {
-          logger.warn('[MtnFeedController] Failed to load subscribed-list members', error);
-        }
+        [followingIds, subscribedListMemberIds, accountLanguages] = await Promise.all([
+          followingPromise,
+          subscribedPromise,
+          loadViewerLanguages(currentUserId),
+        ]);
       }
 
       // The peek builds its own MINIMAL context rather than calling
       // `loadViewerFeedContext`, and the readability set has to be part of that
       // minimum: the discovery lanes and the popular fallback filter on it, so a
       // peek without it counts posts the feed itself will then drop — "5 new
-      // posts", refresh, two appear. One Redis-cached identity read, on a viewer
-      // the peek path has warm anyway.
+      // posts", refresh, two appear.
+      const viewerBaseLanguages = resolveViewerBaseLanguages(accountLanguages, requestLanguages);
+
       const context: FeedEngineContext = {
         currentUserId,
         followingIds,
         subscribedListMemberIds,
         oxyClient: feedOxyClient,
         privacyOxyClient: requestOxyClient,
-        viewerBaseLanguages: resolveViewerBaseLanguages(
-          await loadViewerLanguages(currentUserId),
-          requestLanguageCandidates(req),
-        ),
+        viewerBaseLanguages,
       };
 
       if (currentUserId && parseFeedDescriptor(descriptor).source === 'mutuals') {

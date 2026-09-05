@@ -24,7 +24,7 @@ export function personalizationScore(
   post: RankablePost,
   userBehavior: RankingUserBehavior | undefined,
   behaviorSets?: BehaviorSets,
-  viewerLanguages: readonly string[] = [],
+  viewerBaseLanguages: readonly string[] = [],
 ): number {
   if (!userBehavior) {
     return 1.0;
@@ -77,7 +77,7 @@ export function personalizationScore(
   }
 
   // Language preference: boost when ANY of the post's classification languages is
-  // one of the READER'S DECLARED languages (`ctx.viewerLanguages`, already ISO
+  // one of the READER'S DECLARED languages (`ctx.viewerBaseLanguages`, already ISO
   // 639-1 base subtags). `postClassification.languages` is the single canonical
   // (multi-language) field; an unclassified post simply gets NO language boost
   // (neutral) until the backfill populates it.
@@ -88,11 +88,11 @@ export function personalizationScore(
   // scrolling past a German post taught this signal to boost German posts, which
   // put more of them in front of the reader to scroll past. Declared languages
   // cannot drift that way.
-  if (viewerLanguages.length > 0) {
+  if (viewerBaseLanguages.length > 0) {
     const postLanguages = post.postClassification?.languages;
     if (
       Array.isArray(postLanguages) &&
-      postLanguages.some((lang) => viewerLanguages.includes(getBaseLanguage(lang)))
+      postLanguages.some((lang) => viewerBaseLanguages.includes(getBaseLanguage(lang)))
     ) {
       score *= R.personalization.languageMatch;
     }
@@ -105,5 +105,5 @@ export const personalizationSignal: RankingSignal = {
   id: 'personalization',
   group: 'personalization',
   score: (post: RankablePost, ctx: SignalContext) =>
-    personalizationScore(post, ctx.userBehavior, ctx.behaviorSets, ctx.viewerLanguages),
+    personalizationScore(post, ctx.userBehavior, ctx.behaviorSets, ctx.viewerBaseLanguages),
 };
