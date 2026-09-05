@@ -677,6 +677,33 @@ export class InboxProcessingService {
       ...(originalCreatedAt ? { createdAt: originalCreatedAt, updatedAt: originalCreatedAt } : {}),
     });
 
+    // A federated reply COUNTS on its parent, exactly like a native one.
+    //
+    // It did not, and the gap was structural rather than incidental:
+    // `bumpPostCounters(..., { comments: 1 })` had exactly ONE caller, the native
+    // reply path in `controllers/feed.controller.ts`. A federated boost has always
+    // been counted here (`{ boosts: 1, federatedBoosts: 1 }` on the outbox side),
+    // so replies were the one federated engagement that silently did not exist.
+    //
+    // Two things were wrong because of it, and the second is the expensive one:
+    //   - the DTO reported `replies: 0` on posts that plainly had replies —
+    //     measured on production, 22 of 50 For You posts carried
+    //     `recentReplierAvatars` (a REAL query over reply rows) beside a zero
+    //     count; and
+    //   - `engagementScoreSql` weights `commentsCount` at `commentWeight` (2.0),
+    //     the second-highest weight it has, so the strongest quality signal
+    //     available — people are actually replying to this — was structurally
+    //     zero across a corpus that is essentially all federated. Ranking was left
+    //     leaning on federated boosts and recency.
+    //
+    // Safe against redelivery for the same reason the notification below is: the
+    // `federation.activityId` dedup gate returns early, so this is only ever
+    // reached on a genuinely-new Create. `recomputeFederatedEngagement.ts`
+    // reconciles the historical drift; this keeps it from re-accruing.
+    if (threadLink?.parentPostId) {
+      await bumpPostCounters(threadLink.parentPostId, { comments: 1 });
+    }
+
     // A federated reply to a LOCAL post notifies the parent owner exactly like a
     // native reply (`type:'reply'`, entityId = the new reply post). Only reached
     // when this Create is genuinely new — the `federation.activityId` dedup above
