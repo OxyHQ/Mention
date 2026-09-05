@@ -13,7 +13,7 @@ import { resolveDefinition } from '../feed/definitions/resolveDefinition';
 import { forYouUsesSocialProof } from '../feed/definitions/presets';
 import { feedEngine } from '../feed/engine/FeedEngine';
 import type { FeedEngineContext } from '../feed/engine/types';
-import { loadViewerFeedContext, resolveViewerBaseLanguages } from '../feed/feedContext';
+import { loadViewerFeedContext, loadViewerLanguages, resolveViewerBaseLanguages } from '../feed/feedContext';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { mergeFederatedFollowIds } from '../../services/viewerFollowGraph';
 import { resolveDiscoveryGateBucket } from '../feed/discoveryGateExperiment';
@@ -536,12 +536,22 @@ class MtnFeedController {
         }
       }
 
+      // The peek builds its own MINIMAL context rather than calling
+      // `loadViewerFeedContext`, and the readability set has to be part of that
+      // minimum: the discovery lanes and the popular fallback filter on it, so a
+      // peek without it counts posts the feed itself will then drop — "5 new
+      // posts", refresh, two appear. One Redis-cached identity read, on a viewer
+      // the peek path has warm anyway.
       const context: FeedEngineContext = {
         currentUserId,
         followingIds,
         subscribedListMemberIds,
         oxyClient: feedOxyClient,
         privacyOxyClient: requestOxyClient,
+        viewerBaseLanguages: resolveViewerBaseLanguages(
+          await loadViewerLanguages(currentUserId),
+          requestLanguageCandidates(req),
+        ),
       };
 
       if (currentUserId && parseFeedDescriptor(descriptor).source === 'mutuals') {
