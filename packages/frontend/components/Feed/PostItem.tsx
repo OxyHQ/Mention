@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useContext, useState, lazy, Suspense, Fragment } from 'react';
 import { StyleSheet, View, Pressable, TouchableOpacity, Text, GestureResponderEvent } from 'react-native';
-import { useRouter, usePathname } from 'expo-router';
+import { useRouter } from 'expo-router';
 import type {
     HydratedPost,
     PostUser,
@@ -161,7 +161,6 @@ const PostItem: React.FC<PostItemProps> = ({
     const theme = useTheme();
     const { t } = useTranslation();
     const router = useRouter();
-    const pathname = usePathname();
     const bottomSheet = useContext(BottomSheetContext);
     const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
 
@@ -325,13 +324,14 @@ const PostItem: React.FC<PostItemProps> = ({
 
     useImagePreload(imageUrls, true);
 
-    // `onDetailRoute` = rendered on a `/p/` screen (focused post OR a reply in its
-    // list). `isDetailMain` = the FOCUSED post itself (detail variant). A nested
-    // sub-card (embedded original inside a boost/quote) is never the focused post,
-    // so it stays tappable even on a detail route; the focused main post does not.
-    const onDetailRoute = (pathname || '').startsWith('/p/');
+    // `isDetailMain` = the FOCUSED post itself (detail variant). Only that post is
+    // not a link, because it is a link to the page it is already on — every other
+    // row on a `/p/` screen (a reply, an ancestor, a thread continuation) IS a link
+    // to its own thread. Derived from props alone, deliberately: reading the route
+    // here would re-render every mounted row on every navigation, and flipping the
+    // row's element type mid-navigation would remount the whole visible feed.
     const isDetailMain = isPostDetailProp && !isNested;
-    const isTappable = isNested || !onDetailRoute;
+    const isTappable = isNested || !isDetailMain;
 
     // A thread (multi-post slice) behaves as one unit: every row shares one
     // `sliceKey`, hovering any row highlights them all, and tapping any row opens
@@ -557,6 +557,7 @@ const PostItem: React.FC<PostItemProps> = ({
     const postActions = usePostActions({
         viewPost,
         isOwner,
+        isPostDetail: isDetailMain,
         canViewInsights,
         canStopSharing: permissions.canStopSharing ?? false,
         isSaved,
@@ -678,7 +679,6 @@ const PostItem: React.FC<PostItemProps> = ({
     // their first external content block using the same small gap PostHeader uses
     // between the identity row and inline body text. Subsequent external blocks
     // still use the normal section gap.
-    const Container: React.ElementType = isTappable ? Pressable : View;
     const hasBelowHeaderBlocks = Boolean((hasValidLocation && location) || hasSources || shouldRenderMediaBlock || boostUnavailable || !isNested);
     const headerToBlocksGap = content.text ? SECTION_GAP : HEADER_CONTENT_GAP;
 
@@ -800,7 +800,7 @@ const PostItem: React.FC<PostItemProps> = ({
 
     return (
         <>
-            <Container
+            <Pressable
                 className={cn(
                     "group",
                     !isNested && "bg-background border-border",
@@ -821,6 +821,12 @@ const PostItem: React.FC<PostItemProps> = ({
                     style,
                 ]}
                 accessibilityLabel={postAccessibilityLabel}
+                // The row is one element type on every route (see `isTappable`), so
+                // "is this a link" has to be carried by the props instead. A
+                // non-tappable row must also leave the tab order: RNW gives every
+                // `Pressable` `tabIndex=0`, and the focused detail post would
+                // otherwise become a second `[aria-label][tabindex="0"]` match.
+                focusable={isTappable}
                 {...(isTappable ? { onPress: goToPost } : {})}
                 {...(isThreadUnit
                     ? {
@@ -901,7 +907,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         paddingHorizontal={isNested ? 0 : HPAD}
                     >
                         {spoilerText ? <ContentWarning text={spoilerText} /> : null}
-                        {content.text ? <PostContentText content={content} postId={viewPostId} overrideText={languageDisplayText} linkPreviewUrls={linkPreviewUrls} /> : null}
+                        {content.text ? <PostContentText content={content} postId={viewPostId} previewChars={isDetailMain ? Infinity : undefined} overrideText={languageDisplayText} linkPreviewUrls={linkPreviewUrls} /> : null}
                         {corrections && viewPostId ? (
                             <PostCorrectionNotice postId={viewPostId} count={corrections.count} />
                         ) : null}
@@ -1021,7 +1027,7 @@ const PostItem: React.FC<PostItemProps> = ({
                     </View>
                 )}
                 </View>
-            </Container>
+            </Pressable>
 
             {articleContent ? (
                 <Suspense fallback={null}>
