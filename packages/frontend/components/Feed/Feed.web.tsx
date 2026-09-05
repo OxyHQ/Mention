@@ -253,6 +253,19 @@ function EmbeddedWebFeed(props: FeedProps) {
  * still owns the one virtualized list (mirrors native's `ListHeaderComponent`).
  */
 function VirtualizedWebFeed(props: FeedProps) {
+    // DECLARED, not inherited. The long note at `getVirtualItems()` below explains
+    // why this component must not be memoized; until now the only thing enforcing
+    // that was two incidental ref-`.current` reads during render, i.e. the
+    // compiler refusing the function for an unrelated reason. That is a guarantee
+    // nobody can see from the render path, and any tidy-up of those reads — the
+    // kind of change that looks purely cosmetic — silently reintroduces a
+    // production-only frozen feed on the most-used screen in the app.
+    //
+    // `ProfileGridList.web.tsx` and `SavedPostsList.web.tsx` already state it this
+    // way. The ref reads stay exactly as they are; this only makes the intent
+    // load-bearing instead of accidental.
+    'use no memo';
+
     const merged = { ...DEFAULT_FEED_PROPS, ...props };
     const {
         hideHeader,

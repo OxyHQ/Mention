@@ -41,6 +41,20 @@ const OVERSCAN_ROWS = 8;
  * scroll restoration is keyed per active tab.
  */
 export function NotificationsList({ items, renderRow, header, emptyState, tabKey, onEndReached, hasMore, isFetchingMore }: NotificationsListProps) {
+    // A window-virtualized list must be opted out of the React Compiler
+    // EXPLICITLY — see `docs/frontend-compiler-notes.md`. `useWindowVirtualizer`
+    // returns an instance whose identity is stable for this component's lifetime
+    // and re-renders through a reducer internal to the hook, so nothing this
+    // function can see changes on scroll and a memoizing compiler serves the
+    // first `getVirtualItems()`/`getTotalSize()` forever. Dev hides it (fast
+    // refresh clears the cache on every edit); production does not.
+    //
+    // This file was opted out only ACCIDENTALLY, by reading a ref during render.
+    // `ProfileGridList.web.tsx` had the same shape, compiled, and shipped frozen
+    // — 8 rows and ~550px of blank below them. Stating it is the difference
+    // between a guarantee and a coincidence.
+    'use no memo';
+
     const wrapperRef = useRef<HTMLDivElement | null>(null);
     const [scrollMargin, setScrollMargin] = useState(0);
 
