@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { RouterTabs, type RouterTabItem } from '@oxyhq/bloom/tabs/expo-router';
 
-import { Fab } from '@oxyhq/bloom/fab';
+import { ChromeFab } from '@/components/ChromeFab';
 import { EmptyState } from '@/components/common/EmptyState';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
@@ -220,8 +220,7 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
         {/* Clears the BottomBar on every platform — Bloom's Fab reads the
               bottom edge's occupancy, which the bar publishes. */}
         {drawing ? (
-          <Fab
-            size={48}
+          <ChromeFab
             onPress={() => router.push('/compose')}
             icon={<ComposeIcon size={20} className="text-primary-foreground" />}
             accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}

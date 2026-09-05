@@ -19,7 +19,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
 import { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
-import { Fab } from '@oxyhq/bloom/fab';
+import { ChromeFab } from '@/components/ChromeFab';
 import { Search } from '@/assets/icons/search-icon';
 import { Bell } from '@/assets/icons/bell-icon';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
@@ -333,8 +333,7 @@ const HomeScreen: React.FC = () => {
                     {/* Compose FAB. It clears the BottomBar on every platform: Bloom's Fab
                         reads the bottom edge's occupancy, which the bar publishes. */}
                     {canUsePrivateApi && (
-                        <Fab
-                            size={48}
+                        <ChromeFab
                             onPress={() => router.push('/compose')}
                             icon={<ComposeIcon size={22} className="text-tertiary-foreground" />}
                             accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
