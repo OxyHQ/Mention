@@ -616,11 +616,27 @@ export const MtnConfig = {
       /**
        * Whether a discovery candidate with NO resolvable language passes.
        *
-       * `false`: an unverifiable language is not a match. Measured cost is ~0.5%
-       * of the corpus (2 of 400 sampled posts carried no `language`), and For You
-       * already excludes replies and boosts — the two other sources of a null
-       * language — so what this drops is almost entirely text too short for
-       * `BaselineContentClassifier` to detect (< 12 characters).
+       * `false`: an unverifiable language is not a match.
+       *
+       * Measured cost, on the column the predicate actually reads: 4 of 212
+       * sampled production posts (**1.9%**) carry no usable
+       * `classification_languages`. Measure it on that ARRAY and not on the
+       * scalar `language` — they diverge, and the scalar reads a flattering
+       * 0.5%.
+       *
+       * The residue is two things, neither of them ordinary prose:
+       *   - posts with no text to detect from — every one inspected was
+       *     media-only (0 characters) or under the classifier's 12-character
+       *     floor; and
+       *   - LEGACY rows. All three divergent posts in that sample carried
+       *     ObjectId-era ids rather than uuid v7, i.e. they predate the
+       *     Postgres port and were never swept by `backfillPostLanguages.ts`
+       *     (which skips writing when detection yields nothing).
+       *
+       * The legacy half shrinks to zero once that backfill runs, which is a
+       * prerequisite for trusting the discovery gate's measured precision
+       * anyway. For You additionally excludes replies and boosts, the two other
+       * sources of a null language, so nothing here is a normal readable post.
        */
       allowUnclassified: false,
     },

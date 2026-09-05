@@ -58,10 +58,11 @@ export function isDiscoveryLanguageEnabled(): boolean {
  * `languageMismatchPenalty` already holds.
  *
  * `allowUnclassified` widens the match to posts with no resolvable language.
- * Default `false`: an unverifiable language is not a match. The measured cost is
- * ~0.5% of the corpus, and For You already excludes replies and boosts — the two
- * other sources of a null language — so what this drops is almost entirely text
- * too short for `BaselineContentClassifier` to detect (< 12 characters).
+ * Default `false`: an unverifiable language is not a match. Measured cost is 1.9%
+ * of production (4 of 212 sampled posts) — measured on `classification_languages`
+ * itself, since the scalar `language` diverges from it and reads lower. What it
+ * drops is media-only/sub-12-character posts plus legacy pre-port rows the
+ * language backfill has not swept; see `MtnConfig.feed.discoveryLanguage`.
  *
  * @param viewerLanguages ISO 639-1 base subtags, primary first. Already
  *   normalized by `loadViewerFeedContext`.
