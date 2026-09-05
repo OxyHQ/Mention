@@ -777,7 +777,10 @@ export class FeedEngine {
   /**
    * Popular fallback for the anonymous + never-blank paths (For You / Videos /
    * Media): serve the engagement-sorted popular source directly, hydrated as
-   * flat items with `viewerId: undefined` (matching the bespoke `fetchPopular`).
+   * flat items. The viewer is threaded through (`viewerId` + `viewerGraph`) when
+   * there is one — the never-blank path arrives here authenticated, and hydrating
+   * it as anonymous both stripped the reader's own engagement state and re-fetched
+   * a social graph the context already held.
    *
    * ON THIS PATH THE POSTS ARE IN `items`, AND `slices` IS DELIBERATELY EMPTY.
    * Thread slicing is a personalized presentation concern, so a flat popular
@@ -832,6 +835,15 @@ export class FeedEngine {
       oxyClient: ctx.oxyClient,
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,
+      // Thread the graph `loadViewerFeedContext` already resolved, exactly as the
+      // four other hydration sites in this file do. Without it the authenticated
+      // never-blank path — a reader deep enough into For You to exhaust the unseen
+      // pool, which is the common deep-scroll case, not an edge one — re-fetched
+      // `getUserFollowing` + `getUserFollowers` from Oxy per page while the answer
+      // was already sitting on `ctx`. `viewerGraphOption` returns `undefined`
+      // whenever the context is partial (the peek path) or the viewer is
+      // anonymous, so this cannot hydrate against an empty follower set.
+      viewerGraph: this.viewerGraphOption(ctx),
       viewerLanguages: ctx.viewerLanguages,
     });
 
