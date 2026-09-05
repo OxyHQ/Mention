@@ -50,6 +50,40 @@ status), `feed_ranking_duration_ms`, and real-user `web_vital_lcp_ms` /
 `routes/internalMetrics.routes.ts` exposes them in Prometheus text format,
 IP-allowlisted and token-gated.
 
+### Where a request's time goes: Postgres, or Oxy
+
+Two instrumentations answer the question `http_request_duration_ms` cannot —
+*what* a slow route was slow doing. Both attach at a single seam and both
+report per request, on the `HTTP request completed` log line that
+`middleware/requestObservability.ts` emits:
+
+| Field | Source | Reads |
+| --- | --- | --- |
+| `queryCount` / `queryDurationMs` | `db/queryMetrics.ts` | Postgres statements issued and time inside them |
+| `oxyCallCount` / `oxyDurationMs` | `utils/oxyMetrics.ts` | Oxy API calls issued and time waiting on them |
+
+`slowQueryCount` / `failedQueryCount` and `failedOxyCallCount` sit beside them.
+The matching histograms — `db_request_queries`, `db_request_duration_ms`,
+`oxy_request_calls`, `oxy_request_duration_ms`, plus per-call
+`oxy_call_duration_ms` and `oxy_calls_total` by templated route — are in the
+registry too, but **the log line is the one that survives the process**, for
+the reason immediately below.
+
+Read them together. `postHydrationStatementBudget.test.ts` pins one hydration
+at seven statements whether it hydrates one post or twenty, so a route that is
+slow with a small `queryCount` is slow somewhere else, and `oxyCallCount` is
+where to look first: `PostHydrationService.buildViewerContext` resolves the
+viewer's blocked, restricted, following and follower sets live for any caller
+that does not thread a pre-resolved `viewerGraph` — which the feed path does
+and post detail, notifications, profile and search do not.
+
+**No baseline numbers are recorded here yet.** The instrumentation exists; a
+number belongs in this document only once someone has read it off a real
+deployment, and one written from a code trace would be a guess wearing a
+measurement's clothes. `OXY_REQUEST_METRICS_ENABLED=false` takes the Oxy half
+out of the path entirely (no wrapper, no async context), the same posture as
+`DB_QUERY_METRICS_ENABLED`.
+
 **Nothing scrapes it.** There is no Prometheus, Grafana, or CloudWatch
 metrics pipeline for Mention in `oxy-infra/terraform-uswest2` (checked
 directly, not inferred) — `/internal/metrics` is a live snapshot an operator

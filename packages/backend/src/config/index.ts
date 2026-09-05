@@ -274,6 +274,16 @@ const environmentSchema = z
      */
     DB_SLOW_QUERY_MS: integerFromEnv(200, { minimum: 1, maximum: 600_000 }),
 
+    /**
+     * Whether Oxy API calls are timed (`utils/oxyMetrics.ts`).
+     *
+     * Off in tests for the same reason `DB_QUERY_METRICS_ENABLED` is:
+     * instrumentation is observability, not behaviour, and must not decide
+     * whether a suite is green. Its own suite sets it explicitly, so nothing
+     * about it goes unmeasured, and an explicit value still wins everywhere.
+     */
+    OXY_REQUEST_METRICS_ENABLED: booleanFromEnv(process.env.NODE_ENV !== 'test'),
+
     REDIS_URL: optionalRedisUrl,
     REDIS_URI: optionalRedisUrl,
     REDIS_HOST: optionalHost,
@@ -730,6 +740,9 @@ export const config = {
   },
   frontendUrl: environment.FRONTEND_URL,
   oxyApiUrl: environment.OXY_API_URL,
+  oxy: {
+    requestMetricsEnabled: environment.OXY_REQUEST_METRICS_ENABLED,
+  },
   federationDomain: environment.FEDERATION_DOMAIN,
   publicApiUrl: environment.MENTION_PUBLIC_API_URL ?? 'http://localhost:4110',
   redis: {

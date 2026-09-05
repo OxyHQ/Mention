@@ -200,6 +200,39 @@ const DEFINITIONS = {
     help: 'Milliseconds one HTTP request spent inside database statements',
     labelNames: ['method', 'route'],
   },
+  /**
+   * Oxy egress instrumentation (`utils/oxyMetrics.ts`).
+   *
+   * `route` is templated and capped at 24 distinct values by that module before
+   * it arrives here, and `method` and `status` are the closed sets
+   * `boundedLabelValue` already enforces — so the ceiling is
+   * 7 methods x 25 templates x 6 status classes = 1 050 series, a number fixed
+   * by the cap rather than by traffic. Only a fraction is ever populated: this
+   * codebase calls a handful of Oxy routes and almost all of them are GET.
+   */
+  oxy_call_duration_ms: {
+    kind: 'histogram',
+    help: 'Oxy API call latency in milliseconds, by route template',
+    labelNames: ['method', 'route', 'status'],
+    maxSeries: 1_024,
+  },
+  oxy_calls_total: {
+    kind: 'counter',
+    help: 'Oxy API calls issued, by route template and status class',
+    labelNames: ['method', 'route', 'status'],
+    maxSeries: 1_024,
+  },
+  oxy_request_calls: {
+    kind: 'histogram',
+    help: 'Oxy API calls issued while serving one HTTP request',
+    labelNames: ['method', 'route'],
+    buckets: [1, 2, 3, 5, 8, 13, 21, 34],
+  },
+  oxy_request_duration_ms: {
+    kind: 'histogram',
+    help: 'Milliseconds one HTTP request spent waiting on Oxy',
+    labelNames: ['method', 'route'],
+  },
 } as const satisfies Record<string, MetricDefinition>;
 
 type MetricName = keyof typeof DEFINITIONS;
