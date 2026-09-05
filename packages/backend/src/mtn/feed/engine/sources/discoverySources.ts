@@ -136,6 +136,7 @@ export const videosSource: SourceModule = {
           minDurationSec: ctx.videoFilters?.minDurationSec,
         }),
         discoverySafeSql(),
+        viewerLanguageSql(ctx.viewerBaseLanguages),
       ) as SQL,
       chronoOrderBy(),
       cap,
@@ -152,6 +153,7 @@ export const mediaSource: SourceModule = {
       and(
         FeedQueryBuilder.buildMediaFeedQuery(ctx.seenPostIds ?? []),
         discoverySafeSql(),
+        viewerLanguageSql(ctx.viewerBaseLanguages),
       ) as SQL,
       chronoOrderBy(),
       cap,
@@ -166,17 +168,13 @@ export const mediaSource: SourceModule = {
  * Each matched dimension multiplies in and the product is clamped to `maxBoost`,
  * so no single viewer signal can dominate ranking.
  *
- * The LANGUAGE dimension is the one thing Discover does with a reader's
- * languages, and it is deliberately the weak form: Discover is the open window on
- * the whole network, so language ORDERS it and never filters it. It now reads
- * `ctx.viewerLanguages` — the reader's DECLARED languages — rather than the
- * learned `preferredLanguages`, which was appended to on any interaction
- * including a skip and therefore drifted toward whatever the feed had already
- * shown. Topics and region still come from behavior, where learning is the point.
- *
- * Because declared languages are resolved for anonymous readers too (from
- * `Accept-Language`), the language factor now applies to a signed-out Discover as
- * well; topics and region remain authenticated-only.
+ * There is NO language dimension here. There was one — a x1.15 lift for an
+ * in-language post — and it became unobservable the moment Discover started
+ * FILTERING on language: every row that survives `viewerLanguageSql` matches the
+ * reader's languages, so the factor multiplied the whole result set uniformly and
+ * ordered nothing. Unlike `languageMismatchPenalty`, which still covers candidates
+ * reaching ranking without passing a filtered query, this factor sat in the same
+ * SQL as the filter that subsumes it.
  */
 function resolveExploreRelevance(ctx: FeedEngineContext): SQL {
   const cfg = MtnConfig.ranking.exploreRelevance;
@@ -193,14 +191,11 @@ function resolveExploreRelevance(ctx: FeedEngineContext): SQL {
     .slice(0, candidateCfg.maxPreferredTopics)
     .map((t) => t.topic.toLowerCase());
 
-  // Already ISO 639-1 base subtags, deduped and capped, from `loadViewerFeedContext`.
-  const languages = ctx.viewerBaseLanguages ?? [];
-
   const region = ctx.currentUserId && typeof ctx.viewerRegion === 'string' && ctx.viewerRegion.length > 0
     ? ctx.viewerRegion
     : undefined;
 
-  if (topics.length === 0 && languages.length === 0 && !region) return NEUTRAL;
+  if (topics.length === 0 && !region) return NEUTRAL;
 
   const factors: SQL[] = [];
 
@@ -224,11 +219,6 @@ function resolveExploreRelevance(ctx: FeedEngineContext): SQL {
   if (topics.length > 0) {
     factors.push(sql`(case when coalesce(${arrayOverlaps(posts.classificationTopics, topics)}, false)
       then ${rankingWeight(cfg.topicMatch)} else 1 end)`);
-  }
-
-  if (languages.length > 0) {
-    factors.push(sql`(case when coalesce(${arrayOverlaps(posts.classificationLanguages, languages)}, false)
-      then ${rankingWeight(cfg.languageMatch)} else 1 end)`);
   }
 
   if (region) {
@@ -308,6 +298,23 @@ export const exploreSource: SourceModule = {
     // raises "op ANY/ALL (array) requires array on right side".
     const excludeAuthors = authorNotInSql(excludeUserIds);
     if (excludeAuthors) conditions.push(excludeAuthors);
+
+    // Discover is language-filtered too. It was the deliberate exemption at first
+    // — the open window on the whole network — but the window turned out to be
+    // mostly one language: measured on production 2026-09-05, an anonymous
+    // Discover page came back 56% `ja`, from misskey.io / fedibird.com accounts
+    // carrying likes=0, replies=0 and only FEDERATED boosts. They were not
+    // popular; the Japanese fediverse simply posts at a volume nothing else
+    // matches, and Discover's score is engagement×recency×relevance, so with
+    // engagement at zero recency decides. A reader who cannot read Japanese was
+    // handed a feed that was mostly Japanese.
+    //
+    // The junk gate does NOT cover this, which is worth stating because it looks
+    // like it should: `nativeEngagement` passes anything inside the 6-hour
+    // `freshnessGraceMs`, and this content is always fresh. Language is the lever
+    // that fits.
+    const exploreLanguage = viewerLanguageSql(ctx.viewerBaseLanguages);
+    if (exploreLanguage) conditions.push(exploreLanguage);
 
     const cursorExcludedIds = parsedCursor?.excludeIds ?? [];
     if (cursorExcludedIds.length > 0) {
@@ -538,6 +545,7 @@ export const popularVideosSource: SourceModule = {
           minDurationSec: ctx.videoFilters?.minDurationSec,
         }),
         discoverySafeSql(),
+        viewerLanguageSql(ctx.viewerBaseLanguages),
       ) as SQL,
       cap,
       ctx.cursor,
@@ -554,6 +562,7 @@ export const popularMediaSource: SourceModule = {
       and(
         FeedQueryBuilder.buildMediaFeedQuery(ctx.seenPostIds ?? []),
         discoverySafeSql(),
+        viewerLanguageSql(ctx.viewerBaseLanguages),
       ) as SQL,
       cap,
       ctx.cursor,

@@ -286,11 +286,94 @@ describe('the discovery language predicate', () => {
   });
 
   /**
-   * SCOPE. The whole point of putting the predicate on `withDiscoveryGuards`
-   * rather than on `buildBaseConditions` is that TRUSTED lanes never see it: a
-   * post from an account the reader deliberately follows is the reader's own
-   * business, whatever language it is in. This is the assertion that keeps the
-   * two halves apart.
+   * AFFINITY IS FILTERED, and the other two `trusted` lanes are not.
+   *
+   * This is the distinction the first version of the filter got wrong. Affinity
+   * is `trusted` for the discovery GATE — the reader's own engagement vouches for
+   * the author's quality — but `resolveAffinityAuthorIds` EXCLUDES everyone the
+   * viewer follows, so the lane is by construction "people you do not follow".
+   * Exempting it from LANGUAGE meant a reader whose account says `es`/`en` still
+   * got Japanese in For You, from accounts they had never chosen. Reported from
+   * production, in exactly those words.
+   *
+   * The loop that fed it: `view` carries weight 0.2 and `isPositiveSignal` is
+   * `weight > 0`, so resting 2 seconds on a post makes its author an affinity
+   * author — one leaked post bought its author a permanent exemption.
+   */
+  it('DOES apply to the affinity lane — those are people the reader never chose', async () => {
+    const spanish = await create({
+      oxyUserId: AFFINITY,
+      createdAt: at(0),
+      postClassification: { languages: ['fyc-es'] },
+    });
+    await create({
+      oxyUserId: AFFINITY,
+      createdAt: at(-1_000),
+      postClassification: { languages: ['fyc-ja'] },
+    });
+
+    const gathered = await gatherAffinityLane({
+      viewerId: VIEWER,
+      followingIds: [],
+      viewerLanguages: ['fyc-es'],
+      seenPostIds: [],
+      contentAffinityService: affinityStub([AFFINITY]),
+    });
+    expect(idsOf(gathered)).toEqual([spanish.id]);
+  });
+
+  /**
+   * Positive control for the case above: same rows, same lane, no declared
+   * languages — BOTH must come back. Without it, "the Japanese post is absent"
+   * would also be satisfied by an affinity lane that returned nothing at all.
+   */
+  it('affinity filters NOTHING when the reader declared no languages', async () => {
+    const es = await create({ oxyUserId: AFFINITY, createdAt: at(0), postClassification: { languages: ['fyc-es'] } });
+    const ja = await create({ oxyUserId: AFFINITY, createdAt: at(-1_000), postClassification: { languages: ['fyc-ja'] } });
+
+    const gathered = await gatherAffinityLane({
+      viewerId: VIEWER,
+      followingIds: [],
+      viewerLanguages: [],
+      seenPostIds: [],
+      contentAffinityService: affinityStub([AFFINITY]),
+    });
+    expect(idsOf(gathered)).toEqual([es.id, ja.id]);
+  });
+
+  /**
+   * The reader's languages reach a WHERE clause now, so they have to be bound as
+   * DATA. These strings carry a Postgres array delimiter, a string terminator and
+   * a statement separator; the row-level claim is the one a shape assertion could
+   * never make — the query RUNS, matches nothing, and the table is still there.
+   */
+  it('treats a hostile language value as a literal, never as SQL', async () => {
+    const post = await create({ createdAt: at(0), postClassification: { languages: ['fyc-es'] } });
+
+    const hostile = await gatherGlobalLane({
+      viewerId: VIEWER,
+      followingIds: [],
+      viewerLanguages: ["fyc-es'} , (select 1) --", '"}', "'; drop table posts; --"],
+      seenPostIds: [],
+    });
+    expect(suiteIdsOf(hostile)).toEqual([]);
+
+    // The table survived and the lane still works — without this the assertion
+    // above would also pass against a dropped table or a broken lane.
+    const sane = await gatherGlobalLane({
+      viewerId: VIEWER,
+      followingIds: [],
+      viewerLanguages: ['fyc-es'],
+      seenPostIds: [],
+    });
+    expect(suiteIdsOf(sane)).toEqual([post.id]);
+  });
+
+  /**
+   * SCOPE. Following and subscribed lists stay exempt: a post from an account the
+   * reader deliberately followed is the reader's own business, whatever language
+   * it is in — "si sigo no tiene sentido ocultar nada". This is the assertion that
+   * keeps that half from drifting into the affinity rule above.
    */
   it('never applies to the trusted following lane', async () => {
     const offLanguage = await create({
