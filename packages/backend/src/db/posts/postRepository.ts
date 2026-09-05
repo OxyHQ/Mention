@@ -1439,7 +1439,27 @@ export async function deletePostRecord(
     .where(where === undefined ? eq(posts.id, postId) : and(eq(posts.id, postId), where))
     .returning({ id: posts.id });
 
-  return deleted.length > 0 ? record : null;
+  if (deleted.length === 0) return null;
+
+  // A deleted reply STOPS counting on its parent.
+  //
+  // Nothing decremented it before — `comments: -1` existed nowhere in the tree —
+  // so `stats.commentsCount` only ever went up, and a thread that lost half its
+  // replies kept advertising them. It belongs HERE rather than in each caller
+  // for the reason the record is loaded here: this is the one place that knows
+  // what was deleted, and there are six callers (two federated, two native, two
+  // scripts) that would otherwise each have to remember.
+  //
+  // Guarded on `isReply` as well as on the link, because `parentPostId` alone is
+  // not the same question: the cascade nulls it on surviving children, and a
+  // quote carries `quoteOf` instead. `bumpPostCounters` clamps at zero, so a
+  // double delete or a reply whose parent was never counted cannot drive the
+  // counter negative.
+  if (record.isReply && record.parentPostId) {
+    await bumpPostCounters(record.parentPostId, { comments: -1 }, db);
+  }
+
+  return record;
 }
 
 /**
