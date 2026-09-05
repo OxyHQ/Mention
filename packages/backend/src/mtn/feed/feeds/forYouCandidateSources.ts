@@ -172,10 +172,35 @@ function buildBaseConditions(seenPostIds: string[], since: Date): SQL[] {
  * query-level safety filter at all) and operates on an already-bounded pool.
  */
 function withDiscoveryGuards(conditions: SQL[], params: GatherForYouCandidatesParams): SQL[] {
-  const guarded = [...conditions, sensitiveExcludeSql()];
+  return withViewerLanguage([...conditions, sensitiveExcludeSql()], params);
+}
+
+/**
+ * Add ONLY the reader-language predicate.
+ *
+ * Separate from {@link withDiscoveryGuards} because "is this author's quality
+ * vouched for?" and "can the reader read this?" are different questions, and one
+ * lane answers them differently: AFFINITY.
+ *
+ * Affinity is not a lane the reader chose. `resolveAffinityAuthorIds` builds it
+ * from `userBehavior.preferredAuthors` and `ContentAffinityService`, and it
+ * EXPLICITLY EXCLUDES everyone the viewer follows — so by construction it is
+ * "people you do not follow". It is `trusted` for the discovery GATE, which is
+ * right: these authors were vouched for by the reader's own engagement, so their
+ * quality is not in question. It is NOT trusted for LANGUAGE, which was the bug:
+ * engagement vouches for an author, it does not teach the reader a language.
+ *
+ * The loop that made it visible: `view` carries weight 0.2, and
+ * `isPositiveSignal` is `weight > 0`, so resting on a post for the 2 seconds
+ * `FeedInteractionTracker` counts as a view is enough to add its author to
+ * `preferredAuthors`. One off-language post that leaked in from anywhere — an
+ * unfiltered surface, or the days before the filter existed — therefore bought
+ * its author a PERMANENT exemption from the filter. Same self-reinforcing shape
+ * as the learned `preferredLanguages` array this replaced, one level up.
+ */
+function withViewerLanguage(conditions: SQL[], params: GatherForYouCandidatesParams): SQL[] {
   const language = viewerLanguageSql(params.viewerLanguages);
-  if (language) guarded.push(language);
-  return guarded;
+  return language ? [...conditions, language] : conditions;
 }
 
 /** Run a bounded source query; soft-fail to `[]` so one bad source never sinks the feed. */
@@ -312,16 +337,27 @@ export async function gatherSubscribedListsLane(params: GatherForYouCandidatesPa
   );
 }
 
-/** AFFINITY: posts from affinity authors (sensitive allowed at query level). */
+/**
+ * AFFINITY: posts from affinity authors (sensitive allowed at query level).
+ *
+ * Language-filtered, unlike the other two `trusted` lanes — see
+ * {@link withViewerLanguage}. Following and subscribed lists are authors the
+ * reader CHOSE; affinity is authors the reader was INFERRED to like, and it
+ * excludes everyone they follow, so it is precisely the "people I do not follow"
+ * the language filter exists for.
+ */
 export async function gatherAffinityLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
   const affinityAuthorIds = await resolveAffinityAuthorIds(params);
   if (affinityAuthorIds.length === 0) return [];
   return runSource(
     'affinity',
-    [
-      ...buildBaseConditions(params.seenPostIds, recencyStart()),
-      followedAuthorsSql(affinityAuthorIds),
-    ],
+    withViewerLanguage(
+      [
+        ...buildBaseConditions(params.seenPostIds, recencyStart()),
+        followedAuthorsSql(affinityAuthorIds),
+      ],
+      params,
+    ),
     MtnConfig.feed.candidateSources.perSource.affinity,
   );
 }

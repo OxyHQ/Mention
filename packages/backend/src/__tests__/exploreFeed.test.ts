@@ -214,31 +214,6 @@ describe('relevance is a boost, never a filter', () => {
     );
   });
 
-  it('matches a language by ANY overlap of the multi-language array', async () => {
-    // `postClassification.languages` holds EVERY detected code, primary first,
-    // and the match is any-overlap — a bilingual post must match a viewer who
-    // reads only its SECOND language.
-    const secondaryLanguage = await create(
-      { postClassification: { languages: ['en', 'es'] } },
-      { likes: 10 },
-    );
-    const otherLanguage = await create({ postClassification: { languages: ['de'] } }, { likes: 10 });
-
-    const candidates = await gatherMine(
-      context({
-        currentUserId: VIEWER,
-        followingIds: [],
-        userBehavior: { preferredTopics: [] },
-        viewerBaseLanguages: ['es'],
-      }),
-    );
-
-    expect(scoreOf(candidates, secondaryLanguage) / scoreOf(candidates, otherLanguage)).toBeCloseTo(
-      MtnConfig.ranking.exploreRelevance.languageMatch,
-      6,
-    );
-  });
-
   it('lowercases the viewer topics, so a display-cased preference still matches', async () => {
     // Classified topics are stored as slugs. A preference learned as `TechNews`
     // must still hit `technews`.
@@ -276,12 +251,16 @@ describe('relevance is a boost, never a filter', () => {
         userBehavior: {
           preferredTopics: [{ topic: 'tech', weight: 5 }],
         },
-        viewerBaseLanguages: ['es'],
       }),
     );
 
+    // Topic x region only: the language dimension was removed when Discover began
+    // filtering on language, because it then multiplied every surviving row alike.
     expect(scoreOf(candidates, everything) / scoreOf(candidates, nothing)).toBeCloseTo(
-      MtnConfig.ranking.exploreRelevance.maxBoost,
+      Math.min(
+        MtnConfig.ranking.exploreRelevance.maxBoost,
+        MtnConfig.ranking.exploreRelevance.topicMatch * MtnConfig.ranking.exploreRelevance.regionMatch,
+      ),
       6,
     );
   });
@@ -298,41 +277,51 @@ describe('relevance is a boost, never a filter', () => {
    * multiply a score. A regression that reused the For You predicate on Discover
    * turns this red on the presence assertion, not on the ordering one.
    */
-  it('ORDERS by reader language on Discover, and never filters by it', async () => {
+  it('FILTERS by reader language, and still orders within what survives', async () => {
     const inLanguage = await create({ postClassification: { languages: ['es'] } }, { likes: 10 });
-    const offLanguage = await create({ postClassification: { languages: ['de'] } }, { likes: 10 });
-    const unclassified = await create({}, { likes: 10 });
+    const alsoIn = await create({ postClassification: { languages: ['es'] } }, { likes: 1 });
+    await create({ postClassification: { languages: ['ja'] } }, { likes: 5_000 });
 
     const candidates = await gatherMine(
       context({ currentUserId: VIEWER, followingIds: [], viewerBaseLanguages: ['es'] }),
     );
 
-    expect(candidates.map((candidate) => candidate.id).sort()).toEqual(
-      [inLanguage, offLanguage, unclassified].sort(),
-    );
-    expect(scoreOf(candidates, inLanguage)).toBeGreaterThan(scoreOf(candidates, offLanguage));
-    expect(candidates[0].id).toBe(inLanguage);
+    // The Japanese post has 500x the engagement and is still absent: Discover was
+    // 56% `ja` in production precisely because engagement×recency was the only
+    // axis, so a filter that merely reordered would not have fixed it.
+    expect(candidates.map((candidate) => candidate.id).sort()).toEqual([inLanguage, alsoIn].sort());
+    expect(scoreOf(candidates, inLanguage)).toBeGreaterThan(scoreOf(candidates, alsoIn));
   });
 
   /**
-   * The language factor is the ONE relevance dimension that applies to a
-   * signed-out reader, because it is the one whose input does not come from
-   * learned behavior: `Accept-Language` is a declaration a logged-out reader can
-   * still make. Topics and region stay authenticated-only.
+   * Positive control: same three rows, no declared languages — all three come
+   * back, Japanese first on its engagement. That ordering IS the production bug,
+   * reproduced, so its absence above is meaningful.
    */
-  it('applies the language factor for an ANONYMOUS reader who declared one', async () => {
-    const inLanguage = await create({ postClassification: { languages: ['es'] } }, { likes: 10 });
-    const offLanguage = await create({ postClassification: { languages: ['de'] } }, { likes: 10 });
+  it('filters NOTHING on Discover when the reader declared no languages', async () => {
+    const es = await create({ postClassification: { languages: ['es'] } }, { likes: 10 });
+    const ja = await create({ postClassification: { languages: ['ja'] } }, { likes: 5_000 });
+
+    const candidates = await gatherMine(context({ currentUserId: VIEWER, followingIds: [] }));
+
+    expect(candidates.map((candidate) => candidate.id).sort()).toEqual([es, ja].sort());
+    expect(candidates[0].id).toBe(ja);
+  });
+
+  /**
+   * Language is the ONE reader signal that reaches a signed-out Discover, because
+   * it is the one that does not come from learned behavior: `Accept-Language` is a
+   * declaration a logged-out reader can still make. Topics and region stay
+   * authenticated-only. It FILTERS rather than orders — see the filter cases above.
+   */
+  it('filters an ANONYMOUS reader\'s Discover by their declared language', async () => {
+    const spanish = await create({ postClassification: { languages: ['es'] } }, { likes: 10 });
+    await create({ postClassification: { languages: ['ja'] } }, { likes: 5_000 });
 
     const anonymous = await gatherMine(
       context({ currentUserId: undefined, followingIds: [], viewerBaseLanguages: ['es'] }),
     );
-    expect(scoreOf(anonymous, inLanguage)).toBeGreaterThan(scoreOf(anonymous, offLanguage));
-
-    // Positive control: with no declaration the SAME two posts score equally, so
-    // the assertion above is about the language factor and not about the fixtures.
-    const undeclared = await gatherMine(context({ currentUserId: undefined, followingIds: [] }));
-    expect(scoreOf(undeclared, inLanguage)).toBeCloseTo(scoreOf(undeclared, offLanguage), 10);
+    expect(anonymous.map((c) => c.id)).toEqual([spanish]);
   });
 
   it('stays neutral for an anonymous viewer and for one with no learned signals', async () => {
@@ -371,7 +360,6 @@ describe('viewer signals are data, never SQL', () => {
         userBehavior: {
           preferredTopics: [{ topic: '$$bad', weight: 5 }, { topic: "') or true --", weight: 4 }],
         },
-        viewerBaseLanguages: ['$$lang'],
       }),
     );
     const neutral = await gatherMine(context({ currentUserId: VIEWER, followingIds: [] }));

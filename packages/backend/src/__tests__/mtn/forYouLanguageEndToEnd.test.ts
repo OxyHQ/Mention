@@ -181,15 +181,18 @@ describe('anonymous For You — the reader language reaches the query', () => {
   });
 
   /**
-   * Discover is the deliberate exemption: it is the open window on the whole
-   * network, so the same reader, the same rows and the same header must still
-   * see everything there. This is what proves the filter is scoped to For You
-   * rather than applied globally — the assertion the production A/B repeats.
+   * Discover is filtered too, for the same reader and the same rows.
+   *
+   * It was the deliberate exemption at first — the open window on the whole
+   * network. Production showed the window pointed almost entirely at one
+   * language: 56% `ja`, from zero-engagement accounts riding recency. The reader
+   * reported it in the plainest possible terms — "me siguen apareciendo posts
+   * en chino o japonés" — and an open window nobody can read is not discovery.
    */
-  it('does NOT filter Discover for the same reader', async () => {
+  it('filters Discover for the same reader', async () => {
     const spanish = await seedInLanguage(['es'], 10);
-    const german = await seedInLanguage(['de'], 5_000);
-    const mine = [spanish, german];
+    const japanese = await seedInLanguage(['ja'], 5_000);
+    const mine = [spanish, japanese];
 
     const request = {
       query: { descriptor: 'explore', limit: '50' },
@@ -199,9 +202,6 @@ describe('anonymous For You — the reader language reaches the query', () => {
     const res = makeRes();
     await mtnFeedController.getFeed(request as never, res as never);
     const body = res.body as { data?: { slices?: Array<{ items: Array<{ post: { id: string } }> }>; items?: Array<{ id: string }> } };
-    // A ranked feed reports the SAME posts in both shapes — `slices` for the
-    // thread-grouped client, `items` flattened — so the two are unioned, not
-    // concatenated.
     const returned = new Set(
       [
         ...(body.data?.items ?? []).map((item) => item.id),
@@ -209,6 +209,7 @@ describe('anonymous For You — the reader language reaches the query', () => {
       ].filter((id) => mine.includes(id)),
     );
 
-    expect([...returned].sort()).toEqual([...mine].sort());
+    // The Japanese post has 500x the engagement and is still gone.
+    expect([...returned]).toEqual([spanish]);
   });
 });

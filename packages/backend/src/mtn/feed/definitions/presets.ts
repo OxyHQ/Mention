@@ -249,13 +249,13 @@ export const followingDefinition: FeedDefinition = {
  * Discover (Explore) — pre-scored engagement×recency×relevance discovery
  * aggregation.
  *
- * DELIBERATELY NOT language-filtered. Discover is the open window on the whole
- * network — that is the entire point of it, and it is the surface a reader goes
- * to precisely to see what they would not otherwise be shown. It keeps only the
- * in-language relevance BOOST its SQL score already carries
- * (`resolveExploreRelevance`), which orders without excluding. Measured on
- * production 2026-09-05, its corpus is already 74% `en` and 4% `de` — Discover's
- * problem was never language.
+ * Language-filtered, like every other algorithmic surface. It was exempt at
+ * first, on the reasoning that Discover is the open window on the whole network.
+ * Production disagreed: measured 2026-09-05, an anonymous Discover page came back
+ * 56% `ja` from zero-engagement misskey.io/fedibird.com posts riding pure
+ * recency. An open window onto one language nobody asked for is not discovery.
+ * The in-language relevance BOOST (`resolveExploreRelevance`) still orders within
+ * what survives.
  *
  * Its problem is JUNK, and it had no floor at all: `safety` drops sensitive posts
  * and nothing else, so emoji-only posts, link-only news bots and RSS mirrors
