@@ -17,7 +17,7 @@ import { PanelStickyFooter } from '@/components/shell/PanelChrome';
 import { useBottomBarReservedSpace } from '@/components/BottomBar';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useThreadPreferences, SORT_TO_API } from '@/hooks/useThreadPreferences';
-import { applyServerViewCounts, usePostsStore, usePostSelector } from '@/stores/postsStore';
+import { applyServerViewCounts, getCachedAncestorChain, usePostsStore, usePostSelector } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import ReplyPreferencesSheet from '@/components/ReplyPreferencesSheet';
 import type {
@@ -54,6 +54,7 @@ const FEED_BOTTOM_PADDING = 16;
 // (a handful of hops); this is purely a safety ceiling.
 const MAX_ANCESTOR_DEPTH = 30;
 
+
 const PostDetailScreen: React.FC = () => {
     const { id } = useLocalSearchParams<{ id: string }>();
     const insets = useSafeAreaInsets();
@@ -84,7 +85,9 @@ const PostDetailScreen: React.FC = () => {
     // The full ancestor chain above the focused post, ordered ROOT FIRST … the
     // immediate parent LAST. Rendered as one connected thread above the focused
     // post (Bluesky-style). Empty for a root post (no parent).
-    const [ancestors, setAncestors] = useState<PostDetailEntity[]>([]);
+    const [ancestors, setAncestors] = useState<PostDetailEntity[]>(
+        () => getCachedAncestorChain(id ? String(id) : '', cachedPost?.parentPostId) as PostDetailEntity[],
+    );
     // The author's self-thread continuation spine BELOW the focused post, ordered
     // root-first (c1 … cN). Populated only when the focused post is a self-thread
     // root (the backend returns [] otherwise), so a non-thread post is unchanged.
@@ -202,7 +205,13 @@ const PostDetailScreen: React.FC = () => {
 
         // Drop any ancestor chain belonging to a previously-viewed post so the new
         // focused post never momentarily renders under stale parents on navigation.
-        setAncestors([]);
+        // Reset to THIS post's cached prefix rather than to nothing: on mount the
+        // state initializer already put it there, and resetting to `[]` here would
+        // blank it for a frame before the async walk put the same rows back.
+        setAncestors(getCachedAncestorChain(
+            postId,
+            usePostsStore.getState().getPostFromDb(postId)?.parentPostId,
+        ) as PostDetailEntity[]);
         // Likewise drop the previous post's continuation spine.
         setContinuations([]);
 
@@ -297,7 +306,17 @@ const PostDetailScreen: React.FC = () => {
                 loadContinuations(cached);
                 loadAncestors(cached?.parentPostId);
                 revalidatePostById(postId).then((fresh) => {
-                    if (!cancelled && fresh?.parentPostId) loadAncestors(fresh.parentPostId);
+                    // A post is never re-parented, so the revalidated copy almost
+                    // always names the parent the walk above already started from —
+                    // and re-walking it re-issues a fetch for every uncached hop for
+                    // an identical chain. The one case worth the second walk is a
+                    // cached copy that was PARTIAL and carried no `parentPostId`
+                    // (the shared cache holds degraded rows; see `isRenderableBoost`
+                    // in `postsStore`), which is why this compares rather than
+                    // deleting the branch outright.
+                    if (cancelled || !fresh?.parentPostId) return;
+                    if (fresh.parentPostId === cached?.parentPostId) return;
+                    loadAncestors(fresh.parentPostId);
                 });
                 return;
             }

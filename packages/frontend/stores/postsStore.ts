@@ -1690,6 +1690,49 @@ const useFeedSnapshot = (feedKey: string): FeedSnapshot => {
 };
 
 /**
+ * Hard ceiling on an ancestor walk, guarding a runaway or cyclic chain. Threads
+ * are a handful of hops in practice; this is purely a safety bound, and it is
+ * the same number the post-detail screen's async walk uses.
+ */
+const MAX_CACHED_ANCESTOR_DEPTH = 30;
+
+/**
+ * The part of a post's ancestor chain the cache can answer with NO network,
+ * ordered root first — the same order the post-detail screen's async walk
+ * produces.
+ *
+ * Exists so the chain is on screen in the FIRST commit. The async walk sets
+ * state from an effect, i.e. after the browser has already painted, so a fully
+ * cached thread showed the focused post alone for a frame and then pushed it
+ * down as its parents appeared. Opening a post from a feed is exactly the case
+ * where every ancestor is already cached — the common case was the janky one.
+ *
+ * Stops at the first UNCACHED hop rather than skipping it: a chain with a hole
+ * in it would render parents out of order. The async walk then fetches the tail
+ * and replaces the whole chain.
+ */
+export const getCachedAncestorChain = (
+  postId: string,
+  startParentId: string | undefined,
+): FeedItem[] => {
+  if (!postId || !startParentId) return [];
+  const chain: FeedItem[] = [];
+  const visited = new Set<string>([postId]);
+  let nextId: string | undefined = startParentId;
+
+  while (nextId && chain.length < MAX_CACHED_ANCESTOR_DEPTH) {
+    if (visited.has(nextId)) break;
+    visited.add(nextId);
+    const ancestor = dbGetPostById(nextId);
+    if (!ancestor) break;
+    chain.push(ancestor);
+    nextId = ancestor.parentPostId ? String(ancestor.parentPostId) : undefined;
+  }
+
+  return chain.reverse();
+};
+
+/**
  * Reactive read of a single cached post. Re-renders whenever the shared post
  * cache mutates (optimistic like/boost, background revalidation, delete, …).
  * The compiler-safe replacement for a memoized out-of-band SQLite read.
