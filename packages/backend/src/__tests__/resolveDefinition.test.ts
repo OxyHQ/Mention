@@ -19,7 +19,7 @@ describe('resolveDefinition', () => {
     expect(def).not.toBeNull();
     expect(def!.mode).toBe('ranked');
     expect(sourceIds(def!)).toEqual([
-      'following', 'lists', 'affinity', 'topic', 'language', 'region', 'trending', 'globalDiscovery',
+      'following', 'lists', 'affinity', 'topic', 'region', 'trending', 'globalDiscovery',
     ]);
     expect(def!.execution?.neverBlank).toBe(true);
   });

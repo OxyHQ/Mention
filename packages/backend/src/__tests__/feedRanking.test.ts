@@ -599,10 +599,20 @@ describe('FeedRankingService canonical topics (postClassification.topicRefs → 
 describe('FeedRankingService language personalization (ANY-overlap on postClassification.languages)', () => {
   const VIEWER = 'viewer-lang';
 
-  /** Score a post as a viewer whose preferred language is Spanish. */
+  /**
+   * Score a post as a viewer who DECLARED Spanish.
+   *
+   * Declared, not learned: the language input used to be
+   * `userBehavior.preferredLanguages`, an array appended to on any recorded
+   * interaction — a SKIP included — never weighted and never decayed, so
+   * scrolling past a post in a language you do not read taught this boost to
+   * favor that language. It now reads `ctx.viewerLanguages`, the reader's own
+   * declaration (Oxy account, else `Accept-Language`).
+   */
   async function scoreWithSpanishPref(post: Record<string, unknown>): Promise<number> {
     return service.calculatePostScore(post, VIEWER, {
-      userBehavior: { preferredLanguages: ['es'] },
+      userBehavior: {},
+      viewerLanguages: ['es'],
       behaviorSets: {
         hiddenAuthors: new Set<string>(),
         mutedAuthors: new Set<string>(),

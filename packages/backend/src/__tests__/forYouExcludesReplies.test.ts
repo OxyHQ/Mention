@@ -60,7 +60,6 @@ const {
   gatherSubscribedListsLane,
   gatherAffinityLane,
   gatherTopicsLane,
-  gatherLanguageLane,
   gatherRegionLane,
   gatherTrendingLane,
   gatherGlobalLane,
@@ -121,11 +120,6 @@ const LANE_CASES: LaneCase[] = [
     lane: 'topics',
     run: gatherTopicsLane,
     selector: { extra: { postClassification: { topics: ['tech'] } } },
-  },
-  {
-    lane: 'language',
-    run: gatherLanguageLane,
-    selector: { extra: { postClassification: { languages: ['es'] } } },
   },
   {
     lane: 'region',
@@ -384,9 +378,14 @@ describe('For You candidate pool — the fixture universe', () => {
 });
 
 describe('For You candidate lanes — every lane excludes replies', () => {
-  // Vacuity floor on the table itself: the eight lanes of `gatherForYouCandidates`.
-  it('covers all eight For You lanes', () => {
-    expect(LANE_CASES).toHaveLength(8);
+  // Vacuity floor on the table itself: the seven lanes of `gatherForYouCandidates`.
+  // Seven, not eight: the `language` lane is gone. It could only ADD in-language
+  // candidates, which never stopped the other discovery lanes from filling the
+  // pool with posts the reader cannot read; language is a PREDICATE on all of
+  // them now (`withDiscoveryGuards`), and the lanes it applies to are covered by
+  // `forYouCandidateSources.test.ts`.
+  it('covers all seven For You lanes', () => {
+    expect(LANE_CASES).toHaveLength(7);
   });
 
   for (const laneCase of LANE_CASES) {
@@ -565,7 +564,6 @@ describe('reply policy — every registered source has a declared intent', () =>
     lists: 'roots-only', // ranked lane; the chronological list branch keeps replies
     topic: 'roots-only', // ranked lane; the chronological topic branch keeps replies
     affinity: 'roots-only',
-    language: 'roots-only',
     region: 'roots-only',
     trending: 'roots-only',
     globalDiscovery: 'roots-only',

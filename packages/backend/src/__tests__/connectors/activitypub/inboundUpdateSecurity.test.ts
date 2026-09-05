@@ -13,6 +13,7 @@ import { getDb } from '../../../db/postgres';
 import { postContentVariants } from '../../../db/schema/postContent';
 import { posts } from '../../../db/schema/posts';
 import type { PostRecord } from '../../../db/posts/postRecord';
+import { BASELINE_CLASSIFIER_VERSION } from '../../../services/BaselineContentClassifier';
 
 const scope = federationScope('inbound-update-security');
 
@@ -154,6 +155,11 @@ beforeEach(async () => {
   edited = await seedPost(scope, {
     oxyUserId: OWNER_OXY_ID,
     content: { variants: [{ source: 'author', text: 'original', tag: 'en' }] },
+    // Ingested WITH a language, the way the inbound Create path stores one — so
+    // the edit cases below can assert that an edit moves it, and that an edit
+    // which resolves to none leaves it alone.
+    language: 'en',
+    postClassification: { status: 'baseline', topics: [], languages: ['en'] },
     federation: { activityId: EDITED_NOTE_ID, actorUri: ACTOR_URI },
   });
 });
@@ -189,6 +195,66 @@ describe('handleUpdate — NoSQL-injection safety + ownership scope', () => {
       .from(posts)
       .where(eq(posts.id, edited.id));
     expect(row.isEdited).toBe(true);
+  });
+
+  /**
+   * A federated edit must RE-CLASSIFY, or the classification keeps describing the
+   * body it replaced — permanently, because nothing else ever revisits a
+   * federated post.
+   *
+   * The fixture is seeded in English and edited into Spanish, which is the case
+   * that matters: `language` and `classification_languages` are what the
+   * discovery language predicate and `languageMismatchPenalty` both read, so a
+   * stale value does not merely mislabel the post — it puts it in front of a
+   * reader who cannot read it, or hides it from the one who can.
+   */
+  it('re-classifies the edited body so the stored language follows the edit', async () => {
+    const before = await getDb()
+      .select({ language: posts.language, languages: posts.classificationLanguages })
+      .from(posts)
+      .where(eq(posts.id, edited.id));
+    // The vacuity floor: the row really did start out English, so the assertion
+    // below is about the edit and not about a fixture that was already Spanish.
+    expect(before[0].language).toBe('en');
+
+    await inboxProcessingService.processInboxActivity(updateActivity(), ACTOR_URI);
+
+    const [row] = await getDb()
+      .select({
+        language: posts.language,
+        languages: posts.classificationLanguages,
+        version: posts.classificationVersion,
+      })
+      .from(posts)
+      .where(eq(posts.id, edited.id));
+
+    expect(row.language).toBe('es');
+    expect(row.languages).toEqual(['es']);
+    // Re-stamped at the CURRENT baseline version — a classification left at the
+    // old version reads as untrusted in ranking and scores NEUTRAL, which is a
+    // quieter version of the same staleness.
+    expect(row.version).toBe(BASELINE_CLASSIFIER_VERSION);
+  });
+
+  /**
+   * The other half of the edit contract: an edit that resolves to NO language
+   * must not erase a language that was correct. `''` is too short for
+   * `BaselineContentClassifier` to detect (its floor is 12 characters) and the
+   * note declares none, so the classifier returns nothing — and the column keeps
+   * what it had rather than being nulled.
+   */
+  it('leaves the stored language alone when an edit resolves to none', async () => {
+    await inboxProcessingService.processInboxActivity(
+      updateActivity({ content: '<p>hi</p>', contentMap: undefined }),
+      ACTOR_URI,
+    );
+
+    const [row] = await getDb()
+      .select({ language: posts.language })
+      .from(posts)
+      .where(eq(posts.id, edited.id));
+
+    expect(row.language).toBe('en');
   });
 
   it('scopes the update to the sending actor so a replayed activityId cannot overwrite another actor’s post', async () => {

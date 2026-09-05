@@ -253,11 +253,6 @@ export class UserPreferenceService {
         userBehavior.activeHours = userBehavior.activeHours.slice(-168);
       }
 
-      // Update language preference
-      if (post.language && !userBehavior.preferredLanguages.includes(post.language)) {
-        userBehavior.preferredLanguages.push(post.language);
-      }
-
       // Update REGION affinity (positive signals only — a skip must not increase
       // interest in a region). Region is a CONTENT-origin signal, so it uses the
       // content weight (amplified on video surfaces) like topics/post-type. It is

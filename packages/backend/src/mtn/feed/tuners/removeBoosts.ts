@@ -1,5 +1,5 @@
-import { FeedPostSlice } from '@mention/shared-types';
-import { TunerContext } from '../FeedTuner';
+import type { FeedPostSlice } from '@mention/shared-types';
+import type { TunerContext } from '../FeedTuner';
 
 /**
  * Remove boost slices when user has hideBoosts enabled.

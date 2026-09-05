@@ -505,7 +505,11 @@ export class FeedEngine {
         enabledSignals: this.resolveEnabledSignalKeys(definition),
         seenPostIds: ctx.seenPostIds,
         mutualIds: ctx.mutualIds,
-        viewerLanguages: ctx.viewerLanguages,
+        // The READABILITY set, not the account locales: ranking asks whether the
+        // reader can read the post, where region is irrelevant. Hydration below
+        // asks which RENDITION to show, where it is not — see `viewerLanguages`
+        // on `FeedContext` for why the two are separate fields.
+        viewerLanguages: ctx.viewerBaseLanguages,
       });
       const ranked: RankedCandidate[] = [];
       for (const post of rankedPosts) {

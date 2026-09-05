@@ -13,7 +13,8 @@ import { resolveDefinition } from '../feed/definitions/resolveDefinition';
 import { forYouUsesSocialProof } from '../feed/definitions/presets';
 import { feedEngine } from '../feed/engine/FeedEngine';
 import type { FeedEngineContext } from '../feed/engine/types';
-import { loadViewerFeedContext } from '../feed/feedContext';
+import { loadViewerFeedContext, resolveViewerBaseLanguages } from '../feed/feedContext';
+import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { mergeFederatedFollowIds } from '../../services/viewerFollowGraph';
 import { resolveDiscoveryGateBucket } from '../feed/discoveryGateExperiment';
 import { FeedGeneratorFeed } from '../feed/feeds/FeedGeneratorFeed';
@@ -253,21 +254,30 @@ class MtnFeedController {
 
       const currentUserId = req.user?.id;
 
-      // Anonymous feeds are identical for every logged-out viewer (no per-user
+      // The reader's REQUEST languages (`?lang=`, then `Accept-Language`). For a
+      // signed-in reader these are only the fallback rung behind their Oxy account
+      // locales, resolved inside `loadViewerFeedContext`; for a signed-out reader
+      // they are the whole declaration, which is why they are also resolved HERE,
+      // synchronously — the anon cache key is built before the context load and
+      // has to name the languages the page was actually built for.
+      const requestLanguages = requestLanguageCandidates(req);
+
+      // Anonymous feeds are shared across logged-out viewers (no per-user
       // following/blocked/muted/seen state — see loadViewerFeedContext), so the
       // fully built page is cached in Redis for a short window. Reading here
       // short-circuits the entire context load + engine run + hydration. The key
-      // captures everything that varies an anon result (descriptor, limit,
-      // cursor); it is namespaced so it never collides with the legacy
-      // controller's differently-shaped cache. Fail-soft: a miss/error falls
-      // straight through to a live build. Authenticated feeds are personalized
-      // and must never be cached.
+      // captures everything that varies an anon result (descriptor, limit, cursor,
+      // AND the reader's languages, which now steer the discovery predicate); it is
+      // namespaced so it never collides with the legacy controller's
+      // differently-shaped cache. Fail-soft: a miss/error falls straight through to
+      // a live build. Authenticated feeds are personalized and must never be cached.
       const anonCacheKey = !currentUserId
         ? anonFeedCache.buildKey({
             namespace: ANON_FEED_CACHE_NAMESPACE,
             type: descriptor,
             limit,
             cursor,
+            languages: resolveViewerBaseLanguages([], requestLanguages),
             ...(videoFilters ? { filters: videoFilters as Record<string, unknown> } : {}),
           })
         : undefined;
@@ -344,7 +354,7 @@ class MtnFeedController {
               oxyClient: requestOxyClient,
             })
           : Promise.resolve(null),
-        loadViewerFeedContext(currentUserId, feedOxyClient, acceptedOutboundFollowUris),
+        loadViewerFeedContext(currentUserId, feedOxyClient, acceptedOutboundFollowUris, requestLanguages),
         // `computeMutualIds` soft-fails each branch to `[]`, so a lookup failure
         // never breaks the feed.
         needsMutuals && currentUserId

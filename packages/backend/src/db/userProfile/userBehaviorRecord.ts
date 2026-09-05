@@ -75,7 +75,6 @@ export interface UserBehaviorRecord {
   preferredPostTypes: PostTypeAffinity;
   /** Hours 0..23 the viewer has been active in. */
   activeHours: number[];
-  preferredLanguages: string[];
   preferredRegions: RegionPreference[];
   averageEngagementTime: number;
   skipRate: number;

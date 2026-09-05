@@ -24,7 +24,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  * the regression test for that column type.
  */
 
-import { closePostgres, connectPostgres } from '../../db/postgres';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { eq } from 'drizzle-orm';
+import { userBehaviors } from '../../db/schema/userProfile';
 import type { TopicPreference } from '../../db/userProfile/userBehaviorRecord';
 import {
   deleteUserBehavior,
@@ -63,6 +65,65 @@ async function storedTopics(): Promise<TopicPreference[]> {
 async function prefByTopic(name: string): Promise<TopicPreference | undefined> {
   return (await storedTopics()).find((t) => t.topic === name);
 }
+
+/**
+ * The language-learning loop is GONE, and this is the assertion that keeps it
+ * gone.
+ *
+ * `recordInteraction` used to append `post.language` to
+ * `user_behaviors.preferred_languages` — outside the `isPositiveSignal` guard, so
+ * a SKIP wrote to it too; unbounded, unweighted, never decayed. That array then
+ * drove a For You candidate lane and a x1.2 ranking boost, which closed the loop:
+ * a German post appears, you scroll past it, `de` is learned, more German
+ * appears. Measured on production 2026-09-05, the For You page was 48% `de`
+ * against a corpus that is 6.8% `de`.
+ *
+ * The reader's DECLARED languages replaced it (Oxy account, else
+ * `Accept-Language`) — an input that cannot drift toward whatever the feed
+ * happened to show. The COLUMN still exists, because dropping it has to wait for
+ * a release in which no running image selects it; what must never come back is
+ * the write.
+ */
+describe('UserPreferenceService — language is DECLARED, never learned', () => {
+  /** The raw column, read directly: the record type no longer exposes it. */
+  async function storedLanguages(): Promise<string[] | null> {
+    const [row] = await getDb()
+      .select({ preferredLanguages: userBehaviors.preferredLanguages })
+      .from(userBehaviors)
+      .where(eq(userBehaviors.oxyUserId, VIEWER));
+    return row?.preferredLanguages ?? null;
+  }
+
+  it('learns NO language from a skipped off-language post', async () => {
+    const post = await seedPost(scope, {
+      language: 'de',
+      postClassification: { status: 'baseline', topics: ['politics'], languages: ['de'] },
+    });
+
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'skip');
+
+    expect(await storedLanguages()).toEqual(null);
+  });
+
+  /**
+   * POSITIVE CONTROL. Without it, "no language was learned" is satisfied by a
+   * service that recorded nothing at all — a broken fixture, a rejected write, a
+   * viewer id that never matched. A LIKE on the same shape of post must still
+   * learn the topic, which proves the interaction landed and that only the
+   * language half is gone.
+   */
+  it('still learns the TOPIC from the same post, so the assertion above is not vacuous', async () => {
+    const post = await seedPost(scope, {
+      language: 'de',
+      postClassification: { status: 'baseline', topics: ['politics'], languages: ['de'] },
+    });
+
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
+
+    expect(await prefByTopic('politics')).toBeDefined();
+    expect(await storedLanguages()).toEqual(null);
+  });
+});
 
 describe('UserPreferenceService — canonical topic learning (topicRefs prefer / slug-topics fallback / neutral)', () => {
   it('learns topics from the stored topicRefs rows, with their resolved topicId', async () => {
