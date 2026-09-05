@@ -151,7 +151,6 @@ describe('the union of lanes', () => {
       followingIds: [FOLLOW],
       userBehavior: {
         preferredTopics: [{ topic: 'fyc-tech', weight: 5 }],
-        preferredLanguages: ['fyc-es'],
       },
       viewerRegion: 'fyc-ES',
       seenPostIds: [],

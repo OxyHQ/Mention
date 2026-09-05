@@ -98,7 +98,7 @@ describe('languageMismatchPenalty scorer', () => {
 
   /**
    * The viewer side arrives ALREADY normalized to ISO 639-1 base subtags —
-   * `loadViewerFeedContext` does it once, at the boundary, so `ctx.viewerLanguages`
+   * `loadViewerFeedContext` does it once, at the boundary, so `ctx.viewerBaseLanguages`
    * is in the same unit as `postClassification.languages` and the SQL predicate
    * that shares it can be a plain array overlap. (That normalization is pinned in
    * `viewerLanguagesAndGate.test.ts`, where it now happens.)
@@ -168,20 +168,20 @@ describe('Phase 4 signals are OFF unless the definition enables them', () => {
 
   it('enabling languageMismatchPenalty downranks an off-language discovery post', async () => {
     const offLang = makePost({ _discovery: true, postClassification: { languages: ['de'] } });
-    const off = await scoreWith(offLang, { viewerLanguages: ['en'] });
+    const off = await scoreWith(offLang, { viewerBaseLanguages: ['en'] });
     const on = await scoreWith(offLang, {
       enabledSignals: new Set(['languageMismatchPenalty']),
-      viewerLanguages: ['en'],
+      viewerBaseLanguages: ['en'],
     });
     expect(on / off).toBeCloseTo(R.languageMismatchPenalty.penalty, 5);
   });
 
   it('enabling languageMismatchPenalty does NOT touch a trusted (non-discovery) off-language post', async () => {
     const trustedOffLang = makePost({ postClassification: { languages: ['de'] } });
-    const off = await scoreWith(trustedOffLang, { viewerLanguages: ['en'] });
+    const off = await scoreWith(trustedOffLang, { viewerBaseLanguages: ['en'] });
     const on = await scoreWith(trustedOffLang, {
       enabledSignals: new Set(['languageMismatchPenalty']),
-      viewerLanguages: ['en'],
+      viewerBaseLanguages: ['en'],
     });
     expect(on / off).toBeCloseTo(1.0, 5);
   });

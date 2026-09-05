@@ -84,7 +84,7 @@ export interface EvalGateModule {
 export interface EvalContext {
   userBehavior?: RankingUserBehavior;
   /** The viewer's account languages — BCP-47 locales (`es-ES`) or bare base subtags (`es`). */
-  viewerLanguages?: string[];
+  viewerBaseLanguages?: string[];
   feedTuning?: FeedTuning;
   followingIds?: string[];
   /** Opt-in ranking signal ids to enable (the For You Phase-2b/4 set). */
@@ -288,16 +288,20 @@ export async function runFeedQualityEval(deps: FeedQualityEvalDeps): Promise<Eva
     followingIds: context.followingIds ?? [],
     userBehavior: context.userBehavior,
     feedTuning: context.feedTuning,
-    viewerLanguages: context.viewerLanguages,
+    // BOTH fields, because the gate context has to be the one production builds:
+    // `viewerBaseLanguages` is what the discovery predicate and ranking read, and
+    // setting only the locale field left the harness measuring a reader whose
+    // languages were unknown.
+    viewerBaseLanguages: context.viewerBaseLanguages,
   };
 
   // Built once (not per post) — the negative-penalty + personalization signals read it.
   const behaviorSets = buildBehaviorSets(context.userBehavior);
   // The language-match METRIC mirrors the `languageMismatchPenalty` signal.
-  // `context.viewerLanguages` is the READABILITY set and already arrives as ISO
+  // `context.viewerBaseLanguages` is the READABILITY set and already arrives as ISO
   // 639-1 base subtags, so only the POST side needs reducing — a federated
   // declaration can still carry a region (`pt-BR`).
-  const viewerLangSet = new Set(context.viewerLanguages ?? []);
+  const viewerLangSet = new Set(context.viewerBaseLanguages ?? []);
 
   const rows: EvalScoredRow[] = [];
 
@@ -312,7 +316,7 @@ export async function runFeedQualityEval(deps: FeedQualityEvalDeps): Promise<Eva
       userBehavior: context.userBehavior,
       behaviorSets,
       followingIds: context.followingIds,
-      viewerLanguages: context.viewerLanguages,
+      viewerBaseLanguages: context.viewerBaseLanguages,
       enabledSignals: context.enabledSignals,
     });
     const explanation = explainRanking(evaluated as RankablePost);
@@ -772,7 +776,7 @@ async function main(): Promise<void> {
     // ranking consumes: `--languages es-ES,en` and `--languages es,en` must
     // measure the same thing, and an unparseable entry must drop out rather than
     // mismatch every post and report a language-match rate of zero.
-    const viewerLanguages = resolveViewerBaseLanguages(
+    const viewerBaseLanguages = resolveViewerBaseLanguages(
       args.languages,
       viewerContext?.viewerBaseLanguages ?? [],
     );
@@ -786,7 +790,7 @@ async function main(): Promise<void> {
       gateModules,
       context: {
         userBehavior: viewerContext?.userBehavior,
-        viewerLanguages,
+        viewerBaseLanguages,
         feedTuning: viewerContext?.feedTuning,
         followingIds: viewerContext?.followingIds,
         enabledSignals,

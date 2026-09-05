@@ -165,7 +165,6 @@ const params: GatherParams = {
   subscribedListMemberIds: [LIST_AUTHOR],
   userBehavior: {
     preferredTopics: [{ topic: 'tech', weight: 1 }],
-    preferredLanguages: ['es'],
   },
   viewerRegion: 'ES',
   seenPostIds: [],
@@ -494,7 +493,6 @@ describe('roots-only feed presets — resolved through the module registry', () 
     userBehavior: {
       preferredAuthors: [{ authorId: AFFINITY_AUTHOR, weight: 5 }],
       preferredTopics: [{ topic: 'tech', weight: 1 }],
-      preferredLanguages: ['es'],
     },
     viewerRegion: 'ES',
     seenPostIds: [],

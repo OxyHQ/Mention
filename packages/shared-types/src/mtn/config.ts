@@ -98,7 +98,6 @@ export const MtnConfig = {
        * Multiplier when ANY of the post's `postClassification.languages` is one
        * of the viewer's preferred languages.
        */
-      languageMatch: 1.15,
       /**
        * Multiplier when the post's `postClassification.region` equals the
        * viewer's learned coarse region. Region is best-effort/sparse, so this is
@@ -106,9 +105,13 @@ export const MtnConfig = {
        */
       regionMatch: 1.1,
       /**
-       * Hard ceiling on the COMBINED relevance multiplier (topic × language ×
-       * region). Bounds the lift so relevance nudges, never overwhelms, the
+       * Hard ceiling on the COMBINED relevance multiplier (topic × region).
+       * Bounds the lift so relevance nudges, never overwhelms, the
        * engagement×recency trending order.
+       *
+       * There is no language dimension: Discover FILTERS on language now, so a
+       * lift for matching one multiplied every surviving row alike and ordered
+       * nothing.
        */
       maxBoost: 1.5,
     },
@@ -611,40 +614,33 @@ export const MtnConfig = {
      * whole network and keeps only its in-language relevance BOOST.
      */
     discoveryLanguage: {
-      /** Master switch. When false the predicate is never built (today's behavior). */
+      /**
+       * Master switch. When false the predicate is never built (today's behavior).
+       *
+       * A BINARY lever, where {@link discoveryGate} beside it has both a `shadow`
+       * mode and an A/B bucket — and the difference is a real one rather than an
+       * oversight. The gate is an in-memory `keep()` over a pool that was fetched
+       * either way, so evaluating it without acting costs only CPU. This is a SQL
+       * predicate: measuring what it WOULD exclude means running the query twice,
+       * per lane, on the hottest path in the app. The A/B that matters here is
+       * cheaper to run from outside — the census in `feedLanguage.ts` was taken
+       * with two curl requests differing only in `Accept-Language`.
+       */
       enabled: true,
       /**
-       * Whether a discovery candidate with NO resolvable language passes.
-       *
-       * `false`: an unverifiable language is not a match.
-       *
-       * Measured cost, on the column the predicate actually reads: 4 of 212
-       * sampled production posts (**1.9%**) carry no usable
-       * `classification_languages`. Measure it on that ARRAY and not on the
-       * scalar `language` — they diverge, and the scalar reads a flattering
-       * 0.5%.
-       *
-       * The residue is two things, neither of them ordinary prose:
-       *   - posts with no text to detect from — every one inspected was
-       *     media-only (0 characters) or under the classifier's 12-character
-       *     floor; and
-       *   - LEGACY rows. All three divergent posts in that sample carried
-       *     ObjectId-era ids rather than uuid v7, i.e. they predate the
-       *     Postgres port and were never swept by `backfillPostLanguages.ts`
-       *     (which skips writing when detection yields nothing).
-       *
-       * The legacy half shrinks to zero once that backfill runs, which is a
-       * prerequisite for trusting the discovery gate's measured precision
-       * anyway. For You additionally excludes replies and boosts, the two other
-       * sources of a null language, so nothing here is a normal readable post.
+       * How many reader languages reach a query. Three covers a genuinely
+       * multilingual reader and bounds two things that would otherwise grow with
+       * an attacker-supplied `Accept-Language`: the width of the `&&` array
+       * overlap on every discovery lane, and the cardinality of the anonymous
+       * feed cache, whose key carries this set.
        */
-      allowUnclassified: false,
+      maxViewerLanguages: 3,
     },
 
     /**
      * DISCOVERY GATE for the authenticated For You feed — a hard quality/bot/
      * engagement floor applied ONLY to candidates from non-trusted (discovery)
-     * lanes (topics / language / region / trending / global). Trusted lanes
+     * lanes (topics / region / trending / global). Trusted lanes
      * (following / affinity / subscribed-lists) are NEVER gated.
      *
      * WIRED IN PHASE 4, shipping in SHADOW mode. `shadow: true` means the engine

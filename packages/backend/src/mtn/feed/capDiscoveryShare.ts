@@ -6,7 +6,7 @@
  * content on the For You feed.
  *
  * Background: For You gathers candidates from both TRUSTED lanes (the viewer's own
- * chosen graph) and DISCOVERY lanes (topics / language / region / trending /
+ * chosen graph) and DISCOVERY lanes (topics / region / trending /
  * global). Ranking mixes them by score, so on a noisy federated instance a burst
  * of high-scoring discovery candidates can crowd the page and bury the trusted
  * content the viewer actually opted into. This cap enforces the hard share

@@ -275,7 +275,7 @@ export function starterPackBoost(
  * Neutral (1.0) in every other case (unmarked post, unknown viewer languages,
  * unclassified post, or any language overlap).
  *
- * `ctx.viewerLanguages` arrives as ISO 639-1 BASE subtags — `loadViewerFeedContext`
+ * `ctx.viewerBaseLanguages` arrives as ISO 639-1 BASE subtags — `loadViewerFeedContext`
  * normalizes the account's BCP-47 locales (`es-ES`) once, at the boundary — so
  * this is a same-unit comparison against `postClassification.languages` and only
  * the POST side needs `getBaseLanguage` (a federated declaration can still carry a
@@ -291,18 +291,18 @@ export function starterPackBoost(
  * with this penalty already enabled. The penalty still earns its place: it covers
  * what reaches ranking WITHOUT passing one of those queries.
  */
-export function languageMismatchPenalty(post: RankablePost, viewerLanguages: string[] | undefined): number {
+export function languageMismatchPenalty(post: RankablePost, viewerBaseLanguages: string[] | undefined): number {
   if (post?._discovery !== true) {
     return 1.0;
   }
-  if (!viewerLanguages || viewerLanguages.length === 0) {
+  if (!viewerBaseLanguages || viewerBaseLanguages.length === 0) {
     return 1.0;
   }
   const postLanguages = post?.postClassification?.languages;
   if (!Array.isArray(postLanguages) || postLanguages.length === 0) {
     return 1.0;
   }
-  const overlaps = postLanguages.some((lang) => viewerLanguages.includes(getBaseLanguage(lang)));
+  const overlaps = postLanguages.some((lang) => viewerBaseLanguages.includes(getBaseLanguage(lang)));
   return overlaps ? 1.0 : R.optInSignals.languageMismatchPenalty.penalty;
 }
 
@@ -335,7 +335,7 @@ export const OPT_IN_SIGNALS: readonly OptInScorer[] = [
   // (and the golden-master product) is unchanged. Both fire only when explicitly
   // enabled (DORMANT until Phase 5), so preset ranking is unaffected.
   { id: 'localBoost', score: (post) => localBoost(post) },
-  { id: 'languageMismatchPenalty', score: (post, ctx) => languageMismatchPenalty(post, ctx.viewerLanguages) },
+  { id: 'languageMismatchPenalty', score: (post, ctx) => languageMismatchPenalty(post, ctx.viewerBaseLanguages) },
   // Curation signal — appended at the END for the same reason: an existing feed's
   // opt-in product is untouched unless it explicitly enables this signal.
   { id: 'starterPackBoost', score: (post, ctx) => starterPackBoost(post, ctx.authorStarterPackScores) },

@@ -123,6 +123,24 @@ async function selectCandidates(
   return assemblePostRecords(rows, db);
 }
 
+/**
+ * Everything a DISCOVERY query guards on: the sensitive filter, and the reader's
+ * languages.
+ *
+ * One function because the sibling file already learned this lesson the hard way.
+ * `withDiscoveryGuards` in `feeds/forYouCandidateSources.ts` states it: "a guard
+ * stated per-lane is a guard a new lane inherits nothing of… how `popularSource`
+ * ended up the one discovery surface with no language predicate at all". That
+ * argument applies verbatim here, where the same two predicates were hand-written
+ * at all six discovery sources in this file.
+ *
+ * Returns an `SQL` for `and(...)` to absorb; `viewerLanguageSql` yields
+ * `undefined` for an unknown reader and `and` drops it.
+ */
+function discoveryGuardsSql(ctx: FeedEngineContext): SQL {
+  return and(discoverySafeSql(), viewerLanguageSql(ctx.viewerBaseLanguages)) as SQL;
+}
+
 /** `videos`: ranked candidate query for video posts (wraps `buildVideosQuery`). */
 export const videosSource: SourceModule = {
   id: 'videos',
@@ -135,8 +153,7 @@ export const videosSource: SourceModule = {
           orientation: ctx.videoFilters?.orientation,
           minDurationSec: ctx.videoFilters?.minDurationSec,
         }),
-        discoverySafeSql(),
-        viewerLanguageSql(ctx.viewerBaseLanguages),
+        discoveryGuardsSql(ctx),
       ) as SQL,
       chronoOrderBy(),
       cap,
@@ -152,8 +169,7 @@ export const mediaSource: SourceModule = {
     selectCandidates(
       and(
         FeedQueryBuilder.buildMediaFeedQuery(ctx.seenPostIds ?? []),
-        discoverySafeSql(),
-        viewerLanguageSql(ctx.viewerBaseLanguages),
+        discoveryGuardsSql(ctx),
       ) as SQL,
       chronoOrderBy(),
       cap,
@@ -181,9 +197,13 @@ function resolveExploreRelevance(ctx: FeedEngineContext): SQL {
   const candidateCfg = MtnConfig.feed.candidateSources;
   const NEUTRAL = sql`1::double precision`;
 
-  const behavior = ctx.currentUserId
-    ? (ctx.userBehavior as { preferredTopics?: Array<{ topic?: string; weight?: number }> } | undefined)
-    : undefined;
+  // Both surviving dimensions are authenticated-only, so one early return covers
+  // them — the language dimension that made this per-field is gone.
+  if (!ctx.currentUserId) return NEUTRAL;
+
+  const behavior = ctx.userBehavior as
+    | { preferredTopics?: Array<{ topic?: string; weight?: number }> }
+    | undefined;
 
   const topics = (behavior?.preferredTopics ?? [])
     .filter((t): t is { topic: string; weight?: number } => typeof t.topic === 'string' && t.topic.length > 0)
@@ -191,7 +211,7 @@ function resolveExploreRelevance(ctx: FeedEngineContext): SQL {
     .slice(0, candidateCfg.maxPreferredTopics)
     .map((t) => t.topic.toLowerCase());
 
-  const region = ctx.currentUserId && typeof ctx.viewerRegion === 'string' && ctx.viewerRegion.length > 0
+  const region = typeof ctx.viewerRegion === 'string' && ctx.viewerRegion.length > 0
     ? ctx.viewerRegion
     : undefined;
 
@@ -299,22 +319,12 @@ export const exploreSource: SourceModule = {
     const excludeAuthors = authorNotInSql(excludeUserIds);
     if (excludeAuthors) conditions.push(excludeAuthors);
 
-    // Discover is language-filtered too. It was the deliberate exemption at first
-    // — the open window on the whole network — but the window turned out to be
-    // mostly one language: measured on production 2026-09-05, an anonymous
-    // Discover page came back 56% `ja`, from misskey.io / fedibird.com accounts
-    // carrying likes=0, replies=0 and only FEDERATED boosts. They were not
-    // popular; the Japanese fediverse simply posts at a volume nothing else
-    // matches, and Discover's score is engagement×recency×relevance, so with
-    // engagement at zero recency decides. A reader who cannot read Japanese was
-    // handed a feed that was mostly Japanese.
-    //
-    // The junk gate does NOT cover this, which is worth stating because it looks
-    // like it should: `nativeEngagement` passes anything inside the 6-hour
-    // `freshnessGraceMs`, and this content is always fresh. Language is the lever
-    // that fits.
-    const exploreLanguage = viewerLanguageSql(ctx.viewerBaseLanguages);
-    if (exploreLanguage) conditions.push(exploreLanguage);
+    // Discover is language-filtered too — see `feedLanguage.ts` for the
+    // measurement that decided it. `discoverySafeSql()` is already in
+    // `conditions` above, so this adds the language half on its own rather than
+    // going through `discoveryGuardsSql`.
+    const language = viewerLanguageSql(ctx.viewerBaseLanguages);
+    if (language) conditions.push(language);
 
     const cursorExcludedIds = parsedCursor?.excludeIds ?? [];
     if (cursorExcludedIds.length > 0) {
@@ -377,19 +387,12 @@ export const popularSource: SourceModule = {
       notABoostSql(),
     ];
 
-    // The reader-language predicate. THIS source is where the language bug
-    // actually lived: it is the WHOLE For You feed for a signed-out reader, and
-    // it bypasses `FeedEngine.gatherPool` entirely — so it inherited neither the
-    // discovery gate nor the `_discovery` mark that `languageMismatchPenalty`
-    // keys off. Nothing anywhere in the request looked at what the reader could
-    // read, and engagement was the only axis left. Measured against production on
-    // 2026-09-05, the anonymous For You page came back 48% `de` from a corpus that
-    // is 6.8% `de`.
-    //
-    // No-op when the reader's languages are unknown, which is a signed-out reader
-    // whose client sent no `Accept-Language`.
-    const languageMatch = viewerLanguageSql(ctx.viewerBaseLanguages);
-    if (languageMatch) baseConditions.push(languageMatch);
+    // THIS source is where the language bug actually lived — it is the whole For
+    // You feed for a signed-out reader, and it bypasses `FeedEngine.gatherPool`,
+    // so it inherited no guard at all. `discoverySafeSql()` is already in
+    // `baseConditions` above; see `feedLanguage.ts` for the measurement.
+    const language = viewerLanguageSql(ctx.viewerBaseLanguages);
+    if (language) baseConditions.push(language);
 
     // Exclude what the viewer has already been shown. The video and media
     // fallbacks thread the seen set through their query builders; this one built
@@ -544,8 +547,7 @@ export const popularVideosSource: SourceModule = {
           orientation: ctx.videoFilters?.orientation,
           minDurationSec: ctx.videoFilters?.minDurationSec,
         }),
-        discoverySafeSql(),
-        viewerLanguageSql(ctx.viewerBaseLanguages),
+        discoveryGuardsSql(ctx),
       ) as SQL,
       cap,
       ctx.cursor,
@@ -561,8 +563,7 @@ export const popularMediaSource: SourceModule = {
     gatherPopularByQuery(
       and(
         FeedQueryBuilder.buildMediaFeedQuery(ctx.seenPostIds ?? []),
-        discoverySafeSql(),
-        viewerLanguageSql(ctx.viewerBaseLanguages),
+        discoveryGuardsSql(ctx),
       ) as SQL,
       cap,
       ctx.cursor,
