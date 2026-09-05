@@ -24,7 +24,7 @@ import {
   replacePostContent,
   updatePostRecord,
 } from '../../db/posts/postRepository';
-import type { PostRecord } from '../../db/posts/postRecord';
+import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../../db/posts/postRecord';
 import {
   FEDERATION_MAX_CONTENT_LENGTH,
   isBlockedDomain,
@@ -60,6 +60,7 @@ import { applyMentionPlaceholders, resolveInboundMentions } from './apMentions';
 import { isMentionBroadcast } from '@mention/shared-types/mentions';
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { getRemoteHost } from '../shared/url';
+import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
 import { parentIsChannelPost } from '../../utils/channelReplyGate';
 import { parseInboundActivity, parseNote, primaryApType } from './apSchemas';
 import type { z } from 'zod';
@@ -880,7 +881,18 @@ export class InboxProcessingService {
         orderBy: UNIQUE_MATCH_NO_ORDER,
         limit: 1,
       });
-      const ownerOxyUserId = existingPost?.oxyUserId ?? (await actorService.getOrFetchActor(actorUri))?.oxyUserId ?? null;
+      // Resolved ONCE and reused: the owner id below and the re-classification's
+      // bot-mirror signal both need this actor, and it was previously fetched
+      // inline for the owner and thrown away.
+      //
+      // Resolved UNCONDITIONALLY, where the owner lookup alone would have skipped
+      // it whenever the post already had an owner — which is the common case. The
+      // classifier's `actorType` feeds the RSS/bridge/bot-mirror spam signal, and
+      // leaving it undefined there would score an edited bot mirror as ordinary
+      // prose. An Update is a remote edit, not a hot path, so one cached actor
+      // read is the right trade.
+      const editActor = await actorService.getOrFetchActor(actorUri);
+      const ownerOxyUserId = existingPost?.oxyUserId ?? editActor?.oxyUserId ?? null;
 
       // Re-resolve the edited Note's @mentions the SAME way as fresh ingest so an
       // edit's mentions stay correct: each `Mention` tag → federated/local Oxy user
@@ -918,10 +930,57 @@ export class InboxProcessingService {
       // `isEdited` is the top-level column. Mongo wrote `metadata.isEdited`, a
       // loose key on a `Mixed` bag that `PostMetadata` never declared and no
       // reader consulted; the schema has one edited flag and this is it.
+      // RE-CLASSIFY the edited body, exactly as the native edit path does
+      // (`controllers/posts/updatePost.ts`).
+      //
+      // Without this an Update replaced the content and left the classification
+      // describing the body it replaced — permanently, since nothing else ever
+      // revisits a federated post. A remote author who rewrote an `es` post into
+      // `en` kept `language: 'es'` and `classification_languages: ['es']` forever,
+      // and every language-conditional path downstream believed it: the discovery
+      // predicate would admit that post for a Spanish reader who cannot read a
+      // word of it. The topics, trend terms and spam/quality scores went stale the
+      // same way.
+      //
+      // The declaration handling mirrors the native path for the same reason
+      // stated there: only a REAL declaration is fed back in, so a rewritten body
+      // is re-detected rather than pinned to the language it used to be in. Here
+      // that declaration is the edit's own AP fields — `language` plus every
+      // `contentMap` key — which is what fresh ingest reads too.
+      const editSignals = baselineContentClassifier.classify({
+        text: built.variants[0]?.text ?? '',
+        hashtags: built.hashtags,
+        language: extractApLanguage(object),
+        languages: extractApLanguages(object),
+        sensitive: built.sensitive,
+        isFederated: true,
+        instanceDomain: getRemoteHost(actorUri),
+        actorType: editActor?.type,
+      });
+
       await updatePostRecord(existingPost.id, {
         hashtags: built.hashtags,
         isEdited: true,
         metadata: { isSensitive: built.sensitive },
+        // Every reset field is NAMED because `updatePostRecord` merges a partial:
+        // an unnamed Stage-B field would keep describing the previous body.
+        postClassification: {
+          status: POST_CLASSIFICATION_PENDING,
+          attempts: 0,
+          topics: editSignals.topics,
+          topicRefs: [],
+          languages: editSignals.languages,
+          region: editSignals.region,
+          hashtagsNorm: editSignals.hashtagsNorm,
+          trendTerms: editSignals.trendTerms,
+          sensitive: editSignals.sensitive,
+          scores: editSignals.scores,
+          version: editSignals.version,
+          sentiment: 'neutral',
+          intent: 'other',
+          confidence: 0,
+          classifiedAt: new Date(editSignals.classifiedAt),
+        },
       });
       await getDb()
         .update(posts)
@@ -929,6 +988,10 @@ export class InboxProcessingService {
           type: derivedType,
           federationSensitive: built.sensitive,
           federationSpoilerText: built.summary ?? null,
+          // The AP protocol language field follows the re-derived primary. Left
+          // unset when the edit resolves to no language at all, so an
+          // undetectable body does not erase a language that was correct.
+          ...(editSignals.languages[0] != null ? { language: editSignals.languages[0] } : {}),
           updatedAt: new Date(),
         })
         .where(eq(posts.id, existingPost.id));

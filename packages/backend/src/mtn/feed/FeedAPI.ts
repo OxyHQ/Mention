@@ -63,16 +63,40 @@ export interface FeedContext {
    */
   showSensitiveContent?: boolean;
   /**
-   * The viewer's account languages as canonical BCP-47 locales (`es-ES`,
-   * `en-US`), primary first, resolved from the Oxy account by
-   * `loadViewerFeedContext`. Consumed ONLY by the `languageMismatchPenalty`
-   * ranking signal (Phase 4c) to softly downrank off-language DISCOVERY posts —
-   * never a hard filter. The signal compares on the BASE subtag (`es-ES` matches
-   * a post classified `es`). EMPTY / absent ⇒ the penalty is neutral for every
-   * post (the viewer's languages are unknown, so we never penalize). Never
-   * derived from behavior and never defaulted to a UI locale.
+   * The viewer's Oxy account locales as canonical BCP-47 (`es-ES`, `en-US`),
+   * primary first, resolved by `loadViewerFeedContext`. REGION-SIGNIFICANT: this
+   * is what hydration resolves a post's VARIANT against, and `selectVariantForTag`
+   * prefers the exact locale over the base subtag, so `pt-BR` and `pt-PT` are
+   * different answers. `[]` for an anonymous viewer.
+   *
+   * NOT the readability set — see {@link viewerBaseLanguages}, which answers a
+   * different question in a different unit.
    */
   viewerLanguages?: string[];
+  /**
+   * The reader's READABILITY set: which languages they can read at all, as ISO
+   * 639-1 BASE subtags, primary first, capped at 3. Resolved from the Oxy account,
+   * else the request (`?lang=`, then `Accept-Language`) — so unlike
+   * {@link viewerLanguages} it is populated for an ANONYMOUS reader, which is the
+   * reader whose For You had no language signal at all. Never derived from
+   * behavior: the learned array that used to drive this was appended to on any
+   * interaction including a SKIP, so it drifted toward whatever the feed had
+   * already shown.
+   *
+   * Base form, so it is already in the same unit as
+   * `posts.classification_languages` and no consumer re-derives it. Region is
+   * deliberately discarded — a Mexican Spanish reader reads Spain's Spanish.
+   *
+   * Three consumers, in descending strength: `viewerLanguageSql` (a HARD SQL
+   * predicate on the discovery lanes and the popular fallback),
+   * `languageMismatchPenalty` (the soft downrank covering what reaches ranking
+   * without passing one of those queries), and the Discover relevance BOOST
+   * (which orders and never excludes).
+   *
+   * EMPTY / absent ⇒ all three go neutral. An unknown reader is never filtered,
+   * only an unmatched one.
+   */
+  viewerBaseLanguages?: string[];
   /**
    * The viewer's Mention-local per-user FEED TUNING (Phase 4B), loaded from
    * `UserSettings.feedTuning` by `loadViewerFeedContext`. The For You

@@ -362,7 +362,8 @@ export const GOLDEN_CASES: GoldenCase[] = [
     userId: 'viewer-1',
     post: makePost({ postClassification: { status: 'baseline', topics: [], languages: ['en', 'es'] } }),
     context: {
-      userBehavior: { preferredLanguages: ['es'] },
+      userBehavior: {},
+      viewerLanguages: ['es'],
       engagementScoreCache: pinnedEngagement('post', 1),
     },
   },
@@ -371,7 +372,8 @@ export const GOLDEN_CASES: GoldenCase[] = [
     userId: 'viewer-1',
     post: makePost({ postClassification: { status: 'baseline', topics: [], languages: ['de', 'fr'] } }),
     context: {
-      userBehavior: { preferredLanguages: ['es'] },
+      userBehavior: {},
+      viewerLanguages: ['es'],
       engagementScoreCache: pinnedEngagement('post', 1),
     },
   },
@@ -600,9 +602,9 @@ export const GOLDEN_CASES: GoldenCase[] = [
       followingIdsSet: new Set(['followed-2']),
       userBehavior: {
         preferredTopics: [{ topic: 'tech', weight: 0.8, topicId: 'topic-tech' }],
-        preferredLanguages: ['en'],
         preferredPostTypes: { text: 6, image: 4 },
       },
+      viewerLanguages: ['en'],
       behaviorSets: behaviorSets({ preferredTopicIds: ['topic-tech'] }),
       authorFollowerCounts: new Map([['followed-2', 12_000]]),
       feedSettings: { recency: { halfLifeHours: 18, maxAgeHours: 120 } },

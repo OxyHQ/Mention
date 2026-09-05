@@ -24,6 +24,7 @@ export function personalizationScore(
   post: RankablePost,
   userBehavior: RankingUserBehavior | undefined,
   behaviorSets?: BehaviorSets,
+  viewerLanguages: readonly string[] = [],
 ): number {
   if (!userBehavior) {
     return 1.0;
@@ -75,24 +76,23 @@ export function personalizationScore(
     }
   }
 
-  // Language preference: boost when ANY of the post's classification languages
-  // is in the viewer's preferred set. `postClassification.languages` is the
-  // single canonical (multi-language) field; a post that has not been classified
-  // yet simply gets NO language boost (neutral) until the backfill populates it.
+  // Language preference: boost when ANY of the post's classification languages is
+  // one of the READER'S DECLARED languages (`ctx.viewerLanguages`, already ISO
+  // 639-1 base subtags). `postClassification.languages` is the single canonical
+  // (multi-language) field; an unclassified post simply gets NO language boost
+  // (neutral) until the backfill populates it.
   //
-  // BOTH sides are compared on the BASE subtag (`es-ES` ≈ `es-MX` ≈ `es`), like
-  // the `languageMismatchPenalty` in `optIn.ts`. A raw `includes` matches only
-  // when both sides happen to be bare base codes — so the moment a BCP-47 locale
-  // reaches either side (the multilingual composer writes `es-ES`), a Spanish
-  // reader silently stops matching a Spanish post.
-  const preferredLanguages: string[] = Array.isArray(userBehavior.preferredLanguages)
-    ? userBehavior.preferredLanguages.map((locale) => getBaseLanguage(locale)).filter((base) => base.length > 0)
-    : [];
-  if (preferredLanguages.length > 0) {
+  // The input used to be the LEARNED `userBehavior.preferredLanguages`, and that
+  // was the wrong side of a feedback loop: the array was appended to on any
+  // recorded interaction — including a SKIP — never weighted and never decayed, so
+  // scrolling past a German post taught this signal to boost German posts, which
+  // put more of them in front of the reader to scroll past. Declared languages
+  // cannot drift that way.
+  if (viewerLanguages.length > 0) {
     const postLanguages = post.postClassification?.languages;
     if (
       Array.isArray(postLanguages) &&
-      postLanguages.some((lang) => preferredLanguages.includes(getBaseLanguage(lang)))
+      postLanguages.some((lang) => viewerLanguages.includes(getBaseLanguage(lang)))
     ) {
       score *= R.personalization.languageMatch;
     }
@@ -105,5 +105,5 @@ export const personalizationSignal: RankingSignal = {
   id: 'personalization',
   group: 'personalization',
   score: (post: RankablePost, ctx: SignalContext) =>
-    personalizationScore(post, ctx.userBehavior, ctx.behaviorSets),
+    personalizationScore(post, ctx.userBehavior, ctx.behaviorSets, ctx.viewerLanguages),
 };

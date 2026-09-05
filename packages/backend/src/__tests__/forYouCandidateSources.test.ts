@@ -49,7 +49,6 @@ import {
   gatherFollowingLane,
   gatherForYouCandidates,
   gatherGlobalLane,
-  gatherLanguageLane,
   gatherRegionLane,
   gatherSubscribedListsLane,
   gatherTopicsLane,
@@ -211,16 +210,21 @@ describe('the union of lanes', () => {
   });
 });
 
-describe('the language lane', () => {
+describe('the discovery language predicate', () => {
   /**
-   * Regression: a bilingual post never reached the viewer.
+   * Language is a PREDICATE on every discovery lane, not a lane of its own.
+   *
+   * The lane it replaced could only ADD in-language candidates, which never
+   * stopped the other discovery lanes from filling the pool with posts the
+   * reader cannot read — measured on production 2026-09-05, the anonymous For
+   * You page came back 48% `de` against a 6.8%-`de` corpus.
    *
    * `postClassification.languages` holds EVERY detected/declared code, primary
-   * first, and the match is ANY-overlap. The fixture's primary language is
-   * deliberately NOT the viewer's, so a match against the scalar primary — or
-   * against `languages[0]` — returns nothing and this goes red.
+   * first, and the match is ANY-overlap. The bilingual fixture's PRIMARY language
+   * is deliberately not the viewer's, so a predicate written against the scalar
+   * `language` column — or against `languages[0]` — drops it and this goes red.
    */
-  it('matches when ANY of a post\'s languages is one the viewer prefers', async () => {
+  it('keeps a post when ANY of its languages is one the viewer declared', async () => {
     const bilingual = await create({
       createdAt: at(0),
       language: 'fyc-en',
@@ -231,16 +235,77 @@ describe('the language lane', () => {
       language: 'fyc-es',
       postClassification: { languages: ['fyc-es'] },
     });
-    await create({ postClassification: { languages: ['fyc-fr'] } });
-    await create();
+    await create({ createdAt: at(-2_000), postClassification: { languages: ['fyc-fr'] } });
 
-    const gathered = await gatherLanguageLane({
+    const gathered = await gatherGlobalLane({
       viewerId: VIEWER,
       followingIds: [],
-      userBehavior: { preferredLanguages: ['fyc-es'] },
+      viewerLanguages: ['fyc-es'],
       seenPostIds: [],
     });
-    expect(idsOf(gathered)).toEqual([bilingual.id, monolingual.id]);
+    expect(suiteIdsOf(gathered)).toEqual([bilingual.id, monolingual.id]);
+  });
+
+  /**
+   * The POSITIVE CONTROL for the case above. Without it, the assertion that an
+   * off-language post is absent proves nothing: a lane that returned `[]` for any
+   * reason at all would pass it just as well. Same fixtures, same lane, viewer
+   * languages removed — every post must come back.
+   */
+  it('filters NOTHING when the viewer\'s languages are unknown', async () => {
+    const en = await create({ createdAt: at(0), postClassification: { languages: ['fyc-en'] } });
+    const fr = await create({ createdAt: at(-1_000), postClassification: { languages: ['fyc-fr'] } });
+
+    const gathered = await gatherGlobalLane({
+      viewerId: VIEWER,
+      followingIds: [],
+      viewerLanguages: [],
+      seenPostIds: [],
+    });
+    expect(suiteIdsOf(gathered)).toEqual([en.id, fr.id]);
+  });
+
+  /**
+   * `allowUnclassified` defaults to false: a post whose language never resolved
+   * is not a match, because an unverifiable language is not a match. Both the
+   * NULL array and the EMPTY array mean "unresolved" and Postgres treats them as
+   * distinct values, so both are asserted.
+   */
+  it('drops a post with no resolvable language', async () => {
+    const es = await create({ createdAt: at(0), postClassification: { languages: ['fyc-es'] } });
+    await create({ createdAt: at(-1_000), postClassification: { languages: [] } });
+    await create({ createdAt: at(-2_000) });
+
+    const gathered = await gatherGlobalLane({
+      viewerId: VIEWER,
+      followingIds: [],
+      viewerLanguages: ['fyc-es'],
+      seenPostIds: [],
+    });
+    expect(suiteIdsOf(gathered)).toEqual([es.id]);
+  });
+
+  /**
+   * SCOPE. The whole point of putting the predicate on `withDiscoveryGuards`
+   * rather than on `buildBaseConditions` is that TRUSTED lanes never see it: a
+   * post from an account the reader deliberately follows is the reader's own
+   * business, whatever language it is in. This is the assertion that keeps the
+   * two halves apart.
+   */
+  it('never applies to the trusted following lane', async () => {
+    const offLanguage = await create({
+      oxyUserId: FOLLOW,
+      createdAt: at(0),
+      postClassification: { languages: ['fyc-fr'] },
+    });
+
+    const gathered = await gatherFollowingLane({
+      viewerId: VIEWER,
+      followingIds: [FOLLOW],
+      viewerLanguages: ['fyc-es'],
+      seenPostIds: [],
+    });
+    expect(idsOf(gathered)).toEqual([offLanguage.id]);
   });
 });
 
@@ -383,7 +448,6 @@ describe('bounds and exclusions', () => {
     expect(await gatherFollowingLane(noSignals)).toEqual([]);
     expect(await gatherSubscribedListsLane(noSignals)).toEqual([]);
     expect(await gatherTopicsLane(noSignals)).toEqual([]);
-    expect(await gatherLanguageLane(noSignals)).toEqual([]);
     expect(await gatherRegionLane(noSignals)).toEqual([]);
     expect(await gatherAffinityLane({ ...noSignals, contentAffinityService: affinityStub([]) })).toEqual([]);
   });
@@ -450,20 +514,37 @@ describe('bounds and exclusions', () => {
   /**
    * The pool bound, on real rows.
    *
-   * 150 candidates are spread across FOUR lanes because no single lane can
+   * 150 candidates are spread across FIVE lanes because no single lane can
    * reach `maxPool` on its own — each carries its own per-source cap, and the
    * bound being tested is the one on their UNION. Merge order is trusted-first,
    * so a full pool is trusted content: the assertion is both that the size is
    * exactly `maxPool` and that discovery never displaced a followed author.
+   *
+   * following(60) + affinity(40) + topics(30) + region(15) = 145 fills the pool
+   * to 5 short; the fifth author's rows carry the highest engagement in the
+   * table, so the trending lane (engagement desc) supplies exactly the overflow
+   * the clamp then has to cut.
    */
   it('clamps the merged pool to maxPool, keeping trusted lanes over discovery', async () => {
     const cfg = MtnConfig.feed.candidateSources;
-    const lanes: Array<{ author: string; count: number; classification: Record<string, string[]> }> = [
+    const lanes: Array<{
+      author: string;
+      count: number;
+      classification: Record<string, string | string[]>;
+      newest?: boolean;
+    }> = [
       { author: FOLLOW, count: cfg.perSource.following, classification: {} },
       { author: AFFINITY, count: cfg.perSource.affinity, classification: {} },
       { author: 'fyc-topic-author', count: cfg.perSource.topics, classification: { classificationTopics: ['fyc-tech'] } },
-      { author: 'fyc-lang-author', count: cfg.perSource.language, classification: { classificationLanguages: ['fyc-es'] } },
+      { author: 'fyc-region-author', count: cfg.perSource.region, classification: { classificationRegion: 'fyc-ES' } },
+      { author: 'fyc-overflow-author', count: cfg.perSource.global, classification: {}, newest: true },
     ];
+    // The overflow rows must beat EVERY row in the table on the trending lane's
+    // sort — not just this suite's. Sibling suites share the database and write
+    // public roots of their own, and the lane orders by engagement before
+    // recency, so pinning engagement (not just `createdAt`) is what makes the
+    // 5-row overflow deterministically ours rather than whoever committed last.
+    const OVERFLOW_LIKES = 1_000_000;
     // Written straight to `posts` + `post_authorships`: 150 full records would
     // buy 150 extra transactions and no extra coverage — the lanes read the
     // authorship join and the classification columns, nothing else.
@@ -473,7 +554,8 @@ describe('bounds and exclusions', () => {
         .values(
           Array.from({ length: lane.count }, (_unused, index) => ({
             oxyUserId: lane.author,
-            createdAt: at(-index * 10),
+            createdAt: lane.newest ? at(index * 10 + 10) : at(-index * 10),
+            ...(lane.newest ? { statsLikesCount: OVERFLOW_LIKES } : {}),
             ...lane.classification,
           })),
         )
@@ -494,14 +576,14 @@ describe('bounds and exclusions', () => {
       followingIds: [FOLLOW],
       userBehavior: {
         preferredTopics: [{ topic: 'fyc-tech', weight: 5 }],
-        preferredLanguages: ['fyc-es'],
       },
+      viewerRegion: 'fyc-ES',
       seenPostIds: [],
       contentAffinityService: affinityStub([AFFINITY]),
     });
 
     expect(pool).toHaveLength(cfg.maxPool);
-    // Exactly the four lanes above filled it, so nothing a sibling suite wrote
+    // Exactly the five lanes above filled it, so nothing a sibling suite wrote
     // could have reached the pool through the global lane.
     expect(suiteIdsOf(pool)).toHaveLength(cfg.maxPool);
     expect(new Set(pool.map((post) => post.oxyUserId))).toEqual(

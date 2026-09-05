@@ -282,6 +282,48 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
     expect(anonCache.write).toHaveBeenCalledWith('anon-key', expect.objectContaining({ items: expect.any(Array) }));
   });
 
+  /**
+   * The reader's languages are part of the anon cache IDENTITY.
+   *
+   * An anonymous feed is SHARED, and an anonymous reader's languages now come
+   * from their request — so two readers with different locales get genuinely
+   * different pages. Leave the languages out of the key and they collapse onto
+   * whichever one warmed the entry first: a Spanish reader served the German
+   * reader's feed, which is precisely the bug the whole change exists to fix,
+   * reintroduced one layer up where no query-level test would ever see it.
+   */
+  it('keys the anon cache on the reader\'s languages', async () => {
+    anonCache.read.mockResolvedValue(null);
+    const res = makeRes();
+    const withLanguages = {
+      query: { descriptor: 'for_you' },
+      user: undefined,
+      acceptsLanguages: () => ['es-ES', 'en-US'],
+    } as never;
+
+    await mtnFeedController.getFeed(withLanguages, res as never);
+
+    expect(anonCache.buildKey).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'for_you', languages: ['es', 'en'] }),
+    );
+  });
+
+  /**
+   * The other half of the contract: a reader who declared NOTHING must not be
+   * given a language-scoped key, or every such reader gets their own cache entry
+   * and the shared cache stops being shared.
+   */
+  it('keys an undeclared anonymous reader on an EMPTY language set', async () => {
+    anonCache.read.mockResolvedValue(null);
+    const req = { query: { descriptor: 'for_you' }, user: undefined } as never;
+
+    await mtnFeedController.getFeed(req, makeRes() as never);
+
+    expect(anonCache.buildKey).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'for_you', languages: [] }),
+    );
+  });
+
   it('returns the cached page on a hit without running the engine', async () => {
     const cached = { slices: [], items: [{ id: 'cachedPost', user: { id: 'u9' } }], hasMore: false, totalCount: 1 };
     anonCache.read.mockResolvedValueOnce(cached);

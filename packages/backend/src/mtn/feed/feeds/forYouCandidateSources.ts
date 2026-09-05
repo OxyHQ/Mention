@@ -18,17 +18,25 @@
  *      (`userBehavior.preferredAuthors` ∪ `ContentAffinityService`).
  *   3. TOPICS     — DISCOVERY: posts whose classification topics match the
  *      viewer's preferred topics.
- *   4. LANGUAGE   — DISCOVERY: posts in the viewer's preferred language(s).
- *   5. REGION     — DISCOVERY: posts in the viewer's region.
- *   6. TRENDING   — DISCOVERY: recent high-engagement posts.
- *   7. GLOBAL     — DISCOVERY: recent public posts (the old behavior), SMALL cap,
+ *   4. REGION     — DISCOVERY: posts in the viewer's region.
+ *   5. TRENDING   — DISCOVERY: recent high-engagement posts.
+ *   6. GLOBAL     — DISCOVERY: recent public posts (the old behavior), SMALL cap,
  *      for serendipity.
+ *
+ * There is no LANGUAGE lane. There used to be, and it was the wrong shape twice
+ * over: it ADDED in-language candidates rather than excluding off-language ones,
+ * so it could not stop the other four discovery lanes from filling the pool with
+ * posts the reader cannot read; and it keyed off the LEARNED
+ * `userBehavior.preferredLanguages`, an append-on-any-interaction array that a
+ * skipped post wrote to — so scrolling past German taught the lane to fetch more
+ * German. Language is now a PREDICATE on every discovery lane
+ * ({@link withDiscoveryGuards}), keyed off the reader's declared languages.
  *
  * ROOTS: every lane draws from {@link buildBaseMatch}, which admits thread ROOTS
  * only — see its doc for why that constraint belongs there and nowhere else.
  *
  * SAFETY: For You is the curated algorithmic feed and must be uniformly SFW.
- * The DISCOVERY sources (topics, language, region, trending, global) EXCLUDE
+ * The DISCOVERY sources (topics, region, trending, global) EXCLUDE
  * sensitive / NSFW content at the query level, and a single sensitive/NSFW guard
  * is additionally applied to the MERGED pool (post-union, pre-rank) so EVERY
  * source — including FOLLOWING and AFFINITY — is covered. The separate
@@ -51,6 +59,7 @@ import { posts } from '../../../db/schema';
 import { assemblePostRecords } from '../../../db/posts/postRepository';
 import { ContentAffinityService } from '../../../services/ContentAffinityService';
 import { sensitiveExcludeSql, isSensitivePost } from '../feedSafety';
+import { viewerLanguageSql } from '../feedLanguage';
 import { logger } from '../../../utils/logger';
 import { followedAuthorsSql } from '../../../utils/postAuthorship';
 import { excludeSeenSql, notABoostSql } from '../../../utils/feedQueryBuilder';
@@ -63,7 +72,6 @@ import type { OxyClient } from '../../../utils/privacyHelpers';
 export interface CandidateUserBehavior {
   preferredAuthors?: Array<{ authorId?: string; weight?: number }>;
   preferredTopics?: Array<{ topic?: string; weight?: number }>;
-  preferredLanguages?: string[];
 }
 
 /** Inputs to candidate gathering, resolved by the caller. */
@@ -82,6 +90,13 @@ export interface GatherForYouCandidatesParams {
    * error.
    */
   viewerRegion?: string;
+  /**
+   * The viewer's languages as ISO 639-1 BASE subtags, resolved once by
+   * `loadViewerFeedContext` (Oxy account, else the request). Applied as a HARD
+   * SQL predicate to the DISCOVERY lanes only — see {@link viewerLanguageSql}
+   * for why the trusted lanes are exempt. Empty ⇒ no lane is filtered.
+   */
+  viewerLanguages?: string[];
   /** Post ids already seen this session — excluded from every source. */
   seenPostIds: string[];
   /** Authenticated request-scoped Oxy client for affinity privacy/ACL reads. */
@@ -105,9 +120,9 @@ const sharedContentAffinityService = new ContentAffinityService();
  * meaningless — "thank you!", "same", "@someone yes" — so the pool it ranks over
  * must be thread roots. Stating that once, in the definition all eight lanes
  * already funnel through, is what makes the rule true of the whole feed: it was
- * previously applied by ONE lane (trending) and the other seven inherited nothing,
+ * previously applied by ONE lane (trending) and the other six inherited nothing,
  * so a reply excluded from trending re-entered through following, topics,
- * language, region, affinity, subscribed lists or global. Measured against
+ * region, affinity, subscribed lists or global. Measured against
  * production on 2026-08-01, replies were 9,330 of the 19,798 public published
  * posts in the 7-day window — 47.1% of the universe the pool is drawn from.
  *
@@ -138,15 +153,29 @@ function buildBaseConditions(seenPostIds: string[], since: Date): SQL[] {
 }
 
 /**
- * Add the DISCOVERY sensitive filter.
+ * Add every DISCOVERY-only guard: the sensitive filter, and the reader-language
+ * predicate.
+ *
+ * Both live HERE, on the one wrapper all five discovery lanes already funnel
+ * through, rather than in each lane — because a guard stated per-lane is a guard
+ * a new lane inherits nothing of. That is not hypothetical: it is exactly how the
+ * root-only rule came to be applied by trending alone while seven other lanes let
+ * replies back in (see {@link buildBaseConditions}), and how `popularSource` ended
+ * up the one discovery surface with no language predicate at all.
+ *
+ * Trusted lanes (following / subscribed lists / affinity) deliberately do NOT call
+ * this: you chose those authors, so neither guard is yours to apply.
  *
  * NSFW-hashtag exclusion is deliberately NOT applied here: it is applied to the
  * merged pool in code via the shared {@link isSensitivePost} predicate, which
  * covers every source uniformly (including following and affinity, which have no
  * query-level safety filter at all) and operates on an already-bounded pool.
  */
-function withDiscoverySafety(conditions: SQL[]): SQL[] {
-  return [...conditions, sensitiveExcludeSql()];
+function withDiscoveryGuards(conditions: SQL[], params: GatherForYouCandidatesParams): SQL[] {
+  const guarded = [...conditions, sensitiveExcludeSql()];
+  const language = viewerLanguageSql(params.viewerLanguages);
+  if (language) guarded.push(language);
+  return guarded;
 }
 
 /** Run a bounded source query; soft-fail to `[]` so one bad source never sinks the feed. */
@@ -249,13 +278,6 @@ function resolvePreferredTopics(params: GatherForYouCandidatesParams): string[] 
     .map((t) => t.topic);
 }
 
-/** Preferred language codes, clamped. */
-function resolvePreferredLanguages(params: GatherForYouCandidatesParams): string[] {
-  return (params.userBehavior?.preferredLanguages ?? [])
-    .filter((l): l is string => typeof l === 'string' && l.length > 0)
-    .slice(0, MtnConfig.feed.candidateSources.maxPreferredLanguages);
-}
-
 /** The non-empty coarse region string, or undefined. */
 function resolveRegion(params: GatherForYouCandidatesParams): string | undefined {
   return typeof params.viewerRegion === 'string' && params.viewerRegion.length > 0
@@ -315,28 +337,11 @@ export async function gatherTopicsLane(params: GatherForYouCandidatesParams): Pr
   if (preferredTopics.length === 0) return [];
   return runSource(
     'topics',
-    withDiscoverySafety([
+    withDiscoveryGuards([
       ...buildBaseConditions(params.seenPostIds, recencyStart()),
       arrayOverlaps(posts.classificationTopics, preferredTopics),
-    ]),
+    ], params),
     MtnConfig.feed.candidateSources.perSource.topics,
-  );
-}
-
-/**
- * LANGUAGE (DISCOVERY): preferred-language match, sensitive excluded (SFW).
- * ANY-overlap over the multi-language `classification_languages` array.
- */
-export async function gatherLanguageLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
-  const preferredLanguages = resolvePreferredLanguages(params);
-  if (preferredLanguages.length === 0) return [];
-  return runSource(
-    'language',
-    withDiscoverySafety([
-      ...buildBaseConditions(params.seenPostIds, recencyStart()),
-      arrayOverlaps(posts.classificationLanguages, preferredLanguages),
-    ]),
-    MtnConfig.feed.candidateSources.perSource.language,
   );
 }
 
@@ -346,10 +351,10 @@ export async function gatherRegionLane(params: GatherForYouCandidatesParams): Pr
   if (!region) return [];
   return runSource(
     'region',
-    withDiscoverySafety([
+    withDiscoveryGuards([
       ...buildBaseConditions(params.seenPostIds, recencyStart()),
       eq(posts.classificationRegion, region),
-    ]),
+    ], params),
     MtnConfig.feed.candidateSources.perSource.region,
   );
 }
@@ -370,8 +375,9 @@ export async function gatherTrendingLane(params: GatherForYouCandidatesParams): 
     const engagementScore = engagementScoreSql();
     // The roots-only rule is in `buildBaseConditions` now, so this lane no longer
     // states it — it was the only lane that ever did, which is exactly the bug.
-    const conditions = withDiscoverySafety(
+    const conditions = withDiscoveryGuards(
       buildBaseConditions(params.seenPostIds, recencyStart()),
+      params,
     );
     const rows = await db
       .select()
@@ -390,7 +396,7 @@ export async function gatherTrendingLane(params: GatherForYouCandidatesParams): 
 export async function gatherGlobalLane(params: GatherForYouCandidatesParams): Promise<CandidatePost[]> {
   return runSource(
     'global',
-    withDiscoverySafety(buildBaseConditions(params.seenPostIds, recencyStart())),
+    withDiscoveryGuards(buildBaseConditions(params.seenPostIds, recencyStart()), params),
     MtnConfig.feed.candidateSources.perSource.global,
   );
 }
@@ -399,9 +405,10 @@ export async function gatherGlobalLane(params: GatherForYouCandidatesParams): Pr
  * Gather the multi-source For You candidate pool for an authenticated viewer.
  *
  * Returns a merged, de-duplicated array of candidate posts, bounded by
- * `maxPool`. Discovery sources exclude sensitive at query level; the merged pool
- * also drops sensitive/NSFW posts from every lane (including following). The
- * result is fed verbatim into the existing ranking pipeline.
+ * `maxPool`. Discovery sources exclude sensitive AND off-language posts at query
+ * level (see {@link withDiscoveryGuards}); the merged pool also drops
+ * sensitive/NSFW posts from every lane (including following). The result is fed
+ * verbatim into the existing ranking pipeline.
  *
  * NEVER throws: every source soft-fails to empty, so the worst case is an empty
  * pool, which the caller handles via its never-blank `popular` fallback.
@@ -411,12 +418,11 @@ export async function gatherForYouCandidates(
 ): Promise<CandidatePost[]> {
   const cfg = MtnConfig.feed.candidateSources;
 
-  const [following, subscribedLists, affinity, topics, language, regionPosts, trending, global] = await Promise.all([
+  const [following, subscribedLists, affinity, topics, regionPosts, trending, global] = await Promise.all([
     gatherFollowingLane(params),
     gatherSubscribedListsLane(params),
     gatherAffinityLane(params),
     gatherTopicsLane(params),
-    gatherLanguageLane(params),
     gatherRegionLane(params),
     gatherTrendingLane(params),
     gatherGlobalLane(params),
@@ -433,7 +439,6 @@ export async function gatherForYouCandidates(
     subscribedLists,
     affinity,
     topics,
-    language,
     regionPosts,
     trending,
     global,

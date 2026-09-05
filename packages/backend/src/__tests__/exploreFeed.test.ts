@@ -180,7 +180,7 @@ describe('relevance is a boost, never a filter', () => {
       context({
         currentUserId: VIEWER,
         followingIds: [],
-        userBehavior: { preferredTopics: [{ topic: 'tech', weight: 5 }], preferredLanguages: [] },
+        userBehavior: { preferredTopics: [{ topic: 'tech', weight: 5 }] },
       }),
     );
 
@@ -204,7 +204,7 @@ describe('relevance is a boost, never a filter', () => {
       context({
         currentUserId: VIEWER,
         followingIds: [],
-        userBehavior: { preferredTopics: [{ topic: 'tech', weight: 5 }], preferredLanguages: [] },
+        userBehavior: { preferredTopics: [{ topic: 'tech', weight: 5 }] },
       }),
     );
 
@@ -228,7 +228,8 @@ describe('relevance is a boost, never a filter', () => {
       context({
         currentUserId: VIEWER,
         followingIds: [],
-        userBehavior: { preferredTopics: [], preferredLanguages: ['es'] },
+        userBehavior: { preferredTopics: [] },
+        viewerBaseLanguages: ['es'],
       }),
     );
 
@@ -248,7 +249,7 @@ describe('relevance is a boost, never a filter', () => {
       context({
         currentUserId: VIEWER,
         followingIds: [],
-        userBehavior: { preferredTopics: [{ topic: 'TechNews', weight: 0.1 }], preferredLanguages: [] },
+        userBehavior: { preferredTopics: [{ topic: 'TechNews', weight: 0.1 }] },
       }),
     );
 
@@ -274,8 +275,8 @@ describe('relevance is a boost, never a filter', () => {
         viewerRegion: 'ES',
         userBehavior: {
           preferredTopics: [{ topic: 'tech', weight: 5 }],
-          preferredLanguages: ['es'],
         },
+        viewerBaseLanguages: ['es'],
       }),
     );
 
@@ -283,6 +284,55 @@ describe('relevance is a boost, never a filter', () => {
       MtnConfig.ranking.exploreRelevance.maxBoost,
       6,
     );
+  });
+
+  /**
+   * Discover is DELIBERATELY not language-filtered — it is the open window on the
+   * whole network, and that is the surface a reader goes to precisely to see what
+   * they would not otherwise be shown. Language ORDERS it and never excludes from
+   * it. This is the assertion that keeps it that way: the off-language post must
+   * still be PRESENT, just below.
+   *
+   * The contrast with For You is the point. There, `viewerLanguageSql` removes
+   * off-language discovery candidates in SQL; here, the same reader languages only
+   * multiply a score. A regression that reused the For You predicate on Discover
+   * turns this red on the presence assertion, not on the ordering one.
+   */
+  it('ORDERS by reader language on Discover, and never filters by it', async () => {
+    const inLanguage = await create({ postClassification: { languages: ['es'] } }, { likes: 10 });
+    const offLanguage = await create({ postClassification: { languages: ['de'] } }, { likes: 10 });
+    const unclassified = await create({}, { likes: 10 });
+
+    const candidates = await gatherMine(
+      context({ currentUserId: VIEWER, followingIds: [], viewerBaseLanguages: ['es'] }),
+    );
+
+    expect(candidates.map((candidate) => candidate.id).sort()).toEqual(
+      [inLanguage, offLanguage, unclassified].sort(),
+    );
+    expect(scoreOf(candidates, inLanguage)).toBeGreaterThan(scoreOf(candidates, offLanguage));
+    expect(candidates[0].id).toBe(inLanguage);
+  });
+
+  /**
+   * The language factor is the ONE relevance dimension that applies to a
+   * signed-out reader, because it is the one whose input does not come from
+   * learned behavior: `Accept-Language` is a declaration a logged-out reader can
+   * still make. Topics and region stay authenticated-only.
+   */
+  it('applies the language factor for an ANONYMOUS reader who declared one', async () => {
+    const inLanguage = await create({ postClassification: { languages: ['es'] } }, { likes: 10 });
+    const offLanguage = await create({ postClassification: { languages: ['de'] } }, { likes: 10 });
+
+    const anonymous = await gatherMine(
+      context({ currentUserId: undefined, followingIds: [], viewerBaseLanguages: ['es'] }),
+    );
+    expect(scoreOf(anonymous, inLanguage)).toBeGreaterThan(scoreOf(anonymous, offLanguage));
+
+    // Positive control: with no declaration the SAME two posts score equally, so
+    // the assertion above is about the language factor and not about the fixtures.
+    const undeclared = await gatherMine(context({ currentUserId: undefined, followingIds: [] }));
+    expect(scoreOf(undeclared, inLanguage)).toBeCloseTo(scoreOf(undeclared, offLanguage), 10);
   });
 
   it('stays neutral for an anonymous viewer and for one with no learned signals', async () => {
@@ -296,7 +346,7 @@ describe('relevance is a boost, never a filter', () => {
       context({
         currentUserId: VIEWER,
         followingIds: [],
-        userBehavior: { preferredTopics: [], preferredLanguages: [] },
+        userBehavior: { preferredTopics: [] },
       }),
     );
     expect(scoreOf(signalless, withTopic)).toBeCloseTo(scoreOf(signalless, withoutTopic), 10);
@@ -320,8 +370,8 @@ describe('viewer signals are data, never SQL', () => {
         viewerRegion: "'; drop table posts; --",
         userBehavior: {
           preferredTopics: [{ topic: '$$bad', weight: 5 }, { topic: "') or true --", weight: 4 }],
-          preferredLanguages: ['$$lang'],
         },
+        viewerBaseLanguages: ['$$lang'],
       }),
     );
     const neutral = await gatherMine(context({ currentUserId: VIEWER, followingIds: [] }));

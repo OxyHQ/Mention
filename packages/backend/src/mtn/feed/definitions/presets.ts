@@ -170,9 +170,15 @@ export function resolveDiscoveryGate(): ModuleRef[] {
 /**
  * For You — ranked, multi-source. Sources are listed in the exact merge order of
  * `gatherForYouCandidates` (following, subscribed lists, affinity, topics,
- * language, region, trending, global) so the engine merge reproduces it. The
- * `safety` filter provides the merged-pool SFW guard; the discovery lanes apply
- * their own query-level safety internally.
+ * region, trending, global) so the engine merge reproduces it. The `safety`
+ * filter provides the merged-pool SFW guard; the discovery lanes apply their own
+ * query-level safety AND the reader-language predicate internally
+ * (`withDiscoveryGuards`).
+ *
+ * There is no `language` source. Language is not a lane that ADDS in-language
+ * posts — that could never stop the other lanes from filling the pool with posts
+ * the reader cannot read — it is a PREDICATE on every discovery lane. See
+ * `feedLanguage.ts`.
  */
 export const forYouDefinition: FeedDefinition = {
   id: 'for_you',
@@ -183,7 +189,6 @@ export const forYouDefinition: FeedDefinition = {
     enabled('lists'),
     enabled('affinity'),
     enabled('topic'),
-    enabled('language'),
     enabled('region'),
     enabled('trending'),
     enabled('globalDiscovery'),
@@ -240,7 +245,25 @@ export const followingDefinition: FeedDefinition = {
   },
 };
 
-/** Discover (Explore) — pre-scored engagement×recency×relevance discovery aggregation. */
+/**
+ * Discover (Explore) — pre-scored engagement×recency×relevance discovery
+ * aggregation.
+ *
+ * DELIBERATELY NOT language-filtered. Discover is the open window on the whole
+ * network — that is the entire point of it, and it is the surface a reader goes
+ * to precisely to see what they would not otherwise be shown. It keeps only the
+ * in-language relevance BOOST its SQL score already carries
+ * (`resolveExploreRelevance`), which orders without excluding. Measured on
+ * production 2026-09-05, its corpus is already 74% `en` and 4% `de` — Discover's
+ * problem was never language.
+ *
+ * Its problem is JUNK, and it had no floor at all: `safety` drops sensitive posts
+ * and nothing else, so emoji-only posts, link-only news bots and RSS mirrors
+ * ranked on engagement like anything else. It now runs the SAME discovery gate
+ * For You does. `exploreSource` is not `trusted`, and `FeedEngine.gatherPool`
+ * runs for pre-scored feeds too, so this needs no new machinery — and it inherits
+ * the gate's shadow flag, so it measures before it filters.
+ */
 export const exploreDefinition: FeedDefinition = {
   id: 'explore',
   title: 'Discover',
@@ -248,6 +271,7 @@ export const exploreDefinition: FeedDefinition = {
   sources: [enabled('explore')],
   signals: [enabled('engagement'), enabled('recency')],
   filters: [enabled('safety')],
+  discoveryFilters: resolveDiscoveryGate(),
   execution: {
     preScored: true,
     threadGrouping: true,

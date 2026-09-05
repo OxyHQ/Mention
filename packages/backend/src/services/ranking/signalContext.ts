@@ -29,7 +29,6 @@ export interface RankingUserBehavior {
   preferredAuthors?: Array<{ authorId: string; weight: number }>;
   preferredTopics?: Array<{ topic: string; topicId?: unknown; weight: number }>;
   preferredPostTypes?: Partial<UserBehaviorRecord['preferredPostTypes']>;
-  preferredLanguages?: string[];
   activeHours?: number[];
   hiddenAuthors?: string[];
   mutedAuthors?: string[];

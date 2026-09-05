@@ -562,8 +562,6 @@ export const MtnConfig = {
         affinity: 40,
         /** DISCOVERY: recent posts matching the viewer's preferred topics. */
         topics: 30,
-        /** DISCOVERY: recent posts in the viewer's preferred language(s). */
-        language: 20,
         /** DISCOVERY: recent posts in the viewer's region. */
         region: 15,
         /** DISCOVERY: recent high-engagement (trending) posts. */
@@ -578,13 +576,69 @@ export const MtnConfig = {
       maxPreferredAuthors: 100,
       maxAffinityCandidates: 50,
       /**
-       * How many of the viewer's preferred topic slugs / languages to query with.
-       * Bounds the multikey `$in` width on the indexed discovery sources.
+       * How many of the viewer's preferred topic slugs to query with. Bounds the
+       * multikey `$in` width on the indexed discovery sources.
        */
       maxPreferredTopics: 20,
-      maxPreferredLanguages: 5,
       /** Per-source query time budget (ms). */
       maxTimeMS: 4000,
+    },
+
+    /**
+     * DISCOVERY LANGUAGE FILTER for For You — a HARD language predicate applied,
+     * in SQL, to the non-trusted (discovery) lanes and to the popular fallback.
+     *
+     * Scoped exactly like {@link discoveryGate}: trusted lanes (following /
+     * affinity / subscribed-lists) are NEVER filtered, because a post from an
+     * account the reader deliberately follows is the reader's business whatever
+     * language it is in. Discovery is the opposite case — nobody asked for it, so
+     * it has to be readable to be worth showing.
+     *
+     * It is a SQL predicate rather than a post-fetch filter because each lane is
+     * capped at 15–30 rows: filtering after the fetch shrinks the pool instead of
+     * spending the cap on candidates the reader can actually read.
+     *
+     * Measured on production 2026-09-05: the anonymous For You page was 48% `de`
+     * against a corpus that is 6.8% `de` — a 7x over-selection, because high
+     * engagement is the only thing the discovery lanes sorted on. The soft
+     * `languageMismatchPenalty` (0.5x) could not close a gap that large against a
+     * score that is a PRODUCT of eleven signals.
+     *
+     * Neutral whenever the reader's languages are unknown (`ctx.viewerLanguages`
+     * empty) — an unknown reader is never filtered, only an unmatched one.
+     *
+     * Discover (`explore`) is deliberately EXEMPT: it is the open window on the
+     * whole network and keeps only its in-language relevance BOOST.
+     */
+    discoveryLanguage: {
+      /** Master switch. When false the predicate is never built (today's behavior). */
+      enabled: true,
+      /**
+       * Whether a discovery candidate with NO resolvable language passes.
+       *
+       * `false`: an unverifiable language is not a match.
+       *
+       * Measured cost, on the column the predicate actually reads: 4 of 212
+       * sampled production posts (**1.9%**) carry no usable
+       * `classification_languages`. Measure it on that ARRAY and not on the
+       * scalar `language` — they diverge, and the scalar reads a flattering
+       * 0.5%.
+       *
+       * The residue is two things, neither of them ordinary prose:
+       *   - posts with no text to detect from — every one inspected was
+       *     media-only (0 characters) or under the classifier's 12-character
+       *     floor; and
+       *   - LEGACY rows. All three divergent posts in that sample carried
+       *     ObjectId-era ids rather than uuid v7, i.e. they predate the
+       *     Postgres port and were never swept by `backfillPostLanguages.ts`
+       *     (which skips writing when detection yields nothing).
+       *
+       * The legacy half shrinks to zero once that backfill runs, which is a
+       * prerequisite for trusting the discovery gate's measured precision
+       * anyway. For You additionally excludes replies and boosts, the two other
+       * sources of a null language, so nothing here is a normal readable post.
+       */
+      allowUnclassified: false,
     },
 
     /**

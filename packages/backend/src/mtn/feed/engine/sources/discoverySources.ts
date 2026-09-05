@@ -28,6 +28,7 @@ import { FeedQueryBuilder, authorNotInSql, notABoostSql, rankingWeight } from '.
 import { fetchWithRecencyFallback } from '../../../../utils/feedUtils';
 import { ScoreCursor, chronoOrderBy, type ScoreCursorData } from '../../CursorBuilder';
 import { discoverySafeSql, filterDiscoverable } from '../../feedSafety';
+import { viewerLanguageSql } from '../../feedLanguage';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
 /**
@@ -158,23 +159,33 @@ export const mediaSource: SourceModule = {
 };
 
 /**
- * Build the bounded RELEVANCE multiplier for the authenticated Explore feed from
- * the viewer's learned signals — a SOFT lift on top of engagement×recency (never
- * a filter). Neutral `1` for anonymous / no-signal viewers.
+ * Build the bounded RELEVANCE multiplier for Discover from the viewer's signals —
+ * a SOFT lift on top of engagement×recency (never a filter). Neutral `1` for a
+ * viewer with no signals at all.
  *
  * Each matched dimension multiplies in and the product is clamped to `maxBoost`,
  * so no single viewer signal can dominate ranking.
+ *
+ * The LANGUAGE dimension is the one thing Discover does with a reader's
+ * languages, and it is deliberately the weak form: Discover is the open window on
+ * the whole network, so language ORDERS it and never filters it. It now reads
+ * `ctx.viewerLanguages` — the reader's DECLARED languages — rather than the
+ * learned `preferredLanguages`, which was appended to on any interaction
+ * including a skip and therefore drifted toward whatever the feed had already
+ * shown. Topics and region still come from behavior, where learning is the point.
+ *
+ * Because declared languages are resolved for anonymous readers too (from
+ * `Accept-Language`), the language factor now applies to a signed-out Discover as
+ * well; topics and region remain authenticated-only.
  */
 function resolveExploreRelevance(ctx: FeedEngineContext): SQL {
   const cfg = MtnConfig.ranking.exploreRelevance;
   const candidateCfg = MtnConfig.feed.candidateSources;
   const NEUTRAL = sql`1::double precision`;
 
-  if (!ctx.currentUserId) return NEUTRAL;
-
-  const behavior = ctx.userBehavior as
-    | { preferredTopics?: Array<{ topic?: string; weight?: number }>; preferredLanguages?: string[] }
-    | undefined;
+  const behavior = ctx.currentUserId
+    ? (ctx.userBehavior as { preferredTopics?: Array<{ topic?: string; weight?: number }> } | undefined)
+    : undefined;
 
   const topics = (behavior?.preferredTopics ?? [])
     .filter((t): t is { topic: string; weight?: number } => typeof t.topic === 'string' && t.topic.length > 0)
@@ -182,11 +193,10 @@ function resolveExploreRelevance(ctx: FeedEngineContext): SQL {
     .slice(0, candidateCfg.maxPreferredTopics)
     .map((t) => t.topic.toLowerCase());
 
-  const languages = (behavior?.preferredLanguages ?? [])
-    .filter((l): l is string => typeof l === 'string' && l.length > 0)
-    .slice(0, candidateCfg.maxPreferredLanguages);
+  // Already ISO 639-1 base subtags, deduped and capped, from `loadViewerFeedContext`.
+  const languages = ctx.viewerBaseLanguages ?? [];
 
-  const region = typeof ctx.viewerRegion === 'string' && ctx.viewerRegion.length > 0
+  const region = ctx.currentUserId && typeof ctx.viewerRegion === 'string' && ctx.viewerRegion.length > 0
     ? ctx.viewerRegion
     : undefined;
 
@@ -341,6 +351,11 @@ export const exploreSource: SourceModule = {
  * pool that was 47.1% replies while the ranked path did not. It now reads the same
  * stored `is_reply` column the `explore` source above it does, so the two
  * discovery surfaces in this file cannot drift on what a reply is.
+ *
+ * The SAME argument applies to language, and it is why the reader-language
+ * predicate is applied here too: this source hand-built its match and never asked
+ * that question either. It is also the SOURCE (not just the fallback) behind the
+ * `trending` preset, so both surfaces are covered by the one predicate.
  */
 export const popularSource: SourceModule = {
   id: 'popular',
@@ -354,6 +369,20 @@ export const popularSource: SourceModule = {
       eq(posts.isReply, false),
       notABoostSql(),
     ];
+
+    // The reader-language predicate. THIS source is where the language bug
+    // actually lived: it is the WHOLE For You feed for a signed-out reader, and
+    // it bypasses `FeedEngine.gatherPool` entirely — so it inherited neither the
+    // discovery gate nor the `_discovery` mark that `languageMismatchPenalty`
+    // keys off. Nothing anywhere in the request looked at what the reader could
+    // read, and engagement was the only axis left. Measured against production on
+    // 2026-09-05, the anonymous For You page came back 48% `de` from a corpus that
+    // is 6.8% `de`.
+    //
+    // No-op when the reader's languages are unknown, which is a signed-out reader
+    // whose client sent no `Accept-Language`.
+    const languageMatch = viewerLanguageSql(ctx.viewerBaseLanguages);
+    if (languageMatch) baseConditions.push(languageMatch);
 
     // Exclude what the viewer has already been shown. The video and media
     // fallbacks thread the seen set through their query builders; this one built

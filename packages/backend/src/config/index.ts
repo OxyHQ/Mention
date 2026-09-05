@@ -389,6 +389,7 @@ const environmentSchema = z
     FOR_YOU_DISCOVERY_GATE_AB: feedToggle,
     FOR_YOU_DISCOVERY_GATE: feedModuleSelection(discoveryGateModuleIds),
     FOR_YOU_PHASE2B_SIGNALS: feedModuleSelection(phase2bSignalIds),
+    FOR_YOU_DISCOVERY_LANGUAGE: feedToggle,
 
     /**
      * CrowdSource participatory moderation (§14.6).
@@ -577,6 +578,7 @@ function parseDynamicFeedFlags(source: EnvironmentSource = process.env) {
       FOR_YOU_DISCOVERY_GATE_AB: feedToggle,
       FOR_YOU_DISCOVERY_GATE: feedModuleSelection(discoveryGateModuleIds),
       FOR_YOU_PHASE2B_SIGNALS: feedModuleSelection(phase2bSignalIds),
+      FOR_YOU_DISCOVERY_LANGUAGE: feedToggle,
     })
     .parse(source);
 }
@@ -591,6 +593,17 @@ export function getDiscoveryGateSelection(): string | undefined {
 
 export function getPhase2bSignalSelection(): string | undefined {
   return parseDynamicFeedFlags().FOR_YOU_PHASE2B_SIGNALS;
+}
+
+/**
+ * Whether the For You discovery LANGUAGE predicate is enabled. Read at call time
+ * (not at module load) so it is a runtime rollback lever like the gate flags
+ * beside it: `FOR_YOU_DISCOVERY_LANGUAGE=off` restores the pre-filter behavior
+ * without a redeploy. `undefined` ⇒ fall back to
+ * `MtnConfig.feed.discoveryLanguage.enabled`.
+ */
+export function isDiscoveryLanguageFilterEnabled(): boolean | undefined {
+  return parseDynamicFeedFlags().FOR_YOU_DISCOVERY_LANGUAGE;
 }
 
 /** Resolve the MCP JWT key at call time so rotation/tests do not use a stale key. */
