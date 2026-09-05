@@ -7,6 +7,11 @@ import {
 } from '../db/queryMetrics';
 import { logger } from '../utils/logger';
 import { metrics } from '../utils/metrics';
+import {
+  isOxyInstrumentationEnabled,
+  runWithOxyAccounting,
+  type OxyTally,
+} from '../utils/oxyMetrics';
 
 const SAFE_REQUEST_ID = /^[a-zA-Z0-9_.:-]{8,128}$/;
 
@@ -45,6 +50,7 @@ function reportRequest(
   id: string,
   startedAt: bigint,
   tally: QueryTally | undefined,
+  oxyTally: OxyTally | undefined,
 ): void {
   const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
   const route = routeTemplate(req);
@@ -56,10 +62,14 @@ function reportRequest(
   metrics.recordLatency('http_request_duration_ms', durationMs, labels);
   metrics.incrementCounter('http_requests_total', 1, labels);
 
-  const databaseLabels = { method: labels.method, route };
+  const perRequestLabels = { method: labels.method, route };
   if (tally) {
-    metrics.observeValue('db_request_queries', tally.count, databaseLabels);
-    metrics.recordLatency('db_request_duration_ms', tally.totalDurationMs, databaseLabels);
+    metrics.observeValue('db_request_queries', tally.count, perRequestLabels);
+    metrics.recordLatency('db_request_duration_ms', tally.totalDurationMs, perRequestLabels);
+  }
+  if (oxyTally) {
+    metrics.observeValue('oxy_request_calls', oxyTally.count, perRequestLabels);
+    metrics.recordLatency('oxy_request_duration_ms', oxyTally.totalDurationMs, perRequestLabels);
   }
 
   logger.info('HTTP request completed', {
@@ -74,6 +84,17 @@ function reportRequest(
         queryDurationMs: round(tally.totalDurationMs),
         slowQueryCount: tally.slowCount,
         failedQueryCount: tally.errorCount,
+      }
+      : {}),
+    // The line, not the histogram, is what survives the process: nothing scrapes
+    // `/internal/metrics` (see `docs/PERFORMANCE_BUDGETS.md`). Read beside
+    // `queryCount`, these two say whether a slow route is slow in Postgres or
+    // slow waiting on Oxy — which no existing signal could distinguish.
+    ...(oxyTally
+      ? {
+        oxyCallCount: oxyTally.count,
+        oxyDurationMs: round(oxyTally.totalDurationMs),
+        failedOxyCallCount: oxyTally.errorCount,
       }
       : {}),
   });
@@ -99,14 +120,28 @@ export function requestObservability(
   const startedAt = process.hrtime.bigint();
   res.setHeader('X-Request-ID', id);
 
+  // The two accountings are independent flags, so all four combinations are
+  // reachable and each context is opened only when its own is on.
+  const withOxyAccounting = (report: (oxyTally: OxyTally | undefined) => void): void => {
+    if (!isOxyInstrumentationEnabled()) {
+      report(undefined);
+      return;
+    }
+    runWithOxyAccounting((oxyTally) => report(oxyTally));
+  };
+
   if (!isQueryInstrumentationEnabled()) {
-    res.once('finish', () => reportRequest(req, res, id, startedAt, undefined));
-    next();
+    withOxyAccounting((oxyTally) => {
+      res.once('finish', () => reportRequest(req, res, id, startedAt, undefined, oxyTally));
+      next();
+    });
     return;
   }
 
   runWithQueryAccounting((tally) => {
-    res.once('finish', () => reportRequest(req, res, id, startedAt, tally));
-    next();
+    withOxyAccounting((oxyTally) => {
+      res.once('finish', () => reportRequest(req, res, id, startedAt, tally, oxyTally));
+      next();
+    });
   });
 }

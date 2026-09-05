@@ -6,6 +6,7 @@ import {
   getOxyServiceCredentials,
 } from '../config';
 import { logger } from './logger';
+import { instrumentOxyEgress } from './oxyMetrics';
 
 const OXY_BASE_URL = config.oxyApiUrl;
 const OXY_VIEWER_GRAPH_PATH = '/users/me/graph';
@@ -83,6 +84,11 @@ const serviceClient: OxyServices = (() => {
   } else {
     logger.warn('[oxyHelpers] OXY_SERVICE_API_KEY/SECRET is not set; service client will be unauthenticated');
   }
+  // The first `OxyServices` this process builds, and the only install point
+  // needed: `instrumentOxyEgress` patches the shared `HttpService` PROTOTYPE, so
+  // every instance built before or after — including the two constructed per
+  // request — is covered without threading anything through their call sites.
+  instrumentOxyEgress(client);
   return client;
 })();
 
