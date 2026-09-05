@@ -177,3 +177,81 @@ already playing, there is no first frame to wait for, and the question becomes
 continuity — whether a frame is ever absent and whether `currentTime` advances
 monotonically. This harness answers the latency question, which is the right one
 only up to the point that work lands.
+
+---
+
+# `nav-latency.mjs` — how long a navigation shows nothing
+
+`reel-open.mjs` answers "when does a video frame appear". This one answers a
+question that turned out to have a completely different answer than expected:
+**how long the app is blank after a tap, and why**.
+
+```
+node nav-latency.mjs selftest      # markers match on a direct load; refuses to measure if not
+node nav-latency.mjs control  [n]  # activate something that does NOT navigate; must be all nulls
+node nav-latency.mjs post     [n]  # feed row -> /p/<id>
+node nav-latency.mjs hot      [n]  # the SECOND such navigation in one page
+```
+
+## Why four timestamps
+
+Swapping a spinner for a skeleton does not move "first real content" by one
+millisecond, and swapping a blank frame for a skeleton does not move it either.
+One number would make half of any fix invisible. So `t0` (the activation, from
+the event, in the capture phase), `tRoute` (the URL changed), `tShell` (the
+destination painted anything of its own — a skeleton counts) and `tFMP` (real
+content, which a skeleton cannot satisfy), giving `blankMs = tShell - tRoute`
+and `contentMs = tFMP - tShell`.
+
+`tFMP`'s marker is the row's own `aria-label` — `PostItem` builds it from the
+author and the post text, so it is parameterised by the post's identity and a
+stale render or a wrong-destination run cannot satisfy it.
+
+## The controls, and why none is optional
+
+- **`control`** activates something that must not reach `/p/`. If it ever prints
+  a number, every number `post` prints is meaningless — "fast" and "the probe
+  never fired" are otherwise the same output.
+- **`selftest`** checks the marker on a DIRECT load of the destination and
+  refuses to run if it does not match, so a reworded label is a loud failure
+  rather than a fast number.
+- **Two viewports.** Run 430x932 and 1440x900. A rule checked at one width says
+  nothing about a responsive app.
+
+## The attribution columns are the point
+
+`post` also reports, for everything fetched after the activation, whether it was
+a **route chunk** or an **API call**, plus long tasks and the rAF frame cadence
+through the wait. Those four together are what separate the three completely
+different causes a blank frame can have — code, data, or main-thread work — and
+they have completely different fixes.
+
+## What it found, measured 2026-09-05
+
+Production `mention.earth`, real Chrome 152 on a private Xvfb, signed out,
+warm cache, fresh page per run.
+
+| | cold (first `/p/` of the session) | hot (second, same page) |
+| --- | --- | --- |
+| `blankMs` p50 | **315 ms** (430x932) / 310 ms (1440x900) | **1 ms** / 2 ms |
+| `t0→FMP` p50 | 332 ms / 321 ms | **13 ms** / 16 ms |
+
+And the attribution, which is what makes those numbers actionable:
+
+- the `[id]` route chunk is fetched at **+7 ms and done at +8 ms, 0 bytes** —
+  served from disk cache;
+- **no API call completes inside the blank window** (`/feed/item/` and
+  `/feed/replies/` do not even start until ~+320 ms, after the paint) — the
+  screen paints from the in-memory post cache, as designed;
+- **zero long tasks**, and 20 rAF callbacks at a regular ~17 ms cadence — the
+  main thread is idle, not working;
+- the DOM is torn down at +7 ms (`<Slot/>` unmounts the feed) and rebuilt in a
+  single commit at +311 ms, with nothing in between.
+
+So the wait is neither the download, nor the backend, nor render cost. It is the
+**first-time resolution of the route module**, and the `hot` column is the proof
+and the ceiling: the identical navigation costs 13 ms once that has happened.
+
+This killed one plan and started a better one. "Warm the chunk because the
+download is slow" was wrong — the download is 1 ms. "Do the resolution before
+the tap" is right, and `hot` says what it is worth.

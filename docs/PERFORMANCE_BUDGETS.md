@@ -106,6 +106,32 @@ instrumentation — fixing it once (standing up scraping + retention for
 `/internal/metrics`) unlocks a budget for all of them at once, rather than
 needing a bespoke solution per path.
 
+### Web navigation latency
+
+`packages/e2e/perf/nav-latency.mjs` measures how long the app is blank after a
+tap, and attributes it. Like `reel-open.mjs` it is a measurement, not a gate:
+it prints numbers and never fails.
+
+Measured 2026-09-05 against production, real Chrome on a private Xvfb, signed
+out, warm cache, fresh page per run, n=10 (mobile) / n=6 (desktop):
+
+| feed row → `/p/<id>` | cold (first of the session) | hot (second, same page) |
+| --- | --- | --- |
+| blank frame, p50 | **315 ms** (430x932) / 310 ms (1440x900) | **1 ms** / 2 ms |
+| tap → real content, p50 | 332 ms / 321 ms | **13 ms** / 16 ms |
+
+The attribution matters more than the totals: the route chunk is fetched in
+**1 ms** from disk cache, **no API call completes inside the blank window**
+(the screen paints from the in-memory post cache before `/feed/item/` even
+starts), there are **zero long tasks**, and rAF delivers 20 frames at a regular
+17 ms cadence through the wait. The main thread is idle and the network is
+done — the wait is the first-time resolution of the route module, and the `hot`
+column is both the proof and the ceiling.
+
+Absolute numbers here belong to one machine and one network; they are
+meaningful against another run of the same harness on the same setup, and
+nowhere else.
+
 ## What has no instrumentation at all
 
 Feed scroll memory behavior after a large number of posts, image/media
