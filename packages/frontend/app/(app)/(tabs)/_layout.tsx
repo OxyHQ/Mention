@@ -95,24 +95,23 @@ function NativeTabsLayout() {
   }, [commit, registerCommitter]);
 
   /**
-   * The bar's indices and the pager's pages are the SAME numbers, and this says
-   * so out loud in dev.
+   * Every tab must have a route to show, and this says so out loud in dev.
    *
-   * `progress` is a page index written by the pager and read by the bar as a tab
-   * index; `activeIndex` is a `TABS` index. The navigator builds its routes from
-   * `TABS` in order, so the two agree by construction — but if they ever stopped,
-   * the symptom would be a tap or a swipe landing on the neighbouring screen,
-   * which reads as a gesture bug and would be looked for anywhere but here.
-   * `components/navigation/__tests__/tabRouteTargets.test.ts` pins the same
-   * equality statically; this catches a router that reorders at runtime.
+   * NOT the same claim as "the orders match", which they do not: expo-router
+   * sorts the triggers it is handed (`sortRoutesWithInitial` — `index` first,
+   * then by route-name length), so the navigator's order is its own and
+   * `TabsPager` maps to it BY NAME. What would still break the bar is a tab
+   * naming a route the navigator never built: its page would render empty while
+   * the highlight sat over it, and a swipe would land on nothing.
+   * `components/navigation/__tests__/tabRouteTargets.test.ts` pins the file-tree
+   * half statically; this catches a trigger the router dropped at runtime.
    */
   if (__DEV__) {
-    const mismatch = state.routes.findIndex((route, index) => route.name !== TABS[index]?.name);
-    if (mismatch !== -1) {
+    const missing = TABS.filter((tab) => !state.routes.some((route) => route.name === tab.name));
+    if (missing.length > 0) {
       console.warn(
-        `[tabs] route order does not match TABS at index ${mismatch}: ` +
-          `navigator has "${state.routes[mismatch]?.name}", TABS has "${TABS[mismatch]?.name}". ` +
-          'The bottom bar and the pager are now indexing different things.',
+        `[tabs] the navigator built no route for ${missing.map((tab) => `"${tab.name}"`).join(', ')}. ` +
+          'Those tabs will show an empty page.',
       );
     }
   }
