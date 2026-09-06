@@ -14,6 +14,12 @@ out/
 
 # Environment variables
 .env
+# Every `.env` variant, including the hand-renamed local backups
+# (`.env.bak-*`, `.env.review-backup`) that the explicit list below did not
+# match — two of them reached `main` before this pattern existed. The example
+# files are the one deliberate exception: they carry no values.
+.env.*
+!.env.example
 .env.local
 .env.development.local
 .env.test.local
