@@ -89,7 +89,50 @@ Metro places any module two chunks reach into `__common`, so these sheets were
 already shared and removing one eager reference moves far less than their 1,190
 lines suggest. The change is worth keeping for the boundary, not the bytes.
 
-### W3 — The compiler opt-out on the two web feeds is now declared
+### W3 — The Compose barrel, and why it cost 4.5x what W2 did
+
+`components/Compose/index.ts` re-exports eight sheets beside its ordinary
+components. `compose.tsx` wanted seven components, none of them a sheet, and
+`ComposeThreadItem.tsx` wanted four from inside that same directory — so both
+pulled all eight sheets in eagerly while `compose.tsx` declared seven of them as
+`lazy()` seventy lines below. Those were the barrel's only two consumers; both
+now import by path.
+
+| | Before | After |
+|---|---|---|
+| Initial JS gzip | 1.93 MiB | **1.91 MiB** (−20.17 KiB) |
+| Initial JS raw | 7.88 MiB | 7.81 MiB |
+| `async:compose` | 71.66 KiB gzip | 69.93 KiB gzip |
+
+Four and a half times W2's 4.41 KiB for a change of the same kind, and the reason
+generalises: a barrel import moves whole modules, so it defeats a `lazy()`
+boundary far more thoroughly than a single named import does. Together the two
+leave 9.41 KiB to the long-term target.
+
+### W4 — Three fan-outs off the `POST /posts` request path
+
+`createMentionNotifications` looped with an `await` inside (eight sequential
+round trips at the cap); `createBatchNotifications` was an unbounded
+`Promise.all` over a subscriber query with no LIMIT, which also abandoned the
+remaining recipients on the first rejection. Both now use `mapWithConcurrency`,
+the pool this repo already had. The socket broadcast — a full `hydratePosts`
+including the Oxy author batch and its 1500 ms deadline — is detached, since its
+result never reaches the response.
+
+### W5 — `GET /nodeinfo/2.0` had no cache, and said it did
+
+`runtimeApp.ts` justified an exact `count(*)` over `posts` as "read at most once
+per request from a cached surface". No such surface existed, on a public,
+unauthenticated endpoint advertised through `/.well-known/nodeinfo` — so every
+crawler ran a sequential scan of the only table that monotonically grows.
+
+Now behind the shared cache primitive at 300s. `nodeinfoPostCountBudget.test.ts`
+pins scans of `posts` across twelve concurrent callers; positive control reports
+`expected 12 to be 1`. Asserted on CONCURRENT callers deliberately: the test
+setup mocks Redis with `isReady: false`, so single-flight is the half this
+environment can honestly measure — and it is the half a crawl storm needs.
+
+### W6 — The compiler opt-out on the two web feeds is now declared
 
 `Feed.web.tsx` and `NotificationsList.web.tsx` were outside the React Compiler
 only because each happens to read a ref during render.
@@ -125,45 +168,87 @@ workstream:
 
 Real scope: it folds `getUserFollowing` + `getBlockedUsers` into one call (2 → 1,
 and the one removed is the unbounded full-DTO route), and needs an explicit
-contract — either a `viewerScopedClient` assertion from the caller, or resolving
-the graph in the caller and threading `viewerGraph` as the feed already does.
-The latter needs no new Oxy semantics and should go first.
+contract — a `viewerScopedClient` assertion from the caller.
 
 Not done blind because it is a permissions path and Oxy is mocked throughout this
 suite: no test here would distinguish the service's graph from the viewer's.
 
+### And "thread `viewerGraph` on the non-feed surfaces" is not the other half
+
+The obvious companion — have post detail, notifications and search pre-resolve
+the graph and thread it, as the feed does — was checked and **does not apply**.
+Threading only removes a call when something ELSE in the same request already
+resolved the graph. In the feed that is `loadViewerFeedContext`. On these
+surfaces there is exactly **one** `hydratePosts` per handler
+(`readPosts.ts` has five call sites, but they are five different handlers; so are
+notifications' two and search's one), so hydration's live fetch is the only one
+in the request. Threading would relocate the same work, not remove it.
+
+The genuine duplicate is narrower and elsewhere: `loadFollowedAuthorIds`
+(`services/viewerFollowGraph.ts:70`) issues `getUserFollowing(userId)` a SECOND
+time in the same request, on both `routes/search.ts:486` and
+`routes/notifications.ts:325`, to evaluate an `exclude-following` muted word —
+after `buildViewerContext` already fetched exactly that list during hydration. It
+is gated on `compiledMuteWords?.needsFollowState`, so it costs a third graph call
+only for viewers who have such a rule.
+
+Two ways to close it, and the second is the better one:
+
+1. Resolve `followedAuthorIds` BEFORE hydrating and thread it as
+   `viewerGraph.followingIds` (its union is the same one the feed context
+   assembles, so the semantics match), fetching followers explicitly alongside.
+   3 → 2 calls, but it moves graph plumbing into callers that do not otherwise
+   have any.
+2. **Request-scoped memoization of the Oxy graph reads.** There is no
+   DataLoader-shaped facility in this backend, yet `oxyMetrics.ts` already
+   establishes a per-request `AsyncLocalStorage` context that one could hang off.
+   It would deduplicate this case and every future one without a single caller
+   changing. The care it needs is a write-path question: a memo must not serve a
+   stale graph to a request that just mutated it, so the scope belongs on read
+   paths, deliberately, rather than on the client wholesale.
+
 ## Remaining workstreams
 
-- **W4 — Retained metrics.** `/internal/metrics` IS enabled in production
+- **W7 — Retained metrics.** `/internal/metrics` IS enabled in production
   (`deploy-ecs-image.sh:625-629` injects `INTERNAL_METRICS_ENABLED=true` when the
   token secret resolves; the `false` in `config/index.ts:424` is only the local
   default). Nothing scrapes it, so no p95 survives the process. CloudWatch EMF
   from the existing ECS tasks is the lowest-new-infrastructure option. Numbers
   go into `PERFORMANCE_BUDGETS.md` only after they are read off a deployment.
-- **W5 — `POST /posts` side effects.** `runPostSideEffects` awaits, inline:
-  `createBatchNotifications`, which is `map(createNotification)` — one INSERT, a
-  conditional UPDATE, an Oxy `getUserById` and a push PER recipient, over an
-  unbounded subscriber query; `createMentionNotifications`, a serial `for` with
-  an `await` inside; a full extra hydration to build the socket DTO; and two
-  GLOBAL `io.emit('feed:updated')` broadcasts per public post.
-  `postEngagementBroadcast.ts:129` already shows the room-scoped form.
-- **W6 — Discovery indexes.** `engagementScoreSql()` and `exploreFinalScoreSql`
+- **W8 — The two GLOBAL `io.emit('feed:updated')` per public post.** W4 detached
+  the broadcast and bounded the notification fan-outs, but the emit itself still
+  reaches EVERY connected socket in the fleet, twice, and the client filters
+  locally (`socketService.ts:487`). `postEngagementBroadcast.ts:129` shows the
+  room-scoped form, and `socketHandlers.ts` already runs `user:`, `post:` and
+  `presence:` rooms — but there is no room keyed on the author, and creating one
+  means resolving each connection's follow graph at connect time, which is a new
+  Oxy cost paid per socket rather than per post. That trade is the workstream:
+  it is a protocol change across both runtimes, not a server-side tidy-up.
+- **W9 — Discovery indexes.** `engagementScoreSql()` and `exploreFinalScoreSql`
   are computed expressions in `ORDER BY` with no expression index, so `popular`,
   `explore` and `trending` are seq scan + sort — the anonymous For You path. No
   `pg_trgm` anywhere, so every `ILIKE '%…%'` is a full scan; the worst is
   `bookmarks.ts:165`, inside an `EXISTS` over all of `post_content_variants`.
-  `GET /nodeinfo/2.0` runs `count(*)` on `posts` per request, unauthenticated.
-- **W7 — Split `compose.tsx`.** The frontend's `posts.controller.ts`. Same
+
+  Two things to settle BEFORE writing the migration, both found while scoping it.
+  `MtnConfig` is `as const`, so an expression index CAN embed the literal weights
+  and match the `ORDER BY` — but the coupling is silent: retune `likeWeight` in
+  `shared-types` and the index stops being used with nothing failing. Pin the
+  migration's literals to `MtnConfig.ranking.engagement` in a test, the way
+  `hotPathIndexes.test.ts` pins the rest. And an `EXPLAIN` on a near-empty
+  database proves nothing — the planner is right to prefer a seq scan there — so
+  this needs a representative row count before any number is claimed.
+- **W10 — Split `compose.tsx`.** The frontend's `posts.controller.ts`. Same
   contract as W2 of the previous programme: move, do not rewrite; nothing over
   ~600 lines; unchanged export surface; an unchanged test COUNT is the point.
-- **W8 — The three post caches.** `postsStore` + `db/`, React Query, and
+- **W11 — The three post caches.** `postsStore` + `db/`, React Query, and
   `feedScrollStore`, reconciled by five invalidation buses
   (`engagement`, `lane`, `safety`, `byline`, `identityUpdates`).
   `useFeedState` (1,160 lines) hand-rolls retry-with-jitter, two
   `AbortController`s, a pagination epoch and warm-start;
   `feedService` adds a second dedup map on top. Highest structural return,
   highest risk, and it touches the most-used screen — its own programme.
-- **W9 — `statement_timeout`.** Already declared a handoff in
+- **W12 — `statement_timeout`.** Already declared a handoff in
   `discoverySources.ts:33-53`. Infra (`oxy-infra`), not a Mention code change.
 
 ## Verification contract
