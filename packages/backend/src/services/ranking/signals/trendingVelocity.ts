@@ -8,7 +8,6 @@
 import { MtnConfig } from '@mention/shared-types';
 import { nativeWeightedEngagement } from '../nativeEngagement';
 import type { RankablePost } from '../signalContext';
-import { SHARE_WEIGHT } from './engagement';
 import type { RankingSignal } from './types';
 
 const R = MtnConfig.ranking;
@@ -38,10 +37,8 @@ export function trendingBoost(post: RankablePost): number {
       federatedBoosts: stats.federatedBoostsCount,
       comments: stats.commentsCount,
       saves: stats.savesCount ?? 0,
-      shares: stats.sharesCount,
     },
     R.engagement,
-    SHARE_WEIGHT,
   );
 
   const engagementPerHour = rawEngagement / Math.max(postAge, 0.1);

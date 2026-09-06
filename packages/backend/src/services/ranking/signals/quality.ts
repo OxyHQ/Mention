@@ -9,7 +9,6 @@ import { MtnConfig } from '@mention/shared-types';
 import { nativeWeightedEngagement } from '../nativeEngagement';
 import type { RankablePost } from '../signalContext';
 import { getClassifiedScores } from './classification';
-import { SHARE_WEIGHT } from './engagement';
 import type { RankingSignal } from './types';
 
 const R = MtnConfig.ranking;
@@ -84,10 +83,8 @@ export function qualityScore(post: RankablePost): number {
       federatedBoosts: stats.federatedBoostsCount,
       comments: stats.commentsCount,
       saves: stats.savesCount ?? 0,
-      shares: stats.sharesCount,
     },
     R.engagement,
-    SHARE_WEIGHT,
   );
 
   // ROBUST engagement rate at low view counts: a post with only a few views

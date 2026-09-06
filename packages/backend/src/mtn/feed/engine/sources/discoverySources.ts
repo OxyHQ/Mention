@@ -54,9 +54,17 @@ import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
  */
 
 /**
- * The standard engagement composite used by the popular / explore / trending
- * aggregations, as a SQL expression. THE single source of truth for the
- * composite so the discovery lanes can never drift.
+ * The engagement composite the popular / explore / trending aggregations ORDER
+ * their candidate pool by, as a SQL expression. The single source of truth for
+ * that ordering, so the discovery lanes can never drift from each other.
+ *
+ * It is deliberately NOT the same expression as
+ * `services/ranking/nativeEngagement.ts` `nativeWeightedEngagement`, which scores
+ * the candidates this query returns. The four counters below are the ones a write
+ * path maintains and that carry signal at selection time: `saves` is written but
+ * measures 0 across the discovery corpus, and ordering CANDIDATES by `views`
+ * would rank by exposure and feed itself. Ranking reads both, one stage later,
+ * where the pool is already chosen.
  *
  * The boost term splits the total boosts into their native and federated subsets
  * (`stats_federated_boosts_count` counts inbound ActivityPub Announces): the

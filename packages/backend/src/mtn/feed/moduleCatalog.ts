@@ -78,7 +78,6 @@ export const MODULE_PARAMS_SCHEMAS: Record<string, ModuleParamsSchema> = {
     minBoosts: { type: 'number' },
     minComments: { type: 'number' },
     minViews: { type: 'number' },
-    minShares: { type: 'number' },
   }),
   maxLength: schema({ maxLength: { type: 'number' } }),
   minLength: schema({ minLength: { type: 'number' } }),
@@ -208,7 +207,6 @@ const MODULE_METADATA: Record<string, ModuleMeta> = {
       num('minBoosts', 'Min boosts', 0, 100000, 1),
       num('minComments', 'Min comments', 0, 100000, 1),
       num('minViews', 'Min views', 0, 1000000, 1),
-      num('minShares', 'Min shares', 0, 100000, 1),
     ],
   },
   minLength: {

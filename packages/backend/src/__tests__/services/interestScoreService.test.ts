@@ -107,17 +107,23 @@ afterAll(async () => {
 });
 
 describe('aggregateAuthors — the numbers come back as NUMBERS', () => {
-  it('sums all five engagement counters across an author\'s posts', async () => {
+  /**
+   * FOUR counters, and `shares` is the one deliberately left out: nothing in the
+   * app writes `stats_shares_count`, so summing it could only ever add 0. The
+   * seed below still SETS it, which is what makes this a test of the sum rather
+   * than of the seeder — a fifth term reappearing in the expression goes red here.
+   */
+  it('sums the four written engagement counters across an author\'s posts', async () => {
     const author = authorId('sums');
     await seedPost(author, { likes: 1, boosts: 2, comments: 3, views: 4, shares: 5 });
     await seedPost(author, { likes: 10, views: 20 });
 
     const [row] = await aggregateMine();
 
-    expect(row.raw).toBe(45);
+    expect(row.raw).toBe(40);
     expect(row.postCount).toBe(2);
     // The trap: `sum()` and `count()` arrive as strings unless mapped, and
-    // `'45'` would satisfy a loose equality while poisoning `Math.log1p`.
+    // `'40'` would satisfy a loose equality while poisoning `Math.log1p`.
     expect(typeof row.raw).toBe('number');
     expect(typeof row.postCount).toBe('number');
     expect(typeof row.lastPostMs).toBe('number');

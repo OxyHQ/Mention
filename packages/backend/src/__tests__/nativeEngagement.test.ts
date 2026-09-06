@@ -18,8 +18,6 @@ import {
  *     whose boosts are ALL native.
  */
 
-const SHARE_WEIGHT = 2.0; // mirrors FeedRankingService.SHARE_WEIGHT
-
 const REAL_WEIGHTS: EngagementWeights = MtnConfig.ranking.engagement;
 
 /** Weights with the federated subset weighted IDENTICALLY to native boosts. */
@@ -38,24 +36,23 @@ function legacyEngagement(counts: EngagementCounts, w: EngagementWeights): numbe
     (counts.boosts || 0) * w.boostWeight +
     (counts.comments || 0) * w.commentWeight +
     (counts.saves || 0) * w.saveWeight +
-    (counts.views || 0) * w.viewWeight +
-    (counts.shares || 0) * SHARE_WEIGHT
+    (counts.views || 0) * w.viewWeight
   );
 }
 
 const SAMPLE_POSTS: EngagementCounts[] = [
   {},
   { likes: 3 },
-  { likes: 10, boosts: 5, comments: 2, saves: 1, views: 200, shares: 4 },
+  { likes: 10, boosts: 5, comments: 2, saves: 1, views: 200 },
   { likes: 0, boosts: 5, federatedBoosts: 5, comments: 0, views: 0 },
-  { likes: 7, boosts: 8, federatedBoosts: 3, comments: 4, saves: 2, views: 50, shares: 1 },
+  { likes: 7, boosts: 8, federatedBoosts: 3, comments: 4, saves: 2, views: 50 },
   { boosts: 12, federatedBoosts: 12 },
 ];
 
 describe('nativeWeightedEngagement — parity with equal weights', () => {
   it('reproduces the exact legacy formula for every sample post (boosts ≥ federatedBoosts)', () => {
     for (const counts of SAMPLE_POSTS) {
-      const composite = nativeWeightedEngagement(counts, EQUAL_WEIGHTS, SHARE_WEIGHT);
+      const composite = nativeWeightedEngagement(counts, EQUAL_WEIGHTS);
       const legacy = legacyEngagement(counts, EQUAL_WEIGHTS);
       expect(composite).toBeCloseTo(legacy, 10);
     }
@@ -65,7 +62,7 @@ describe('nativeWeightedEngagement — parity with equal weights', () => {
     // The pre-backfill guarantee: `federatedBoosts` absent (→ 0) collapses the
     // boost term back to `boosts · boostWeight` regardless of federatedBoostWeight.
     const counts: EngagementCounts = { likes: 4, boosts: 6, comments: 1, views: 30 };
-    const dampened = nativeWeightedEngagement(counts, REAL_WEIGHTS, SHARE_WEIGHT);
+    const dampened = nativeWeightedEngagement(counts, REAL_WEIGHTS);
     const legacy = legacyEngagement(counts, REAL_WEIGHTS);
     expect(dampened).toBeCloseTo(legacy, 10);
   });
@@ -76,8 +73,8 @@ describe('nativeWeightedEngagement — federated dampening', () => {
     const nativeOnly: EngagementCounts = { boosts: 5, federatedBoosts: 0 };
     const federatedOnly: EngagementCounts = { boosts: 5, federatedBoosts: 5 };
 
-    const nativeScore = nativeWeightedEngagement(nativeOnly, REAL_WEIGHTS, SHARE_WEIGHT);
-    const federatedScore = nativeWeightedEngagement(federatedOnly, REAL_WEIGHTS, SHARE_WEIGHT);
+    const nativeScore = nativeWeightedEngagement(nativeOnly, REAL_WEIGHTS);
+    const federatedScore = nativeWeightedEngagement(federatedOnly, REAL_WEIGHTS);
 
     expect(federatedScore).toBeLessThan(nativeScore);
     // The federated post's boost term is exactly the federated:native weight ratio.
@@ -92,7 +89,7 @@ describe('nativeWeightedEngagement — federated dampening', () => {
     const counts: EngagementCounts = { boosts: 8, federatedBoosts: 3 };
     const expected =
       5 * REAL_WEIGHTS.boostWeight + 3 * REAL_WEIGHTS.federatedBoostWeight;
-    expect(nativeWeightedEngagement(counts, REAL_WEIGHTS, SHARE_WEIGHT)).toBeCloseTo(expected, 10);
+    expect(nativeWeightedEngagement(counts, REAL_WEIGHTS)).toBeCloseTo(expected, 10);
   });
 
   it('guards the config invariant: federatedBoostWeight is below boostWeight and equals 0.5', () => {
@@ -105,8 +102,8 @@ describe('nativeWeightedEngagement — null-safety & flooring', () => {
   it('treats a missing federatedBoosts field as 0 (pre-backfill safe)', () => {
     const withField: EngagementCounts = { boosts: 4, federatedBoosts: 0 };
     const withoutField: EngagementCounts = { boosts: 4 };
-    expect(nativeWeightedEngagement(withoutField, REAL_WEIGHTS, SHARE_WEIGHT)).toBeCloseTo(
-      nativeWeightedEngagement(withField, REAL_WEIGHTS, SHARE_WEIGHT),
+    expect(nativeWeightedEngagement(withoutField, REAL_WEIGHTS)).toBeCloseTo(
+      nativeWeightedEngagement(withField, REAL_WEIGHTS),
       10,
     );
   });
@@ -115,12 +112,12 @@ describe('nativeWeightedEngagement — null-safety & flooring', () => {
     // Pathological over-count: 2 boosts but 5 federated → native floored at 0, so
     // the boost contribution is purely the federated subset (never negative).
     const counts: EngagementCounts = { boosts: 2, federatedBoosts: 5 };
-    const score = nativeWeightedEngagement(counts, REAL_WEIGHTS, SHARE_WEIGHT);
+    const score = nativeWeightedEngagement(counts, REAL_WEIGHTS);
     expect(score).toBeGreaterThanOrEqual(0);
     expect(score).toBeCloseTo(5 * REAL_WEIGHTS.federatedBoostWeight, 10);
   });
 
   it('returns 0 for an empty post', () => {
-    expect(nativeWeightedEngagement({}, REAL_WEIGHTS, SHARE_WEIGHT)).toBe(0);
+    expect(nativeWeightedEngagement({}, REAL_WEIGHTS)).toBe(0);
   });
 });

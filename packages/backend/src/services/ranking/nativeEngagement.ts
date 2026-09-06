@@ -20,8 +20,15 @@
  *
  * This is the ONE JS composite; `FeedRankingService` uses it for its engagement,
  * quality-rate and trending-density computations so the three can never drift.
- * (The Mongo side has its own single source of truth in
- * `engine/sources/discoverySources.ts` `engagementScoreExpr`.)
+ *
+ * It is NOT the same expression as `engine/sources/discoverySources.ts`
+ * `engagementScoreSql`, and the two are not meant to be. That one runs INSIDE the
+ * candidate query to order the pool; this one scores the candidates that query
+ * returned. The SQL side deliberately reads only the four counters a write path
+ * maintains — `saves` is written by `PostEngagementCommandService` but is 0
+ * across the discovery corpus (measured), and `views` in a candidate ORDERING
+ * would rank by exposure and feed itself. Ranking still reads both here, where
+ * the pool is already chosen.
  */
 
 /**
@@ -42,9 +49,9 @@ export interface EngagementWeights {
 /**
  * Raw per-post engagement counts. Every field is optional and an absent /
  * non-positive value contributes 0, so a lean or partial post projection composes
- * safely. `views`/`shares` are opt-in per call site: the ranking engagement score
- * includes views while the quality-rate and trending-density composites
- * historically do not — omit `views` there to preserve that behavior exactly.
+ * safely. `views` is opt-in per call site: the ranking engagement score includes
+ * views while the quality-rate and trending-density composites do not — omit it
+ * there to keep those two over the ACTIVE engagement signals.
  */
 export interface EngagementCounts {
   likes?: number;
@@ -58,7 +65,6 @@ export interface EngagementCounts {
   comments?: number;
   saves?: number;
   views?: number;
-  shares?: number;
 }
 
 /** Coerce a possibly-absent count to a non-negative number (matches `x || 0`). */
@@ -69,15 +75,12 @@ function toCount(value: number | undefined): number {
 /**
  * Compute the weighted native engagement of a post. Pure function of its inputs.
  *
- * @param counts     raw per-post engagement counts (absent ⇒ 0)
- * @param weights    the engagement weights (`MtnConfig.ranking.engagement`)
- * @param shareWeight weight for `shares` (kept separate — not in the engagement
- *                   config today)
+ * @param counts  raw per-post engagement counts (absent ⇒ 0)
+ * @param weights the engagement weights (`MtnConfig.ranking.engagement`)
  */
 export function nativeWeightedEngagement(
   counts: EngagementCounts,
   weights: EngagementWeights,
-  shareWeight: number,
 ): number {
   const boosts = toCount(counts.boosts);
   const federatedBoosts = toCount(counts.federatedBoosts);
@@ -91,7 +94,6 @@ export function nativeWeightedEngagement(
     federatedBoosts * weights.federatedBoostWeight +
     toCount(counts.comments) * weights.commentWeight +
     toCount(counts.saves) * weights.saveWeight +
-    toCount(counts.views) * weights.viewWeight +
-    toCount(counts.shares) * shareWeight
+    toCount(counts.views) * weights.viewWeight
   );
 }

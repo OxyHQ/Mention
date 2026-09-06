@@ -136,7 +136,7 @@ export const GOLDEN_CASES: GoldenCase[] = [
   {
     name: 'high-engagement-computed',
     userId: undefined,
-    post: makePost({ stats: { likesCount: 40, boostsCount: 12, commentsCount: 8, viewsCount: 300, sharesCount: 3 } }),
+    post: makePost({ stats: { likesCount: 40, boostsCount: 12, commentsCount: 8, viewsCount: 300 } }),
     context: {},
   },
   {
@@ -596,7 +596,7 @@ export const GOLDEN_CASES: GoldenCase[] = [
         languages: ['en'],
         scores: { toxicity: 0.05, constructiveness: 0.7, spam: 0.02, quality: 0.8, controversy: 0.1, negativity: 0.05 },
       },
-      stats: { likesCount: 12, boostsCount: 3, federatedBoostsCount: 1, commentsCount: 6, viewsCount: 120, sharesCount: 2 },
+      stats: { likesCount: 12, boostsCount: 3, federatedBoostsCount: 1, commentsCount: 6, viewsCount: 120 },
     }),
     context: {
       followingIdsSet: new Set(['followed-2']),

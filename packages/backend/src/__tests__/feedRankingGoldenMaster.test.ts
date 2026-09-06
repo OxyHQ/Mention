@@ -47,6 +47,14 @@ const baseline: Record<string, GoldenResult> = JSON.parse(
  * intended change — dropping the dead in-score diversity factor — was always
  * `× 1.0` on this path, so the output is unchanged. Any mismatch here means the
  * refactor altered ranking output and must be fixed (not re-baselined).
+ *
+ * RE-BASELINED ONCE, deliberately, when the `shares` term left the engagement
+ * composite. Two fixtures carried a `sharesCount`, and a post with one cannot
+ * exist: nothing in the app writes `stats_shares_count` — the share action opens
+ * the OS share sheet and never reaches the server — so those two cases pinned a
+ * score production can never produce. The fixtures dropped the field and the two
+ * entries were recaptured under the same pinned clock; the other 53 did not move,
+ * which is what says the change touched only the dead term.
  */
 
 const expected: Record<string, GoldenResult> = baseline;
