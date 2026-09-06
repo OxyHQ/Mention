@@ -575,7 +575,15 @@ export class FeedEngine {
     // advertise a phantom next page.
     const hasMore = rawSlices.length > limit;
     const windowedSlices = rawSlices.slice(0, limit);
-    const diversifiedSlices = diversifyByAuthor(windowedSlices, sliceAuthorKey);
+    // The reader's own knob from `/settings/feed`, which nothing read until now:
+    // it is validated and clamped to 1..10 on write and stored in its own column,
+    // and `diversifyByAuthor` had no parameter it could reach. `undefined` leaves
+    // the reranker at its default of 1, i.e. no two adjacent same-author slices.
+    const diversifiedSlices = diversifyByAuthor(windowedSlices, sliceAuthorKey, {
+      ...(ctx.feedSettings?.diversity?.maxConsecutiveSameAuthor === undefined
+        ? {}
+        : { maxConsecutive: ctx.feedSettings.diversity.maxConsecutiveSameAuthor }),
+    });
 
     // Phase 5: cap the discovery share of the page (For You sets
     // `maxDiscoveryShare`; every other feed leaves it unset → no-op). Runs AFTER

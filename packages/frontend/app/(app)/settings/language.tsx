@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
 import { setLanguage } from '@/lib/i18n';
 import { Storage } from '@/utils/storage';
+import { STORAGE_KEYS, SUPPORTED_LANGUAGES } from '@/lib/constants';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { Toggle } from '@/components/Toggle';
@@ -18,25 +19,41 @@ import { Icon } from '@/lib/icons';
 import { logger } from '@oxyhq/core/logger';
 import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
 
-const LANGUAGE_OPTIONS = [
-    { code: 'en-US', name: 'English', nativeName: 'English', flag: '\u{1F1FA}\u{1F1F8}' },
-    { code: 'es-ES', name: 'Spanish', nativeName: 'Espa\u00F1ol', flag: '\u{1F1EA}\u{1F1F8}' },
-    { code: 'it-IT', name: 'Italian', nativeName: 'Italiano', flag: '\u{1F1EE}\u{1F1F9}' },
-    { code: 'ca-ES', name: 'Catalan', nativeName: 'Català', flag: '\u{1F1E6}\u{1F1E9}' },
-    { code: 'fr-FR', name: 'French', nativeName: 'Français', flag: '\u{1F1EB}\u{1F1F7}' },
-    { code: 'pt-BR', name: 'Portuguese', nativeName: 'Português', flag: '\u{1F1E7}\u{1F1F7}' },
-    { code: 'de-DE', name: 'German', nativeName: 'Deutsch', flag: '\u{1F1E9}\u{1F1EA}' },
-    { code: 'ru-RU', name: 'Russian', nativeName: 'Русский', flag: '\u{1F1F7}\u{1F1FA}' },
-    { code: 'zh-CN', name: 'Chinese', nativeName: '简体中文', flag: '\u{1F1E8}\u{1F1F3}' },
-    { code: 'hi-IN', name: 'Hindi', nativeName: 'हिन्दी', flag: '\u{1F1EE}\u{1F1F3}' },
-    { code: 'ar-SA', name: 'Arabic', nativeName: 'العربية', flag: '\u{1F1F8}\u{1F1E6}' },
-    { code: 'bn-BD', name: 'Bengali', nativeName: 'বাংলা', flag: '\u{1F1E7}\u{1F1E9}' },
-    { code: 'ja-JP', name: 'Japanese', nativeName: '日本語', flag: '\u{1F1EF}\u{1F1F5}' },
-    { code: 'id-ID', name: 'Indonesian', nativeName: 'Bahasa Indonesia', flag: '\u{1F1EE}\u{1F1E9}' },
-    { code: 'tr-TR', name: 'Turkish', nativeName: 'Türkçe', flag: '\u{1F1F9}\u{1F1F7}' },
-];
+/**
+ * Display metadata per supported locale.
+ *
+ * Keyed by `SUPPORTED_LANGUAGES` rather than listing the codes again, and typed
+ * as an EXHAUSTIVE record so the compiler requires an entry for each one. This
+ * screen used to carry its own copy of the code list — a third one, after
+ * `SUPPORTED_LANGUAGES` and `lib/i18n`'s `TRANSLATION_LOADERS` — so adding a
+ * locale to the two that matter left the settings screen silently unable to
+ * offer it, with nothing failing.
+ */
+const LANGUAGE_DISPLAY: Record<
+    (typeof SUPPORTED_LANGUAGES)[number],
+    { name: string; nativeName: string; flag: string }
+> = {
+    'en-US': { name: 'English', nativeName: 'English', flag: '\u{1F1FA}\u{1F1F8}' },
+    'es-ES': { name: 'Spanish', nativeName: 'Espa\u00F1ol', flag: '\u{1F1EA}\u{1F1F8}' },
+    'it-IT': { name: 'Italian', nativeName: 'Italiano', flag: '\u{1F1EE}\u{1F1F9}' },
+    'ca-ES': { name: 'Catalan', nativeName: 'Català', flag: '\u{1F1E6}\u{1F1E9}' },
+    'fr-FR': { name: 'French', nativeName: 'Français', flag: '\u{1F1EB}\u{1F1F7}' },
+    'pt-BR': { name: 'Portuguese', nativeName: 'Português', flag: '\u{1F1E7}\u{1F1F7}' },
+    'de-DE': { name: 'German', nativeName: 'Deutsch', flag: '\u{1F1E9}\u{1F1EA}' },
+    'ru-RU': { name: 'Russian', nativeName: 'Русский', flag: '\u{1F1F7}\u{1F1FA}' },
+    'zh-CN': { name: 'Chinese', nativeName: '简体中文', flag: '\u{1F1E8}\u{1F1F3}' },
+    'hi-IN': { name: 'Hindi', nativeName: 'हिन्दी', flag: '\u{1F1EE}\u{1F1F3}' },
+    'ar-SA': { name: 'Arabic', nativeName: 'العربية', flag: '\u{1F1F8}\u{1F1E6}' },
+    'bn-BD': { name: 'Bengali', nativeName: 'বাংলা', flag: '\u{1F1E7}\u{1F1E9}' },
+    'ja-JP': { name: 'Japanese', nativeName: '日本語', flag: '\u{1F1EF}\u{1F1F5}' },
+    'id-ID': { name: 'Indonesian', nativeName: 'Bahasa Indonesia', flag: '\u{1F1EE}\u{1F1E9}' },
+    'tr-TR': { name: 'Turkish', nativeName: 'Türkçe', flag: '\u{1F1F9}\u{1F1F7}' },
+};
 
-const LANGUAGE_STORAGE_KEY = 'user_language_preference';
+const LANGUAGE_OPTIONS = SUPPORTED_LANGUAGES.map((code) => ({
+    code,
+    ...LANGUAGE_DISPLAY[code],
+}));
 
 export default function LanguageSettingsScreen() {
     const { t } = useTranslation();
@@ -49,7 +66,7 @@ export default function LanguageSettingsScreen() {
 
     const loadLanguage = useCallback(async () => {
         try {
-            const savedLanguage = await Storage.get<string>(LANGUAGE_STORAGE_KEY);
+            const savedLanguage = await Storage.get<string>(STORAGE_KEYS.LANGUAGE_PREFERENCE);
             const language = savedLanguage || i18n.language || 'en-US';
             setCurrentLanguage(language);
         } catch (error) {
@@ -68,7 +85,7 @@ export default function LanguageSettingsScreen() {
         try {
             setSaving(true);
             setCurrentLanguage(languageCode);
-            await Storage.set(LANGUAGE_STORAGE_KEY, languageCode);
+            await Storage.set(STORAGE_KEYS.LANGUAGE_PREFERENCE, languageCode);
             await setLanguage(languageCode);
         } catch (error) {
             logger.error('Error changing language', error);

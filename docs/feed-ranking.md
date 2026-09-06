@@ -169,7 +169,7 @@ horizontal snap carousel on mobile, vertical list on desktop
   batch-resolves authors via `oxyServices.getUsersByIds`.
   `services/userSummaryCache.ts` caches the raw canonical Oxy `User` (as
   `PostUser`) + followerCount + the account's BCP-47 `languages` in Redis
-  (key `usersummary:v3:<id>`, 10m TTL); `invalidate()` evicts on
+  (key `usersummary:v5:<id>`, 10m TTL); `invalidate()` evicts on
   federated-actor re-resolve. The follower count and languages are
   RANKING-side (`CachedUserSummary`) and deliberately never ship on the
   `PostUser` DTO.
