@@ -19,6 +19,22 @@ import {
   toPopulatedActor,
   type NotificationActorProfile,
 } from './notificationActor';
+import { mapWithConcurrency } from './concurrency';
+
+/**
+ * In-flight notification writes per fan-out.
+ *
+ * Every `createNotification` is an INSERT plus an Oxy actor lookup plus a push,
+ * so an unbounded fan-out competes with the request path for both the Postgres
+ * pool (`PG_MAX_POOL_SIZE`, 20) and Oxy's per-IP rate limit. Eight matches
+ * `DEFAULT_CONCURRENCY` and `PostHydrationService`'s own Oxy fallback pool —
+ * the same reasoning, so the same number rather than a second one to keep in
+ * step.
+ */
+const NOTIFICATION_FANOUT_CONCURRENCY = 8;
+
+/** Mentions are capped at eight recipients, so this bound is the cap, not a throttle. */
+const MENTION_NOTIFICATION_CONCURRENCY = NOTIFICATION_FANOUT_CONCURRENCY;
 
 export interface CreateNotificationData {
   recipientId: string;
@@ -225,22 +241,35 @@ export const createMentionNotifications = async (
       return;
     }
 
-    // Create notification for each mentioned user
-    for (const recipientId of uniqueUserIds) {
-      try {
-        // Skip if user is mentioning themselves
-        if (recipientId === actorId) continue;
-
-        await createNotification({
+    // One notification per mentioned user, OVERLAPPED rather than serial.
+    //
+    // This ran as a `for` loop with an `await` inside, so a post mentioning the
+    // maximum eight people paid eight sequential round trips — each one an
+    // INSERT plus, inside `createNotification`, an Oxy lookup and a push — while
+    // `POST /posts` held the request open waiting for all of them. They are
+    // independent by construction: distinct recipients, no shared state, and each
+    // one's failure is already swallowed per item.
+    //
+    // Bounded rather than a bare `Promise.all`: the cap is eight today, but the
+    // bound is what makes this safe to read at the next cap, and `Promise.all`
+    // would also abandon the remaining items on the first rejection — which the
+    // per-item `catch` this replaces did not do.
+    const recipients = uniqueUserIds.filter((recipientId) => recipientId !== actorId);
+    const settled = await mapWithConcurrency(
+      recipients,
+      MENTION_NOTIFICATION_CONCURRENCY,
+      (recipientId) =>
+        createNotification({
           recipientId,
           actorId,
           type: 'mention',
           entityId: postId,
           entityType,
-        }, emitEvent);
-      } catch (e) {
-        // If notification creation fails, log and continue
-    logger.error('[Notifications] failed to create mention notification', e);
+        }, emitEvent),
+    );
+    for (const result of settled) {
+      if (result.status === 'rejected') {
+        logger.error('[Notifications] failed to create mention notification', result.reason);
       }
     }
   } catch (error) {
@@ -269,17 +298,44 @@ export const createWelcomeNotification = async (
 };
 
 /**
- * Batch create notifications for multiple recipients
+ * Create notifications for many recipients, at bounded concurrency.
+ *
+ * "Batch" names the CALLER's intent, not the storage: there is no multi-row
+ * insert here, and each recipient still costs an INSERT, an Oxy actor lookup and
+ * a push. That is worth stating because the name reads like one round trip and
+ * the biggest caller is not small — `PostCreationService`'s subscriber fan-out
+ * selects every row of `post_subscriptions` for the author with no LIMIT, so a
+ * popular author's post arrives here with as many entries as they have
+ * subscribers.
+ *
+ * It used to be a bare `Promise.all` over that list, which had two faults on the
+ * `POST /posts` request path: every write went in flight at once, so one popular
+ * post could saturate a 20-connection pool and Oxy's per-IP limit together; and
+ * `Promise.all` rejects on the FIRST failure, so a single bad recipient
+ * abandoned the rest and the surrounding `catch` logged one error for an unknown
+ * number of undelivered notifications.
+ *
+ * `mapWithConcurrency` fixes both: the pool is bounded, and every recipient is
+ * attempted regardless of its neighbours, with failures reported per item.
  */
 export const createBatchNotifications = async (
   notifications: CreateNotificationData[],
   emitEvent: boolean = true
 ): Promise<void> => {
   try {
-    const promises = notifications.map(notification =>
-      createNotification(notification, emitEvent)
+    const settled = await mapWithConcurrency(
+      notifications,
+      NOTIFICATION_FANOUT_CONCURRENCY,
+      (notification) => createNotification(notification, emitEvent),
     );
-    await Promise.all(promises);
+    const failed = settled.filter((result) => result.status === 'rejected');
+    if (failed.length > 0) {
+      logger.error('[Notifications] batch notification writes failed', {
+        failed: failed.length,
+        total: notifications.length,
+        reason: (failed[0] as PromiseRejectedResult).reason,
+      });
+    }
   } catch (error) {
     logger.error('[Notifications] Error creating batch notifications:', error);
   }
