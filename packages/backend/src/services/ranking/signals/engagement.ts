@@ -11,12 +11,6 @@ import type { RankingSignal } from './types';
 const R = MtnConfig.ranking;
 
 /**
- * Weight for `shares` in the engagement composites. Not in `MtnConfig` yet, so
- * it is kept here as the single local constant the three composites share.
- */
-export const SHARE_WEIGHT = 2.0;
-
-/**
  * Calculate engagement score from post stats with logarithmic normalization.
  * Uses log scaling to prevent extremely popular posts from dominating.
  */
@@ -36,10 +30,8 @@ export function engagementScore(post: RankablePost): number {
       comments: stats.commentsCount,
       saves: savesCount,
       views: stats.viewsCount,
-      shares: stats.sharesCount,
     },
     R.engagement,
-    SHARE_WEIGHT,
   );
 
   // Apply logarithmic scaling to prevent extremely popular posts from dominating

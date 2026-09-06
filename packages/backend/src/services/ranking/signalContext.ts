@@ -146,7 +146,6 @@ export interface RankablePost {
     federatedBoostsCount: number;
     commentsCount: number;
     viewsCount: number;
-    sharesCount: number;
     savesCount: number;
   }>;
   metadata?: { isSensitive?: boolean | null };

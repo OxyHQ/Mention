@@ -9,8 +9,8 @@
     "diversity": 1
   },
   "high-engagement-computed": {
-    "finalScore": 4.3509396975081,
-    "engagement": 2.9549102790337356,
+    "finalScore": 4.304191519459768,
+    "engagement": 2.9231615807191558,
     "recency": 0.9438743126816935,
     "relationship": 1,
     "personalization": 1,
@@ -513,12 +513,12 @@
     "diversity": 1
   },
   "realistic-following-classified": {
-    "finalScore": 18.340614663994128,
-    "engagement": 2.0731719286662407,
+    "finalScore": 15.551228056596065,
+    "engagement": 2.0215475632609334,
     "recency": 0.8908987181403393,
     "relationship": 2.52,
     "personalization": 1.9968000000000001,
-    "quality": 1.9734,
+    "quality": 1.7160000000000002,
     "diversity": 1
   }
 }

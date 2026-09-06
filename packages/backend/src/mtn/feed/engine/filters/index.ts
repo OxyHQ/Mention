@@ -424,7 +424,14 @@ export const onlyRepliesFilter: FilterModule = {
   keep: (post) => post.isReply,
 };
 
-/** `minEngagement`: keep posts meeting every provided engagement threshold. */
+/**
+ * `minEngagement`: keep posts meeting every provided engagement threshold.
+ *
+ * There is deliberately no `minShares` threshold: `stats_shares_count` has no
+ * writer anywhere in the app — the share action (`hooks/usePostShare.ts`) opens
+ * the OS share sheet and never reaches the server — so the column is 0 for every
+ * row and any positive threshold here would return an empty feed forever.
+ */
 export const minEngagementFilter: FilterModule = {
   id: 'minEngagement',
   kind: 'filter',
@@ -435,7 +442,6 @@ export const minEngagementFilter: FilterModule = {
       ['minBoosts', 'boostsCount'],
       ['minComments', 'commentsCount'],
       ['minViews', 'viewsCount'],
-      ['minShares', 'sharesCount'],
     ];
     for (const [paramKey, statKey] of thresholds) {
       const threshold = params[paramKey];

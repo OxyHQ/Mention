@@ -95,7 +95,7 @@ export class InterestScoreService {
         oxyUserId: posts.oxyUserId,
         raw: sql`sum(
           ${posts.statsLikesCount} + ${posts.statsBoostsCount} + ${posts.statsCommentsCount}
-          + ${posts.statsViewsCount} + ${posts.statsSharesCount}
+          + ${posts.statsViewsCount}
         )`.mapWith(Number),
         postCount: sql`count(*)`.mapWith(Number),
         lastPost: sql`max(${posts.createdAt})`.mapWith(posts.createdAt),
