@@ -14,8 +14,9 @@
  *  1. **`NULL` is not `false`.** Mongo's `$nin` MATCHED a document whose field
  *     was missing; SQL's `NOT IN` evaluates to NULL against a NULL column and
  *     the row is excluded. Same for array overlap: `NULL && ARRAY[…]` is NULL.
- *  2. **The engagement composite is not one expression.** Two of them exist and
- *     they disagree, deliberately (see `socialEngagementScoreSql`).
+ *  2. **The engagement composite splits its boost term.** Native boosts and
+ *     inbound federated Announces are weighted differently, and a regression
+ *     that collapses them reads as a ranking change rather than an error.
  *  3. **A generated `geography` point encodes an argument ORDER.** A transposed
  *     lat/lon yields a plausible point in the wrong hemisphere, never an error,
  *     so the assertion has to be an independently checkable real-world distance.
@@ -46,7 +47,6 @@ import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../mtn/feed/Cur
 import { discoverySafeSql, nsfwHashtagExcludeSql } from '../../mtn/feed/feedSafety';
 import { authorNotInSql, notABoostSql } from '../../utils/feedQueryBuilder';
 import { engagementScoreSql } from '../../mtn/feed/engine/sources/discoverySources';
-import { socialEngagementScoreSql } from '../../mtn/feed/engine/sources/socialSources';
 
 let db: Database;
 const created: string[] = [];
@@ -159,20 +159,30 @@ describe('NULL is not false — the predicates that silently drop rows', () => {
   });
 });
 
-describe('the two engagement composites disagree, and that is deliberate', () => {
+describe('one engagement composite, and it dampens federated boosts', () => {
   /**
-   * The tripwire for the divergence recorded on `socialEngagementScoreSql`.
+   * There were TWO composites and they disagreed on one term. `engagementScoreSql`
+   * (discovery) splits boosts — native at `boostWeight` (2.5), inbound federated
+   * Announces at `federatedBoostWeight` (0.5) — because a burst of remote
+   * Announces used to fake a trending post. `socialEngagementScoreSql`
+   * (`topReplies`) did not split, so it weighted every boost at 2.5.
    *
-   * `engagementScoreSql` (discovery) splits boosts into native and federated and
-   * weights the federated subset at `federatedBoostWeight` (0.5) rather than
-   * `boostWeight` (2.5), because a burst of remote Announces used to fake a
-   * trending post. `socialEngagementScoreSql` (`topReplies`) does not split.
+   * The divergence was carried deliberately through the Postgres port, whose
+   * contract was that the wire format must not change, and its doc named the
+   * condition for closing it: a one-line change once someone owns the ranking
+   * question.
    *
-   * If someone "unifies" them in either direction this goes red and names both
-   * functions. Unifying may well be right — but it is a RANKING change and must
-   * be made deliberately, not as a side effect of tidying a migration.
+   * The measurement that closed it: of 300 production For You posts sampled
+   * 2026-09-05, 294 carried boosts and effectively all were federated Announces.
+   * The unsplit composite therefore ranked replies by remote Announce count at
+   * FIVE times the weight the rest of the system had settled on — the same 5-vs-25
+   * ratio this case used to assert as intentional. `topReplies` now uses the
+   * split one.
+   *
+   * The case is kept, inverted: it pins the dampening itself, which is the
+   * property that used to be one composite's and is now the system's.
    */
-  it('scores an all-federated-boost post differently in the two composites', async () => {
+  it('weights an all-federated-boost post at the federated weight, not the native one', async () => {
     const post = await create();
     await db
       .update(posts)
@@ -185,18 +195,39 @@ describe('the two engagement composites disagree, and that is deliberate', () =>
       .where(eq(posts.id, post.id));
 
     const [scores] = await db
-      .select({
-        discovery: engagementScoreSql(),
-        social: socialEngagementScoreSql(),
-      })
+      .select({ score: engagementScoreSql() })
       .from(posts)
       .where(eq(posts.id, post.id));
 
     // native = max(0, 10 - 10) = 0 → 0 * 2.5; federated = 10 * 0.5
-    expect(scores.discovery).toBe(5);
-    // every boost at the native weight: 10 * 2.5
-    expect(scores.social).toBe(25);
-    expect(scores.discovery).not.toBe(scores.social);
+    expect(scores.score).toBe(5);
+    // The number the unsplit composite produced, named so a regression that
+    // reverts the dampening reads as what it is rather than as an off-by-a-factor.
+    expect(scores.score).not.toBe(25);
+  });
+
+  /**
+   * The other half of the split, so the case above cannot pass by dampening
+   * EVERY boost: a NATIVE boost still carries the full weight.
+   */
+  it('weights a native boost at the native weight', async () => {
+    const post = await create();
+    await db
+      .update(posts)
+      .set({
+        statsLikesCount: 0,
+        statsCommentsCount: 0,
+        statsBoostsCount: 10,
+        statsFederatedBoostsCount: 0,
+      })
+      .where(eq(posts.id, post.id));
+
+    const [scores] = await db
+      .select({ score: engagementScoreSql() })
+      .from(posts)
+      .where(eq(posts.id, post.id));
+
+    expect(scores.score).toBe(25);
   });
 
   it('returns the score as a NUMBER, not a numeric string', async () => {
