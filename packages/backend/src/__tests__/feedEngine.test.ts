@@ -150,6 +150,41 @@ describe('FeedEngine — ranked mode', () => {
     expect(result.nextCursor).toBeTruthy();
   });
 
+  /**
+   * A RANKED (not pre-scored) page continues under the v1 cursor, carrying the
+   * `excludeIds` guard.
+   *
+   * `rankingAsOf` used to be set only for pre-scored feeds, so every other ranked
+   * page — For You above all — minted the LEGACY `score:id` form, which carries
+   * no exclusions. That is the feed least able to afford it: its scores are
+   * recomputed against a fresh `Date.now()` on every page and its engagement
+   * counts move underneath, so the `score < cursor.score` window is applied to
+   * numbers that shifted since minting. The only thing standing between a reader
+   * and a repeat was the seen set — a 1000-id, 30-minute cache shared across
+   * three feeds, under most pressure exactly where the scroll is deepest.
+   */
+  it('mints a ranked cursor carrying the excludeIds guard, not the legacy form', async () => {
+    registry.register(sourceReturning('a', [scored(1, 9), scored(2, 5), scored(3, 1)]));
+    const def: FeedDefinition = {
+      id: 'test-ranked-cursor',
+      title: 'Test',
+      mode: 'ranked',
+      sources: [{ module: 'a', enabled: true }],
+      signals: [],
+      filters: [],
+    };
+
+    const result = await engine.run(def, { currentUserId: 'viewer' }, { limit: 1 });
+
+    expect(result.nextCursor).toBeTruthy();
+    const parsed = ScoreCursor.parse(result.nextCursor);
+    // The legacy `score:id` form parses too, and yields no `asOf` and no
+    // `excludeIds` — which is exactly the state this guards against, so both are
+    // asserted rather than only the payload's presence.
+    expect(parsed?.asOf).toBeGreaterThan(0);
+    expect(parsed?.excludeIds).toContain(id(1));
+  });
+
   it('keeps pre-scored pages disjoint when time and engagement advance', async () => {
     vi.useFakeTimers();
     const initialTime = Date.UTC(2026, 6, 26, 12, 0, 0);

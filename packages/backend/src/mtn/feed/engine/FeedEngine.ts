@@ -146,9 +146,30 @@ export class FeedEngine {
       ...context,
       cursor,
       pageLimit: limit,
-      // Explore is currently the only pre-scored source. Pin its time-dependent
-      // recency score on page one and carry that instant in every next cursor.
-      rankingAsOf: exec.preScored ? (parsedScoreCursor?.asOf ?? Date.now()) : undefined,
+      // Pinned on page one and carried in every next cursor, for EVERY ranked
+      // feed rather than only the pre-scored one.
+      //
+      // Two readers, and they want it for different reasons. `exploreSource`
+      // (pre-scored) uses it to freeze both ends of its candidate window so a
+      // row cannot cross a page boundary as the clock moves. The cursor minted
+      // below uses it as the gate on the v1 payload — without it a ranked page
+      // continues under the LEGACY `score:id` form, which carries no
+      // `excludeIds`.
+      //
+      // For You was in that second case, and it is the feed least able to afford
+      // it: its scores are recomputed against a fresh `Date.now()` on every page
+      // (recency decay, velocity, cold-start all read the wall clock) and its
+      // engagement counts move underneath, so the `score < cursor.score` window
+      // is applied to numbers that have shifted since the cursor was minted. The
+      // only thing standing between a reader and a repeat was the seen set — a
+      // 1000-id, 30-minute cache shared across for_you, videos and media, under
+      // the most pressure exactly where the scroll is deepest. The bounded
+      // rolling `excludeIds` guard now backs it up.
+      //
+      // Setting it for the ranked path changes no candidate window: the For You
+      // lanes take their own `recencyStart()` and never read this, and
+      // `exploreSource` is the only source that does.
+      rankingAsOf: parsedScoreCursor?.asOf ?? Date.now(),
     };
 
     // Anonymous popular fallback (For You / Videos / Media): no viewer signals,
