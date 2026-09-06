@@ -2136,5 +2136,7 @@
   "Trending now": "正在热议",
   "What are the latest news?": "有什么最新消息？",
   "Who can reply": "谁可以回复",
-  "Your reply has been posted!": "你的回复已发布！"
+  "Your reply has been posted!": "你的回复已发布！",
+  "profile.signInRequired": "登录以查看你的个人资料",
+  "profile.signInRequiredDesc": "登录后，你的帖子、回复和收藏会显示在这里。"
 }

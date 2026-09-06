@@ -30,7 +30,7 @@ describe('dynamic theme surfaces', () => {
   });
 
   it('does not let inline compose-mode colors override light/dark theme roles', () => {
-    const file = source('app', '(app)', 'compose.tsx');
+    const file = source('components', 'Compose', 'ComposeScreen.tsx');
     const modeLabel = styleBody(file, 'modeLabel');
     const modeDescription = styleBody(file, 'modeDescription');
 

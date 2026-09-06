@@ -2470,5 +2470,7 @@
   "Trending now": "Trending now",
   "What are the latest news?": "What are the latest news?",
   "Who can reply": "Who can reply",
-  "Your reply has been posted!": "Your reply has been posted!"
+  "Your reply has been posted!": "Your reply has been posted!",
+  "profile.signInRequired": "Sign in to see your profile",
+  "profile.signInRequiredDesc": "Your posts, replies and saved items live here once you sign in."
 }

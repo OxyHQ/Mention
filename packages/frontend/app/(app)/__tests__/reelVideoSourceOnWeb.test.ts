@@ -25,7 +25,7 @@ import { join } from 'node:path';
  * can.
  */
 
-const SCREEN = join(__dirname, '..', 'videos.tsx');
+const SCREEN = join(__dirname, '..', '(tabs)', 'videos.tsx');
 const CHROME = join(__dirname, '..', '..', '..', 'hooks', 'useReelChrome.ts');
 /** The screen that DOES decode HLS in JS — the positive control for the detector below. */
 const DECODES = join(__dirname, '..', '..', '..', 'components', 'common', 'VideoPlayer.tsx');

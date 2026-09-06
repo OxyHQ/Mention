@@ -2136,5 +2136,7 @@
   "Trending now": "Sedang tren",
   "What are the latest news?": "Apa berita terbaru?",
   "Who can reply": "Siapa yang bisa membalas",
-  "Your reply has been posted!": "Balasanmu sudah diposting!"
+  "Your reply has been posted!": "Balasanmu sudah diposting!",
+  "profile.signInRequired": "Masuk untuk melihat profilmu",
+  "profile.signInRequiredDesc": "Postingan, balasan, dan item tersimpanmu akan muncul di sini setelah kamu masuk."
 }

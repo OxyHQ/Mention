@@ -78,6 +78,12 @@ export interface PersonProfileViewOptions {
    * define this callback without a circular dependency on its own result.
    */
   onSelectTab: (descriptor: ProfileTabDescriptor, href: Href) => void;
+  /**
+   * The account to render when the URL does not name one — the `/you` tab's
+   * only reason to exist. Forwarded verbatim to
+   * {@link useProfileAccount}, which is where it is documented.
+   */
+  usernameOverride?: string;
 }
 
 export interface PersonProfileView extends ProfileAccount {
@@ -118,8 +124,9 @@ export function usePersonProfileView({
   active = true,
   activeKey,
   onSelectTab,
+  usernameOverride,
 }: PersonProfileViewOptions): PersonProfileView {
-  const account = useProfileAccount('person');
+  const account = useProfileAccount('person', undefined, usernameOverride);
   const { username, handle, isFederated } = account;
   const { user: currentUser } = useAuth();
   const { t } = useTranslation();

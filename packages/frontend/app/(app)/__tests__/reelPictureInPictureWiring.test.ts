@@ -25,7 +25,7 @@ import { join } from 'node:path';
  * PiP is still broken.
  */
 
-const SCREEN = join(__dirname, '..', 'videos.tsx');
+const SCREEN = join(__dirname, '..', '(tabs)', 'videos.tsx');
 
 describe('the reel offers Picture-in-Picture only if it can start it', () => {
   const source = readFileSync(SCREEN, 'utf8');

@@ -2160,5 +2160,7 @@
   "Trending now": "Tendències ara",
   "What are the latest news?": "Quines són les últimes notícies?",
   "Who can reply": "Qui pot respondre",
-  "Your reply has been posted!": "S'ha publicat la teva resposta!"
+  "Your reply has been posted!": "S'ha publicat la teva resposta!",
+  "profile.signInRequired": "Inicia la sessió per veure el teu perfil",
+  "profile.signInRequiredDesc": "Les teves publicacions, respostes i elements desats apareixen aquí quan inicies la sessió."
 }

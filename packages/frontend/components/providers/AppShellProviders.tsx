@@ -4,6 +4,7 @@ import { VideosRailProvider } from '@/context/VideosRailContext';
 import { VideoPlaybackProvider } from '@/context/VideoPlaybackContext';
 import { DrawerProvider } from '@/context/DrawerContext';
 import { BottomBarVisibilityProvider } from '@/context/BottomBarVisibilityContext';
+import { TabPagerProvider } from '@/context/TabPagerContext';
 
 /**
  * App-shell contexts owned by Mention. Everything Bloom owns — theme, haptics,
@@ -19,10 +20,17 @@ export const AppShellProviders = memo(function AppShellProviders({ children }: {
             focused, foregrounded player may play, and only one may be audible */}
         <VideoPlaybackProvider>
           <DrawerProvider>
-            {/* shared bottom-bar auto-hide signal, pinned visible on /videos */}
-            <BottomBarVisibilityProvider>
-              {children}
-            </BottomBarVisibilityProvider>
+            {/* Which root tab is showing, and where the bar's highlight sits.
+                It has to sit ABOVE the tabs layout, not inside it: the bottom
+                bar renders over pushed detail routes too (that is where its
+                `activeIndex` is -1), and on web there is no tabs navigator at
+                all. The navigator registers itself here when it mounts. */}
+            <TabPagerProvider>
+              {/* shared bottom-bar auto-hide signal, pinned visible on /videos */}
+              <BottomBarVisibilityProvider>
+                {children}
+              </BottomBarVisibilityProvider>
+            </TabPagerProvider>
           </DrawerProvider>
         </VideoPlaybackProvider>
       </VideosRailProvider>

@@ -2230,5 +2230,7 @@
   "Trending now": "الرائج الآن",
   "What are the latest news?": "ما آخر الأخبار؟",
   "Who can reply": "من يمكنه الرد",
-  "Your reply has been posted!": "تم نشر ردّك!"
+  "Your reply has been posted!": "تم نشر ردّك!",
+  "profile.signInRequired": "سجّل الدخول لعرض ملفك الشخصي",
+  "profile.signInRequiredDesc": "ستظهر منشوراتك وردودك وعناصرك المحفوظة هنا بمجرد تسجيل الدخول."
 }

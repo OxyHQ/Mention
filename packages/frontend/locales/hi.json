@@ -2136,5 +2136,7 @@
   "Trending now": "अभी ट्रेंडिंग",
   "What are the latest news?": "ताज़ा समाचार क्या हैं?",
   "Who can reply": "कौन जवाब दे सकता है",
-  "Your reply has been posted!": "आपका जवाब पोस्ट हो गया है!"
+  "Your reply has been posted!": "आपका जवाब पोस्ट हो गया है!",
+  "profile.signInRequired": "अपनी प्रोफ़ाइल देखने के लिए साइन इन करें",
+  "profile.signInRequiredDesc": "साइन इन करने पर आपकी पोस्ट, जवाब और सहेजे गए आइटम यहाँ दिखेंगे।"
 }

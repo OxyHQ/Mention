@@ -2136,5 +2136,7 @@
   "Trending now": "Şu anda gündemde",
   "What are the latest news?": "Son haberler neler?",
   "Who can reply": "Kimler yanıtlayabilir",
-  "Your reply has been posted!": "Yanıtın paylaşıldı!"
+  "Your reply has been posted!": "Yanıtın paylaşıldı!",
+  "profile.signInRequired": "Profilini görmek için giriş yap",
+  "profile.signInRequiredDesc": "Giriş yaptığında gönderilerin, yanıtların ve kaydettiklerin burada görünür."
 }

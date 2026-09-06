@@ -280,6 +280,12 @@ export interface ProfileScreenProps {
    * whether that tab exists at all, so an unknown id lands on `posts`.
    */
   laneId?: string;
+  /**
+   * Render this account instead of the one the URL names. Set only by the
+   * `/you` tab, which IS the viewer's own profile and therefore has no
+   * `[username]` segment to read; documented in full on `useProfileAccount`.
+   */
+  usernameOverride?: string;
 }
 
 // Component props for FollowButton from @oxyhq/services

@@ -2136,5 +2136,7 @@
   "Trending now": "এখন ট্রেন্ডিং",
   "What are the latest news?": "সর্বশেষ খবর কী?",
   "Who can reply": "কারা উত্তর দিতে পারবেন",
-  "Your reply has been posted!": "আপনার উত্তর পোস্ট করা হয়েছে!"
+  "Your reply has been posted!": "আপনার উত্তর পোস্ট করা হয়েছে!",
+  "profile.signInRequired": "আপনার প্রোফাইল দেখতে সাইন ইন করুন",
+  "profile.signInRequiredDesc": "সাইন ইন করলে আপনার পোস্ট, উত্তর ও সংরক্ষিত আইটেম এখানে দেখা যাবে।"
 }

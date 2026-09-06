@@ -71,15 +71,26 @@ jest.mock('@/components/AppSplashScreen', () => ({
 jest.mock('react-native-reanimated', () => ({
   useSharedValue: (initial: number) => ({ value: initial }),
   useAnimatedReaction: () => {},
+  // `TabPagerProvider` settles the bar's highlight onto whatever tab the route
+  // ended up on. Nothing here looks at the motion; it just has to be callable.
+  withSpring: (value: number) => value,
 }));
 
 jest.mock('expo-router', () => ({
   usePathname: () => '/',
   useIsFocused: () => true,
+  // `TabPagerProvider` reads the router imperatively to pop anything pushed
+  // over the tabs before switching. Nothing here selects a tab, so these are
+  // only present so the module resolves.
+  router: { canDismiss: () => false, dismissAll: () => {}, navigate: () => {} },
 }));
 
 jest.mock('@oxyhq/services/ui/client', () => ({
   OxyProvider: ({ children }: { children: React.ReactNode }) => children,
+  // `TabPagerProvider` needs the viewer's handle to recognise `/@<own handle>`
+  // as the profile tab (on web `/you` redirects there). Signed out is the
+  // simplest true state for a shell-shape test.
+  useAuth: () => ({ user: undefined }),
 }));
 
 jest.mock('react-i18next', () => ({
