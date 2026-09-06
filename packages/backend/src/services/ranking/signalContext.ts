@@ -29,7 +29,6 @@ export interface RankingUserBehavior {
   preferredAuthors?: Array<{ authorId: string; weight: number }>;
   preferredTopics?: Array<{ topic: string; topicId?: unknown; weight: number }>;
   preferredPostTypes?: Partial<UserBehaviorRecord['preferredPostTypes']>;
-  preferredLanguages?: string[];
   activeHours?: number[];
   hiddenAuthors?: string[];
   mutedAuthors?: string[];
@@ -194,7 +193,7 @@ export interface CalculatePostScoreContext extends OptInSignalContext {
    * 639-1 classification languages on the BASE subtag. Empty/absent ⇒ neutral
    * (never penalize).
    */
-  viewerLanguages?: string[];
+  viewerBaseLanguages?: string[];
 }
 
 /**
@@ -213,8 +212,8 @@ export interface SignalContext {
   authorFollowerCounts?: Map<string, number>;
   /** Whether the viewer opted in to sensitive/NSFW content (default false → SFW). */
   showSensitiveContent: boolean;
-  /** The viewer's account languages (BCP-47 locales), for `languageMismatchPenalty`. */
-  viewerLanguages?: string[];
+  /** The reader's READABILITY set (ISO 639-1 base subtags), for `languageMismatchPenalty`. */
+  viewerBaseLanguages?: string[];
   feedSettings?: FeedRankingSettings;
   /** Optional pre-calculated engagement scores (postId → score). */
   engagementScoreCache?: Map<string, number>;
@@ -268,7 +267,7 @@ export function buildSignalContext(
     behaviorSets: context.behaviorSets,
     authorFollowerCounts: context.authorFollowerCounts,
     showSensitiveContent: context.showSensitiveContent === true,
-    viewerLanguages: context.viewerLanguages,
+    viewerBaseLanguages: context.viewerBaseLanguages,
     feedSettings: context.feedSettings,
     engagementScoreCache: context.engagementScoreCache,
     enabledSignals: context.enabledSignals,

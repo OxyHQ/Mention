@@ -1,5 +1,5 @@
-import { FeedPostSlice } from '@mention/shared-types';
-import { TunerContext } from '../FeedTuner';
+import type { FeedPostSlice } from '@mention/shared-types';
+import type { TunerContext } from '../FeedTuner';
 
 /**
  * Remove reply-context slices when user has hideReplies enabled.

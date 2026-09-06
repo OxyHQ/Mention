@@ -189,13 +189,13 @@ function buildFixtureCandidates(): EvalCandidate[] {
   ];
 }
 
-async function runFixtureEval(viewerLanguages: string[] = ['en']) {
+async function runFixtureEval(viewerBaseLanguages: string[] = ['en']) {
   return runFeedQualityEval({
     candidates: buildFixtureCandidates(),
     classifier: baselineContentClassifier,
     ranking: RANKING_STUB,
     gateModules: GATE_MODULES,
-    context: { viewerLanguages },
+    context: { viewerBaseLanguages },
     viewerId: 'viewer-1',
     topK: 10,
   });

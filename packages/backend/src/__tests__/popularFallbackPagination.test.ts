@@ -390,3 +390,75 @@ describe.each(SOURCES)('$name pagination', ({ source, content }) => {
     expect(mine).toEqual([safe]);
   });
 });
+
+/**
+ * The reader-language predicate on `popularSource`.
+ *
+ * Scoped to this ONE source rather than driven over all three above, because
+ * that is the actual scope of the predicate — and the reason is worth stating
+ * rather than leaving as an omission a later reader has to guess at:
+ *
+ *   - `popular` IS the entire For You feed for a signed-out reader
+ *     (`FeedEngine.run` serves it directly when there is no `currentUserId`), the
+ *     never-blank tail for a signed-in one, AND the source behind the `trending`
+ *     preset. Measured against production on 2026-09-05, the anonymous For You
+ *     page came back 48% `de` from a corpus that is 6.8% `de`.
+ *   - `popularVideos` / `popularMedia` are deliberately EXEMPT for now. They back
+ *     surfaces whose content is not primarily text, and widening the predicate to
+ *     them is a separate product call rather than part of this fix.
+ */
+describe('popularSource — reader-language predicate', () => {
+  const ES = { postClassification: { languages: ['es'] } } as Partial<PostRecordInput>;
+  const DE = { postClassification: { languages: ['de'] } } as Partial<PostRecordInput>;
+
+  async function gatherIds(ctx: Partial<FeedEngineContext>, ids: string[]): Promise<string[]> {
+    const candidates = await popularSource.gather(ctx as FeedEngineContext, {}, 500);
+    return candidates.map((candidate) => candidate.id).filter((id) => ids.includes(id));
+  }
+
+  it('drops an off-language post for a reader who declared their languages', async () => {
+    const spanish = await create(50, RECENT, ES);
+    const german = await create(60, RECENT, DE);
+
+    // German has MORE engagement, so it sorts first and would lead the page. That
+    // is the whole failure being fixed: engagement was the only axis this source
+    // ever ordered on.
+    expect(await gatherIds({ viewerBaseLanguages: ['es'] }, [spanish, german])).toEqual([spanish]);
+  });
+
+  /**
+   * POSITIVE CONTROL for the case above.
+   *
+   * Without it, "the German post is absent" proves nothing — a source that
+   * returned `[]` for any unrelated reason (a broken recency window, a bad
+   * keyset) passes that assertion just as happily. Same fixtures, same source,
+   * declaration removed: BOTH posts must come back, German first on engagement.
+   */
+  it('filters NOTHING for a reader whose languages are unknown', async () => {
+    const spanish = await create(50, RECENT, ES);
+    const german = await create(60, RECENT, DE);
+
+    expect(await gatherIds({}, [spanish, german])).toEqual([german, spanish]);
+    expect(await gatherIds({ viewerBaseLanguages: [] }, [spanish, german])).toEqual([german, spanish]);
+  });
+
+  it('keeps a post when ANY of its languages matches', async () => {
+    const bilingual = await create(50, RECENT, { postClassification: { languages: ['de', 'es'] } });
+    const german = await create(60, RECENT, DE);
+
+    expect(await gatherIds({ viewerBaseLanguages: ['es'] }, [bilingual, german])).toEqual([bilingual]);
+  });
+
+  /**
+   * `allowUnclassified` defaults to false — an unverifiable language is not a
+   * match. NULL and EMPTY are distinct values in Postgres and both mean
+   * "unresolved", so both are asserted.
+   */
+  it('drops a post whose language never resolved', async () => {
+    const spanish = await create(50, RECENT, ES);
+    const empty = await create(60, RECENT, { postClassification: { languages: [] } });
+    const missing = await create(70, RECENT, {});
+
+    expect(await gatherIds({ viewerBaseLanguages: ['es'] }, [spanish, empty, missing])).toEqual([spanish]);
+  });
+});

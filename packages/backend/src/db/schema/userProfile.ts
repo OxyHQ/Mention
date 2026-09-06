@@ -93,6 +93,23 @@ export const userBehaviors = pgTable(
 
     /** Hours 0..23 the user is most active. A small scalar set. */
     activeHours: integer().array(),
+    /**
+     * DEAD as of the feed-language authority change: nothing reads or writes it.
+     *
+     * It was a LEARNED language set, appended to on any recorded interaction —
+     * including a SKIP — never weighted and never decayed, so scrolling past a
+     * post in a language you do not read taught the feed to fetch more of it. The
+     * reader's DECLARED languages (Oxy account, else `Accept-Language`) replaced
+     * it as the single source; see `mtn/feed/feedLanguage.ts`.
+     *
+     * The DECLARATION stays only because `drizzle-kit generate` would otherwise
+     * emit `DROP COLUMN "preferred_languages"`, and that must not land yet:
+     * migrations run as a one-shot BEFORE the rolling update, so the previous
+     * image — whose `select()` still names the column — would answer `42703` on
+     * every behavior read for the length of the rollout. Drop it in a LATER
+     * release, once no running image selects it. Same reasoning, same shape, as
+     * `posts.tags`.
+     */
     preferredLanguages: text().array(),
 
     averageEngagementTime: doublePrecision().notNull().default(0),

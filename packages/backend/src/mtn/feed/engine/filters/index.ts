@@ -225,7 +225,7 @@ export const safetyFilter: FilterModule = {
 
 /**
  * `languagePreference`: any-overlap language match against
- * `postClassification.languages` (wraps the array-based `filterByLanguage`).
+ * `postClassification.languages`.
  * Posts with no declared language pass through. User-composable: it is a
  * first-class custom-feed filter and the target of the legacy `language`
  * migration, so it must be selectable in the builder.

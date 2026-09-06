@@ -304,13 +304,53 @@ export function createTextEntityPattern(options: ScanTextEntitiesOptions = {}): 
  * is what both linkifiers need: walk the list, emit `text.slice(cursor, start)`
  * as plain text, emit the entity, set `cursor = end`.
  */
+/**
+ * Compiled patterns, keyed by option set.
+ *
+ * `createTextEntityPattern` assembles an alternation of a dozen sources and calls
+ * `new RegExp` — measured at ~29 µs, and FIXED rather than text-length dependent,
+ * so a 10-character body costs the same as a 200-character one. That is fine for
+ * the callers this module was written for, and it is not fine for the feed's
+ * discovery gate: `detectLowEffort` scans AND strips (two compiles) for every
+ * candidate, and the gate now runs on ~90 candidates per Discover request. ~5 ms
+ * of blocking event-loop CPU per request, to recompile the same handful of
+ * patterns over and over.
+ *
+ * Bounded by construction: the key is the whole option set, and the callers in
+ * this repo use three of them. Safe to share because the ONE consumer is
+ * `matchAll` below, which per spec clones the regex and copies `lastIndex` rather
+ * than advancing the original — a shared instance carries no state between calls.
+ *
+ * {@link createTextEntityPattern} deliberately keeps returning a FRESH instance:
+ * it is exported, and an external caller driving `.exec()` in a loop would mutate
+ * the `lastIndex` of anything it shared. Every current external caller only reads
+ * `.source`, but that is their choice to change, not ours to assume.
+ */
+const patternCache = new Map<string, RegExp>();
+
+function cachedTextEntityPattern(options: ScanTextEntitiesOptions): RegExp {
+  const {
+    kinds = DEFAULT_ENTITY_KINDS,
+    urlTerminator = 'whitespace',
+    bareWww = true,
+  } = options;
+  const key = `${[...kinds].join(',')}|${urlTerminator}|${bareWww}`;
+
+  const hit = patternCache.get(key);
+  if (hit) return hit;
+
+  const pattern = createTextEntityPattern(options);
+  patternCache.set(key, pattern);
+  return pattern;
+}
+
 export function scanTextEntities(
   text: string,
   options: ScanTextEntitiesOptions = {},
 ): TextEntity[] {
   if (!text) return [];
 
-  const pattern = createTextEntityPattern(options);
+  const pattern = cachedTextEntityPattern(options);
   const entities: TextEntity[] = [];
 
   for (const match of text.matchAll(pattern)) {

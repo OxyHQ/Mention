@@ -28,6 +28,7 @@ import { FeedQueryBuilder, authorNotInSql, notABoostSql, rankingWeight } from '.
 import { fetchWithRecencyFallback } from '../../../../utils/feedUtils';
 import { ScoreCursor, chronoOrderBy, type ScoreCursorData } from '../../CursorBuilder';
 import { discoverySafeSql, filterDiscoverable } from '../../feedSafety';
+import { viewerLanguageSql } from '../../feedLanguage';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
 /**
@@ -122,6 +123,24 @@ async function selectCandidates(
   return assemblePostRecords(rows, db);
 }
 
+/**
+ * Everything a DISCOVERY query guards on: the sensitive filter, and the reader's
+ * languages.
+ *
+ * One function because the sibling file already learned this lesson the hard way.
+ * `withDiscoveryGuards` in `feeds/forYouCandidateSources.ts` states it: "a guard
+ * stated per-lane is a guard a new lane inherits nothing of… how `popularSource`
+ * ended up the one discovery surface with no language predicate at all". That
+ * argument applies verbatim here, where the same two predicates were hand-written
+ * at all six discovery sources in this file.
+ *
+ * Returns an `SQL` for `and(...)` to absorb; `viewerLanguageSql` yields
+ * `undefined` for an unknown reader and `and` drops it.
+ */
+function discoveryGuardsSql(ctx: FeedEngineContext): SQL {
+  return and(discoverySafeSql(), viewerLanguageSql(ctx.viewerBaseLanguages)) as SQL;
+}
+
 /** `videos`: ranked candidate query for video posts (wraps `buildVideosQuery`). */
 export const videosSource: SourceModule = {
   id: 'videos',
@@ -134,7 +153,7 @@ export const videosSource: SourceModule = {
           orientation: ctx.videoFilters?.orientation,
           minDurationSec: ctx.videoFilters?.minDurationSec,
         }),
-        discoverySafeSql(),
+        discoveryGuardsSql(ctx),
       ) as SQL,
       chronoOrderBy(),
       cap,
@@ -150,7 +169,7 @@ export const mediaSource: SourceModule = {
     selectCandidates(
       and(
         FeedQueryBuilder.buildMediaFeedQuery(ctx.seenPostIds ?? []),
-        discoverySafeSql(),
+        discoveryGuardsSql(ctx),
       ) as SQL,
       chronoOrderBy(),
       cap,
@@ -158,22 +177,32 @@ export const mediaSource: SourceModule = {
 };
 
 /**
- * Build the bounded RELEVANCE multiplier for the authenticated Explore feed from
- * the viewer's learned signals — a SOFT lift on top of engagement×recency (never
- * a filter). Neutral `1` for anonymous / no-signal viewers.
+ * Build the bounded RELEVANCE multiplier for Discover from the viewer's signals —
+ * a SOFT lift on top of engagement×recency (never a filter). Neutral `1` for a
+ * viewer with no signals at all.
  *
  * Each matched dimension multiplies in and the product is clamped to `maxBoost`,
  * so no single viewer signal can dominate ranking.
+ *
+ * There is NO language dimension here. There was one — a x1.15 lift for an
+ * in-language post — and it became unobservable the moment Discover started
+ * FILTERING on language: every row that survives `viewerLanguageSql` matches the
+ * reader's languages, so the factor multiplied the whole result set uniformly and
+ * ordered nothing. Unlike `languageMismatchPenalty`, which still covers candidates
+ * reaching ranking without passing a filtered query, this factor sat in the same
+ * SQL as the filter that subsumes it.
  */
 function resolveExploreRelevance(ctx: FeedEngineContext): SQL {
   const cfg = MtnConfig.ranking.exploreRelevance;
   const candidateCfg = MtnConfig.feed.candidateSources;
   const NEUTRAL = sql`1::double precision`;
 
+  // Both surviving dimensions are authenticated-only, so one early return covers
+  // them — the language dimension that made this per-field is gone.
   if (!ctx.currentUserId) return NEUTRAL;
 
   const behavior = ctx.userBehavior as
-    | { preferredTopics?: Array<{ topic?: string; weight?: number }>; preferredLanguages?: string[] }
+    | { preferredTopics?: Array<{ topic?: string; weight?: number }> }
     | undefined;
 
   const topics = (behavior?.preferredTopics ?? [])
@@ -182,15 +211,11 @@ function resolveExploreRelevance(ctx: FeedEngineContext): SQL {
     .slice(0, candidateCfg.maxPreferredTopics)
     .map((t) => t.topic.toLowerCase());
 
-  const languages = (behavior?.preferredLanguages ?? [])
-    .filter((l): l is string => typeof l === 'string' && l.length > 0)
-    .slice(0, candidateCfg.maxPreferredLanguages);
-
   const region = typeof ctx.viewerRegion === 'string' && ctx.viewerRegion.length > 0
     ? ctx.viewerRegion
     : undefined;
 
-  if (topics.length === 0 && languages.length === 0 && !region) return NEUTRAL;
+  if (topics.length === 0 && !region) return NEUTRAL;
 
   const factors: SQL[] = [];
 
@@ -214,11 +239,6 @@ function resolveExploreRelevance(ctx: FeedEngineContext): SQL {
   if (topics.length > 0) {
     factors.push(sql`(case when coalesce(${arrayOverlaps(posts.classificationTopics, topics)}, false)
       then ${rankingWeight(cfg.topicMatch)} else 1 end)`);
-  }
-
-  if (languages.length > 0) {
-    factors.push(sql`(case when coalesce(${arrayOverlaps(posts.classificationLanguages, languages)}, false)
-      then ${rankingWeight(cfg.languageMatch)} else 1 end)`);
   }
 
   if (region) {
@@ -299,6 +319,13 @@ export const exploreSource: SourceModule = {
     const excludeAuthors = authorNotInSql(excludeUserIds);
     if (excludeAuthors) conditions.push(excludeAuthors);
 
+    // Discover is language-filtered too — see `feedLanguage.ts` for the
+    // measurement that decided it. `discoverySafeSql()` is already in
+    // `conditions` above, so this adds the language half on its own rather than
+    // going through `discoveryGuardsSql`.
+    const language = viewerLanguageSql(ctx.viewerBaseLanguages);
+    if (language) conditions.push(language);
+
     const cursorExcludedIds = parsedCursor?.excludeIds ?? [];
     if (cursorExcludedIds.length > 0) {
       conditions.push(notInArray(posts.id, [...cursorExcludedIds]));
@@ -341,6 +368,11 @@ export const exploreSource: SourceModule = {
  * pool that was 47.1% replies while the ranked path did not. It now reads the same
  * stored `is_reply` column the `explore` source above it does, so the two
  * discovery surfaces in this file cannot drift on what a reply is.
+ *
+ * The SAME argument applies to language, and it is why the reader-language
+ * predicate is applied here too: this source hand-built its match and never asked
+ * that question either. It is also the SOURCE (not just the fallback) behind the
+ * `trending` preset, so both surfaces are covered by the one predicate.
  */
 export const popularSource: SourceModule = {
   id: 'popular',
@@ -354,6 +386,13 @@ export const popularSource: SourceModule = {
       eq(posts.isReply, false),
       notABoostSql(),
     ];
+
+    // THIS source is where the language bug actually lived — it is the whole For
+    // You feed for a signed-out reader, and it bypasses `FeedEngine.gatherPool`,
+    // so it inherited no guard at all. `discoverySafeSql()` is already in
+    // `baseConditions` above; see `feedLanguage.ts` for the measurement.
+    const language = viewerLanguageSql(ctx.viewerBaseLanguages);
+    if (language) baseConditions.push(language);
 
     // Exclude what the viewer has already been shown. The video and media
     // fallbacks thread the seen set through their query builders; this one built
@@ -508,7 +547,7 @@ export const popularVideosSource: SourceModule = {
           orientation: ctx.videoFilters?.orientation,
           minDurationSec: ctx.videoFilters?.minDurationSec,
         }),
-        discoverySafeSql(),
+        discoveryGuardsSql(ctx),
       ) as SQL,
       cap,
       ctx.cursor,
@@ -524,7 +563,7 @@ export const popularMediaSource: SourceModule = {
     gatherPopularByQuery(
       and(
         FeedQueryBuilder.buildMediaFeedQuery(ctx.seenPostIds ?? []),
-        discoverySafeSql(),
+        discoveryGuardsSql(ctx),
       ) as SQL,
       cap,
       ctx.cursor,

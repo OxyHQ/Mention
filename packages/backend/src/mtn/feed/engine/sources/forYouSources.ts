@@ -25,7 +25,6 @@ import {
   gatherSubscribedListsLane,
   gatherAffinityLane,
   gatherTopicsLane,
-  gatherLanguageLane,
   gatherRegionLane,
   gatherTrendingLane,
   gatherGlobalLane,
@@ -73,6 +72,7 @@ function forYouParams(ctx: FeedEngineContext): GatherForYouCandidatesParams | nu
     subscribedListMemberIds: ctx.subscribedListMemberIds,
     userBehavior: ctx.userBehavior as CandidateUserBehavior | undefined,
     viewerRegion: ctx.viewerRegion,
+    viewerLanguages: ctx.viewerBaseLanguages,
     seenPostIds: ctx.seenPostIds ?? [],
     oxyClient: ctx.privacyOxyClient,
   };
@@ -229,17 +229,12 @@ export const affinitySource: SourceModule = {
   id: 'affinity',
   kind: 'source',
   userComposable: false,
-  // TRUSTED: affinity authors are learned from the viewer's own engagement, never gated.
+  // TRUSTED to the discovery GATE — the viewer's own engagement vouches for these
+  // authors' quality. NOT trusted for LANGUAGE: the lane excludes everyone the
+  // viewer follows, so it is people they never chose, and `gatherAffinityLane`
+  // filters it. See `feedLanguage.ts`.
   trusted: true,
   gather: async (ctx) => runForYouLane(ctx, gatherAffinityLane),
-};
-
-/** `language`: For You ranked lane — posts in the viewer's preferred languages. */
-export const languageSource: SourceModule = {
-  id: 'language',
-  kind: 'source',
-  userComposable: true,
-  gather: async (ctx) => runForYouLane(ctx, gatherLanguageLane),
 };
 
 /** `region`: For You ranked lane — posts in the viewer's learned region. */
@@ -271,7 +266,6 @@ export const forYouSourceModules: SourceModule[] = [
   listsSource,
   topicSource,
   affinitySource,
-  languageSource,
   regionSource,
   trendingSource,
   globalDiscoverySource,

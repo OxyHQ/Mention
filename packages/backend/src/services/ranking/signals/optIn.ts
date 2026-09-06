@@ -275,30 +275,31 @@ export function starterPackBoost(
  * Neutral (1.0) in every other case (unmarked post, unknown viewer languages,
  * unclassified post, or any language overlap).
  *
- * The two sides are expressed in DIFFERENT units and are compared on the BASE
- * language subtag: the viewer's languages are full BCP-47 locales from their Oxy
- * account (`es-ES`, `en-US`), while a post's classification languages are ISO
- * 639-1 base codes (`es`, `en`). `getBaseLanguage` (`'es-ES'` → `'es'`) puts them
- * in the same unit, so an `es-ES`/`en-US` viewer matches `es` and `en` posts and
- * is penalized only on a genuinely foreign language (`de`, `ja`, …). Region is
- * deliberately ignored — a Mexican Spanish reader reads Spain's Spanish. Both
- * lists are tiny (≤ 3 entries), so the overlap check is a cheap nested scan.
+ * `ctx.viewerBaseLanguages` arrives as ISO 639-1 BASE subtags — `loadViewerFeedContext`
+ * normalizes the account's BCP-47 locales (`es-ES`) once, at the boundary — so
+ * this is a same-unit comparison against `postClassification.languages` and only
+ * the POST side needs `getBaseLanguage` (a federated declaration can still carry a
+ * region). Region is deliberately ignored: a Mexican Spanish reader reads Spain's
+ * Spanish. Both lists are tiny (≤ 3 entries), so the overlap check is a cheap
+ * nested scan.
+ *
+ * This is now the SECOND line of defense, not the only one. `viewerLanguageSql`
+ * (`mtn/feed/feedLanguage.ts`) excludes off-language candidates in the discovery
+ * QUERIES, because a 0.5x multiplier cannot beat an engagement gap of several
+ * orders of magnitude in a score that is a product of eleven signals — measured
+ * on production, the anonymous For You page was 48% `de` on a 6.8%-`de` corpus
+ * with this penalty already enabled. The penalty still earns its place: it covers
+ * what reaches ranking WITHOUT passing one of those queries.
  */
-export function languageMismatchPenalty(post: RankablePost, viewerLanguages: string[] | undefined): number {
+export function languageMismatchPenalty(post: RankablePost, viewerBaseLanguages: string[] | undefined): number {
   if (post?._discovery !== true) {
     return 1.0;
   }
-  if (!viewerLanguages || viewerLanguages.length === 0) {
+  if (!viewerBaseLanguages || viewerBaseLanguages.length === 0) {
     return 1.0;
   }
   const postLanguages = post?.postClassification?.languages;
   if (!Array.isArray(postLanguages) || postLanguages.length === 0) {
-    return 1.0;
-  }
-  const viewerBaseLanguages = viewerLanguages
-    .map((locale) => getBaseLanguage(locale))
-    .filter((base) => base.length > 0);
-  if (viewerBaseLanguages.length === 0) {
     return 1.0;
   }
   const overlaps = postLanguages.some((lang) => viewerBaseLanguages.includes(getBaseLanguage(lang)));
@@ -334,7 +335,7 @@ export const OPT_IN_SIGNALS: readonly OptInScorer[] = [
   // (and the golden-master product) is unchanged. Both fire only when explicitly
   // enabled (DORMANT until Phase 5), so preset ranking is unaffected.
   { id: 'localBoost', score: (post) => localBoost(post) },
-  { id: 'languageMismatchPenalty', score: (post, ctx) => languageMismatchPenalty(post, ctx.viewerLanguages) },
+  { id: 'languageMismatchPenalty', score: (post, ctx) => languageMismatchPenalty(post, ctx.viewerBaseLanguages) },
   // Curation signal — appended at the END for the same reason: an existing feed's
   // opt-in product is untouched unless it explicitly enables this signal.
   { id: 'starterPackBoost', score: (post, ctx) => starterPackBoost(post, ctx.authorStarterPackScores) },

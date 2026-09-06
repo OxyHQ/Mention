@@ -84,7 +84,7 @@ export interface EvalGateModule {
 export interface EvalContext {
   userBehavior?: RankingUserBehavior;
   /** The viewer's account languages — BCP-47 locales (`es-ES`) or bare base subtags (`es`). */
-  viewerLanguages?: string[];
+  viewerBaseLanguages?: string[];
   feedTuning?: FeedTuning;
   followingIds?: string[];
   /** Opt-in ranking signal ids to enable (the For You Phase-2b/4 set). */
@@ -288,17 +288,20 @@ export async function runFeedQualityEval(deps: FeedQualityEvalDeps): Promise<Eva
     followingIds: context.followingIds ?? [],
     userBehavior: context.userBehavior,
     feedTuning: context.feedTuning,
-    viewerLanguages: context.viewerLanguages,
+    // BOTH fields, because the gate context has to be the one production builds:
+    // `viewerBaseLanguages` is what the discovery predicate and ranking read, and
+    // setting only the locale field left the harness measuring a reader whose
+    // languages were unknown.
+    viewerBaseLanguages: context.viewerBaseLanguages,
   };
 
   // Built once (not per post) — the negative-penalty + personalization signals read it.
   const behaviorSets = buildBehaviorSets(context.userBehavior);
-  // The language-match METRIC mirrors the `languageMismatchPenalty` signal: the
-  // viewer's BCP-47 locales are reduced to their base subtag (`es-ES` → `es`) so
-  // they compare like-for-like against a post's ISO 639-1 classification languages.
-  const viewerLangSet = new Set(
-    (context.viewerLanguages ?? []).map((locale) => getBaseLanguage(locale)).filter((base) => base.length > 0),
-  );
+  // The language-match METRIC mirrors the `languageMismatchPenalty` signal.
+  // `context.viewerBaseLanguages` is the READABILITY set and already arrives as ISO
+  // 639-1 base subtags, so only the POST side needs reducing — a federated
+  // declaration can still carry a region (`pt-BR`).
+  const viewerLangSet = new Set(context.viewerBaseLanguages ?? []);
 
   const rows: EvalScoredRow[] = [];
 
@@ -313,7 +316,7 @@ export async function runFeedQualityEval(deps: FeedQualityEvalDeps): Promise<Eva
       userBehavior: context.userBehavior,
       behaviorSets,
       followingIds: context.followingIds,
-      viewerLanguages: context.viewerLanguages,
+      viewerBaseLanguages: context.viewerBaseLanguages,
       enabledSignals: context.enabledSignals,
     });
     const explanation = explainRanking(evaluated as RankablePost);
@@ -652,7 +655,7 @@ async function main(): Promise<void> {
   const { registerAllModules } = await import('../mtn/feed/engine/index.js');
   const { feedModuleRegistry } = await import('../mtn/feed/engine/FeedModuleRegistry.js');
   const { resolveDiscoveryGate, resolvePhase2bSignals } = await import('../mtn/feed/definitions/presets.js');
-  const { loadViewerFeedContext } = await import('../mtn/feed/feedContext.js');
+  const { loadViewerFeedContext, resolveViewerBaseLanguages } = await import('../mtn/feed/feedContext.js');
   const { gatherForYouCandidates } = await import('../mtn/feed/feeds/forYouCandidateSources.js');
   const { getServiceOxyClient } = await import('../utils/oxyHelpers.js');
   const { FEED_QUALITY_LABELS, resolveLabeledPosts } = await import('./fixtures/feedQualityLabels.js');
@@ -768,10 +771,15 @@ async function main(): Promise<void> {
     // ---- Assemble the candidate set (dedup by _id, labeled wins) ----
     const candidates = assembleCandidates(labeledPosts, randomSample, forYouPool, actorByUri);
 
-    // ---- Viewer languages: CLI override, else the viewer's resolved Oxy account locales ----
-    const viewerLanguages = args.languages.length > 0
-      ? args.languages
-      : (viewerContext?.viewerLanguages ?? []);
+    // ---- Viewer languages: CLI override, else the viewer's resolved readability set ----
+    // Normalized to ISO 639-1 base subtags either way, because that is the unit
+    // ranking consumes: `--languages es-ES,en` and `--languages es,en` must
+    // measure the same thing, and an unparseable entry must drop out rather than
+    // mismatch every post and report a language-match rate of zero.
+    const viewerBaseLanguages = resolveViewerBaseLanguages(
+      args.languages,
+      viewerContext?.viewerBaseLanguages ?? [],
+    );
 
     const enabledSignals = new Set(resolvePhase2bSignals().map((ref) => ref.module));
 
@@ -782,7 +790,7 @@ async function main(): Promise<void> {
       gateModules,
       context: {
         userBehavior: viewerContext?.userBehavior,
-        viewerLanguages,
+        viewerBaseLanguages,
         feedTuning: viewerContext?.feedTuning,
         followingIds: viewerContext?.followingIds,
         enabledSignals,

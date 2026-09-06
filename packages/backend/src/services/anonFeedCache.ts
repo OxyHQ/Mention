@@ -42,7 +42,23 @@ interface AnonFeedCacheKeyInput {
   limit: number;
   /** Pagination cursor for the page. */
   cursor?: string;
-  /** Fully-resolved feed filters (authors, keywords, language, …). */
+  /**
+   * The reader languages the response was built for — ISO 639-1 base subtags.
+   *
+   * Part of the cache IDENTITY, not a personalization: an anonymous feed is
+   * shared, and since `loadViewerFeedContext` now resolves an anonymous reader's
+   * languages from their request (`?lang=`, then `Accept-Language`), two readers
+   * with different locales get genuinely different pages. Without this in the key
+   * they would collapse onto whichever one warmed the entry first — a Spanish
+   * reader served the German reader's feed, which is the bug this whole change
+   * exists to fix, reintroduced one layer up.
+   *
+   * `TrendingService` keys its shared read on languages for exactly this reason.
+   * The set is normalized, deduped and capped at 3 upstream, so the cardinality
+   * this adds is bounded and `es,en` / `en,es` are ONE entry rather than two.
+   */
+  languages?: readonly string[];
+  /** Fully-resolved feed filters (authors, keywords, …). */
   filters?: Record<string, unknown>;
 }
 
@@ -78,8 +94,8 @@ class AnonFeedCache {
   private readonly KEY_PREFIX = 'anonfeed:v1:';
 
   /**
-   * Build a collision-free cache key. Distinct filters/sort/cursor/limit map to
-   * distinct keys, so two different anon requests never share an entry. The
+   * Build a collision-free cache key. Distinct filters/sort/cursor/limit/languages
+   * map to distinct keys, so two different anon requests never share an entry. The
    * (potentially large) filter object is fingerprinted with a short SHA-256 so
    * the key stays bounded.
    */
@@ -89,12 +105,17 @@ class AnonFeedCache {
       ? createHash('sha256').update(stableStringify(input.filters)).digest('hex').slice(0, 16)
       : 'none';
     const namespacedType = input.namespace ? `${input.namespace}:${input.type}` : input.type;
+    // SORTED, so two readers whose languages differ only in order share an entry.
+    const languageKey = input.languages && input.languages.length > 0
+      ? [...input.languages].sort().join(',')
+      : 'any';
     return [
       this.KEY_PREFIX + namespacedType,
       input.sort ?? 'default',
       String(input.limit),
       input.cursor ?? 'first',
       filtersFingerprint,
+      languageKey,
     ].join(':');
   }
 

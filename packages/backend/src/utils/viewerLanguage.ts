@@ -26,12 +26,20 @@ const MAX_ACCEPT_LANGUAGE_TAGS = 10;
 export function requestLanguageCandidates(req: Request): string[] {
   const candidates: string[] = [];
 
-  const explicit = canonicalizeLanguageTag(queryString(req.query.lang));
+  const explicit = canonicalizeLanguageTag(queryString(req.query?.lang));
   if (explicit) {
     candidates.push(explicit);
   }
 
-  for (const raw of req.acceptsLanguages().slice(0, MAX_ACCEPT_LANGUAGE_TAGS)) {
+  // `acceptsLanguages` is an Express helper, not a property of the HTTP request:
+  // it is absent whenever this runs against a request that did not come through
+  // the Express router. A language preference is BEST-EFFORT everywhere else in
+  // this pipeline — `loadViewerLanguages` catches, `viewerLanguageSql` returns
+  // `undefined`, and both consumers read an empty set as "unknown, filter
+  // nothing" — so the one path that could turn an unreadable preference into a
+  // 500 for the whole feed has to degrade the same way.
+  const accepted = typeof req.acceptsLanguages === 'function' ? req.acceptsLanguages() : [];
+  for (const raw of accepted.slice(0, MAX_ACCEPT_LANGUAGE_TAGS)) {
     const tag = canonicalizeLanguageTag(raw);
     if (tag && !candidates.includes(tag)) {
       candidates.push(tag);

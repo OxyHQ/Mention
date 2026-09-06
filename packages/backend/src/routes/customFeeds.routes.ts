@@ -38,6 +38,7 @@ import { validateBody, validateObjectId, schemas } from '../middleware/validate'
 import { buildCustomFeedCreatePayload, buildCustomFeedUpdatePatch } from './customFeedWrite';
 import { buildCustomFeedDefinition } from '../mtn/feed/definitions/customFeedDefinition';
 import { loadViewerFeedContext } from '../mtn/feed/feedContext';
+import { requestLanguageCandidates } from '../utils/viewerLanguage';
 import { feedEngine } from '../mtn/feed/engine/FeedEngine';
 import { resolveUserSummaries, degradedActorSummary } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
@@ -856,6 +857,12 @@ router.get('/:id/timeline', validateObjectId('id'), async (req: AuthRequest, res
     const context = await loadViewerFeedContext(
       userId,
       requestOxyClient ?? getServiceOxyClient(),
+      undefined,
+      // A custom feed can compose the same discovery sources For You uses, so its
+      // reader's languages are resolved on the same two rungs — otherwise an
+      // anonymous reader of a custom feed is the one viewer left with no language
+      // signal at all.
+      requestLanguageCandidates(req),
     );
     context.privacyOxyClient = requestOxyClient;
     const response = await feedEngine.run(definition, context, { cursor, limit });

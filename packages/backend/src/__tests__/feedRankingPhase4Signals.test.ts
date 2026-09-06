@@ -97,13 +97,17 @@ describe('languageMismatchPenalty scorer', () => {
   });
 
   /**
-   * The two sides speak different dialects of "language": the viewer's Oxy
-   * account carries full BCP-47 LOCALES (`es-ES`), a post's classification
-   * carries ISO 639-1 BASE codes (`es`). The signal must compare on the base
-   * subtag, so region never causes a false mismatch.
+   * The viewer side arrives ALREADY normalized to ISO 639-1 base subtags —
+   * `loadViewerFeedContext` does it once, at the boundary, so `ctx.viewerBaseLanguages`
+   * is in the same unit as `postClassification.languages` and the SQL predicate
+   * that shares it can be a plain array overlap. (That normalization is pinned in
+   * `viewerLanguagesAndGate.test.ts`, where it now happens.)
+   *
+   * The POST side still needs normalizing here: a federated declaration can carry
+   * a region (`pt-BR`), so region must never cause a false mismatch.
    */
-  describe('BCP-47 viewer locales are matched on the BASE subtag', () => {
-    const viewer = ['es-ES', 'en-US'];
+  describe('the POST side is matched on the BASE subtag', () => {
+    const viewer = ['es', 'en'];
 
     it('is neutral for a post in a language the viewer speaks (any region)', () => {
       expect(service.calculateLanguageMismatchPenalty(discovery(['es']), viewer)).toBe(1.0);
@@ -111,8 +115,9 @@ describe('languageMismatchPenalty scorer', () => {
       expect(service.calculateLanguageMismatchPenalty(discovery(['de', 'en']), viewer)).toBe(1.0);
     });
 
-    it('ignores region — an es-MX viewer still matches an `es` post', () => {
-      expect(service.calculateLanguageMismatchPenalty(discovery(['es']), ['es-MX'])).toBe(1.0);
+    it('ignores a region on the POST — an `es` viewer still matches an `es-MX` post', () => {
+      expect(service.calculateLanguageMismatchPenalty(discovery(['es-MX']), ['es'])).toBe(1.0);
+      expect(service.calculateLanguageMismatchPenalty(discovery(['pt-BR']), ['pt'])).toBe(1.0);
     });
 
     it('penalizes a genuinely foreign language', () => {
@@ -123,15 +128,19 @@ describe('languageMismatchPenalty scorer', () => {
       }
     });
 
+    /**
+     * "Unknown" is the neutral case on both sides. Garbage on the VIEWER side is
+     * not tested here because it cannot reach here: `resolveViewerBaseLanguages`
+     * runs every entry through `toBaseLanguages` at the boundary, so `['', '  ']`
+     * arrives as `[]` and lands on the empty check below. That normalization is
+     * pinned in `viewerLanguagesAndGate.test.ts`, where it happens.
+     */
     it('stays neutral when either side is unknown', () => {
       expect(service.calculateLanguageMismatchPenalty(discovery(['de']), [])).toBe(1.0);
       expect(service.calculateLanguageMismatchPenalty(discovery([]), viewer)).toBe(1.0);
       expect(service.calculateLanguageMismatchPenalty(makePost({ _discovery: true }), viewer)).toBe(1.0);
     });
 
-    it('is neutral for an unparseable viewer language (never penalizes on garbage input)', () => {
-      expect(service.calculateLanguageMismatchPenalty(discovery(['de']), ['', '   '])).toBe(1.0);
-    });
   });
 });
 
@@ -159,20 +168,20 @@ describe('Phase 4 signals are OFF unless the definition enables them', () => {
 
   it('enabling languageMismatchPenalty downranks an off-language discovery post', async () => {
     const offLang = makePost({ _discovery: true, postClassification: { languages: ['de'] } });
-    const off = await scoreWith(offLang, { viewerLanguages: ['en'] });
+    const off = await scoreWith(offLang, { viewerBaseLanguages: ['en'] });
     const on = await scoreWith(offLang, {
       enabledSignals: new Set(['languageMismatchPenalty']),
-      viewerLanguages: ['en'],
+      viewerBaseLanguages: ['en'],
     });
     expect(on / off).toBeCloseTo(R.languageMismatchPenalty.penalty, 5);
   });
 
   it('enabling languageMismatchPenalty does NOT touch a trusted (non-discovery) off-language post', async () => {
     const trustedOffLang = makePost({ postClassification: { languages: ['de'] } });
-    const off = await scoreWith(trustedOffLang, { viewerLanguages: ['en'] });
+    const off = await scoreWith(trustedOffLang, { viewerBaseLanguages: ['en'] });
     const on = await scoreWith(trustedOffLang, {
       enabledSignals: new Set(['languageMismatchPenalty']),
-      viewerLanguages: ['en'],
+      viewerBaseLanguages: ['en'],
     });
     expect(on / off).toBeCloseTo(1.0, 5);
   });

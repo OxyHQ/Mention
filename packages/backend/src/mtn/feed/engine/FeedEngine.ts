@@ -505,7 +505,7 @@ export class FeedEngine {
         enabledSignals: this.resolveEnabledSignalKeys(definition),
         seenPostIds: ctx.seenPostIds,
         mutualIds: ctx.mutualIds,
-        viewerLanguages: ctx.viewerLanguages,
+        viewerBaseLanguages: ctx.viewerBaseLanguages,
       });
       const ranked: RankedCandidate[] = [];
       for (const post of rankedPosts) {

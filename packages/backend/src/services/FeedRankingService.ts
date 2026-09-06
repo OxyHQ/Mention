@@ -284,8 +284,8 @@ export class FeedRankingService {
   }
 
   /** `languageMismatchPenalty` — soft downrank of off-language discovery posts. */
-  public calculateLanguageMismatchPenalty(post: RankablePost, viewerLanguages: string[] | undefined): number {
-    return languageMismatchPenalty(post, viewerLanguages);
+  public calculateLanguageMismatchPenalty(post: RankablePost, viewerBaseLanguages: string[] | undefined): number {
+    return languageMismatchPenalty(post, viewerBaseLanguages);
   }
 
   /** `starterPackBoost` — bounded lift for authors curated into others' starter packs. */
@@ -456,7 +456,7 @@ export class FeedRankingService {
        * post's ISO 639-1 classification languages on the base subtag.
        * Empty/absent ⇒ neutral. Only consumed when that signal is enabled.
        */
-      viewerLanguages?: string[];
+      viewerBaseLanguages?: string[];
     } = {}
   ): Promise<T[]> {
     const rankingStartTime = Date.now();
@@ -579,7 +579,7 @@ export class FeedRankingService {
           behaviorSets,
           authorFollowerCounts,
           showSensitiveContent: context.showSensitiveContent,
-          viewerLanguages: context.viewerLanguages,
+          viewerBaseLanguages: context.viewerBaseLanguages,
           ...optInContext,
         });
         return { post, score, originalIndex };
