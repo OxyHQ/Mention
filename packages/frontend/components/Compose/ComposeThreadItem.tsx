@@ -23,7 +23,14 @@ import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { VideoPreview, PollCreator, LocationDisplay, ComposeAltButton } from '@/components/Compose';
+// Deep imports rather than this directory's own barrel: the barrel re-exports
+// eight sheets, so naming it from inside `components/Compose/` pulled all of them
+// into every graph reaching this file — and made the module depend on its own
+// index. None of the four below is a sheet.
+import { VideoPreview } from '@/components/Compose/VideoPreview';
+import { PollCreator } from '@/components/Compose/PollCreator';
+import { LocationDisplay } from '@/components/Compose/LocationDisplay';
+import { ComposeAltButton } from '@/components/Compose/ComposeAltButton';
 import ComposeIdentityHeader from '@/components/Compose/ComposeIdentityHeader';
 import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPills';
 import type { ThreadItem } from '@/hooks/useThreadManager';

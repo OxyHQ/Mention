@@ -80,15 +80,19 @@ import { useSourcesSheet } from '@/hooks/useSourcesSheet';
 import { useLinkDetection } from '@/hooks/useLinkDetection';
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
 import { LinkPreviewCard } from '@oxyhq/bloom/link-preview';
-import {
-  PollCreator,
-  VideoPreview,
-  ArticleEditor,
-  EventEditor,
-  LocationDisplay,
-  AttachmentCarouselItem,
-  ComposeAltButton,
-} from '@/components/Compose';
+// Deep imports, NOT the `@/components/Compose` barrel. The barrel re-exports
+// eight sheets (`AltTextSheet`, `UnpublishedSheet`, `EmojiPickerSheet`,
+// `GifPickerSheet`, `PodcastPickerSheet`, `ReplySettingsSheet`, `ScheduleSheet`,
+// `SourcesSheet`), and naming it pulls the whole module in — so seven of the ten
+// `lazy()` declarations below were loading eagerly anyway, from this very import.
+// None of the components on this list is a sheet.
+import { PollCreator } from '@/components/Compose/PollCreator';
+import { VideoPreview } from '@/components/Compose/VideoPreview';
+import { ArticleEditor } from '@/components/Compose/ArticleEditor';
+import { EventEditor } from '@/components/Compose/EventEditor';
+import { LocationDisplay } from '@/components/Compose/LocationDisplay';
+import AttachmentCarouselItem from '@/components/Compose/AttachmentCarouselItem';
+import { ComposeAltButton } from '@/components/Compose/ComposeAltButton';
 import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPills';
 import ComposeIdentityHeader from '@/components/Compose/ComposeIdentityHeader';
 import ComposeThreadItem from '@/components/Compose/ComposeThreadItem';
