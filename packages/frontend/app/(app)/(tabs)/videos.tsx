@@ -945,18 +945,41 @@ export default function VideosScreen() {
     if (isAuthResolved && !isAuthenticated && activeFeed === 'following') {
         setActiveFeed('videos');
     }
-    // Frozen at cold load: the target post + media index are read once so later
-    // param changes never re-trigger the initial load or re-order the reel.
-    const targetParamsRef = useRef<{ postId?: string; mediaIndex?: number } | null>(null);
-    if (!targetParamsRef.current) {
-        const parsed = Number(params.mediaIndex);
-        targetParamsRef.current = {
+    // The deep-link target post + media index.
+    //
+    // These used to be frozen at first mount, and that was right while this
+    // screen was a pushed route: it was rebuilt on every entry, so freezing only
+    // said "param ticks after arrival must not re-order the reel under the
+    // reader". As a TAB it is mounted for the life of the app, and a freeze then
+    // means the SECOND `router.push('/videos?postId=…')` — from a profile's
+    // media grid, from a post's attachment row — silently opens the reel the
+    // reader was last on. So the rule is stated as what it always meant: adopt a
+    // target that is genuinely NEW, ignore everything else.
+    //
+    // Ignoring "everything else" is the load-bearing half. A tick that repeats
+    // the same id is the repaint the freeze existed for, and a tick that DROPS
+    // the param — which is what arriving on the tab by tap or swipe looks like —
+    // must never un-pin a reel the reader is in the middle of. Adjusted during
+    // render rather than in an effect, converging in one pass, for the same
+    // reason as the feed reset just above.
+    const parsedMediaIndex = Number(params.mediaIndex);
+    const paramTarget = params.postId
+        ? {
             postId: params.postId,
-            mediaIndex: Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined,
-        };
+            mediaIndex:
+                Number.isInteger(parsedMediaIndex) && parsedMediaIndex >= 0
+                    ? parsedMediaIndex
+                    : undefined,
+        }
+        : null;
+    const [target, setTarget] = useState<{ postId: string; mediaIndex?: number } | null>(
+        () => paramTarget,
+    );
+    if (paramTarget && paramTarget.postId !== target?.postId) {
+        setTarget(paramTarget);
     }
-    const targetPostId = targetParamsRef.current.postId;
-    const targetMediaIndex = targetParamsRef.current.mediaIndex;
+    const targetPostId = target?.postId;
+    const targetMediaIndex = target?.mediaIndex;
 
     const flatListRef = useRef<FlatList<VideoPost>>(null);
 

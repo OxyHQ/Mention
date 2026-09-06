@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
+import { Platform } from 'react-native';
 import { router, usePathname } from 'expo-router';
 import { useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
 import { useAuth } from '@oxyhq/services/ui/client';
@@ -104,6 +105,28 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
     if (activeIndex < 0) return;
     progress.value = withSpring(activeIndex, SETTLE_SPRING);
   }, [activeIndex, progress]);
+
+  /**
+   * WEB ONLY: warm every tab's route chunk once, up front.
+   *
+   * On web each route is an async chunk and there is no navigator keeping the
+   * others alive, so the first visit to a tab pays a network fetch before it can
+   * paint anything — 597ms for one such chunk, measured on production
+   * (`components/Profile/ProfileChromeFrame.web.tsx`). That fetch is the other
+   * half of "it takes seconds"; the highlight already moves on touch-up, and
+   * this is what stops the SCREEN arriving long after it.
+   *
+   * Up front rather than on hover or on press: a bar is a thumb target with no
+   * hover to warm on, and by the time there is a press the fetch is the wait.
+   * `router.prefetch` is expo-router's own imperative API; on native it is
+   * pointless here — the tabs are mounted — so it is not called at all.
+   */
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    for (const tab of TABS) {
+      router.prefetch(tab.href);
+    }
+  }, []);
 
   const selectTab = useCallback(
     (index: number) => {

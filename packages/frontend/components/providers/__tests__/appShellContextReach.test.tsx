@@ -18,8 +18,8 @@ import { useDrawer } from '@/context/DrawerContext';
  *
  * - `BottomSheetProvider` parks whatever `setBottomSheetContent` is handed in
  *   state and renders it beside its own children. A `<GifPickerSheet/>` built by
- *   `app/(app)/compose.tsx` therefore mounts wherever that PROVIDER sits, not
- *   where compose sits.
+ *   `components/Compose/ComposeScreen.tsx` therefore mounts wherever that
+ *   PROVIDER sits, not where compose sits.
  * - Bloom's NATIVE portal group re-registers `<Portal>` children onto its
  *   `<Outlet/>`, which `app/_layout.tsx` mounts beside `<AuthRouter/>`. (Bloom's
  *   WEB portal is `ReactDOM.createPortal`, which does preserve context, so that
@@ -82,7 +82,7 @@ jest.mock('expo-router', () => ({
   // `TabPagerProvider` reads the router imperatively to pop anything pushed
   // over the tabs before switching. Nothing here selects a tab, so these are
   // only present so the module resolves.
-  router: { canDismiss: () => false, dismissAll: () => {}, navigate: () => {} },
+  router: { canDismiss: () => false, dismissAll: () => {}, navigate: () => {}, prefetch: () => {} },
 }));
 
 jest.mock('@oxyhq/services/ui/client', () => ({
