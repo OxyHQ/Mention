@@ -9,6 +9,7 @@ import { closeRedisConnection } from '../utils/redis';
 import { logger } from '../utils/logger';
 import { markRuntimeShuttingDown } from '../utils/runtimeHealth';
 import type { PresenceRegistry } from './presenceRegistry';
+import { drainBackgroundWork } from './backgroundWork';
 import { clearRuntimeSocketServer } from './socketServer';
 import { closeSocketRedisAdapter } from './socketRedisAdapter';
 
@@ -85,11 +86,19 @@ export function registerGracefulShutdown(deps: GracefulShutdownDeps): void {
       // Stop every producer/worker while Redis and Postgres are still available.
       // LeaderElection releases its owner-checked lock only after onLose has
       // stopped singleton schedulers.
+      //
+      // `drainBackgroundWork` belongs in THIS phase for the same reason the
+      // dispatchers do: detached request work (the post-create socket broadcast)
+      // still needs the database it hydrates from and the socket server it emits
+      // on, and both close in the phase below. It is bounded well under
+      // SHUTDOWN_DEADLINE_MS and resolves rather than rejects on timeout, so it
+      // can delay this drain but never block it.
       await Promise.allSettled([
         leaderElection.stop(),
         engagementOutboxDispatcher.stop(),
         moderationOutboxDispatcher.stop(),
         queueShutdown(),
+        drainBackgroundWork(),
       ]);
 
       await Promise.allSettled([

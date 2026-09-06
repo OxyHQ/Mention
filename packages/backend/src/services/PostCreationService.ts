@@ -36,6 +36,7 @@ import {
 } from '../utils/notificationUtils';
 import { logger } from '../utils/logger';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
+import { trackBackgroundWork } from '../runtime/backgroundWork';
 import { getPostFederator, registerPostCreator } from './serviceRegistry';
 import { baselineContentClassifier } from './BaselineContentClassifier';
 import { postHydrationService } from './PostHydrationService';
@@ -960,7 +961,14 @@ class PostCreationService {
       // depend on it — `echoGuard.ts` on the frontend suppresses the echo of a
       // device's own write regardless of when it lands. The `catch` stays inside,
       // so detaching cannot produce an unhandled rejection.
-      void this.broadcastCreatedPost(post, oxyUserId);
+      //
+      // TRACKED, not a bare `void`: the shutdown drain has to wait for it. A
+      // detached task belongs to neither phase of `gracefulShutdown`, so a
+      // SIGTERM landing mid-flight would close Postgres and the socket server out
+      // from under this one — and readers would miss the update for every post
+      // created in the second before a task stops, on every deploy. The awaited
+      // version got that for free from the HTTP drain.
+      trackBackgroundWork(this.broadcastCreatedPost(post, oxyUserId));
     }
 
     // Federation is published-only: a draft never fans out even if a username is
