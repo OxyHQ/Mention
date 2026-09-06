@@ -168,6 +168,9 @@ describe('selectTab', () => {
     mockPathname = '/p/abc123';
     mockRouter.canDismiss.mockReturnValue(true);
     const bar = mountProvider();
+    act(() => {
+      bar.value.registerCommitter({ commit: jest.fn(), drivesProgress: true });
+    });
 
     act(() => {
       bar.value.selectTab(0);
@@ -179,9 +182,50 @@ describe('selectTab', () => {
   it('does not try to pop when there is nothing pushed', () => {
     const bar = mountProvider();
     act(() => {
+      bar.value.registerCommitter({ commit: jest.fn(), drivesProgress: true });
+    });
+    act(() => {
       bar.value.selectTab(1);
     });
     expect(mockRouter.dismissAll).not.toHaveBeenCalled();
+  });
+
+  it('does not pop when a TAB is showing, even though a stack could', () => {
+    // `canDismiss()` walks down the focused branch for any stack with more than
+    // one route, so it goes true from ordinary history — it does not mean "a
+    // detail screen is open". Popping on it would change what the reader is
+    // looking at for no reason. `activeIndex >= 0` is the honest test.
+    mockPathname = '/videos';
+    mockRouter.canDismiss.mockReturnValue(true);
+    const bar = mountProvider();
+    act(() => {
+      bar.value.registerCommitter({ commit: jest.fn(), drivesProgress: true });
+    });
+
+    act(() => {
+      bar.value.selectTab(0);
+    });
+
+    expect(mockRouter.dismissAll).not.toHaveBeenCalled();
+  });
+
+  it('NEVER pops when there is no navigator — the bug the reader hit', () => {
+    // On web every level of this app is a `<Slot/>` (a StackRouter), so
+    // `canDismiss()` is true as soon as the reader has navigated anywhere, and a
+    // `dismissAll()` here fired on EVERY tab press. It does not compose with the
+    // navigation beside it either: `dismissAll` queues POP_TO_TOP while
+    // `navigate` queues a link whose action is COMPUTED when the queue runs it,
+    // against a tree the pop just changed. The tab went and came straight back.
+    mockPathname = '/p/abc123';
+    mockRouter.canDismiss.mockReturnValue(true);
+    const bar = mountProvider();
+
+    act(() => {
+      bar.value.selectTab(4);
+    });
+
+    expect(mockRouter.dismissAll).not.toHaveBeenCalled();
+    expect(mockRouter.navigate).toHaveBeenCalledWith('/you');
   });
 
   it('hands the switch to the navigator once one registers, instead of navigating', () => {

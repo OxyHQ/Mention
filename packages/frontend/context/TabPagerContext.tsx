@@ -6,6 +6,8 @@ import { useAuth } from '@oxyhq/services/ui/client';
 
 import { TABS, tabIndexForPathname } from '@/components/navigation/tabs';
 
+const IS_WEB = Platform.OS === 'web';
+
 /**
  * How fast the highlight travels to a tab nobody dragged it to — a tap, a deep
  * link, a back gesture. Matched to Bloom's own `SLIDE_SPRING` by feel rather
@@ -80,7 +82,16 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
   const progress = useSharedValue(0);
   const committerRef = useRef<TabCommitter | null>(null);
 
-  const activeIndex = tabIndexForPathname(pathname, user?.username);
+  // The viewer's handle is passed ON WEB ONLY, because the reason for that match
+  // is a web-only one: there `/you` redirects to `/@<handle>` (the profile chrome
+  // lives in the `[username]` layout), so without it the bar would show no
+  // selection on the one profile a reader looks at most.
+  //
+  // On NATIVE `/you` is the tab and `/@<handle>` is an ordinary pushed route —
+  // a copy of your own profile opened from a post row. Treating it as the tab
+  // there would light the pill for a screen sitting OVER the tabs, and would
+  // also tell `selectTab` below that nothing is pushed when something is.
+  const activeIndex = tabIndexForPathname(pathname, IS_WEB ? user?.username : undefined);
 
   const registerCommitter = useCallback((committer: TabCommitter | null) => {
     committerRef.current = committer;
@@ -133,29 +144,45 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
       const tab = TABS[index];
       if (!tab) return;
 
-      // A tab press from a pushed screen means "take me to that tab", not "put
-      // that tab underneath this post". Without this the navigator would switch
-      // the tab below while the reader kept looking at the detail route.
-      if (router.canDismiss()) router.dismissAll();
-
       const committer = committerRef.current;
-      if (committer) {
-        // Optimism is only ours to apply when nobody else owns the value. The
-        // pager animates its own way to the page and writes `progress` as it
-        // goes.
-        if (!committer.drivesProgress) {
-          progress.value = withSpring(index, SETTLE_SPRING);
-        }
-        committer.commit(index);
+
+      // NO TABS NAVIGATOR — web, and native before the layout mounts. The route
+      // IS the whole operation here, so move the highlight and navigate.
+      //
+      // Nothing is dismissed on this path, and that is the fix for a real bug
+      // rather than an omission. `router.canDismiss()` walks DOWN the focused
+      // branch for any stack with more than one route, and on web every level of
+      // this app is a `<Slot/>` — a StackRouter — so it answers true the moment
+      // the reader has navigated anywhere at all. A `dismissAll()` here
+      // therefore fired on EVERY tab press, and the two do not compose:
+      // `dismissAll` queues `POP_TO_TOP` while `navigate` queues a link whose
+      // action `routingQueue.run` COMPUTES when it runs it, against a tree the
+      // pop has just changed. The reader saw the tab go and come straight back.
+      // There is nothing to dismiss here anyway: that stack history is the
+      // browser's, not detail screens sitting over the tabs.
+      if (!committer) {
+        progress.value = withSpring(index, SETTLE_SPRING);
+        router.navigate(tab.href);
         return;
       }
 
-      // No navigator (web, or before the tab layout mounts). Move the highlight
-      // now and let the route catch up — the whole point of the change.
-      progress.value = withSpring(index, SETTLE_SPRING);
-      router.navigate(tab.href);
+      // WITH a navigator, switching tab changes what sits UNDERNEATH whatever is
+      // pushed — so a tab press from an open post would leave the reader looking
+      // at the post with a different tab behind it. Dismissing is right there,
+      // and only there: `activeIndex < 0` is precisely "what is on screen is not
+      // a tab", which is the state that means something is pushed over them.
+      if (activeIndex < 0 && router.canDismiss()) {
+        router.dismissAll();
+      }
+
+      // Optimism is only ours to apply when nobody else owns the value. The
+      // pager animates its own way to the page and writes `progress` as it goes.
+      if (!committer.drivesProgress) {
+        progress.value = withSpring(index, SETTLE_SPRING);
+      }
+      committer.commit(index);
     },
-    [progress],
+    [progress, activeIndex],
   );
 
   const value = useMemo<TabPagerValue>(
