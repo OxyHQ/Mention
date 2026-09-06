@@ -286,7 +286,12 @@ export const videosDefinition: FeedDefinition = {
   title: 'Videos',
   mode: 'ranked',
   sources: [enabled('videos')],
-  signals: buildPresetRankingSignals(),
+  // The preset set PLUS `portraitBoost`, which only this surface wants: the reels
+  // screen is full-screen, so a portrait video is genuinely the better item on
+  // it. It is a ranking SIGNAL rather than a sort key for the reason its config
+  // entry gives — an absolute portrait-first sort broke the prefix invariant the
+  // score cursor depends on and could drop landscape videos from every page.
+  signals: [...buildPresetRankingSignals(), enabled('portraitBoost')],
   filters: [enabled('safety')],
   execution: {
     seenPosts: true,

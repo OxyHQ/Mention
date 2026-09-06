@@ -100,19 +100,6 @@ function buildPopularCursor(page: readonly CandidatePost[], incomingCursor?: str
   });
 }
 
-function readPortraitMedia(post: RankedCandidate): Array<{ type?: string; orientation?: string }> | undefined {
-  if (!('content' in post)) return undefined;
-  const content = Reflect.get(post, 'content');
-  if (!content || typeof content !== 'object') return undefined;
-  const media = Reflect.get(content, 'media');
-  return Array.isArray(media) ? media : undefined;
-}
-
-function hasPortraitVideo(post: RankedCandidate): boolean {
-  const media = readPortraitMedia(post);
-  return Array.isArray(media)
-    && media.some((item) => item?.type === 'video' && item?.orientation === 'portrait');
-}
 
 /**
  * The reader's muted-lane predicate, or `undefined` when they have muted none.
@@ -513,12 +500,14 @@ export class FeedEngine {
         if (candidate) ranked.push(candidate);
       }
 
+      // Score order, and ONLY score order. The Videos feed used to sort
+      // portrait-first above the score here; that made the page a prefix of
+      // (portrait, score) rather than of score, and the cursor minted below is
+      // score-descending — so a landscape video scoring above the page anchor was
+      // pushed out of the window and then excluded by every later page's
+      // `score < cursor` filter. The preference now lives in the score itself, as
+      // the `portraitBoost` signal the Videos definition enables.
       const sorted = ranked.sort((a, b) => {
-        if (definition.id === 'videos') {
-          const aPortrait = hasPortraitVideo(a) ? 1 : 0;
-          const bPortrait = hasPortraitVideo(b) ? 1 : 0;
-          if (bPortrait !== aPortrait) return bPortrait - aPortrait;
-        }
         const diff = readCandidateScore(b) - readCandidateScore(a);
         if (Math.abs(diff) < MtnConfig.feed.scoreEpsilon) {
           return readCandidateId(b).localeCompare(readCandidateId(a));

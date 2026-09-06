@@ -63,6 +63,53 @@ describe('localBoost scorer', () => {
   });
 });
 
+describe('portraitBoost scorer', () => {
+  const withVideo = (orientation: string) =>
+    makePost({ content: { media: [{ type: 'video', orientation }] } });
+
+  it('lifts a portrait video', async () => {
+    const portrait = await scoreWith(withVideo('portrait'), { enabledSignals: new Set(['portraitBoost']) });
+    const landscape = await scoreWith(withVideo('landscape'), { enabledSignals: new Set(['portraitBoost']) });
+    expect(portrait / landscape).toBeCloseTo(R.portraitBoost.boost, 5);
+  });
+
+  it('is neutral for a post with no video at all', async () => {
+    const noMedia = await scoreWith(makePost(), { enabledSignals: new Set(['portraitBoost']) });
+    const landscape = await scoreWith(withVideo('landscape'), { enabledSignals: new Set(['portraitBoost']) });
+    expect(noMedia).toBeCloseTo(landscape, 10);
+  });
+
+  /**
+   * The point of it being a MULTIPLIER rather than the sort key it replaced.
+   *
+   * The old comparator put portrait above the score outright, which made the
+   * page a prefix of (portrait, score) while the cursor minted from it is
+   * score-descending — so a landscape video scoring above the page anchor was
+   * pushed out of the window and then excluded by every later page. A bounded
+   * lift keeps the preference and lets a markedly better landscape video win, so
+   * the single order the cursor pages on is the one everything is sorted by.
+   */
+  it('is BOUNDED: a much stronger landscape post still outranks a portrait one', async () => {
+    const enabledSignals = new Set(['portraitBoost']);
+    const portrait = await scoreWith(withVideo('portrait'), { enabledSignals });
+    const strongLandscape = await service.calculatePostScore(
+      makePost({
+        content: { media: [{ type: 'video', orientation: 'landscape' }] },
+        stats: { likesCount: 500, boostsCount: 200, commentsCount: 100, viewsCount: 5000 },
+      }),
+      undefined,
+      { enabledSignals, engagementScoreCache: new Map([['post', 400]]) },
+    );
+    expect(strongLandscape).toBeGreaterThan(portrait);
+  });
+
+  it('does nothing unless the definition enables it', async () => {
+    const portrait = await scoreWith(withVideo('portrait'));
+    const landscape = await scoreWith(withVideo('landscape'));
+    expect(portrait).toBeCloseTo(landscape, 10);
+  });
+});
+
 describe('languageMismatchPenalty scorer', () => {
   const discovery = (langs: string[]) =>
     makePost({ _discovery: true, postClassification: { languages: langs } });

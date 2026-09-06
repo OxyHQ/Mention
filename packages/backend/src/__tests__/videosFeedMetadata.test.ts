@@ -29,6 +29,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { portraitBoost } from '../services/ranking/signals/optIn';
 import { and, eq, inArray } from 'drizzle-orm';
 import { MtnConfig, PostType, PostVisibility } from '@mention/shared-types';
 import type { MediaItem } from '@mention/shared-types';
@@ -37,8 +38,17 @@ import type { MediaItem } from '@mention/shared-types';
 // so the portrait preference is measurable, slicing is one-slice-per-post so a
 // row maps to a row, and hydration would otherwise reach Oxy over the network.
 // Every id asserted below is a real row read back out of Postgres.
+//
+// The stub applies the REAL `portraitBoost` on top of the pinned tie. The
+// preference used to be an absolute sort key inside `FeedEngine`, so a flat
+// stub was enough to expose it; it is a ranking SIGNAL now (an absolute key
+// broke the prefix invariant the score cursor pages on), which means a stub that
+// replaces ranking wholesale would replace the very thing under test. Everything
+// else stays tied, so the assertions below still measure one variable.
 const rankPosts = vi.fn(async (candidates: Array<Record<string, unknown>>) => {
-  for (const candidate of candidates) candidate.finalScore = 1;
+  for (const candidate of candidates) {
+    candidate.finalScore = portraitBoost(candidate as Parameters<typeof portraitBoost>[0]);
+  }
   return candidates;
 });
 vi.mock('../services/FeedRankingService', () => ({
