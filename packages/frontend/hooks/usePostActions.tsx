@@ -1,4 +1,4 @@
-import React, { useMemo, useContext } from 'react';
+import React, { useMemo, useContext, lazy, Suspense } from 'react';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
@@ -30,17 +30,38 @@ import { ArticleIcon } from '@/assets/icons/article-icon';
 import { MuteIcon } from '@/assets/icons/mute-icon';
 import { ReportIcon } from '@/assets/icons/report-icon';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import PostInsightsSheet from '@/components/Post/PostInsightsSheet';
-import ReplySettingsSheet from '@/components/Compose/ReplySettingsSheet';
-import { ReportModal } from '@/components/report/ReportModal';
 import { muteService } from '@/services/muteService';
 import { lanesService } from '@/services/lanesService';
 import { noteLaneListsChanged } from '@/stores/laneInvalidation';
 import { reportService } from '@/services/reportService';
-import { AddToListSheet } from '@/components/Lists/AddToListSheet';
-import LanePickerSheet from '@/components/Compose/LanePickerSheet';
 import { List as ListIcon } from '@/assets/icons/list-icon';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+
+/**
+ * The five sheets below are LAZY, and the reason is not this file — it is that
+ * `PostItem` imports this hook statically, once per feed row.
+ *
+ * Every one of them is only ever mounted from an `onPress`, into
+ * `bottomSheet.setBottomSheetContent`. Imported statically they were pulled into
+ * the feed chunk anyway, together with their service graphs (`insightsService`,
+ * `muteService`, `reportService`, `lanesService`, `listsService`) — and
+ * `PostItem` was already declaring `lazy(() => import(…))` for
+ * `PostInsightsSheet`, so that boundary bought nothing while this file named the
+ * same module eagerly.
+ *
+ * Keep them lazy, and keep each render site wrapped in `<Suspense>`: a static
+ * `import` added back here silently defeats the split for the most-used screen
+ * in the app, with nothing failing to say so.
+ */
+const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet'));
+const ReplySettingsSheet = lazy(() => import('@/components/Compose/ReplySettingsSheet'));
+const ReportModal = lazy(() =>
+    import('@/components/report/ReportModal').then((m) => ({ default: m.ReportModal })),
+);
+const AddToListSheet = lazy(() =>
+    import('@/components/Lists/AddToListSheet').then((m) => ({ default: m.AddToListSheet })),
+);
+const LanePickerSheet = lazy(() => import('@/components/Compose/LanePickerSheet'));
 
 const logger = createLogger('usePostActions');
 
@@ -151,10 +172,12 @@ export function usePostActions({
             label: t('postActions.insights'),
             onPress: () => {
                 bottomSheet.setBottomSheetContent(
-                    <PostInsightsSheet
-                        postId={postId || null}
-                        onClose={() => bottomSheet.openBottomSheet(false)}
-                    />
+                    <Suspense fallback={null}>
+                        <PostInsightsSheet
+                            postId={postId || null}
+                            onClose={() => bottomSheet.openBottomSheet(false)}
+                        />
+                    </Suspense>
                 );
                 bottomSheet.openBottomSheet(true);
             }
@@ -242,30 +265,32 @@ export function usePostActions({
                 label: t('lanes.postActions.moveToLane', { defaultValue: 'Move to lane…' }),
                 onPress: () => {
                     bottomSheet.setBottomSheetContent(
-                        <LanePickerSheet
-                            selectedLaneId={viewPost?.lane?.id ?? null}
-                            onSelect={async (nextLaneId) => {
-                                try {
-                                    const lane = await lanesService.setPostLane(postId, nextLaneId);
-                                    updatePostEverywhere(postId, (prev) => ({
-                                        ...prev,
-                                        lane: lane ?? undefined,
-                                    }));
-                                    // The chip flips instantly through the store
-                                    // above; WHICH profile tab the post now sits
-                                    // on is server-ordered and paged, so both
-                                    // post-list caches have to be told.
-                                    noteLaneListsChanged('assignment');
-                                } catch (e) {
-                                    logger.error('Failed to move post to lane', e);
-                                    toast(
-                                        t('lanes.postActions.moveFailed', { defaultValue: 'Failed to move this post' }),
-                                        { type: 'error' },
-                                    );
-                                }
-                            }}
-                            onClose={() => bottomSheet.openBottomSheet(false)}
-                        />
+                        <Suspense fallback={null}>
+                            <LanePickerSheet
+                                selectedLaneId={viewPost?.lane?.id ?? null}
+                                onSelect={async (nextLaneId) => {
+                                    try {
+                                        const lane = await lanesService.setPostLane(postId, nextLaneId);
+                                        updatePostEverywhere(postId, (prev) => ({
+                                            ...prev,
+                                            lane: lane ?? undefined,
+                                        }));
+                                        // The chip flips instantly through the store
+                                        // above; WHICH profile tab the post now sits
+                                        // on is server-ordered and paged, so both
+                                        // post-list caches have to be told.
+                                        noteLaneListsChanged('assignment');
+                                    } catch (e) {
+                                        logger.error('Failed to move post to lane', e);
+                                        toast(
+                                            t('lanes.postActions.moveFailed', { defaultValue: 'Failed to move this post' }),
+                                            { type: 'error' },
+                                        );
+                                    }
+                                }}
+                                onClose={() => bottomSheet.openBottomSheet(false)}
+                            />
+                        </Suspense>
                     );
                     bottomSheet.openBottomSheet(true);
                 },
@@ -298,33 +323,35 @@ export function usePostActions({
                 label: t('postActions.replyOptions'),
                 onPress: () => {
                     bottomSheet.setBottomSheetContent(
-                        <ReplySettingsSheet
-                            replyPermission={viewPost?.metadata?.replyPermission ?? ['anyone']}
-                            onReplyPermissionChange={async (permission) => {
-                                try {
-                                    await feedService.updatePostSettings(postId, { replyPermission: permission });
-                                    updatePostEverywhere(postId, (prev) => ({
-                                        ...prev,
-                                        metadata: { ...prev.metadata, replyPermission: permission },
-                                    }));
-                                } catch {
-                                    toast(t('postActions.failedToUpdateReplyPermissions'), { type: 'error' });
-                                }
-                            }}
-                            quotesDisabled={viewPost?.metadata?.quotesDisabled || false}
-                            onQuotesDisabledChange={async (disabled) => {
-                                try {
-                                    await feedService.updatePostSettings(postId, { quotesDisabled: disabled });
-                                    updatePostEverywhere(postId, (prev) => ({
-                                        ...prev,
-                                        metadata: { ...prev.metadata, quotesDisabled: disabled },
-                                    }));
-                                } catch {
-                                    toast(t('postActions.failedToUpdateQuoteSettings'), { type: 'error' });
-                                }
-                            }}
-                            onClose={() => bottomSheet.openBottomSheet(false)}
-                        />
+                        <Suspense fallback={null}>
+                            <ReplySettingsSheet
+                                replyPermission={viewPost?.metadata?.replyPermission ?? ['anyone']}
+                                onReplyPermissionChange={async (permission) => {
+                                    try {
+                                        await feedService.updatePostSettings(postId, { replyPermission: permission });
+                                        updatePostEverywhere(postId, (prev) => ({
+                                            ...prev,
+                                            metadata: { ...prev.metadata, replyPermission: permission },
+                                        }));
+                                    } catch {
+                                        toast(t('postActions.failedToUpdateReplyPermissions'), { type: 'error' });
+                                    }
+                                }}
+                                quotesDisabled={viewPost?.metadata?.quotesDisabled || false}
+                                onQuotesDisabledChange={async (disabled) => {
+                                    try {
+                                        await feedService.updatePostSettings(postId, { quotesDisabled: disabled });
+                                        updatePostEverywhere(postId, (prev) => ({
+                                            ...prev,
+                                            metadata: { ...prev.metadata, quotesDisabled: disabled },
+                                        }));
+                                    } catch {
+                                        toast(t('postActions.failedToUpdateQuoteSettings'), { type: 'error' });
+                                    }
+                                }}
+                                onClose={() => bottomSheet.openBottomSheet(false)}
+                            />
+                        </Suspense>
                     );
                     bottomSheet.openBottomSheet(true);
                 }
@@ -408,18 +435,20 @@ export function usePostActions({
 
         const handleReportPost = () => {
             bottomSheet.setBottomSheetContent(
-                <ReportModal
-                    visible={true}
-                    onClose={() => bottomSheet.openBottomSheet(false)}
-                    onSubmit={async (categories, details) => {
-                        const success = await reportService.reportPost(postId, categories, details);
-                        if (success) {
-                            toast(t('postActions.thankYouReport'), { type: 'success' });
-                        } else {
-                            toast(t('postActions.failedToSubmitReport'), { type: 'error' });
-                        }
-                    }}
-                />
+                <Suspense fallback={null}>
+                    <ReportModal
+                        visible={true}
+                        onClose={() => bottomSheet.openBottomSheet(false)}
+                        onSubmit={async (categories, details) => {
+                            const success = await reportService.reportPost(postId, categories, details);
+                            if (success) {
+                                toast(t('postActions.thankYouReport'), { type: 'success' });
+                            } else {
+                                toast(t('postActions.failedToSubmitReport'), { type: 'error' });
+                            }
+                        }}
+                    />
+                </Suspense>
             );
             bottomSheet.openBottomSheet(true);
         };
@@ -512,11 +541,13 @@ export function usePostActions({
                 label: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),
                 onPress: () => {
                     bottomSheet.setBottomSheetContent(
-                        <AddToListSheet
-                            targetUserId={authorId}
-                            targetLabel={authorHandle ? `@${authorHandle}` : undefined}
-                            onClose={() => bottomSheet.openBottomSheet(false)}
-                        />
+                        <Suspense fallback={null}>
+                            <AddToListSheet
+                                targetUserId={authorId}
+                                targetLabel={authorHandle ? `@${authorHandle}` : undefined}
+                                onClose={() => bottomSheet.openBottomSheet(false)}
+                            />
+                        </Suspense>
                     );
                     bottomSheet.openBottomSheet(true);
                 },

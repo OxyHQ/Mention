@@ -22,6 +22,7 @@ import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { normalizeMediaItems } from '../../utils/mediaInput';
 import { warmLinkPreviewForText } from '../../utils/linkPreviewWarm';
+import { trackBackgroundWork } from '../../runtime/backgroundWork';
 import { resolveVariant, validateAuthorVariants } from '../../services/postVariants';
 import { validatePublicShareTarget } from '../../utils/postAccessControl';
 import { LaneAssignmentError } from '../../utils/laneAssignment';
@@ -482,17 +483,23 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       if (parentIdForAffinity) affinityTargets.push({ targetPostId: String(parentIdForAffinity), type: 'reply' });
 
       for (const { targetPostId, type } of affinityTargets) {
-        void (async () => {
-          const target = await loadPostRecord(targetPostId);
-          const targetAuthorId = target?.oxyUserId;
-          if (!targetAuthorId) return;
-          await affinityEventService.record({
-            fromUserId: userId,
-            toUserId: targetAuthorId,
-            type,
-            eventId: `${type}:${post.id}`,
-          });
-        })().catch(() => undefined);
+        // Tracked so the shutdown drain waits for it. Fire-and-forget is still
+        // the point — this must never block or fail post creation — but an
+        // untracked task loses the database it reads and writes when SIGTERM
+        // closes Postgres underneath it, and the affinity event is simply lost.
+        trackBackgroundWork(
+          (async () => {
+            const target = await loadPostRecord(targetPostId);
+            const targetAuthorId = target?.oxyUserId;
+            if (!targetAuthorId) return;
+            await affinityEventService.record({
+              fromUserId: userId,
+              toUserId: targetAuthorId,
+              type,
+              eventId: `${type}:${post.id}`,
+            });
+          })().catch(() => undefined),
+        );
       }
     }
 

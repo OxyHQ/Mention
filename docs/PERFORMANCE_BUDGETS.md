@@ -20,7 +20,7 @@ past any of:
 | Budget | Ceiling |
 | --- | --- |
 | Total bytes | 18 MiB |
-| JavaScript bytes | 13 MiB |
+| JavaScript bytes | 14.5 MiB |
 | Initial JavaScript bytes | 8.5 MiB |
 | Initial JavaScript gzip bytes | ~2.35 MiB (target: ~1.9 MiB) |
 | Font bytes | 4 MiB |
@@ -31,6 +31,28 @@ also diffs the PR's export against `main`'s baseline. This is the one item
 on the original SLO list that already has the property the rest of this
 document argues for: a number, a place it is measured, and a build that
 fails when the number is exceeded.
+
+These are CEILINGS, and the distance to them is not the interesting number —
+where the build actually sits is. Measured from a local `expo export --platform
+web` (2026-09-05):
+
+| Signal | Measured | Ceiling | Long-term target |
+| --- | --- | --- | --- |
+| Initial JavaScript bytes | 7.88 MiB | 8.5 MiB | — |
+| Initial JavaScript gzip bytes | **1.93 MiB** | ~2.35 MiB | ~1.9 MiB |
+| Font bytes | 1.91 MiB | 4 MiB | — |
+
+So the initial gzip figure is ~30 KiB from its target, not ~470 KiB — reading
+the gap off the ceiling instead of off the build overstates it by more than an
+order of magnitude. `MaterialCommunityIcons.ttf` alone is 1.25 MiB of the 1.91
+MiB font total, against 380 KiB for Ionicons, which the app imports directly in
+86 files; that ratio is the one worth explaining before the font budget is
+treated as comfortable.
+
+The JavaScript-bytes ceiling was raised from 13 MiB by
+`4ca5f1e feat(i18n): translate all fourteen locales` — the locale catalogues are
+2.3 MB on disk but are correctly per-locale `import()`s (`lib/i18n.ts`), so they
+count against the total and NOT against initial JavaScript.
 
 ### Real-browser release gate
 

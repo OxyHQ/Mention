@@ -36,6 +36,7 @@ import {
 } from '../utils/notificationUtils';
 import { logger } from '../utils/logger';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
+import { trackBackgroundWork } from '../runtime/backgroundWork';
 import { getPostFederator, registerPostCreator } from './serviceRegistry';
 import { baselineContentClassifier } from './BaselineContentClassifier';
 import { postHydrationService } from './PostHydrationService';
@@ -947,6 +948,55 @@ class PostCreationService {
 
     const shouldEmitGlobally = post.visibility === PostVisibility.PUBLIC && isPublished;
     if (!ctx.skipSocketEmit && shouldEmitGlobally) {
+      // DETACHED from the request on purpose. Building this broadcast costs a
+      // full `hydratePosts` — its own statements plus the Oxy author batch, which
+      // carries a 1500 ms resolution deadline — and the author is sitting on
+      // `POST /posts` waiting for it while contributing nothing to their own
+      // response: the return value below comes from federation or from `post`,
+      // never from this block.
+      //
+      // Safe to detach rather than merely faster: the broadcast is already
+      // best-effort (its failure is a `warn`, not an error), every socket
+      // receiving it is a THIRD party, and the author's own client does not
+      // depend on it — `echoGuard.ts` on the frontend suppresses the echo of a
+      // device's own write regardless of when it lands. The `catch` stays inside,
+      // so detaching cannot produce an unhandled rejection.
+      //
+      // TRACKED, not a bare `void`: the shutdown drain has to wait for it. A
+      // detached task belongs to neither phase of `gracefulShutdown`, so a
+      // SIGTERM landing mid-flight would close Postgres and the socket server out
+      // from under this one — and readers would miss the update for every post
+      // created in the second before a task stops, on every deploy. The awaited
+      // version got that for free from the HTTP drain.
+      trackBackgroundWork(this.broadcastCreatedPost(post, oxyUserId));
+    }
+
+    // Federation is published-only: a draft never fans out even if a username is
+    // resolvable, and the collab-pending gate is honored via `ctx.skipFederation`.
+    if (!ctx.skipFederation) {
+      const delivered = await this.federatePublishedPost(post, {
+        oxyUserId,
+        senderUsername: ctx.senderUsername,
+      });
+      if (delivered) return delivered;
+    }
+
+    return post;
+  }
+
+  /**
+   * Broadcast a newly created public post to connected sockets.
+   *
+   * Split out of `runPostSideEffects` so it can be detached from the request —
+   * see the note at its call site for why that is safe. Keeping it a named method
+   * rather than an inline IIFE is what makes the detachment legible at the call
+   * site instead of hiding a `void (async () => {...})()` in the middle of the
+   * side-effect sequence.
+   */
+  private async broadcastCreatedPost(
+    post: PostRecord,
+    oxyUserId: string | null,
+  ): Promise<void> {
       try {
         const io = getRuntimeSocketServer();
         if (io) {
@@ -982,19 +1032,6 @@ class PostCreationService {
       } catch (socketError) {
         logger.warn('PostCreationService: failed to emit socket event', socketError);
       }
-    }
-
-    // Federation is published-only: a draft never fans out even if a username is
-    // resolvable, and the collab-pending gate is honored via `ctx.skipFederation`.
-    if (!ctx.skipFederation) {
-      const delivered = await this.federatePublishedPost(post, {
-        oxyUserId,
-        senderUsername: ctx.senderUsername,
-      });
-      if (delivered) return delivered;
-    }
-
-    return post;
   }
 
   /**

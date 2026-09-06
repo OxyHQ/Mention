@@ -79,14 +79,26 @@ jest.mock('@/components/MentionTextInput', () => {
   return { __esModule: true, default: RNView };
 });
 
-jest.mock('@/components/Compose', () => {
+// Mocked by PATH, one module each, because `ComposeThreadItem` imports them that
+// way — the barrel it used to name re-exports eight sheets it never wanted, so a
+// barrel mock here would only work by accident of the import style. Stubbing
+// `VideoPreview` is load-bearing rather than tidy: reaching the real module pulls
+// in `expo-video`, which this suite does not stand up.
+jest.mock('@/components/Compose/VideoPreview', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return {
-    VideoPreview: RNView,
-    PollCreator: RNView,
-    LocationDisplay: RNView,
-    ComposeAltButton: RNView,
-  };
+  return { VideoPreview: RNView };
+});
+jest.mock('@/components/Compose/PollCreator', () => {
+  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { PollCreator: RNView };
+});
+jest.mock('@/components/Compose/LocationDisplay', () => {
+  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { LocationDisplay: RNView };
+});
+jest.mock('@/components/Compose/ComposeAltButton', () => {
+  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { ComposeAltButton: RNView };
 });
 
 jest.mock('@/components/Compose/InteractionSettingsPills', () => {
