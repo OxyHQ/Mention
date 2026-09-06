@@ -47,6 +47,8 @@ export interface BehaviorSets {
   blockedAuthors: Set<string>;
   hiddenTopics: Set<string>;
   preferredTopicIds: Set<string>;
+  /** Hours 0..23 the viewer has been active in, within the rolling window. */
+  activeHours: Set<number>;
 }
 
 /**
@@ -247,6 +249,11 @@ export function buildBehaviorSets(
         .filter((t) => t.topicId && t.weight > 0.3)
         .map((t) => String(t.topicId)),
     ),
+    // `activeHours` is a rolling log of the last 168 recorded hours, so it holds
+    // repeats — `timeOfDay` asks it three membership questions per post, and a
+    // linear scan of 168 entries per question per post is the kind of cost this
+    // whole struct exists to remove.
+    activeHours: new Set<number>(userBehavior.activeHours || []),
   };
 }
 
