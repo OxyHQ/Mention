@@ -55,11 +55,26 @@ export interface FeedContext {
    */
   viewerRegion?: string;
   /**
-   * Whether THIS viewer has opted in to seeing sensitive / NSFW content. When
-   * `true`, discovery surfaces (For You, Explore) and ranking do NOT exclude or
-   * zero sensitive posts for this viewer; the posts still carry their sensitive
-   * flag for client-side blur / content warnings. Defaults to `false`
-   * (safe-for-work) for anonymous viewers and on any load failure.
+   * Whether THIS viewer has opted in to seeing sensitive / NSFW content.
+   * Defaults to `false` (safe-for-work) for anonymous viewers and on any load
+   * failure — only an explicit stored `true` opts in.
+   *
+   * IT CHANGES NOTHING ON A FEED TODAY, and the previous version of this comment
+   * claimed the opposite ("discovery surfaces do NOT exclude or zero sensitive
+   * posts for this viewer"), which was never true of any request.
+   *
+   * `negativePenalty` does honour it — a sensitive post is not zeroed for an
+   * opted-in viewer — but ranking never sees such a post: `safetyFilter` is
+   * listed by every definition, runs in `gatherPool`, and states its own
+   * contract as "Always drops sensitive posts — no viewer opt-in bypass". The
+   * filter runs first, so the ranking branch is unreachable from a feed.
+   *
+   * The two are not both right, and making them agree is a PRODUCT decision
+   * rather than a wiring one: a feed is a PUSH surface, where search and
+   * notifications — which do honour the opt-in — are pull surfaces the reader
+   * asked. Honouring it here means making `safetyFilter` viewer-aware, and that
+   * starts putting NSFW into For You for opted-in readers. Until someone decides
+   * that, this field is carried and read, and the filter above it decides.
    */
   showSensitiveContent?: boolean;
   /**

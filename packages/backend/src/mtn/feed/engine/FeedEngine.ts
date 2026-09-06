@@ -100,19 +100,6 @@ function buildPopularCursor(page: readonly CandidatePost[], incomingCursor?: str
   });
 }
 
-function readPortraitMedia(post: RankedCandidate): Array<{ type?: string; orientation?: string }> | undefined {
-  if (!('content' in post)) return undefined;
-  const content = Reflect.get(post, 'content');
-  if (!content || typeof content !== 'object') return undefined;
-  const media = Reflect.get(content, 'media');
-  return Array.isArray(media) ? media : undefined;
-}
-
-function hasPortraitVideo(post: RankedCandidate): boolean {
-  const media = readPortraitMedia(post);
-  return Array.isArray(media)
-    && media.some((item) => item?.type === 'video' && item?.orientation === 'portrait');
-}
 
 /**
  * The reader's muted-lane predicate, or `undefined` when they have muted none.
@@ -159,9 +146,30 @@ export class FeedEngine {
       ...context,
       cursor,
       pageLimit: limit,
-      // Explore is currently the only pre-scored source. Pin its time-dependent
-      // recency score on page one and carry that instant in every next cursor.
-      rankingAsOf: exec.preScored ? (parsedScoreCursor?.asOf ?? Date.now()) : undefined,
+      // Pinned on page one and carried in every next cursor, for EVERY ranked
+      // feed rather than only the pre-scored one.
+      //
+      // Two readers, and they want it for different reasons. `exploreSource`
+      // (pre-scored) uses it to freeze both ends of its candidate window so a
+      // row cannot cross a page boundary as the clock moves. The cursor minted
+      // below uses it as the gate on the v1 payload — without it a ranked page
+      // continues under the LEGACY `score:id` form, which carries no
+      // `excludeIds`.
+      //
+      // For You was in that second case, and it is the feed least able to afford
+      // it: its scores are recomputed against a fresh `Date.now()` on every page
+      // (recency decay, velocity, cold-start all read the wall clock) and its
+      // engagement counts move underneath, so the `score < cursor.score` window
+      // is applied to numbers that have shifted since the cursor was minted. The
+      // only thing standing between a reader and a repeat was the seen set — a
+      // 1000-id, 30-minute cache shared across for_you, videos and media, under
+      // the most pressure exactly where the scroll is deepest. The bounded
+      // rolling `excludeIds` guard now backs it up.
+      //
+      // Setting it for the ranked path changes no candidate window: the For You
+      // lanes take their own `recencyStart()` and never read this, and
+      // `exploreSource` is the only source that does.
+      rankingAsOf: parsedScoreCursor?.asOf ?? Date.now(),
     };
 
     // Anonymous popular fallback (For You / Videos / Media): no viewer signals,
@@ -513,12 +521,14 @@ export class FeedEngine {
         if (candidate) ranked.push(candidate);
       }
 
+      // Score order, and ONLY score order. The Videos feed used to sort
+      // portrait-first above the score here; that made the page a prefix of
+      // (portrait, score) rather than of score, and the cursor minted below is
+      // score-descending — so a landscape video scoring above the page anchor was
+      // pushed out of the window and then excluded by every later page's
+      // `score < cursor` filter. The preference now lives in the score itself, as
+      // the `portraitBoost` signal the Videos definition enables.
       const sorted = ranked.sort((a, b) => {
-        if (definition.id === 'videos') {
-          const aPortrait = hasPortraitVideo(a) ? 1 : 0;
-          const bPortrait = hasPortraitVideo(b) ? 1 : 0;
-          if (bPortrait !== aPortrait) return bPortrait - aPortrait;
-        }
         const diff = readCandidateScore(b) - readCandidateScore(a);
         if (Math.abs(diff) < MtnConfig.feed.scoreEpsilon) {
           return readCandidateId(b).localeCompare(readCandidateId(a));
@@ -586,7 +596,15 @@ export class FeedEngine {
     // advertise a phantom next page.
     const hasMore = rawSlices.length > limit;
     const windowedSlices = rawSlices.slice(0, limit);
-    const diversifiedSlices = diversifyByAuthor(windowedSlices, sliceAuthorKey);
+    // The reader's own knob from `/settings/feed`, which nothing read until now:
+    // it is validated and clamped to 1..10 on write and stored in its own column,
+    // and `diversifyByAuthor` had no parameter it could reach. `undefined` leaves
+    // the reranker at its default of 1, i.e. no two adjacent same-author slices.
+    const diversifiedSlices = diversifyByAuthor(windowedSlices, sliceAuthorKey, {
+      ...(ctx.feedSettings?.diversity?.maxConsecutiveSameAuthor === undefined
+        ? {}
+        : { maxConsecutive: ctx.feedSettings.diversity.maxConsecutiveSameAuthor }),
+    });
 
     // Phase 5: cap the discovery share of the page (For You sets
     // `maxDiscoveryShare`; every other feed leaves it unset → no-op). Runs AFTER

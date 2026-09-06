@@ -364,6 +364,31 @@ export const MtnConfig = {
         boost: 1.1,
       },
       /**
+       * PORTRAIT boost for the reels surface — a portrait video fills the screen
+       * the Videos feed is built around, so it is genuinely the better item to
+       * show there.
+       *
+       * A MULTIPLIER, deliberately, where this was once an absolute sort key
+       * placed above the score. That key broke the invariant every ranked page
+       * depends on: `FeedEngine.finalizeRanked` mints a score-descending keyset
+       * cursor from the page's lowest anchor, so the page it serves has to be a
+       * PREFIX of the score order. Sorting portrait-first made it a prefix of
+       * (portrait, score) instead, so a landscape video scoring ABOVE the anchor
+       * was pushed out of the window and then excluded by the next page's
+       * `score < cursor` filter — dropped from every page, permanently.
+       * Unreachable at the default `orientation: 'portrait'`, which filters the
+       * pool to one orientation; reachable the moment a caller passes
+       * `?orientation=all`, which is a documented public parameter.
+       *
+       * As a multiplier it expresses the same preference without the skip: a
+       * portrait video outranks a comparable landscape one, and a markedly
+       * better landscape video can still win.
+       */
+      portraitBoost: {
+        /** Multiplier (> 1) applied to a post carrying a portrait video. */
+        boost: 1.5,
+      },
+      /**
        * STARTER-PACK CURATION boost — a bounded lift for an author OTHER PEOPLE
        * curated into their starter packs, weighted by how much those packs are
        * actually USED and by the curator's own follower count.

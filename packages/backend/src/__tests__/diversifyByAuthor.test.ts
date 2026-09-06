@@ -213,6 +213,68 @@ function makeSlice(sliceKey: string, authorId: string, postIds: string[]): FeedP
   };
 }
 
+describe('diversifyByAuthor — maxConsecutive, the reader\'s own knob', () => {
+  /**
+   * `feedSettings.diversity.maxConsecutiveSameAuthor` is offered in the app,
+   * validated and clamped to 1..10 on write, and stored in its own column — and
+   * nothing read it. A reader who set it to 3 got exactly the spacing of a
+   * reader who never opened the screen, because `minGap` cannot express it:
+   * "at least N others between two" and "at most N in a row" are different
+   * questions, and the former only answers the latter at N = 1.
+   */
+  // Enough OTHER authors that the gap is satisfiable. With a thin pool the
+  // starvation guard emits an adjacent same-author item to keep the page moving
+  // — documented, pre-existing, and not what these cases are about.
+  const ranked: Item[] = [
+    { id: 'a1', author: 'A' },
+    { id: 'a2', author: 'A' },
+    { id: 'a3', author: 'A' },
+    { id: 'a4', author: 'A' },
+    ...Array.from({ length: 12 }, (_unused, i) => ({ id: `o${i}`, author: `O${i}` })),
+  ];
+
+  /** The longest run of one author anywhere in the output. */
+  function longestRun(items: Item[]): number {
+    let best = 0;
+    let current = 0;
+    let previous: string | undefined;
+    for (const item of items) {
+      current = item.author === previous ? current + 1 : 1;
+      previous = item.author;
+      if (current > best) best = current;
+    }
+    return best;
+  }
+
+  it('defaults to 1, which is the previous behaviour exactly', () => {
+    expect(longestRun(diversifyByAuthor(ranked, (i) => i.author))).toBe(1);
+  });
+
+  it('admits a run of the configured length', () => {
+    const out = diversifyByAuthor(ranked, (i) => i.author, { maxConsecutive: 3 });
+    expect(longestRun(out)).toBe(3);
+    // Every item is still present — this reorders, it never drops.
+    expect(out.map((i) => i.id).sort()).toEqual(ranked.map((i) => i.id).sort());
+  });
+
+  it('never exceeds the configured run, even when one author could fill the page', () => {
+    const allA: Item[] = Array.from({ length: 9 }, (_unused, i) => ({ id: `a${i}`, author: 'A' }));
+    const mixed = [...allA, { id: 'b1', author: 'B' }, { id: 'c1', author: 'C' }];
+
+    const out = diversifyByAuthor(mixed, (i) => i.author, { maxConsecutive: 2, maxPerAuthor: 0 });
+
+    // With one author holding nine of eleven items the cap is arithmetically
+    // unsatisfiable at the tail, which is the documented degrade-to-ordering —
+    // so this asserts the run cap holds while OTHER authors remain to break it.
+    expect(longestRun(out.slice(0, 6))).toBeLessThanOrEqual(2);
+    expect(out).toHaveLength(mixed.length);
+  });
+
+  it('clamps a nonsensical run cap to 1 rather than emitting nothing', () => {
+    expect(longestRun(diversifyByAuthor(ranked, (i) => i.author, { maxConsecutive: 0 }))).toBe(1);
+  });
+});
+
 describe('diversifyByAuthor (slice-level, keyed by primary author)', () => {
   it('spaces same-author slices while keeping a thread intact as one unit', () => {
     // Author A: a single-post slice, a 3-post THREAD, and another single-post

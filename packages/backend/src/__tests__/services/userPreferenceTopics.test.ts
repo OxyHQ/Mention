@@ -125,6 +125,62 @@ describe('UserPreferenceService — language is DECLARED, never learned', () => 
   });
 });
 
+/**
+ * `activeHours` is a ROLLING LOG, not a set.
+ *
+ * It was deduplicated on write — `if (!activeHours.includes(hour))` — so the
+ * array held at most the 24 distinct hours-of-day and the `slice(-168)` beside
+ * it could never fire. The comment said "keep only last 168 hours (1 week) of
+ * activity"; the data structure could not express a week, only "every hour this
+ * reader has EVER been active in".
+ *
+ * That set only grew. Any reader who used the app across a full day eventually
+ * held all 24 hours, and `timeOfDay` then returned its 1.2 boost for every post
+ * — a signal that had stopped discriminating, silently and permanently. The same
+ * append-only-with-an-inert-cap shape as the learned language set removed
+ * earlier.
+ */
+describe('UserPreferenceService — activeHours forgets', () => {
+  async function storedHours(): Promise<number[]> {
+    const [row] = await getDb()
+      .select({ activeHours: userBehaviors.activeHours })
+      .from(userBehaviors)
+      .where(eq(userBehaviors.oxyUserId, VIEWER));
+    return row?.activeHours ?? [];
+  }
+
+  it('records a repeat instead of discarding it, so frequency survives', async () => {
+    const post = await seedPost(scope, { postClassification: { status: 'baseline', topics: [] } });
+
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
+
+    const hours = await storedHours();
+    expect(hours).toHaveLength(3);
+    // All three land in the same hour — the point is that they are all KEPT.
+    expect(new Set(hours).size).toBe(1);
+  });
+
+  /**
+   * The cap has to actually fire, which is what the dedup prevented. Asserted by
+   * seeding one entry past the window and reading the length back.
+   */
+  it('caps the log at the rolling window', async () => {
+    const post = await seedPost(scope, { postClassification: { status: 'baseline', topics: [] } });
+    // 168 stamps already stored, so the next interaction is the one that trims.
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
+    await getDb()
+      .update(userBehaviors)
+      .set({ activeHours: Array.from({ length: 168 }, (_unused, i) => i % 24) })
+      .where(eq(userBehaviors.oxyUserId, VIEWER));
+
+    await userPreferenceService.recordInteraction(VIEWER, post.id, 'like');
+
+    expect(await storedHours()).toHaveLength(168);
+  });
+});
+
 describe('UserPreferenceService — canonical topic learning (topicRefs prefer / slug-topics fallback / neutral)', () => {
   it('learns topics from the stored topicRefs rows, with their resolved topicId', async () => {
     const post = await seedPost(scope, {

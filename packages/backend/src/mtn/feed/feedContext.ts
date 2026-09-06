@@ -21,7 +21,7 @@ import { listSubscriptionService } from '../../services/ListSubscriptionService'
 import { userPreferenceService } from '../../services/UserPreferenceService';
 import { resolveUserSummaries } from '../../services/PostHydrationService';
 import { mergeFederatedFollowIds } from '../../services/viewerFollowGraph';
-import { loadMutedLaneIds, loadShowSensitiveContent } from '../../services/safety/viewerSafety';
+import { loadMutedLaneIds } from '../../services/safety/viewerSafety';
 import type { UserBehaviorRecord } from '../../db/userProfile/userBehaviorRecord';
 import { logger } from '../../utils/logger';
 import type { FeedEngineContext } from './engine/types';
@@ -118,17 +118,28 @@ export async function loadViewerLanguages(userId: string | undefined): Promise<s
  */
 export async function loadFeedPreferences(
   userId: string | undefined,
-): Promise<{ feedTuning?: FeedTuning; feedSettings?: FeedRankingSettings }> {
-  if (!userId) return {};
+): Promise<{
+  feedTuning?: FeedTuning;
+  feedSettings?: FeedRankingSettings;
+  showSensitiveContent: boolean;
+}> {
+  if (!userId) return { showSensitiveContent: false };
   try {
     const doc = await loadUserSettings(userId);
     return {
       feedTuning: doc?.feedTuning ?? undefined,
       feedSettings: doc?.feedSettings ?? undefined,
+      // Only an explicit stored `true` opts in — the same rule
+      // `loadShowSensitiveContent` states for the surfaces that read it on its
+      // own (search, notifications). Folded in here rather than loaded beside
+      // this: it is a THIRD field of the row this already reads in full, and the
+      // separate loader made the feed path issue a second query for one column
+      // of a document it was holding.
+      showSensitiveContent: doc?.privacy?.showSensitiveContent === true,
     };
   } catch (error) {
     logger.warn('[feedContext] Failed to load feed preferences', error);
-    return {};
+    return { showSensitiveContent: false };
   }
 }
 
@@ -155,8 +166,7 @@ export async function loadViewerFeedContext(
   let followerIds: string[] = [];
   let subscribedListMemberIds: string[] = [];
   let userBehavior: UserBehaviorRecord | undefined;
-  let feedPreferences: { feedTuning?: FeedTuning; feedSettings?: FeedRankingSettings } = {};
-  let showSensitiveContent = false;
+  let feedPreferences: Awaited<ReturnType<typeof loadFeedPreferences>> = { showSensitiveContent: false };
   let viewerLanguages: string[] = [];
   let mutedLaneIds: string[] = [];
 
@@ -216,9 +226,6 @@ export async function loadViewerFeedContext(
         return undefined;
       });
 
-    // Already soft-fails to `false` internally.
-    const sensitivePromise = loadShowSensitiveContent(currentUserId);
-
     // Already soft-fails to `{}` internally. ONE read for both documents — they
     // are two fields of the same `UserSettings` row.
     const preferencesPromise = loadFeedPreferences(currentUserId);
@@ -235,7 +242,6 @@ export async function loadViewerFeedContext(
       followerIds,
       subscribedListMemberIds,
       userBehavior,
-      showSensitiveContent,
       feedPreferences,
       viewerLanguages,
       mutedLaneIds,
@@ -244,7 +250,6 @@ export async function loadViewerFeedContext(
       followerPromise,
       subscribedPromise,
       behaviorPromise,
-      sensitivePromise,
       preferencesPromise,
       languagesPromise,
       mutedLanesPromise,
@@ -258,7 +263,7 @@ export async function loadViewerFeedContext(
     subscribedListMemberIds,
     userBehavior,
     oxyClient,
-    showSensitiveContent,
+    showSensitiveContent: feedPreferences.showSensitiveContent,
     feedTuning: feedPreferences.feedTuning,
     // The viewer's own ranking knobs from `/settings/feed`. Loaded alongside
     // `feedTuning` from the same row; `undefined` leaves every knob at its

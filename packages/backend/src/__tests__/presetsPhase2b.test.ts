@@ -68,9 +68,20 @@ describe('preset definitions include Phase 2b signals', () => {
     expect(forYouDefinition.signals.length).toBeGreaterThanOrEqual(BASE_SIGNAL_COUNT + 8);
   });
 
-  it('videosDefinition signals include the same Phase 2b modules as forYou', () => {
+  /**
+   * Videos carries the SAME shared set as For You, plus exactly one signal of its
+   * own. Asserted as "For You's set, then `portraitBoost`" rather than as set
+   * equality, so a Phase 2b module that stops reaching Videos still goes red —
+   * the property this guards — while the one deliberate difference is named.
+   *
+   * `portraitBoost` is Videos-only because the reels screen is full-screen. It is
+   * a signal rather than a sort key: an absolute portrait-first sort broke the
+   * prefix invariant `FeedEngine.finalizeRanked`'s score cursor pages on, and
+   * could drop landscape videos from every page.
+   */
+  it('videosDefinition signals are forYou\'s, plus portraitBoost', () => {
     const forYouIds = forYouDefinition.signals.map((ref) => ref.module);
     const videoIds = videosDefinition.signals.map((ref) => ref.module);
-    expect(videoIds).toEqual(forYouIds);
+    expect(videoIds).toEqual([...forYouIds, 'portraitBoost']);
   });
 });

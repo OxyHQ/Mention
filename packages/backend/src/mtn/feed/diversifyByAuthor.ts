@@ -52,6 +52,21 @@ export interface DiversifyByAuthorOptions {
    * deferred to the tail (never dropped). Defaults to the shared config.
    */
   maxPerAuthor?: number;
+  /**
+   * How many of an author's items may appear CONSECUTIVELY before the gap is
+   * required. `1` (the default) is the previous behaviour exactly: `minGap`
+   * alone admits no two adjacent same-author items, so a run could never exceed
+   * one and this changes nothing unless a caller raises it.
+   *
+   * It exists because `feedSettings.diversity.maxConsecutiveSameAuthor` did.
+   * That setting is offered in the app, validated and clamped to 1..10 on write
+   * (`routes/profileSettings.ts`) and stored in its own column — and no code
+   * read it. A reader who set it to 3 got exactly the spacing of a reader who
+   * had never opened the screen. `minGap` cannot express it: "at least N others
+   * between two" and "at most N in a row" are different questions, and the
+   * former only ever answers the latter for N = 1.
+   */
+  maxConsecutive?: number;
 }
 
 /**
@@ -78,6 +93,8 @@ export function diversifyByAuthor<T>(
 ): T[] {
   const minGap = options.minGap ?? MtnConfig.ranking.diversity.authorMinGap;
   const maxPerAuthor = options.maxPerAuthor ?? MtnConfig.ranking.diversity.maxPerAuthorPerPage;
+  // At least 1: a run cap below one would forbid emitting an author at all.
+  const maxConsecutive = Math.max(1, options.maxConsecutive ?? 1);
 
   // Nothing to space when there are 0/1 items or the constraints are no-ops.
   if (items.length <= 1 || (minGap <= 0 && maxPerAuthor <= 0)) {
@@ -97,10 +114,22 @@ export function diversifyByAuthor<T>(
   // at the tail is bookkept separately so the cap bounds the SPACED run).
   const emittedCount = new Map<string, number>();
 
+  // The author of the item at the tail of `result`, and how many of theirs run
+  // back from it. Only ADJACENCY needs tracking: a run is broken the moment
+  // somebody else is emitted, and `minGap` governs from there.
+  let runAuthor: string | undefined;
+  let runLength = 0;
+
   const gapSatisfied = (author: string | undefined): boolean => {
     if (!author) return true; // no author → never clusters
     const last = lastEmittedAt.get(author);
     if (last === undefined) return true;
+    // Extending the run at the tail is allowed while it is under the cap. At the
+    // default `maxConsecutive` of 1 this is never true, so the gap rule below is
+    // the only one that applies — the previous behaviour, unchanged.
+    if (author === runAuthor && last === result.length - 1) {
+      return runLength < maxConsecutive;
+    }
     // `minGap` OTHER items required between two same-author items → the next
     // legal slot is `last + minGap + 1`, i.e. `result.length - last > minGap`.
     return result.length - last > minGap;
@@ -114,6 +143,8 @@ export function diversifyByAuthor<T>(
   const emitAt = (index: number): void => {
     const [item] = remaining.splice(index, 1);
     const author = authorKeyOf(item);
+    runLength = author !== undefined && author === runAuthor ? runLength + 1 : 1;
+    runAuthor = author;
     if (author) {
       lastEmittedAt.set(author, result.length);
       emittedCount.set(author, (emittedCount.get(author) ?? 0) + 1);

@@ -68,6 +68,13 @@ export function readInteractionSurface(
  * - Topics/hashtags engaged with
  * - Authors interacted with
  */
+/**
+ * How many recorded activity hours `userBehavior.activeHours` keeps — one week
+ * of hourly stamps. The window is what makes the set forget: an hour the reader
+ * has stopped visiting falls out of it.
+ */
+const ACTIVE_HOURS_WINDOW = 168;
+
 export class UserPreferenceService {
   // The accumulators (preferredAuthors weight/decay, top-N sort+slice, recency
   // factors, multiplicative skip-decay) are stateful and order-dependent, so the
@@ -246,11 +253,24 @@ export class UserPreferenceService {
       // Record active hour for any engagement (including a genuine view) — it
       // reflects WHEN the user is on the app, independent of sentiment. A pure
       // skip still means the user was active, so we record it too.
-      const hour = new Date().getHours();
-      if (!userBehavior.activeHours.includes(hour)) {
-        userBehavior.activeHours.push(hour);
-        // Keep only last 168 hours (1 week) of activity
-        userBehavior.activeHours = userBehavior.activeHours.slice(-168);
+      //
+      // A ROLLING LOG of the last 168 recorded hours, which is what the cap was
+      // always written for and what `timeOfDay` needs to mean anything. It was a
+      // deduplicated SET: `includes` refused a repeat, so the array held at most
+      // the 24 distinct hours-of-day and the 168 cap could never fire. That set
+      // only ever grew. A reader who was once awake at 03:00 kept 03:00 forever,
+      // and any reader who used the app across a full day eventually held all 24
+      // — at which point `timeOfDay` returned its 1.2 boost for EVERY post and
+      // stopped discriminating, silently and permanently. The same
+      // append-only-with-an-inert-cap shape as the learned language set removed
+      // earlier.
+      //
+      // Keeping the repeats is also what makes the signal weigh frequency: an
+      // hour the reader is on the app daily appears many times in the window, an
+      // hour they visited once appears once and falls out of it.
+      userBehavior.activeHours.push(new Date().getHours());
+      if (userBehavior.activeHours.length > ACTIVE_HOURS_WINDOW) {
+        userBehavior.activeHours = userBehavior.activeHours.slice(-ACTIVE_HOURS_WINDOW);
       }
 
       // Update REGION affinity (positive signals only — a skip must not increase

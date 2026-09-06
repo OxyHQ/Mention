@@ -232,6 +232,27 @@ export function localBoost(post: RankablePost): number {
 }
 
 /**
+ * `portraitBoost` — a lift for a post carrying a PORTRAIT video. Enabled only by
+ * the Videos definition, whose surface is full-screen.
+ *
+ * A multiplier rather than a sort key, and that is the whole point of it — see
+ * `MtnConfig.ranking.optInSignals.portraitBoost` for the pagination invariant an
+ * absolute portrait-first sort broke.
+ */
+export function portraitBoost(post: RankablePost): number {
+  const media = post?.content?.media;
+  if (!Array.isArray(media)) return 1.0;
+  // `media` is typed `unknown[]` on `RankablePost` — it is a lean candidate, not
+  // a hydrated DTO — so each item is narrowed rather than cast.
+  const portrait = media.some((item) => {
+    if (!item || typeof item !== 'object') return false;
+    const entry = item as { type?: unknown; orientation?: unknown };
+    return entry.type === 'video' && entry.orientation === 'portrait';
+  });
+  return portrait ? R.optInSignals.portraitBoost.boost : 1.0;
+}
+
+/**
  * `starterPackBoost` — a BOUNDED lift for a post whose AUTHOR other people curated
  * into their starter packs, weighted by how much those packs were actually USED and
  * by each curator's own follower count.
@@ -335,6 +356,7 @@ export const OPT_IN_SIGNALS: readonly OptInScorer[] = [
   // (and the golden-master product) is unchanged. Both fire only when explicitly
   // enabled (DORMANT until Phase 5), so preset ranking is unaffected.
   { id: 'localBoost', score: (post) => localBoost(post) },
+  { id: 'portraitBoost', score: (post) => portraitBoost(post) },
   { id: 'languageMismatchPenalty', score: (post, ctx) => languageMismatchPenalty(post, ctx.viewerBaseLanguages) },
   // Curation signal — appended at the END for the same reason: an existing feed's
   // opt-in product is untouched unless it explicitly enables this signal.

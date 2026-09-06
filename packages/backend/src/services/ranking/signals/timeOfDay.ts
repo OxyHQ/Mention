@@ -14,27 +14,27 @@ import type { RankingSignal } from './types';
 export function timeOfDayScore(
   post: RankablePost,
   userBehavior: RankingUserBehavior | undefined,
+  activeHourSet?: ReadonlySet<number>,
 ): number {
-  const activeHours = userBehavior?.activeHours;
-  if (!activeHours || activeHours.length === 0) {
+  const activeHours = activeHourSet ?? new Set(userBehavior?.activeHours ?? []);
+  if (activeHours.size === 0) {
     return 1.0; // No preference data
   }
 
-  const postDate = new Date(post.createdAt ?? NaN);
-  const postHour = postDate.getHours();
+  // BOTH clocks are the server's, deliberately. `UserPreferenceService` records
+  // `new Date().getHours()` when an interaction arrives and this reads the same
+  // call on the post's timestamp, so the two shift together and a reader active
+  // at 20:00 local matches a post made at 20:00 local whatever the server's zone
+  // is. Converting ONE side to the viewer's timezone — the obvious-looking fix —
+  // is what would break the match.
+  const postHour = new Date(post.createdAt ?? NaN).getHours();
 
-  // Check if post was created during user's active hours
-  if (activeHours.includes(postHour)) {
+  if (activeHours.has(postHour)) {
     return 1.2; // Boost for posts created during active hours
   }
 
-  // Check adjacent hours (within 1 hour of active time)
-  const adjacentHours = [
-    (postHour + 23) % 24, // Previous hour
-    (postHour + 1) % 24   // Next hour
-  ];
-
-  if (adjacentHours.some(h => activeHours.includes(h))) {
+  // Adjacent hours (within one hour of an active one).
+  if (activeHours.has((postHour + 23) % 24) || activeHours.has((postHour + 1) % 24)) {
     return 1.1; // Slight boost for adjacent hours
   }
 
@@ -44,5 +44,6 @@ export function timeOfDayScore(
 export const timeOfDaySignal: RankingSignal = {
   id: 'timeOfDay',
   group: 'quality',
-  score: (post: RankablePost, ctx: SignalContext) => timeOfDayScore(post, ctx.userBehavior),
+  score: (post: RankablePost, ctx: SignalContext) =>
+    timeOfDayScore(post, ctx.userBehavior, ctx.behaviorSets?.activeHours),
 };

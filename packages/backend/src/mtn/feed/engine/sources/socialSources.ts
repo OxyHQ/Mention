@@ -36,8 +36,9 @@ import {
 import { assemblePostRecords } from '../../../../db/posts/postRepository';
 import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { discoverySafeSql } from '../../feedSafety';
+import { engagementScoreSql } from './discoverySources';
 import { logger } from '../../../../utils/logger';
-import { notABoostSql, rankingWeight } from '../../../../utils/feedQueryBuilder';
+import { notABoostSql } from '../../../../utils/feedQueryBuilder';
 import type { CandidatePost, SourceModule } from '../types';
 
 /**
@@ -79,45 +80,6 @@ async function fetchPostsByIds(ids: string[]): Promise<CandidatePost[]> {
   return loaded.sort(
     (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0),
   );
-}
-
-/**
- * The UNSPLIT engagement composite — likes + ALL boosts + comments, with no
- * native/federated distinction.
- *
- * ## This DIVERGES from `engagementScoreSql`, and the divergence is PRESERVED
- *
- * `discoverySources.engagementScoreSql` splits the boost term: the native subset
- * (`boosts − federatedBoosts`) is weighted at `boostWeight` (2.5) and the
- * federated subset at `federatedBoostWeight` (0.5), because — per the config's
- * own comment — "a handful of federated boosts routinely made low-quality
- * off-instance posts look trending". This one weights every boost at 2.5.
- *
- * In Mongo these were two same-named functions in two files, one exported and
- * one private, and nothing indicated they disagreed. The port keeps the
- * BEHAVIOUR and removes the disguise: two differently-named expressions, each
- * stating what it is, with `socialEngagementScoreSql.test.ts` asserting they
- * produce DIFFERENT scores for a post carrying federated boosts. That test is
- * the tripwire — the divergence can no longer be spread by copy-paste or
- * "unified" by accident, in either direction.
- *
- * WHY NOT RECONCILE, given `topReplies` is a discovery surface and this looks
- * like drift rather than intent: unifying changes the ORDER `topReplies`
- * returns. A store migration whose contract is "the wire format must not change"
- * is the wrong place to re-tune ranking — the change would ship inside a
- * hundred-file diff with no way to attribute a ranking regression to it. It is
- * a one-line change once someone owns the ranking question; the test names this
- * function so that person finds it.
- *
- * Only `topRepliesSource` uses it.
- */
-export function socialEngagementScoreSql(): SQL<number> {
-  const cfg = MtnConfig.ranking.engagement;
-  return sql<number>`(
-    ${posts.statsLikesCount} * ${rankingWeight(cfg.likeWeight)}
-    + ${posts.statsBoostsCount} * ${rankingWeight(cfg.boostWeight)}
-    + ${posts.statsCommentsCount} * ${rankingWeight(cfg.commentWeight)}
-  )::double precision`;
 }
 
 /**
@@ -650,8 +612,24 @@ export const newVoicesSource: SourceModule = {
  * replies"). Ranks with the composite, then fetches the ranked posts preserving
  * that order. Always SFW.
  *
- * Uses {@link socialEngagementScoreSql} — the UNSPLIT composite. That is a
- * deliberate divergence from the discovery lanes; see its doc.
+ * Uses the SAME composite as every discovery lane, which it did not until now.
+ *
+ * There were two, disagreeing on one term: this surface weighted every boost at
+ * `boostWeight` (2.5), while `engagementScoreSql` splits it — native boosts at
+ * 2.5, inbound federated Announces at `federatedBoostWeight` (0.5) — because,
+ * per that weight's own comment, "a handful of federated boosts routinely made
+ * low-quality off-instance posts look trending". The divergence was carried
+ * deliberately through the Postgres port, whose contract was that the wire
+ * format must not change, and its doc named the condition for closing it: a
+ * one-line change once someone owns the ranking question.
+ *
+ * The measurement that closes it: of 300 production For You posts sampled
+ * 2026-09-05, 294 carried boosts and effectively all of them were federated
+ * Announces. So on this instance the unsplit composite was not a mild
+ * divergence — it ranked replies by remote Announce count at five times the
+ * weight the rest of the system had decided was right. The predicate test spells
+ * the same ratio out: ten federated boosts scored 5 under one expression and 25
+ * under the other.
  */
 export const topRepliesSource: SourceModule = {
   id: 'topReplies',
@@ -659,7 +637,7 @@ export const topRepliesSource: SourceModule = {
   userComposable: true,
   gather: async (_ctx, _params, cap) => {
     const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
-    const engagementScore = socialEngagementScoreSql();
+    const engagementScore = engagementScoreSql();
 
     const ranked = await getDb()
       .select({ id: posts.id })
