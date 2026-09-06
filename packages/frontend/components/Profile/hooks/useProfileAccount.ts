@@ -39,9 +39,26 @@ export function useProfileAccount(
   routedFamily: ProfileRouteFamily,
   /** The sub-surface this screen is, when it is not the profile root. */
   subpath?: string,
+  /**
+   * The account to look up when the URL does not name one.
+   *
+   * The `/you` tab is the only caller: it is "the viewer's own profile", which
+   * is a route with no `[username]` segment to read. Everything downstream —
+   * the federated-handle rule, the Oxy fetch, the colour scope — is identical,
+   * because none of it ever cared where the handle came from.
+   *
+   * It also suppresses canonicalization, and that is not a shortcut. `/you` is
+   * not a member of either URL family, so "the family this reader is on
+   * disagrees with the account's kind" is not a question it can be asked; a
+   * viewer whose own account is a `channel` would otherwise be redirected off
+   * their own tab to `/c/<handle>` the moment the account resolved.
+   */
+  usernameOverride?: string,
 ): ProfileAccount {
   const { username: urlUsername } = useLocalSearchParams<{ username: string }>();
-  const username = (urlUsername?.startsWith('@') ? urlUsername.slice(1) : urlUsername) || '';
+  const routedUsername = usernameOverride ?? urlUsername;
+  const username =
+    (routedUsername?.startsWith('@') ? routedUsername.slice(1) : routedUsername) || '';
 
   // A federated handle carries its instance in the segment itself. Channels are
   // local-only accounts, so this can only ever be true on the person route — but
@@ -64,13 +81,15 @@ export function useProfileAccount(
     [profileData?.username, profileData?.instance, profileData?.isFederated, username],
   );
 
-  const canonicalHref = canonicalProfileHref({
-    routedFamily,
-    kind: profileData?.kind,
-    handle,
-    resolved: Boolean(profileData),
-    subpath,
-  });
+  const canonicalHref = usernameOverride
+    ? null
+    : canonicalProfileHref({
+        routedFamily,
+        kind: profileData?.kind,
+        handle,
+        resolved: Boolean(profileData),
+        subpath,
+      });
 
   return { username, handle, isFederated, profileData, loading, colorName, canonicalHref };
 }

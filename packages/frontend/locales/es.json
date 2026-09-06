@@ -2160,5 +2160,7 @@
   "Trending now": "Tendencias ahora",
   "What are the latest news?": "¿Cuáles son las últimas noticias?",
   "Who can reply": "Quién puede responder",
-  "Your reply has been posted!": "¡Tu respuesta se ha publicado!"
+  "Your reply has been posted!": "¡Tu respuesta se ha publicado!",
+  "profile.signInRequired": "Inicia sesión para ver tu perfil",
+  "profile.signInRequiredDesc": "Tus publicaciones, respuestas y guardados aparecen aquí cuando inicias sesión."
 }

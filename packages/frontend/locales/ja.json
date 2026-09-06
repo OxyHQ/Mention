@@ -2136,5 +2136,7 @@
   "Trending now": "いまのトレンド",
   "What are the latest news?": "最新のニュースは？",
   "Who can reply": "返信できる人",
-  "Your reply has been posted!": "返信を投稿しました！"
+  "Your reply has been posted!": "返信を投稿しました！",
+  "profile.signInRequired": "サインインしてプロフィールを表示",
+  "profile.signInRequiredDesc": "サインインすると、投稿・返信・保存した項目がここに表示されます。"
 }

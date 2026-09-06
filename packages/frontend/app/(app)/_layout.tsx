@@ -35,7 +35,11 @@ const IS_WEB = Platform.OS === 'web';
  */
 function isProfileRoute(pathname: string | null | undefined): boolean {
   if (!pathname) return false;
-  return pathname.startsWith('/@');
+  // `/you` is the viewer's own profile as a TAB — the same page, at a route with
+  // no handle in it (see `(tabs)/you.tsx`). Without it here the one profile a
+  // reader looks at most would be the only one rendering outside its own colour
+  // scope.
+  return pathname.startsWith('/@') || pathname === '/you';
 }
 
 /**
@@ -99,20 +103,22 @@ export default function AppLayout() {
         <Slot />
       ) : (
         <ExperimentalStack screenOptions={{ headerShown: false }}>
+          {/* The five root tabs, as ONE stack screen. Everything else in this
+              group is pushed over them, which is what keeps the tabs alive
+              underneath a post or a settings page and what makes Back return to
+              the tab the reader came from.
+
+              This entry replaces the one `videos` used to have. That entry
+              existed so the reels screen would mount OVER the feed rather than
+              replacing it: a flying video is one surface handed from origin to
+              destination, so the destination must exist while the origin is
+              still there, and a screen swap would unmount the feed first and
+              leave the flight nothing to hand over from. Inside the tabs both
+              screens are simply mounted at once, permanently — the property is
+              now structural instead of a stack-attachment detail. */}
+          <ExperimentalStack.Screen name="(tabs)" />
           <ExperimentalStack.Screen name="compose" />
           <ExperimentalStack.Screen name="p/[id]/boost" />
-          {/* The reels screen has to mount over the feed rather than replacing
-              it.
-
-              A flying video is one surface handed from the origin to the
-              destination, so the destination must exist while the origin is
-              still there — a screen swap would unmount the feed first and leave
-              the flight nothing to hand over from. ExperimentalStack keeps the
-              previous screen attached while the next route becomes active; its
-              deliberately narrow API has no per-screen presentation/animation
-              options, so the media-flight layer remains the single owner of the
-              shared video surface. */}
-          <ExperimentalStack.Screen name="videos" />
         </ExperimentalStack>
       )}
       {/* Show the anon CTA only once auth is resolved: during cold-boot restore

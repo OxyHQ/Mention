@@ -3,7 +3,7 @@ import { Home, HomeActive } from '@/assets/icons/home-icon';
 import { Video, VideoActive } from '@/assets/icons/video-icon';
 import { ComposeIcon, ComposeIIconActive } from '@/assets/icons/compose-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
-import { useRouter, usePathname } from 'expo-router';
+import { usePathname } from 'expo-router';
 import React, { useCallback, useMemo } from 'react';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -18,6 +18,8 @@ import {
     type TabBarTheme,
 } from '@oxyhq/bloom/tab-bar';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
+import { useTabPager } from '@/context/TabPagerContext';
+import { TABS, tabIndexByName, type TabName } from '@/components/navigation/tabs';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { UnreadBadge } from '@/components/notifications/UnreadBadge';
 import { useTranslation } from 'react-i18next';
@@ -60,12 +62,15 @@ const VIDEOS_DARK_TAB_BAR_THEME: Partial<TabBarTheme> = {
 /** Rendered size (px) of the tab glyphs; Bloom centers each one in its own glyph box. */
 const ICON_SIZE = 22;
 
-/** Tab order. Shared by the pathname → index derivation and the press handlers. */
-const TAB_HOME = 0;
-const TAB_VIDEOS = 1;
-const TAB_COMPOSE = 2;
-const TAB_NOTIFICATIONS = 3;
-const TAB_PROFILE = 4;
+/**
+ * Tab order is `components/navigation/tabs.ts` — the one table the navigator's
+ * triggers, this bar's items and the route→index question all read. These are
+ * the two indices this file needs by NAME, resolved from it rather than written
+ * down again: re-tapping Home refreshes the feed instead of navigating, and the
+ * profile tab is the only one that long-presses.
+ */
+const TAB_HOME = tabIndexByName('index');
+const TAB_PROFILE = tabIndexByName('you');
 
 /**
  * Breathing margin (px) between the end of a screen's scrollable content and the
@@ -89,13 +94,13 @@ export function useBottomBarReservedSpace(): number {
 }
 
 export const BottomBar = () => {
-    const router = useRouter();
     const pathname = usePathname();
-    const { showBottomSheet, signIn, user, isAuthenticated } = useAuth();
+    const { showBottomSheet, user } = useAuth();
     const haptic = useHaptics();
     const { triggerHomeRefresh } = useHomeRefresh();
     const { t } = useTranslation();
     const unreadCount = useUnreadCount();
+    const { progress, activeIndex, selectTab } = useTabPager();
 
     // The Reels (/videos) screen floats this bar over video content, so it renders
     // against a forced black-and-white surface regardless of the app theme.
@@ -113,38 +118,34 @@ export const BottomBar = () => {
     const activeGlyphClass = isVideosScreen ? 'text-white' : 'text-primary';
     const inactiveGlyphClass = isVideosScreen ? 'text-white/60' : 'text-muted-foreground';
 
-    const activeIndex = pathname === '/' ? TAB_HOME
-        : pathname === '/videos' ? TAB_VIDEOS
-        : pathname === '/compose' ? TAB_COMPOSE
-        : pathname === '/notifications' ? TAB_NOTIFICATIONS
-        : pathname.startsWith('/@') ? TAB_PROFILE
-        : -1;
-
     const unreadLabel = t('notification.badge', {
         count: unreadCount,
         defaultValue: '{{count}} unread notifications',
     });
 
-    const items = useMemo<TabBarItem[]>(() => [
-        {
-            name: 'home',
-            label: t('bottomBar.home'),
+    // Built FROM the tab table rather than beside it. The bar's order is the
+    // pager's order — it decides which two tabs are neighbours under a swipe and
+    // where the highlight sits — so a list written out separately here could
+    // drift from the navigator's by a single reordered literal, and the symptom
+    // would be a tap landing on the wrong screen.
+    //
+    // Keyed by the tab NAME and typed so every name in the table must have an
+    // entry: `icon` is required by `TabBarItem`, so a tab added to the table with
+    // no glyph here is a type error rather than a bar rendering `undefined`.
+    const glyphs = useMemo<Record<TabName, Pick<TabBarItem, 'icon' | 'activeIcon'>>>(() => ({
+        index: {
             icon: <Home size={ICON_SIZE} className={inactiveGlyphClass} />,
             activeIcon: <HomeActive size={ICON_SIZE} className={activeGlyphClass} />,
         },
-        {
-            name: 'videos',
-            label: t('bottomBar.videos'),
+        videos: {
             icon: <Video size={ICON_SIZE} className={inactiveGlyphClass} />,
             activeIcon: <VideoActive size={ICON_SIZE} className={activeGlyphClass} />,
         },
-        {
-            name: 'compose',
-            label: t('bottomBar.compose'),
+        write: {
             icon: <ComposeIcon size={ICON_SIZE} className={inactiveGlyphClass} />,
             activeIcon: <ComposeIIconActive size={ICON_SIZE} className={activeGlyphClass} />,
         },
-        {
+        notifications: {
             // The unread badge is composed INTO both glyphs rather than living in a
             // slot of its own: Bloom has no badge slot, and the bar renders `icon`
             // and `activeIcon` as two stacked crossfade layers, so both must carry
@@ -160,8 +161,6 @@ export const BottomBar = () => {
             // below `itemBox`'s `overflow: 'hidden'` edge — 3px of clearance. If it
             // ever renders flat-topped, that clip is why. The real fix is a
             // Bloom-side badge slot rendered outside the crossfade, not a nudge here.
-            name: 'notifications',
-            label: t('bottomBar.notifications'),
             icon: (
                 <View>
                     <Bell size={ICON_SIZE} className={inactiveGlyphClass} />
@@ -175,52 +174,46 @@ export const BottomBar = () => {
                 </View>
             ),
         },
-        {
+        you: {
             // No `activeIcon`: the avatar looks the same whether or not the tab is
             // focused, exactly as before — the sliding highlight carries the state.
             // It is also the one glyph the /videos treatment does not touch: an
             // <Avatar> is photographic content with no tint to force, so it renders
             // identically on every screen.
-            name: 'profile',
-            label: t('bottomBar.profile'),
             icon: <Avatar size={ICON_SIZE + 4} source={user?.avatar} variant={MEDIA_VARIANT_AVATAR} />,
         },
-    ], [activeGlyphClass, inactiveGlyphClass, t, unreadCount, unreadLabel, user?.avatar]);
+    }), [activeGlyphClass, inactiveGlyphClass, unreadCount, unreadLabel, user?.avatar]);
 
+    const items = useMemo<TabBarItem[]>(
+        () =>
+            TABS.map((tab) => ({
+                name: tab.name,
+                label: t(tab.labelKey),
+                ...glyphs[tab.name],
+            })),
+        [glyphs, t],
+    );
+
+    // One line of navigation, plus the single tab that means something else when
+    // it is already selected. Everything the old five-arm switch encoded —
+    // which URL each tab is, popping whatever is pushed over the tabs, moving
+    // the highlight — belongs to `selectTab` now, so the bar cannot disagree
+    // with the navigator about any of it.
+    //
+    // The signed-out profile tab no longer opens the sign-in sheet from here:
+    // `(tabs)/you.tsx` renders the prompt itself, which is the same thing for a
+    // tap and the right thing for a deep link, a swipe, or a restored session
+    // that turns out to be gone.
     const handleIndexChange = useCallback((index: number) => {
         haptic('light');
-        switch (index) {
-            case TAB_HOME:
-                // Re-tapping Home while the feed is already open refreshes it rather
-                // than navigating.
-                if (pathname === '/') {
-                    triggerHomeRefresh();
-                } else {
-                    router.navigate('/');
-                }
-                break;
-            case TAB_VIDEOS:
-                router.navigate('/videos');
-                break;
-            case TAB_COMPOSE:
-                // Compose is a modal-presented detail, not a tab root, so it PUSHES
-                // over whatever screen is focused instead of switching tab roots.
-                router.push('/compose');
-                break;
-            case TAB_NOTIFICATIONS:
-                router.navigate('/notifications');
-                break;
-            case TAB_PROFILE:
-                if (isAuthenticated && user?.username) {
-                    router.navigate(`/@${user.username}`);
-                } else {
-                    // Dismissing the SDK sign-in modal rejects; that is an ordinary
-                    // user action, not an error.
-                    signIn().catch(() => {});
-                }
-                break;
+        // Re-tapping Home while the feed is already open refreshes it rather
+        // than navigating.
+        if (index === TAB_HOME && activeIndex === TAB_HOME) {
+            triggerHomeRefresh();
+            return;
         }
-    }, [haptic, pathname, triggerHomeRefresh, router, isAuthenticated, user?.username, signIn]);
+        selectTab(index);
+    }, [haptic, activeIndex, triggerHomeRefresh, selectTab]);
 
     const handleIndexLongPress = useCallback((index: number) => {
         // Only the avatar tab has a long-press action (the account switcher).
@@ -251,7 +244,15 @@ export const BottomBar = () => {
                 can paint above it. Do not fight this with z-index; `blur` is the
                 control. */}
             <TabBar
+                // TWO PROPS, TWO QUESTIONS, ONE WRITER EACH. `activeIndex` says
+                // whether there is a selection at all — it is -1 on every pushed
+                // route this bar renders over, and Bloom fades the capsule out
+                // where it stands. `activeProgress` says where the capsule IS,
+                // every frame, on the UI thread: the pager writes it under the
+                // finger, and off-native it is sprung on touch-up so the pill
+                // arrives before the screen does. See `docs/tab-bar.mdx`.
                 activeIndex={activeIndex}
+                activeProgress={progress}
                 onIndexChange={handleIndexChange}
                 onIndexLongPress={handleIndexLongPress}
                 theme={isVideosScreen ? VIDEOS_DARK_TAB_BAR_THEME : undefined}

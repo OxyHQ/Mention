@@ -2136,5 +2136,7 @@
   "Trending now": "Gerade im Trend",
   "What are the latest news?": "Was gibt es Neues?",
   "Who can reply": "Wer antworten darf",
-  "Your reply has been posted!": "Deine Antwort wurde veröffentlicht!"
+  "Your reply has been posted!": "Deine Antwort wurde veröffentlicht!",
+  "profile.signInRequired": "Melde dich an, um dein Profil zu sehen",
+  "profile.signInRequiredDesc": "Deine Beiträge, Antworten und gespeicherten Elemente erscheinen hier, sobald du dich anmeldest."
 }

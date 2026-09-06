@@ -167,3 +167,4 @@ packages/e2e/playwright-report/
 .ripgreprc
 /.idea
 /.vscode
+.bloom-local/

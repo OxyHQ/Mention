@@ -2184,5 +2184,7 @@
   "Trending now": "Сейчас в трендах",
   "What are the latest news?": "Какие последние новости?",
   "Who can reply": "Кто может отвечать",
-  "Your reply has been posted!": "Ваш ответ опубликован!"
+  "Your reply has been posted!": "Ваш ответ опубликован!",
+  "profile.signInRequired": "Войдите, чтобы увидеть свой профиль",
+  "profile.signInRequiredDesc": "Ваши публикации, ответы и сохранённое появятся здесь после входа."
 }
