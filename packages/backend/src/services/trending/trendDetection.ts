@@ -291,7 +291,7 @@ async function aggregateTermRows(
   termsSql: SQL,
   membersOf: ReadonlyMap<string, string[]>,
 ): Promise<TermCandidate[]> {
-  const { minVolume, maxActors, authorPostCap } = MtnConfig.trending.detection;
+  const { minVolume, maxActors, authorPostCap, minLanguageShare } = MtnConfig.trending.detection;
 
   // TWO grouping levels, because volume is per-AUTHOR-capped: a term's volume
   // is assembled from what each author contributed, not from a flat post
@@ -351,6 +351,42 @@ async function aggregateTermRows(
       from expanded
       group by term, author
     ),
+    -- The languages a term is actually BEING DISCUSSED IN, not every language
+    -- any single post carrying it happened to be written in.
+    --
+    -- This was array_agg(distinct e.language) in the select below -- a UNION --
+    -- and the union made the field nearly useless for its one reader.
+    -- orderByLanguageMatch tests ANY overlap, so one English post was enough to
+    -- mark a term English for every English reader. Measured on production
+    -- 2026-09-05, a Japanese term reached an es,en reader tagged [en,ja].
+    --
+    -- The share test asks the question the field is named for. A genuinely
+    -- bilingual term keeps both languages; the one-post tail drops.
+    lang_share as (
+      select term, language, count(*)::int as n
+      from expanded
+      where language is not null
+      group by term, language
+    ),
+    lang_dominant as (
+      select
+        term,
+        coalesce(
+          array_agg(language order by n desc, language asc)
+            -- Cast explicitly, for the reason the recent-window instant above
+            -- carries its own cast: postgres infers a raw template parameter's
+            -- type from its context, and a product against a bigint sum infers
+            -- BIGINT, which then rejects 0.2 outright with
+            -- "invalid input syntax for type bigint".
+            filter (where n >= ${minLanguageShare}::double precision * total),
+          array[]::text[]
+        ) as languages
+      from (
+        select term, language, n, sum(n) over (partition by term) as total
+        from lang_share
+      ) shares
+      group by term
+    ),
     capped as (
       select
         term,
@@ -373,11 +409,12 @@ async function aggregateTermRows(
       (count(*) filter (where e.topics @> array[e.term]::text[]))::int as "topicVolume",
       (count(distinct e.author))::int as "authorCount",
       (array_agg(distinct e.author) filter (where e.author is not null))[1:${sql.raw(String(maxActors))}] as "actorIds",
-      coalesce(array_agg(distinct e.language) filter (where e.language is not null), array[]::text[]) as "languages",
+      coalesce(l.languages, array[]::text[]) as "languages",
       coalesce(array_agg(distinct e.region) filter (where e.region is not null), array[]::text[]) as "regions"
     from expanded e
     join capped c on c.term = e.term
-    group by e.term, c.volume, c.recent_volume
+    left join lang_dominant l on l.term = e.term
+    group by e.term, c.volume, c.recent_volume, l.languages
     -- Cheapest possible narrowing, against the CAPPED volume — the number the
     -- floor is meant to be about.
     having c.volume >= ${minVolume}

@@ -917,6 +917,25 @@ export const MtnConfig = {
        */
       authorPostCap: 2,
       /**
+       * Minimum SHARE of a term's posts a language must carry to be recorded as
+       * one of the term's languages.
+       *
+       * The languages were `array_agg(distinct language)` — the UNION over every
+       * post carrying the term — which made the field almost meaningless for the
+       * one thing it is read for. `orderByLanguageMatch` tests ANY overlap, and a
+       * union collects `en` from a single English post, so a Japanese term that
+       * one English speaker mentioned read as English to every English reader.
+       * Measured on production 2026-09-05: `にゃんぷっぷー` was served to an
+       * `es,en` reader tagged `[en,ja]`.
+       *
+       * A share test asks the question the field is named for — what is this term
+       * BEING DISCUSSED IN — rather than what any single post happened to be
+       * written in. 0.2 keeps a genuinely bilingual term bilingual (`afd` is
+       * discussed in German and English, and both belong on it) while dropping
+       * the one-post tail.
+       */
+      minLanguageShare: 0.2,
+      /**
        * How many trends a batch tries to report before it is willing to fall
        * back on popularity (see `topUpWithPopular`). A list of one or two is
        * not a list, so the top-up fills toward this and stops.

@@ -320,6 +320,83 @@ describe('aggregateTermCandidates — authors are people, not posts', () => {
   });
 });
 
+describe('aggregateTermCandidates — the languages a term is DISCUSSED in', () => {
+  /**
+   * The reported bug, reproduced.
+   *
+   * `languages` was `array_agg(distinct language)` — the UNION over every post
+   * carrying the term — and its one reader, `orderByLanguageMatch`, tests ANY
+   * overlap. So a single English post was enough to mark a term English for
+   * every English reader. Measured on production 2026-09-05: the Japanese term
+   * `にゃんぷっぷー` was served to an `es,en` reader tagged `[en,ja]`.
+   *
+   * Nine Japanese posts against one English one is the shape that matters: the
+   * English share is 10%, under the 20% floor, so it drops — and the assertion
+   * is on the ABSENCE of `en`, which the union could never satisfy.
+   */
+  it('drops a language carried by a single post against a clear majority', async () => {
+    const t = term('nyanpuppu');
+    await seedMany(9, { trendTerms: [t], language: 'ja' });
+    await seedMany(1, { trendTerms: [t], language: 'en' });
+
+    const [candidate] = await candidatesFor([t]);
+
+    expect(candidate).toBeDefined();
+    expect(candidate.languages).toEqual(['ja']);
+  });
+
+  /**
+   * The other half, and the reason this is a SHARE test rather than a
+   * single-dominant-language one: a term genuinely discussed in two languages
+   * keeps both. `afd` is the live example — a German party that English
+   * speakers also post about — and collapsing it to German alone would hide a
+   * real trend from an English reader who follows it.
+   */
+  it('keeps every language that carries a real share of the term', async () => {
+    const t = term('afd');
+    await seedMany(6, { trendTerms: [t], language: 'de' });
+    await seedMany(4, { trendTerms: [t], language: 'en' });
+
+    const [candidate] = await candidatesFor([t]);
+
+    expect(candidate.languages).toEqual(['de', 'en']);
+  });
+
+  /**
+   * Ordering is part of the contract: the reader-facing partition reads the
+   * array, and a caller that wants "the term's language" should get the
+   * dominant one first rather than whatever the aggregate happened to emit.
+   */
+  it('orders the languages by share, strongest first', async () => {
+    const t = term('mixed');
+    await seedMany(3, { trendTerms: [t], language: 'en' });
+    await seedMany(7, { trendTerms: [t], language: 'es' });
+
+    const [candidate] = await candidatesFor([t]);
+
+    expect(candidate.languages).toEqual(['es', 'en']);
+  });
+
+  /**
+   * Posts whose language never resolved must not invent one, and must not
+   * suppress the languages that ARE known — the share is computed over the
+   * posts that declared something.
+   */
+  it('ignores posts with no resolvable language', async () => {
+    const t = term('partial');
+    await seedMany(5, { trendTerms: [t], language: 'es' });
+    // `language: null` is not expressible through the helper's default, so the
+    // rows are nulled after the fact.
+    const nullIds: string[] = [];
+    for (let i = 0; i < 3; i += 1) nullIds.push(await seedPost({ trendTerms: [t] }));
+    await db.update(posts).set({ language: null }).where(inArray(posts.id, nullIds));
+
+    const [candidate] = await candidatesFor([t]);
+
+    expect(candidate.languages).toEqual(['es']);
+  });
+});
+
 describe('aggregateTermCandidates — provenance is carried, not scored', () => {
   it('counts how often the term arrived as a hashtag and as a topic slug', async () => {
     // Provenance decides the row's `type` and gates the topic-registry lookup.
