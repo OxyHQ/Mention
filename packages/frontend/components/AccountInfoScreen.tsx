@@ -25,7 +25,11 @@ import type { ExternalNetwork } from '@/services/feedService';
 import type { ProfileData } from '@/hooks/useProfileData';
 import { useAccountCategoryLabel } from '@/hooks/useAccountCategoryLabel';
 import { nameableAccountCategoryIds } from '@/utils/accountCategories';
-import { useProfileAccount } from '@/components/Profile/hooks/useProfileAccount';
+import {
+  useProfileAccount,
+  useProfileCanonicalHref,
+} from '@/components/Profile/hooks/useProfileAccount';
+import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
 import type { ProfileRouteFamily } from '@/components/Profile/profileRoute';
 import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { Loading } from '@oxyhq/bloom/loading';
@@ -56,10 +60,9 @@ const BLUESKY_NETWORK_DOMAIN = 'bsky.social';
  * about page rather than at the top of the profile.
  */
 export function AccountInfoScreen({ routedFamily }: { routedFamily: ProfileRouteFamily }) {
-  const { profileData, loading: profileLoading, colorName, canonicalHref } = useProfileAccount(
-    routedFamily,
-    'about',
-  );
+  const account = useProfileAccount(useRoutedProfileUsername());
+  const { profileData, loading: profileLoading, colorName } = account;
+  const canonicalHref = useProfileCanonicalHref({ routedFamily, account, subpath: 'about' });
 
   if (canonicalHref) {
     return <Redirect href={canonicalHref} />;

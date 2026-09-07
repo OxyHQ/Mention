@@ -15,6 +15,7 @@ import { ProfileChromeLayers } from './ProfileChromeLayers';
 import { ProfileSkeleton } from './ProfileSkeleton';
 import { ProfileTabBarRow } from './ProfileTabBarRow';
 import { usePersonProfileView } from './hooks/usePersonProfileView';
+import { useRoutedProfileUsername } from './hooks/useRoutedProfileUsername';
 import { profileTabHref, profileTabSelectionFromPathname } from './profileTabRoute';
 import type { ProfileChromeFrameProps, ProfileTabDescriptor } from './types';
 
@@ -97,7 +98,16 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
     router.push(href);
   }, []);
 
-  const view = usePersonProfileView({ active, activeKey: selection?.key ?? 'posts', onSelectTab });
+  const routedUsername = useRoutedProfileUsername();
+
+  const view = usePersonProfileView({
+    active,
+    activeKey: selection?.key ?? 'posts',
+    onSelectTab,
+    // The chrome IS the `[username]` layout's body, so the segment is its own to
+    // read — and the only reader of it on this side of the fork.
+    username: routedUsername,
+  });
 
   const items = useMemo<RouterTabItem[]>(
     () =>

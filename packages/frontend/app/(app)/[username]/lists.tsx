@@ -1,6 +1,8 @@
 import React from 'react';
 import ProfileScreen from '@/components/ProfileScreen';
+import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
 
 export default function ProfileListsRoute() {
-    return <ProfileScreen tab="lists" />;
+    const username = useRoutedProfileUsername();
+    return <ProfileScreen username={username} tab="lists" />;
 }

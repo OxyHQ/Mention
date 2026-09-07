@@ -273,6 +273,15 @@ export type ShowBottomSheetFn = NonNullable<ReturnType<typeof useAuth>['showBott
 
 // Props for the main ProfileScreen component
 export interface ProfileScreenProps {
+  /**
+   * Whose profile this is.
+   *
+   * Always passed by the caller, never read from the URL by the screen. The
+   * `[username]` routes read their own segment (`useRoutedProfileUsername`);
+   * the `/you` tab reads the session. Two routes, one kind of answer — which is
+   * why the tab needs no override and no special case.
+   */
+  username: string;
   tab?: ProfileTab;
   /**
    * Opens the profile on one lane's tab. Set only by the
@@ -280,12 +289,6 @@ export interface ProfileScreenProps {
    * whether that tab exists at all, so an unknown id lands on `posts`.
    */
   laneId?: string;
-  /**
-   * Render this account instead of the one the URL names. Set only by the
-   * `/you` tab, which IS the viewer's own profile and therefore has no
-   * `[username]` segment to read; documented in full on `useProfileAccount`.
-   */
-  usernameOverride?: string;
 }
 
 // Component props for FollowButton from @oxyhq/services

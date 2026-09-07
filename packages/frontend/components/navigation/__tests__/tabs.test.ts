@@ -76,23 +76,64 @@ describe('tabIndexForPathname', () => {
     expect(tabIndexForPathname('')).toBe(-1);
   });
 
-  it("counts the VIEWER's own /@handle as the profile tab", () => {
-    // On web `/you` redirects to `/@handle`; without this the bar would show no
-    // selection on the one profile a reader looks at most.
-    expect(tabIndexForPathname('/@ana', 'ana')).toBe(4);
-  });
-
-  it("does NOT count somebody else's /@handle", () => {
-    expect(tabIndexForPathname('/@someone-else', 'ana')).toBe(-1);
-  });
-
-  it('does not count the viewer\'s own profile SUB-routes', () => {
-    // `/@ana/replies` is a pushed route like any other. Matching it would light
-    // the profile tab while the reader is somewhere the tab cannot return them.
-    expect(tabIndexForPathname('/@ana/replies', 'ana')).toBe(-1);
-  });
-
   it('needs a viewer to match a handle at all', () => {
     expect(tabIndexForPathname('/@ana')).toBe(-1);
+  });
+});
+
+/**
+ * The profile tab is the one entry whose destination differs by platform, and
+ * `tabHref` is the single place that says so. Both sides are asserted here
+ * because the preset runs as iOS: the web branch would otherwise be code nothing
+ * ever executes, and "the bar points at `/@handle` on web" is exactly the claim
+ * the last profile-tab bug was made of.
+ */
+describe('tabHref, per platform', () => {
+  function loadFor(os: 'ios' | 'web') {
+    let mod!: typeof import('../tabs');
+    jest.isolateModules(() => {
+      jest.doMock('react-native', () => ({ Platform: { OS: os } }));
+      mod = require('../tabs') as typeof import('../tabs');
+    });
+    return mod;
+  }
+
+  afterEach(() => {
+    jest.dontMock('react-native');
+  });
+
+  it('sends web to the viewer\'s own /@handle', () => {
+    const web = loadFor('web');
+    const you = web.TABS[web.tabIndexByName('you')]!;
+    expect(web.tabHref(you, 'ana')).toBe('/@ana');
+    expect(web.tabIndexForPathname('/@ana', 'ana')).toBe(4);
+  });
+
+  it('keeps web on /you when nobody is signed in', () => {
+    // There is no handle to send to, and `/you` renders the sign-in prompt.
+    const web = loadFor('web');
+    const you = web.TABS[web.tabIndexByName('you')]!;
+    expect(web.tabHref(you, undefined)).toBe('/you');
+  });
+
+  it('keeps NATIVE on /you, where /@handle is a pushed route', () => {
+    // Treating it as the tab there would light the pill for a screen sitting
+    // OVER the tabs — a copy of your own profile opened from a post row.
+    const native = loadFor('ios');
+    const you = native.TABS[native.tabIndexByName('you')]!;
+    expect(native.tabHref(you, 'ana')).toBe('/you');
+    expect(native.tabIndexForPathname('/@ana', 'ana')).toBe(-1);
+  });
+
+  it("never counts somebody else's /@handle, on either platform", () => {
+    for (const os of ['web', 'ios'] as const) {
+      expect(loadFor(os).tabIndexForPathname('/@someone-else', 'ana')).toBe(-1);
+    }
+  });
+
+  it('does not count the viewer\'s own profile SUB-routes on web', () => {
+    // `/@ana/replies` is a pushed route like any other. Matching it would light
+    // the profile tab while the reader is somewhere the tab cannot return them.
+    expect(loadFor('web').tabIndexForPathname('/@ana/replies', 'ana')).toBe(-1);
   });
 });

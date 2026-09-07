@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import ProfileScreen from '@/components/ProfileScreen';
+import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
 
 /**
  * One lane's tab on a profile: `/@user/lane/<laneId>`.
@@ -15,6 +16,7 @@ import ProfileScreen from '@/components/ProfileScreen';
  * existed simply lands on `posts` instead of on a blank screen.
  */
 export default function ProfileLaneRoute() {
+    const username = useRoutedProfileUsername();
     const { laneId } = useLocalSearchParams<{ laneId: string }>();
-    return <ProfileScreen tab="posts" laneId={typeof laneId === 'string' ? laneId : undefined} />;
+    return <ProfileScreen username={username} tab="posts" laneId={typeof laneId === 'string' ? laneId : undefined} />;
 }

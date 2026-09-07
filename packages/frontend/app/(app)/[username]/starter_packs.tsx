@@ -1,6 +1,8 @@
 import React from 'react';
 import ProfileScreen from '@/components/ProfileScreen';
+import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
 
 export default function ProfileStarterPacksRoute() {
-    return <ProfileScreen tab="starter_packs" />;
+    const username = useRoutedProfileUsername();
+    return <ProfileScreen username={username} tab="starter_packs" />;
 }
