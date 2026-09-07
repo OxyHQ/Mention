@@ -37,7 +37,7 @@ import type { Href } from 'expo-router';
  * by name (the bar's glyphs) be checked for completeness instead of falling back
  * to `undefined` at runtime for a page somebody added here and nowhere else.
  */
-export type PageName = 'index' | 'videos' | 'write' | 'notifications' | 'you';
+export type PageName = 'camera' | 'index' | 'videos' | 'write' | 'notifications' | 'you';
 
 /** What the bottom bar needs in order to draw a page as one of its items. */
 export interface BarItemSpec {
@@ -74,7 +74,12 @@ export interface PageDescriptor {
   bar?: BarItemSpec;
 }
 
-export const PAGES: readonly PageDescriptor[] = [
+const PAGE_TABLE = [
+  // The camera sits to the LEFT of Home and draws no bar item: it is reached by
+  // swiping right off the feed and by the feed header's camera button, exactly
+  // as Instagram does it. `preload: false` is not an optimization here — a
+  // camera mounted for being a neighbour holds the sensor open behind the feed.
+  { name: 'camera', href: '/camera', preload: false },
   { name: 'index', href: '/', preload: true, bar: { labelKey: 'bottomBar.home' } },
   { name: 'videos', href: '/videos', preload: true, bar: { labelKey: 'bottomBar.videos' } },
   { name: 'write', href: '/write', preload: false, bar: { labelKey: 'bottomBar.compose' } },
@@ -85,9 +90,22 @@ export const PAGES: readonly PageDescriptor[] = [
     bar: { labelKey: 'bottomBar.notifications' },
   },
   { name: 'you', href: '/you', preload: true, bar: { labelKey: 'bottomBar.profile' } },
-] as const;
+] as const satisfies readonly PageDescriptor[];
 
-export type BarTabDescriptor = PageDescriptor & { bar: BarItemSpec };
+export const PAGES: readonly PageDescriptor[] = PAGE_TABLE;
+
+/**
+ * The names of the pages that DRAW a bar item, as a closed union derived from
+ * the table above rather than written out again.
+ *
+ * `as const satisfies` is what makes that possible: the annotation would erase
+ * the literals, and a hand-written union would let the bar's glyph map claim
+ * completeness while missing the page somebody just added — or, worse, demand a
+ * glyph for the camera, which draws no item at all.
+ */
+export type BarTabName = Extract<(typeof PAGE_TABLE)[number], { bar: BarItemSpec }>['name'];
+
+export type BarTabDescriptor = PageDescriptor & { name: BarTabName; bar: BarItemSpec };
 
 /** The pages the bar draws, in bar order. Its length is the bar's item count. */
 export const BAR_TABS: readonly BarTabDescriptor[] = PAGES.filter(
@@ -142,14 +160,28 @@ export const BAR_POSITION_BY_PAGE: readonly number[] = PAGES.map((page, index) =
 });
 
 /**
+ * 1 for a page the bar draws no item for, 0 for one it does.
+ *
+ * Fed through {@link barPositionForPage} exactly like the highlight's position,
+ * so the bar fades out CONTINUOUSLY as the finger travels onto the camera and
+ * back rather than popping when the page commits. Same interpolation, different
+ * quantity — which is why that function takes its table as an argument.
+ */
+export const CHROME_HIDDEN_BY_PAGE: readonly number[] = PAGES.map((page) =>
+  page.bar === undefined ? 1 : 0,
+);
+
+/**
  * A pager position in PAGE units — `position + offset`, so `1.4` is 40% of the
  * way from page 1 to page 2 — converted to the BAR units Bloom's `activeProgress`
  * is defined in.
  *
  * Interpolated between the two pages the finger is between rather than rounded,
  * because the whole point of that value is that the highlight tracks the finger
- * 1:1. Takes its table as an argument so a test can exercise a page set the
- * production one does not have yet; `BAR_POSITION_BY_PAGE` is what callers pass.
+ * 1:1. Takes its table as an argument because there are two of them —
+ * `BAR_POSITION_BY_PAGE` for where the highlight sits and
+ * `CHROME_HIDDEN_BY_PAGE` for whether the bar is there at all — and because a
+ * test can then exercise a page set production does not have.
  *
  * A worklet as well as a plain function: the pager writes this from the UI
  * thread inside `onPageScroll`, and a second copy of four lines of arithmetic is

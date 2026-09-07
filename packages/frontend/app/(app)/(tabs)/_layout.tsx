@@ -55,7 +55,7 @@ export default function TabsLayout() {
 }
 
 function NativeTabsLayout() {
-  const { progress, selectTab, registerCommitter } = useTabPager();
+  const { progress, chromeProgress, selectTab, registerCommitter } = useTabPager();
 
   const triggers = useMemo(
     () => PAGES.map((page) => ({ type: 'internal' as const, name: page.name, href: page.href })),
@@ -124,6 +124,7 @@ function NativeTabsLayout() {
         state={state}
         descriptors={descriptors}
         progress={progress}
+        chromeProgress={chromeProgress}
         // A released swipe reports the page it landed on; the route follows it.
         // Routed through `selectTab` rather than straight to `commit` so a swipe
         // and a tap take exactly one path — including popping anything pushed

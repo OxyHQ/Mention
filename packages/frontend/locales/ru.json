@@ -2186,5 +2186,17 @@
   "Who can reply": "Кто может отвечать",
   "Your reply has been posted!": "Ваш ответ опубликован!",
   "profile.signInRequired": "Войдите, чтобы увидеть свой профиль",
-  "profile.signInRequiredDesc": "Ваши публикации, ответы и сохранённое появятся здесь после входа."
+  "profile.signInRequiredDesc": "Ваши публикации, ответы и сохранённое появятся здесь после входа.",
+  "camera": {
+    "permissionTitle": "Let Mention use the camera",
+    "permissionBody": "Photos and videos you take here are only posted when you choose to.",
+    "permissionAllow": "Allow camera",
+    "shutter": "Take a photo",
+    "shutterHint": "Hold to record a video",
+    "flip": "Switch camera",
+    "retake": "Retake",
+    "addText": "Add text",
+    "publish": "Post",
+    "uploadFailed": "That didn't upload. Check your connection and try again."
+  }
 }

@@ -51,8 +51,13 @@ export const FeedHeader = memo<FeedHeaderProps>(
             }
         }, [onComposePress]);
 
+        // The button finally does what its accessibility hint has always
+        // promised. It NAVIGATES rather than pushing: the camera is a page of
+        // the tab pager, one to the left of this feed, so pushing `/camera` would
+        // stack a copy of it over the tabs instead of sliding to the page that is
+        // already there.
         const handleCameraPress = useCallback(() => {
-            router.push('/compose');
+            router.navigate('/camera');
         }, []);
 
         const handleImagePress = useCallback(() => {

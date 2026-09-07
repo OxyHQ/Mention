@@ -2138,5 +2138,17 @@
   "Who can reply": "कौन जवाब दे सकता है",
   "Your reply has been posted!": "आपका जवाब पोस्ट हो गया है!",
   "profile.signInRequired": "अपनी प्रोफ़ाइल देखने के लिए साइन इन करें",
-  "profile.signInRequiredDesc": "साइन इन करने पर आपकी पोस्ट, जवाब और सहेजे गए आइटम यहाँ दिखेंगे।"
+  "profile.signInRequiredDesc": "साइन इन करने पर आपकी पोस्ट, जवाब और सहेजे गए आइटम यहाँ दिखेंगे।",
+  "camera": {
+    "permissionTitle": "Let Mention use the camera",
+    "permissionBody": "Photos and videos you take here are only posted when you choose to.",
+    "permissionAllow": "Allow camera",
+    "shutter": "Take a photo",
+    "shutterHint": "Hold to record a video",
+    "flip": "Switch camera",
+    "retake": "Retake",
+    "addText": "Add text",
+    "publish": "Post",
+    "uploadFailed": "That didn't upload. Check your connection and try again."
+  }
 }

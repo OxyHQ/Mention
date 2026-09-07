@@ -2232,5 +2232,17 @@
   "Who can reply": "من يمكنه الرد",
   "Your reply has been posted!": "تم نشر ردّك!",
   "profile.signInRequired": "سجّل الدخول لعرض ملفك الشخصي",
-  "profile.signInRequiredDesc": "ستظهر منشوراتك وردودك وعناصرك المحفوظة هنا بمجرد تسجيل الدخول."
+  "profile.signInRequiredDesc": "ستظهر منشوراتك وردودك وعناصرك المحفوظة هنا بمجرد تسجيل الدخول.",
+  "camera": {
+    "permissionTitle": "Let Mention use the camera",
+    "permissionBody": "Photos and videos you take here are only posted when you choose to.",
+    "permissionAllow": "Allow camera",
+    "shutter": "Take a photo",
+    "shutterHint": "Hold to record a video",
+    "flip": "Switch camera",
+    "retake": "Retake",
+    "addText": "Add text",
+    "publish": "Post",
+    "uploadFailed": "That didn't upload. Check your connection and try again."
+  }
 }

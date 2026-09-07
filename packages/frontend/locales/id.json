@@ -2138,5 +2138,17 @@
   "Who can reply": "Siapa yang bisa membalas",
   "Your reply has been posted!": "Balasanmu sudah diposting!",
   "profile.signInRequired": "Masuk untuk melihat profilmu",
-  "profile.signInRequiredDesc": "Postingan, balasan, dan item tersimpanmu akan muncul di sini setelah kamu masuk."
+  "profile.signInRequiredDesc": "Postingan, balasan, dan item tersimpanmu akan muncul di sini setelah kamu masuk.",
+  "camera": {
+    "permissionTitle": "Let Mention use the camera",
+    "permissionBody": "Photos and videos you take here are only posted when you choose to.",
+    "permissionAllow": "Allow camera",
+    "shutter": "Take a photo",
+    "shutterHint": "Hold to record a video",
+    "flip": "Switch camera",
+    "retake": "Retake",
+    "addText": "Add text",
+    "publish": "Post",
+    "uploadFailed": "That didn't upload. Check your connection and try again."
+  }
 }

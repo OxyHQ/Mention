@@ -2138,5 +2138,17 @@
   "Who can reply": "谁可以回复",
   "Your reply has been posted!": "你的回复已发布！",
   "profile.signInRequired": "登录以查看你的个人资料",
-  "profile.signInRequiredDesc": "登录后，你的帖子、回复和收藏会显示在这里。"
+  "profile.signInRequiredDesc": "登录后，你的帖子、回复和收藏会显示在这里。",
+  "camera": {
+    "permissionTitle": "Let Mention use the camera",
+    "permissionBody": "Photos and videos you take here are only posted when you choose to.",
+    "permissionAllow": "Allow camera",
+    "shutter": "Take a photo",
+    "shutterHint": "Hold to record a video",
+    "flip": "Switch camera",
+    "retake": "Retake",
+    "addText": "Add text",
+    "publish": "Post",
+    "uploadFailed": "That didn't upload. Check your connection and try again."
+  }
 }

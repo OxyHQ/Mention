@@ -2472,5 +2472,17 @@
   "Who can reply": "Who can reply",
   "Your reply has been posted!": "Your reply has been posted!",
   "profile.signInRequired": "Sign in to see your profile",
-  "profile.signInRequiredDesc": "Your posts, replies and saved items live here once you sign in."
+  "profile.signInRequiredDesc": "Your posts, replies and saved items live here once you sign in.",
+  "camera": {
+    "permissionTitle": "Let Mention use the camera",
+    "permissionBody": "Photos and videos you take here are only posted when you choose to.",
+    "permissionAllow": "Allow camera",
+    "shutter": "Take a photo",
+    "shutterHint": "Hold to record a video",
+    "flip": "Switch camera",
+    "retake": "Retake",
+    "addText": "Add text",
+    "publish": "Post",
+    "uploadFailed": "That didn't upload. Check your connection and try again."
+  }
 }

@@ -2165,5 +2165,17 @@
   "Who can reply": "Qui peut répondre",
   "Your reply has been posted!": "Ta réponse a été publiée !",
   "profile.signInRequired": "Connectez-vous pour voir votre profil",
-  "profile.signInRequiredDesc": "Vos publications, réponses et éléments enregistrés apparaissent ici une fois connecté."
+  "profile.signInRequiredDesc": "Vos publications, réponses et éléments enregistrés apparaissent ici une fois connecté.",
+  "camera": {
+    "permissionTitle": "Let Mention use the camera",
+    "permissionBody": "Photos and videos you take here are only posted when you choose to.",
+    "permissionAllow": "Allow camera",
+    "shutter": "Take a photo",
+    "shutterHint": "Hold to record a video",
+    "flip": "Switch camera",
+    "retake": "Retake",
+    "addText": "Add text",
+    "publish": "Post",
+    "uploadFailed": "That didn't upload. Check your connection and try again."
+  }
 }

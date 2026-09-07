@@ -2138,5 +2138,17 @@
   "Who can reply": "কারা উত্তর দিতে পারবেন",
   "Your reply has been posted!": "আপনার উত্তর পোস্ট করা হয়েছে!",
   "profile.signInRequired": "আপনার প্রোফাইল দেখতে সাইন ইন করুন",
-  "profile.signInRequiredDesc": "সাইন ইন করলে আপনার পোস্ট, উত্তর ও সংরক্ষিত আইটেম এখানে দেখা যাবে।"
+  "profile.signInRequiredDesc": "সাইন ইন করলে আপনার পোস্ট, উত্তর ও সংরক্ষিত আইটেম এখানে দেখা যাবে।",
+  "camera": {
+    "permissionTitle": "Let Mention use the camera",
+    "permissionBody": "Photos and videos you take here are only posted when you choose to.",
+    "permissionAllow": "Allow camera",
+    "shutter": "Take a photo",
+    "shutterHint": "Hold to record a video",
+    "flip": "Switch camera",
+    "retake": "Retake",
+    "addText": "Add text",
+    "publish": "Post",
+    "uploadFailed": "That didn't upload. Check your connection and try again."
+  }
 }

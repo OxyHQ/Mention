@@ -2138,5 +2138,17 @@
   "Who can reply": "返信できる人",
   "Your reply has been posted!": "返信を投稿しました！",
   "profile.signInRequired": "サインインしてプロフィールを表示",
-  "profile.signInRequiredDesc": "サインインすると、投稿・返信・保存した項目がここに表示されます。"
+  "profile.signInRequiredDesc": "サインインすると、投稿・返信・保存した項目がここに表示されます。",
+  "camera": {
+    "permissionTitle": "Let Mention use the camera",
+    "permissionBody": "Photos and videos you take here are only posted when you choose to.",
+    "permissionAllow": "Allow camera",
+    "shutter": "Take a photo",
+    "shutterHint": "Hold to record a video",
+    "flip": "Switch camera",
+    "retake": "Retake",
+    "addText": "Add text",
+    "publish": "Post",
+    "uploadFailed": "That didn't upload. Check your connection and try again."
+  }
 }

@@ -431,3 +431,32 @@ export const shouldIncludeThreadItem = (item: ThreadItem): boolean => {
          Boolean(item.room && item.room.roomId) ||
          Boolean(item.sources && item.sources.length > 0 && item.sources.some(s => s.url.trim().length > 0));
 };
+
+/**
+ * The post a camera capture publishes when the reader takes the "publish now"
+ * exit — one media item, no body, nothing else.
+ *
+ * It builds the request through the SAME helpers the composer's own builder
+ * uses, rather than writing the shape out again: `buildAttachmentsPayload` with
+ * `createMediaAttachmentKey` is what decides the ordering the server reads, and
+ * a second hand-written spelling of it would render correctly right up until
+ * that format changed on one side.
+ *
+ * It is not `buildMainPost` with twenty empty arguments. Every one of those
+ * arguments is a decision the camera has not been given: no poll, no article, no
+ * lane, no scheduled time, no identity override. Passing empties would make this
+ * look like a composer that happens to be blank, and it would silently acquire
+ * whatever `buildMainPost` starts defaulting next.
+ */
+export function buildCapturePost(media: ComposerMediaItem): CreatePostRequest {
+  const attachmentKey = createMediaAttachmentKey(media.id);
+  return {
+    content: {
+      text: '',
+      media: [{ id: media.id, type: media.type }],
+      attachments: buildAttachmentsPayload([attachmentKey], [media], {}),
+    },
+    mentions: [],
+    hashtags: [],
+  };
+}

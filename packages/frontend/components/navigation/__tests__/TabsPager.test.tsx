@@ -101,6 +101,7 @@ function mountPager(focusedName: string) {
         state={{ index: routes.findIndex((route) => route.name === focusedName), routes }}
         descriptors={descriptors}
         progress={{ value: 0 } as never}
+        chromeProgress={{ value: 0 } as never}
         onCommit={onCommit}
       />,
     );
