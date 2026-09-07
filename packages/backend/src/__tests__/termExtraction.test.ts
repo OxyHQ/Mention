@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { MtnConfig } from '@mention/shared-types';
 import {
+  collectTrendPhraseEntries,
+  collectTrendPhrases,
   extractTrendTerms,
   isTrendStopWord,
   TREND_TERM_STOPWORDS,
@@ -395,5 +397,75 @@ describe('capitalization is only evidence where it discriminates', () => {
     // Detection is a separate signal that can be absent, and losing every
     // untagged term would be a far larger regression than the one being fixed.
     expect(extractTrendTerms({ text: 'a great day for Zelensky today' })).toContain('zelensky');
+  });
+});
+
+// The case evidence the labeller reads. `collectTrendPhrases` throws it away
+// when it lowercases and joins, which is right for the term index and wrong for
+// labelling — telling `Donald Trump` from `Orioles trade` needs to know which
+// words were written as names. Everything above this block is the regression
+// gate proving `extractTrendTerms` did not move when this was added.
+describe('collectTrendPhraseEntries — the case evidence labelling reads', () => {
+  it('emits exactly the phrases collectTrendPhrases does, in the same order', () => {
+    const text = 'everyone is talking about Todd Blanche again today';
+    expect(collectTrendPhraseEntries(text).map((entry) => entry.text)).toEqual(
+      collectTrendPhrases(text),
+    );
+  });
+
+  it('has one flag per word', () => {
+    for (const entry of collectTrendPhraseEntries('a note about Todd Blanche and the Senate today')) {
+      expect(entry.names).toHaveLength(entry.text.split(' ').length);
+    }
+  });
+
+  it('flags both words of a name, and the ordinary word beside it as not', () => {
+    const entries = collectTrendPhraseEntries('everyone is talking about Todd Blanche today');
+    const byText = new Map(entries.map((entry) => [entry.text, entry]));
+
+    expect(byText.get('todd blanche')?.names).toEqual([true, true]);
+    expect(byText.get('todd blanche')?.whole).toBe(true);
+
+    // `trade` is an ordinary word: the phrase is still emitted (one of its words
+    // names), but it is not a name written out — which is exactly the
+    // distinction `Orioles trade` versus `Donald Trump` turns on.
+    const orioles = new Map(
+      collectTrendPhraseEntries('the Orioles trade is finally done').map((e) => [e.text, e]),
+    );
+    expect(orioles.get('orioles trade')?.names).toEqual([true, false]);
+  });
+
+  it('marks a two-word window onto a longer name as not whole', () => {
+    const byText = new Map(
+      collectTrendPhraseEntries('a mural of Martin Luther King downtown').map((e) => [e.text, e]),
+    );
+    expect(byText.get('martin luther')?.whole).toBe(false);
+    expect(byText.get('luther king')?.whole).toBe(false);
+  });
+
+  it('treats a capitalized word dropped as a stop word as a name boundary', () => {
+    // `New` is a stop word, so it never joins the run — but its capital is the
+    // evidence that a name continues to the left of `york yankees`.
+    const byText = new Map(
+      collectTrendPhraseEntries('nobody beats the New York Yankees in October').map((e) => [
+        e.text,
+        e,
+      ]),
+    );
+    expect(byText.get('york yankees')?.names).toEqual([true, true]);
+    expect(byText.get('york yankees')?.whole).toBe(false);
+  });
+
+  it('ORs the flags across sightings, so sentence order cannot decide them', () => {
+    // A post OPENING with a name proves nothing about it (position 0 carries no
+    // case evidence). Keeping the first sighting would let that decide.
+    const forward = collectTrendPhraseEntries('Donald Trump spoke. i saw Donald Trump');
+    const reverse = collectTrendPhraseEntries('i saw Donald Trump. Donald Trump spoke');
+
+    const flagsOf = (entries: ReturnType<typeof collectTrendPhraseEntries>, text: string) =>
+      entries.find((entry) => entry.text === text)?.names;
+
+    expect(flagsOf(forward, 'donald trump')).toEqual([true, true]);
+    expect(flagsOf(reverse, 'donald trump')).toEqual([true, true]);
   });
 });

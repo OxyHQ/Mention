@@ -27,13 +27,17 @@
  *    `Dean Kremer`, that phrase is what the story is, and it is a phrase people
  *    genuinely wrote rather than a summary of them. The term stays the key; the
  *    phrase becomes the name.
+ *  - **A name is used in full when the posts write it in full.** The term is
+ *    whatever people type — `trump` — and the row should say `Donald Trump`.
+ *    That is not a claim about the story, so it is not held to the majority a
+ *    defining phrase is; it is held to being unambiguous instead.
  */
 
 import { MtnConfig, normalizeTrendCategory } from '@mention/shared-types';
 import type { TrendCategory } from '@mention/shared-types';
 import { ruleBasedTopicClassifier } from '../contentClassification/TopicClassifier';
 import { canonicalHashtag } from '../contentClassification/taxonomy';
-import { collectTrendPhrases, stripNonProse } from './termExtraction';
+import { collectTrendPhraseEntries, stripNonProse, type TrendPhrase } from './termExtraction';
 
 /**
  * Version of the labelling rules.
@@ -52,6 +56,21 @@ import { collectTrendPhrases, stripNonProse } from './termExtraction';
  * v2: a corpus spelling is preferred only when it adds capitalization and is
  * not shouted (see {@link presentableSurfaceForm}).
  *
+ * v6: a phrase may name the trend when it is the SUBJECT'S OWN NAME WRITTEN
+ * OUT — every word capitalized as a name, the term among them as a whole word,
+ * and nothing naming on either side of it. That question is not the one a
+ * defining phrase answers, so it does not need a majority: plenty of posts about
+ * Donald Trump just say Trump, which is what a short name is FOR, and the
+ * majority bar therefore answered `Trump` forever. It needs agreement (a quarter
+ * of the posts) and it needs to be unambiguous (twice the runner-up), because
+ * `John Smith` and `Jane Smith` in one trend on `smith` is a coin flip, and a
+ * coin flip presented as a name is worse than the name people typed.
+ *
+ * Also in v6: "the phrase restates the term" is a WORD test now, not a substring
+ * test. `us` sits inside `justice`, `russia` and `industry`, so a trend on the
+ * acronym discarded nearly every phrase it could have been named after before
+ * counting it.
+ *
  * v5: the surface form is read from PROSE, with links removed, so a term
  * appearing lower-case inside a URL cannot outvote the way people write it.
  *
@@ -65,7 +84,7 @@ import { collectTrendPhrases, stripNonProse } from './termExtraction';
  * stayed filed under Science after the fix that would have written `other`,
  * because its run had started first and its label was reused verbatim.
  */
-export const TREND_LABEL_VERSION = 5;
+export const TREND_LABEL_VERSION = 6;
 
 /** What a trend is shown as. */
 export interface TrendLabel {
@@ -96,8 +115,46 @@ const PHRASE_MIN_COVERAGE = 0.5;
 /** A phrase must also appear in at least this many posts, whatever the share. */
 const PHRASE_MIN_POSTS = 2;
 
-/** Longest label. Beyond this it is a sentence, not a name. */
+/**
+ * Longest label. Beyond this it is a sentence, not a name.
+ *
+ * Two tokens of up to `maxTokenLength` make a 65-character expansion reachable,
+ * so this can fire on one. It degrades to `titleCase(term)` — the TERM, not a
+ * truncated subject — which is the right answer: a name too long to print is
+ * better dropped than cut mid-word.
+ */
 const MAX_DISPLAY_NAME_LENGTH = 48;
+
+/**
+ * Share of the sampled posts that must write the full name before the label is
+ * expanded to it.
+ *
+ * Deliberately NOT the majority {@link PHRASE_MIN_COVERAGE} demands, and the
+ * difference is the point. A defining phrase makes a claim about the STORY —
+ * "these posts are about Dean Kremer" — and a wrong claim there renames the
+ * trend after one strand of it, so it has to be carried by most of the room. An
+ * expansion makes no claim about the story at all: it says the thing already
+ * being named has a longer name, and every post that wrote `Trump` is silently
+ * agreeing rather than disagreeing. Plenty of posts about Donald Trump just say
+ * Trump — that is what a short name is FOR — so a majority bar would answer
+ * "Trump" for the exact case this exists to fix.
+ */
+const NAME_EXPANSION_MIN_COVERAGE = 0.25;
+
+/** …and never fewer than this many posts, whatever the share works out to. */
+const NAME_EXPANSION_MIN_POSTS = 2;
+
+/**
+ * How far ahead of the runner-up an expansion must be.
+ *
+ * The bar above says "confident"; this one says "UNAMBIGUOUS", and they are not
+ * the same test. For a trend on `smith`, three posts writing `John Smith` and
+ * two writing `Jane Smith` clear any coverage bar low enough to be useful, and
+ * naming the row after either one is a coin flip presented as a fact. Twice the
+ * runner-up or the term stays as it is — a shorter true name always beats a
+ * longer maybe.
+ */
+const NAME_EXPANSION_DOMINANCE = 2;
 
 /**
  * Rule-topic slug → trend category.
@@ -152,14 +209,115 @@ export function deriveTrendLabel(input: TrendLabelInput): TrendLabel {
   const excerpts = input.excerpts.filter((excerpt) => excerpt.trim().length > 0);
   if (excerpts.length === 0) return fallbackTrendLabel(term);
 
-  const phrase = findDefiningPhrase(term, excerpts);
+  // ONE tokenization, read by both questions below. Two passes would be two
+  // chances for them to disagree about what a phrase is — the mistake that
+  // shipped `Nba`, recorded in `stripNonProse`.
+  const phrasesByPost = excerpts.map((excerpt) => collectTrendPhraseEntries(excerpt));
+
+  // What is the STORY: a phrase most posts share that is not the term restated.
+  const phrase = findDefiningPhrase(term, phrasesByPost);
   const subject = phrase ?? term;
-  const name = presentableSurfaceForm(subject, excerpts) ?? titleCase(subject);
+  // …and then the other question: is the subject the short form of a name the
+  // posts write out in full? `trump` is the term people type; `Donald Trump` is
+  // what the row should say.
+  //
+  // The story comes FIRST and that order is load-bearing. If posts on `orioles`
+  // say both `Baltimore Orioles` (4 of 12) and `Dean Kremer` (7 of 12), the
+  // story is Dean Kremer, and a majority beats a quarter.
+  const named = findNameExpansion(subject, phrasesByPost) ?? subject;
+  const name = presentableSurfaceForm(named, excerpts) ?? titleCase(named);
 
   return {
     displayName: name.length > MAX_DISPLAY_NAME_LENGTH ? titleCase(term) : name,
     category: deriveCategory(term, excerpts),
   };
+}
+
+/**
+ * Whether `term` appears as a whole WORD (or run of words) of `phrase`.
+ *
+ * The substring test this replaces rejected the right things for the wrong
+ * reason. `orioles trade` was meant to be rejected because it restates the term;
+ * `trumpet lessons` was rejected because `trump` happens to be five of its
+ * letters, and for a short acronym the damage is total — `us` sits inside
+ * `justice`, `russia` and `industry`, so almost every phrase a trend on `US`
+ * could have been named after was thrown away before it was counted.
+ *
+ * Both sides come out of the same tokenizer as space-joined lowercase words, so
+ * this is a word-sequence scan and not a text search — no regex, nothing to
+ * escape.
+ */
+function phraseContainsTerm(phrase: string, term: string): boolean {
+  const phraseWords = phrase.split(' ');
+  const termWords = term.split(' ');
+  if (termWords.length > phraseWords.length) return false;
+  for (let start = 0; start + termWords.length <= phraseWords.length; start++) {
+    if (termWords.every((word, offset) => phraseWords[start + offset] === word)) return true;
+  }
+  return false;
+}
+
+/**
+ * The full name the posts write out, when the subject is a shortened form of one.
+ *
+ * A candidate is a phrase that (1) contains the subject as a whole word, (2) has
+ * every one of its words NAMING something, and (3) stood alone — no naming token
+ * on either side of it. Those three are the whole rule:
+ *
+ *  - Containment is what makes it an expansion rather than a different subject.
+ *  - EVERY word naming is what separates `Donald Trump` from `Orioles trade`.
+ *    It is also a strictly better version of the test the old substring
+ *    rejection was reaching for: `trade` is not capitalized mid-sentence, so
+ *    `orioles trade` now fails on the evidence rather than on its spelling.
+ *  - Standing alone is what stops a two-word window onto a longer name being
+ *    reported as the name. `maxPhraseTokens` is 2, so "Martin Luther King" is
+ *    never emitted whole; without this flag a trend on `king` would ship as
+ *    "Luther King", and one on `yankees` as "York Yankees". Both are worse than
+ *    the bare term. What remains is an honest limitation rather than a wrong
+ *    answer: a three-word name is not recovered, and the label stays the term.
+ *
+ * Coverage is counted once per post for free — the tokenizer already dedupes
+ * within a post, so a post shouting a name ten times contributes one.
+ */
+function findNameExpansion(
+  subject: string,
+  phrasesByPost: readonly (readonly TrendPhrase[])[],
+): string | null {
+  const subjectWords = subject.split(' ').length;
+  const coverage = new Map<string, number>();
+
+  for (const phrases of phrasesByPost) {
+    for (const phrase of phrases) {
+      if (phrase.names.length <= subjectWords) continue; // must ADD a word
+      if (!phrase.whole) continue;
+      if (!phrase.names.every(Boolean)) continue;
+      if (!phraseContainsTerm(phrase.text, subject)) continue;
+      coverage.set(phrase.text, (coverage.get(phrase.text) ?? 0) + 1);
+    }
+  }
+
+  // Materialised and sorted rather than scanned out of the Map: insertion order
+  // follows whichever post the database returned first, and a batch has to be a
+  // pure function of its input. Ties break on the phrase, for the same reason.
+  const ranked = [...coverage.entries()].sort(
+    ([leftText, left], [rightText, right]) => right - left || (leftText < rightText ? -1 : 1),
+  );
+  if (ranked.length === 0) return null;
+
+  const [text, count] = ranked[0];
+  const runnerUp = ranked[1]?.[1] ?? 0;
+
+  const minPosts = Math.max(
+    NAME_EXPANSION_MIN_POSTS,
+    Math.ceil(phrasesByPost.length * NAME_EXPANSION_MIN_COVERAGE),
+  );
+  if (count < minPosts) return null;
+  // `n < 2n` for every n >= 1, so an exact tie is unwinnable by construction and
+  // the lexicographic tie-break above can never decide a LABEL — it only makes
+  // "which one is first" deterministic, which is what this comparison needs.
+  if (count < runnerUp * NAME_EXPANSION_DOMINANCE) return null;
+
+  return text;
 }
 
 /**
@@ -172,22 +330,27 @@ export function deriveTrendLabel(input: TrendLabelInput): TrendLabel {
  *
  * A phrase that merely restates the term is rejected — `orioles` naming itself
  * `Orioles` is what the surface-form step already does, and a phrase containing
- * the term (`orioles trade`) adds a word without adding a subject.
+ * the term (`orioles trade`) adds a word without adding a subject. A phrase that
+ * is the term's own fuller NAME is rejected here too, and picked up instead by
+ * {@link findNameExpansion}, which asks a different question at a different bar.
  */
-function findDefiningPhrase(term: string, excerpts: readonly string[]): string | null {
+function findDefiningPhrase(
+  term: string,
+  phrasesByPost: readonly (readonly TrendPhrase[])[],
+): string | null {
   const coverage = new Map<string, number>();
 
-  for (const excerpt of excerpts) {
-    for (const phrase of collectTrendPhrases(excerpt)) {
+  for (const phrases of phrasesByPost) {
+    for (const phrase of phrases) {
       // Multi-word only: a single co-occurring word is far too weak a signal to
       // rename a trend after (`trade`, `source`, `season`).
-      if (!phrase.includes(' ')) continue;
-      if (phrase === term || phrase.includes(term)) continue;
-      coverage.set(phrase, (coverage.get(phrase) ?? 0) + 1);
+      if (phrase.names.length < 2) continue;
+      if (phraseContainsTerm(phrase.text, term)) continue;
+      coverage.set(phrase.text, (coverage.get(phrase.text) ?? 0) + 1);
     }
   }
 
-  const minPosts = Math.max(PHRASE_MIN_POSTS, Math.ceil(excerpts.length * PHRASE_MIN_COVERAGE));
+  const minPosts = Math.max(PHRASE_MIN_POSTS, Math.ceil(phrasesByPost.length * PHRASE_MIN_COVERAGE));
 
   let best: string | null = null;
   let bestCount = 0;

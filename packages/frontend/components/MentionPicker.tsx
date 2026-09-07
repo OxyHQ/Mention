@@ -11,7 +11,7 @@ import { useAuth } from "@oxyhq/services/ui/client";
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { logger } from '@oxyhq/core/logger';
-import { displayNameOrHandle } from '@/utils/displayName';
+import UserName from '@/components/UserName';
 
 export interface MentionUser {
     id: string;
@@ -116,12 +116,7 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                     data={users}
                     keyExtractor={(item) => item.id}
                     keyboardShouldPersistTaps="handled"
-                    renderItem={({ item }) => {
-                        // A real display name is the bold primary with the muted
-                        // @handle below; with no display name the @handle becomes
-                        // the bold primary, shown ONCE.
-                        const hasName = !!item.displayName?.trim();
-                        return (
+                    renderItem={({ item }) => (
                         <TouchableOpacity
                             className="border-b-border"
                             style={styles.userItem}
@@ -135,32 +130,20 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                                 size={40}
                                 variant={MEDIA_VARIANT_AVATAR}
                             />
+                            {/* The shared identity line, like every other user
+                                surface. This row used to hand-roll it — and with
+                                it a second copy of the "display name else handle,
+                                once" rule and a literal `✓` in its own blue. */}
                             <View style={styles.userInfo}>
-                                <View style={styles.userNameRow}>
-                                    <Text
-                                        className="text-foreground"
-                                        style={styles.userName}
-                                        numberOfLines={1}
-                                    >
-                                        {displayNameOrHandle(item.displayName, `@${item.username}`)}
-                                    </Text>
-                                    {item.verified && (
-                                        <Text style={styles.verifiedBadge}>✓</Text>
-                                    )}
-                                </View>
-                                {hasName ? (
-                                    <Text
-                                        className="text-muted-foreground"
-                                        style={styles.userHandle}
-                                        numberOfLines={1}
-                                    >
-                                        @{item.username}
-                                    </Text>
-                                ) : null}
+                                <UserName
+                                    name={item.displayName}
+                                    handle={item.username}
+                                    verified={item.verified}
+                                    style={{ name: styles.userName, handle: styles.userHandle }}
+                                />
                             </View>
                         </TouchableOpacity>
-                        );
-                    }}
+                    )}
                 />
             )}
         </View>
@@ -198,18 +181,9 @@ const styles = StyleSheet.create({
         flex: 1,
         marginLeft: 12,
     },
-    userNameRow: {
-        flexDirection: "row",
-        alignItems: "center",
-    },
     userName: {
         fontSize: 15,
         fontWeight: "600",
-        marginRight: 4,
-    },
-    verifiedBadge: {
-        fontSize: 14,
-        color: "#1DA1F2",
     },
     userHandle: {
         fontSize: 14,

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -85,6 +85,28 @@ export function useProfileChrome({
     [scrollY],
   );
 
+  /**
+   * Whether that band is actually covering anything yet.
+   *
+   * The band swallows web pointer events so a click cannot reach feed content
+   * hidden behind it — but only once it is OPAQUE. While it is transparent it is
+   * a 48px invisible bar pinned over the banner, and CSS keeps delivering clicks
+   * to a fully transparent element (only `visibility`/`display` stop that), so
+   * an unscrolled profile had a strip near the top where nothing was clickable.
+   *
+   * A boolean rather than an animated value, deliberately: `pointerEvents` is
+   * not animatable, and a threshold costs ONE re-render at the crossing instead
+   * of one per frame. The threshold is the top of the same interpolation the
+   * opacity rides, so the two cannot drift apart.
+   */
+  const [headerBackgroundOpaque, setHeaderBackgroundOpaque] = useState(false);
+  useEffect(() => {
+    const id = scrollY.addListener(({ value }) => {
+      setHeaderBackgroundOpaque(value >= LAYOUT.HEADER_HEIGHT_EXPANDED);
+    });
+    return () => scrollY.removeListener(id);
+  }, [scrollY]);
+
   // Pull-to-zoom banner parallax: on overscroll (negative offset, i.e. pulling
   // the content down past the top) the banner scales 1 → 1.5. On web
   // `window.scrollY` never goes negative, so this stays clamped at 1 (no
@@ -150,6 +172,7 @@ export function useProfileChrome({
     contentHeight,
     setContentHeight,
     headerBackgroundOpacity,
+    headerBackgroundOpaque,
     bannerScale,
     headerNameOpacity,
     themedStyles,

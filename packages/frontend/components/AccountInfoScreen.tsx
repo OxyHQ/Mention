@@ -328,7 +328,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
         {profileData.verified && (
           <SettingsListGroup title={t('Verification', { defaultValue: 'Verification' })}>
             <SettingsListItem
-              icon={<VerifiedIcon size={20} className="text-primary" />}
+              icon={<VerifiedIcon size={20} />}
               title={t('Verified', { defaultValue: 'Verified' })}
               value={verifiedDate
                 ? t('Since {date}', { date: verifiedDate, defaultValue: `Since ${verifiedDate}` })

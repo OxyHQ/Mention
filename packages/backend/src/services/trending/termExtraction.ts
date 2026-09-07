@@ -313,19 +313,72 @@ export function stripNonProse(text: string | null | undefined): string {
     .replace(/#/g, '');
 }
 
-export function collectTrendPhrases(
+/**
+ * A phrase as the tokenizer SAW it, rather than as a string.
+ *
+ * {@link collectTrendPhrases} lowercases and joins, which throws away the case
+ * evidence the moment it is read. That is right for the term index — a term is a
+ * retrieval key — and exactly wrong for labelling, which has to tell `Donald
+ * Trump` (two words that both name something) from `Orioles trade` (a name plus
+ * an ordinary word). Re-deriving that in the labeller would mean a SECOND
+ * tokenizer, and two tokenizers disagreeing about what a phrase is is the
+ * failure this module's header already argues against.
+ */
+export interface TrendPhrase {
+  /** The lowercased phrase — exactly the string `collectTrendPhrases` emits. */
+  text: string;
+  /**
+   * One flag per word of {@link text}, in order: did that word NAME something
+   * here? Invariant: `names.length === text.split(' ').length`.
+   */
+  names: readonly boolean[];
+  /**
+   * Whether this phrase was a COMPLETE naming run — nothing that names anything
+   * sat immediately on either side of it in the post.
+   *
+   * This is what stops a two-word window onto a longer name being reported as
+   * the name. With `maxPhraseTokens: 2`, "Martin Luther King" emits `luther
+   * king` and "the New York Yankees" emits `york yankees` (`New` is dropped as a
+   * stop word, so it does not even bound the run from the inside) — both look
+   * like whole names and both are fragments.
+   */
+  whole: boolean;
+}
+
+/**
+ * Every phrase in a post, with the case evidence kept.
+ *
+ * The emission CONDITION is untouched from what it always was — the same runs,
+ * the same n-grams, the same order — so {@link collectTrendPhrases} is a pure
+ * projection of this and `extractTrendTerms` is byte-identical. That matters
+ * more than it looks: two extraction rules coexisting in one window would leave
+ * stored terms with no version to tell them apart.
+ */
+export function collectTrendPhraseEntries(
   text: string | null | undefined,
   languages?: readonly string[],
-): string[] {
+): TrendPhrase[] {
   const { minTokenLength, maxTokenLength, maxPhraseTokens } = MtnConfig.trending.terms;
 
-  const phrases: string[] = [];
-  const seen = new Set<string>();
+  const entries: { text: string; names: boolean[]; whole: boolean }[] = [];
+  const indexOf = new Map<string, number>();
 
-  const push = (phrase: string): void => {
-    if (seen.has(phrase)) return;
-    seen.add(phrase);
-    phrases.push(phrase);
+  const push = (phrase: string, names: boolean[], whole: boolean): void => {
+    const at = indexOf.get(phrase);
+    if (at !== undefined) {
+      // Second sighting of the same phrase in the SAME post. Both flags are
+      // facts about the post — "somewhere in it this word was written as a
+      // name", "somewhere in it this phrase stood alone" — so they OR together.
+      // Keeping the first sighting would let sentence order decide: a post
+      // opening "Donald Trump said…" has `donald` at position 0, where nothing
+      // ever names, and would prove nothing about a name written out twice.
+      const seen = entries[at];
+      for (let i = 0; i < seen.names.length; i++) seen.names[i] ||= names[i];
+      seen.whole ||= whole;
+      return;
+    }
+    indexOf.set(phrase, entries.length);
+    entries.push({ text: phrase, names, whole });
   };
 
   // Two ways a capital can fail to mean anything. A post with no lower-case
@@ -342,17 +395,36 @@ export function collectTrendPhrases(
     // (stop word, too short, purely numeric) ends the run rather than being
     // skipped over, so phrases never span a word the writer actually used.
     let run: { token: string; names: boolean }[] = [];
+    // Naming-ness of the token that BOUNDS the current run on either side — the
+    // dropped word that ended the previous run, and the one about to end this
+    // one. A run's own neighbours are not enough to answer `whole`: in "nobody
+    // beats the New York Yankees", `New` is a stop word, so the run is `[york,
+    // yankees]` and `york yankees` looks complete. The capital on `New` is the
+    // evidence that a name continues to its left.
+    let leadingName = false;
 
-    const flush = (): void => {
+    const flush = (trailingName: boolean): void => {
       for (let start = 0; start < run.length; start++) {
         // A single word is emitted only when it NAMES something (see
         // `namesSomething`). A phrase is emitted when any of its words does:
         // `Kremer trade` is a story even though `trade` is an ordinary word.
-        if (run[start].names) push(run[start].token);
+        if (run[start].names) {
+          push(
+            run[start].token,
+            [run[start].names],
+            !(start > 0 ? run[start - 1].names : leadingName) &&
+              !(start + 1 < run.length ? run[start + 1].names : trailingName),
+          );
+        }
         for (let size = 2; size <= maxPhraseTokens && start + size <= run.length; size++) {
           const words = run.slice(start, start + size);
           if (words.some((word) => word.names)) {
-            push(words.map((word) => word.token).join(' '));
+            push(
+              words.map((word) => word.token).join(' '),
+              words.map((word) => word.names),
+              !(start > 0 ? run[start - 1].names : leadingName) &&
+                !(start + size < run.length ? run[start + size].names : trailingName),
+            );
           }
         }
       }
@@ -362,18 +434,30 @@ export function collectTrendPhrases(
     let position = 0;
     for (const raw of segment.split(' ')) {
       const token = normalizeToken(raw);
+      const names = carriesCase && position > 0 && /^\p{Lu}/u.test(raw);
       if (!token || !isKeepableToken(raw, token, minTokenLength, maxTokenLength)) {
-        flush();
+        // The dropped token bounds the run it just ended AND the one that starts
+        // after it, judged by the same rule a kept token gets.
+        flush(names);
+        leadingName = names;
         position += raw.length > 0 ? 1 : 0;
         continue;
       }
-      run.push({ token, names: carriesCase && position > 0 && /^\p{Lu}/u.test(raw) });
+      run.push({ token, names });
       position += 1;
     }
-    flush();
+    // A segment boundary is punctuation or a line start; nothing names across it.
+    flush(false);
   }
 
-  return phrases;
+  return entries;
+}
+
+export function collectTrendPhrases(
+  text: string | null | undefined,
+  languages?: readonly string[],
+): string[] {
+  return collectTrendPhraseEntries(text, languages).map((entry) => entry.text);
 }
 
 /**
