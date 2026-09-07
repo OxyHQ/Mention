@@ -297,6 +297,10 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
         >
           <MentionTextInput
             ref={handleTextInputRef}
+            // Same rule as the main composer's input: the colour is the theme's,
+            // never a literal. A hardcoded `#111111` here is what made a thread
+            // reply's own text invisible against the dark background.
+            className="text-foreground"
             style={styles.threadTextInput}
             placeholder={t('Say more...')}
             value={item.text}
