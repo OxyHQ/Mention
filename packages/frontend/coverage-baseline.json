@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 30.95,
-      "covered": 7722,
-      "total": 24947
+      "pct": 32.16,
+      "covered": 8037,
+      "total": 24988
     },
     "branches": {
-      "pct": 26.22,
-      "covered": 4773,
-      "total": 18198
+      "pct": 27.09,
+      "covered": 4935,
+      "total": 18214
     },
     "functions": {
-      "pct": 26.69,
-      "covered": 1658,
-      "total": 6210
+      "pct": 27.45,
+      "covered": 1708,
+      "total": 6222
     },
     "lines": {
-      "pct": 31.56,
-      "covered": 7077,
-      "total": 22417
+      "pct": 32.86,
+      "covered": 7380,
+      "total": 22455
     }
   },
   "pins": {
@@ -186,10 +186,10 @@
       "lines": 0
     },
     "hooks/useDeepCompare.ts": {
-      "statements": 33,
-      "branches": 25,
-      "functions": 50,
-      "lines": 33
+      "statements": 66,
+      "branches": 50,
+      "functions": 100,
+      "lines": 66
     },
     "hooks/useDraftManager.ts": {
       "statements": 50,
@@ -396,10 +396,10 @@
       "lines": 0
     },
     "hooks/usePostLanguage.ts": {
-      "statements": 87,
-      "branches": 83,
+      "statements": 95,
+      "branches": 84,
       "functions": 100,
-      "lines": 87
+      "lines": 96
     },
     "hooks/usePostLanguagePicker.tsx": {
       "statements": 100,
@@ -1110,10 +1110,10 @@
       "lines": 75
     },
     "stores/postsStore.ts": {
-      "statements": 50,
-      "branches": 33,
-      "functions": 53,
-      "lines": 55
+      "statements": 51,
+      "branches": 34,
+      "functions": 54,
+      "lines": 56
     },
     "stores/privacyStore.ts": {
       "statements": 52,
@@ -1218,10 +1218,10 @@
       "lines": 100
     },
     "utils/dateUtils.ts": {
-      "statements": 45,
-      "branches": 13,
-      "functions": 50,
-      "lines": 47
+      "statements": 68,
+      "branches": 31,
+      "functions": 70,
+      "lines": 72
     },
     "utils/displayName.ts": {
       "statements": 100,
