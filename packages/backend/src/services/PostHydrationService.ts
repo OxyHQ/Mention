@@ -195,6 +195,31 @@ interface HydrationOptions {
    */
   viewerGraph?: { followingIds: string[]; followerIds: string[] };
   /**
+   * The viewer's already-resolved Oxy privacy lists, threaded from the feed
+   * controller's `UserPrivacyManager.loadPrivacyState`. Exactly the same
+   * arrangement as {@link viewerGraph} above, for exactly the same reason: the
+   * feed resolves these once, up front and in parallel with everything else, and
+   * without threading them {@link buildViewerContext} asks Oxy the same two
+   * questions again on EVERY hydration call the page makes.
+   *
+   * Measured on an authenticated For You page (which hydrates two to three
+   * times): `getBlockedUsers` ran 3× and `getRestrictedUsers` 2× per request,
+   * four of those five being byte-identical repeats of a list the controller had
+   * already fetched. Each one is an HTTP round trip to Oxy on the critical path.
+   *
+   * Threading is what makes the fail-CLOSED contract survive, not something that
+   * weakens it: these ids only exist because `getBlockedUserIds` /
+   * `getRestrictedUserIds` already succeeded for this request, and those throw
+   * rather than return an empty list when Oxy cannot answer. A caller that has
+   * not resolved them omits this and keeps the live fetch — every non-feed path
+   * (post detail, notifications, profile, search) is unchanged.
+   *
+   * Both lists are required together so the privacy state is applied atomically;
+   * a half-threaded state would hydrate with real blocks and an empty restricted
+   * set, which reads as "this viewer restricts nobody".
+   */
+  viewerPrivacy?: { blockedIds: readonly string[]; restrictedIds: readonly string[] };
+  /**
    * The language preference carried by the REQUEST — an explicit `?lang=` the
    * reader picked, then `Accept-Language` — most-preferred first, from
    * {@link requestLanguageCandidates}. It leads the variant-resolution ladder;
@@ -1418,10 +1443,16 @@ export class PostHydrationService {
 
     const client = options?.oxyClient;
 
-    const [blockedIds, restrictedIds] = await Promise.all([
-      getBlockedUserIds(client),
-      getRestrictedUserIds(client),
-    ]);
+    // Feed path: the controller resolved both lists ONCE, up front — do NOT ask
+    // Oxy again. See `viewerPrivacy` on `HydrationOptions`; this is the same
+    // deduplication `viewerGraph` performs immediately below.
+    const threadedPrivacy = options?.viewerPrivacy;
+    const [blockedIds, restrictedIds] = threadedPrivacy
+      ? [threadedPrivacy.blockedIds, threadedPrivacy.restrictedIds]
+      : await Promise.all([
+        getBlockedUserIds(client),
+        getRestrictedUserIds(client),
+      ]);
 
     blockedIds.forEach((id) => context.blockedIds.add(String(id)));
     restrictedIds.forEach((id) => context.restrictedIds.add(String(id)));
