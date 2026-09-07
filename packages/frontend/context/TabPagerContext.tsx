@@ -5,6 +5,7 @@ import { useSharedValue, withSpring, type SharedValue } from 'react-native-reani
 import { useAuth } from '@oxyhq/services/ui/client';
 
 import {
+  BAR_SETTLE_SPRING,
   CHROME_HIDDEN_BY_PAGE,
   PAGES,
   pageIndexForPathname,
@@ -13,14 +14,6 @@ import {
 } from '@/components/navigation/tabs';
 
 const IS_WEB = Platform.OS === 'web';
-
-/**
- * How fast the highlight travels to a tab nobody dragged it to — a tap, a deep
- * link, a back gesture. Matched to Bloom's own `SLIDE_SPRING` by feel rather
- * than by import: Bloom does not export it, and the two are allowed to differ
- * (this one also has to look right against a page that is NOT sliding, on web).
- */
-const SETTLE_SPRING = { duration: 420, dampingRatio: 0.82 } as const;
 
 /**
  * What the tabs navigator, once mounted, takes over from this provider.
@@ -142,7 +135,7 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (committerRef.current?.drivesProgress) return;
     if (activeIndex < 0) return;
-    progress.value = withSpring(activeIndex, SETTLE_SPRING);
+    progress.value = withSpring(activeIndex, BAR_SETTLE_SPRING);
   }, [activeIndex, progress]);
 
   /**
@@ -158,7 +151,7 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
     if (committerRef.current?.drivesProgress) return;
     chromeProgress.value = withSpring(
       activePage >= 0 ? (CHROME_HIDDEN_BY_PAGE[activePage] ?? 0) : 0,
-      SETTLE_SPRING,
+      BAR_SETTLE_SPRING,
     );
   }, [activePage, chromeProgress]);
 
@@ -210,7 +203,7 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
       // There is nothing to dismiss here anyway: that stack history is the
       // browser's, not detail screens sitting over the tabs.
       if (!committer) {
-        if (barIndex >= 0) progress.value = withSpring(barIndex, SETTLE_SPRING);
+        if (barIndex >= 0) progress.value = withSpring(barIndex, BAR_SETTLE_SPRING);
         router.navigate(tabHref(page, viewerUsername));
         return;
       }
@@ -230,7 +223,7 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
       // Optimism is only ours to apply when nobody else owns the value. The
       // pager animates its own way to the page and writes `progress` as it goes.
       if (!committer.drivesProgress && barIndex >= 0) {
-        progress.value = withSpring(barIndex, SETTLE_SPRING);
+        progress.value = withSpring(barIndex, BAR_SETTLE_SPRING);
       }
       committer.commit(pageIndex);
     },

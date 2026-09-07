@@ -3,11 +3,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import PagerView from 'react-native-pager-view';
-import Animated, { useEvent, useHandler } from 'react-native-reanimated';
+import Animated, { useEvent, useHandler, withSpring } from 'react-native-reanimated';
 import { Screen } from 'react-native-screens';
 
 import {
   BAR_POSITION_BY_PAGE,
+  BAR_SETTLE_SPRING,
   CHROME_HIDDEN_BY_PAGE,
   PAGES,
   barPositionForPage,
@@ -205,12 +206,32 @@ export function TabsPager({
 
   // ROUTE → PAGER. A tap on the bar, a deep link, a back gesture, a push
   // notification: anything that changes the focused tab without the finger.
+  //
+  // IT CUTS, IT DOES NOT TRAVEL. `setPage` is `ViewPager2.setCurrentItem(i,
+  // true)`, an animated scroll THROUGH every page in between — measured at ~680ms
+  // per tap on a Pixel 10 Pro, spent sliding across pages that are frozen and
+  // therefore blank. A tap names a destination, not a journey, and every app the
+  // reader compares this one to arrives immediately.
+  //
+  // The highlight is what still travels, and it has to be sprung from here: with
+  // no scroll there is no `onPageScroll`, and the single event a jump does emit
+  // would teleport the capsule. `chromeProgress` follows the same rule for the
+  // same reason — the bar must fade out over a page that draws no item for it
+  // whether the finger or a tap put us there.
   useEffect(() => {
     if (focusedPage === pageRef.current) return;
     pageRef.current = focusedPage;
     admit([keyForPage(focusedPage)]);
-    pagerRef.current?.setPage(focusedPage);
-  }, [focusedPage, keyForPage, admit]);
+    pagerRef.current?.setPageWithoutAnimation(focusedPage);
+    progress.value = withSpring(
+      barPositionForPage(BAR_POSITION_BY_PAGE, focusedPage),
+      BAR_SETTLE_SPRING,
+    );
+    chromeProgress.value = withSpring(
+      barPositionForPage(CHROME_HIDDEN_BY_PAGE, focusedPage),
+      BAR_SETTLE_SPRING,
+    );
+  }, [focusedPage, keyForPage, admit, progress, chromeProgress]);
 
   // Warm the neighbours of wherever the band has come to rest, on the frame
   // AFTER the one that put it there. Mounting a feed is not something to do on a

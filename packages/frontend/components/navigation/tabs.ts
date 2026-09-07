@@ -145,6 +145,19 @@ export function barToPage(barIndex: number): number {
  * Hiding the whole bar over such a page is a separate decision, made by whoever
  * owns the chrome.
  */
+/**
+ * How fast the bar's highlight travels to a tab nobody dragged it to — a tap, a
+ * deep link, a back gesture. Matched to Bloom's own `SLIDE_SPRING` by feel
+ * rather than by import: Bloom does not export it, and the two are allowed to
+ * differ (this one also has to look right against a page that is NOT sliding —
+ * on web, and now on native, where a tap CUTS to its destination).
+ *
+ * It lives here rather than in `TabPagerContext` because both writers need it:
+ * the provider springs the highlight when no pager is mounted, and the pager
+ * springs it for the jump it does not animate.
+ */
+export const BAR_SETTLE_SPRING = { duration: 420, dampingRatio: 0.82 } as const;
+
 export const BAR_POSITION_BY_PAGE: readonly number[] = PAGES.map((page, index) => {
   const own = barIndexByName(page.name);
   if (own !== -1) return own;
