@@ -2162,5 +2162,18 @@
   "Who can reply": "Quién puede responder",
   "Your reply has been posted!": "¡Tu respuesta se ha publicado!",
   "profile.signInRequired": "Inicia sesión para ver tu perfil",
-  "profile.signInRequiredDesc": "Tus publicaciones, respuestas y guardados aparecen aquí cuando inicias sesión."
+  "profile.signInRequiredDesc": "Tus publicaciones, respuestas y guardados aparecen aquí cuando inicias sesión.",
+  "camera": {
+    "permissionTitle": "Deja que Mention use la cámara",
+    "permissionBody": "Las fotos y vídeos que hagas aquí sólo se publican si tú lo decides.",
+    "permissionAllow": "Permitir la cámara",
+    "shutter": "Hacer una foto",
+    "shutterHint": "Mantén pulsado para grabar un vídeo",
+    "flip": "Cambiar de cámara",
+    "retake": "Repetir",
+    "addText": "Añadir texto",
+    "publish": "Publicar",
+    "uploadFailed": "No se ha subido. Revisa la conexión e inténtalo otra vez.",
+    "publishFailed": "No se ha publicado. Tu captura sigue aquí — inténtalo otra vez."
+  }
 }

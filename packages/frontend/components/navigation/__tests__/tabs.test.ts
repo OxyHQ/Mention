@@ -1,6 +1,7 @@
 import {
   BAR_POSITION_BY_PAGE,
   BAR_TABS,
+  CHROME_HIDDEN_BY_PAGE,
   PAGES,
   barIndexByName,
   barIndexForPathname,
@@ -15,13 +16,11 @@ import {
  * Which page a route is, which bar item that page draws, and the conversion
  * between the two — the three questions the whole bottom bar hangs on.
  *
- * The conversion is the one worth testing hardest, and the reason is that it is
- * currently the identity. Every root page draws a bar item today, so a consumer
- * that confused the two spaces would still be right, and would keep being right
- * until the first page that the bar does not draw — a camera reached by swiping
- * off Home, say. So the mapping is exercised here against a table that HAS such
- * a page, through the same functions production uses, rather than waiting for
- * the feature to arrive and discovering the arithmetic then.
+ * The conversion is the one worth testing hardest, and it is no longer the
+ * identity: the camera is page 0 and draws no bar item, so every bar index is
+ * one less than its page index. A consumer that confuses the two now lands a tap
+ * on the neighbouring screen, or parks the highlight one tab to the right of the
+ * one you are on — and neither of those raises anything.
  *
  * `barIndexForPathname` decides whether the highlight is drawn at all: Bloom's
  * `TabBar` treats an index naming no item as NO SELECTION and fades the capsule
@@ -30,8 +29,9 @@ import {
  */
 
 describe('the page table', () => {
-  it('has the five root destinations, in pager order', () => {
+  it('has the six root pages, in pager order', () => {
     expect(PAGES.map((page) => page.name)).toEqual([
+      'camera',
       'index',
       'videos',
       'write',
@@ -40,27 +40,36 @@ describe('the page table', () => {
     ]);
   });
 
-  it('draws every one of them in the bar, for now', () => {
-    // Not an invariant — it is what makes the two index spaces identical today,
-    // and this test is here to go red the day that stops being true, so whoever
-    // adds a swipe-only page reads the conversion tests below rather than
-    // assuming the numbers still line up.
-    expect(BAR_TABS.map((tab) => tab.name)).toEqual(PAGES.map((page) => page.name));
+  it('draws five of them in the bar — the camera is swipe-only', () => {
+    // This is the fact the two index spaces exist for, so it is stated rather
+    // than left implicit in an arithmetic assertion further down.
+    expect(BAR_TABS.map((tab) => tab.name)).toEqual([
+      'index',
+      'videos',
+      'write',
+      'notifications',
+      'you',
+    ]);
   });
 
-  it('opts the composer out of neighbour preloading, and nothing else', () => {
+  it('opts the composer AND the camera out of neighbour preloading', () => {
     // Preloading a neighbour is what stops a page being blank under the finger,
     // and it is worth the mount for a feed. The composer is the app's heaviest
-    // screen and mounting it merely for being swiped PAST would spend exactly
-    // the cost the tabs rewrite removes.
-    expect(PAGES.filter((page) => !page.preload).map((page) => page.name)).toEqual(['write']);
+    // screen. The camera is not a cost question at all: a mounted `CameraView`
+    // holds the sensor, so being Home's neighbour would light the OS capture
+    // indicator and drain the battery behind the feed.
+    expect(PAGES.filter((page) => !page.preload).map((page) => page.name)).toEqual([
+      'camera',
+      'write',
+    ]);
   });
 });
 
 describe('names resolve to positions', () => {
   it('in page space', () => {
-    expect(pageIndexByName('index')).toBe(0);
-    expect(pageIndexByName('you')).toBe(4);
+    expect(pageIndexByName('camera')).toBe(0);
+    expect(pageIndexByName('index')).toBe(1);
+    expect(pageIndexByName('you')).toBe(5);
   });
 
   it('in bar space', () => {
@@ -78,11 +87,12 @@ describe('names resolve to positions', () => {
 
 describe('pageIndexForPathname', () => {
   it.each([
-    ['/', 0],
-    ['/videos', 1],
-    ['/write', 2],
-    ['/notifications', 3],
-    ['/you', 4],
+    ['/camera', 0],
+    ['/', 1],
+    ['/videos', 2],
+    ['/write', 3],
+    ['/notifications', 4],
+    ['/you', 5],
   ])('matches %s to page %i', (pathname, index) => {
     expect(pageIndexForPathname(pathname)).toBe(index);
   });
@@ -111,12 +121,24 @@ describe('pageIndexForPathname', () => {
 });
 
 describe('barIndexForPathname is what Bloom is handed', () => {
-  it('names the bar item the reader is on', () => {
+  it('names the bar item the reader is on, NOT its page', () => {
+    // `/notifications` is page 4 and bar item 3. Handing Bloom the page index
+    // would park the capsule over the profile.
+    expect(pageIndexForPathname('/notifications')).toBe(4);
     expect(barIndexForPathname('/notifications')).toBe(3);
   });
 
   it('answers -1 on a route pushed over the pages', () => {
     expect(barIndexForPathname('/p/abc123')).toBe(-1);
+  });
+
+  it('answers -1 on the camera, which IS a page but draws no item', () => {
+    // The two -1s mean different things and this is the pair that shows it:
+    // Bloom fades the highlight out either way, but only the pushed route means
+    // "pop what is over the tabs". `pageIndexForPathname` is what tells them
+    // apart, and `TabPagerContext` reads that one for the dismissal.
+    expect(pageIndexForPathname('/camera')).toBe(0);
+    expect(barIndexForPathname('/camera')).toBe(-1);
   });
 });
 
@@ -131,11 +153,17 @@ describe('converting between the two index spaces', () => {
   // index 0 is swipe-only; the bar draws pages 1..3 as items 0..2.
   const WITH_A_HIDDEN_PAGE = [0, 0, 1, 2];
 
-  it('today the two spaces line up, in both directions', () => {
-    for (let page = 0; page < PAGES.length; page += 1) {
-      expect(pageToBar(page)).toBe(page);
-      expect(barToPage(page)).toBe(page);
+  it('every bar item maps back to the page it lives on', () => {
+    // The camera shifts all five by one, so the round trip is the assertion:
+    // an off-by-one in either direction is a tap landing on the neighbour.
+    for (let bar = 0; bar < BAR_TABS.length; bar += 1) {
+      expect(pageToBar(barToPage(bar))).toBe(bar);
+      expect(barToPage(bar)).toBe(bar + 1);
     }
+  });
+
+  it('answers -1 for a page the bar draws no item for', () => {
+    expect(pageToBar(pageIndexByName('camera'))).toBe(-1);
   });
 
   it('answers -1 rather than a plausible neighbour when an index names nothing', () => {
@@ -152,14 +180,16 @@ describe('converting between the two index spaces', () => {
     // Bloom copies `activeProgress` into its geometry raw and unclamped, so an
     // out-of-range value is a real place — one item-width outside the pill —
     // not an absence. Hiding the bar over such a page is a separate decision.
-    expect(BAR_POSITION_BY_PAGE).toEqual([0, 1, 2, 3, 4]);
+    expect(BAR_POSITION_BY_PAGE).toEqual([0, 0, 1, 2, 3, 4]);
     expect(WITH_A_HIDDEN_PAGE[0]).toBe(WITH_A_HIDDEN_PAGE[1]);
   });
 
   it('interpolates a fractional page position into bar units', () => {
-    // 1.4 means 40% of the way from page 1 to page 2. The highlight has to track
-    // that continuously, which is the whole reason the pager writes a fraction.
-    expect(barPositionForPage(BAR_POSITION_BY_PAGE, 1.4)).toBeCloseTo(1.4);
+    // 2.4 means 40% of the way from page 2 to page 3 — Videos towards the
+    // composer — which the bar has to draw as 40% from item 1 to item 2. The
+    // highlight tracks that continuously, which is the whole reason the pager
+    // writes a fraction rather than an index.
+    expect(barPositionForPage(BAR_POSITION_BY_PAGE, 2.4)).toBeCloseTo(1.4);
     expect(barPositionForPage(WITH_A_HIDDEN_PAGE, 2.5)).toBeCloseTo(1.5);
   });
 
@@ -178,6 +208,29 @@ describe('converting between the two index spaces', () => {
     expect(barPositionForPage(BAR_POSITION_BY_PAGE, -3)).toBe(0);
     expect(barPositionForPage(BAR_POSITION_BY_PAGE, 99)).toBe(4);
     expect(barPositionForPage([], 2)).toBe(0);
+  });
+
+  it('holds the real highlight still over the real camera swipe', () => {
+    // The production instance of the case above: Home is page 1 / bar 0, and the
+    // camera is page 0 with no item. Anywhere between them the capsule stays on
+    // Home instead of sliding off the left edge of the pill — Bloom does not
+    // clamp what it is handed, so an unconverted 0.5 here would be half an item
+    // outside it.
+    expect(barPositionForPage(BAR_POSITION_BY_PAGE, 1)).toBe(0);
+    expect(barPositionForPage(BAR_POSITION_BY_PAGE, 0.5)).toBe(0);
+    expect(barPositionForPage(BAR_POSITION_BY_PAGE, 0)).toBe(0);
+  });
+
+  it('takes the bar away continuously as the camera comes in', () => {
+    // `CHROME_HIDDEN_BY_PAGE` is the second quantity through the same
+    // interpolation, which is why the bar travels WITH the finger rather than
+    // popping when the page commits.
+    expect(CHROME_HIDDEN_BY_PAGE).toEqual([1, 0, 0, 0, 0, 0]);
+    expect(barPositionForPage(CHROME_HIDDEN_BY_PAGE, 1)).toBe(0);
+    expect(barPositionForPage(CHROME_HIDDEN_BY_PAGE, 0.25)).toBeCloseTo(0.75);
+    expect(barPositionForPage(CHROME_HIDDEN_BY_PAGE, 0)).toBe(1);
+    // And it is back to 0 on every other page, including the far one.
+    expect(barPositionForPage(CHROME_HIDDEN_BY_PAGE, 5)).toBe(0);
   });
 });
 

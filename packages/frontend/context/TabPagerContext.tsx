@@ -5,6 +5,7 @@ import { useSharedValue, withSpring, type SharedValue } from 'react-native-reani
 import { useAuth } from '@oxyhq/services/ui/client';
 
 import {
+  CHROME_HIDDEN_BY_PAGE,
   PAGES,
   pageIndexForPathname,
   pageToBar,
@@ -36,7 +37,8 @@ export interface TabCommitter {
    */
   commit: (pageIndex: number) => void;
   /**
-   * True when the registrant writes `progress` itself, every frame. The pager
+   * True when the registrant writes `progress` AND `chromeProgress` itself,
+   * every frame. The pager
    * does; nothing else does. While it is true this provider must not touch
    * `progress` — two writers on one shared value is the exact race Bloom's
    * `activeProgress` documentation warns about.
@@ -62,6 +64,18 @@ interface TabPagerValue {
    * difference reads {@link TabPagerValue.activePage}.
    */
   activeIndex: number;
+  /**
+   * How far the reader is onto a page the bar draws no item for: 0 on a page it
+   * does, 1 on one it does not, fractional under the finger.
+   *
+   * The bottom bar reads this to fade itself out as the camera comes in, which
+   * is why it is continuous rather than a boolean — a bar that popped away when
+   * the page committed would announce the commit instead of following the
+   * finger. It is a SEPARATE value from `progress` on purpose: where the
+   * highlight sits and whether there is a bar at all are different questions,
+   * and `progress` must stay inside Bloom's range whatever this one is doing.
+   */
+  chromeProgress: SharedValue<number>;
   /**
    * The settled PAGE, or -1 when the reader is off the root pages entirely —
    * i.e. something is pushed over them. This is the honest test for that, and
@@ -97,6 +111,7 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const viewerUsername = user?.username;
   const progress = useSharedValue(0);
+  const chromeProgress = useSharedValue(0);
   const committerRef = useRef<TabCommitter | null>(null);
 
   // The viewer's handle goes in unconditionally; whether it changes the answer
@@ -129,6 +144,23 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
     if (activeIndex < 0) return;
     progress.value = withSpring(activeIndex, SETTLE_SPRING);
   }, [activeIndex, progress]);
+
+  /**
+   * The same job for the bar's PRESENCE, on the paths where nothing drives it.
+   *
+   * Written even when `activePage` is -1, unlike `progress`: a pushed detail
+   * route is not a page the bar hides for, and leaving a stale 1 behind would
+   * take the bar away on a screen that wants it. The only page that hides it
+   * today is the camera, which is native-only, so on web this settles at 0 and
+   * stays there.
+   */
+  useEffect(() => {
+    if (committerRef.current?.drivesProgress) return;
+    chromeProgress.value = withSpring(
+      activePage >= 0 ? (CHROME_HIDDEN_BY_PAGE[activePage] ?? 0) : 0,
+      SETTLE_SPRING,
+    );
+  }, [activePage, chromeProgress]);
 
   /**
    * WEB ONLY: warm every tab's route chunk once, up front.
@@ -206,8 +238,8 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo<TabPagerValue>(
-    () => ({ progress, activeIndex, activePage, selectTab, registerCommitter }),
-    [progress, activeIndex, activePage, selectTab, registerCommitter],
+    () => ({ progress, chromeProgress, activeIndex, activePage, selectTab, registerCommitter }),
+    [progress, chromeProgress, activeIndex, activePage, selectTab, registerCommitter],
   );
 
   return <TabPagerContext.Provider value={value}>{children}</TabPagerContext.Provider>;

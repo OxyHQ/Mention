@@ -8,6 +8,7 @@ import { Screen } from 'react-native-screens';
 
 import {
   BAR_POSITION_BY_PAGE,
+  CHROME_HIDDEN_BY_PAGE,
   PAGES,
   barPositionForPage,
   pageIndexByName,
@@ -88,7 +89,13 @@ function usePageScrollHandler(
  * page position arriving in a bar-units slot does not fail: it silently parks
  * the capsule one item away from the tab you are on.
  */
-export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerProps) {
+export function TabsPager({
+  state,
+  descriptors,
+  progress,
+  chromeProgress,
+  onCommit,
+}: TabsPagerProps) {
   const pagerRef = useRef<PagerView>(null);
 
   /** The navigator's routes, reachable by the name a `TABS` entry declares. */
@@ -171,9 +178,15 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
       // 1 to page 2 — and `progress` is in BAR units. They are the same number
       // only while every page draws a bar item, which is a fact about today's
       // table rather than a property of either.
-      progress.value = barPositionForPage(BAR_POSITION_BY_PAGE, event.position + event.offset);
+      const page = event.position + event.offset;
+      progress.value = barPositionForPage(BAR_POSITION_BY_PAGE, page);
+      // Same frame, same interpolation, different quantity: the bar fades out as
+      // the finger travels onto a page it draws no item for. Continuous, because
+      // a bar that vanished on commit would announce the commit rather than
+      // follow the finger.
+      chromeProgress.value = barPositionForPage(CHROME_HIDDEN_BY_PAGE, page);
     },
-    [progress],
+    [progress, chromeProgress],
   );
 
   // ROUTE → PAGER. A tap on the bar, a deep link, a back gesture, a push

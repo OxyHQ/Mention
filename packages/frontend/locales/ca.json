@@ -2162,5 +2162,18 @@
   "Who can reply": "Qui pot respondre",
   "Your reply has been posted!": "S'ha publicat la teva resposta!",
   "profile.signInRequired": "Inicia la sessió per veure el teu perfil",
-  "profile.signInRequiredDesc": "Les teves publicacions, respostes i elements desats apareixen aquí quan inicies la sessió."
+  "profile.signInRequiredDesc": "Les teves publicacions, respostes i elements desats apareixen aquí quan inicies la sessió.",
+  "camera": {
+    "permissionTitle": "Let Mention use the camera",
+    "permissionBody": "Photos and videos you take here are only posted when you choose to.",
+    "permissionAllow": "Allow camera",
+    "shutter": "Take a photo",
+    "shutterHint": "Hold to record a video",
+    "flip": "Switch camera",
+    "retake": "Retake",
+    "addText": "Add text",
+    "publish": "Post",
+    "uploadFailed": "That didn't upload. Check your connection and try again.",
+    "publishFailed": "That didn't post. Your capture is still here — try again."
+  }
 }
