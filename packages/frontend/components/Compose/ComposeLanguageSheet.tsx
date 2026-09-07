@@ -56,22 +56,26 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
   const { t } = useTranslation();
   const theme = useTheme();
 
+  /**
+   * Only a SWITCH closes this sheet.
+   *
+   * The other two moves hand over to the language picker, which lives in the
+   * same bottom-sheet host: it calls `present()` on the one ref, and a `close()`
+   * from here is `dismiss()` on that same ref — so dismissing "this" sheet
+   * dismisses the picker that just replaced it, one frame after it opened.
+   * Editing and adding a language were therefore unreachable.
+   */
   const handlePress = useCallback(
     (tag: string) => {
       if (tag === activeTag) {
         onEdit(tag);
-      } else {
-        onSelect(tag);
+        return;
       }
+      onSelect(tag);
       onClose();
     },
     [activeTag, onEdit, onSelect, onClose],
   );
-
-  const handleAdd = useCallback(() => {
-    onAdd();
-    onClose();
-  }, [onAdd, onClose]);
 
   const tags = [primaryTag, ...variantTags];
 
@@ -108,7 +112,7 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
       })}
 
       <Item
-        onPress={canAdd ? handleAdd : undefined}
+        onPress={canAdd ? onAdd : undefined}
         disabled={!canAdd}
         title={t('compose.languages.add', { defaultValue: 'Add language' })}
         subtitle={

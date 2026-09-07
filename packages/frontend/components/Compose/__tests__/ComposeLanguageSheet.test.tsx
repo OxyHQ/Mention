@@ -150,7 +150,7 @@ describe('ComposeLanguageSheet', () => {
     expect(onEdit).not.toHaveBeenCalled();
   });
 
-  it('closes itself after either move, so the composer is what the author lands on', () => {
+  it('closes itself after a switch, so the composer is what the author lands on', () => {
     const { renderer, onClose } = render({ variantTags: ['es-ES'] });
 
     act(() => {
@@ -161,6 +161,40 @@ describe('ComposeLanguageSheet', () => {
     });
 
     expect(onClose).toHaveBeenCalled();
+  });
+
+  /**
+   * The picker lives in the SAME bottom-sheet host, so a close from here is a
+   * `dismiss()` on the ref the picker just called `present()` on. Closing on
+   * these two paths made editing and adding a language unreachable: the picker
+   * opened and vanished in the same frame.
+   */
+  it('stays out of the way when it hands over to the picker', () => {
+    const { renderer, onClose, onEdit } = render();
+
+    act(() => {
+      renderer.root
+        .findAllByType(TouchableOpacity)
+        .find((row) => row.findAllByType(Text)[0]?.props.children === 'English')
+        ?.props.onPress();
+    });
+
+    expect(onEdit).toHaveBeenCalledWith('en');
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('hands add over to the picker without closing either', () => {
+    const { renderer, onAdd, onClose } = render();
+
+    act(() => {
+      renderer.root
+        .findAllByType(TouchableOpacity)
+        .find((row) => row.findAllByType(Text)[0]?.props.children === 'Add language')
+        ?.props.onPress();
+    });
+
+    expect(onAdd).toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('goes dead once the post holds the maximum languages', () => {
