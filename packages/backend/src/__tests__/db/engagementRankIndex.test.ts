@@ -26,6 +26,17 @@
  * The query is built from `engagementScoreSql` and `MtnConfig` rather than
  * pasted, because a pasted expression would keep agreeing with a pasted index
  * after both had drifted from the config the feed actually ranks by.
+ *
+ * SEQUENTIAL SCANS ARE DISABLED FOR THE PLAN, and that is what makes this
+ * portable rather than what makes it lenient. A CI database holds a handful of
+ * posts, and over a handful of rows reading the table and sorting it really is
+ * cheaper than any index — so the planner declines, correctly, and the test
+ * failed on an empty database while passing on a seeded one. What is under test
+ * is whether the ORDER BY is index-SATISFIABLE, which is a property of the two
+ * expressions and not of the row count. With the sequential scan taken away, an
+ * index that does not match still cannot satisfy the ordering: the plan comes
+ * back with a `Sort` node over an index scan, and the assertion below still
+ * fails. Disabling the sort too would be the lenient version, and is not done.
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -82,14 +93,20 @@ async function popularScanPlan(): Promise<string> {
       ? String(value)
       : `'${String(value).replace(/'/g, "''")}'`;
   });
-  const rows = await getDb().execute<Record<string, string>>(sql.raw(`explain ${inlined}`));
-  return rows.map((row) => Object.values(row)[0]).join('\n');
+  // `SET LOCAL` inside a transaction, so the setting cannot outlive this plan and
+  // reach another suite through the pooled connection.
+  return getDb().transaction(async (tx) => {
+    await tx.execute(sql`set local enable_seqscan = off`);
+    const rows = await tx.execute<Record<string, string>>(sql.raw(`explain ${inlined}`));
+    return rows.map((row) => Object.values(row)[0]).join('\n');
+  });
 }
 
 describe('posts_engagement_rank_idx', () => {
   it('is the index the popular scan plans onto', async () => {
     // A row so the table is never empty for the planner; the assertion is about
-    // the plan, not the result.
+    // the plan, not the result. See the file comment for why the plan is taken
+    // with sequential scans disabled.
     await seedPost(scope, { oxyUserId: scope.user('author') });
 
     const plan = await popularScanPlan();
