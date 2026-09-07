@@ -6,7 +6,7 @@ import PagerView from 'react-native-pager-view';
 import Animated, { useEvent, useHandler } from 'react-native-reanimated';
 import { Screen } from 'react-native-screens';
 
-import { TABS } from '@/components/navigation/tabs';
+import { TABS, tabIndexByName } from '@/components/navigation/tabs';
 
 import type { TabsPagerProps } from './TabsPager.types';
 
@@ -66,9 +66,35 @@ function usePageScrollHandler(
  * page must render an empty `<View>` and never `null` — returning nothing would
  * shift every page after it and land a swipe on the wrong screen. The laziness
  * is therefore INSIDE each page, not in the child list.
+ *
+ * A PAGE INDEX IS A `TABS` INDEX, AND THE NAVIGATOR'S IS NOT. `state.routes`
+ * arrives in expo-router's own order: `triggersToScreens` sorts the triggers it
+ * is handed with `sortRoutesWithInitial`, which puts `index` first and then
+ * sorts by route-name LENGTH. The five tabs therefore come back as
+ * index/you/write/videos/notifications, not the bar order this file's `TABS`
+ * declares. Everything outside this component — `progress`, `activeIndex`,
+ * `selectTab`, `commit` — indexes `TABS`, so the pages are built from `TABS`
+ * and every route is reached BY NAME. Ordering by `state.routes` would put the
+ * profile where the bar draws Videos.
  */
 export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerProps) {
   const pagerRef = useRef<PagerView>(null);
+
+  /** The navigator's routes, reachable by the name a `TABS` entry declares. */
+  const routeByName = useMemo(
+    () => new Map(state.routes.map((route) => [route.name, route])),
+    [state.routes],
+  );
+
+  /**
+   * The focused tab as a PAGE index.
+   *
+   * -1 would mean the navigator focused a route no tab names, which the layout's
+   * dev check reports; page 0 is the honest fallback rather than an index
+   * `PagerView` would reject.
+   */
+  const focusedPage = Math.max(0, tabIndexByName(state.routes[state.index]?.name ?? ''));
+
   /**
    * The page the PAGER believes it is on.
    *
@@ -78,7 +104,7 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
    * `onPageSelected`, which commits the route again. This ref is the arbiter,
    * and every write to it is paired with the action that made it true.
    */
-  const pageRef = useRef(state.index);
+  const pageRef = useRef(focusedPage);
 
   /**
    * Which routes may render their screen. A tab is admitted when it is focused,
@@ -89,6 +115,12 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
    */
   const [loaded, setLoaded] = useState<ReadonlySet<string>>(
     () => new Set([state.routes[state.index]?.key].filter(Boolean) as string[]),
+  );
+
+  /** The key of the route a page shows, or undefined for a tab with no route. */
+  const keyForPage = useCallback(
+    (page: number) => routeByName.get(TABS[page]?.name ?? '')?.key,
+    [routeByName],
   );
 
   const admit = useCallback((keys: (string | undefined)[]) => {
@@ -103,18 +135,17 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
     });
   }, []);
 
-  // Opt-out is read by route NAME, never by index. The navigator's route order
-  // is built from `TABS` and does match it, but an index-keyed lookup would go
-  // on silently answering the wrong question if that ever stopped being true —
-  // and "the composer got preloaded after all" is not a symptom anybody would
-  // trace back to here.
+  // Both the neighbour and its opt-out are read off `TABS`, because a NEIGHBOUR
+  // is a bar-order question: the two screens a swipe can reach from here. The
+  // navigator's own order would name two different tabs and preload the wrong
+  // pair — including the composer, the one screen that opted out.
   const neighbourKeys = useCallback(
-    (index: number) =>
-      [index - 1, index + 1]
-        .filter((i) => i >= 0 && i < state.routes.length)
-        .filter((i) => TABS.find((tab) => tab.name === state.routes[i]?.name)?.preload !== false)
-        .map((i) => state.routes[i]?.key),
-    [state.routes],
+    (page: number) =>
+      [page - 1, page + 1]
+        .filter((i) => i >= 0 && i < TABS.length)
+        .filter((i) => TABS[i]?.preload !== false)
+        .map((i) => keyForPage(i)),
+    [keyForPage],
   );
 
   const onPageScroll = usePageScrollHandler(
@@ -131,11 +162,11 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
   // ROUTE → PAGER. A tap on the bar, a deep link, a back gesture, a push
   // notification: anything that changes the focused tab without the finger.
   useEffect(() => {
-    if (state.index === pageRef.current) return;
-    pageRef.current = state.index;
-    admit([state.routes[state.index]?.key]);
-    pagerRef.current?.setPage(state.index);
-  }, [state.index, state.routes, admit]);
+    if (focusedPage === pageRef.current) return;
+    pageRef.current = focusedPage;
+    admit([keyForPage(focusedPage)]);
+    pagerRef.current?.setPage(focusedPage);
+  }, [focusedPage, keyForPage, admit]);
 
   // Warm the neighbours of wherever we have settled — but only once the frame
   // budget is free. Mounting a feed is not something to do on the frame that
@@ -143,10 +174,10 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
   // swipe in each direction instant.
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
-      admit(neighbourKeys(state.index));
+      admit(neighbourKeys(focusedPage));
     });
     return () => task.cancel();
-  }, [state.index, admit, neighbourKeys]);
+  }, [focusedPage, admit, neighbourKeys]);
 
   const onPageScrollStateChanged = useCallback(
     (event: { nativeEvent: { pageScrollState: 'idle' | 'dragging' | 'settling' } }) => {
@@ -167,23 +198,25 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
       const next = event.nativeEvent.position;
       if (next === pageRef.current) return;
       pageRef.current = next;
-      admit([state.routes[next]?.key]);
+      admit([keyForPage(next)]);
+      // A page index IS a `TABS` index, which is the unit `selectTab` takes.
       onCommit(next);
     },
-    [onCommit, admit, state.routes],
+    [onCommit, admit, keyForPage],
   );
 
   const pages = useMemo(
     () =>
-      state.routes.map((route, index) => {
-        const descriptor = descriptors[route.key];
-        const isFocused = index === state.index;
+      TABS.map((tab, index) => {
+        const route = routeByName.get(tab.name);
+        const descriptor = route ? descriptors[route.key] : undefined;
+        const isFocused = index === focusedPage;
         return (
           // `collapsable={false}` keeps the page a real view even when its
           // content is still null — a collapsed page would be dropped from the
           // native hierarchy and take its position with it.
-          <View key={route.key} collapsable={false} style={styles.page}>
-            {loaded.has(route.key) && descriptor ? (
+          <View key={tab.name} collapsable={false} style={styles.page}>
+            {route && loaded.has(route.key) && descriptor ? (
               // `activityState` is what lets four mounted screens cost almost
               // nothing: 2 drives the focused one, 1 keeps a neighbour laid out
               // and painted so it is real under the finger, 0 parks the rest.
@@ -193,7 +226,7 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
               // trees.
               <Screen
                 enabled
-                activityState={isFocused ? 2 : Math.abs(index - state.index) === 1 ? 1 : 0}
+                activityState={isFocused ? 2 : Math.abs(index - focusedPage) === 1 ? 1 : 0}
                 style={styles.screen}
               >
                 {descriptor.render()}
@@ -202,14 +235,14 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
           </View>
         );
       }),
-    [state.routes, state.index, descriptors, loaded],
+    [routeByName, focusedPage, descriptors, loaded],
   );
 
   return (
     <AnimatedPagerView
       ref={pagerRef}
       style={styles.pager}
-      initialPage={state.index}
+      initialPage={focusedPage}
       // One page either side is exactly what the neighbour admission above
       // maintains; more would ask the platform to keep screens alive that have
       // no content to show.
