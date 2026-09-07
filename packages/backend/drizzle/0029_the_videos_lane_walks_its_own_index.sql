@@ -49,16 +49,41 @@
 -- image, which is the worse trade.
 --
 -- NOT ONLINE, matching `0003`, `0004`, `0021`, `0022` and `0028`: `CREATE INDEX
--- CONCURRENTLY` cannot run inside the migrator's transaction. `ADD COLUMN` with
--- no default is a catalogue change and does not rewrite the table; the `UPDATE`
--- and the `CREATE INDEX` are the costly halves and both scale with `post_media`.
--- The lock they hold BLOCKS WRITES to `post_media` (reads are unaffected) for the
--- duration. `post_media` is roughly one row per media item rather than one per
--- post, so it is materially smaller than `posts` — but the build time on
--- production was NOT measured, and "smaller than the biggest table" is not a
--- number. If it turns out to matter, the recovery is the same one `0028` names:
--- split this into the column plus a batched backfill, and build the index
--- concurrently outside the migrator.
+-- CONCURRENTLY` cannot run inside the migrator's transaction.
+--
+-- WHAT IT BLOCKS, and it is more than writes. The three statements run in ONE
+-- transaction, so the ACCESS EXCLUSIVE lock `ALTER TABLE` takes is held until
+-- COMMIT — not just for the catalogue change. ACCESS EXCLUSIVE conflicts with
+-- every other lock mode, so for the whole run `post_media` is unavailable to
+-- READS as well as writes. Verified rather than reasoned: with an
+-- `ALTER TABLE ADD COLUMN` held open in one session, `select count(*) from
+-- post_media` in another hits its `statement_timeout`, while the same query on
+-- `posts` returns immediately. Only this one table is affected — but federation
+-- ingest writes to it continuously, and any request hydrating a post's media
+-- reads it, so this is a brief hard stop on media rather than a background build.
+--
+-- COST, measured here, warm, on RAM-backed storage:
+--
+--   post_media rows    ADD COLUMN    UPDATE      CREATE INDEX   total (1 txn)
+--   81,083 (48 MB)     0.5 ms        861 ms      51 ms          996 ms
+--   405,415 (94 MB)    0.5 ms      5,165 ms     236 ms
+--
+-- `ADD COLUMN` is free — no default means no rewrite. The `UPDATE` is the whole
+-- cost and it is roughly linear, ~12.7 us/row, because it rewrites every row.
+--
+-- WHAT THAT IMPLIES FOR PRODUCTION, and what it does not. Production held
+-- 622,474 posts at the cutover count (`scripts/assertPostgresPopulated.ts`,
+-- 2026-08-04) and 9,465 posts carrying a video media item a week earlier
+-- (`utils/feedQueryBuilder.ts`). `post_media` is roughly one row per media item,
+-- so on those figures it sits between the two rows measured above and the backfill
+-- is seconds, not minutes. Two things that is NOT: it is not a measurement of
+-- production, and the storage here is a RAM-backed tmpfs while production is RDS
+-- on EBS, where a row-rewriting `UPDATE` is WAL-bound and slower. Treat the table
+-- above as a floor and the shape as the transferable part.
+--
+-- If it turns out to matter, the recovery is the one `0028` names: split this into
+-- the column plus a batched backfill outside the migrator, and build the index
+-- concurrently.
 
 ALTER TABLE "post_media" ADD COLUMN "post_created_at" timestamp with time zone;--> statement-breakpoint
 UPDATE "post_media" m SET "post_created_at" = p."created_at" FROM "posts" p WHERE p."id" = m."post_id" AND m."post_created_at" IS DISTINCT FROM p."created_at";--> statement-breakpoint
