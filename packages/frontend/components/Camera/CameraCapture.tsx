@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { CameraView, useCameraPermissions, useMicrophonePermissions, type CameraType } from 'expo-camera';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedProps,
@@ -18,7 +19,14 @@ import {
   MAX_VIDEO_SECONDS,
   TIMER_CHOICES,
   ZOOM_DRAG_DISTANCE_PX,
+  ZOOM_STOPS,
+  formatMultiplier,
+  multiplierToZoom,
   nextChoice,
+  shutterAction,
+  stopForZoom,
+  zoomToMultiplier,
+  type CaptureMode,
   type FlashChoice,
   type TimerChoice,
 } from './constants';
@@ -45,6 +53,9 @@ function clampZoom(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+/** The carousel's order, left to right. Photo first: it is what a camera opens on. */
+const CAPTURE_MODES: readonly CaptureMode[] = ['photo', 'video'];
+
 interface CameraCaptureProps {
   /** Fires with whatever the reader just captured. */
   onCaptured: (capture: LocalCapture) => void;
@@ -56,17 +67,25 @@ interface CameraCaptureProps {
  * The live camera.
  *
  * LAID OUT LIKE THE ONE EVERY READER ALREADY KNOWS, because a camera is a
- * surface where hesitation is the cost: close top-left, the modal controls in a
- * column top-right, and the shutter centred at the bottom with flip beside it.
- * The gestures
- * are the same ones too — TAP takes a photo, HOLD records, and DRAGGING UP from
- * the shutter while holding zooms. That last one is the signature: it is why the
+ * surface where hesitation is the cost. Close top-left; flash and self-timer in
+ * a column top-right; the zoom stops in a row just above the shutter; the
+ * shutter centred at the bottom with flip beside it; and under it the MODE
+ * CAROUSEL — Photo or Video — which is the one control that says what the big
+ * button is for.
+ *
+ * Every one of those sits on a translucent disc rather than bare on the frame.
+ * Chrome over a live preview has to stay legible against whatever the lens
+ * happens to be pointing at, and white-on-white is the failure mode.
+ *
+ * The gestures are the familiar ones too: TAP is the mode's action, HOLD always
+ * records, PINCH zooms anywhere on the preview, and DRAGGING UP from the shutter
+ * zooms without a second finger. That last one is the signature — it is why the
  * zoom is not a slider, and why the drag distance is fixed to a thumb's reach
  * rather than to the screen's height.
  *
- * WHAT IS DELIBERATELY NOT HERE. Instagram's camera also carries a mode
- * carousel, layouts, boomerang, green screen, a teleprompter and touch-up. Each
- * of those is a product decision and most need a filter or segment pipeline this
+ * WHAT IS DELIBERATELY NOT HERE. Instagram's camera also carries layouts,
+ * boomerang, green screen, a teleprompter, touch-up and filters. Each of those
+ * is a product decision and every one needs a filter or segment pipeline this
  * app does not have; adding a control that does nothing would be worse than the
  * absence.
  *
@@ -108,7 +127,16 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
   const [facing, setFacing] = useState<CameraType>('back');
   const [flash, setFlash] = useState<FlashChoice>('off');
   const [timer, setTimer] = useState<TimerChoice>(0);
-  const [handsFree, setHandsFree] = useState(false);
+  /**
+   * PHOTO or VIDEO, chosen on the carousel under the shutter.
+   *
+   * It replaced a "hands free" toggle in the control column, and the swap is
+   * worth a line: the toggle described a MECHANISM (does the button need
+   * holding) where a reader is choosing an OUTCOME (am I taking a photo or a
+   * video). Naming the outcome also puts the answer where the eye already is —
+   * under the shutter, which is where every phone camera puts it.
+   */
+  const [captureMode, setCaptureMode] = useState<CaptureMode>('photo');
   const [countdown, setCountdown] = useState<number | null>(null);
   const [remaining, setRemaining] = useState(MAX_VIDEO_SECONDS);
 
@@ -211,31 +239,29 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
   );
 
   /**
-   * The shutter's TAP.
-   *
-   * Hands-free turns the same tap into start-and-stop for video, which is the
-   * whole point of the mode: a recording you do not have to hold. Off, a tap is
-   * a photo and video is the HOLD below.
+   * The shutter's TAP. What it does is {@link shutterAction}'s decision.
    */
   const onShutterPress = useCallback(() => {
-    if (isRecording) {
+    const action = shutterAction(captureMode, isRecording);
+    if (action === 'stop') {
       stop();
       return;
     }
-    afterTimer(handsFree ? () => void arm() : () => void takePhoto());
-  }, [isRecording, stop, afterTimer, handsFree, arm, takePhoto]);
+    afterTimer(action === 'record' ? () => void arm() : () => void takePhoto());
+  }, [captureMode, isRecording, stop, afterTimer, arm, takePhoto]);
 
   /**
-   * The shutter's HOLD, which is video.
+   * The shutter's HOLD, which records in EITHER mode — in video it is simply the
+   * long way round to what a tap already does.
    *
    * NO SELF-TIMER ON THIS PATH, deliberately: a held recording already has a
    * finger on the button, so counting down first would mean holding through the
    * countdown for nothing. The timer belongs to the tap.
    */
   const onShutterLongPress = useCallback(() => {
-    if (handsFree || countdown !== null) return;
+    if (isRecording || countdown !== null) return;
     void arm();
-  }, [handsFree, countdown, arm]);
+  }, [isRecording, countdown, arm]);
 
   /**
    * The shutter's RELEASE.
@@ -248,11 +274,13 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
    * is the one signal present on every path.
    */
   const onShutterRelease = useCallback(() => {
-    // In hands-free the press that started the recording also ends here, and
-    // must not stop it — that is what the tap above is for.
-    if (handsFree) return;
+    // In VIDEO mode the press that started the recording also ends here, and
+    // must not stop it: there, stopping is the SECOND tap's job, and a hold is
+    // just the long way into the same state. Only in photo mode does the finger
+    // hold the recording open.
+    if (captureMode === 'video') return;
     stop();
-  }, [handsFree, stop]);
+  }, [captureMode, stop]);
 
   // The ring fills over the whole allowance, so its angle IS the time left; the
   // seconds beside it are the same fact for a reader who needs the number.
@@ -328,6 +356,22 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
     strokeDashoffset: RING_CIRCUMFERENCE * (1 - ringProgress.value),
   }));
 
+  /**
+   * What the pill row shows.
+   *
+   * `selectedStop` is null when the zoom sits BETWEEN two stops — the case the
+   * row renders differently rather than rounds away. Exactly one pill is still
+   * highlighted (the nearest), and it borrows its label from the live figure so
+   * a pinch has somewhere to be read.
+   */
+  const multiplier = zoomToMultiplier(zoom);
+  const selectedStop = stopForZoom(zoom);
+  const activeStop =
+    selectedStop ??
+    ZOOM_STOPS.reduce((closest, stop) =>
+      Math.abs(stop - multiplier) < Math.abs(closest - multiplier) ? stop : closest,
+    );
+
   // `permission` is null only while the module is still answering. Deciding
   // "denied" then would show the explanation to someone who has not been asked.
   if (!permission) return <View style={styles.root} />;
@@ -377,19 +421,26 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
         </View>
       </GestureDetector>
 
-      <Pressable
-        onPress={onClose}
+      {/* Every control sits on its own translucent disc rather than bare on the
+          frame. A camera's chrome has to stay legible over whatever the lens
+          happens to be pointing at, and white-on-white is the failure mode. */}
+      <RoundButton
         style={styles.close}
-        accessibilityRole="button"
-        accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-      >
-        <ThemedText className="text-white text-2xl">×</ThemedText>
-      </Pressable>
+        onPress={onClose}
+        icon="close"
+        label={t('common.close', { defaultValue: 'Close' })}
+      />
 
       {/* The modal controls, in a column where the thumb is not covering the
           frame. Each is a cycle rather than a menu: one target, one tap. */}
       <View style={styles.controlColumn}>
-        <ControlButton
+        <RoundButton
+          onPress={() => setFlash(nextChoice(FLASH_CHOICES, flash))}
+          icon={flash === 'off' ? 'flash-off' : 'flash'}
+          // The "A" is how every camera distinguishes automatic from on, and
+          // Ionicons has no separate glyph for it.
+          badge={flash === 'auto' ? 'A' : undefined}
+          active={flash !== 'off'}
           label={t('camera.flash', { defaultValue: 'Flash' })}
           // FLAT keys, not `camera.flash.<value>`: `camera.flash` is itself a
           // string here, and i18next cannot have a key be both a leaf and a
@@ -401,27 +452,14 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
                 ? t('camera.flashAuto', { defaultValue: 'Auto' })
                 : t('camera.flashOn', { defaultValue: 'On' })
           }
-          glyph={flash === 'off' ? '⚡︎' : flash === 'auto' ? 'A⚡' : '⚡'}
-          dimmed={flash === 'off'}
-          onPress={() => setFlash(nextChoice(FLASH_CHOICES, flash))}
         />
-        <ControlButton
+        <RoundButton
+          onPress={() => setTimer(nextChoice(TIMER_CHOICES, timer))}
+          icon="timer-outline"
+          badge={timer === 0 ? undefined : String(timer)}
+          active={timer !== 0}
           label={t('camera.timer', { defaultValue: 'Timer' })}
           value={timer === 0 ? t('camera.timerOff', { defaultValue: 'Off' }) : `${timer}s`}
-          glyph={timer === 0 ? '⏱' : `${timer}`}
-          dimmed={timer === 0}
-          onPress={() => setTimer(nextChoice(TIMER_CHOICES, timer))}
-        />
-        <ControlButton
-          label={t('camera.handsFree', { defaultValue: 'Hands free' })}
-          value={
-            handsFree
-              ? t('camera.handsFreeOn', { defaultValue: 'On' })
-              : t('camera.handsFreeOff', { defaultValue: 'Off' })
-          }
-          glyph="◉"
-          dimmed={!handsFree}
-          onPress={() => setHandsFree((current) => !current)}
         />
       </View>
 
@@ -438,14 +476,42 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
         </View>
       ) : null}
 
-      {zoom > 0.01 ? (
-        <View style={styles.zoomBadge} pointerEvents="none">
-          <ThemedText className="text-white text-sm">{formatZoom(zoom)}</ThemedText>
-        </View>
-      ) : null}
+      {/* ZOOM STOPS, the row a phone camera puts just above its shutter. The
+          pinch and the drag move the same value, so the selected pill follows
+          them; between two stops the selected one shows the live multiplier
+          instead of its own label, which is the only way the row can stay
+          honest about a zoom it did not choose. */}
+      <View style={styles.zoomRow}>
+        {ZOOM_STOPS.map((stop) => {
+          const selected = stop === activeStop;
+          // Its own label when the zoom is ON the stop, the live figure when it
+          // is merely nearest to it.
+          const text = selected && selectedStop === null ? formatMultiplier(multiplier) : `${stop}×`;
+          return (
+            <Pressable
+              key={stop}
+              onPress={() => setZoom(multiplierToZoom(stop))}
+              style={[styles.zoomPill, selected && styles.zoomPillSelected]}
+              accessibilityRole="button"
+              accessibilityLabel={t('camera.zoomTo', {
+                defaultValue: 'Zoom to {{amount}}',
+                amount: `${stop}×`,
+              })}
+            >
+              <ThemedText
+                className={selected ? 'text-yellow-400 text-xs' : 'text-white text-xs'}
+              >
+                {text}
+              </ThemedText>
+            </Pressable>
+          );
+        })}
+      </View>
 
       <View style={styles.controls}>
-        {/* Keeps the shutter centred where the thumb expects it. */}
+        {/* Keeps the shutter centred where the thumb expects it. Instagram's
+            gallery shortcut would live here; `CameraCapture`'s header says why
+            this app's does not. */}
         <View style={styles.sideSlot} />
 
         <GestureDetector gesture={shutterDrag}>
@@ -461,21 +527,32 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
               accessibilityLabel={
                 recording
                   ? t('camera.stop', { defaultValue: 'Stop recording' })
-                  : handsFree
+                  : captureMode === 'video'
                     ? t('camera.record', { defaultValue: 'Start recording' })
                     : t('camera.shutter', { defaultValue: 'Take a photo' })
               }
               accessibilityHint={
-                handsFree
-                  ? t('camera.shutterHintHandsFree', {
-                      defaultValue: 'Tap again to stop',
-                    })
+                captureMode === 'video'
+                  ? t('camera.shutterHintVideo', { defaultValue: 'Tap again to stop' })
                   : t('camera.shutterHint', {
                       defaultValue: 'Hold to record a video, and drag up to zoom',
                     })
               }
-              style={[styles.shutter, recording && styles.shutterRecording]}
-            />
+              style={styles.shutterHitArea}
+            >
+              {/* A RING plus a separate core, not one filled circle: the core is
+                  what changes between the three states, and animating a border
+                  colour would have moved the ring with it. */}
+              <View style={styles.shutterRing}>
+                <View
+                  style={[
+                    styles.shutterCore,
+                    captureMode === 'video' && styles.shutterCoreVideo,
+                    recording && styles.shutterCoreRecording,
+                  ]}
+                />
+              </View>
+            </Pressable>
             {recording ? (
               <Svg width={RING_SIZE} height={RING_SIZE} style={styles.ring} pointerEvents="none">
                 <AnimatedCircle
@@ -496,46 +573,94 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
           </Animated.View>
         </GestureDetector>
 
-        <Pressable
+        <RoundButton
+          style={[styles.sideSlot, recording && styles.slotHidden]}
           onPress={() => setFacing((current) => (current === 'back' ? 'front' : 'back'))}
           disabled={recording}
-          style={[styles.sideSlot, recording && styles.slotHidden]}
-          accessibilityRole="button"
-          accessibilityLabel={t('camera.flip', { defaultValue: 'Switch camera' })}
-        >
-          <ThemedText className="text-white text-xl">⟲</ThemedText>
-        </Pressable>
+          icon="camera-reverse-outline"
+          label={t('camera.flip', { defaultValue: 'Switch camera' })}
+        />
       </View>
+
+      {/* THE MODE CAROUSEL, the row of names under the shutter that every phone
+          camera has and that says what the button is for. It is hidden while
+          recording: changing mode mid-take is not a thing it can honour, and a
+          control that is present but inert is worse than one that stepped
+          aside. */}
+      {recording ? null : (
+        <View style={styles.modeRow}>
+          {CAPTURE_MODES.map((option) => (
+            <Pressable
+              key={option}
+              onPress={() => setCaptureMode(option)}
+              style={styles.modeItem}
+              accessibilityRole="button"
+              accessibilityState={{ selected: option === captureMode }}
+              accessibilityLabel={
+                option === 'video'
+                  ? t('camera.modeVideo', { defaultValue: 'Video' })
+                  : t('camera.modePhoto', { defaultValue: 'Photo' })
+              }
+            >
+              <ThemedText
+                className={
+                  option === captureMode
+                    ? 'text-white text-xs font-bold'
+                    : 'text-white/50 text-xs'
+                }
+              >
+                {option === 'video'
+                  ? t('camera.modeVideo', { defaultValue: 'Video' })
+                  : t('camera.modePhoto', { defaultValue: 'Photo' })}
+              </ThemedText>
+            </Pressable>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
 
-/** One modal control: a glyph, and the value it is currently on. */
-function ControlButton({
+/**
+ * One control on a translucent disc: an icon, optionally a small corner badge
+ * carrying the value the icon alone cannot say.
+ */
+function RoundButton({
+  icon,
   label,
   value,
-  glyph,
-  dimmed,
+  badge,
+  active,
+  disabled,
+  style,
   onPress,
 }: {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
-  value: string;
-  glyph: string;
-  dimmed: boolean;
+  /** The setting's current value, for the announced name. Omit for a plain action. */
+  value?: string;
+  badge?: string;
+  active?: boolean;
+  disabled?: boolean;
+  style?: StyleProp<ViewStyle>;
   onPress: () => void;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      style={styles.controlButton}
+      disabled={disabled}
+      style={[styles.roundButton, style]}
       accessibilityRole="button"
       // The label alone would announce "Flash" whatever it is set to, which is
-      // the one thing a reader who cannot see the glyph needs to know.
-      accessibilityLabel={`${label}: ${value}`}
+      // the one thing a reader who cannot see the icon needs to know.
+      accessibilityLabel={value ? `${label}: ${value}` : label}
     >
-      <ThemedText className={dimmed ? 'text-white/50 text-lg' : 'text-white text-lg'}>
-        {glyph}
-      </ThemedText>
+      <Ionicons name={icon} size={20} color={active ? '#facc15' : '#fff'} />
+      {badge ? (
+        <View style={styles.roundBadge}>
+          <ThemedText className="text-black text-[9px] font-bold">{badge}</ThemedText>
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -546,17 +671,33 @@ function formatRemaining(seconds: number): string {
   return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
-/** The zoom as a multiplier, the way every camera app labels it. */
-function formatZoom(value: number): string {
-  return `${(1 + value * 4).toFixed(1)}×`;
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
   explain: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  close: { position: 'absolute', top: 56, left: 20, padding: 12 },
-  controlColumn: { position: 'absolute', top: 52, right: 16, gap: 4 },
-  controlButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  close: { position: 'absolute', top: 56, left: 20 },
+  controlColumn: { position: 'absolute', top: 52, right: 16, gap: 10 },
+  roundButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    // Dark enough to carry a white icon over a bright frame, light enough that
+    // the preview still reads through it.
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  roundBadge: {
+    position: 'absolute',
+    top: 1,
+    right: 1,
+    minWidth: 14,
+    height: 14,
+    borderRadius: 7,
+    paddingHorizontal: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#facc15',
+  },
   countdown: {
     position: 'absolute',
     top: 0,
@@ -579,37 +720,67 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
   recordingDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444' },
-  zoomBadge: {
+  zoomRow: {
     position: 'absolute',
-    bottom: 150,
+    bottom: 148,
     alignSelf: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    padding: 4,
     borderRadius: 999,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
+  zoomPill: {
+    minWidth: 34,
+    height: 28,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  zoomPillSelected: { backgroundColor: 'rgba(0,0,0,0.55)' },
   controls: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 48,
+    bottom: 74,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 40,
   },
-  sideSlot: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
+  sideSlot: { width: 48, height: 48, borderRadius: 24 },
   slotHidden: { opacity: 0 },
-  shutter: {
+  // The hit area is the RING's box, so the drag-to-zoom gesture and the press
+  // start from the same place a thumb aims at.
+  shutterHitArea: { alignItems: 'center', justifyContent: 'center' },
+  shutterRing: {
     width: 76,
     height: 76,
     borderRadius: 38,
-    borderWidth: 5,
+    borderWidth: 4,
     borderColor: '#fff',
-    backgroundColor: 'rgba(255,255,255,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shutterRecording: { backgroundColor: '#ef4444', borderColor: '#ef4444' },
+  // White and nearly filling the ring in photo mode — the still-camera shutter
+  // everyone recognises.
+  shutterCore: { width: 62, height: 62, borderRadius: 31, backgroundColor: '#fff' },
+  shutterCoreVideo: { width: 58, height: 58, borderRadius: 29, backgroundColor: '#ef4444' },
+  // The rounded SQUARE is the universal "stop", and shrinking it inside the
+  // untouched ring is what makes the progress arc read as progress.
+  shutterCoreRecording: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#ef4444' },
   ring: { position: 'absolute', top: -8, left: -8 },
+  modeRow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  modeItem: { paddingHorizontal: 14, paddingVertical: 6 },
 });

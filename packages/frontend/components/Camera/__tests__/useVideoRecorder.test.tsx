@@ -2,7 +2,18 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import { useVideoRecorder, type RecorderCamera } from '../useVideoRecorder';
-import { FLASH_CHOICES, TIMER_CHOICES, nextChoice } from '../constants';
+import {
+  FLASH_CHOICES,
+  MAX_ZOOM_MULTIPLIER,
+  TIMER_CHOICES,
+  ZOOM_STOPS,
+  formatMultiplier,
+  multiplierToZoom,
+  nextChoice,
+  shutterAction,
+  stopForZoom,
+  zoomToMultiplier,
+} from '../constants';
 
 /**
  * The recording state machine, which is the part of the camera that a device
@@ -228,5 +239,56 @@ describe('the control cycles', () => {
   it('start where a camera should: no flash, no timer', () => {
     expect(FLASH_CHOICES[0]).toBe('off');
     expect(TIMER_CHOICES[0]).toBe(0);
+  });
+});
+
+describe('what a tap on the shutter does', () => {
+  it('takes a photo in photo mode and records in video mode', () => {
+    expect(shutterAction('photo', false)).toBe('photo');
+    expect(shutterAction('video', false)).toBe('record');
+  });
+
+  it('STOPS whatever the mode says, once something is recording', () => {
+    // The order matters and is easy to invert: a hold in photo mode leaves a
+    // recording running, and the next tap has to end it rather than fire the
+    // shutter into a camera that is mid-take.
+    expect(shutterAction('photo', true)).toBe('stop');
+    expect(shutterAction('video', true)).toBe('stop');
+  });
+});
+
+describe('the zoom pills', () => {
+  it('read a zoom as the multiplier they are labelled with', () => {
+    expect(zoomToMultiplier(0)).toBe(1);
+    expect(zoomToMultiplier(1)).toBe(MAX_ZOOM_MULTIPLIER);
+    expect(zoomToMultiplier(multiplierToZoom(2))).toBeCloseTo(2);
+    expect(zoomToMultiplier(multiplierToZoom(3))).toBeCloseTo(3);
+  });
+
+  it('clamp a multiplier the lens cannot reach instead of driving zoom out of range', () => {
+    // An out-of-range `zoom` is not an error `CameraView` reports; it is a
+    // preview that stops responding.
+    expect(multiplierToZoom(0.5)).toBe(0);
+    expect(multiplierToZoom(50)).toBe(1);
+  });
+
+  it('offer only stops the range actually covers', () => {
+    for (const stop of ZOOM_STOPS) {
+      expect(stop).toBeGreaterThanOrEqual(1);
+      expect(stop).toBeLessThanOrEqual(MAX_ZOOM_MULTIPLIER);
+    }
+  });
+
+  it('report NO stop between two of them, so the row can show the live figure', () => {
+    expect(stopForZoom(0)).toBe(1);
+    expect(stopForZoom(multiplierToZoom(2))).toBe(2);
+    expect(stopForZoom(multiplierToZoom(2.4))).toBeNull();
+  });
+
+  it('write a whole multiplier whole', () => {
+    // A pill sitting on its own stop should read like the label it is; "2.0×"
+    // makes the row look like it is measuring something it is not.
+    expect(formatMultiplier(2)).toBe('2×');
+    expect(formatMultiplier(1.75)).toBe('1.8×');
   });
 });
