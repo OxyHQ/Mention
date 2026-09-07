@@ -655,7 +655,6 @@
   "compose.openDrafts.a11y": "下書きと予約投稿を開く",
   "compose.clearAll.a11y": "入力内容をすべて消去",
   "compose.languages.add": "言語を追加",
-  "compose.languages.addShort": "言語",
   "compose.schedule.now": "今すぐ",
   "compose.schedule.chipA11y": "{{time}}に予約済み。タップして変更します。",
   "compose.scheduled.edit": "予約投稿を編集",
@@ -1380,7 +1379,6 @@
   "compose.languages.pickerTitle": "投稿の言語",
   "compose.languages.alreadyAdded": "追加済み",
   "compose.languages.current": "現在",
-  "compose.languages.primaryTabA11y": "{{language}}、主要言語",
   "compose.languages.searchPlaceholder": "言語を検索",
   "compose.languages.noResults": "検索に一致する言語はありません",
   "compose.languages.remove": "この言語を削除",
@@ -2151,5 +2149,9 @@
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again."
-  }
+  },
+  "compose.languages.sheetTitle": "投稿の言語",
+  "compose.languages.main": "メインの言語",
+  "compose.languages.addFull": "この投稿にはこれ以上言語を追加できません",
+  "compose.languages.a11y": "この投稿の言語を選択"
 }

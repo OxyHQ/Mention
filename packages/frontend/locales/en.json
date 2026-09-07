@@ -655,7 +655,6 @@
   "compose.openDrafts.a11y": "Open drafts and scheduled posts",
   "compose.clearAll.a11y": "Clear all content",
   "compose.languages.add": "Add a language",
-  "compose.languages.addShort": "Language",
   "compose.schedule.now": "Now",
   "compose.schedule.chipA11y": "Scheduled for {{time}}. Tap to change.",
   "compose.scheduled.edit": "Edit scheduled post",
@@ -1596,7 +1595,6 @@
       "pickerTitle": "Post language",
       "alreadyAdded": "Already added",
       "current": "Current",
-      "primaryTabA11y": "{{language}}, primary language",
       "searchPlaceholder": "Search languages",
       "noResults": "No languages match your search",
       "remove": "Remove this language",
@@ -1606,7 +1604,11 @@
       "useSharedMedia": "Use the original images",
       "useOwnMedia": "Use different images for {{language}}",
       "useSharedArticle": "Use the original article",
-      "localizeArticle": "Write the article in {{language}}"
+      "localizeArticle": "Write the article in {{language}}",
+      "sheetTitle": "Post languages",
+      "main": "Main language",
+      "addFull": "This post already holds every language it can",
+      "a11y": "Choose the language of this post"
     },
     "publishAs": {
       "title": "Post as",

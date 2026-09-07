@@ -659,7 +659,6 @@
   "compose.openDrafts.a11y": "فتح المسودات والمنشورات المجدولة",
   "compose.clearAll.a11y": "مسح كل المحتوى",
   "compose.languages.add": "إضافة لغة",
-  "compose.languages.addShort": "اللغة",
   "compose.schedule.now": "الآن",
   "compose.schedule.chipA11y": "مجدول في {{time}}. اضغط للتغيير.",
   "compose.scheduled.edit": "تعديل المنشور المجدول",
@@ -1432,7 +1431,6 @@
   "compose.languages.pickerTitle": "لغة المنشور",
   "compose.languages.alreadyAdded": "مضافة بالفعل",
   "compose.languages.current": "الحالية",
-  "compose.languages.primaryTabA11y": "{{language}}، اللغة الأساسية",
   "compose.languages.searchPlaceholder": "ابحث في اللغات",
   "compose.languages.noResults": "لا توجد لغات مطابقة لبحثك",
   "compose.languages.remove": "إزالة هذه اللغة",
@@ -2245,5 +2243,9 @@
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again."
-  }
+  },
+  "compose.languages.sheetTitle": "لغات المنشور",
+  "compose.languages.main": "اللغة الرئيسية",
+  "compose.languages.addFull": "يحتوي هذا المنشور بالفعل على كل اللغات الممكنة",
+  "compose.languages.a11y": "اختر لغة هذا المنشور"
 }

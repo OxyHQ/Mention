@@ -656,7 +656,6 @@
   "compose.openDrafts.a11y": "Abrir rascunhos e publicações agendadas",
   "compose.clearAll.a11y": "Limpar todo o conteúdo",
   "compose.languages.add": "Adicionar um idioma",
-  "compose.languages.addShort": "Idioma",
   "compose.schedule.now": "Agora",
   "compose.schedule.chipA11y": "Agendada para {{time}}. Toca para alterar.",
   "compose.scheduled.edit": "Editar publicação agendada",
@@ -1393,7 +1392,6 @@
   "compose.languages.pickerTitle": "Idioma da publicação",
   "compose.languages.alreadyAdded": "Já adicionado",
   "compose.languages.current": "Atual",
-  "compose.languages.primaryTabA11y": "{{language}}, idioma principal",
   "compose.languages.searchPlaceholder": "Pesquisar idiomas",
   "compose.languages.noResults": "Nenhum idioma corresponde à tua pesquisa",
   "compose.languages.remove": "Remover este idioma",
@@ -2175,5 +2173,9 @@
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again."
-  }
+  },
+  "compose.languages.sheetTitle": "Idiomas da publicação",
+  "compose.languages.main": "Idioma principal",
+  "compose.languages.addFull": "Esta publicação já contém todos os idiomas possíveis",
+  "compose.languages.a11y": "Escolha o idioma desta publicação"
 }
