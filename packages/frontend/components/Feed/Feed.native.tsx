@@ -11,11 +11,17 @@ import {
     type ViewStyle,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import Animated, {
+    runOnJS,
+    useAnimatedScrollHandler,
+    useSharedValue,
+    type AnimatedProps,
+} from 'react-native-reanimated';
 import type { FeedType } from '@mention/shared-types';
 import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { useLayoutScroll, type ScrollEvent } from '@/context/LayoutScrollContext';
+import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { flattenStyleArray } from '@/styles/shared';
 import { useRouter, useIsFocused } from 'expo-router';
 import { useScrollRestoration } from '@oxyhq/bloom/scroll';
@@ -24,7 +30,7 @@ import { createLogger } from '@oxyhq/core/logger';
 import { useFeedState } from '@/hooks/useFeedState';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
 import { FeedFilters, getItemKey, shallowFiltersEqual } from '@/utils/feedUtils';
-import type { FlashListRef } from '@shopify/flash-list';
+import type { FlashListProps, FlashListRef } from '@shopify/flash-list';
 import { FeedHeader } from './FeedHeader';
 import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
@@ -97,6 +103,41 @@ const DEFAULT_FEED_PROPS = {
 // A little under half a screen is the number that makes the runway longer than
 // the JS thread needs to build a row.
 const FEED_DRAW_DISTANCE = 1000;
+
+/**
+ * How far the reader has to travel before the scroll worklet tells the JS thread
+ * where it is.
+ *
+ * The JS side wants the offset for two things, neither of which is per-frame
+ * work: remembering where to reopen this feed, and noticing that the header has
+ * left the screen so a video inside it stops claiming the audible slot. Both are
+ * answered by "roughly here", and the exact resting offset arrives anyway when
+ * the scroll ends. A sixth of a screen keeps the crossings honest while leaving
+ * the JS thread free to build rows.
+ */
+const JS_SCROLL_REPORT_PX = 120;
+
+/**
+ * The list, as a reanimated component, so `onScroll` can be a worklet.
+ *
+ * Built once at module scope: `createAnimatedComponent` produces a new component
+ * type on every call, and one built per render would remount the whole list on
+ * every render of the feed.
+ */
+const AnimatedFlashList = Animated.createAnimatedComponent(
+    // The row type survives the wrapper only if it is named here:
+    // `createAnimatedComponent` erases the component's own generic, and an
+    // erased `unknown` row would take `renderItem`, `keyExtractor` and
+    // `getItemType` down with it.
+    FlashList as React.ComponentType<FlashListProps<NativeFeedRow>>,
+) as React.ComponentType<
+    // And the ref is the list's own imperative handle, which is what the feed
+    // registers as the active scrollable and drives on a restore. Reanimated
+    // types its wrapper's ref as an `AnimatedRef`, which this one is not.
+    AnimatedProps<FlashListProps<NativeFeedRow>> & {
+        ref?: React.Ref<FlashListRef<NativeFeedRow>>;
+    }
+>;
 
 // Impression viewability. `itemVisiblePercentThreshold: 50` matches the web
 // IntersectionObserver's 50% gate. The ≥1s DWELL requirement is owned by the
@@ -271,7 +312,7 @@ const Feed = ((props: FeedProps) => {
     const unregisterScrollableRef = useRef<(() => void) | null>(null);
     // The Bloom restoration hook is registered after feed identity is resolved.
     const [refreshing, setRefreshing] = useState(false);
-    const { handleScroll, scrollEventThrottle, registerScrollable } = useLayoutScroll();
+    const { scrollPosition, scrollEventThrottle, registerScrollable } = useLayoutScroll();
 
     // Fixed top inset for a feed that scrolls BEHIND an auto-hiding header + tab
     // bar overlay (home, explore). Reserved as constant scrollable top padding so
@@ -559,30 +600,65 @@ const Feed = ((props: FeedProps) => {
         clearScrollableRegistration();
     }, [clearScrollableRegistration]);
 
-    // Handle scroll events. Drives the header-hide shared value (handleScroll).
-    // Scroll persistence/restoration is handled by `useScrollRestoration` above.
-    // Embedded feeds (scrollEnabled === false) and frozen background feeds don't
-    // own scrolling, so we skip.
-    const handleScrollEvent = useCallback((event: ScrollEvent) => {
-        // Skip entirely when this feed isn't the focused screen: a frozen
-        // background feed must never move the shared scrollY (it isn't actually
-        // being scrolled by the user).
+    /**
+     * The bookkeeping a scroll owes the JS thread: where to reopen this feed, and
+     * whether the header (which is not a row, so no viewability token describes
+     * it) still has a video on screen.
+     *
+     * Called from the scroll worklet through `runOnJS`, and deliberately NOT once
+     * per frame — see the handler below.
+     */
+    const reportScrollOffset = useCallback((offsetY: number) => {
         if (scrollEnabled === false || !isFocused) return;
-        const contentOffset = event.nativeEvent?.contentOffset;
-        const offsetY = typeof contentOffset === 'number'
-            ? contentOffset
-            : contentOffset?.y;
-        if (typeof offsetY === 'number' && Number.isFinite(offsetY)) {
-            setFeedScrollOffset(feedState.feedScrollKey, offsetY);
-            // The header is not a data row, so this is the only signal that tells
-            // the playback authority a video inside it has scrolled off screen.
-            scrollOffsetRef.current = offsetY;
-            syncHeaderOnScreen();
-        }
-        if (handleScroll) {
-            handleScroll(event);
-        }
-    }, [feedState.feedScrollKey, handleScroll, scrollEnabled, isFocused, syncHeaderOnScreen]);
+        setFeedScrollOffset(feedState.feedScrollKey, offsetY);
+        scrollOffsetRef.current = offsetY;
+        syncHeaderOnScreen();
+    }, [feedState.feedScrollKey, scrollEnabled, isFocused, syncHeaderOnScreen]);
+
+    /** The last offset handed to the JS thread, so the worklet can ration them. */
+    const lastReportedOffset = useSharedValue(0);
+
+    /**
+     * THE CHROME MOVES ON THE UI THREAD, and this is the whole reason the feed
+     * hands reanimated its scroll instead of a JS callback.
+     *
+     * The auto-hiding header, the home tab strip and the bottom bar all integrate
+     * their position from `scrollPosition` in a `useAnimatedReaction` worklet
+     * (`BottomBarVisibilityContext`). That worklet runs on the UI thread — but the
+     * value it reads used to be WRITTEN from JS, one `onScroll` callback at a
+     * time. So the chrome could only move as often as the JS thread was free, and
+     * during a fling the JS thread is busy building rows: measured at ~40ms of JS
+     * per row on a Pixel 10 Pro. The header froze and then jumped, on exactly the
+     * gesture where the reader is looking at it.
+     *
+     * As a worklet the offset reaches the shared value on the frame the scroll
+     * happened, whatever JS is doing.
+     *
+     * The JS side still needs the offset, but not sixty times a second: it is
+     * reported every `JS_SCROLL_REPORT_PX` of travel, and exactly once more when
+     * the scroll comes to rest — so what gets persisted for a reopen is the
+     * offset the reader actually stopped at, not a rounded-off one.
+     */
+    const handleScrollEvent = useAnimatedScrollHandler({
+        onScroll: (event) => {
+            'worklet';
+            const offsetY = event.contentOffset.y;
+            scrollPosition.value = offsetY;
+            if (Math.abs(offsetY - lastReportedOffset.value) < JS_SCROLL_REPORT_PX) return;
+            lastReportedOffset.value = offsetY;
+            runOnJS(reportScrollOffset)(offsetY);
+        },
+        onEndDrag: (event) => {
+            'worklet';
+            lastReportedOffset.value = event.contentOffset.y;
+            runOnJS(reportScrollOffset)(event.contentOffset.y);
+        },
+        onMomentumEnd: (event) => {
+            'worklet';
+            lastReportedOffset.value = event.contentOffset.y;
+            runOnJS(reportScrollOffset)(event.contentOffset.y);
+        },
+    });
 
     // Memoize RefreshControl to prevent recreation on every render. When the feed
     // scrolls behind the overlay chrome, offset the pull-to-refresh spinner by the
@@ -711,7 +787,7 @@ const Feed = ((props: FeedProps) => {
                 {/* This list owns viewability for every video inside it: a player
                     whose row is not viewable is not visible, so it cannot play. */}
                 <VideoViewabilityProvider viewableKeys={viewableVideoKeys}>
-                    <FlashList
+                    <AnimatedFlashList
                         ref={assignListRef}
                         data={listRows}
                         renderItem={renderPostItem}
