@@ -9,6 +9,7 @@ import {
   usePostSelector,
   usePostsStore,
   useUserFeedSelector,
+  useViewCountSelector,
 } from '../postsStore';
 
 const mockPosts = new Map<string, FeedItem>();
@@ -214,6 +215,17 @@ function PostProbe({
   onRender: (post: FeedItem | null) => void;
 }) {
   onRender(usePostSelector(postId));
+  return null;
+}
+
+function ViewCountProbe({
+  postId,
+  onRender,
+}: {
+  postId: string;
+  onRender: (views: number | null | undefined) => void;
+}) {
+  onRender(useViewCountSelector(postId));
   return null;
 }
 
@@ -606,14 +618,14 @@ describe('postsStore server-authoritative counts', () => {
   };
 
   describe('applyServerViewCounts', () => {
-    it('writes the server total through the store and wakes that post subscribers', () => {
+    it('writes the server total through the store and wakes the view-count subscribers', () => {
       seed('viewed', { views: 3 });
 
       const renders = jest.fn();
       let renderer!: TestRenderer.ReactTestRenderer;
       act(() => {
         renderer = TestRenderer.create(
-          <PostProbe postId="viewed" onRender={renders} />
+          <ViewCountProbe postId="viewed" onRender={renders} />
         );
       });
       renders.mockClear();
@@ -624,7 +636,93 @@ describe('postsStore server-authoritative counts', () => {
 
       expect(mockPosts.get('viewed')?.engagement.views).toBe(42);
       expect(renders).toHaveBeenCalledTimes(1);
-      expect(renders.mock.calls[0][0]?.engagement.views).toBe(42);
+      expect(renders.mock.calls[0][0]).toBe(42);
+
+      act(() => {
+        renderer.unmount();
+      });
+    });
+
+    /**
+     * THE POST ITSELF MUST NOT WAKE, and that is the whole point of the separate
+     * channel.
+     *
+     * The impression report answers with a total for every post the reader just
+     * scrolled past, so this write arrives for the entire viewport at once, on
+     * every scroll. A post subscriber is a whole `PostItem` — measured at ~40ms
+     * of JS per row on a Pixel 10 Pro (dev build) — and no feed row draws the
+     * number: the reader paid a second full render of everything on screen for
+     * a label that is not on screen.
+     */
+    it('does not wake the post subscribers, which draw no count', () => {
+      seed('viewed-quietly', { views: 3 });
+
+      const postRenders = jest.fn();
+      let renderer!: TestRenderer.ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          <PostProbe postId="viewed-quietly" onRender={postRenders} />
+        );
+      });
+      postRenders.mockClear();
+
+      act(() => {
+        applyServerViewCounts({ 'viewed-quietly': 42 });
+      });
+
+      expect(postRenders).not.toHaveBeenCalled();
+
+      act(() => {
+        renderer.unmount();
+      });
+    });
+
+    /**
+     * The one-way street runs the other way: a post rewrite carries the server's
+     * own count in with it (a feed page, a detail read), so a cell showing that
+     * count has to hear about it or it would sit on a number the store has
+     * already replaced.
+     */
+    it('wakes the view-count subscribers when the whole post is rewritten', () => {
+      seed('rewritten', { views: 3 });
+
+      const renders = jest.fn();
+      let renderer!: TestRenderer.ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          <ViewCountProbe postId="rewritten" onRender={renders} />
+        );
+      });
+      renders.mockClear();
+
+      seed('rewritten', { views: 99 });
+
+      expect(renders).toHaveBeenCalled();
+      expect(renders.mock.calls[renders.mock.calls.length - 1][0]).toBe(99);
+
+      act(() => {
+        renderer.unmount();
+      });
+    });
+
+    /** No row is not the same answer as a row with no count. */
+    it('reports an uncached post as undefined, and a hidden count as null', () => {
+      seed('counted', { views: null });
+
+      const uncachedRenders = jest.fn();
+      const hiddenRenders = jest.fn();
+      let renderer!: TestRenderer.ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          <>
+            <ViewCountProbe postId="not-in-the-store" onRender={uncachedRenders} />
+            <ViewCountProbe postId="counted" onRender={hiddenRenders} />
+          </>
+        );
+      });
+
+      expect(uncachedRenders.mock.calls[0][0]).toBeUndefined();
+      expect(hiddenRenders.mock.calls[0][0]).toBeNull();
 
       act(() => {
         renderer.unmount();
@@ -664,7 +762,7 @@ describe('postsStore server-authoritative counts', () => {
       let renderer!: TestRenderer.ReactTestRenderer;
       act(() => {
         renderer = TestRenderer.create(
-          <PostProbe postId="unchanged" onRender={renders} />
+          <ViewCountProbe postId="unchanged" onRender={renders} />
         );
       });
       renders.mockClear();
