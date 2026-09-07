@@ -4,7 +4,12 @@ import { router, usePathname } from 'expo-router';
 import { useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
 import { useAuth } from '@oxyhq/services/ui/client';
 
-import { TABS, tabHref, tabIndexForPathname } from '@/components/navigation/tabs';
+import {
+  PAGES,
+  pageIndexForPathname,
+  pageToBar,
+  tabHref,
+} from '@/components/navigation/tabs';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -26,10 +31,10 @@ const SETTLE_SPRING = { duration: 420, dampingRatio: 0.82 } as const;
  */
 export interface TabCommitter {
   /**
-   * Switch to a tab by index, through the navigator's own imperative API rather
+   * Switch to a PAGE by index, through the navigator's own imperative API rather
    * than a route push, so a swipe does not leave a history entry per page.
    */
-  commit: (index: number) => void;
+  commit: (pageIndex: number) => void;
   /**
    * True when the registrant writes `progress` itself, every frame. The pager
    * does; nothing else does. While it is true this provider must not touch
@@ -46,14 +51,25 @@ interface TabPagerValue {
    */
   progress: SharedValue<number>;
   /**
-   * The settled tab, or -1 when what the reader is looking at is not a tab.
+   * The settled BAR ITEM, or -1 when the bar draws nothing for this route.
    * Handed to Bloom's `activeIndex`, which is what decides whether the
    * highlight is drawn at all. Position and visibility are separate questions
    * with one writer each; see `docs/tab-bar.mdx`.
+   *
+   * -1 covers two different situations and deliberately does not tell them
+   * apart, because the bar's answer is the same either way: a pushed detail
+   * route, and a root page the bar draws no item for. Anything that needs the
+   * difference reads {@link TabPagerValue.activePage}.
    */
   activeIndex: number;
-  /** Go to a tab. Pops anything pushed over the tabs first. */
-  selectTab: (index: number) => void;
+  /**
+   * The settled PAGE, or -1 when the reader is off the root pages entirely —
+   * i.e. something is pushed over them. This is the honest test for that, and
+   * `activeIndex < 0` is not.
+   */
+  activePage: number;
+  /** Go to a PAGE by index. Pops anything pushed over the pages first. */
+  selectTab: (pageIndex: number) => void;
   registerCommitter: (committer: TabCommitter | null) => void;
 }
 
@@ -87,7 +103,8 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
   // is `tabHref`'s decision, not this file's. On web the profile tab IS
   // `/@<handle>`, so that pathname selects it; on native the tab is `/you` and
   // `/@<handle>` is an ordinary pushed route that must select nothing.
-  const activeIndex = tabIndexForPathname(pathname, viewerUsername);
+  const activePage = pageIndexForPathname(pathname, viewerUsername);
+  const activeIndex = pageToBar(activePage);
 
   const registerCommitter = useCallback((committer: TabCommitter | null) => {
     committerRef.current = committer;
@@ -130,15 +147,19 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
    */
   useEffect(() => {
     if (Platform.OS !== 'web') return;
-    for (const tab of TABS) {
-      router.prefetch(tabHref(tab, viewerUsername));
+    for (const page of PAGES) {
+      router.prefetch(tabHref(page, viewerUsername));
     }
   }, [viewerUsername]);
 
   const selectTab = useCallback(
-    (index: number) => {
-      const tab = TABS[index];
-      if (!tab) return;
+    (pageIndex: number) => {
+      const page = PAGES[pageIndex];
+      if (!page) return;
+      // The highlight is a BAR position, so it is written in bar units whatever
+      // space the caller argued in. A page the bar draws no item for answers -1
+      // here, and -1 is never written — see the settle effect above.
+      const barIndex = pageToBar(pageIndex);
 
       const committer = committerRef.current;
 
@@ -157,8 +178,8 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
       // There is nothing to dismiss here anyway: that stack history is the
       // browser's, not detail screens sitting over the tabs.
       if (!committer) {
-        progress.value = withSpring(index, SETTLE_SPRING);
-        router.navigate(tabHref(tab, viewerUsername));
+        if (barIndex >= 0) progress.value = withSpring(barIndex, SETTLE_SPRING);
+        router.navigate(tabHref(page, viewerUsername));
         return;
       }
 
@@ -167,23 +188,26 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
       // at the post with a different tab behind it. Dismissing is right there,
       // and only there: `activeIndex < 0` is precisely "what is on screen is not
       // a tab", which is the state that means something is pushed over them.
-      if (activeIndex < 0 && router.canDismiss()) {
+      // `activePage`, not `activeIndex`: the question is "is the reader off the
+      // root pages", and a page the bar draws no item for is still a root page.
+      // Reading the bar's -1 here would pop the stack on the way back from one.
+      if (activePage < 0 && router.canDismiss()) {
         router.dismissAll();
       }
 
       // Optimism is only ours to apply when nobody else owns the value. The
       // pager animates its own way to the page and writes `progress` as it goes.
-      if (!committer.drivesProgress) {
-        progress.value = withSpring(index, SETTLE_SPRING);
+      if (!committer.drivesProgress && barIndex >= 0) {
+        progress.value = withSpring(barIndex, SETTLE_SPRING);
       }
-      committer.commit(index);
+      committer.commit(pageIndex);
     },
-    [progress, activeIndex, viewerUsername],
+    [progress, activePage, viewerUsername],
   );
 
   const value = useMemo<TabPagerValue>(
-    () => ({ progress, activeIndex, selectTab, registerCommitter }),
-    [progress, activeIndex, selectTab, registerCommitter],
+    () => ({ progress, activeIndex, activePage, selectTab, registerCommitter }),
+    [progress, activeIndex, activePage, selectTab, registerCommitter],
   );
 
   return <TabPagerContext.Provider value={value}>{children}</TabPagerContext.Provider>;
