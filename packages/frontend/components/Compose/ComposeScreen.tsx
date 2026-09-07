@@ -100,7 +100,6 @@ import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPi
 import ComposeIdentityHeader from '@/components/Compose/ComposeIdentityHeader';
 import ComposeThreadItem from '@/components/Compose/ComposeThreadItem';
 import PublishAsDialog from '@/components/Compose/PublishAsDialog';
-import LanguageTabs from '@/components/Compose/LanguageTabs';
 import VariantEditor from '@/components/Compose/VariantEditor';
 import PostItem from '@/components/Feed/PostItem';
 import { buildEditPost, buildMainPost, buildThreadPost, shouldIncludeThreadItem } from '@/utils/postBuilder';
@@ -169,6 +168,7 @@ const UnpublishedSheet = lazy(() => import('@/components/Compose/UnpublishedShee
 const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
 const AltTextSheet = lazy(() => import('@/components/Compose/AltTextSheet'));
 const LanguagePickerSheet = lazy(() => import('@/components/Compose/LanguagePickerSheet'));
+const ComposeLanguageSheet = lazy(() => import('@/components/Compose/ComposeLanguageSheet'));
 const LanePickerSheet = lazy(() => import('@/components/Compose/LanePickerSheet'));
 const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerSheet'));
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
@@ -2059,11 +2059,33 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, variants, addLanguage, removeLanguage, renameLanguage, setPrimaryLanguage, promoteToPrimary]);
 
-  const handleAddLanguage = useCallback(() => openLanguagePicker(), [openLanguagePicker]);
-  const handleEditLanguage = useCallback(
-    (tag: string) => openLanguagePicker(tag),
-    [openLanguagePicker],
-  );
+  /**
+   * The post's languages, opened from the bottom bar's pill.
+   *
+   * The strip this replaced sat above the composer on every post, including the
+   * single-language one it could not switch anything on. The languages are a
+   * whole-batch decision like the schedule and the reply permission beside it,
+   * so they live with those — and the sheet keeps the strip's one irreplaceable
+   * route: tapping the ACTIVE language opens the picker, which is the only way
+   * to reach `setPrimaryLanguage`.
+   */
+  const openLanguageSheet = useCallback(() => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <ComposeLanguageSheet
+          primaryTag={variants.primaryTag}
+          variantTags={variants.variantTags}
+          activeTag={activeTag}
+          canAdd={canAddLanguage(variants)}
+          onSelect={setActiveTag}
+          onEdit={openLanguagePicker}
+          onAdd={openLanguagePicker}
+          onClose={() => bottomSheet.openBottomSheet(false)}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, variants, activeTag, setActiveTag, openLanguagePicker]);
 
   /** The body of one composer item in the PRIMARY language — what a variant translates. */
   const primaryTextForItem = useCallback((itemId: string) => {
@@ -2500,21 +2522,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             )}
 
             <View style={styles.threadContainer}>
-              {/* Language tabs. They govern the WHOLE composer: switching tab
-                  switches the main post and every thread item to that language,
-                  and ADDING one adds it to every box — which is why the add
-                  affordance sits here rather than in the first box's toolbar,
-                  where it read as that post's own attachment. */}
-              <LanguageTabs
-                primaryTag={variants.primaryTag}
-                variantTags={variants.variantTags}
-                activeTag={activeTag}
-                onSelect={setActiveTag}
-                onEdit={handleEditLanguage}
-                onAdd={handleAddLanguage}
-                canAdd={canAddLanguage(variants)}
-                disabled={isPosting}
-              />
 
               {isPrimaryTab ? (
                 <>
@@ -2991,7 +2998,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   </TouchableOpacity>
                   <View style={styles.headerMeta}>
                     <View style={styles.headerChildren}>
-                      <Text style={styles.addToThreadText}>
+                      <Text style={[styles.addToThreadText, { color: theme.colors.textSecondary }]}>
                         {postingMode === 'thread' ? t('Add to thread') : t('Add another post')}
                       </Text>
                     </View>
@@ -3063,7 +3070,17 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             </View>
             </ScrollView>
 
-            <View style={[styles.bottomBar, bottomBarVisible && { paddingBottom: 80 }]}>
+            {/* The whole-batch decisions, in a row that SCROLLS. There are four
+                of them now and a pill is as wide as its label — "Anyone can
+                interact" alone is most of a phone — so a fixed row clipped the
+                last one off the screen edge with no way to reach it. */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              style={[styles.bottomBar, bottomBarVisible && { paddingBottom: 80 }]}
+              contentContainerStyle={styles.bottomBarContent}
+            >
               {/* WHEN everything written here goes out.
                   It used to be an icon in the first box's attachment row, which
                   made it look like that post's schedule. It is not one:
@@ -3106,6 +3123,32 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 </Text>
                 <Ionicons name="chevron-down" size={12} color={theme.colors.textTertiary} />
               </TouchableOpacity>
+              {/* WHAT LANGUAGE everything written here is in — the same kind of
+                  whole-batch decision as the two beside it, and the reason the
+                  strip of chips above the composer is gone. `+N` counts the
+                  additional author renditions, so a post carrying more than one
+                  says so without a permanent row. */}
+              <TouchableOpacity
+                onPress={openLanguageSheet}
+                disabled={isPosting}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={t('compose.languages.a11y', {
+                  defaultValue: 'Choose the language of this post',
+                })}
+                style={[styles.replySettingsPill, { backgroundColor: theme.colors.backgroundSecondary }]}
+              >
+                <Ionicons name="language-outline" size={16} color={theme.colors.textSecondary} />
+                <Text
+                  numberOfLines={1}
+                  style={[styles.replySettingsText, { color: theme.colors.textSecondary }]}
+                >
+                  {variants.variantTags.length > 0
+                    ? `${describeContentLanguage(activeTag).nativeName} +${variants.variantTags.length}`
+                    : describeContentLanguage(activeTag).nativeName}
+                </Text>
+                <Ionicons name="chevron-down" size={12} color={theme.colors.textTertiary} />
+              </TouchableOpacity>
               {!(postingMode === 'beast' && threadItems.length > 0) && (
                 <>
                   <TouchableOpacity
@@ -3142,6 +3185,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     />
                     <Text style={[
                       styles.bottomText,
+                      { color: theme.colors.textSecondary },
                       isSensitive && { color: theme.colors.error },
                     ]}>
                       {isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
@@ -3149,7 +3193,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   </TouchableOpacity>
                 </>
               )}
-            </View>
+            </ScrollView>
           </ThemedView>
         </KeyboardAvoidingView>
 

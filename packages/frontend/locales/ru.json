@@ -657,7 +657,6 @@
   "compose.openDrafts.a11y": "Открыть черновики и запланированные посты",
   "compose.clearAll.a11y": "Очистить всё содержимое",
   "compose.languages.add": "Добавить язык",
-  "compose.languages.addShort": "Язык",
   "compose.schedule.now": "Сейчас",
   "compose.schedule.chipA11y": "Запланировано на {{time}}. Нажмите, чтобы изменить.",
   "compose.scheduled.edit": "Изменить запланированный пост",
@@ -1406,7 +1405,6 @@
   "compose.languages.pickerTitle": "Язык поста",
   "compose.languages.alreadyAdded": "Уже добавлен",
   "compose.languages.current": "Текущий",
-  "compose.languages.primaryTabA11y": "{{language}}, основной язык",
   "compose.languages.searchPlaceholder": "Поиск языков",
   "compose.languages.noResults": "По вашему запросу языков нет",
   "compose.languages.remove": "Удалить этот язык",
@@ -2199,5 +2197,9 @@
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again."
-  }
+  },
+  "compose.languages.sheetTitle": "Языки публикации",
+  "compose.languages.main": "Основной язык",
+  "compose.languages.addFull": "В этой публикации уже есть все возможные языки",
+  "compose.languages.a11y": "Выберите язык этой публикации"
 }

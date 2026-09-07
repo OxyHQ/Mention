@@ -656,7 +656,6 @@
   "compose.openDrafts.a11y": "Obre els esborranys i les publicacions programades",
   "compose.clearAll.a11y": "Esborra tot el contingut",
   "compose.languages.add": "Afegeix un idioma",
-  "compose.languages.addShort": "Idioma",
   "compose.schedule.now": "Ara",
   "compose.schedule.chipA11y": "Programada per a {{time}}. Toca-ho per canviar-ho.",
   "compose.scheduled.edit": "Edita la publicació programada",
@@ -1393,7 +1392,6 @@
   "compose.languages.pickerTitle": "Idioma de la publicació",
   "compose.languages.alreadyAdded": "Ja afegit",
   "compose.languages.current": "Actual",
-  "compose.languages.primaryTabA11y": "{{language}}, idioma principal",
   "compose.languages.searchPlaceholder": "Cerca idiomes",
   "compose.languages.noResults": "Cap idioma coincideix amb la teva cerca",
   "compose.languages.remove": "Elimina aquest idioma",
@@ -2175,5 +2173,9 @@
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again."
-  }
+  },
+  "compose.languages.sheetTitle": "Idiomes de la publicació",
+  "compose.languages.main": "Idioma principal",
+  "compose.languages.addFull": "Aquesta publicació ja té tots els idiomes possibles",
+  "compose.languages.a11y": "Tria l'idioma d'aquesta publicació"
 }

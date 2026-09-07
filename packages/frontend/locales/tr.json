@@ -655,7 +655,6 @@
   "compose.openDrafts.a11y": "Taslakları ve zamanlanmış gönderileri aç",
   "compose.clearAll.a11y": "Tüm içeriği temizle",
   "compose.languages.add": "Dil ekle",
-  "compose.languages.addShort": "Dil",
   "compose.schedule.now": "Şimdi",
   "compose.schedule.chipA11y": "Zamanlandı: {{time}}. Değiştirmek için dokun.",
   "compose.scheduled.edit": "Zamanlanmış gönderiyi düzenle",
@@ -1380,7 +1379,6 @@
   "compose.languages.pickerTitle": "Gönderi dili",
   "compose.languages.alreadyAdded": "Zaten eklendi",
   "compose.languages.current": "Şu anki",
-  "compose.languages.primaryTabA11y": "{{language}}, birincil dil",
   "compose.languages.searchPlaceholder": "Dillerde ara",
   "compose.languages.noResults": "Aramanla eşleşen dil yok",
   "compose.languages.remove": "Bu dili kaldır",
@@ -2151,5 +2149,9 @@
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again."
-  }
+  },
+  "compose.languages.sheetTitle": "Gönderi dilleri",
+  "compose.languages.main": "Ana dil",
+  "compose.languages.addFull": "Bu gönderi zaten mümkün olan tüm dilleri içeriyor",
+  "compose.languages.a11y": "Bu gönderinin dilini seçin"
 }

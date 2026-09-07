@@ -655,7 +655,6 @@
   "compose.openDrafts.a11y": "打开草稿和定时帖子",
   "compose.clearAll.a11y": "清除全部内容",
   "compose.languages.add": "添加语言",
-  "compose.languages.addShort": "语言",
   "compose.schedule.now": "现在",
   "compose.schedule.chipA11y": "已定时于 {{time}} 发布，点按可修改。",
   "compose.scheduled.edit": "编辑定时帖子",
@@ -1380,7 +1379,6 @@
   "compose.languages.pickerTitle": "帖子语言",
   "compose.languages.alreadyAdded": "已添加",
   "compose.languages.current": "当前",
-  "compose.languages.primaryTabA11y": "{{language}}，主要语言",
   "compose.languages.searchPlaceholder": "搜索语言",
   "compose.languages.noResults": "没有与搜索匹配的语言",
   "compose.languages.remove": "移除此语言",
@@ -2151,5 +2149,9 @@
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again."
-  }
+  },
+  "compose.languages.sheetTitle": "帖子语言",
+  "compose.languages.main": "主要语言",
+  "compose.languages.addFull": "这条帖子已包含所有可用语言",
+  "compose.languages.a11y": "选择这条帖子的语言"
 }

@@ -41,10 +41,6 @@ export const composeStyles = StyleSheet.create({
   cancelButton: {
     padding: 8,
   },
-  cancelText: {
-    fontSize: 16,
-    color: '#5e5e5e',
-  },
   postButton: {
     backgroundColor: '#005c67',
     paddingHorizontal: 20,
@@ -56,11 +52,6 @@ export const composeStyles = StyleSheet.create({
   postButtonDisabled: {
     backgroundColor: '#949494',
   },
-  postButtonText: {
-    color: '#FDFDFD',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   composeArea: {
     flex: 1,
   },
@@ -68,18 +59,6 @@ export const composeStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
-  },
-  userHandle: {
-    fontSize: 14,
-    color: '#5e5e5e',
-    marginTop: 2,
-  },
-  textInput: {
-    flex: 1,
-    fontSize: 18,
-    lineHeight: 24,
-    color: '#111111',
-    minHeight: 120,
   },
   footer: {
     flexDirection: 'row',
@@ -99,14 +78,6 @@ export const composeStyles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
-  },
-  mediaButtonText: {
-    color: '#3c3c3c',
-    fontWeight: '600',
-  },
-  mediaInfoText: {
-    color: '#5e5e5e',
-    fontSize: 12,
   },
   previewGrid: {
     flexDirection: 'row',
@@ -132,12 +103,14 @@ export const composeStyles = StyleSheet.create({
   /* header and icon tweaks */
   headerTitle: {
     position: 'absolute',
-    left: 0,
-    right: 0,
+    // Not `left: 0, right: 0`: the buttons flanking it are 40pt wide and the
+    // centred label ran underneath them — invisible until the colour was fixed,
+    // and clipped once it was.
+    left: 56,
+    right: 156,
     textAlign: 'center',
     fontSize: 18,
     fontWeight: '700',
-    color: '#111111',
     pointerEvents: 'none', // Don't block touches on buttons
   },
   headerIcons: {
@@ -154,15 +127,19 @@ export const composeStyles = StyleSheet.create({
 
   /* bottom bar and floating post button */
   bottomBar: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    // A ScrollView stretches to fill its parent unless told not to; this row is
+    // as tall as one pill.
+    flexGrow: 0,
+  },
+  bottomBarContent: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 8,
   },
   bottomText: {
-    color: '#5e5e5e',
     fontSize: 16,
     flex: 1,
   },
@@ -207,12 +184,10 @@ export const composeStyles = StyleSheet.create({
     opacity: 0.7,
   },
   floatingPostText: {
-    color: '#111111',
     fontSize: 16,
     fontWeight: '700',
   },
   floatingPostTextDark: {
-    color: '#000',
     fontWeight: '700',
     fontSize: 16,
   },
@@ -239,9 +214,6 @@ export const composeStyles = StyleSheet.create({
     marginTop: 10,
     gap: 8,
   },
-  smallThreadText: {
-    color: '#5e5e5e',
-  },
   // New styles for exact screenshot match
   mainComposer: {
     flexDirection: 'row',
@@ -263,7 +235,6 @@ export const composeStyles = StyleSheet.create({
   },
   mainTextInput: {
     fontSize: 16,
-    color: '#111111',
     minHeight: 40,
     textAlignVertical: 'top',
   },
@@ -286,7 +257,6 @@ export const composeStyles = StyleSheet.create({
   },
   addToThreadText: {
     fontSize: 16,
-    color: '#5e5e5e',
   },
   replyPreviewLoading: {
     padding: 24,
@@ -372,7 +342,6 @@ export const composeStyles = StyleSheet.create({
   },
   threadTextInput: {
     fontSize: 16,
-    color: '#111111',
     minHeight: 32,
     textAlignVertical: 'top',
   },

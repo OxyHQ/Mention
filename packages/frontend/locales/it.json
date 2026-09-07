@@ -656,7 +656,6 @@
   "compose.openDrafts.a11y": "Apri bozze e post programmati",
   "compose.clearAll.a11y": "Cancella tutto il contenuto",
   "compose.languages.add": "Aggiungi una lingua",
-  "compose.languages.addShort": "Lingua",
   "compose.schedule.now": "Ora",
   "compose.schedule.chipA11y": "Programmato per {{time}}. Tocca per cambiare.",
   "compose.scheduled.edit": "Modifica post programmato",
@@ -1393,7 +1392,6 @@
   "compose.languages.pickerTitle": "Lingua del post",
   "compose.languages.alreadyAdded": "Già aggiunta",
   "compose.languages.current": "Attuale",
-  "compose.languages.primaryTabA11y": "{{language}}, lingua principale",
   "compose.languages.searchPlaceholder": "Cerca lingue",
   "compose.languages.noResults": "Nessuna lingua corrisponde alla ricerca",
   "compose.languages.remove": "Rimuovi questa lingua",
@@ -2175,5 +2173,9 @@
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again."
-  }
+  },
+  "compose.languages.sheetTitle": "Lingue del post",
+  "compose.languages.main": "Lingua principale",
+  "compose.languages.addFull": "Questo post contiene già tutte le lingue possibili",
+  "compose.languages.a11y": "Scegli la lingua di questo post"
 }

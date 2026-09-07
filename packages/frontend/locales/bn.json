@@ -655,7 +655,6 @@
   "compose.openDrafts.a11y": "ড্রাফট ও নির্ধারিত পোস্ট খুলুন",
   "compose.clearAll.a11y": "সব কনটেন্ট মুছুন",
   "compose.languages.add": "একটি ভাষা যোগ করুন",
-  "compose.languages.addShort": "ভাষা",
   "compose.schedule.now": "এখন",
   "compose.schedule.chipA11y": "{{time}}-এর জন্য নির্ধারিত। বদলাতে ট্যাপ করুন।",
   "compose.scheduled.edit": "নির্ধারিত পোস্ট সম্পাদনা করুন",
@@ -1380,7 +1379,6 @@
   "compose.languages.pickerTitle": "পোস্টের ভাষা",
   "compose.languages.alreadyAdded": "আগেই যোগ করা হয়েছে",
   "compose.languages.current": "বর্তমান",
-  "compose.languages.primaryTabA11y": "{{language}}, প্রধান ভাষা",
   "compose.languages.searchPlaceholder": "ভাষা খুঁজুন",
   "compose.languages.noResults": "আপনার সার্চের সাথে কোনো ভাষা মেলেনি",
   "compose.languages.remove": "এই ভাষাটি সরান",
@@ -2151,5 +2149,9 @@
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again."
-  }
+  },
+  "compose.languages.sheetTitle": "পোস্টের ভাষা",
+  "compose.languages.main": "প্রধান ভাষা",
+  "compose.languages.addFull": "এই পোস্টে ইতিমধ্যে সব ভাষা রয়েছে",
+  "compose.languages.a11y": "এই পোস্টের ভাষা বেছে নিন"
 }

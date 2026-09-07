@@ -655,7 +655,6 @@
   "compose.openDrafts.a11y": "Buka draf dan postingan terjadwal",
   "compose.clearAll.a11y": "Hapus semua konten",
   "compose.languages.add": "Tambah bahasa",
-  "compose.languages.addShort": "Bahasa",
   "compose.schedule.now": "Sekarang",
   "compose.schedule.chipA11y": "Dijadwalkan untuk {{time}}. Ketuk untuk mengubah.",
   "compose.scheduled.edit": "Edit postingan terjadwal",
@@ -1380,7 +1379,6 @@
   "compose.languages.pickerTitle": "Bahasa postingan",
   "compose.languages.alreadyAdded": "Sudah ditambahkan",
   "compose.languages.current": "Saat ini",
-  "compose.languages.primaryTabA11y": "{{language}}, bahasa utama",
   "compose.languages.searchPlaceholder": "Cari bahasa",
   "compose.languages.noResults": "Tidak ada bahasa yang cocok dengan pencarianmu",
   "compose.languages.remove": "Hapus bahasa ini",
@@ -2151,5 +2149,9 @@
     "publish": "Post",
     "uploadFailed": "That didn't upload. Check your connection and try again.",
     "publishFailed": "That didn't post. Your capture is still here — try again."
-  }
+  },
+  "compose.languages.sheetTitle": "Bahasa postingan",
+  "compose.languages.main": "Bahasa utama",
+  "compose.languages.addFull": "Postingan ini sudah memuat semua bahasa yang tersedia",
+  "compose.languages.a11y": "Pilih bahasa postingan ini"
 }

@@ -272,7 +272,14 @@
     "An entry that is not currently excusing a real decrease fails, so this list",
     "cannot become a standing permission slip."
   ],
-  "allowedBaselineDecreases": [],
+  "allowedBaselineDecreases": [
+    {
+      "path": "total",
+      "metric": "branches",
+      "date": "2026-09-07",
+      "reason": "The composer's language STRIP was deleted (its tabs became a sheet behind the bottom bar's pill), and it was a branch-dense component with its own test file: 4646/18110 covered branches on main against 4632/18099 here, so both halves of the ratio shrank and the percentage moved 0.06pt. The sheet that replaced it is covered — this is code that legitimately went away, not tests that did."
+    }
+  ],
   "globalDriftAllowancePoints": 0.75,
   "minimumFilesInReport": 500,
   "minimumTestFiles": 140,
@@ -286,7 +293,7 @@
     "unenforceable": 3,
     "belowBarExemptions": 15,
     "criticalPaths": 34,
-    "allowedBaselineDecreases": 0,
+    "allowedBaselineDecreases": 1,
     "snapshotAssertions": 0
   }
 }
