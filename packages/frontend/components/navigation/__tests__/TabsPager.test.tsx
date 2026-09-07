@@ -29,11 +29,15 @@ import { TabsPager } from '@/components/navigation/TabsPager';
 
 let pagerProps: Record<string, unknown> = {};
 
+/** What the component asked the pager to do, so a test can tell a cut from a slide. */
+const mockPagerCommands = { setPage: jest.fn(), setPageWithoutAnimation: jest.fn() };
+
 jest.mock('react-native-pager-view', () => {
   const React = require('react') as typeof import('react');
   const { View } = require('react-native') as typeof import('react-native');
   const MockPagerView = React.forwardRef<unknown, { children?: React.ReactNode }>(
-    (props, _ref) => {
+    (props, ref) => {
+      React.useImperativeHandle(ref, () => mockPagerCommands);
       pagerProps = props as Record<string, unknown>;
       return React.createElement(View, null, props.children);
     },
@@ -85,6 +89,9 @@ jest.mock('react-native-reanimated', () => ({
   default: { createAnimatedComponent: (component: unknown) => component },
   useEvent: () => jest.fn(),
   useHandler: () => ({ doDependenciesDiffer: false }),
+  // The target, not the motion: a test reads where the highlight was sent, and
+  // the spring itself belongs to a device.
+  withSpring: (target: number) => target,
 }));
 
 /** The navigator's own order, as expo-router's sort produces it. */
@@ -100,6 +107,11 @@ const NAVIGATOR_ROUTE_NAMES = ['index', 'you', 'write', 'videos', 'notifications
  * green — which is how this arrived, as a red CI job over 187 passing suites.
  */
 const mounted: TestRenderer.ReactTestRenderer[] = [];
+
+beforeEach(() => {
+  mockPagerCommands.setPage.mockClear();
+  mockPagerCommands.setPageWithoutAnimation.mockClear();
+});
 
 afterEach(() => {
   act(() => {
@@ -268,5 +280,24 @@ describe('TabsPager', () => {
     });
 
     expect(onCommit).toHaveBeenCalledWith(youIndex);
+  });
+
+  /**
+   * A tap names a destination, not a journey.
+   *
+   * `setPage` is `ViewPager2.setCurrentItem(i, true)` — an animated scroll
+   * THROUGH every page in between, measured at ~680ms per tap on a Pixel 10 Pro,
+   * spent sliding across pages that are frozen and therefore blank. The reader
+   * asked for a tab, not a tour of the ones next to it.
+   */
+  it('cuts to the tapped page instead of sliding across the ones between', () => {
+    const { focus } = mountPager('index');
+
+    focus('notifications');
+
+    expect(mockPagerCommands.setPageWithoutAnimation).toHaveBeenCalledWith(
+      PAGES.findIndex((page) => page.name === 'notifications'),
+    );
+    expect(mockPagerCommands.setPage).not.toHaveBeenCalled();
   });
 });

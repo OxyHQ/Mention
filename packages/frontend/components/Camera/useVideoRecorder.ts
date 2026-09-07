@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { logger } from '@oxyhq/core/logger';
 
 import { MAX_VIDEO_SECONDS } from './constants';
 
@@ -42,6 +43,20 @@ interface UseVideoRecorderOptions {
  * only ever takes photos is never asked, and a refusal cancels the video and
  * leaves photos working.
  */
+/**
+ * The rejection a press too short to record produces.
+ *
+ * expo-camera surfaces it as a message rather than a code, so the string is what
+ * there is to match on; a wording change downgrades this to a logged warning
+ * rather than breaking anything.
+ */
+function isRecordingStoppedEarly(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message.includes('stopped before any data could be produced')
+  );
+}
+
 export function useVideoRecorder({
   camera,
   requestMicrophone,
@@ -132,6 +147,18 @@ export function useVideoRecorder({
         // which is why the capture is reported from here and not from the press.
         const video = await device.recordAsync({ maxDuration: maxSeconds });
         if (video?.uri && mounted.current) onRecorded(video.uri);
+      } catch (error) {
+        // A press released before the encoder produced a frame REJECTS here —
+        // `Recording was stopped before any data could be produced` — and a
+        // rejection nobody catches is an unhandled promise, which in dev is a
+        // red banner across the reader's screen for something they did on
+        // purpose: they tapped instead of holding. There is no clip, the
+        // `finally` below already returns the machine to idle, and that is the
+        // whole of it. Anything else is worth a line, at the level of a
+        // condition the app recovers from by itself.
+        if (!isRecordingStoppedEarly(error)) {
+          logger.warn('Video recording failed', { error });
+        }
       } finally {
         // A newer press owns the machine if the token moved; leave its state be.
         if (pressToken.current === token) {
