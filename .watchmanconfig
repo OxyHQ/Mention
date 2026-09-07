@@ -1,0 +1,12 @@
+{
+  "ignore_dirs": [
+    ".worktrees",
+    ".claude/worktrees",
+    ".git",
+    "packages/frontend/android",
+    "packages/frontend/ios",
+    "packages/frontend/.expo",
+    "packages/backend/dist",
+    "packages/shared-types/dist"
+  ]
+}
