@@ -12,6 +12,7 @@ import { useAuth, FollowButton } from '@oxyhq/services/ui/client';
 import { VideoView, useVideoPlayer, type VideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { useRouter, useLocalSearchParams, useIsFocused } from 'expo-router';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
@@ -127,7 +128,6 @@ const GRADIENT_COLORS = ['transparent', 'rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.8
 const GRADIENT_LOCATIONS = [0, 0.4, 0.7, 1] as const;
 const LIKE_ACTIVE_COLOR = '#FF3040';
 const BOOST_ACTIVE_COLOR = '#10B981';
-const VERIFIED_COLOR = '#1DA1F2';
 
 // Caption is collapsed to two lines until this length, where a "more" toggle is
 // offered (TikTok-style expandable caption).
@@ -715,7 +715,7 @@ const VideoItem = memo<VideoItemProps>(({
                                             {userName}
                                         </Text>
                                         {item.user?.verified && (
-                                            <Ionicons name="checkmark-circle" size={14} color={VERIFIED_COLOR} style={styles.verifiedIcon} />
+                                            <VerifiedIcon size={14} style={styles.verifiedIcon} />
                                         )}
                                     </View>
                                     <Text style={styles.userHandle} numberOfLines={1}>
@@ -1926,7 +1926,7 @@ interface VideosStyles {
     userNameRow: ViewStyle;
     userFullName: TextStyle;
     userHandle: TextStyle;
-    verifiedIcon: TextStyle;
+    verifiedIcon: ViewStyle;
     caption: ViewStyle;
     postText: TextStyle;
     postLink: TextStyle;
