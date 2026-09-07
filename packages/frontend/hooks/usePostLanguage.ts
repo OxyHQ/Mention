@@ -119,11 +119,12 @@ export function usePostLanguage(
    * belongs to the post this row used to show.
    */
   const patchOverride = useCallback(
-    (patch: (previous: ReaderOverride) => Partial<ReaderOverride>) => {
-      setOverride((previous) => {
-        const base = previous.postId === postId ? previous : NO_OVERRIDE;
-        return { ...base, ...patch(base), postId };
-      });
+    (patch: Partial<ReaderOverride>) => {
+      setOverride((previous) => ({
+        ...(previous.postId === postId ? previous : NO_OVERRIDE),
+        ...patch,
+        postId,
+      }));
     },
     [postId],
   );
@@ -146,7 +147,7 @@ export function usePostLanguage(
   const translateInto = useCallback(
     async (tag: string) => {
       if (!postId) return;
-      patchOverride(() => ({ isTranslating: true }));
+      patchOverride({ isTranslating: true });
       try {
         const { data } = await api.post<TranslateResponse>(`/posts/${postId}/translate`, {
           targetLanguage: tag,
@@ -157,20 +158,26 @@ export function usePostLanguage(
           // we asked for, so it lines up with the variant the next hydration
           // ships. Follow the selection over to it.
           const storedTag = data.tag ?? tag;
-          patchOverride((previous) => ({
-            fetchedBodies: { ...previous.fetchedBodies, [storedTag]: translated },
-            ...(storedTag !== tag ? { selectedTag: storedTag } : {}),
-          }));
+          setOverride((previous) => {
+            const base = previous.postId === postId ? previous : NO_OVERRIDE;
+            return {
+              ...base,
+              postId,
+              fetchedBodies: { ...base.fetchedBodies, [storedTag]: translated },
+              // Follow the selection over to the tag the SERVER canonicalized to.
+              selectedTag: storedTag,
+            };
+          });
           return;
         }
-        patchOverride(() => ({ selectedTag: null }));
+        patchOverride({ selectedTag: null });
         toast(t('translation.failed'), { type: 'error' });
       } catch (error: unknown) {
-        patchOverride(() => ({ selectedTag: null }));
+        patchOverride({ selectedTag: null });
         const status = (error as { response?: { status?: number } })?.response?.status;
         toast(t(status === 429 ? 'translation.rateLimited' : 'translation.failed'), { type: 'error' });
       } finally {
-        patchOverride(() => ({ isTranslating: false }));
+        patchOverride({ isTranslating: false });
       }
     },
     [postId, t, patchOverride],
@@ -179,10 +186,10 @@ export function usePostLanguage(
   const selectLanguage = useCallback(
     (tag: string) => {
       if (tag === servedTag) {
-        patchOverride(() => ({ selectedTag: null }));
+        patchOverride({ selectedTag: null });
         return;
       }
-      patchOverride(() => ({ selectedTag: tag }));
+      patchOverride({ selectedTag: tag });
       // An author variant (and any body already fetched) is on hand — switching
       // to it must not cost a request.
       const known = options.find((option) => option.tag === tag);
@@ -194,7 +201,7 @@ export function usePostLanguage(
 
   const toggleReaderTranslation = useCallback(() => {
     if (selectedTag !== null) {
-      patchOverride(() => ({ selectedTag: null }));
+      patchOverride({ selectedTag: null });
       return;
     }
     const existing = findOptionForLanguage(options, readerLanguage);
