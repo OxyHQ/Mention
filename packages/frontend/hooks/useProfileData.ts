@@ -149,6 +149,8 @@ function computeDesign(
 /**
  * Unified hook for profile data. Combines:
  * - The Oxy profile (React Query — the single in-memory actor cache).
+ * - The SESSION, when the handle asked for is the viewer's own: an account the
+ *   app is already holding is never worth a skeleton (see `sessionProfile`).
  * - Appearance/customization settings (HTTP-backed appearance store, works web + native).
  * - Federation data (federated handles resolved server-side via WebFinger).
  *
@@ -166,6 +168,38 @@ export function useProfileData(username?: string): {
 
   const handle = username ?? '';
   const isFederated = handle.includes('@');
+
+  /**
+   * The viewer's OWN account, when the handle asked for is theirs.
+   *
+   * The session is already holding it. `/you` names the account `useAuth()`
+   * hands back a whole `User` for, and so do edit-profile, settings and the two
+   * OAuth screens — for all five, fetching it is a round-trip spent arriving
+   * back at a value in memory.
+   *
+   * It matters because the entry that fetch fills is the page's ONLY source of
+   * truth, and it is scoped BOTH by viewer and by handle: it holds nothing on a
+   * fresh process, after an account switch (which clears the whole client), or
+   * once a gap longer than the 30-minute `gcTime` has collected it. An entry
+   * holding nothing is `isPending`, and `isPending` is what puts the full-page
+   * skeleton on screen — so a reader returning to their own profile could be
+   * shown an avatar placeholder and grey name bars for an account the app could
+   * have painted synchronously.
+   *
+   * A FLOOR, never a ceiling: the fetched profile is preferred the instant it
+   * exists, so the authoritative copy — with `_count`, `createdAt` and the rest
+   * the session `User` may not carry — still replaces this one as soon as it
+   * lands, and `refetchOnMount` still runs.
+   *
+   * It cannot invent a profile: `null` unless a resolved session names this
+   * exact handle, so a signed-out or still-resolving viewer sees exactly what
+   * they saw before.
+   */
+  const normalizedHandle = handle.trim().toLowerCase();
+  const sessionProfile =
+    normalizedHandle.length > 0 && user?.username?.trim().toLowerCase() === normalizedHandle
+      ? user
+      : null;
 
   // Local profiles — SDK hook, shares the singleton React Query cache.
   const localQuery = useUserByUsername(isFederated ? null : handle || null);
@@ -188,7 +222,7 @@ export function useProfileData(username?: string): {
     gcTime: PROFILE_GC_TIME,
   });
 
-  const profile = (isFederated ? federatedQuery.data : localQuery.data) ?? null;
+  const profile = (isFederated ? federatedQuery.data : localQuery.data) ?? sessionProfile;
   const isPending = isFederated ? federatedQuery.isPending : localQuery.isPending;
   const isError = isFederated ? federatedQuery.isError : localQuery.isError;
 
@@ -270,10 +304,13 @@ export function useProfileData(username?: string): {
     };
   }, [profile, appearance, oxyServices]);
 
-  // Loading while the query has not yet produced a value. Not-found
-  // (resolved with no data) surfaces as an error so the UI can show its
-  // empty state instead of an indefinite skeleton.
-  const loading = Boolean(handle) && isPending;
+  // Loading only while there is NOTHING TO SHOW — a query that has not answered
+  // AND no session copy standing in for it. Readers render a full-page skeleton
+  // on this, so it must mean "empty", not "fetching": a profile already on
+  // screen refreshes underneath itself rather than collapsing back to
+  // placeholders. Not-found (resolved with no data) surfaces as an error so the
+  // UI can show its empty state instead of an indefinite skeleton.
+  const loading = Boolean(handle) && isPending && !profile;
   const error = isError || (Boolean(handle) && !isPending && !profile);
 
   return { data: profileData, loading, error };
