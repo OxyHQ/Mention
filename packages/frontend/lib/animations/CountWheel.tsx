@@ -70,22 +70,44 @@ export function CountWheel({
   const defaultColor = theme.colors.textSecondary;
   const fontSize = big ? 15 : 13;
 
+  const countText = (
+    <Text
+      style={{
+        fontSize,
+        userSelect: 'none',
+        color: isLiked ? likeColor : defaultColor,
+        fontWeight: isLiked ? '600' : '400',
+      }}>
+      {formattedCount}
+    </Text>
+  );
+
+  // Nothing has been toggled yet, so there is no roll to stage: both `entering`
+  // props are undefined and the outgoing count is not rendered. The positioning
+  // View and the Animated.View exist only to hold that roll, so on a freshly
+  // mounted row — every row a fast fling creates — they are two primitives and a
+  // reanimated animated component per row that draw exactly the text below.
+  //
+  // `LayoutAnimationConfig` stays mounted either way, and that is what keeps the
+  // first like animating: its `skipEntering` only suppresses children mounted in
+  // its OWN first commit (it clears the flag in an effect), so the animated
+  // subtree appearing later still plays.
+  if (!shouldAnimate) {
+    return (
+      <LayoutAnimationConfig skipEntering skipExiting>
+        {likeCount > 0 ? countText : null}
+      </LayoutAnimationConfig>
+    );
+  }
+
   return (
     <LayoutAnimationConfig skipEntering skipExiting>
       {likeCount > 0 ? (
         <View style={{ justifyContent: 'center' }}>
           <Animated.View entering={currentCountAnimation} key={key}>
-            <Text
-              style={{
-                fontSize,
-                userSelect: 'none',
-                color: isLiked ? likeColor : defaultColor,
-                fontWeight: isLiked ? '600' : '400',
-              }}>
-              {formattedCount}
-            </Text>
+            {countText}
           </Animated.View>
-          {shouldAnimate && (likeCount > 1 || !isLiked) ? (
+          {likeCount > 1 || !isLiked ? (
             <Animated.View
               entering={previousCountAnimation}
               key={key + 2}

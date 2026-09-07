@@ -28,9 +28,16 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
     let lastIndex = 0;
     let key = 0;
 
+    // Plain prose goes in as a STRING, not a styleless <Text>. The root <Text>
+    // below already carries every style this run would inherit, so the wrapper
+    // drew nothing — and under NativeWind's global class-name polyfill each one
+    // is a `react-native-css` interop component (two useContext, two useState,
+    // an effect and a rule evaluation) plus its own host text node. Every post
+    // with a body paid at least one; a post with N entities paid up to N+1.
+    // Strings in a children array need no key, so nothing else changes.
     const pushText = (t: string) => {
       if (!t) return;
-      elements.push(<Text key={`t-${key++}`}>{t}</Text>);
+      elements.push(t);
     };
 
     for (const entity of scanLinkifyEntities(text)) {
