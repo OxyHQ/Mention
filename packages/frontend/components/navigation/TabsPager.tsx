@@ -1,7 +1,7 @@
 'use no memo';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { InteractionManager, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import PagerView from 'react-native-pager-view';
 import Animated, { useEvent, useHandler } from 'react-native-reanimated';
 import { Screen } from 'react-native-screens';
@@ -135,6 +135,20 @@ export function TabsPager({
     () => new Set([state.routes[state.index]?.key].filter(Boolean) as string[]),
   );
 
+  /**
+   * The page the LIVE BAND is measured from: where the pager has come to REST,
+   * which lags `focusedPage` for the length of a transition.
+   *
+   * A tap moves `focusedPage` in the commit it produces, and the destination has
+   * to be live in that same commit — it is what the reader is now looking at.
+   * Its NEIGHBOURS do not: nothing can reach them until the pager stops moving,
+   * and each one costs a whole screen's render plus its native views to bring
+   * back (see the `activityState` note below for why that is not free). So the
+   * band moves when the pager says it has settled, off the frame that is already
+   * paying for the destination.
+   */
+  const [settledPage, setSettledPage] = useState(focusedPage);
+
   /** The key of the route a page shows, or undefined for a tab with no route. */
   const keyForPage = useCallback(
     (page: number) => routeByName.get(PAGES[page]?.name ?? '')?.key,
@@ -198,24 +212,41 @@ export function TabsPager({
     pagerRef.current?.setPage(focusedPage);
   }, [focusedPage, keyForPage, admit]);
 
-  // Warm the neighbours of wherever we have settled — but only once the frame
-  // budget is free. Mounting a feed is not something to do on the frame that
-  // just finished a page transition; doing it now is what makes the SECOND
-  // swipe in each direction instant.
+  // Warm the neighbours of wherever the band has come to rest, on the frame
+  // AFTER the one that put it there. Mounting a feed is not something to do on a
+  // frame that is already rendering a screen — at mount that frame is the app's
+  // first paint, and after a settle it is the one that thawed the destination.
+  // It is what makes the SECOND swipe in each direction instant.
+  //
+  // `requestAnimationFrame` rather than `InteractionManager.runAfterInteractions`,
+  // which this waited on and which waits for nothing: in react-native 0.86 that
+  // module is a deprecation stub whose `runAfterInteractions` is a bare
+  // `setImmediate` and whose `createInteractionHandle` returns -1 and does
+  // nothing (`Libraries/Interaction/InteractionManager.js`). It ran inside the
+  // commit's own batch. The real "wait for the transition" signal is the pager's
+  // settle, and `settledPage` is now it.
   useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      admit(neighbourKeys(focusedPage));
-    });
-    return () => task.cancel();
-  }, [focusedPage, admit, neighbourKeys]);
+    const frame = requestAnimationFrame(() => admit(neighbourKeys(settledPage)));
+    return () => cancelAnimationFrame(frame);
+  }, [settledPage, admit, neighbourKeys]);
 
   const onPageScrollStateChanged = useCallback(
     (event: { nativeEvent: { pageScrollState: 'idle' | 'dragging' | 'settling' } }) => {
-      if (event.nativeEvent.pageScrollState !== 'dragging') return;
-      // The finger has started moving and either neighbour may come into view
-      // within the frame. This one cannot wait for the interaction queue — that
-      // is the blank page it exists to prevent.
-      admit(neighbourKeys(pageRef.current));
+      const scrollState = event.nativeEvent.pageScrollState;
+      // `settling` is the one state that must change nothing: the pager is in
+      // flight, and that is precisely when the band may not move.
+      if (scrollState === 'settling') return;
+      if (scrollState === 'dragging') {
+        // The finger has started moving and either neighbour may come into view
+        // within the frame. This one cannot wait for the effect above — that is
+        // the blank page it exists to prevent.
+        admit(neighbourKeys(pageRef.current));
+      }
+      // Both remaining states say the same thing about the band: no transition
+      // is running for its cost to land in the middle of. `idle` is one that has
+      // finished; `dragging` is one the finger has taken over, and a page under
+      // a finger has to be real whatever it costs.
+      setSettledPage(pageRef.current);
     },
     [admit, neighbourKeys],
   );
@@ -248,15 +279,24 @@ export function TabsPager({
           <View key={page.name} collapsable={false} style={styles.page}>
             {route && loaded.has(route.key) && descriptor ? (
               // `activityState` is what lets four mounted screens cost almost
-              // nothing: 2 drives the focused one, 1 keeps a neighbour laid out
-              // and painted so it is real under the finger, 0 parks the rest.
-              // The app's global `enableFreeze(true)` acts on react-navigation
-              // screens and never reaches inside a pager, so this is the only
-              // thing standing between five live tabs and five live render
-              // trees.
+              // nothing: 2 drives the focused one, 1 keeps a page in the live
+              // band laid out and painted so it is real under the finger, 0
+              // parks the rest.
+              //
+              // 0 IS NOT A CHEAP STATE TO LEAVE, which is why the band follows
+              // `settledPage`. `app/_layout.tsx` calls `enableFreeze(true)`, and
+              // `Screen` reads that global as the default for its own
+              // `freezeOnBlur` — so a page at 0 here is genuinely suspended by
+              // react-freeze, and coming back off 0 re-renders its whole tree
+              // and re-mounts its native views. Measured from `focusedPage` the
+              // band moved in the same commit as the tap, so every tap two or
+              // more pages away thawed TWO screens at once: the destination, and
+              // whichever page had just become the destination's neighbour.
+              // Tapping Home from the profile thawed the feed AND the reels
+              // screen on the one frame the reader was waiting on.
               <Screen
                 enabled
-                activityState={isFocused ? 2 : Math.abs(index - focusedPage) === 1 ? 1 : 0}
+                activityState={isFocused ? 2 : Math.abs(index - settledPage) <= 1 ? 1 : 0}
                 style={styles.screen}
               >
                 {descriptor.render()}
@@ -265,7 +305,7 @@ export function TabsPager({
           </View>
         );
       }),
-    [routeByName, focusedPage, descriptors, loaded],
+    [routeByName, focusedPage, settledPage, descriptors, loaded],
   );
 
   return (
