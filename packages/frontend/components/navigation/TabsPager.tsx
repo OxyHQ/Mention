@@ -315,9 +315,20 @@ export function TabsPager({
               // whichever page had just become the destination's neighbour.
               // Tapping Home from the profile thawed the feed AND the reels
               // screen on the one frame the reader was waiting on.
+              //
+              // HOME NEVER GOES TO 0, band or no band. It is the app's default
+              // page and the one every other page is left FOR — a tap on any
+              // other tab makes the reader's next move a return here — and it
+              // carries the most expensive tree in the app to rebuild: a
+              // virtualized feed whose rows are posts. Parking it saves nothing
+              // while the reader is two taps from coming back to it, and pays a
+              // thaw of that whole list when they do. One page held laid out is
+              // the price.
               <Screen
                 enabled
-                activityState={isFocused ? 2 : Math.abs(index - settledPage) <= 1 ? 1 : 0}
+                activityState={
+                  isFocused ? 2 : Math.abs(index - settledPage) <= 1 || page.name === 'index' ? 1 : 0
+                }
                 style={styles.screen}
               >
                 {descriptor.render()}
