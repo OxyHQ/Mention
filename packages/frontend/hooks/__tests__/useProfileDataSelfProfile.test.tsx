@@ -98,11 +98,22 @@ function Probe({ handle, sink }: { handle: string; sink: Snapshot[] }) {
   return null;
 }
 
-/** Lets react-query's batched notifications reach the tree. */
+/**
+ * Lets react-query's batched notifications reach the tree.
+ *
+ * SEVERAL TICKS, not one. Resolving the fetch, react-query writing the result
+ * into the cache and the batched notification reaching this tree are separate
+ * turns of the loop, and a single `setTimeout(0)` sometimes landed in the
+ * middle: the sink still held the session seed, and "the authoritative profile
+ * replaces the seed" failed 5 times in 30 runs on `main` — only sometimes,
+ * which is the worst way for a suite to be wrong. 0 in 30 with the loop.
+ */
 async function settle() {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
+  for (let tick = 0; tick < 5; tick += 1) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
 }
 
 function mountProbe(handle: string, sink: Snapshot[]) {
