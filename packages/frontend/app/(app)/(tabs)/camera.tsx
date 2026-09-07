@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { router, useIsFocused } from 'expo-router';
 import { logger } from '@oxyhq/core/logger';
@@ -30,6 +30,23 @@ import { buildCapturePost } from '@/utils/postBuilder';
  * for being Home's NEIGHBOUR would do all of that without the reader ever
  * arriving.
  *
+ * ONE EXIT AT A TIME, AND ALL THE WAY THROUGH. Both exits are upload-then-do,
+ * and the upload hook's own `busy` ends when the UPLOAD does — so between that
+ * and `createPost` resolving, the review's buttons were live again and a second
+ * press published the same capture twice (the upload is cached by URI, so it
+ * returned instantly and went straight to a second create). The guard here spans
+ * the whole operation, covers BOTH exits so they cannot race each other, and is
+ * a ref as well as state: state lands on the next render and the second press
+ * arrives before that.
+ *
+ * A POST THAT DID NOT HAPPEN KEEPS THE CAPTURE. `createPost` RETURNS `null` on
+ * three paths that never throw — the response reported no success, it carried no
+ * post, or the viewer changed mid-flight — and treating a resolved promise as a
+ * published post threw the capture away with nothing to show for it. Nothing is
+ * retried automatically either: on the viewer-epoch path the request may well
+ * have reached the server, so re-sending it is how one capture becomes two
+ * posts. The reader is left on their capture, told, and decides.
+ *
  * THE COMPOSER IS PUSHED, NEVER SWITCHED TO. The "add text" exit hands the
  * upload over through `pendingShareMedia`, a consume-once buffer that the
  * always-mounted `/write` TAB deliberately does not read (`ComposeScreen.tsx`
@@ -40,46 +57,76 @@ import { buildCapturePost } from '@/utils/postBuilder';
 export default function CameraPage() {
   const isFocused = useIsFocused();
   const [capture, setCapture] = useState<LocalCapture | null>(null);
-  const { upload, busy, failed, reset } = useCaptureUpload();
+  const { upload, busy: uploading, failed: uploadFailed, reset } = useCaptureUpload();
+  const [publishing, setPublishing] = useState(false);
+  const [publishFailed, setPublishFailed] = useState(false);
+  // The synchronous half of `publishing`; see the note above on why both.
+  const working = useRef(false);
   const { selectTab } = useTabPager();
   const createPost = usePostsStore((state) => state.createPost);
 
-  const leaveToFeed = useCallback(() => {
+  const clearCapture = useCallback(() => {
     setCapture(null);
-    reset();
-    selectTab(pageIndexByName('index'));
-  }, [reset, selectTab]);
-
-  const retake = useCallback(() => {
-    setCapture(null);
+    setPublishFailed(false);
     reset();
   }, [reset]);
 
+  const leaveToFeed = useCallback(() => {
+    clearCapture();
+    selectTab(pageIndexByName('index'));
+  }, [clearCapture, selectTab]);
+
+  const retake = useCallback(() => {
+    if (working.current) return;
+    clearCapture();
+  }, [clearCapture]);
+
   const publishNow = useCallback(async () => {
-    if (!capture) return;
-    const uploaded = await upload(capture);
-    // `upload` reports its own failure through `failed`, which the review screen
-    // is showing. Leaving the reader on their capture is the only outcome that
-    // does not lose it.
-    if (!uploaded) return;
+    if (!capture || working.current) return;
+    working.current = true;
+    setPublishing(true);
+    setPublishFailed(false);
     try {
-      await createPost(buildCapturePost(uploaded.media));
+      const uploaded = await upload(capture);
+      // `upload` reports its own failure through `uploadFailed`, which the review
+      // screen is showing. Leaving the reader on their capture is the only
+      // outcome that does not lose it.
+      if (!uploaded) return;
+
+      const created = await createPost(buildCapturePost(uploaded.media));
+      if (!created) {
+        // Resolved, but nothing was published. Deliberately not retried: on the
+        // viewer-epoch path the request may have reached the server anyway.
+        logger.warn('publishing a capture produced no post');
+        setPublishFailed(true);
+        return;
+      }
+      leaveToFeed();
     } catch (error) {
       logger.warn('publishing a capture failed', { error });
-      return;
+      setPublishFailed(true);
+    } finally {
+      working.current = false;
+      setPublishing(false);
     }
-    leaveToFeed();
   }, [capture, upload, createPost, leaveToFeed]);
 
   const addText = useCallback(async () => {
-    if (!capture) return;
-    const uploaded = await upload(capture);
-    if (!uploaded) return;
-    setPendingShareMedia([{ id: uploaded.media.id, contentType: uploaded.contentType }]);
-    setCapture(null);
-    reset();
-    router.push('/compose');
-  }, [capture, upload, reset]);
+    if (!capture || working.current) return;
+    working.current = true;
+    setPublishing(true);
+    setPublishFailed(false);
+    try {
+      const uploaded = await upload(capture);
+      if (!uploaded) return;
+      setPendingShareMedia([{ id: uploaded.media.id, contentType: uploaded.contentType }]);
+      clearCapture();
+      router.push('/compose');
+    } finally {
+      working.current = false;
+      setPublishing(false);
+    }
+  }, [capture, upload, clearCapture]);
 
   if (capture) {
     return (
@@ -88,8 +135,9 @@ export default function CameraPage() {
         onPublish={publishNow}
         onAddText={addText}
         onRetake={retake}
-        busy={busy}
-        failed={failed}
+        busy={uploading || publishing}
+        uploadFailed={uploadFailed}
+        publishFailed={publishFailed}
       />
     );
   }

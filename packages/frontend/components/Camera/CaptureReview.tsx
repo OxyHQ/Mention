@@ -16,8 +16,12 @@ interface CaptureReviewProps {
   onAddText: () => void;
   /** Throw it away and go back to the viewfinder. */
   onRetake: () => void;
+  /** True for the WHOLE of either exit — upload and what follows it. */
   busy: boolean;
-  failed: boolean;
+  /** The capture never left the device. */
+  uploadFailed: boolean;
+  /** It uploaded, but no post was created. The capture is still here. */
+  publishFailed: boolean;
 }
 
 /**
@@ -38,7 +42,8 @@ export function CaptureReview({
   onAddText,
   onRetake,
   busy,
-  failed,
+  uploadFailed,
+  publishFailed,
 }: CaptureReviewProps) {
   const { t } = useTranslation();
   // A muted loop, like every review screen: this is a still to look at, not
@@ -72,10 +77,20 @@ export function CaptureReview({
       </Pressable>
 
       <View style={styles.actions}>
-        {failed ? (
+        {/* Two different failures, and the difference matters to what the reader
+            does next: one means the file never left the device, the other means
+            it did and no post came of it. Neither loses the capture. */}
+        {uploadFailed ? (
           <ThemedText className="text-white text-center mb-3">
             {t('camera.uploadFailed', {
               defaultValue: "That didn't upload. Check your connection and try again.",
+            })}
+          </ThemedText>
+        ) : null}
+        {publishFailed ? (
+          <ThemedText className="text-white text-center mb-3">
+            {t('camera.publishFailed', {
+              defaultValue: "That didn't post. Your capture is still here — try again.",
             })}
           </ThemedText>
         ) : null}
