@@ -46,7 +46,16 @@ vi.mock('../runtime/oxyClient', () => ({
 }));
 
 vi.mock('../mtn/UserPrivacyManager', () => ({
-  UserPrivacyManager: { loadPrivacyState: vi.fn(async () => ({ excludedUserIds: new Set() })) },
+  // A WHOLE `PrivacyState` — the controller threads the blocked/restricted sets
+  // into hydration, so an exclusion-set-only mock is a value the type forbids.
+  UserPrivacyManager: {
+    loadPrivacyState: vi.fn(async () => ({
+      blockedUserIds: new Set<string>(),
+      mutedUserIds: new Set<string>(),
+      restrictedUserIds: new Set<string>(),
+      excludedUserIds: new Set<string>(),
+    })),
+  },
 }));
 vi.mock('../services/ListSubscriptionService', () => ({
   listSubscriptionService: { getSubscribedListMemberIds: vi.fn(async () => []) },

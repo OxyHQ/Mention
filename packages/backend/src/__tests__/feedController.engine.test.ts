@@ -36,7 +36,15 @@ vi.mock('../runtime/oxyClient', () => ({
 }));
 
 const privacy = vi.hoisted(() => ({
-  loadPrivacyState: vi.fn(async () => ({ excludedUserIds: new Set() })),
+  // A WHOLE `PrivacyState`: the controller threads `blockedUserIds` and
+  // `restrictedUserIds` into hydration, so a mock carrying only the exclusion
+  // set stands in for a value the type says cannot exist.
+  loadPrivacyState: vi.fn(async () => ({
+    blockedUserIds: new Set<string>(),
+    mutedUserIds: new Set<string>(),
+    restrictedUserIds: new Set<string>(),
+    excludedUserIds: new Set<string>(),
+  })),
 }));
 vi.mock('../mtn/UserPrivacyManager', () => ({
   UserPrivacyManager: { loadPrivacyState: privacy.loadPrivacyState },

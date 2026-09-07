@@ -366,6 +366,17 @@ class MtnFeedController {
       ]);
 
       context.privacyOxyClient = requestOxyClient;
+      // Thread the privacy lists this request already paid for into hydration,
+      // which otherwise re-asks Oxy for both on every hydration call the page
+      // makes — and a For You page hydrates more than once. Same arrangement as
+      // the follow graph `loadViewerFeedContext` threads; see `viewerPrivacy` on
+      // `HydrationOptions` for why this keeps the fail-closed contract.
+      if (privacyState) {
+        context.viewerPrivacy = {
+          blockedIds: [...privacyState.blockedUserIds],
+          restrictedIds: [...privacyState.restrictedUserIds],
+        };
+      }
       if (videoFilters) {
         context.videoFilters = videoFilters;
       }
