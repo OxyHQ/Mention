@@ -83,9 +83,20 @@ const DEFAULT_FEED_PROPS = {
 } as const;
 
 // FlashList v2 auto-measures every row, so no estimate is needed. `drawDistance`
-// is the one render-ahead lever that still applies: keep it modest so we don't
-// mount far-offscreen post rows (each row is relatively heavy) every frame.
-const FEED_DRAW_DISTANCE = 250;
+// is the one render-ahead lever that still applies, and it is measured in
+// PIXELS of runway ahead of the viewport.
+//
+// 250 was too little to be runway at all. A post row on a Pixel 10 Pro is
+// 600-900px tall, so 250px is a third of one row: at fling speed — 2000px/s is
+// an ordinary flick — it buys about 125ms before the reader is looking at a row
+// that has not been mounted yet, which is the "posts appear a few seconds
+// later" the app was reported for. The trade it was protecting against is real
+// but bounded: FlashList recycles, and `maxItemsInRecyclePool` below caps what
+// those extra rows can cost.
+//
+// A little under half a screen is the number that makes the runway longer than
+// the JS thread needs to build a row.
+const FEED_DRAW_DISTANCE = 1000;
 
 // Impression viewability. `itemVisiblePercentThreshold: 50` matches the web
 // IntersectionObserver's 50% gate. The ≥1s DWELL requirement is owned by the
@@ -715,7 +726,15 @@ const Feed = ((props: FeedProps) => {
                         {...(scrollEnabled === false ? { renderScrollComponent: NonScrollingScrollComponent } : {})}
                         refreshControl={refreshControl}
                         onEndReached={handleLoadMore}
-                        onEndReachedThreshold={0.7}
+                        // TWO SCREENS of warning, not two thirds of one. The
+                        // threshold is in viewport lengths, and the next page
+                        // costs a round trip to us-west-2 — measured at ~600ms
+                        // from Europe, before the server does any work. At 0.7
+                        // the reader reached the end of the list while that
+                        // request was still in flight, every time they scrolled
+                        // with intent; the spinner they saw was the network, not
+                        // the feed.
+                        onEndReachedThreshold={2}
                         onViewableItemsChanged={handleViewableItemsChanged}
                         viewabilityConfig={IMPRESSION_VIEWABILITY_CONFIG}
                         showsVerticalScrollIndicator={false}
