@@ -300,4 +300,23 @@ describe('TabsPager', () => {
     );
     expect(mockPagerCommands.setPage).not.toHaveBeenCalled();
   });
+
+  /**
+   * Home is the page every other page is left FOR.
+   *
+   * A reader who taps Videos, Notifications or their profile is, more often than
+   * not, two taps from coming back — and the feed is the most expensive tree in
+   * the app to rebuild, a virtualized list of posts. Parking it at 0 saves
+   * nothing over that distance and charges a full thaw on the way back.
+   */
+  it('never parks the home feed, however far the reader wanders', () => {
+    const pager = mountWarmPager();
+
+    pager.focus('you');
+    pager.settle();
+
+    // `renderedPageNames` reports a page exactly when it is LIVE: the mocked
+    // `Screen` renders nothing at `activityState === 0`.
+    expect(renderedPageNames(pager.renderer)[pageOf('index')]).toBe('index');
+  });
 });
