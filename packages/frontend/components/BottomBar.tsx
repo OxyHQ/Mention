@@ -19,7 +19,11 @@ import {
 } from '@oxyhq/bloom/tab-bar';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useTabPager } from '@/context/TabPagerContext';
-import { TABS, tabIndexByName, type TabName } from '@/components/navigation/tabs';
+import {
+    BAR_TABS,
+    barToPage,
+    type PageName,
+} from '@/components/navigation/tabs';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { UnreadBadge } from '@/components/notifications/UnreadBadge';
 import { useTranslation } from 'react-i18next';
@@ -63,14 +67,18 @@ const VIDEOS_DARK_TAB_BAR_THEME: Partial<TabBarTheme> = {
 const ICON_SIZE = 22;
 
 /**
- * Tab order is `components/navigation/tabs.ts` — the one table the navigator's
- * triggers, this bar's items and the route→index question all read. These are
- * the two indices this file needs by NAME, resolved from it rather than written
- * down again: re-tapping Home refreshes the feed instead of navigating, and the
- * profile tab is the only one that long-presses.
+ * The two tabs this file has to recognise, BY NAME.
+ *
+ * They were index constants, compared against Bloom's item index, against a
+ * route-derived index and against each other — three spellings of a number that
+ * are only interchangeable while the bar draws every root page. Bloom hands its
+ * callbacks a BAR index, so the honest comparison is "which tab is that", and
+ * `BAR_TABS` is what answers it.
+ *
+ * Re-tapping Home refreshes the feed instead of navigating, and the profile tab
+ * is the only one that long-presses.
  */
-const TAB_HOME = tabIndexByName('index');
-const TAB_PROFILE = tabIndexByName('you');
+const barTabName = (barIndex: number): PageName | undefined => BAR_TABS[barIndex]?.name;
 
 /**
  * Breathing margin (px) between the end of a screen's scrollable content and the
@@ -132,7 +140,7 @@ export const BottomBar = () => {
     // Keyed by the tab NAME and typed so every name in the table must have an
     // entry: `icon` is required by `TabBarItem`, so a tab added to the table with
     // no glyph here is a type error rather than a bar rendering `undefined`.
-    const glyphs = useMemo<Record<TabName, Pick<TabBarItem, 'icon' | 'activeIcon'>>>(() => ({
+    const glyphs = useMemo<Record<PageName, Pick<TabBarItem, 'icon' | 'activeIcon'>>>(() => ({
         index: {
             icon: <Home size={ICON_SIZE} className={inactiveGlyphClass} />,
             activeIcon: <HomeActive size={ICON_SIZE} className={activeGlyphClass} />,
@@ -186,9 +194,9 @@ export const BottomBar = () => {
 
     const items = useMemo<TabBarItem[]>(
         () =>
-            TABS.map((tab) => ({
+            BAR_TABS.map((tab) => ({
                 name: tab.name,
-                label: t(tab.labelKey),
+                label: t(tab.bar.labelKey),
                 ...glyphs[tab.name],
             })),
         [glyphs, t],
@@ -204,20 +212,23 @@ export const BottomBar = () => {
     // `(tabs)/you.tsx` renders the prompt itself, which is the same thing for a
     // tap and the right thing for a deep link, a swipe, or a restored session
     // that turns out to be gone.
-    const handleIndexChange = useCallback((index: number) => {
+    const handleIndexChange = useCallback((barIndex: number) => {
         haptic('light');
         // Re-tapping Home while the feed is already open refreshes it rather
         // than navigating.
-        if (index === TAB_HOME && activeIndex === TAB_HOME) {
+        if (barTabName(barIndex) === 'index' && barTabName(activeIndex) === 'index') {
             triggerHomeRefresh();
             return;
         }
-        selectTab(index);
+        // Bloom counts its own items, so this is a BAR index; `selectTab` moves
+        // the navigator, so it takes a PAGE index. They are the same number only
+        // while every page draws a bar item.
+        selectTab(barToPage(barIndex));
     }, [haptic, activeIndex, triggerHomeRefresh, selectTab]);
 
-    const handleIndexLongPress = useCallback((index: number) => {
+    const handleIndexLongPress = useCallback((barIndex: number) => {
         // Only the avatar tab has a long-press action (the account switcher).
-        if (index !== TAB_PROFILE) return;
+        if (barTabName(barIndex) !== 'you') return;
         haptic('heavy');
         showBottomSheet?.('ManageAccount');
     }, [haptic, showBottomSheet]);

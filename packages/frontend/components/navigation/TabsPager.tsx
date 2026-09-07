@@ -6,7 +6,12 @@ import PagerView from 'react-native-pager-view';
 import Animated, { useEvent, useHandler } from 'react-native-reanimated';
 import { Screen } from 'react-native-screens';
 
-import { TABS, tabIndexByName } from '@/components/navigation/tabs';
+import {
+  BAR_POSITION_BY_PAGE,
+  PAGES,
+  barPositionForPage,
+  pageIndexByName,
+} from '@/components/navigation/tabs';
 
 import type { TabsPagerProps } from './TabsPager.types';
 
@@ -67,15 +72,21 @@ function usePageScrollHandler(
  * shift every page after it and land a swipe on the wrong screen. The laziness
  * is therefore INSIDE each page, not in the child list.
  *
- * A PAGE INDEX IS A `TABS` INDEX, AND THE NAVIGATOR'S IS NOT. `state.routes`
+ * A PAGE INDEX IS A `PAGES` INDEX, AND THE NAVIGATOR'S IS NOT. `state.routes`
  * arrives in expo-router's own order: `triggersToScreens` sorts the triggers it
  * is handed with `sortRoutesWithInitial`, which puts `index` first and then
- * sorts by route-name LENGTH. The five tabs therefore come back as
- * index/you/write/videos/notifications, not the bar order this file's `TABS`
- * declares. Everything outside this component — `progress`, `activeIndex`,
- * `selectTab`, `commit` — indexes `TABS`, so the pages are built from `TABS`
- * and every route is reached BY NAME. Ordering by `state.routes` would put the
- * profile where the bar draws Videos.
+ * sorts by route-name LENGTH. The five pages therefore come back as
+ * index/you/write/videos/notifications, not the order this file's `PAGES`
+ * declares. `selectTab` and `commit` index `PAGES`, so the pages are built from
+ * `PAGES` and every route is reached BY NAME. Ordering by `state.routes` would
+ * put the profile where the bar draws Videos.
+ *
+ * A PAGE INDEX IS NOT A BAR INDEX EITHER, and that is the other conversion this
+ * file owns. `progress` is in the BAR units Bloom's `activeProgress` is defined
+ * in, and only some pages draw a bar item — so `onPageScroll` converts before
+ * it writes. Bloom copies that value into its geometry raw and unclamped, so a
+ * page position arriving in a bar-units slot does not fail: it silently parks
+ * the capsule one item away from the tab you are on.
  */
 export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerProps) {
   const pagerRef = useRef<PagerView>(null);
@@ -93,7 +104,7 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
    * dev check reports; page 0 is the honest fallback rather than an index
    * `PagerView` would reject.
    */
-  const focusedPage = Math.max(0, tabIndexByName(state.routes[state.index]?.name ?? ''));
+  const focusedPage = Math.max(0, pageIndexByName(state.routes[state.index]?.name ?? ''));
 
   /**
    * The page the PAGER believes it is on.
@@ -108,8 +119,8 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
 
   /**
    * Which routes may render their screen. A tab is admitted when it is focused,
-   * and — for tabs that opted into it — when it becomes a NEIGHBOUR, so it is
-   * not blank under the finger. `write` opts out (`TABS[].preload`): it is the
+   * and — for pages that opted into it — when it becomes a NEIGHBOUR, so it is
+   * not blank under the finger. `write` opts out (`PAGES[].preload`): it is the
    * app's heaviest screen and mounting it merely for being swiped PAST would
    * spend exactly the cost this change removes.
    */
@@ -119,7 +130,7 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
 
   /** The key of the route a page shows, or undefined for a tab with no route. */
   const keyForPage = useCallback(
-    (page: number) => routeByName.get(TABS[page]?.name ?? '')?.key,
+    (page: number) => routeByName.get(PAGES[page]?.name ?? '')?.key,
     [routeByName],
   );
 
@@ -135,15 +146,20 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
     });
   }, []);
 
-  // Both the neighbour and its opt-out are read off `TABS`, because a NEIGHBOUR
-  // is a bar-order question: the two screens a swipe can reach from here. The
-  // navigator's own order would name two different tabs and preload the wrong
+  // Both the neighbour and its opt-out are read off `PAGES`, because a NEIGHBOUR
+  // is a PAGE question: the two screens a swipe can reach from here. The
+  // navigator's own order would name two different screens and preload the wrong
   // pair — including the composer, the one screen that opted out.
+  //
+  // The opt-in test is `=== true`, not `!== false`: a page the table has never
+  // heard of answers `undefined`, and under the old spelling that counted as
+  // opting IN. A page nobody declared is precisely the one not to mount for
+  // being swiped past.
   const neighbourKeys = useCallback(
     (page: number) =>
       [page - 1, page + 1]
-        .filter((i) => i >= 0 && i < TABS.length)
-        .filter((i) => TABS[i]?.preload !== false)
+        .filter((i) => i >= 0 && i < PAGES.length)
+        .filter((i) => PAGES[i]?.preload === true)
         .map((i) => keyForPage(i)),
     [keyForPage],
   );
@@ -151,10 +167,11 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
   const onPageScroll = usePageScrollHandler(
     (event) => {
       'worklet';
-      // `position + offset` IS the unit Bloom's `activeProgress` is defined in:
-      // 1.4 means 40% of the way from the second tab to the third. No mapping,
-      // no scaling — that correspondence is why the two fit together at all.
-      progress.value = event.position + event.offset;
+      // `position + offset` is a PAGE position — 1.4 is 40% of the way from page
+      // 1 to page 2 — and `progress` is in BAR units. They are the same number
+      // only while every page draws a bar item, which is a fact about today's
+      // table rather than a property of either.
+      progress.value = barPositionForPage(BAR_POSITION_BY_PAGE, event.position + event.offset);
     },
     [progress],
   );
@@ -199,7 +216,7 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
       if (next === pageRef.current) return;
       pageRef.current = next;
       admit([keyForPage(next)]);
-      // A page index IS a `TABS` index, which is the unit `selectTab` takes.
+      // A page index IS a `PAGES` index, which is the unit `selectTab` takes.
       onCommit(next);
     },
     [onCommit, admit, keyForPage],
@@ -207,15 +224,15 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
 
   const pages = useMemo(
     () =>
-      TABS.map((tab, index) => {
-        const route = routeByName.get(tab.name);
+      PAGES.map((page, index) => {
+        const route = routeByName.get(page.name);
         const descriptor = route ? descriptors[route.key] : undefined;
         const isFocused = index === focusedPage;
         return (
           // `collapsable={false}` keeps the page a real view even when its
           // content is still null — a collapsed page would be dropped from the
           // native hierarchy and take its position with it.
-          <View key={tab.name} collapsable={false} style={styles.page}>
+          <View key={page.name} collapsable={false} style={styles.page}>
             {route && loaded.has(route.key) && descriptor ? (
               // `activityState` is what lets four mounted screens cost almost
               // nothing: 2 drives the focused one, 1 keeps a neighbour laid out

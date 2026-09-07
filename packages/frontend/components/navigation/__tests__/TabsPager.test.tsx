@@ -2,24 +2,24 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Text } from 'react-native';
 
-import { TABS } from '@/components/navigation/tabs';
+import { PAGES } from '@/components/navigation/tabs';
 import { TabsPager } from '@/components/navigation/TabsPager';
 
 /**
- * The pager's pages are TABS pages, whatever order the navigator keeps.
+ * The pager's pages are PAGES pages, whatever order the navigator keeps.
  *
  * THE ORDERS ARE NOT THE SAME ONE, and that is upstream behaviour rather than a
  * local slip: expo-router builds the navigator's routes with
  * `sortRoutesWithInitial` (`node_modules/expo-router/build/ui/common.js`), which
- * puts `index` first and then sorts by route-name LENGTH — so a `TABS` written
+ * puts `index` first and then sorts by route-name LENGTH — so a `PAGES` written
  * as home/videos/write/notifications/you reaches `useTabsWithTriggers` and comes
  * back as index/you/write/videos/notifications. The trigger order is not
  * preserved and nothing in the API says it would be.
  *
- * Everything outside this component speaks in `TABS` indices: `progress` is the
+ * Everything outside this component speaks in `PAGES` indices: `progress` is the
  * bar highlight's position in tab units, `activeIndex` comes from
- * `tabIndexForPathname`, and `selectTab`/`commit` look the tab up in `TABS`. So
- * a page index that is anything OTHER than a `TABS` index is a swipe landing on
+ * `pageIndexForPathname`, and `selectTab`/`commit` look the page up in `PAGES`.
+ * So a page index that is anything OTHER than a `PAGES` index is a swipe landing on
  * one screen while the bar highlights another, and a tap moving the pager to a
  * page belonging to someone else.
  *
@@ -132,22 +132,22 @@ function renderedPageNames(renderer: TestRenderer.ReactTestRenderer): (string | 
 }
 
 describe('TabsPager', () => {
-  it('lays its pages out in TABS order, not the navigator route order', () => {
+  it('lays its pages out in PAGES order, not the navigator route order', () => {
     const { renderer } = mountPager('videos');
 
-    expect(renderedPageNames(renderer)[TABS.findIndex((tab) => tab.name === 'videos')]).toBe(
+    expect(renderedPageNames(renderer)[PAGES.findIndex((page) => page.name === 'videos')]).toBe(
       'videos',
     );
   });
 
-  it('opens on the focused tab as a TABS index', () => {
+  it('opens on the focused page as a PAGES index', () => {
     mountPager('videos');
 
-    expect(pagerProps.initialPage).toBe(TABS.findIndex((tab) => tab.name === 'videos'));
+    expect(pagerProps.initialPage).toBe(PAGES.findIndex((page) => page.name === 'videos'));
   });
 
-  it('commits the TABS index of the page the reader landed on', () => {
-    const youIndex = TABS.findIndex((tab) => tab.name === 'you');
+  it('commits the PAGES index of the page the reader landed on', () => {
+    const youIndex = PAGES.findIndex((page) => page.name === 'you');
     const { onCommit } = mountPager('index');
 
     act(() => {
