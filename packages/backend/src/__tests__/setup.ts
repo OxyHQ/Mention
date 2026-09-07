@@ -13,6 +13,15 @@ import { createTestDatabase } from '../db/testDatabase';
 import { needsIsolatedDatabase } from './isolatedDatabaseFiles';
 
 /**
+ * How long the per-file teardown below may take to drop its throwaway database.
+ *
+ * Sized from what that teardown actually does rather than left at vitest's 10s
+ * default — see the hook's own comment for the arithmetic and for the run this
+ * was measured on.
+ */
+const DROP_DATABASE_TIMEOUT_MS = 60_000;
+
+/**
  * Per-file database isolation for the job-invoking test files.
  *
  * A setup file is evaluated once per TEST FILE, inside the worker, before that
@@ -70,11 +79,34 @@ if (testPath && needsIsolatedDatabase(testPath)) {
     );
   });
 
+  /**
+   * The timeout is EXPLICIT because vitest's default does not fit this hook.
+   *
+   * `dropTestDatabase` opens its own admin connection, issues
+   * `DROP DATABASE … WITH (FORCE)`, and then closes with
+   * `end({ timeout: ADMIN_CLOSE_TIMEOUT_SECONDS })` — five seconds, spent on the
+   * close alone, by that function's own design. Inside vitest's default 10s hook
+   * budget that leaves under five for the connect and the DROP, on a run where
+   * ten workers hold eighty connections against a `max_connections` of 100.
+   *
+   * It is not a hypothetical margin. It failed on `main` at `c19ebc1`
+   * (`engagementWritePath.test.ts`, "Hook timed out in 10000ms" pointing at this
+   * line) on a run whose 527 files took 279s wall — with all 6380 tests PASSING.
+   * The whole of CI, and therefore the frontend deployment behind it, was
+   * blocked by a teardown that was merely slow.
+   *
+   * A generous budget here cannot hide a hang, which is what would make raising
+   * it a cheat: every step above is individually bounded — `WITH (FORCE)`
+   * terminates any session a suite leaked rather than waiting on it, and the
+   * close has its own five-second cap. The worst case is bounded and simply
+   * larger than 10s under load, so this states the real bound instead of
+   * inheriting a default that was never measured against this work.
+   */
   afterAll(async () => {
     if (sharedDatabaseUrl === undefined) delete process.env.DATABASE_URL;
     else process.env.DATABASE_URL = sharedDatabaseUrl;
     if (isolatedDatabaseUrl !== undefined) await dropTestDatabase(isolatedDatabaseUrl);
-  });
+  }, DROP_DATABASE_TIMEOUT_MS);
 }
 
 /**
