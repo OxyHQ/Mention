@@ -1,5 +1,3 @@
-import React from 'react';
-
 import type { LocalCapture } from './useCaptureUpload';
 
 interface CameraCaptureProps {
