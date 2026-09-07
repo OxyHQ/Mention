@@ -67,6 +67,24 @@ jest.mock('react-native-reanimated', () => ({
 /** The navigator's own order, as expo-router's sort produces it. */
 const NAVIGATOR_ROUTE_NAMES = ['index', 'you', 'write', 'videos', 'notifications'] as const;
 
+/**
+ * Every mount is torn down, and that is not tidiness.
+ *
+ * `TabsPager` warms its neighbours through `InteractionManager`, so a mount left
+ * standing has a callback still queued when the test ends. It fires against a
+ * torn-down jest environment, jest reports "Cannot log after tests are done" /
+ * "trying to `import` a file after the Jest environment has been torn down",
+ * and the RUN exits non-zero while every suite is reported green — which is how
+ * this arrived, as a red CI job over 187 passing suites.
+ */
+const mounted: TestRenderer.ReactTestRenderer[] = [];
+
+afterEach(() => {
+  act(() => {
+    for (const renderer of mounted.splice(0)) renderer.unmount();
+  });
+});
+
 function mountPager(focusedName: string) {
   const routes = NAVIGATOR_ROUTE_NAMES.map((name) => ({ key: `key-${name}`, name }));
   const descriptors = Object.fromEntries(
@@ -88,6 +106,7 @@ function mountPager(focusedName: string) {
     );
   });
   if (!renderer) throw new Error('renderer did not mount');
+  mounted.push(renderer);
   return { renderer, onCommit };
 }
 
