@@ -382,6 +382,20 @@ const OTHER_TABLE_INDEXES: readonly ClassifiedIndex[] = [
       'CREATE INDEX post_authorships_author_chrono_idx ON public.post_authorships ' +
       'USING btree (oxy_user_id, status, post_created_at DESC NULLS LAST, post_id DESC NULLS LAST)',
   },
+  {
+    name: 'post_media_video_chrono_idx',
+    table: 'post_media',
+    serves:
+      'the global Videos lane, whose scan drives from `post_media` precisely so this index can answer ' +
+      'it — matching video media of one orientation, newest first, in one index. Without it the lane ' +
+      'walks a chronological index over `posts` probing this table once per candidate, and the walk is ' +
+      'as long as the seen set makes it: measured on 275k posts (39,285 video), page of 60 with the ' +
+      'full 1,000-id seen set, 7,554 posts probed and 33,032 buffers against 377 media rows and 1,916. ' +
+      '`videosLaneChrono.test.ts` is the half that checks the lane still PLANS onto it',
+    definition:
+      'CREATE INDEX post_media_video_chrono_idx ON public.post_media ' +
+      'USING btree (type, orientation, post_created_at DESC NULLS LAST, post_id DESC NULLS LAST)',
+  },
 ];
 
 const ALL_INDEXES: readonly ClassifiedIndex[] = [...POSTS_INDEXES, ...OTHER_TABLE_INDEXES];

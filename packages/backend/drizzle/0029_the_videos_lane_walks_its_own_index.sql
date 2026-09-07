@@ -1,0 +1,65 @@
+-- `post_media` carries a copy of `posts.created_at`, so ONE index can answer the
+-- global Videos lane's whole question: video media of this orientation, newest
+-- first.
+--
+-- WHY: the media filters live on `post_media` and the timestamp lives on `posts`,
+-- and an index cannot span two tables. So the lane's chronological scan drove
+-- from `posts` and probed `post_media` once per candidate row, and the cost was
+-- bounded by how far down the chronological order it had to walk rather than by
+-- the page. What makes that walk long is the lane's own seen set: those ids are
+-- the posts it just showed, so they sit at the HEAD of the order and every one of
+-- them has to be stepped over. Measured here on 275,000 posts (39,285 of them
+-- video, 86,428 `post_media` rows), page of 60:
+--
+--   seen ids     posts scanned     buffers
+--   0            1,420             4,753
+--   250          2,863             9,428
+--   1,000        7,494            32,459     <- the cap, i.e. an ordinary scroll
+--
+-- With this column and index the same page walks 398 media rows and 1,995
+-- buffers, in 1.3-2.4 ms against 15.1-26.5 ms. The ratio is not the point: the
+-- scan now stops at the page, so it stops growing with the corpus.
+--
+-- Not a general licence to denormalise. `posts.created_at` is written once by an
+-- insert default and never updated — 35 `update(posts)` sites and not one sets it
+-- — so there is no update path for a copy to miss. The single writer
+-- (`insertChildRows`) reads the value back out of `posts` in the same statement
+-- rather than accepting one from its caller, so a caller cannot pass a value that
+-- disagrees, and `mediaChronoSync.test.ts` asserts the agreement rather than
+-- trusting it. A column whose source DID change under it would need a trigger or
+-- a generated column, and neither is available across tables. This is the same
+-- argument `0021` makes for `post_authorships.post_created_at`, and deliberately
+-- the same shape.
+--
+-- NULLABLE, deliberately, for `0021`'s reason: a `NOT NULL` column with no
+-- default cannot be added to a populated table without rewriting it under an
+-- ACCESS EXCLUSIVE lock, and the backfill below cannot run before the column
+-- exists.
+--
+-- WHAT A NULL COSTS, and why it cannot lose a post. The three statements below
+-- run in ONE transaction, so no row is NULL when this commits. The window that
+-- can still produce one is the DEPLOY: between this landing and the new code
+-- serving, a task running the old image inserts media rows without the column.
+-- Such a row is not dropped from the lane — the scan JOINs on `post_id` and only
+-- ORDERS on this column, and `desc nulls last` puts it at the BOTTOM of the lane.
+-- So the symptom is a new video appearing last instead of first, which is visible
+-- and self-describing, and the repair is to re-run the UPDATE below (it is
+-- idempotent: `IS DISTINCT FROM` makes a second run a no-op). The alternative —
+-- `NOT NULL` — would have turned that same window into failed writes on a live
+-- image, which is the worse trade.
+--
+-- NOT ONLINE, matching `0003`, `0004`, `0021`, `0022` and `0028`: `CREATE INDEX
+-- CONCURRENTLY` cannot run inside the migrator's transaction. `ADD COLUMN` with
+-- no default is a catalogue change and does not rewrite the table; the `UPDATE`
+-- and the `CREATE INDEX` are the costly halves and both scale with `post_media`.
+-- The lock they hold BLOCKS WRITES to `post_media` (reads are unaffected) for the
+-- duration. `post_media` is roughly one row per media item rather than one per
+-- post, so it is materially smaller than `posts` — but the build time on
+-- production was NOT measured, and "smaller than the biggest table" is not a
+-- number. If it turns out to matter, the recovery is the same one `0028` names:
+-- split this into the column plus a batched backfill, and build the index
+-- concurrently outside the migrator.
+
+ALTER TABLE "post_media" ADD COLUMN "post_created_at" timestamp with time zone;--> statement-breakpoint
+UPDATE "post_media" m SET "post_created_at" = p."created_at" FROM "posts" p WHERE p."id" = m."post_id" AND m."post_created_at" IS DISTINCT FROM p."created_at";--> statement-breakpoint
+CREATE INDEX "post_media_video_chrono_idx" ON "post_media" USING btree ("type","orientation","post_created_at" DESC NULLS LAST,"post_id" DESC NULLS LAST);
