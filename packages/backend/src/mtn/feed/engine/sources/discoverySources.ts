@@ -24,7 +24,9 @@ import {
 import { getDb } from '../../../../db/postgres';
 import { posts } from '../../../../db/schema';
 import { assemblePostRecords } from '../../../../db/posts/postRepository';
-import { FeedQueryBuilder, authorNotInSql, notABoostSql, rankingWeight } from '../../../../utils/feedQueryBuilder';
+import { FeedQueryBuilder, authorNotInSql, notABoostSql } from '../../../../utils/feedQueryBuilder';
+import { engagementRankSql } from '../../../../db/schema/posts';
+import { rankingWeight } from '../../../../utils/rankingWeight';
 import { fetchWithRecencyFallback } from '../../../../utils/feedUtils';
 import { ScoreCursor, chronoOrderBy, type ScoreCursorData } from '../../CursorBuilder';
 import { discoverySafeSql, filterDiscoverable } from '../../feedSafety';
@@ -55,43 +57,27 @@ import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
 /**
  * The engagement composite the popular / explore / trending aggregations ORDER
- * their candidate pool by, as a SQL expression. The single source of truth for
- * that ordering, so the discovery lanes can never drift from each other.
+ * their candidate pool by. The single source of truth for that ordering, so the
+ * discovery lanes can never drift from each other.
+ *
+ * The expression itself lives on the SCHEMA (`engagementRankSql`, `db/schema/posts.ts`)
+ * rather than here, and that is not filing: `posts_engagement_rank_idx` is built
+ * over it, Postgres matches an expression index by comparing parsed expressions,
+ * and an index and a query that spell the same composite in two places agree
+ * until the first weight change and then silently stop — leaving the popular scan
+ * reading the whole table again with nothing red. Keeping both sides on one
+ * function is what makes that unrepresentable.
  *
  * It is deliberately NOT the same expression as
  * `services/ranking/nativeEngagement.ts` `nativeWeightedEngagement`, which scores
- * the candidates this query returns. The four counters below are the ones a write
- * path maintains and that carry signal at selection time: `saves` is written but
- * measures 0 across the discovery corpus, and ordering CANDIDATES by `views`
- * would rank by exposure and feed itself. Ranking reads both, one stage later,
- * where the pool is already chosen.
- *
- * The boost term splits the total boosts into their native and federated subsets
- * (`stats_federated_boosts_count` counts inbound ActivityPub Announces): the
- * native subset — `greatest(0, boosts − federatedBoosts)`, floored so an
- * over-count can never go negative — is weighted at `boostWeight`, and the
- * federated subset at the deliberately-lower `federatedBoostWeight`.
- *
- * Two things the Mongo original needed and this does not:
- *
- *  - `$ifNull` on every term. All four columns are `NOT NULL DEFAULT 0`, so a
- *    null is unrepresentable rather than merely unlikely — the pre-backfill
- *    documents those wrappers existed for cannot occur.
- *  - Nothing guarded the RESULT TYPE, because Mongo had one number type.
- *    Postgres does not: the weights are decimal literals, `integer * numeric` is
- *    `numeric`, and postgres.js returns `numeric` as a **string** to preserve
- *    precision. That string then flows into `finalScore`, sorts lexicographically
- *    in any JS comparison, and serializes into the cursor as a quoted value. The
- *    explicit `::double precision` is what keeps the score a NUMBER end to end.
+ * the candidates this query returns. The four counters it weighs are the ones a
+ * write path maintains and that carry signal at selection time: `saves` is
+ * written but measures 0 across the discovery corpus, and ordering CANDIDATES by
+ * `views` would rank by exposure and feed itself. Ranking reads both, one stage
+ * later, where the pool is already chosen.
  */
 export function engagementScoreSql(): SQL<number> {
-  const cfg = MtnConfig.ranking.engagement;
-  return sql<number>`(
-    ${posts.statsLikesCount} * ${rankingWeight(cfg.likeWeight)}
-    + greatest(0, ${posts.statsBoostsCount} - ${posts.statsFederatedBoostsCount}) * ${rankingWeight(cfg.boostWeight)}
-    + ${posts.statsFederatedBoostsCount} * ${rankingWeight(cfg.federatedBoostWeight)}
-    + ${posts.statsCommentsCount} * ${rankingWeight(cfg.commentWeight)}
-  )::double precision`;
+  return engagementRankSql(posts);
 }
 
 /**

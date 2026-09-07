@@ -324,6 +324,26 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       'CREATE INDEX posts_curated_idx ON public.posts USING btree (created_at DESC NULLS LAST) WHERE (curated IS TRUE)',
   },
   {
+    name: 'posts_engagement_rank_idx',
+    table: 'posts',
+    serves:
+      "the popular / never-blank discovery scans, whose ORDER BY is a COMPUTED engagement composite. " +
+      'Without it the planner has one option — read every candidate row and top-N sort it — so the cost ' +
+      'is bounded by the TABLE while the answer stays 60 rows, and the unbounded pass of ' +
+      '`fetchWithRecencyFallback` (reached on every page by a reader whose languages underfill 7d and 30d) ' +
+      'sorted the whole archive: 17.25s in production, 77-89ms against 275k posts here, 0.11-0.26ms with ' +
+      'this index. `engagementRankIndex.test.ts` is the half that checks the EXPRESSION still matches the ' +
+      'query, which is what actually decides whether the planner can use it',
+    definition:
+      'CREATE INDEX posts_engagement_rank_idx ON public.posts USING btree ' +
+      '(((((((stats_likes_count)::double precision * (1)::double precision) + ' +
+      '((GREATEST(0, (stats_boosts_count - stats_federated_boosts_count)))::double precision * ' +
+      '(2.5)::double precision)) + ((stats_federated_boosts_count)::double precision * ' +
+      '(0.5)::double precision)) + ((stats_comments_count)::double precision * (2)::double precision))) ' +
+      'DESC, created_at DESC NULLS LAST, id DESC NULLS LAST) ' +
+      "WHERE ((visibility = 'public'::text) AND (status = 'published'::text))",
+  },
+  {
     name: 'posts_geo_gist',
     table: 'posts',
     serves:
