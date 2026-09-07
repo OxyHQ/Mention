@@ -97,7 +97,27 @@ return {
             versionCode: 2,
             // Must match a client package_name in google-services.json.
             package: APP_ID,
-            predictiveBackGestureEnabled: true,
+            // OFF, and the tab history is the reason. Android's predictive back
+            // is handled ENTIRELY natively by react-native-screens: with it on,
+            // `(tabs)` is the root screen of the app's `ExperimentalStack`, so a
+            // back press finishes the activity before any JavaScript runs. The
+            // tab router's `backBehavior: 'history'` therefore never sees the
+            // action and back LEAVES THE APP from any tab — measured on a Pixel
+            // 10 Pro, along with the desync it causes: "The screen '(tabs)' was
+            // removed natively but didn't get removed from JS state", after
+            // which the bottom bar can disappear entirely.
+            //
+            // Neither `BackHandler` (armed, never called) nor `usePreventRemove`
+            // recovers it: the latter does stop the exit, but its callback only
+            // runs from a JS `beforeRemove`, which a native dismiss never emits,
+            // so back becomes inert instead of wrong.
+            //
+            // With the flag off, Android delivers back the ordinary way, the
+            // navigation container dispatches it to the focused navigator, and
+            // the tab router pops its own history — the behaviour it was
+            // configured for. What is lost is the system's back PREVIEW
+            // animation; the stack's own transitions are unaffected.
+            predictiveBackGestureEnabled: false,
             // google-services.json carries both earth.mention.app and its .dev
             // variant so either build passes; real FCM needs those registered
             // in Firebase and the file swapped (see the app-variant note above).

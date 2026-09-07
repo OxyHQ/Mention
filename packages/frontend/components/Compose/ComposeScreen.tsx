@@ -2340,7 +2340,12 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         title={tCompose('seo.compose.title')}
         description={tCompose('seo.compose.description')}
       />
-      <SafeAreaView className="flex-1" edges={['top']}>
+      {/* `bg-background` is not decoration: the top inset is this view's own
+          padding, and without a colour it shows the window background — a WHITE
+          band above the composer on Android, with the light status-bar icons
+          below invisible against it. The two SafeAreaViews further down (the
+          signed-out and loading states) already paint it. */}
+      <SafeAreaView className="flex-1 bg-background" edges={['top']}>
         <StatusBar style="light" />
 
         <KeyboardAvoidingView
