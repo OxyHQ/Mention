@@ -28,6 +28,9 @@ config.resolver = {
     // exhausts the inotify watch limit and kills `expo start` with ENOSPC
     // before the dev server ever binds a port.
     blockPath(path.join(monorepoRoot, '.claude/worktrees')),
+    // Same hazard, second location: `.worktrees/` holds another 11 GB of
+    // sibling worktrees, each with its own node_modules.
+    blockPath(path.join(monorepoRoot, '.worktrees')),
     blockPath(path.join(monorepoRoot, 'packages/backend')),
     blockPath(path.join(monorepoRoot, 'packages/shared-types/src')),
     blockPath(path.join(monorepoRoot, 'docs')),
