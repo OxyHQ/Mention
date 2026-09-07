@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text, TouchableOpacity } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
+import { CheckCircleIcon } from '@/assets/icons/check-circle-icon';
 import ComposeLanguageSheet from '../ComposeLanguageSheet';
 
 /**
@@ -73,11 +74,6 @@ jest.mock('@/components/ui/Button', () => {
 jest.mock('@/assets/icons/close-icon', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { CloseIcon: RNView };
-});
-
-jest.mock('@/assets/icons/check-circle-icon', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { CheckCircleIcon: RNView };
 });
 
 jest.mock('@expo/vector-icons/Ionicons', () => {
@@ -195,6 +191,13 @@ describe('ComposeLanguageSheet', () => {
 
     expect(onAdd).toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('marks the active language, drawing the real icon', () => {
+    const { renderer } = render({ variantTags: ['es-ES'], activeTag: 'es-ES' });
+
+    const marks = renderer.root.findAllByType(CheckCircleIcon);
+    expect(marks).toHaveLength(1);
   });
 
   it('goes dead once the post holds the maximum languages', () => {

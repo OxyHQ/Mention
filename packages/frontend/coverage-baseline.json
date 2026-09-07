@@ -3,23 +3,23 @@
   "total": {
     "statements": {
       "pct": 30.42,
-      "covered": 7543,
-      "total": 24793
+      "covered": 7545,
+      "total": 24797
     },
     "branches": {
-      "pct": 25.65,
-      "covered": 4646,
-      "total": 18110
+      "pct": 25.59,
+      "covered": 4632,
+      "total": 18099
     },
     "functions": {
-      "pct": 26.4,
-      "covered": 1628,
-      "total": 6166
+      "pct": 26.41,
+      "covered": 1629,
+      "total": 6168
     },
     "lines": {
       "pct": 31.02,
-      "covered": 6911,
-      "total": 22279
+      "covered": 6913,
+      "total": 22283
     }
   },
   "pins": {
