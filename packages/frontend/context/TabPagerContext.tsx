@@ -4,7 +4,7 @@ import { router, usePathname } from 'expo-router';
 import { useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
 import { useAuth } from '@oxyhq/services/ui/client';
 
-import { TABS, tabIndexForPathname } from '@/components/navigation/tabs';
+import { TABS, tabHref, tabIndexForPathname } from '@/components/navigation/tabs';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -79,19 +79,15 @@ const TabPagerContext = createContext<TabPagerValue | null>(null);
 export function TabPagerProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user } = useAuth();
+  const viewerUsername = user?.username;
   const progress = useSharedValue(0);
   const committerRef = useRef<TabCommitter | null>(null);
 
-  // The viewer's handle is passed ON WEB ONLY, because the reason for that match
-  // is a web-only one: there `/you` redirects to `/@<handle>` (the profile chrome
-  // lives in the `[username]` layout), so without it the bar would show no
-  // selection on the one profile a reader looks at most.
-  //
-  // On NATIVE `/you` is the tab and `/@<handle>` is an ordinary pushed route —
-  // a copy of your own profile opened from a post row. Treating it as the tab
-  // there would light the pill for a screen sitting OVER the tabs, and would
-  // also tell `selectTab` below that nothing is pushed when something is.
-  const activeIndex = tabIndexForPathname(pathname, IS_WEB ? user?.username : undefined);
+  // The viewer's handle goes in unconditionally; whether it changes the answer
+  // is `tabHref`'s decision, not this file's. On web the profile tab IS
+  // `/@<handle>`, so that pathname selects it; on native the tab is `/you` and
+  // `/@<handle>` is an ordinary pushed route that must select nothing.
+  const activeIndex = tabIndexForPathname(pathname, viewerUsername);
 
   const registerCommitter = useCallback((committer: TabCommitter | null) => {
     committerRef.current = committer;
@@ -135,9 +131,9 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     for (const tab of TABS) {
-      router.prefetch(tab.href);
+      router.prefetch(tabHref(tab, viewerUsername));
     }
-  }, []);
+  }, [viewerUsername]);
 
   const selectTab = useCallback(
     (index: number) => {
@@ -162,7 +158,7 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
       // browser's, not detail screens sitting over the tabs.
       if (!committer) {
         progress.value = withSpring(index, SETTLE_SPRING);
-        router.navigate(tab.href);
+        router.navigate(tabHref(tab, viewerUsername));
         return;
       }
 
@@ -182,7 +178,7 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
       }
       committer.commit(index);
     },
-    [progress, activeIndex],
+    [progress, activeIndex, viewerUsername],
   );
 
   const value = useMemo<TabPagerValue>(

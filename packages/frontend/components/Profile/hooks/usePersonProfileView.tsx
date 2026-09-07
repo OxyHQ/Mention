@@ -37,7 +37,11 @@ import {
 } from '../types';
 import { isProfilePrivate, viewerOwnsProfile } from '../profileViewer';
 import { profileTabHref } from '../profileTabRoute';
-import { useProfileAccount, type ProfileAccount } from './useProfileAccount';
+import {
+  useProfileAccount,
+  useProfileCanonicalHref,
+  type ProfileAccount,
+} from './useProfileAccount';
 import { useProfileChrome, type ProfileChrome } from './useProfileChrome';
 import { useProfileMoreMenu } from './useProfileMoreMenu';
 import { useOperatesAccount } from './useOperatesAccount';
@@ -79,14 +83,22 @@ export interface PersonProfileViewOptions {
    */
   onSelectTab: (descriptor: ProfileTabDescriptor, href: Href) => void;
   /**
-   * The account to render when the URL does not name one — the `/you` tab's
-   * only reason to exist. Forwarded verbatim to
-   * {@link useProfileAccount}, which is where it is documented.
+   * The handle whose profile this is.
+   *
+   * Passed in, never read from the URL here. The `[username]` routes get it from
+   * `useRoutedProfileUsername()`; the `/you` tab gets it from the session. Those
+   * are the same kind of answer to this hook, which is why neither is a special
+   * case.
    */
-  usernameOverride?: string;
+  username: string;
 }
 
 export interface PersonProfileView extends ProfileAccount {
+  /**
+   * Where this reader belongs instead, or `null` when already canonical — and
+   * always `null` while `active` is false, so a masked chrome never redirects.
+   */
+  canonicalHref: Href | null;
   isOwnProfile: boolean;
   isPrivate: boolean;
   /** The banner band's image, if the account has set one. */
@@ -124,10 +136,11 @@ export function usePersonProfileView({
   active = true,
   activeKey,
   onSelectTab,
-  usernameOverride,
+  username: routedUsername,
 }: PersonProfileViewOptions): PersonProfileView {
-  const account = useProfileAccount('person', undefined, usernameOverride);
+  const account = useProfileAccount(routedUsername);
   const { username, handle, isFederated } = account;
+  const routedCanonicalHref = useProfileCanonicalHref({ routedFamily: 'person', account });
   const { user: currentUser } = useAuth();
   const { t } = useTranslation();
 
@@ -151,7 +164,7 @@ export function usePersonProfileView({
    */
   const profileData = active ? account.profileData : null;
   const loading = active ? account.loading : false;
-  const canonicalHref = active ? account.canonicalHref : null;
+  const canonicalHref = active ? routedCanonicalHref : null;
 
   // The publisher's lanes that HAVE a tab. Public and reader-agnostic, so a
   // signed-out visitor sees the same strip; keyed by viewer anyway, like every

@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import type { Href } from 'expo-router';
 
 /**
@@ -68,6 +69,34 @@ export function tabIndexByName(name: string): number {
 }
 
 /**
+ * Where a tab actually SENDS the reader, which is not always its route.
+ *
+ * One tab differs, and only on one platform. `/you` exists because a tab route
+ * has to be static while the viewer's own handle is not — but WEB has no tab
+ * navigator at all (`(tabs)/_layout.tsx` renders a bare `<Slot/>`), so nothing
+ * there needs a static route, and the profile page's chrome lives in the
+ * `[username]` layout where a `/you` screen cannot reach it. So on web the
+ * profile tab points where the sidebar has always pointed: `/@<handle>`.
+ *
+ * Signed out on web it stays `/you`, which renders the sign-in prompt — the one
+ * thing that route does well on both platforms.
+ *
+ * This is THE definition, and `tabIndexForPathname` below answers "which tab is
+ * this route" by asking it rather than by repeating the rule. Before, the bar
+ * pointed at `/you` on web and that route redirected to `/@<handle>`; chaining a
+ * redirect onto a tab press is what stopped the profile tab opening at all.
+ */
+export function tabHref(tab: TabDescriptor, viewerUsername?: string): Href {
+  // Read here rather than hoisted to a module constant: this is the one rule in
+  // the file that differs by platform, and a test can only exercise both sides of
+  // it if the read happens per call.
+  if (tab.name === 'you' && Platform.OS === 'web' && viewerUsername) {
+    return `/@${viewerUsername}`;
+  }
+  return tab.href;
+}
+
+/**
  * Which tab a pathname belongs to, or -1 when it belongs to none.
  *
  * -1 is a real answer and the common one: every pushed detail route — a post, a
@@ -75,21 +104,15 @@ export function tabIndexByName(name: string): number {
  * over all of them. Bloom's `TabBar` reads exactly this convention, fading the
  * highlight out where it stands rather than parking it outside the pill.
  *
- * `/@<handle>` counts as the profile tab only for the VIEWER's own handle. On
- * web `/you` redirects there (the profile chrome lives in the `[username]`
- * layout, so there is no chrome for a `/you` screen to render under), and
- * without this the bar would show no selection on a viewer's own profile page.
- * Somebody else's `/@<handle>` is a pushed route and correctly selects nothing.
+ * It compares against {@link tabHref}, so it agrees with where the bar sends the
+ * reader by construction. On web that means the viewer's own `/@<handle>` IS the
+ * profile tab; on native it is an ordinary pushed route — a copy of your own
+ * profile opened from a post row — and correctly selects nothing.
  */
 export function tabIndexForPathname(
   pathname: string | null | undefined,
   viewerUsername?: string,
 ): number {
   if (!pathname) return -1;
-  const exact = TABS.findIndex((tab) => tab.href === pathname);
-  if (exact !== -1) return exact;
-  if (viewerUsername && pathname === `/@${viewerUsername}`) {
-    return tabIndexByName('you');
-  }
-  return -1;
+  return TABS.findIndex((tab) => tabHref(tab, viewerUsername) === pathname);
 }

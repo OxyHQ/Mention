@@ -1,14 +1,10 @@
 import React from 'react';
-import { Platform } from 'react-native';
-import { Redirect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
 
 import { Loading } from '@oxyhq/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import ProfileScreen from '@/components/ProfileScreen';
-
-const IS_WEB = Platform.OS === 'web';
 
 /**
  * The viewer's OWN profile, as a tab.
@@ -17,7 +13,8 @@ const IS_WEB = Platform.OS === 'web';
  * `/@<handle>` is not one — a tab navigator's route set is fixed at build time,
  * while that URL only exists once somebody has signed in. So the tab is `/you`,
  * and the account it renders comes from the session rather than from a
- * `[username]` segment (`usernameOverride`, documented on `useProfileAccount`).
+ * `[username]` segment: it is handed down as an ordinary `username` prop, the
+ * same way the `[username]` routes hand down the one they read from the URL.
  *
  * `/@<handle>` is untouched and keeps every one of its jobs: it is the URL a
  * post row links every author to, the app's catch-all for unknown single-segment
@@ -25,16 +22,15 @@ const IS_WEB = Platform.OS === 'web';
  * profile is therefore reachable both ways, exactly as it is on Instagram — the
  * tab, and a pushed copy when you arrive at it through a link.
  *
- * WEB REDIRECTS instead of rendering. On web the profile page is split in two —
- * the chrome (banner, summary, tab strip) belongs to the `[username]` LAYOUT and
- * only the tab's content is the routed screen, so that switching profile tabs
- * cannot unmount the chrome (`components/Profile/ProfileChromeFrame.web.tsx`
- * carries the measurement: 597ms of blank chrome when it did). Rendering
- * `ProfileScreen` here on web would produce a profile with no chrome at all, and
- * a second copy of that layout is precisely the duplication that file exists to
- * prevent. Web has no tab navigator either (see `(tabs)/_layout.tsx`), so there
- * is nothing a `/you` route buys there. `<Redirect>` replaces rather than
- * pushes, so it costs no history entry.
+ * NATIVE ONLY, and the route file never says so — the bar simply does not point
+ * here on web. There the profile page is split in two: the chrome (banner,
+ * summary, tab strip) belongs to the `[username]` LAYOUT and only the tab's
+ * content is the routed screen, so a `/you` rendering `ProfileScreen` would
+ * produce a profile with no chrome at all. Web also has no tab navigator (see
+ * `(tabs)/_layout.tsx`), so a static route buys it nothing either — which is why
+ * `profileTabHrefForPlatform` sends web straight to `/@<handle>`, the URL the
+ * sidebar has always used. This route used to answer that by rendering a
+ * `<Redirect>`, and chaining a redirect onto a tab press is what broke the tab.
  */
 export default function YouTab() {
   const { t } = useTranslation();
@@ -62,9 +58,5 @@ export default function YouTab() {
     );
   }
 
-  if (IS_WEB) {
-    return <Redirect href={`/@${user.username}`} />;
-  }
-
-  return <ProfileScreen usernameOverride={user.username} />;
+  return <ProfileScreen username={user.username} />;
 }

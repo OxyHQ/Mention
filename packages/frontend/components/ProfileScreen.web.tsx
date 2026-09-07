@@ -6,6 +6,7 @@ import {
     ProfileTabs,
     isProfilePrivate,
     useProfileAccount,
+    useProfileCanonicalHref,
     viewerOwnsProfile,
     type ProfileScreenProps,
 } from './Profile';
@@ -35,8 +36,10 @@ import {
  * React aborts the render. `[username]/_layout.tsx` carries the full account.
  * A screen has no such constraint.
  */
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ tab = 'posts', laneId }) => {
-    const { isFederated, profileData, canonicalHref } = useProfileAccount('person');
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, tab = 'posts', laneId }) => {
+    const account = useProfileAccount(username);
+    const { isFederated, profileData } = account;
+    const canonicalHref = useProfileCanonicalHref({ routedFamily: 'person', account });
     const { user: currentUser } = useAuth();
 
     if (canonicalHref) {

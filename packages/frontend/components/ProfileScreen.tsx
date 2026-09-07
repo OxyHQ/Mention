@@ -34,7 +34,7 @@ import {
  * renders only the tab's CONTENT, and everything above it comes from the
  * `[username]` layout.
  */
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ tab = 'posts', laneId, usernameOverride }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, tab = 'posts', laneId }) => {
     // Active tab — local state so switching tabs does not remount the page.
     // Held as the tab's KEY, not its index: the strip's length depends on how
     // many lanes the publisher has, so an index means a different tab before and
@@ -54,7 +54,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ tab = 'posts', laneId, us
         router.replace(href);
     }, []);
 
-    const view = usePersonProfileView({ activeKey: activeTabKey, onSelectTab, usernameOverride });
+    const view = usePersonProfileView({ activeKey: activeTabKey, onSelectTab, username });
 
     // A channel account's page is `/c/<handle>`. Sitting on `/@<handle>` for one
     // is a URL nobody should keep — a post row links every author to `/@`, since

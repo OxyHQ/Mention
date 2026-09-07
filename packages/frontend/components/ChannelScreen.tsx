@@ -31,6 +31,8 @@ import {
     ProfileShell,
     useSubscription,
     useProfileAccount,
+    useProfileCanonicalHref,
+    useRoutedProfileUsername,
     useProfileChrome,
     useProfileMoreMenu,
     useOperatesAccount,
@@ -476,8 +478,9 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
 };
 
 const ChannelScreen: React.FC = () => {
-    const { username, handle, profileData, loading, colorName, canonicalHref } =
-        useProfileAccount('channel');
+    const account = useProfileAccount(useRoutedProfileUsername());
+    const { username, handle, profileData, loading, colorName } = account;
+    const canonicalHref = useProfileCanonicalHref({ routedFamily: 'channel', account });
 
     // A `/c/<handle>` that names a person is a URL nobody should keep. The rule
     // itself lives in `profileRoute.ts`, shared with the person screen, so the
