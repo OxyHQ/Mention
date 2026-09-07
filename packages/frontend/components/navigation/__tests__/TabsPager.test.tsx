@@ -223,28 +223,28 @@ describe('TabsPager', () => {
   });
 
   /**
-   * THE COST OF A TAP IS THE PAGES IT THAWS, and there is exactly one it has to.
+   * THE COST OF A TAP IS THE PAGES IT THAWS, and a bar tap now thaws none.
    *
-   * Measured on a Pixel 10 Pro (`dumpsys gfxinfo`), four bar taps ran 8.87%
-   * janky against 2.73% for scrolling the feed — p99 150ms, every janky frame a
-   * slow UI-thread one. The band used to be measured from the FOCUSED page, so
-   * it moved in the same commit as the tap and thawed two screens at once: the
-   * destination, plus whichever page had just become its neighbour. Tapping Home
-   * from the profile thawed the feed AND the reels screen together.
+   * This assertion used to read "only the destination, never its new
+   * neighbour", against a band measured from the FOCUSED page that moved in the
+   * tap's own commit and so thawed two screens at once — tapping Home from the
+   * profile thawed the feed AND the reels screen together, at 8.87% janky over
+   * four taps on a Pixel 10 Pro. Both halves of that are gone: the band follows
+   * a settled page, and every page the bar can reach is held laid out.
    *
-   * Written as "which pages are live", because that is what a thaw costs and
-   * what the mocked `Screen` above reproduces.
+   * What is still worth pinning is the boundary. A bar tap must not drag in a
+   * page the bar cannot reach: the camera is a deliberate swipe away, and
+   * mounting it on a tab press would put a preview surface behind a screen
+   * nobody asked for.
    */
-  it('thaws only the destination on the commit a tab tap produces', () => {
+  it('does not thaw a page the bar cannot reach', () => {
     const { renderer, focus } = mountWarmPager();
 
     focus('notifications');
 
     const live = renderedPageNames(renderer);
     expect(live[pageOf('notifications')]).toBe('notifications');
-    // Three pages away, so it was not live before the tap and has nothing to
-    // show until the pager gets there.
-    expect(live[pageOf('you')]).toBeNull();
+    expect(live[pageOf('camera')]).toBeNull();
   });
 
   it('moves the live band once the pager reports it has settled', () => {
@@ -309,6 +309,42 @@ describe('TabsPager', () => {
    * the app to rebuild, a virtualized list of posts. Parking it at 0 saves
    * nothing over that distance and charges a full thaw on the way back.
    */
+  /**
+   * The band is a locality rule, and a tap stopped travelling.
+   *
+   * `setPageWithoutAnimation` cuts straight to its destination, so "next to the
+   * current page" no longer says anything about what the reader is one gesture
+   * away from — the BAR says that, and it says all of its items. A page at 0 is
+   * react-freeze suspended, so anything the bar can reach in one tap would
+   * otherwise re-render its tree and re-mount its native views on the frame the
+   * reader is watching.
+   */
+  it('keeps every page the bar can reach laid out, whatever the band says', () => {
+    const pager = mountWarmPager();
+
+    pager.focus('you');
+    pager.settle();
+
+    const live = renderedPageNames(pager.renderer);
+    expect(live[pageOf('index')]).toBe('index');
+    expect(live[pageOf('videos')]).toBe('videos');
+    expect(live[pageOf('notifications')]).toBe('notifications');
+  });
+
+  /**
+   * The composer declares itself the exception with `preload: false` — it is the
+   * app's heaviest screen and already opts out of being mounted as a neighbour.
+   * One flag, one place that says "not this one".
+   */
+  it('leaves the composer parked, because it opted out of preloading', () => {
+    const pager = mountWarmPager();
+
+    pager.focus('you');
+    pager.settle();
+
+    expect(renderedPageNames(pager.renderer)[pageOf('write')]).toBeNull();
+  });
+
   it('never parks the home feed, however far the reader wanders', () => {
     const pager = mountWarmPager();
 

@@ -316,18 +316,31 @@ export function TabsPager({
               // Tapping Home from the profile thawed the feed AND the reels
               // screen on the one frame the reader was waiting on.
               //
-              // HOME NEVER GOES TO 0, band or no band. It is the app's default
-              // page and the one every other page is left FOR — a tap on any
-              // other tab makes the reader's next move a return here — and it
-              // carries the most expensive tree in the app to rebuild: a
-              // virtualized feed whose rows are posts. Parking it saves nothing
-              // while the reader is two taps from coming back to it, and pays a
-              // thaw of that whole list when they do. One page held laid out is
-              // the price.
+              // EVERY PAGE THE BAR CAN REACH STAYS LAID OUT, and the band no
+              // longer decides that. The band is a locality rule — it assumes
+              // the reader ARRIVES at a page by travelling past its neighbours —
+              // and a tap stopped travelling: it cuts straight to its
+              // destination. So "next to the current page" says nothing about
+              // what the reader is one gesture away from, while the bar says it
+              // exactly: any of its items, always.
+              //
+              // What that buys is the whole of the remaining wait. A page at 0
+              // is react-freeze suspended, and coming off 0 re-renders its tree
+              // and re-mounts its native views on the frame the reader is
+              // watching — a virtualized feed of posts, a reel, a notification
+              // list. Held at 1 they are laid out and painted, and the cut is
+              // all that is left.
+              //
+              // The composer is the exception, and it declares itself: it is a
+              // bar item with `preload: false`, already opted out of being
+              // mounted as a neighbour because it is the app's heaviest screen.
+              // The same flag answers this question, so there is one place that
+              // says "not this one". The camera is not a bar item at all — it is
+              // reached by a deliberate swipe — and stays on the band.
               <Screen
                 enabled
                 activityState={
-                  isFocused ? 2 : Math.abs(index - settledPage) <= 1 || page.name === 'index' ? 1 : 0
+                  isFocused ? 2 : (page.bar && page.preload) || Math.abs(index - settledPage) <= 1 ? 1 : 0
                 }
                 style={styles.screen}
               >
