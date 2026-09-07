@@ -910,6 +910,18 @@ export const posts = pgTable(
      * took 737-844ms with it and 764-935ms without — no difference this bench can
      * resolve.
      */
+    index('posts_engagement_rank_idx')
+      .on(
+        // The extra parentheses are not decoration: drizzle-kit compares index
+        // expressions TEXTUALLY against the recorded snapshot, and
+        // `0028_the_popular_scan_stops_at_the_page.sql` wraps the cast — so
+        // without them every future `db:generate` emits a spurious
+        // DROP/CREATE of this index.
+        sql`(${engagementRankSql(t)}) desc`,
+        t.createdAt.desc(),
+        t.id.desc(),
+      )
+      .where(sql`${t.visibility} = 'public' and ${t.status} = 'published'`),
 
     /**
      * The two spatial indexes, replacing the `2dsphere` pair. GiST over the

@@ -33,6 +33,15 @@
 -- PARTIAL on the `visibility`/`status` pair every one of these scans fixes, which
 -- keeps it the size of the servable set.
 --
+-- NOT ONLINE, matching `0003`, `0004`, `0021` and `0022`: `CREATE INDEX
+-- CONCURRENTLY` cannot run inside the migrator's transaction. This one is on
+-- `posts` — the largest table here, and the one federation ingest writes to
+-- continuously — so the build holds a lock that BLOCKS WRITES (reads are
+-- unaffected) for however long it takes. The build time on production was not
+-- measured; if it turns out to matter, the recovery is to build this index
+-- concurrently outside the migrator and land the migration as a no-op that
+-- records it.
+--
 -- The expression is generated from `engagementRankSql` (`db/schema/posts.ts`),
 -- the same function the query calls, because Postgres matches an expression index
 -- by comparing PARSED expressions: spelled twice, the two agree until the first
