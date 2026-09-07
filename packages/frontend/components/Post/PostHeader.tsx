@@ -306,198 +306,202 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   const contextRowCount = contextTop ? React.Children.toArray(contextTop).length : 0;
   const headerTopOffset = contextRowCount * (POST_CONTEXT_ROW_HEIGHT + HEADER_CONTENT_GAP);
 
+  // ONE node carries both the horizontal padding and the row layout. They used
+  // to be two nested Views with a single child between them, which is a whole
+  // react-native primitive per post — and under NativeWind's global class-name
+  // polyfill a primitive is a `react-native-css` interop component, not a bare
+  // View. Padding and `flex-row` do not interact, so the merge is a no-op on
+  // screen.
   return (
-    <View style={{ paddingHorizontal }}>
-      <View className="flex-row items-start justify-between">
-        {showAvatarCluster ? (
-          // A magnetic bubble cluster in the slot the solo avatar occupies —
-          // `size` is the cluster box diameter, matched to the solo avatar so
-          // the layout never shifts.
-          //
-          // What a tap means follows the byline, not the cluster: a
-          // collaborative byline's cluster stands for the whole group and opens
-          // the author list (which lists each @username), while an
-          // attribution pair still has ONE author, so it goes where that
-          // author's avatar has always gone. The pair keeps the author's hover
-          // preview for the same reason; the group has no single subject to
-          // preview, so `username` is withheld and the card renders inert.
-          //
-          // The cluster is a Bloom `AvatarGroup` and not a `LiveAvatar`, so a
-          // reposted row cannot carry the Syra live badge — the badge belongs to
-          // one person and this slot no longer represents one.
-          <ProfileHoverCard
-            username={isCollabByline ? undefined : user.handle}
-            disable={disableHoverCard}
+    <View className="flex-row items-start justify-between" style={{ paddingHorizontal }}>
+      {showAvatarCluster ? (
+        // A magnetic bubble cluster in the slot the solo avatar occupies —
+        // `size` is the cluster box diameter, matched to the solo avatar so
+        // the layout never shifts.
+        //
+        // What a tap means follows the byline, not the cluster: a
+        // collaborative byline's cluster stands for the whole group and opens
+        // the author list (which lists each @username), while an
+        // attribution pair still has ONE author, so it goes where that
+        // author's avatar has always gone. The pair keeps the author's hover
+        // preview for the same reason; the group has no single subject to
+        // preview, so `username` is withheld and the card renders inert.
+        //
+        // The cluster is a Bloom `AvatarGroup` and not a `LiveAvatar`, so a
+        // reposted row cannot carry the Syra live badge — the badge belongs to
+        // one person and this slot no longer represents one.
+        <ProfileHoverCard
+          username={isCollabByline ? undefined : user.handle}
+          disable={disableHoverCard}
+        >
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={
+              isCollabByline
+                ? t('collab.viewCollaborators', { defaultValue: 'View collaborators' })
+                : displayNameOrHandle(user.displayName, user.handle ? `@${user.handle}` : '')
+            }
+            disabled={isCollabByline ? !onPressCollaborators : !onPressAvatar}
+            onPress={isCollabByline ? onPressCollaborators : onPressAvatar}
+            style={{ marginTop: headerTopOffset, marginRight: 12 }}
           >
+            <AvatarGroup
+              layout="cluster"
+              items={collabAvatars}
+              size={avatarSize}
+              variant={avatarVariant}
+              max={20}
+            />
+          </TouchableOpacity>
+        </ProfileHoverCard>
+      ) : (
+        <ProfileHoverCard username={user.handle} disable={disableHoverCard}>
+          <LiveAvatar
+            userId={authorUserId}
+            source={avatarSource}
+            variant={avatarVariant}
+            size={avatarSize}
+            placeholderColor={placeholderColor}
+            onPress={onPressAvatar}
+            style={{ marginTop: headerTopOffset, marginRight: 12 }}
+          />
+        </ProfileHoverCard>
+      )}
+      <View className="flex-1" style={{ gap: HEADER_CONTENT_GAP }}>
+        {contextTop}
+        <View className="flex-row items-end" style={{ gap: ROW_GAP }}>
+          {/* Bluesky-style identity line: the display name takes the space it
+              needs (no width cap); the @handle gives way first (shrinks
+              aggressively); the trailing "\u00B7 time" never wraps and stays visible.
+              With NO display name the @handle becomes the bold primary (rendered
+              ONCE here \u2014 the trailing muted handle is suppressed), never blank. */}
+          {isCollabByline ? (
+            <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
+              <Text
+                className="text-foreground text-[15px] font-semibold leading-tight"
+                style={{ flexShrink: 1, minWidth: 0 }}
+                numberOfLines={2}
+              >
+                {headerAuthors.map((a, i) => {
+                  const isLast = i === headerAuthors.length - 1;
+                  // A channel signing with its writer is not a list of
+                  // co-authors: the channel published it and a person wrote
+                  // it, so the byline reads "Notas de Nate by Nate". `and`
+                  // would claim they authored it jointly.
+                  const separator =
+                    i === 0
+                      ? ''
+                      : isLast
+                        ? bylineNamesWriter
+                          ? t('collab.by', { defaultValue: ' by ' })
+                          : t('collab.and', { defaultValue: ' and ' })
+                        : ', ';
+                  // Each first name links to that author's own profile; falls
+                  // back to plain text when the author has no resolvable handle.
+                  const goToProfile =
+                    a.handle && onPressAuthor ? () => onPressAuthor(a.handle) : undefined;
+                  return (
+                    <React.Fragment key={`${a.handle || 'author'}-${i}`}>
+                      {separator}
+                      <Text
+                        onPress={goToProfile}
+                        accessibilityRole={goToProfile ? 'link' : undefined}
+                        accessibilityLabel={goToProfile ? a.firstName : undefined}
+                      >
+                        {a.firstName}
+                      </Text>
+                    </React.Fragment>
+                  );
+                })}
+              </Text>
+            </View>
+          ) : (
+            // The whole identity line \u2014 name, `@handle` and the federated badge
+            // \u2014 is one hover target, so pointing at ANY part of it previews the
+            // author (the avatar is its own target above).
+            <ProfileHoverCard
+              username={user.handle}
+              disable={disableHoverCard}
+              style={{ minWidth: 0 }}
+            >
+              <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
+                <UserName
+                  name={hasDisplayName ? user.displayName : (user.handle ? `@${user.handle}` : undefined)}
+                  verified={user.verified}
+                  onPress={onPressUser}
+                  style={{ container: { flexShrink: 0 } }}
+                />
+                {hasDisplayName && user.handle ? (
+                  <Text
+                    className="text-muted-foreground text-[15px] leading-tight"
+                    style={{ flexShrink: 10, minWidth: 0 }}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {`\u00A0@${user.handle}`}
+                  </Text>
+                ) : null}
+                <AccountBadge
+                  isFederated={user.isFederated}
+                  kind={user.kind}
+                  size={13}
+                  className="text-muted-foreground"
+                  containerClassName="self-center ml-1"
+                />
+              </View>
+            </ProfileHoverCard>
+          )}
+          {timeSlot ?? (!!timeLabel && (
+            <Text
+              className="text-muted-foreground text-[15px] leading-tight web:whitespace-nowrap"
+              style={{ flexShrink: 0 }}
+            >
+              {'\u00B7'} {timeLabel}
+            </Text>
+          ))}
+          {isEdited ? (
+            // `flexShrink: 0` because a 12px glyph has no width to give up and
+            // the identity line's other children are already shrink-ranked
+            // against each other — the `@handle` is what yields.
             <TouchableOpacity
               accessibilityRole="button"
-              accessibilityLabel={
-                isCollabByline
-                  ? t('collab.viewCollaborators', { defaultValue: 'View collaborators' })
-                  : displayNameOrHandle(user.displayName, user.handle ? `@${user.handle}` : '')
+              accessibilityLabel={t('post.editedIndicator', { defaultValue: 'Edited' })}
+              hitSlop={HIT_SLOP_MD}
+              style={{ flexShrink: 0 }}
+              onPress={() =>
+                toast(t('post.editedToast', { defaultValue: 'This post was edited' }))
               }
-              disabled={isCollabByline ? !onPressCollaborators : !onPressAvatar}
-              onPress={isCollabByline ? onPressCollaborators : onPressAvatar}
-              style={{ marginTop: headerTopOffset, marginRight: 12 }}
             >
-              <AvatarGroup
-                layout="cluster"
-                items={collabAvatars}
-                size={avatarSize}
-                variant={avatarVariant}
-                max={20}
-              />
+              <Ionicons name="pencil" size={12} color={theme.colors.textSecondary} />
             </TouchableOpacity>
-          </ProfileHoverCard>
-        ) : (
-          <ProfileHoverCard username={user.handle} disable={disableHoverCard}>
-            <LiveAvatar
-              userId={authorUserId}
-              source={avatarSource}
-              variant={avatarVariant}
-              size={avatarSize}
-              placeholderColor={placeholderColor}
-              onPress={onPressAvatar}
-              style={{ marginTop: headerTopOffset, marginRight: 12 }}
-            />
-          </ProfileHoverCard>
-        )}
-        <View className="flex-1" style={{ gap: HEADER_CONTENT_GAP }}>
-          {contextTop}
-          <View className="flex-row items-end" style={{ gap: ROW_GAP }}>
-            {/* Bluesky-style identity line: the display name takes the space it
-                needs (no width cap); the @handle gives way first (shrinks
-                aggressively); the trailing "\u00B7 time" never wraps and stays visible.
-                With NO display name the @handle becomes the bold primary (rendered
-                ONCE here \u2014 the trailing muted handle is suppressed), never blank. */}
-            {isCollabByline ? (
-              <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
-                <Text
-                  className="text-foreground text-[15px] font-semibold leading-tight"
-                  style={{ flexShrink: 1, minWidth: 0 }}
-                  numberOfLines={2}
-                >
-                  {headerAuthors.map((a, i) => {
-                    const isLast = i === headerAuthors.length - 1;
-                    // A channel signing with its writer is not a list of
-                    // co-authors: the channel published it and a person wrote
-                    // it, so the byline reads "Notas de Nate by Nate". `and`
-                    // would claim they authored it jointly.
-                    const separator =
-                      i === 0
-                        ? ''
-                        : isLast
-                          ? bylineNamesWriter
-                            ? t('collab.by', { defaultValue: ' by ' })
-                            : t('collab.and', { defaultValue: ' and ' })
-                          : ', ';
-                    // Each first name links to that author's own profile; falls
-                    // back to plain text when the author has no resolvable handle.
-                    const goToProfile =
-                      a.handle && onPressAuthor ? () => onPressAuthor(a.handle) : undefined;
-                    return (
-                      <React.Fragment key={`${a.handle || 'author'}-${i}`}>
-                        {separator}
-                        <Text
-                          onPress={goToProfile}
-                          accessibilityRole={goToProfile ? 'link' : undefined}
-                          accessibilityLabel={goToProfile ? a.firstName : undefined}
-                        >
-                          {a.firstName}
-                        </Text>
-                      </React.Fragment>
-                    );
-                  })}
-                </Text>
-              </View>
-            ) : (
-              // The whole identity line \u2014 name, `@handle` and the federated badge
-              // \u2014 is one hover target, so pointing at ANY part of it previews the
-              // author (the avatar is its own target above).
-              <ProfileHoverCard
-                username={user.handle}
-                disable={disableHoverCard}
-                style={{ minWidth: 0 }}
-              >
-                <View className="flex-row items-end flex-shrink" style={{ minWidth: 0 }}>
-                  <UserName
-                    name={hasDisplayName ? user.displayName : (user.handle ? `@${user.handle}` : undefined)}
-                    verified={user.verified}
-                    onPress={onPressUser}
-                    style={{ container: { flexShrink: 0 } }}
-                  />
-                  {hasDisplayName && user.handle ? (
-                    <Text
-                      className="text-muted-foreground text-[15px] leading-tight"
-                      style={{ flexShrink: 10, minWidth: 0 }}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                    >
-                      {`\u00A0@${user.handle}`}
-                    </Text>
-                  ) : null}
-                  <AccountBadge
-                    isFederated={user.isFederated}
-                    kind={user.kind}
-                    size={13}
-                    className="text-muted-foreground"
-                    containerClassName="self-center ml-1"
-                  />
-                </View>
-              </ProfileHoverCard>
-            )}
-            {timeSlot ?? (!!timeLabel && (
-              <Text
-                className="text-muted-foreground text-[15px] leading-tight web:whitespace-nowrap"
-                style={{ flexShrink: 0 }}
-              >
-                {'\u00B7'} {timeLabel}
-              </Text>
-            ))}
-            {isEdited ? (
-              // `flexShrink: 0` because a 12px glyph has no width to give up and
-              // the identity line's other children are already shrink-ranked
-              // against each other — the `@handle` is what yields.
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel={t('post.editedIndicator', { defaultValue: 'Edited' })}
-                hitSlop={HIT_SLOP_MD}
-                style={{ flexShrink: 0 }}
-                onPress={() =>
-                  toast(t('post.editedToast', { defaultValue: 'This post was edited' }))
-                }
-              >
-                <Ionicons name="pencil" size={12} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            ) : null}
-            {laneSlot}
-            {showBoost && (
-              <View accessibilityRole="image" accessibilityLabel="Reposted">
-                <BoostIcon size={INDICATOR_ICON_SIZE} className="text-muted-foreground" />
-              </View>
-            )}
-            {showReply && (
-              <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
-                <Ionicons name="chatbubble" size={12} color={theme.colors.textSecondary} />
-                <Text className="text-muted-foreground text-xs">Replied</Text>
-              </View>
-            )}
-          </View>
-          {bylineSlot}
-          {children ? <View>{children}</View> : null}
+          ) : null}
+          {laneSlot}
+          {showBoost && (
+            <View accessibilityRole="image" accessibilityLabel="Reposted">
+              <BoostIcon size={INDICATOR_ICON_SIZE} className="text-muted-foreground" />
+            </View>
+          )}
+          {showReply && (
+            <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
+              <Ionicons name="chatbubble" size={12} color={theme.colors.textSecondary} />
+              <Text className="text-muted-foreground text-xs">Replied</Text>
+            </View>
+          )}
         </View>
-        {onPressMenu ? (
-          <TouchableOpacity
-            accessibilityLabel="Post options"
-            hitSlop={HIT_SLOP_MD}
-            className="px-2"
-            style={{ marginTop: headerTopOffset }}
-            onPress={onPressMenu}
-          >
-            <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textSecondary} />
-          </TouchableOpacity>
-        ) : null}
+        {bylineSlot}
+        {children ? <View>{children}</View> : null}
       </View>
+      {onPressMenu ? (
+        <TouchableOpacity
+          accessibilityLabel="Post options"
+          hitSlop={HIT_SLOP_MD}
+          className="px-2"
+          style={{ marginTop: headerTopOffset }}
+          onPress={onPressMenu}
+        >
+          <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textSecondary} />
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 };

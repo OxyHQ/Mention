@@ -52,8 +52,6 @@ interface Props {
   onDownvote?: () => void;
   onSave: () => void;
   onShare: () => void;
-  onLikesPress?: () => void;
-  onBoostsPress?: () => void;
   onInsightsPress?: () => void;
   /**
    * Translate into the reader's own language, or undo it. Absent for a post
@@ -84,8 +82,6 @@ const PostActions: React.FC<Props> = ({
   onDownvote,
   onSave,
   onShare,
-  onLikesPress,
-  onBoostsPress,
   onInsightsPress,
   onTranslate,
   onTranslateLongPress,
@@ -279,18 +275,24 @@ const PostActions: React.FC<Props> = ({
   const summaryParts: string[] = [];
   if (replies > 0) summaryParts.push(`${formatCompactNumber(replies)} ${replies === 1 ? 'reply' : 'replies'}`);
 
+  // A fragment, not a wrapping <View>: the only caller already renders this bar
+  // inside a padded column, so the wrapper laid nothing out. Under NativeWind's
+  // global class-name polyfill every react-native primitive is a
+  // `react-native-css` interop component (two useContext + two useState + an
+  // effect + rule evaluation, className or not), so an inert wrapper is not free
+  // — measured at ~0.012ms per primitive to mount in the jest harness.
   return (
-    <View>
+    <>
       {actionIconRow}
 
-      {/* Engagement summary -- avatar bubbles + "X replies . Y likes" */}
+      {/* Engagement summary -- avatar bubbles + "X replies . Y likes".
+          A plain View: nothing here has ever been pressable. The counters that
+          DO open a list live on <PostDetailStats>, and this bar was rendering a
+          `PressableScale` — a reanimated shared value, an animated style and a
+          Pressability instance per row — permanently `disabled`, because no
+          caller ever passed it a handler. */}
       {summaryParts.length > 0 && (
-        <PressableScale
-          className="flex-row items-center mt-2"
-          style={{ gap: 6 }}
-          onPress={likes > 0 ? (onLikesPress ?? undefined) : undefined}
-          disabled={!onLikesPress && !onBoostsPress}
-        >
+        <View className="flex-row items-center mt-2" style={{ gap: 6 }}>
           {replierAvatars.length > 0 && (
             <View className="flex-row items-center">
               {replierAvatars.slice(0, 3).map((avatarId, i) => (
@@ -311,9 +313,9 @@ const PostActions: React.FC<Props> = ({
           <Text className="text-muted-foreground text-[13px]">
             {summaryParts.join(' \u00B7 ')}
           </Text>
-        </PressableScale>
+        </View>
       )}
-    </View>
+    </>
   );
 };
 
