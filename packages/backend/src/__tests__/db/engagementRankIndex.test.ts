@@ -27,16 +27,24 @@
  * pasted, because a pasted expression would keep agreeing with a pasted index
  * after both had drifted from the config the feed actually ranks by.
  *
- * SEQUENTIAL SCANS ARE DISABLED FOR THE PLAN, and that is what makes this
- * portable rather than what makes it lenient. A CI database holds a handful of
- * posts, and over a handful of rows reading the table and sorting it really is
- * cheaper than any index — so the planner declines, correctly, and the test
- * failed on an empty database while passing on a seeded one. What is under test
- * is whether the ORDER BY is index-SATISFIABLE, which is a property of the two
- * expressions and not of the row count. With the sequential scan taken away, an
- * index that does not match still cannot satisfy the ordering: the plan comes
- * back with a `Sort` node over an index scan, and the assertion below still
- * fails. Disabling the sort too would be the lenient version, and is not done.
+ * THE CHEAP ALTERNATIVES ARE PRICED OUT OF THE PLAN, and that is what makes this
+ * portable rather than what makes it lenient.
+ *
+ * A CI database holds a handful of posts, and over a handful of rows reading the
+ * table and sorting it really is cheaper than any index — so the planner
+ * declines, correctly, and this failed on CI while passing on a seeded bench.
+ * Twice: first against the sequential scan, and then, with that disabled, against
+ * a smaller index plus a three-row sort. Both times the assertion was measuring
+ * the size of the database rather than the property it exists for.
+ *
+ * What is under test is whether the ORDER BY is index-SATISFIABLE, which is a
+ * property of the two expressions and not of the row count. So both escape
+ * routes are priced out. This does NOT weaken the test, and the reason is worth
+ * stating: `enable_sort = off` does not forbid a sort, it prices one at about
+ * 1e10 — so an index that does NOT match this ORDER BY still produces a plan
+ * with a `Sort` node in it, at an absurd cost, and the assertion below still
+ * fails. The only way to come back with no `Sort` and this index's name is for
+ * the stored expression and the query's to parse the same.
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -97,6 +105,7 @@ async function popularScanPlan(): Promise<string> {
   // reach another suite through the pooled connection.
   return getDb().transaction(async (tx) => {
     await tx.execute(sql`set local enable_seqscan = off`);
+    await tx.execute(sql`set local enable_sort = off`);
     const rows = await tx.execute<Record<string, string>>(sql.raw(`explain ${inlined}`));
     return rows.map((row) => Object.values(row)[0]).join('\n');
   });
