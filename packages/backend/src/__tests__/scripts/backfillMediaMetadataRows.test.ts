@@ -31,7 +31,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 
 import { closePostgres, connectPostgres, getDb, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { postMedia } from '../../db/schema/postContent';
+import { postContentVariants, postMedia } from '../../db/schema/postContent';
 import { insertPostRecord } from '../../db/posts/postRepository';
 import { backfillMediaMetadata } from '../../scripts/backfillMediaMetadata';
 import { logger } from '../../utils/logger';
@@ -226,6 +226,93 @@ describe('backfillMediaMetadata', () => {
     // Retried before giving up: a 429 is "ask again later", not a verdict.
     expect(getServiceAssetMetadataByIds.mock.calls.length).toBeGreaterThan(1);
   }, 30_000);
+
+  /**
+   * The repair updates media rows IN PLACE. It used to call
+   * `replacePostContent`, which deletes and re-inserts the post's whole content
+   * graph — right for an edit, wrong for enrichment: it rewrites variants,
+   * attachments, sources and mentions whose contents are not changing, and it
+   * cost ~120 ms per post (230/sec reading, 8-25/sec writing) on a 63,705-post
+   * backlog.
+   *
+   * The row IDENTITY is what proves it: a delete-then-insert mints new ids, so
+   * an unchanged `post_media.id` and an unchanged variant id say the rows
+   * survived rather than being recreated.
+   */
+  it('updates the media rows in place, keeping their identity and their siblings', async () => {
+    const postId = await seedWithMedia([
+      { id: UUID_FILE_ID, type: 'video', alt: 'a caption worth keeping' },
+    ]);
+
+    const before = await db
+      .select({ id: postMedia.id, mediaId: postMedia.mediaId, alt: postMedia.alt })
+      .from(postMedia)
+      .where(eq(postMedia.postId, postId));
+    const variantsBefore = await db
+      .select({ id: postContentVariants.id })
+      .from(postContentVariants)
+      .where(eq(postContentVariants.postId, postId));
+
+    await backfillMediaMetadata({ dryRun: false });
+
+    const after = await db
+      .select({ id: postMedia.id, mediaId: postMedia.mediaId, alt: postMedia.alt, width: postMedia.width })
+      .from(postMedia)
+      .where(eq(postMedia.postId, postId));
+    const variantsAfter = await db
+      .select({ id: postContentVariants.id })
+      .from(postContentVariants)
+      .where(eq(postContentVariants.postId, postId));
+
+    expect(after[0].width).toBe(720);
+    // Same row, not a replacement — and the fields enrichment does not own are
+    // exactly as they were.
+    expect(after[0].id).toBe(before[0].id);
+    expect(after[0].mediaId).toBe(before[0].mediaId);
+    expect(after[0].alt).toBe('a caption worth keeping');
+    // And the rest of the content graph was never in the write's path.
+    expect(variantsAfter.map((v) => v.id)).toEqual(variantsBefore.map((v) => v.id));
+  });
+
+  /**
+   * The write addresses rows by `(post_id, position)`, so a post with several
+   * media must have each row take ITS OWN values — an off-by-one here would be
+   * invisible in the counters and would put a portrait video's dimensions on a
+   * landscape one.
+   */
+  it('gives each position its own values', async () => {
+    const postId = await seedWithMedia([
+      { id: UUID_FILE_ID, type: 'video' },
+      { id: HEX_FILE_ID, type: 'image' },
+    ]);
+    getServiceAssetMetadataByIds.mockImplementation(async (ids: string[]) =>
+      ids.map((id) => ({
+        id,
+        width: id === UUID_FILE_ID ? 720 : 1600,
+        height: id === UUID_FILE_ID ? 1280 : 900,
+        durationSec: id === UUID_FILE_ID ? 12 : undefined,
+        orientation: id === UUID_FILE_ID ? 'portrait' : 'landscape',
+      })),
+    );
+
+    await backfillMediaMetadata({ dryRun: false });
+
+    const rows = await db
+      .select({
+        position: postMedia.position,
+        mediaId: postMedia.mediaId,
+        width: postMedia.width,
+        orientation: postMedia.orientation,
+      })
+      .from(postMedia)
+      .where(eq(postMedia.postId, postId))
+      .orderBy(postMedia.position);
+
+    expect(rows).toEqual([
+      { position: 0, mediaId: UUID_FILE_ID, width: 720, orientation: 'portrait' },
+      { position: 1, mediaId: HEX_FILE_ID, width: 1600, orientation: 'landscape' },
+    ]);
+  });
 
   it('writes nothing on a dry run', async () => {
     const id = await seedWithMedia([{ id: UUID_FILE_ID, type: 'video' }]);
