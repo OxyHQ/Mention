@@ -853,6 +853,13 @@ export const MtnConfig = {
        */
       minAuthors: 3,
       /**
+       * Untagged one-word entities rely only on capitalization, the weakest
+       * naming signal (`Estado`, `City`). Require one extra independent author
+       * for those candidates. Hashtags and complete multi-word names retain the
+       * ordinary floor because the author supplied stronger intent evidence.
+       */
+      minBareEntityAuthors: 4,
+      /**
        * Posts a term needs in the trailing window.
        *
        * Guards the rate estimate itself: below a handful of observations the

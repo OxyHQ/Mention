@@ -41,6 +41,8 @@ export interface TrendCandidate {
   recentVolume: number;
   /** DISTINCT authors behind those posts — the floor is on people, not posts. */
   authorCount: number;
+  /** Candidate-shape-specific breadth floor; absent uses the global floor. */
+  requiredAuthorCount?: number;
   /**
    * Share of ALL posts in the window carrying this term, 0..1.
    *
@@ -135,7 +137,7 @@ export function clearsFloors(candidate: TrendCandidate): boolean {
   const { minVolume, minAuthors, maxDocumentFrequency } = MtnConfig.trending.detection;
 
   if (candidate.volume < minVolume) return false;
-  if (candidate.authorCount < minAuthors) return false;
+  if (candidate.authorCount < (candidate.requiredAuthorCount ?? minAuthors)) return false;
   // Measured only; an unmeasured frequency passes rather than deleting the term.
   return (candidate.documentFrequency ?? 0) <= maxDocumentFrequency;
 }
