@@ -82,7 +82,12 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
   return (
     <View className="flex-1 pb-6 bg-background">
       <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border">
-        <IconButton variant="icon" onPress={onClose} className="mr-1.5 z-[1]">
+        <IconButton
+          variant="icon"
+          onPress={onClose}
+          accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+          className="mr-1.5 z-[1]"
+        >
           <CloseIcon size={20} className="text-foreground" />
         </IconButton>
         <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground pointer-events-none">
@@ -98,6 +103,8 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
           <Item
             key={tag}
             onPress={() => handlePress(tag)}
+            role="option"
+            selected={isActive}
             title={language.nativeName}
             subtitle={
               tag === primaryTag
@@ -112,7 +119,9 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
       })}
 
       <Item
-        onPress={canAdd ? onAdd : undefined}
+        // Item forwards the native press event. Keep the component's callback
+        // contract argument-free so ADD can never be mistaken for EDIT.
+        onPress={canAdd ? () => onAdd() : undefined}
         disabled={!canAdd}
         title={t('compose.languages.add', { defaultValue: 'Add language' })}
         subtitle={
