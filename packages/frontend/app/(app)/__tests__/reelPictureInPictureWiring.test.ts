@@ -1,34 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-/**
- * A control that is painted must be able to act.
- *
- * The reel's Picture-in-Picture button is shown when `showPipButton` says the
- * platform supports it, and pressing it calls
- * `videoViewRef.current?.startPictureInPicture()`. The optional chain is there
- * for a real case — the view can be unmounted — which means a ref that is NEVER
- * attached produces exactly the same nothing: the button paints, the press does
- * nothing, and there is no error and no log. That is how it regressed when the
- * media moved into a shared node and this screen stopped rendering a `VideoView`
- * of its own.
- *
- * So the invariant is a relation between two places, which is why it cannot live
- * in `useReelChrome`: the hook creates the ref and decides the button, but only
- * the screen can attach it, and the hook has no way to find out whether it did.
- *
- * This reads the SOURCE, which is a real limitation and worth stating: it is
- * satisfied by the text `ref={videoViewRef}` appearing anywhere in the file, so
- * it proves the ref is handed to something, not that the something is the video.
- * It fails on the regression it was written for, and a stronger version would
- * render the screen and press the button — worth doing if this ever passes while
- * PiP is still broken.
- */
+/** PiP follows app backgrounding; the reel no longer paints a duplicate control. */
 
 const SCREEN = join(__dirname, '..', '(tabs)', 'videos.tsx');
+const CHROME = join(__dirname, '..', '..', '..', 'hooks', 'useReelChrome.ts');
 
-describe('the reel offers Picture-in-Picture only if it can start it', () => {
+describe('the reel enters Picture-in-Picture automatically', () => {
   const source = readFileSync(SCREEN, 'utf8');
+  const chrome = readFileSync(CHROME, 'utf8');
 
   it('reads a screen that is really there', () => {
     // A vacuity floor: a renamed or moved file must fail here rather than make
@@ -37,10 +17,18 @@ describe('the reel offers Picture-in-Picture only if it can start it', () => {
     expect(source).toContain('useReelChrome');
   });
 
-  it('attaches the ref its PiP handler acts on, whenever it paints the button', () => {
-    const paintsButton = source.includes('showPipButton');
-    if (!paintsButton) return; // nothing offered, nothing to honour
-
+  it('attaches the watched video and delegates automatic entry to expo-video', () => {
     expect(source).toMatch(/ref=\{videoViewRef\}/);
+    expect(source).toContain('allowsPictureInPicture={isWatched}');
+    expect(source).toContain('startsPictureInPictureAutomatically={isWatched}');
+    expect(source).not.toContain('showPipButton');
+    expect(source).not.toContain('startPictureInPicture()');
+  });
+
+  it('keeps PiP and volume controls off the video chrome', () => {
+    expect(source).not.toContain('styles.pipButton');
+    expect(source).not.toContain('styles.muteButton');
+    expect(chrome).toContain('if (muted) {');
+    expect(chrome).toContain('onMutedChange(false)');
   });
 });

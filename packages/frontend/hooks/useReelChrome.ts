@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PanResponder, Platform, type LayoutChangeEvent } from 'react-native';
+import { PanResponder, type LayoutChangeEvent } from 'react-native';
 import { useSharedValue, useAnimatedStyle, withSequence, withTiming } from 'react-native-reanimated';
 import { useEventListener } from 'expo';
-import { VideoView, isPictureInPictureSupported, type VideoPlayer } from 'expo-video';
+import { VideoView, type VideoPlayer } from 'expo-video';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { toast } from '@oxyhq/bloom/toast';
 import { createLogger } from '@oxyhq/core/logger';
 import type { MediaPixelSize } from '@/utils/mediaTypes';
 import { useVideoPlayback } from '@/context/VideoPlaybackContext';
@@ -15,7 +14,7 @@ import { usePipAspectRatio } from '@/hooks/usePipAspectRatio';
  *
  * The reels surface is one component doing two separable jobs: owning a
  * `VideoPlayer`, and driving the ~20 pieces of chrome that sit on top of it —
- * the poster, the double-tap heart, the mute and Picture-in-Picture buttons,
+ * the poster, the double-tap heart, Picture-in-Picture lifecycle,
  * the scrubber, the buffering spinner, the playback gate, the wake lock and the
  * transport registration. Only the first job cares WHERE the player came from.
  *
@@ -34,26 +33,6 @@ import { usePipAspectRatio } from '@/hooks/usePipAspectRatio';
 // Same tag the reels screen logs under: this code did not move surfaces, only
 // files, and its two debug lines should stay findable where they always were.
 const logger = createLogger('VideosScreen');
-
-/**
- * Whether this platform can put a video in the OS Picture-in-Picture window.
- *
- * NOT simply `isPictureInPictureSupported()`: that export goes through
- * expo-video's `NativeVideoModule`, and the module's WEB shim
- * (`NativeVideoModule.web.ts`) defines only `VideoThumbnail`. Calling it in a
- * browser therefore throws `isPictureInPictureSupported is not a function` and
- * takes the whole screen down. `tsc` cannot see it — the types come from the
- * NATIVE module declaration, so the web shim's missing method typechecks fine.
- *
- * On web, feature-detect the DOM API directly (what expo-video's own web
- * `VideoView` does); on native the module call is the real capability check.
- */
-function supportsPictureInPicture(): boolean {
-    if (Platform.OS === 'web') {
-        return typeof document !== 'undefined' && typeof document.exitPictureInPicture === 'function';
-    }
-    return isPictureInPictureSupported();
-}
 
 // Max delay (ms) between two surface taps to register a double-tap-like instead
 // of the single-tap pause toggle.
@@ -539,6 +518,14 @@ export function useReelChrome({
 
     const handleSurfacePress = useCallback(() => {
         if (!isActive || !screenFocused) return;
+        // Web autoplay begins muted. The first intentional tap joins the audio,
+        // matching short-video apps without keeping a floating volume control
+        // over every reel. Once audible, taps retain pause/play behaviour.
+        if (muted) {
+            lastTapRef.current = Date.now();
+            onMutedChange(false);
+            return;
+        }
         const now = Date.now();
         if (now - lastTapRef.current < DOUBLE_TAP_WINDOW_MS) {
             // Double tap: cancel the pending pause toggle and like (like-only).
@@ -561,34 +548,12 @@ export function useReelChrome({
             pausePendingRef.current = null;
             setUserPaused((prev) => !prev);
         }, DOUBLE_TAP_WINDOW_MS);
-    }, [isActive, screenFocused, isLiked, onLikePost, popHeart]);
+    }, [isActive, screenFocused, muted, onMutedChange, isLiked, onLikePost, popHeart]);
 
     const heartStyle = useAnimatedStyle(() => ({
         opacity: heartOpacity.value,
         transform: [{ scale: heartScale.value }],
     }));
-
-    const toggleMute = useCallback(() => {
-        const next = !muted;
-        onMutedChange(next);
-        player.muted = next;
-        if (!next && shouldPlay) {
-            player.play();
-        }
-    }, [muted, shouldPlay, onMutedChange, player]);
-
-    // Manual entry into the OS Picture-in-Picture window. This is the ONLY PiP
-    // affordance on web: browsers never start PiP automatically, and
-    // `nativeControls={false}` means there is no built-in button to fall back on.
-    // `startPictureInPicture` rejects when the platform refuses — another player
-    // already owns the single PiP window, or the native build predates the
-    // `supportsPictureInPicture` config-plugin flag (device support, which
-    // `isPictureInPictureSupported()` reports, is a separate question).
-    const handleStartPictureInPicture = useCallback(() => {
-        videoViewRef.current?.startPictureInPicture().catch(() => {
-            toast(t('videos.picture_in_picture_failed'), { type: 'error' });
-        });
-    }, [t]);
 
     // ── Scrubber / seek ─────────────────────────────────────────────
     // Measured track width drives the gesture→time mapping. PanResponder works on
@@ -636,11 +601,6 @@ export function useReelChrome({
     const showPauseAffordance = isActive && screenFocused && userPaused;
     const showScrubber = isActive && screenFocused;
     const showBufferSpinner = isBuffering && isActive && hasRendered;
-    // Hidden while the OS window is already up (the affordance would be a no-op)
-    // and wherever the platform reports no PiP support — Firefox on web, Android
-    // without `FEATURE_PICTURE_IN_PICTURE`, iOS without `AVPictureInPictureController`.
-    const showPipButton = isWatched && !ownsSession && supportsPictureInPicture();
-
     return {
         videoViewRef,
         isWatched,
@@ -652,9 +612,6 @@ export function useReelChrome({
         heartStyle,
         showPauseAffordance,
         showBufferSpinner,
-        toggleMute,
-        showPipButton,
-        handleStartPictureInPicture,
         showScrubber,
         onTrackLayout,
         panResponder,

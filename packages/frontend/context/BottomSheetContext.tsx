@@ -1,6 +1,7 @@
 import React, { createContext, useState, ReactNode, useRef, useCallback, useMemo } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { BottomSheet, type BottomSheetRef } from "@oxyhq/bloom/bottom-sheet";
+import type { SharedValue } from "react-native-reanimated";
 
 export interface BottomSheetContextProps {
     openBottomSheet: (isOpen: boolean) => void;
@@ -8,6 +9,8 @@ export interface BottomSheetContextProps {
     bottomSheetRef: React.RefObject<BottomSheetRef | null>;
     isBottomSheetOpen?: boolean;
     bottomSheetPresentation?: 'default' | 'videoReplies';
+    bottomSheetProgress?: SharedValue<number>;
+    setBottomSheetProgress?: (progress?: SharedValue<number>) => void;
 }
 
 export const BottomSheetContext = createContext<BottomSheetContextProps>({
@@ -22,6 +25,10 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
     const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
     const [bottomSheetPresentation, setBottomSheetPresentation] = useState<'default' | 'videoReplies'>('default');
     const bottomSheetRef = useRef<BottomSheetRef | null>(null);
+    // The video screen creates this value because it already owns the animated
+    // video styles. Keeping the provider free of a Reanimated runtime import
+    // also lets non-video consumers render it in Node/Jest without Worklets.
+    const [bottomSheetProgress, setBottomSheetProgress] = useState<SharedValue<number>>();
 
     const openBottomSheet = useCallback((isOpen: boolean) => {
         setIsBottomSheetOpen(isOpen);
@@ -49,7 +56,9 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
         bottomSheetRef,
         isBottomSheetOpen,
         bottomSheetPresentation,
-    }), [openBottomSheet, setBottomSheetContent, isBottomSheetOpen, bottomSheetPresentation]);
+        bottomSheetProgress,
+        setBottomSheetProgress,
+    }), [openBottomSheet, setBottomSheetContent, isBottomSheetOpen, bottomSheetPresentation, bottomSheetProgress]);
 
     return (
         <BottomSheetContext.Provider value={contextValue}>
@@ -63,6 +72,7 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
                 ]}
                 scrollable={scrollable}
                 onDismiss={handleDismiss}
+                animatedProgress={bottomSheetPresentation === 'videoReplies' ? bottomSheetProgress : undefined}
                 backdropComponent={bottomSheetPresentation === 'videoReplies'
                     ? ({ onPress }) => <Pressable style={StyleSheet.absoluteFill} onPress={onPress} />
                     : undefined}

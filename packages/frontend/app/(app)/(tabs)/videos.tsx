@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, Pressable, FlatList, Platform, Share, useWindow
 import { Image } from 'expo-image';
 import { toast } from '@oxyhq/bloom/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated from 'react-native-reanimated';
+import Animated, { interpolate, useAnimatedStyle, useSharedValue, type SharedValue } from 'react-native-reanimated';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@oxyhq/bloom/hooks';
@@ -188,14 +188,6 @@ const CAPTION_EXPAND_MIN_CHARS = 80;
 // expo-video timeUpdate cadence (seconds) driving the scrubber.
 const TIME_UPDATE_INTERVAL_S = 0.25;
 
-// Circular overlay buttons (mute, Picture-in-Picture) stack down the top-right
-// corner of the surface, above the video and the tap layer.
-const OVERLAY_BUTTON_SIZE = 44;
-const OVERLAY_BUTTON_TOP = 50;
-const OVERLAY_BUTTON_RIGHT = 16;
-const OVERLAY_BUTTON_GAP = 12;
-const OVERLAY_BUTTON_ICON_SIZE = 22;
-
 // The /videos feed tabs. 'videos' is the ranked "For You" video feed; 'following'
 // is the general following feed filtered down to video posts.
 type VideoFeedTab = 'videos' | 'following';
@@ -269,7 +261,7 @@ interface VideoItemProps {
     bottomBarHeight: number;
     t: (key: string) => string;
     windowHeight: number;
-    compactForReplies: boolean;
+    bottomSheetProgress?: SharedValue<number>;
     // The signed-in viewer's id — hides the on-video follow button on the
     // author's own video.
     viewerId?: string;
@@ -431,9 +423,6 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
         heartStyle,
         showPauseAffordance,
         showBufferSpinner,
-        toggleMute,
-        showPipButton,
-        handleStartPictureInPicture,
         showScrubber,
         onTrackLayout,
         panResponder,
@@ -546,7 +535,9 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
                 style={styles.tapLayer}
                 onPress={handleSurfacePress}
                 accessibilityRole="button"
-                accessibilityLabel={t(userPaused ? 'videos.play' : 'videos.pause')}
+                accessibilityLabel={t(muted
+                    ? 'settings.lanes.muted.unmute'
+                    : userPaused ? 'videos.play' : 'videos.pause')}
             />
 
             {/* Double-tap heart pop — large, centered, non-interactive. */}
@@ -568,26 +559,6 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
                         <SpinnerIcon size={32} className="text-white" />
                     </View>
                 </View>
-            )}
-
-            <Pressable style={styles.muteButton} onPress={toggleMute} hitSlop={HIT_SLOP_LG}>
-                <View style={styles.overlayButtonInner}>
-                    <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={OVERLAY_BUTTON_ICON_SIZE} color="white" />
-                </View>
-            </Pressable>
-
-            {showPipButton && (
-                <Pressable
-                    style={styles.pipButton}
-                    onPress={handleStartPictureInPicture}
-                    hitSlop={HIT_SLOP_LG}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('videos.picture_in_picture')}
-                >
-                    <View style={styles.overlayButtonInner}>
-                        <Ionicons name="browsers-outline" size={OVERLAY_BUTTON_ICON_SIZE} color="white" />
-                    </View>
-                </Pressable>
             )}
 
             {showScrubber && (
@@ -701,7 +672,7 @@ const VideoItem = memo<VideoItemProps>(({
     bottomBarHeight,
     t,
     windowHeight,
-    compactForReplies,
+    bottomSheetProgress,
     viewerId,
     ownsSession,
     sessionActive,
@@ -758,19 +729,23 @@ const VideoItem = memo<VideoItemProps>(({
     const canRenderPlayer = isNear && !videoError && item.videoUrl.length > 0;
     const showOnVideoFollow = Boolean(item.user?.id) && item.user?.id !== viewerId;
     const showCaptionToggle = postText.length > CAPTION_EXPAND_MIN_CHARS;
+    const repliesTransformStyle = useAnimatedStyle(() => {
+        const progress = bottomSheetProgress?.value ?? 0;
+        return {
+            transform: [
+                { translateY: -(windowHeight * 0.31 * progress) },
+                { scale: interpolate(progress, [0, 1], [1, 0.38]) },
+            ],
+        };
+    }, [bottomSheetProgress, windowHeight]);
 
     return (
-        <View
+        <Animated.View
             className={cn(WEB_SLIDE_HEIGHT_CLASS, 'web:[scroll-snap-align:start]')}
             style={[
                 styles.videoContainer,
                 Platform.OS === 'web' ? null : { height: windowHeight },
-                compactForReplies ? {
-                    transform: [
-                        { translateY: -(windowHeight * 0.31) },
-                        { scale: 0.38 },
-                    ],
-                } : null,
+                repliesTransformStyle,
             ]}
         >
             {canRenderPlayer ? (
@@ -947,7 +922,7 @@ const VideoItem = memo<VideoItemProps>(({
                     />
                 </View>
             </View>
-        </View>
+        </Animated.View>
     );
 });
 
@@ -1030,10 +1005,14 @@ export default function VideosScreen() {
     const {
         openBottomSheet,
         setBottomSheetContent,
-        isBottomSheetOpen,
-        bottomSheetPresentation,
+        setBottomSheetProgress,
     } = useContext(BottomSheetContext);
-    const compactForReplies = isBottomSheetOpen === true && bottomSheetPresentation === 'videoReplies';
+    const bottomSheetProgress = useSharedValue(0);
+
+    useEffect(() => {
+        setBottomSheetProgress?.(bottomSheetProgress);
+        return () => setBottomSheetProgress?.(undefined);
+    }, [bottomSheetProgress, setBottomSheetProgress]);
 
     const [posts, setPosts] = useState<VideoPost[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -1867,7 +1846,7 @@ export default function VideosScreen() {
             bottomBarHeight={bottomBarHeight}
             t={t}
             windowHeight={WINDOW_HEIGHT}
-            compactForReplies={compactForReplies}
+            bottomSheetProgress={bottomSheetProgress}
             viewerId={viewerId}
             ownsSession={item.id === pipOwnerId}
             sessionActive={pipOwnerId !== null}
@@ -1876,7 +1855,7 @@ export default function VideosScreen() {
             onSessionEnd={endPipSession}
             onRegisterTransportSeek={registerTransportSeek}
         />
-    ), [currentVisibleIndex, isFocused, theme, handleLike, handleComment, handleBoost, handleSave, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT, compactForReplies, viewerId, pipOwnerId, sessionSource, startPipSession, endPipSession, registerTransportSeek]);
+    ), [currentVisibleIndex, isFocused, theme, handleLike, handleComment, handleBoost, handleSave, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT, bottomSheetProgress, viewerId, pipOwnerId, sessionSource, startPipSession, endPipSession, registerTransportSeek]);
 
     const keyExtractor = useCallback((item: VideoPost) => item.id, []);
 
@@ -1965,7 +1944,7 @@ export default function VideosScreen() {
                                         bottomBarHeight={bottomBarHeight}
                                         t={t}
                                         windowHeight={WINDOW_HEIGHT}
-                                        compactForReplies={compactForReplies}
+                                        bottomSheetProgress={bottomSheetProgress}
                                         viewerId={viewerId}
                                         ownsSession={item.id === pipOwnerId}
                                         sessionActive={pipOwnerId !== null}
@@ -2066,9 +2045,6 @@ interface VideosStyles {
     scrubberTrackActive: ViewStyle;
     scrubberFill: ViewStyle;
     errorBadge: ViewStyle;
-    muteButton: ViewStyle;
-    pipButton: ViewStyle;
-    overlayButtonInner: ViewStyle;
     overlay: ViewStyle;
     gradientOverlay: ViewStyle;
     rightActions: ViewStyle;
@@ -2219,34 +2195,6 @@ const styles = StyleSheet.create<VideosStyles>({
         borderRadius: 16,
         backgroundColor: 'rgba(0, 0, 0, 0.6)',
         zIndex: 11,
-    },
-    muteButton: {
-        position: 'absolute',
-        top: OVERLAY_BUTTON_TOP,
-        right: OVERLAY_BUTTON_RIGHT,
-        zIndex: 10,
-    },
-    pipButton: {
-        position: 'absolute',
-        // Stacked directly under the mute button, same column.
-        top: OVERLAY_BUTTON_TOP + OVERLAY_BUTTON_SIZE + OVERLAY_BUTTON_GAP,
-        right: OVERLAY_BUTTON_RIGHT,
-        zIndex: 10,
-    },
-    overlayButtonInner: {
-        width: OVERLAY_BUTTON_SIZE,
-        height: OVERLAY_BUTTON_SIZE,
-        borderRadius: OVERLAY_BUTTON_SIZE / 2,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 4,
     },
     overlay: {
         position: 'absolute',
