@@ -310,6 +310,20 @@ export const postMedia = pgTable(
     orientation: text({ enum: MEDIA_ORIENTATIONS }),
     aspectRatio: doublePrecision(),
     mime: text(),
+    /**
+     * When Oxy finished transcoding this video's adaptive HLS ladder.
+     *
+     * NULL means "no adaptive stream", and the DTO resolver reads it that way:
+     * it emits `hlsUrl` only for a stamped row. The manifest URL is derivable
+     * from the media id, so the resolver used to emit it unconditionally — and
+     * because transcoding is asynchronous and swallows per-rendition failures,
+     * for many videos it pointed at nothing. Every play of such a video paid a
+     * 403, a player error and a fallback to the progressive original.
+     *
+     * Written by the reconciler from Oxy's own record, never inferred from the
+     * media's shape: only Oxy knows whether the transcode finished.
+     */
+    hlsReadyAt: timestamptz(),
     /** The origin URL, kept when the media cache rewrote `media_id` to a file id. */
     remoteUrl: text(),
     cachedFromFederation: boolean(),
@@ -412,6 +426,8 @@ export const postVariantMedia = pgTable(
     orientation: text({ enum: MEDIA_ORIENTATIONS }),
     aspectRatio: doublePrecision(),
     mime: text(),
+    /** Same contract as `post_media.hls_ready_at` — see the doc there. */
+    hlsReadyAt: timestamptz(),
     remoteUrl: text(),
     cachedFromFederation: boolean(),
   },

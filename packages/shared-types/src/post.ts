@@ -108,6 +108,22 @@ export interface MediaItem {
   aspectRatio?: number;
   /** MIME type when known at ingest. */
   mime?: string;
+  /**
+   * When this video's adaptive HLS ladder finished transcoding, ISO-8601.
+   *
+   * ABSENT MEANS "NO ADAPTIVE STREAM", and the resolver treats it as such: it
+   * emits `hlsUrl` only when this is set. That is the whole point of the field.
+   * The manifest URL is derivable from the id (`?variant=hls_master`), so the
+   * resolver used to emit it for every video — but Oxy transcodes
+   * asynchronously and swallows per-rendition failures, so for many videos the
+   * ladder is simply not there. The player learned that by failing: 403 on the
+   * manifest, a playback error, and a fallback to the progressive original,
+   * once per video per play. Measured on a Pixel 10 Pro.
+   *
+   * Filled from Oxy's own record of the transcode (`POST
+   * /assets/service/by-ids` reports `hlsReadyAt`), never guessed here.
+   */
+  hlsReadyAt?: string;
   /** Original remote URL when federated media was cached to an Oxy file id. */
   remoteUrl?: string;
   /** True when this item's id was rewritten from a remote URL to an Oxy asset. */

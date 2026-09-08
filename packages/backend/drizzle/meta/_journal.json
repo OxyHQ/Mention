@@ -239,6 +239,13 @@
       "when": 1788892022942,
       "tag": "0033_a_quote_without_its_subject_waits",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1788894427893,
+      "tag": "0034_a_ladder_we_can_prove_exists",
+      "breakpoints": true
     }
   ]
 }
