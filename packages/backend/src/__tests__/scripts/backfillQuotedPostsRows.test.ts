@@ -284,6 +284,54 @@ describe('quoted-post backfill — the rows, not the call', () => {
     expect(await quoteOfRow(candidateId)).toBeNull();
   });
 
+  it('PROMOTES a withheld post in the same write that links it', async () => {
+    // The property that makes withholding defensible rather than a slow delete.
+    // A post is `incomplete` precisely because its quote could not be produced,
+    // so producing it is the condition that ends the withholding — and it has to
+    // happen in the SAME statement, or a failure between the two writes leaves
+    // the post linked and permanently invisible.
+    const quotedId = await seedQuotedPost();
+    const withheldId = await seedCandidate();
+    await getDb().update(posts).set({ status: 'incomplete' }).where(eq(posts.id, withheldId));
+    respondWith({ quoteUri: QUOTED_URI });
+
+    const result = await backfillQuotedPosts({ dryRun: false });
+
+    const [row] = await getDb()
+      .select({ quoteOf: posts.quoteOf, status: posts.status })
+      .from(posts)
+      .where(eq(posts.id, withheldId));
+    expect(row).toEqual({ quoteOf: quotedId, status: 'published' });
+    expect(result.promoted).toBe(1);
+  });
+
+  it('CONTROL: an already-published candidate is linked WITHOUT being promoted', async () => {
+    // `promoted` must count returns to circulation, not links. Counting every
+    // write would make the number that proves reversibility unable to fail.
+    await seedQuotedPost();
+    const publishedId = await seedCandidate();
+    respondWith({ quoteUri: QUOTED_URI });
+
+    const result = await backfillQuotedPosts({ dryRun: false });
+
+    expect(await quoteOfRow(publishedId)).toBeTruthy();
+    expect(result.promoted).toBe(0);
+  });
+
+  it('SELECTS a withheld post even when its body carries no `RE:` marker at all', async () => {
+    // `status = 'incomplete'` is the better of the two signals and this is why:
+    // the body pattern is a heuristic for legacy rows, while the state is a fact
+    // ingest recorded. A withheld post must be reachable on the state alone.
+    const quotedId = await seedQuotedPost();
+    const withheldId = await seedCandidate('no rendered marker anywhere in this body');
+    await getDb().update(posts).set({ status: 'incomplete' }).where(eq(posts.id, withheldId));
+    respondWith({ quoteUri: QUOTED_URI });
+
+    await backfillQuotedPosts({ dryRun: false });
+
+    expect(await quoteOfRow(withheldId)).toBe(quotedId);
+  });
+
   it('is idempotent — a linked post is no longer a candidate', async () => {
     await seedQuotedPost();
     await seedCandidate();
