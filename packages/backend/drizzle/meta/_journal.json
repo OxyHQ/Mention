@@ -232,6 +232,13 @@
       "when": 1788873169275,
       "tag": "0032_glamorous_prima",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1788892022942,
+      "tag": "0033_a_quote_without_its_subject_waits",
+      "breakpoints": true
     }
   ]
 }
