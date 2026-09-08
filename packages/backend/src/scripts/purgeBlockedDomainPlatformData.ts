@@ -80,7 +80,6 @@
  *     bun packages/backend/dist/src/scripts/purgeBlockedDomainPlatformData.js
  */
 
-import { isOxyId } from '@mention/shared-types';
 import { canonicalFederationHost } from '@oxyhq/federation';
 import { getOxyServiceCredentials } from '../config';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
@@ -312,9 +311,19 @@ export function parseDomainPurgePass(raw: unknown): DomainPurgePass {
     throw new MalformedPurgeResponseError('"done" is not a boolean');
   }
 
+  // A cursor is OPAQUE to us: Oxy chooses its encoding, and this script only
+  // hands it back on the next page. So the check is that there is a value to
+  // hand back — non-null, a string, not blank — and nothing about its shape.
+  //
+  // It used to require a 24-char hex ObjectId, which stopped being what Oxy
+  // sends when its ids became uuid v7: a perfectly good cursor was then read as
+  // a malformed response and the whole domain aborted. Any shape assertion here
+  // re-arms that, including one widened to today's two shapes — the next
+  // encoding Oxy picks (a compound or signed token, say) breaks it again, and
+  // the failure is loud but wrong.
   const nextCursor = body.nextCursor ?? null;
-  if (nextCursor !== null && (typeof nextCursor !== 'string' || !isOxyId(nextCursor))) {
-    throw new MalformedPurgeResponseError('"nextCursor" is neither null nor an Oxy id');
+  if (nextCursor !== null && (typeof nextCursor !== 'string' || nextCursor.trim().length === 0)) {
+    throw new MalformedPurgeResponseError('"nextCursor" is neither null nor a non-empty string');
   }
 
   const retained = body.actorsRetained;
@@ -474,10 +483,13 @@ async function resumeCursor(
 
   const stored = await readAdminScriptCursor(SCRIPT_NAME, domain);
   if (!stored) return { scanned: 0 };
-  if (!isOxyId(stored.cursor)) {
-    // Only this script writes these rows, and only ever from a `nextCursor`, so
-    // this is unreachable short of hand-editing. Sweeping the domain from the
-    // top is the safe reading: idempotent, and it cannot skip an actor.
+  if (stored.cursor.trim().length === 0) {
+    // Only this script writes these rows, and only ever from a validated
+    // `nextCursor`, so this is unreachable short of hand-editing. Sweeping the
+    // domain from the top is the safe reading: idempotent, and it cannot skip an
+    // actor. Blankness is the only thing worth checking — the cursor's shape is
+    // Oxy's business, and asserting it here is what aborted every domain once
+    // Oxy's ids changed.
     logger.warn(`[${SCRIPT_NAME}] ignoring an unreadable resume cursor`, { domain });
     return { scanned: 0 };
   }

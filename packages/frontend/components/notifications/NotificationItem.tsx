@@ -16,7 +16,7 @@ import { useAuth } from '@oxyhq/services/ui/client';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import type { User } from '@oxyhq/core';
-import { isOxyId, type PostUser } from '@mention/shared-types';
+import type { PostUser } from '@mention/shared-types';
 
 import UserName from '../UserName';
 import { LinkifiedText } from '../common/LinkifiedText';
@@ -68,8 +68,15 @@ const COLLAPSED_STRIP_LIMIT = 3;
  * `@handle` muted, exactly like the feed's `PostHeader`.
  */
 interface ResolvedActor {
-  id: string;
-  /** Ghost-guarded display name — never a raw 24-hex id. `undefined` when none. */
+  /** The actor's Oxy account id, ABSENT when the notification carried none. */
+  id?: string;
+  /**
+   * The actor's display name, ABSENT when nothing resolved one — the byline then
+   * falls to `@handle` and finally to a neutral label. It is never a raw id:
+   * the server's `toPopulatedActor` drops a visual field equal to the account's
+   * own id, and `groupNotifications` no longer substitutes the id for a missing
+   * name, so no id-shaped-text check is needed anywhere on this path.
+   */
   displayName?: string;
   /** Raw Oxy username (for the collab `PostUser` shape). */
   username?: string;
@@ -82,19 +89,6 @@ interface ResolvedActor {
   kind?: PostUser['kind'];
 }
 
-/**
- * Drop id-like display names (ghost-handle rule): `groupNotifications` falls back
- * `name = actorId` when no display name resolved, so an id-like or empty name
- * means "no name" — the byline then falls to `@handle`, never the raw id.
- */
-function ghostGuardedName(rawName: string | undefined | null, actorId: string | undefined): string | undefined {
-  const name = rawName?.trim();
-  if (!name) return undefined;
-  // A bare id is never a display name, whichever shape Oxy minted it in.
-  if (isOxyId(name)) return undefined;
-  if (actorId && name === actorId) return undefined;
-  return name;
-}
 
 /**
  * The cached Oxy user a row merges over its raw actor, plus whatever a profile
@@ -161,8 +155,11 @@ function correctedIdentity(
 function mergeActor(actor: GroupedActor | undefined, cached: CachedIdentity | undefined): ResolvedActor {
   const username = cached?.username ?? actor?.username;
   return {
-    id: actor?.id ?? cached?.id ?? '',
-    displayName: ghostGuardedName(cached?.name?.displayName ?? actor?.name, actor?.id),
+    id: actor?.id ?? cached?.id,
+    // No id-shaped-name guard: neither source can be an id any more. The cache
+    // carries a real display name or none, and `groupNotifications` no longer
+    // substitutes the actor id for a missing one.
+    displayName: (cached?.name?.displayName ?? actor?.name)?.trim() || undefined,
     username,
     handle: normalizedHandle(username, cached),
     avatar: cached?.avatar ?? actor?.avatar ?? undefined,
@@ -265,7 +262,11 @@ const AvatarStrip: React.FC<{ actors: ResolvedActor[]; totalActors: number }> = 
         // else is NativeWind. The -8px overlap for every avatar after the first
         // is `-ml-2`.
         <View
-          key={actor.id}
+          // Position, not identity: an actor with no id shares `undefined` with
+          // every other, and two such actors in one strip would collide on the
+          // key. The strip is a fixed slice of a stable array, so the index IS
+          // the stable identity here.
+          key={actor.id ?? `slot-${index}`}
           className={cn(index > 0 && '-ml-2')}
           style={{ zIndex: shown.length - index }}
         >
@@ -351,10 +352,11 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   // Resolve the PRIMARY actor from the Oxy user cache reactively (the screen
   // prewarms it via `prewarmUsersByIds`). Cached fields are merged over the raw
   // `actors[0]`, so names + real avatars appear even when the backend's
-  // `actorId_populated` is empty. Gate on a real Oxy id (the same gate the
-  // prewarm uses) so a non-Oxy id (e.g. the "unknown" floor) never fires a stray
-  // per-row `getUserById` on a cache miss.
-  const primaryOxyId = primaryActor?.id && isOxyId(primaryActor.id) ? primaryActor.id : undefined;
+  // `actorId_populated` is empty. An actor with no id is a malformed payload and
+  // there is nothing to look up — but that is now the ONLY thing this skips: the
+  // gate used to also be an id-SHAPE test, which is what silently stopped
+  // resolving every account created after Oxy's ids became uuid v7.
+  const primaryOxyId = primaryActor?.id;
   const cachedPrimary = useUserById(primaryOxyId);
   const knownIdentities = useKnownIdentities();
   const resolvedPrimary = useMemo(
@@ -382,10 +384,15 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
           ? resolvedPrimary
           : mergeActor(
               actor,
-              correctedIdentity(
-                queryClient.getQueryData<User>(sdkQueryKeys.users.detail(actor.id)),
-                knownIdentities.get(actor.id),
-              ),
+              // An actor with no id has no cache entry and no edit to lay over
+              // it; reading the cache under an `undefined` key would ask for a
+              // query key that cannot exist.
+              actor.id
+                ? correctedIdentity(
+                    queryClient.getQueryData<User>(sdkQueryKeys.users.detail(actor.id)),
+                    knownIdentities.get(actor.id),
+                  )
+                : undefined,
             ),
       ),
     [item.actors, resolvedPrimary, queryClient, knownIdentities],
@@ -429,8 +436,12 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   const channelLabel = useMemo(() => {
     const recipient = item.leadNotification.recipientId_populated;
     if (!recipient) return undefined;
-    const id = recipient.id ?? recipient._id;
-    const displayName = ghostGuardedName(recipient.name?.displayName, id);
+    // No id-guard here either. `toPopulatedActor` on the server builds this
+    // field through `safeVisualValue`, which drops any value EQUAL to the
+    // account's own id and falls back to "Unknown user" — it compares against
+    // the id it holds rather than guessing from the text's shape, so the client
+    // has nothing left to re-check.
+    const displayName = recipient.name?.displayName?.trim();
     if (displayName) return displayName;
     return recipient.username ? `@${recipient.username}` : undefined;
   }, [item.leadNotification.recipientId_populated]);
@@ -540,12 +551,24 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
     if (href) router.push(href);
   }, [router]);
 
-  const inviter = useMemo<PostUser>(() => ({
-    id: resolvedPrimary.id,
-    username: resolvedPrimary.username,
-    name: { displayName: resolvedPrimary.displayName ?? bylineName },
-    avatar: resolvedPrimary.avatar ?? null,
-  }), [resolvedPrimary, bylineName]);
+  /**
+   * The inviter as the canonical `PostUser`, or ABSENT when the actor carried no
+   * id. `PostUser.id` is required because a real account always has one, and an
+   * empty string in its place would be the same sentinel this path just stopped
+   * telling itself: every consumer would have to decide whether the id it holds
+   * is real. An invite with no identified inviter cannot be acted on, so the
+   * sheet does not open — see `openAcceptSheet`.
+   */
+  const inviter = useMemo<PostUser | undefined>(() => {
+    const id = resolvedPrimary.id;
+    if (!id) return undefined;
+    return {
+      id,
+      username: resolvedPrimary.username,
+      name: { displayName: resolvedPrimary.displayName ?? bylineName },
+      avatar: resolvedPrimary.avatar ?? null,
+    };
+  }, [resolvedPrimary, bylineName]);
 
   const runAccept = useCallback(async () => {
     if (!postId) return;
@@ -600,6 +623,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   }, [postId, queryClient, cachePosts, onMarkAsRead, item.notificationIds, bottomSheet, t, user?.id]);
 
   const openAcceptSheet = useCallback(() => {
+    if (!inviter) return;
     bottomSheet.setBottomSheetContent(
       <CollabAcceptSheet
         inviter={inviter}
@@ -715,8 +739,8 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
               <View className="mt-1 gap-2">
                 {expanded ? (
                   <View className="gap-2">
-                    {resolvedActors.map((actor) => (
-                      <ProfileHoverCard key={actor.id} username={actor.handle}>
+                    {resolvedActors.map((actor, index) => (
+                      <ProfileHoverCard key={actor.id ?? `slot-${index}`} username={actor.handle}>
                         <Pressable
                           onPress={() => openActorProfile(actor)}
                           className="flex-row items-center gap-2"

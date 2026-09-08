@@ -27,8 +27,28 @@ export interface GroupedNotification {
   createdAt: string;
   /** Up to 3 most-recent actor objects (for avatar display) */
   actors: {
-    id: string;
-    name: string;
+    /**
+     * The actor's Oxy account id. ABSENT when the notification carried none —
+     * which is a malformed payload (`notifications.actor_id` is `NOT NULL` and
+     * holds an Oxy account id), not a state with a meaning of its own.
+     *
+     * It used to be the string `'unknown'` in that case, and a sentinel in an id
+     * field is not free: every consumer then has to decide whether the id it is
+     * holding is real, and the only way left to ask is the SHAPE. Three sites
+     * did exactly that with a Mongo ObjectId regex, so when Oxy's ids became
+     * uuid v7 they answered "not real" for every account created since — the
+     * notification row stopped resolving its actor's name and avatar entirely.
+     * Absence is the honest encoding, and it cannot go stale.
+     */
+    id?: string;
+    /**
+     * The actor's display name. ABSENT when nothing resolved one — never the id
+     * as a stand-in, which is the same trade: it would put a value into a field
+     * whose consumers must then guess whether it is a name. The row falls to
+     * `@handle`, then to a neutral label — the ghost-handle rule the profile
+     * surfaces apply by checking for an empty username, not by inspecting text.
+     */
+    name?: string;
     username?: string;
     avatar?: string;
   }[];
@@ -166,26 +186,25 @@ function objectId(value: unknown): string | undefined {
 
 function extractActor(n: TRawNotification): GroupedActor {
   const populated = n.actorId_populated;
-  const actorId = objectId(n.actorId) || 'unknown';
+  const id = objectId(n.actorId);
 
   if (populated) {
     const populatedName = objectValue(populated.name);
-    // Render the canonical `name.displayName` directly (profile-identity
-    // contract); the backend guarantees it on the embedded actor. `actorId` is
-    // the never-blank handle floor, NOT a name recompute.
-    const name = stringValue(populatedName?.displayName) || actorId;
+    // The canonical `name.displayName` directly (profile-identity contract);
+    // the backend guarantees it on the embedded actor. Absent stays absent —
+    // the row resolves the name from the user cache, or falls to `@handle`.
     return {
-      id: actorId,
-      name,
+      id,
+      name: stringValue(populatedName?.displayName),
       username: populated.username,
       avatar: populated.avatar,
     };
   }
 
-  // `actorId` is a bare Oxy user id — the backend models it as a `String` and
-  // never populates it (that is what `actorId_populated` above is for). The
-  // handle is the never-blank floor, never a name recompute.
-  return { id: actorId, name: actorId };
+  // `actorId` is a bare Oxy user id — the backend models it as a `text NOT NULL`
+  // and never populates it (that is what `actorId_populated` above is for), so
+  // there is nothing here to name the actor with.
+  return { id };
 }
 
 function toSingle(n: TRawNotification): GroupedNotification {
