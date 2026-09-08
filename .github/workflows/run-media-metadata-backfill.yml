@@ -350,6 +350,20 @@ jobs:
                 echo "On a dry run, \`updated\` IS the size of the backlog — nothing was written."
               } >> "$GITHUB_STEP_SUMMARY"
               ;;
+            75)
+              # EXIT_INCOMPLETE in backfillMediaMetadata.ts.
+              echo "::warning::Backfill FINISHED with posts unresolved — every write it made is committed. Re-run to retry the rest."
+              {
+                echo "### Media-metadata backfill: FINISHED, SOME UNRESOLVED"
+                echo ""
+                echo "This is **not** a failure. The sweep reached the end of the candidate set; some posts"
+                echo "could not be resolved this pass, which in practice means Oxy answered 429 to their asset"
+                echo "lookups after the bounded retries. Those posts never left the candidate set, so a re-run"
+                echo "costs one pass over what is left."
+                echo ""
+                echo "The \`unresolved\` count is on the \`[backfillMediaMetadata] complete\` line above."
+              } >> "$GITHUB_STEP_SUMMARY"
+              ;;
             143)
               echo "::warning::Backfill was stopped at its 3300s bound with candidates remaining — every write it made is committed. Re-run to continue."
               {
@@ -365,7 +379,7 @@ jobs:
               } >> "$GITHUB_STEP_SUMMARY"
               ;;
             *)
-              echo "::error::Backfill task exited with $EXIT_CODE — a real failure, not a partial sweep. Any code other than 0 or 143 (including 'None', meaning the task stopped without reporting one) means the script threw or the task never ran; check ECS."
+              echo "::error::Backfill task exited with $EXIT_CODE — a real failure, not a partial sweep. Any code other than 0, 75 or 143 (including 'None', meaning the task stopped without reporting one) means the script threw or the task never ran; check ECS."
               {
                 echo "### Media-metadata backfill: FAILED"
                 echo ""

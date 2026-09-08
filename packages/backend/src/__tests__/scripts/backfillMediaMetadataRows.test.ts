@@ -185,6 +185,48 @@ describe('backfillMediaMetadata', () => {
     progress.mockRestore();
   });
 
+  /**
+   * ONE Oxy round trip for the whole page, not one per post.
+   *
+   * The sweep called `enrichFromOxy` inside the row loop, so a page of 200
+   * posts was 200 requests to `/assets/service/by-ids` carrying one to four ids
+   * each. Oxy rate-limits its service endpoints and answered the first
+   * production run with a wall of 429s — each of which left that post
+   * un-enriched while the counters recorded it as "nothing to do".
+   */
+  it('asks Oxy once for the whole page, not once per post', async () => {
+    await seedWithMedia([{ id: UUID_FILE_ID, type: 'video' }]);
+    await seedWithMedia([{ id: HEX_FILE_ID, type: 'image' }]);
+    await seedWithMedia([{ id: `${UUID_FILE_ID}-b`, type: 'video' }]);
+
+    const result = await backfillMediaMetadata({ dryRun: true });
+
+    expect(result.scanned).toBe(3);
+    expect(getServiceAssetMetadataByIds).toHaveBeenCalledTimes(1);
+    expect(getServiceAssetMetadataByIds.mock.calls[0][0]).toHaveLength(3);
+  });
+
+  /**
+   * A throttled page is not a clean page. `enrichFromOxy` swallows the failure
+   * and returns the items unchanged, which is indistinguishable from "Oxy has
+   * nothing to add" — so the sweep used to count those posts as `skipped` and
+   * report a clean run over a set it had failed to resolve.
+   */
+  it('reports posts it could not resolve instead of counting them clean', async () => {
+    await seedWithMedia([{ id: UUID_FILE_ID, type: 'video' }]);
+    getServiceAssetMetadataByIds.mockRejectedValue(
+      new Error('Could not resolve asset metadata for 1 id(s) — status 429'),
+    );
+
+    const result = await backfillMediaMetadata({ dryRun: true });
+
+    expect(result.unresolved).toBe(1);
+    expect(result.updated).toBe(0);
+    expect(result.skipped).toBe(0);
+    // Retried before giving up: a 429 is "ask again later", not a verdict.
+    expect(getServiceAssetMetadataByIds.mock.calls.length).toBeGreaterThan(1);
+  }, 30_000);
+
   it('writes nothing on a dry run', async () => {
     const id = await seedWithMedia([{ id: UUID_FILE_ID, type: 'video' }]);
 
