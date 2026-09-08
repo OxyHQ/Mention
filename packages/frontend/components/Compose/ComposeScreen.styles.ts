@@ -103,11 +103,10 @@ export const composeStyles = StyleSheet.create({
   /* header and icon tweaks */
   headerTitle: {
     position: 'absolute',
-    // Not `left: 0, right: 0`: the buttons flanking it are 40pt wide and the
-    // centred label ran underneath them — invisible until the colour was fixed,
-    // and clipped once it was.
-    left: 56,
-    right: 156,
+    // Centre against the header itself, never against whatever uneven number of
+    // actions happens to be visible on either side.
+    left: 0,
+    right: 0,
     textAlign: 'center',
     fontSize: 18,
     fontWeight: '700',
@@ -117,12 +116,14 @@ export const composeStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 'auto',
+    zIndex: 1,
   },
   iconBtn: {
     marginLeft: 8,
   },
   backBtn: {
     marginRight: 6,
+    zIndex: 1,
   },
 
   /* bottom bar and floating post button */

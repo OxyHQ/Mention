@@ -85,6 +85,8 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
         <Item
           onPress={isTaken ? undefined : () => handleSelect(item.tag)}
           disabled={isTaken}
+          role="option"
+          selected={isCurrent}
           title={item.nativeName}
           subtitle={
             isTaken
@@ -107,7 +109,12 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
   return (
     <View className="flex-1 pb-6 bg-background">
       <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border">
-        <IconButton variant="icon" onPress={onClose} className="mr-1.5 z-[1]">
+        <IconButton
+          variant="icon"
+          onPress={onClose}
+          accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+          className="mr-1.5 z-[1]"
+        >
           <CloseIcon size={20} className="text-foreground" />
         </IconButton>
         <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground pointer-events-none">
@@ -120,6 +127,7 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
         <TextInput
           className="text-sm text-foreground"
           placeholder={t('compose.languages.searchPlaceholder', { defaultValue: 'Search languages' })}
+          accessibilityLabel={t('compose.languages.searchPlaceholder', { defaultValue: 'Search languages' })}
           placeholderTextColor={theme.colors.textTertiary}
           value={query}
           onChangeText={setQuery}

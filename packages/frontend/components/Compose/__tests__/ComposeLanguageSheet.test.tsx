@@ -43,17 +43,19 @@ jest.mock('@oxyhq/bloom/item', () => {
       subtitle,
       onPress,
       disabled,
+      selected,
       trailing,
     }: {
       title: string;
       subtitle?: string;
       onPress?: () => void;
       disabled?: boolean;
+      selected?: boolean;
       trailing?: React.ReactNode;
     }) =>
       React.createElement(
         RNTouchable,
-        { onPress, disabled, accessibilityState: { disabled: Boolean(disabled) } },
+        { onPress, disabled, accessibilityState: { disabled: Boolean(disabled), selected } },
         React.createElement(RNText, null, title),
         subtitle ? React.createElement(RNText, null, subtitle) : null,
         trailing ?? null,
@@ -186,10 +188,12 @@ describe('ComposeLanguageSheet', () => {
       renderer.root
         .findAllByType(TouchableOpacity)
         .find((row) => row.findAllByType(Text)[0]?.props.children === 'Add language')
-        ?.props.onPress();
+        ?.props.onPress({ nativeEvent: { target: 1 } });
     });
 
-    expect(onAdd).toHaveBeenCalled();
+    // React Native supplies a press event. The callback's contract is empty so
+    // ADD cannot be confused with the tag-bearing EDIT path upstream.
+    expect(onAdd).toHaveBeenCalledWith();
     expect(onClose).not.toHaveBeenCalled();
   });
 
@@ -198,6 +202,11 @@ describe('ComposeLanguageSheet', () => {
 
     const marks = renderer.root.findAllByType(CheckCircleIcon);
     expect(marks).toHaveLength(1);
+    const selectedRows = renderer.root
+      .findAllByType(TouchableOpacity)
+      .filter((row) => row.props.accessibilityState?.selected);
+    expect(selectedRows).toHaveLength(1);
+    expect(selectedRows[0]?.findAllByType(Text)[0]?.props.children).toBe('Español (España)');
   });
 
   it('goes dead once the post holds the maximum languages', () => {

@@ -50,9 +50,8 @@ import { Header } from '@/components/Header';
 import { DraftsIcon } from '@/assets/icons/drafts';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { DotIcon } from '@/assets/icons/dot-icon';
+import { TrashIcon } from '@/assets/icons/trash-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
-import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
-import { HideIcon } from '@/assets/icons/hide-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
@@ -106,8 +105,6 @@ import { buildEditPost, buildMainPost, buildThreadPost, shouldIncludeThreadItem 
 import {
   ComposerMediaItem,
   toComposerMediaType,
-  MEDIA_CARD_WIDTH,
-  MEDIA_CARD_HEIGHT,
   POLL_ATTACHMENT_KEY,
   ARTICLE_ATTACHMENT_KEY,
   EVENT_ATTACHMENT_KEY,
@@ -162,7 +159,7 @@ import {
 } from '@/utils/mentions';
 
 // Keep this in sync with PostItem constants
-import { HPAD, BOTTOM_LEFT_PAD, TIMELINE_LINE_OFFSET } from '@/components/Compose/composeLayout';
+import { HPAD, BOTTOM_LEFT_PAD } from '@/components/Compose/composeLayout';
 // Lazy load sheets - only loaded when user opens them
 const UnpublishedSheet = lazy(() => import('@/components/Compose/UnpublishedSheet'));
 const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
@@ -2028,21 +2025,21 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   }, [variants, postContent, mediaIds, article, threadItems, setPostContent, setMediaIds, setArticle, setThreadItems, promoteLanguage]);
 
   /**
-   * The language picker. With no `currentTag` it ADDS a language; on an existing
+   * The language picker. With a null `currentTag` it ADDS a language; on an existing
    * tab it changes that tab's language — re-tagging a rendition in place, so the
    * author's work survives — and, for a non-primary tab, offers to make it the
    * main language or remove it.
    */
-  const openLanguagePicker = useCallback((currentTag?: string) => {
+  const openLanguagePicker = useCallback((currentTag: string | null) => {
     const isPrimary = currentTag === variants.primaryTag;
-    const isSecondaryTab = currentTag !== undefined && !isPrimary;
+    const isSecondaryTab = currentTag !== null && !isPrimary;
     bottomSheet.setBottomSheetContent(
       <Suspense fallback={null}>
         <LanguagePickerSheet
           usedTags={allTags(variants)}
-          currentTag={currentTag}
+          currentTag={currentTag ?? undefined}
           onSelect={(tag: string) => {
-            if (currentTag === undefined) {
+            if (currentTag === null) {
               addLanguage(tag);
             } else if (isPrimary) {
               setPrimaryLanguage(tag);
@@ -2054,7 +2051,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           onRemove={isSecondaryTab ? () => removeLanguage(currentTag) : undefined}
           onClose={() => bottomSheet.openBottomSheet(false)}
         />
-      </Suspense>
+      </Suspense>,
+      // LanguagePickerSheet owns the vertical scroll with its FlatList. Bloom's
+      // internal ScrollView must stay out of this sheet or Android has two
+      // competing vertical gesture owners and rows can become hard to select.
+      { scrollable: false },
     );
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, variants, addLanguage, removeLanguage, renameLanguage, setPrimaryLanguage, promoteToPrimary]);
@@ -2079,7 +2080,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           canAdd={canAddLanguage(variants)}
           onSelect={setActiveTag}
           onEdit={openLanguagePicker}
-          onAdd={openLanguagePicker}
+          // Do not hand Item's native press event to openLanguagePicker. Null is
+          // the explicit ADD command; a string means "replace this tag".
+          onAdd={() => openLanguagePicker(null)}
           onClose={() => bottomSheet.openBottomSheet(false)}
         />
       </Suspense>
@@ -2382,30 +2385,32 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
             {/* Header */}
             <View className="bg-background border-border" style={styles.header}>
-              <IconButton variant="icon"
-                onPress={() => {
-                  const hasContent =
-                    postContent.trim().length > 0 ||
-                    mediaIds.length > 0 ||
-                    pollOptions.length > 0 ||
-                    threadItems.length > 0 ||
-                    sources.length > 0 ||
-                    location !== null ||
-                    hasArticleContent ||
-                    hasEventContent ||
-                    hasPodcastContent ||
-                    hasVariantWork(variants);
-                  if (hasContent && !isEditMode) {
-                    discardControl.open();
-                  } else {
-                    dismiss();
-                  }
-                }}
-                style={styles.backBtn}
-                accessibilityLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}
-              >
-                <BackArrowIcon size={20} className="text-foreground" />
-              </IconButton>
+              {presentation === 'pushed' ? (
+                <IconButton variant="icon"
+                  onPress={() => {
+                    const hasContent =
+                      postContent.trim().length > 0 ||
+                      mediaIds.length > 0 ||
+                      pollOptions.length > 0 ||
+                      threadItems.length > 0 ||
+                      sources.length > 0 ||
+                      location !== null ||
+                      hasArticleContent ||
+                      hasEventContent ||
+                      hasPodcastContent ||
+                      hasVariantWork(variants);
+                    if (hasContent && !isEditMode) {
+                      discardControl.open();
+                    } else {
+                      dismiss();
+                    }
+                  }}
+                  style={styles.backBtn}
+                  accessibilityLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}
+                >
+                  <BackArrowIcon size={20} className="text-foreground" />
+                </IconButton>
+              ) : null}
               <Text className="text-foreground" style={[styles.headerTitle, { pointerEvents: 'none' }]}>{isEditMode ? t('Edit post') : replyToPostId ? t('Reply') : t('New post')}</Text>
               <View style={styles.headerIcons}>
                 <IconButton variant="icon"
@@ -2415,11 +2420,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     ? t('compose.hideModeOptions.a11y', { defaultValue: 'Hide posting mode options' })
                     : t('compose.showModeOptions.a11y', { defaultValue: 'Show posting mode options' })}
                 >
-                  {showModeToggle ? (
-                    <HideIcon size={20} className="text-foreground" />
-                  ) : (
-                    <ChevronRightIcon size={20} className="text-foreground" style={{ transform: [{ rotate: '90deg' }] }} />
-                  )}
+                  <DotIcon size={20} className="text-foreground" />
                 </IconButton>
                 <IconButton variant="icon"
                   style={styles.iconBtn}
@@ -2444,7 +2445,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   onPress={() => clearAllControl.open()}
                   accessibilityLabel={t('compose.clearAll.a11y', { defaultValue: 'Clear all content' })}
                 >
-                  <DotIcon size={20} className="text-foreground" />
+                  <TrashIcon size={20} className="text-foreground" />
                 </IconButton>
               </View>
             </View>
@@ -3482,7 +3483,7 @@ const ComposeScreen = ({ presentation = 'pushed' }: ComposeScreenProps) => {
           <Header
             options={{
               title: t('New post'),
-              leftComponents: [
+              leftComponents: presentation === 'pushed' ? [
                 <IconButton
                   variant="icon"
                   key="back"
@@ -3491,7 +3492,7 @@ const ComposeScreen = ({ presentation = 'pushed' }: ComposeScreenProps) => {
                 >
                   <BackArrowIcon size={20} className="text-foreground" />
                 </IconButton>,
-              ],
+              ] : [],
             }}
             hideBottomBorder
             disableSticky
