@@ -33,6 +33,7 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { cn } from '@/lib/utils';
+import { videoSourceFor } from '@/utils/videoSource';
 import type { HydratedPost } from '@mention/shared-types';
 import { readMediaDurationSec, readMediaPixelSize, type MediaPixelSize } from '@/utils/mediaTypes';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
@@ -624,7 +625,11 @@ const OwnPlayerSurface: React.FC<ActiveVideoSurfaceProps> = (props) => {
     // releases and recreates its player whenever the source argument changes,
     // which would tear the OS window's subject out from under it mid-session.
     // Every later source change goes through `replaceAsync`.
-    const player = useVideoPlayer(props.videoUrl, (p: VideoPlayer) => {
+    // Memoised on the URL: `useVideoPlayer` REBUILDS its player whenever the
+    // source it is handed changes, and a fresh object literal every render is a
+    // change every render — which would rebuild the decoder on each commit.
+    const source = useMemo(() => videoSourceFor(props.videoUrl), [props.videoUrl]);
+    const player = useVideoPlayer(source, (p: VideoPlayer) => {
         p.loop = true;
         // Drive the scrubber at a smooth-but-cheap cadence.
         p.timeUpdateEventInterval = TIME_UPDATE_INTERVAL_S;
