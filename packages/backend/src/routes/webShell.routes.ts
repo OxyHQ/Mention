@@ -48,6 +48,7 @@ import {
 import { getShellCached } from '../services/webShellOgCache';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
+import { webShellRateLimiter } from '../middleware/security';
 import {
   isMentionProfilePublic,
   postSitemap,
@@ -448,7 +449,7 @@ router.get(/^\/c\/([^/]+)\/?$/, async (req: Request, res: Response) => {
 });
 
 // Post: `/p/<id>` (optional trailing slash). No AP case.
-router.get(/^\/p\/([^/]+)\/?$/, async (req: Request, res: Response) => {
+router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: Response) => {
   const id = req.params[0];
   try {
     const post = await loadPostRecord(id);

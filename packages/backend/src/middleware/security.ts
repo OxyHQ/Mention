@@ -375,6 +375,12 @@ export const channelWritersRateLimiter = rateLimit({
   ...complianceOptions(120, 'Too many channel writer requests. Please slow down.'),
 });
 
+/** Public profile/post HTML resolution, which performs DB and Oxy privacy reads. */
+export const webShellRateLimiter = rateLimit({
+  store: new RedisStore({ prefix: 'rate-limit:web-shell:', windowMs: 60 * 1000 }),
+  ...complianceOptions(300, 'Too many public page requests. Please slow down.'),
+});
+
 /**
  * The channel-deletion router — the preview and the deletion itself.
  *
