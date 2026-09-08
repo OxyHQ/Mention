@@ -62,7 +62,11 @@ describe('sanitizeLogValue', () => {
 
   it.each([
     ['Mongo ObjectId', 'post 65fdc8c8c8c8c8c8c8c8c8c8 failed'],
-    ['UUID', 'subject 550e8400-e29b-41d4-a716-446655440000 failed'],
+    ['UUID v4', 'subject 550e8400-e29b-41d4-a716-446655440000 failed'],
+    // The shape this service actually mints. Every id here — accounts, posts,
+    // files — is a uuid **v7**, and the redactor's version class was `[1-5]`, so
+    // the only sample this table carried (a v4) passed while nothing real did.
+    ['UUID v7', 'subject 01a0821e-d61a-7a78-b5d1-afb1850bd5a4 failed'],
     ['Oxy hyphen id', 'subject oxy-user-123 failed'],
     ['Oxy underscore id', 'subject oxy_user_123 failed'],
     ['IPv4', 'peer 203.0.113.10 failed'],
@@ -82,6 +86,7 @@ describe('sanitizeLogValue', () => {
     expect(sanitized).not.toContain('password');
     expect(sanitized).not.toContain('65fdc8c8c8c8c8c8c8c8c8c8');
     expect(sanitized).not.toContain('550e8400-e29b-41d4-a716-446655440000');
+    expect(sanitized).not.toContain('01a0821e-d61a-7a78-b5d1-afb1850bd5a4');
     expect(sanitized).not.toContain('oxy-user-123');
     expect(sanitized).not.toContain('oxy_user_123');
     expect(sanitized).not.toContain('203.0.113.10');

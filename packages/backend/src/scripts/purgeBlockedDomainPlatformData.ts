@@ -80,6 +80,7 @@
  *     bun packages/backend/dist/src/scripts/purgeBlockedDomainPlatformData.js
  */
 
+import { isOxyId } from '@mention/shared-types';
 import { canonicalFederationHost } from '@oxyhq/federation';
 import { getOxyServiceCredentials } from '../config';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
@@ -145,8 +146,7 @@ const MAX_CONSECUTIVE_FAILURES = 5;
  */
 const REQUEST_FAILURE_TOLERANCE = 0.05;
 
-/** The exact shape Oxy's `nextCursor` (a stringified `_id`) and `afterId` take. */
-const OBJECT_ID_PATTERN = /^[0-9a-f]{24}$/i;
+
 
 // --- environment -------------------------------------------------------------
 
@@ -313,8 +313,8 @@ export function parseDomainPurgePass(raw: unknown): DomainPurgePass {
   }
 
   const nextCursor = body.nextCursor ?? null;
-  if (nextCursor !== null && (typeof nextCursor !== 'string' || !OBJECT_ID_PATTERN.test(nextCursor))) {
-    throw new MalformedPurgeResponseError('"nextCursor" is neither null nor an object id');
+  if (nextCursor !== null && (typeof nextCursor !== 'string' || !isOxyId(nextCursor))) {
+    throw new MalformedPurgeResponseError('"nextCursor" is neither null nor an Oxy id');
   }
 
   const retained = body.actorsRetained;
@@ -474,7 +474,7 @@ async function resumeCursor(
 
   const stored = await readAdminScriptCursor(SCRIPT_NAME, domain);
   if (!stored) return { scanned: 0 };
-  if (!OBJECT_ID_PATTERN.test(stored.cursor)) {
+  if (!isOxyId(stored.cursor)) {
     // Only this script writes these rows, and only ever from a `nextCursor`, so
     // this is unreachable short of hand-editing. Sweeping the domain from the
     // top is the safe reading: idempotent, and it cannot skip an actor.

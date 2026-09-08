@@ -16,7 +16,7 @@ import { useAuth } from '@oxyhq/services/ui/client';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import type { User } from '@oxyhq/core';
-import type { PostUser } from '@mention/shared-types';
+import { isOxyId, type PostUser } from '@mention/shared-types';
 
 import UserName from '../UserName';
 import { LinkifiedText } from '../common/LinkifiedText';
@@ -60,8 +60,6 @@ const STACK_AVATAR_SIZE = 24;
 const THUMBNAIL_SIZE = 48;
 // Actors shown in the collapsed avatar strip before collapsing into "+N".
 const COLLAPSED_STRIP_LIMIT = 3;
-// Matches a bare Oxy user id so it is never surfaced as a display name.
-const OXY_ID_PATTERN = /^[a-f0-9]{24}$/i;
 
 /**
  * An actor resolved for display: the raw grouped actor merged with its cached
@@ -92,7 +90,8 @@ interface ResolvedActor {
 function ghostGuardedName(rawName: string | undefined | null, actorId: string | undefined): string | undefined {
   const name = rawName?.trim();
   if (!name) return undefined;
-  if (OXY_ID_PATTERN.test(name)) return undefined;
+  // A bare id is never a display name, whichever shape Oxy minted it in.
+  if (isOxyId(name)) return undefined;
   if (actorId && name === actorId) return undefined;
   return name;
 }
@@ -352,10 +351,10 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   // Resolve the PRIMARY actor from the Oxy user cache reactively (the screen
   // prewarms it via `prewarmUsersByIds`). Cached fields are merged over the raw
   // `actors[0]`, so names + real avatars appear even when the backend's
-  // `actorId_populated` is empty. Gate on a real Oxy id (same 24-hex gate the
+  // `actorId_populated` is empty. Gate on a real Oxy id (the same gate the
   // prewarm uses) so a non-Oxy id (e.g. the "unknown" floor) never fires a stray
   // per-row `getUserById` on a cache miss.
-  const primaryOxyId = primaryActor?.id && OXY_ID_PATTERN.test(primaryActor.id) ? primaryActor.id : undefined;
+  const primaryOxyId = primaryActor?.id && isOxyId(primaryActor.id) ? primaryActor.id : undefined;
   const cachedPrimary = useUserById(primaryOxyId);
   const knownIdentities = useKnownIdentities();
   const resolvedPrimary = useMemo(

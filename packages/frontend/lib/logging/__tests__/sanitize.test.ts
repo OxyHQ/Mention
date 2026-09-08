@@ -131,16 +131,21 @@ describe('frontend logger sanitizer', () => {
   it('scrubs identifiers and credentials interpolated into messages', () => {
     const message = sanitizeLogMessage(
       'viewer 507f1f77bcf86cd799439011 @private-user person@example.com ' +
-        'Bearer abc.def.ghi https://private.example 203.0.113.8',
+        'Bearer abc.def.ghi https://private.example 203.0.113.8 ' +
+        // A uuid **v7**, which is what Mention and oxy-api mint. The suite only
+        // ever carried the 24-hex shape, so a UUID_RE that pinned the version
+        // nibble to `[1-5]` stayed green while passing every real id through.
+        'subject 01a0821e-d61a-7a78-b5d1-afb1850bd5a4',
     )
 
+    expect(message).not.toContain('01a0821e-d61a-7a78-b5d1-afb1850bd5a4')
     expect(message).not.toContain('507f1f77bcf86cd799439011')
     expect(message).not.toContain('@private-user')
     expect(message).not.toContain('person@example.com')
     expect(message).not.toContain('abc.def.ghi')
     expect(message).not.toContain('private.example')
     expect(message).not.toContain('203.0.113.8')
-    expect(message.match(/\[REDACTED\]/g)?.length).toBeGreaterThanOrEqual(6)
+    expect(message.match(/\[REDACTED\]/g)?.length).toBeGreaterThanOrEqual(7)
   })
 
   it('scrubs every slot of an SDK log entry, including the error and args', () => {
