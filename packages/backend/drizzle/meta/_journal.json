@@ -246,6 +246,13 @@
       "when": 1788894427893,
       "tag": "0034_a_ladder_we_can_prove_exists",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1788907754043,
+      "tag": "0035_silky_vin_gonzales",
+      "breakpoints": true
     }
   ]
 }

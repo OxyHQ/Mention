@@ -135,6 +135,15 @@ describe('webShell routes (integration)', () => {
     expect(res.text).toContain('Sitemap: https://mention.earth/sitemap.xml');
   });
 
+  it('retires old numeric sitemap shards without falling through to HTML', async () => {
+    const res = await request(makeApp()).get('/sitemaps/posts-42.xml');
+
+    expect(res.status).toBe(410);
+    expect(res.headers['content-type']).toContain('application/xml');
+    expect(res.text).toContain('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
+    expect(res.text).not.toContain('<html');
+  });
+
   it('serves the shell with profile OG for a crawler /@handle request', async () => {
     stubFetch({ ok: true, body: { data: { username: 'nate', name: { displayName: 'Nate' }, bio: 'bio' } } });
 
