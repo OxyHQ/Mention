@@ -79,6 +79,7 @@ vi.mock('../../services/mediaCache/negativeCache', () => ({
 }));
 
 import mediaRoutes from '../../routes/media';
+import { logger } from '../../utils/logger';
 
 const app = express();
 app.use('/media', mediaRoutes);
@@ -398,6 +399,46 @@ describe('GET /media/proxy — sized variants', () => {
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe(`${OXY_CDN_URL}?variant=w320`);
     expect(fetchUpstreamFollowingRedirects).not.toHaveBeenCalled();
+  });
+
+  /**
+   * When the mirrored copy cannot be resolved, SAY SO.
+   *
+   * The catch that swallows this was written as "cache layer unavailable — fall
+   * back to streaming from the remote", and logged at debug on the strength of
+   * that fallback. But the fallback only helps while the remote is alive: a URL
+   * the negative cache already knows is dead is answered 404 immediately after,
+   * so the viewer gets "Video unavailable" for a video we DO hold a copy of.
+   *
+   * Production showed exactly that and could not explain it — eight
+   * `/media/proxy` 404s in an hour, each with `oxyCallCount: 1,
+   * failedOxyCallCount: 1`, and no line saying which asset or which status,
+   * because the cause only existed in a filtered debug call. The status is the
+   * difference between "the asset is gone" and "Oxy throttled us", and only one
+   * of those is ours to fix.
+   */
+  it('logs WHICH asset failed to resolve, and with what status', async () => {
+    cacheStore.lookupCacheRow.mockResolvedValue({
+      state: 'cached',
+      oxyFileId: 'oxyfile123',
+      contentType: 'video/mp4',
+    });
+    const resolutionError = Object.assign(new Error('asset url unresolved'), {
+      code: 'ASSET_URL_UNRESOLVED',
+      fileId: 'oxyfile123',
+      status: 429,
+    });
+    oxyStore.resolveOxyDownloadUrl.mockRejectedValue(resolutionError);
+    const warn = vi.spyOn(logger, 'warn');
+
+    await request(app).get('/media/proxy').query({ url: REMOTE });
+
+    const line = warn.mock.calls.find(([message]) =>
+      String(message).includes('[MediaProxy] Cache front failed'),
+    );
+    expect(line).toBeDefined();
+    expect(line?.[1]).toMatchObject({ oxyFileId: 'oxyfile123', status: 429 });
+    warn.mockRestore();
   });
 
   it('redirects to the un-sized original when no variant is asked for', async () => {

@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import { RedisStore } from '../middleware/rateLimitStore';
 import { hashedIpKey } from '../utils/ipKey';
 import { SsrfRejection, assertSafePublicUrl } from '@oxyhq/core/server';
+import type { AssetUrlResolutionError } from '@oxyhq/core';
 import {
   UpstreamResult,
   contentTypeFamily,
@@ -642,8 +643,26 @@ async function tryServeFromCache(
   } catch (error) {
     // Cache layer unavailable (e.g. Oxy URL resolution failed) — fall back to
     // streaming from the remote upstream, which is the existing behaviour.
-    logger.debug('[MediaProxy] Cache front failed; streaming from remote', {
+    //
+    // WARN, not debug. This was debug because the fallback makes it survivable,
+    // and that reasoning holds only while the fallback actually runs: a URL the
+    // negative cache already knows is dead upstream is answered 404 a few lines
+    // below, so the viewer gets "Video unavailable" for a video we DO hold a
+    // mirrored copy of. Production showed exactly that shape — eight
+    // `/media/proxy` 404s in an hour, each with `oxyCallCount: 1,
+    // failedOxyCallCount: 1` and a ~10-15ms duration — and not one line saying
+    // which asset failed or why, because the only record of the cause was this
+    // debug call.
+    //
+    // `AssetUrlResolutionError` carries the file id and the HTTP status the
+    // resolution failed with, which is the difference between "the asset is
+    // gone" and "Oxy throttled us"; both reach the viewer identically, and only
+    // one of them is our fault to fix.
+    const resolution = error as Partial<AssetUrlResolutionError>;
+    logger.warn('[MediaProxy] Cache front failed; streaming from remote', {
       reason: error instanceof Error ? error.message : 'unknown',
+      oxyFileId: resolution?.fileId,
+      status: resolution?.status,
     });
     return false;
   }
