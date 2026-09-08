@@ -47,13 +47,32 @@ vi.mock('../../services/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: (...args: unknown[]) => cacheStore.recordAccessAndMaybeEnqueue(...args),
 }));
 
-/** Cache front inert by default so most tests hit the remote-stream path. */
+/**
+ * The service client, built from the REAL SDK.
+ *
+ * The URL a cached object is served from is not this suite's invention: it is
+ * whatever `OxyServices.getFileDownloadUrl` produces. Stubbing that with a
+ * hand-written string is how the previous version of these tests asserted a
+ * redirect production never once performed — the resolver they stood in for
+ * failed 481 times out of 481 against the live API.
+ */
+vi.mock('../../utils/oxyHelpers', async () => {
+  const { OxyServices } = await vi.importActual<typeof import('@oxyhq/core')>('@oxyhq/core');
+  const client = new OxyServices({ baseURL: 'http://oxy.test' });
+  return { getServiceOxyClient: () => client };
+});
+
+/**
+ * Cache front inert by default so most tests hit the remote-stream path. Only
+ * the enablement flag is stubbed; the URL builder stays real.
+ */
 const mediaCacheEnabled = vi.hoisted(() => ({ value: false }));
-const oxyStore = vi.hoisted(() => ({ resolveOxyDownloadUrl: vi.fn() }));
-vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
-  isMediaCacheEnabled: () => mediaCacheEnabled.value,
-  resolveOxyDownloadUrl: (...args: unknown[]) => oxyStore.resolveOxyDownloadUrl(...args),
-}));
+vi.mock('../../services/mediaCache/oxyMediaStore', async () => {
+  const actual = await vi.importActual<typeof import('../../services/mediaCache/oxyMediaStore')>(
+    '../../services/mediaCache/oxyMediaStore',
+  );
+  return { ...actual, isMediaCacheEnabled: () => mediaCacheEnabled.value };
+});
 
 /**
  * Control the upstream response. Each test sets `nextStatus`; the mock returns a
@@ -138,7 +157,6 @@ beforeEach(() => {
   cacheStore.lookupCacheRow.mockReset().mockResolvedValue(undefined);
   cacheStore.bumpAccess.mockReset().mockResolvedValue(undefined);
   cacheStore.recordAccessAndMaybeEnqueue.mockReset().mockResolvedValue(true);
-  oxyStore.resolveOxyDownloadUrl.mockReset().mockResolvedValue(OXY_CDN_URL);
 });
 
 describe('GET /media/proxy — upstream status mapping', () => {
@@ -402,42 +420,35 @@ describe('GET /media/proxy — sized variants', () => {
   });
 
   /**
-   * When the mirrored copy cannot be resolved, SAY SO.
+   * The redirect must cost NO call to oxy-api.
    *
-   * The catch that swallows this was written as "cache layer unavailable — fall
-   * back to streaming from the remote", and logged at debug on the strength of
-   * that fallback. But the fallback only helps while the remote is alive: a URL
-   * the negative cache already knows is dead is answered 404 immediately after,
-   * so the viewer gets "Video unavailable" for a video we DO hold a copy of.
+   * This is the whole defect. Serving a mirrored object used to ask
+   * `GET /assets/:id/url` for its URL, and that route is behind oxy-api's
+   * `authMiddleware`, which rejects any token without a `sessionId` claim — which
+   * a service token has never had. Six hours of production traffic: 481 cache
+   * fronts, 481 failed Oxy calls, ~4ms each. Every one of them fell through to
+   * streaming the bytes from the third-party host, and the ones whose host was
+   * already known-dead were answered 404: "Video unavailable" for media we hold.
    *
-   * Production showed exactly that and could not explain it — eight
-   * `/media/proxy` 404s in an hour, each with `oxyCallCount: 1,
-   * failedOxyCallCount: 1`, and no line saying which asset or which status,
-   * because the cause only existed in a filtered debug call. The status is the
-   * difference between "the asset is gone" and "Oxy throttled us", and only one
-   * of those is ours to fix.
+   * A public asset needs no permission to be named, so nothing is asked.
    */
-  it('logs WHICH asset failed to resolve, and with what status', async () => {
+  it('serves the mirrored copy without calling oxy-api at all', async () => {
     cacheStore.lookupCacheRow.mockResolvedValue({
       state: 'cached',
       oxyFileId: 'oxyfile123',
       contentType: 'video/mp4',
     });
-    const resolutionError = Object.assign(new Error('asset url unresolved'), {
-      code: 'ASSET_URL_UNRESOLVED',
-      fileId: 'oxyfile123',
-      status: 429,
-    });
-    oxyStore.resolveOxyDownloadUrl.mockRejectedValue(resolutionError);
     const warn = vi.spyOn(logger, 'warn');
 
-    await request(app).get('/media/proxy').query({ url: REMOTE });
+    const res = await request(app).get('/media/proxy').query({ url: REMOTE });
 
-    const line = warn.mock.calls.find(([message]) =>
-      String(message).includes('[MediaProxy] Cache front failed'),
-    );
-    expect(line).toBeDefined();
-    expect(line?.[1]).toMatchObject({ oxyFileId: 'oxyfile123', status: 429 });
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(OXY_CDN_URL);
+    // No upstream stream, and no cache-front failure: the fallback never ran.
+    expect(fetchUpstreamFollowingRedirects).not.toHaveBeenCalled();
+    expect(
+      warn.mock.calls.some(([message]) => String(message).includes('[MediaProxy] Cache front failed')),
+    ).toBe(false);
     warn.mockRestore();
   });
 

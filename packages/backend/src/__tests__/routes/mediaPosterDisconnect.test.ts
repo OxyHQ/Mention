@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 /** Keep the media cache front inert so the tests hit on-demand extraction. */
 vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
   isMediaCacheEnabled: () => false,
-  resolveOxyDownloadUrl: vi.fn(),
+  cachedMediaCdnUrl: vi.fn(),
 }));
 
 /** In-process no-op rate limiter store. */

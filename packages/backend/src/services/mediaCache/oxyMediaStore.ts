@@ -13,8 +13,10 @@ import { MEDIA_CACHE_WRITE_ENABLED } from './constants';
  * the upstream-capability dependency in ONE place.
  *
  * CAPABILITY STATUS:
- *  - DOWNLOAD-URL resolution: `getFileDownloadUrlAsync` returns a signed CDN URL
- *    the proxy can 302-redirect to.
+ *  - DOWNLOAD URL: none is resolved. Everything this store uploads is public, so
+ *    the proxy 302s to the deterministic by-id CDN form built synchronously by
+ *    the SDK (see {@link cachedMediaCdnUrl}). Asking the API for it needed a
+ *    session token this client will never hold, and failed 100% of the time.
  *  - UPLOAD + DELETE: served by the oxy-api service-token cache endpoints
  *    (`POST /assets/service/cache`, `DELETE /assets/service/cache/:id`), which are
  *    gated by `serviceAuthMiddleware`. We authenticate with the SAME service token
@@ -117,12 +119,50 @@ export function isMediaCacheEnabled(): boolean {
 }
 
 /**
- * Resolve a public, servable URL for a cached Oxy file so the proxy can redirect
- * to it (CDN serves the bytes). Works today via the assets URL endpoint.
+ * Build the public, servable URL for a cached Oxy file so the proxy can redirect
+ * to it and the CDN serves the bytes.
+ *
+ * SYNCHRONOUS, and deliberately so. Every asset this store creates is public by
+ * construction — `POST /assets/service/cache` and `POST /assets/service/federation`
+ * both hardcode `visibility: 'public'` precisely so "the existing public download
+ * routes can serve cached media without auth" — and a public asset's URL is the
+ * deterministic by-id CDN form `https://cloud.oxy.so/<id>`, which `cloud.oxy.so`
+ * resolves to the content-addressed object itself. There is nothing to ask.
+ *
+ * ## Why this used to be a round trip, and why that round trip could never work
+ *
+ * It called `getFileDownloadUrlAsync`, which asks `GET /assets/:id/url`. That
+ * route is behind oxy-api's `authMiddleware`, which accepts only SESSION-based
+ * tokens (`if (!decoded.sessionId) return 401`). The media cache holds a SERVICE
+ * token, which carries no `sessionId` — so the request was rejected 401 before
+ * it ever reached the asset, on every call, and the cache front silently fell
+ * back to streaming from the remote host.
+ *
+ * That is not a hypothesis. Six hours of production `/media/proxy` requests,
+ * grouped by status and Oxy-call tally:
+ *
+ *   200  oxyCallCount 1  failedOxyCallCount 1   439
+ *   404  oxyCallCount 1  failedOxyCallCount 1    37
+ *   304  oxyCallCount 1  failedOxyCallCount 1     5
+ *   206  oxyCallCount 0  failedOxyCallCount 0    66   (ranged; skips the front)
+ *
+ * 481 of 481 resolutions failed, in ~4ms each — the shape of an auth rejection,
+ * not of a lookup. So the read half of the federated media cache has been
+ * completely inert: we mirror the bytes into Oxy and then serve every federated
+ * image and video by streaming it from the third-party host through our own
+ * origin, and when that host is gone the viewer is told the media is
+ * unavailable for something we hold a copy of.
+ *
+ * The variant belongs in the builder, not appended afterwards: `cloud.oxy.so`
+ * honours `?variant=` on the BY-ID form (its resolver reads it and redirects to
+ * the sized render), while a key-form URL goes straight to the S3 origin, where
+ * a query string means nothing.
+ *
+ * `getFileDownloadUrlAsync` remains the right call for an asset whose visibility
+ * is unknown or private; the SDK says as much. This store knows.
  */
-export async function resolveOxyDownloadUrl(oxyFileId: string): Promise<string> {
-  const client = getServiceOxyClient();
-  return client.getFileDownloadUrlAsync(oxyFileId);
+export function cachedMediaCdnUrl(oxyFileId: string, variant?: string): string {
+  return getServiceOxyClient().getFileDownloadUrl(oxyFileId, variant);
 }
 
 /**
