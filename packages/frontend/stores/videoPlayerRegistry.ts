@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { createVideoPlayer, type VideoPlayer } from 'expo-video';
+import { videoSourceFor } from '@/utils/videoSource';
 import { createLogger } from '@oxyhq/core/logger';
 
 const logger = createLogger('VideoPlayerRegistry');
@@ -97,7 +98,7 @@ export const useVideoPlayerRegistry = create<VideoPlayerRegistryState>((set, get
 
     acquire: (key, source) => {
         const existing = get().entries[key];
-        const player = existing?.player ?? createVideoPlayer(source);
+        const player = existing?.player ?? createVideoPlayer(videoSourceFor(source));
 
         set((state) => ({
             entries: {

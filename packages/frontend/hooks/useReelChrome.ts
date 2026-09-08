@@ -5,6 +5,7 @@ import { useEventListener } from 'expo';
 import { VideoView, type VideoPlayer } from 'expo-video';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { createLogger } from '@oxyhq/core/logger';
+import { videoSourceFor } from '@/utils/videoSource';
 import type { MediaPixelSize } from '@/utils/mediaTypes';
 import { useVideoPlayback } from '@/context/VideoPlaybackContext';
 import { usePipAspectRatio } from '@/hooks/usePipAspectRatio';
@@ -275,7 +276,7 @@ export function useReelChrome({
     useEffect(() => {
         if (loadedSourceRef.current === desiredSource) return;
         loadedSourceRef.current = desiredSource;
-        player.replaceAsync(desiredSource).catch((error: unknown) => {
+        player.replaceAsync(videoSourceFor(desiredSource)).catch((error: unknown) => {
             // A rejected swap is the call failing, not the asset: a source that
             // loads and then fails arrives as a `statusChange` error instead, and
             // is handled there.
