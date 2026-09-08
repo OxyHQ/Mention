@@ -26,6 +26,14 @@ export interface OgData {
   url: string;
   /** OpenGraph object type (`profile` | `article`). */
   type: string;
+  /** BCP-47 language of the public document. */
+  lang?: string;
+  /** Search indexing policy. Public entity pages default to index/follow. */
+  robots?: 'index,follow' | 'noindex,follow' | 'noindex,nofollow';
+  /** JSON-LD entity represented by the visible semantic body. */
+  jsonLd?: Record<string, unknown>;
+  /** Public, semantic HTML rendered before the SPA becomes interactive. */
+  bodyHtml?: string;
 }
 
 /** Canonical web origin used for `og:url` (the apex the SPA is served from). */
@@ -46,11 +54,16 @@ const cdnUrlClient = new OxyServices({ baseURL: OXY_API_URL });
 
 /** Shape of the Oxy `/profiles/username/<handle>` payload we read for OG. */
 export interface OxyProfileData {
+  id?: string;
   username?: string;
   name?: { displayName?: string };
-  avatar?: string;
+  avatar?: string | null;
   bio?: string;
   description?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  links?: string[];
+  _count?: { followers?: number; following?: number };
   /**
    * The Oxy account classification. Only `channel` is acted on here, and only to
    * decide which canonical URL the profile lives at — see
@@ -99,6 +112,7 @@ export function buildOgMetaHtml(og: OgData): string {
   const url = escapeHtml(og.url);
   const type = escapeHtml(og.type);
   const card = og.image ? 'summary_large_image' : 'summary';
+  const robots = escapeHtml(og.robots ?? 'index,follow');
 
   let html =
     `<meta property="og:type" content="${type}">` +
@@ -109,13 +123,22 @@ export function buildOgMetaHtml(og: OgData): string {
     `<meta name="twitter:card" content="${card}">` +
     `<meta name="twitter:title" content="${title}">` +
     `<meta name="twitter:description" content="${description}">` +
-    `<meta name="description" content="${description}">`;
+    `<meta name="description" content="${description}">` +
+    `<meta name="robots" content="${robots}">` +
+    `<link rel="canonical" href="${url}">`;
 
   if (og.image) {
     const image = escapeHtml(og.image);
     html +=
       `<meta property="og:image" content="${image}">` +
       `<meta name="twitter:image" content="${image}">`;
+  }
+
+  if (og.jsonLd) {
+    // `<` is validly escaped inside JSON and prevents an attacker-controlled
+    // string from closing the script element. JSON-LD consumers decode it.
+    const json = JSON.stringify(og.jsonLd).replace(/</g, '\\u003c');
+    html += `<script type="application/ld+json">${json}</script>`;
   }
 
   return html;
@@ -151,10 +174,21 @@ export function renderShellWithOg(shell: string, og: OgData | null): string {
   const titleTag = `<title>${escapeHtml(og.title)}</title>`;
 
   let html = shell;
+  if (og.lang) {
+    html = html.replace(/<html\b([^>]*)\blang=(['"])[^'"]*\2([^>]*)>/i, (_match, before, _quote, after) =>
+      `<html${before}lang="${escapeHtml(og.lang ?? 'en')}"${after}>`);
+  }
   html = TITLE_RE.test(html) ? html.replace(TITLE_RE, () => titleTag) : html;
   html = HEAD_CLOSE_RE.test(html)
     ? html.replace(HEAD_CLOSE_RE, () => `${meta}</head>`)
     : meta + html;
+
+  if (og.bodyHtml) {
+    const fallback = `<div id="seo-root" data-mention-seo-fallback="true">${og.bodyHtml}</div>`;
+    html = /<div\s+id=(['"])root\1[^>]*>/i.test(html)
+      ? html.replace(/<div\s+id=(['"])root\1[^>]*>/i, (root) => `${fallback}${root}`)
+      : html.replace(/<body\b[^>]*>/i, (body) => `${body}${fallback}`);
+  }
 
   return html;
 }
@@ -170,6 +204,10 @@ export function mapProfileOg(data: OxyProfileData | null | undefined): OgData | 
   const username = data.username;
   const displayName = data.name?.displayName;
   const avatar = data.avatar;
+  const description = (data.bio || data.description || '').trim();
+  const url = `${WEB_ORIGIN}${canonicalProfilePath(data)}`;
+  const name = displayName || `@${username}`;
+  const publicLinks = (data.links ?? []).filter((link) => /^https?:\/\//i.test(link));
 
   let image: string | undefined;
   if (typeof avatar === 'string' && avatar.length > 0) {
@@ -180,10 +218,36 @@ export function mapProfileOg(data: OxyProfileData | null | undefined): OgData | 
 
   return {
     title: displayName ? `${displayName} (@${username}) on Mention` : `@${username} on Mention`,
-    description: (data.bio || data.description || '').trim(),
+    description,
     image,
-    url: `${WEB_ORIGIN}${canonicalProfilePath(data)}`,
+    url,
     type: 'profile',
+    robots: 'index,follow',
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'ProfilePage',
+      url,
+      ...(data.createdAt ? { dateCreated: data.createdAt } : {}),
+      ...(data.updatedAt ? { dateModified: data.updatedAt } : {}),
+      mainEntity: {
+        '@type': data.kind === 'channel' ? 'Organization' : 'Person',
+        ...(data.id ? { identifier: data.id } : {}),
+        name,
+        alternateName: `@${username}`,
+        ...(description ? { description } : {}),
+        ...(image ? { image } : {}),
+        ...(publicLinks.length ? { sameAs: publicLinks } : {}),
+      },
+    },
+    bodyHtml:
+      `<main><article><header><h1>${escapeHtml(name)}</h1>` +
+      `<p>@${escapeHtml(username)}</p></header>` +
+      (description ? `<p>${escapeHtml(description)}</p>` : '') +
+      (image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(name)}">` : '') +
+      (publicLinks.length
+        ? `<nav aria-label="Links">${publicLinks.map((link) => `<a href="${escapeHtml(link)}" rel="me">${escapeHtml(link)}</a>`).join('')}</nav>`
+        : '') +
+      '</article></main>',
   };
 }
 
@@ -239,6 +303,7 @@ export function mapPostOg(post: HydratedPost, id: string, safety: PostOgSafety):
       description: (warning || GATED_POST_DESCRIPTION).slice(0, 200),
       url: `${WEB_ORIGIN}/p/${id}`,
       type: 'article',
+      robots: 'noindex,nofollow',
     };
   }
 
@@ -257,13 +322,44 @@ export function mapPostOg(post: HydratedPost, id: string, safety: PostOgSafety):
   // boosted original (embedded at maxDepth:1). Fall back to the original's text so
   // a boost's OG/preview description is not blank.
   const ownText = (post.content?.text || '').trim();
-  const description = (ownText || (post.originalPost?.content?.text || '').trim()).slice(0, 200);
+  const bodyText = ownText || (post.originalPost?.content?.text || '').trim();
+  const description = bodyText.slice(0, 200);
+  const url = `${WEB_ORIGIN}/p/${encodeURIComponent(id)}`;
+  const authorHandle = handle ? `@${handle}` : author;
+  const createdAt = post.metadata?.createdAt;
+  const updatedAt = post.metadata?.updatedAt;
+  const authorUrl = handle ? `${WEB_ORIGIN}/@${encodeURIComponent(handle)}` : undefined;
 
   return {
     title: `${author} on Mention`,
     description,
     image,
-    url: `${WEB_ORIGIN}/p/${id}`,
+    url,
     type: 'article',
+    lang: post.content?.textLang || post.metadata?.language,
+    robots: 'index,follow',
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'SocialMediaPosting',
+      url,
+      headline: `${author} on Mention`,
+      articleBody: bodyText,
+      ...(createdAt ? { datePublished: createdAt } : {}),
+      ...(updatedAt ? { dateModified: updatedAt } : {}),
+      ...(image ? { image } : {}),
+      author: {
+        '@type': 'Person',
+        name: author,
+        alternateName: authorHandle,
+        ...(authorUrl ? { url: authorUrl } : {}),
+      },
+    },
+    bodyHtml:
+      `<main><article><header><h1>${escapeHtml(author)} on Mention</h1>` +
+      (authorUrl ? `<a href="${escapeHtml(authorUrl)}">${escapeHtml(authorHandle)}</a>` : '') +
+      (createdAt ? `<time datetime="${escapeHtml(createdAt)}">${escapeHtml(createdAt)}</time>` : '') +
+      `</header><p>${escapeHtml(bodyText)}</p>` +
+      (image ? `<img src="${escapeHtml(image)}" alt="">` : '') +
+      '</article></main>',
   };
 }

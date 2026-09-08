@@ -6,8 +6,8 @@
  * path already reaches here and adding one costs no infrastructure change — the
  * CF Origin Rule that used to route `/@*` and `/p/*` selectively was deleted with
  * the Cloudflare Pages worker on 2026-07-05. For the paths below we serve the
- * static SPA shell HTML with per-request OG/Twitter tags injected (so crawlers /
- * link-unfurlers get a rich preview) while browsers still boot the SPA normally.
+ * static SPA shell HTML with metadata, JSON-LD, and semantic public content
+ * injected while browsers still boot the SPA normally.
  * This replaces the OG injection the retired `_worker.js` used to do at the edge.
  *
  * The shell (Expo's single static `index.html`) is fetched ONCE from the frontend
@@ -15,8 +15,8 @@
  * asset refs in that HTML (`/_expo/static/...`) resolve against the apex, which
  * CF still serves from Pages, so booting the SPA works unchanged.
  *
- * Everything here is PUBLIC (no auth) and fail-open: a slow/broken OG fetch or a
- * missing entity serves the plain shell (no OG) rather than failing the page.
+ * Everything here is PUBLIC (no auth). Missing entities return real 404s and a
+ * transient dependency failure returns 503, avoiding generic-200 soft 404s.
  *
  * AP content negotiation: a request for a LOCAL profile URL (`/@user`, single
  * segment, no `@domain`, no sub-tab) that `Accept`s ActivityPub is 302-redirected
@@ -24,7 +24,7 @@
  * requests (browsers, crawlers, federated handles, sub-tabs) get the shell.
  *
  * Channel content negotiation: a channel is an Oxy account whose page lives at
- * `/c/<handle>`, so a LOCAL profile URL naming one is 302-redirected there. That
+ * `/c/<handle>`, so a profile URL naming one is permanently redirected there. That
  * branch is deliberately BELOW the ActivityPub one — an AP consumer asking for
  * `/@channel` must reach the actor, and a redirect chain is exactly what
  * Mastodon's strict redirector refuses.
@@ -38,6 +38,8 @@ import {
   OgData,
   OxyProfileData,
   PostOgSafety,
+  canonicalProfilePath,
+  escapeHtml,
   injectHeadHtml,
   mapPostOg,
   mapProfileOg,
@@ -45,6 +47,14 @@ import {
 } from '../services/webShellRenderer';
 import { getShellCached } from '../services/webShellOgCache';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
+import { getServiceOxyClient } from '../utils/oxyHelpers';
+import {
+  isMentionProfilePublic,
+  postSitemap,
+  profileSitemap,
+  renderSitemapIndex,
+  sitemapPageCounts,
+} from '../services/seoSitemap';
 
 /** Frontend CDN origin the static SPA shell is fetched from (NOT the apex — that would loop the Origin Rule). */
 const SHELL_ORIGIN = `${config.web.shellOrigin}/`;
@@ -74,22 +84,10 @@ const HEAD_HINTS =
   `<link rel="preconnect" href="${API_ORIGIN}" crossorigin>` +
   `<link rel="preconnect" href="${OXY_MEDIA_CDN_ORIGIN}" crossorigin>`;
 
-/**
- * Link-unfurlers / crawlers that need server-rendered OG tags because they do NOT
- * execute the SPA's client-side JS. Real browsers are served the shell WITHOUT a
- * blocking OG fetch (the SPA mounts the meta on hydration), so only these UAs pay
- * the OG-resolution cost — and it is Redis-cached with stale-while-revalidate.
- */
-const CRAWLER_UA_RE =
-  /bot|crawler|spider|crawling|facebookexternalhit|facebot|twitterbot|slackbot|slack-imgproxy|discordbot|whatsapp|telegram|linkedinbot|pinterest|redditbot|embedly|quora link preview|showyoubot|outbrain|vkshare|w3c_validator|applebot|googlebot|bingbot|yandex|baiduspider|duckduckbot|mastodon|pleroma|akkoma|misskey|iframely|skypeuripreview|nuzzel|google-inspectiontool|metainspector|opengraph|unfurl|preview|flipboard|tumblr|mediapartners/i;
-
-/** Whether the request is a crawler/unfurler that needs server-rendered OG tags. */
-function isCrawler(userAgent: string | undefined): boolean {
-  return typeof userAgent === 'string' && CRAWLER_UA_RE.test(userAgent);
-}
-
 /** A LOCAL profile path: a single `@handle` segment with no second `@` and no sub-tab. */
 const LOCAL_PROFILE_RE = /^\/@([^/@]+)$/;
+/** Any root profile URL, including federated handles containing a second `@`. */
+const PROFILE_ROOT_RE = /^\/@([^/]+)$/;
 /** Where a channel account's page lives. Mirrors `canonicalProfilePath`. */
 const CHANNEL_PATH_PREFIX = '/c/';
 
@@ -188,12 +186,13 @@ async function fetchProfile(handle: string): Promise<OxyProfileData | null> {
       headers: { Accept: 'application/json' },
       signal: controller.signal,
     });
-    if (!response.ok) return null;
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`Oxy profile lookup failed (${response.status})`);
     const json = (await response.json()) as { data?: OxyProfileData };
     return json?.data ?? null;
   } catch (error) {
     logger.debug('[webShell] Profile fetch failed', error);
-    return null;
+    throw error;
   } finally {
     clearTimeout(timer);
   }
@@ -201,7 +200,13 @@ async function fetchProfile(handle: string): Promise<OxyProfileData | null> {
 
 /** The cached profile for a handle, SWR-backed. Null when unknown or unreachable. */
 function cachedProfile(handle: string): Promise<OxyProfileData | null> {
-  return getShellCached(`profile:${handle}`, () => fetchProfile(handle));
+  return getShellCached(`profile:${handle}`, () => fetchProfile(handle), { rethrow: true });
+}
+
+async function isOxyAuthorPublic(oxyUserId: string): Promise<boolean> {
+  const [user] = await getServiceOxyClient().getUsersByIds([oxyUserId]);
+  if (!user?.username) return false;
+  return Boolean(await fetchProfile(user.username));
 }
 
 /** The raw post fields the OG safety verdict reads. */
@@ -255,29 +260,104 @@ async function fetchPostOg(id: string): Promise<OgData | null> {
     return mapPostOg(hydrated, id, safety);
   } catch (error) {
     logger.debug('[webShell] Post OG fetch failed', error);
-    return null;
+    throw error;
   }
 }
 
 /** Serve the shell with head hints + optional OG injected, overriding the API no-store default. */
-async function serveShell(res: Response, og: OgData | null): Promise<void> {
+async function serveShell(res: Response, og: OgData | null, status = 200): Promise<void> {
   const shell = (await getShell()) ?? FALLBACK_SHELL;
-  res.status(200);
+  res.status(status);
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  // Per-URL page whose body depends on User-Agent (crawler OG vs plain browser
-  // shell) — `private` so a shared cache never serves one audience's variant to
-  // the other; the browser still caches its own copy for 5 minutes.
-  res.setHeader('Cache-Control', 'private, max-age=300');
+  res.setHeader(
+    'Cache-Control',
+    status === 200
+      ? 'public, max-age=60, s-maxage=300, stale-while-revalidate=3600'
+      : 'no-store',
+  );
   res.send(renderShellWithOg(injectHeadHtml(shell, HEAD_HINTS), og));
 }
 
+function noindexPage(url: string, title: string, description: string): OgData {
+  return {
+    title,
+    description,
+    url,
+    type: 'website',
+    robots: 'noindex,nofollow',
+    bodyHtml: `<main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(description)}</p></main>`,
+  };
+}
+
 const router = Router();
+
+const ROBOTS_TXT = `User-agent: *
+Content-Signal: search=yes,ai-train=no,use=reference
+Allow: /
+
+User-agent: Amazonbot
+Disallow: /
+User-agent: Applebot-Extended
+Disallow: /
+User-agent: Bytespider
+Disallow: /
+User-agent: CCBot
+Disallow: /
+User-agent: ClaudeBot
+Disallow: /
+User-agent: Google-Extended
+Disallow: /
+User-agent: GPTBot
+Disallow: /
+User-agent: meta-externalagent
+Disallow: /
+
+Sitemap: ${config.web.origin}/sitemap.xml
+`;
+
+function sendXml(res: Response, xml: string): void {
+  res.status(200);
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+  res.send(xml);
+}
+
+router.get('/robots.txt', (_req, res) => {
+  res.type('text/plain').setHeader('Cache-Control', 'public, max-age=3600, s-maxage=14400');
+  res.send(ROBOTS_TXT);
+});
+
+router.get('/sitemap.xml', async (_req, res) => {
+  try {
+    const counts = await sitemapPageCounts();
+    sendXml(res, renderSitemapIndex(counts.profiles, counts.posts));
+  } catch (error) {
+    logger.warn('[webShell] Failed to build sitemap index', error);
+    res.status(503).setHeader('Retry-After', '300').end();
+  }
+});
+
+router.get(/^\/sitemaps\/(profiles|posts)-(\d+)\.xml$/, async (req, res) => {
+  const kind = req.params[0];
+  const page = Number(req.params[1]);
+  if (!Number.isSafeInteger(page) || page < 0) {
+    res.status(404).end();
+    return;
+  }
+  try {
+    sendXml(res, kind === 'profiles' ? await profileSitemap(page) : await postSitemap(page));
+  } catch (error) {
+    logger.warn(`[webShell] Failed to build ${kind} sitemap`, error);
+    res.status(503).setHeader('Retry-After', '300').end();
+  }
+});
 
 // Profile: `/@handle` plus sub-tabs (`/@handle/media`, `/@handle/followers`, …).
 // The captured group is the handle segment (`user` or `user@domain`).
 router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
   const handle = decodeURIComponent(req.params[0]);
   const isLocalProfileUrl = LOCAL_PROFILE_RE.test(req.path);
+  const isProfileRoot = PROFILE_ROOT_RE.test(req.path);
 
   // AP content negotiation — only for a LOCAL single-segment profile URL, and
   // FIRST: an ActivityPub consumer must reach the actor in one hop. Mastodon's
@@ -288,29 +368,54 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
     return res.redirect(302, AP_ACTOR_BASE + encodeURIComponent(handle));
   }
 
-  // The body varies by Accept (AP redirect above) and User-Agent (crawlers get
-  // server-side OG; browsers get the plain shell + client-side OG).
-  res.setHeader('Vary', 'Accept, User-Agent');
+  res.setHeader('Vary', 'Accept');
 
   // ONE profile resolution, read by both decisions below.
   //
-  // A browser on a plain `/@handle` now pays it too, which it did not before: the
-  // channel redirect is what makes the URL right, and a browser is exactly who
-  // follows it. It is SWR-cached per handle (fresh 5 min, stale-while-revalidate
-  // for an hour), so it is normally a Redis read; a miss or an Oxy outage answers
-  // null, which simply does not redirect and shows no card. A browser on a
-  // SUB-TAB skips it entirely — no channel lives there and no browser needs OG.
-  const wantsOg = isCrawler(req.headers['user-agent']);
-  const profile = isLocalProfileUrl || wantsOg ? await cachedProfile(handle) : null;
-
-  // A channel account's page is `/c/<handle>`, not `/@<handle>`.
-  if (isLocalProfileUrl && profile?.kind === 'channel' && profile.username) {
-    return res.redirect(302, CHANNEL_PATH_PREFIX + encodeURIComponent(profile.username));
+  // Every HTML client gets the same public representation. Resolution is
+  // SWR-cached per handle, so the normal path is a Redis read.
+  let profile: OxyProfileData | null;
+  try {
+    profile = await cachedProfile(handle);
+  } catch {
+    res.setHeader('Retry-After', '60');
+    await serveShell(
+      res,
+      noindexPage(`${config.web.origin}${req.path}`, 'Mention is temporarily unavailable', 'Please try again shortly.'),
+      503,
+    );
+    return;
   }
 
-  // Only crawlers/unfurlers need OG server-side; a browser boots the SPA which
-  // sets its own meta, so it is served the shell immediately.
-  await serveShell(res, wantsOg ? mapProfileOg(profile) : null);
+  try {
+    if (profile && !(await isMentionProfilePublic(profile.id))) profile = null;
+  } catch {
+    res.setHeader('Retry-After', '60');
+    await serveShell(
+      res,
+      noindexPage(`${config.web.origin}${req.path}`, 'Mention is temporarily unavailable', 'Please try again shortly.'),
+      503,
+    );
+    return;
+  }
+
+  // A channel account's page is `/c/<handle>`, not `/@<handle>`.
+  if (isProfileRoot && profile?.kind === 'channel' && profile.username) {
+    return res.redirect(301, CHANNEL_PATH_PREFIX + encodeURIComponent(profile.username));
+  }
+
+  if (!profile) {
+    await serveShell(
+      res,
+      noindexPage(`${config.web.origin}${req.path}`, 'Profile not found', 'This profile is unavailable on Mention.'),
+      isProfileRoot ? 404 : 200,
+    );
+    return;
+  }
+
+  const og = mapProfileOg(profile);
+  if (og && !isProfileRoot) og.robots = 'noindex,follow';
+  await serveShell(res, og);
 });
 
 // Channel: `/c/<handle>` (optional trailing slash).
@@ -322,27 +427,64 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
 // remote software to guess which is canonical.
 router.get(/^\/c\/([^/]+)\/?$/, async (req: Request, res: Response) => {
   const handle = decodeURIComponent(req.params[0]);
-  res.setHeader('Vary', 'User-Agent');
   // The same profile resolution the `/@handle` route uses, so a channel's card is
   // built from the same payload and `og:url` comes back as `/c/<handle>` from the
   // ONE definition of that (`canonicalProfilePath`).
-  const og = isCrawler(req.headers['user-agent'])
-    ? mapProfileOg(await cachedProfile(handle))
-    : null;
-  await serveShell(res, og);
+  try {
+    const profile = await cachedProfile(handle);
+    if (!profile || !(await isMentionProfilePublic(profile.id))) {
+      await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Channel not found', 'This channel is unavailable on Mention.'), 404);
+      return;
+    }
+    if (profile.kind !== 'channel' && profile.username) {
+      res.redirect(301, canonicalProfilePath(profile));
+      return;
+    }
+    await serveShell(res, mapProfileOg(profile));
+  } catch {
+    res.setHeader('Retry-After', '60');
+    await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Mention is temporarily unavailable', 'Please try again shortly.'), 503);
+  }
 });
 
 // Post: `/p/<id>` (optional trailing slash). No AP case.
 router.get(/^\/p\/([^/]+)\/?$/, async (req: Request, res: Response) => {
   const id = req.params[0];
-  // Body varies by User-Agent (crawler OG vs plain browser shell).
-  res.setHeader('Vary', 'User-Agent');
-  // Browsers get the shell immediately; only crawlers pay the Mongo hydration to
-  // resolve post OG, cached in Redis with stale-while-revalidate.
-  const og = isCrawler(req.headers['user-agent'])
-    ? await getShellCached(`post:${id}`, () => fetchPostOg(id))
-    : null;
-  await serveShell(res, og);
+  try {
+    const post = await loadPostRecord(id);
+    if (!post) {
+      await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Post not found', 'This post is unavailable on Mention.'), 404);
+      return;
+    }
+
+    const authorId = post.oxyUserId ? String(post.oxyUserId) : '';
+    const isPublic = post.visibility === 'public' && post.status === 'published';
+    const authorIsPublic = Boolean(authorId)
+      && await isMentionProfilePublic(authorId)
+      && await isOxyAuthorPublic(authorId);
+    if (!isPublic || !authorIsPublic) {
+      await serveShell(
+        res,
+        noindexPage(`${config.web.origin}${req.path}`, 'Post unavailable', 'Sign in to Mention if you have access to this post.'),
+      );
+      return;
+    }
+
+    const safety = await resolvePostOgSafety(post);
+    // Never serve a previously cached safe body after a sensitivity change.
+    // A gated post is re-rendered from the current row on every request.
+    const og = safety.requiresWarning
+      ? await fetchPostOg(id)
+      : await getShellCached(`post:${id}`, () => fetchPostOg(id), { rethrow: true });
+    if (!og) {
+      await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Post not found', 'This post is unavailable on Mention.'), 404);
+      return;
+    }
+    await serveShell(res, og);
+  } catch {
+    res.setHeader('Retry-After', '60');
+    await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Mention is temporarily unavailable', 'Please try again shortly.'), 503);
+  }
 });
 
 export default router;

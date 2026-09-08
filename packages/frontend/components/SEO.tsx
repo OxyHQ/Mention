@@ -76,7 +76,7 @@ export const SEO: React.FC<SEOProps> = ({
       <meta property="og:title" content={pageTitle} />
       <meta property="og:description" content={pageDescription} />
       <meta property="og:image" content={pageImage} />
-      <meta property="og:site_name" content={siteName} />
+      <meta property="og:site_name" content={finalSiteName} />
       
       {/* Twitter Card */}
       <meta name="twitter:card" content="summary_large_image" />
