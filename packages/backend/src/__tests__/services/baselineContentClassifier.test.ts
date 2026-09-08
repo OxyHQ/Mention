@@ -14,13 +14,22 @@ import { deriveRegion } from '../../services/contentClassification/region';
 
 describe('BaselineContentClassifier', () => {
   describe('languages (multi-language — the single canonical language field)', () => {
-    it('prefers an explicitly provided language over detection (primary = languages[0])', () => {
+    it('keeps a declared language when short text cannot reliably contradict it', () => {
       const result = baselineContentClassifier.classify({
-        // English text but an explicit Spanish tag — explicit wins.
-        text: 'This is clearly an English sentence with enough length to detect.',
+        text: 'Hola',
         language: 'es',
       });
       expect(result.languages).toEqual(['es']);
+    });
+
+    it('corrects a confidently wrong monolingual federation declaration', () => {
+      const result = baselineContentClassifier.classify({
+        text: 'diesem land hilft nur noch ein flächenbombardement',
+        language: 'en',
+        languages: ['en'],
+        isFederated: true,
+      });
+      expect(result.languages).toEqual(['de']);
     });
 
     it('normalizes a BCP-47 provided language to its primary subtag', () => {
@@ -318,8 +327,8 @@ describe('BaselineContentClassifier', () => {
       expect(baselineContentClassifier.classify({ text: 'x' }).version).toBe(BASELINE_CLASSIFIER_VERSION);
     });
 
-    it('is at v9 (only complete naming runs become trend terms)', () => {
-      expect(BASELINE_CLASSIFIER_VERSION).toBe(9);
+    it('is at v10 (confident text detection corrects false declarations)', () => {
+      expect(BASELINE_CLASSIFIER_VERSION).toBe(10);
     });
 
     it('stamps an ISO classifiedAt timestamp', () => {
