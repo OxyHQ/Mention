@@ -172,7 +172,7 @@ describe('PostCreationService — native Stage-A baseline', () => {
     expect(post.federation?.activityId).toBe(`https://${scope.name}.test/statuses/1`);
   });
 
-  it("threads a federated note's declared multi-language set into postClassification.languages", async () => {
+  it("does not widen discovery from an unverified federated multi-language declaration", async () => {
     const post = await createAndReload({
       oxyUserId: scope.user('federated-multi'),
       content: { text: 'This English body, but the AP source declared two languages via contentMap.' },
@@ -187,10 +187,10 @@ describe('PostCreationService — native Stage-A baseline', () => {
       skipFederationDelivery: true,
     });
 
-    // Top-level AP scalar is the primary; the classification records BOTH, in
-    // declared order — an array column, so the order is a real stored fact.
+    // The AP scalar preserves the source declaration for protocol fidelity, but
+    // the recommendation field grants no audience the body did not verify.
     expect(post.language).toBe('en');
-    expect(post.postClassification.languages).toEqual(['en', 'es']);
+    expect(post.postClassification.languages).toEqual([]);
   });
 
   it('persists only mention ids that still occur in a stored author body', async () => {

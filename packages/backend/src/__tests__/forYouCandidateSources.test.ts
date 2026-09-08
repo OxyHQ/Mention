@@ -285,7 +285,7 @@ describe('the discovery language predicate', () => {
   });
 
   /**
-   * AFFINITY IS FILTERED, and the other two `trusted` lanes are not.
+   * Every For You lane is language-filtered, including trusted lanes.
    *
    * This is the distinction the first version of the filter got wrong. Affinity
    * is `trusted` for the discovery GATE — the reader's own engagement vouches for
@@ -369,12 +369,16 @@ describe('the discovery language predicate', () => {
   });
 
   /**
-   * SCOPE. Following and subscribed lists stay exempt: a post from an account the
-   * reader deliberately followed is the reader's own business, whatever language
-   * it is in — "si sigo no tiene sentido ocultar nada". This is the assertion that
-   * keeps that half from drifting into the affinity rule above.
+   * Following as a standalone timeline remains open, but this helper is the
+   * ranked For You lane: every item here is an algorithmic recommendation even
+   * when its author is followed.
    */
-  it('never applies to the trusted following lane', async () => {
+  it('applies to the trusted following lane when used inside For You', async () => {
+    const inLanguage = await create({
+      oxyUserId: FOLLOW,
+      createdAt: at(-1_000),
+      postClassification: { languages: ['fyc-es'] },
+    });
     const offLanguage = await create({
       oxyUserId: FOLLOW,
       createdAt: at(0),
@@ -387,7 +391,7 @@ describe('the discovery language predicate', () => {
       viewerLanguages: ['fyc-es'],
       seenPostIds: [],
     });
-    expect(idsOf(gathered)).toEqual([offLanguage.id]);
+    expect(idsOf(gathered)).toEqual([inLanguage.id]);
   });
 });
 

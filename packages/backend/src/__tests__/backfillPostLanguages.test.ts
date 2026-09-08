@@ -150,18 +150,19 @@ describe('backfillPostLanguages', () => {
     expect(second?.languages).toEqual(first?.languages);
   });
 
-  it('leaves a post with no derivable language alone rather than fabricating one', async () => {
+  it('clears stale language claims when no language is safely derivable', async () => {
     const id = await seedUnclassified({
       content: { variants: [{ source: 'author', text: 'hi', tag: undefined }] },
+      language: 'en',
+      postClassification: { languages: ['en'], version: BASELINE_CLASSIFIER_VERSION - 1 },
     });
 
     await backfillPostLanguages({ batchSize: 100 });
 
     const after = await classificationOf(id);
-    // Never an EMPTY array either: that would stamp the post as classified and
-    // remove it from every later run's selection.
-    expect(after?.languages).toBeNull();
-    expect(after?.version).toBeNull();
+    expect(after?.languages).toEqual([]);
+    expect(after?.language).toBeNull();
+    expect(after?.version).toBe(BASELINE_CLASSIFIER_VERSION);
   });
 
   it('writes nothing under --dry-run', async () => {

@@ -78,13 +78,13 @@ describe('BaselineContentClassifier', () => {
       expect(result.languages).toEqual(['es']);
     });
 
-    it('uses an explicitly declared language list verbatim (federated AP is authoritative)', () => {
+    it('does not let an unrelated multilingual declaration widen discovery', () => {
       const result = baselineContentClassifier.classify({
         // English-looking text, but the federating server declared es + en.
         text: 'This text is in English but the source declared two languages.',
         languages: ['es', 'en'],
       });
-      expect(result.languages).toEqual(['es', 'en']);
+      expect(result.languages).toEqual([]);
     });
 
     it('merges the singular `language` (leading) with the declared `languages` list, deduped + normalized', () => {
@@ -93,8 +93,7 @@ describe('BaselineContentClassifier', () => {
         language: 'pt-BR',
         languages: ['pt', 'en-US'],
       });
-      // pt-BR (primary) + pt (dup) + en-US → ['pt', 'en'].
-      expect(result.languages).toEqual(['pt', 'en']);
+      expect(result.languages).toEqual([]);
     });
 
     it('caps the recorded languages at the configured maximum', () => {
@@ -102,8 +101,31 @@ describe('BaselineContentClassifier', () => {
         text: 'x',
         languages: ['en', 'es', 'fr', 'de', 'it'],
       });
-      expect(result.languages.length).toBeLessThanOrEqual(3);
-      expect(result.languages).toEqual(['en', 'es', 'fr']);
+      expect(result.languages).toEqual([]);
+    });
+
+    it('uses Japanese script over a bogus English primary declaration', () => {
+      const result = baselineContentClassifier.classify({
+        text: 'これは日本語で書かれた投稿です。おすすめに正しく分類される必要があります。',
+        language: 'en',
+        languages: ['en', 'ja'],
+      });
+      expect(result.languages).toEqual(['ja']);
+    });
+
+    it('does not guess Chinese from ambiguous Han script mixed with Latin text', () => {
+      const result = baselineContentClassifier.classify({
+        text: '这是一个中文帖子，其中包含 Mention 和其他英文名称。',
+        language: 'en',
+      });
+      expect(result.languages).toEqual([]);
+    });
+
+    it('does not recommend an undeclared language when detection is uncertain', () => {
+      const result = baselineContentClassifier.classify({
+        text: 'Mi estas tre feliĉa hodiaŭ kaj parolas kun ĉiuj miaj amikoj.',
+      });
+      expect(result.languages).toEqual([]);
     });
 
     it('returns an empty languages array when no language is determinable', () => {
@@ -327,8 +349,8 @@ describe('BaselineContentClassifier', () => {
       expect(baselineContentClassifier.classify({ text: 'x' }).version).toBe(BASELINE_CLASSIFIER_VERSION);
     });
 
-    it('is at v10 (confident text detection corrects false declarations)', () => {
-      expect(BASELINE_CLASSIFIER_VERSION).toBe(10);
+    it('is at v11 (uncertain language membership fails closed)', () => {
+      expect(BASELINE_CLASSIFIER_VERSION).toBe(11);
     });
 
     it('stamps an ISO classifiedAt timestamp', () => {

@@ -4,8 +4,8 @@
  * Produces the cheap, synchronous, side-effect-free signals that run on EVERY
  * post (native AND federated) on the same code path at ingest:
  *   - languages: ALL detected/declared ISO 639-1 languages (primary first) —
- *     explicitly-provided AP set if any, else tinyld multi-candidate detection,
- *     else `[]` (short/undetectable text). The single canonical language field.
+ *     languages verified from the visible body via script evidence / tinyld,
+ *     else `[]` (short, ambiguous, or contradictory text).
  *   - region: best-effort, nullable (from a federated instance domain or locale)
  *   - hashtagsNorm: canonical hashtags via the shared post-hashtag normalizer
  *     (NOT a parallel normalizer), with the alias map applied
@@ -120,8 +120,13 @@ import {
  * (`en`) onto unrelated prose, which placed clearly German posts in English
  * discovery feeds. Multilingual declarations remain authoritative because the
  * primary body cannot validate every authored `contentMap` rendition.
+ *
+ * v11: language membership is fail-closed. Script evidence corrects bogus CJK
+ * declarations for scripts that uniquely identify a supported language;
+ * an undeclared body needs a minimum confidence; and a multilingual declaration
+ * no longer makes every label eligible merely because it was supplied.
  */
-export const BASELINE_CLASSIFIER_VERSION = 10;
+export const BASELINE_CLASSIFIER_VERSION = 11;
 
 /**
  * Minimum number of non-whitespace characters required before attempting
@@ -141,6 +146,8 @@ const MIN_TEXT_LENGTH_FOR_DETECTION = 12;
  * top candidate. The top candidate is always taken as the primary (best guess).
  */
 const LANGUAGE_DETECTION = {
+  /** Confidence required before an undeclared body is eligible for discovery. */
+  primaryMinAccuracy: 0.6,
   /** Confidence required to overrule one contradictory declared language. */
   declaredContradictionMinAccuracy: 0.8,
   /**
@@ -355,12 +362,12 @@ export class BaselineContentClassifier {
    * Resolve the post's languages into an ordered ISO 639-1 list (primary first).
    * The primary is simply element 0 (or none when the list is empty). Policy:
    *
-   * 1. A multilingual declared set is authoritative: the visible primary body
-   *    cannot validate every authored `contentMap` rendition.
-   * 2. A single declaration is accepted unless sufficiently long text strongly
-   *    identifies a different language.
+   * 1. Declarations are evidence, never an unconditional discovery grant.
+   * 2. Decisive script evidence corrects a contradiction; shared Han script can
+   *    reject a Latin declaration without guessing Chinese versus Japanese.
    * 3. Otherwise, detect from text when it is long enough to be
-   *    reliable, using tinyld's ranked `detectAll`: the top candidate is the
+   *    reliable, using tinyld's ranked `detectAll`: a sufficiently confident top
+   *    candidate is the
    *    primary, and additional candidates are kept only when they clear both the
    *    absolute and relative gates in {@link LANGUAGE_DETECTION}.
    */
@@ -376,11 +383,24 @@ export class BaselineContentClassifier {
         .filter((code): code is string => code !== undefined),
     ).slice(0, LANGUAGE_DETECTION.maxLanguages);
 
+    const scripted = this.strongScriptLanguage(trimmedText);
+
     if (declared.length > 1) {
-      return { primary: declared[0], all: declared };
+      if (scripted) return { primary: scripted, all: [scripted] };
+      const detected = this.selectDetectedLanguages(trimmedText);
+      const verified = detected.filter((code) => declared.includes(code));
+      return { primary: verified[0], all: verified };
     }
 
     if (declared.length === 1) {
+      if (scripted && scripted !== declared[0]) {
+        return { primary: scripted, all: [scripted] };
+      }
+      // Han is shared by Chinese and Japanese, so it cannot choose between them;
+      // it can still prove that a Latin-only declaration such as `en` is false.
+      if (/\p{Script=Han}/u.test(trimmedText) && !['zh', 'ja'].includes(declared[0])) {
+        return { primary: undefined, all: [] };
+      }
       if (trimmedText.length >= MIN_TEXT_LENGTH_FOR_DETECTION) {
         const [top] = detectAllLanguages(trimmedText);
         const detected = normalizeProvidedLanguage(top?.lang);
@@ -405,7 +425,7 @@ export class BaselineContentClassifier {
 
   /**
    * Run tinyld's ranked multi-candidate detection and select the languages to
-   * keep: the top candidate (the single best guess) plus any further candidate
+   * keep: a sufficiently confident top candidate plus any further candidate
    * that clears BOTH the absolute accuracy floor AND the ratio-to-top gate. Only
    * ISO 639-1 codes are kept; the result is deduped and capped.
    */
@@ -416,6 +436,12 @@ export class BaselineContentClassifier {
     if (ranked.length === 0) return [];
 
     const topAccuracy = ranked[0].accuracy;
+    const secondAccuracy = ranked[1]?.accuracy ?? 0;
+    const credibleBilingualPair =
+      secondAccuracy >= LANGUAGE_DETECTION.secondaryMinAccuracy
+      && secondAccuracy / topAccuracy >= LANGUAGE_DETECTION.secondaryMinRatioToTop
+      && topAccuracy + secondAccuracy >= 0.8;
+    if (topAccuracy < LANGUAGE_DETECTION.primaryMinAccuracy && !credibleBilingualPair) return [];
     const selected: string[] = [ranked[0].lang];
 
     for (const candidate of ranked.slice(1)) {
@@ -430,6 +456,13 @@ export class BaselineContentClassifier {
     }
 
     return this.dedupeLanguages(selected);
+  }
+
+  /** Languages whose writing system is decisive without a vocabulary model. */
+  private strongScriptLanguage(text: string): string | undefined {
+    if (/\p{Script=Hiragana}|\p{Script=Katakana}/u.test(text)) return 'ja';
+    if (/\p{Script=Hangul}/u.test(text)) return 'ko';
+    return undefined;
   }
 
   /** Dedupe ISO 639-1 codes, preserving first-seen order. */

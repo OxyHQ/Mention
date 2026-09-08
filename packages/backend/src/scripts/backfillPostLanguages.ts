@@ -13,7 +13,7 @@
  * It re-derives from the post's own `content.text` / `hashtags` (NOT the stored
  * `post.language`, which used to be defaulted to `'en'` — reusing it would
  * propagate that bad default). Posts whose text is too short/undetectable are
- * left untouched rather than fabricating a language.
+ * explicitly stamped as unknown rather than retaining a stale, false language.
  *
  * Idempotent (writing the array + current version removes a post from the
  * selection filter, so a re-run only fills gaps) and batched via a stable
@@ -99,10 +99,6 @@ export async function backfillPostLanguages(
           sensitive: post.federation?.sensitive,
           isFederated: post.federation != null,
         });
-        // No derivable language (too short / undetectable): leave it for a later
-        // run rather than fabricating one. Never write an empty array.
-        if (signals.languages.length === 0) continue;
-
         updated += 1;
         if (dryRun) continue;
 
@@ -121,7 +117,7 @@ export async function backfillPostLanguages(
             trendTerms: signals.trendTerms,
             version: signals.version,
           },
-          language: signals.languages[0],
+          language: signals.languages[0] ?? null,
         });
       } catch (error) {
         failed += 1;

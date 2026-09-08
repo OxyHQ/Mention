@@ -149,14 +149,12 @@ an unaccepted collaborator from appearing on the fediverse.
 
 ### Remote language declarations
 
-Incoming `language` and `contentMap` values are normalized at ingest. A genuine
-multi-key `contentMap` represents authored renditions and remains authoritative.
-A lone language value is evidence rather than an unconditional truth: for a
-sufficiently long body, the deterministic baseline classifier may replace it
-when local text detection identifies a different language with high confidence.
-This prevents a remote account default such as `en` from placing clearly German
-posts in English discovery feeds. Short or ambiguous bodies keep the remote
-declaration.
+Incoming `language` and `contentMap` values are normalized at ingest, but their
+labels are evidence rather than an unconditional distribution grant. Decisive
+Japanese kana or Korean hangul corrects a contradictory default; statistical
+detection must clear a confidence floor. This prevents a remote account default
+such as `en` from placing clearly foreign-language posts in English discovery.
+Ambiguous bodies remain unclassified instead of entering For You under a guess.
 
 The reconciled result is stored once in `postClassification.languages`; feeds,
 ranking, search, trends, translation selection and outbound ActivityPub consume
