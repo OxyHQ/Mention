@@ -1,0 +1,1 @@
+ALTER TABLE "trend_story_posts" ADD COLUMN "evidence" jsonb DEFAULT '{"sources":[],"linkUrls":[],"linkDomains":[],"mentionsCount":0,"repostsCount":0,"quotesCount":0,"repliesCount":0}'::jsonb NOT NULL;

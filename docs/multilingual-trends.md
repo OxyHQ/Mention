@@ -34,8 +34,20 @@ The graph exposes each edge's normalized strength and reason (`cooccurrence` or
 ## Post membership and presentation
 
 `trend_story_posts` materializes which posts belong to each stored story and its
-deterministic relevance. A trend feed uses these rows when present and falls
-back to term matching only for history that has not been backfilled.
+deterministic relevance. It also records an evidence envelope: whether the
+author term or hashtag matched, whether cached link title/description or the
+quoted/replied-to post corroborated it, the link origins, mention count, and the
+separate repost/quote/reply amplification counts. A trend feed uses these rows
+when present and falls back to term matching only for history that has not been
+backfilled.
+
+Context is deliberately asymmetric. Only author-written text or a hashtag may
+admit a post into a story. Link metadata, a quote target, or a reply parent can
+raise confidence in that existing match, but cannot turn an unrelated post into
+a political post. Reposts never count as independent authors; they are retained
+as amplification evidence. Link HTML is never fetched by Mention: the bounded
+Oxy preview cache remains the SSRF-safe resolver and a cache miss simply adds no
+link evidence on that pass.
 
 Trend rows keep their corpus-derived name and may carry reviewed localized
 labels. `GET /trending?lang=es&region=MX` selects a reviewed label and orders by
@@ -53,5 +65,5 @@ CONFIRM_ADMIN_MUTATION=backfillMultilingualTrends \
 ```
 
 The job is idempotent. It applies the current deterministic term extractor to
-all posts, decorates retained trend rows, inserts missing memberships with
-conflict protection, and publishes a fresh batch.
+all posts, decorates retained trend rows, upserts memberships and their current
+context evidence, and publishes a fresh batch.

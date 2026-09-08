@@ -76,6 +76,26 @@ void _vocabularyCoversTrendingType;
 export const TREND_STATUSES = ['hot'] as const;
 export const TREND_SCOPES = ['global', 'multilingual', 'regional', 'language', 'community'] as const;
 
+export const TREND_EVIDENCE_SOURCES = [
+  'author-term',
+  'author-hashtag',
+  'link-title',
+  'link-description',
+  'quoted-post',
+  'reply-parent',
+] as const;
+export type TrendEvidenceSource = (typeof TREND_EVIDENCE_SOURCES)[number];
+
+export interface TrendStoryEvidence {
+  sources: TrendEvidenceSource[];
+  linkUrls: string[];
+  linkDomains: string[];
+  mentionsCount: number;
+  repostsCount: number;
+  quotesCount: number;
+  repliesCount: number;
+}
+
 /** `NotificationType`. */
 export const NOTIFICATION_TYPES = [
   'like',
@@ -299,6 +319,11 @@ export const trendStoryPosts = pgTable(
     postId: text().notNull().references(() => posts.id, { onDelete: 'cascade' }),
     relevance: doublePrecision().notNull(),
     matchedTerms: text().array().notNull(),
+    /** Auditable context. These signals reinforce membership but never originate it. */
+    evidence: jsonb().$type<TrendStoryEvidence>().notNull().default({
+      sources: [], linkUrls: [], linkDomains: [], mentionsCount: 0,
+      repostsCount: 0, quotesCount: 0, repliesCount: 0,
+    }),
   },
   (t) => [
     unique('trend_story_posts_trend_id_post_id_key').on(t.trendId, t.postId),

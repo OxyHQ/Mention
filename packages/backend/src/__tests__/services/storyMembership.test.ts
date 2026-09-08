@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scoreStoryMembership } from '../../services/trending/storyMembership';
+import { scoreContextualStoryMembership, scoreStoryMembership } from '../../services/trending/storyMembership';
 
 describe('deterministic story membership', () => {
   it('keeps the representative term authoritative', () => {
@@ -24,5 +24,32 @@ describe('deterministic story membership', () => {
 
   it('does not admit a singleton story when the term is absent', () => {
     expect(scoreStoryMembership('oil', ['oil'], ['fanta']).relevance).toBe(0);
+  });
+});
+
+describe('scoreContextualStoryMembership', () => {
+  it('lets links and quoted posts corroborate an author-written match', () => {
+    expect(scoreContextualStoryMembership({
+      storyName: 'trump',
+      storyTerms: ['trump', 'white house'],
+      trendTerms: ['trump'],
+      hashtags: [],
+      linkTitleTerms: ['white house'],
+      quotedTerms: ['trump'],
+    })).toEqual({
+      relevance: 1,
+      matchedTerms: ['trump', 'white house'],
+      sources: ['author-term', 'link-title', 'quoted-post'],
+    });
+  });
+
+  it('never admits an unrelated post from link metadata alone', () => {
+    expect(scoreContextualStoryMembership({
+      storyName: 'trump',
+      storyTerms: ['trump', 'white house'],
+      trendTerms: ['fanta'],
+      hashtags: [],
+      linkTitleTerms: ['trump', 'white house'],
+    })).toEqual({ relevance: 0, matchedTerms: [], sources: [] });
   });
 });

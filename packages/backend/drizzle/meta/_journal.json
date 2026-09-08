@@ -225,6 +225,13 @@
       "when": 1788869987599,
       "tag": "0031_flashy_wolfsbane",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788873169275,
+      "tag": "0032_glamorous_prima",
+      "breakpoints": true
     }
   ]
 }
