@@ -89,10 +89,11 @@ vi.mock('../../../services/mediaCache/cacheStore', () => ({
   recordAccessAndMaybeEnqueue: mocks.recordAccess,
 }));
 
-import { like } from 'drizzle-orm';
+import { and, eq, like } from 'drizzle-orm';
 import { PostType } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
+import { postContentVariants } from '../../../db/schema/postContent';
 import {
   clearFederationScope,
   federationScope,
@@ -221,6 +222,19 @@ function runOutboxSync() {
 }
 
 /** The stored row for one of Alice's notes, by the local part of its id. */
+/** The stored PRIMARY body of one of Alice's notes. */
+async function storedBody(id: string): Promise<string | undefined> {
+  const [row] = await getDb()
+    .select({ body: postContentVariants.body })
+    .from(posts)
+    .innerJoin(
+      postContentVariants,
+      and(eq(postContentVariants.postId, posts.id), eq(postContentVariants.position, 0)),
+    )
+    .where(like(posts.federationActivityId, `${ACTOR_URI}/statuses/${id}%`));
+  return row?.body;
+}
+
 async function storedNote(
   id: string,
 ): Promise<{ quoteOf: string | null; type: string; status: string } | undefined> {
@@ -474,5 +488,39 @@ describe("Threads, whose quote exists ONLY as `span.quote-inline`", () => {
       type: PostType.TEXT,
       status: 'published',
     });
+  });
+});
+
+describe("the remote's `RE:` fallback goes once we can render the quote ourselves", () => {
+  it('is removed from the stored body when the quote LINKS', async () => {
+    // Production had 16,158 of 16,324 linked quotes showing the card AND a raw
+    // duplicate of the same link, because the marker was never taken out.
+    const quoted = await seedPost(scope, {
+      oxyUserId: BOB_OXY_ID,
+      federation: { activityId: HELD_URI, actorUri: BOB_URI, url: HELD_URI },
+    });
+    stubRemote([createNote('linked-marker', { quote: HELD_URI })]);
+
+    await runOutboxSync();
+
+    expect((await storedNote('linked-marker'))?.quoteOf).toBe(quoted.id);
+    expect(await storedBody('linked-marker')).not.toContain('RE:');
+  });
+
+  it('SURVIVES when the quote does not link, because it is the only reference', async () => {
+    // The withheld post keeps the marker: nothing renders it, and throwing the
+    // reference away would leave no pointer at all if it is ever promoted.
+    // The marker must name the SAME url the note declares, or this case would
+    // pass because the two simply did not match — which is what a mutation run
+    // caught: forcing the strip unconditionally left it green.
+    stubRemote([createNote('unlinked-marker', {
+      quote: UNHELD_URI,
+      content: `<p>RE: ${UNHELD_URI}</p>`,
+    })]);
+
+    await runOutboxSync();
+
+    expect((await storedNote('unlinked-marker'))?.status).toBe('incomplete');
+    expect(await storedBody('unlinked-marker')).toContain('RE:');
   });
 });

@@ -690,6 +690,93 @@ export async function resolveDeclaredQuoteTarget(
 }
 
 /**
+ * Remove the `RE: <url>` a remote server rendered for a quote WE CAN SHOW.
+ *
+ * `RE: <url>` is not the author's prose. It is the fallback a server writes into
+ * the body so that clients unable to display a quote still surface the
+ * reference. Once the quote is linked we display it properly, so leaving the
+ * marker in place shows the reader the quote card AND a raw duplicate of the
+ * same link — which is what 16,158 of the 16,324 linked federated quotes in
+ * production were doing.
+ *
+ * SAFE BECAUSE IT MATCHES A VALUE WE STORED, NOT A PATTERN. The caller passes
+ * the URLs of the post that was actually linked — the declared quote URI, and
+ * the quoted post's own `federation_url` / `federation_activity_id`, which is
+ * what the marker names in practice (measured: a body reading
+ * `RE: https://mastodon.social/@getkirby/116619403689196814` against a quoted
+ * post whose `federation_url` is exactly that). A `RE:` naming anything else is
+ * left alone, so a post that merely talks about a link keeps its text.
+ *
+ * Only ever called when a quote RESOLVED. On an unresolved quote the marker is
+ * the only reference the reader has and removing it would destroy information —
+ * which is why the withheld (`incomplete`) path never calls this.
+ *
+ * Handles both placements, because servers disagree: Mastodon opens the body
+ * with it (14,186 rows) and Misskey / Akkoma / Bridgy Fed / Threads append it
+ * (1,973). The surrounding blank line goes with it, or the body keeps the hole
+ * the marker left.
+ */
+export function stripRenderedQuoteMarker(body: string, quotedUrls: readonly string[]): string {
+  const targets = quotedUrls.filter((url) => url.length > 0);
+  if (targets.length === 0 || !body.includes('RE:')) return body;
+
+  let out = body;
+  for (const url of targets) {
+    const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Trailing `/` is optional on the rendered form even when the stored URL
+    // carries one, and vice versa — the marker is a rendering of the same post.
+    const pattern = new RegExp(`(^|\\s*)RE:\\s*${escaped}/?(?=\\s|$)`, 'g');
+    out = out.replace(pattern, '');
+  }
+
+  // Collapse the blank line the removal leaves behind, then trim the ends. The
+  // author's own paragraph breaks inside the remaining text are untouched.
+  return out.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * Apply {@link stripRenderedQuoteMarker} to every rendition of a note whose
+ * quote we linked.
+ *
+ * EVERY rendition, not just the primary: a `contentMap` carries one body per
+ * language and the remote renders the same marker into each, so cleaning only
+ * `variants[0]` would leave the duplicate showing for any reader on another
+ * language.
+ *
+ * The URLs come from the post that was ACTUALLY linked, read back here in one
+ * query rather than assumed: the declared quote URI is usually the AP id
+ * (`https://mastodon.social/users/getkirby/statuses/…`) while the marker names
+ * the WEB url (`https://mastodon.social/@getkirby/…`), so matching only what the
+ * note declared would miss almost every real case.
+ *
+ * A no-op when nothing was linked — on an unresolved quote the marker is the
+ * reader's only reference and must survive.
+ */
+export async function stripQuoteMarkerFromVariants<T extends { text: string }>(
+  variants: readonly T[],
+  quoteOf: string | null,
+  declaredUri: string | undefined,
+): Promise<T[]> {
+  const source = [...variants];
+  if (!quoteOf || source.length === 0) return source;
+
+  const [quoted] = await getDb()
+    .select({ url: posts.federationUrl, activityId: posts.federationActivityId })
+    .from(posts)
+    .where(eq(posts.id, quoteOf))
+    .limit(1);
+
+  const urls = [declaredUri, quoted?.url, quoted?.activityId]
+    .filter((value): value is string => typeof value === 'string' && value.length > 0);
+  if (urls.length === 0) return source;
+
+  return source.map((variant) => {
+    const text = stripRenderedQuoteMarker(variant.text, urls);
+    return text === variant.text ? variant : { ...variant, text };
+  });
+}
+
+/**
  * Extract media attachments from an AP Note object.
  * Returns media items and attachment descriptors for the Post model.
  *

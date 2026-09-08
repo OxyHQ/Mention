@@ -60,6 +60,7 @@ import {
   extractActorUri,
   extractDeclaredQuote,
   resolveDeclaredQuoteTarget,
+  stripQuoteMarkerFromVariants,
   extractInReplyToUri,
   mapApVisibility,
   parseApPublished,
@@ -877,6 +878,13 @@ export class OutboxSyncService {
         const quoteOf = declaredQuote
           ? await resolveDeclaredQuoteTarget(declaredQuote, (uri) => this.ensureQuotedNote(uri))
           : null;
+        // The remote's `RE: <url>` fallback is a duplicate of the card we now
+        // render. Untouched when the quote did not resolve.
+        const quoteVariants = await stripQuoteMarkerFromVariants(
+          variants,
+          quoteOf,
+          declaredQuote?.uri,
+        );
 
         // AP-derived language so federated posts carry their REAL language
         // instead of the schema default 'en'. `extractApLanguage` is the declared
@@ -930,7 +938,7 @@ export class OutboxSyncService {
             // The body, and its ONLY home (`contentMap` → author variants,
             // `variants[0]` primary). There is no `content.text` mirror on any
             // path — the column does not exist.
-            variants: variants.length > 0 ? variants : undefined,
+            variants: quoteVariants.length > 0 ? quoteVariants : undefined,
             media: media.length > 0 ? media : undefined,
             attachments: attachments.length > 0 ? attachments : undefined,
           },
@@ -1638,6 +1646,11 @@ export class OutboxSyncService {
       ? await resolveDeclaredQuoteTarget(declaredQuote, (uri) =>
         depth < MAX_ANCESTOR_DEPTH ? this.ensureFederatedNote(uri, depth + 1) : Promise.resolve(null))
       : null;
+    const quoteVariants = await stripQuoteMarkerFromVariants(
+      variants,
+      quoteOf,
+      declaredQuote?.uri,
+    );
 
     try {
       const created = await getPostCreator().create({
@@ -1655,7 +1668,7 @@ export class OutboxSyncService {
         quoteOf,
         content: {
           // The body, and its ONLY home (`variants[0]` is the primary).
-          variants: variants.length > 0 ? variants : undefined,
+          variants: quoteVariants.length > 0 ? quoteVariants : undefined,
           media: media.length > 0 ? media : undefined,
           attachments: attachments.length > 0 ? attachments : undefined,
         },
