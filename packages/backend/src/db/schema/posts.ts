@@ -708,6 +708,24 @@ export const posts = pgTable(
       t.id.desc()
     ),
     index('posts_owner_chrono_idx').on(t.oxyUserId, t.visibility, t.status, t.createdAt.desc(), t.id.desc()),
+    // SEO sitemap shards use the same immutable 64-way hash expressions. The
+    // leading expressions let PostgreSQL seek one stable bucket instead of
+    // hashing the entire public archive every time a crawler opens a shard.
+    // The partial predicate is deliberately limited to facts common to every
+    // sitemap query; privacy and discovery-safety remain query-time filters.
+    index('posts_seo_post_bucket_idx')
+      .on(
+        sql`(mod(('x' || substr(md5(${t.id}), 1, 8))::bit(32)::bigint, 64)::int)`,
+        t.id,
+      )
+      .where(sql`${t.visibility} = 'public' and ${t.status} = 'published' and ${t.oxyUserId} is not null`),
+    index('posts_seo_profile_bucket_idx')
+      .on(
+        sql`(mod(('x' || substr(md5(${t.oxyUserId}), 1, 8))::bit(32)::bigint, 64)::int)`,
+        t.oxyUserId,
+        t.updatedAt,
+      )
+      .where(sql`${t.visibility} = 'public' and ${t.status} = 'published' and ${t.oxyUserId} is not null`),
     index('posts_type_chrono_idx').on(t.type, t.visibility, t.status, t.createdAt.desc()),
     index('posts_created_at_idx').on(t.createdAt.desc()),
     /**

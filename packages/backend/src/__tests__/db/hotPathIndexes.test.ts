@@ -167,6 +167,30 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       'USING btree (oxy_user_id, visibility, status, created_at DESC NULLS LAST, id DESC NULLS LAST)',
   },
   {
+    name: 'posts_seo_post_bucket_idx',
+    table: 'posts',
+    serves:
+      'post sitemap shards. Without the expression leading the index, every child sitemap hashes the ' +
+      'entire eligible archive before discarding 63 buckets, so crawl work grows with all posts rather ' +
+      'than with the bounded shard Google requested',
+    definition:
+      'CREATE INDEX posts_seo_post_bucket_idx ON public.posts USING btree ' +
+      "(((mod(((('x'::text || substr(md5(id), 1, 8)))::bit(32))::bigint, (64)::bigint))::integer), id) " +
+      "WHERE ((visibility = 'public'::text) AND (status = 'published'::text) AND (oxy_user_id IS NOT NULL))",
+  },
+  {
+    name: 'posts_seo_profile_bucket_idx',
+    table: 'posts',
+    serves:
+      'profile sitemap shards and their last-modified aggregation. Without it each profile child and ' +
+      'catalog refresh hashes all eligible posts even though it consumes only one stable author bucket',
+    definition:
+      'CREATE INDEX posts_seo_profile_bucket_idx ON public.posts USING btree ' +
+      "(((mod(((('x'::text || substr(md5(oxy_user_id), 1, 8)))::bit(32))::bigint, (64)::bigint))::integer), " +
+      'oxy_user_id, updated_at) ' +
+      "WHERE ((visibility = 'public'::text) AND (status = 'published'::text) AND (oxy_user_id IS NOT NULL))",
+  },
+  {
     name: 'posts_type_chrono_idx',
     table: 'posts',
     serves:

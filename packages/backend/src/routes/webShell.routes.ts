@@ -54,7 +54,7 @@ import {
   postSitemap,
   profileSitemap,
   renderSitemapIndex,
-  sitemapPageCounts,
+  sitemapCatalog,
 } from '../services/seoSitemap';
 
 /** Frontend CDN origin the static SPA shell is fetched from (NOT the apex — that would loop the Origin Rule). */
@@ -330,23 +330,35 @@ router.get('/robots.txt', (_req, res) => {
 
 router.get('/sitemap.xml', async (_req, res) => {
   try {
-    const counts = await sitemapPageCounts();
-    sendXml(res, renderSitemapIndex(counts.profiles, counts.posts));
+    sendXml(res, renderSitemapIndex(await sitemapCatalog()));
   } catch (error) {
     logger.warn('[webShell] Failed to build sitemap index', error);
     res.status(503).setHeader('Retry-After', '300').end();
   }
 });
 
-router.get(/^\/sitemaps\/(profiles|posts)-(\d+)\.xml$/, async (req, res) => {
+// The former numeric shards must never fall through to the SPA shell: crawlers
+// can retain child sitemap URLs after the root index changes, and HTML at one of
+// those URLs is reported as a malformed sitemap. Gone is the truthful response;
+// the current root index is the only discovery entry point.
+router.get(/^\/sitemaps\/(profiles|posts)-(\d+)\.xml$/, (_req, res) => {
+  res.status(410);
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400');
+  res.send('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+});
+
+router.get(/^\/sitemaps\/(profiles|posts)-([0-9a-f]{2})-(\d+)\.xml$/, async (req, res) => {
   const kind = req.params[0];
-  const page = Number(req.params[1]);
-  if (!Number.isSafeInteger(page) || page < 0) {
+  const bucket = Number.parseInt(req.params[1], 16);
+  const page = Number(req.params[2]);
+  if (!Number.isSafeInteger(bucket) || !Number.isSafeInteger(page) || page < 0) {
     res.status(404).end();
     return;
   }
   try {
-    sendXml(res, kind === 'profiles' ? await profileSitemap(page) : await postSitemap(page));
+    const shard = { bucket, page };
+    sendXml(res, kind === 'profiles' ? await profileSitemap(shard) : await postSitemap(shard));
   } catch (error) {
     logger.warn(`[webShell] Failed to build ${kind} sitemap`, error);
     res.status(503).setHeader('Retry-After', '300').end();
