@@ -164,6 +164,26 @@ describe('quoted-post backfill — the rows, not the call', () => {
     expect(mocks.signedFetch).not.toHaveBeenCalled();
   });
 
+  it('SELECTS a body whose marker TRAILS the author text, which `^RE:` could not', async () => {
+    // The shape Misskey, Akkoma, Bridgy Fed and Threads actually send: the
+    // author's own text first, the rendered marker last. Anchoring the SQL at
+    // `^RE:` left 2,043 production posts unreachable, and the servers behind
+    // most of them (misskey.io 905, bsky.brid.gy 389) DO send the structured
+    // field this links from — they were repairable the whole time.
+    //
+    // Asserted through the REAL Postgres predicate rather than the JS mirror in
+    // `backfillQuotedPosts.test.ts`, because the rule lives in the query. Put
+    // `^` back on that predicate and this reds; the mirror alone would not.
+    const quotedId = await seedQuotedPost();
+    const trailingId = await seedCandidate(`A M A T E R A S U 👁️ 🔥\n\nRE: ${QUOTED_URI}`);
+    respondWith({ quoteUri: QUOTED_URI });
+
+    const result = await backfillQuotedPosts({ dryRun: false });
+
+    expect(result.candidates).toBe(1);
+    expect(await quoteOfRow(trailingId)).toBe(quotedId);
+  });
+
   it('a DRY RUN neither links nor IMPORTS — and says how many it declined to fetch', async () => {
     // Nothing local holds the quoted post, so a live run would go and get it.
     const candidateId = await seedCandidate();
