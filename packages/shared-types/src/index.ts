@@ -65,8 +65,5 @@ export * from './moderation';
 // Canonical MCP tool policy metadata shared by the transport and API guard.
 export * from './mcpCapabilities';
 
-// The two id shapes Oxy has minted, and the predicate that recognises both.
-export * from './oxyIds';
-
 // MTN Protocol types
 export * from './mtn';

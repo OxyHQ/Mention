@@ -20,10 +20,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *   - the report leads with `localFollowersAffected`.
  */
 
-const OBJECT_IDS = [
+/**
+ * Three cursors, deliberately in DIFFERENT encodings: a pre-cutover ObjectId, a
+ * uuid v7 (what Oxy mints now), and a string that is neither. The script treats
+ * a cursor as opaque — it hands back whatever it was given — so the paging
+ * assertions must not accidentally depend on all three looking alike, which is
+ * how the shape assumption survived here in the first place.
+ */
+const CURSORS = [
   '6a2f9d8989b795cfdfac3501',
-  '6a2f9d8989b795cfdfac3502',
-  '6a2f9d8989b795cfdfac3503',
+  '01a0821e-d61a-7a78-b5d1-afb1850bd5a4',
+  'cursor:v2:eyJhZnRlciI6MTB9',
 ] as const;
 
 const h = vi.hoisted(() => ({
@@ -137,8 +144,8 @@ describe('the request', () => {
   });
 
   it('carries the cursor forward as afterId', () => {
-    expect(buildPurgeRequest(DOMAIN, options(), OBJECT_IDS[0]))
-      .toEqual({ domain: DOMAIN, dryRun: true, limit: 2, afterId: OBJECT_IDS[0] });
+    expect(buildPurgeRequest(DOMAIN, options(), CURSORS[0]))
+      .toEqual({ domain: DOMAIN, dryRun: true, limit: 2, afterId: CURSORS[0] });
   });
 
   it('omits afterId entirely on the first pass rather than sending a null', () => {
@@ -149,9 +156,9 @@ describe('the request', () => {
 describe('the plan and the execute', () => {
   it('issue identical requests apart from the flag', async () => {
     const paged = [
-      pass({ nextCursor: OBJECT_IDS[0], done: false, actorsProcessed: 2 }),
-      pass({ nextCursor: OBJECT_IDS[1], done: false, actorsProcessed: 2 }),
-      pass({ nextCursor: OBJECT_IDS[2], done: true, actorsProcessed: 1 }),
+      pass({ nextCursor: CURSORS[0], done: false, actorsProcessed: 2 }),
+      pass({ nextCursor: CURSORS[1], done: false, actorsProcessed: 2 }),
+      pass({ nextCursor: CURSORS[2], done: true, actorsProcessed: 1 }),
     ];
 
     respondWith(...paged);
@@ -176,8 +183,8 @@ describe('the plan and the execute', () => {
 describe('a dry run', () => {
   it('issues no destructive request', async () => {
     respondWith(
-      pass({ nextCursor: OBJECT_IDS[0], done: false }),
-      pass({ nextCursor: OBJECT_IDS[1], done: true }),
+      pass({ nextCursor: CURSORS[0], done: false }),
+      pass({ nextCursor: CURSORS[1], done: true }),
     );
 
     await purgeDomainOnPlatform(DOMAIN, options({ dryRun: true }), emptyIssues());
@@ -188,8 +195,8 @@ describe('a dry run', () => {
 
   it('writes no resume cursor — a plan leaves nothing behind', async () => {
     respondWith(
-      pass({ nextCursor: OBJECT_IDS[0], done: false }),
-      pass({ nextCursor: OBJECT_IDS[1], done: true }),
+      pass({ nextCursor: CURSORS[0], done: false }),
+      pass({ nextCursor: CURSORS[1], done: true }),
     );
 
     await purgeDomainOnPlatform(DOMAIN, options({ dryRun: true }), emptyIssues());
@@ -199,7 +206,7 @@ describe('a dry run', () => {
 
   it('ignores a recorded cursor on RESET_CURSOR instead of deleting the row', async () => {
     h.readAdminScriptCursor.mockResolvedValue({
-      cursor: OBJECT_IDS[0],
+      cursor: CURSORS[0],
       scanned: 4,
       completedAt: null,
     });
@@ -212,29 +219,29 @@ describe('a dry run', () => {
 
   it('still starts where the execute would, so the plan describes that run', async () => {
     h.readAdminScriptCursor.mockResolvedValue({
-      cursor: OBJECT_IDS[1],
+      cursor: CURSORS[1],
       scanned: 4,
       completedAt: null,
     });
 
     await purgeDomainOnPlatform(DOMAIN, options({ dryRun: true }), emptyIssues());
 
-    expect(issuedRequests()[0]?.afterId).toBe(OBJECT_IDS[1]);
+    expect(issuedRequests()[0]?.afterId).toBe(CURSORS[1]);
   });
 });
 
 describe('paging', () => {
   it('echoes nextCursor back as afterId until the endpoint reports done', async () => {
     respondWith(
-      pass({ nextCursor: OBJECT_IDS[0], done: false, actorsProcessed: 2 }),
-      pass({ nextCursor: OBJECT_IDS[1], done: false, actorsProcessed: 2 }),
-      pass({ nextCursor: OBJECT_IDS[2], done: true, actorsProcessed: 1 }),
+      pass({ nextCursor: CURSORS[0], done: false, actorsProcessed: 2 }),
+      pass({ nextCursor: CURSORS[1], done: false, actorsProcessed: 2 }),
+      pass({ nextCursor: CURSORS[2], done: true, actorsProcessed: 1 }),
     );
 
     const outcome = await purgeDomainOnPlatform(DOMAIN, options(), emptyIssues());
 
     expect(issuedRequests().map((request) => request.afterId))
-      .toEqual([undefined, OBJECT_IDS[0], OBJECT_IDS[1]]);
+      .toEqual([undefined, CURSORS[0], CURSORS[1]]);
     expect(outcome.done).toBe(true);
     expect(outcome.passes).toBe(3);
     expect(outcome.actorsProcessed).toBe(5);
@@ -242,8 +249,8 @@ describe('paging', () => {
 
   it('keeps going while `remaining` stays high — done is the only loop condition', async () => {
     respondWith(
-      pass({ nextCursor: OBJECT_IDS[0], done: false, remaining: 900 }),
-      pass({ nextCursor: OBJECT_IDS[1], done: true, remaining: 900 }),
+      pass({ nextCursor: CURSORS[0], done: false, remaining: 900 }),
+      pass({ nextCursor: CURSORS[1], done: true, remaining: 900 }),
     );
 
     const outcome = await purgeDomainOnPlatform(DOMAIN, options(), emptyIssues());
@@ -257,27 +264,27 @@ describe('paging', () => {
 
   it('resumes from the recorded cursor and records progress after every pass', async () => {
     h.readAdminScriptCursor.mockResolvedValue({
-      cursor: OBJECT_IDS[0],
+      cursor: CURSORS[0],
       scanned: 10,
       completedAt: null,
     });
     respondWith(
-      pass({ dryRun: false, nextCursor: OBJECT_IDS[1], done: false, actorsProcessed: 2 }),
-      pass({ dryRun: false, nextCursor: OBJECT_IDS[2], done: true, actorsProcessed: 1 }),
+      pass({ dryRun: false, nextCursor: CURSORS[1], done: false, actorsProcessed: 2 }),
+      pass({ dryRun: false, nextCursor: CURSORS[2], done: true, actorsProcessed: 1 }),
     );
 
     await purgeDomainOnPlatform(DOMAIN, options({ dryRun: false }), emptyIssues());
 
-    expect(issuedRequests()[0]?.afterId).toBe(OBJECT_IDS[0]);
+    expect(issuedRequests()[0]?.afterId).toBe(CURSORS[0]);
     expect(h.recordAdminScriptCursor.mock.calls.map((call) => call[2])).toEqual([
-      { cursor: OBJECT_IDS[1], scanned: 12, completed: false },
-      { cursor: OBJECT_IDS[2], scanned: 13, completed: true },
+      { cursor: CURSORS[1], scanned: 12, completed: false },
+      { cursor: CURSORS[2], scanned: 13, completed: true },
     ]);
   });
 
   it('counts a cursor that could not be persisted, so the run cannot pass silently', async () => {
     h.recordAdminScriptCursor.mockResolvedValue(false);
-    respondWith(pass({ dryRun: false, nextCursor: OBJECT_IDS[0], done: true }));
+    respondWith(pass({ dryRun: false, nextCursor: CURSORS[0], done: true }));
     const issues = emptyIssues();
 
     await purgeDomainOnPlatform(DOMAIN, options({ dryRun: false }), issues);
@@ -291,16 +298,16 @@ describe('paging', () => {
 describe('a cursor that does not advance', () => {
   it('terminates instead of looping when the endpoint repeats it', async () => {
     respondWith(
-      pass({ nextCursor: OBJECT_IDS[0], done: false }),
-      pass({ nextCursor: OBJECT_IDS[0], done: false }),
-      pass({ nextCursor: OBJECT_IDS[0], done: false }),
+      pass({ nextCursor: CURSORS[0], done: false }),
+      pass({ nextCursor: CURSORS[0], done: false }),
+      pass({ nextCursor: CURSORS[0], done: false }),
     );
     const issues = emptyIssues();
 
     const outcome = await purgeDomainOnPlatform(DOMAIN, options(), issues);
 
-    // The second pass asked from OBJECT_IDS[0] and was told to ask from
-    // OBJECT_IDS[0] again. Believing that is an infinite loop against production.
+    // The second pass asked from CURSORS[0] and was told to ask from
+    // CURSORS[0] again. Believing that is an infinite loop against production.
     expect(issuedRequests()).toHaveLength(2);
     expect(issues.stalledCursor).toBe(1);
     expect(outcome.failed).toBe(true);
@@ -372,7 +379,7 @@ describe('a disagreement between the two ends', () => {
   });
 
   it('refuses a domain Oxy canonicalised differently', async () => {
-    respondWith(pass({ canonicalDomain: 'other.example', nextCursor: OBJECT_IDS[0], done: false }));
+    respondWith(pass({ canonicalDomain: 'other.example', nextCursor: CURSORS[0], done: false }));
     const issues = emptyIssues();
 
     const outcome = await purgeDomainOnPlatform(DOMAIN, options(), issues);
@@ -406,7 +413,13 @@ describe('a response that cannot be read', () => {
     ['a counter that is not a number', { ...pass(), actorsDeleted: '4' }],
     ['a negative counter', { ...pass(), filesDeleted: -1 }],
     ['a missing done flag', { ...pass(), done: undefined }],
-    ['a nextCursor that is not an object id', { ...pass(), nextCursor: 'not-an-id' }],
+    // A cursor is OPAQUE — Oxy chooses its encoding and this script only hands
+    // it back — so the rejected case is "there is nothing to hand back", not
+    // "it does not look like one of our ids". The shape assertion that stood
+    // here required a 24-hex ObjectId and therefore rejected every cursor Oxy
+    // sent after its ids became uuid v7, aborting the whole domain.
+    ['a nextCursor that is blank', { ...pass(), nextCursor: '   ' }],
+    ['a nextCursor that is not a string', { ...pass(), nextCursor: 42 }],
     ['a retained actor with no referencedByAppIds', { ...pass(), actorsRetained: [{ oxyUserId: 'x' }] }],
     ['a body that is not an object', 'ok'],
   ])('rejects %s', (_label, body) => {
@@ -421,14 +434,14 @@ describe('a response that cannot be read', () => {
       ],
       localFollowersAffected: 3,
       bytesDeleted: 2048,
-      nextCursor: OBJECT_IDS[0],
+      nextCursor: CURSORS[0],
       done: false,
     }));
 
     expect(parsed.actorsRetained).toBe(2);
     expect(parsed.retainedByAppIds).toEqual(['app-1', 'app-2']);
     expect(parsed.localFollowersAffected).toBe(3);
-    expect(parsed.nextCursor).toBe(OBJECT_IDS[0]);
+    expect(parsed.nextCursor).toBe(CURSORS[0]);
     expect(parsed.done).toBe(false);
   });
 
@@ -557,8 +570,8 @@ describe('the domains that may be sent', () => {
 describe('the report', () => {
   it('leads with the local followers a purge costs', async () => {
     respondWith(
-      pass({ nextCursor: OBJECT_IDS[0], done: false, localFollowersAffected: 2, actorsProcessed: 2 }),
-      pass({ nextCursor: OBJECT_IDS[1], done: true, localFollowersAffected: 3, actorsProcessed: 1 }),
+      pass({ nextCursor: CURSORS[0], done: false, localFollowersAffected: 2, actorsProcessed: 2 }),
+      pass({ nextCursor: CURSORS[1], done: true, localFollowersAffected: 3, actorsProcessed: 1 }),
     );
 
     const outcome = await purgeDomainOnPlatform(DOMAIN, options(), emptyIssues());

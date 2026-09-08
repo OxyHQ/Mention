@@ -47,7 +47,6 @@ import { DoneAllIcon } from '@/assets/icons/done-all-icon';
 import { Gear } from '@/assets/icons/gear-icon';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { prewarmUsersByIds } from '@/utils/userEnrichment';
-import { isOxyId } from '@mention/shared-types';
 
 const notificationLogger = createLogger('Notifications');
 
@@ -308,8 +307,11 @@ const NotificationsScreen: React.FC = () => {
                 : (actorId && typeof actorId === 'object'
                     ? String((actorId as { _id?: unknown; id?: unknown })._id ?? (actorId as { id?: unknown }).id ?? '')
                     : '');
-            // Only resolvable Oxy ids — handles/empty fall back to per-row.
-            if (id && isOxyId(id)) ids.add(id);
+            // Every non-empty `actorId` is an Oxy account id — the column is
+            // `text NOT NULL` and holds one. The id-SHAPE test that stood here
+            // is what dropped every account created after Oxy's ids became uuid
+            // v7 out of this batch, leaving those rows to per-row resolution.
+            if (id) ids.add(id);
         }
         return Array.from(ids);
     }, [validatedNotifications]);

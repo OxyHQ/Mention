@@ -83,8 +83,12 @@ function sanitizeString(value: string): string {
     .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, REDACTED)
     .replace(/(^|[\s([{"'])@[A-Z0-9_][A-Z0-9_.-]*/gi, `$1${REDACTED}`)
     .replace(/\b[0-9a-f]{24}\b/gi, REDACTED)
+    // Any uuid VERSION. `[1-8]` happens to include the v7 this fleet mints, so
+    // unlike its two siblings this one was not broken — but a redactor has no
+    // reason to care which version it is looking at, and a version class is how
+    // the other two silently stopped matching our own ids.
     .replace(
-      /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
+      /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
       REDACTED,
     )
     .replace(

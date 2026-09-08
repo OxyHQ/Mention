@@ -266,11 +266,18 @@ describe('the actor whose profile the row resolves', () => {
     expect(asked()).toContain(hexActor);
   });
 
-  it('asks about nobody when the actor id is not an Oxy id', () => {
+  it('asks about an id of no particular shape, because shape is not the question', () => {
     renderRow();
 
-    // `actor-primary` is a placeholder, not a resolvable id.
-    expect(asked()).not.toContain('actor-primary');
+    expect(asked()).toContain(PRIMARY_ID);
+  });
+
+  it('asks about nobody when the actor carries no id at all', () => {
+    const item = groupedLike();
+    delete (item.actors[0] as { id?: string }).id;
+
+    renderRow(item);
+
     expect(asked().every((id) => id === undefined)).toBe(true);
   });
 });
