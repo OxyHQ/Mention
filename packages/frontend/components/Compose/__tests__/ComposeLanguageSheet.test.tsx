@@ -191,9 +191,8 @@ describe('ComposeLanguageSheet', () => {
         ?.props.onPress({ nativeEvent: { target: 1 } });
     });
 
-    // React Native supplies a press event, but the owner's `openLanguagePicker`
-    // accepts an optional language tag: forwarding the event turns ADD into a
-    // failed attempt to rename a non-existent language.
+    // React Native supplies a press event. The callback's contract is empty so
+    // ADD cannot be confused with the tag-bearing EDIT path upstream.
     expect(onAdd).toHaveBeenCalledWith();
     expect(onClose).not.toHaveBeenCalled();
   });
