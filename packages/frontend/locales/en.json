@@ -210,6 +210,7 @@
   "profile.tabs.writers": "Writers",
   "profile.stats.boosts": "Boosts",
   "profile.stats.replies": "Replies",
+  "profile.stats.reputation": "Reputation",
   "profile.posts": "posts",
   "profile.postsCount": "{{count}} posts",
   "profile.joined": "Joined",

@@ -413,6 +413,8 @@ export interface ProfileStatsProps {
   postsCount: number;
   boostsCount: number;
   repliesCount: number;
+  /** Public Oxy Trust total. `null` renders the stat's unavailable state. */
+  reputationTotal?: number | null;
   /**
    * Whether the replies stat is shown. Follows the SAME rule as the replies TAB
    * — an account that can never author a reply has no honest replies count to
@@ -516,6 +518,8 @@ export interface ProfileContentProps {
   isPrivate: boolean;
   followingCount: number;
   followerCount: number;
+  /** Present for people; channels do not carry an Oxy Trust balance. */
+  reputationTotal?: number | null;
   /** The canonical handle, for surfaces that address the account by name. */
   profileHandle: string;
   /**

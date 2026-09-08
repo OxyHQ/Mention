@@ -15,6 +15,7 @@ export const ProfileStats = memo(function ProfileStats({
   postsCount,
   boostsCount,
   repliesCount,
+  reputationTotal,
   showReplies = true,
   followingHref,
   followersHref,
@@ -101,6 +102,17 @@ export const ProfileStats = memo(function ProfileStats({
             {t('profile.stats.replies')}
           </Text>
         </TouchableOpacity>
+      )}
+
+      {reputationTotal !== undefined && (
+        <View className="gap-1" style={styles.statItem}>
+          <Text className="text-foreground" style={styles.statNumber}>
+            {reputationTotal === null ? '--' : formatCompactNumber(reputationTotal)}
+          </Text>
+          <Text className="text-muted-foreground" style={styles.statLabel}>
+            {t('profile.stats.reputation')}
+          </Text>
+        </View>
       )}
     </View>
   );

@@ -34,6 +34,7 @@ export const ProfileContent = memo(function ProfileContent({
   isPrivate,
   followingCount,
   followerCount,
+  reputationTotal,
   profileHandle,
   identity,
   showReplies,
@@ -138,6 +139,7 @@ export const ProfileContent = memo(function ProfileContent({
           postsCount={profileData.postsCount ?? 0}
           boostsCount={profileData.boostsCount ?? 0}
           repliesCount={profileData.repliesCount ?? 0}
+          reputationTotal={reputationTotal}
           showReplies={showReplies}
           followingHref={followingHref}
           followersHref={followersHref}

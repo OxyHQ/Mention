@@ -210,6 +210,7 @@
   "profile.tabs.writers": "Авторы",
   "profile.stats.boosts": "Продвижения",
   "profile.stats.replies": "Ответы",
+  "profile.stats.reputation": "Репутация",
   "profile.posts": "постов",
   "profile.postsCount": "Постов: {{count}}",
   "profile.joined": "Дата регистрации:",
