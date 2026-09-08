@@ -37,11 +37,9 @@ interface ComposeLanguageSheetProps {
  * publishes, who may reply) — which is what they are: declaring a language
  * declares it for the main post and every thread item at once.
  *
- * THE ONE ROUTE THAT MUST SURVIVE. Tapping the ACTIVE language opens the picker
- * rather than re-selecting it, because that is the only way to reach
- * `setPrimaryLanguage` — what the post declares, which decides who the feed
- * serves it to and what federates. A single-language post therefore still has a
- * row to tap, and it goes where the primary tab used to go.
+ * Changing the primary and adding another rendition are separate actions. The
+ * first row always replaces the declared primary directly; the language rows
+ * below it exist only when there are renditions to switch between.
  */
 const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
   primaryTag,
@@ -96,7 +94,15 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
         <View className="w-9 h-9 ml-auto" />
       </View>
 
-      {tags.map((tag) => {
+      <Item
+        onPress={() => onEdit(primaryTag)}
+        title={t('compose.languages.pickerTitle', { defaultValue: 'Post language' })}
+        subtitle={describeContentLanguage(primaryTag).nativeName}
+        leading={<Ionicons name="language-outline" size={20} color={theme.colors.text} />}
+        trailing={<Ionicons name="chevron-forward" size={18} color={theme.colors.textTertiary} />}
+      />
+
+      {variantTags.length > 0 ? tags.map((tag) => {
         const language = describeContentLanguage(tag);
         const isActive = tag === activeTag;
         return (
@@ -116,7 +122,7 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
             }
           />
         );
-      })}
+      }) : null}
 
       <Item
         // Item forwards the native press event. Keep the component's callback

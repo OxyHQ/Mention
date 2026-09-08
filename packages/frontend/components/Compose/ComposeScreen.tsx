@@ -785,6 +785,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const attachmentOrderRef = useRefSync(attachmentOrder);
   const mainTextInputRef = useRef<MentionTextInputHandle>(null);
   const threadTextInputRefs = useRef<Record<string, MentionTextInputHandle | null>>({});
+  const variantTextInputRefs = useRef<Record<string, MentionTextInputHandle | null>>({});
 
   const generateSourceId = useCallback(() => `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, []);
 
@@ -2195,6 +2196,38 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     openMediaPicker((media) => appendVariantMedia(activeTag, itemId, media));
   }, [openMediaPicker, appendVariantMedia, activeTag]);
 
+  const handleVariantGifPress = useCallback((itemId: string) => {
+    const tag = activeTag;
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <GifPickerSheet
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          onSelectGif={async (_gifUrl: string, gifId: string) => {
+            appendVariantMedia(tag, itemId, [{ id: gifId, type: 'gif' }]);
+            toast(t('GIF attached'), { type: 'success' });
+          }}
+        />
+      </Suspense>,
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [activeTag, appendVariantMedia, bottomSheet, t]);
+
+  const handleVariantEmojiPress = useCallback((itemId: string) => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <EmojiPickerSheet
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          onSelectEmoji={(emoji: string) => variantTextInputRefs.current[itemId]?.insertTextAtCursor(emoji)}
+        />
+      </Suspense>,
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet]);
+
+  const handleVariantTextInputRef = useCallback((itemId: string, el: MentionTextInputHandle | null) => {
+    variantTextInputRefs.current[itemId] = el;
+  }, []);
+
   const handleRemoveVariantMedia = useCallback(
     (itemId: string, mediaId: string) => removeVariantMedia(activeTag, itemId, mediaId),
     [activeTag, removeVariantMedia],
@@ -2961,57 +2994,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 />
               ))}
 
-              {/* Add thread/post button */}
-              <TouchableOpacity
-                style={styles.postContainer}
-                onPress={() => {
-                  const newId = addThread(postingMode === 'beast' ? { replyPermission, reviewReplies, quotesDisabled, isSensitive } : undefined);
-                  if (newId) {
-                    setFocusedItemId(newId);
-                    const tryFocus = (attempt: number) => {
-                      if (attempt > 5) return;
-                      requestAnimationFrame(() => {
-                        const ref = threadTextInputRefs.current[newId];
-                        if (ref) {
-                          ref.focus();
-                        } else {
-                          setTimeout(() => tryFocus(attempt + 1), 50);
-                        }
-                      });
-                    };
-                    tryFocus(0);
-                  }
-                }}
-              >
-                {/* Connector line above add button's avatar — thread mode only. */}
-                {showThreadTimeline ? (
-                  <View className="bg-primary/20" style={styles.itemConnectorLineAbove} />
-                ) : null}
-                <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
-                  <TouchableOpacity activeOpacity={0.7}>
-                    <Avatar
-                      source={user?.avatar}
-                      size={40}
-                      variant={MEDIA_VARIANT_AVATAR}
-                      verified={Boolean(user?.verified)}
-                      style={avatarMarginStyle}
-                    />
-                  </TouchableOpacity>
-                  <View style={styles.headerMeta}>
-                    <View style={styles.headerChildren}>
-                      <Text style={[styles.addToThreadText, { color: theme.colors.textSecondary }]}>
-                        {postingMode === 'thread' ? t('Add to thread') : t('Add another post')}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </TouchableOpacity>
                 </>
               ) : (
-                /* A non-primary language. A rendition overrides only what a
-                   language changes — body, image descriptions, images, article.
-                   The poll, location, sources, schedule and reply settings belong
-                   to the post, so the primary tab keeps them. */
+                /* A non-primary language. Language-specific actions edit this
+                   rendition; post-level actions still remain reachable here so
+                   switching language never collapses the composer UI. */
                 <>
                   <VariantEditor
                     itemId={MAIN_ITEM_ID}
@@ -3037,6 +3024,46 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     onUseSharedMedia={handleUseSharedMedia}
                     onArticlePress={openVariantArticleEditor}
                     onArticleReset={resetVariantArticle}
+                    textInputRef={(el) => handleVariantTextInputRef(MAIN_ITEM_ID, el)}
+                    toolbar={(
+                      <View style={styles.toolbarWrapper}>
+                        <ComposeToolbar
+                          contentPaddingLeft={BOTTOM_LEFT_PAD}
+                          onMediaPress={() => handlePickVariantMedia(MAIN_ITEM_ID)}
+                          onPollPress={() => {
+                            setActiveTag(variants.primaryTag);
+                            focusPollCreator();
+                          }}
+                          onLocationPress={requestLocation}
+                          onGifPress={() => handleVariantGifPress(MAIN_ITEM_ID)}
+                          onEmojiPress={() => handleVariantEmojiPress(MAIN_ITEM_ID)}
+                          onSourcesPress={openSourcesSheet}
+                          onArticlePress={() => openVariantArticleEditor(MAIN_ITEM_ID)}
+                          onEventPress={openEventEditor}
+                          onRoomPress={handleMainRoomPress}
+                          onPodcastPress={openPodcastPicker}
+                          onCollaboratorsPress={collaboratorsEligible ? () => {
+                            setActiveTag(variants.primaryTag);
+                            handleCollaboratorsPress();
+                          } : undefined}
+                          hasCollaborators={collaborators.length > 0}
+                          collaboratorsEnabled={collaborators.length < MAX_POST_COLLABORATORS}
+                          onLanePress={laneEligible ? handleLanePress : undefined}
+                          hasLane={Boolean(laneId)}
+                          hasLocation={!!location}
+                          isGettingLocation={isGettingLocation}
+                          hasPoll={showPollCreator}
+                          hasMedia={mediaIds.length > 0 || getVariantItem(variants, activeTag, MAIN_ITEM_ID).media.mode === 'override'}
+                          hasSources={sources.length > 0}
+                          hasArticle={hasArticleContent}
+                          hasEvent={hasEventContent}
+                          hasRoom={hasRoomContent}
+                          hasPodcast={hasPodcastContent}
+                          hasSourceErrors={invalidSources}
+                          disabled={isPosting}
+                        />
+                      </View>
+                    )}
                   />
                   {threadItems.map((item) => (
                     <VariantEditor
@@ -3064,10 +3091,90 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       onUseSharedMedia={handleUseSharedMedia}
                       onArticlePress={openVariantArticleEditor}
                       onArticleReset={resetVariantArticle}
+                      textInputRef={(el) => handleVariantTextInputRef(item.id, el)}
+                      toolbar={(
+                        <View style={styles.toolbarWrapper}>
+                          <ComposeToolbar
+                            onMediaPress={() => handlePickVariantMedia(item.id)}
+                            onPollPress={() => {
+                              setActiveTag(variants.primaryTag);
+                              openThreadPollCreator(item.id);
+                            }}
+                            onLocationPress={() => requestThreadLocation(item.id)}
+                            onGifPress={() => handleVariantGifPress(item.id)}
+                            onEmojiPress={() => handleVariantEmojiPress(item.id)}
+                            onSourcesPress={() => handleThreadSourcesPress(item.id)}
+                            onArticlePress={() => openVariantArticleEditor(item.id)}
+                            onEventPress={() => openThreadEventEditor(item.id)}
+                            onRoomPress={() => handleThreadRoomPress(item.id)}
+                            onPodcastPress={() => openThreadPodcastPicker(item.id)}
+                            onLanePress={threadLaneEligible ? () => handleThreadLanePress(item.id) : undefined}
+                            hasLocation={!!item.location}
+                            hasPoll={item.showPollCreator}
+                            hasMedia={item.mediaIds.length > 0 || getVariantItem(variants, activeTag, item.id).media.mode === 'override'}
+                            hasSources={item.sources.length > 0}
+                            hasArticle={Boolean(item.article)}
+                            hasEvent={Boolean(item.event)}
+                            hasRoom={Boolean(item.room)}
+                            hasPodcast={Boolean(item.podcast)}
+                            hasLane={Boolean(item.laneId)}
+                            disabled={isPosting}
+                          />
+                        </View>
+                      )}
                     />
                   ))}
                 </>
               )}
+
+              {/* Adding an item changes the post/thread structure, not a
+                  language rendition. Keep it reachable from every language;
+                  the new item immediately appears in the active rendition too. */}
+              <TouchableOpacity
+                style={styles.postContainer}
+                onPress={() => {
+                  const newId = addThread(postingMode === 'beast' ? { replyPermission, reviewReplies, quotesDisabled, isSensitive } : undefined);
+                  if (newId) {
+                    setFocusedItemId(newId);
+                    const tryFocus = (attempt: number) => {
+                      if (attempt > 5) return;
+                      requestAnimationFrame(() => {
+                        const ref = isPrimaryTab
+                          ? threadTextInputRefs.current[newId]
+                          : variantTextInputRefs.current[newId];
+                        if (ref) {
+                          ref.focus();
+                        } else {
+                          setTimeout(() => tryFocus(attempt + 1), 50);
+                        }
+                      });
+                    };
+                    tryFocus(0);
+                  }
+                }}
+              >
+                {showThreadTimeline ? (
+                  <View className="bg-primary/20" style={styles.itemConnectorLineAbove} />
+                ) : null}
+                <View style={[styles.headerRow, { paddingHorizontal: HPAD }]}>
+                  <TouchableOpacity activeOpacity={0.7}>
+                    <Avatar
+                      source={user?.avatar}
+                      size={40}
+                      variant={MEDIA_VARIANT_AVATAR}
+                      verified={Boolean(user?.verified)}
+                      style={avatarMarginStyle}
+                    />
+                  </TouchableOpacity>
+                  <View style={styles.headerMeta}>
+                    <View style={styles.headerChildren}>
+                      <Text style={[styles.addToThreadText, { color: theme.colors.textSecondary }]}>
+                        {postingMode === 'thread' ? t('Add to thread') : t('Add another post')}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </TouchableOpacity>
             </View>
             </ScrollView>
 
