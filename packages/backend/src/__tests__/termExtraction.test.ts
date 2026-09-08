@@ -38,11 +38,11 @@ describe('extractTrendTerms — hashtag and word collapse', () => {
 });
 
 describe('extractTrendTerms — phrases', () => {
-  it('emits an adjacent-word phrase alongside its words', () => {
+  it('emits the complete adjacent-word name without fragmenting it', () => {
     const terms = extractTrendTerms({ text: 'everyone is talking about Todd Blanche' });
     expect(terms).toContain('todd blanche');
-    expect(terms).toContain('todd');
-    expect(terms).toContain('blanche');
+    expect(terms).not.toContain('todd');
+    expect(terms).not.toContain('blanche');
   });
 
   it('never glues a phrase across a stop word', () => {
@@ -64,7 +64,7 @@ describe('extractTrendTerms — phrases', () => {
   });
 
   it('emits no phrase longer than the configured maximum', () => {
-    const terms = extractTrendTerms({ text: 'about Dean Kremer Trade Rumours' });
+    const terms = extractTrendTerms({ text: 'about Dean Kremer Trade today' });
     const longest = Math.max(...terms.map((term) => term.split(' ').length));
     expect(longest).toBe(MtnConfig.trending.terms.maxPhraseTokens);
   });
@@ -288,6 +288,21 @@ describe('extractTrendTerms — a bare word must NAME something', () => {
     expect(extractTrendTerms({ text: 'about the Kremer trade today' })).toContain('kremer trade');
   });
 
+  it('does not turn fragments of a longer proper name into separate trends', () => {
+    const terms = extractTrendTerms({ text: 'people are moving to New York City today' });
+
+    expect(terms).not.toContain('york');
+    expect(terms).not.toContain('city');
+    expect(terms).not.toContain('york city');
+  });
+
+  it('still keeps a short alias when the author writes it as a complete name', () => {
+    expect(extractTrendTerms({ text: 'the latest statement from Trump today' }))
+      .toContain('trump');
+    expect(extractTrendTerms({ text: 'the latest statement from Donald Trump today' }))
+      .toContain('donald trump');
+  });
+
   it('still keeps a hashtag the author chose, whatever its case', () => {
     // An explicit tag is the author naming the subject; it needs no capital.
     expect(extractTrendTerms({ text: 'watching #frightclub', hashtags: ['frightclub'] }))
@@ -297,13 +312,13 @@ describe('extractTrendTerms — a bare word must NAME something', () => {
 
 describe('extractTrendTerms — bounds', () => {
   it('caps the number of terms per post', () => {
-    // Capitalized so each word NAMES something; a lower-case run emits nothing.
-    const text = `and ${Array.from({ length: 60 }, (_, i) => `Word${i}`).join(' ')}`;
+    // Punctuation makes each capitalized token a complete naming run.
+    const text = Array.from({ length: 60 }, (_, i) => `and Word${i}.`).join(' ');
     expect(extractTrendTerms({ text }).length).toBe(MtnConfig.trending.terms.maxTermsPerPost);
   });
 
   it('keeps the OPENING of the post when it truncates', () => {
-    const text = `and ${Array.from({ length: 60 }, (_, i) => `Word${i}`).join(' ')}`;
+    const text = Array.from({ length: 60 }, (_, i) => `and Word${i}.`).join(' ');
     expect(extractTrendTerms({ text })[0]).toBe('word0');
   });
 
@@ -328,7 +343,7 @@ describe('extractTrendTerms — the tests above are not vacuous', () => {
 
   it('extracts something from ordinary prose', () => {
     expect(extractTrendTerms({ text: 'Orioles trading Dean Kremer to Minnesota Twins' }).length)
-      .toBeGreaterThan(3);
+      .toBeGreaterThan(1);
   });
 });
 
@@ -342,6 +357,13 @@ describe('isTrendStopWord — the detection-time filter', () => {
   it('refuses a term that is nothing but a stop word', () => {
     expect(isTrendStopWord('why')).toBe(true);
     expect(isTrendStopWord('will')).toBe(true);
+    expect(isTrendStopWord('de')).toBe(true);
+    expect(isTrendStopWord('tuesday')).toBe(true);
+  });
+
+  it('refuses calendar words across the supported languages', () => {
+    expect(['martes', 'martedì', 'terça', 'mardi', 'dienstag'].every(isTrendStopWord))
+      .toBe(true);
   });
 
   it('keeps a phrase where a stop word is only part of it', () => {

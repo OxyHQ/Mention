@@ -318,8 +318,8 @@ describe('BaselineContentClassifier', () => {
       expect(baselineContentClassifier.classify({ text: 'x' }).version).toBe(BASELINE_CLASSIFIER_VERSION);
     });
 
-    it('is at v8 (capitalization only names things where it discriminates)', () => {
-      expect(BASELINE_CLASSIFIER_VERSION).toBe(8);
+    it('is at v9 (only complete naming runs become trend terms)', () => {
+      expect(BASELINE_CLASSIFIER_VERSION).toBe(9);
     });
 
     it('stamps an ISO classifiedAt timestamp', () => {

@@ -807,12 +807,11 @@ export const MtnConfig = {
        */
       maxTokenLength: 32,
       /**
-       * Longest PHRASE, in tokens. Two is what the shape of real trends asks
-       * for: a person (`todd blanche`), an event (`kremer trade`), a tag
-       * (`frightclub`). Three-token phrases multiply the candidate space
-       * without adding trends that the two-token prefix does not already carry.
+       * Longest PHRASE, in tokens. Three preserves common complete names such
+       * as `New York City`. Incomplete windows are discarded by the extractor,
+       * so this does not create the old `york city` fragment as another trend.
        */
-      maxPhraseTokens: 2,
+      maxPhraseTokens: 3,
       /**
        * Terms stored per post. A cap is what keeps the multikey index bounded:
        * without one, a single long post writes hundreds of index entries. Terms

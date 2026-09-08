@@ -108,8 +108,14 @@ import {
  * languages where it discriminates; in the others a term must arrive as a
  * hashtag its author chose. Bumped so the backfill re-derives terms — until it
  * runs, posts stamped v7 keep the German nouns they were extracted with.
+ *
+ * v9: only complete naming runs become stored trend terms. A capitalized name
+ * longer than the phrase limit previously leaked each window as an
+ * independent candidate (`New York City` donated `city` and `york city`). An
+ * alias is still learned when authors actually write that shorter form on its
+ * own. Bumped so the corpus loses those legacy fragments during rebaseline.
  */
-export const BASELINE_CLASSIFIER_VERSION = 8;
+export const BASELINE_CLASSIFIER_VERSION = 9;
 
 /**
  * Minimum number of non-whitespace characters required before attempting
