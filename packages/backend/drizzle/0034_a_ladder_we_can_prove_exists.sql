@@ -1,0 +1,34 @@
+-- WHEN THE ADAPTIVE LADDER FINISHED, OR NOTHING.
+--
+-- The HLS manifest URL is derivable from a media id (`?variant=hls_master`), so
+-- the DTO resolver emitted it for EVERY video and left the player to discover
+-- whether it resolved to anything. Oxy transcodes asynchronously and swallows
+-- per-rendition failures, so for many videos it does not — and the player found
+-- out the only way left to it: 403 on the manifest, a playback error, and a
+-- fallback to the progressive original. Once per video, per play. Measured on a
+-- Pixel 10 Pro; it reads as a video that stalls before it starts, and as "Video
+-- unavailable" when the fallback fails too.
+--
+-- This column is Oxy's own answer carried where the read path can see it:
+-- `mediaResolver` now emits `hls_url` only for a stamped row.
+--
+-- NULLABLE, AND NULL IS THE SAFE DIRECTION. NULL reads as "no adaptive stream",
+-- which is what every row means the moment this lands: nothing is stamped yet,
+-- so no video advertises a ladder and every one plays its progressive original
+-- DIRECTLY instead of after a failure. That is strictly better than what it
+-- replaces, where the ladder was advertised and could not play even when it
+-- existed — the manifest URL carries no `.m3u8`, so ExoPlayer read it as a
+-- progressive file (fixed client-side in #920). A reconciler then fills this
+-- column from `POST /assets/service/by-ids`, and adaptive playback begins for
+-- the videos that genuinely have one.
+--
+-- WHAT IT COSTS TO APPLY. `ADD COLUMN` with no default and no NOT NULL is a
+-- catalogue change: no rewrite, no backfill — 0.5ms on 81k rows, measured. It
+-- still takes an ACCESS EXCLUSIVE lock, which conflicts with every other lock
+-- mode, and the migrator runs a file in ONE transaction, so for its duration
+-- both tables are unavailable to reads as well as writes. Milliseconds here,
+-- against the 17.6s the videos-lane migration cost, because that one carried an
+-- UPDATE and this one carries none.
+
+ALTER TABLE "post_media" ADD COLUMN "hls_ready_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "post_variant_media" ADD COLUMN "hls_ready_at" timestamp with time zone;

@@ -158,6 +158,9 @@ function toMediaItem(row: MediaRow | VariantMediaRow): MediaItem {
     orientation: optional(row.orientation),
     aspectRatio: optional(row.aspectRatio),
     mime: optional(row.mime),
+    // A `Date` on the row, ISO on the wire: the DTO is JSON and the resolver
+    // only asks whether it is set.
+    hlsReadyAt: row.hlsReadyAt ? row.hlsReadyAt.toISOString() : undefined,
     remoteUrl: optional(row.remoteUrl),
     cachedFromFederation: optional(row.cachedFromFederation),
   });
@@ -177,6 +180,10 @@ function mediaColumns(item: MediaItem, position: number) {
     orientation: item.orientation ?? null,
     aspectRatio: item.aspectRatio ?? null,
     mime: item.mime ?? null,
+    // Written by the reconciler, not by a writer of posts: a caller inserting
+    // media cannot know whether a transcode that has not started yet will
+    // finish, so an incoming value is accepted only when it is already there.
+    hlsReadyAt: item.hlsReadyAt ? new Date(item.hlsReadyAt) : null,
     remoteUrl: item.remoteUrl ?? null,
     cachedFromFederation: item.cachedFromFederation ?? null,
   };

@@ -415,11 +415,24 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
           // block in `@mention/shared-types` for the sizing rationale.
           const thumbUrl = getServiceOxyClient().getFileDownloadUrl(item.id, MEDIA_VARIANT_VIDEO_THUMB);
           const posterUrl = getServiceOxyClient().getFileDownloadUrl(item.id, MEDIA_VARIANT_VIDEO_POSTER);
-          // Adaptive-bitrate HLS master playlist. NOT guaranteed to exist yet
-          // (background transcode is fire-and-forget on upload) — the frontend
-          // player MUST fall back to `url` (the raw original) on a playback
-          // error. See MediaItem.hlsUrl's doc comment for the full contract.
-          const hlsUrl = getServiceOxyClient().getFileDownloadUrl(item.id, 'hls_master');
+          // Adaptive-bitrate HLS master playlist, EMITTED ONLY WHEN IT EXISTS.
+          //
+          // The URL is derivable from the id, so this used to emit it for every
+          // video and leave the player to discover the truth. Transcoding is
+          // asynchronous and `generateVideoVariants` swallows per-rendition
+          // failures, so for many videos there is no ladder — and the player
+          // found out the only way it could: 403 on the manifest, a playback
+          // error, and a fallback to the progressive original. Once per video,
+          // per play. Measured on a Pixel 10 Pro; it reads as a video that
+          // stalls before it starts, and as "Video unavailable" when the
+          // fallback fails too.
+          //
+          // `hlsReadyAt` is Oxy's own record of the finished transcode, carried
+          // on the media row. Absent means absent: no URL, and the client plays
+          // the progressive original directly rather than after a failure.
+          const hlsUrl = item.hlsReadyAt
+            ? getServiceOxyClient().getFileDownloadUrl(item.id, 'hls_master')
+            : undefined;
           return {
             id: item.id,
             type: item.type,
@@ -428,7 +441,7 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
             url: resolved.url || undefined,
             thumbUrl,
             posterUrl,
-            hlsUrl,
+            ...(hlsUrl ? { hlsUrl } : {}),
           };
         } catch (error) {
           logger.warn('[mediaResolver] Failed to resolve video poster; falling back to media ref:', error);

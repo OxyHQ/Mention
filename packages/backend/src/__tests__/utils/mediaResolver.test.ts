@@ -278,12 +278,48 @@ describe('resolveMediaItems', () => {
     }
   });
 
-  it('resolves the hls_master variant as hlsUrl for a native Oxy video', () => {
-    const items = resolveMediaItems([{ id: 'video-file', type: 'video' }]);
+  /**
+   * THE RESOLVER MAY NOT ADVERTISE A LADDER IT CANNOT PROVE EXISTS.
+   *
+   * The manifest URL is derivable from the id, so this used to emit it for every
+   * video. Oxy transcodes asynchronously and swallows per-rendition failures, so
+   * for many videos there is no ladder — and the player found out by failing:
+   * 403 on the manifest, a playback error, a fallback to the progressive
+   * original, once per video per play. Measured on a Pixel 10 Pro.
+   *
+   * `hlsReadyAt` is Oxy's own record of the finished transcode. The two cases
+   * below are the whole contract, and the second is the one that was missing.
+   */
+  it('resolves the hls_master variant as hlsUrl for a video whose ladder is ready', () => {
+    const items = resolveMediaItems([
+      { id: 'video-file', type: 'video', hlsReadyAt: '2026-09-08T10:00:00.000Z' },
+    ]);
 
     expect(items).toHaveLength(1);
     expect(items[0].hlsUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=hls_master`);
     expect(getFileDownloadUrl).toHaveBeenCalledWith('video-file', 'hls_master');
+  });
+
+  it('omits hlsUrl entirely for a video with no recorded ladder', () => {
+    const items = resolveMediaItems([{ id: 'video-file', type: 'video' }]);
+
+    expect(items).toHaveLength(1);
+    // Not "an empty string" and not "the URL anyway": the key must be ABSENT, so
+    // a client cannot tell the difference between "no ladder" and a field it
+    // forgot to check.
+    expect(items[0]).not.toHaveProperty('hlsUrl');
+    expect(getFileDownloadUrl).not.toHaveBeenCalledWith('video-file', 'hls_master');
+  });
+
+  it('still resolves poster and thumb for that video — only the ladder is withheld', () => {
+    // The floor under the case above: withholding `hlsUrl` must not withhold the
+    // frame the reel paints while it waits, or the fix trades a failed request
+    // for a blank slide.
+    const items = resolveMediaItems([{ id: 'video-file', type: 'video' }]);
+
+    expect(items[0].posterUrl).toBeTruthy();
+    expect(items[0].thumbUrl).toBeTruthy();
+    expect(items[0].url).toBeTruthy();
   });
 
   it('does not populate hlsUrl for a federated (absolute-URL) video item', () => {
