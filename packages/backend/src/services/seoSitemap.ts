@@ -8,7 +8,6 @@ import { userSettings } from '../db/schema/userProfile';
 import { discoverySafeSql } from '../mtn/feed/feedSafety';
 import { config } from '../config';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
-import { createCache } from '../utils/cache';
 import { canonicalProfilePath } from './webShellRenderer';
 import { getShellCached } from './webShellOgCache';
 
@@ -16,13 +15,10 @@ import { getShellCached } from './webShellOgCache';
 export const SITEMAP_URL_LIMIT = 40_000;
 /** Stable hash buckets keep new rows from reshuffling the whole sitemap catalog. */
 export const SITEMAP_BUCKET_COUNT = 64;
-const OXY_BULK_BATCH_SIZE = 200;
-const OXY_BULK_CONCURRENCY = 5;
-const PROFILE_RESOLUTION_CONCURRENCY = 25;
+const OXY_BULK_BATCH_SIZE = 100;
+const OXY_BULK_CONCURRENCY = 2;
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
-const publicProfileCache = createCache({ name: 'seoSitemapPublicProfiles', ttlSeconds: 60 * 60 });
-const PUBLIC_PROFILE_CACHE_PREFIX = 'sitemap:public-profile:v1:';
 
 interface CompressedXml {
   encoding: 'gzip-base64-v1';
@@ -87,15 +83,6 @@ function isoDate(value: Date | string | undefined): string | undefined {
   if (!value) return undefined;
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
-}
-
-function errorStatus(error: unknown): number | undefined {
-  if (!error || typeof error !== 'object') return undefined;
-  const direct = 'status' in error ? error.status : undefined;
-  if (typeof direct === 'number') return direct;
-  const response = 'response' in error ? error.response : undefined;
-  if (!response || typeof response !== 'object' || !('status' in response)) return undefined;
-  return typeof response.status === 'number' ? response.status : undefined;
 }
 
 export function renderUrlSet(urls: SitemapUrl[]): string {
@@ -179,41 +166,11 @@ async function publiclyResolvableUsers(ids: string[]): Promise<User[]> {
     throw new Error('Oxy returned no users for a non-empty sitemap shard');
   }
 
-  const cacheKeys = users.map((user) => `${PUBLIC_PROFILE_CACHE_PREFIX}${user.id}`);
-  const cachedProfiles = await publicProfileCache.getMany<User | null>(cacheKeys);
-  const visibleById = new Map<string, User>();
-  const missingUsers: User[] = [];
-  cachedProfiles.forEach((profile, index) => {
-    if (profile === undefined) {
-      missingUsers.push(users[index]);
-    } else if (profile) {
-      visibleById.set(profile.id, profile);
-    }
-  });
-
-  let nextIndex = 0;
-  const workers = Array.from(
-    { length: Math.min(PROFILE_RESOLUTION_CONCURRENCY, missingUsers.length) },
-    async () => {
-      while (nextIndex < missingUsers.length) {
-        const user = missingUsers[nextIndex++];
-        if (!user?.username) continue;
-        try {
-          const profile = await getServiceOxyClient().getProfileByUsername(user.username);
-          visibleById.set(profile.id, profile);
-          await publicProfileCache.set(`${PUBLIC_PROFILE_CACHE_PREFIX}${user.id}`, profile);
-        } catch (error) {
-          if (errorStatus(error) === 404) {
-            await publicProfileCache.set(`${PUBLIC_PROFILE_CACHE_PREFIX}${user.id}`, null, { ttlSeconds: 5 * 60 });
-            continue;
-          }
-          throw error;
-        }
-      }
-    },
-  );
-  await Promise.all(workers);
-  return users.flatMap((user) => visibleById.get(user.id) ?? []);
+  // Oxy's bulk endpoint already applies the same archived/restricted
+  // discoverability predicate as its public username route and returns only the
+  // public DTO. Re-resolving every username here is both semantically redundant
+  // and an N+1 request storm large enough to hit Oxy's public-profile limiter.
+  return users;
 }
 
 async function cachedSitemapXml(cacheKey: string, build: () => Promise<string>): Promise<string> {
