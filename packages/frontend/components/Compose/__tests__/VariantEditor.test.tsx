@@ -65,6 +65,8 @@ it('keeps the toolbar mounted and wires the active rendition input', () => {
   const onMentionValueChange = jest.fn();
   const onFocus = jest.fn();
   const onTranslate = jest.fn();
+  const onPickOwnMedia = jest.fn();
+  const onArticlePress = jest.fn();
   const ref = React.createRef<MentionTextInputHandle>();
   let renderer: TestRenderer.ReactTestRenderer | undefined;
 
@@ -75,8 +77,8 @@ it('keeps the toolbar mounted and wires the active rendition input', () => {
         tag="es"
         item={emptyItem}
         primaryText="Hello"
-        sharedMedia={[]}
-        hasArticle={false}
+        sharedMedia={[{ id: 'shared-image', type: 'image' }]}
+        hasArticle
         userAvatar={undefined}
         userVerified={false}
         isFocused
@@ -89,10 +91,10 @@ it('keeps the toolbar mounted and wires the active rendition input', () => {
         onTranslate={onTranslate}
         onSharedAltPress={jest.fn()}
         onOwnAltPress={jest.fn()}
-        onPickOwnMedia={jest.fn()}
+        onPickOwnMedia={onPickOwnMedia}
         onRemoveOwnMedia={jest.fn()}
         onUseSharedMedia={jest.fn()}
-        onArticlePress={jest.fn()}
+        onArticlePress={onArticlePress}
         onArticleReset={jest.fn()}
         textInputRef={ref}
         toolbar={<Text>Persistent toolbar</Text>}
@@ -110,8 +112,14 @@ it('keeps the toolbar mounted and wires the active rendition input', () => {
   act(() => {
     renderer?.root.findAllByType(TouchableOpacity)[0]?.props.onPress();
   });
+  act(() => {
+    renderer?.root.findAllByType(TouchableOpacity)[1]?.props.onPress();
+    renderer?.root.findAllByType(TouchableOpacity)[2]?.props.onPress();
+  });
 
   expect(onMentionValueChange).toHaveBeenCalledWith('main', { text: 'Hola', mentions: [] });
   expect(onFocus).toHaveBeenCalledWith('main');
   expect(onTranslate).toHaveBeenCalledWith('main');
+  expect(onPickOwnMedia).toHaveBeenCalledWith('main');
+  expect(onArticlePress).toHaveBeenCalledWith('main');
 });
