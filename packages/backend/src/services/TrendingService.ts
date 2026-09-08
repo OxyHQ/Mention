@@ -327,8 +327,8 @@ class TrendingService {
    * it is filed, and its summary if it has earned one.
    *
    * The presentation travels in the RESPONSE rather than in the URL. A label
-   * passed as a query parameter would make `/trend/politics` and
-   * `/trend/politics?label=Politics` two addresses for one resource, freeze a
+   * passed as a query parameter would make `/t/politics` and
+   * `/t/politics?label=Politics` two addresses for one resource, freeze a
    * shared link's title at the moment it was copied — so it lies the next time
    * the term is relabelled — and let anyone hand a reader a fabricated name.
    * The row this reads is the same one the `startedAt` lookup already fetches,

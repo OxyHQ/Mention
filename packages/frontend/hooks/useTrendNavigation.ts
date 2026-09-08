@@ -10,7 +10,7 @@ import { reportTrendEvent } from '@/utils/feedTelemetry';
  * resolved by `navigateToTrend` so the link a user shares lands on the same place.
  */
 export function buildTrendUrl(trend: Trend): string {
-  return `${WEB_BASE_URL}/trend/${encodeURIComponent(trend.text)}`;
+  return `${WEB_BASE_URL}/t/${encodeURIComponent(trend.text)}`;
 }
 
 /**
@@ -67,7 +67,7 @@ export function useTrendNavigation() {
      * show a reader a name the server never chose. The screen resolves the
      * presentation from the term.
      */
-    router.push(`/trend/${encodeURIComponent(term)}`);
+    router.push(`/t/${encodeURIComponent(term)}`);
   }, [router]);
 
   const navigateToTrend = useCallback((
