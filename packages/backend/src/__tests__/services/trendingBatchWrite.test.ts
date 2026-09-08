@@ -278,7 +278,7 @@ describe('getTrending — the wire format is the contract', () => {
     // carries a value.
     expect(Object.keys(trend ?? {}).sort()).toEqual([
       '_id', 'authorCount', 'burstScore', 'calculatedAt', 'category', 'description',
-      'displayName', 'momentum', 'name', 'rank', 'score', 'startedAt', 'type',
+      'displayName', 'momentum', 'name', 'rank', 'scope', 'score', 'startedAt', 'type',
       'updatedAt', 'volume',
     ]);
     // `actorIds` and `languages` are absent here BECAUSE the fixture's are

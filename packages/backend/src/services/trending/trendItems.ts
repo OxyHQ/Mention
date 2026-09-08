@@ -27,7 +27,8 @@ import {
 } from './trendLabeling';
 import { resolveTrendStartedAt, type ScoredTrend } from './trendScoring';
 import type { TermCandidate } from './trendDetection';
-import type { TrendCategory, TrendStatus } from '@mention/shared-types';
+import type { TrendCategory, TrendScope, TrendStatus } from '@mention/shared-types';
+import { conceptLabels, resolveTrendConcept } from './conceptRegistry';
 
 export interface TrendItem {
   type: TrendingType;
@@ -48,6 +49,10 @@ export interface TrendItem {
   status?: TrendStatus;
   actorIds: string[];
   languages: string[];
+  regions: string[];
+  scope: TrendScope;
+  conceptId?: string;
+  localizedLabels: Record<string, string>;
   topicId?: string;
 }
 
@@ -113,6 +118,9 @@ export async function buildTrendItems(
     const candidate = byTerm.get(trend.term);
     const topicDoc = topicMap.get(trend.term.toLowerCase());
     const label = labels.get(trend.term) ?? fallbackTrendLabel(trend.term);
+    const languages = candidate?.languages ?? [];
+    const regions = candidate?.regions ?? [];
+    const concept = resolveTrendConcept(trend.term, languages);
 
     return {
       type: resolveTrendType({
@@ -134,10 +142,25 @@ export async function buildTrendItems(
       startedAt: startedAt.get(trend.term) ?? calculatedAt,
       ...(trend.status ? { status: trend.status } : {}),
       actorIds: candidate?.actorIds ?? [],
-      languages: candidate?.languages ?? [],
+      languages,
+      regions,
+      scope: resolveTrendScope(languages, regions),
+      ...(concept ? { conceptId: concept.id } : {}),
+      localizedLabels: conceptLabels(concept),
       ...(topicDoc ? { topicId: topicDoc._id.toString() } : {}),
     };
   });
+}
+
+export function resolveTrendScope(
+  languages: readonly string[],
+  regions: readonly string[],
+): TrendScope {
+  if (languages.length > 1 && regions.length > 1) return 'global';
+  if (languages.length > 1) return 'multilingual';
+  if (regions.length > 0) return 'regional';
+  if (languages.length > 0) return 'language';
+  return 'community';
 }
 
 /**

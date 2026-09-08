@@ -92,7 +92,19 @@ export function buildTrendGraph(
 
   const edges: TrendGraphEdgeDTO[] = candidateEdges.slice(0, MAX_EDGES).map((pair) => {
     const [a, b] = pair.a <= pair.b ? [pair.a, pair.b] : [pair.b, pair.a];
-    return { a, b, posts: pair.posts, linked: linked.has(edgeKey(pair.a, pair.b)) };
+    const volumeA = candidates.find((candidate) => candidate.term === pair.a)?.volume ?? 0;
+    const volumeB = candidates.find((candidate) => candidate.term === pair.b)?.volume ?? 0;
+    const strength = pair.reason === 'canonical-alias'
+      ? 1
+      : pair.posts / Math.sqrt(Math.max(1, volumeA * volumeB));
+    return {
+      a,
+      b,
+      posts: pair.posts,
+      linked: linked.has(edgeKey(pair.a, pair.b)),
+      strength: Math.min(1, strength),
+      reason: pair.reason ?? 'cooccurrence',
+    };
   });
 
   // Counted against the INPUT, not against what survived the node cut: an edge

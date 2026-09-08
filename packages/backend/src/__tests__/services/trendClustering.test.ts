@@ -90,7 +90,7 @@ describe('clusterTrendTerms — one story, one row', () => {
     expect(result.clusters.flatMap((cluster) => cluster.members).sort()).toEqual(terms);
     // The refusal is REPORTED. A merge dropped in silence is indistinguishable
     // from clustering never having run.
-    expect(result.refusedForSize.length).toBeGreaterThan(0);
+    expect(result.refusedForCoherence.length).toBeGreaterThan(0);
   });
 
   it('is independent of the order pairs arrive in', () => {
@@ -127,7 +127,12 @@ describe('clusterTrendTerms — one story, one row', () => {
       { ...config, enabled: false },
     );
 
-    expect(result).toEqual({ clusters: [], linkedPairs: [], refusedForSize: [] });
+    expect(result).toEqual({
+      clusters: [],
+      linkedPairs: [],
+      refusedForSize: [],
+      refusedForCoherence: [],
+    });
   });
 
   it('ignores a pair naming a term that did not survive the floors', () => {

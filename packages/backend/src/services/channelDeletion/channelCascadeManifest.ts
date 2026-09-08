@@ -316,6 +316,13 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why: 'Stage-B classification topics for a destroyed post. `ON DELETE CASCADE` on `posts.id`.',
   },
   {
+    table: 'trend_story_posts',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why: 'A destroyed post\'s story memberships. `ON DELETE CASCADE` on `posts.id`.',
+  },
+  {
     table: 'posts',
     column: 'boostOf',
     scope: 'channel-posts',
@@ -1208,6 +1215,8 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ['topic_stats.topicId', 'a topic id'],
   ['trend_graphs.edges', 'term-to-term co-occurrence edges, not accounts'],
   ['trending.topicId', 'a topic id'],
+  ['trending.conceptId', 'a language-independent Oxy concept id'],
+  ['trend_story_posts.trendId', 'the retained trend row this membership belongs to'],
   ['user_behavior_authors.behaviorId', 'the UserBehavior row an affinity entry belongs to; it cascades from the row'],
   ['user_behavior_regions.behaviorId', 'the UserBehavior row a region entry belongs to'],
   ['user_behavior_topics.behaviorId', 'the UserBehavior row a topic entry belongs to'],

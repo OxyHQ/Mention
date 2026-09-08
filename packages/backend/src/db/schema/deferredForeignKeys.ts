@@ -222,6 +222,13 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'users table for the ids to point at.',
   },
   {
+    table: trending,
+    column: trending.conceptId,
+    reason:
+      'A language-independent concept key owned by the shared Oxy topic ' +
+      'vocabulary. Mention has no local concept parent table to constrain it to.',
+  },
+  {
     table: gifs,
     column: gifs.klipyId,
     reason:

@@ -27,6 +27,8 @@ export interface TrendTermPair {
   a: string;
   b: string;
   posts: number;
+  /** Explicit identity links do not require literal cross-language co-occurrence. */
+  reason?: 'cooccurrence' | 'canonical-alias';
 }
 
 /** A candidate as this module needs it: a term and how many posts carry it. */
@@ -65,6 +67,8 @@ export interface TrendClusterResult {
    * The caller logs these, so a ceiling that is too tight is visible as itself.
    */
   refusedForSize: string[];
+  /** Bridge merges rejected because no member directly anchors the whole story. */
+  refusedForCoherence: string[];
 }
 
 /**
@@ -83,6 +87,7 @@ function isLinked(
   volumeOf: ReadonlyMap<string, number>,
   config: MtnTrendClusteringConfig,
 ): boolean {
+  if (pair.reason === 'canonical-alias') return true;
   if (pair.posts < config.minPairPosts) return false;
 
   const volumeA = volumeOf.get(pair.a) ?? 0;
@@ -113,7 +118,7 @@ export function clusterTrendTerms(
   config: MtnTrendClusteringConfig,
 ): TrendClusterResult {
   if (!config.enabled || candidates.length === 0)
-    return { clusters: [], linkedPairs: [], refusedForSize: [] };
+    return { clusters: [], linkedPairs: [], refusedForSize: [], refusedForCoherence: [] };
 
   const volumeOf = new Map(candidates.map((candidate) => [candidate.term, candidate.volume]));
 
@@ -142,10 +147,35 @@ export function clusterTrendTerms(
   };
 
   const refusedForSize: string[] = [];
+  const refusedForCoherence: string[] = [];
+  const acceptedPairs: Array<{ a: string; b: string }> = [];
+  const adjacency = new Map<string, Set<string>>();
+  for (const pair of linked) {
+    const fromA = adjacency.get(pair.a);
+    if (fromA) fromA.add(pair.b);
+    else adjacency.set(pair.a, new Set([pair.b]));
+    const fromB = adjacency.get(pair.b);
+    if (fromB) fromB.add(pair.a);
+    else adjacency.set(pair.b, new Set([pair.a]));
+  }
+
+  const membersForRoot = (root: string): string[] =>
+    candidates.filter((candidate) => find(candidate.term) === root).map((candidate) => candidate.term);
+
+  // A valid story has at least one anchor directly supported by every member.
+  // This blocks A-B-C bridge chains where A and C never shared evidence.
+  const hasCoherentAnchor = (members: readonly string[]): boolean =>
+    members.some((anchor) =>
+      members.every((member) => member === anchor || adjacency.get(anchor)?.has(member)),
+    );
+
   for (const pair of linked) {
     const rootA = find(pair.a);
     const rootB = find(pair.b);
-    if (rootA === rootB) continue;
+    if (rootA === rootB) {
+      acceptedPairs.push({ a: pair.a, b: pair.b });
+      continue;
+    }
 
     const merged = (size.get(rootA) ?? 1) + (size.get(rootB) ?? 1);
     if (merged > config.maxClusterSize) {
@@ -153,6 +183,12 @@ export function clusterTrendTerms(
       // walk one row across unrelated stories. Past the ceiling the evidence is
       // that the links are too loose, not that the story is that large.
       refusedForSize.push(`${pair.a}+${pair.b}`);
+      continue;
+    }
+
+    const proposedMembers = [...membersForRoot(rootA), ...membersForRoot(rootB)];
+    if (!hasCoherentAnchor(proposedMembers)) {
+      refusedForCoherence.push(`${pair.a}+${pair.b}`);
       continue;
     }
 
@@ -164,6 +200,7 @@ export function clusterTrendTerms(
         ? [rootA, rootB]
         : [rootB, rootA];
     parent.set(absorb, keep);
+    acceptedPairs.push({ a: pair.a, b: pair.b });
     size.set(keep, merged);
     size.delete(absorb);
   }
@@ -194,8 +231,9 @@ export function clusterTrendTerms(
   clusters.sort((left, right) => left.representative.localeCompare(right.representative));
   return {
     clusters,
-    linkedPairs: linked.map((pair) => ({ a: pair.a, b: pair.b })),
+    linkedPairs: acceptedPairs,
     refusedForSize,
+    refusedForCoherence,
   };
 }
 

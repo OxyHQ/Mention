@@ -33,6 +33,7 @@ import {
 // feed (For You, Explore, ranking). Adding a new gate updates trending too.
 import { sensitiveExcludeSql } from '../../mtn/feed/feedSafety';
 import type { TrendCandidate } from './trendScoring';
+import { resolveTrendConcept } from './conceptRegistry';
 
 /**
  * One term as the aggregation measured it: the numbers the scorer needs, plus
@@ -63,6 +64,8 @@ export interface TermCandidate {
    * only ever said `Kyiv` is the whole point of having merged them.
    */
   members: string[];
+  /** Language-independent identity, only when a reviewed alias resolved it. */
+  conceptId?: string;
 }
 
 /** What one aggregation pass produces: the rows to rank, and the graph behind them. */
@@ -208,12 +211,13 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
     windowMatch,
     solo.map((candidate) => candidate.measurement.term),
   );
-  const { clusters, linkedPairs, refusedForSize } = clusterTrendTerms(
+  const conceptPairs = buildConceptPairs(solo);
+  const { clusters, linkedPairs, refusedForSize, refusedForCoherence } = clusterTrendTerms(
     solo.map((candidate) => ({
       term: candidate.measurement.term,
       volume: candidate.measurement.volume,
     })),
-    pairs,
+    [...pairs, ...conceptPairs],
     clustering,
   );
   if (refusedForSize.length > 0) {
@@ -225,11 +229,17 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
       pairs: refusedForSize.slice(0, 10),
     });
   }
+  if (refusedForCoherence.length > 0) {
+    logger.info('[Trending] Bridge merges declined for story incoherence', {
+      count: refusedForCoherence.length,
+      pairs: refusedForCoherence.slice(0, 10),
+    });
+  }
   if (clusters.length === 0) {
     // Edges but no stories is a real and informative state — it says the
     // network is talking about several separate things — so the graph is
     // still worth keeping.
-    return { candidates: solo, graph: buildTrendGraph(now, graphNodes(solo), pairs, [], new Map()) };
+    return { candidates: solo, graph: buildTrendGraph(now, graphNodes(solo), [...pairs, ...conceptPairs], [], new Map()) };
   }
 
   const aliases = buildClusterMap(clusters);
@@ -261,7 +271,7 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
     // reports the story's volume instead. Reading a cluster total as a term
     // total is how a graph ends up drawing links that do not follow from its
     // own numbers.
-    graph: buildTrendGraph(now, graphNodes(solo), pairs, linkedPairs, aliases),
+    graph: buildTrendGraph(now, graphNodes(solo), [...pairs, ...conceptPairs], linkedPairs, aliases),
   };
 }
 
@@ -291,7 +301,13 @@ async function aggregateTermRows(
   termsSql: SQL,
   membersOf: ReadonlyMap<string, string[]>,
 ): Promise<TermCandidate[]> {
-  const { minVolume, maxActors, authorPostCap, minLanguageShare } = MtnConfig.trending.detection;
+  const {
+    minVolume,
+    maxActors,
+    authorPostCap,
+    minLanguageShare,
+    minRegionShare,
+  } = MtnConfig.trending.detection;
 
   // TWO grouping levels, because volume is per-AUTHOR-capped: a term's volume
   // is assembled from what each author contributed, not from a flat post
@@ -387,6 +403,26 @@ async function aggregateTermRows(
       ) shares
       group by term
     ),
+    region_share as (
+      select term, region, count(*)::int as n
+      from expanded
+      where region is not null
+      group by term, region
+    ),
+    region_dominant as (
+      select
+        term,
+        coalesce(
+          array_agg(region order by n desc, region asc)
+            filter (where n >= ${minRegionShare}::double precision * total),
+          array[]::text[]
+        ) as regions
+      from (
+        select term, region, n, sum(n) over (partition by term) as total
+        from region_share
+      ) shares
+      group by term
+    ),
     capped as (
       select
         term,
@@ -410,11 +446,12 @@ async function aggregateTermRows(
       (count(distinct e.author))::int as "authorCount",
       (array_agg(distinct e.author) filter (where e.author is not null))[1:${sql.raw(String(maxActors))}] as "actorIds",
       coalesce(l.languages, array[]::text[]) as "languages",
-      coalesce(array_agg(distinct e.region) filter (where e.region is not null), array[]::text[]) as "regions"
+      coalesce(r.regions, array[]::text[]) as "regions"
     from expanded e
     join capped c on c.term = e.term
     left join lang_dominant l on l.term = e.term
-    group by e.term, c.volume, c.recent_volume, l.languages
+    left join region_dominant r on r.term = e.term
+    group by e.term, c.volume, c.recent_volume, l.languages, r.regions
     -- Cheapest possible narrowing, against the CAPPED volume — the number the
     -- floor is meant to be about.
     having c.volume >= ${minVolume}
@@ -449,6 +486,7 @@ async function aggregateTermRows(
     .map((row) => {
       const languages = row.languages ?? [];
       const corpus = corpusSizeFor(languages, corpusByLanguage);
+      const concept = resolveTrendConcept(row.term, languages);
       return {
         measurement: {
           term: row.term,
@@ -469,8 +507,39 @@ async function aggregateTermRows(
         // reader can treat `members` as the row's term list without first
         // asking whether clustering ran.
         members: membersOf.get(row.term) ?? [row.term],
+        ...(concept ? { conceptId: concept.id } : {}),
       };
     });
+}
+
+/**
+ * Join reviewed aliases of one concept even when its language communities do
+ * not write the same literal words in one post.  Both terms still had to clear
+ * the ordinary volume and author floors in the same time window.
+ */
+function buildConceptPairs(candidates: readonly TermCandidate[]): TrendTermPair[] {
+  const byConcept = new Map<string, TermCandidate[]>();
+  for (const candidate of candidates) {
+    if (!candidate.conceptId) continue;
+    const group = byConcept.get(candidate.conceptId);
+    if (group) group.push(candidate);
+    else byConcept.set(candidate.conceptId, [candidate]);
+  }
+
+  const pairs: TrendTermPair[] = [];
+  for (const group of byConcept.values()) {
+    for (let left = 0; left < group.length; left += 1) {
+      for (let right = left + 1; right < group.length; right += 1) {
+        pairs.push({
+          a: group[left].measurement.term,
+          b: group[right].measurement.term,
+          posts: Math.min(group[left].measurement.volume, group[right].measurement.volume),
+          reason: 'canonical-alias',
+        });
+      }
+    }
+  }
+  return pairs;
 }
 
 /**

@@ -960,6 +960,8 @@ export const MtnConfig = {
        * the one-post tail.
        */
       minLanguageShare: 0.2,
+      /** Minimum support before a sparse region is attributed to a trend. */
+      minRegionShare: 0.2,
       /**
        * How many trends a batch tries to report before it is willing to fall
        * back on popularity (see `topUpWithPopular`). A list of one or two is

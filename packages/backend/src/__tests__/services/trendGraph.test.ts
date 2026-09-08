@@ -28,7 +28,14 @@ describe('buildTrendGraph', () => {
       new Map(),
     );
 
-    expect(graph.edges).toEqual([{ a: 'kyiv', b: 'ukraine', posts: 8, linked: false }]);
+    expect(graph.edges).toEqual([{
+      a: 'kyiv',
+      b: 'ukraine',
+      posts: 8,
+      linked: false,
+      strength: 0.4,
+      reason: 'cooccurrence',
+    }]);
   });
 
   it('marks only the pairs the clusterer actually accepted', () => {
