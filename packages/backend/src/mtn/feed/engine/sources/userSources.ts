@@ -355,6 +355,17 @@ function buildAuthoredConditions(
       // the GLOBAL videos feed (`FeedQueryBuilder.buildVideosQuery`), which
       // additionally gates on duration and orientation: a profile grid shows the
       // author's videos, not a reel lane's selection of them.
+      //
+      // AND IT STAYS AN `EXISTS`, which is worth saying because the global lane
+      // no longer is. That one now drives from `post_media` so it can walk
+      // `post_media_video_chrono_idx`, and the obvious next step is to "unify"
+      // this branch with it. Do not: this predicate is a term inside the PROFILE
+      // feed, whose scan already drives from `post_authorships_author_chrono_idx`
+      // — one author, accepted, newest first. Driving from `post_media` instead
+      // would give up that index for one keyed on `(type, orientation, …)`, which
+      // knows nothing about the author, and turn a scan bounded by one person's
+      // posts into a scan of every video on the instance filtered down to them.
+      // The global lane had no such index to lose; this one does.
       conditions.push(
         or(
           eq(posts.type, PostType.VIDEO),

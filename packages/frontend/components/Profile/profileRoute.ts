@@ -1,5 +1,5 @@
 import type { Href } from 'expo-router';
-import type { AccountKind } from '@oxyhq/core';
+import { getNormalizedUserHandle, type AccountKind, type UserHandleInput } from '@oxyhq/core';
 
 /**
  * Which URL family a profile page belongs to.
@@ -35,6 +35,49 @@ export function profileSubPath(
   subpath: string,
 ): Href {
   return family === 'channel' ? `/c/${handle}/${subpath}` : `/@${handle}/${subpath}`;
+}
+
+/**
+ * The account a link points AT, as every list row, post header and avatar in the
+ * app already holds it.
+ *
+ * Deliberately structural rather than `User`: the shapes that reach these call
+ * sites are a post's author DTO, a notification actor, a starter-pack member and
+ * half a dozen others, and they agree on exactly these fields. Widening to the
+ * full `User` would force a cast at every call site, which is the thing this
+ * exists to remove.
+ */
+export interface ProfileLinkTarget extends UserHandleInput {
+  /** Absent on most DTOs; when present it is what sends a channel to `/c/`. */
+  kind?: AccountKind;
+}
+
+/**
+ * Where tapping this account should go — the ONE answer, for every surface that
+ * links to a profile.
+ *
+ * It exists because the alternative was thirty-odd call sites each writing the
+ * same three lines: read the handle off the account, bail when there is none,
+ * and concatenate `/@` in front of it. Three lines is small enough that nobody
+ * noticed they were also each deciding, silently and identically, that the
+ * account is a PERSON — so a channel reached from a post row went to `/@handle`
+ * and bounced through {@link canonicalProfileHref}'s redirect to arrive where it
+ * belonged. Here the family is read from the account's own `kind`, once, and the
+ * redirect stays for the DTOs that carry no kind at all.
+ *
+ * `null` when the account names no usable handle — a federated author whose
+ * actor has not resolved yet, or the degraded placeholder the feed renders when
+ * Oxy is unreachable. Callers render a non-tappable row rather than a link to
+ * nowhere; `if (!href) return;` is the whole contract.
+ */
+export function profileHrefForUser(
+  user: ProfileLinkTarget | null | undefined,
+  subpath?: string,
+): Href | null {
+  const handle = getNormalizedUserHandle(user);
+  if (!handle) return null;
+  const family = profileRouteFamilyForKind(user?.kind);
+  return subpath ? profileSubPath(family, handle, subpath) : profileBasePath(family, handle);
 }
 
 /**

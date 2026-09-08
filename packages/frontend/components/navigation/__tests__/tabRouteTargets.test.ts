@@ -1,7 +1,7 @@
 import { readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
-import { TABS } from '../tabs';
+import { PAGES } from '../tabs';
 
 /**
  * Every tab must name a route that exists, and every route in the tabs group
@@ -14,11 +14,13 @@ import { TABS } from '../tabs';
  *   `typedRoutes` is on but INERT on expo-router 57 — measured in this repo, see
  *   `app/(app)/settings/__tests__/settingsRouteTargets.test.ts` — so a dead
  *   `href` type-checks, ships, and fails under a thumb.
- * - A route file in `(tabs)/` that no tab names is worse than dead: the pager
- *   renders the NAVIGATOR's routes, in the navigator's order, while the bar
- *   renders `TABS`. An extra route silently shifts one against the other, and
- *   the symptom is a tap landing on the neighbouring screen — which reads as a
- *   gesture bug rather than a routing one.
+ * - A route file in `(tabs)/` that `PAGES` does not name is worse than dead: the
+ *   pager renders the NAVIGATOR's routes, in the navigator's order, and indexes
+ *   everything else off `PAGES`. An extra route silently shifts one against the
+ *   other, and the symptom is a tap landing on the neighbouring screen — which
+ *   reads as a gesture bug rather than a routing one. It would also be preloaded
+ *   as a neighbour, since a route the table has never heard of declares no
+ *   opt-out.
  *
  * Both halves come from the real `app/` tree rather than a written list, so they
  * cannot drift from routing the way a second copy would.
@@ -65,22 +67,22 @@ describe('the tab table and the tabs group agree', () => {
     expect(tabRouteFiles.length).toBeGreaterThan(0);
   });
 
-  it.each(TABS.map((tab) => [tab.name, tab.href] as const))(
-    'the %s tab (%s) resolves to a real route file',
+  it.each(PAGES.map((page) => [page.name, page.href] as const))(
+    'the %s page (%s) resolves to a real route file',
     (_name, href) => {
       expect(typeof href).toBe('string');
       expect(knownRoutes).toContain(href);
     },
   );
 
-  it('the group contains exactly the tabs, and in no other quantity', () => {
+  it('the group contains exactly the pages, and in no other quantity', () => {
     const inGroup = [...new Set(tabRouteFiles.map(routePathFor))].sort();
-    const declared = TABS.map((tab) => tab.href as string).sort();
+    const declared = PAGES.map((page) => page.href as string).sort();
     expect(inGroup).toEqual(declared);
   });
 
-  it('every tab name matches its route file, since the navigator switches by NAME', () => {
-    // `navigation.navigate(tab.name)` is how a committed swipe and a tapped bar
+  it('every page name matches its route file, since the navigator switches by NAME', () => {
+    // `navigation.navigate(page.name)` is how a committed swipe and a tapped bar
     // button both reach a screen (`(tabs)/_layout.tsx`), and the name expo-router
     // gives a route is its filename without the extension.
     const fileNames = new Set(
@@ -88,8 +90,8 @@ describe('the tab table and the tabs group agree', () => {
         relative(tabsRoot, file).replace(/(\.(web|native|ios|android))?\.tsx?$/, ''),
       ),
     );
-    for (const tab of TABS) {
-      expect(fileNames).toContain(tab.name);
+    for (const page of PAGES) {
+      expect(fileNames).toContain(page.name);
     }
   });
 });

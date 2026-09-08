@@ -36,6 +36,15 @@ export interface FeedContext {
    */
   followerIds?: string[];
   /**
+   * The viewer's Oxy privacy lists, resolved ONCE per feed request by the
+   * controller's `UserPrivacyManager.loadPrivacyState` and threaded into
+   * `PostHydrationService` for exactly the reason `followerIds` above is: without
+   * it, hydration re-asks Oxy for both lists on every hydration call a page
+   * makes, and a For You page hydrates more than once. Absent for anonymous
+   * viewers, and both lists always travel together.
+   */
+  viewerPrivacy?: { blockedIds: readonly string[]; restrictedIds: readonly string[] };
+  /**
    * Author ids from lists the viewer subscribes to. These are feed-inclusion
    * candidates only and MUST NOT be treated as follow relationships for
    * followers-only visibility checks.

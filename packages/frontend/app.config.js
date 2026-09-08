@@ -264,6 +264,28 @@ return {
                 ],
                 "expo-image-picker",
                 [
+                    // The in-app camera (`app/(app)/(tabs)/camera.tsx`), reached by
+                    // swiping right off Home. The usage strings are written here rather
+                    // than left to the plugin's English defaults, because these are the
+                    // sentences a reader is shown at the permission prompt and the only
+                    // place the app gets to say why it is asking.
+                    //
+                    // Android's CAMERA and RECORD_AUDIO are already declared in
+                    // `android.permissions` above; this plugin adds the iOS half. The
+                    // microphone one is not optional even though the camera opens on
+                    // photo: a video capture asks for it mid-flow, and an app that has
+                    // not declared it is terminated by iOS rather than refused.
+                    //
+                    // `android/` and `ios/` are gitignored (CNG), so this lands at the
+                    // next prebuild / EAS build — it does NOT ship over OTA.
+                    "expo-camera",
+                    {
+                        cameraPermission: "Allow $(PRODUCT_NAME) to use the camera so you can take photos and videos to post.",
+                        microphonePermission: "Allow $(PRODUCT_NAME) to use the microphone so your videos have sound.",
+                        recordAudioAndroid: true,
+                    },
+                ],
+                [
                     // Picture-in-Picture for the reels screen (`app/(app)/videos.tsx`),
                     // the only PiP surface. The plugin adds
                     // `android:supportsPictureInPicture="true"` to the main activity and

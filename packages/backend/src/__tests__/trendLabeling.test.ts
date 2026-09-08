@@ -238,6 +238,122 @@ describe('deriveCategory — evidence, not file order', () => {
   });
 });
 
+describe('deriveTrendLabel — a name written out in full', () => {
+  it('expands the term to the full name the posts write', () => {
+    // The term is `trump` because every post carrying `donald trump` carries
+    // `trump` too, so the unigram always has the larger volume upstream.
+    const posts = [
+      'i think Donald Trump said it yesterday',
+      'the thing about Donald Trump is the timing',
+      'apparently Donald Trump again',
+      'trump did what now',
+      'people keep talking about trump',
+    ];
+    expect(deriveTrendLabel({ term: 'trump', excerpts: posts }).displayName).toBe('Donald Trump');
+  });
+
+  it('does not need a majority — a short name is what a short name is for', () => {
+    // 3 of 8 write it out (37.5%), under PHRASE_MIN_COVERAGE. A defining phrase
+    // would be rejected here; an expansion is not making that kind of claim.
+    const posts = [
+      'so Donald Trump is doing it again',
+      'that Donald Trump interview was something',
+      'watching Donald Trump right now',
+      'trump said it first',
+      'trump again',
+      'what did trump do',
+      'trump trump trump',
+      'honestly trump',
+    ];
+    expect(deriveTrendLabel({ term: 'trump', excerpts: posts }).displayName).toBe('Donald Trump');
+  });
+
+  it('keeps the bare term when two full names compete', () => {
+    // A coin flip presented as a name is worse than the name people typed.
+    // Every name mid-sentence on purpose: a capital at position 0 is a sentence
+    // opening, not evidence of a name, so a fixture that starts a post with one
+    // would silently be testing 2-versus-1 instead of a tie.
+    const posts = [
+      'i saw John Smith earlier',
+      'about John Smith again',
+      'that was Jane Smith actually',
+      'talking to Jane Smith yesterday',
+    ];
+    expect(deriveTrendLabel({ term: 'smith', excerpts: posts }).displayName).toBe('Smith');
+  });
+
+  it('does not expand on one post\'s say-so', () => {
+    const posts = [
+      'i think Donald Trump said it',
+      'trump again today',
+      'what did trump say',
+      'trump trump',
+    ];
+    expect(deriveTrendLabel({ term: 'trump', excerpts: posts }).displayName).toBe('Trump');
+  });
+
+  it('never names a trend after a fragment of a longer name', () => {
+    // `maxPhraseTokens` is 2, so `new york yankees` is never emitted; the
+    // two-word window `york yankees` is, and `New` is dropped as a stop word.
+    // Without the `whole` flag this ships as "York Yankees".
+    const posts = [
+      'nobody beats the New York Yankees in October',
+      'watching the New York Yankees tonight',
+      'the New York Yankees did it again',
+    ];
+    expect(deriveTrendLabel({ term: 'yankees', excerpts: posts }).displayName).toBe('Yankees');
+  });
+
+  it('does not print a fragment when the name is longer than the phrase cap', () => {
+    // Known limitation, pinned honestly: three-word names are not recovered
+    // under a two-token cap. What must NOT happen is shipping half of one.
+    const posts = [
+      'a mural of Martin Luther King downtown',
+      'reading about Martin Luther King today',
+      'that Martin Luther King speech again',
+    ];
+    expect(deriveTrendLabel({ term: 'king', excerpts: posts }).displayName).not.toBe('Luther King');
+  });
+
+  it('still refuses a phrase that adds a word without adding a subject', () => {
+    // The intent of the old substring rejection, pinned with REAL capitalization
+    // — the all-lowercase fixture below emits no phrases at all, so it could
+    // never have tested this rule.
+    const posts = [
+      'the Orioles trade is finally done',
+      'that Orioles trade was a mistake',
+      'still thinking about the Orioles trade',
+    ];
+    expect(deriveTrendLabel({ term: 'orioles', excerpts: posts }).displayName).toBe('Orioles');
+  });
+
+  it('does not depend on the order the posts arrive in', () => {
+    const posts = [
+      'i think Donald Trump said it yesterday',
+      'the thing about Donald Trump is the timing',
+      'apparently Donald Trump again',
+      'trump did what now',
+      'people keep talking about trump',
+    ];
+    expect(deriveTrendLabel({ term: 'trump', excerpts: posts }).displayName).toBe(
+      deriveTrendLabel({ term: 'trump', excerpts: [...posts].reverse() }).displayName,
+    );
+  });
+});
+
+describe('a phrase is not a restatement just because the letters line up', () => {
+  it('names a short term after a phrase that merely contains its letters', () => {
+    // Before: `'justice department'.includes('us')` is true, so every candidate
+    // was discarded and the row read "Us".
+    const posts = [
+      'the Justice Department filed the brief today',
+      'more from the Justice Department this morning',
+      'the Justice Department says otherwise',
+    ];
+    expect(deriveTrendLabel({ term: 'us', excerpts: posts }).displayName).toBe('Justice Department');
+  });
+});
+
 describe('TREND_LABEL_VERSION guards the labels it stamps', () => {
   /*
    * A stored label is REUSED for the life of a run unless its version differs,
@@ -271,6 +387,10 @@ describe('TREND_LABEL_VERSION guards the labels it stamps', () => {
       'Climate',
       'science',
     ],
+    // Exercises the name expansion, so the gate can fail when THAT rule moves
+    // too. Two excerpts → `minPosts` is 2; both carry a whole, all-naming
+    // `dean kremer`; nothing competes with it.
+    ['kremer', ['traded for Dean Kremer today', 'about Dean Kremer again'], 'Dean Kremer', 'other'],
   ];
 
   it.each(CASES)('labels %s deterministically', (term, excerpts, displayName, category) => {
@@ -279,8 +399,8 @@ describe('TREND_LABEL_VERSION guards the labels it stamps', () => {
     expect(label.category).toBe(category);
   });
 
-  it('is at v5 — bump it in the same change that alters the table above', () => {
-    expect(TREND_LABEL_VERSION).toBe(5);
+  it('is at v6 — bump it in the same change that alters the table above', () => {
+    expect(TREND_LABEL_VERSION).toBe(6);
   });
 });
 

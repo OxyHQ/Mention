@@ -29,7 +29,7 @@ import {
   extractLocalPostIdFromApUri,
 } from './constants';
 import { parentIsChannelPost } from '../../utils/channelReplyGate';
-import { PostType, PostVisibility } from '@mention/shared-types';
+import { PostVisibility } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import {
   buildFederatedNoteContent,
@@ -38,6 +38,7 @@ import {
 } from './apPostContent';
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { getPostCreator } from '../../services/serviceRegistry';
+import { derivePostType } from '../../services/PostCreationService';
 import { enrichIngestedPosts } from '../../services/postEnrichment';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
 import {
@@ -57,6 +58,7 @@ import {
   runWithTimeout,
   extractAnnouncedObjectUri,
   extractActorUri,
+  extractApQuoteUri,
   extractInReplyToUri,
   mapApVisibility,
   parseApPublished,
@@ -856,6 +858,24 @@ export class OutboxSyncService {
         }
         const { text, media, attachments, hashtags, summary, sensitive, variants } = built;
 
+        // When this note QUOTES another post, link it — the SAME rule the inbox
+        // `Create` path applies. This loop knew about `inReplyTo` and nothing
+        // about quotes, so a back catalogue imported through the outbox (which is
+        // how a newly-followed account's history arrives) stored every quote with
+        // `quote_of` null. The reader then saw the remote server's fallback
+        // rendering — a bare `RE: <url>` line — while the very same post, had it
+        // arrived live through the inbox instead, rendered a quote card. Which
+        // path imported a post is not something a reader can see or should feel.
+        //
+        // Resolved locally first (that also covers a quote of a LOCAL post, which
+        // no fetch would ever find); only when we hold nothing is the quoted note
+        // fetched and imported, through the same bounded, signed, SSRF-safe path
+        // a boost and a reply ancestor use.
+        const quoteUri = extractApQuoteUri(noteObject);
+        const quoteOf = quoteUri
+          ? (await resolvePostIdFromObjectUri(quoteUri)) ?? (await this.ensureQuotedNote(quoteUri))
+          : null;
+
         // AP-derived language so federated posts carry their REAL language
         // instead of the schema default 'en'. `extractApLanguage` is the declared
         // primary; `extractApLanguages` is the full declared set (top-level
@@ -900,9 +920,10 @@ export class OutboxSyncService {
             sensitive,
             spoilerText: summary,
           }),
-          type: media.length > 0
-            ? (media.some((m) => m.type === 'video') ? PostType.VIDEO : PostType.IMAGE)
-            : PostType.TEXT,
+          // Through the shared rule rather than a second copy of it: a quote is
+          // typed `QUOTE` even when it carries media, and this path used to say
+          // `IMAGE` for the very same Note the inbox typed `QUOTE`.
+          type: derivePostType({ quoteOf, content: { media } }),
           content: {
             // The body, and its ONLY home (`contentMap` → author variants,
             // `variants[0]` primary). There is no `content.text` mirror on any
@@ -911,6 +932,7 @@ export class OutboxSyncService {
             media: media.length > 0 ? media : undefined,
             attachments: attachments.length > 0 ? attachments : undefined,
           },
+          quoteOf,
           visibility,
           hashtags,
           // Resolved @mention Oxy user ids (federated + local) — the SAME allowlist
@@ -1592,6 +1614,23 @@ export class OutboxSyncService {
     const inReplyToUri = extractInReplyToUri(note.inReplyTo);
     const threadLink = inReplyToUri ? await this.resolveThreadLink(inReplyToUri, depth, true) : null;
 
+    // When this note itself QUOTES another post, link it — the same rule the
+    // inbox `Create` path applies, because the ANSWER cannot depend on which
+    // path happened to import the note. A boosted original, a reply ancestor and
+    // a quoted note all arrive here, and every one of them lost its own quote:
+    // `quote_of` stayed null and the body was left rendering the remote server's
+    // `RE: <url>` fallback, which is exactly what a reader is not supposed to see.
+    //
+    // Resolved locally first (that also covers a quote of a LOCAL post, which no
+    // fetch would ever find), then imported through THIS function — so the quote
+    // chain shares the ancestor walk's `MAX_ANCESTOR_DEPTH` budget and a quote
+    // cycle (A quotes B quotes A) terminates instead of recursing forever.
+    const quoteUri = extractApQuoteUri(note);
+    const quoteOf = quoteUri
+      ? (await resolvePostIdFromObjectUri(quoteUri))
+        ?? (depth < MAX_ANCESTOR_DEPTH ? await this.ensureFederatedNote(quoteUri, depth + 1) : null)
+      : null;
+
     try {
       const created = await getPostCreator().create({
         oxyUserId: authorOxyUserId,
@@ -1605,6 +1644,7 @@ export class OutboxSyncService {
         }),
         parentPostId: threadLink?.parentPostId ?? null,
         threadId: threadLink?.threadId ?? null,
+        quoteOf,
         content: {
           // The body, and its ONLY home (`variants[0]` is the primary).
           variants: variants.length > 0 ? variants : undefined,

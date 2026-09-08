@@ -92,54 +92,58 @@ export function AnimatedLikeIcon({
     transform: [{ scale: innerRingScale.value }],
   }));
 
+  const heart = isLiked ? (
+    <Animated.View style={iconStyle}>
+      <HeartIconActive color={likeColor} size={size} />
+    </Animated.View>
+  ) : (
+    <HeartIcon className="text-muted-foreground" size={size} />
+  );
+
+  // The wrapper is the positioning context for the two burst rings, and those
+  // only exist while a like is actually animating. An unliked row — the majority
+  // of a feed — was paying a react-native primitive (a `react-native-css`
+  // interop component under NativeWind's global polyfill, not a bare View) to
+  // position nothing.
+  if (!isLiked || !shouldAnimate) {
+    return heart;
+  }
+
   return (
     <View>
-      {isLiked ? (
-        <Animated.View style={iconStyle}>
-          <HeartIconActive color={likeColor} size={size} />
-        </Animated.View>
-      ) : (
-        <HeartIcon
-          className="text-muted-foreground"
-          size={size}
-        />
-      )}
-      {isLiked && shouldAnimate ? (
-        <>
-          <Animated.View
-            style={[
-              {
-                position: 'absolute',
-                backgroundColor: likeColor,
-                top: 0,
-                left: 0,
-                width: size,
-                height: size,
-                zIndex: -1,
-                pointerEvents: 'none',
-                borderRadius: size / 2,
-              },
-              outerRingStyle,
-            ]}
-          />
-          <Animated.View
-            style={[
-              {
-                position: 'absolute',
-                backgroundColor: theme.colors.background,
-                top: 0,
-                left: 0,
-                width: size,
-                height: size,
-                zIndex: -1,
-                pointerEvents: 'none',
-                borderRadius: size / 2,
-              },
-              innerRingStyle,
-            ]}
-          />
-        </>
-      ) : null}
+      {heart}
+      <Animated.View
+        style={[
+          {
+            position: 'absolute',
+            backgroundColor: likeColor,
+            top: 0,
+            left: 0,
+            width: size,
+            height: size,
+            zIndex: -1,
+            pointerEvents: 'none',
+            borderRadius: size / 2,
+          },
+          outerRingStyle,
+        ]}
+      />
+      <Animated.View
+        style={[
+          {
+            position: 'absolute',
+            backgroundColor: theme.colors.background,
+            top: 0,
+            left: 0,
+            width: size,
+            height: size,
+            zIndex: -1,
+            pointerEvents: 'none',
+            borderRadius: size / 2,
+          },
+          innerRingStyle,
+        ]}
+      />
     </View>
   );
 }
