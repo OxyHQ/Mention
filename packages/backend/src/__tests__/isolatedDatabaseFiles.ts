@@ -269,6 +269,14 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       '`dryRun: false`.',
   },
   {
+    path: 'src/__tests__/scripts/purgeFlattenedRetweetsRows.test.ts',
+    jobEntryPoint: 'purgeFlattenedRetweets',
+    reason:
+      'Selects every federated post on a reviewed bridge whose body is a flattened retweet and ' +
+      'DELETES it. A foreign row from a bridge host entering the scan would be destroyed outright, ' +
+      'and the counters this file asserts would describe another suite\' posts.',
+  },
+  {
     path: 'src/__tests__/scripts/backfillQuotedPostsRows.test.ts',
     jobEntryPoint: 'backfillQuotedPosts',
     reason:

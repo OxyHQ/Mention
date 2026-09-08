@@ -153,6 +153,7 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
     call: /\bbackfillFederatedHandleQualification\s*\(/,
   },
   { name: 'backfillQuotedPosts', call: /\bbackfillQuotedPosts\s*\(/ },
+  { name: 'purgeFlattenedRetweets', call: /\bpurgeFlattenedRetweets\s*\(/ },
   { name: 'stripRenderedQuoteMarkers', call: /\bstripRenderedQuoteMarkers\s*\(/ },
   { name: 'backfillPostHasLinks', call: /\bbackfillPostHasLinks\s*\(/ },
   { name: 'backfillMediaMetadata', call: /\bbackfillMediaMetadata\s*\(/ },

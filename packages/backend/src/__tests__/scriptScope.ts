@@ -105,6 +105,11 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'whole-table',
     reason: 'Every federated actor, then every variant body authored by one of them.',
   },
+  purgeFlattenedRetweets: {
+    scope: 'whole-table',
+    reason:
+      'Every federated post on a REVIEWED BRIDGE whose body is a flattened retweet, and it DELETES them.',
+  },
   backfillQuotedPosts: {
     scope: 'whole-table',
     reason: 'Every federated post with a null quote_of whose body renders as `RE: <url>`.',
