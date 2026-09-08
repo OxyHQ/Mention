@@ -358,6 +358,10 @@ jobs:
                 echo "This is **not** a failure. The container's own \`timeout\` stopped the sweep at 3300s;"
                 echo "every write it made is committed, and repaired rows no longer match the candidate query,"
                 echo "so a re-run resumes over what is left rather than redoing the work."
+                echo ""
+                echo "The summary line never runs on a kill, so read the LAST \`[backfillMediaMetadata] progress\`"
+                echo "line in the output above instead — it carries \`scanned\`/\`updated\`/\`skipped\` as of the"
+                echo "last completed page."
               } >> "$GITHUB_STEP_SUMMARY"
               ;;
             *)

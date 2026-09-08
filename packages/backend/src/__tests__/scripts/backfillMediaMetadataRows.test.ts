@@ -34,6 +34,7 @@ import { posts } from '../../db/schema/posts';
 import { postMedia } from '../../db/schema/postContent';
 import { insertPostRecord } from '../../db/posts/postRepository';
 import { backfillMediaMetadata } from '../../scripts/backfillMediaMetadata';
+import { logger } from '../../utils/logger';
 
 let db: Database;
 const created: string[] = [];
@@ -161,6 +162,27 @@ describe('backfillMediaMetadata', () => {
     expect(result.scanned).toBe(0);
     expect(result.updated).toBe(0);
     expect(getServiceAssetMetadataByIds).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The counters have to survive a killed process. The sweep is bounded by its
+   * container's `timeout` and holds no cursor, so a run that outlives the bound
+   * is SIGTERMed before the summary line — and on a DRY run the summary is the
+   * only thing anyone wanted. A per-page progress line is what makes a partial
+   * preview still answer "how big is the backlog".
+   */
+  it('logs progress per page, so a killed run still reports a number', async () => {
+    await seedWithMedia([{ id: UUID_FILE_ID, type: 'video' }]);
+    const progress = vi.spyOn(logger, 'info');
+
+    await backfillMediaMetadata({ dryRun: true });
+
+    const lines = progress.mock.calls.filter(([message]) =>
+      String(message).includes('[backfillMediaMetadata] progress'),
+    );
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines[0][1]).toMatchObject({ dryRun: true, scanned: 1, updated: 1 });
+    progress.mockRestore();
   });
 
   it('writes nothing on a dry run', async () => {

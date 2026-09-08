@@ -132,6 +132,18 @@ export async function backfillMediaMetadata(
       await replacePostContent(row.id, { ...row.content, media: enriched }, row.mentions);
     }
 
+    // A progress line per page, at INFO.
+    //
+    // The run is bounded by its container's `timeout` (3300s in
+    // `run-media-metadata-backfill.yml`) and holds no cursor, so a sweep that
+    // outlives the bound is SIGTERMed — and the summary below never runs. On a
+    // write run that costs only the total, since the writes are committed and a
+    // repaired post leaves the candidate set. On a DRY run it costs everything:
+    // the whole point of the preview is the number, and a killed preview
+    // reported nothing at all. Per page, the number survives in the log
+    // whatever happens to the process.
+    logger.info('[backfillMediaMetadata] progress', { dryRun, scanned, updated, skipped });
+
     if (rows.length < pageSize) break;
   }
 
