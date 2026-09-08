@@ -237,12 +237,65 @@ interface VideoItemProps {
 //
 // Every field the chrome needs is declared once, on `ReelChromeParams`; the two
 // below are this component's own, used only by what it renders.
+/**
+ * The frame a slide shows until its video paints, and the only place in the reel
+ * that draws one.
+ *
+ * It is rendered from BOTH sides of the live-player window — by the slide when
+ * the row holds no decoder, and by the surface until the first frame lands — and
+ * that is exactly why it has to be one component with one set of props. It used
+ * to be two copies, and they had drifted: the in-window copy carried
+ * `transition={150}`, so crossing into the window unmounted a poster that was
+ * already painted and faded its replacement in from nothing over 150ms against
+ * the muted background. The image is the same URL out of the same memory cache,
+ * so the fade had nothing to reveal — it was a flash on every row, every scroll.
+ *
+ * NO `transition` here, deliberately: a cache-warm poster must paint on the
+ * frame it mounts, because the mount happens mid-scroll and the thing it is
+ * replacing was showing the same pixels.
+ */
+const ReelPoster = memo<{
+    posterUrl?: string;
+    posterFailed: boolean;
+    onPosterError: () => void;
+    theme: ReturnType<typeof useTheme>;
+}>(({ posterUrl, posterFailed, onPosterError, theme }) => (
+    <View style={styles.posterLayer} className="bg-muted" pointerEvents="none">
+        {posterUrl && !posterFailed ? (
+            <Image
+                source={{ uri: posterUrl }}
+                style={styles.poster}
+                contentFit="contain"
+                cachePolicy="memory-disk"
+                priority="high"
+                onError={onPosterError}
+            />
+        ) : (
+            <Ionicons name="videocam-outline" size={48} color={theme.colors.textSecondary} />
+        )}
+    </View>
+));
+
+ReelPoster.displayName = 'ReelPoster';
+
 interface ActiveVideoSurfaceProps extends Omit<ReelChromeParams, 'player' | 'restartOnActivate'> {
     // How much of the surface's bottom edge the floating BottomBar covers. The
     // scrubber is the overlay's SIBLING, so it does not inherit the overlay's
     // own bottom padding and has to lift itself clear of the bar.
     bottomBarHeight: number;
     theme: ReturnType<typeof useTheme>;
+    /**
+     * The poster's failure flag and its reporter, OWNED BY THE ROW.
+     *
+     * A surface lives only while its row is inside the live-player window; the
+     * row outlives it and draws the same poster on the other side. Holding
+     * "this poster 404s" in the surface meant the answer was thrown away and
+     * re-learned every time the reader scrolled the row back in — and it was
+     * held twice, once here and once in the row, so the two copies could
+     * disagree about the same image.
+     */
+    posterFailed: boolean;
+    onPosterError: () => void;
 }
 
 /**
@@ -288,6 +341,8 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
     videoUrl,
     fallbackVideoUrl,
     posterUrl,
+    posterFailed,
+    onPosterError,
     initialDurationSec,
     intrinsicSize,
     isActive,
@@ -318,8 +373,6 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
         handlePictureInPictureStart,
         handlePictureInPictureStop,
         showPoster,
-        posterFailed,
-        handlePosterError,
         handleSurfacePress,
         userPaused,
         heartStyle,
@@ -408,21 +461,12 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
             />
 
             {showPoster && (
-                <View style={styles.posterLayer} className="bg-muted" pointerEvents="none">
-                    {posterUrl && !posterFailed ? (
-                        <Image
-                            source={{ uri: posterUrl }}
-                            style={styles.poster}
-                            contentFit="contain"
-                            cachePolicy="memory-disk"
-                            transition={150}
-                            priority="high"
-                            onError={handlePosterError}
-                        />
-                    ) : (
-                        <Ionicons name="videocam-outline" size={48} color={theme.colors.textSecondary} />
-                    )}
-                </View>
+                <ReelPoster
+                    posterUrl={posterUrl}
+                    posterFailed={posterFailed}
+                    onPosterError={onPosterError}
+                    theme={theme}
+                />
             )}
 
             {/* Full-surface tap target → toggle play/pause (single tap, deferred)
@@ -598,8 +642,19 @@ const VideoItem = memo<VideoItemProps>(({
 }) => {
     const router = useRouter();
     const [videoError, setVideoError] = useState(false);
-    // Out-of-window poster can 404/fail → fall back to the neutral icon.
+    // The poster can 404 (no extractable frame) or fail to load → fall back to
+    // the neutral icon rather than a blank. Held HERE, by the row, because the
+    // row outlives the surface: it draws the same poster on both sides of the
+    // live-player window, and an answer learned on one side is still true on the
+    // other. Reset when the row is recycled onto a different poster — the
+    // "You Might Not Need an Effect" adjust-during-render form, same as the
+    // source reset in `useReelChrome`.
     const [posterFailed, setPosterFailed] = useState(false);
+    const [prevPosterUrl, setPrevPosterUrl] = useState(item.posterUrl);
+    if (prevPosterUrl !== item.posterUrl) {
+        setPrevPosterUrl(item.posterUrl);
+        setPosterFailed(false);
+    }
     // TikTok-style expandable caption: collapsed to two lines until toggled.
     const [captionExpanded, setCaptionExpanded] = useState(false);
 
@@ -646,6 +701,8 @@ const VideoItem = memo<VideoItemProps>(({
                     videoUrl={item.videoUrl}
                     fallbackVideoUrl={item.fallbackVideoUrl}
                     posterUrl={item.posterUrl}
+                    posterFailed={posterFailed}
+                    onPosterError={handlePosterError}
                     initialDurationSec={item.durationSec}
                     intrinsicSize={item.intrinsicSize}
                     isActive={isActive}
@@ -667,25 +724,24 @@ const VideoItem = memo<VideoItemProps>(({
                     onRegisterTransportSeek={onRegisterTransportSeek}
                 />
             ) : (
-                // Outside the live window (or errored): no decoder, just a poster.
-                <View style={[styles.video, styles.videoPlaceholder]} className="bg-muted">
-                    {item.posterUrl && !posterFailed ? (
-                        <Image
-                            source={{ uri: item.posterUrl }}
-                            style={styles.poster}
-                            contentFit="contain"
-                            cachePolicy="memory-disk"
-                            onError={handlePosterError}
-                        />
-                    ) : (
-                        <Ionicons name="videocam-outline" size={48} color={theme.colors.textSecondary} />
-                    )}
+                // Outside the live window (or errored): no decoder, just the
+                // poster — the SAME element the surface draws on the other side
+                // of the window, so crossing it changes nothing on screen.
+                <>
+                    <ReelPoster
+                        posterUrl={item.posterUrl}
+                        posterFailed={posterFailed}
+                        onPosterError={handlePosterError}
+                        theme={theme}
+                    />
                     {videoError && (
-                        <Text className="mt-2 text-xs text-muted-foreground">
-                            {t('videos.unavailable')}
-                        </Text>
+                        <View style={styles.posterLayer} pointerEvents="none">
+                            <Text className="mt-2 text-xs text-muted-foreground">
+                                {t('videos.unavailable')}
+                            </Text>
+                        </View>
                     )}
-                </View>
+                </>
             )}
 
             {/* `box-none`: the overlay container spans the bottom half of the

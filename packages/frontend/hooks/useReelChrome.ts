@@ -207,9 +207,6 @@ export function useReelChrome({
     // Live re-buffer flag: distinct from `hasRendered` so a mid-playback stall
     // shows only a small spinner over the already-rendered frame, never the poster.
     const [isBuffering, setIsBuffering] = useState(false);
-    // Poster frame can 404 (no extractable frame) or fail to load → fall back to
-    // the neutral icon instead of a blank/broken image. Reset when the source changes.
-    const [posterFailed, setPosterFailed] = useState(false);
     // Whether the preferred source has already been given up on for the video
     // currently targeted. The preferred source is the HLS stream when the server
     // resolved one; if it errors (e.g. the ladder hasn't finished transcoding)
@@ -230,14 +227,6 @@ export function useReelChrome({
     // render via a previous-value tracker rather than in an effect, so a new poster
     // never flashes the stale icon fallback for a frame. See React "You Might Not
     // Need an Effect".
-    const [prevPosterUrl, setPrevPosterUrl] = useState(posterUrl);
-    if (prevPosterUrl !== posterUrl) {
-        setPrevPosterUrl(posterUrl);
-        setPosterFailed(false);
-    }
-
-    const handlePosterError = useCallback(() => setPosterFailed(true), []);
-
     // The video this surface must have LOADED right now: its own row's, or —
     // while it owns the PiP session — wherever the session's cursor has moved to.
     const targetUrl = sessionSource?.url ?? videoUrl;
@@ -658,8 +647,6 @@ export function useReelChrome({
         handlePictureInPictureStart,
         handlePictureInPictureStop,
         showPoster,
-        posterFailed,
-        handlePosterError,
         handleSurfacePress,
         userPaused,
         heartStyle,
