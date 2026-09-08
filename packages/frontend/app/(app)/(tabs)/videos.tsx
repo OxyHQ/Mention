@@ -708,6 +708,26 @@ const VideoItem = memo<VideoItemProps>(({
         setPrevPosterUrl(item.posterUrl);
         setPosterFailed(false);
     }
+    // A load that failed once must not condemn the slide for the whole session.
+    // `videoError` unmounts the surface and paints "Video unavailable", and
+    // nothing ever cleared it — while the row stays mounted three slides behind
+    // the active one, so scrolling up and back down showed the same dead badge
+    // over a video that may well play now. The failures are rarely about the
+    // asset: a proxy that briefly 404'd, a decoder that was busy, a phone that
+    // lost its network for a second.
+    //
+    // Arriving on the slide again is the retry signal, and the honest one: it is
+    // a fresh intent to watch, it remounts the surface with a new player that
+    // loads from scratch, and it is bounded by the viewer's own scrolling — a
+    // genuinely dead video fails again at once and says so again. Adjusted
+    // during render via a previous-value tracker, like the poster reset above.
+    const [prevIsActive, setPrevIsActive] = useState(isActive);
+    if (prevIsActive !== isActive) {
+        setPrevIsActive(isActive);
+        if (isActive && videoError) {
+            setVideoError(false);
+        }
+    }
     // TikTok-style expandable caption: collapsed to two lines until toggled.
     const [captionExpanded, setCaptionExpanded] = useState(false);
 
