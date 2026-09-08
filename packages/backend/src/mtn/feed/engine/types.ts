@@ -105,12 +105,11 @@ export interface FeedEngineContext extends FeedContext {
   };
   /**
    * DISCOVERY-GATE A/B bucket for this viewer (Phase 7). Resolved by the feed
-   * controller ONLY for the For You descriptor when the experiment is enabled
-   * (`FOR_YOU_DISCOVERY_GATE_AB`); otherwise absent. `gate-off` forces the gate
+   * controller for For You and Explore when `DISCOVERY_GATE_ROLLOUT=experiment`;
+   * otherwise absent. `gate-off` forces the gate
    * into measure-only mode for this viewer (rejections counted, never dropped)
-   * exactly like the global shadow config, while `gate-on` enforces it — letting
-   * the two cohorts be compared without a new flag channel. Absent ⇒ enforcement
-   * follows the global `MtnConfig.feed.discoveryGate.shadow` config.
+   * while `gate-on` enforces it. Anonymous viewers remain measure-only during
+   * the experiment because they have no stable account id to bucket.
    */
   discoveryGateBucket?: DiscoveryGateBucket;
 }
@@ -278,9 +277,8 @@ export interface FeedDefinition {
    * NON-trusted (discovery) sources, on top of the always-applied {@link filters}.
    * A candidate that also appears in a TRUSTED lane is inserted as the trusted
    * copy first (source order + `_id` dedup), so followed/affinity authors are
-   * never gated. In SHADOW mode (`MtnConfig.feed.discoveryGate.shadow`) the gate
-   * is EVALUATED and counted but nothing is dropped. Only For You declares this;
-   * every other feed leaves it unset (unaffected).
+   * never gated. `DISCOVERY_GATE_ROLLOUT=shadow` evaluates and counts without
+   * dropping. For You and Explore declare this; other feeds leave it unset.
    */
   discoveryFilters?: ModuleRef[];
   /** Internal engine execution profile (see {@link FeedExecution}). */

@@ -386,7 +386,10 @@ const environmentSchema = z
     SYRA_API_URL: z.preprocess(emptyAsUndefined, httpOrigin.default('https://api.syra.fm')),
     POST_CLASSIFICATION_ENABLED: booleanFromEnv(false),
 
-    FOR_YOU_DISCOVERY_GATE_AB: feedToggle,
+    DISCOVERY_GATE_ROLLOUT: z.preprocess(
+      emptyAsUndefined,
+      z.enum(['shadow', 'experiment', 'enforce']).default('shadow'),
+    ),
     FOR_YOU_DISCOVERY_GATE: feedModuleSelection(discoveryGateModuleIds),
     FOR_YOU_PHASE2B_SIGNALS: feedModuleSelection(phase2bSignalIds),
     FOR_YOU_DISCOVERY_LANGUAGE: feedToggle,
@@ -589,7 +592,10 @@ export function isRedisRuntimeConfigured(
  * re-deriving a value that cannot change within one.
  */
 const dynamicFeedFlagsSchema = z.object({
-  FOR_YOU_DISCOVERY_GATE_AB: feedToggle,
+  DISCOVERY_GATE_ROLLOUT: z.preprocess(
+    emptyAsUndefined,
+    z.enum(['shadow', 'experiment', 'enforce']).default('shadow'),
+  ),
   FOR_YOU_DISCOVERY_GATE: feedModuleSelection(discoveryGateModuleIds),
   FOR_YOU_PHASE2B_SIGNALS: feedModuleSelection(phase2bSignalIds),
   FOR_YOU_DISCOVERY_LANGUAGE: feedToggle,
@@ -599,8 +605,10 @@ function parseDynamicFeedFlags(source: EnvironmentSource = process.env) {
   return dynamicFeedFlagsSchema.parse(source);
 }
 
-export function isDiscoveryGateExperimentEnabled(): boolean | undefined {
-  return parseDynamicFeedFlags().FOR_YOU_DISCOVERY_GATE_AB;
+export type DiscoveryGateRolloutMode = 'shadow' | 'experiment' | 'enforce';
+
+export function getDiscoveryGateRolloutMode(): DiscoveryGateRolloutMode {
+  return parseDynamicFeedFlags().DISCOVERY_GATE_ROLLOUT;
 }
 
 export function getDiscoveryGateSelection(): string | undefined {

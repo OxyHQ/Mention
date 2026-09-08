@@ -326,6 +326,7 @@ describe('online engagement (from FeedInteraction)', () => {
     expect(report.impressions).toBe(100);
     expect(report.engagements).toBe(11); // 8 + 2 + 1
     expect(report.reports).toBe(3);
+    expect(report.fastImpressionRate).toBe(0);
     expect(report.engagementPerImpression).toBeCloseTo(0.11, 5);
     expect(report.reportPerImpression).toBeCloseTo(0.03, 5);
   });
@@ -338,7 +339,7 @@ describe('online engagement (from FeedInteraction)', () => {
 
   it('splits engagement by the deterministic A/B bucket', () => {
     const rows: OnlineInteractionRow[] = [
-      { userId: 'u1', event: 'impression', count: 50 },
+      { userId: 'u1', event: 'impression', count: 50, fastImpressions: 10 },
       { userId: 'u1', event: 'like', count: 5 },
       { userId: 'u2', event: 'impression', count: 50 },
       { userId: 'u2', event: 'report', count: 2 },
@@ -347,6 +348,7 @@ describe('online engagement (from FeedInteraction)', () => {
     const online = aggregateOnlineByBucket(rows, bucketOf);
 
     expect(online.overall.impressions).toBe(100);
+    expect(online.overall.fastImpressionRate).toBeCloseTo(0.1, 5);
     // Every user lands in exactly one deterministic bucket; totals reconcile.
     const summed = Object.values(online.byBucket).reduce((sum, r) => sum + r.impressions, 0);
     expect(summed).toBe(100);

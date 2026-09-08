@@ -392,7 +392,7 @@ class MtnFeedController {
       // letting the two be compared before full enforcement. `undefined` (the
       // default — experiment off, or non-For-You) leaves gate behavior on the
       // global shadow config.
-      if (currentUserId && feedSource === 'for_you') {
+      if (currentUserId && (feedSource === 'for_you' || feedSource === 'explore')) {
         const bucket = resolveDiscoveryGateBucket(currentUserId);
         if (bucket) {
           context.discoveryGateBucket = bucket;

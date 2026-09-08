@@ -433,21 +433,27 @@ export interface OnlineInteractionRow {
   userId: string;
   event: FeedInteractionEventName;
   count: number;
+  fastImpressions?: number;
 }
 
 export interface OnlineEngagementReport {
   impressions: number;
   engagements: number;
   reports: number;
+  fastImpressions: number;
   engagementPerImpression: number;
   reportPerImpression: number;
+  fastImpressionRate: number;
 }
 
 /** Events that count as POSITIVE engagement in the per-impression ratio. */
 const ENGAGEMENT_EVENTS: FeedInteractionEventName[] = ['click', 'like', 'reply', 'boost', 'save'];
 
 /** Compute engagement-per-impression and report-per-impression from event counts. Pure. */
-export function computeOnlineEngagement(counts: OnlineEventCounts): OnlineEngagementReport {
+export function computeOnlineEngagement(
+  counts: OnlineEventCounts,
+  fastImpressions = 0,
+): OnlineEngagementReport {
   const impressions = counts.impression ?? 0;
   const engagements = ENGAGEMENT_EVENTS.reduce((sum, event) => sum + (counts[event] ?? 0), 0);
   const reports = counts.report ?? 0;
@@ -455,8 +461,10 @@ export function computeOnlineEngagement(counts: OnlineEventCounts): OnlineEngage
     impressions,
     engagements,
     reports,
+    fastImpressions,
     engagementPerImpression: impressions > 0 ? engagements / impressions : 0,
     reportPerImpression: impressions > 0 ? reports / impressions : 0,
+    fastImpressionRate: impressions > 0 ? fastImpressions / impressions : 0,
   };
 }
 
@@ -470,19 +478,28 @@ export function aggregateOnlineByBucket(
   bucketOf: (userId: string) => DiscoveryGateBucket | 'none',
 ): { overall: OnlineEngagementReport; byBucket: Record<string, OnlineEngagementReport> } {
   const overallCounts: OnlineEventCounts = {};
+  let overallFastImpressions = 0;
   const bucketCounts = new Map<string, OnlineEventCounts>();
+  const bucketFastImpressions = new Map<string, number>();
 
   for (const row of rows) {
     overallCounts[row.event] = (overallCounts[row.event] ?? 0) + row.count;
+    overallFastImpressions += row.fastImpressions ?? 0;
     const bucket = bucketOf(row.userId);
     const counts = bucketCounts.get(bucket) ?? {};
     counts[row.event] = (counts[row.event] ?? 0) + row.count;
     bucketCounts.set(bucket, counts);
+    bucketFastImpressions.set(
+      bucket,
+      (bucketFastImpressions.get(bucket) ?? 0) + (row.fastImpressions ?? 0),
+    );
   }
 
   const byBucket: Record<string, OnlineEngagementReport> = {};
-  for (const [bucket, counts] of bucketCounts) byBucket[bucket] = computeOnlineEngagement(counts);
-  return { overall: computeOnlineEngagement(overallCounts), byBucket };
+  for (const [bucket, counts] of bucketCounts) {
+    byBucket[bucket] = computeOnlineEngagement(counts, bucketFastImpressions.get(bucket) ?? 0);
+  }
+  return { overall: computeOnlineEngagement(overallCounts, overallFastImpressions), byBucket };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -580,7 +597,8 @@ export function formatOnlineLines(
 ): string[] {
   const lines: string[] = [];
   const row = (label: string, r: OnlineEngagementReport): string =>
-    `    ${label.padEnd(9)} impressions=${r.impressions}  eng/imp=${fmt(r.engagementPerImpression, 4)}  report/imp=${fmt(r.reportPerImpression, 5)}`;
+    `    ${label.padEnd(9)} impressions=${r.impressions}  eng/imp=${fmt(r.engagementPerImpression, 4)}  ` +
+    `report/imp=${fmt(r.reportPerImpression, 5)}  fast/imp=${fmt(r.fastImpressionRate, 4)}`;
   lines.push('');
   lines.push(`  ONLINE (feed_interactions, last ${Math.round(windowMs / (24 * 60 * 60 * 1000))}d):`);
   lines.push(row('overall', online.overall));
@@ -640,7 +658,8 @@ async function main(): Promise<void> {
 
   // Imports local to main() keep the pure core free of heavy runtime coupling.
   const { logger } = await import('../utils/logger.js');
-  const { MtnConfig } = await import('@mention/shared-types');
+    const { MtnConfig } = await import('@mention/shared-types');
+    const { getDiscoveryGateRolloutMode } = await import('../config/index.js');
   const { findActorByAcct, findActorByUri, findActorsByUris } = await import('../db/federation/actorRepository.js');
   const { connectPostgres, closePostgres, getDb } = await import('../db/postgres.js');
   const { and, eq, gte, isNotNull, or, sql } = require('drizzle-orm') as typeof import(
@@ -802,7 +821,7 @@ async function main(): Promise<void> {
     // Master switch echoed so the report is self-describing about gate mode.
     logger.info('[evalFeedQuality] discovery-gate configuration', {
       enabled: MtnConfig.feed.discoveryGate.enabled,
-      shadow: MtnConfig.feed.discoveryGate.shadow,
+      rolloutMode: getDiscoveryGateRolloutMode(),
       moduleCount: gateModules.length,
     });
     for (const line of formatReportLines(report)) logger.info(line);
@@ -821,6 +840,11 @@ async function main(): Promise<void> {
           userId: feedInteractions.userId,
           event: feedInteractions.event,
           count: sql<number>`count(*)::int`,
+          fastImpressions: sql<number>`count(*) filter (
+            where ${feedInteractions.event} = 'impression'
+              and ${feedInteractions.durationMs} > 0
+              and ${feedInteractions.durationMs} < ${MtnConfig.preferences.dwellSkipThresholdMs}
+          )::int`,
         })
         .from(feedInteractions)
         .where(gte(feedInteractions.createdAt, since))

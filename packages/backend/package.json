@@ -15,6 +15,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun src/db/migrate.ts",
     "backfill:multilingual-trends": "bun src/scripts/backfillMultilingualTrends.ts",
+    "backfill:custom-emoji": "bun src/scripts/cleanFederatedCustomEmoji.ts",
     "test": "node ../../node_modules/vitest/vitest.mjs run",
     "test:watch": "node ../../node_modules/vitest/vitest.mjs",
     "test:coverage": "node ../../node_modules/vitest/vitest.mjs run --coverage",

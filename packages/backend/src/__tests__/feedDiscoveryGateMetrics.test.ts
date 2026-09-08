@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { MtnConfig } from '@mention/shared-types';
 
 /**
  * PHASE 7 — discovery-gate ONLINE metrics + A/B enforcement in the FeedEngine.
@@ -106,7 +105,7 @@ function def(sources: FeedDefinition['sources']): FeedDefinition {
 
 let registry: FeedModuleRegistry;
 let engine: FeedEngine;
-let originalShadow: boolean;
+let originalRollout: string | undefined;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -116,15 +115,16 @@ beforeEach(() => {
   registry.register(gateFilter);
   registry.register(source('popular', [makePost(9)]));
   engine = new FeedEngine(registry);
-  originalShadow = MtnConfig.feed.discoveryGate.shadow;
+  originalRollout = process.env.DISCOVERY_GATE_ROLLOUT;
 });
 
 afterEach(() => {
-  Object.assign(MtnConfig.feed.discoveryGate, { shadow: originalShadow });
+  if (originalRollout === undefined) delete process.env.DISCOVERY_GATE_ROLLOUT;
+  else process.env.DISCOVERY_GATE_ROLLOUT = originalRollout;
 });
 
 function setShadow(value: boolean): void {
-  Object.assign(MtnConfig.feed.discoveryGate, { shadow: value });
+  process.env.DISCOVERY_GATE_ROLLOUT = value ? 'shadow' : 'enforce';
 }
 
 function ctx(bucket?: DiscoveryGateBucket): FeedEngineContext {
@@ -167,8 +167,17 @@ describe('feed_discovery_gated_total', () => {
 });
 
 describe('A/B enforcement via ctx.discoveryGateBucket', () => {
+  it('keeps unbucketed discovery measure-only during the experiment', async () => {
+    process.env.DISCOVERY_GATE_ROLLOUT = 'experiment';
+    registry.register(source('disc', [junkPost(1), makePost(2)]));
+
+    await engine.run(def([{ module: 'disc', enabled: true }]), ctx(), { limit: 30 });
+
+    expect(idsOf()).toContain(id(1));
+  });
+
   it('gate-off forces measure-only (kept, shadow=true) even when config enforces', async () => {
-    setShadow(false); // config would enforce
+    process.env.DISCOVERY_GATE_ROLLOUT = 'experiment';
     registry.register(source('disc', [junkPost(1), makePost(2)]));
 
     await engine.run(def([{ module: 'disc', enabled: true }]), ctx('gate-off'), { limit: 30 });
@@ -178,7 +187,7 @@ describe('A/B enforcement via ctx.discoveryGateBucket', () => {
   });
 
   it('gate-on enforces (dropped, shadow=false)', async () => {
-    setShadow(false);
+    process.env.DISCOVERY_GATE_ROLLOUT = 'experiment';
     registry.register(source('disc', [junkPost(1), makePost(2)]));
 
     await engine.run(def([{ module: 'disc', enabled: true }]), ctx('gate-on'), { limit: 30 });

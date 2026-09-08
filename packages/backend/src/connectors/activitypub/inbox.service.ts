@@ -68,6 +68,7 @@ import {
   materializeEngagementRelationship,
   materializeEngagementTombstone,
 } from '../../services/PostEngagementCommandService';
+import { deleteFederatedPostSubtree } from '../../services/FederatedPostDeletionService';
 
 /**
  * Compact, log-safe summary of a `ZodError` — the first few issues rendered as
@@ -559,6 +560,7 @@ export class InboxProcessingService {
       // original can be shown. An ordinary instance is never gated this way, so
       // a human opening a post with "RT:" is unaffected.
       dropFlattenedRetweets: federationBridges.findBridge(actor?.domain ?? '') !== undefined,
+      ingestPath: 'inbox',
     });
     if (built.skip) {
       logger.debug('[Federation] skipped empty Create', {
@@ -732,8 +734,8 @@ export class InboxProcessingService {
       .limit(1);
     if (!post) return;
 
-    const deleted = await deletePostRecord(post.id, eq(posts.federationActorUri, actorUri));
-    if (!deleted) return;
+    const deleted = await deleteFederatedPostSubtree(post.id, actorUri);
+    if (deleted !== 'deleted') return;
     logger.debug('[Federation] deleted federated post');
   }
 
@@ -884,6 +886,14 @@ export class InboxProcessingService {
         findPostRecords(editFilter, { orderBy: UNIQUE_MATCH_NO_ORDER, limit: 1 }),
         actorService.getOrFetchActor(actorUri),
       ]);
+      // A previously rejected Create has no dedup row. If a later Update makes
+      // that same object representable, run the normal Create path against its
+      // current state; all follower, actor, content and notification guards are
+      // thereby identical to a first delivery.
+      if (!existingPost) {
+        await this.handleCreate(activity, actorUri);
+        return;
+      }
       // Resolved unconditionally, and reused twice: the owner id, and the
       // re-classification's `actorType` (the RSS/bridge/bot-mirror spam signal —
       // leaving it undefined would score an edited bot mirror as ordinary prose).
@@ -905,13 +915,22 @@ export class InboxProcessingService {
       const built = await buildFederatedNoteContentForEdit(noteObject, ownerOxyUserId, {
         activityId: objectActivityId,
         actorUri,
+        ingestPath: 'update',
       });
 
       const derivedType = built.media.length > 0
         ? (built.media.some((m) => m.type === 'video') ? PostType.VIDEO : PostType.IMAGE)
         : PostType.TEXT;
 
-      if (!existingPost) return;
+      const hasRepresentableContent = built.variants.some((variant) => variant.text.trim().length > 0)
+        || built.media.length > 0
+        || built.attachments.length > 0
+        || built.summary !== undefined;
+      if (built.customEmojiRemoved && !hasRepresentableContent) {
+        const deleted = await deleteFederatedPostSubtree(existingPost.id, actorUri);
+        if (deleted === 'deleted') logger.debug('[Federation] deleted custom-emoji-only edited post');
+        return;
+      }
 
       // The body and every array the edit carries are REPLACED wholesale, never
       // merged — which is what the `$set`/`$unset` pair expressed and what

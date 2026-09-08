@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { MtnConfig } from '@mention/shared-types';
 
 /**
  * PHASE 4a DISCOVERY-GATE LANE-SCOPING in the FeedEngine.
@@ -88,7 +87,7 @@ const gateFilter: FilterModule = {
 
 let registry: FeedModuleRegistry;
 let engine: FeedEngine;
-let originalShadow: boolean;
+let originalRollout: string | undefined;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -96,16 +95,16 @@ beforeEach(() => {
   registry = new FeedModuleRegistry();
   registry.register(gateFilter);
   engine = new FeedEngine(registry);
-  originalShadow = MtnConfig.feed.discoveryGate.shadow;
+  originalRollout = process.env.DISCOVERY_GATE_ROLLOUT;
 });
 
 afterEach(() => {
-  // Restore the real shadow flag so no test leaks its override to the next.
-  Object.assign(MtnConfig.feed.discoveryGate, { shadow: originalShadow });
+  if (originalRollout === undefined) delete process.env.DISCOVERY_GATE_ROLLOUT;
+  else process.env.DISCOVERY_GATE_ROLLOUT = originalRollout;
 });
 
 function setShadow(value: boolean): void {
-  Object.assign(MtnConfig.feed.discoveryGate, { shadow: value });
+  process.env.DISCOVERY_GATE_ROLLOUT = value ? 'shadow' : 'enforce';
 }
 
 function def(sources: FeedDefinition['sources']): FeedDefinition {

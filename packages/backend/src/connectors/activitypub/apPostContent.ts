@@ -4,7 +4,7 @@ import {
   type MediaItem,
   type PostContentVariant,
 } from '@mention/shared-types';
-import { normalizeMultilineText } from '@oxyhq/core';
+import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
 import { qualifyBareHandles } from '@mention/shared-types/textEntities';
 import { isBridgeFlattenedRetweet } from './flattenedRetweet';
 import { htmlToInlineLabel, htmlToPlainText } from '../../utils/federation/htmlToPlainText';
@@ -13,6 +13,8 @@ import type { PostRecordFederation } from '../../db/posts/postRecord';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
 import { extractApHashtags, extractApMedia } from './helpers';
 import { extractApLanguage, getApContentMap } from './apLanguage';
+import { primaryApType } from './apSchemas';
+import { metrics } from '../../utils/metrics';
 
 /**
  * Shared body-extraction + empty-note guard for federated ActivityPub Notes.
@@ -63,6 +65,8 @@ export interface BuildFederatedNoteContentContext {
    * ingest defaults to true; false keeps extracted remote URLs unchanged.
    */
   materializeMedia?: boolean;
+  /** Bounded observability label for the caller using the shared builder. */
+  ingestPath?: 'inbox' | 'outbox' | 'dependency' | 'update' | 'backfill';
 }
 
 /** A federated Note that resolved to storable content. */
@@ -98,6 +102,8 @@ export interface BuiltFederatedNoteContent {
    * inventing a tag for them from a detector's guess would federate a lie.
    */
   variants: PostContentVariant[];
+  /** Internal decision input; never persisted or exposed in a post DTO. */
+  customEmojiRemoved: boolean;
 }
 
 /** A federated Note that carries nothing storable and must be skipped. */
@@ -112,6 +118,69 @@ export interface SkippedFederatedNoteContent {
  * (dotall) inner match is safe.
  */
 const AP_ANCHOR_REGEX = /<a\b([^>]*)>(.*?)<\/a>/gis;
+
+/**
+ * Remote emoji are useful only when the receiving client renders the image
+ * declared by the ActivityPub `Emoji` tag. Mention deliberately does not do
+ * that, so keeping the shortcode exposes protocol scaffolding as post text.
+ * These ceilings keep a hostile `tag` array from turning normalization into an
+ * unbounded names × body pass.
+ */
+const MAX_CUSTOM_EMOJI_TAGS = 100;
+const MAX_CUSTOM_EMOJI_NAME_LENGTH = 128;
+const CUSTOM_EMOJI_NAME = /^:[^\s:<>]{1,126}:$/u;
+const ORPHANED_REMOTE_EMOJI_FORMATTING = /[\u200B\uFEFF]/gu;
+const FEDERATION_IMPORT_CONTENT_METRIC = 'federation_import_content_total';
+
+type FederationContentDecision =
+  | 'unchanged'
+  | 'custom-emoji-removed'
+  | 'empty-after-custom-emoji-removal';
+
+function recordContentDecision(
+  path: BuildFederatedNoteContentContext['ingestPath'],
+  decision: FederationContentDecision,
+): void {
+  if (!path) return;
+  metrics.incrementCounter(FEDERATION_IMPORT_CONTENT_METRIC, 1, { path, decision });
+}
+
+/** Exact custom-emoji names the origin declared on this ActivityPub object. */
+export function extractDeclaredCustomEmojiNames(object: Record<string, unknown>): string[] {
+  if (!Array.isArray(object.tag)) return [];
+
+  const names = new Set<string>();
+  for (const entry of object.tag.slice(0, MAX_CUSTOM_EMOJI_TAGS)) {
+    if (!entry || typeof entry !== 'object') continue;
+    const tag = entry as Record<string, unknown>;
+    if (primaryApType(tag.type) !== 'Emoji') continue;
+    const name = tag.name;
+    if (
+      typeof name !== 'string'
+      || name.length > MAX_CUSTOM_EMOJI_NAME_LENGTH
+      || !CUSTOM_EMOJI_NAME.test(name)
+    ) continue;
+    names.add(name);
+  }
+  // Longest first makes overlapping, origin-declared names deterministic.
+  return [...names].sort((a, b) => b.length - a.length || a.localeCompare(b));
+}
+
+/**
+ * Remove only exact tokens backed by an AP `Emoji` declaration. An undeclared
+ * `:word:` is author text and is never guessed to be an emoji.
+ */
+export function removeDeclaredCustomEmoji(text: string, names: readonly string[]): string {
+  let cleaned = text;
+  let removed = false;
+  for (const name of names) {
+    if (!cleaned.includes(name)) continue;
+    cleaned = cleaned.split(name).join(' ');
+    removed = true;
+  }
+  if (!removed) return text;
+  return normalizeMultilineText(cleaned.replace(ORPHANED_REMOTE_EMOJI_FORMATTING, ' '));
+}
 
 /**
  * Marks an anchor as a HASHTAG link: Mastodon emits `class="mention hashtag"`
@@ -258,8 +327,12 @@ function resolveApPrimaryTag(
  * DID carry visible text and the note has no media, the raw text is kept rather
  * than blanking the rendition.
  */
-function normalizeRemoteBody(html: string, hasMedia: boolean): string {
-  const rawText = htmlToPlainText(html);
+function normalizeRemoteBody(
+  html: string,
+  hasMedia: boolean,
+  customEmojiNames: readonly string[],
+): string {
+  const rawText = removeDeclaredCustomEmoji(htmlToPlainText(html), customEmojiNames);
   const { content } = normalizePostHashtags(rawText);
   const text = normalizeMultilineText(content);
   if (text.length === 0 && rawText.length > 0 && !hasMedia) return rawText;
@@ -298,12 +371,14 @@ function buildApAuthorVariants(
   primaryTag: string | undefined,
   primaryText: string,
   hasMedia: boolean,
+  customEmojiNames: readonly string[],
 ): PostContentVariant[] {
-  if (primaryText.length === 0) return [];
-
-  const primary: PostContentVariant = { source: 'author', text: primaryText };
-  if (primaryTag) primary.tag = primaryTag;
-  const variants: PostContentVariant[] = [primary];
+  const variants: PostContentVariant[] = [];
+  if (primaryText.length > 0) {
+    const primary: PostContentVariant = { source: 'author', text: primaryText };
+    if (primaryTag) primary.tag = primaryTag;
+    variants.push(primary);
+  }
 
   const contentMap = getApContentMap(object);
   if (contentMap) {
@@ -312,7 +387,7 @@ function buildApAuthorVariants(
       if (typeof value !== 'string') continue;
       const tag = canonicalizeLanguageTag(key);
       if (tag === null || variants.some((variant) => variant.tag === tag)) continue;
-      const text = normalizeRemoteBody(value, hasMedia);
+      const text = normalizeRemoteBody(value, hasMedia, customEmojiNames);
       if (text.length === 0) continue;
       variants.push({ tag, source: 'author', text });
     }
@@ -370,9 +445,18 @@ async function assembleFederatedNoteContent(
   // to `content` and every `contentMap` variant; every reader below (primary
   // body, author variants, primary-tag resolution) sees the rewritten bodies.
   const source = rewriteHashtagAnchorsInObject(object);
+  const customEmojiNames = extractDeclaredCustomEmojiNames(source);
+  const customEmojiRemoved = customEmojiNames.some((name) => {
+    if (typeof source.content === 'string' && source.content.includes(name)) return true;
+    if (typeof source.summary === 'string' && source.summary.includes(name)) return true;
+    const contentMap = getApContentMap(source);
+    return contentMap
+      ? Object.values(contentMap).some((value) => typeof value === 'string' && value.includes(name))
+      : false;
+  });
 
   const primaryHtml = extractApContentHtml(source);
-  const rawText = htmlToPlainText(primaryHtml);
+  const rawText = removeDeclaredCustomEmoji(htmlToPlainText(primaryHtml), customEmojiNames);
 
   // Run the centralized hashtag normalizer on every path so an all-hashtag post
   // is stored identically regardless of how it was ingested. `extractApHashtags`
@@ -389,7 +473,11 @@ async function assembleFederatedNoteContent(
       { activityId: ctx.activityId, actorUri: ctx.actorUri },
     );
 
-  const summary = extractApSummary(object);
+  const rawSummary = extractApSummary(object);
+  const cleanedSummary = rawSummary === undefined
+    ? undefined
+    : normalizeInlineText(removeDeclaredCustomEmoji(rawSummary, customEmojiNames));
+  const summary = cleanedSummary && cleanedSummary.length > 0 ? cleanedSummary : undefined;
   const sensitive = object.sensitive === true;
 
   // Normalization strips a spammy leading hashtag block to empty. When the post
@@ -429,9 +517,24 @@ async function assembleFederatedNoteContent(
   // is already a hydrated placeholder, and the shared scanner classifies it as a
   // different entity — so this cannot double-qualify or disturb one.
   const qualifiedText = ctx.identityDomain ? qualifyBareHandles(text, ctx.identityDomain) : text;
-  const variants = buildApAuthorVariants(source, primaryTag, qualifiedText, media.length > 0);
+  const variants = buildApAuthorVariants(
+    source,
+    primaryTag,
+    qualifiedText,
+    media.length > 0,
+    customEmojiNames,
+  );
 
-  return { text: qualifiedText, media, attachments, hashtags, summary, sensitive, variants };
+  return {
+    text: variants[0]?.text ?? '',
+    media,
+    attachments,
+    hashtags,
+    summary,
+    sensitive,
+    variants,
+    customEmojiRemoved,
+  };
 }
 
 /**
@@ -463,11 +566,21 @@ export async function buildFederatedNoteContent(
     return { skip: true, reason: 'bridge-flattened-retweet' };
   }
 
-  const hasText = built.text.trim().length > 0;
+  const hasText = built.variants.some((variant) => variant.text.trim().length > 0);
   if (!hasText && built.media.length === 0 && built.attachments.length === 0 && built.summary === undefined) {
-    return { skip: true, reason: 'empty-federated-note' };
+    const reason = built.customEmojiRemoved
+      ? 'empty-after-custom-emoji-removal'
+      : 'empty-federated-note';
+    if (reason === 'empty-after-custom-emoji-removal') {
+      recordContentDecision(ctx.ingestPath, reason);
+    }
+    return { skip: true, reason };
   }
 
+  recordContentDecision(
+    ctx.ingestPath,
+    built.customEmojiRemoved ? 'custom-emoji-removed' : 'unchanged',
+  );
   return built;
 }
 
@@ -537,7 +650,18 @@ export async function buildFederatedNoteContentForEdit(
   ownerOxyUserId: string | null | undefined,
   ctx: BuildFederatedNoteContentContext = {},
 ): Promise<BuiltFederatedNoteContent> {
-  return assembleFederatedNoteContent(object, ownerOxyUserId, ctx);
+  const built = await assembleFederatedNoteContent(object, ownerOxyUserId, ctx);
+  const hasContent = built.variants.some((variant) => variant.text.trim().length > 0)
+    || built.media.length > 0
+    || built.attachments.length > 0
+    || built.summary !== undefined;
+  recordContentDecision(
+    ctx.ingestPath,
+    !hasContent && built.customEmojiRemoved
+      ? 'empty-after-custom-emoji-removal'
+      : (built.customEmojiRemoved ? 'custom-emoji-removed' : 'unchanged'),
+  );
+  return built;
 }
 
 /**
@@ -562,13 +686,14 @@ export function buildFederatedNoteVariants(
   hasMedia: boolean,
 ): PostContentVariant[] {
   const source = rewriteHashtagAnchorsInObject(object);
+  const customEmojiNames = extractDeclaredCustomEmojiNames(source);
   const primaryHtml = extractApContentHtml(source);
-  const rawText = htmlToPlainText(primaryHtml);
+  const rawText = removeDeclaredCustomEmoji(htmlToPlainText(primaryHtml), customEmojiNames);
   const { content: normalizedText } = normalizePostHashtags(rawText, extractApHashtags(object));
   let text = normalizeMultilineText(normalizedText);
   if (text.length === 0 && rawText.length > 0 && !hasMedia) {
     text = rawText;
   }
   const primaryTag = resolveApPrimaryTag(source, primaryHtml);
-  return buildApAuthorVariants(source, primaryTag, text, hasMedia);
+  return buildApAuthorVariants(source, primaryTag, text, hasMedia, customEmojiNames);
 }
