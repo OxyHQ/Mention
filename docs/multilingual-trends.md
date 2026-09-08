@@ -50,9 +50,19 @@ Oxy preview cache remains the SSRF-safe resolver and a cache miss simply adds no
 link evidence on that pass.
 
 Trend rows keep their corpus-derived name and may carry reviewed localized
-labels. `GET /trending?lang=es&region=MX` selects a reviewed label and orders by
-region and language without filtering the rest of the world away. No label is
+labels. `GET /trending?lang=es,en&region=MX` filters membership to trends whose
+measured language overlaps the reader's set, then uses region as an ordering
+preference. It may return fewer than the requested limit; unrelated foreign
+terms are never padding. The only cross-language exception is a registry-resolved
+concept with corpus evidence for `scope=global` (multiple languages and regions).
+Rows with no measured language do not match a declared reader. No label is
 machine-translated at request time.
+
+Trend language comes from each post's canonical
+`postClassification.languages`, not directly from an ActivityPub declaration.
+Consequently, a baseline-classifier version bump and language backfill also
+repair trend attribution; the next trend calculation consumes the corrected
+post rows.
 
 ## Backfill
 
@@ -67,3 +77,12 @@ CONFIRM_ADMIN_MUTATION=backfillMultilingualTrends \
 The job is idempotent. It applies the current deterministic term extractor to
 all posts, decorates retained trend rows, upserts memberships and their current
 context evidence, and publishes a fresh batch.
+
+When the baseline language policy changes, run the separate post-language
+backfill first so the multilingual trend job reads corrected inputs:
+
+```bash
+bun packages/backend/dist/src/scripts/backfillPostLanguages.js --dry-run
+CONFIRM_ADMIN_MUTATION=backfillPostLanguages \
+  bun packages/backend/dist/src/scripts/backfillPostLanguages.js
+```

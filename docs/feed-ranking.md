@@ -16,12 +16,16 @@ pure/sync). Runs at all ingest chokepoints: `PostCreationService`,
 `InboxProcessingService`. Writes a `postClassification` subdoc:
 
 - `languages: string[]` — SINGLE multi-language field (all detected/declared
-  ISO 639-1 codes, primary first, deduped, cap 3). Detection: tinyld
+  ISO 639-1 codes, primary first, deduped, cap 3). Detection is local and
+  deterministic via tinyld
   `detectAll` with a combined gate (`secondaryMinAccuracy:0.2` AND
   `secondaryMinRatioToTop:0.5`). Federated: `extractApLanguages` reads AP
-  `language` + all `contentMap` keys. Feed language-match is ANY-OVERLAP
-  (`$in` / `.some()`) at all 3 sites: `FeedRankingService`, `ExploreFeed`,
-  `forYouCandidateSources`.
+  `language` + all `contentMap` keys. A multi-language `contentMap` remains
+  authoritative because the primary body cannot validate its other authored
+  renditions. A single declared language is corrected when a body of at least
+  12 characters identifies another language with accuracy >= 0.8. This catches
+  federated servers that stamp an account default such as `en` onto German
+  prose. Feed language membership is ANY-OVERLAP against this canonical field.
 - Top-level `post.language` = `languages[0]` (primary, the AP protocol
   field).
 - Sensitive, spam, quality, toxicity scores
@@ -31,6 +35,47 @@ pure/sync). Runs at all ingest chokepoints: `PostCreationService`,
 - `BASELINE_CLASSIFIER_VERSION` — ranking only trusts scores stamped at or
   above this version. Bump it whenever a Stage-A signal changes meaning so
   older stamps stop being honored.
+
+### Canonical evidence and provenance
+
+External metadata is evidence, not an unconditional fact. At an ingest boundary,
+Mention normalizes the declaration, compares it with independently observable
+deterministic evidence where that comparison is reliable, and persists one
+canonical value. Consumers do not repeat their own inference. For language, the
+result is `postClassification.languages`; the top-level `post.language` mirrors
+its primary value for ActivityPub, and hydration exposes the selected rendition
+as `content.textLang`.
+
+The same language reconciliation applies to native posts. Compose's selected
+language is the author's declaration, but a monolingual post whose sufficiently
+long body strongly identifies another language is stored under the detected
+language. This covers a reader who forgets to change the Compose selector without
+letting a short or ambiguous sentence silently rewrite their choice. A future
+Compose warning may offer to change the selector before publish; the backend
+check remains mandatory because clients can be old, offline-first, or bypassed.
+
+For a post with several authored variants, the current canonical set preserves
+all declared variant tags. Validating or suggesting a correction for each
+individual `(tag, body)` pair is a separate Compose/ingest enhancement: it must
+operate per rendition rather than comparing every declared tag with only the
+primary body.
+
+The reconciliation rule must be conservative and auditable:
+
+- preserve a declaration when evidence is absent, short, or ambiguous;
+- override only a strong contradiction with a documented threshold;
+- preserve real multi-value structures whose other values cannot be checked
+  against the currently visible rendition;
+- version every semantic change and backfill older rows;
+- keep declared and derived inputs available at the ingest boundary for tests
+  and diagnostics, without making every read surface infer again.
+
+The same shape should be used when other canonical fields gain validators — for
+example content kind versus MIME/media rows, sensitivity versus CW/hashtags,
+link identity versus canonical URL, and repost ownership versus the referenced
+original. Those validators are not implied to exist merely by this policy; each
+requires its own schema contract, confidence rule, tests, version bump, and
+backfill before a consumer may rely on it.
 
 **Stage B — async AI enrichment** (`PostClassificationService`, Oxy inference
 backed by Kaana). Mention names the reviewed routing profile only by its opaque
@@ -124,6 +169,17 @@ feeds.
   are BCP-47 LOCALES (`es-ES`), while `postClassification.languages` are
   ISO 639-1 base codes (`es`), so `languageMismatchPenalty` compares on the
   BASE subtag via `getBaseLanguage`. Empty on either side ⇒ neutral.
+
+Discovery membership is stricter than chosen-content presentation. For You,
+Videos, Media, Explore and their popular fallbacks apply the SQL language
+predicate before spending their candidate caps. Following, subscribed lists and
+profile pages do not hide a post merely because its language differs: the reader
+chose that author or destination. They still receive the corrected language and
+rendition metadata so translation and presentation behave correctly.
+
+The language filter describes the post text, not speech or text embedded inside
+video frames. Mention does not transcribe audio or OCR video as part of feed
+selection.
 
 ## Feed Interstitials (Recommendation Cards)
 
