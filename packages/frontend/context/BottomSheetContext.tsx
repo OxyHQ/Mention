@@ -1,6 +1,7 @@
 import React, { createContext, useState, ReactNode, useRef, useCallback, useMemo } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { BottomSheet, type BottomSheetRef } from "@oxyhq/bloom/bottom-sheet";
+import { useSharedValue, type SharedValue } from "react-native-reanimated";
 
 export interface BottomSheetContextProps {
     openBottomSheet: (isOpen: boolean) => void;
@@ -8,6 +9,7 @@ export interface BottomSheetContextProps {
     bottomSheetRef: React.RefObject<BottomSheetRef | null>;
     isBottomSheetOpen?: boolean;
     bottomSheetPresentation?: 'default' | 'videoReplies';
+    bottomSheetProgress?: SharedValue<number>;
 }
 
 export const BottomSheetContext = createContext<BottomSheetContextProps>({
@@ -22,6 +24,7 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
     const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
     const [bottomSheetPresentation, setBottomSheetPresentation] = useState<'default' | 'videoReplies'>('default');
     const bottomSheetRef = useRef<BottomSheetRef | null>(null);
+    const bottomSheetProgress = useSharedValue(0);
 
     const openBottomSheet = useCallback((isOpen: boolean) => {
         setIsBottomSheetOpen(isOpen);
@@ -49,7 +52,8 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
         bottomSheetRef,
         isBottomSheetOpen,
         bottomSheetPresentation,
-    }), [openBottomSheet, setBottomSheetContent, isBottomSheetOpen, bottomSheetPresentation]);
+        bottomSheetProgress,
+    }), [openBottomSheet, setBottomSheetContent, isBottomSheetOpen, bottomSheetPresentation, bottomSheetProgress]);
 
     return (
         <BottomSheetContext.Provider value={contextValue}>
@@ -63,6 +67,7 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
                 ]}
                 scrollable={scrollable}
                 onDismiss={handleDismiss}
+                animatedProgress={bottomSheetPresentation === 'videoReplies' ? bottomSheetProgress : undefined}
                 backdropComponent={bottomSheetPresentation === 'videoReplies'
                     ? ({ onPress }) => <Pressable style={StyleSheet.absoluteFill} onPress={onPress} />
                     : undefined}
