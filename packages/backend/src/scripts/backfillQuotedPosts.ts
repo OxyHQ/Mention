@@ -95,7 +95,13 @@ import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { registerAdminScriptServices } from './lib/adminScriptLifecycle';
 import { posts } from '../db/schema/posts';
 import { postContentVariants } from '../db/schema/postContent';
-import { extractApQuoteUri, resolvePostIdFromObjectUri, signedFetch } from '../connectors/activitypub/helpers';
+import {
+  extractActorUri,
+  extractDeclaredQuote,
+  resolvePostIdFromNoteUrl,
+  resolvePostIdFromObjectUri,
+  signedFetch,
+} from '../connectors/activitypub/helpers';
 import { outboxSyncService } from '../connectors/activitypub/outbox.service';
 import { mapWithConcurrency, DEFAULT_CONCURRENCY, MAX_CONCURRENCY } from '../utils/concurrency';
 
@@ -130,6 +136,16 @@ export interface QuotedPostBackfillResult {
    * folded into `written` that would be invisible.
    */
   promoted: number;
+  /**
+   * Posts moved OUT of circulation: they declared a quote we could not produce.
+   *
+   * Counted separately from every other outcome because it is the only one that
+   * makes a post disappear from a reader's feed. A run whose `withheld` is large
+   * and whose `linked` is small is repairing a real backlog; the same numbers
+   * the other way round would mean the resolver had started failing, and folding
+   * the two together would hide that.
+   */
+  withheld: number;
   /**
    * Candidates whose object could not be fetched at all.
    *
@@ -224,6 +240,7 @@ export async function backfillQuotedPosts(
   let linked = 0;
   let written = 0;
   let promoted = 0;
+  let withheld = 0;
   let fetchFailures = 0;
   let batches = 0;
   const startedAt = Date.now();
@@ -251,12 +268,21 @@ export async function backfillQuotedPosts(
     if (!object) return;
 
     // THE decision, and it is structural — the body only got us here.
-    const quoteUri = extractApQuoteUri(object);
-    if (!quoteUri) return;
+    //
+    // `extractDeclaredQuote` rather than `extractApQuoteUri` so a THREADS post is
+    // seen: it carries no structured quote field at all, only
+    // `<span class="quote-inline">`, and the reader is host-gated so no other
+    // server's body is read. Its URI is a web URL and `fetchable` is false —
+    // `www.threads.com` serves text/html even to a signed request — so the
+    // import step below is skipped for it and only the local lookups run.
+    const declared = extractDeclaredQuote(object, extractActorUri(object.attributedTo));
+    if (!declared) return;
+    const quoteUri = declared.uri;
     withQuoteField += 1;
 
-    let quotedId = await resolvePostIdFromObjectUri(quoteUri);
-    if (!quotedId) {
+    let quotedId = (await resolvePostIdFromObjectUri(quoteUri))
+      ?? (await resolvePostIdFromNoteUrl(quoteUri));
+    if (!quotedId && declared.fetchable) {
       notHeldLocally += 1;
       // OURS, and it survives the fan-out unchanged: `ensureQuotedNote` STORES
       // what it fetches, so a dry run that called it would create rows while the
@@ -265,7 +291,23 @@ export async function backfillQuotedPosts(
       if (DRY_RUN) return;
       quotedId = await outboxSyncService.ensureQuotedNote(quoteUri);
     }
-    if (!quotedId) return;
+    if (!quotedId) {
+      // IT DECLARED A QUOTE AND WE COULD NOT PRODUCE IT. Ingest withholds such a
+      // post now; this is the same decision applied to the rows written before
+      // that existed, so a reader stops being shown text written ABOUT a post
+      // that is not there — plus the remote's `RE: <url>` fallback standing in
+      // for it. Reversible by construction: the very next run that resolves the
+      // quote promotes it back, which is the branch directly below.
+      if (!DRY_RUN && row.status !== 'incomplete') {
+        const held = await db
+          .update(posts)
+          .set({ status: 'incomplete' })
+          .where(and(eq(posts.id, row.id), eq(posts.status, 'published')))
+          .returning({ id: posts.id });
+        withheld += held.length;
+      }
+      return;
+    }
     linked += 1;
 
     if (!DRY_RUN) {
@@ -318,6 +360,7 @@ export async function backfillQuotedPosts(
         linked,
         written,
         promoted,
+        withheld,
         fetchFailures,
         elapsedSec: Math.round((Date.now() - startedAt) / 1000),
       });
@@ -332,6 +375,7 @@ export async function backfillQuotedPosts(
     linked,
     written,
     promoted,
+    withheld,
     noOpWrites: !DRY_RUN && linked > 0 && written === 0,
   };
 

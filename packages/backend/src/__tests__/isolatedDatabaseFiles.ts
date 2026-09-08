@@ -277,6 +277,15 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'candidate, so a foreign row entering the scan is linked to this file\'s fixture.',
   },
   {
+    path: 'src/__tests__/scripts/stripRenderedQuoteMarkersRows.test.ts',
+    jobEntryPoint: 'stripRenderedQuoteMarkers',
+    reason:
+      'Selects every variant of every federated post with a LINKED quote whose body still renders ' +
+      '`RE: <url>`, and REWRITES that body. A foreign row entering the scan would have its text ' +
+      'edited mid-assertion, and the marker is removed only when it names the quoted post — so a ' +
+      'shared database would also make the counters this file asserts describe other suites\' rows.',
+  },
+  {
     path: 'src/__tests__/scripts/backfillPostHasLinksRows.test.ts',
     jobEntryPoint: 'backfillPostHasLinks',
     reason:
