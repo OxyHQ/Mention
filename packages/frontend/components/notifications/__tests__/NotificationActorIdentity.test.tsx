@@ -98,13 +98,17 @@ jest.mock('@oxyhq/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
 // Nobody is in the user cache: the overlay alone has to carry the correction.
-jest.mock('@/hooks/useCachedUser', () => ({ useUserById: () => undefined }));
+// A `jest.fn` rather than a bare arrow so one test can read the id the row asked
+// about — the answer stays `undefined`, so every other test is unaffected.
+jest.mock('@/hooks/useCachedUser', () => ({ useUserById: jest.fn(() => undefined) }));
 jest.mock('@/lib/queryClient', () => ({
   queryClient: { invalidateQueries: jest.fn() },
 }));
 
 // eslint-disable-next-line import/first
 import { NotificationItem } from '../NotificationItem';
+// eslint-disable-next-line import/first
+import { useUserById } from '@/hooks/useCachedUser';
 // eslint-disable-next-line import/first
 import { noteIdentityChanged } from '@/lib/actorCache';
 // eslint-disable-next-line import/first
@@ -149,14 +153,14 @@ function groupedLike(): GroupedNotification {
 let mounted: TestRenderer.ReactTestRenderer | null = null;
 let queryClient: QueryClient | null = null;
 
-function renderRow() {
+function renderRow(item: GroupedNotification = groupedLike()) {
   queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
   act(() => {
     mounted = TestRenderer.create(
       <QueryClientProvider client={queryClient as QueryClient}>
-        <NotificationItem item={groupedLike()} onMarkAsRead={jest.fn()} onDelete={jest.fn()} />
+        <NotificationItem item={item} onMarkAsRead={jest.fn()} onDelete={jest.fn()} />
       </QueryClientProvider>,
     );
   });
@@ -227,5 +231,46 @@ describe('a grouped notification follows every actor it names', () => {
     expect(stripAvatars(renderer)).toEqual(
       expect.arrayContaining(['primary-before', 'secondary-before']),
     );
+  });
+});
+
+/**
+ * The row reads the user cache only for an actor whose id an Oxy lookup could
+ * resolve, so that a placeholder id never fires a stray per-row request. That
+ * gate was a 24-hex ObjectId test, and Oxy has minted uuid v7 since its
+ * 2026-07-31 cutover — so for every account created after that date the row
+ * asked about NOBODY and kept whatever name and avatar the notification arrived
+ * with, permanently. The bug is invisible from the outside (the fallback renders
+ * fine), which is why the assertion is on the id the row asks about.
+ */
+describe('the actor whose profile the row resolves', () => {
+  const asked = () => (useUserById as jest.Mock).mock.calls.map((call) => call[0]);
+
+  it('asks about a uuid v7 actor id', () => {
+    const uuidActor = '01a0821e-d61a-7a78-b5d1-afb1850bd5a4';
+    const item = groupedLike();
+    item.actors[0].id = uuidActor;
+
+    renderRow(item);
+
+    expect(asked()).toContain(uuidActor);
+  });
+
+  it('asks about a legacy 24-hex actor id', () => {
+    const hexActor = '65fdc8c8c8c8c8c8c8c8c8c8';
+    const item = groupedLike();
+    item.actors[0].id = hexActor;
+
+    renderRow(item);
+
+    expect(asked()).toContain(hexActor);
+  });
+
+  it('asks about nobody when the actor id is not an Oxy id', () => {
+    renderRow();
+
+    // `actor-primary` is a placeholder, not a resolvable id.
+    expect(asked()).not.toContain('actor-primary');
+    expect(asked().every((id) => id === undefined)).toBe(true);
   });
 });

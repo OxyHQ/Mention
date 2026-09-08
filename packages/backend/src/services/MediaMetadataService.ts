@@ -1,10 +1,9 @@
 import type { MediaItem } from '@mention/shared-types';
 import { normalizeInlineText, type ServiceAssetMetadata } from '@oxyhq/core';
+import { isAbsoluteHttpUrl } from '../utils/mediaResolver';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 import type { ApAttachment } from '../connectors/activitypub/apMedia';
-
-const OXY_ID_RE = /^[a-f0-9]{24}$/i;
 
 /**
  * Whether `id` is an **Oxy file id** rather than a raw remote URL.
@@ -16,17 +15,32 @@ const OXY_ID_RE = /^[a-f0-9]{24}$/i;
  * the item down the "cannot ask Oxy about this" path, which is correct — not a
  * check being skipped.
  *
- * The shape belongs to **oxy-api**, a separate service whose ids are still
- * Mongo ObjectIds, so it does NOT widen to uuid v7 with Mention's own ids. It
- * widens if and when Oxy's file ids change, and never before.
+ * ## Why it asks about the URL and not about the id
  *
- * `mongoose.Types.ObjectId.isValid` used to be `&&`-ed in front of the regex; it
- * accepts strictly MORE than 24-char hex (12-byte strings, numbers), so the
- * conjunction was exactly the regex and the call bought nothing but a mongoose
- * import in a service that no longer needs one.
+ * It used to be `/^[a-f0-9]{24}$/` — the Mongo ObjectId shape, correct for as
+ * long as oxy-api minted ObjectIds. oxy-api's `files` table moved to Postgres on
+ * 2026-07-31 and its ids are `generatedId()`, i.e. **uuid v7**; pre-cutover ids
+ * were carried over verbatim, so BOTH shapes are live. The hex test therefore
+ * answered `false` for every asset uploaded since, and the consequences were
+ * silent by construction: {@link MediaMetadataService.enrichFromOxy} returned
+ * early with nothing to ask about, {@link MediaMetadataService.needsOxyRetry}
+ * said "nothing pending", and the BullMQ retry that exists precisely for the
+ * ffprobe race never fired. Every such video kept NULL `width`/`height`/
+ * `orientation` — and the Videos lane requires `width > 0 AND height > 0` and an
+ * orientation match (`utils/feedQueryBuilder.ts`), so the videos were not slow
+ * or badly laid out, they were ABSENT from the lane.
+ *
+ * A widened id pattern would fix today and break at the next id migration. The
+ * column holds exactly two things, and the OTHER one is self-describing: an
+ * `http(s)` URL, which is how `utils/mediaResolver.ts` has always branched. So
+ * ask that question instead, from the one place that owns it. Whatever id shape
+ * Oxy mints next needs no change here.
+ *
+ * A blank ref is neither — `resolveMediaRef` maps it to an empty URL — so it is
+ * excluded rather than sent to a batch lookup as an empty id.
  */
 export function isOxyFileId(id: string): boolean {
-  return OXY_ID_RE.test(id);
+  return typeof id === 'string' && id.trim().length > 0 && !isAbsoluteHttpUrl(id);
 }
 
 function positiveInt(value: unknown): number | undefined {

@@ -150,8 +150,16 @@ function sanitizeLogString(
     ? sanitized
     : sanitized
       .replace(/\b[a-f0-9]{24}\b/gi, REDACTED)
+      // Any uuid VERSION, not 1-5. This class read `[1-5]` — the versions that
+      // existed when RFC 4122 was the whole story — and every id this service
+      // mints is a uuid **v7** (`@oxyhq/db`'s `generatedId()`), as is every
+      // oxy-api id since its 2026-07-31 Postgres cutover. So the one clause here
+      // whose entire job is to keep account and post ids out of the logs matched
+      // nothing it was written for: it redacted third-party v4 uuids and passed
+      // ours through verbatim. The version nibble is not a validity check
+      // anywhere in this codebase, so it does not belong in a redactor either.
       .replace(
-        /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
+        /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
         REDACTED,
       )
       .replace(/\boxy[-_:][A-Za-z0-9][A-Za-z0-9._:-]{2,}\b/gi, REDACTED);

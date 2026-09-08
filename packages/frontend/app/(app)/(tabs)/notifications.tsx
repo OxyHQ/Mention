@@ -47,6 +47,7 @@ import { DoneAllIcon } from '@/assets/icons/done-all-icon';
 import { Gear } from '@/assets/icons/gear-icon';
 import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { prewarmUsersByIds } from '@/utils/userEnrichment';
+import { isOxyId } from '@mention/shared-types';
 
 const notificationLogger = createLogger('Notifications');
 
@@ -307,8 +308,8 @@ const NotificationsScreen: React.FC = () => {
                 : (actorId && typeof actorId === 'object'
                     ? String((actorId as { _id?: unknown; id?: unknown })._id ?? (actorId as { id?: unknown }).id ?? '')
                     : '');
-            // Only resolvable Oxy ids (24-hex) — handles/empty fall back to per-row.
-            if (id && /^[a-fA-F0-9]{24}$/.test(id)) ids.add(id);
+            // Only resolvable Oxy ids — handles/empty fall back to per-row.
+            if (id && isOxyId(id)) ids.add(id);
         }
         return Array.from(ids);
     }, [validatedNotifications]);

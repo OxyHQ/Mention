@@ -29,8 +29,12 @@ const IPV4_RE =
   /\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/g
 const IPV6_RE =
   /(?:^|[\s[(])(?:[A-F0-9]{1,4}:){2,7}[A-F0-9]{0,4}(?=$|[\s)\],])/gi
+// Any uuid VERSION. `[1-5]` here matched the versions RFC 4122 defined and
+// therefore matched no id this app handles: Mention and oxy-api both mint uuid
+// **v7**, so the clause meant to keep account and post ids out of the logs was
+// redacting other people's v4 uuids and passing ours through in the clear.
 const UUID_RE =
-  /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi
+  /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi
 const OBJECT_ID_RE = /\b[0-9a-f]{24}\b/gi
 const BEARER_RE = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi
 const CREDENTIAL_ASSIGNMENT_RE =
