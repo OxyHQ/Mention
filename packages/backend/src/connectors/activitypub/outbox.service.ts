@@ -58,7 +58,8 @@ import {
   runWithTimeout,
   extractAnnouncedObjectUri,
   extractActorUri,
-  extractApQuoteUri,
+  extractDeclaredQuote,
+  resolveDeclaredQuoteTarget,
   extractInReplyToUri,
   mapApVisibility,
   parseApPublished,
@@ -872,9 +873,9 @@ export class OutboxSyncService {
         // no fetch would ever find); only when we hold nothing is the quoted note
         // fetched and imported, through the same bounded, signed, SSRF-safe path
         // a boost and a reply ancestor use.
-        const quoteUri = extractApQuoteUri(noteObject);
-        const quoteOf = quoteUri
-          ? (await resolvePostIdFromObjectUri(quoteUri)) ?? (await this.ensureQuotedNote(quoteUri))
+        const declaredQuote = extractDeclaredQuote(noteObject, actorUri ?? undefined);
+        const quoteOf = declaredQuote
+          ? await resolveDeclaredQuoteTarget(declaredQuote, (uri) => this.ensureQuotedNote(uri))
           : null;
 
         // AP-derived language so federated posts carry their REAL language
@@ -941,7 +942,12 @@ export class OutboxSyncService {
           // the body so hydration renders each as a real profile link.
           ...(mentionResult.ids.length > 0 ? { mentions: mentionResult.ids } : {}),
           ...(primaryLanguage ? { language: primaryLanguage } : {}),
-          status: 'published',
+          // WITHHELD when the note quotes something we could not produce. Its
+          // text was written ABOUT that post, so publishing it shows the reader
+          // half a conversation plus the remote server's `RE: <url>` fallback.
+          // Stored rather than dropped so `backfillQuotedPosts` can promote it
+          // if the quote ever resolves — see `PostPublicationStatus`.
+          status: declaredQuote && !quoteOf ? 'incomplete' : 'published',
           // Engagement counters start at 0 (the column defaults) and only ever
           // move in lockstep with real native records (Like rows / boost Posts /
           // reply Posts) created from inbound Like/Announce/Create activities. We
@@ -1627,10 +1633,10 @@ export class OutboxSyncService {
     // fetch would ever find), then imported through THIS function — so the quote
     // chain shares the ancestor walk's `MAX_ANCESTOR_DEPTH` budget and a quote
     // cycle (A quotes B quotes A) terminates instead of recursing forever.
-    const quoteUri = extractApQuoteUri(note);
-    const quoteOf = quoteUri
-      ? (await resolvePostIdFromObjectUri(quoteUri))
-        ?? (depth < MAX_ANCESTOR_DEPTH ? await this.ensureFederatedNote(quoteUri, depth + 1) : null)
+    const declaredQuote = extractDeclaredQuote(note, authorUri ?? undefined);
+    const quoteOf = declaredQuote
+      ? await resolveDeclaredQuoteTarget(declaredQuote, (uri) =>
+        depth < MAX_ANCESTOR_DEPTH ? this.ensureFederatedNote(uri, depth + 1) : Promise.resolve(null))
       : null;
 
     try {
@@ -1668,7 +1674,13 @@ export class OutboxSyncService {
         // nothing objected to leaving it out — which classified the SAME remote
         // Note differently depending on which path happened to import it.
         actorType: authorActor?.type,
-        status: 'published',
+        // A boosted original / reply ancestor / quoted note is withheld on the
+        // same rule as every other path: it declares a quote we could not
+        // produce. `importAnnounce` then refuses the boost too, because
+        // `resolvePostIdFromObjectUri` only answers for a published post — so a
+        // repost of an incomplete post does not appear either, which is the
+        // behaviour boosts already had and the reason this rule exists.
+        status: declaredQuote && !quoteOf ? 'incomplete' : 'published',
         metadata: { isSensitive: sensitive },
         skipNotifications: true,
         skipSocketEmit: true,

@@ -43,8 +43,9 @@ import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import {
   asRecord,
   extractAnnouncedObjectUri,
-  extractApQuoteUri,
+  extractDeclaredQuote,
   extractInReplyToUri,
+  resolveDeclaredQuoteTarget,
   mapApVisibility,
   parseApPublished,
   resolvePostIdFromObjectUri,
@@ -626,12 +627,13 @@ export class InboxProcessingService {
     // any account we do not already hold rendered as a bare `RE: <url>` in the
     // body, with the reference sitting unused in three separate fields of the
     // very same object.
-    const quoteUri = extractApQuoteUri(object);
-    // Resolve locally first — that also covers a quote of a LOCAL post, which no
-    // fetch would ever find. Only when we hold nothing do we go and get it.
-    const quoteOf = quoteUri
-      ? (await resolvePostIdFromObjectUri(quoteUri))
-        ?? (await outboxSyncService.ensureQuotedNote(quoteUri))
+    // Threads carries its quote ONLY as `<span class="quote-inline">` in the
+    // body — no structured field at all — so the reader that answers this is
+    // shared rather than repeated here (see `resolveDeclaredQuote`).
+    const declaredQuote = extractDeclaredQuote(object, actorUri);
+    const quoteOf = declaredQuote
+      ? await resolveDeclaredQuoteTarget(declaredQuote, (uri) =>
+        outboxSyncService.ensureQuotedNote(uri))
       : null;
 
     const createdPost = await getPostCreator().create({
@@ -671,7 +673,11 @@ export class InboxProcessingService {
       instanceDomain: getRemoteHost(actorUri),
       // AP actor type feeds the Stage-A RSS/bot-mirror spam signal.
       actorType: actor?.type,
-      status: 'published',
+      // WITHHELD when the note quotes something we could not produce. The
+      // author's text was written ABOUT that post; without it the reader gets
+      // half a conversation and the remote server's `RE: <url>` fallback.
+      // Stored rather than dropped, so the backfill can promote it later.
+      status: declaredQuote && !quoteOf ? 'incomplete' : 'published',
       metadata: { isSensitive: sensitive },
       skipNotifications: true,
       skipSocketEmit: true,
