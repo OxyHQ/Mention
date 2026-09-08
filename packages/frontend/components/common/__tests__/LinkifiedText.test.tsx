@@ -3,6 +3,8 @@ import TestRenderer, { act } from 'react-test-renderer';
 
 import { LinkifiedText } from '../LinkifiedText';
 
+const mockOpenExternalLink = jest.fn();
+
 /**
  * How many `<Text>` nodes a body of prose costs.
  *
@@ -36,6 +38,10 @@ jest.mock('@/components/ProfileHoverCard', () => ({
     ProfileHoverCard: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+jest.mock('@/utils/openExternalLink', () => ({
+    openExternalLink: (...args: unknown[]) => mockOpenExternalLink(...args),
+}));
+
 /** Every host node the render produced, as `[type, text-or-null]` pairs. */
 function hostNodes(element: React.ReactElement) {
     let renderer: TestRenderer.ReactTestRenderer | undefined;
@@ -59,6 +65,10 @@ function hostNodes(element: React.ReactElement) {
 }
 
 describe('LinkifiedText', () => {
+    beforeEach(() => {
+        mockOpenExternalLink.mockReset();
+    });
+
     it('draws prose with a single text node', () => {
         const nodes = hostNodes(<LinkifiedText text="just some words about nothing" />);
         const texts = nodes.filter((n) => n.type === 'Text');
@@ -76,5 +86,39 @@ describe('LinkifiedText', () => {
         expect(texts).toHaveLength(2);
         expect(texts[0].strings).toEqual(['hey ', ' look at this']);
         expect(texts[1].strings).toEqual(['#expo']);
+    });
+
+    it.each([
+        [
+            'an https URL',
+            'Read https://example.com/articles/a-very…',
+            'Read https://example.com/articles/a-very-long-slug',
+            'https://example.com/articles/a-very-long-slug',
+        ],
+        [
+            'a scheme-less www URL',
+            'Read www.example.com/articles/a-very…',
+            'Read www.example.com/articles/a-very-long-slug',
+            'https://www.example.com/articles/a-very-long-slug',
+        ],
+    ])('opens the complete source destination for %s cut in the visible text', (_label, text, linkTargetText, expected) => {
+        let renderer: TestRenderer.ReactTestRenderer | undefined;
+        act(() => {
+            renderer = TestRenderer.create(
+                <LinkifiedText text={text} linkTargetText={linkTargetText} />,
+            );
+        });
+        if (!renderer) throw new Error('render produced no tree');
+
+        const link = renderer.root.findAll(
+            (node) => typeof node.props.onPress === 'function' &&
+                typeof node.props.children === 'string' &&
+                node.props.children.includes('example.com'),
+        )[0];
+        if (!link) throw new Error('render produced no pressable URL');
+
+        act(() => link.props.onPress());
+        expect(mockOpenExternalLink).toHaveBeenCalledWith(expected);
+        act(() => renderer?.unmount());
     });
 });

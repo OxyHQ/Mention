@@ -76,6 +76,7 @@ const PostContentText: React.FC<Props> = ({ content, postId, previewChars, overr
       style={styles.postText}
       className="text-foreground"
       suffix={suffix}
+      linkTargetText={!isExpanded && isTruncated ? textContent : undefined}
     />
   );
 };

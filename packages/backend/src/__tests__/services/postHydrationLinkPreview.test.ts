@@ -9,10 +9,9 @@ import type { LinkPreview } from '@oxyhq/contracts';
  * text order — sizing the Oxy-hosted (`cloud.oxy.so`) `image` down to the
  * `w320` (`MEDIA_VARIANT_THUMB`) context via `attachCdnVariant` instead of
  * serving the no-variant original (never re-proxied, still Oxy-hosted). A
- * `'pending'`/`'empty'`/missing preview is skipped (the URL re-resolves on a
- * later render, mirroring the previous warm-on-miss UX) without disturbing
- * the order of the resolved ones, and a preview-service failure never fails
- * feed hydration.
+ * `'pending'`/`'empty'`/missing preview becomes a URL-only card without
+ * disturbing the order of the resolved ones, and a preview-service failure
+ * never fails feed hydration or suppresses those fallback cards.
  */
 
 const POST_ID = '650000000000000000000010';
@@ -197,7 +196,7 @@ describe('PostHydrationService — link previews sourced from Oxy', () => {
     expect(hydrated.linkPreviews?.map((preview) => preview.title)).toEqual(['Second', 'First']);
   });
 
-  it('skips a pending preview without disturbing the order of the resolved ones', async () => {
+  it('keeps a pending preview as a URL-only card without disturbing text order', async () => {
     const thirdUrl = 'https://example.net/third-article';
     getLinkPreviews.mockResolvedValue({
       [POST_URL]: resolvedPreview(POST_URL, 'First'),
@@ -207,34 +206,45 @@ describe('PostHydrationService — link previews sourced from Oxy', () => {
 
     const hydrated = await hydrate(`${POST_URL} ${SECOND_URL} ${thirdUrl}`);
 
-    expect(hydrated.linkPreviews?.map((preview) => preview.url)).toEqual([POST_URL, thirdUrl]);
+    expect(hydrated.linkPreviews).toEqual([
+      expect.objectContaining({ url: POST_URL, title: 'First' }),
+      { url: SECOND_URL },
+      expect.objectContaining({ url: thirdUrl, title: 'Third' }),
+    ]);
   });
 
-  it('omits a pending preview (no linkPreviews until Oxy resolves it)', async () => {
+  it('maps a pending preview to a URL-only card', async () => {
     getLinkPreviews.mockResolvedValue({
       [POST_URL]: { url: POST_URL, status: 'pending' } satisfies LinkPreview,
     });
 
     const hydrated = await hydrate();
-    expect(hydrated.linkPreviews).toEqual([]);
+    expect(hydrated.linkPreviews).toEqual([{ url: POST_URL }]);
   });
 
-  it('omits an empty preview', async () => {
+  it('maps an empty preview to a URL-only card', async () => {
     getLinkPreviews.mockResolvedValue({
       [POST_URL]: { url: POST_URL, status: 'empty' } satisfies LinkPreview,
     });
 
     const hydrated = await hydrate();
-    expect(hydrated.linkPreviews).toEqual([]);
+    expect(hydrated.linkPreviews).toEqual([{ url: POST_URL }]);
   });
 
-  it('still hydrates the post when the preview service throws', async () => {
+  it('maps a missing batch result to a URL-only card', async () => {
+    getLinkPreviews.mockResolvedValue({});
+
+    const hydrated = await hydrate();
+    expect(hydrated.linkPreviews).toEqual([{ url: POST_URL }]);
+  });
+
+  it('still hydrates URL-only cards when the preview service throws', async () => {
     getLinkPreviews.mockRejectedValue(new Error('oxy down'));
 
     const hydrated = await hydrate();
     expect(hydrated).toBeTruthy();
     expect(hydrated.id).toBe(POST_ID);
-    expect(hydrated.linkPreviews).toEqual([]);
+    expect(hydrated.linkPreviews).toEqual([{ url: POST_URL }]);
   });
 
   it('does not call the preview service when includeLinkMetadata is false', async () => {

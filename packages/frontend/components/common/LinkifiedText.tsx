@@ -3,7 +3,11 @@ import { Text, StyleProp, TextStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
-import { toOpenableUrl, trimUrlTrailingPunctuation } from '@mention/shared-types/textEntities';
+import {
+  scanTextEntities,
+  toOpenableUrl,
+  trimUrlTrailingPunctuation,
+} from '@mention/shared-types/textEntities';
 import { scanLinkifyEntities } from '@/utils/linkifyPattern';
 import { openExternalLink } from '@/utils/openExternalLink';
 
@@ -15,15 +19,27 @@ interface LinkifiedTextProps {
   suffix?: React.ReactNode;
   /** Clamp the rendered text to N lines (forwarded to the root <Text>). */
   numberOfLines?: number;
+  /**
+   * Full source text for link destinations when `text` is a truncated prefix.
+   * Labels still come from `text`; a URL beginning at the same character offset
+   * opens the complete source URL instead of the visibly cut prefix.
+   */
+  linkTargetText?: string;
 }
 
 // Renders text with clickable @mentions, #hashtags, $cashtags, and URLs
-export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, className, linkStyle, suffix, numberOfLines }) => {
+export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, className, linkStyle, suffix, numberOfLines, linkTargetText }) => {
   const router = useRouter();
   const nodes = useMemo(() => {
     if (!text) return null;
 
     const elements: React.ReactNode[] = [];
+    const fullUrlByStart = new Map<number, string>();
+    if (linkTargetText && linkTargetText !== text) {
+      for (const entity of scanTextEntities(linkTargetText, { kinds: ['url'] })) {
+        fullUrlByStart.set(entity.start, trimUrlTrailingPunctuation(entity.value).url);
+      }
+    }
 
     let lastIndex = 0;
     let key = 0;
@@ -77,7 +93,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
         );
       } else if (entity.kind === 'url') {
         const { url, trailing } = trimUrlTrailingPunctuation(entity.value);
-        const href = toOpenableUrl(url);
+        const href = toOpenableUrl(fullUrlByStart.get(entity.start) ?? url);
         elements.push(
           <Text
             key={`u-${key++}`}
@@ -118,7 +134,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
 
     pushText(text.slice(lastIndex));
     return elements;
-  }, [text, linkStyle, router]);
+  }, [text, linkStyle, linkTargetText, router]);
 
   if (!text) return null;
   return <Text style={style} className={className} numberOfLines={numberOfLines}>{nodes}{suffix}</Text>;
