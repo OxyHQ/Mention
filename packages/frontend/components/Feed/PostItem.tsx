@@ -634,7 +634,10 @@ const PostItem: React.FC<PostItemProps> = ({
 
     // URLs of the previewed links, used to trim a trailing URL from the body text
     // when a card already renders it.
-    const linkPreviewUrls = useMemo(() => linkPreviews.map((preview) => preview.url), [linkPreviews]);
+    const linkPreviewUrls = useMemo(
+        () => linkPreviews.map((preview) => preview.sourceUrl ?? preview.url),
+        [linkPreviews],
+    );
 
     const engagementSummary: PostEngagementSummary | undefined = viewPost?.engagement;
     const actionsEngagement = useMemo(

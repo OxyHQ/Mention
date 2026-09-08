@@ -126,7 +126,9 @@ const areLinkPreviewsEqual = (a?: PostLinkPreview[], b?: PostLinkPreview[]): boo
   const prev = a ?? [];
   const next = b ?? [];
   if (prev.length !== next.length) return false;
-  return prev.every((preview, index) => preview.url === next[index].url);
+  return prev.every((preview, index) =>
+    preview.url === next[index].url && preview.sourceUrl === next[index].sourceUrl,
+  );
 };
 
 const logger = createLogger('PostAttachmentsRow');

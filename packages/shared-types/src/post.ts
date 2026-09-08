@@ -1065,7 +1065,10 @@ export interface PostAttachmentBundle {
 }
 
 export interface PostLinkPreview {
+  /** Final/canonical destination opened by the card. */
   url: string;
+  /** URL as written in the post, when it differs from the final destination. */
+  sourceUrl?: string;
   title?: string;
   description?: string;
   image?: string;

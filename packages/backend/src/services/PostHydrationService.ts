@@ -2126,12 +2126,20 @@ export class PostHydrationService {
     for (const url of uniqueUrls) {
       const preview = previews[url];
       if (!preview || preview.status !== 'resolved') {
-        resolvedByUrl.set(url, { url });
+        // Even an empty/pending metadata result may carry the final URL Oxy
+        // reached through redirects. Preserve it so URL-only cards bypass link
+        // shorteners and open the canonical destination.
+        const destinationUrl = preview?.url || url;
+        resolvedByUrl.set(url, {
+          url: destinationUrl,
+          ...(destinationUrl !== url ? { sourceUrl: url } : {}),
+        });
         continue;
       }
 
       resolvedByUrl.set(url, {
         url: preview.url,
+        ...(preview.url !== url ? { sourceUrl: url } : {}),
         title: preview.title || undefined,
         description: preview.description || undefined,
         // Already an absolute Oxy-hosted `cloud.oxy.so` URL — attach the
