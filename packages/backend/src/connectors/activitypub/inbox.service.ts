@@ -46,6 +46,7 @@ import {
   extractDeclaredQuote,
   extractInReplyToUri,
   resolveDeclaredQuoteTarget,
+  stripQuoteMarkerFromVariants,
   mapApVisibility,
   parseApPublished,
   resolvePostIdFromObjectUri,
@@ -636,6 +637,15 @@ export class InboxProcessingService {
         outboxSyncService.ensureQuotedNote(uri))
       : null;
 
+    // With the quote linked we render it properly, so the remote's `RE: <url>`
+    // fallback in the body is now a duplicate of the card sitting next to it.
+    // Left in place on an UNRESOLVED quote, where it is the only reference.
+    const quoteVariants = await stripQuoteMarkerFromVariants(
+      variants,
+      quoteOf,
+      declaredQuote?.uri,
+    );
+
     const createdPost = await getPostCreator().create({
       oxyUserId: authorOxyUserId,
       federation: buildFederatedNoteProvenance({
@@ -652,7 +662,7 @@ export class InboxProcessingService {
       content: {
         // The body lives ONLY in the variants — a `contentMap` is one body PER
         // LANGUAGE, not a fallback for one. `variants[0]` is the primary.
-        variants: variants.length > 0 ? variants : undefined,
+        variants: quoteVariants.length > 0 ? quoteVariants : undefined,
         media: media.length > 0 ? media : undefined,
         attachments: attachments.length > 0 ? attachments : undefined,
       },
