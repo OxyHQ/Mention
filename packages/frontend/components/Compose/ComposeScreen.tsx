@@ -50,9 +50,8 @@ import { Header } from '@/components/Header';
 import { DraftsIcon } from '@/assets/icons/drafts';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { DotIcon } from '@/assets/icons/dot-icon';
+import { TrashIcon } from '@/assets/icons/trash-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
-import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
-import { HideIcon } from '@/assets/icons/hide-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
@@ -2386,30 +2385,32 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
             {/* Header */}
             <View className="bg-background border-border" style={styles.header}>
-              <IconButton variant="icon"
-                onPress={() => {
-                  const hasContent =
-                    postContent.trim().length > 0 ||
-                    mediaIds.length > 0 ||
-                    pollOptions.length > 0 ||
-                    threadItems.length > 0 ||
-                    sources.length > 0 ||
-                    location !== null ||
-                    hasArticleContent ||
-                    hasEventContent ||
-                    hasPodcastContent ||
-                    hasVariantWork(variants);
-                  if (hasContent && !isEditMode) {
-                    discardControl.open();
-                  } else {
-                    dismiss();
-                  }
-                }}
-                style={styles.backBtn}
-                accessibilityLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}
-              >
-                <BackArrowIcon size={20} className="text-foreground" />
-              </IconButton>
+              {presentation === 'pushed' ? (
+                <IconButton variant="icon"
+                  onPress={() => {
+                    const hasContent =
+                      postContent.trim().length > 0 ||
+                      mediaIds.length > 0 ||
+                      pollOptions.length > 0 ||
+                      threadItems.length > 0 ||
+                      sources.length > 0 ||
+                      location !== null ||
+                      hasArticleContent ||
+                      hasEventContent ||
+                      hasPodcastContent ||
+                      hasVariantWork(variants);
+                    if (hasContent && !isEditMode) {
+                      discardControl.open();
+                    } else {
+                      dismiss();
+                    }
+                  }}
+                  style={styles.backBtn}
+                  accessibilityLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}
+                >
+                  <BackArrowIcon size={20} className="text-foreground" />
+                </IconButton>
+              ) : null}
               <Text className="text-foreground" style={[styles.headerTitle, { pointerEvents: 'none' }]}>{isEditMode ? t('Edit post') : replyToPostId ? t('Reply') : t('New post')}</Text>
               <View style={styles.headerIcons}>
                 <IconButton variant="icon"
@@ -2419,11 +2420,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     ? t('compose.hideModeOptions.a11y', { defaultValue: 'Hide posting mode options' })
                     : t('compose.showModeOptions.a11y', { defaultValue: 'Show posting mode options' })}
                 >
-                  {showModeToggle ? (
-                    <HideIcon size={20} className="text-foreground" />
-                  ) : (
-                    <ChevronRightIcon size={20} className="text-foreground" style={{ transform: [{ rotate: '90deg' }] }} />
-                  )}
+                  <DotIcon size={20} className="text-foreground" />
                 </IconButton>
                 <IconButton variant="icon"
                   style={styles.iconBtn}
@@ -2448,7 +2445,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   onPress={() => clearAllControl.open()}
                   accessibilityLabel={t('compose.clearAll.a11y', { defaultValue: 'Clear all content' })}
                 >
-                  <DotIcon size={20} className="text-foreground" />
+                  <TrashIcon size={20} className="text-foreground" />
                 </IconButton>
               </View>
             </View>
@@ -3486,7 +3483,7 @@ const ComposeScreen = ({ presentation = 'pushed' }: ComposeScreenProps) => {
           <Header
             options={{
               title: t('New post'),
-              leftComponents: [
+              leftComponents: presentation === 'pushed' ? [
                 <IconButton
                   variant="icon"
                   key="back"
@@ -3495,7 +3492,7 @@ const ComposeScreen = ({ presentation = 'pushed' }: ComposeScreenProps) => {
                 >
                   <BackArrowIcon size={20} className="text-foreground" />
                 </IconButton>,
-              ],
+              ] : [],
             }}
             hideBottomBorder
             disableSticky
