@@ -33,7 +33,21 @@ import { trendTermMatchSql, TREND_CANDIDATE_COLUMNS, TREND_TERM_COLUMNS } from '
  * them. The graph is `null` when clustering is off — the only thing these cases
  * read is `candidates`, but destructuring it keeps the shape honest.
  */
-import { aggregateTermCandidates } from '../../services/trending/trendDetection';
+import {
+  aggregateTermCandidates,
+  requiredAuthorsForTerm,
+} from '../../services/trending/trendDetection';
+
+describe('requiredAuthorsForTerm', () => {
+  it('requires broader agreement for an untagged one-word entity', () => {
+    expect(requiredAuthorsForTerm({ term: 'estado', hashtagVolume: 0 })).toBe(4);
+  });
+
+  it('keeps stronger author intent at the ordinary floor', () => {
+    expect(requiredAuthorsForTerm({ term: 'donald trump', hashtagVolume: 0 })).toBe(3);
+    expect(requiredAuthorsForTerm({ term: 'wordle', hashtagVolume: 1 })).toBe(3);
+  });
+});
 
 /** The floor the aggregation applies before a candidate is returned at all. */
 const MIN_VOLUME = MtnConfig.trending.detection.minVolume;

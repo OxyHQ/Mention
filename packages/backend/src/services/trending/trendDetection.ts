@@ -75,6 +75,16 @@ export interface TermCandidateResult {
   graph: TrendGraphSnapshot | null;
 }
 
+/** Required breadth for a candidate, based on how explicitly authors named it. */
+export function requiredAuthorsForTerm(input: {
+  term: string;
+  hashtagVolume: number;
+}): number {
+  return input.term.includes(' ') || input.hashtagVolume > 0
+    ? MtnConfig.trending.detection.minAuthors
+    : MtnConfig.trending.detection.minBareEntityAuthors;
+}
+
 /** The four fields the graph needs out of a per-term measurement. */
 function graphNodes(candidates: readonly TermCandidate[]): TrendGraphNodeInput[] {
   return candidates.map((candidate) => ({
@@ -483,6 +493,10 @@ async function aggregateTermRows(
     // read as a stop-list for candidacy. A category gained or renamed there
     // changes this with it.
     .filter((row) => !isTopicSlug(row.term))
+    // A capital in prose is useful but weaker evidence than an explicit tag or
+    // a complete multi-word name. This is where generic institutional nouns
+    // such as `Estado` and name fragments such as `City` otherwise scrape over
+    // the global three-author floor and become fallback filler.
     .map((row) => {
       const languages = row.languages ?? [];
       const corpus = corpusSizeFor(languages, corpusByLanguage);
@@ -493,6 +507,7 @@ async function aggregateTermRows(
           volume: row.volume,
           recentVolume: row.recentVolume,
           authorCount: row.authorCount,
+          requiredAuthorCount: requiredAuthorsForTerm(row),
           // Set only when the corpus size is known. Absent means "not
           // measured", which the ceiling treats as passing — losing the guard
           // is the right cost of a failed count, losing the term is not.
