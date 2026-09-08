@@ -432,6 +432,22 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
                 style={slotStyle}
                 contentFit={slotFit}
                 nativeControls={false}
+                /* ANDROID: a TextureView, not the default SurfaceView.
+                   A SurfaceView is its own window punched through the view
+                   hierarchy: it does not clip to its React parent and it does
+                   not move with the list mid-scroll. With up to five slides
+                   mounted at once (ACTIVE_WINDOW_RADIUS = 2) that is visible as
+                   several videos painting simultaneously at stale positions —
+                   captured on a Pixel 10 Pro during a fling, one frame showing
+                   the outgoing video, the incoming one, and a third in a
+                   rectangle over the tab bar. That is the "los vídeos parpadean
+                   según hago scroll" report.
+                   A TextureView composites like any other view, so it clips,
+                   scrolls and z-orders correctly. It costs an extra GPU copy per
+                   frame, which is the right trade against showing the wrong
+                   video. Set here and never changed at runtime, as the prop
+                   requires. */
+                surfaceType="textureView"
                 fullscreenOptions={{ enable: false }}
                 allowsPictureInPicture={isWatched}
                 startsPictureInPictureAutomatically={isWatched}
@@ -1293,14 +1309,28 @@ export default function VideosScreen() {
     // Stable for the lifetime of the screen: its only output is the stable
     // `setCurrentVisibleIndex` setter, so the FlatList never sees a new identity.
     const handleViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewableItem[] }) => {
-        if (viewableItems?.length > 0) {
-            const mostVisibleItem = viewableItems.find((vi) => vi.isViewable) || viewableItems[0];
-            const index = mostVisibleItem?.index;
-            if (index != null) {
-                setCurrentVisibleIndex(index);
-            }
-        } else {
-            setCurrentVisibleIndex(-1);
+        // AN EMPTY SET MEANS "BETWEEN SLIDES", NOT "NOTHING TO SHOW", and the
+        // difference is the whole of this handler.
+        //
+        // Slides are full-screen and `itemVisiblePercentThreshold` is 60, so a
+        // fast swipe passes through a moment where NEITHER the outgoing slide
+        // nor the incoming one covers 60% of the viewport. This used to answer
+        // that moment with `-1`, and `-1` is not a position the reel can hold:
+        // the live-player window is `|index - currentVisibleIndex| <= 2`, so
+        // every surface fell out of it at once. Measured on a Pixel 10 Pro, one
+        // swipe cost 13 surface lifecycle events — four decoders destroyed, two
+        // built, those two destroyed 140ms later, then five built — and three of
+        // them were the very surfaces torn down at the start of the same swipe.
+        // Each rebuild re-shows a poster and re-decodes a first frame, which is
+        // what the reel looked like from the outside: video flickering on every
+        // scroll.
+        //
+        // So an empty set changes nothing. The reader is still between the two
+        // slides the window already covers, and the next non-empty report says
+        // where they landed.
+        const next = viewableItems?.find((vi) => vi.isViewable)?.index;
+        if (next != null) {
+            setCurrentVisibleIndex(next);
         }
     }, []);
 
