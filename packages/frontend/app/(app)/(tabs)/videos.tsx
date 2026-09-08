@@ -62,6 +62,53 @@ const FEED_PAGE_LIMIT = 20;
 // lead time to buffer before the viewer reaches it. Five concurrent mounted
 // players (-2,-1,0,+1,+2) is still a bounded, small number of decoders.
 const ACTIVE_WINDOW_RADIUS = 2;
+/**
+ * How far BEHIND the reader a slide keeps its player, as opposed to how far
+ * ahead ({@link ACTIVE_WINDOW_RADIUS}).
+ *
+ * The window used to be symmetric, and the two directions are not symmetric at
+ * all. Ahead is a GUESS — the reader may never reach that slide — and its only
+ * job is buffering lead time. Behind is a MEMORY: the reader has already watched
+ * it, and coming back is a deliberate act, so the video is expected to be there,
+ * where it was, instantly.
+ *
+ * A symmetric window could not deliver that. Leaving the window destroys the
+ * surface, and destroying the surface destroys the decoder AND the position, so
+ * a reader who swiped forward past the radius and then came back was served a
+ * rebuild: black, buffer, restart from zero. Measured on a Pixel 10 Pro — two
+ * swipes forward and one back remounted two surfaces that had been torn down
+ * seconds earlier. Reported as "vuelvo al video anterior y lo vuelve a cargar y
+ * tarda".
+ *
+ * One extra slide behind covers the ordinary correction (a swipe that overshot,
+ * a second look) for the cost of one decoder. It is deliberately NOT large: each
+ * retained slide holds a hardware decoder, and Android runs out of them silently
+ * — later videos simply refuse to load. The complete answer is to retain the
+ * PLAYER without its surface, through `stores/videoPlayerRegistry`, which is
+ * built for exactly this and already serves the feed-to-reel flight; that is a
+ * bigger change than this one and this is not a substitute for it.
+ */
+const RETAINED_BEHIND_RADIUS = ACTIVE_WINDOW_RADIUS + 1;
+
+/**
+ * Whether a slide is close enough to the reader to hold a decoder.
+ *
+ * ONE function because there are two lists — the native `FlatList` and the web
+ * document-scroll map — and they must not drift. They already had: the rule was
+ * written out at both call sites, so a change to one silently left the other
+ * symmetric.
+ *
+ * `isPipOwner` is not a distance at all. A slide whose Picture-in-Picture window
+ * is open keeps its player however far the reader has scrolled, because dropping
+ * out of the window would release the very player that window is showing — so it
+ * is OR'd outside the distance test, not folded into it.
+ */
+function isSlideNear(index: number, activeIndex: number, isPipOwner: boolean): boolean {
+    if (isPipOwner) return true;
+    return index <= activeIndex
+        ? activeIndex - index <= RETAINED_BEHIND_RADIUS
+        : index - activeIndex <= ACTIVE_WINDOW_RADIUS;
+}
 // Poster images are tiny (the `thumb` variant, already cached memory-disk) —
 // prefetch a wider window than the live-player radius so the very first frame
 // the viewer sees on a fast multi-swipe is already in cache, even before that
@@ -1785,7 +1832,7 @@ export default function VideosScreen() {
             // is open, however far the pager has been scrolled from it: dropping
             // out of the live window would release the very player the window is
             // showing.
-            isNear={Math.abs(index - currentVisibleIndex) <= ACTIVE_WINDOW_RADIUS || item.id === pipOwnerId}
+            isNear={isSlideNear(index, currentVisibleIndex, item.id === pipOwnerId)}
             screenFocused={isFocused}
             theme={theme}
             onLike={handleLike}
@@ -1882,7 +1929,7 @@ export default function VideosScreen() {
                                         item={item}
                                         isActive={index === currentVisibleIndex}
                                         // See the native path: the session's owner keeps its player.
-                                        isNear={Math.abs(index - currentVisibleIndex) <= ACTIVE_WINDOW_RADIUS || item.id === pipOwnerId}
+                                        isNear={isSlideNear(index, currentVisibleIndex, item.id === pipOwnerId)}
                                         screenFocused={isFocused}
                                         theme={theme}
                                         onLike={handleLike}
