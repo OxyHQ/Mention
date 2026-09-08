@@ -24,6 +24,12 @@ export interface TabsPagerProps {
    * for who else may (nobody, while this is mounted).
    */
   progress: SharedValue<number>;
-  /** Report a page the reader actually landed on, so the route can follow. */
-  onCommit: (index: number) => void;
+  /**
+   * How far the reader is onto a page the bar draws no item for — 0 to 1. Same
+   * frames, same writer, different quantity: this one takes the bar away as the
+   * camera comes in.
+   */
+  chromeProgress: SharedValue<number>;
+  /** Report a PAGE the reader actually landed on, so the route can follow. */
+  onCommit: (pageIndex: number) => void;
 }

@@ -34,7 +34,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
 import { logger } from '../utils/logger';
 import { validateAndNormalizeLimit, FEED_CONSTANTS } from '../utils/feedUtils';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy, ScoreCursor } from '../mtn/feed/CursorBuilder';
-import { rankingWeight } from '../utils/feedQueryBuilder';
+import { rankingWeight } from '../utils/rankingWeight';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../utils/textProcessing';
 import { hashtagsSchema, parseFailureMessage } from './posts/composeInput';
 import { foldProfileLinkMentions } from '../services/profileLinkMentions';

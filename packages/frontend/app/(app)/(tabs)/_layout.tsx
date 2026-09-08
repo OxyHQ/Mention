@@ -4,7 +4,7 @@ import { Slot } from 'expo-router';
 import { useTabsWithTriggers } from 'expo-router/ui';
 
 import { TabsPager } from '@/components/navigation/TabsPager';
-import { TABS } from '@/components/navigation/tabs';
+import { PAGES } from '@/components/navigation/tabs';
 import { useTabPager } from '@/context/TabPagerContext';
 
 const IS_WEB = Platform.OS === 'web';
@@ -55,10 +55,10 @@ export default function TabsLayout() {
 }
 
 function NativeTabsLayout() {
-  const { progress, selectTab, registerCommitter } = useTabPager();
+  const { progress, chromeProgress, selectTab, registerCommitter } = useTabPager();
 
   const triggers = useMemo(
-    () => TABS.map((tab) => ({ type: 'internal' as const, name: tab.name, href: tab.href })),
+    () => PAGES.map((page) => ({ type: 'internal' as const, name: page.name, href: page.href })),
     [],
   );
 
@@ -78,10 +78,10 @@ function NativeTabsLayout() {
    * properties.
    */
   const commit = useCallback(
-    (index: number) => {
-      const tab = TABS[index];
-      if (!tab) return;
-      navigation.navigate(tab.name);
+    (pageIndex: number) => {
+      const page = PAGES[pageIndex];
+      if (!page) return;
+      navigation.navigate(page.name);
     },
     [navigation],
   );
@@ -95,23 +95,25 @@ function NativeTabsLayout() {
   }, [commit, registerCommitter]);
 
   /**
-   * Every tab must have a route to show, and this says so out loud in dev.
+   * Every page must have a route to show, and this says so out loud in dev.
    *
    * NOT the same claim as "the orders match", which they do not: expo-router
    * sorts the triggers it is handed (`sortRoutesWithInitial` — `index` first,
    * then by route-name length), so the navigator's order is its own and
-   * `TabsPager` maps to it BY NAME. What would still break the bar is a tab
+   * `TabsPager` maps to it BY NAME. What would still break the bar is a page
    * naming a route the navigator never built: its page would render empty while
    * the highlight sat over it, and a swipe would land on nothing.
    * `components/navigation/__tests__/tabRouteTargets.test.ts` pins the file-tree
    * half statically; this catches a trigger the router dropped at runtime.
    */
   if (__DEV__) {
-    const missing = TABS.filter((tab) => !state.routes.some((route) => route.name === tab.name));
+    const missing = PAGES.filter(
+      (page) => !state.routes.some((route) => route.name === page.name),
+    );
     if (missing.length > 0) {
       console.warn(
-        `[tabs] the navigator built no route for ${missing.map((tab) => `"${tab.name}"`).join(', ')}. ` +
-          'Those tabs will show an empty page.',
+        `[tabs] the navigator built no route for ${missing.map((page) => `"${page.name}"`).join(', ')}. ` +
+          'Those pages will show an empty screen.',
       );
     }
   }
@@ -122,6 +124,7 @@ function NativeTabsLayout() {
         state={state}
         descriptors={descriptors}
         progress={progress}
+        chromeProgress={chromeProgress}
         // A released swipe reports the page it landed on; the route follows it.
         // Routed through `selectTab` rather than straight to `commit` so a swipe
         // and a tap take exactly one path — including popping anything pushed

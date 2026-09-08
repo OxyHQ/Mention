@@ -2,14 +2,21 @@ import React from 'react';
 import { Path } from 'react-native-svg';
 import { IconSvg } from '@/assets/icons/IconSvg';
 import { View, ViewStyle, StyleProp } from 'react-native';
+import { VERIFIED_BADGE_COLOR } from '@/styles/colors';
 type Props = {
+  /**
+   * Overrides the badge's blue. Defaults to {@link VERIFIED_BADGE_COLOR}, which
+   * is where the colour lives: verification is a fixed status signal, so a
+   * caller that simply draws the badge gets the one blue without having to know
+   * it, and cannot drift from it by leaving the prop off.
+   */
   color?: string;
   size?: number;
   style?: StyleProp<ViewStyle>;
   className?: string;
 };
 
-export const VerifiedIcon: React.FC<Props> = ({ color = 'currentColor', size = 16, style, className }) => {
+export const VerifiedIcon: React.FC<Props> = ({ color = VERIFIED_BADGE_COLOR, size = 16, style, className }) => {
   return (
     <View style={style}>
       <IconSvg viewBox="0 0 24 24" width={size} height={size} className={className}>

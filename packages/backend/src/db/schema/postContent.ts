@@ -313,6 +313,36 @@ export const postMedia = pgTable(
     /** The origin URL, kept when the media cache rewrote `media_id` to a file id. */
     remoteUrl: text(),
     cachedFromFederation: boolean(),
+    /**
+     * A copy of `posts.created_at`, for the same single reason its twin on
+     * `post_authorships` exists: an index cannot span two tables.
+     *
+     * The global Videos feed asks "video media matching these filters, newest
+     * first". The filters live HERE and the timestamp lives on `posts`, so with
+     * no shared column the planner walks a chronological index over `posts` and
+     * probes this table once per candidate — measured on 275k posts (39,285 of
+     * them video), page of 60 with a full 1,000-id seen set: 7,494 posts probed
+     * and 32,459 buffers to return 60 rows. Carrying the timestamp here lets
+     * `post_media_video_chrono_idx` answer the whole question, and the join to
+     * `posts` becomes a primary-key lookup per row: 398 media rows walked, 1,995
+     * buffers.
+     *
+     * WHY A COPY IS SAFE, which is not a general licence. `posts.created_at` is
+     * written once by an insert default and never updated — 35 `update(posts)`
+     * sites and not one of them sets it — so there is no update path for a copy
+     * to miss. `insertChildRows` reads the value back out of `posts` in the same
+     * statement rather than accepting one from the caller, so a caller cannot
+     * pass a value that disagrees, and `mediaChronoSync.test.ts` asserts the
+     * agreement rather than trusting it.
+     *
+     * NULLABLE, deliberately, and the ordering is what makes that safe: the scan
+     * JOINS on `post_id` and only ORDERS on this column, so a NULL cannot drop a
+     * row from the feed — under `DESC NULLS LAST` it sorts last, which surfaces
+     * as a video at the bottom of the lane rather than as a missing one. See
+     * `drizzle/0029_the_videos_lane_walks_its_own_index.sql` for the deploy
+     * window that can produce one, and how it is repaired.
+     */
+    postCreatedAt: timestamptz(),
   },
   (t) => [
     check('post_media_type_check', sql`${t.type} in (${sql.raw(inList(MEDIA_TYPES))})`),
@@ -334,6 +364,24 @@ export const postMedia = pgTable(
     // The videos feed's `$elemMatch` on (type, orientation, durationSec) plus a
     // width/height floor. Leading with `type` because every such query fixes it.
     index('post_media_video_idx').on(t.type, t.orientation, t.durationSec),
+    /**
+     * The global Videos lane's whole question in one index: video media of this
+     * orientation, newest first.
+     *
+     * The keys are the two the lane fixes (`type`, `orientation`) followed by the
+     * order it pages on. `duration_sec` is deliberately NOT a key: the lane's
+     * duration term is `>= min OR IS NULL`, a range with a null arm, so it cannot
+     * narrow a btree prefix and would only push `post_created_at` out of the
+     * ordered position that makes the scan stop at the page. It stays a filter
+     * over the rows this index already returns in order.
+     *
+     * `DESC NULLS LAST` on both trailing keys, spelled out, because drizzle emits
+     * `.desc()` in DDL as `DESC NULLS LAST` while a query's `desc()` means
+     * `DESC NULLS FIRST` — an index that disagrees on NULLS placement exists,
+     * looks right, and is silently unusable for the order the code asks for.
+     */
+    index('post_media_video_chrono_idx')
+      .on(t.type, t.orientation, t.postCreatedAt.desc(), t.postId.desc()),
     // "Which post is this media on" — the media-cache rewrite path.
     index('post_media_media_id_idx').on(t.mediaId),
   ]

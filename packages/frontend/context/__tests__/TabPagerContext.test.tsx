@@ -2,6 +2,19 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 import { TabPagerProvider, useTabPager, type TabCommitter } from '@/context/TabPagerContext';
+import { barIndexByName, pageIndexByName } from '@/components/navigation/tabs';
+
+/**
+ * Indices BY NAME, never written down.
+ *
+ * `selectTab` speaks in PAGE indices and Bloom's `activeIndex` is a BAR index,
+ * and the two stopped being the same number when the camera became page 0 with
+ * no bar item. A literal here would have been right on the day it was written
+ * and quietly wrong the day after — which is exactly the class of bug these two
+ * spaces exist to prevent, so the test should not be able to make it either.
+ */
+const page = (name: string) => pageIndexByName(name);
+const barItem = (name: string) => barIndexByName(name);
 
 /**
  * The one authority on which root tab is showing and where the bar's highlight
@@ -106,23 +119,39 @@ beforeEach(() => {
 });
 
 describe('activeIndex answers WHETHER there is a selection', () => {
-  it('names the tab the reader is on', () => {
+  it('names the tab the reader is on, as a BAR index', () => {
     mockPathname = '/notifications';
-    expect(mountProvider().value.activeIndex).toBe(3);
+    const bar = mountProvider();
+    expect(bar.value.activeIndex).toBe(barItem('notifications'));
+    expect(bar.value.activePage).toBe(page('notifications'));
+    // The pair that says the two spaces are live: notifications is page 4 and
+    // item 3, and Bloom must be handed the second.
+    expect(bar.value.activeIndex).not.toBe(bar.value.activePage);
+  });
+
+  it('is -1 on the camera, which IS a page but draws no bar item', () => {
+    mockPathname = '/camera';
+    const bar = mountProvider();
+    expect(bar.value.activeIndex).toBe(-1);
+    expect(bar.value.activePage).toBe(page('camera'));
   });
 
   it('is -1 on a route pushed over the tabs', () => {
     // The bar renders over pushed routes, so this is the common case, and it is
     // what makes Bloom fade the capsule out rather than park it outside the pill.
     mockPathname = '/p/abc123';
-    expect(mountProvider().value.activeIndex).toBe(-1);
+    const bar = mountProvider();
+    expect(bar.value.activeIndex).toBe(-1);
+    // -1 in BOTH spaces, which is what separates it from the camera above and is
+    // the state `selectTab` pops the stack for.
+    expect(bar.value.activePage).toBe(-1);
   });
 });
 
 describe('progress answers WHERE the highlight is', () => {
   it('settles on the tab the route named', () => {
     mockPathname = '/videos';
-    expect(mountProvider().value.progress.value).toBe(1);
+    expect(mountProvider().value.progress.value).toBe(barItem('videos'));
   });
 
   it('NEVER takes -1, even when nothing is selected', () => {
@@ -131,13 +160,13 @@ describe('progress answers WHERE the highlight is', () => {
     // on its way out instead of fading it where it stands.
     mockPathname = '/videos';
     const bar = mountProvider();
-    expect(bar.value.progress.value).toBe(1);
+    expect(bar.value.progress.value).toBe(barItem('videos'));
 
     mockPathname = '/settings';
     bar.repaint();
 
     expect(bar.value.activeIndex).toBe(-1);
-    expect(bar.value.progress.value).toBe(1);
+    expect(bar.value.progress.value).toBe(barItem('videos'));
   });
 
   it('follows a navigation it did not perform', () => {
@@ -146,7 +175,7 @@ describe('progress answers WHERE the highlight is', () => {
     const bar = mountProvider();
     mockPathname = '/you';
     bar.repaint();
-    expect(bar.value.progress.value).toBe(4);
+    expect(bar.value.progress.value).toBe(barItem('you'));
   });
 });
 
@@ -155,10 +184,10 @@ describe('selectTab', () => {
     const bar = mountProvider();
 
     act(() => {
-      bar.value.selectTab(3);
+      bar.value.selectTab(page('notifications'));
     });
 
-    expect(bar.value.progress.value).toBe(3);
+    expect(bar.value.progress.value).toBe(barItem('notifications'));
     expect(mockRouter.navigate).toHaveBeenCalledWith('/notifications');
   });
 
@@ -173,7 +202,7 @@ describe('selectTab', () => {
     });
 
     act(() => {
-      bar.value.selectTab(0);
+      bar.value.selectTab(page('index'));
     });
 
     expect(mockRouter.dismissAll).toHaveBeenCalled();
@@ -185,8 +214,26 @@ describe('selectTab', () => {
       bar.value.registerCommitter({ commit: jest.fn(), drivesProgress: true });
     });
     act(() => {
-      bar.value.selectTab(1);
+      bar.value.selectTab(page('videos'));
     });
+    expect(mockRouter.dismissAll).not.toHaveBeenCalled();
+  });
+
+  it('does not pop on the way OFF the camera, which is a page and not a push', () => {
+    // `activeIndex` is -1 there, and reading that as "something is pushed over
+    // the tabs" would empty the stack every time the reader swiped back to the
+    // feed. `activePage` is the honest test and this is the case that shows it.
+    mockPathname = '/camera';
+    mockRouter.canDismiss.mockReturnValue(true);
+    const bar = mountProvider();
+    act(() => {
+      bar.value.registerCommitter({ commit: jest.fn(), drivesProgress: true });
+    });
+
+    act(() => {
+      bar.value.selectTab(page('index'));
+    });
+
     expect(mockRouter.dismissAll).not.toHaveBeenCalled();
   });
 
@@ -203,7 +250,7 @@ describe('selectTab', () => {
     });
 
     act(() => {
-      bar.value.selectTab(0);
+      bar.value.selectTab(page('index'));
     });
 
     expect(mockRouter.dismissAll).not.toHaveBeenCalled();
@@ -221,7 +268,7 @@ describe('selectTab', () => {
     const bar = mountProvider();
 
     act(() => {
-      bar.value.selectTab(4);
+      bar.value.selectTab(page('you'));
     });
 
     expect(mockRouter.dismissAll).not.toHaveBeenCalled();
@@ -238,10 +285,12 @@ describe('selectTab', () => {
     });
 
     act(() => {
-      bar.value.selectTab(2);
+      bar.value.selectTab(page('write'));
     });
 
-    expect(committer.commit).toHaveBeenCalledWith(2);
+    // The committer is handed a PAGE index, because that is what the navigator
+    // switches by.
+    expect(committer.commit).toHaveBeenCalledWith(page('write'));
     expect(mockRouter.navigate).not.toHaveBeenCalled();
   });
 
@@ -255,7 +304,7 @@ describe('selectTab', () => {
     });
 
     act(() => {
-      bar.value.selectTab(4);
+      bar.value.selectTab(page('you'));
     });
 
     expect(bar.value.progress.value).toBe(0);
@@ -268,10 +317,11 @@ describe('selectTab', () => {
     });
 
     act(() => {
-      bar.value.selectTab(4);
+      bar.value.selectTab(page('you'));
     });
 
-    expect(bar.value.progress.value).toBe(4);
+    // Sprung to the BAR index, not the page index it was asked for.
+    expect(bar.value.progress.value).toBe(barItem('you'));
   });
 
   it('ignores an index that names no tab', () => {
@@ -292,7 +342,7 @@ describe('selectTab', () => {
     });
 
     act(() => {
-      bar.value.selectTab(1);
+      bar.value.selectTab(page('videos'));
     });
 
     expect(mockRouter.navigate).toHaveBeenCalledWith('/videos');

@@ -30,9 +30,15 @@ describe('dynamic theme surfaces', () => {
   });
 
   it('does not let inline compose-mode colors override light/dark theme roles', () => {
+    // TWO sources, because this case has two subjects and they no longer share a
+    // file: the class tokens are applied in the component's JSX, while the style
+    // objects they must not be overridden by live in the composer's stylesheet
+    // module. Reading the component for both was correct only while the
+    // stylesheet sat at the bottom of it.
     const file = source('components', 'Compose', 'ComposeScreen.tsx');
-    const modeLabel = styleBody(file, 'modeLabel');
-    const modeDescription = styleBody(file, 'modeDescription');
+    const stylesFile = source('components', 'Compose', 'ComposeScreen.styles.ts');
+    const modeLabel = styleBody(stylesFile, 'modeLabel');
+    const modeDescription = styleBody(stylesFile, 'modeDescription');
 
     expect(file).toContain("postingMode === 'thread' ? 'text-primary' : 'text-foreground'");
     expect(file).toContain("postingMode === 'beast' ? 'text-primary' : 'text-foreground'");

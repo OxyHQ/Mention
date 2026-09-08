@@ -137,8 +137,14 @@ export const useRealtimeNotifications = () => {
         logger.info('Disconnected from notifications socket');
       });
 
+      // NOT an error: socket.io reconnects on its own, and the log says so
+      // plainly — every one of these is followed by a `connect`. Measured on a
+      // Pixel 10 Pro: `Disconnected` → three `connect_error` → `Connected`,
+      // twice in five minutes on a normal wifi handover. Logged at `error` it
+      // raised a red banner in dev that covered the bottom bar, and filed
+      // recovered transport noise as an app failure in production telemetry.
       socket.on('connect_error', (error) => {
-        logger.error('Socket connection error', error);
+        logger.warn('Notifications socket retrying after a connection error', { error });
       });
     } catch (error) {
       logger.error('Failed to connect to notifications socket', error);

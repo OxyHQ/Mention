@@ -14,6 +14,7 @@ import { toast } from '@oxyhq/bloom/toast';
 import { queryKeys as sdkQueryKeys } from '@oxyhq/services';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import type { User } from '@oxyhq/core';
 import type { PostUser } from '@mention/shared-types';
 
@@ -484,10 +485,11 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
     markRead();
     if (item.entityType === 'post' || item.entityType === 'reply') {
       router.push(`/p/${item.entityId}`);
-    } else if (item.entityType === 'profile' && resolvedPrimary.handle) {
-      router.push(`/@${resolvedPrimary.handle}`);
+    } else if (item.entityType === 'profile') {
+      const href = profileHrefForUser(resolvedPrimary);
+      if (href) router.push(href);
     }
-  }, [markRead, item.entityType, item.entityId, resolvedPrimary.handle, router]);
+  }, [markRead, item.entityType, item.entityId, resolvedPrimary, router]);
 
   // Long-press opens a small action sheet offering "Mark as read" (only when the
   // row is unread) and a destructive "Delete". Dismissing the sheet is the
@@ -535,7 +537,8 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   }, [hasUnread, theme.colors.textSecondary, theme.colors.error, t, bottomSheet, onMarkAsRead, onDelete, item.notificationIds]);
 
   const openActorProfile = useCallback((actor: ResolvedActor) => {
-    if (actor.handle) router.push(`/@${actor.handle}`);
+    const href = profileHrefForUser(actor);
+    if (href) router.push(href);
   }, [router]);
 
   const inviter = useMemo<PostUser>(() => ({

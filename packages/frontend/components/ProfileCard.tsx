@@ -7,6 +7,7 @@ import { Avatar } from '@oxyhq/bloom/avatar';
 import { mergeKnownIdentity, useKnownIdentities } from '@/stores/identityUpdates';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { getNormalizedUserHandle, type AccountKind } from '@oxyhq/core';
+import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { ThemedText } from './ThemedText';
 import UserName from './UserName';
 import { getUserPlaceholderColor } from '@/utils/userPlaceholderColor';
@@ -154,11 +155,15 @@ export function ProfileCard({
     displayName ??
     (handle.length > 0 ? undefined : t('user.unknown', { defaultValue: 'Unknown user' }));
 
+  // Resolved from the row's own record, so a channel row opens `/c/` instead of
+  // bouncing through the `/@` redirect.
+  const href = profileHrefForUser(profile);
+
   const handlePress = () => {
     if (onPress) {
       onPress();
-    } else if (handle) {
-      router.push(`/@${handle}`);
+    } else if (href) {
+      router.push(href);
     }
   };
 

@@ -324,6 +324,26 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       'CREATE INDEX posts_curated_idx ON public.posts USING btree (created_at DESC NULLS LAST) WHERE (curated IS TRUE)',
   },
   {
+    name: 'posts_engagement_rank_idx',
+    table: 'posts',
+    serves:
+      "the popular / never-blank discovery scans, whose ORDER BY is a COMPUTED engagement composite. " +
+      'Without it the planner has one option — read every candidate row and top-N sort it — so the cost ' +
+      'is bounded by the TABLE while the answer stays 60 rows, and the unbounded pass of ' +
+      '`fetchWithRecencyFallback` (reached on every page by a reader whose languages underfill 7d and 30d) ' +
+      'sorted the whole archive: 17.25s in production, 77-89ms against 275k posts here, 0.11-0.26ms with ' +
+      'this index. `engagementRankIndex.test.ts` is the half that checks the EXPRESSION still matches the ' +
+      'query, which is what actually decides whether the planner can use it',
+    definition:
+      'CREATE INDEX posts_engagement_rank_idx ON public.posts USING btree ' +
+      '(((((((stats_likes_count)::double precision * (1)::double precision) + ' +
+      '((GREATEST(0, (stats_boosts_count - stats_federated_boosts_count)))::double precision * ' +
+      '(2.5)::double precision)) + ((stats_federated_boosts_count)::double precision * ' +
+      '(0.5)::double precision)) + ((stats_comments_count)::double precision * (2)::double precision))) ' +
+      'DESC, created_at DESC NULLS LAST, id DESC NULLS LAST) ' +
+      "WHERE ((visibility = 'public'::text) AND (status = 'published'::text))",
+  },
+  {
     name: 'posts_geo_gist',
     table: 'posts',
     serves:
@@ -361,6 +381,20 @@ const OTHER_TABLE_INDEXES: readonly ClassifiedIndex[] = [
     definition:
       'CREATE INDEX post_authorships_author_chrono_idx ON public.post_authorships ' +
       'USING btree (oxy_user_id, status, post_created_at DESC NULLS LAST, post_id DESC NULLS LAST)',
+  },
+  {
+    name: 'post_media_video_chrono_idx',
+    table: 'post_media',
+    serves:
+      'the global Videos lane, whose scan drives from `post_media` precisely so this index can answer ' +
+      'it — matching video media of one orientation, newest first, in one index. Without it the lane ' +
+      'walks a chronological index over `posts` probing this table once per candidate, and the walk is ' +
+      'as long as the seen set makes it: measured on 275k posts (39,285 video), page of 60 with the ' +
+      'full 1,000-id seen set, 7,554 posts probed and 33,032 buffers against 377 media rows and 1,916. ' +
+      '`videosLaneChrono.test.ts` is the half that checks the lane still PLANS onto it',
+    definition:
+      'CREATE INDEX post_media_video_chrono_idx ON public.post_media ' +
+      'USING btree (type, orientation, post_created_at DESC NULLS LAST, post_id DESC NULLS LAST)',
   },
 ];
 

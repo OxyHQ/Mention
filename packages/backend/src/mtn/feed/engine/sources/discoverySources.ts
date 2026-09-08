@@ -22,9 +22,11 @@ import {
   type SQL,
 } from 'drizzle-orm';
 import { getDb } from '../../../../db/postgres';
-import { posts } from '../../../../db/schema';
+import { postMedia, posts } from '../../../../db/schema';
 import { assemblePostRecords } from '../../../../db/posts/postRepository';
-import { FeedQueryBuilder, authorNotInSql, notABoostSql, rankingWeight } from '../../../../utils/feedQueryBuilder';
+import { FeedQueryBuilder, authorNotInSql, notABoostSql } from '../../../../utils/feedQueryBuilder';
+import { engagementRankSql } from '../../../../db/schema/posts';
+import { rankingWeight } from '../../../../utils/rankingWeight';
 import { fetchWithRecencyFallback } from '../../../../utils/feedUtils';
 import { ScoreCursor, chronoOrderBy, type ScoreCursorData } from '../../CursorBuilder';
 import { discoverySafeSql, filterDiscoverable } from '../../feedSafety';
@@ -55,43 +57,27 @@ import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
 /**
  * The engagement composite the popular / explore / trending aggregations ORDER
- * their candidate pool by, as a SQL expression. The single source of truth for
- * that ordering, so the discovery lanes can never drift from each other.
+ * their candidate pool by. The single source of truth for that ordering, so the
+ * discovery lanes can never drift from each other.
+ *
+ * The expression itself lives on the SCHEMA (`engagementRankSql`, `db/schema/posts.ts`)
+ * rather than here, and that is not filing: `posts_engagement_rank_idx` is built
+ * over it, Postgres matches an expression index by comparing parsed expressions,
+ * and an index and a query that spell the same composite in two places agree
+ * until the first weight change and then silently stop — leaving the popular scan
+ * reading the whole table again with nothing red. Keeping both sides on one
+ * function is what makes that unrepresentable.
  *
  * It is deliberately NOT the same expression as
  * `services/ranking/nativeEngagement.ts` `nativeWeightedEngagement`, which scores
- * the candidates this query returns. The four counters below are the ones a write
- * path maintains and that carry signal at selection time: `saves` is written but
- * measures 0 across the discovery corpus, and ordering CANDIDATES by `views`
- * would rank by exposure and feed itself. Ranking reads both, one stage later,
- * where the pool is already chosen.
- *
- * The boost term splits the total boosts into their native and federated subsets
- * (`stats_federated_boosts_count` counts inbound ActivityPub Announces): the
- * native subset — `greatest(0, boosts − federatedBoosts)`, floored so an
- * over-count can never go negative — is weighted at `boostWeight`, and the
- * federated subset at the deliberately-lower `federatedBoostWeight`.
- *
- * Two things the Mongo original needed and this does not:
- *
- *  - `$ifNull` on every term. All four columns are `NOT NULL DEFAULT 0`, so a
- *    null is unrepresentable rather than merely unlikely — the pre-backfill
- *    documents those wrappers existed for cannot occur.
- *  - Nothing guarded the RESULT TYPE, because Mongo had one number type.
- *    Postgres does not: the weights are decimal literals, `integer * numeric` is
- *    `numeric`, and postgres.js returns `numeric` as a **string** to preserve
- *    precision. That string then flows into `finalScore`, sorts lexicographically
- *    in any JS comparison, and serializes into the cursor as a quoted value. The
- *    explicit `::double precision` is what keeps the score a NUMBER end to end.
+ * the candidates this query returns. The four counters it weighs are the ones a
+ * write path maintains and that carry signal at selection time: `saves` is
+ * written but measures 0 across the discovery corpus, and ordering CANDIDATES by
+ * `views` would rank by exposure and feed itself. Ranking reads both, one stage
+ * later, where the pool is already chosen.
  */
 export function engagementScoreSql(): SQL<number> {
-  const cfg = MtnConfig.ranking.engagement;
-  return sql<number>`(
-    ${posts.statsLikesCount} * ${rankingWeight(cfg.likeWeight)}
-    + greatest(0, ${posts.statsBoostsCount} - ${posts.statsFederatedBoostsCount}) * ${rankingWeight(cfg.boostWeight)}
-    + ${posts.statsFederatedBoostsCount} * ${rankingWeight(cfg.federatedBoostWeight)}
-    + ${posts.statsCommentsCount} * ${rankingWeight(cfg.commentWeight)}
-  )::double precision`;
+  return engagementRankSql(posts);
 }
 
 /**
@@ -149,23 +135,69 @@ function discoveryGuardsSql(ctx: FeedEngineContext): SQL {
   return and(discoverySafeSql(), viewerLanguageSql(ctx.viewerBaseLanguages)) as SQL;
 }
 
-/** `videos`: ranked candidate query for video posts (wraps `buildVideosQuery`). */
+/**
+ * The Videos lane's chronological candidate scan, driven from `post_media`.
+ *
+ * The shape is the point. Ordering on `post_media.post_created_at` is what lets
+ * `post_media_video_chrono_idx` answer the whole question — matching video media,
+ * newest first — so the scan walks the page and stops. Driven from `posts`
+ * instead, as it was, the planner walks a chronological index over `posts` and
+ * probes `post_media` once per candidate: measured on 275k posts (39,285 video)
+ * with a full 1,000-id seen set, 7,494 posts probed and 32,459 buffers for a page
+ * of 60, against 398 media rows and 1,995 buffers here.
+ *
+ * The seen set is what makes that difference matter rather than being a
+ * micro-optimisation: those ids are the posts the lane just showed, so they sit at
+ * the head of the chronological order and the scan has to walk PAST all of them.
+ * The old shape paid that in post probes, and its cost grew with the seen set —
+ * 1,420 posts scanned at zero seen ids against 7,494 at a thousand. This one pays
+ * it in index entries on a table an order of magnitude smaller.
+ *
+ * `DISTINCT ON` is load-bearing and is the one thing the `EXISTS` form got free:
+ * a post carrying two matching media rows joins to two rows. Its expressions are
+ * the leading `ORDER BY` terms because Postgres requires that, and they are the
+ * pair that identifies a post here — both media rows of one post share its
+ * `post_id` AND its `post_created_at`, so the pair collapses them.
+ *
+ * A NULL `post_created_at` (see the migration: rows written between it landing and
+ * the new code deploying) cannot drop a post from the lane. The JOIN is on
+ * `post_id`; this column is only ORDERED on, and `desc nulls last` puts such a row
+ * at the bottom of the lane rather than out of it.
+ */
+async function selectVideoCandidatesByMediaChrono(
+  ctx: FeedEngineContext,
+  cap: number,
+): Promise<CandidatePost[]> {
+  const db = getDb();
+  const rows = await db
+    .selectDistinctOn([postMedia.postCreatedAt, postMedia.postId], getTableColumns(posts))
+    .from(postMedia)
+    .innerJoin(posts, eq(posts.id, postMedia.postId))
+    .where(
+      and(
+        FeedQueryBuilder.videoMediaConditions({
+          orientation: ctx.videoFilters?.orientation,
+          minDurationSec: ctx.videoFilters?.minDurationSec,
+        }),
+        FeedQueryBuilder.videoPostConditions(ctx.seenPostIds ?? []),
+        discoveryGuardsSql(ctx),
+      ),
+    )
+    .orderBy(
+      sql`${postMedia.postCreatedAt} desc nulls last`,
+      sql`${postMedia.postId} desc nulls last`,
+    )
+    .limit(cap);
+
+  return assemblePostRecords(rows, db);
+}
+
+/** `videos`: ranked candidate query for video posts, walking the media chrono index. */
 export const videosSource: SourceModule = {
   id: 'videos',
   kind: 'source',
   userComposable: false,
-  gather: async (ctx, _params, cap) =>
-    selectCandidates(
-      and(
-        FeedQueryBuilder.buildVideosQuery(ctx.seenPostIds ?? [], {
-          orientation: ctx.videoFilters?.orientation,
-          minDurationSec: ctx.videoFilters?.minDurationSec,
-        }),
-        discoveryGuardsSql(ctx),
-      ) as SQL,
-      chronoOrderBy(),
-      cap,
-    ),
+  gather: async (ctx, _params, cap) => selectVideoCandidatesByMediaChrono(ctx, cap),
 };
 
 /** `media`: ranked candidate query for media posts (wraps `buildMediaFeedQuery`). */

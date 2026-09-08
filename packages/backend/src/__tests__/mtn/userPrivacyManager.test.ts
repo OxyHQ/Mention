@@ -84,9 +84,24 @@ describe('UserPrivacyManager Oxy authority', () => {
     expect(mocks.getRestrictedUserIds).toHaveBeenCalledWith(scopedOxyClient);
   });
 
-  it('does not fetch restrictions for feed callers', async () => {
+  /**
+   * `includeRestricted` governs the EXCLUSION, not the resolution.
+   *
+   * This used to assert that a feed caller never fetched restrictions at all,
+   * which described `loadPrivacyState` correctly and the REQUEST wrongly:
+   * hydration asked Oxy for the same list on every hydration call the page made,
+   * so a feed request fetched restrictions two or three times while this said it
+   * fetched none. The controller now resolves them once and threads them, so the
+   * fetch is real here and gone from the inner loop.
+   *
+   * What actually had to be preserved is the line below it — a restricted author
+   * is NOT excluded from a feed — so that is what is asserted, and it is the
+   * assertion that fails if anyone folds restrictions back into the default.
+   */
+  it('resolves restrictions for feed callers but does not exclude on them', async () => {
     const scopedOxyClient = { request: 'client' };
     mocks.getBlockedUserIds.mockResolvedValue(['blocked']);
+    mocks.getRestrictedUserIds.mockResolvedValue(['restricted']);
     await seedMutes(VIEWER, ['muted']);
 
     const state = await UserPrivacyManager.loadPrivacyState(VIEWER, {
@@ -94,8 +109,9 @@ describe('UserPrivacyManager Oxy authority', () => {
     });
 
     expect(state.excludedUserIds).toEqual(new Set(['blocked', 'muted']));
+    expect(state.restrictedUserIds).toEqual(new Set(['restricted']));
     expect(mocks.getBlockedUserIds).toHaveBeenCalledWith(scopedOxyClient);
-    expect(mocks.getRestrictedUserIds).not.toHaveBeenCalled();
+    expect(mocks.getRestrictedUserIds).toHaveBeenCalledWith(scopedOxyClient);
   });
 
   it('preserves Oxy exclusions when the stored mute read fails', async () => {
