@@ -32,10 +32,21 @@
  * no `RE:` at all is missed. Idempotent and re-runnable, so a better filter
  * later still costs nothing.
  *
- * SELECTION:
- *  1. Federated posts (`federation_activity_id` present) with `quote_of` null.
- *  2. Whose PRIMARY body (`post_content_variants` at `position = 0`) CARRIES
- *     `RE:` followed by an http(s) URL, at a word boundary.
+ * IT ALSO PROMOTES. Ingest now WITHHOLDS a post whose declared quote it could
+ * not produce (`status: 'incomplete'`), rather than publishing it with the
+ * remote's `RE: <url>` fallback showing. Withholding is only defensible because
+ * it is reversible, and this script is what reverses it: the statement that
+ * links a quote also returns the post to `published`, in ONE write, so there is
+ * no window where a post is linked but still invisible.
+ *
+ * SELECTION — either signal, and the first is much better than the second:
+ *  1. Federated posts (`federation_activity_id` present) with `quote_of` null;
+ *  2. that are `status = 'incomplete'` — not a guess, ingest writes it only when
+ *     the note DECLARED a quote and the resolve failed, so every such row is
+ *     known to be a quote — OR whose PRIMARY body (`post_content_variants` at
+ *     `position = 0`) CARRIES `RE:` followed by an http(s) URL at a word
+ *     boundary, which is the only signal available for rows written before that
+ *     state existed.
  *
  * SAFETY:
  *  1. `BACKFILL_DRY_RUN` defaults to `'true'`; only `=false` writes.
@@ -77,7 +88,7 @@
  *   bun packages/backend/dist/src/scripts/backfillQuotedPosts.js
  */
 
-import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
@@ -109,6 +120,16 @@ const CONCURRENCY = Math.min(
 export interface QuotedPostBackfillResult {
   /** Bodies matching the rendered-quote filter — the cheap candidate set. */
   candidates: number;
+  /**
+   * Of the rows written, how many were WITHHELD posts returned to circulation.
+   *
+   * Reported separately from `written` because it is the only number that says
+   * whether withholding is actually reversible in production. `incomplete` is
+   * defensible only because a post leaves it once its quote arrives; a run that
+   * links rows but never promotes one would mean the state is a slow delete, and
+   * folded into `written` that would be invisible.
+   */
+  promoted: number;
   /**
    * Candidates whose object could not be fetched at all.
    *
@@ -174,7 +195,7 @@ export async function backfillQuotedPosts(
   // stay out. `~` is case-sensitive, as the JS `/RE:\s*https?:\/\//` it mirrors;
   // `[[:space:]]` covers the newline a real render puts around the URL.
   const rows = await db
-    .select({ id: posts.id, activityId: posts.federationActivityId })
+    .select({ id: posts.id, activityId: posts.federationActivityId, status: posts.status })
     .from(posts)
     .innerJoin(
       postContentVariants,
@@ -183,7 +204,17 @@ export async function backfillQuotedPosts(
     .where(and(
       isNotNull(posts.federationActivityId),
       isNull(posts.quoteOf),
-      sql`${postContentVariants.body} ~ '(^|[[:space:]])RE:[[:space:]]*https?://'`,
+      // EITHER signal, and the first is far better than the second.
+      //
+      // `status = 'incomplete'` is not a guess: ingest writes it only when the
+      // note DECLARED a quote and the resolve failed, so every such row is known
+      // to be a quote and is the reason this script now promotes as well as
+      // links. The body pattern stays for the rows written before that state
+      // existed, where the rendered marker is the only signal available.
+      or(
+        eq(posts.status, 'incomplete'),
+        sql`${postContentVariants.body} ~ '(^|[[:space:]])RE:[[:space:]]*https?://'`,
+      ),
     ))
     .limit(MAX);
 
@@ -192,6 +223,7 @@ export async function backfillQuotedPosts(
   let notHeldLocally = 0;
   let linked = 0;
   let written = 0;
+  let promoted = 0;
   let fetchFailures = 0;
   let batches = 0;
   const startedAt = Date.now();
@@ -239,10 +271,21 @@ export async function backfillQuotedPosts(
     if (!DRY_RUN) {
       const updated = await db
         .update(posts)
-        .set({ quoteOf: quotedId })
+        // PROMOTED in the same statement that links it. A post is withheld
+        // (`incomplete`) precisely because its quote could not be produced, so
+        // producing it is exactly the condition that ends the withholding —
+        // splitting this into a second write would leave a window where the post
+        // is linked but still invisible, and a failure between them would leave
+        // it that way permanently. A row that was already `published` keeps its
+        // status; nothing else is touched.
+        .set({
+          quoteOf: quotedId,
+          ...(row.status === 'incomplete' ? { status: 'published' as const } : {}),
+        })
         .where(and(eq(posts.id, row.id), isNull(posts.quoteOf)))
         .returning({ id: posts.id });
       written += updated.length;
+      if (updated.length > 0 && row.status === 'incomplete') promoted += 1;
     }
   }
 
@@ -274,6 +317,7 @@ export async function backfillQuotedPosts(
         candidates,
         linked,
         written,
+        promoted,
         fetchFailures,
         elapsedSec: Math.round((Date.now() - startedAt) / 1000),
       });
@@ -287,6 +331,7 @@ export async function backfillQuotedPosts(
     notHeldLocally,
     linked,
     written,
+    promoted,
     noOpWrites: !DRY_RUN && linked > 0 && written === 0,
   };
 
