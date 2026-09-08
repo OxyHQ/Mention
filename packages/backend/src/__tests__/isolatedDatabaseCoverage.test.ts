@@ -155,6 +155,7 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
   { name: 'backfillQuotedPosts', call: /\bbackfillQuotedPosts\s*\(/ },
   { name: 'stripRenderedQuoteMarkers', call: /\bstripRenderedQuoteMarkers\s*\(/ },
   { name: 'backfillPostHasLinks', call: /\bbackfillPostHasLinks\s*\(/ },
+  { name: 'backfillMediaMetadata', call: /\bbackfillMediaMetadata\s*\(/ },
   { name: 'backfillPostLanguages', call: /\bbackfillPostLanguages\s*\(/ },
   { name: 'backfillCustomFeedDefinitions', call: /\bbackfillCustomFeedDefinitions\s*\(/ },
 ];
