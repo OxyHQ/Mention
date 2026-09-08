@@ -502,19 +502,26 @@ export function useReelChrome({
     // every later activation, so activation needs no seek at all. Writing one
     // anyway is not free: a seek is a seek to the native player whether or not
     // the position changes.
-    const wasActiveRef = useRef(false);
+    // Keyed on `isWatched`, NOT on `isActive`: entering Picture-in-Picture shrinks
+    // the activity's window, the list re-runs its viewability pass, and the OWNER
+    // LOSES `isActive` to a neighbour (the same resize this file documents above).
+    // Keyed on activity, the rewind then fired on the very surface whose video the
+    // OS window was showing and sent it back to zero as the window opened.
+    // `isWatched` is the predicate that already means "this surface is the one
+    // being watched", and it holds for the PiP owner however the pager reshuffles
+    // underneath it.
+    const wasWatchedRef = useRef(false);
     useEffect(() => {
         if (!restartOnActivate) return;
-        const active = isActive && screenFocused;
-        if (active) {
-            wasActiveRef.current = true;
+        if (isWatched) {
+            wasWatchedRef.current = true;
             return;
         }
-        if (wasActiveRef.current) {
-            wasActiveRef.current = false;
+        if (wasWatchedRef.current) {
+            wasWatchedRef.current = false;
             player.currentTime = 0;
         }
-    }, [player, restartOnActivate, isActive, screenFocused]);
+    }, [player, restartOnActivate, isWatched]);
 
     // ── Double-tap-to-like ──────────────────────────────────────────
     // A single tap toggles pause but is DEFERRED by DOUBLE_TAP_WINDOW_MS; a second

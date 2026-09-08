@@ -86,7 +86,17 @@ function fakePlayer() {
     };
 }
 
-function Harness({ player, isActive }: { player: object; isActive: boolean }) {
+function Harness({
+    player,
+    isActive,
+    ownsSession = false,
+    sessionActive = false,
+}: {
+    player: object;
+    isActive: boolean;
+    ownsSession?: boolean;
+    sessionActive?: boolean;
+}) {
     useReelChrome({
         player,
         restartOnActivate: true,
@@ -102,8 +112,8 @@ function Harness({ player, isActive }: { player: object; isActive: boolean }) {
         t: ((key: string) => key) as never,
         isLiked: false,
         onLikePost: () => {},
-        ownsSession: false,
-        sessionActive: false,
+        ownsSession,
+        sessionActive,
         sessionSource: undefined,
         onSessionStart: () => {},
         onSessionEnd: () => {},
@@ -158,6 +168,40 @@ describe('the reel rewinds on the way out', () => {
 
         expect(fake.seeks).toEqual([0, 0]);
         expect(fake.player.currentTime).toBe(0);
+        act(() => renderer.unmount());
+    });
+
+    /**
+     * The Picture-in-Picture owner must NOT be rewound when the pager takes
+     * `isActive` away from it.
+     *
+     * Entering PiP shrinks the activity's window; the list re-runs its
+     * viewability pass and hands `isActive` to a NEIGHBOUR — this file documents
+     * that resize at length, because a previous bug had the neighbour reshaping
+     * the OS window. Keyed on activity, the rewind then fired on the very
+     * surface whose video the window was showing and sent it back to zero as it
+     * opened. `isWatched` is the predicate that survives that reshuffle.
+     */
+    it('does not rewind the PiP owner when the pager hands isActive elsewhere', () => {
+        const fake = fakePlayer();
+        const renderer = render(fake.player, true);
+
+        fake.advance(9);
+        // PiP opens: this surface owns the session, and the resize costs it
+        // `isActive`.
+        act(() =>
+            renderer.update(
+                <Harness player={fake.player} isActive={false} ownsSession sessionActive />,
+            ),
+        );
+
+        expect(fake.seeks).toEqual([]);
+        expect(fake.player.currentTime).toBe(9);
+
+        // And when the session ends with the surface off-screen, it rewinds as
+        // any other idle surface does.
+        act(() => renderer.update(<Harness player={fake.player} isActive={false} />));
+        expect(fake.seeks).toEqual([0]);
         act(() => renderer.unmount());
     });
 
