@@ -11,9 +11,17 @@
 
 import { extractApQuoteUri } from '../../connectors/activitypub/helpers';
 
-/** Mirrors the script's candidate filter. */
-const RENDERED_QUOTE_PREFIX = /^RE:\s*https?:\/\//;
-const isCandidate = (body: string): boolean => RENDERED_QUOTE_PREFIX.test(body.trim());
+/**
+ * Mirrors the script's candidate filter — deliberately UNANCHORED.
+ *
+ * `^RE:` described Mastodon alone. Misskey, Akkoma, Bridgy Fed and Threads put
+ * the marker AFTER the author's text, and an anchored pattern saw none of them:
+ * 2,043 production posts carried `RE: <url>` only at the end, invisible to the
+ * old filter, and the servers behind them (misskey.io, bsky.brid.gy,
+ * misskey.design, bsky.social) all send the structured field this script reads.
+ */
+const RENDERED_QUOTE_MARKER = /(^|\s)RE:\s*https?:\/\//;
+const isCandidate = (body: string): boolean => RENDERED_QUOTE_MARKER.test(body);
 
 const LEMONDE = 'https://mastodon.social/users/lemonde/statuses/117030664429761672';
 
@@ -23,15 +31,25 @@ describe('candidate filter', () => {
     expect(isCandidate(`RE:${LEMONDE}`)).toBe(true);
   });
 
+  it('picks the TRAILING shape too, which is most of the fediverse', () => {
+    // The real body of a Misskey / Bridgy Fed / Threads quote: the author's own
+    // text first, the rendered marker last. This is the case the anchored filter
+    // could not see, and it is 2,043 posts.
+    expect(isCandidate(`A M A T E R A S U 👁️ 🔥\n\nRE: ${LEMONDE}`)).toBe(true);
+  });
+
   it('ignores an RT, which is the OTHER case and has no reference at all', () => {
     // Bridge retweets are dropped at ingest precisely because nothing can be
     // reconstructed from them; they must never enter this lane either.
     expect(isCandidate('RT: @Julio_Rodr_ ¡Tres años!')).toBe(false);
   });
 
-  it('ignores prose that merely opens with RE or contains a URL', () => {
+  it('ignores prose with no marker, and a marker with no URL', () => {
+    // `Mira esto RE: https://example.com` USED to belong here and no longer
+    // does — the filter is unanchored now, so it is admitted as a candidate and
+    // then rejected by the object, which is pinned in
+    // `widening the net cannot widen what gets LINKED` below.
     expect(isCandidate('RE: esto es una respuesta, sin enlace')).toBe(false);
-    expect(isCandidate('Mira esto RE: https://example.com')).toBe(false);
     expect(isCandidate('https://example.com es interesante')).toBe(false);
   });
 });
@@ -64,20 +82,49 @@ describe('the decision is structural, never the body', () => {
  * to discard 98.5% of it — 8.5 hours at the observed rate, against 10,446
  * documents once the prefix is in the query.
  */
-describe('the prefix filter is the same rule on both sides', () => {
-  it('is anchored, so Mongo cannot match a body that merely contains it', () => {
-    // `$regex` runs against the RAW stored value. An unanchored pattern here
-    // would hand JS every post containing "RE: http" anywhere.
-    expect(RENDERED_QUOTE_PREFIX.source.startsWith('^')).toBe(true);
-    expect(RENDERED_QUOTE_PREFIX.test('Mira esto RE: https://example.com')).toBe(false);
+describe('widening the net cannot widen what gets LINKED', () => {
+  it('admits a marker mid-body, and that is safe rather than sloppy', () => {
+    // The old filter refused this on purpose, to avoid fetching every post
+    // containing "RE: http" anywhere. The cost was measured — +2,042 candidates,
+    // +15% — and it buys 2,043 genuinely repairable posts, so the trade now goes
+    // the other way.
+    //
+    // It is safe because this pattern never decides anything. A candidate is
+    // RE-FETCHED and `extractApQuoteUri` reads its structured fields; a body
+    // that merely talks about a URL yields no quote field and is left alone.
+    // The cases below pin that half.
+    expect(isCandidate('Mira esto RE: https://example.com')).toBe(true);
+    expect(extractApQuoteUri({ content: 'Mira esto RE: https://example.com' })).toBeUndefined();
   });
 
-  it('keeps the JS check, which trims first and so is the wider of the two', () => {
-    // Mongo matches the raw value; the JS check trims. A body with leading
-    // whitespace therefore passes JS and not Mongo — the pre-filter may only
-    // ever be NARROWER, never wider, or the database would be deciding.
-    const padded = '  RE: https://mastodon.social/users/lemonde/statuses/117030664429761672';
-    expect(RENDERED_QUOTE_PREFIX.test(padded)).toBe(false);
-    expect(RENDERED_QUOTE_PREFIX.test(padded.trim())).toBe(true);
+  it('still needs a word boundary and a real URL', () => {
+    // `(^|\s)` keeps mid-word noise out, and the `https?://` half keeps prose
+    // out — otherwise every post using the word "RE:" would be fetched.
+    expect(isCandidate(`xRE: ${LEMONDE}`)).toBe(false);
+    expect(isCandidate('RE: esto es una respuesta, sin enlace')).toBe(false);
+  });
+
+  it('no longer depends on trimming, because the SQL no longer trims', () => {
+    // The anchored version had to `btrim` first or a leading newline hid the
+    // marker. `(^|\s)` matches that whitespace itself, so both sides read the
+    // RAW stored value and cannot drift apart.
+    expect(isCandidate('  RE: https://mastodon.social/users/lemonde/statuses/117030664429761672')).toBe(true);
+  });
+
+  it('does NOT repair a Threads quote, and that is the honest outcome', () => {
+    // Threads renders the marker like everyone else, so it enters this lane —
+    // but its AP object carries NO quote field at all (measured on
+    // threads.net/ap/users/17841401260928433/post/18099292307347571: keys are
+    // id, type, content, published, @context, contentMap, attributedTo, url,
+    // to, cc, tag, interactionPolicy; `tag` is empty). The quote lives only in
+    // the body HTML, and reading that is exactly what this file exists to
+    // forbid. So a Threads candidate is fetched, yields nothing, and is left
+    // alone — 26 posts, whose 26 targets we hold none of.
+    expect(isCandidate('A M A T E R A S U 👁️ 🔥\n\nRE: https://www.threads.com/@x/post/Dcv3w16ivxA')).toBe(true);
+    expect(extractApQuoteUri({
+      type: 'Note',
+      content: '<p>A M A T E R A S U</p> <p><span class="quote-inline">RE: <a href="https://www.threads.com/@x/post/Dcv3w16ivxA">t</a></span></p>',
+      tag: [],
+    })).toBeUndefined();
   });
 });
