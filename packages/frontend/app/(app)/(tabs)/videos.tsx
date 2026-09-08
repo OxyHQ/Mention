@@ -24,6 +24,11 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Video } from '@/assets/icons/video-icon';
+import { HeartIcon, HeartIconActive } from '@/assets/icons/heart-icon';
+import { CommentIcon } from '@/assets/icons/comment-icon';
+import { BoostIcon, BoostIconActive } from '@/assets/icons/boost-icon';
+import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
+import { ShareIcon } from '@/assets/icons/share-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxyhq/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
@@ -264,6 +269,7 @@ interface VideoItemProps {
     bottomBarHeight: number;
     t: (key: string) => string;
     windowHeight: number;
+    compactForReplies: boolean;
     // The signed-in viewer's id — hides the on-video follow button on the
     // author's own video.
     viewerId?: string;
@@ -695,6 +701,7 @@ const VideoItem = memo<VideoItemProps>(({
     bottomBarHeight,
     t,
     windowHeight,
+    compactForReplies,
     viewerId,
     ownsSession,
     sessionActive,
@@ -755,7 +762,16 @@ const VideoItem = memo<VideoItemProps>(({
     return (
         <View
             className={cn(WEB_SLIDE_HEIGHT_CLASS, 'web:[scroll-snap-align:start]')}
-            style={[styles.videoContainer, Platform.OS === 'web' ? null : { height: windowHeight }]}
+            style={[
+                styles.videoContainer,
+                Platform.OS === 'web' ? null : { height: windowHeight },
+                compactForReplies ? {
+                    transform: [
+                        { translateY: -(windowHeight * 0.31) },
+                        { scale: 0.38 },
+                    ],
+                } : null,
+            ]}
         >
             {canRenderPlayer ? (
                 <ActiveVideoSurface
@@ -881,7 +897,9 @@ const VideoItem = memo<VideoItemProps>(({
 
                 <View style={styles.rightActions} pointerEvents="box-none">
                     <ActionButton
-                        icon={item.viewerState.isLiked ? 'heart' : 'heart-outline'}
+                        icon={item.viewerState.isLiked
+                            ? <HeartIconActive size={30} color={LIKE_ACTIVE_COLOR} />
+                            : <HeartIcon size={30} color="white" />}
                         count={item.engagement.likes ?? 0}
                         isActive={item.viewerState.isLiked}
                         activeColor={LIKE_ACTIVE_COLOR}
@@ -890,14 +908,16 @@ const VideoItem = memo<VideoItemProps>(({
                         accessibilityLabel={t(item.viewerState.isLiked ? 'videos.unlike' : 'videos.like')}
                     />
                     <ActionButton
-                        icon="chatbubble-outline"
+                        icon={<CommentIcon size={30} color="white" />}
                         count={item.engagement.replies ?? 0}
                         onPress={() => onComment(item.id)}
                         formatCompactNumber={formatCompactNumber}
                         accessibilityLabel={t('videos.comment')}
                     />
                     <ActionButton
-                        icon={item.viewerState.isBoosted ? 'repeat' : 'repeat-outline'}
+                        icon={item.viewerState.isBoosted
+                            ? <BoostIconActive size={30} color={BOOST_ACTIVE_COLOR} />
+                            : <BoostIcon size={30} color="white" />}
                         count={item.engagement.boosts ?? 0}
                         isActive={item.viewerState.isBoosted}
                         activeColor={BOOST_ACTIVE_COLOR}
@@ -909,14 +929,16 @@ const VideoItem = memo<VideoItemProps>(({
                         rail has no brand colour for it, and inventing one would
                         put a fourth accent over the video. */}
                     <ActionButton
-                        icon={item.viewerState.isSaved ? 'bookmark' : 'bookmark-outline'}
+                        icon={item.viewerState.isSaved
+                            ? <BookmarkActive size={30} color="white" />
+                            : <Bookmark size={30} color="white" />}
                         count={item.engagement.saves ?? 0}
                         onPress={() => onSave(item.id, item.viewerState.isSaved)}
                         formatCompactNumber={formatCompactNumber}
                         accessibilityLabel={t(item.viewerState.isSaved ? 'videos.unsave' : 'videos.save')}
                     />
                     <ActionButton
-                        icon="share-outline"
+                        icon={<ShareIcon size={30} color="white" />}
                         count={0}
                         onPress={() => onShare(item)}
                         formatCompactNumber={formatCompactNumber}
@@ -932,10 +954,8 @@ const VideoItem = memo<VideoItemProps>(({
 VideoItem.displayName = 'VideoItem';
 
 // ── Action button ────────────────────────────────────────────────
-type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
-
 interface ActionButtonProps {
-    icon: IoniconName;
+    icon: React.ReactNode;
     count: number;
     isActive?: boolean;
     activeColor?: string;
@@ -955,12 +975,7 @@ const ActionButton = memo<ActionButtonProps>(({ icon, count, isActive, activeCol
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
     >
-        <Ionicons
-            name={icon}
-            size={30}
-            color={isActive && activeColor ? activeColor : 'white'}
-            style={styles.actionIcon}
-        />
+        {icon}
         {!hideCount && (
             <Text style={[styles.actionCount, isActive && activeColor ? { color: activeColor } : null]}>
                 {formatCompactNumber(count)}
@@ -1012,7 +1027,13 @@ export default function VideosScreen() {
     // RightBar) vs. opening the bottom sheet on mobile.
     const isDesktop = useIsRightBarVisible();
     const { setRailState, requestComposerFocus } = useVideosRail();
-    const { openBottomSheet, setBottomSheetContent } = useContext(BottomSheetContext);
+    const {
+        openBottomSheet,
+        setBottomSheetContent,
+        isBottomSheetOpen,
+        bottomSheetPresentation,
+    } = useContext(BottomSheetContext);
+    const compactForReplies = isBottomSheetOpen === true && bottomSheetPresentation === 'videoReplies';
 
     const [posts, setPosts] = useState<VideoPost[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -1595,7 +1616,7 @@ export default function VideosScreen() {
                 onClose={() => openBottomSheet(false)}
                 onCommentPosted={() => handleCommentPosted(postId)}
             />,
-            { scrollable: false },
+            { scrollable: false, presentation: 'videoReplies' },
         );
         openBottomSheet(true);
     }, [isDesktop, requestComposerFocus, setBottomSheetContent, openBottomSheet, handleCommentPosted]);
@@ -1846,6 +1867,7 @@ export default function VideosScreen() {
             bottomBarHeight={bottomBarHeight}
             t={t}
             windowHeight={WINDOW_HEIGHT}
+            compactForReplies={compactForReplies}
             viewerId={viewerId}
             ownsSession={item.id === pipOwnerId}
             sessionActive={pipOwnerId !== null}
@@ -1854,7 +1876,7 @@ export default function VideosScreen() {
             onSessionEnd={endPipSession}
             onRegisterTransportSeek={registerTransportSeek}
         />
-    ), [currentVisibleIndex, isFocused, theme, handleLike, handleComment, handleBoost, handleSave, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT, viewerId, pipOwnerId, sessionSource, startPipSession, endPipSession, registerTransportSeek]);
+    ), [currentVisibleIndex, isFocused, theme, handleLike, handleComment, handleBoost, handleSave, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT, compactForReplies, viewerId, pipOwnerId, sessionSource, startPipSession, endPipSession, registerTransportSeek]);
 
     const keyExtractor = useCallback((item: VideoPost) => item.id, []);
 
@@ -1943,6 +1965,7 @@ export default function VideosScreen() {
                                         bottomBarHeight={bottomBarHeight}
                                         t={t}
                                         windowHeight={WINDOW_HEIGHT}
+                                        compactForReplies={compactForReplies}
                                         viewerId={viewerId}
                                         ownsSession={item.id === pipOwnerId}
                                         sessionActive={pipOwnerId !== null}
@@ -2050,7 +2073,6 @@ interface VideosStyles {
     gradientOverlay: ViewStyle;
     rightActions: ViewStyle;
     actionButton: ViewStyle;
-    actionIcon: TextStyle;
     actionCount: TextStyle;
     bottomInfo: ViewStyle;
     userInfo: ViewStyle;
@@ -2251,7 +2273,7 @@ const styles = StyleSheet.create<VideosStyles>({
     rightActions: {
         justifyContent: 'flex-end',
         alignItems: 'center',
-        gap: 16,
+        gap: 10,
         zIndex: 6,
         paddingRight: 8,
     },
@@ -2261,12 +2283,9 @@ const styles = StyleSheet.create<VideosStyles>({
         gap: 2,
         minWidth: 36,
     },
-    actionIcon: {
-        ...TEXT_SHADOW_STRONG,
-    },
     actionCount: {
         color: '#FFFFFF',
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: '600',
         ...TEXT_SHADOW_MEDIUM,
         marginTop: 0,

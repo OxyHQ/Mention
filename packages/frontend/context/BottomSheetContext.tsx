@@ -1,11 +1,13 @@
 import React, { createContext, useState, ReactNode, useRef, useCallback, useMemo } from "react";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { BottomSheet, type BottomSheetRef } from "@oxyhq/bloom/bottom-sheet";
 
 export interface BottomSheetContextProps {
     openBottomSheet: (isOpen: boolean) => void;
-    setBottomSheetContent: (content: ReactNode, options?: { scrollable?: boolean }) => void;
+    setBottomSheetContent: (content: ReactNode, options?: { scrollable?: boolean; presentation?: 'default' | 'videoReplies' }) => void;
     bottomSheetRef: React.RefObject<BottomSheetRef | null>;
+    isBottomSheetOpen?: boolean;
+    bottomSheetPresentation?: 'default' | 'videoReplies';
 }
 
 export const BottomSheetContext = createContext<BottomSheetContextProps>({
@@ -17,9 +19,12 @@ export const BottomSheetContext = createContext<BottomSheetContextProps>({
 export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [bottomSheetContent, setBottomSheetContentState] = useState<ReactNode>(null);
     const [scrollable, setScrollable] = useState(true);
+    const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
+    const [bottomSheetPresentation, setBottomSheetPresentation] = useState<'default' | 'videoReplies'>('default');
     const bottomSheetRef = useRef<BottomSheetRef | null>(null);
 
     const openBottomSheet = useCallback((isOpen: boolean) => {
+        setIsBottomSheetOpen(isOpen);
         if (isOpen) {
             bottomSheetRef.current?.present();
         } else {
@@ -27,16 +32,24 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
         }
     }, []);
 
-    const setBottomSheetContent = useCallback((content: ReactNode, options?: { scrollable?: boolean }) => {
+    const setBottomSheetContent = useCallback((content: ReactNode, options?: { scrollable?: boolean; presentation?: 'default' | 'videoReplies' }) => {
         setBottomSheetContentState(content);
         setScrollable(options?.scrollable ?? true);
+        setBottomSheetPresentation(options?.presentation ?? 'default');
+    }, []);
+
+    const handleDismiss = useCallback(() => {
+        setIsBottomSheetOpen(false);
+        setBottomSheetPresentation('default');
     }, []);
 
     const contextValue = useMemo(() => ({
         openBottomSheet,
         setBottomSheetContent,
         bottomSheetRef,
-    }), [openBottomSheet, setBottomSheetContent]);
+        isBottomSheetOpen,
+        bottomSheetPresentation,
+    }), [openBottomSheet, setBottomSheetContent, isBottomSheetOpen, bottomSheetPresentation]);
 
     return (
         <BottomSheetContext.Provider value={contextValue}>
@@ -44,8 +57,15 @@ export const BottomSheetProvider: React.FC<{ children: ReactNode }> = ({ childre
             <BottomSheet
                 ref={bottomSheetRef}
                 enablePanDownToClose={true}
-                style={styles.contentContainer}
+                style={[
+                    styles.contentContainer,
+                    bottomSheetPresentation === 'videoReplies' ? styles.videoRepliesContainer : null,
+                ]}
                 scrollable={scrollable}
+                onDismiss={handleDismiss}
+                backdropComponent={bottomSheetPresentation === 'videoReplies'
+                    ? ({ onPress }) => <Pressable style={StyleSheet.absoluteFill} onPress={onPress} />
+                    : undefined}
             >
                 <View style={styles.contentView}>
                     {bottomSheetContent}
@@ -59,6 +79,9 @@ const styles = StyleSheet.create({
     contentContainer: {
         maxWidth: 500,
         margin: 'auto',
+    },
+    videoRepliesContainer: {
+        height: '62%',
     },
     contentView: {
         flex: 1,
