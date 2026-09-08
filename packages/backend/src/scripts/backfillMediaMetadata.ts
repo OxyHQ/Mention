@@ -24,10 +24,20 @@ import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 
 const DEFAULT_PAGE_SIZE = 200;
 
+/** Exit code for "finished, but some posts could not be resolved". Mirrors `backfillFederatedPostAuthors`. */
+const EXIT_INCOMPLETE = 75;
+
 export interface BackfillMediaMetadataResult {
   scanned: number;
   updated: number;
   skipped: number;
+  /**
+   * Posts left un-repaired because Oxy could not answer for their assets — a
+   * 429, a timeout, a 5xx. NOT the same as `skipped`, which means "nothing to
+   * do": these still need the work, and the run says so rather than reporting a
+   * clean sweep over a set it silently failed to resolve.
+   */
+  unresolved: number;
 }
 
 function mediaNeedsEnrichment(items: MediaItem[]): boolean {
@@ -39,6 +49,50 @@ function mediaNeedsEnrichment(items: MediaItem[]): boolean {
     return item.type === 'video'
       && (item.orientation === undefined || item.durationSec === undefined);
   });
+}
+
+/** Attempts for one page's Oxy lookup, and the base of the exponential wait. */
+const OXY_LOOKUP_ATTEMPTS = 4;
+const OXY_LOOKUP_BACKOFF_MS = 2_000;
+
+/**
+ * One page's Oxy lookup, retried on failure with an exponential wait.
+ *
+ * Oxy rate-limits its service endpoints, and a sweep is exactly the traffic
+ * shape that trips it: a long run of back-to-back batch requests from one
+ * caller. A 429 is not a verdict about those assets, it is "ask again later" —
+ * and `enrichFromOxy` cannot tell the caller which it was, it just returns the
+ * items unchanged. Retrying here is what keeps a throttled page from being
+ * silently recorded as a page with nothing to do.
+ *
+ * Bounded, and it gives up rather than blocking the sweep: the caller counts
+ * those posts as `unresolved`, the run reports them, and a re-run picks them up
+ * because they never left the candidate set.
+ */
+async function enrichWithRetry(media: MediaItem[]): Promise<MediaItem[]> {
+  // Nothing to ask Oxy about — every item is a remote URL the cache never
+  // mirrored. `enrichFromOxy` returns the SAME array in that case, which is
+  // also how it reports a failed lookup, so without this check a page of purely
+  // federated media would be retried four times and then counted `unresolved`.
+  // The two cases are told apart here rather than by the identity test below,
+  // because only one of them had a question to fail at.
+  if (!media.some((item) => isOxyFileId(item.id))) return media.map((item) => ({ ...item }));
+
+  let enriched = media;
+  for (let attempt = 1; attempt <= OXY_LOOKUP_ATTEMPTS; attempt += 1) {
+    enriched = await mediaMetadataService.enrichFromOxy(media);
+    if (enriched !== media) return enriched;
+    if (attempt === OXY_LOOKUP_ATTEMPTS) break;
+    const wait = OXY_LOOKUP_BACKOFF_MS * 2 ** (attempt - 1);
+    logger.warn('[backfillMediaMetadata] Oxy lookup failed; retrying', {
+      attempt,
+      of: OXY_LOOKUP_ATTEMPTS,
+      waitMs: wait,
+      ids: media.length,
+    });
+    await new Promise((resolve) => setTimeout(resolve, wait));
+  }
+  return enriched;
 }
 
 export async function backfillMediaMetadata(
@@ -82,6 +136,7 @@ export async function backfillMediaMetadata(
   let scanned = 0;
   let updated = 0;
   let skipped = 0;
+  let unresolved = 0;
   let lastId: string | null = null;
 
   for (;;) {
@@ -92,20 +147,59 @@ export async function backfillMediaMetadata(
 
     if (rows.length === 0) break;
 
-    for (const row of rows) {
+    /**
+     * ONE Oxy lookup per page, not per post.
+     *
+     * `enrichFromOxy` was called inside the row loop, so a page of 200 posts
+     * was 200 round trips to `/assets/service/by-ids` carrying one to four ids
+     * each — and Oxy rate-limits its service endpoints. Measured on the first
+     * production run: a wall of `status 429`, each one leaving that post
+     * un-enriched while the sweep counted it as "nothing to do". The SDK
+     * already chunks at 100 ids per request, so handing it the whole page's
+     * media turns those 200 requests into a handful.
+     *
+     * The concatenation is order-preserving and `enrichFromOxy` returns one
+     * item per input item, so each post's slice comes back at the same offset.
+     * That is the contract this relies on, and `mediaMetadataService.test.ts`
+     * pins it.
+     */
+    const pageCandidates = rows.map((row) => {
+      const media = row.content.media;
+      return Array.isArray(media) && media.length > 0 && mediaNeedsEnrichment(media)
+        ? media
+        : null;
+    });
+    const flatMedia = pageCandidates.flatMap((media) => media ?? []);
+    let enrichedFlat = flatMedia;
+    let pageResolved = true;
+    if (flatMedia.length > 0) {
+      enrichedFlat = await enrichWithRetry(flatMedia);
+      // `enrichFromOxy` returns the items UNCHANGED when the lookup failed, and
+      // an unchanged item is indistinguishable from "Oxy has nothing to add".
+      // Identity is the only signal available, and it is the honest one: it is
+      // the same array object only on the failure path.
+      pageResolved = enrichedFlat !== flatMedia;
+    }
+
+    let offset = 0;
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
       scanned += 1;
       lastId = row.id;
-      const current = row.content.media;
-      if (!Array.isArray(current) || current.length === 0) {
-        skipped += 1;
-        continue;
-      }
-      if (!mediaNeedsEnrichment(current)) {
+      const current = pageCandidates[index];
+      if (!current) {
         skipped += 1;
         continue;
       }
 
-      const enriched = await mediaMetadataService.enrichFromOxy(current);
+      const enriched = enrichedFlat.slice(offset, offset + current.length);
+      offset += current.length;
+
+      if (!pageResolved) {
+        unresolved += 1;
+        continue;
+      }
+
       const changed = enriched.some((item, index) => {
         const prev = current[index];
         return (
@@ -132,10 +226,22 @@ export async function backfillMediaMetadata(
       await replacePostContent(row.id, { ...row.content, media: enriched }, row.mentions);
     }
 
+    // A progress line per page, at INFO.
+    //
+    // The run is bounded by its container's `timeout` (3300s in
+    // `run-media-metadata-backfill.yml`) and holds no cursor, so a sweep that
+    // outlives the bound is SIGTERMed — and the summary below never runs. On a
+    // write run that costs only the total, since the writes are committed and a
+    // repaired post leaves the candidate set. On a DRY run it costs everything:
+    // the whole point of the preview is the number, and a killed preview
+    // reported nothing at all. Per page, the number survives in the log
+    // whatever happens to the process.
+    logger.info('[backfillMediaMetadata] progress', { dryRun, scanned, updated, skipped, unresolved });
+
     if (rows.length < pageSize) break;
   }
 
-  return { scanned, updated, skipped };
+  return { scanned, updated, skipped, unresolved };
 }
 
 async function main(): Promise<void> {
@@ -149,6 +255,12 @@ async function main(): Promise<void> {
     await connectPostgres();
     const result = await backfillMediaMetadata({ dryRun });
     logger.info('[backfillMediaMetadata] complete', { dryRun, ...result });
+    // A sweep that could not resolve some posts is INCOMPLETE, not failed:
+    // everything it did write is committed, and the posts it missed never left
+    // the candidate set, so a re-run picks them up. Saying so with a distinct
+    // exit code is what lets the workflow tell "re-run me" apart from "the
+    // script threw" — the same split `backfillFederatedPostAuthors` uses.
+    if (result.unresolved > 0) process.exitCode = EXIT_INCOMPLETE;
   } finally {
     await closeAdminScriptResources();
   }
@@ -156,7 +268,9 @@ async function main(): Promise<void> {
 
 if (require.main === module) {
   main()
-    .then(() => process.exit(0))
+    // `process.exitCode` and not `exit(0)`: `main` sets EXIT_INCOMPLETE when the
+    // sweep left posts unresolved, and exiting zero here would erase it.
+    .then(() => process.exit(process.exitCode ?? 0))
     .catch((error) => {
       logger.error('[backfillMediaMetadata] failed', error);
       process.exit(1);
