@@ -52,6 +52,27 @@ describe('the reel’s live-player window', () => {
     expect(constant('RETAINED_BEHIND_RADIUS')).toBeGreaterThan(ahead);
   });
 
+  /**
+   * FlatList's window is SYMMETRIC, so it has to cover the LARGER radius on both
+   * sides. Sized to the ahead-radius instead, the extra retained slide behind
+   * the reader falls outside the list and is unmounted — and a row FlatList
+   * never renders cannot mount a player, whatever `isSlideNear` says about it.
+   *
+   * That is what shipped: WINDOW_SIZE 5 against a behind-radius of 3, so going
+   * back three slides was a full remount (black, buffer, restart) while going
+   * forward three was already mounted. It reached the device as "scrolling up
+   * loads slower than scrolling down", and nothing in the retention rule looked
+   * wrong — the rule was right and the list was not carrying it out.
+   */
+  it('renders far enough for the retained slides to exist at all', () => {
+    const behind = constant('RETAINED_BEHIND_RADIUS');
+    const widest = Math.max(ahead, behind);
+    const windowSize = Number(screen.match(/WINDOW_SIZE: (\d+),/)?.[1]);
+
+    expect(Number.isFinite(windowSize)).toBe(true);
+    expect(windowSize).toBeGreaterThanOrEqual(2 * widest + 1);
+  });
+
   it('bounds both sides — a decoder is a scarce, silently exhaustible resource', () => {
     const behind = constant('RETAINED_BEHIND_RADIUS');
     // 1 current + ahead + behind is the count of slides that may hold a decoder.
