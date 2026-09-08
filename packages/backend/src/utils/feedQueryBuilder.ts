@@ -94,32 +94,6 @@ export function authorNotInSql(ids: readonly string[]): SQL | undefined {
   return or(isNull(posts.oxyUserId), notInArray(posts.oxyUserId, [...ids])) as SQL;
 }
 
-/**
- * Render a ranking weight as a SQL `double precision` LITERAL.
- *
- * Not a bound parameter, and this is not a style choice. Drizzle infers a bound
- * parameter's type from the expression it sits next to, so
- * `${posts.statsBoostsCount} * ${2.5}` declares `$n` as `int4` — from the
- * COLUMN — and Postgres then rejects the value with
- * `invalid input syntax for type integer: "2.5"`. Every ranking weight is
- * fractional, so the whole composite fails at RUNTIME while compiling and
- * type-checking perfectly.
- *
- * The cast has to be on the LITERAL rather than on the surrounding expression:
- * a parameter's type is fixed at Parse time, before any outer `::double
- * precision` is reached.
- *
- * `sql.raw` is safe here and only here because the input is a number from a
- * compile-time config object, never user input — and the guard makes that a
- * checked property rather than an assumption.
- */
-export function rankingWeight(value: number): SQL {
-  if (!Number.isFinite(value)) {
-    throw new Error(`Ranking weight must be a finite number, received ${String(value)}`);
-  }
-  return sql.raw(`${value}::double precision`);
-}
-
 export class FeedQueryBuilder {
   /**
    * Content predicate for the Videos (Reels) feed.
@@ -150,6 +124,17 @@ export class FeedQueryBuilder {
    * CONTENT PREDICATE + SEEN SET ONLY — deliberately NO cursor. Every consumer
    * feeds a RANKED pipeline whose page order is a score, not an id, so a cursor
    * bound here would drop candidates on an axis nothing sorts by.
+   *
+   * ## It STAYS, and its remaining caller is the reason
+   *
+   * The chronological Videos lane no longer uses this — it drives from
+   * `post_media` through {@link FeedQueryBuilder.videoMediaConditions}, because
+   * only that direction can reach `post_media_video_chrono_idx`.
+   * `popularVideosSource` still does, and should: it orders by the ENGAGEMENT
+   * composite, so it reaches its rows through `posts_engagement_rank_idx` and
+   * needs exactly what this returns — a cheap yes/no about qualifying media, with
+   * set semantics free. Rewriting that one to drive from `post_media` would trade
+   * an index it uses for one it cannot order by.
    */
   static buildVideosQuery(
     seenPostIds: readonly string[],
@@ -192,6 +177,85 @@ export class FeedQueryBuilder {
   }
 
   /**
+   * The same video-media rule as {@link FeedQueryBuilder.buildVideosQuery}, but
+   * as conditions on `post_media` ITSELF rather than inside a correlated
+   * `EXISTS` — for the caller that DRIVES from that table.
+   *
+   * ## Why there are two of these and neither is redundant
+   *
+   * They serve opposite scan directions, and each is wrong for the other's.
+   *
+   * `buildVideosQuery` states the rule as a predicate over `posts`, which is what
+   * a query ordering by ENGAGEMENT needs: `popularVideosSource` sorts on the
+   * engagement composite, reaches its rows through `posts_engagement_rank_idx`,
+   * and only wants a yes/no about whether each candidate has qualifying media. An
+   * `EXISTS` also gives it set semantics for free — a post carrying two matching
+   * media rows is one post, with no `DISTINCT` anywhere.
+   *
+   * This one states the rule where the rows are, which is what a query ordering
+   * CHRONOLOGICALLY needs: `post_media_video_chrono_idx` is keyed
+   * `(type, orientation, post_created_at desc, post_id desc)`, so a scan driving
+   * from `post_media` walks matching media in page order and stops at the page.
+   * Fed to the `EXISTS` form instead, that index cannot be reached at all — a
+   * correlated subquery is evaluated per candidate post, so its own ordering is
+   * never asked for.
+   *
+   * The cost of driving from here is that set semantics stop being free: one post
+   * carrying two matching media rows is TWO rows out of the join. The caller owns
+   * that — `selectVideoCandidatesByMediaChrono` uses `DISTINCT ON` — and
+   * `videosLaneChrono.test.ts` seeds exactly that post to prove it.
+   *
+   * The `post_media.post_id = posts.id` correlation is deliberately NOT here: the
+   * caller expresses it as a JOIN, which is the only form that lets the planner
+   * start from this table.
+   */
+  static videoMediaConditions(options: VideosQueryOptions = {}): SQL {
+    const minDurationSec = options.minDurationSec ?? MtnConfig.videosFeed.minDurationSec;
+    const orientation = options.orientation ?? MtnConfig.videosFeed.defaultOrientation;
+
+    const conditions: SQL[] = [
+      eq(postMedia.type, 'video'),
+      // Duration when known, abstain when absent — the same abstention the
+      // `EXISTS` form makes, and the reason `duration_sec` is not an index key.
+      or(gte(postMedia.durationSec, minDurationSec), isNull(postMedia.durationSec)) as SQL,
+      gt(postMedia.width, 0),
+      gt(postMedia.height, 0),
+    ];
+
+    // `'all'` is the one setting whose NAME promises no filtering, so it must
+    // not compile to a filter.
+    if (orientation !== 'all') {
+      conditions.push(eq(postMedia.orientation, orientation));
+    }
+
+    return and(...conditions) as SQL;
+  }
+
+  /**
+   * The `posts`-side half of the Videos lane: publication state, not a boost, and
+   * not already seen — the companion to
+   * {@link FeedQueryBuilder.videoMediaConditions} for the media-driven scan,
+   * which applies the two halves to the two tables it joins.
+   *
+   * Identical in meaning to the non-media terms of
+   * {@link FeedQueryBuilder.buildVideosQuery}, and the parity is asserted rather
+   * than eyeballed: `videosLaneChrono.test.ts` drives both formulations over the
+   * fixtures that distinguish them and requires the same posts back.
+   */
+  static videoPostConditions(seenPostIds: readonly string[]): SQL {
+    const conditions: SQL[] = [
+      eq(posts.visibility, PostVisibility.PUBLIC),
+      eq(posts.status, 'published'),
+      notABoostSql(),
+    ];
+
+    const seen = excludeSeenSql(seenPostIds);
+    if (seen) conditions.push(seen);
+
+    return and(...conditions) as SQL;
+  }
+
+  /**
    * Content predicate for the global Media feed.
    *
    * Mirrors {@link FeedQueryBuilder.buildVideosQuery} but widens the content
@@ -200,6 +264,17 @@ export class FeedQueryBuilder {
    * a `media` attachment descriptor. Boosts excluded; replies flow through.
    *
    * CONTENT PREDICATE + SEEN SET ONLY — no cursor, for the reason given above.
+   *
+   * ## This one CANNOT become a media-driven scan, so do not unify it
+   *
+   * The obvious next step after the Videos lane — drive from `post_media` and use
+   * its chronological index — is unavailable here, and not for want of trying.
+   * The predicate below is a three-way `OR`: a post qualifies by `posts.type`
+   * being IMAGE/VIDEO, OR by having a `post_media` row, OR by carrying a `media`
+   * attachment descriptor. The first and third arms match posts with NO
+   * `post_media` row at all, so a scan driven from that table cannot see them and
+   * the Media feed would silently lose every one — a shorter page, no error. Only
+   * the Videos lane can move, because a video post is defined BY its media row.
    */
   static buildMediaFeedQuery(seenPostIds: readonly string[]): SQL {
     const db = getDb();

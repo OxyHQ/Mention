@@ -6,7 +6,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { ProfileCard } from '@/components/ProfileCard';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import type { PostUser } from '@mention/shared-types';
 
 interface CollaboratorsListProps {
@@ -29,7 +29,7 @@ interface CollaboratorsListProps {
  * The collaborators of a multi-author post. Surfaces each author's full identity
  * — displayName + @username (federated authors render `@user@domain`) — which
  * the compact byline (first names only) omits. Reuses {@link ProfileCard} for
- * every row and the same `getNormalizedUserHandle` → `/@handle` navigation as
+ * every row and the same {@link profileHrefForUser} navigation as
  * {@link EngagementList}.
  *
  * Rendered on the shared content-dialog surface (`showContentDialog`), the same
@@ -41,9 +41,9 @@ const CollaboratorsList: React.FC<CollaboratorsListProps> = ({ authors, onClose,
 
   const handleUserPress = useCallback((user: PostUser) => {
     onClose();
-    const profileHandle = getNormalizedUserHandle(user);
-    if (profileHandle) {
-      router.push(`/@${profileHandle}`);
+    const href = profileHrefForUser(user);
+    if (href) {
+      router.push(href);
     }
   }, [onClose, router]);
 

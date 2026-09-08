@@ -119,6 +119,37 @@ the pool this repo already had. The socket broadcast — a full `hydratePosts`
 including the Oxy author batch and its 1500 ms deadline — is detached, since its
 result never reaches the response.
 
+**Completed in #900: the notification fan-out itself is now off the request.**
+Bounding the pools left the author still waiting for work addressed entirely to
+other people, and that wait scaled with their own popularity — the
+`post_subscriptions` select has no LIMIT, and each recipient costs an INSERT, a
+conditional UPDATE and a push-token SELECT, plus an FCM multicast in production.
+Measured on a seeded database, medians of five rounds, push stubbed and Oxy
+stubbed at a fixed round trip:
+
+| subscribers | 0 | 10 | 50 | 200 |
+|---|---|---|---|---|
+| before (Oxy 0 ms) | 25.7 | 23.5 | 39.7 | **112.1** ms |
+| after (Oxy 0 ms) | 20.3 | 20.5 | 34.1 | **51.4** |
+| before (Oxy 60 ms) | 32.5 | 147.6 | 464.1 | **1617.7** |
+| after (Oxy 60 ms) | 36.5 | 19.4 | 16.7 | **18.8** |
+
+Two things worth carrying forward from doing it. The fan-out resolves the same
+`actorId` once per recipient, which reads like a textbook N+1 and is not one:
+`getUserById` caches for five minutes by default in the SDK, so those are one
+HTTP request in production. That framing was checked and dropped rather than
+shipped. And the work is not cheaper, it is relocated — the 0 ms / 200 row reads
+51 ms rather than 20 because the detached fan-out competes for the same
+connection pool as the next write.
+
+It goes through `runtime/backgroundWork.ts` rather than a bare `void`, so the
+shutdown drain still waits for it in the phase where Postgres and Redis are open;
+this is that primitive's second consumer. `postCreationFanOutDetached.test.ts`
+gates it as a race — "detached" is a claim about order, not output, so the same
+rows are written either way — with both controls verified red: restoring the
+`await` loses the race, and deleting the fan-out outright (which would also win
+it) fails the drain-registration assertion instead.
+
 ### W5 — `GET /nodeinfo/2.0` had no cache, and said it did
 
 `runtimeApp.ts` justified an exact `count(*)` over `posts` as "read at most once
@@ -207,6 +238,22 @@ Two ways to close it, and the second is the better one:
    stale graph to a request that just mutated it, so the scope belongs on read
    paths, deliberately, rather than on the client wholesale.
 
+### What #896 settled about the threading mechanism
+
+Landed independently after this spec was written, and it is worth recording here
+because it answers a question this section left open. `FeedContext.viewerPrivacy`
+threads the viewer's blocked and restricted lists through all five of the
+engine's hydration sites, exactly as `viewerGraph` threads the follow graph —
+`buildViewerContext` had been re-fetching them on every hydration, measured at 3x
+`getBlockedUsers` and 2x `getRestrictedUsers` per authenticated For You page.
+
+So the mechanism generalises, and the argument above about the non-feed surfaces
+is unaffected by that: threading still only removes a call where something else
+in the same request already resolved the value, which on the feed is
+`loadViewerFeedContext` and on post detail, notifications and search is nothing.
+What #896 did NOT do is make `getViewerGraph` usable in `buildViewerContext` —
+both constraints above (no followers; viewer-scoped clients only) still hold.
+
 ## Remaining workstreams
 
 - **W7 — Retained metrics.** `/internal/metrics` IS enabled in production
@@ -216,7 +263,7 @@ Two ways to close it, and the second is the better one:
   from the existing ECS tasks is the lowest-new-infrastructure option. Numbers
   go into `PERFORMANCE_BUDGETS.md` only after they are read off a deployment.
 - **W8 — The two GLOBAL `io.emit('feed:updated')` per public post.** W4 detached
-  the broadcast and bounded the notification fan-outs, but the emit itself still
+  the broadcast and the notification fan-out, but the emit itself still
   reaches EVERY connected socket in the fleet, twice, and the client filters
   locally (`socketService.ts:487`). `postEngagementBroadcast.ts:129` shows the
   room-scoped form, and `socketHandlers.ts` already runs `user:`, `post:` and
@@ -224,20 +271,33 @@ Two ways to close it, and the second is the better one:
   means resolving each connection's follow graph at connect time, which is a new
   Oxy cost paid per socket rather than per post. That trade is the workstream:
   it is a protocol change across both runtimes, not a server-side tidy-up.
-- **W9 — Discovery indexes.** `engagementScoreSql()` and `exploreFinalScoreSql`
-  are computed expressions in `ORDER BY` with no expression index, so `popular`,
-  `explore` and `trending` are seq scan + sort — the anonymous For You path. No
-  `pg_trgm` anywhere, so every `ILIKE '%…%'` is a full scan; the worst is
-  `bookmarks.ts:165`, inside an `EXISTS` over all of `post_content_variants`.
+- **W9 — Discovery indexes. HALF DONE (#899); the text search half is still
+  open.** The `popular`/discovery composite is indexed: `posts_engagement_rank_idx`
+  (`db/schema/posts.ts:913`) is a partial expression index on
+  `engagementRankSql`, generated by ONE function so the index declaration and the
+  query builder cannot spell the composite differently — which was exactly the
+  silent-coupling risk this entry flagged, and it is now pinned by
+  `engagementRankIndex.test.ts` rather than argued. Both concerns raised here were
+  borne out in the doing: the weights ARE embedded as literals and a retuned
+  `likeWeight` reds the test, and the plan assertion had to be written as "the
+  ORDER BY is satisfiable by this index" rather than "the planner chose it",
+  because on a near-empty CI database the planner correctly prefers a seq scan and
+  the assertion would otherwise have measured row count.
 
-  Two things to settle BEFORE writing the migration, both found while scoping it.
-  `MtnConfig` is `as const`, so an expression index CAN embed the literal weights
-  and match the `ORDER BY` — but the coupling is silent: retune `likeWeight` in
-  `shared-types` and the index stops being used with nothing failing. Pin the
-  migration's literals to `MtnConfig.ranking.engagement` in a test, the way
-  `hotPathIndexes.test.ts` pins the rest. And an `EXPLAIN` on a near-empty
-  database proves nothing — the planner is right to prefer a seq scan there — so
-  this needs a representative row count before any number is claimed.
+  Still open, and verified still open against current `main`:
+  - **`exploreFinalScoreSql`** (`mtn/feed/engine/sources/discoverySources.ts:265`)
+    is a DIFFERENT expression from the one #899 indexed — it folds a relevance
+    term in — so `explore` is still seq scan + sort. Whether it can take the same
+    treatment is an open question, not a given: its relevance argument is built
+    per request, and an expression index can only cover the parts that are not.
+  - **No `pg_trgm` anywhere** (grepped: zero hits in `src/` and `drizzle/`), so
+    every `ILIKE '%…%'` is a full scan. The worst remains
+    `controllers/posts/bookmarks.ts:165`, inside an `EXISTS` over all of
+    `post_content_variants`.
+
+  The measurement caveat still stands for both: an `EXPLAIN` on a near-empty
+  database proves nothing, so a representative row count comes before any number
+  is claimed. #899 used 275,000 posts.
 - **W10 — Split `compose.tsx`.** The frontend's `posts.controller.ts`. Same
   contract as W2 of the previous programme: move, do not rewrite; nothing over
   ~600 lines; unchanged export surface; an unchanged test COUNT is the point.

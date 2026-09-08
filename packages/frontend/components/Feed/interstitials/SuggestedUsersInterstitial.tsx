@@ -10,6 +10,7 @@ import {
 import { useRecommendations } from '@/hooks/useRecommendations';
 import type { ProfileData } from '@/lib/recommendations';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { DismissButton } from './DismissButton';
 import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';
 import {
@@ -132,6 +133,7 @@ function SuggestedUserItem({
   // else "Unknown user" — an unresolved profile must never leak its raw id, not
   // even into a screen reader.
   const handle = getNormalizedUserHandle(profile) ?? '';
+  const profileHref = profileHrefForUser(profile);
   const dismissLabel = t('feed.interstitial.users.dismiss', {
     name:
       profile.name?.displayName?.trim() ||
@@ -160,10 +162,10 @@ function SuggestedUserItem({
       // wired when there IS somewhere to go: a handle-less (degraded) profile is
       // not pressable, and must not become so just because we want the signal.
       onPress={
-        handle.length > 0
+        profileHref
           ? () => {
               report('click', position);
-              router.push(`/@${handle}`);
+              router.push(profileHref);
             }
           : undefined
       }

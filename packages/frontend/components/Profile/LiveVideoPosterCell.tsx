@@ -1,6 +1,6 @@
 import React from 'react';
 import VideoPosterCell from '@/components/common/VideoPosterCell';
-import { usePostSelector } from '@/stores/postsStore';
+import { useViewCountSelector } from '@/stores/postsStore';
 
 type PosterCellProps = React.ComponentProps<typeof VideoPosterCell>;
 
@@ -36,11 +36,16 @@ interface LiveVideoPosterCellProps extends Omit<PosterCellProps, 'views'> {
  * never see the view the viewer just caused; measured, a feed-snapshot consumer
  * gets zero re-renders from such a write.
  *
- * This wrapper closes that gap the same way `PostItem` already does — one
- * `usePostSelector` subscription per post — rather than by making every
- * engagement write invalidate every feed containing the post, which would put a
- * key lookup plus a full feed re-read on the hottest path in the app to serve a
- * number that moves rarely.
+ * This wrapper closes that gap with one subscription per post — to the view
+ * count alone (`useViewCountSelector`), not to the post — rather than by making
+ * every engagement write invalidate every feed containing the post, which would
+ * put a key lookup plus a full feed re-read on the hottest path in the app to
+ * serve a number that moves rarely.
+ *
+ * The count alone is what this cell draws, and subscribing to the whole post
+ * would put it on the channel a feed row listens on: the server answers the
+ * impression report with a total for every post the reader just scrolled past,
+ * so that channel fires for the whole viewport on every scroll.
  *
  * It exists as a wrapper, and not as a change to `VideoPosterCell`, so that cell
  * stays a pure function of scalars: shared, memo-safe, and testable without a
@@ -48,13 +53,14 @@ interface LiveVideoPosterCellProps extends Omit<PosterCellProps, 'views'> {
  */
 const LiveVideoPosterCell = React.memo<LiveVideoPosterCellProps>(
   ({ viewsPostId, fallbackViews, ...cellProps }) => {
-    const cachedPost = usePostSelector(viewsPostId);
+    const cachedViews = useViewCountSelector(viewsPostId);
 
     // The store row wins WHENEVER it exists, including when its count is null:
     // the entry was itself derived from that row, so the row is never the staler
     // of the two, and `??` here would quietly resurrect an old number for a post
-    // whose count is genuinely absent.
-    const views = cachedPost ? cachedPost.engagement.views : fallbackViews;
+    // whose count is genuinely absent. `undefined` is the absence of a ROW, and
+    // only that leaves the fetch-time number standing.
+    const views = cachedViews !== undefined ? cachedViews : fallbackViews;
 
     return <VideoPosterCell {...cellProps} views={views} />;
   }

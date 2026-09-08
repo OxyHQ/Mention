@@ -5,7 +5,7 @@ import { ActivityHeatmap } from '@oxyhq/bloom/activity-heatmap';
 import { useRouter } from 'expo-router';
 import { flip, offset, shift, size, useFloating } from '@floating-ui/react-dom';
 import { FollowButton } from '@oxyhq/services/ui/client';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { profileHrefForUser } from '@/components/Profile/profileRoute';
 
 import { BloomColorScope, useTheme } from '@oxyhq/bloom/theme';
 import { useProfileData, usePrefetchProfile } from '@/hooks/useProfileData';
@@ -315,13 +315,13 @@ let Card = ({
 
   const handlePressProfile = useCallback(() => {
     hide();
-    const handle = getNormalizedUserHandle({
+    const href = profileHrefForUser({
       username: profileUsername || username,
       instance,
       isFederated,
     });
-    if (handle) {
-      router.push(`/@${handle}`);
+    if (href) {
+      router.push(href);
     }
   }, [hide, router, username, isFederated, instance, profileUsername]);
 

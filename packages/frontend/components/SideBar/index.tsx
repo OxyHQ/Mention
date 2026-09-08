@@ -30,7 +30,7 @@ import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ProfileButton } from '@oxyhq/services';
 import { useAuth } from '@oxyhq/services/ui/client';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { asViewStyle, type WebViewStyle } from '@/types/webStyles';
 
 const WindowHeight = Dimensions.get('window').height;
@@ -90,13 +90,12 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
         signIn().catch(() => {});
     }, [onNavigate, signIn]);
 
-    const profileHandle = getNormalizedUserHandle(user);
-
     const handleNavigateProfile = useCallback(() => {
-        if (profileHandle) {
-            handleNavPress(`/@${profileHandle}`);
+        const href = profileHrefForUser(user);
+        if (href) {
+            handleNavPress(href);
         }
-    }, [profileHandle, handleNavPress]);
+    }, [user, handleNavPress]);
 
     const handleNavigateManage = useCallback(() => {
         handleNavPress('/settings');
@@ -113,11 +112,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
             title: t("sidebar.profile"),
             icon: <Avatar source={avatarUri} size={24} variant={MEDIA_VARIANT_AVATAR} />,
             iconActive: <Avatar source={avatarUri} size={24} variant={MEDIA_VARIANT_AVATAR} />,
-            onPress: () => {
-                if (profileHandle) {
-                    handleNavPress(`/@${profileHandle}`);
-                }
-            },
+            onPress: handleNavigateProfile,
         }] : []),
         {
             title: t("sidebar.explore"),
@@ -176,7 +171,7 @@ export function SideBar({ asDrawer = false, onNavigate }: SideBarProps) {
             iconActive: <GearActive />,
             route: '/settings',
         },
-    ], [t, user, avatarUri, profileHandle, handleNavPress, theme.colors.primary, theme.colors.text]);
+    ], [t, user, avatarUri, handleNavigateProfile, theme.colors.primary, theme.colors.text]);
 
     const pathname = usePathname();
     const isSideBarVisible = useIsScreenNotMobile();

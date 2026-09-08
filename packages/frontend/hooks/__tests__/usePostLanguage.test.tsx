@@ -103,6 +103,106 @@ beforeEach(() => {
   mockAutoTranslateEnabled = false;
 });
 
+/**
+ * WHAT A RECYCLED ROW COSTS, AND WHAT IT MUST NOT SHOW.
+ *
+ * FlashList hands one mounted `PostItem` a different post as the reader scrolls,
+ * so this hook sees `postId` change under it. Two things have to be true at
+ * once, and the pair is the point: the reader's translation of the PREVIOUS post
+ * must be gone on the FIRST render of the new one (an Effect would paint a frame
+ * of the wrong body), and getting there must not cost a second render of the row
+ * (React's "adjust state during render" throws the first one away — measured on
+ * a Pixel 10 Pro, that was ~31 extra `PostItem` renders in a single scroll, a
+ * whole row rebuilt per recycle).
+ *
+ * Either assertion alone is satisfiable by the thing the other one forbids.
+ */
+describe('a row recycled onto another post', () => {
+  it('drops the previous post’s translation on the first render of the new one', async () => {
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(<Probe content={bilingual} postId="post-1" />);
+    });
+
+    await act(async () => {
+      state.selectLanguage('en');
+    });
+    expect(state.activeTag).toBe('en');
+    expect(state.displayText).toBe('Hello world');
+
+    // The same component instance, a different post — a recycle.
+    await act(async () => {
+      renderer.update(<Probe content={bilingual} postId="post-2" />);
+    });
+
+    expect(state.activeTag).toBe('es-ES');
+    expect(state.displayText).toBeNull();
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('renders once for the recycle, not twice', async () => {
+    const renders = jest.fn();
+    const CountingProbe: React.FC<{ content: PostContent; postId?: string }> = ({
+      content,
+      postId,
+    }) => {
+      state = usePostLanguage(content, postId);
+      renders();
+      return null;
+    };
+
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(<CountingProbe content={bilingual} postId="post-1" />);
+    });
+
+    await act(async () => {
+      state.selectLanguage('en');
+    });
+    renders.mockClear();
+
+    await act(async () => {
+      renderer.update(<CountingProbe content={bilingual} postId="post-2" />);
+    });
+
+    // One render for the new post. A setState during render would make React
+    // discard this one and run the whole component again.
+    expect(renders).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('offers auto-translate to the post it landed on, not once per instance', async () => {
+    mockAutoTranslateEnabled = true;
+    mockReaderLanguage = 'it';
+    mockApiPost.mockResolvedValue({ data: { translatedText: 'Ciao mondo', tag: 'it' } });
+
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(<Probe content={englishOnly} postId="post-1" />);
+    });
+    const afterFirst = mockApiPost.mock.calls.length;
+    expect(afterFirst).toBeGreaterThan(0);
+
+    await act(async () => {
+      renderer.update(<Probe content={englishOnly} postId="post-2" />);
+    });
+
+    // The guard is stamped with the post, so the second one gets its own attempt
+    // — a per-instance flag would have silently skipped it.
+    expect(mockApiPost.mock.calls.length).toBeGreaterThan(afterFirst);
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+});
+
 describe('the renditions a post ships with', () => {
   it('shows the body the server resolved, with no override of its own', async () => {
     await render(bilingual);

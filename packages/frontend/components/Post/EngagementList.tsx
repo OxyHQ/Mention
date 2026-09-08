@@ -10,7 +10,7 @@ import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 import { useRouter } from 'expo-router';
 import { EmptyState } from '@/components/common/EmptyState';
 import { logger } from '@oxyhq/core/logger';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import type { PostUser } from '@mention/shared-types';
 
 /** Placeholder rows painted while the first page of engagers loads. */
@@ -68,9 +68,9 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
 
   const handleUserPress = useCallback((user: PostUser) => {
     onClose();
-    const profileHandle = getNormalizedUserHandle(user);
-    if (profileHandle) {
-      router.push(`/@${profileHandle}`);
+    const href = profileHrefForUser(user);
+    if (href) {
+      router.push(href);
     }
   }, [onClose, router]);
 

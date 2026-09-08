@@ -2,13 +2,16 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspens
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Image,
 } from 'react-native';
+// Imported under the name every call site in this file already uses, because
+// this is a MOVE: the stylesheet left, the several hundred `styles.x` references
+// did not change.
+import { composeStyles as styles } from './ComposeScreen.styles';
 import { Loading } from '@oxyhq/bloom/loading';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { logger } from '@oxyhq/core/logger';
@@ -97,7 +100,6 @@ import InteractionSettingsPills from '@/components/Compose/InteractionSettingsPi
 import ComposeIdentityHeader from '@/components/Compose/ComposeIdentityHeader';
 import ComposeThreadItem from '@/components/Compose/ComposeThreadItem';
 import PublishAsDialog from '@/components/Compose/PublishAsDialog';
-import LanguageTabs from '@/components/Compose/LanguageTabs';
 import VariantEditor from '@/components/Compose/VariantEditor';
 import PostItem from '@/components/Feed/PostItem';
 import { buildEditPost, buildMainPost, buildThreadPost, shouldIncludeThreadItem } from '@/utils/postBuilder';
@@ -166,6 +168,7 @@ const UnpublishedSheet = lazy(() => import('@/components/Compose/UnpublishedShee
 const GifPickerSheet = lazy(() => import('@/components/Compose/GifPickerSheet'));
 const AltTextSheet = lazy(() => import('@/components/Compose/AltTextSheet'));
 const LanguagePickerSheet = lazy(() => import('@/components/Compose/LanguagePickerSheet'));
+const ComposeLanguageSheet = lazy(() => import('@/components/Compose/ComposeLanguageSheet'));
 const LanePickerSheet = lazy(() => import('@/components/Compose/LanePickerSheet'));
 const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerSheet'));
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
@@ -2056,11 +2059,33 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     bottomSheet.openBottomSheet(true);
   }, [bottomSheet, variants, addLanguage, removeLanguage, renameLanguage, setPrimaryLanguage, promoteToPrimary]);
 
-  const handleAddLanguage = useCallback(() => openLanguagePicker(), [openLanguagePicker]);
-  const handleEditLanguage = useCallback(
-    (tag: string) => openLanguagePicker(tag),
-    [openLanguagePicker],
-  );
+  /**
+   * The post's languages, opened from the bottom bar's pill.
+   *
+   * The strip this replaced sat above the composer on every post, including the
+   * single-language one it could not switch anything on. The languages are a
+   * whole-batch decision like the schedule and the reply permission beside it,
+   * so they live with those — and the sheet keeps the strip's one irreplaceable
+   * route: tapping the ACTIVE language opens the picker, which is the only way
+   * to reach `setPrimaryLanguage`.
+   */
+  const openLanguageSheet = useCallback(() => {
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <ComposeLanguageSheet
+          primaryTag={variants.primaryTag}
+          variantTags={variants.variantTags}
+          activeTag={activeTag}
+          canAdd={canAddLanguage(variants)}
+          onSelect={setActiveTag}
+          onEdit={openLanguagePicker}
+          onAdd={openLanguagePicker}
+          onClose={() => bottomSheet.openBottomSheet(false)}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, variants, activeTag, setActiveTag, openLanguagePicker]);
 
   /** The body of one composer item in the PRIMARY language — what a variant translates. */
   const primaryTextForItem = useCallback((itemId: string) => {
@@ -2497,21 +2522,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             )}
 
             <View style={styles.threadContainer}>
-              {/* Language tabs. They govern the WHOLE composer: switching tab
-                  switches the main post and every thread item to that language,
-                  and ADDING one adds it to every box — which is why the add
-                  affordance sits here rather than in the first box's toolbar,
-                  where it read as that post's own attachment. */}
-              <LanguageTabs
-                primaryTag={variants.primaryTag}
-                variantTags={variants.variantTags}
-                activeTag={activeTag}
-                onSelect={setActiveTag}
-                onEdit={handleEditLanguage}
-                onAdd={handleAddLanguage}
-                canAdd={canAddLanguage(variants)}
-                disabled={isPosting}
-              />
 
               {isPrimaryTab ? (
                 <>
@@ -2988,7 +2998,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   </TouchableOpacity>
                   <View style={styles.headerMeta}>
                     <View style={styles.headerChildren}>
-                      <Text style={styles.addToThreadText}>
+                      <Text style={[styles.addToThreadText, { color: theme.colors.textSecondary }]}>
                         {postingMode === 'thread' ? t('Add to thread') : t('Add another post')}
                       </Text>
                     </View>
@@ -3060,7 +3070,17 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             </View>
             </ScrollView>
 
-            <View style={[styles.bottomBar, bottomBarVisible && { paddingBottom: 80 }]}>
+            {/* The whole-batch decisions, in a row that SCROLLS. There are four
+                of them now and a pill is as wide as its label — "Anyone can
+                interact" alone is most of a phone — so a fixed row clipped the
+                last one off the screen edge with no way to reach it. */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              style={[styles.bottomBar, bottomBarVisible && { paddingBottom: 80 }]}
+              contentContainerStyle={styles.bottomBarContent}
+            >
               {/* WHEN everything written here goes out.
                   It used to be an icon in the first box's attachment row, which
                   made it look like that post's schedule. It is not one:
@@ -3103,6 +3123,32 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 </Text>
                 <Ionicons name="chevron-down" size={12} color={theme.colors.textTertiary} />
               </TouchableOpacity>
+              {/* WHAT LANGUAGE everything written here is in — the same kind of
+                  whole-batch decision as the two beside it, and the reason the
+                  strip of chips above the composer is gone. `+N` counts the
+                  additional author renditions, so a post carrying more than one
+                  says so without a permanent row. */}
+              <TouchableOpacity
+                onPress={openLanguageSheet}
+                disabled={isPosting}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={t('compose.languages.a11y', {
+                  defaultValue: 'Choose the language of this post',
+                })}
+                style={[styles.replySettingsPill, { backgroundColor: theme.colors.backgroundSecondary }]}
+              >
+                <Ionicons name="language-outline" size={16} color={theme.colors.textSecondary} />
+                <Text
+                  numberOfLines={1}
+                  style={[styles.replySettingsText, { color: theme.colors.textSecondary }]}
+                >
+                  {variants.variantTags.length > 0
+                    ? `${describeContentLanguage(activeTag).nativeName} +${variants.variantTags.length}`
+                    : describeContentLanguage(activeTag).nativeName}
+                </Text>
+                <Ionicons name="chevron-down" size={12} color={theme.colors.textTertiary} />
+              </TouchableOpacity>
               {!(postingMode === 'beast' && threadItems.length > 0) && (
                 <>
                   <TouchableOpacity
@@ -3139,6 +3185,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     />
                     <Text style={[
                       styles.bottomText,
+                      { color: theme.colors.textSecondary },
                       isSensitive && { color: theme.colors.error },
                     ]}>
                       {isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
@@ -3146,7 +3193,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   </TouchableOpacity>
                 </>
               )}
-            </View>
+            </ScrollView>
           </ThemedView>
         </KeyboardAvoidingView>
 
@@ -3404,647 +3451,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   );
 };
 
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    minHeight: 48,
-    // keep header clean (no divider)
-  },
-  cancelButton: {
-    padding: 8,
-  },
-  cancelText: {
-    fontSize: 16,
-    color: '#5e5e5e',
-  },
-  postButton: {
-    backgroundColor: '#005c67',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-    minWidth: 60,
-    alignItems: 'center',
-  },
-  postButtonDisabled: {
-    backgroundColor: '#949494',
-  },
-  postButtonText: {
-    color: '#FDFDFD',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  composeArea: {
-    flex: 1,
-  },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  userHandle: {
-    fontSize: 14,
-    color: '#5e5e5e',
-    marginTop: 2,
-  },
-  textInput: {
-    flex: 1,
-    fontSize: 18,
-    lineHeight: 24,
-    color: '#111111',
-    minHeight: 120,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 16,
-  },
-  mediaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 12,
-  },
-  mediaButton: {
-    backgroundColor: '#FAFAFA',
-    borderWidth: 1,
-    borderColor: '#ededed',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  mediaButtonText: {
-    color: '#3c3c3c',
-    fontWeight: '600',
-  },
-  mediaInfoText: {
-    color: '#5e5e5e',
-    fontSize: 12,
-  },
-  previewGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginTop: 10,
-  },
-  previewItem: {
-    width: 64,
-    height: 64,
-  },
-  removeBadge: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#FF3B30',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  /* header and icon tweaks */
-  headerTitle: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111111',
-    pointerEvents: 'none', // Don't block touches on buttons
-  },
-  headerIcons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 'auto',
-  },
-  iconBtn: {
-    marginLeft: 8,
-  },
-  backBtn: {
-    marginRight: 6,
-  },
-
-  /* bottom bar and floating post button */
-  bottomBar: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  bottomText: {
-    color: '#5e5e5e',
-    fontSize: 16,
-    flex: 1,
-  },
-  sensitiveToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingLeft: 8,
-  },
-  replySettingsPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 5,
-  },
-  replySettingsText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  floatingCharCount: {
-    position: 'absolute',
-    right: 20,
-    bottom: 16 + 48 + 8, // above floating post button
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  floatingPostButton: {
-    position: 'absolute',
-    right: 16,
-    bottom: 16,
-    backgroundColor: '#fff',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 16,
-    boxShadow: '0px 0px 6px 0px rgba(0, 0, 0, 0.2)',
-    elevation: 6,
-  },
-  floatingPostButtonDisabled: {
-    backgroundColor: '#949494',
-    opacity: 0.7,
-  },
-  floatingPostText: {
-    color: '#111111',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  floatingPostTextDark: {
-    color: '#000',
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  /* compose toolbar */
-  toolbarDividerArea: {
-    width: 28,
-    alignItems: 'center',
-  },
-  toolbarDivider: {
-    width: 1,
-    height: 48,
-    backgroundColor: '#ededed',
-    borderRadius: 2,
-  },
-  toolbarIcons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingLeft: 8,
-  },
-  smallThreadRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-    gap: 8,
-  },
-  smallThreadText: {
-    color: '#5e5e5e',
-  },
-  // New styles for exact screenshot match
-  mainComposer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  composerLeftCol: {
-    width: 48,
-    alignItems: 'center',
-  },
-  connector: {
-    width: 2,
-    flex: 1,
-    backgroundColor: '#ededed',
-    marginTop: 0,
-    borderRadius: 1,
-    minHeight: 24,
-  },
-  mainTextInput: {
-    fontSize: 16,
-    color: '#111111',
-    minHeight: 40,
-    textAlignVertical: 'top',
-  },
-  toolbarWrapper: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  addToThreadBtn: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  addToThreadContent: {
-    flex: 1,
-    paddingTop: 8,
-  },
-  addToThreadText: {
-    fontSize: 16,
-    color: '#5e5e5e',
-  },
-  replyPreviewLoading: {
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // Post component structure styles
-  postContainer: {
-    flexDirection: 'column',
-    gap: 12,
-    paddingVertical: 12,
-  },
-  unfocusedItem: {
-    opacity: 0.4,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  headerMeta: {
-    flex: 1,
-    paddingTop: 2,
-    gap: 8,
-  },
-  headerChildren: {
-  },
-  avatarContainer: {
-    alignItems: 'center',
-    marginRight: 12, // AVATAR_GAP
-  },
-  timelineConnector: {
-    position: 'absolute',
-    left: -32, // Position relative to headerMeta to align with avatar center
-    top: -20,
-    width: 2,
-    height: 32,
-    backgroundColor: '#ededed',
-    borderRadius: 1,
-  },
-  // Media section styles (from PostMiddle)
-  mediaSection: {
-    // paddingLeft applied dynamically with BOTTOM_LEFT_PAD
-  },
-  mediaScroller: {
-    paddingRight: 12,
-    gap: 12,
-  },
-  mediaItemContainer: {
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: '#ededed',
-    borderRadius: 10,
-    width: 280,
-    height: 180,
-  },
-  mediaImage: {
-    width: 280,
-    height: 180,
-    backgroundColor: '#EFEFEF',
-    borderRadius: 10,
-  },
-  mediaRemoveBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mediaMoreBtn: {
-    position: 'absolute',
-    bottom: 8,
-    right: 8,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  threadTextInput: {
-    fontSize: 16,
-    color: '#111111',
-    minHeight: 32,
-    textAlignVertical: 'top',
-  },
-  removeThreadBtn: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    padding: 6,
-  },
-  // Timeline connector styles
-  threadScrollView: {
-    flex: 1,
-  },
-  threadScrollContent: {
-    flexGrow: 1,
-    paddingBottom: 80,
-  },
-  threadContainer: {
-    position: 'relative',
-  },
-  // The connector's COLOUR is not here: it is the `bg-primary/20` className on
-  // every connector <View>. `theme.colors.primary` resolves to `rgb(0 98 157)`,
-  // so the `${primary}30` this used to interpolate was a malformed colour
-  // string that react-native-web read back as FULLY OPAQUE — a solid primary bar
-  // between the avatars instead of the faint 19% line the suffix asked for.
-  itemConnectorLine: {
-    position: 'absolute',
-    left: TIMELINE_LINE_OFFSET,
-    top: 60, // below avatar: 12px pad + 40px avatar + 8px gap
-    bottom: 0,
-    width: 2,
-    borderRadius: 9999,
-    zIndex: -1,
-  },
-  itemConnectorLineAbove: {
-    position: 'absolute',
-    left: TIMELINE_LINE_OFFSET,
-    top: 0,
-    height: 4, // from container top to 8px before avatar (12px pad - 8px gap)
-    width: 2,
-    borderRadius: 9999,
-    zIndex: -1,
-  },
-  composerWithTimeline: {
-    position: 'relative',
-    zIndex: 2, // Above the timeline line
-  },
-  threadItemWithTimeline: {
-    position: 'relative',
-    zIndex: 2, // Above the timeline line
-  },
-  // Article attachment styles (still used in main compose)
-  articleAttachmentWrapper: {
-    position: 'relative',
-    alignSelf: 'flex-start',
-    width: MEDIA_CARD_WIDTH,
-    height: MEDIA_CARD_HEIGHT,
-    borderRadius: 15,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  articleAttachmentPreview: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-    padding: 16,
-    borderWidth: 0,
-    borderRadius: 0,
-    backgroundColor: 'transparent',
-    justifyContent: 'space-between',
-  },
-  // Poll attachment card styles (for thread items)
-  pollAttachmentWrapper: {
-    position: 'relative',
-    alignSelf: 'flex-start',
-  },
-  pollAttachmentCard: {
-    width: MEDIA_CARD_WIDTH,
-    minHeight: 150,
-    borderRadius: 15,
-    borderWidth: 1,
-    padding: 16,
-    gap: 12,
-  },
-  pollAttachmentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  pollAttachmentBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  pollAttachmentBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  pollAttachmentMeta: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  pollAttachmentQuestion: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  pollAttachmentOptions: {
-    gap: 8,
-  },
-  pollAttachmentOption: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  pollAttachmentOptionText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  pollAttachmentMore: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  pollAttachmentRemoveButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    borderRadius: 999,
-    padding: 6,
-  },
-  // Media preview styles
-  mediaPreviewContainer: {
-    marginTop: 12,
-    width: '100%',
-    overflow: 'visible',
-  },
-  timelineForeground: {
-    position: 'relative',
-    zIndex: 2,
-  },
-  mediaPreviewScroll: {
-    paddingRight: 12,
-    gap: 12,
-  },
-  mediaPreviewItem: {
-    width: MEDIA_CARD_WIDTH,
-    height: MEDIA_CARD_HEIGHT,
-    borderRadius: 15,
-    borderWidth: 1,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  mediaPreviewImage: {
-    width: '100%',
-    height: '100%',
-  },
-  mediaRemoveButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    borderRadius: 999,
-    padding: 6,
-  },
-  mediaReorderControls: {
-    position: 'absolute',
-    left: 8,
-    right: 8,
-    bottom: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 2,
-  },
-  mediaReorderButton: {
-    borderRadius: 999,
-    padding: 6,
-  },
-  mediaReorderButtonDisabled: {
-    opacity: 0.4,
-  },
-  // Link attachment styles — the Bloom LinkPreviewCard owns its own border,
-  // radius and surface, so the carousel wrapper only positions the card and its
-  // move/remove controls.
-  linkAttachmentWrapper: {
-    position: 'relative',
-    alignSelf: 'flex-start',
-    width: MEDIA_CARD_WIDTH,
-  },
-  // Mode toggle styles
-  modeToggleContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  modeToggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  modeOption: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  modeLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  modeDescription: {
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  modeToggle: {
-    marginHorizontal: 20,
-  },
-  scheduleSheetContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 28,
-    gap: 16,
-  },
-  scheduleSheetTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  scheduleSheetSubtitle: {
-    fontSize: 13,
-  },
-  scheduleSheetDivider: {
-    height: StyleSheet.hairlineWidth,
-    width: '100%',
-  },
-  scheduleOptionButton: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  scheduleOptionLabel: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  scheduleOptionHint: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  scheduleCustomSection: {
-    gap: 12,
-  },
-  scheduleCustomLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  scheduleCustomInputsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  scheduleCustomInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    fontSize: 14,
-  },
-  scheduleSheetError: {
-    fontSize: 12,
-  },
-  scheduleSheetActionButton: {
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  scheduleSheetActionText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  scheduleSheetActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  scheduleSheetSecondaryButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-  },
-  scheduleSheetSecondaryText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-});
 
 /**
  * Session gate for the composer. Creating a post requires a usable private

@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useContext, useState, lazy, Suspense, Fragment } from 'react';
 import { StyleSheet, View, Pressable, TouchableOpacity, Text, GestureResponderEvent } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import type {
     HydratedPost,
     PostUser,
@@ -49,6 +49,7 @@ import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
 import { mergeKnownIdentity, useKnownIdentities } from '@/stores/identityUpdates';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { reportFeedInteraction } from '@/utils/feedTelemetry';
 import { formatFullTimestamp } from '@/utils/dateUtils';
 import { displayNameOrHandle } from '@/utils/displayName';
@@ -380,17 +381,17 @@ const PostItem: React.FC<PostItemProps> = ({
 
     // The avatar and the identity line both open the author's own profile.
     const goToAuthorProfile = useCallback(() => {
-        if (authorHandle) {
-            router.push(`/@${authorHandle}`);
+        const href = profileHrefForUser(author);
+        if (href) {
+            router.push(href);
         }
-    }, [router, authorHandle]);
+    }, [router, author]);
 
     // Per-author profile link for the collaborative byline (owner + each
-    // collaborator). Uses the same `/@handle` route as the single-author header.
-    const goToAuthor = useCallback((handle: string) => {
-        if (handle) {
-            router.push(`/@${handle}`);
-        }
+    // collaborator). The header hands over the destination it already resolved
+    // for that author, so both bylines route by the same rule.
+    const goToAuthor = useCallback((href: Href) => {
+        router.push(href);
     }, [router]);
 
     // "Reposted by X" row → the BOOSTER's profile. Stop propagation so it doesn't
@@ -404,10 +405,11 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const goToReposter = useCallback((event?: GestureResponderEvent) => {
         event?.stopPropagation?.();
-        if (reposterHandle) {
-            router.push(`/@${reposterHandle}`);
+        const href = profileHrefForUser(reposter);
+        if (href) {
+            router.push(href);
         }
-    }, [router, reposterHandle]);
+    }, [router, reposter]);
 
     // Pass the originating feed descriptor as the engagement `source` so the
     // backend can attribute a like/save/boost to the surface it happened on

@@ -263,6 +263,7 @@ export class FeedEngine {
       oxyClient: ctx.oxyClient,
       maxDepth: exec.hydrateMaxDepth ?? 0,
       viewerGraph: this.viewerGraphOption(ctx),
+      viewerPrivacy: this.viewerPrivacyOption(ctx),
       viewerLanguages: ctx.viewerLanguages,
     });
     return hydrated;
@@ -303,6 +304,26 @@ export class FeedEngine {
     if (!ctx.currentUserId) return undefined;
     if (ctx.followingIds === undefined || ctx.followerIds === undefined) return undefined;
     return { followingIds: ctx.followingIds, followerIds: ctx.followerIds };
+  }
+
+  /**
+   * The viewer's Oxy blocked/restricted lists already resolved ONCE by the
+   * controller, packaged for `PostHydrationService` so hydration does NOT re-ask
+   * Oxy for them — the privacy counterpart of {@link viewerGraphOption}, and it
+   * matters more than the graph does because a For You page hydrates repeatedly:
+   * measured 3 `getBlockedUsers` + 2 `getRestrictedUsers` per request, where the
+   * honest number is one of each.
+   *
+   * Returns `undefined` — leaving hydration to its own live, fail-CLOSED fetch —
+   * unless the controller put the resolved state on the context. Anonymous
+   * viewers never thread; hydration skips the privacy fetch when there is no
+   * viewer.
+   */
+  private viewerPrivacyOption(
+    ctx: FeedEngineContext,
+  ): { blockedIds: readonly string[]; restrictedIds: readonly string[] } | undefined {
+    if (!ctx.currentUserId) return undefined;
+    return ctx.viewerPrivacy;
   }
 
   private async gatherPool(
@@ -623,6 +644,7 @@ export class FeedEngine {
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,
       viewerGraph: this.viewerGraphOption(ctx),
+      viewerPrivacy: this.viewerPrivacyOption(ctx),
       // The viewer's Oxy account locales, resolved ONCE by `loadViewerFeedContext`
       // and threaded here for the same reason `viewerGraph` is: without it
       // hydration resolves the viewer's identity a SECOND time to read them —
@@ -728,6 +750,7 @@ export class FeedEngine {
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,
       viewerGraph: this.viewerGraphOption(ctx),
+      viewerPrivacy: this.viewerPrivacyOption(ctx),
       viewerLanguages: ctx.viewerLanguages,
     });
 
@@ -774,6 +797,7 @@ export class FeedEngine {
       maxDepth: exec.hydrateMaxDepth ?? 0,
       includeLinkMetadata: true,
       viewerGraph: this.viewerGraphOption(ctx),
+      viewerPrivacy: this.viewerPrivacyOption(ctx),
       viewerLanguages: ctx.viewerLanguages,
     });
 
@@ -862,6 +886,7 @@ export class FeedEngine {
       // whenever the context is partial (the peek path) or the viewer is
       // anonymous, so this cannot hydrate against an empty follower set.
       viewerGraph: this.viewerGraphOption(ctx),
+      viewerPrivacy: this.viewerPrivacyOption(ctx),
       viewerLanguages: ctx.viewerLanguages,
     });
 
