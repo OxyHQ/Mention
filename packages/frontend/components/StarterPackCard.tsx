@@ -10,6 +10,7 @@ import { ThemedText } from './ThemedText';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 
@@ -63,10 +64,11 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
   );
 
   const handleCreatorPress = useCallback(() => {
-    if (creatorHandle && !isOwner) {
-      router.push(`/@${creatorHandle}`);
+    const href = profileHrefForUser({ username: pack.creator?.username });
+    if (href && !isOwner) {
+      router.push(href);
     }
-  }, [creatorHandle, isOwner]);
+  }, [pack.creator?.username, isOwner]);
 
   const accessibilityLabel = useMemo(() => {
     const parts = [pack.name];
