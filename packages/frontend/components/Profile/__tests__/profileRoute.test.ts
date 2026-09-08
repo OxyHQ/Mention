@@ -1,7 +1,31 @@
 import type { AccountKind } from '@oxyhq/core';
+
+/**
+ * The SDK barrel is ESM and reaches `@oxyhq/protocol` through a crypto polyfill,
+ * neither of which this transform takes — the same reason every other suite that
+ * touches it mocks it. Only the handle rule is needed here, and it is stated
+ * exactly as the SDK states it: local handles pass through, a federated one is
+ * qualified with its instance unless it already carries one.
+ */
+jest.mock('@oxyhq/core', () => ({
+  getNormalizedUserHandle: (user: {
+    username?: string | null;
+    instance?: string | null;
+    isFederated?: boolean | null;
+  } | null | undefined) => {
+    const username = user?.username?.trim().replace(/^@+/, '');
+    if (!username) return null;
+    return user?.isFederated && user.instance && !username.includes('@')
+      ? `${username}@${user.instance}`
+      : username;
+  },
+}));
+
+// eslint-disable-next-line import/first -- the mock above must be installed first.
 import {
   canonicalProfileHref,
   profileBasePath,
+  profileHrefForUser,
   profileRouteFamilyForKind,
   profileSubPath,
   type ProfileRouteFamily,
@@ -256,5 +280,64 @@ describe('canonicalProfileHref — sub-routes', () => {
     }
     // Vacuity floor, same as the root case.
     expect(redirects).toBe(ALL_KINDS.length);
+  });
+});
+
+/**
+ * `profileHrefForUser` is where every "tap an account" surface now gets its
+ * destination, so the cases below are the ones those surfaces actually hand it:
+ * a local person, a federated author, a channel, and the degraded row the feed
+ * paints when an author cannot be resolved.
+ */
+describe('profileHrefForUser', () => {
+  it('sends a local person to their `/@` page', () => {
+    expect(profileHrefForUser({ username: 'nate' })).toBe('/@nate');
+  });
+
+  it('qualifies a federated author with their instance', () => {
+    expect(
+      profileHrefForUser({ username: 'r74n', isFederated: true, instance: 'mastodon.gamedev.place' }),
+    ).toBe('/@r74n@mastodon.gamedev.place');
+  });
+
+  it('leaves an already-qualified federated handle alone', () => {
+    expect(
+      profileHrefForUser({ username: 'r74n@mastodon.gamedev.place', isFederated: true, instance: 'mastodon.gamedev.place' }),
+    ).toBe('/@r74n@mastodon.gamedev.place');
+  });
+
+  it('sends a channel to `/c/`, without a redirect on the way', () => {
+    // The whole reason the account object is passed rather than a handle: the
+    // family is only knowable from `kind`, and a caller holding a bare string
+    // cannot ask.
+    expect(profileHrefForUser({ username: 'notas', kind: 'channel' })).toBe('/c/notas');
+  });
+
+  it('carries a sub-surface under whichever family the account owns', () => {
+    expect(profileHrefForUser({ username: 'nate' }, 'videos')).toBe('/@nate/videos');
+    expect(profileHrefForUser({ username: 'notas', kind: 'channel' }, 'about')).toBe('/c/notas/about');
+  });
+
+  it('answers null for an account that names no handle', () => {
+    // The degraded author the feed renders when Oxy is unreachable. A caller
+    // that linked it anyway would offer a tap that lands on `/@`.
+    expect(profileHrefForUser({ username: '' })).toBeNull();
+    expect(profileHrefForUser(null)).toBeNull();
+    expect(profileHrefForUser(undefined)).toBeNull();
+  });
+
+  it('agrees with the canonicalizer about where a channel belongs', () => {
+    // Two rules that must never disagree: the link says `/c/`, and the
+    // canonicalizer asked about `/c/` says "already there".
+    const href = profileHrefForUser({ username: 'notas', kind: 'channel' });
+    expect(href).toBe('/c/notas');
+    expect(
+      canonicalProfileHref({
+        routedFamily: 'channel',
+        kind: 'channel',
+        handle: 'notas',
+        resolved: true,
+      }),
+    ).toBeNull();
   });
 });

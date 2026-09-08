@@ -26,6 +26,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { Video } from '@/assets/icons/video-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { cn } from '@/lib/utils';
 import type { HydratedPost } from '@mention/shared-types';
 import { readMediaDurationSec, readMediaPixelSize, type MediaPixelSize } from '@/utils/mediaTypes';
@@ -614,9 +615,11 @@ const VideoItem = memo<VideoItemProps>(({
     const postText = useMemo(() => item.content?.text?.trim() || '', [item.content?.text]);
 
     const handleProfilePress = useCallback(() => {
-        const handle = getNormalizedUserHandle(item.user);
-        if (handle) {
-            router.push(`/@${handle}/videos`);
+        // The author's VIDEOS tab: a reader who tapped a face in the reel came
+        // for more of the same, not for a text timeline.
+        const href = profileHrefForUser(item.user, 'videos');
+        if (href) {
+            router.push(href);
         }
     }, [item.user, router]);
 

@@ -15,6 +15,8 @@ import { formatTimeAgo } from '@/utils/dateUtils';
 import { displayNameOrHandle } from '@/utils/displayName';
 import type { HydratedAuthor, PostUser } from '@mention/shared-types';
 import { getNormalizedUserHandle } from '@oxyhq/core';
+import type { Href } from 'expo-router';
+import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 // Inline indicator icons (boost/reply) are subtler than the action-bar glyphs.
@@ -146,7 +148,7 @@ interface PostHeaderProps {
    */
   onPressCollaborators?: () => void;
   onPressMenu?: () => void;
-  onPressAuthor?: (handle: string) => void;
+  onPressAuthor?: (href: Href) => void;
   /**
    * Suppresses the author hover preview on both the avatar and the identity
    * line. For surfaces where the header is not a feed row pointing at someone
@@ -166,8 +168,15 @@ interface PostHeaderProps {
 interface HeaderAuthor {
   /** First name shown in the collaborative byline (never a raw id). */
   firstName: string;
-  /** Normalized handle used to link to this author's profile. */
+  /** Normalized handle — display and the React key, never a destination. */
   handle: string;
+  /**
+   * Where this author's name links to, decided ONCE here, where the whole author
+   * record is in hand (its `kind` is what separates a channel's page from a
+   * person's). `null` for an author with no resolvable handle, whose name then
+   * renders as plain text.
+   */
+  href: Href | null;
 }
 
 const PostHeader: React.FC<PostHeaderProps> = ({
@@ -225,7 +234,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             wholeName?.split(/\s+/)?.[0] ||
             (handle ? `@${handle}` : '')
           : wholeName || (handle ? `@${handle}` : '');
-        return { firstName, handle };
+        return { firstName, handle, href: profileHrefForUser(a) };
       }),
     [authors],
   );
@@ -398,8 +407,11 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                         : ', ';
                   // Each first name links to that author's own profile; falls
                   // back to plain text when the author has no resolvable handle.
+                  // Read out of the row before the closure: narrowing a
+                  // property does not survive into one.
+                  const authorHref = a.href;
                   const goToProfile =
-                    a.handle && onPressAuthor ? () => onPressAuthor(a.handle) : undefined;
+                    authorHref && onPressAuthor ? () => onPressAuthor(authorHref) : undefined;
                   return (
                     <React.Fragment key={`${a.handle || 'author'}-${i}`}>
                       {separator}
