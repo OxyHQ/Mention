@@ -114,8 +114,14 @@ import {
  * independent candidate (`New York City` donated `city` and `york city`). An
  * alias is still learned when authors actually write that shorter form on its
  * own. Bumped so the corpus loses those legacy fragments during rebaseline.
+ *
+ * v10: a single declared language is corrected when deterministic detection
+ * strongly contradicts it. Some federated servers stamp their account default
+ * (`en`) onto unrelated prose, which placed clearly German posts in English
+ * discovery feeds. Multilingual declarations remain authoritative because the
+ * primary body cannot validate every authored `contentMap` rendition.
  */
-export const BASELINE_CLASSIFIER_VERSION = 9;
+export const BASELINE_CLASSIFIER_VERSION = 10;
 
 /**
  * Minimum number of non-whitespace characters required before attempting
@@ -135,6 +141,8 @@ const MIN_TEXT_LENGTH_FOR_DETECTION = 12;
  * top candidate. The top candidate is always taken as the primary (best guess).
  */
 const LANGUAGE_DETECTION = {
+  /** Confidence required to overrule one contradictory declared language. */
+  declaredContradictionMinAccuracy: 0.8,
   /**
    * Absolute floor on a SECONDARY candidate's accuracy. Filters the long
    * low-score noise tail tinyld emits for monolingual text (e.g. a Spanish post
@@ -167,10 +175,9 @@ export interface ClassifyInput {
   language?: string;
   /**
    * Explicit FULL set of languages if known (e.g. AP top-level `language` plus
-   * every `contentMap` key, via {@link extractApLanguages}). When non-empty this
-   * declared set is AUTHORITATIVE — it is used verbatim (normalized to ISO 639-1,
-   * deduped) instead of running text detection, because a federating server's own
-   * declaration is more reliable than guessing from (often HTML-stripped) text.
+   * every `contentMap` key, via {@link extractApLanguages}). A multilingual set
+   * is authoritative; a single declaration may be corrected when deterministic
+   * detection strongly contradicts the visible body.
    */
   languages?: string[];
   /** Sensitive/NSFW flag to pass through. */
@@ -348,12 +355,11 @@ export class BaselineContentClassifier {
    * Resolve the post's languages into an ordered ISO 639-1 list (primary first).
    * The primary is simply element 0 (or none when the list is empty). Policy:
    *
-   * 1. An explicitly-DECLARED set (federated AP: top-level `language` + every
-   *    `contentMap` key) is AUTHORITATIVE — normalized to ISO 639-1, deduped,
-   *    capped — and used verbatim instead of detection. The single explicit
-   *    `language` is folded in as the leading element so a server that declares
-   *    only the top-level field still yields a one-element list.
-   * 2. Otherwise (native posts), detect from text when it is long enough to be
+   * 1. A multilingual declared set is authoritative: the visible primary body
+   *    cannot validate every authored `contentMap` rendition.
+   * 2. A single declaration is accepted unless sufficiently long text strongly
+   *    identifies a different language.
+   * 3. Otherwise, detect from text when it is long enough to be
    *    reliable, using tinyld's ranked `detectAll`: the top candidate is the
    *    primary, and additional candidates are kept only when they clear both the
    *    absolute and relative gates in {@link LANGUAGE_DETECTION}.
@@ -362,19 +368,35 @@ export class BaselineContentClassifier {
     input: Pick<ClassifyInput, 'language' | 'languages'>,
     trimmedText: string,
   ): { primary: string | undefined; all: string[] } {
-    // (1) Explicit declared set wins. Merge the single `language` (leading) with
-    // the `languages` list, normalize each, dedupe (first-seen order), cap.
+    // Merge the single `language` (leading) with the `languages` list, normalize
+    // each, dedupe (first-seen order), cap.
     const declared = this.dedupeLanguages(
       [input.language, ...(input.languages ?? [])]
         .map(normalizeProvidedLanguage)
         .filter((code): code is string => code !== undefined),
     ).slice(0, LANGUAGE_DETECTION.maxLanguages);
 
-    if (declared.length > 0) {
+    if (declared.length > 1) {
       return { primary: declared[0], all: declared };
     }
 
-    // (2) Detect from text. Too-short input is unreliable → no language.
+    if (declared.length === 1) {
+      if (trimmedText.length >= MIN_TEXT_LENGTH_FOR_DETECTION) {
+        const [top] = detectAllLanguages(trimmedText);
+        const detected = normalizeProvidedLanguage(top?.lang);
+        if (
+          detected
+          && detected !== declared[0]
+          && top.accuracy >= LANGUAGE_DETECTION.declaredContradictionMinAccuracy
+        ) {
+          const all = this.selectDetectedLanguages(trimmedText);
+          return { primary: all[0], all };
+        }
+      }
+      return { primary: declared[0], all: declared };
+    }
+
+    // No declaration: detect from text. Too-short input is unreliable → none.
     if (trimmedText.length < MIN_TEXT_LENGTH_FOR_DETECTION) return { primary: undefined, all: [] };
 
     const detected = this.selectDetectedLanguages(trimmedText);
