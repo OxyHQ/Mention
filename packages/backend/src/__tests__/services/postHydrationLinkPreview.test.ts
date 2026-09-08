@@ -155,6 +155,7 @@ describe('PostHydrationService — link previews sourced from Oxy', () => {
     expect(hydrated.linkPreviews).toEqual([
       {
         url: resolved.url,
+        sourceUrl: POST_URL,
         title: 'Some Article',
         description: 'A description',
         // Oxy-hosted image is never re-proxied, but sized to w320 instead of
@@ -229,6 +230,16 @@ describe('PostHydrationService — link previews sourced from Oxy', () => {
 
     const hydrated = await hydrate();
     expect(hydrated.linkPreviews).toEqual([{ url: POST_URL }]);
+  });
+
+  it('preserves the final URL from an empty preview after redirects', async () => {
+    const canonicalUrl = 'https://publisher.example/article';
+    getLinkPreviews.mockResolvedValue({
+      [POST_URL]: { url: canonicalUrl, status: 'empty' } satisfies LinkPreview,
+    });
+
+    const hydrated = await hydrate();
+    expect(hydrated.linkPreviews).toEqual([{ url: canonicalUrl, sourceUrl: POST_URL }]);
   });
 
   it('maps a missing batch result to a URL-only card', async () => {
