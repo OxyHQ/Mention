@@ -113,7 +113,7 @@ describe('LinkifiedText', () => {
         const link = renderer.root.findAll(
             (node) => typeof node.props.onPress === 'function' &&
                 typeof node.props.children === 'string' &&
-                node.props.children.includes('example.com'),
+                node.props.children === text.slice('Read '.length),
         )[0];
         if (!link) throw new Error('render produced no pressable URL');
 
