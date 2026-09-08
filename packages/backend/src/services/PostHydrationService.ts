@@ -2039,7 +2039,7 @@ export class PostHydrationService {
 
   /**
    * Build the per-post link-preview map for a batch of posts. Each post maps to
-   * its resolved previews IN TEXT ORDER, capped at `MAX_POST_LINK_PREVIEWS` by
+   * its preview cards IN TEXT ORDER, capped at `MAX_POST_LINK_PREVIEWS` by
    * {@link extractUrls} — a post with several links renders a card per link. The
    * URLs are read from the RESOLVED body, so a reader served the Spanish variant
    * gets the cards for the links that variant actually contains.
@@ -2059,11 +2059,12 @@ export class PostHydrationService {
    * cost one resolution. Oxy returns already-resolved previews immediately and a
    * `'pending'` placeholder for any first-seen URL, which it warms server-side in
    * the background — it does NOT block on a remote HTML fetch. A
-   * `'pending'`/`'empty'` result is skipped (the remaining resolved previews keep
-   * their relative text order), so a brand-new URL shows no card on its first
-   * render and gains one on a later render once Oxy has resolved it. Only
-   * top-level posts carry previewable text; nested boosts/quotes have no preview
-   * of their own.
+   * `'pending'`/`'empty'`/missing result still becomes a URL-only preview:
+   * Bloom's canonical card deliberately falls back to the hostname when remote
+   * metadata is unavailable, so a site that blocks crawlers never makes its
+   * links lose their card entirely. A later hydration overlays the resolved
+   * metadata once Oxy has it. Only top-level posts carry previewable text;
+   * nested boosts/quotes have no preview of their own.
    *
    * A URL naming a profile on THIS instance gets no card ({@link isOwnProfileLink}),
    * because the reader is not shown a link there: the linkifier renders that span
@@ -2088,7 +2089,7 @@ export class PostHydrationService {
     const previewMap = new Map<string, PostLinkPreview[]>();
 
     const postToUrls = new Map<string, string[]>(); // postId -> [url] (text order)
-    const urlToPosts = new Map<string, string[]>(); // url -> [postId] (dedupes the batch call)
+    const uniqueUrls = new Set<string>();
 
     for (const { post } of nodes) {
       const postId = this.resolveId(post);
@@ -2103,36 +2104,31 @@ export class PostHydrationService {
       postToUrls.set(postId, urls);
 
       for (const url of urls) {
-        const posts = urlToPosts.get(url);
-        if (posts) {
-          posts.push(postId);
-        } else {
-          urlToPosts.set(url, [postId]);
-        }
+        uniqueUrls.add(url);
       }
     }
 
-    const uniqueUrls = Array.from(urlToPosts.keys());
-    if (uniqueUrls.length === 0) return previewMap;
+    if (uniqueUrls.size === 0) return previewMap;
 
-    let previews: Record<string, LinkPreview>;
+    let previews: Record<string, LinkPreview> = {};
     try {
-      previews = await getServiceOxyClient().getLinkPreviews(uniqueUrls);
+      previews = await getServiceOxyClient().getLinkPreviews([...uniqueUrls]);
     } catch (error) {
-      // Best-effort: a preview-service hiccup must never fail feed hydration.
+      // Best-effort: a preview-service hiccup must never fail feed hydration or
+      // suppress the URL-only cards the renderer can already draw.
       logger.warn('[PostHydration] Failed to resolve link previews from Oxy', {
-        count: uniqueUrls.length,
+        count: uniqueUrls.size,
         reason: error instanceof Error ? error.message : 'unknown',
       });
-      return previewMap;
     }
 
     const resolvedByUrl = new Map<string, PostLinkPreview>();
     for (const url of uniqueUrls) {
       const preview = previews[url];
-      // Only fully-resolved previews are rendered; `'pending'`/`'empty'` are
-      // omitted so the URL re-resolves into a real preview on a later render.
-      if (!preview || preview.status !== 'resolved') continue;
+      if (!preview || preview.status !== 'resolved') {
+        resolvedByUrl.set(url, { url });
+        continue;
+      }
 
       resolvedByUrl.set(url, {
         url: preview.url,

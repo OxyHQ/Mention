@@ -1250,9 +1250,11 @@ export interface HydratedPostSummary {
   content: PostContent;
   attachments: PostAttachmentBundle;
   /**
-   * Resolved link previews for the post text, in text order, capped at
-   * {@link MAX_POST_LINK_PREVIEWS}. Unresolved URLs are omitted, so this can be
-   * shorter than the number of links in the text (or empty).
+   * Link-preview cards for the post text, in text order, capped at
+   * {@link MAX_POST_LINK_PREVIEWS}. Every eligible URL carries at least `url`;
+   * title, description, image and site name are added when remote metadata
+   * resolves. This can still be absent or empty when metadata hydration was not
+   * requested or every extracted URL is deliberately suppressed.
    */
   linkPreviews?: PostLinkPreview[];
   /** Primary author (owner) — backward-compatible single-author field. */
