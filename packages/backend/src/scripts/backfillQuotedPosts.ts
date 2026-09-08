@@ -8,22 +8,34 @@
  * we did not already hold rendered as a bare `RE: <url>` and stayed that way. A
  * post body is written once, so nothing repairs those on its own.
  *
- * THE `RE:` PREFIX IS A CANDIDATE FILTER, NEVER THE SOURCE OF TRUTH. It is how
- * Mastodon RENDERS a quote for clients that cannot show one, so it is a cheap
- * way to avoid re-fetching every federated post ever stored — but what actually
- * decides is `extractApQuoteUri` reading the STRUCTURED fields off the re-fetched
- * object, exactly as ingest does. A candidate whose object carries no quote field
- * is left alone, however its body opens.
+ * THE `RE:` MARKER IS A CANDIDATE FILTER, NEVER THE SOURCE OF TRUTH. It is how
+ * a remote server RENDERS a quote for clients that cannot show one, so it is a
+ * cheap way to avoid re-fetching every federated post ever stored — but what
+ * actually decides is `extractApQuoteUri` reading the STRUCTURED fields off the
+ * re-fetched object, exactly as ingest does. A candidate whose object carries no
+ * quote field is left alone, however its body reads.
  *
- * The consequence of that split is the one worth knowing: a quote whose body was
- * NOT rendered with `RE:` is missed by this run. That is a coverage limit, not a
- * wrong link — and the script is idempotent and re-runnable, so a better filter
- * later costs nothing.
+ * THE FILTER IS NO LONGER ANCHORED. `^RE:` described Mastodon and nothing else:
+ * Misskey, Akkoma, Bridgy Fed and Threads append the marker after the author's
+ * text. 2,043 production posts carried it only at the end and were invisible to
+ * this script, while the servers behind them — misskey.io 905, bsky.brid.gy 389,
+ * misskey.design 63, bsky.social 49 — all send the structured field it reads.
+ *
+ * Threads is the one that stays broken, and deliberately. Its AP object carries
+ * no quote field at all; the quote lives only in the body HTML
+ * (`<span class="quote-inline">`). Reading that would make the rendering the
+ * source of truth, which is the line above. So its posts are fetched, yield
+ * nothing and are left alone. Measured: 26 such posts, and we hold none of the
+ * 26 posts they quote, so there is nothing to link them to either.
+ *
+ * The remaining coverage limit is unchanged in kind: a quote whose body carries
+ * no `RE:` at all is missed. Idempotent and re-runnable, so a better filter
+ * later still costs nothing.
  *
  * SELECTION:
  *  1. Federated posts (`federation_activity_id` present) with `quote_of` null.
- *  2. Whose PRIMARY body (`post_content_variants` at `position = 0`) opens with
- *     `RE:` followed by an http(s) URL.
+ *  2. Whose PRIMARY body (`post_content_variants` at `position = 0`) CARRIES
+ *     `RE:` followed by an http(s) URL, at a word boundary.
  *
  * SAFETY:
  *  1. `BACKFILL_DRY_RUN` defaults to `'true'`; only `=false` writes.
@@ -135,8 +147,32 @@ export async function backfillQuotedPosts(
 
   const db = getDb();
 
-  // `~` is case-sensitive, matching the JS `/^RE:\s*https?:\/\//` this replaces;
-  // `[[:space:]]` covers the newline a real Mastodon render puts after the URL.
+  // NOT ANCHORED, and that is the whole point of this filter's second version.
+  //
+  // `^RE:` describes how MASTODON renders a quote — the marker opens the body.
+  // Misskey, Akkoma, Bridgy Fed and Threads append it INSTEAD, after the
+  // author's own text, and an anchored pattern cannot see any of them. Measured
+  // in production against federated posts with a null `quote_of`:
+  //
+  //     body opens with `RE: <url>`     13,163   (what `^RE:` matched)
+  //     body carries `RE: <url>`        15,205
+  //     carries it only at the END       2,043   (invisible to `^RE:`)
+  //
+  // and the trailing set is dominated by servers that DO send the structured
+  // field this script reads: misskey.io 905, bsky.brid.gy 389, misskey.design
+  // 63, bsky.social 49. Ten sampled objects across those five hosts every one
+  // carried `quoteUrl`/`_misskey_quote` and resolved. They were repairable the
+  // whole time and the filter simply never offered them.
+  //
+  // Widening cannot produce a WRONG link, because the filter never decides
+  // anything: `extractApQuoteUri` reading the re-fetched object still does, and
+  // a candidate whose object carries no quote field is left alone. The only
+  // cost is fetching a post that turns out not to be a quote, and the measured
+  // size of that cost is +15% candidates.
+  //
+  // `(^|[[:space:]])` rather than a bare substring so `xRE:` and mid-word noise
+  // stay out. `~` is case-sensitive, as the JS `/RE:\s*https?:\/\//` it mirrors;
+  // `[[:space:]]` covers the newline a real render puts around the URL.
   const rows = await db
     .select({ id: posts.id, activityId: posts.federationActivityId })
     .from(posts)
@@ -147,7 +183,7 @@ export async function backfillQuotedPosts(
     .where(and(
       isNotNull(posts.federationActivityId),
       isNull(posts.quoteOf),
-      sql`btrim(${postContentVariants.body}) ~ '^RE:[[:space:]]*https?://'`,
+      sql`${postContentVariants.body} ~ '(^|[[:space:]])RE:[[:space:]]*https?://'`,
     ))
     .limit(MAX);
 
