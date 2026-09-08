@@ -206,7 +206,23 @@ export function isSubscriberNotificationEligible(
   return post.status === 'published' && post.visibility === PostVisibility.PUBLIC;
 }
 
-function derivePostType(params: CreatePostParams): PostType {
+/**
+ * What KIND of post this is, from the links and media it carries.
+ *
+ * The ONE owner of the rule, and exported for that reason: the federated outbox
+ * backfill inserts its rows raw (`insertPostRecord`, bypassing this service
+ * entirely) and used to hand-roll the media half of this decision. Two copies
+ * meant the boost/quote precedence existed in only one of them, so the same
+ * remote Note was typed differently depending on which path imported it.
+ *
+ * Narrowed to the three fields it reads so a caller that holds no full
+ * {@link CreatePostParams} can still ask.
+ */
+export function derivePostType(params: {
+  boostOf?: string | null;
+  quoteOf?: string | null;
+  content: Pick<PostContent, 'media'>;
+}): PostType {
   if (params.boostOf) return PostType.BOOST;
   if (params.quoteOf) return PostType.QUOTE;
   const media = params.content.media;

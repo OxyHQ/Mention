@@ -1,0 +1,340 @@
+import { PassThrough } from 'node:stream';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+/**
+ * A quote imported through the OUTBOX BACKFILL, and through the boost / ancestor
+ * / quoted-note importer underneath it.
+ *
+ * `extractApQuoteUri` and `ensureQuotedNote` existed, and only `handleCreate`
+ * ever called them. So whether a reader saw a quote depended on WHICH PATH
+ * happened to import the post:
+ *
+ *  - delivered live to our inbox  → `quote_of` set, quote card rendered;
+ *  - pulled from the actor's outbox (how a newly-followed account's back
+ *    catalogue arrives) → `quote_of` NULL, and the body left showing the remote
+ *    server's fallback rendering, a bare `RE: <url>` line;
+ *  - fetched as a boost original or a reply ancestor → `quote_of` NULL likewise.
+ *
+ * Two accounts on the same remote instance therefore rendered differently, and
+ * so did one account before and after it was followed. Which path imported a
+ * post is not something a reader can see, so it must not be something they can
+ * feel.
+ *
+ * The posts are REAL ROWS and every assertion reads the STORED post. This path
+ * does not go through `PostCreationService` at all — it assembles records and
+ * writes them straight through the repository — so "the service was called with
+ * a quoteOf" would assert nothing about what is in the database, and `type` in
+ * particular is derived by the row builder rather than by the service.
+ *
+ * Driven through the real entry point (`syncOutboxPostsDetailed`) on the harness
+ * `channelReplyOutboxBackfill.test.ts` established.
+ */
+
+const mocks = vi.hoisted(() => ({
+  getPublicKey: vi.fn(),
+  signViaOxy: vi.fn(),
+  getServiceOxyClient: vi.fn(),
+  makeServiceRequest: vi.fn(),
+  getLinkPreviews: vi.fn(),
+  getLinkPreview: vi.fn(),
+  persistRemoteMedia: vi.fn(),
+  recordAccess: vi.fn(),
+  postCreatorCreate: vi.fn(),
+  fetchUpstreamSingleHop: vi.fn(),
+  assertSafePublicUrl: vi.fn(),
+  getOrFetchActor: vi.fn(),
+  fetchRemoteActor: vi.fn(),
+}));
+
+vi.mock('../../../connectors/activitypub/crypto', () => ({
+  getPublicKey: mocks.getPublicKey,
+  signViaOxy: mocks.signViaOxy,
+}));
+
+vi.mock('../../../utils/safeUpstreamFetch', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../utils/safeUpstreamFetch')>();
+  return { ...actual, fetchUpstreamSingleHop: mocks.fetchUpstreamSingleHop };
+});
+
+vi.mock('@oxyhq/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
+  assertSafePublicUrl: mocks.assertSafePublicUrl,
+}));
+
+vi.mock('../../../connectors/activitypub/actor.service', () => ({
+  actorService: {
+    getOrFetchActor: mocks.getOrFetchActor,
+    fetchRemoteActor: mocks.fetchRemoteActor,
+  },
+}));
+
+vi.mock('../../../db/userProfile/userSettingsRepository', () => ({
+  updateUserSettings: vi.fn(),
+}));
+
+vi.mock('../../../db/federation/followRepository', () => ({
+  existsFollow: vi.fn().mockResolvedValue(true),
+  findFollows: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../../../utils/oxyHelpers', () => ({
+  getServiceOxyClient: mocks.getServiceOxyClient,
+}));
+
+vi.mock('../../../services/mediaCache/cacheWorker', () => ({
+  persistRemoteMediaForFederatedOwnerDetailed: mocks.persistRemoteMedia,
+}));
+
+vi.mock('../../../services/mediaCache/cacheStore', () => ({
+  recordAccessAndMaybeEnqueue: mocks.recordAccess,
+}));
+
+import { like } from 'drizzle-orm';
+import { PostType } from '@mention/shared-types';
+import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
+import { posts } from '../../../db/schema/posts';
+import {
+  clearFederationScope,
+  federationScope,
+  seedPost,
+} from '../../helpers/federationFixtures';
+import { outboxSyncService } from '../../../connectors/activitypub/outbox.service';
+
+const scope = federationScope('outbox-quote-linking');
+const ACTOR_URI = `${scope.origin}/users/alice`;
+const OUTBOX_URL = `${ACTOR_URI}/outbox`;
+const ALICE_OXY_ID = scope.user('alice');
+
+/** The author of everything Alice quotes — a second actor on the same instance. */
+const BOB_URI = `${scope.origin}/users/bob`;
+const BOB_OXY_ID = scope.user('bob');
+/** A post by Bob that we ALREADY hold. */
+const HELD_URI = `${BOB_URI}/statuses/held`;
+/** A post by Bob that we do NOT hold, and must fetch. */
+const UNHELD_URI = `${BOB_URI}/statuses/unheld`;
+
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'content-type': 'application/activity+json' },
+  });
+}
+
+/**
+ * One Create/Note in Alice's outbox.
+ *
+ * `quote` alone, deliberately: it is the FEP-044f field Mastodon 4.4 emits, and
+ * `apQuoteExtraction.test.ts` already pins that the other spellings resolve to
+ * the same URI. Pinning one here keeps this file about the ingest PATH.
+ */
+function createNote(id: string, extra: Record<string, unknown> = {}) {
+  const noteId = `${ACTOR_URI}/statuses/${id}`;
+  return {
+    id: `${noteId}/activity`,
+    type: 'Create',
+    actor: ACTOR_URI,
+    published: '2023-04-01T12:00:00Z',
+    object: {
+      id: noteId,
+      type: 'Note',
+      attributedTo: ACTOR_URI,
+      // The body a real quote arrives with: the remote server renders the quote
+      // as `RE: <url>` for clients that cannot show one. It is the SYMPTOM this
+      // whole file is about, and it is deliberately present in the fixture so
+      // nothing here can be read as "the body was different".
+      content: `<p>RE: ${HELD_URI}</p>`,
+      published: '2023-04-01T12:00:00Z',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      ...extra,
+    },
+  };
+}
+
+/** A Note as Bob's server would serve it when we go and fetch it. */
+function bobNote(uri: string, extra: Record<string, unknown> = {}) {
+  return {
+    id: uri,
+    type: 'Note',
+    attributedTo: BOB_URI,
+    content: '<p>bob said something</p>',
+    published: '2023-03-01T12:00:00Z',
+    to: ['https://www.w3.org/ns/activitystreams#Public'],
+    ...extra,
+  };
+}
+
+/** Serve Alice's outbox page, plus whatever remote objects a case publishes. */
+function stubRemote(orderedItems: unknown[], objects: Record<string, unknown> = {}): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      if (url === OUTBOX_URL) {
+        return jsonResponse({ type: 'OrderedCollection', totalItems: orderedItems.length, orderedItems });
+      }
+      const object = objects[url];
+      if (object) return jsonResponse(object);
+      throw new Error(`unexpected fetch ${url}`);
+    }),
+  );
+}
+
+function runOutboxSync() {
+  return outboxSyncService.syncOutboxPostsDetailed(
+    { uri: ACTOR_URI, acct: `alice@${scope.domain}`, outboxUrl: OUTBOX_URL, oxyUserId: ALICE_OXY_ID },
+    { limit: 10, maxPages: 1 },
+  );
+}
+
+/** The stored row for one of Alice's notes, by the local part of its id. */
+async function storedNote(id: string): Promise<{ quoteOf: string | null; type: string } | undefined> {
+  const [row] = await getDb()
+    .select({ quoteOf: posts.quoteOf, type: posts.type })
+    .from(posts)
+    .where(like(posts.federationActivityId, `${ACTOR_URI}/statuses/${id}%`));
+  return row;
+}
+
+/** The stored row for a note of Bob's we imported by fetching it. */
+async function storedRemote(uri: string): Promise<{ id: string; quoteOf: string | null } | undefined> {
+  const [row] = await getDb()
+    .select({ id: posts.id, quoteOf: posts.quoteOf })
+    .from(posts)
+    .where(like(posts.federationActivityId, `${uri}%`));
+  return row;
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+afterEach(async () => {
+  await getDb().delete(posts).where(like(posts.federationActivityId, `${ACTOR_URI}%`));
+  await getDb().delete(posts).where(like(posts.federationActivityId, `${BOB_URI}%`));
+  await clearFederationScope(scope);
+});
+
+beforeEach(() => {
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
+  vi.unstubAllGlobals();
+
+  mocks.getPublicKey.mockResolvedValue({
+    keyId: 'https://mention.earth/ap/users/instance#main-key',
+    publicKeyPem: 'public',
+  });
+  mocks.signViaOxy.mockResolvedValue('c2lnbmF0dXJl');
+  mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
+  mocks.recordAccess.mockResolvedValue(undefined);
+  mocks.postCreatorCreate.mockResolvedValue({ id: 'created_post_1' });
+  mocks.makeServiceRequest.mockResolvedValue({ id: 'oxy_user_1' });
+  mocks.getLinkPreviews.mockResolvedValue({});
+  mocks.getLinkPreview.mockResolvedValue(undefined);
+  mocks.getServiceOxyClient.mockReturnValue({
+    makeServiceRequest: mocks.makeServiceRequest,
+    getLinkPreviews: mocks.getLinkPreviews,
+    getLinkPreview: mocks.getLinkPreview,
+  });
+  mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
+  mocks.fetchUpstreamSingleHop.mockImplementation(
+    async (url: string, options: { headers: Record<string, string> }) => {
+      const res: Response = await (globalThis.fetch as typeof fetch)(url, { headers: options.headers });
+      const bodyBuffer = Buffer.from(await res.arrayBuffer());
+      const headers: Record<string, string> = {};
+      res.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+      const stream = new PassThrough();
+      stream.end(bodyBuffer);
+      return { response: stream, status: res.status, headers };
+    },
+  );
+  // Both actors on the instance resolve, so a case that fails to link a quote
+  // fails because of the quote and not because the author was unresolvable.
+  mocks.getOrFetchActor.mockImplementation(async (uri: string) =>
+    uri === BOB_URI
+      ? { uri: BOB_URI, oxyUserId: BOB_OXY_ID, type: 'Person' }
+      : { uri: ACTOR_URI, oxyUserId: ALICE_OXY_ID, type: 'Person' },
+  );
+});
+
+describe('outbox backfill — a quote is linked, not left as `RE: <url>`', () => {
+  it('links a quote of a post we already hold, and types the row as a quote', async () => {
+    const quoted = await seedPost(scope, {
+      oxyUserId: BOB_OXY_ID,
+      federation: { activityId: HELD_URI, actorUri: BOB_URI },
+    });
+    stubRemote([createNote('quoting', { quote: HELD_URI })]);
+
+    await runOutboxSync();
+
+    expect(await storedNote('quoting')).toEqual({ quoteOf: quoted.id, type: PostType.QUOTE });
+  });
+
+  it('CONTROL: a note with the same `RE:` body but no quote field links nothing', async () => {
+    // Two things at once, and the file needs both.
+    //
+    // Same page, same path, opposite outcome — which is what stops the case
+    // above from being a check that cannot fail: a `quote_of` filled
+    // unconditionally would pass every other assertion here.
+    //
+    // And the quoted post IS SEEDED, so `null` means "we held it and still did
+    // not link it", not "the lookup missed". Every fixture in this file carries
+    // `RE: <url>` in its body, so without that the pass above could have come
+    // from parsing the body — which is precisely what must not happen. The body
+    // is how a remote server RENDERS a quote, not where the quote lives.
+    await seedPost(scope, {
+      oxyUserId: BOB_OXY_ID,
+      federation: { activityId: HELD_URI, actorUri: BOB_URI },
+    });
+    stubRemote([createNote('plain')]);
+
+    await runOutboxSync();
+
+    expect(await storedNote('plain')).toEqual({ quoteOf: null, type: PostType.TEXT });
+  });
+
+  it('fetches and imports a quoted post we do NOT hold, then links it', async () => {
+    // The case the reader actually hits: you follow an account and its back
+    // catalogue quotes people you have never held a post from. Nothing in this
+    // path used to fetch, so every one of those quotes stayed null forever —
+    // there is no later pass that revisits an imported post.
+    stubRemote(
+      [createNote('quoting-unheld', { quote: UNHELD_URI })],
+      { [UNHELD_URI]: bobNote(UNHELD_URI) },
+    );
+
+    await runOutboxSync();
+
+    const imported = await storedRemote(UNHELD_URI);
+    expect(imported).toBeDefined();
+    expect(await storedNote('quoting-unheld')).toEqual({
+      quoteOf: imported?.id,
+      type: PostType.QUOTE,
+    });
+  });
+
+  it('links the quote carried by the FETCHED post too, not just the top one', async () => {
+    // `ensureFederatedNote` is the importer behind a boost original, a reply
+    // ancestor AND a quoted note, and it had the same blind spot: whatever it
+    // imported lost its own quote. So a quote of a quote linked the first hop
+    // and dropped the second.
+    const held = await seedPost(scope, {
+      oxyUserId: BOB_OXY_ID,
+      federation: { activityId: HELD_URI, actorUri: BOB_URI },
+    });
+    stubRemote(
+      [createNote('quoting-chain', { quote: UNHELD_URI })],
+      { [UNHELD_URI]: bobNote(UNHELD_URI, { quote: HELD_URI }) },
+    );
+
+    await runOutboxSync();
+
+    const middle = await storedRemote(UNHELD_URI);
+    expect(middle?.quoteOf).toBe(held.id);
+    expect((await storedNote('quoting-chain'))?.quoteOf).toBe(middle?.id);
+  });
+});
