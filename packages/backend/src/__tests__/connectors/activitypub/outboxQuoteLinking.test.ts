@@ -524,3 +524,99 @@ describe("the remote's `RE:` fallback goes once we can render the quote ourselve
     expect(await storedBody('unlinked-marker')).toContain('RE:');
   });
 });
+
+describe('a bridge-flattened retweet is dropped on THIS path too, not only the inbox', () => {
+  /**
+   * `dropFlattenedRetweets` was passed by `handleCreate` and by nothing else, so
+   * the same Note was kept or discarded depending only on which route imported
+   * it — the identical three-path asymmetry #905 fixed for quotes. Measured in
+   * production: 934 stored posts whose body opens `RT:`, 794 of them from ONE
+   * reviewed bridge (mastox.eu), each appearing under a byline that did not
+   * write it with a dead `@handle` and no route to the real author.
+   */
+  const BRIDGE_ACTOR = 'https://bird.makeup/users/someone';
+  const BRIDGE_OUTBOX = `${BRIDGE_ACTOR}/outbox`;
+  const BRIDGE_OXY_ID = scope.user('bridge');
+
+  function bridgeNote(id: string, body: string) {
+    const noteId = `${BRIDGE_ACTOR}/statuses/${id}`;
+    return {
+      id: `${noteId}/activity`,
+      type: 'Create',
+      actor: BRIDGE_ACTOR,
+      published: '2023-04-01T12:00:00Z',
+      object: {
+        id: noteId,
+        type: 'Note',
+        attributedTo: BRIDGE_ACTOR,
+        content: `<p>${body}</p>`,
+        published: '2023-04-01T12:00:00Z',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+      },
+    };
+  }
+
+  function stubBridgeOutbox(items: unknown[]): void {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === BRIDGE_OUTBOX) {
+        return jsonResponse({ type: 'OrderedCollection', totalItems: items.length, orderedItems: items });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    }));
+  }
+
+  async function runBridgeSync() {
+    return outboxSyncService.syncOutboxPostsDetailed(
+      { uri: BRIDGE_ACTOR, acct: 'someone@bird.makeup', outboxUrl: BRIDGE_OUTBOX, oxyUserId: BRIDGE_OXY_ID },
+      { limit: 10, maxPages: 1 },
+    );
+  }
+
+  async function storedCount(id: string): Promise<number> {
+    const rows = await getDb()
+      .select({ id: posts.id })
+      .from(posts)
+      .where(like(posts.federationActivityId, `${BRIDGE_ACTOR}/statuses/${id}%`));
+    return rows.length;
+  }
+
+  beforeEach(() => {
+    mocks.getOrFetchActor.mockImplementation(async (uri: string) =>
+      uri === BRIDGE_ACTOR
+        ? { uri: BRIDGE_ACTOR, oxyUserId: BRIDGE_OXY_ID, type: 'Person', domain: 'bird.makeup' }
+        : { uri: ACTOR_URI, oxyUserId: ALICE_OXY_ID, type: 'Person' },
+    );
+  });
+
+  afterEach(async () => {
+    await getDb().delete(posts).where(like(posts.federationActivityId, `${BRIDGE_ACTOR}%`));
+  });
+
+  it('drops it', async () => {
+    stubBridgeOutbox([bridgeNote('rt', 'RT: @ThomasitaD BUENAVENTURA NECESITA MÉDICOS')]);
+
+    await runBridgeSync();
+
+    expect(await storedCount('rt')).toBe(0);
+  });
+
+  it('CONTROL: an ordinary note from the SAME bridge is imported', async () => {
+    // Without this, the case above would pass just as well if the path had
+    // started refusing everything from a bridge.
+    stubBridgeOutbox([bridgeNote('ordinary', 'just a normal post')]);
+
+    await runBridgeSync();
+
+    expect(await storedCount('ordinary')).toBe(1);
+  });
+
+  it('CONTROL: the same RT body from a NON-bridge host is kept', async () => {
+    // The gate is per reviewed bridge, not a ban on the characters `RT:`. A
+    // human writing "RT:" on an ordinary instance must be unaffected.
+    stubRemote([createNote('human-rt', { content: '<p>RT: @someone quoting a friend</p>' })]);
+
+    await runOutboxSync();
+
+    expect(await storedNote('human-rt')).toBeDefined();
+  });
+});

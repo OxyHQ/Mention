@@ -29,6 +29,7 @@ import {
   extractLocalPostIdFromApUri,
 } from './constants';
 import { parentIsChannelPost } from '../../utils/channelReplyGate';
+import { federationBridges } from './federationBridgePolicy';
 import { PostVisibility } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import {
@@ -851,6 +852,18 @@ export class OutboxSyncService {
         const built = await buildFederatedNoteContent(noteObject, resolvedOxyUserId, {
           activityId,
           actorUri: actorUri ?? undefined,
+          // The SAME gate the inbox applies, and it was missing here. A reviewed
+          // bridge flattens a retweet into a plain Note authored by the
+          // retweeter, carrying no reference to the original — so the post
+          // appears under a byline that did not write it, with a dead `@handle`
+          // and no way to reach the real author. `handleCreate` has dropped
+          // those since the gate shipped; this path never did, so the same Note
+          // was kept or discarded depending only on which route imported it.
+          // The outbox owner is carried as a narrow Pick without `domain`, so the
+          // host comes from its URI — the same value `federated_actors.domain`
+          // holds, which is the host that DELIVERED the activity rather than any
+          // re-labelled bridged identity.
+          dropFlattenedRetweets: federationBridges.findBridge(getRemoteHost(actor.uri ?? '') ?? '') !== undefined,
           ingestPath: 'outbox',
         });
         if (built.skip) {
@@ -1614,6 +1627,10 @@ export class OutboxSyncService {
     const built = await buildFederatedNoteContent(note, authorOxyUserId, {
       activityId: noteActivityId,
       actorUri: authorUri ?? undefined,
+      // Third site of the same gate. A boosted original, a reply ancestor and a
+      // quoted note all arrive here, so without it a flattened retweet reaches
+      // the database as somebody else's post the moment anything references it.
+      dropFlattenedRetweets: federationBridges.findBridge(authorActor?.domain ?? '') !== undefined,
       ingestPath: 'dependency',
     });
     if (built.skip) {
