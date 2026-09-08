@@ -114,6 +114,12 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     reason:
       'Every variant of every federated post with a LINKED quote whose body still renders `RE: <url>`.',
   },
+  backfillMediaMetadata: {
+    scope: 'whole-table',
+    reason:
+      'Every post carrying a media row that still lacks intrinsic metadata — dimensions for an '
+      + 'Oxy-backed item, orientation/duration for a remote-URL video.',
+  },
   backfillPostHasLinks: {
     scope: 'whole-table',
     reason:

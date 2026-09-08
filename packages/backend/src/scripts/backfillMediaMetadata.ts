@@ -47,10 +47,36 @@ export async function backfillMediaMetadata(
   const pageSize = opts.batchSize ?? DEFAULT_PAGE_SIZE;
   const dryRun = opts.dryRun ?? false;
 
-  // "Has at least one media row", as an EXISTS over the child table — the
-  // analogue of Mongo's `content.media.0` existence probe on the embedded array.
+  // "Has at least one media row that still NEEDS enriching", as an EXISTS over
+  // the child table. It replaces a plain "has any media row" probe, and the
+  // difference is not an optimization — it is what makes the sweep finishable.
+  //
+  // The old filter hydrated the full content graph of EVERY post carrying media
+  // and then discarded most of them in {@link mediaNeedsEnrichment}. With the
+  // whole corpus in that set and no persisted cursor, a run stopped by its
+  // container timeout restarts from `posts.id` order at the top and re-hydrates
+  // the same already-enriched prefix, so the backlog at the far end is never
+  // reached. Filtering here means a repaired post LEAVES the candidate set, and
+  // a re-run resumes over what is left.
+  //
+  // The predicate mirrors {@link mediaNeedsEnrichment} exactly, arm for arm,
+  // with the same discriminator: an id that is not an `http(s)` URL is an Oxy
+  // file id we can ask Oxy about, anything else is a remote URL we cannot.
+  // `mediaNeedsEnrichment` remains the authority — this only narrows what is
+  // hydrated — but a NARROWER predicate here would silently skip rows the
+  // authority would have repaired, so `backfillMediaMetadata.test.ts` seeds one
+  // post per arm and asserts the two agree.
   const baseFilter = sql`exists (
-    select 1 from ${postMedia} where ${postMedia.postId} = ${posts.id}
+    select 1 from ${postMedia}
+    where ${postMedia.postId} = ${posts.id}
+      and case
+        when ${postMedia.mediaId} !~* '^https?://'
+          then ${postMedia.width} is null
+            or ${postMedia.height} is null
+            or (${postMedia.type} = 'video' and ${postMedia.durationSec} is null)
+        else ${postMedia.type} = 'video'
+          and (${postMedia.orientation} is null or ${postMedia.durationSec} is null)
+      end
   )`;
 
   let scanned = 0;

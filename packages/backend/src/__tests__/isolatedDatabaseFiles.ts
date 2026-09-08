@@ -286,6 +286,18 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'shared database would also make the counters this file asserts describe other suites\' rows.',
   },
   {
+    path: 'src/__tests__/scripts/backfillMediaMetadataRows.test.ts',
+    jobEntryPoint: 'backfillMediaMetadata',
+    reason:
+      'Pages over every post carrying media that still lacks intrinsic metadata and REWRITES its ' +
+      'whole content graph (a transactional delete-then-insert of `post_media`). It takes no ' +
+      'scope, because a repair that only fixed the caller\'s rows would repair nothing in ' +
+      'production, and its suite runs it with `dryRun: false`. Sharing a database it would eat ' +
+      'the deliberately dimensionless fixtures `videosFeed.test.ts` seeds to prove the lane\'s ' +
+      '`width > 0 AND height > 0` filter — replacing their media rows mid-assertion, and making ' +
+      'this file\'s own `scanned`/`updated` counts describe other suites\' posts.',
+  },
+  {
     path: 'src/__tests__/scripts/backfillPostHasLinksRows.test.ts',
     jobEntryPoint: 'backfillPostHasLinks',
     reason:
