@@ -109,6 +109,11 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'whole-table',
     reason: 'Every federated post with a null quote_of whose body renders as `RE: <url>`.',
   },
+  stripRenderedQuoteMarkers: {
+    scope: 'whole-table',
+    reason:
+      'Every variant of every federated post with a LINKED quote whose body still renders `RE: <url>`.',
+  },
   backfillPostHasLinks: {
     scope: 'whole-table',
     reason:
