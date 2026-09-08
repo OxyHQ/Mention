@@ -115,15 +115,16 @@ function rows(renderer: TestRenderer.ReactTestRenderer) {
 }
 
 describe('ComposeLanguageSheet', () => {
-  it('lists a single-language post and routes it to the picker', () => {
+  it('offers a direct primary-language change without adding a rendition', () => {
     const { renderer, onEdit, onSelect } = render();
 
-    expect(rows(renderer)).toContain('English');
+    expect(rows(renderer)).toContain('Post language');
+    expect(rows(renderer)).not.toContain('English');
 
     act(() => {
       renderer.root
         .findAllByType(TouchableOpacity)
-        .find((row) => row.findAllByType(Text)[0]?.props.children === 'English')
+        .find((row) => row.findAllByType(Text)[0]?.props.children === 'Post language')
         ?.props.onPress();
     });
 
@@ -167,13 +168,13 @@ describe('ComposeLanguageSheet', () => {
    * these two paths made editing and adding a language unreachable: the picker
    * opened and vanished in the same frame.
    */
-  it('stays out of the way when it hands over to the picker', () => {
+  it('stays out of the way when the direct primary action opens the picker', () => {
     const { renderer, onClose, onEdit } = render();
 
     act(() => {
       renderer.root
         .findAllByType(TouchableOpacity)
-        .find((row) => row.findAllByType(Text)[0]?.props.children === 'English')
+        .find((row) => row.findAllByType(Text)[0]?.props.children === 'Post language')
         ?.props.onPress();
     });
 

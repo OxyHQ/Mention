@@ -1,11 +1,11 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, type ReactNode, type Ref } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Loading } from '@oxyhq/bloom/loading';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import MentionTextInput from '@/components/MentionTextInput';
+import MentionTextInput, { type MentionTextInputHandle } from '@/components/MentionTextInput';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import { ComposeAltButton } from '@/components/Compose/ComposeAltButton';
 import { VideoPreview } from '@/components/Compose/VideoPreview';
@@ -49,6 +49,9 @@ interface VariantEditorProps {
   onUseSharedMedia: (itemId: string) => void;
   onArticlePress: (itemId: string) => void;
   onArticleReset: (itemId: string) => void;
+  textInputRef?: Ref<MentionTextInputHandle>;
+  /** Keeps the same composer actions available in every language. */
+  toolbar?: ReactNode;
 }
 
 /**
@@ -89,6 +92,8 @@ const VariantEditor = memo(function VariantEditor({
   onUseSharedMedia,
   onArticlePress,
   onArticleReset,
+  textInputRef,
+  toolbar,
 }: VariantEditorProps) {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -114,6 +119,7 @@ const VariantEditor = memo(function VariantEditor({
         <Avatar source={userAvatar} size={AVATAR_SIZE} variant={MEDIA_VARIANT_AVATAR} verified={userVerified} style={styles.avatar} />
         <View style={styles.column}>
           <MentionTextInput
+            ref={textInputRef}
             className="text-foreground"
             style={styles.textInput}
             placeholder={t('compose.languages.variantPlaceholder', {
@@ -151,6 +157,8 @@ const VariantEditor = memo(function VariantEditor({
           </TouchableOpacity>
         </View>
       </View>
+
+      {toolbar}
 
       {sharedMedia.length > 0 ? (
         <View style={styles.mediaSection}>
