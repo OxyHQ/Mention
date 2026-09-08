@@ -66,13 +66,22 @@ export const TREND_TERM_STOPWORDS: ReadonlySet<string> = new Set([
   'nobody', 'anything', 'everything', 'nothing', 'somewhere', 'anywhere',
   'everywhere',
   // Spanish
-  'que', 'los', 'las', 'del', 'por', 'con', 'una', 'uno', 'para', 'como', 'pero',
+  'de', 'el', 'la', 'lo', 'al', 'que', 'los', 'las', 'del', 'por', 'con', 'una', 'uno', 'para', 'como', 'pero',
   'sus', 'les', 'más', 'mas', 'este', 'esta', 'esto', 'esos', 'esas', 'ese',
   'eso', 'hay', 'son', 'ser', 'está', 'esta', 'están', 'estan', 'muy', 'todo',
   'toda', 'todos', 'todas', 'porque', 'cuando', 'donde', 'desde', 'hasta',
   'sobre', 'entre', 'tiene', 'tienen', 'hace', 'hacer', 'puede', 'ahora',
   'siempre', 'nunca', 'también', 'tambien', 'aunque', 'nada', 'algo', 'otro',
   'otra', 'gente', 'año', 'años', 'día', 'días', 'vez', 'ver',
+  // Calendar vocabulary describes WHEN a post was written, not what it is
+  // about. Capitalization made weekday names look like entities in English;
+  // keeping the equivalents together prevents the same leak moving languages.
+  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+  'lunes', 'martes', 'miércoles', 'miercoles', 'jueves', 'viernes', 'sábado', 'sabado', 'domingo',
+  'lunedì', 'lunedi', 'martedì', 'martedi', 'mercoledì', 'mercoledi', 'giovedì', 'giovedi', 'venerdì', 'venerdi', 'sabato',
+  'segunda', 'terça', 'terca', 'quarta', 'quinta', 'sexta',
+  'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche',
+  'montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag', 'sonntag',
   // Italian
   'che', 'non', 'per', 'con', 'una', 'del', 'della', 'dei', 'delle', 'sono',
   'come', 'più', 'piu', 'anche', 'questo', 'questa', 'quando', 'perché',
@@ -258,7 +267,14 @@ export function extractTrendTerms(input: TrendTermInput): string[] {
     terms.push(term);
   };
 
-  for (const phrase of collectTrendPhrases(input.text, input.languages)) push(phrase);
+  // A window onto a longer capitalized name is not a subject of its own. For
+  // example, `New York City` used to donate `city`, `york` and `york city`, and
+  // those fragments could independently clear the author floor. Keep only a
+  // complete naming run; a shorter alias still enters from posts that actually
+  // use it on its own (`Trump` as well as `Donald Trump`).
+  for (const phrase of collectTrendPhraseEntries(input.text, input.languages)) {
+    if (phrase.whole) push(phrase.text);
+  }
 
   // Caller-supplied hashtags last: a tag that never appeared in the visible text
   // (the composer's own tag field, or a federated `tag` array) is still a term,
