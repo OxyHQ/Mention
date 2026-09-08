@@ -147,7 +147,7 @@ const MIN_TEXT_LENGTH_FOR_DETECTION = 12;
  */
 const LANGUAGE_DETECTION = {
   /** Confidence required before an undeclared body is eligible for discovery. */
-  primaryMinAccuracy: 0.65,
+  primaryMinAccuracy: 0.6,
   /** Confidence required to overrule one contradictory declared language. */
   declaredContradictionMinAccuracy: 0.8,
   /**

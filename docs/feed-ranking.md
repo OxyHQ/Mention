@@ -22,7 +22,7 @@ pure/sync). Runs at all ingest chokepoints: `PostCreationService`,
   `secondaryMinRatioToTop:0.5`). Federated: `extractApLanguages` reads AP
   `language` + all `contentMap` keys, but those labels do not grant distribution
   by themselves. Japanese kana and Korean hangul correct contradictory labels;
-  statistical detection requires confidence >= 0.65 (or a credible bilingual
+  statistical detection requires confidence >= 0.6 (or a credible bilingual
   pair), and replacement of a single declaration requires >= 0.8. Ambiguous
   bodies produce `languages: []`. Feed membership is ANY-OVERLAP against this
   canonical field.
