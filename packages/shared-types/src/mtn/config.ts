@@ -679,23 +679,16 @@ export const MtnConfig = {
       /** Master switch. When false the gate is fully bypassed (no compute, no metrics). */
       enabled: true,
       /**
-       * Measure-don't-filter mode. When true the gate evaluates each discovery
-       * candidate and records what it WOULD reject, but lets every post through —
-       * used to validate precision/recall in prod before enforcing.
+       * Raw-length rejection is disabled. Length is not language-neutral, and
+       * the low-effort detector below distinguishes decoration from real prose.
        */
-      shadow: true,
+      minTextLength: 0,
       /**
-       * Minimum raw `content.text` length (characters) for a discovery post. Below
-       * this a post with no media/poll is treated as empty. Reuses the existing
-       * `minLength` filter primitive.
+       * Require one real letter after stripping shortcodes, URLs,
+       * mentions/hashtags and emoji. This rejects decoration-only content without
+       * suppressing valid short prose in Latin or CJK scripts.
        */
-      minTextLength: 3,
-      /**
-       * Minimum MEANINGFUL text length (characters) after stripping shortcodes,
-       * URLs, mentions/hashtags and emoji. Below this AND with no media/poll, the
-       * post is emoji/shortcode-only low-effort — the objective-junk case.
-       */
-      minMeaningfulTextLength: 12,
+      minMeaningfulTextLength: 1,
       /**
        * Native-engagement floor: `likes + comments + max(0, boosts −
        * federatedBoostsCount) ≥ this` lets a discovery post pass the engagement

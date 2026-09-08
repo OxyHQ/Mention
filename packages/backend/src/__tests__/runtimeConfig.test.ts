@@ -45,6 +45,7 @@ describe('runtime configuration', () => {
     [{ MENTION_PUBLIC_API_URL: 'https://api.example/path' }, 'MENTION_PUBLIC_API_URL'],
     [{ FEDERATION_BLOCKED_DOMAINS: 'valid.example,https://invalid.example' }, 'FEDERATION_BLOCKED_DOMAINS'],
     [{ FOR_YOU_DISCOVERY_GATE: 'lowEffortGate,unknownGate' }, 'FOR_YOU_DISCOVERY_GATE'],
+    [{ DISCOVERY_GATE_ROLLOUT: 'maybe' }, 'DISCOVERY_GATE_ROLLOUT'],
   ])('rejects a malformed supplied value: %o', (source, expectedField) => {
     expect(() => parseRuntimeEnvironment(source)).toThrow(expectedField);
   });

@@ -164,6 +164,12 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     scope: 'caller-scoped',
     reason: 'Reads feed_interactions since a cutoff and scores them; no writes.',
   },
+  cleanFederatedCustomEmoji: {
+    scope: 'caller-scoped',
+    reason:
+      'The suite imports only the pure planHistoricalEmojiCleanup decision helper and never ' +
+      'calls the module\'s table-wide run entry point.',
+  },
   'fixtures/feedQualityLabels': {
     scope: 'caller-scoped',
     reason: 'A fixture module of static labels; it touches no database at all.',

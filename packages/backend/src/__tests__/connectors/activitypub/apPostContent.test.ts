@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { MediaItem } from '@mention/shared-types';
 import type { ExtractedMediaAttachment } from '../../../connectors/shared/federatedMedia';
+import { metrics } from '../../../utils/metrics';
 
 /**
  * Unit tests for the shared federated-note content builder — the single
@@ -28,12 +29,15 @@ vi.mock('../../../connectors/shared/federatedMedia', () => ({
 import {
   buildFederatedNoteContent,
   buildFederatedNoteContentForEdit,
+  extractDeclaredCustomEmojiNames,
   extractApContentHtml,
   extractApSummary,
+  removeDeclaredCustomEmoji,
   rewriteHashtagAnchors,
 } from '../../../connectors/activitypub/apPostContent';
 
 beforeEach(() => {
+  metrics.reset();
   h.materializeFederatedMedia.mockReset();
   // Default: pass media through unchanged (nothing dropped).
   h.materializeFederatedMedia.mockImplementation(async (media, attachments) => ({ media, attachments }));
@@ -58,6 +62,32 @@ describe('extractApContentHtml', () => {
     expect(extractApContentHtml({ content: '' })).toBe('');
     expect(extractApContentHtml({})).toBe('');
     expect(extractApContentHtml(null)).toBe('');
+  });
+});
+
+describe('ActivityPub custom emoji normalization', () => {
+  const emojiTags = [
+    { type: 'Emoji', name: ':ohayo_usagi:', icon: { url: 'https://remote.example/one.png' } },
+    { type: ['Emoji', 'Image'], name: ':long_bunny_smile:' },
+    { type: 'Hashtag', name: '#not-an-emoji' },
+  ];
+
+  it('extracts only bounded, declared Emoji names', () => {
+    expect(extractDeclaredCustomEmojiNames({ tag: emojiTags })).toEqual([
+      ':long_bunny_smile:',
+      ':ohayo_usagi:',
+    ]);
+  });
+
+  it('removes exact declared tokens and their orphaned Misskey zero-width spacing', () => {
+    expect(removeDeclaredCustomEmoji(
+      '\u200B:ohayo_usagi:\u200B Hola \u200B:long_bunny_smile:\u200B',
+      [':ohayo_usagi:', ':long_bunny_smile:'],
+    )).toBe('Hola');
+  });
+
+  it('preserves undeclared colon text and Unicode emoji', () => {
+    expect(removeDeclaredCustomEmoji(':literal: 🔥', [':remote:'])).toBe(':literal: 🔥');
   });
 });
 
@@ -122,6 +152,101 @@ describe('rewriteHashtagAnchors', () => {
 });
 
 describe('buildFederatedNoteContent', () => {
+  it('rejects the reported Misskey custom-emoji-only shape', async () => {
+    const built = await buildFederatedNoteContent(
+      {
+        content: '<p>\u200B:ohayo_usagi:\u200B\u200B:right_side_balloon_with_tail:\u200B\u200B:long_bunny_smile:\u200B</p>',
+        tag: [
+          { type: 'Emoji', name: ':ohayo_usagi:' },
+          { type: 'Emoji', name: ':right_side_balloon_with_tail:' },
+          { type: 'Emoji', name: ':long_bunny_smile:' },
+        ],
+      },
+      'owner-1',
+      { ingestPath: 'inbox' },
+    );
+    expect(built).toEqual({ skip: true, reason: 'empty-after-custom-emoji-removal' });
+    expect(metrics.getCounter('federation_import_content_total', {
+      path: 'inbox',
+      decision: 'empty-after-custom-emoji-removal',
+    })).toBe(1);
+  });
+
+  it('removes declared custom emoji while preserving prose, Unicode emoji and undeclared colon text', async () => {
+    const built = await buildFederatedNoteContent(
+      {
+        content: '<p>:wave_remote: Hola 🔥 :literal:</p>',
+        tag: [{ type: 'Emoji', name: ':wave_remote:' }],
+      },
+      'owner-1',
+      {},
+    );
+    if (built.skip) throw new Error('expected content');
+    expect(built.text).toBe('Hola 🔥 :literal:');
+  });
+
+  it('keeps Unicode-emoji-only posts', async () => {
+    const built = await buildFederatedNoteContent({ content: '<p>🔥🚀✨</p>' }, 'owner-1', {});
+    if (built.skip) throw new Error('expected content');
+    expect(built.text).toBe('🔥🚀✨');
+  });
+
+  it('keeps a custom-emoji-only body when media rescues the post', async () => {
+    const built = await buildFederatedNoteContent(
+      {
+        content: '<p>:photo_frame:</p>',
+        tag: [{ type: 'Emoji', name: ':photo_frame:' }],
+        attachment: [{ type: 'Document', mediaType: 'image/png', url: 'https://remote.example/photo.png' }],
+      },
+      'owner-1',
+      {},
+    );
+    if (built.skip) throw new Error('expected content');
+    expect(built.text).toBe('');
+    expect(built.media).toHaveLength(1);
+  });
+
+  it('cleans a CW and only lets its surviving text rescue the post', async () => {
+    const kept = await buildFederatedNoteContent(
+      {
+        content: ':remote:',
+        summary: ':remote: spoilers',
+        tag: [{ type: 'Emoji', name: ':remote:' }],
+      },
+      'owner-1',
+      {},
+    );
+    if (kept.skip) throw new Error('expected content');
+    expect(kept.summary).toBe('spoilers');
+
+    const skipped = await buildFederatedNoteContent(
+      {
+        content: ':remote:',
+        summary: ':remote:',
+        tag: [{ type: 'Emoji', name: ':remote:' }],
+      },
+      'owner-1',
+      {},
+    );
+    expect(skipped).toEqual({ skip: true, reason: 'empty-after-custom-emoji-removal' });
+  });
+
+  it('promotes the first surviving localized variant when the declared primary becomes empty', async () => {
+    const built = await buildFederatedNoteContent(
+      {
+        content: '',
+        language: 'ja',
+        contentMap: { ja: ':remote:', es: '<p>Hola mundo</p>' },
+        tag: [{ type: 'Emoji', name: ':remote:' }],
+      },
+      'owner-1',
+      {},
+    );
+    if (built.skip) throw new Error('expected content');
+    expect(built.text).toBe('Hola mundo');
+    expect(built.variants).toEqual([{ tag: 'es', source: 'author', text: 'Hola mundo' }]);
+  });
+
   it('stores a Bridgy Fed hashtag as visible #tag text (not the bsky.app search URL) and in hashtags[]', async () => {
     const note = {
       content:

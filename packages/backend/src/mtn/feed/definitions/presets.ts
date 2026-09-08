@@ -146,8 +146,8 @@ function discoveryGateModule(id: string): ModuleRef {
  * - `off` / `false` / `0`            → no gate (empty)
  * - comma-separated ids              → explicit subset (e.g. `lowEffortGate,nativeEngagement`)
  *
- * SHADOW mode (`discoveryGate.shadow`) is orthogonal: it controls whether the
- * engine ENFORCES the resolved gate or only measures it (see `FeedEngine.gatherPool`).
+ * `DISCOVERY_GATE_ROLLOUT` controls whether the engine measures, experiments,
+ * or enforces the resolved gate (see `FeedEngine.gatherPool`).
  */
 export function resolveDiscoveryGate(): ModuleRef[] {
   if (MtnConfig.feed.discoveryGate.enabled !== true) {
@@ -197,7 +197,7 @@ export const forYouDefinition: FeedDefinition = {
   filters: [enabled('safety')],
   // Phase 4: the discovery gate applies ONLY to non-trusted lanes. `filters` stays
   // `[safety]` (always-on, every lane); the gate goes here so following/affinity/
-  // lists are never gated. Ships in shadow mode (`discoveryGate.shadow`).
+  // lists are never gated. Rollout mode is resolved dynamically by the engine.
   discoveryFilters: resolveDiscoveryGate(),
   execution: {
     maxPool: MtnConfig.feed.candidateSources.maxPool,

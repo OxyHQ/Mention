@@ -36,6 +36,11 @@ interface MetricDefinition {
 }
 
 const DEFINITIONS = {
+  federation_import_content_total: {
+    kind: 'counter',
+    help: 'ActivityPub content normalization decisions by bounded ingest path',
+    labelNames: ['path', 'decision'],
+  },
   feed_discovery_gated_total: {
     kind: 'counter',
     help: 'Feed discovery candidates rejected by the discovery gate',

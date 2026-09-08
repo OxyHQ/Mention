@@ -16,21 +16,21 @@
  * engagement-per-impression between cohorts — no bucket label needs to ride on the
  * online metrics.
  *
- * The experiment is OFF by default and gated entirely by the `FOR_YOU_DISCOVERY_GATE_AB`
- * env flag (`on`/`true`/`1` to enable), reusing the same env-resolved,
+ * The experiment is OFF by default and selected by `DISCOVERY_GATE_ROLLOUT`,
+ * reusing the same env-resolved,
  * per-request `ctx`-threaded plumbing the discovery gate and Phase-2b signals
  * already use — no new flag channel.
  */
 
 import { createHash } from 'crypto';
-import { isDiscoveryGateExperimentEnabled as getDiscoveryGateExperimentFlag } from '../../config';
+import { getDiscoveryGateRolloutMode } from '../../config';
 import type { DiscoveryGateBucket } from './engine/types';
 
 export type { DiscoveryGateBucket };
 
-/** Whether the discovery-gate A/B experiment is enabled via `FOR_YOU_DISCOVERY_GATE_AB`. */
+/** Whether the discovery-gate A/B experiment is the selected rollout mode. */
 export function isDiscoveryGateExperimentEnabled(): boolean {
-  return getDiscoveryGateExperimentFlag() === true;
+  return getDiscoveryGateRolloutMode() === 'experiment';
 }
 
 /**
@@ -46,8 +46,8 @@ export function bucketForDiscoveryGate(userId: string): DiscoveryGateBucket {
 
 /**
  * Resolve the discovery-gate bucket for a viewer, or `undefined` when the
- * experiment is disabled or there is no viewer (anonymous). `undefined` means "no
- * experiment override" — the gate then follows the global shadow config.
+ * experiment is disabled or there is no viewer (anonymous). Anonymous discovery
+ * remains measure-only while the experiment runs.
  */
 export function resolveDiscoveryGateBucket(
   userId: string | undefined,

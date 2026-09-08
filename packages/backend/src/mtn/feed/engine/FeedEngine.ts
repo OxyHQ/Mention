@@ -11,8 +11,8 @@
  * `FeedResponseBuilder`. No new query or scoring logic lives here.
  */
 
-import { MtnConfig } from '@mention/shared-types';
-import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
+import { MtnConfig, type HydratedPost, type SlicedFeedResponse } from '@mention/shared-types';
+import { getDiscoveryGateRolloutMode } from '../../../config';
 import { feedRankingService } from '../../../services/FeedRankingService';
 import { feedSeenPostsService } from '../../../services/FeedSeenPostsService';
 import { postHydrationService } from '../../../services/PostHydrationService';
@@ -368,12 +368,12 @@ export class FeedEngine {
     if (mutedLaneKeep) poolKeeps.push(mutedLaneKeep);
     const discoveryKeeps = this.resolveKeepPredicatesWithId(definition.discoveryFilters ?? [], ctx);
 
-    // MEASURE-ONLY when EITHER the global shadow config is on (Phase 4 ships the
-    // gate in shadow so served output is unchanged until validated in prod) OR the
-    // viewer is in the `gate-off` A/B cohort (Phase 7). In measure-only mode the
-    // gate's rejections are counted but nothing is dropped.
-    const gateShadow = MtnConfig.feed.discoveryGate.shadow === true;
-    const measureOnly = gateShadow || ctx.discoveryGateBucket === 'gate-off';
+    // One rollout authority: shadow measures everyone, experiment enforces only
+    // the stable gate-on cohort (anonymous viewers remain control), and enforce
+    // filters every discovery request.
+    const rolloutMode = getDiscoveryGateRolloutMode();
+    const measureOnly = rolloutMode === 'shadow'
+      || (rolloutMode === 'experiment' && ctx.discoveryGateBucket !== 'gate-on');
     const maxPool = exec.maxPool;
 
     const merged = new Map<string, CandidatePost>();

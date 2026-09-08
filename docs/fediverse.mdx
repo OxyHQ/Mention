@@ -111,6 +111,19 @@ author-feed page can schedule a background sync and return `pending: true`, so
 the client waits and refetches rather than caching a temporary empty result.
 Imported boosts are stored as boost posts and hydrated with their original.
 
+### Remote custom emoji
+
+Mention does not render instance-specific ActivityPub custom-emoji images. At
+ingest, the shared Note builder removes only exact shortcodes backed by that
+object's `tag.type = "Emoji"` declarations from `content`, every `contentMap`
+variant, and `summary`. Undeclared `:text:` and Unicode emoji are preserved.
+
+If nothing remains, the Note is skipped unless real media, an attachment, or a
+non-empty content warning remains. The rule is shared by inbox Create, outbox
+backfill, boost/quote/ancestor import, and Update. An Update that turns an
+existing post into an unrepresentable custom-emoji-only object removes the local
+copy through the canonical post-deletion cascade.
+
 ## Outbound flow
 
 Eligible local mutations call the connector registry after their native write.

@@ -131,10 +131,10 @@ describe('feedMetrics helpers', () => {
 });
 
 describe('discovery-gate A/B bucketing', () => {
-  const original = process.env.FOR_YOU_DISCOVERY_GATE_AB;
+  const original = process.env.DISCOVERY_GATE_ROLLOUT;
   afterEach(() => {
-    if (original === undefined) delete process.env.FOR_YOU_DISCOVERY_GATE_AB;
-    else process.env.FOR_YOU_DISCOVERY_GATE_AB = original;
+    if (original === undefined) delete process.env.DISCOVERY_GATE_ROLLOUT;
+    else process.env.DISCOVERY_GATE_ROLLOUT = original;
   });
 
   it('is deterministic and stable per user id', () => {
@@ -156,11 +156,11 @@ describe('discovery-gate A/B bucketing', () => {
   });
 
   it('is gated by the env flag and requires a user id', () => {
-    delete process.env.FOR_YOU_DISCOVERY_GATE_AB;
+    delete process.env.DISCOVERY_GATE_ROLLOUT;
     expect(isDiscoveryGateExperimentEnabled()).toBe(false);
     expect(resolveDiscoveryGateBucket('u1')).toBeUndefined();
 
-    process.env.FOR_YOU_DISCOVERY_GATE_AB = 'on';
+    process.env.DISCOVERY_GATE_ROLLOUT = 'experiment';
     expect(isDiscoveryGateExperimentEnabled()).toBe(true);
     expect(resolveDiscoveryGateBucket(undefined)).toBeUndefined();
     expect(resolveDiscoveryGateBucket('u1')).toBe(bucketForDiscoveryGate('u1'));

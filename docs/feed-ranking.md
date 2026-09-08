@@ -44,6 +44,20 @@ A fields). Topics via `postClassification.topicRefs` resolved through
 `TopicService.resolveTopicRefs`. Readers prefer `topicRefs`, fall back to
 the Stage-A slug-only `postClassification.topics`, then neutral (`[]`).
 
+## Discovery-quality rollout
+
+For You and Explore apply the same discovery-only gate; followed, affinity and
+list lanes remain trusted. `DISCOVERY_GATE_ROLLOUT` is the single runtime
+authority: `shadow` (the default) measures without filtering, `experiment`
+enforces for the stable authenticated `gate-on` cohort while keeping `gate-off`
+and anonymous traffic as control, and `enforce` filters everyone. Module
+selection remains controlled by `FOR_YOU_DISCOVERY_GATE`.
+
+The structural branch rejects decoration with no letters or numbers and no
+media/poll. It does not impose a language-biased minimum prose length: brief
+text such as “Sí” or “猫” survives and the spam, trusted-quality, engagement,
+freshness and personalization branches make the remaining decision.
+
 **Search is Postgres full-text, not a MongoDB text index.**
 `postContentVariants.searchVector` is a generated `tsvector` column,
 `to_tsvector('english', coalesce(body, ''))`, queried with

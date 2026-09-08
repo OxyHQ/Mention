@@ -184,6 +184,11 @@ describe('lowEffortGate predicate', () => {
     });
     expect(passesLowEffortGate(good, LOW_EFFORT_CFG)).toBe(true);
   });
+
+  it('keeps brief real prose in Latin and CJK scripts', () => {
+    expect(passesLowEffortGate(post({ content: { variants: [{ source: 'author', text: 'Sí' }] } }), LOW_EFFORT_CFG)).toBe(true);
+    expect(passesLowEffortGate(post({ content: { variants: [{ source: 'author', text: '猫' }] } }), LOW_EFFORT_CFG)).toBe(true);
+  });
 });
 
 // ─── nativeEngagementOrMatch branch behavior ─────────────────────────────────

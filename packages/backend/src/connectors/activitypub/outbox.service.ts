@@ -849,6 +849,7 @@ export class OutboxSyncService {
         const built = await buildFederatedNoteContent(noteObject, resolvedOxyUserId, {
           activityId,
           actorUri: actorUri ?? undefined,
+          ingestPath: 'outbox',
         });
         if (built.skip) {
           logger.debug('[FedSync] skipped empty outbox note', {
@@ -1599,6 +1600,7 @@ export class OutboxSyncService {
     const built = await buildFederatedNoteContent(note, authorOxyUserId, {
       activityId: noteActivityId,
       actorUri: authorUri ?? undefined,
+      ingestPath: 'dependency',
     });
     if (built.skip) {
       logger.debug('[FedSync] skipped empty boosted object', {
