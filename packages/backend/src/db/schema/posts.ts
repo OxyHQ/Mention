@@ -86,8 +86,21 @@ export const POST_VISIBILITIES = ['public', 'followers_only', 'private'] as cons
  * A production `db.posts.distinct('status')` is still required before the
  * backfill: this list is derived from the code, and only the data can confirm
  * nothing else is in there.
+ *
+ * `incomplete` is the FIFTH and is new rather than inherited: a federated post
+ * that declares a quote we could not resolve. It is withheld rather than shown
+ * with the remote server's `RE: <url>` fallback, and withheld rather than
+ * dropped so it can be promoted once the quote resolves. See
+ * `PostPublicationStatus` in `@mention/shared-types` for why it lives on this
+ * axis. Nothing outside ingest and `backfillQuotedPosts` writes it.
  */
-export const POST_STATUSES = ['draft', 'published', 'scheduled', 'restricted'] as const;
+export const POST_STATUSES = [
+  'draft',
+  'published',
+  'scheduled',
+  'restricted',
+  'incomplete',
+] as const;
 
 /** `ReplyPermission` (`models/Post.ts`). Stored as a set, so it is a `text[]`. */
 export const REPLY_PERMISSIONS = [

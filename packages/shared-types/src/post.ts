@@ -586,16 +586,41 @@ export const MAX_POST_COLLABORATORS = 5;
  * moderation enforcement acting on a published CrowdSource decision, and cleared
  * only by the restore path when a correction supersedes that decision.
  *
- * It lives on this axis rather than in a subdocument of its own because every
- * feed source and the post-hydration ACL already require `status: 'published'`.
- * Reusing the invariant means a restricted post leaves discovery, ranking,
- * search and every DTO the moment the field is written, with no query left
- * behind to forget — while the author's own `visibility` choice survives intact
- * for the restore.
+ * `incomplete` is the fifth, is likewise not a client-facing state, and means
+ * one thing: THE POST IS A POINTER AND WE DO NOT HAVE WHAT IT POINTS AT.
+ *
+ * A federated note that declares a quote carries text written ABOUT the quoted
+ * post — "Grifters all the way down" is not a post, it is half of one. Shown
+ * without its subject it is noise, and the reader is given the remote server's
+ * `RE: <url>` fallback rendering instead of the thing being discussed.
+ *
+ * This is not a new rule. `importAnnounce` has always refused to create a boost
+ * whose original could not be resolved ("skipped boost whose object could not be
+ * resolved"), so a repost never appears without its content. Quotes were the
+ * inconsistent case; this is them joining it.
+ *
+ * The one deliberate difference from the boost path: a boost is DROPPED and is
+ * therefore unrecoverable, while an `incomplete` post is STORED. Threads
+ * delivers by push exactly once and exposes no traversable outbox, so a dropped
+ * note can never be fetched again — whereas an incomplete one is promoted to
+ * `published` the moment `backfillQuotedPosts` resolves its quote, which is what
+ * makes withholding reversible where dropping is not.
+ *
+ * Both non-author states live on this axis rather than in a subdocument of their
+ * own because every feed source and the post-hydration ACL already require
+ * `status: 'published'`. Reusing the invariant means such a post leaves
+ * discovery, ranking, search and every DTO the moment the field is written, with
+ * no query left behind to forget — while the author's own `visibility` choice
+ * survives intact for the restore.
  *
  * {@link CreatePostRequest} deliberately keeps the narrow three-state union.
  */
-export type PostPublicationStatus = 'draft' | 'published' | 'scheduled' | 'restricted';
+export type PostPublicationStatus =
+  | 'draft'
+  | 'published'
+  | 'scheduled'
+  | 'restricted'
+  | 'incomplete';
 
 export interface Post {
   id: string;
