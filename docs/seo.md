@@ -25,15 +25,15 @@ profile and post shards under `/sitemaps/`. Rows are assigned to one of 64 stabl
 hash buckets, so a newly published post changes one shard rather than shifting
 every later offset page. A shard contains at most 40,000 URLs, safely below the
 protocol's 50,000 URL limit. Profile entries are derived from authors with
-eligible Mention posts, then rechecked through Oxy's public profile gate.
+eligible Mention posts, then resolved in bounded batches through Oxy's public
+bulk-profile gate, which excludes archived and restricted accounts.
 Matching partial expression indexes let PostgreSQL seek directly into a bucket,
 so shard generation grows with the shard rather than with the full archive.
 
-The catalog, gzip-compressed generated XML, and Oxy public-profile decisions use
-the web-shell SWR cache. Oxy requests are bounded in batches and concurrency, and
-a dependency failure aborts generation instead of caching an incomplete shard.
-This keeps repeated crawler reads off PostgreSQL and Oxy while still refreshing
-changed shards without allowing large XML strings to dominate Redis memory.
+The catalog and gzip-compressed generated XML use the web-shell SWR cache. Oxy
+requests are bounded in batches and concurrency. This keeps repeated crawler
+reads off PostgreSQL and Oxy while still refreshing changed shards without
+allowing large XML strings to dominate Redis memory.
 Submit only the root sitemap in Google Search Console and monitor Page Indexing,
 ProfilePage markup, crawl failures, and sitemap URL counts. Retired numeric shard
 URLs return XML with `410 Gone`, never the HTML application shell.

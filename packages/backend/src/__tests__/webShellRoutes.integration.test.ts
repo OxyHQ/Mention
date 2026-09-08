@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import express from 'express';
 import request from 'supertest';
 import { PostType } from '@mention/shared-types';
+import { createHash } from 'node:crypto';
 
 /**
  * `/@handle` and `/p/:id` web-shell rendering, against REAL post rows.
@@ -24,14 +25,15 @@ vi.mock('../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn() },
 }));
 
-const { getUsersByIds } = vi.hoisted(() => ({
+const { getProfileByUsername, getUsersByIds } = vi.hoisted(() => ({
+  getProfileByUsername: vi.fn(),
   getUsersByIds: vi.fn(async (ids: string[]) =>
     ids.map((id) => ({ id, username: 'nate', name: { displayName: 'Nate' } })),
   ),
 }));
 
 vi.mock('../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getUsersByIds }),
+  getServiceOxyClient: () => ({ getProfileByUsername, getUsersByIds }),
 }));
 
 import webShellRoutes from '../routes/webShell.routes';
@@ -142,6 +144,19 @@ describe('webShell routes (integration)', () => {
     expect(res.headers['content-type']).toContain('application/xml');
     expect(res.text).toContain('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
     expect(res.text).not.toContain('<html');
+  });
+
+  it('builds a stable post shard through the bulk Oxy gate without per-profile requests', async () => {
+    const postId = await seedOgPost();
+    const bucket = Number.parseInt(createHash('md5').update(postId).digest('hex').slice(0, 8), 16) % 64;
+
+    const res = await request(makeApp()).get(`/sitemaps/posts-${bucket.toString(16).padStart(2, '0')}-0.xml`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('application/xml');
+    expect(res.text).toContain(`https://mention.earth/p/${postId}`);
+    expect(getUsersByIds).toHaveBeenCalled();
+    expect(getProfileByUsername).not.toHaveBeenCalled();
   });
 
   it('serves the shell with profile OG for a crawler /@handle request', async () => {
