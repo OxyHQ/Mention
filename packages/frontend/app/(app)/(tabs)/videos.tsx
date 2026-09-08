@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, Pressable, FlatList, Platform, Share, useWindow
 import { Image } from 'expo-image';
 import { toast } from '@oxyhq/bloom/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { interpolate, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import Animated, { interpolate, useAnimatedStyle, useSharedValue, type SharedValue } from 'react-native-reanimated';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useHaptics } from '@oxyhq/bloom/hooks';
@@ -1005,8 +1005,14 @@ export default function VideosScreen() {
     const {
         openBottomSheet,
         setBottomSheetContent,
-        bottomSheetProgress,
+        setBottomSheetProgress,
     } = useContext(BottomSheetContext);
+    const bottomSheetProgress = useSharedValue(0);
+
+    useEffect(() => {
+        setBottomSheetProgress?.(bottomSheetProgress);
+        return () => setBottomSheetProgress?.(undefined);
+    }, [bottomSheetProgress, setBottomSheetProgress]);
 
     const [posts, setPosts] = useState<VideoPost[]>([]);
     const [isLoading, setIsLoading] = useState(true);
