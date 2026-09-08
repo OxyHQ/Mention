@@ -15,17 +15,17 @@ pure/sync). Runs at all ingest chokepoints: `PostCreationService`,
 `feed.controller` reply path, `OutboxSyncService.insertMany`,
 `InboxProcessingService`. Writes a `postClassification` subdoc:
 
-- `languages: string[]` — SINGLE multi-language field (all detected/declared
-  ISO 639-1 codes, primary first, deduped, cap 3). Detection is local and
-  deterministic via tinyld
+- `languages: string[]` — SINGLE multi-language field (verified ISO 639-1
+  codes, primary first, deduped, cap 3). Detection is local and deterministic
+  via Unicode-script evidence plus tinyld
   `detectAll` with a combined gate (`secondaryMinAccuracy:0.2` AND
   `secondaryMinRatioToTop:0.5`). Federated: `extractApLanguages` reads AP
-  `language` + all `contentMap` keys. A multi-language `contentMap` remains
-  authoritative because the primary body cannot validate its other authored
-  renditions. A single declared language is corrected when a body of at least
-  12 characters identifies another language with accuracy >= 0.8. This catches
-  federated servers that stamp an account default such as `en` onto German
-  prose. Feed language membership is ANY-OVERLAP against this canonical field.
+  `language` + all `contentMap` keys, but those labels do not grant distribution
+  by themselves. Japanese kana and Korean hangul correct contradictory labels;
+  statistical detection requires confidence >= 0.65 (or a credible bilingual
+  pair), and replacement of a single declaration requires >= 0.8. Ambiguous
+  bodies produce `languages: []`. Feed membership is ANY-OVERLAP against this
+  canonical field.
 - Top-level `post.language` = `languages[0]` (primary, the AP protocol
   field).
 - Sensitive, spam, quality, toxicity scores
@@ -47,17 +47,17 @@ its primary value for ActivityPub, and hydration exposes the selected rendition
 as `content.textLang`.
 
 The same language reconciliation applies to native posts. Compose's selected
-language is the author's declaration, but a monolingual post whose sufficiently
-long body strongly identifies another language is stored under the detected
-language. This covers a reader who forgets to change the Compose selector without
-letting a short or ambiguous sentence silently rewrite their choice. A future
+language is evidence, but a body that clearly identifies another language is
+stored under the detected language. This covers a reader who forgets to change
+the Compose selector. An ambiguous body remains unclassified and therefore does
+not enter language-personalized recommendations under a guess. A future
 Compose warning may offer to change the selector before publish; the backend
 check remains mandatory because clients can be old, offline-first, or bypassed.
 
-For a post with several authored variants, the current canonical set preserves
-all declared variant tags. Validating or suggesting a correction for each
-individual `(tag, body)` pair is a separate Compose/ingest enhancement: it must
-operate per rendition rather than comparing every declared tag with only the
+For a post with several declared languages, the visible primary rendition is
+validated before those labels can widen recommendation membership. Future
+per-rendition UI warnings must still inspect each `(tag, body)` pair rather than
+comparing every declared tag with only the
 primary body.
 
 The reconciliation rule must be conservative and auditable:
@@ -170,12 +170,15 @@ feeds.
   ISO 639-1 base codes (`es`), so `languageMismatchPenalty` compares on the
   BASE subtag via `getBaseLanguage`. Empty on either side ⇒ neutral.
 
-Discovery membership is stricter than chosen-content presentation. For You,
-Videos, Media, Explore and their popular fallbacks apply the SQL language
-predicate before spending their candidate caps. Following, subscribed lists and
-profile pages do not hide a post merely because its language differs: the reader
-chose that author or destination. They still receive the corrected language and
-rendition metadata so translation and presentation behave correctly.
+Discovery membership is stricter than chosen-content presentation. Every lane
+inside For You — including candidates from followed authors and subscribed-list
+members — plus Videos, Media, Explore and their popular fallbacks applies the SQL
+language predicate before spending candidate caps. Trust can exempt a followed
+author from discovery-quality gates, not from readability in a recommendation.
+The standalone Following/List timelines and profile pages do not hide a post
+merely because its language differs: there the reader chose the destination.
+They still receive corrected language and rendition metadata so translation and
+presentation behave correctly.
 
 The language filter describes the post text, not speech or text embedded inside
 video frames. Mention does not transcribe audio or OCR video as part of feed

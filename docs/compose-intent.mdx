@@ -74,7 +74,8 @@ All parameters are optional. Unknown keys are silently dropped (logged in dev bu
 way to bypass canonical classification. On publish, the deterministic baseline
 classifier normalizes it to an ISO 639-1 base code. For a sufficiently long
 monolingual body, a different language detected with high confidence replaces a
-contradictory selection. Short or ambiguous text retains the author's choice.
+contradictory selection. Ambiguous text is not given recommendation membership
+under an unverifiable choice.
 
 Clients may warn and offer to change the selected language before publishing,
 but the backend check is the source of truth. Multiple authored variants are not

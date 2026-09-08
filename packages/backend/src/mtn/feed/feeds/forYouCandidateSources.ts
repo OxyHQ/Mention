@@ -93,8 +93,9 @@ export interface GatherForYouCandidatesParams {
   /**
    * The viewer's languages as ISO 639-1 BASE subtags, resolved once by
    * `loadViewerFeedContext` (Oxy account, else the request). Applied as a HARD
-   * SQL predicate to the DISCOVERY lanes only — see {@link viewerLanguageSql}
-   * for why the trusted lanes are exempt. Empty ⇒ no lane is filtered.
+   * SQL predicate to every lane used as a RECOMMENDATION in For You. Trust may
+   * exempt an author from the discovery-quality gate, never from readability.
+   * Empty ⇒ no lane is filtered because the reader's languages are unknown.
    */
   viewerLanguages?: string[];
   /** Post ids already seen this session — excluded from every source. */
@@ -163,8 +164,8 @@ function buildBaseConditions(seenPostIds: string[], since: Date): SQL[] {
  * replies back in (see {@link buildBaseConditions}), and how `popularSource` ended
  * up the one discovery surface with no language predicate at all.
  *
- * Trusted lanes (following / subscribed lists / affinity) deliberately do NOT call
- * this: you chose those authors, so neither guard is yours to apply.
+ * Trusted lanes use the language-only wrapper below: author trust and reader
+ * readability are independent decisions.
  *
  * NSFW-hashtag exclusion is deliberately NOT applied here: it is applied to the
  * merged pool in code via the shared {@link isSensitivePost} predicate, which
@@ -318,7 +319,10 @@ export async function gatherFollowingLane(params: GatherForYouCandidatesParams):
   if (followingIds.length === 0) return [];
   return runSource(
     'following',
-    [...buildBaseConditions(params.seenPostIds, recencyStart()), followedAuthorsSql(followingIds)],
+    withViewerLanguage(
+      [...buildBaseConditions(params.seenPostIds, recencyStart()), followedAuthorsSql(followingIds)],
+      params.viewerLanguages,
+    ),
     MtnConfig.feed.candidateSources.perSource.following,
   );
 }
@@ -329,10 +333,13 @@ export async function gatherSubscribedListsLane(params: GatherForYouCandidatesPa
   if (subscribedListMemberIds.length === 0) return [];
   return runSource(
     'subscribed-lists',
-    [
-      ...buildBaseConditions(params.seenPostIds, recencyStart()),
-      followedAuthorsSql(subscribedListMemberIds),
-    ],
+    withViewerLanguage(
+      [
+        ...buildBaseConditions(params.seenPostIds, recencyStart()),
+        followedAuthorsSql(subscribedListMemberIds),
+      ],
+      params.viewerLanguages,
+    ),
     MtnConfig.feed.candidateSources.perSource.following,
   );
 }
