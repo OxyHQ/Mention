@@ -47,11 +47,9 @@ import {
 } from '../services/webShellRenderer';
 import { getShellCached } from '../services/webShellOgCache';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
-import { getDb } from '../db/postgres';
-import { userSettings } from '../db/schema/userProfile';
-import { eq } from 'drizzle-orm';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import {
+  isMentionProfilePublic,
   postSitemap,
   profileSitemap,
   renderSitemapIndex,
@@ -203,16 +201,6 @@ async function fetchProfile(handle: string): Promise<OxyProfileData | null> {
 /** The cached profile for a handle, SWR-backed. Null when unknown or unreachable. */
 function cachedProfile(handle: string): Promise<OxyProfileData | null> {
   return getShellCached(`profile:${handle}`, () => fetchProfile(handle), { rethrow: true });
-}
-
-async function isMentionProfilePublic(profile: OxyProfileData): Promise<boolean> {
-  if (!profile.id) return true;
-  const [settings] = await getDb()
-    .select({ visibility: userSettings.privacyProfileVisibility })
-    .from(userSettings)
-    .where(eq(userSettings.oxyUserId, profile.id))
-    .limit(1);
-  return !settings || settings.visibility === 'public';
 }
 
 async function isOxyAuthorPublic(oxyUserId: string): Promise<boolean> {
@@ -400,7 +388,7 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
   }
 
   try {
-    if (profile && !(await isMentionProfilePublic(profile))) profile = null;
+    if (profile && !(await isMentionProfilePublic(profile.id))) profile = null;
   } catch {
     res.setHeader('Retry-After', '60');
     await serveShell(
@@ -444,7 +432,7 @@ router.get(/^\/c\/([^/]+)\/?$/, async (req: Request, res: Response) => {
   // ONE definition of that (`canonicalProfilePath`).
   try {
     const profile = await cachedProfile(handle);
-    if (!profile || !(await isMentionProfilePublic(profile))) {
+    if (!profile || !(await isMentionProfilePublic(profile.id))) {
       await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Channel not found', 'This channel is unavailable on Mention.'), 404);
       return;
     }
@@ -472,7 +460,7 @@ router.get(/^\/p\/([^/]+)\/?$/, async (req: Request, res: Response) => {
     const authorId = post.oxyUserId ? String(post.oxyUserId) : '';
     const isPublic = post.visibility === 'public' && post.status === 'published';
     const authorIsPublic = Boolean(authorId)
-      && await isMentionProfilePublic({ id: authorId })
+      && await isMentionProfilePublic(authorId)
       && await isOxyAuthorPublic(authorId);
     if (!isPublic || !authorIsPublic) {
       await serveShell(

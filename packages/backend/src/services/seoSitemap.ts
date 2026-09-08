@@ -16,6 +16,16 @@ interface SitemapUrl {
   lastModified?: Date | string;
 }
 
+export async function isMentionProfilePublic(oxyUserId: string | undefined): Promise<boolean> {
+  if (!oxyUserId) return true;
+  const [settings] = await getDb()
+    .select({ visibility: userSettings.privacyProfileVisibility })
+    .from(userSettings)
+    .where(eq(userSettings.oxyUserId, oxyUserId))
+    .limit(1);
+  return !settings || settings.visibility === 'public';
+}
+
 function publicSeoPost(): ReturnType<typeof and> {
   return and(
     eq(posts.visibility, 'public'),
