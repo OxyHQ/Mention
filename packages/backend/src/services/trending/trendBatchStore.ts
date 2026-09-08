@@ -18,6 +18,7 @@ import {
 import { logger } from '../../utils/logger';
 import type { TrendItem } from './trendItems';
 import type { TrendingKind } from './trendRow';
+import { saveStoryMemberships } from './storyMembership';
 
 // Manual-cleanup window, DERIVED from the `trending` retention constant so the
 // two bounds can never drift (previously a hardcoded 30 days — more aggressive
@@ -98,6 +99,12 @@ export async function saveTrendingBatch(
     ...(item.status ? { status: item.status } : {}),
     ...(item.actorIds.length > 0 ? { actorIds: item.actorIds } : {}),
     ...(item.languages.length > 0 ? { languages: item.languages } : {}),
+    ...((item.regions ?? []).length > 0 ? { regions: item.regions } : {}),
+    scope: item.scope ?? 'community',
+    ...(item.conceptId ? { conceptId: item.conceptId } : {}),
+    ...(Object.keys(item.localizedLabels ?? {}).length > 0
+      ? { localizedLabels: item.localizedLabels }
+      : {}),
     rank: index + 1,
     ...(item.topicId ? { topicId: item.topicId } : {}),
     calculatedAt,
@@ -140,7 +147,11 @@ export async function saveTrendingBatch(
       .onConflictDoNothing({
         target: [trending.name, trending.calculatedAt, trending.type],
       })
-      .returning({ name: trending.name, type: trending.type });
+      .returning({ id: trending.id, name: trending.name, type: trending.type });
+    await saveMembershipsFailSoft(inserted.map((row) => {
+      const item = sorted.find((candidate) => candidate.name === row.name);
+      return { id: row.id, name: row.name, terms: item?.terms ?? [row.name], calculatedAt };
+    }));
     logger.debug(`[Trending] Saved ${inserted.length} trends for batch ${calculatedAt.toISOString()}`);
     return { insertedCount: inserted.length, rejected: rejectedOf(inserted) };
   } catch (error) {
@@ -155,7 +166,7 @@ export async function saveTrendingBatch(
       error: error instanceof Error ? error.message : String(error),
     });
 
-    const accepted: Array<{ name: string; type: TrendingKind }> = [];
+    const accepted: Array<{ id: string; name: string; type: TrendingKind }> = [];
     for (const row of rows) {
       try {
         const landed = await db
@@ -164,7 +175,7 @@ export async function saveTrendingBatch(
           .onConflictDoNothing({
             target: [trending.name, trending.calculatedAt, trending.type],
           })
-          .returning({ name: trending.name, type: trending.type });
+          .returning({ id: trending.id, name: trending.name, type: trending.type });
         accepted.push(...landed);
       } catch (rowError) {
         logger.warn('[Trending] Rejected one trend', {
@@ -173,7 +184,24 @@ export async function saveTrendingBatch(
         });
       }
     }
+    await saveMembershipsFailSoft(accepted.map((row) => {
+      const item = sorted.find((candidate) => candidate.name === row.name);
+      return { id: row.id, name: row.name, terms: item?.terms ?? [row.name], calculatedAt };
+    }));
     return { insertedCount: accepted.length, rejected: rejectedOf(accepted) };
+  }
+}
+
+async function saveMembershipsFailSoft(
+  stories: Parameters<typeof saveStoryMemberships>[0],
+): Promise<void> {
+  try {
+    await saveStoryMemberships(stories);
+  } catch (error) {
+    logger.warn('[Trending] Story membership write failed; term fallback remains available', {
+      stories: stories.length,
+      error,
+    });
   }
 }
 

@@ -8,7 +8,7 @@
  */
 
 import { trending } from '../../db/schema/discovery';
-import type { PostUser, TrendCategory, TrendStatus } from '@mention/shared-types';
+import type { PostUser, TrendCategory, TrendScope, TrendStatus } from '@mention/shared-types';
 
 /**
  * The stored spelling of a trend's kind — the same three strings
@@ -48,20 +48,32 @@ export const LANGUAGE_OVERFETCH = 3;
  * Stable: the incoming order is score order, and terms that match equally keep
  * it.
  */
+export function orderByAudienceMatch(
+  trends: readonly SerializedTrend[],
+  languages: readonly string[],
+  region?: string,
+): SerializedTrend[] {
+  if (languages.length === 0 && !region) return [...trends];
+
+  const wanted = new Set(languages);
+  const score = (trend: SerializedTrend): number => {
+    const languageMatch = !trend.languages?.length || trend.languages.some((language) => wanted.has(language));
+    const regionMatch = Boolean(region && trend.regions?.includes(region));
+    return (languageMatch ? 1 : 0) + (regionMatch ? 2 : 0);
+  };
+
+  return trends
+    .map((trend, index) => ({ trend, index, score: score(trend) }))
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .map(({ trend }) => trend);
+}
+
+/** Existing language-only callers retain the same stable ordering contract. */
 export function orderByLanguageMatch(
   trends: readonly SerializedTrend[],
   languages: readonly string[],
 ): SerializedTrend[] {
-  if (languages.length === 0) return [...trends];
-
-  const wanted = new Set(languages);
-  const matches = (trend: SerializedTrend): boolean =>
-    !trend.languages?.length || trend.languages.some((language) => wanted.has(language));
-
-  const readable: SerializedTrend[] = [];
-  const rest: SerializedTrend[] = [];
-  for (const trend of trends) (matches(trend) ? readable : rest).push(trend);
-  return [...readable, ...rest];
+  return orderByAudienceMatch(trends, languages);
 }
 
 /**
@@ -80,6 +92,10 @@ export interface SerializedTrend {
   displayName?: string;
   category?: TrendCategory;
   languages?: string[];
+  regions?: string[];
+  scope?: TrendScope;
+  conceptId?: string;
+  localizedLabels?: Record<string, string>;
   description: string;
   score: number;
   volume: number;
@@ -104,6 +120,10 @@ export function serializeTrend(row: typeof trending.$inferSelect): SerializedTre
     ...(row.displayName === null ? {} : { displayName: row.displayName }),
     ...(row.category === null ? {} : { category: row.category }),
     ...(row.languages === null ? {} : { languages: row.languages }),
+    ...(row.regions === null ? {} : { regions: row.regions }),
+    ...(row.scope === null ? {} : { scope: row.scope }),
+    ...(row.conceptId === null ? {} : { conceptId: row.conceptId }),
+    ...(row.localizedLabels === null ? {} : { localizedLabels: row.localizedLabels }),
     description: row.description,
     score: row.score,
     volume: row.volume,

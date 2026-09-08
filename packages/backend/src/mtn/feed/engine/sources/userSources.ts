@@ -4,7 +4,7 @@
  */
 
 import { isAuthorFeedFilter, PostType, PostVisibility } from '@mention/shared-types';
-import { and, arrayOverlaps, desc, eq, inArray, isNull, lt, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, arrayOverlaps, desc, eq, exists, inArray, isNull, lt, notExists, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../../../../db/postgres';
 import {
   bookmarks,
@@ -16,6 +16,7 @@ import {
   postMedia,
   posts,
   trending,
+  trendStoryPosts,
   userSettings,
 } from '../../../../db/schema';
 import { union, type PgColumn } from 'drizzle-orm/pg-core';
@@ -225,19 +226,19 @@ export const keywordsSource: SourceModule = {
  * `terms` is nullable — 90 days of rows predate clustering — and a NULL there
  * means the same thing an unmerged row means, so both fall back to `[term]`.
  */
-async function resolveTrendTerms(term: string): Promise<string[]> {
+async function resolveTrendStory(term: string): Promise<{ terms: string[]; trendId?: string }> {
   try {
     const [row] = await getDb()
-      .select({ terms: trending.terms })
+      .select({ id: trending.id, terms: trending.terms })
       .from(trending)
       .where(eq(trending.name, term))
       .orderBy(desc(trending.calculatedAt))
       .limit(1);
     const terms = row?.terms ?? [];
-    return terms.length > 1 ? terms : [term];
+    return { terms: terms.length > 1 ? terms : [term], ...(row ? { trendId: row.id } : {}) };
   } catch (error) {
     logger.warn('[Feed] Trend term lookup failed; matching the bare term', { term, error });
-    return [term];
+    return { terms: [term] };
   }
 }
 
@@ -249,9 +250,29 @@ export const trendTermsSource: SourceModule = {
     const term = typeof params.term === 'string' ? params.term.trim().toLowerCase() : '';
     if (!term) return [];
 
+    const story = await resolveTrendStory(term);
+    const membership = story.trendId
+      ? or(
+          exists(
+            getDb().select({ one: sql`1` }).from(trendStoryPosts).where(and(
+              eq(trendStoryPosts.trendId, story.trendId),
+              eq(trendStoryPosts.postId, posts.id),
+            )),
+          ),
+          and(
+            notExists(
+              getDb().select({ one: sql`1` }).from(trendStoryPosts).where(
+                eq(trendStoryPosts.trendId, story.trendId),
+              ),
+            ),
+            trendTermMatchSql(story.terms),
+          ),
+        ) as SQL
+      : trendTermMatchSql(story.terms);
+
     return fetchChrono(
       [
-        trendTermMatchSql(await resolveTrendTerms(term)),
+        membership,
         eq(posts.visibility, 'public'),
         eq(posts.status, 'published'),
       ],

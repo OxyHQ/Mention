@@ -69,14 +69,14 @@ function parseHours(): number {
  * lifecycle, so this is reusable from an in-process caller.
  */
 export async function rebaselineTrendTerms(
-  opts: { hours?: number; batchSize?: number; dryRun?: boolean } = {},
+  opts: { hours?: number; batchSize?: number; dryRun?: boolean; all?: boolean } = {},
 ): Promise<RebaselineTrendTermsResult> {
   const pageSize = opts.batchSize ?? PAGE_SIZE;
   const dryRun = opts.dryRun ?? false;
   const hours = opts.hours ?? DEFAULT_HOURS;
   const since = new Date(Date.now() - hours * 60 * 60 * 1000);
 
-  const windowFilter = gte(posts.createdAt, since) as SQL;
+  const windowFilter = opts.all ? undefined : gte(posts.createdAt, since) as SQL;
 
   let scanned = 0;
   let updated = 0;

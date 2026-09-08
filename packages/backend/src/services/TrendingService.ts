@@ -15,21 +15,18 @@ import { trendBatches, trending, TrendingType } from '../db/schema/discovery';
 import { logger } from '../utils/logger';
 import { getRedisClient } from '../utils/redis';
 import { emitTrendsUpdated } from '../utils/socket';
-import { inferenceChat, isInferenceEnabled } from '../utils/oxyInference';
 import { metrics } from '../utils/metrics';
 import { topicService } from './TopicService';
 import { saveTrendGraph } from './trending/trendGraph';
 import { mintTrendRecId } from './trending/trendTelemetry';
 import { rankTrendCandidates, topUpWithPopular } from './trending/trendScoring';
-import { resolveTrendSummary, type TrendSummaryResult } from './trending/trendSummary';
 import { aggregateTermCandidates } from './trending/trendDetection';
 import { buildTrendItems, type TrendItem } from './trending/trendItems';
 import { cleanupOldTrends, saveTrendingBatch } from './trending/trendBatchStore';
-import { loadExcerptsByTerm } from './trending/trendExcerpts';
 import { loadTrendActors, loadVolumeSeries } from './trending/trendDecoration';
 import {
   LANGUAGE_OVERFETCH,
-  orderByLanguageMatch,
+  orderByAudienceMatch,
   serializeTrend,
   type TrendWithSeries,
 } from './trending/trendRow';
@@ -49,7 +46,9 @@ const CURRENT_REC_ID_TTL_MS = 30_000;
  * is the optional part — a trend has a name and a category from the moment it
  * is detected, and only earns prose once enough readers open it.
  */
-export type TrendDetail = TrendSummaryResult & {
+export type TrendDetail = {
+  /** Historical deterministic description, when the stored row carries one. */
+  description?: string;
   /** The trend's label, as the batch derived it. Absent when not currently trending. */
   displayName?: string;
   category?: TrendCategory;
@@ -141,11 +140,8 @@ class TrendingService {
         .filter((trend) => trend.topicId)
         .map((trend) => ({ topicId: trend.topicId as string, trendingScore: trend.score }));
 
-      // Run AI summary generation, trend persistence, and popularity updates in parallel
-      const [summary, write] = await Promise.all([
-        // The summary reads the LABELS, not the terms: it is prose for a human,
-        // and `orioles, frightclub` describes the index rather than the day.
-        this.generateSummary(allTrends.slice(0, 10).map((trend) => trend.displayName)),
+      // Persist the list, its explanation graph and topic popularity in parallel.
+      const [write] = await Promise.all([
         saveTrendingBatch(allTrends, calculatedAt),
         saveTrendGraph(graph),
         topicService.updatePopularityFromTrending(popularityUpdates),
@@ -176,7 +172,7 @@ class TrendingService {
         result: write.rejected.length > 0 ? 'partial' : 'success',
       });
 
-      await getDb().insert(trendBatches).values({ calculatedAt, summary });
+      await getDb().insert(trendBatches).values({ calculatedAt, summary: '' });
 
       logger.info(
         `[Trending] Saved batch: ${allTrends.length} trends from ${candidates.length} candidate terms ` +
@@ -202,36 +198,6 @@ class TrendingService {
   }
 
   /**
-   * Generate a lightweight AI summary from trend names.
-   */
-  private async generateSummary(trendNames: string[]): Promise<string> {
-    if (!isInferenceEnabled() || trendNames.length === 0) {
-      return '';
-    }
-
-    try {
-      const summary = await inferenceChat(
-        [
-          {
-            role: 'system',
-            content: 'You are a social media trend analyst. Given a list of trending topics, write a 1-2 sentence summary of what people are talking about right now. Be natural and engaging. Vary the phrasing. Return ONLY the summary text.',
-          },
-          {
-            role: 'user',
-            content: `Trending: ${trendNames.join(', ')}`,
-          },
-        ],
-        { feature: 'trending-overview', temperature: 0.5 },
-      );
-
-      return summary.trim();
-    } catch (error) {
-      logger.warn('[Trending] Summary generation failed:', error);
-      return '';
-    }
-  }
-
-  /**
    * Get the latest batch of trends with its summary and its `recId`.
    *
    * The `recId` identifies the BATCH (see {@link mintTrendRecId}) and is what a
@@ -251,13 +217,14 @@ class TrendingService {
     limit: number = 20,
     type?: TrendingType,
     languages: readonly string[] = [],
+    region?: string,
   ): Promise<{ trending: TrendWithSeries[]; summary: string; recId?: string }> {
     // The reader's languages are part of the cache IDENTITY, not of a per-user
     // personalization: the route takes them as a query parameter precisely so
     // this stays a public, shared, CDN-cacheable read. The set is normalized and
     // sorted by the caller, so `es,en` and `en,es` are one entry rather than two.
     const languageKey = languages.length > 0 ? languages.join(',') : 'any';
-    const cacheKey = `trending:latest:${limit}:${type || 'all'}:${languageKey}`;
+    const cacheKey = `trending:latest:${limit}:${type || 'all'}:${languageKey}:${region ?? 'any'}`;
     const redis = await getRedisClient();
 
     if (redis) {
@@ -311,7 +278,14 @@ class TrendingService {
       .orderBy(desc(trending.score), asc(trending.rank))
       .limit(limit * LANGUAGE_OVERFETCH);
 
-    const trends = orderByLanguageMatch(rows.map(serializeTrend), languages).slice(0, limit);
+    const trends = orderByAudienceMatch(rows.map(serializeTrend), languages, region)
+      .slice(0, limit)
+      .map((trend) => {
+        const localized = languages
+          .map((language) => trend.localizedLabels?.[language])
+          .find((label): label is string => Boolean(label));
+        return localized ? { ...trend, displayName: localized } : trend;
+      });
 
     // Only reached on a cache MISS. The entry below is warmed right after each
     // recalculation (see warmDefaultCache), so these run on the order of once per
@@ -360,17 +334,8 @@ class TrendingService {
    * The row this reads is the same one the `startedAt` lookup already fetches,
    * so carrying the label costs nothing.
    *
-   * The on-demand summary for a trend a reader just opened.
-   *
-   * The run is read from the STORED row for the current batch, never from the
-   * request: it is the identity a summary is generated and cached under, so a
-   * caller-supplied one would let anyone mint unlimited cache keys — and with
-   * them, unlimited generations — for a single term. The same lookup is what
-   * restricts generation to terms that are actually trending right now.
-   *
-   * Excerpts are passed as a THUNK so the query only runs when a generation is
-   * actually due: the overwhelming majority of calls are a single indexed read
-   * that finds an existing summary, or a counter increment below the threshold.
+   * No inference runs here. Existing stored descriptions remain readable, while
+   * new rows rely on their deterministic name, category and localized labels.
    */
   public async getTrendSummary(term: string): Promise<TrendDetail> {
     const normalized = term.trim().toLowerCase();
@@ -389,6 +354,7 @@ class TrendingService {
         startedAt: trending.startedAt,
         displayName: trending.displayName,
         category: trending.category,
+        description: trending.description,
       })
       .from(trending)
       .where(and(
@@ -400,17 +366,8 @@ class TrendingService {
     // there is no run to attribute a summary to, so there is nothing to do.
     if (!row?.startedAt) return {};
 
-    const summary = await resolveTrendSummary({
-      term: normalized,
-      runStartedAt: row.startedAt,
-      // The one-term case of the batch, not a second implementation of it: a
-      // single branch renders as the per-term query wrapped in a subselect, so
-      // this reads the same rows in the same order the labeller sees.
-      loadExcerpts: async () => (await loadExcerptsByTerm([normalized])).get(normalized) ?? [],
-    });
-
     return {
-      ...summary,
+      ...(row.description ? { description: row.description } : {}),
       ...(row.displayName ? { displayName: row.displayName } : {}),
       ...(row.category ? { category: row.category } : {}),
     };

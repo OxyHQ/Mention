@@ -4,6 +4,7 @@ import type {
   TrendEventInput,
   TrendGraphResponse,
   TrendStatus,
+  TrendScope,
 } from "@mention/shared-types";
 import { logger } from '@oxyhq/core/logger';
 import { authenticatedClient, publicClient } from "@/utils/api";
@@ -15,6 +16,11 @@ export interface TrendingTopic {
   /** Human label. Absent on rows written before trends were labelled. */
   displayName?: string;
   category?: TrendCategory;
+  languages?: string[];
+  regions?: string[];
+  scope?: TrendScope;
+  conceptId?: string;
+  localizedLabels?: Record<string, string>;
   description: string;
   score: number;
   volume: number;
@@ -40,7 +46,7 @@ export interface TrendingTopic {
 export interface TrendDetail {
   displayName?: string;
   category?: TrendCategory;
-  /** Absent until the trend has been opened enough times to earn one. */
+  /** Historical stored description, when one exists. */
   description?: string;
 }
 
@@ -71,10 +77,7 @@ class TrendingService {
    * How to PRESENT one trend: its label, its category, and the generated
    * summary if it has earned one (`GET /trending/summary`).
    *
-   * Calling this IS the demand signal — the server counts the open and only
-   * generates a summary once a trend has been opened enough times. So it is
-   * called on the trend screen and NOWHERE else: firing it from a list would
-   * count opens that never happened and pay for prose nobody asked for.
+   * Read-only: the deterministic trend pipeline performs no generation.
    *
    * Public client, same as the event report: `/trending` is public and this
    * screen renders for signed-out visitors.

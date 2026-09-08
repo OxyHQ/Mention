@@ -24,7 +24,9 @@ import {
 } from 'drizzle-orm/pg-core';
 import { TREND_CATEGORIES } from '@mention/shared-types';
 import type { TrendGraphEdgeDTO, TrendGraphNodeDTO } from '@mention/shared-types';
+import type { TrendScope } from '@mention/shared-types';
 import { createdAt, generatedId, inList, timestamptz, tsvector, updatedAt } from '@oxyhq/db';
+import { posts } from './posts';
 
 /** The vocabulary the `trending.type` CHECK enforces. */
 export const TRENDING_TYPES = ['hashtag', 'topic', 'entity'] as const;
@@ -72,6 +74,7 @@ void _vocabularyCoversTrendingType;
 
 /** `TrendStatus` — present only while a trend is bursting hard enough to say so. */
 export const TREND_STATUSES = ['hot'] as const;
+export const TREND_SCOPES = ['global', 'multilingual', 'regional', 'language', 'community'] as const;
 
 /** `NotificationType`. */
 export const NOTIFICATION_TYPES = [
@@ -202,6 +205,14 @@ export const trending = pgTable(
      * trending measured language, which simply match every reader.
      */
     languages: text().array(),
+    /** Coarse regions with material support behind this story. */
+    regions: text().array(),
+    /** Data-derived audience reach; never inferred from a language alone. */
+    scope: text({ enum: TREND_SCOPES }).$type<TrendScope>(),
+    /** Stable language-independent identity when a reviewed alias resolved it. */
+    conceptId: text(),
+    /** Reviewed display labels keyed by ISO base language. */
+    localizedLabels: jsonb().$type<Record<string, string>>(),
     description: text().notNull().default(''),
     score: doublePrecision().notNull(),
     /** Posts carrying the term in the trailing window. */
@@ -257,6 +268,7 @@ export const trending = pgTable(
   },
   (t) => [
     check('trending_type_check', sql`${t.type} in (${sql.raw(inList(TRENDING_TYPES))})`),
+    check('trending_scope_check', sql`${t.scope} is null or ${t.scope} in (${sql.raw(inList(TREND_SCOPES))})`),
     check(
       'trending_category_check',
       sql`${t.category} is null or ${t.category} in (${sql.raw(inList(TREND_CATEGORIES))})`
@@ -276,6 +288,23 @@ export const trending = pgTable(
       .on(t.topicId)
       .where(sql`${t.topicId} is not null`),
   ]
+);
+
+/** Explicit, explainable membership of a post in one batch's story. */
+export const trendStoryPosts = pgTable(
+  'trend_story_posts',
+  {
+    id: generatedId(),
+    trendId: text().notNull().references(() => trending.id, { onDelete: 'cascade' }),
+    postId: text().notNull().references(() => posts.id, { onDelete: 'cascade' }),
+    relevance: doublePrecision().notNull(),
+    matchedTerms: text().array().notNull(),
+  },
+  (t) => [
+    unique('trend_story_posts_trend_id_post_id_key').on(t.trendId, t.postId),
+    index('trend_story_posts_post_id_idx').on(t.postId),
+    check('trend_story_posts_relevance_check', sql`${t.relevance} >= 0 and ${t.relevance} <= 1`),
+  ],
 );
 
 /**

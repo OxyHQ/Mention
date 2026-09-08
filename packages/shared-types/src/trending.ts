@@ -180,7 +180,13 @@ export interface TrendGraphEdgeDTO {
    * two terms are still two rows.
    */
   linked: boolean;
+  /** Normalized 0..1 association used by the clusterer. */
+  strength?: number;
+  /** Auditable reason this relation exists. */
+  reason?: 'cooccurrence' | 'canonical-alias';
 }
+
+export type TrendScope = 'global' | 'multilingual' | 'regional' | 'language' | 'community';
 
 /** The graph behind one batch, plus the filter values its own data supports. */
 export interface TrendGraphResponse {
