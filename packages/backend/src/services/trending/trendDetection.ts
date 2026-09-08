@@ -382,7 +382,7 @@ async function aggregateTermRows(
     --
     -- This was array_agg(distinct e.language) in the select below -- a UNION --
     -- and the union made the field nearly useless for its one reader.
-    -- orderByLanguageMatch tests ANY overlap, so one English post was enough to
+    -- audience selection tests ANY overlap, so one English post was enough to
     -- mark a term English for every English reader. Measured on production
     -- 2026-09-05, a Japanese term reached an es,en reader tagged [en,ja].
     --

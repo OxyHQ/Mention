@@ -339,8 +339,8 @@ describe('aggregateTermCandidates — the languages a term is DISCUSSED in', () 
    * The reported bug, reproduced.
    *
    * `languages` was `array_agg(distinct language)` — the UNION over every post
-   * carrying the term — and its one reader, `orderByLanguageMatch`, tests ANY
-   * overlap. So a single English post was enough to mark a term English for
+   * carrying the term — and audience selection tests ANY overlap. So a single
+   * English post was enough to mark a term English for
    * every English reader. Measured on production 2026-09-05: the Japanese term
    * `にゃんぷっぷー` was served to an `es,en` reader tagged `[en,ja]`.
    *

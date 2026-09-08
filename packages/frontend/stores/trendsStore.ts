@@ -67,7 +67,7 @@ interface TrendsStore {
   error: string | null;
   hiddenTrendIds: string[];
   /**
-   * The reader's content languages (ISO 639-1), which ORDER the list server-side.
+   * The reader's content languages (ISO 639-1), which select the list server-side.
    *
    * Held in the store rather than passed per call because the poll refetches on
    * its own — a per-call argument would give the first fetch the reader's

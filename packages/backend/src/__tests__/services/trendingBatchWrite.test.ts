@@ -409,28 +409,26 @@ describe('loadVolumeSeries — one series per TERM, in time order', () => {
 
 /**
  * A trend is not language-neutral — `noticia` is a Spanish story and reading it
- * in an Italian list is noise — so the reader's languages decide the ORDER.
- *
- * They must never decide MEMBERSHIP. A reader whose languages are quiet would
- * otherwise be served an empty widget, which is a worse answer than a list they
- * can partly read; the overfetch-then-reorder shape is what buys that.
+ * in an Italian list is noise — so the reader's languages decide membership.
  */
-describe('getTrending — the reader\'s language orders, never filters', () => {
-  async function publishLanguageBatch(): Promise<{ es: string; it: string; none: string }> {
+describe('getTrending — the reader\'s languages select the audience', () => {
+  async function publishLanguageBatch(): Promise<{ es: string; it: string; none: string; global: string }> {
     const es = uniqueName('es-trend');
     const it = uniqueName('it-trend');
     const none = uniqueName('no-lang-trend');
+    const global = uniqueName('global-concept');
     const at = batchStamp();
     await saveTrendingBatch(
       [
         item({ name: it, score: 30, languages: ['it'] }),
         item({ name: none, score: 20, languages: [] }),
         item({ name: es, score: 10, languages: ['es'] }),
+        item({ name: global, score: 5, languages: ['de', 'it'], regions: ['DE', 'IT'], scope: 'global', conceptId: 'world:event' }),
       ],
       at,
     );
     await db.insert(trendBatches).values({ calculatedAt: at, summary: '' });
-    return { es, it, none };
+    return { es, it, none, global };
   }
 
   /** This batch's trends only, in served order — sibling rows can never match. */
@@ -438,33 +436,29 @@ describe('getTrending — the reader\'s language orders, never filters', () => {
     return trends.map((trend) => trend.name).filter((name) => names.includes(name));
   }
 
-  it('puts the trends a reader can read ahead of the ones they cannot', async () => {
-    const { es, it, none } = await publishLanguageBatch();
+  it('removes foreign and unknown-language filler but retains a resolved global concept', async () => {
+    const { es, it, none, global } = await publishLanguageBatch();
 
     const result = await trendingService.getTrending(500, undefined, ['es']);
 
-    // `it` scored HIGHEST and is now last: the reorder beat the score, which is
-    // the whole assertion. A trend with NO recorded language is readable by
-    // everyone — it predates trending measuring language — so it stays in the
-    // leading group, and within a group the score order survives.
-    expect(ordered(result.trending, [es, it, none])).toEqual([none, es, it]);
+    expect(ordered(result.trending, [es, it, none, global])).toEqual([es, global]);
   });
 
-  it('still returns the rest — a quiet language is never an empty widget', async () => {
-    const { es, it, none } = await publishLanguageBatch();
+  it('returns a shorter list instead of filling it with unrelated languages', async () => {
+    const { es, it, none, global } = await publishLanguageBatch();
 
     const result = await trendingService.getTrending(500, undefined, ['ja']);
 
-    expect(ordered(result.trending, [es, it, none]).sort()).toEqual([es, it, none].sort());
+    expect(ordered(result.trending, [es, it, none, global])).toEqual([global]);
   });
 
   it('leaves the order alone when the reader offers no language', async () => {
-    const { es, it, none } = await publishLanguageBatch();
+    const { es, it, none, global } = await publishLanguageBatch();
 
     const result = await trendingService.getTrending(500);
 
     // Score order, untouched.
-    expect(ordered(result.trending, [es, it, none])).toEqual([it, none, es]);
+    expect(ordered(result.trending, [es, it, none, global])).toEqual([it, none, es, global]);
   });
 });
 

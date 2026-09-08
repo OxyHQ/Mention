@@ -33,47 +33,41 @@ export type TrendingKind = (typeof trending.$inferSelect)['type'];
 export const LANGUAGE_OVERFETCH = 3;
 
 /**
- * Move the trends a reader can READ to the front, without removing any.
+ * Select the trends that belong to the reader's language audience.
  *
- * A filter would be the obvious thing and is wrong: on a network where one
- * language dominates, filtering leaves speakers of every other language with an
- * empty widget — the failure the never-blank rule exists to prevent, arriving by
- * a different road. Ordering gives a reader their own language first and still
- * shows them what the rest of the network is talking about.
+ * Language preferences are membership, not a weak ranking hint: a short list is
+ * more useful than padding it with a story the reader did not ask for. The sole
+ * cross-language exception is a resolved concept whose evidence genuinely spans
+ * languages and regions (`scope=global`). This keeps international concepts in
+ * circulation without treating every high-scoring foreign term as universal.
  *
- * A trend with NO recorded language (written before trending measured it, or
- * carried by posts whose language never resolved) is treated as matching: its
- * language is unknown, not foreign, and hiding it would be a claim nobody made.
- *
- * Stable: the incoming order is score order, and terms that match equally keep
- * it.
+ * With no requested language, membership remains global. Region is still a
+ * presentation preference within the accepted set, and the incoming score order
+ * is retained for equal matches.
  */
-export function orderByAudienceMatch(
+export function selectForAudience(
   trends: readonly SerializedTrend[],
   languages: readonly string[],
   region?: string,
 ): SerializedTrend[] {
-  if (languages.length === 0 && !region) return [...trends];
-
   const wanted = new Set(languages);
-  const score = (trend: SerializedTrend): number => {
-    const languageMatch = !trend.languages?.length || trend.languages.some((language) => wanted.has(language));
-    const regionMatch = Boolean(region && trend.regions?.includes(region));
-    return (languageMatch ? 1 : 0) + (regionMatch ? 2 : 0);
-  };
+  const accepted = languages.length === 0
+    ? [...trends]
+    : trends.filter((trend) =>
+      trend.languages?.some((language) => wanted.has(language))
+      || (trend.scope === 'global' && Boolean(trend.conceptId)),
+    );
 
-  return trends
-    .map((trend, index) => ({ trend, index, score: score(trend) }))
-    .sort((left, right) => right.score - left.score || left.index - right.index)
+  if (!region) return accepted;
+
+  return accepted
+    .map((trend, index) => ({
+      trend,
+      index,
+      regionMatch: trend.regions?.includes(region) ? 1 : 0,
+    }))
+    .sort((left, right) => right.regionMatch - left.regionMatch || left.index - right.index)
     .map(({ trend }) => trend);
-}
-
-/** Existing language-only callers retain the same stable ordering contract. */
-export function orderByLanguageMatch(
-  trends: readonly SerializedTrend[],
-  languages: readonly string[],
-): SerializedTrend[] {
-  return orderByAudienceMatch(trends, languages);
 }
 
 /**

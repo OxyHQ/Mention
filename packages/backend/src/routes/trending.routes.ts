@@ -29,9 +29,8 @@ const MAX_TRENDING_HISTORY_LIMIT = 20;
  * Query params:
  *   limit  — max items (1-50, default 20)
  *   type   — filter by type: hashtag, topic, entity (default: all)
- *   lang   — the reader's content languages (e.g. `es-ES,en`). ORDERS the list,
- *            never filters it, so a reader whose language is quiet here still
- *            sees what the rest of the network is talking about. Part of the
+ *   lang   — the reader's content languages (e.g. `es-ES,en`). Filters the list,
+ *            except for resolved global concepts. Part of the
  *            cache key, which is why it is a query parameter rather than
  *            something read from the session — see `getTrending`.
  */

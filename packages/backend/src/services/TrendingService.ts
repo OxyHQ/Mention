@@ -26,7 +26,7 @@ import { cleanupOldTrends, saveTrendingBatch } from './trending/trendBatchStore'
 import { loadTrendActors, loadVolumeSeries } from './trending/trendDecoration';
 import {
   LANGUAGE_OVERFETCH,
-  orderByAudienceMatch,
+  selectForAudience,
   serializeTrend,
   type TrendWithSeries,
 } from './trending/trendRow';
@@ -262,9 +262,8 @@ class TrendingService {
      * three strings, but TypeScript treats enums nominally and would reject the
      * assignment. The bound value is the enum's own string at runtime.
      *
-     * Overfetched, then ordered by language match below: the reader's languages
-     * decide the ORDER, never membership, so a quiet language cannot leave
-     * somebody with an empty list.
+     * Overfetch before applying the audience membership below, so foreign terms
+     * near the top of the global batch do not crowd out lower-ranked matches.
      */
     const rows = await db
       .select()
@@ -278,7 +277,7 @@ class TrendingService {
       .orderBy(desc(trending.score), asc(trending.rank))
       .limit(limit * LANGUAGE_OVERFETCH);
 
-    const trends = orderByAudienceMatch(rows.map(serializeTrend), languages, region)
+    const trends = selectForAudience(rows.map(serializeTrend), languages, region)
       .slice(0, limit)
       .map((trend) => {
         const localized = languages
