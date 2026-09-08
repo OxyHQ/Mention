@@ -480,13 +480,38 @@ export function useReelChrome({
         });
     }, [isWatched, player, onRegisterTransportSeek]);
 
-    // Restart from the top whenever the surface (re)becomes active+focused, so each
-    // activation begins at the start. Kept separate from the play/pause gate so a
-    // mid-playback tap-resume does not rewind — and skipped entirely for a slide
-    // that adopted a playing video, whose whole point is the position it arrived
-    // with.
+    // Every activation begins at the start — but the rewind happens on the way
+    // OUT, not on the way in.
+    //
+    // Seeking at activation put the seek on the reader's critical path, and only
+    // in one direction. A slide AHEAD has never played, so `currentTime = 0` is
+    // a no-op and it starts instantly from what it buffered while it waited. A
+    // slide BEHIND sits wherever it stopped, with its buffer filled around that
+    // position, so arriving there discarded that buffer and re-fetched from the
+    // start — which is why scrolling back felt slower and jerkier than scrolling
+    // on, with everything else about the two directions identical.
+    //
+    // Rewinding as the surface goes idle moves that cost off-screen: the player
+    // spends the time the reader is elsewhere sitting at zero, and the return is
+    // a play() on a buffer that is already in the right place.
+    //
+    // `restartOnActivate` still names the guarantee, and the guarantee still
+    // holds: this surface builds its own player, which starts at zero, and the
+    // only thing that moves the playhead is playing — which only an ACTIVE
+    // surface does. Rewinding as it goes idle therefore leaves it at zero for
+    // every later activation, so activation needs no seek at all. Writing one
+    // anyway is not free: a seek is a seek to the native player whether or not
+    // the position changes.
+    const wasActiveRef = useRef(false);
     useEffect(() => {
-        if (restartOnActivate && isActive && screenFocused) {
+        if (!restartOnActivate) return;
+        const active = isActive && screenFocused;
+        if (active) {
+            wasActiveRef.current = true;
+            return;
+        }
+        if (wasActiveRef.current) {
+            wasActiveRef.current = false;
             player.currentTime = 0;
         }
     }, [player, restartOnActivate, isActive, screenFocused]);

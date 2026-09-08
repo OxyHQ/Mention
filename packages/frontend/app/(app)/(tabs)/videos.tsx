@@ -122,14 +122,21 @@ function isSlideNear(index: number, activeIndex: number, isPipOwner: boolean): b
 const POSTER_PREFETCH_RADIUS = ACTIVE_WINDOW_RADIUS + 2;
 // FlatList must keep the window rows mounted (poster) so they can promote to a
 // live player without a remount; WINDOW_SIZE is in screens (one screen = one row).
-// WINDOW_SIZE must stay >= 2*ACTIVE_WINDOW_RADIUS+1 (5 for radius 2) or the extra
-// radius above is inert on native — a row FlatList never renders can't mount an
-// ActiveVideoSurface no matter what ACTIVE_WINDOW_RADIUS says.
+//
+// The floor is the LARGER of the two radii, on both sides: FlatList's window is
+// symmetric, so covering only `ACTIVE_WINDOW_RADIUS` leaves the extra retained
+// slide BEHIND the reader outside the list. That is what shipped — 5 screens
+// (1 + 2 above + 2 below) against a behind-radius of 3 — and it made the third
+// slide back a full remount: black, buffer, restart, while the same distance
+// forward was already mounted. Reported from the device as scrolling up being
+// slower than scrolling down. `isSlideNear` promising a player for a row the
+// list never renders cannot produce one.
 const FLATLIST_CONFIG = {
     INITIAL_NUM_TO_RENDER: 2,
     MAX_TO_RENDER_PER_BATCH: 2,
-    // 1 visible + 2 above + 2 below = 5 retained rows, matching ACTIVE_WINDOW_RADIUS=2.
-    WINDOW_SIZE: 5,
+    // 1 visible + 3 above + 3 below = 7 rows, covering RETAINED_BEHIND_RADIUS=3
+    // (the larger radius) on the side FlatList makes symmetric.
+    WINDOW_SIZE: 7,
     // Raised from 0.4: trigger the next page fetch with more runway left in
     // the current page, so pagination network latency is absorbed before the
     // viewer actually runs out of loaded posts, instead of racing it.
