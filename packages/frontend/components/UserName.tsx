@@ -9,7 +9,7 @@ import { AgentIcon } from '@/assets/icons/agent-icon';
 import { AutomatedIcon } from '@/assets/icons/automated-icon';
 import type { UserNameProps } from '@/components/Profile/types';
 
-const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, kind, isAgent, isAutomated, unifiedColors, onPress, onExplainNetwork, onExplainChannel, copyableHandle, variant = 'default', align = 'start', style, trailingBadge, handleTrailing }) => {
+const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated, kind, isAgent, isAutomated, onPress, onExplainNetwork, onExplainChannel, copyableHandle, variant = 'default', align = 'start', style, trailingBadge, handleTrailing }) => {
     const theme = useTheme();
     const nameStyle = [styles.name, variant === 'small' && styles.nameSmall, style?.name];
 
@@ -109,8 +109,15 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
                         {primaryText}
                     </Text>
                 )}
+                {/* No colour passed: the badge owns its blue (VERIFIED_BADGE_COLOR,
+                    the default of `VerifiedIcon`'s `color`). It used to take
+                    `text-primary`, which a profile scopes to the PROFILE OWNER's
+                    colour preset — so the same seal was a different colour on
+                    every profile, and the compact scroll header opted out into
+                    `text-foreground` on top of that, drawing it black/white a
+                    few pixels above the very same badge in the identity line. */}
                 {verified && (
-                    <VerifiedIcon size={iconSize} className={unifiedColors ? "text-foreground" : "text-primary"} style={{ transform: [{ translateY: baselineNudge }] }} />
+                    <VerifiedIcon size={iconSize} style={{ transform: [{ translateY: baselineNudge }] }} />
                 )}
                 {/* One marker for the account's whole identity state — remote or
                     channel, never both, and nothing at all for an ordinary local

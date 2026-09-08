@@ -38,7 +38,9 @@
  */
 
 import { lanes } from './channels';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
+import { MtnConfig } from '@mention/shared-types';
+import { rankingWeight } from '../../utils/rankingWeight';
 import {
   boolean,
   check,
@@ -129,6 +131,50 @@ const SCORE_MAX = 1;
 
 /** A 0..1 probability column with its bound expressed as a CHECK, not a comment. */
 const scoreColumn = () => doublePrecision().notNull().default(0);
+
+/** The four counters {@link engagementRankSql} weighs, as an index sees them. */
+interface EngagementRankColumns {
+  statsLikesCount: AnyPgColumn;
+  statsBoostsCount: AnyPgColumn;
+  statsFederatedBoostsCount: AnyPgColumn;
+  statsCommentsCount: AnyPgColumn;
+}
+
+/**
+ * The weighted engagement composite every popular/discovery scan ORDERS BY.
+ *
+ * It lives here, next to the index built over it, because those two are one
+ * fact: Postgres matches an expression index to an `ORDER BY` by comparing
+ * PARSED expressions, so the index is used only while the query spells the
+ * composite exactly as `posts_engagement_rank_idx` declares it. Written twice —
+ * once here, once in the feed source — the two would agree on the day they were
+ * written and diverge on the day someone retunes a weight, and the failure is
+ * silent: no error, no wrong rows, the popular scan just goes back to reading
+ * the whole table. `engagementScoreSql` (`mtn/feed/engine/sources/discoverySources.ts`)
+ * therefore calls THIS, and the weights come from `MtnConfig` on both sides.
+ *
+ * `db/__tests__/engagementRankIndex.test.ts` closes the remaining gap by reading
+ * the live `pg_get_indexdef` back and driving a real query onto the index, so a
+ * weight change that outruns a migration fails the build rather than production.
+ *
+ * The boost term splits total boosts into their native and federated subsets:
+ * the native subset — `greatest(0, boosts − federatedBoosts)`, floored so an
+ * over-count can never go negative — takes `boostWeight`, and inbound federated
+ * Announces take the deliberately-lower `federatedBoostWeight`.
+ *
+ * Every weight goes through {@link rankingWeight} for the reason given there,
+ * and the trailing `::double precision` is what keeps the result a NUMBER rather
+ * than the string postgres.js returns for `numeric`.
+ */
+export function engagementRankSql(t: EngagementRankColumns): SQL<number> {
+  const cfg = MtnConfig.ranking.engagement;
+  return sql<number>`(
+    ${t.statsLikesCount} * ${rankingWeight(cfg.likeWeight)}
+    + greatest(0, ${t.statsBoostsCount} - ${t.statsFederatedBoostsCount}) * ${rankingWeight(cfg.boostWeight)}
+    + ${t.statsFederatedBoostsCount} * ${rankingWeight(cfg.federatedBoostWeight)}
+    + ${t.statsCommentsCount} * ${rankingWeight(cfg.commentWeight)}
+  )::double precision`;
+}
 
 export const posts = pgTable(
   'posts',
@@ -832,6 +878,50 @@ export const posts = pgTable(
     index('posts_curated_idx')
       .on(t.createdAt.desc())
       .where(sql`${t.curated} is true`),
+
+    /**
+     * The popular/discovery scan's ORDER BY, made index-satisfiable.
+     *
+     * `runPopular` (`mtn/feed/engine/sources/discoverySources.ts`) sorts by
+     * {@link engagementRankSql} then `created_at`, `id`. A computed expression is
+     * not a column, so with no index over it the planner has exactly one option:
+     * read every candidate row and top-N sort them. That is bounded by the TABLE
+     * and not by the page, which is the whole defect — the cost grows with the
+     * archive while the answer stays 60 rows.
+     *
+     * It is reached through `fetchWithRecencyFallback`, whose last pass drops the
+     * recency bound ENTIRELY so a sparse instance is never served a blank page.
+     * That pass is the expensive one and it is not rare: the windows are tested
+     * AFTER the viewer's language filter, so a reader whose languages are thinly
+     * represented underfills 7d and 30d and reaches the unbounded scan on every
+     * page they turn. Production measured it at 17.25s.
+     *
+     * Measured here on 275k posts (`drizzle/0028_the_popular_scan_stops_at_the_page.sql`
+     * carries the numbers): 7d 20-28ms -> 0.25-0.34ms, 30d 50-53ms -> 0.13-0.37ms,
+     * unbounded 77-89ms -> 0.11-0.26ms, and the unbounded scan drops from ~11,600
+     * buffers to 63. The shape matters more than the ratio: after this the work is
+     * proportional to the PAGE, so it stops growing with the corpus.
+     *
+     * PARTIAL on the visibility/status pair every one of those scans fixes, which
+     * keeps it the size of the servable set.
+     *
+     * It indexes four counters on the hottest write path in the schema, so the
+     * write side was measured too rather than assumed: 20,000 counter increments
+     * took 737-844ms with it and 764-935ms without — no difference this bench can
+     * resolve.
+     */
+    index('posts_engagement_rank_idx')
+      .on(
+        // The extra parentheses are not decoration: drizzle-kit compares index
+        // expressions TEXTUALLY against the recorded snapshot, and
+        // `0028_the_popular_scan_stops_at_the_page.sql` wraps the cast — so
+        // without them every future `db:generate` emits a spurious
+        // DROP/CREATE of this index.
+        sql`(${engagementRankSql(t)}) desc`,
+        t.createdAt.desc(),
+        t.id.desc(),
+      )
+      .where(sql`${t.visibility} = 'public' and ${t.status} = 'published'`),
 
     /**
      * The two spatial indexes, replacing the `2dsphere` pair. GiST over the

@@ -126,13 +126,18 @@ export function ProfileChromeLayers({
           the feed content (z-3) and the tabs (z-5) but BELOW the chrome
           icons/name overlay (z-101). It intentionally receives web pointer
           events to prevent clicks from reaching covered feed content while
-          the band is opaque; the higher z-101 header controls remain
-          interactive. The `-48px` bottom margin keeps it a 0-flow overlay.
+          the band is opaque — `headerBackgroundOpaque` is what makes that
+          conditional true, since a fully transparent element still receives
+          clicks in CSS and this bar would otherwise eat every click in a 48px
+          strip over the banner of an UNSCROLLED profile. The higher z-101 header
+          controls remain interactive either way. The `-48px` bottom margin keeps
+          it a 0-flow overlay.
           Empty on native, where the chrome is an absolute overlay over the
           non-scrolling root. */}
       {IS_WEB && (
         <View
-          className="left-0 right-0 web:sticky web:z-[100] web:pointer-events-auto web:[margin-bottom:-48px]"
+          className="left-0 right-0 web:sticky web:z-[100] web:[margin-bottom:-48px]"
+          pointerEvents={chrome.headerBackgroundOpaque ? 'auto' : 'none'}
           style={[chrome.panelStickyTopInset, { height: PANEL_HEADER_HEIGHT }]}
         >
           <Animated.View
@@ -202,7 +207,6 @@ export function ProfileChromeLayers({
               name={profileData.design.displayName}
               verified={profileData.verified}
               style={{ name: { fontSize: 18, fontWeight: 'bold', marginBottom: -3 } }}
-              unifiedColors={true}
             />
             <Text className="text-muted-foreground text-[13px]" numberOfLines={1}>
               {t('profile.postsCount', {

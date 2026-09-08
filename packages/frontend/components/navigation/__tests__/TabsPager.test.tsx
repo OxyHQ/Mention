@@ -2,24 +2,24 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Text } from 'react-native';
 
-import { TABS } from '@/components/navigation/tabs';
+import { PAGES } from '@/components/navigation/tabs';
 import { TabsPager } from '@/components/navigation/TabsPager';
 
 /**
- * The pager's pages are TABS pages, whatever order the navigator keeps.
+ * The pager's pages are PAGES pages, whatever order the navigator keeps.
  *
  * THE ORDERS ARE NOT THE SAME ONE, and that is upstream behaviour rather than a
  * local slip: expo-router builds the navigator's routes with
  * `sortRoutesWithInitial` (`node_modules/expo-router/build/ui/common.js`), which
- * puts `index` first and then sorts by route-name LENGTH — so a `TABS` written
+ * puts `index` first and then sorts by route-name LENGTH — so a `PAGES` written
  * as home/videos/write/notifications/you reaches `useTabsWithTriggers` and comes
  * back as index/you/write/videos/notifications. The trigger order is not
  * preserved and nothing in the API says it would be.
  *
- * Everything outside this component speaks in `TABS` indices: `progress` is the
+ * Everything outside this component speaks in `PAGES` indices: `progress` is the
  * bar highlight's position in tab units, `activeIndex` comes from
- * `tabIndexForPathname`, and `selectTab`/`commit` look the tab up in `TABS`. So
- * a page index that is anything OTHER than a `TABS` index is a swipe landing on
+ * `pageIndexForPathname`, and `selectTab`/`commit` look the page up in `PAGES`.
+ * So a page index that is anything OTHER than a `PAGES` index is a swipe landing on
  * one screen while the bar highlights another, and a tap moving the pager to a
  * page belonging to someone else.
  *
@@ -29,11 +29,15 @@ import { TabsPager } from '@/components/navigation/TabsPager';
 
 let pagerProps: Record<string, unknown> = {};
 
+/** What the component asked the pager to do, so a test can tell a cut from a slide. */
+const mockPagerCommands = { setPage: jest.fn(), setPageWithoutAnimation: jest.fn() };
+
 jest.mock('react-native-pager-view', () => {
   const React = require('react') as typeof import('react');
   const { View } = require('react-native') as typeof import('react-native');
   const MockPagerView = React.forwardRef<unknown, { children?: React.ReactNode }>(
-    (props, _ref) => {
+    (props, ref) => {
+      React.useImperativeHandle(ref, () => mockPagerCommands);
       pagerProps = props as Record<string, unknown>;
       return React.createElement(View, null, props.children);
     },
@@ -42,12 +46,35 @@ jest.mock('react-native-pager-view', () => {
   return { __esModule: true, default: MockPagerView };
 });
 
+/**
+ * A `Screen` that costs what the real one costs.
+ *
+ * `app/_layout.tsx` calls `enableFreeze(true)`, and react-native-screens reads
+ * that global as the default for `freezeOnBlur` — so `activityState === 0` wraps
+ * the page in react-freeze and its subtree is not rendered at all. A page
+ * therefore appears in `renderedPageNames` exactly when it is LIVE, and a page
+ * that appears where it did not before is a thaw: a whole screen's render, and
+ * its native views mounted again.
+ *
+ * The state is put on the view too, because "which band is live" is the thing
+ * being asserted and reading it back is more honest than inferring it.
+ */
 jest.mock('react-native-screens', () => {
   const React = require('react') as typeof import('react');
   const { View } = require('react-native') as typeof import('react-native');
   return {
-    Screen: ({ children }: { children?: React.ReactNode }) =>
-      React.createElement(View, null, children),
+    Screen: ({
+      activityState,
+      children,
+    }: {
+      activityState: number;
+      children?: React.ReactNode;
+    }) =>
+      React.createElement(
+        View,
+        { testID: `activity-${activityState}` },
+        activityState === 0 ? null : children,
+      ),
   };
 });
 
@@ -62,6 +89,9 @@ jest.mock('react-native-reanimated', () => ({
   default: { createAnimatedComponent: (component: unknown) => component },
   useEvent: () => jest.fn(),
   useHandler: () => ({ doDependenciesDiffer: false }),
+  // The target, not the motion: a test reads where the highlight was sent, and
+  // the spring itself belongs to a device.
+  withSpring: (target: number) => target,
 }));
 
 /** The navigator's own order, as expo-router's sort produces it. */
@@ -70,14 +100,18 @@ const NAVIGATOR_ROUTE_NAMES = ['index', 'you', 'write', 'videos', 'notifications
 /**
  * Every mount is torn down, and that is not tidiness.
  *
- * `TabsPager` warms its neighbours through `InteractionManager`, so a mount left
- * standing has a callback still queued when the test ends. It fires against a
- * torn-down jest environment, jest reports "Cannot log after tests are done" /
- * "trying to `import` a file after the Jest environment has been torn down",
- * and the RUN exits non-zero while every suite is reported green — which is how
- * this arrived, as a red CI job over 187 passing suites.
+ * A mount left standing keeps the pager's effects alive past the end of the
+ * test. They fire against a torn-down jest environment, jest reports "Cannot log
+ * after tests are done" / "trying to `import` a file after the Jest environment
+ * has been torn down", and the RUN exits non-zero while every suite is reported
+ * green — which is how this arrived, as a red CI job over 187 passing suites.
  */
 const mounted: TestRenderer.ReactTestRenderer[] = [];
+
+beforeEach(() => {
+  mockPagerCommands.setPage.mockClear();
+  mockPagerCommands.setPageWithoutAnimation.mockClear();
+});
 
 afterEach(() => {
   act(() => {
@@ -87,28 +121,70 @@ afterEach(() => {
 
 function mountPager(focusedName: string) {
   const routes = NAVIGATOR_ROUTE_NAMES.map((name) => ({ key: `key-${name}`, name }));
-  const descriptors = Object.fromEntries(
-    routes.map((route) => [
-      route.key,
-      { render: () => React.createElement(Text, null, route.name) },
-    ]),
-  );
   const onCommit = jest.fn();
+  // A fresh descriptors object per render, because `useDescriptors` builds one
+  // per navigator render and a memo that held on to the old one would be
+  // measuring the test rather than the component.
+  const element = (focused: string) => (
+    <TabsPager
+      state={{ index: routes.findIndex((route) => route.name === focused), routes }}
+      descriptors={Object.fromEntries(
+        routes.map((route) => [
+          route.key,
+          { render: () => React.createElement(Text, null, route.name) },
+        ]),
+      )}
+      progress={{ value: 0 } as never}
+      chromeProgress={{ value: 0 } as never}
+      onCommit={onCommit}
+    />
+  );
   let renderer: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
-    renderer = TestRenderer.create(
-      <TabsPager
-        state={{ index: routes.findIndex((route) => route.name === focusedName), routes }}
-        descriptors={descriptors}
-        progress={{ value: 0 } as never}
-        onCommit={onCommit}
-      />,
-    );
+    renderer = TestRenderer.create(element(focusedName));
   });
   if (!renderer) throw new Error('renderer did not mount');
-  mounted.push(renderer);
-  return { renderer, onCommit };
+  const created = renderer;
+  mounted.push(created);
+  /** The navigator focusing another tab — a bar tap, a deep link, a back gesture. */
+  const focus = (name: string) => {
+    act(() => {
+      created.update(element(name));
+    });
+  };
+  /** What the pager reports once it has stopped moving. */
+  const settle = () => {
+    act(() => {
+      (
+        pagerProps.onPageScrollStateChanged as (event: {
+          nativeEvent: { pageScrollState: string };
+        }) => void
+      )({ nativeEvent: { pageScrollState: 'idle' } });
+    });
+  };
+  return { renderer: created, onCommit, focus, settle };
 }
+
+/**
+ * A pager in the state the device measurement was taken in.
+ *
+ * The reported jank is an app that has been USED: every page that opts into
+ * preloading is already mounted, so the only thing a tap can change is which of
+ * them are live. From a cold pager nothing but the first page is admitted, a tap
+ * has nothing to thaw, and the assertions below would pass while measuring
+ * nothing. Visiting each tab is what admits it, exactly as a reader does.
+ */
+function mountWarmPager() {
+  const pager = mountPager('index');
+  for (const name of ['videos', 'notifications', 'you', 'index']) {
+    pager.focus(name);
+    pager.settle();
+  }
+  return pager;
+}
+
+/** Index of a page within `PAGES` — the unit every assertion here is written in. */
+const pageOf = (name: string) => PAGES.findIndex((page) => page.name === name);
 
 /**
  * The page at each position, named by the text its descriptor rendered.
@@ -132,22 +208,69 @@ function renderedPageNames(renderer: TestRenderer.ReactTestRenderer): (string | 
 }
 
 describe('TabsPager', () => {
-  it('lays its pages out in TABS order, not the navigator route order', () => {
+  it('lays its pages out in PAGES order, not the navigator route order', () => {
     const { renderer } = mountPager('videos');
 
-    expect(renderedPageNames(renderer)[TABS.findIndex((tab) => tab.name === 'videos')]).toBe(
+    expect(renderedPageNames(renderer)[PAGES.findIndex((page) => page.name === 'videos')]).toBe(
       'videos',
     );
   });
 
-  it('opens on the focused tab as a TABS index', () => {
+  it('opens on the focused page as a PAGES index', () => {
     mountPager('videos');
 
-    expect(pagerProps.initialPage).toBe(TABS.findIndex((tab) => tab.name === 'videos'));
+    expect(pagerProps.initialPage).toBe(PAGES.findIndex((page) => page.name === 'videos'));
   });
 
-  it('commits the TABS index of the page the reader landed on', () => {
-    const youIndex = TABS.findIndex((tab) => tab.name === 'you');
+  /**
+   * THE COST OF A TAP IS THE PAGES IT THAWS, and a bar tap now thaws none.
+   *
+   * This assertion used to read "only the destination, never its new
+   * neighbour", against a band measured from the FOCUSED page that moved in the
+   * tap's own commit and so thawed two screens at once — tapping Home from the
+   * profile thawed the feed AND the reels screen together, at 8.87% janky over
+   * four taps on a Pixel 10 Pro. Both halves of that are gone: the band follows
+   * a settled page, and every page the bar can reach is held laid out.
+   *
+   * What is still worth pinning is the boundary. A bar tap must not drag in a
+   * page the bar cannot reach: the camera is a deliberate swipe away, and
+   * mounting it on a tab press would put a preview surface behind a screen
+   * nobody asked for.
+   */
+  it('does not thaw a page the bar cannot reach', () => {
+    const { renderer, focus } = mountWarmPager();
+
+    focus('notifications');
+
+    const live = renderedPageNames(renderer);
+    expect(live[pageOf('notifications')]).toBe('notifications');
+    expect(live[pageOf('camera')]).toBeNull();
+  });
+
+  it('moves the live band once the pager reports it has settled', () => {
+    const { renderer, focus, settle } = mountWarmPager();
+
+    focus('notifications');
+    settle();
+
+    // The band has caught up, so the next swipe in either direction has a real
+    // page under the finger.
+    expect(renderedPageNames(renderer)[pageOf('you')]).toBe('you');
+  });
+
+  it('keeps the page being left alive while the pager travels away from it', () => {
+    const { renderer, focus } = mountWarmPager();
+
+    focus('notifications');
+
+    // The pager is still sliding across it. Freezing it on the tap's own commit
+    // blanks the screen the reader is watching leave, and pays to thaw it again
+    // the moment they tap back.
+    expect(renderedPageNames(renderer)[pageOf('index')]).toBe('index');
+  });
+
+  it('commits the PAGES index of the page the reader landed on', () => {
+    const youIndex = PAGES.findIndex((page) => page.name === 'you');
     const { onCommit } = mountPager('index');
 
     act(() => {
@@ -157,5 +280,79 @@ describe('TabsPager', () => {
     });
 
     expect(onCommit).toHaveBeenCalledWith(youIndex);
+  });
+
+  /**
+   * A tap names a destination, not a journey.
+   *
+   * `setPage` is `ViewPager2.setCurrentItem(i, true)` — an animated scroll
+   * THROUGH every page in between, measured at ~680ms per tap on a Pixel 10 Pro,
+   * spent sliding across pages that are frozen and therefore blank. The reader
+   * asked for a tab, not a tour of the ones next to it.
+   */
+  it('cuts to the tapped page instead of sliding across the ones between', () => {
+    const { focus } = mountPager('index');
+
+    focus('notifications');
+
+    expect(mockPagerCommands.setPageWithoutAnimation).toHaveBeenCalledWith(
+      PAGES.findIndex((page) => page.name === 'notifications'),
+    );
+    expect(mockPagerCommands.setPage).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Home is the page every other page is left FOR.
+   *
+   * A reader who taps Videos, Notifications or their profile is, more often than
+   * not, two taps from coming back — and the feed is the most expensive tree in
+   * the app to rebuild, a virtualized list of posts. Parking it at 0 saves
+   * nothing over that distance and charges a full thaw on the way back.
+   */
+  /**
+   * The band is a locality rule, and a tap stopped travelling.
+   *
+   * `setPageWithoutAnimation` cuts straight to its destination, so "next to the
+   * current page" no longer says anything about what the reader is one gesture
+   * away from — the BAR says that, and it says all of its items. A page at 0 is
+   * react-freeze suspended, so anything the bar can reach in one tap would
+   * otherwise re-render its tree and re-mount its native views on the frame the
+   * reader is watching.
+   */
+  it('keeps every page the bar can reach laid out, whatever the band says', () => {
+    const pager = mountWarmPager();
+
+    pager.focus('you');
+    pager.settle();
+
+    const live = renderedPageNames(pager.renderer);
+    expect(live[pageOf('index')]).toBe('index');
+    expect(live[pageOf('videos')]).toBe('videos');
+    expect(live[pageOf('notifications')]).toBe('notifications');
+  });
+
+  /**
+   * The composer declares itself the exception with `preload: false` — it is the
+   * app's heaviest screen and already opts out of being mounted as a neighbour.
+   * One flag, one place that says "not this one".
+   */
+  it('leaves the composer parked, because it opted out of preloading', () => {
+    const pager = mountWarmPager();
+
+    pager.focus('you');
+    pager.settle();
+
+    expect(renderedPageNames(pager.renderer)[pageOf('write')]).toBeNull();
+  });
+
+  it('never parks the home feed, however far the reader wanders', () => {
+    const pager = mountWarmPager();
+
+    pager.focus('you');
+    pager.settle();
+
+    // `renderedPageNames` reports a page exactly when it is LIVE: the mocked
+    // `Screen` renders nothing at `activityState === 0`.
+    expect(renderedPageNames(pager.renderer)[pageOf('index')]).toBe('index');
   });
 });

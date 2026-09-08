@@ -287,6 +287,27 @@ const postSnapshotListeners = new Map<string, Set<SnapshotListener>>();
 const feedSnapshotRevisions = new Map<string, number>();
 const postSnapshotRevisions = new Map<string, number>();
 
+/**
+ * A THIRD channel, for the one number that moves while the reader is reading:
+ * how many people have watched a post.
+ *
+ * It is separate because of who listens. A post's subscriber is a whole
+ * `PostItem` — header, body, media, action bar — and the server answers the
+ * impression report with a fresh total for EVERY post the reader just scrolled
+ * past. On the post channel that is a full row re-render each, measured at
+ * ~40ms of JS per row on a Pixel 10 Pro (dev build, `React.Profiler` around the
+ * feed list): during a fling the whole viewport re-rendered a second time, for a
+ * count no feed row draws. The only surface that draws a live count is a grid
+ * cell (`LiveVideoPosterCell`), which subscribes here and repaints one number.
+ *
+ * `undefined` in the cache means "no row for this post", which is not the same
+ * as a row whose count is `null` (hidden, or never returned) — a grid cell keeps
+ * its fetch-time number for the first and must not for the second.
+ */
+const viewCountCache = new Map<string, number | null | undefined>();
+const viewCountListeners = new Map<string, Set<SnapshotListener>>();
+const viewCountRevisions = new Map<string, number>();
+
 // Bound session-long navigation caches; SQLite remains the durable cache.
 const MAX_FEED_SNAPSHOTS = 100;
 const MAX_POST_SNAPSHOTS = 1_000;
@@ -345,13 +366,26 @@ const notifySnapshotKeys = <T>(
   }
 };
 
-const notifyPostChanges = (postIds: Iterable<string>) =>
+const notifyViewCountChanges = (postIds: Iterable<string>) =>
+  notifySnapshotKeys(
+    viewCountCache,
+    viewCountListeners,
+    viewCountRevisions,
+    postIds
+  );
+
+const notifyPostChanges = (postIds: Iterable<string>) => {
   notifySnapshotKeys(
     postSnapshotCache,
     postSnapshotListeners,
     postSnapshotRevisions,
     postIds
   );
+  // A post rewrite carries the server's view count in with it (a feed page, a
+  // detail read, a cache seed), so the view channel is woken by every write to
+  // the post — only the reverse is one-way.
+  notifyViewCountChanges(postIds);
+};
 
 const notifyFeedChanges = (feedKeys: Iterable<string>) =>
   notifySnapshotKeys(
@@ -371,6 +405,9 @@ const invalidateAllSnapshots = () => {
     ...postSnapshotCache.keys(),
     ...postSnapshotListeners.keys(),
     ...postSnapshotRevisions.keys(),
+    ...viewCountCache.keys(),
+    ...viewCountListeners.keys(),
+    ...viewCountRevisions.keys(),
   ]);
   notifyFeedChanges(feedKeys);
   notifyPostChanges(postIds);
@@ -1617,18 +1654,24 @@ export const usePostsStore = create<PostsStoreState>()(
  * matches makes the write a no-op rather than a re-render nothing would see.
  */
 export const applyServerViewCounts = (viewCounts: FeedPostViewCounts): void => {
-  const { updatePostEverywhere } = usePostsStore.getState();
+  const changed: string[] = [];
   for (const [postId, views] of Object.entries(viewCounts)) {
     // These arrive as parsed JSON, so the declared type is a claim about the
     // wire, not a guarantee about the value: a malformed payload would otherwise
     // render as "NaN views" with nothing to trace it back to.
     if (!isValidId(postId) || !Number.isFinite(views)) continue;
-    updatePostEverywhere(postId, (prev) => (
+    // Deliberately NOT `updatePostEverywhere`: the write is the same, but that
+    // path wakes the POST's subscribers, and this is the one write in the store
+    // that arrives for every post on screen at once (the impression report's
+    // answer, on every scroll). See `viewCountCache` for what that cost.
+    const written = dbUpdatePost(postId, (prev) => (
       prev.engagement.views === views
         ? undefined
         : { ...prev, engagement: { ...prev.engagement, views } }
     ));
+    if (written) changed.push(postId);
   }
+  if (changed.length > 0) notifyViewCountChanges(changed);
 };
 
 // ── Reactive SQLite selectors ────────────────────────────────────
@@ -1652,6 +1695,17 @@ export const applyServerViewCounts = (viewCounts: FeedPostViewCounts): void => {
 // `getSnapshot` MUST return a referentially-stable value until the data actually
 // changes (a fresh array per call → infinite render loop), so snapshots are
 // cached per key and only the changed key is evicted before its listeners run.
+
+const getViewCountSnapshot = (
+  postId: string,
+  _revision: number
+): number | null | undefined => {
+  if (viewCountCache.has(postId)) return viewCountCache.get(postId);
+  const post = dbGetPostById(postId);
+  const views = post ? post.engagement.views ?? null : undefined;
+  setBoundedSnapshot(viewCountCache, postId, views, MAX_POST_SNAPSHOTS);
+  return views;
+};
 
 const getFeedSnapshot = (feedKey: string, _revision: number): FeedSnapshot => {
   let snapshot = feedSnapshotCache.get(feedKey);
@@ -1756,6 +1810,42 @@ export const usePostSelector = (postId: string | undefined): FeedItem | null => 
   );
   const revision = useSyncExternalStore(subscribe, getRevision, getRevision);
   return postId ? getPostSnapshot(postId, revision) : null;
+};
+
+/**
+ * Reactive read of a post's view count, and NOTHING else about the post.
+ *
+ * The counterpart of `applyServerViewCounts`: a viewer's own scroll is what
+ * moves this number, so it moves constantly, and a subscriber that re-rendered a
+ * whole post for it would pay the feed's worst frame for a label the feed does
+ * not even draw. A consumer of this hook re-renders when the count changes and
+ * at no other time.
+ *
+ * `undefined` means the shared cache has no row for the post — the caller's own
+ * fetch-time number is then the only one there is. `null` means the row exists
+ * and its count is absent, which is a real answer and outranks a stale number.
+ */
+export const useViewCountSelector = (
+  postId: string | undefined,
+): number | null | undefined => {
+  const subscribe = useCallback(
+    (listener: SnapshotListener) =>
+      postId
+        ? subscribeToSnapshotKey(
+            viewCountListeners,
+            viewCountRevisions,
+            postId,
+            listener
+          )
+        : () => undefined,
+    [postId]
+  );
+  const getRevision = useCallback(
+    () => (postId ? viewCountRevisions.get(postId) ?? 0 : 0),
+    [postId]
+  );
+  const revision = useSyncExternalStore(subscribe, getRevision, getRevision);
+  return postId ? getViewCountSnapshot(postId, revision) : undefined;
 };
 
 export const useFeedSelector = (type: FeedType) => {

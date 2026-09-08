@@ -1,4 +1,5 @@
 import { View } from 'react-native';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { Home, HomeActive } from '@/assets/icons/home-icon';
 import { Video, VideoActive } from '@/assets/icons/video-icon';
 import { ComposeIcon, ComposeIIconActive } from '@/assets/icons/compose-icon';
@@ -19,7 +20,12 @@ import {
 } from '@oxyhq/bloom/tab-bar';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useTabPager } from '@/context/TabPagerContext';
-import { TABS, tabIndexByName, type TabName } from '@/components/navigation/tabs';
+import {
+    BAR_TABS,
+    CHROME_HIDDEN_BY_PAGE,
+    barToPage,
+    type BarTabName,
+} from '@/components/navigation/tabs';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { UnreadBadge } from '@/components/notifications/UnreadBadge';
 import { useTranslation } from 'react-i18next';
@@ -63,14 +69,27 @@ const VIDEOS_DARK_TAB_BAR_THEME: Partial<TabBarTheme> = {
 const ICON_SIZE = 22;
 
 /**
- * Tab order is `components/navigation/tabs.ts` — the one table the navigator's
- * triggers, this bar's items and the route→index question all read. These are
- * the two indices this file needs by NAME, resolved from it rather than written
- * down again: re-tapping Home refreshes the feed instead of navigating, and the
- * profile tab is the only one that long-presses.
+ * The two tabs this file has to recognise, BY NAME.
+ *
+ * They were index constants, compared against Bloom's item index, against a
+ * route-derived index and against each other — three spellings of a number that
+ * are only interchangeable while the bar draws every root page. Bloom hands its
+ * callbacks a BAR index, so the honest comparison is "which tab is that", and
+ * `BAR_TABS` is what answers it.
+ *
+ * Re-tapping Home refreshes the feed instead of navigating, and the profile tab
+ * is the only one that long-presses.
  */
-const TAB_HOME = tabIndexByName('index');
-const TAB_PROFILE = tabIndexByName('you');
+const barTabName = (barIndex: number): string | undefined => BAR_TABS[barIndex]?.name;
+
+/**
+ * How far the bar slides down as it fades out for a page that draws no item in
+ * it. Comfortably past its own height plus the deepest home indicator, so the
+ * pill is gone rather than clipped — it is fading at the same time, and a
+ * constant is honest here where a measured height would be one more thing to
+ * keep in step.
+ */
+const CHROME_SLIDE_PX = 160;
 
 /**
  * Breathing margin (px) between the end of a screen's scrollable content and the
@@ -100,7 +119,7 @@ export const BottomBar = () => {
     const { triggerHomeRefresh } = useHomeRefresh();
     const { t } = useTranslation();
     const unreadCount = useUnreadCount();
-    const { progress, activeIndex, selectTab } = useTabPager();
+    const { progress, chromeProgress, activeIndex, activePage, selectTab } = useTabPager();
 
     // The Reels (/videos) screen floats this bar over video content, so it renders
     // against a forced black-and-white surface regardless of the app theme.
@@ -132,7 +151,7 @@ export const BottomBar = () => {
     // Keyed by the tab NAME and typed so every name in the table must have an
     // entry: `icon` is required by `TabBarItem`, so a tab added to the table with
     // no glyph here is a type error rather than a bar rendering `undefined`.
-    const glyphs = useMemo<Record<TabName, Pick<TabBarItem, 'icon' | 'activeIcon'>>>(() => ({
+    const glyphs = useMemo<Record<BarTabName, Pick<TabBarItem, 'icon' | 'activeIcon'>>>(() => ({
         index: {
             icon: <Home size={ICON_SIZE} className={inactiveGlyphClass} />,
             activeIcon: <HomeActive size={ICON_SIZE} className={activeGlyphClass} />,
@@ -186,9 +205,9 @@ export const BottomBar = () => {
 
     const items = useMemo<TabBarItem[]>(
         () =>
-            TABS.map((tab) => ({
+            BAR_TABS.map((tab) => ({
                 name: tab.name,
-                label: t(tab.labelKey),
+                label: t(tab.bar.labelKey),
                 ...glyphs[tab.name],
             })),
         [glyphs, t],
@@ -204,23 +223,47 @@ export const BottomBar = () => {
     // `(tabs)/you.tsx` renders the prompt itself, which is the same thing for a
     // tap and the right thing for a deep link, a swipe, or a restored session
     // that turns out to be gone.
-    const handleIndexChange = useCallback((index: number) => {
+    const handleIndexChange = useCallback((barIndex: number) => {
         haptic('light');
         // Re-tapping Home while the feed is already open refreshes it rather
         // than navigating.
-        if (index === TAB_HOME && activeIndex === TAB_HOME) {
+        if (barTabName(barIndex) === 'index' && barTabName(activeIndex) === 'index') {
             triggerHomeRefresh();
             return;
         }
-        selectTab(index);
+        // Bloom counts its own items, so this is a BAR index; `selectTab` moves
+        // the navigator, so it takes a PAGE index. They are the same number only
+        // while every page draws a bar item.
+        selectTab(barToPage(barIndex));
     }, [haptic, activeIndex, triggerHomeRefresh, selectTab]);
 
-    const handleIndexLongPress = useCallback((index: number) => {
+    const handleIndexLongPress = useCallback((barIndex: number) => {
         // Only the avatar tab has a long-press action (the account switcher).
-        if (index !== TAB_PROFILE) return;
+        if (barTabName(barIndex) !== 'you') return;
         haptic('heavy');
         showBottomSheet?.('ManageAccount');
     }, [haptic, showBottomSheet]);
+
+    // THE BAR STEPS ASIDE FOR A PAGE THAT DRAWS NO ITEM IN IT.
+    //
+    // `chromeProgress` is 0 on a page the bar draws, 1 on one it does not, and
+    // fractional under the finger — written by the pager on the same frames that
+    // move the highlight, so the bar travels WITH the camera rather than popping
+    // when the page commits.
+    //
+    // A separate value from `progress`, and a separate node from Bloom's bar:
+    // Bloom owns where the capsule sits inside the pill and this owns whether the
+    // pill is on screen at all. Folding the second into the first would mean
+    // sending Bloom a position outside its own range, which it does not clamp.
+    // The SETTLED answer to the same question, for hit-testing. It has to come
+    // from React rather than from the shared value: `pointerEvents` is a prop,
+    // and a worklet cannot set one.
+    const hidesForPage = activePage >= 0 && CHROME_HIDDEN_BY_PAGE[activePage] === 1;
+
+    const chromeStyle = useAnimatedStyle(() => ({
+        opacity: 1 - chromeProgress.value,
+        transform: [{ translateY: chromeProgress.value * CHROME_SLIDE_PX }],
+    }), [chromeProgress]);
 
     // POSITIONING: Bloom's bar pins itself with `position: absolute` against this
     // wrapper. On NATIVE the wrapper is a zero-height flex item at the end of the
@@ -231,7 +274,14 @@ export const BottomBar = () => {
     // the bar's own `absolute` resolves against that instead. The classes carry the
     // `web:` prefix, so the wrapper is inert on native.
     return (
-        <View className="web:fixed web:inset-x-0 web:bottom-0 web:z-[1000]">
+        <Animated.View
+            className="web:fixed web:inset-x-0 web:bottom-0 web:z-[1000]"
+            style={chromeStyle}
+            // A bar that is fading out is not a target, and on the frames where it
+            // is still faintly visible a thumb reaching for the camera's shutter
+            // would otherwise land on it.
+            pointerEvents={hidesForPage ? 'none' : 'auto'}
+        >
             {/* Bloom paints a progressive blur across the bottom 118px of the window
                 (a device inset makes it taller) behind the pill. Everywhere else that band is
                 what dissolves scrolling content behind the bar, so it stays on. On
@@ -262,6 +312,6 @@ export const BottomBar = () => {
                     <TabBarButton key={item.name} item={item} index={index} />
                 ))}
             </TabBar>
-        </View>
+        </Animated.View>
     );
 };

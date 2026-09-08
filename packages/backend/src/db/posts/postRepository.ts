@@ -959,7 +959,15 @@ async function insertChildRows(
   const media = content.media ?? [];
   if (media.length > 0) {
     await tx.insert(postMedia).values(
-      media.map((item, position) => ({ postId, ...mediaColumns(item, position) })),
+      media.map((item, position) => ({
+        postId,
+        // Read back out of `posts` in this same statement, exactly as the
+        // authorship rows below do and for the same reason `0021` gives: a value
+        // the caller hands in is a value the caller can get wrong, and a copy
+        // that disagrees with its source is invisible until a feed pages badly.
+        postCreatedAt: postCreatedAtSql(postId),
+        ...mediaColumns(item, position),
+      })),
     );
   }
 

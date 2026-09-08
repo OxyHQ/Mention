@@ -1,12 +1,19 @@
 'use no memo';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { InteractionManager, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import PagerView from 'react-native-pager-view';
-import Animated, { useEvent, useHandler } from 'react-native-reanimated';
+import Animated, { useEvent, useHandler, withSpring } from 'react-native-reanimated';
 import { Screen } from 'react-native-screens';
 
-import { TABS, tabIndexByName } from '@/components/navigation/tabs';
+import {
+  BAR_POSITION_BY_PAGE,
+  BAR_SETTLE_SPRING,
+  CHROME_HIDDEN_BY_PAGE,
+  PAGES,
+  barPositionForPage,
+  pageIndexByName,
+} from '@/components/navigation/tabs';
 
 import type { TabsPagerProps } from './TabsPager.types';
 
@@ -67,17 +74,29 @@ function usePageScrollHandler(
  * shift every page after it and land a swipe on the wrong screen. The laziness
  * is therefore INSIDE each page, not in the child list.
  *
- * A PAGE INDEX IS A `TABS` INDEX, AND THE NAVIGATOR'S IS NOT. `state.routes`
+ * A PAGE INDEX IS A `PAGES` INDEX, AND THE NAVIGATOR'S IS NOT. `state.routes`
  * arrives in expo-router's own order: `triggersToScreens` sorts the triggers it
  * is handed with `sortRoutesWithInitial`, which puts `index` first and then
- * sorts by route-name LENGTH. The five tabs therefore come back as
- * index/you/write/videos/notifications, not the bar order this file's `TABS`
- * declares. Everything outside this component — `progress`, `activeIndex`,
- * `selectTab`, `commit` — indexes `TABS`, so the pages are built from `TABS`
- * and every route is reached BY NAME. Ordering by `state.routes` would put the
- * profile where the bar draws Videos.
+ * sorts by route-name LENGTH. The five pages therefore come back as
+ * index/you/write/videos/notifications, not the order this file's `PAGES`
+ * declares. `selectTab` and `commit` index `PAGES`, so the pages are built from
+ * `PAGES` and every route is reached BY NAME. Ordering by `state.routes` would
+ * put the profile where the bar draws Videos.
+ *
+ * A PAGE INDEX IS NOT A BAR INDEX EITHER, and that is the other conversion this
+ * file owns. `progress` is in the BAR units Bloom's `activeProgress` is defined
+ * in, and only some pages draw a bar item — so `onPageScroll` converts before
+ * it writes. Bloom copies that value into its geometry raw and unclamped, so a
+ * page position arriving in a bar-units slot does not fail: it silently parks
+ * the capsule one item away from the tab you are on.
  */
-export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerProps) {
+export function TabsPager({
+  state,
+  descriptors,
+  progress,
+  chromeProgress,
+  onCommit,
+}: TabsPagerProps) {
   const pagerRef = useRef<PagerView>(null);
 
   /** The navigator's routes, reachable by the name a `TABS` entry declares. */
@@ -93,7 +112,7 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
    * dev check reports; page 0 is the honest fallback rather than an index
    * `PagerView` would reject.
    */
-  const focusedPage = Math.max(0, tabIndexByName(state.routes[state.index]?.name ?? ''));
+  const focusedPage = Math.max(0, pageIndexByName(state.routes[state.index]?.name ?? ''));
 
   /**
    * The page the PAGER believes it is on.
@@ -108,8 +127,8 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
 
   /**
    * Which routes may render their screen. A tab is admitted when it is focused,
-   * and — for tabs that opted into it — when it becomes a NEIGHBOUR, so it is
-   * not blank under the finger. `write` opts out (`TABS[].preload`): it is the
+   * and — for pages that opted into it — when it becomes a NEIGHBOUR, so it is
+   * not blank under the finger. `write` opts out (`PAGES[].preload`): it is the
    * app's heaviest screen and mounting it merely for being swiped PAST would
    * spend exactly the cost this change removes.
    */
@@ -117,9 +136,23 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
     () => new Set([state.routes[state.index]?.key].filter(Boolean) as string[]),
   );
 
+  /**
+   * The page the LIVE BAND is measured from: where the pager has come to REST,
+   * which lags `focusedPage` for the length of a transition.
+   *
+   * A tap moves `focusedPage` in the commit it produces, and the destination has
+   * to be live in that same commit — it is what the reader is now looking at.
+   * Its NEIGHBOURS do not: nothing can reach them until the pager stops moving,
+   * and each one costs a whole screen's render plus its native views to bring
+   * back (see the `activityState` note below for why that is not free). So the
+   * band moves when the pager says it has settled, off the frame that is already
+   * paying for the destination.
+   */
+  const [settledPage, setSettledPage] = useState(focusedPage);
+
   /** The key of the route a page shows, or undefined for a tab with no route. */
   const keyForPage = useCallback(
-    (page: number) => routeByName.get(TABS[page]?.name ?? '')?.key,
+    (page: number) => routeByName.get(PAGES[page]?.name ?? '')?.key,
     [routeByName],
   );
 
@@ -135,15 +168,20 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
     });
   }, []);
 
-  // Both the neighbour and its opt-out are read off `TABS`, because a NEIGHBOUR
-  // is a bar-order question: the two screens a swipe can reach from here. The
-  // navigator's own order would name two different tabs and preload the wrong
+  // Both the neighbour and its opt-out are read off `PAGES`, because a NEIGHBOUR
+  // is a PAGE question: the two screens a swipe can reach from here. The
+  // navigator's own order would name two different screens and preload the wrong
   // pair — including the composer, the one screen that opted out.
+  //
+  // The opt-in test is `=== true`, not `!== false`: a page the table has never
+  // heard of answers `undefined`, and under the old spelling that counted as
+  // opting IN. A page nobody declared is precisely the one not to mount for
+  // being swiped past.
   const neighbourKeys = useCallback(
     (page: number) =>
       [page - 1, page + 1]
-        .filter((i) => i >= 0 && i < TABS.length)
-        .filter((i) => TABS[i]?.preload !== false)
+        .filter((i) => i >= 0 && i < PAGES.length)
+        .filter((i) => PAGES[i]?.preload === true)
         .map((i) => keyForPage(i)),
     [keyForPage],
   );
@@ -151,41 +189,85 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
   const onPageScroll = usePageScrollHandler(
     (event) => {
       'worklet';
-      // `position + offset` IS the unit Bloom's `activeProgress` is defined in:
-      // 1.4 means 40% of the way from the second tab to the third. No mapping,
-      // no scaling — that correspondence is why the two fit together at all.
-      progress.value = event.position + event.offset;
+      // `position + offset` is a PAGE position — 1.4 is 40% of the way from page
+      // 1 to page 2 — and `progress` is in BAR units. They are the same number
+      // only while every page draws a bar item, which is a fact about today's
+      // table rather than a property of either.
+      const page = event.position + event.offset;
+      progress.value = barPositionForPage(BAR_POSITION_BY_PAGE, page);
+      // Same frame, same interpolation, different quantity: the bar fades out as
+      // the finger travels onto a page it draws no item for. Continuous, because
+      // a bar that vanished on commit would announce the commit rather than
+      // follow the finger.
+      chromeProgress.value = barPositionForPage(CHROME_HIDDEN_BY_PAGE, page);
     },
-    [progress],
+    [progress, chromeProgress],
   );
 
   // ROUTE → PAGER. A tap on the bar, a deep link, a back gesture, a push
   // notification: anything that changes the focused tab without the finger.
+  //
+  // IT CUTS, IT DOES NOT TRAVEL. `setPage` is `ViewPager2.setCurrentItem(i,
+  // true)`, an animated scroll THROUGH every page in between — measured at ~680ms
+  // per tap on a Pixel 10 Pro, spent sliding across pages that are frozen and
+  // therefore blank. A tap names a destination, not a journey, and every app the
+  // reader compares this one to arrives immediately.
+  //
+  // The highlight is what still travels, and it has to be sprung from here: with
+  // no scroll there is no `onPageScroll`, and the single event a jump does emit
+  // would teleport the capsule. `chromeProgress` follows the same rule for the
+  // same reason — the bar must fade out over a page that draws no item for it
+  // whether the finger or a tap put us there.
   useEffect(() => {
     if (focusedPage === pageRef.current) return;
     pageRef.current = focusedPage;
     admit([keyForPage(focusedPage)]);
-    pagerRef.current?.setPage(focusedPage);
-  }, [focusedPage, keyForPage, admit]);
+    pagerRef.current?.setPageWithoutAnimation(focusedPage);
+    progress.value = withSpring(
+      barPositionForPage(BAR_POSITION_BY_PAGE, focusedPage),
+      BAR_SETTLE_SPRING,
+    );
+    chromeProgress.value = withSpring(
+      barPositionForPage(CHROME_HIDDEN_BY_PAGE, focusedPage),
+      BAR_SETTLE_SPRING,
+    );
+  }, [focusedPage, keyForPage, admit, progress, chromeProgress]);
 
-  // Warm the neighbours of wherever we have settled — but only once the frame
-  // budget is free. Mounting a feed is not something to do on the frame that
-  // just finished a page transition; doing it now is what makes the SECOND
-  // swipe in each direction instant.
+  // Warm the neighbours of wherever the band has come to rest, on the frame
+  // AFTER the one that put it there. Mounting a feed is not something to do on a
+  // frame that is already rendering a screen — at mount that frame is the app's
+  // first paint, and after a settle it is the one that thawed the destination.
+  // It is what makes the SECOND swipe in each direction instant.
+  //
+  // `requestAnimationFrame` rather than `InteractionManager.runAfterInteractions`,
+  // which this waited on and which waits for nothing: in react-native 0.86 that
+  // module is a deprecation stub whose `runAfterInteractions` is a bare
+  // `setImmediate` and whose `createInteractionHandle` returns -1 and does
+  // nothing (`Libraries/Interaction/InteractionManager.js`). It ran inside the
+  // commit's own batch. The real "wait for the transition" signal is the pager's
+  // settle, and `settledPage` is now it.
   useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      admit(neighbourKeys(focusedPage));
-    });
-    return () => task.cancel();
-  }, [focusedPage, admit, neighbourKeys]);
+    const frame = requestAnimationFrame(() => admit(neighbourKeys(settledPage)));
+    return () => cancelAnimationFrame(frame);
+  }, [settledPage, admit, neighbourKeys]);
 
   const onPageScrollStateChanged = useCallback(
     (event: { nativeEvent: { pageScrollState: 'idle' | 'dragging' | 'settling' } }) => {
-      if (event.nativeEvent.pageScrollState !== 'dragging') return;
-      // The finger has started moving and either neighbour may come into view
-      // within the frame. This one cannot wait for the interaction queue — that
-      // is the blank page it exists to prevent.
-      admit(neighbourKeys(pageRef.current));
+      const scrollState = event.nativeEvent.pageScrollState;
+      // `settling` is the one state that must change nothing: the pager is in
+      // flight, and that is precisely when the band may not move.
+      if (scrollState === 'settling') return;
+      if (scrollState === 'dragging') {
+        // The finger has started moving and either neighbour may come into view
+        // within the frame. This one cannot wait for the effect above — that is
+        // the blank page it exists to prevent.
+        admit(neighbourKeys(pageRef.current));
+      }
+      // Both remaining states say the same thing about the band: no transition
+      // is running for its cost to land in the middle of. `idle` is one that has
+      // finished; `dragging` is one the finger has taken over, and a page under
+      // a finger has to be real whatever it costs.
+      setSettledPage(pageRef.current);
     },
     [admit, neighbourKeys],
   );
@@ -199,7 +281,7 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
       if (next === pageRef.current) return;
       pageRef.current = next;
       admit([keyForPage(next)]);
-      // A page index IS a `TABS` index, which is the unit `selectTab` takes.
+      // A page index IS a `PAGES` index, which is the unit `selectTab` takes.
       onCommit(next);
     },
     [onCommit, admit, keyForPage],
@@ -207,26 +289,59 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
 
   const pages = useMemo(
     () =>
-      TABS.map((tab, index) => {
-        const route = routeByName.get(tab.name);
+      PAGES.map((page, index) => {
+        const route = routeByName.get(page.name);
         const descriptor = route ? descriptors[route.key] : undefined;
         const isFocused = index === focusedPage;
         return (
           // `collapsable={false}` keeps the page a real view even when its
           // content is still null — a collapsed page would be dropped from the
           // native hierarchy and take its position with it.
-          <View key={tab.name} collapsable={false} style={styles.page}>
+          <View key={page.name} collapsable={false} style={styles.page}>
             {route && loaded.has(route.key) && descriptor ? (
               // `activityState` is what lets four mounted screens cost almost
-              // nothing: 2 drives the focused one, 1 keeps a neighbour laid out
-              // and painted so it is real under the finger, 0 parks the rest.
-              // The app's global `enableFreeze(true)` acts on react-navigation
-              // screens and never reaches inside a pager, so this is the only
-              // thing standing between five live tabs and five live render
-              // trees.
+              // nothing: 2 drives the focused one, 1 keeps a page in the live
+              // band laid out and painted so it is real under the finger, 0
+              // parks the rest.
+              //
+              // 0 IS NOT A CHEAP STATE TO LEAVE, which is why the band follows
+              // `settledPage`. `app/_layout.tsx` calls `enableFreeze(true)`, and
+              // `Screen` reads that global as the default for its own
+              // `freezeOnBlur` — so a page at 0 here is genuinely suspended by
+              // react-freeze, and coming back off 0 re-renders its whole tree
+              // and re-mounts its native views. Measured from `focusedPage` the
+              // band moved in the same commit as the tap, so every tap two or
+              // more pages away thawed TWO screens at once: the destination, and
+              // whichever page had just become the destination's neighbour.
+              // Tapping Home from the profile thawed the feed AND the reels
+              // screen on the one frame the reader was waiting on.
+              //
+              // EVERY PAGE THE BAR CAN REACH STAYS LAID OUT, and the band no
+              // longer decides that. The band is a locality rule — it assumes
+              // the reader ARRIVES at a page by travelling past its neighbours —
+              // and a tap stopped travelling: it cuts straight to its
+              // destination. So "next to the current page" says nothing about
+              // what the reader is one gesture away from, while the bar says it
+              // exactly: any of its items, always.
+              //
+              // What that buys is the whole of the remaining wait. A page at 0
+              // is react-freeze suspended, and coming off 0 re-renders its tree
+              // and re-mounts its native views on the frame the reader is
+              // watching — a virtualized feed of posts, a reel, a notification
+              // list. Held at 1 they are laid out and painted, and the cut is
+              // all that is left.
+              //
+              // The composer is the exception, and it declares itself: it is a
+              // bar item with `preload: false`, already opted out of being
+              // mounted as a neighbour because it is the app's heaviest screen.
+              // The same flag answers this question, so there is one place that
+              // says "not this one". The camera is not a bar item at all — it is
+              // reached by a deliberate swipe — and stays on the band.
               <Screen
                 enabled
-                activityState={isFocused ? 2 : Math.abs(index - focusedPage) === 1 ? 1 : 0}
+                activityState={
+                  isFocused ? 2 : (page.bar && page.preload) || Math.abs(index - settledPage) <= 1 ? 1 : 0
+                }
                 style={styles.screen}
               >
                 {descriptor.render()}
@@ -235,7 +350,7 @@ export function TabsPager({ state, descriptors, progress, onCommit }: TabsPagerP
           </View>
         );
       }),
-    [routeByName, focusedPage, descriptors, loaded],
+    [routeByName, focusedPage, settledPage, descriptors, loaded],
   );
 
   return (

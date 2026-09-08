@@ -329,7 +329,6 @@ export interface UserNameProps {
     handle?: StyleProp<TextStyle>;
     container?: StyleProp<ViewStyle>;
   };
-  unifiedColors?: boolean;
   onPress?: () => void;
   /**
    * Opt IN to making the federated marker open the fediverse explainer. Absent

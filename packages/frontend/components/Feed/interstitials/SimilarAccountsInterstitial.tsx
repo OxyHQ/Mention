@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { cacheActors } from '@/lib/actorCache';
 import { useAuth } from '@oxyhq/services/ui/client';
 import { getNormalizedUserHandle, type User } from '@oxyhq/core';
+import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import {
   ProfileCard,
   ProfileCardSkeleton,
@@ -86,9 +87,8 @@ export function SimilarAccountsInterstitial({
   // until it resolves the band falls back to the app-wide discovery surface rather
   // than render a link to `/@undefined`.
   const subject = useUserById(subjectId);
-  const subjectHandle = subject ? (getNormalizedUserHandle(subject) ?? '') : '';
   const seeMoreHref: Href =
-    subjectHandle.length > 0 ? `/@${subjectHandle}/who-may-know` : '/explore/who-to-follow';
+    profileHrefForUser(subject, 'who-may-know') ?? '/explore/who-to-follow';
 
   // An id-less actor cannot be keyed, followed or opened; and nobody is "similar
   // to" themselves. Applied on READ, not in the fetch, because the cache entry is
@@ -196,6 +196,7 @@ function SimilarAccountItem({
   const { t } = useTranslation();
 
   const handle = getNormalizedUserHandle(account) ?? '';
+  const accountHref = profileHrefForUser(account);
   const dismissLabel = t('feed.interstitial.similarAccounts.dismiss', {
     name:
       account.name?.displayName?.trim() ||
@@ -224,10 +225,10 @@ function SimilarAccountItem({
       // wired when there IS somewhere to go: a handle-less (degraded) profile is
       // not pressable, and must not become so just because we want the signal.
       onPress={
-        handle.length > 0
+        accountHref
           ? () => {
               report('click', position);
-              router.push(`/@${handle}`);
+              router.push(accountHref);
             }
           : undefined
       }
