@@ -24,6 +24,16 @@ vi.mock('../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn() },
 }));
 
+const { getUsersByIds } = vi.hoisted(() => ({
+  getUsersByIds: vi.fn(async (ids: string[]) =>
+    ids.map((id) => ({ id, username: 'nate', name: { displayName: 'Nate' } })),
+  ),
+}));
+
+vi.mock('../utils/oxyHelpers', () => ({
+  getServiceOxyClient: () => ({ getUsersByIds }),
+}));
+
 import webShellRoutes from '../routes/webShell.routes';
 import { postHydrationService } from '../services/PostHydrationService';
 import type { HydratedPost } from '@mention/shared-types';
@@ -54,11 +64,18 @@ function stubFetch(profile: { ok: boolean; body?: unknown }) {
     vi.fn(async (url: string | URL) => {
       const href = String(url);
       if (href.includes('/profiles/username/')) {
-        return { ok: profile.ok, json: async () => profile.body } as Response;
+        return { ok: profile.ok, status: profile.ok ? 200 : 404, json: async () => profile.body } as Response;
       }
       return { ok: true, text: async () => SHELL } as unknown as Response;
     }),
   );
+}
+
+function stubPublicAuthor() {
+  stubFetch({
+    ok: true,
+    body: { data: { id: AUTHOR, username: 'nate', name: { displayName: 'Nate' } } },
+  });
 }
 
 /** A real post row by {@link AUTHOR}. */
@@ -107,6 +124,17 @@ describe('webShell routes (integration)', () => {
     vi.clearAllMocks();
   });
 
+  it('serves explicit crawler policy with the canonical sitemap', async () => {
+    const res = await request(makeApp()).get('/robots.txt');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/plain');
+    expect(res.text).toContain('User-agent: *');
+    expect(res.text).toContain('Content-Signal: search=yes,ai-train=no,use=reference');
+    expect(res.text).toContain('Allow: /');
+    expect(res.text).toContain('Sitemap: https://mention.earth/sitemap.xml');
+  });
+
   it('serves the shell with profile OG for a crawler /@handle request', async () => {
     stubFetch({ ok: true, body: { data: { username: 'nate', name: { displayName: 'Nate' }, bio: 'bio' } } });
 
@@ -114,8 +142,9 @@ describe('webShell routes (integration)', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
+    expect(res.headers.location).toBeUndefined();
     expect(res.headers.vary).toContain('Accept');
-    expect(res.headers.vary).toContain('User-Agent');
+    expect(res.headers.vary).not.toContain('User-Agent');
     expect(res.text).toContain('<meta property="og:title" content="Nate (@nate) on Mention">');
     expect(res.text).toContain('<title>Nate (@nate) on Mention</title>');
     expect(res.text).not.toContain('<title>Mention</title>');
@@ -123,7 +152,7 @@ describe('webShell routes (integration)', () => {
     expect(res.text).toContain('rel="preconnect"');
   });
 
-  it('serves the plain shell (no blocking OG) for a real browser /@handle request', async () => {
+  it('serves the same semantic profile document to a real browser', async () => {
     stubFetch({ ok: true, body: { data: { username: 'nate', name: { displayName: 'Nate' }, bio: 'bio' } } });
 
     const res = await request(makeApp())
@@ -132,10 +161,40 @@ describe('webShell routes (integration)', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
-    // A browser gets the untouched shell title + head hints, and NO server-side OG.
-    expect(res.text).toContain('<title>Mention</title>');
-    expect(res.text).not.toContain('og:title');
+    expect(res.text).toContain('<title>Nate (@nate) on Mention</title>');
+    expect(res.text).toContain('<meta property="og:title" content="Nate (@nate) on Mention">');
+    expect(res.text).toContain('<link rel="canonical" href="https://mention.earth/@nate">');
+    expect(res.text).toContain('<h1>Nate</h1>');
     expect(res.text).toContain('rel="preconnect"');
+  });
+
+  it('permanently redirects a channel from the person-shaped URL to its canonical URL', async () => {
+    stubFetch({ ok: true, body: { data: { username: 'news', kind: 'channel' } } });
+
+    const res = await request(makeApp()).get('/@news');
+
+    expect(res.status).toBe(301);
+    expect(res.headers.location).toBe('/c/news');
+  });
+
+  it('renders a federated profile root with accented identity in semantic HTML', async () => {
+    stubFetch({
+      ok: true,
+      body: {
+        data: {
+          username: 'aida_quilcue@x.com',
+          name: { displayName: 'Aida Quilcué' },
+          bio: 'Lideresa indígena y defensora de derechos humanos',
+        },
+      },
+    });
+
+    const res = await request(makeApp()).get('/@aida_quilcue@x.com');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('<h1>Aida Quilcué</h1>');
+    expect(res.text).toContain('<link rel="canonical" href="https://mention.earth/@aida_quilcue%40x.com">');
+    expect(res.text).toContain('"@type":"ProfilePage"');
   });
 
   it('302-redirects a local /@handle to the AP actor when Accept wants ActivityPub', async () => {
@@ -154,12 +213,13 @@ describe('webShell routes (integration)', () => {
       .get('/@user@remote.social')
       .set('Accept', 'application/ld+json');
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(404);
     expect(res.headers['content-type']).toContain('text/html');
+    expect(res.headers.location).toBeUndefined();
   });
 
   it('serves the shell with post OG for a crawler /p/:id request', async () => {
-    stubFetch({ ok: false });
+    stubPublicAuthor();
     const postId = await seedOgPost();
     mockHydrated(postId);
 
@@ -176,7 +236,7 @@ describe('webShell routes (integration)', () => {
     // The route deliberately carries no id-shape guard: an `isValidObjectId`
     // test would refuse to render a card for every post minted since ids became
     // uuid v7, and the symptom is a silently plain shell rather than an error.
-    stubFetch({ ok: false });
+    stubPublicAuthor();
     const postId = await seedOgPost();
     expect(postId).not.toMatch(/^[a-f0-9]{24}$/);
     mockHydrated(postId);
@@ -186,8 +246,8 @@ describe('webShell routes (integration)', () => {
     expect(res.text).toContain('<meta property="og:title" content="Nate on Mention">');
   });
 
-  it('serves the plain shell for a browser /p/:id request WITHOUT hydrating the post', async () => {
-    stubFetch({ ok: false });
+  it('serves the same semantic post document to a browser', async () => {
+    stubPublicAuthor();
     const postId = await seedOgPost();
 
     const res = await request(makeApp())
@@ -195,22 +255,22 @@ describe('webShell routes (integration)', () => {
       .set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/125 Safari/537.36');
 
     expect(res.status).toBe(200);
-    expect(res.text).toContain('<title>Mention</title>');
-    expect(res.text).not.toContain('og:title');
-    // The browser fast-path must never hydrate — no OG work blocks the TTFB.
-    expect(vi.mocked(postHydrationService.hydratePosts)).not.toHaveBeenCalled();
+    expect(res.text).toContain('<title>Nate on Mention</title>');
+    expect(res.text).toContain('<meta property="og:title" content="Nate on Mention">');
+    expect(res.text).toContain('<h1>Nate on Mention</h1>');
+    expect(vi.mocked(postHydrationService.hydratePosts)).toHaveBeenCalled();
   });
 
-  it('fails open with a plain shell when a crawler requests a missing post', async () => {
-    stubFetch({ ok: false });
+  it('returns a real noindex 404 for a missing post', async () => {
+    stubPublicAuthor();
 
     const res = await request(makeApp())
       .get(`/p/${ABSENT_POST_ID}`)
       .set('User-Agent', 'Slackbot-LinkExpanding 1.0');
 
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('<title>Mention</title>');
-    expect(res.text).not.toContain('og:title');
+    expect(res.status).toBe(404);
+    expect(res.text).toContain('<title>Post not found</title>');
+    expect(res.text).toContain('<meta name="robots" content="noindex,nofollow">');
   });
 });
 
@@ -244,7 +304,7 @@ describe('webShell post OG sensitivity gate', () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
     vi.clearAllMocks();
-    stubFetch({ ok: false });
+    stubPublicAuthor();
   });
 
   it('emits NO og:image for a post flagged sensitive by the classifier', async () => {
@@ -262,6 +322,7 @@ describe('webShell post OG sensitivity gate', () => {
     // Attribution and the link still go out — neither reveals what the warning covers.
     expect(res.text).toContain('<meta property="og:title" content="Nate on Mention">');
     expect(res.text).toContain(`<meta property="og:url" content="https://mention.earth/p/${postId}">`);
+    expect(res.text).toContain('<meta name="robots" content="noindex,nofollow">');
   });
 
   it('emits NO og:image for the legacy metadata.isSensitive flag', async () => {

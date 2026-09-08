@@ -21,8 +21,8 @@
  * (which decides a redirect, so a browser needs it too). Caching the payload
  * rather than the rendered OG is what keeps that a single fetch.
  *
- * Everything here is FAIL-OPEN: any Redis hiccup degrades to a direct resolution
- * (and, ultimately, to nothing) — it must never break or slow the page.
+ * Callers may retain fail-open behavior or request rethrowing so an SEO route
+ * can distinguish a dependency outage (503) from entity absence (404).
  */
 import { createCache } from '../utils/cache';
 import { logger } from '../utils/logger';
@@ -64,6 +64,7 @@ const cache = createCache({
 export async function getShellCached<T>(
   cacheKey: string,
   fetchFn: () => Promise<T | null>,
+  options: { rethrow?: boolean } = {},
 ): Promise<T | null> {
   try {
     return await cache.getOrCompute<T | null>(OG_CACHE_PREFIX + cacheKey, fetchFn, {
@@ -71,6 +72,7 @@ export async function getShellCached<T>(
     });
   } catch (error) {
     logger.debug('[webShellOgCache] resolution failed', error);
+    if (options.rethrow) throw error;
     return null;
   }
 }

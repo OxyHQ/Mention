@@ -71,7 +71,8 @@ describe('renderShellWithOg', () => {
     expect(html).not.toContain('<title>Mention</title>');
     // the whole OG block is injected inside <head>, ending right before </head>
     expect(html).toContain('<meta property="og:title" content="Nate (@nate) on Mention">');
-    expect(html).toContain('<meta name="description" content="bio"></head>');
+    expect(html).toContain('<meta name="description" content="bio">');
+    expect(html).toContain('<link rel="canonical" href="https://mention.earth/@nate">');
     expect(html.indexOf('og:title')).toBeLessThan(html.indexOf('</head>'));
     // exactly one title tag remains
     expect(html.match(/<title>/g)?.length).toBe(1);
@@ -95,6 +96,8 @@ describe('mapProfileOg', () => {
     expect(og?.description).toBe('hi there');
     expect(og?.url).toBe('https://mention.earth/@nate');
     expect(og?.type).toBe('profile');
+    expect(og?.jsonLd).toMatchObject({ '@type': 'ProfilePage' });
+    expect(og?.bodyHtml).toContain('<h1>Nate</h1>');
   });
 
   it('falls back to the handle title when there is no display name', () => {
@@ -145,6 +148,8 @@ describe('mapPostOg', () => {
     expect(og.type).toBe('article');
     // no media/linkPreviews → falls back to author avatar (absolute URL passthrough)
     expect(og.image).toBe('https://cdn/a.png');
+    expect(og.jsonLd).toMatchObject({ '@type': 'SocialMediaPosting' });
+    expect(og.bodyHtml).toContain('<p>hello world</p>');
   });
 
   it('falls back to @handle when the author has no display name', () => {
