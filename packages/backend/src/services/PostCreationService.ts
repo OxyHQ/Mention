@@ -163,7 +163,19 @@ export interface CreatePostParams {
     coordinates: [number, number];
     address?: string;
   } | null;
-  status?: 'draft' | 'published' | 'scheduled';
+  /**
+   * The three author-driven states, plus `incomplete` — which is NOT one of
+   * them and is why this union is written out rather than reusing
+   * `PostPublicationStatus`.
+   *
+   * `CreatePostRequest` (the client-facing shape) keeps the narrow three, so no
+   * caller of the API can ask for a withheld post. This is the INTERNAL service
+   * input, and federated ingest is an internal writer: it is the one caller that
+   * needs to store a note whose declared quote it could not produce. `restricted`
+   * stays out because nothing creates a restricted post — moderation only ever
+   * transitions an existing one.
+   */
+  status?: 'draft' | 'published' | 'scheduled' | 'incomplete';
   scheduledFor?: Date;
   replyPermission?: string[];
   reviewReplies?: boolean;

@@ -168,13 +168,48 @@ function stubRemote(orderedItems: unknown[], objects: Record<string, unknown> = 
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
-      if (url === OUTBOX_URL) {
+      if (url === OUTBOX_URL || url === THREADS_OUTBOX) {
         return jsonResponse({ type: 'OrderedCollection', totalItems: orderedItems.length, orderedItems });
       }
       const object = objects[url];
       if (object) return jsonResponse(object);
       throw new Error(`unexpected fetch ${url}`);
     }),
+  );
+}
+
+/** The markup Threads actually emits — its ONLY carrier for a quote. */
+function threadsQuoteBody(target: string): string {
+  return `<p>A M A T E R A S U 👁️ 🔥</p> <p><span class="quote-inline">RE: <a href="${target}">${target}</a></span></p>`;
+}
+
+/** A Threads Create/Note, from a threads.net actor rather than this suite's own. */
+const THREADS_ACTOR = 'https://threads.net/ap/users/17841401260928433';
+const THREADS_OUTBOX = `${THREADS_ACTOR}/outbox/`;
+const THREADS_OXY_ID = scope.user('threads');
+function threadsNote(id: string, target: string) {
+  const noteId = `${THREADS_ACTOR}/post/${id}`;
+  return {
+    id: `${noteId}/activity`,
+    type: 'Create',
+    actor: THREADS_ACTOR,
+    published: '2023-04-01T12:00:00Z',
+    object: {
+      id: noteId,
+      type: 'Note',
+      attributedTo: THREADS_ACTOR,
+      content: threadsQuoteBody(target),
+      published: '2023-04-01T12:00:00Z',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+    },
+  };
+}
+
+/** Sync the THREADS actor's own outbox — the host gate reads the outbox owner. */
+function runThreadsOutboxSync() {
+  return outboxSyncService.syncOutboxPostsDetailed(
+    { uri: THREADS_ACTOR, acct: 'someone@threads.net', outboxUrl: THREADS_OUTBOX, oxyUserId: THREADS_OXY_ID },
+    { limit: 10, maxPages: 1 },
   );
 }
 
@@ -186,9 +221,11 @@ function runOutboxSync() {
 }
 
 /** The stored row for one of Alice's notes, by the local part of its id. */
-async function storedNote(id: string): Promise<{ quoteOf: string | null; type: string } | undefined> {
+async function storedNote(
+  id: string,
+): Promise<{ quoteOf: string | null; type: string; status: string } | undefined> {
   const [row] = await getDb()
-    .select({ quoteOf: posts.quoteOf, type: posts.type })
+    .select({ quoteOf: posts.quoteOf, type: posts.type, status: posts.status })
     .from(posts)
     .where(like(posts.federationActivityId, `${ACTOR_URI}/statuses/${id}%`));
   return row;
@@ -214,6 +251,7 @@ afterAll(async () => {
 afterEach(async () => {
   await getDb().delete(posts).where(like(posts.federationActivityId, `${ACTOR_URI}%`));
   await getDb().delete(posts).where(like(posts.federationActivityId, `${BOB_URI}%`));
+  await getDb().delete(posts).where(like(posts.federationActivityId, `${THREADS_ACTOR}%`));
   await clearFederationScope(scope);
 });
 
@@ -254,11 +292,13 @@ beforeEach(() => {
   );
   // Both actors on the instance resolve, so a case that fails to link a quote
   // fails because of the quote and not because the author was unresolvable.
-  mocks.getOrFetchActor.mockImplementation(async (uri: string) =>
-    uri === BOB_URI
-      ? { uri: BOB_URI, oxyUserId: BOB_OXY_ID, type: 'Person' }
-      : { uri: ACTOR_URI, oxyUserId: ALICE_OXY_ID, type: 'Person' },
-  );
+  mocks.getOrFetchActor.mockImplementation(async (uri: string) => {
+    if (uri === BOB_URI) return { uri: BOB_URI, oxyUserId: BOB_OXY_ID, type: 'Person' };
+    if (uri === THREADS_ACTOR) {
+      return { uri: THREADS_ACTOR, oxyUserId: THREADS_OXY_ID, type: 'Person', domain: 'threads.net' };
+    }
+    return { uri: ACTOR_URI, oxyUserId: ALICE_OXY_ID, type: 'Person' };
+  });
 });
 
 describe('outbox backfill — a quote is linked, not left as `RE: <url>`', () => {
@@ -271,7 +311,11 @@ describe('outbox backfill — a quote is linked, not left as `RE: <url>`', () =>
 
     await runOutboxSync();
 
-    expect(await storedNote('quoting')).toEqual({ quoteOf: quoted.id, type: PostType.QUOTE });
+    expect(await storedNote('quoting')).toEqual({
+      quoteOf: quoted.id,
+      type: PostType.QUOTE,
+      status: 'published',
+    });
   });
 
   it('CONTROL: a note with the same `RE:` body but no quote field links nothing', async () => {
@@ -294,7 +338,11 @@ describe('outbox backfill — a quote is linked, not left as `RE: <url>`', () =>
 
     await runOutboxSync();
 
-    expect(await storedNote('plain')).toEqual({ quoteOf: null, type: PostType.TEXT });
+    expect(await storedNote('plain')).toEqual({
+      quoteOf: null,
+      type: PostType.TEXT,
+      status: 'published',
+    });
   });
 
   it('fetches and imports a quoted post we do NOT hold, then links it', async () => {
@@ -314,6 +362,7 @@ describe('outbox backfill — a quote is linked, not left as `RE: <url>`', () =>
     expect(await storedNote('quoting-unheld')).toEqual({
       quoteOf: imported?.id,
       type: PostType.QUOTE,
+      status: 'published',
     });
   });
 
@@ -336,5 +385,94 @@ describe('outbox backfill — a quote is linked, not left as `RE: <url>`', () =>
     const middle = await storedRemote(UNHELD_URI);
     expect(middle?.quoteOf).toBe(held.id);
     expect((await storedNote('quoting-chain'))?.quoteOf).toBe(middle?.id);
+  });
+});
+
+describe('a quote we cannot produce withholds the post instead of showing `RE:`', () => {
+  it('stores a note whose declared quote does not resolve as `incomplete`', async () => {
+    // The quoted URI is a real AP id and the fetch fails, so nothing can link
+    // it. The author's text was written ABOUT that post; published, the reader
+    // gets half a conversation plus the remote server's `RE: <url>` fallback.
+    stubRemote([createNote('unresolvable', { quote: UNHELD_URI })]);
+
+    await runOutboxSync();
+
+    expect(await storedNote('unresolvable')).toEqual({
+      quoteOf: null,
+      type: PostType.TEXT,
+      status: 'incomplete',
+    });
+  });
+
+  it('CONTROL: a note that quotes NOTHING is still published', async () => {
+    // Without this the case above would pass just as well if the ingest had
+    // started withholding every federated note.
+    stubRemote([createNote('no-quote')]);
+
+    await runOutboxSync();
+
+    expect((await storedNote('no-quote'))?.status).toBe('published');
+  });
+});
+
+describe("Threads, whose quote exists ONLY as `span.quote-inline`", () => {
+  /** The stored row for a Threads note, which lives under a different actor. */
+  async function storedThreadsNote(id: string) {
+    const [row] = await getDb()
+      .select({ quoteOf: posts.quoteOf, status: posts.status })
+      .from(posts)
+      .where(like(posts.federationActivityId, `${THREADS_ACTOR}/post/${id}%`));
+    return row;
+  }
+
+  it('links the quote when we already hold the post, matching on its NOTE URL', async () => {
+    // Threads names its quote by `www.threads.com` web URL, never by AP id — so
+    // `federation_url` is the only column that can ever match it. Measured on
+    // the live server: the AP object carries no quote field at all.
+    const target = 'https://www.threads.com/@someone/post/DctgllSGf_L';
+    const quoted = await seedPost(scope, {
+      oxyUserId: BOB_OXY_ID,
+      federation: { activityId: `${THREADS_ACTOR}/post/999`, actorUri: THREADS_ACTOR, url: target },
+    });
+    stubRemote([threadsNote('held-quote', target)]);
+
+    await runThreadsOutboxSync();
+
+    expect(await storedThreadsNote('held-quote')).toEqual({
+      quoteOf: quoted.id,
+      status: 'published',
+    });
+  });
+
+  it('withholds it when we do not hold the post, and never fetches the web URL', async () => {
+    // The href is a WEB url: it serves text/html even to a signed request, and
+    // the shortcode decodes into a different id space, so there is nothing to
+    // fetch. `stubRemote` throws on any unexpected URL, which is what proves the
+    // fetch was not attempted.
+    stubRemote([threadsNote('unheld-quote', 'https://www.threads.com/@nobody/post/DcXXXXXXXXX')]);
+
+    await runThreadsOutboxSync();
+
+    expect(await storedThreadsNote('unheld-quote')).toEqual({
+      quoteOf: null,
+      status: 'incomplete',
+    });
+  });
+
+  it('does NOT read that markup from a non-Threads server', async () => {
+    // The host gate is the whole reason reading this body is defensible: the
+    // class is markup Threads emits, and only there is it known to mean a quote.
+    // A Mastodon note carrying the same span is left completely alone.
+    stubRemote([createNote('lookalike', {
+      content: threadsQuoteBody('https://www.threads.com/@someone/post/DctgllSGf_L'),
+    })]);
+
+    await runOutboxSync();
+
+    expect(await storedNote('lookalike')).toEqual({
+      quoteOf: null,
+      type: PostType.TEXT,
+      status: 'published',
+    });
   });
 });

@@ -15,7 +15,7 @@ import { normalizeHashtag } from '../../utils/textProcessing';
 import { clampFutureDate } from '../../utils/ingestTimestamp';
 import { assertSafePublicUrl } from '@oxyhq/core/server';
 import { fetchUpstreamSingleHop, type SingleHopResult } from '../../utils/safeUpstreamFetch';
-import { isAbsoluteHttpUrl } from '../shared/url';
+import { isAbsoluteHttpUrl, getRemoteHost } from '../shared/url';
 
 /**
  * Low-level ActivityPub helpers used by more than one AP sub-service
@@ -573,6 +573,123 @@ export function extractApQuoteUri(object: Record<string, unknown>): string | und
 }
 
 /**
+ * The host Threads serves ActivityPub from. Its WEB origin is `www.threads.com`;
+ * the two are not interchangeable and only this one carries actors and notes.
+ */
+const THREADS_AP_HOST = 'threads.net';
+
+/**
+ * Extract the URL of the post a THREADS note quotes, or `undefined`.
+ *
+ * This reads the BODY, which every other quote path in this codebase is
+ * forbidden from doing, so the exception is stated in full.
+ *
+ * The rule exists to stop a quote being inferred from PROSE: `RE: <url>` is how
+ * a remote server RENDERS a quote for clients that cannot show one, it is a
+ * symptom rather than a source, and matching it would fire on any post that
+ * happens to contain those characters. `quotedPostImport.test.ts` pins that and
+ * this function does not weaken it — {@link extractApQuoteUri} still refuses the
+ * body, and this is a separate, host-gated reader.
+ *
+ * What it matches is not prose. Threads wraps its quote in its own markup:
+ *
+ *   <span class="quote-inline">RE: <a href="https://www.threads.com/@u/post/C">…</a></span>
+ *
+ * A `class` a remote server emits cannot be produced by a person typing, so the
+ * false-positive the rule guards against cannot occur here.
+ *
+ * WHY THREADS NEEDS ITS OWN READER AT ALL — measured against the live server,
+ * because inventing an exception on a guess would be exactly the wrong move:
+ * a Threads note carries NO structured quote field. On
+ * `threads.net/ap/users/17841401260928433/post/18099292307347571` the keys are
+ * `id, type, content, published, @context, contentMap, attributedTo, url, to,
+ * cc, tag, interactionPolicy`, `tag` is empty, and `extractApQuoteUri` answers
+ * `undefined`. The markup above is the only place the reference exists.
+ *
+ * THE RESULT IS A WEB URL, NOT AN AP ID, and it cannot be turned into one:
+ * `https://www.threads.com/…` serves `text/html` even to a signed request with
+ * every `Accept` variant (Threads advertises `type="application/activity+json"`
+ * on that URL and does not honour it), and the shortcode decodes into a
+ * different id space entirely (`DctXTiWCTZz` → 3975936543654753907, against an
+ * AP post id of 17903481120483533). So the caller may only resolve it against
+ * `posts.federation_url` — see {@link resolvePostIdFromNoteUrl} — and must never
+ * hand it to a fetch.
+ */
+export function extractThreadsQuoteUrl(object: Record<string, unknown>): string | undefined {
+  const content = typeof object.content === 'string' ? object.content : '';
+  if (!content.includes('quote-inline')) return undefined;
+
+  const match = /<span[^>]*class="[^"]*\bquote-inline\b[^"]*"[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"/i
+    .exec(content);
+  const href = match?.[1]?.trim();
+  if (!href) return undefined;
+
+  const decoded = href.replace(/&amp;/g, '&');
+  return isAbsoluteHttpUrl(decoded) ? decoded : undefined;
+}
+
+/**
+ * The quote a note DECLARES, however its server chose to carry it.
+ *
+ * One answer for the three ingest paths, so "does this post point at another
+ * one" cannot be decided differently depending on which of them imported it —
+ * the asymmetry that shipped quotes linked on the inbox and null everywhere else.
+ *
+ * `fetchable` is the half that matters to the caller: a structured AP id can be
+ * fetched and imported when we do not already hold it, and a Threads web URL
+ * cannot be (see {@link extractThreadsQuoteUrl}), so it may only be matched
+ * against what is already stored.
+ */
+export function extractDeclaredQuote(
+  object: Record<string, unknown>,
+  actorUri: string | undefined,
+): { uri: string; fetchable: boolean } | undefined {
+  const structured = extractApQuoteUri(object);
+  if (structured) return { uri: structured, fetchable: true };
+
+  if (actorUri && getRemoteHost(actorUri) === THREADS_AP_HOST) {
+    const threads = extractThreadsQuoteUrl(object);
+    if (threads) return { uri: threads, fetchable: false };
+  }
+
+  return undefined;
+}
+
+/**
+ * Resolve a DECLARED quote to a local post id, in the one order every ingest
+ * path must use.
+ *
+ * The order is the rule, and it lives here rather than at each call site because
+ * "does this post point at another one, and do we have it" must not depend on
+ * which path imported the note — that asymmetry is what shipped quotes linked on
+ * the inbox and null on both other routes.
+ *
+ * Each step exists for a case the others miss:
+ *   1. by AP id — also covers a quote of a LOCAL post, which no fetch would find;
+ *   2. by note URL — the ONLY way a Threads quote can resolve, because Threads
+ *      names its quote by `www.threads.com` web URL and that is exactly what
+ *      `posts.federation_url` holds;
+ *   3. by importing — ONLY when the URI is an AP id. A Threads web URL is never
+ *      handed to a fetch: it serves `text/html` even to a signed request.
+ *
+ * `importQuoted` is a parameter rather than an import so this can sit beside the
+ * two resolvers it sequences without depending on the outbox service — the inbox
+ * supplies `ensureQuotedNote`, and the ancestor importer supplies its own
+ * depth-capped recursion. It also keeps that service's mocked surface unchanged
+ * in the five suites that stub it.
+ */
+export async function resolveDeclaredQuoteTarget(
+  declared: { uri: string; fetchable: boolean },
+  importQuoted: (uri: string) => Promise<string | null>,
+): Promise<string | null> {
+  return (
+    (await resolvePostIdFromObjectUri(declared.uri))
+    ?? (await resolvePostIdFromNoteUrl(declared.uri))
+    ?? (declared.fetchable ? await importQuoted(declared.uri) : null)
+  );
+}
+
+/**
  * Extract media attachments from an AP Note object.
  * Returns media items and attachment descriptors for the Post model.
  *
@@ -678,6 +795,38 @@ export async function resolvePostIdFromObjectUri(objectUri: string): Promise<str
     )
     .limit(1);
   return imported ? imported.id : null;
+}
+
+/**
+ * Resolve a post by the NOTE URL its origin published, not by its AP id.
+ *
+ * The sibling {@link resolvePostIdFromObjectUri} matches `federation_activity_id`,
+ * which is the right key for every server that names its quote by AP id. Threads
+ * does not: the only reference it carries is a `www.threads.com` web URL, which
+ * is exactly what `posts.federation_url` stores for a Threads post
+ * (`buildFederatedNoteProvenance` puts the Note's `url` there). Matching on that
+ * column is therefore the ONLY way a Threads quote can ever resolve, and it is
+ * an exact-string match on a value we wrote ourselves — no parsing, no guessing.
+ *
+ * Same `published` + `public` gate as its sibling, and for the same reason: this
+ * turns a remote-supplied string into a local post id that then gets embedded in
+ * somebody else's post, so an unpublished or non-public post reached through it
+ * would be disclosed by the reference alone. That gate is also what keeps an
+ * `incomplete` post from being quoted while it is withheld.
+ */
+export async function resolvePostIdFromNoteUrl(noteUrl: string): Promise<string | null> {
+  const [row] = await getDb()
+    .select({ id: posts.id })
+    .from(posts)
+    .where(
+      and(
+        eq(posts.federationUrl, noteUrl),
+        eq(posts.status, 'published'),
+        eq(posts.visibility, PostVisibility.PUBLIC),
+      ),
+    )
+    .limit(1);
+  return row ? row.id : null;
 }
 
 /**
