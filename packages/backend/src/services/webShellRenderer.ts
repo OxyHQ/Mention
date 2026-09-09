@@ -14,6 +14,7 @@
  */
 import { OxyServices, getNormalizedUserHandle } from '@oxyhq/core';
 import type { AccountKind } from '@oxyhq/core';
+import { MEDIA_VARIANT_THUMB } from '@mention/shared-types';
 import type { HydratedPost } from '@mention/shared-types';
 import { config } from '../config';
 
@@ -51,6 +52,41 @@ const OXY_API_URL = config.oxyApiUrl;
  * needs no auth, so a plain client is both correct and test-safe.
  */
 const cdnUrlClient = new OxyServices({ baseURL: OXY_API_URL });
+
+/** Oxy's own CDN image variant for a card-sized render of a bare file id. */
+const OXY_CDN_THUMB_VARIANT = 'thumb';
+
+/**
+ * The `og:image` for an avatar, always on one of OUR origins.
+ *
+ * A federated avatar arrives as an absolute URL on the remote instance's own
+ * media host, and emitting it verbatim made every card renderer — crawlers,
+ * Slack, WhatsApp, the browser's own preview — fetch the image straight from
+ * that third party. Nothing outside Oxy is ever asked for bytes on our behalf:
+ * a remote reference goes through `/media/proxy`, which serves it from the
+ * mirrored copy (or streams it once and mirrors it), and a bare Oxy file id goes
+ * to the Oxy CDN. `thumb` in both branches, unchanged: an OG card renders small.
+ *
+ * The two branches name their size differently, and both names are right. Oxy's
+ * CDN takes its own image variants (`thumb`), which is what a bare file id has
+ * always been served at here. `/media/proxy` forwards only the three variants in
+ * its allow-list (`w320`/`w2048`/`w96`) and silently drops anything else, so the
+ * proxied branch must ask in that vocabulary or get the full-size original.
+ *
+ * The proxy URL is built here rather than through `utils/mediaResolver` on
+ * purpose. That module reaches `oxyHelpers`, which transitively imports the
+ * server entrypoint — the isolation this module keeps, and the reason
+ * {@link cdnUrlClient} exists at all. Both read `config.publicApiUrl`, so the
+ * origin still has a single source of truth.
+ */
+function ogImageForAvatar(avatar: unknown): string | undefined {
+  if (typeof avatar !== 'string' || avatar.length === 0) return undefined;
+  if (!/^https?:\/\//i.test(avatar)) {
+    return cdnUrlClient.getFileDownloadUrl(avatar, OXY_CDN_THUMB_VARIANT);
+  }
+  const proxy = `${config.publicApiUrl}/media/proxy?url=${encodeURIComponent(avatar)}`;
+  return `${proxy}&variant=${encodeURIComponent(MEDIA_VARIANT_THUMB)}`;
+}
 
 /** Shape of the Oxy `/profiles/username/<handle>` payload we read for OG. */
 export interface OxyProfileData {
@@ -213,12 +249,7 @@ export function mapProfileOg(data: OxyProfileData | null | undefined): OgData | 
   const name = displayName || `@${username}`;
   const publicLinks = (data.links ?? []).filter((link) => /^https?:\/\//i.test(link));
 
-  let image: string | undefined;
-  if (typeof avatar === 'string' && avatar.length > 0) {
-    // Federated avatars are absolute URLs; local avatars are bare Oxy file ids
-    // resolved to their public CDN URL through the canonical SDK helper.
-    image = /^https?:\/\//.test(avatar) ? avatar : cdnUrlClient.getFileDownloadUrl(avatar, 'thumb');
-  }
+  const image = ogImageForAvatar(avatar);
 
   return {
     title: displayName ? `${displayName} (@${username}) on Mention` : `@${username} on Mention`,
@@ -313,11 +344,7 @@ export function mapPostOg(post: HydratedPost, id: string, safety: PostOgSafety):
 
   const media = post.content?.media?.[0];
 
-  let avatarImage: string | undefined;
-  const avatar = user.avatar;
-  if (typeof avatar === 'string' && avatar.length > 0) {
-    avatarImage = /^https?:\/\//.test(avatar) ? avatar : cdnUrlClient.getFileDownloadUrl(avatar, 'thumb');
-  }
+  const avatarImage = ogImageForAvatar(user.avatar);
 
   const image =
     media?.url || media?.thumbUrl || media?.posterUrl || post.linkPreviews?.[0]?.image || avatarImage || undefined;
