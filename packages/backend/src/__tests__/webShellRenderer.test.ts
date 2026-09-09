@@ -199,8 +199,8 @@ describe('mapPostOg', () => {
       ...base,
       content: { text: 't' },
       documents: [
-        { url: 'https://l', image: 'https://l/i.jpg' },
-        { url: 'https://l2', image: 'https://l2/i.jpg' },
+        { canonicalUrl: 'https://l', imageUrl: 'https://l/i.jpg' },
+        { canonicalUrl: 'https://l2', imageUrl: 'https://l2/i.jpg' },
       ],
     } as unknown as HydratedPost;
     expect(mapPostOg(post, 'p1', SAFE).image).toBe('https://l/i.jpg');

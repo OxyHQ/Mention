@@ -37,7 +37,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getRuntimeOxyClient: vi.fn(() => ({})),
 }));
 
-vi.mock('../../utils/linkPreviewWarm', () => ({
+vi.mock('../../utils/clarityDocumentWarm', () => ({
   warmClarityDocumentForText: vi.fn().mockResolvedValue(undefined),
   warmClarityDocumentForTextDetached: vi.fn(),
 }));

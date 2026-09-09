@@ -89,7 +89,7 @@ describe('post-ingest enrichment — every step is registered in the fan-out', (
     // If the directory were renamed or the filter broke, every assertion below
     // would pass over an empty set and this suite would silently guard nothing.
     expect(steps.length).toBeGreaterThanOrEqual(2);
-    expect(steps).toContain('linkPreviewStep.ts');
+    expect(steps).toContain('clarityDocumentStep.ts');
     expect(steps).toContain('mediaMetadataStep.ts');
   });
 

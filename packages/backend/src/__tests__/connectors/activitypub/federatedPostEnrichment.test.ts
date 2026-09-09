@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => ({
   signViaOxy: vi.fn(),
   getServiceOxyClient: vi.fn(),
   makeServiceRequest: vi.fn(),
-  getClarityDocuments: vi.fn(),
+  resolveDocuments: vi.fn(),
   getClarityDocument: vi.fn(),
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
@@ -86,6 +86,10 @@ vi.mock('../../../db/userProfile/userSettingsRepository', () => ({
 
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: mocks.getServiceOxyClient,
+}));
+
+vi.mock('../../../utils/clarityClient', () => ({
+  getClarityClient: async () => ({ indexing: { resolve: mocks.resolveDocuments } }),
 }));
 
 vi.mock('../../../services/mediaCache/cacheWorker', () => ({
@@ -207,7 +211,7 @@ function deliverToInbox(activity: Record<string, unknown>) {
  * thing", instead of both reading as a bare `not.toHaveBeenCalled`.
  */
 function warmedBatchUrls(): string[] {
-  return mocks.getClarityDocuments.mock.calls.flatMap(([urls]) => urls as string[]);
+  return mocks.resolveDocuments.mock.calls.flatMap(([request]) => request.urls as string[]);
 }
 
 /** The URL set the single-post warm was asked for (the `PostCreationService` lane). */
@@ -242,11 +246,10 @@ beforeEach(() => {
   mocks.recordAccess.mockResolvedValue(undefined);
   mocks.postCreatorCreate.mockResolvedValue({ id: 'created_post_1' });
   mocks.makeServiceRequest.mockResolvedValue({ id: 'oxy_user_1' });
-  mocks.getClarityDocuments.mockResolvedValue({});
+  mocks.resolveDocuments.mockResolvedValue({ data: [] });
   mocks.getClarityDocument.mockResolvedValue({ url: ARTICLE_URL, status: 'pending' });
   mocks.getServiceOxyClient.mockReturnValue({
     makeServiceRequest: mocks.makeServiceRequest,
-    getClarityDocuments: mocks.getClarityDocuments,
     getClarityDocument: mocks.getClarityDocument,
   });
   mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
@@ -283,7 +286,7 @@ describe('Federated ingest — outbox backfill runs post-ingest enrichment', () 
     expect(await storedPostCount()).toBe(2);
 
     // Both links were handed to Oxy, in one batch call rather than per post.
-    expect(mocks.getClarityDocuments).toHaveBeenCalledTimes(1);
+    expect(mocks.resolveDocuments).toHaveBeenCalledTimes(1);
     expect(warmedBatchUrls()).toEqual([ARTICLE_URL, SECOND_ARTICLE_URL]);
   });
 
@@ -307,11 +310,11 @@ describe('Federated ingest — outbox backfill runs post-ingest enrichment', () 
     await settle();
 
     expect(result.newPostCount).toBe(1);
-    expect(mocks.getClarityDocuments).not.toHaveBeenCalled();
+    expect(mocks.resolveDocuments).not.toHaveBeenCalled();
   });
 
   it('imports the page even when the preview service rejects', async () => {
-    mocks.getClarityDocuments.mockRejectedValue(new Error('preview service down'));
+    mocks.resolveDocuments.mockRejectedValue(new Error('preview service down'));
     stubOutbox([createNote('withlink', `<p>Read this ${linkAnchor(ARTICLE_URL)}</p>`)]);
 
     const result = await runOutboxSync();
@@ -324,13 +327,13 @@ describe('Federated ingest — outbox backfill runs post-ingest enrichment', () 
   it('does not wait for the warm before finishing the import', async () => {
     // A preview service that never answers. If the warm were awaited, the sync
     // would never resolve and this test would time out rather than fail.
-    mocks.getClarityDocuments.mockReturnValue(new Promise(() => undefined));
+    mocks.resolveDocuments.mockReturnValue(new Promise(() => undefined));
     stubOutbox([createNote('withlink', `<p>Read this ${linkAnchor(ARTICLE_URL)}</p>`)]);
 
     const result = await runOutboxSync();
 
     expect(result.newPostCount).toBe(1);
-    expect(mocks.getClarityDocuments).toHaveBeenCalledTimes(1);
+    expect(mocks.resolveDocuments).toHaveBeenCalledTimes(1);
   });
 });
 

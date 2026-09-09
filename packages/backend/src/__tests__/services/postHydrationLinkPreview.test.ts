@@ -3,8 +3,7 @@ import type { CachedUserSummary } from '../../services/userSummaryCache';
 import type { ClarityDocument } from '@oxy.so/contracts';
 
 /**
- * Verifies that `PostHydrationService` sources link previews from the Oxy
- * ecosystem link-preview service (`oxyServices.getClarityDocuments`) and maps the
+ * Verifies that `PostHydrationService` sources link previews from Clarity and maps the
  * `'resolved'` {@link ClarityDocument}s onto the post DTO's `documents` array, in
  * text order — sizing the Oxy-hosted (`cloud.oxy.so`) `image` down to the
  * `w320` (`MEDIA_VARIANT_THUMB`) context via `attachCdnVariant` instead of
@@ -19,10 +18,10 @@ const AUTHOR_OXY_ID = 'oxy-author';
 const POST_URL = 'https://example.com/some-article';
 const SECOND_URL = 'https://example.org/another-article';
 
-const { getUserById, getUsersByIds, getClarityDocuments, cacheStore } = vi.hoisted(() => ({
+const { getUserById, getUsersByIds, resolveDocuments, cacheStore } = vi.hoisted(() => ({
   getUserById: vi.fn(),
   getUsersByIds: vi.fn(),
-  getClarityDocuments: vi.fn(),
+  resolveDocuments: vi.fn(),
   cacheStore: new Map<string, CachedUserSummary>(),
 }));
 
@@ -35,7 +34,11 @@ vi.mock('../../runtime/oxyClient', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getUsersByIds, getClarityDocuments, getCloudURL: () => 'https://cloud.oxy.so' }),
+  getServiceOxyClient: () => ({ getUsersByIds, getCloudURL: () => 'https://cloud.oxy.so' }),
+}));
+
+vi.mock('../../utils/clarityClient', () => ({
+  getClarityClient: async () => ({ indexing: { resolve: resolveDocuments } }),
 }));
 
 vi.mock('../../utils/privacyHelpers', () => ({
@@ -94,14 +97,14 @@ function postRow(text: string = `look at this ${POST_URL}`) {
   };
 }
 
-describe('PostHydrationService — link previews sourced from Oxy', () => {
+describe('PostHydrationService — documents sourced from Clarity', () => {
   let service: PostHydrationService;
 
   beforeEach(() => {
     cacheStore.clear();
     getUserById.mockReset();
     getUsersByIds.mockReset();
-    getClarityDocuments.mockReset();
+    resolveDocuments.mockReset();
     getUsersByIds.mockResolvedValue([makeOxyUser(AUTHOR_OXY_ID, 'author', 'Author')]);
     service = new PostHydrationService();
   });
@@ -118,148 +121,139 @@ describe('PostHydrationService — link previews sourced from Oxy', () => {
 
   function resolvedPreview(url: string, title: string): ClarityDocument {
     return {
-      url,
-      status: 'resolved',
+      id: `doc-${title}`,
+      canonicalUrl: url,
       title,
       description: `${title} description`,
       // No variant on the source — proves the service attaches one, not just
       // preserves a pre-existing param.
-      image: 'https://cloud.oxy.so/file123',
-      siteName: 'Example',
-      favicon: 'https://cloud.oxy.so/favicon456',
-      resolvedAt: new Date().toISOString(),
+      imageUrl: 'https://cloud.oxy.so/file123',
+      publisher: { name: 'Example' },
+      faviconUrl: 'https://cloud.oxy.so/favicon456',
+      type: 'article',
+      indexedAt: new Date().toISOString(),
     };
+  }
+
+  function mockDocuments(documents: Record<string, ClarityDocument>): void {
+    resolveDocuments.mockResolvedValue({
+      data: Object.entries(documents).map(([url, document]) => ({ url, status: 'resolved', document })),
+    });
   }
 
   it('maps a resolved Oxy ClarityDocument onto the post, sizing the cloud.oxy.so image to the thumb (w320) variant', async () => {
     const resolved: ClarityDocument = {
-      url: 'https://example.com/some-article?canonical=1',
-      status: 'resolved',
+      id: 'doc-1',
+      canonicalUrl: 'https://example.com/some-article?canonical=1',
       title: 'Some Article',
       description: 'A description',
       // Already carries an unrelated variant — proves the service OVERWRITES
       // it (idempotent `set`) rather than appending a duplicate param.
-      image: 'https://cloud.oxy.so/file123?variant=w2048',
-      siteName: 'Example',
-      favicon: 'https://cloud.oxy.so/favicon456',
-      resolvedAt: new Date().toISOString(),
+      imageUrl: 'https://cloud.oxy.so/file123?variant=w2048',
+      publisher: { name: 'Example' },
+      faviconUrl: 'https://cloud.oxy.so/favicon456',
+      type: 'article',
+      indexedAt: new Date().toISOString(),
     };
-    getClarityDocuments.mockResolvedValue({ [POST_URL]: resolved });
+    resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'resolved', document: resolved }] });
 
     const hydrated = await hydrate();
 
     // The service requested exactly the extracted URL.
-    expect(getClarityDocuments).toHaveBeenCalledTimes(1);
-    expect(getClarityDocuments).toHaveBeenCalledWith([POST_URL]);
+    expect(resolveDocuments).toHaveBeenCalledTimes(1);
+    expect(resolveDocuments).toHaveBeenCalledWith({ urls: [POST_URL], waitMs: 2_000 });
 
     expect(hydrated.documents).toEqual([
       {
-        url: resolved.url,
-        sourceUrl: POST_URL,
+        ...resolved,
         title: 'Some Article',
         description: 'A description',
         // Oxy-hosted image is never re-proxied, but sized to w320 instead of
         // serving the no-variant original (or an unrelated variant).
-        image: 'https://cloud.oxy.so/file123?variant=w320',
-        siteName: 'Example',
+        imageUrl: 'https://cloud.oxy.so/file123?variant=w2048',
       },
     ]);
   });
 
   it('leaves a non-Oxy-hosted image untouched (never attaches our variant to a third-party host)', async () => {
     const resolved: ClarityDocument = {
-      url: 'https://example.com/some-article?canonical=1',
-      status: 'resolved',
+      id: 'doc-2',
+      canonicalUrl: 'https://example.com/some-article?canonical=1',
       title: 'External image',
       description: 'A description',
-      image: 'https://images.example.com/og-image.png',
-      siteName: 'Example',
-      favicon: undefined,
-      resolvedAt: new Date().toISOString(),
+      imageUrl: 'https://images.example.com/og-image.png',
+      publisher: { name: 'Example' },
+      type: 'article',
+      indexedAt: new Date().toISOString(),
     };
-    getClarityDocuments.mockResolvedValue({ [POST_URL]: resolved });
+    resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'resolved', document: resolved }] });
 
     const hydrated = await hydrate();
 
-    expect(hydrated.documents?.[0]?.image).toBe('https://images.example.com/og-image.png');
+    expect(hydrated.documents?.[0]?.imageUrl).toBe('https://images.example.com/og-image.png');
   });
 
   it('maps every resolved preview of a multi-link post, in text order', async () => {
-    getClarityDocuments.mockResolvedValue({
+    mockDocuments({
       [POST_URL]: resolvedPreview(POST_URL, 'First'),
       [SECOND_URL]: resolvedPreview(SECOND_URL, 'Second'),
     });
 
     const hydrated = await hydrate(`two links: ${SECOND_URL} and ${POST_URL}`);
 
-    expect(getClarityDocuments).toHaveBeenCalledWith([SECOND_URL, POST_URL]);
-    expect(hydrated.documents?.map((preview) => preview.url)).toEqual([SECOND_URL, POST_URL]);
+    expect(resolveDocuments).toHaveBeenCalledWith({ urls: [SECOND_URL, POST_URL], waitMs: 2_000 });
+    expect(hydrated.documents?.map((preview) => preview.canonicalUrl)).toEqual([SECOND_URL, POST_URL]);
     expect(hydrated.documents?.map((preview) => preview.title)).toEqual(['Second', 'First']);
   });
 
-  it('keeps a pending preview as a URL-only card without disturbing text order', async () => {
+  it('omits a pending document without disturbing resolved document order', async () => {
     const thirdUrl = 'https://example.net/third-article';
-    getClarityDocuments.mockResolvedValue({
-      [POST_URL]: resolvedPreview(POST_URL, 'First'),
-      [SECOND_URL]: { url: SECOND_URL, status: 'pending' } satisfies ClarityDocument,
-      [thirdUrl]: resolvedPreview(thirdUrl, 'Third'),
-    });
+    resolveDocuments.mockResolvedValue({ data: [
+      { url: POST_URL, status: 'resolved', document: resolvedPreview(POST_URL, 'First') },
+      { url: SECOND_URL, status: 'pending' },
+      { url: thirdUrl, status: 'resolved', document: resolvedPreview(thirdUrl, 'Third') },
+    ] });
 
     const hydrated = await hydrate(`${POST_URL} ${SECOND_URL} ${thirdUrl}`);
 
     expect(hydrated.documents).toEqual([
-      expect.objectContaining({ url: POST_URL, title: 'First' }),
-      { url: SECOND_URL },
-      expect.objectContaining({ url: thirdUrl, title: 'Third' }),
+      expect.objectContaining({ canonicalUrl: POST_URL, title: 'First' }),
+      expect.objectContaining({ canonicalUrl: thirdUrl, title: 'Third' }),
     ]);
   });
 
-  it('maps a pending preview to a URL-only card', async () => {
-    getClarityDocuments.mockResolvedValue({
-      [POST_URL]: { url: POST_URL, status: 'pending' } satisfies ClarityDocument,
-    });
+  it('omits a pending document until Clarity resolves it', async () => {
+    resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'pending' }] });
 
     const hydrated = await hydrate();
-    expect(hydrated.documents).toEqual([{ url: POST_URL }]);
+    expect(hydrated.documents).toEqual([]);
   });
 
-  it('maps an empty preview to a URL-only card', async () => {
-    getClarityDocuments.mockResolvedValue({
-      [POST_URL]: { url: POST_URL, status: 'empty' } satisfies ClarityDocument,
-    });
+  it('omits a failed document resolution', async () => {
+    resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'failed' }] });
 
     const hydrated = await hydrate();
-    expect(hydrated.documents).toEqual([{ url: POST_URL }]);
+    expect(hydrated.documents).toEqual([]);
   });
 
-  it('preserves the final URL from an empty preview after redirects', async () => {
-    const canonicalUrl = 'https://publisher.example/article';
-    getClarityDocuments.mockResolvedValue({
-      [POST_URL]: { url: canonicalUrl, status: 'empty' } satisfies ClarityDocument,
-    });
+  it('omits a missing batch result', async () => {
+    resolveDocuments.mockResolvedValue({ data: [] });
 
     const hydrated = await hydrate();
-    expect(hydrated.documents).toEqual([{ url: canonicalUrl, sourceUrl: POST_URL }]);
+    expect(hydrated.documents).toEqual([]);
   });
 
-  it('maps a missing batch result to a URL-only card', async () => {
-    getClarityDocuments.mockResolvedValue({});
-
-    const hydrated = await hydrate();
-    expect(hydrated.documents).toEqual([{ url: POST_URL }]);
-  });
-
-  it('still hydrates URL-only cards when the preview service throws', async () => {
-    getClarityDocuments.mockRejectedValue(new Error('oxy down'));
+  it('still hydrates the post when Clarity throws', async () => {
+    resolveDocuments.mockRejectedValue(new Error('clarity down'));
 
     const hydrated = await hydrate();
     expect(hydrated).toBeTruthy();
     expect(hydrated.id).toBe(POST_ID);
-    expect(hydrated.documents).toEqual([{ url: POST_URL }]);
+    expect(hydrated.documents).toEqual([]);
   });
 
   it('does not call the preview service when includeLinkMetadata is false', async () => {
-    getClarityDocuments.mockResolvedValue({});
+    resolveDocuments.mockResolvedValue({ data: [] });
 
     await service.hydratePosts([postRow()], {
       viewerId: undefined,
@@ -268,7 +262,7 @@ describe('PostHydrationService — link previews sourced from Oxy', () => {
       includeFullMetadata: false,
     });
 
-    expect(getClarityDocuments).not.toHaveBeenCalled();
+    expect(resolveDocuments).not.toHaveBeenCalled();
   });
 
   /**
@@ -291,56 +285,56 @@ describe('PostHydrationService — link previews sourced from Oxy', () => {
       ['a federated profile page', 'https://mention.earth/@bob@mastodon.social'],
       ['an actor URI', 'https://mention.earth/ap/users/alice'],
     ])('asks for no preview of %s', async (_label, url) => {
-      getClarityDocuments.mockResolvedValue({});
+      resolveDocuments.mockResolvedValue({ data: [] });
 
       const hydrated = await hydrate(`mira ${url}`);
 
       // Dropped BEFORE the batch call — the preview service is never asked to
       // scrape our own profile page.
-      expect(getClarityDocuments).not.toHaveBeenCalled();
+      expect(resolveDocuments).not.toHaveBeenCalled();
       expect(hydrated.documents).toEqual([]);
     });
 
     it('still gives the other link its card', async () => {
-      getClarityDocuments.mockResolvedValue({ [POST_URL]: resolvedPreview(POST_URL, 'First') });
+      mockDocuments({ [POST_URL]: resolvedPreview(POST_URL, 'First') });
 
       const hydrated = await hydrate(`https://mention.earth/@alice wrote ${POST_URL}`);
 
       // The gate suppresses one entry, not the map.
-      expect(getClarityDocuments).toHaveBeenCalledWith([POST_URL]);
-      expect(hydrated.documents?.map((preview) => preview.url)).toEqual([POST_URL]);
+      expect(resolveDocuments).toHaveBeenCalledWith({ urls: [POST_URL], waitMs: 2_000 });
+      expect(hydrated.documents?.map((preview) => preview.canonicalUrl)).toEqual([POST_URL]);
     });
 
     it('keeps the card for a profile URL on ANY OTHER host', async () => {
       // The renderer leaves these as links, because whether we hold that account
       // is not readable from the characters — so the card has to stay too.
       const remote = 'https://mastodon.social/@bob';
-      getClarityDocuments.mockResolvedValue({ [remote]: resolvedPreview(remote, 'Bob') });
+      mockDocuments({ [remote]: resolvedPreview(remote, 'Bob') });
 
       const hydrated = await hydrate(`mira ${remote}`);
 
-      expect(getClarityDocuments).toHaveBeenCalledWith([remote]);
-      expect(hydrated.documents?.map((preview) => preview.url)).toEqual([remote]);
+      expect(resolveDocuments).toHaveBeenCalledWith({ urls: [remote], waitMs: 2_000 });
+      expect(hydrated.documents?.map((preview) => preview.canonicalUrl)).toEqual([remote]);
     });
 
     it('keeps the card for one of our own pages that is not a profile', async () => {
       const ourPost = 'https://mention.earth/p/650000000000000000000099';
-      getClarityDocuments.mockResolvedValue({ [ourPost]: resolvedPreview(ourPost, 'A post') });
+      mockDocuments({ [ourPost]: resolvedPreview(ourPost, 'A post') });
 
       const hydrated = await hydrate(`mira ${ourPost}`);
 
-      expect(getClarityDocuments).toHaveBeenCalledWith([ourPost]);
-      expect(hydrated.documents?.map((preview) => preview.url)).toEqual([ourPost]);
+      expect(resolveDocuments).toHaveBeenCalledWith({ urls: [ourPost], waitMs: 2_000 });
+      expect(hydrated.documents?.map((preview) => preview.canonicalUrl)).toEqual([ourPost]);
     });
 
     it('keeps the card for a sub-page of one of our profiles', async () => {
       const followers = 'https://mention.earth/@alice/followers';
-      getClarityDocuments.mockResolvedValue({ [followers]: resolvedPreview(followers, 'Followers') });
+      mockDocuments({ [followers]: resolvedPreview(followers, 'Followers') });
 
       const hydrated = await hydrate(`mira ${followers}`);
 
-      expect(getClarityDocuments).toHaveBeenCalledWith([followers]);
-      expect(hydrated.documents?.map((preview) => preview.url)).toEqual([followers]);
+      expect(resolveDocuments).toHaveBeenCalledWith({ urls: [followers], waitMs: 2_000 });
+      expect(hydrated.documents?.map((preview) => preview.canonicalUrl)).toEqual([followers]);
     });
   });
 });
