@@ -240,6 +240,10 @@ describe('webShell routes (integration)', () => {
     expect(res.status).toBe(404);
     expect(res.headers['content-type']).toContain('text/html');
     expect(res.headers.location).toBeUndefined();
+    expect(res.text).toContain(
+      '<div id="root"><div id="seo-root" data-mention-seo-fallback="true"><main><h1>Profile not found</h1>',
+    );
+    expect(res.text).not.toContain('data-mention-seo-fallback="true"><main><h1>Profile not found</h1></main></div><div id="root">');
   });
 
   it('serves the shell with post OG for a crawler /p/:id request', async () => {

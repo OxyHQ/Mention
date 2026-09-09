@@ -186,7 +186,11 @@ export function renderShellWithOg(shell: string, og: OgData | null): string {
   if (og.bodyHtml) {
     const fallback = `<div id="seo-root" data-mention-seo-fallback="true">${og.bodyHtml}</div>`;
     html = /<div\s+id=(['"])root\1[^>]*>/i.test(html)
-      ? html.replace(/<div\s+id=(['"])root\1[^>]*>/i, (root) => `${fallback}${root}`)
+      // The semantic document is initial content of the SPA mount point. React
+      // replaces these children on its first render, so it can never survive as
+      // a second UI above the application. Keeping it outside `#root` made the
+      // SEO fallback permanently visible after the app booted.
+      ? html.replace(/<div\s+id=(['"])root\1[^>]*>/i, (root) => `${root}${fallback}`)
       : html.replace(/<body\b[^>]*>/i, (body) => `${body}${fallback}`);
   }
 

@@ -86,6 +86,15 @@ describe('renderShellWithOg', () => {
     const html = renderShellWithOg(SHELL, { ...og, title: 'Deal $5 & $1' });
     expect(html).toContain('<title>Deal $5 &amp; $1</title>');
   });
+
+  it('mounts semantic fallback inside the SPA root so React replaces it on boot', () => {
+    const html = renderShellWithOg(SHELL, { ...og, bodyHtml: '<main><h1>Profile not found</h1></main>' });
+
+    expect(html).toContain(
+      '<div id="root"><div id="seo-root" data-mention-seo-fallback="true"><main><h1>Profile not found</h1></main></div></div>',
+    );
+    expect(html).not.toContain('data-mention-seo-fallback="true"><main><h1>Profile not found</h1></main></div><div id="root">');
+  });
 });
 
 describe('mapProfileOg', () => {
