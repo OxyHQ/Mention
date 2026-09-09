@@ -87,13 +87,11 @@ describe('renderShellWithOg', () => {
     expect(html).toContain('<title>Deal $5 &amp; $1</title>');
   });
 
-  it('mounts semantic fallback inside the SPA root so React replaces it on boot', () => {
-    const html = renderShellWithOg(SHELL, { ...og, bodyHtml: '<main><h1>Profile not found</h1></main>' });
+  it('leaves the SPA root empty so metadata never becomes a second visible UI', () => {
+    const html = renderShellWithOg(SHELL, og);
 
-    expect(html).toContain(
-      '<div id="root"><div id="seo-root" data-mention-seo-fallback="true"><main><h1>Profile not found</h1></main></div></div>',
-    );
-    expect(html).not.toContain('data-mention-seo-fallback="true"><main><h1>Profile not found</h1></main></div><div id="root">');
+    expect(html).toContain('<div id="root"></div>');
+    expect(html).not.toContain('data-mention-seo-fallback');
   });
 });
 
@@ -106,7 +104,6 @@ describe('mapProfileOg', () => {
     expect(og?.url).toBe('https://mention.earth/@nate');
     expect(og?.type).toBe('profile');
     expect(og?.jsonLd).toMatchObject({ '@type': 'ProfilePage' });
-    expect(og?.bodyHtml).toContain('<h1>Nate</h1>');
   });
 
   it('falls back to the handle title when there is no display name', () => {
@@ -162,7 +159,6 @@ describe('mapPostOg', () => {
     // no media/linkPreviews → falls back to the author avatar, through the proxy.
     expect(og.image).toBe('http://localhost:4110/media/proxy?url=https%3A%2F%2Fcdn%2Fa.png&variant=w320');
     expect(og.jsonLd).toMatchObject({ '@type': 'SocialMediaPosting' });
-    expect(og.bodyHtml).toContain('<p>hello world</p>');
   });
 
   it('falls back to @handle when the author has no display name', () => {

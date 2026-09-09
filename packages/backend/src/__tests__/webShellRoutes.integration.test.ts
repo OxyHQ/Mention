@@ -201,7 +201,7 @@ describe('webShell routes (integration)', () => {
     expect(res.text).not.toContain('files.remote.social/avatars');
   });
 
-  it('serves the same semantic profile document to a real browser', async () => {
+  it('serves profile metadata without a duplicate visible profile to a real browser', async () => {
     stubFetch({ ok: true, body: { data: { username: 'nate', name: { displayName: 'Nate' }, bio: 'bio' } } });
 
     const res = await request(makeApp())
@@ -213,7 +213,8 @@ describe('webShell routes (integration)', () => {
     expect(res.text).toContain('<title>Nate (@nate) on Mention</title>');
     expect(res.text).toContain('<meta property="og:title" content="Nate (@nate) on Mention">');
     expect(res.text).toContain('<link rel="canonical" href="https://mention.earth/@nate">');
-    expect(res.text).toContain('<h1>Nate</h1>');
+    expect(res.text).toContain('<div id="root"></div>');
+    expect(res.text).not.toContain('data-mention-seo-fallback');
     expect(res.text).toContain('rel="preconnect"');
   });
 
@@ -241,7 +242,7 @@ describe('webShell routes (integration)', () => {
     const res = await request(makeApp()).get('/@aida_quilcue@x.com');
 
     expect(res.status).toBe(200);
-    expect(res.text).toContain('<h1>Aida Quilcué</h1>');
+    expect(res.text).toContain('<div id="root"></div>');
     expect(res.text).toContain('<link rel="canonical" href="https://mention.earth/@aida_quilcue%40x.com">');
     expect(res.text).toContain('"@type":"ProfilePage"');
   });
@@ -304,7 +305,7 @@ describe('webShell routes (integration)', () => {
     expect(res.text).toContain('<meta property="og:title" content="Nate on Mention">');
   });
 
-  it('serves the same semantic post document to a browser', async () => {
+  it('serves post metadata without a duplicate visible post to a browser', async () => {
     stubPublicAuthor();
     const postId = await seedOgPost();
 
@@ -315,7 +316,8 @@ describe('webShell routes (integration)', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('<title>Nate on Mention</title>');
     expect(res.text).toContain('<meta property="og:title" content="Nate on Mention">');
-    expect(res.text).toContain('<h1>Nate on Mention</h1>');
+    expect(res.text).toContain('<div id="root"></div>');
+    expect(res.text).not.toContain('data-mention-seo-fallback');
     expect(vi.mocked(postHydrationService.hydratePosts)).toHaveBeenCalled();
   });
 
