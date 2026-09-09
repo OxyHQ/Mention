@@ -20,9 +20,13 @@ import { useLinkDetection } from '../useLinkDetection';
 const mockResolve = jest.fn();
 const mockGetCached = jest.fn();
 const mockUpsertLink = jest.fn();
+let capturedGetAccessToken: (() => string | Promise<string>) | undefined;
 
 jest.mock('@clarity.surf/sdk', () => ({
   ClarityClient: class {
+    constructor(options: { getAccessToken: () => string | Promise<string> }) {
+      capturedGetAccessToken = options.getAccessToken;
+    }
     indexing = { resolve: (...args: unknown[]) => mockResolve(...args) };
   },
 }), { virtual: true });
@@ -67,6 +71,15 @@ beforeEach(() => {
       document: { id: url, canonicalUrl: url, title: 'a title', type: 'page', status: 'indexed', authors: [], evidence: {} },
     })),
   }));
+});
+
+it('gives the Clarity SDK the active Oxy access token', async () => {
+  await act(async () => {
+    TestRenderer.create(<Probe text="" />);
+  });
+
+  expect(capturedGetAccessToken).toBeDefined();
+  expect(await capturedGetAccessToken?.()).toBe('token');
 });
 
 it('uses cached Clarity metadata without another request', async () => {
