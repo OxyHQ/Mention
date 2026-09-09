@@ -40,7 +40,7 @@ export function createSocketIoServer(server: http.Server): SocketIOServer {
       },
       methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
       credentials: true,
-      allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token", "X-Requested-With", "Accept", "Accept-Version", "Content-Length", "Content-MD5", "Date", "X-Api-Version", "X-Oxy-Edge-Region"]
+      allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token", "X-Requested-With", "Accept", "Accept-Version", "Content-Length", "Content-MD5", "Date", "X-Api-Version", "X-Oxy-Edge-Region", "X-Oxy-Activity-Id"]
     },
     perMessageDeflate: {
       threshold: SOCKET_CONFIG.COMPRESSION_THRESHOLD,
