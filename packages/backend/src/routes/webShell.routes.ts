@@ -39,7 +39,6 @@ import {
   OxyProfileData,
   PostOgSafety,
   canonicalProfilePath,
-  escapeHtml,
   injectHeadHtml,
   mapPostOg,
   mapProfileOg,
@@ -286,7 +285,6 @@ function noindexPage(url: string, title: string, description: string): OgData {
     url,
     type: 'website',
     robots: 'noindex,nofollow',
-    bodyHtml: `<main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(description)}</p></main>`,
   };
 }
 
