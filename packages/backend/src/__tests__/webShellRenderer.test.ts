@@ -104,9 +104,13 @@ describe('mapProfileOg', () => {
     expect(mapProfileOg({ username: 'nate' })?.title).toBe('@nate on Mention');
   });
 
-  it('passes through an absolute avatar URL and resolves a bare file id via the CDN helper', () => {
+  it('proxies an absolute avatar URL and resolves a bare file id via the CDN helper', () => {
+    // It used to pass the absolute URL through, and an absolute avatar is what a
+    // FEDERATED account has — so the card told every crawler, Slack and WhatsApp
+    // to fetch the image from the remote instance's own media host. Nothing
+    // outside Oxy is asked for bytes on our behalf.
     expect(mapProfileOg({ username: 'a', avatar: 'https://remote.example/x.png' })?.image).toBe(
-      'https://remote.example/x.png',
+      'http://localhost:4110/media/proxy?url=https%3A%2F%2Fremote.example%2Fx.png&variant=w320',
     );
     expect(mapProfileOg({ username: 'a', avatar: 'file123' })?.image).toBe(
       'https://cloud.oxy.so/file123?variant=thumb',
@@ -135,7 +139,7 @@ describe('mapPostOg', () => {
   const base = {
     id: 'p1',
     // Canonical Oxy `User` shape: `name.displayName`, `username`, and an absolute
-    // federated avatar URL (Bloom would render it directly; OG uses it as-is).
+    // federated avatar URL — which the card must serve through our own proxy.
     user: { id: 'u1', username: 'nate', name: { displayName: 'Nate' }, avatar: 'https://cdn/a.png' },
     content: { text: 'hello world' },
   } as unknown as HydratedPost;
@@ -146,8 +150,8 @@ describe('mapPostOg', () => {
     expect(og.description).toBe('hello world');
     expect(og.url).toBe('https://mention.earth/p/p1');
     expect(og.type).toBe('article');
-    // no media/linkPreviews → falls back to author avatar (absolute URL passthrough)
-    expect(og.image).toBe('https://cdn/a.png');
+    // no media/linkPreviews → falls back to the author avatar, through the proxy.
+    expect(og.image).toBe('http://localhost:4110/media/proxy?url=https%3A%2F%2Fcdn%2Fa.png&variant=w320');
     expect(og.jsonLd).toMatchObject({ '@type': 'SocialMediaPosting' });
     expect(og.bodyHtml).toContain('<p>hello world</p>');
   });

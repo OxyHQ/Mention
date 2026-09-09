@@ -53,6 +53,9 @@ const OXY_API_URL = config.oxyApiUrl;
  */
 const cdnUrlClient = new OxyServices({ baseURL: OXY_API_URL });
 
+/** Oxy's own CDN image variant for a card-sized render of a bare file id. */
+const OXY_CDN_THUMB_VARIANT = 'thumb';
+
 /**
  * The `og:image` for an avatar, always on one of OUR origins.
  *
@@ -64,6 +67,12 @@ const cdnUrlClient = new OxyServices({ baseURL: OXY_API_URL });
  * mirrored copy (or streams it once and mirrors it), and a bare Oxy file id goes
  * to the Oxy CDN. `thumb` in both branches, unchanged: an OG card renders small.
  *
+ * The two branches name their size differently, and both names are right. Oxy's
+ * CDN takes its own image variants (`thumb`), which is what a bare file id has
+ * always been served at here. `/media/proxy` forwards only the three variants in
+ * its allow-list (`w320`/`w2048`/`w96`) and silently drops anything else, so the
+ * proxied branch must ask in that vocabulary or get the full-size original.
+ *
  * The proxy URL is built here rather than through `utils/mediaResolver` on
  * purpose. That module reaches `oxyHelpers`, which transitively imports the
  * server entrypoint — the isolation this module keeps, and the reason
@@ -73,7 +82,7 @@ const cdnUrlClient = new OxyServices({ baseURL: OXY_API_URL });
 function ogImageForAvatar(avatar: unknown): string | undefined {
   if (typeof avatar !== 'string' || avatar.length === 0) return undefined;
   if (!/^https?:\/\//i.test(avatar)) {
-    return cdnUrlClient.getFileDownloadUrl(avatar, MEDIA_VARIANT_THUMB);
+    return cdnUrlClient.getFileDownloadUrl(avatar, OXY_CDN_THUMB_VARIANT);
   }
   const proxy = `${config.publicApiUrl}/media/proxy?url=${encodeURIComponent(avatar)}`;
   return `${proxy}&variant=${encodeURIComponent(MEDIA_VARIANT_THUMB)}`;
