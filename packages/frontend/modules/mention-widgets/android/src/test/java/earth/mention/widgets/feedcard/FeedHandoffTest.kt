@@ -60,7 +60,7 @@ class FeedHandoffTest {
                         }
                       ]
                     },
-                    "linkPreviews": [
+                    "documents": [
                       {
                         "url": "https://www.theverge.com/tech/972927/x",
                         "title": "Microsoft confirms Copilot super app coming this year",

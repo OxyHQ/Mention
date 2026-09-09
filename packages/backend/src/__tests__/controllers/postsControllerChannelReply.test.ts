@@ -59,8 +59,8 @@ vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => und
 
 // A link preview is a remote fetch and is never allowed to block a create.
 vi.mock('../../utils/linkPreviewWarm', () => ({
-  warmLinkPreviewForText: vi.fn().mockResolvedValue(undefined),
-  warmLinkPreviewForTextDetached: vi.fn(),
+  warmClarityDocumentForText: vi.fn().mockResolvedValue(undefined),
+  warmClarityDocumentForTextDetached: vi.fn(),
 }));
 
 // The REAL channel reply gate, over a mocked account-kind lookup — the point of

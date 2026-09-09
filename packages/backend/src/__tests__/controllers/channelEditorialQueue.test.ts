@@ -70,7 +70,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     getUsersByIds,
-    getLinkPreviews: vi.fn(async () => ({})),
+    getClarityDocuments: vi.fn(async () => ({})),
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
   }),
   // Hydration falls back to the service client when this is undefined, which is

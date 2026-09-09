@@ -23,7 +23,7 @@ import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { getRuntimeSocketServer } from '../../runtime/socketServer';
 import { normalizeMediaItems } from '../../utils/mediaInput';
-import { warmLinkPreviewForText } from '../../utils/linkPreviewWarm';
+import { warmClarityDocumentForText } from '../../utils/clarityDocumentWarm';
 import { resolveVariant, validateAuthorVariants } from '../../services/postVariants';
 import { assertLaneAssignable, LaneAssignmentError } from '../../utils/laneAssignment';
 import type { AccountKind } from '@oxy.so/contracts';
@@ -679,7 +679,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     }
 
     await Promise.all(
-      createdPostObjects.map((p) => warmLinkPreviewForText(resolveVariant(p.content).text)),
+      createdPostObjects.map((p) => warmClarityDocumentForText(resolveVariant(p.content).text)),
     );
 
     const createdPosts = await postHydrationService.hydratePosts(createdPostObjects, {

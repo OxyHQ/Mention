@@ -1,6 +1,6 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { MAX_POST_LINK_PREVIEWS } from '@mention/shared-types/post';
+import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import { useLinkDetection } from '../useLinkDetection';
 
 /**
@@ -17,11 +17,17 @@ import { useLinkDetection } from '../useLinkDetection';
  * stops us paying a preview service to scrape our own profile pages.
  */
 
-const mockGetLinkPreview = jest.fn();
+const mockResolve = jest.fn();
+
+jest.mock('@clarity.surf/sdk', () => ({
+  ClarityClient: class {
+    indexing = { resolve: (...args: unknown[]) => mockResolve(...args) };
+  },
+}), { virtual: true });
 
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
-    oxyServices: { getLinkPreview: (...args: unknown[]) => mockGetLinkPreview(...args) },
+    oxyServices: { getClient: () => ({ getAccessToken: () => 'token' }) },
   }),
 }));
 jest.mock('@oxy.so/core/logger', () => ({
@@ -44,13 +50,19 @@ async function requestedPreviewUrls(text: string): Promise<string[]> {
   await act(async () => {
     await jest.advanceTimersByTimeAsync(600);
   });
-  return mockGetLinkPreview.mock.calls.map(([url]) => url as string);
+  return mockResolve.mock.calls.flatMap(([request]) => (request as { urls: string[] }).urls);
 }
 
 beforeEach(() => {
   jest.useFakeTimers();
-  mockGetLinkPreview.mockReset();
-  mockGetLinkPreview.mockResolvedValue({ title: 'a title' });
+  mockResolve.mockReset();
+  mockResolve.mockImplementation(async ({ urls }: { urls: string[] }) => ({
+    data: urls.map((url) => ({
+      url,
+      status: 'indexed',
+      document: { id: url, canonicalUrl: url, title: 'a title', type: 'page', status: 'indexed', authors: [], evidence: {} },
+    })),
+  }));
 });
 
 afterEach(() => {
@@ -91,12 +103,12 @@ it('renders one card fewer rather than promoting a link past the cap', async () 
   // The cap applies BEFORE the profile-link filter, which is what hydration
   // does; matching it is what makes the composer show the published shape.
   const others = Array.from(
-    { length: MAX_POST_LINK_PREVIEWS },
+    { length: MAX_POST_DOCUMENTS },
     (_, index) => `https://example.com/${index}`,
   );
   const urls = await requestedPreviewUrls(
     `https://mention.earth/@alice ${others.join(' ')}`,
   );
 
-  expect(urls).toEqual(others.slice(0, MAX_POST_LINK_PREVIEWS - 1));
+  expect(urls).toEqual(others.slice(0, MAX_POST_DOCUMENTS - 1));
 });

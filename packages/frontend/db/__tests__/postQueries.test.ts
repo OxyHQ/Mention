@@ -15,7 +15,7 @@ function makePost(): FeedItem {
     id: 'post-1',
     content: { text: 'kept in feed' },
     attachments: {},
-    linkPreviews: [],
+    documents: [],
     user: {
       id: 'user-1',
       username: 'alice',

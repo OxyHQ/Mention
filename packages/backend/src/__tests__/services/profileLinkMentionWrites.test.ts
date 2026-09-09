@@ -31,7 +31,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  */
 
 const {
-  getLinkPreviews,
+  getClarityDocuments,
   getUserById,
   createMentionNotifications,
   isBlockedDomain,
@@ -39,7 +39,7 @@ const {
   findActorByUri,
   findActorByAcct,
 } = vi.hoisted(() => ({
-  getLinkPreviews: vi.fn(),
+  getClarityDocuments: vi.fn(),
   getUserById: vi.fn(),
   createMentionNotifications: vi.fn().mockResolvedValue(undefined),
   isBlockedDomain: vi.fn((_host: string) => false),
@@ -68,7 +68,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     getUserById,
     getUsersByIds: vi.fn().mockResolvedValue([]),
-    getLinkPreviews,
+    getClarityDocuments,
   }),
 }));
 
@@ -113,7 +113,7 @@ afterAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   getUserById.mockResolvedValue({ id: AUTHOR_ID, username: 'author' });
-  getLinkPreviews.mockResolvedValue({});
+  getClarityDocuments.mockResolvedValue({});
   isBlockedDomain.mockImplementation(
     (host: string) => host.toLowerCase().replace(/^www\./, '') === OWN_HOST,
   );

@@ -51,7 +51,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     getUsersByIds,
-    getLinkPreviews: vi.fn(async () => ({})),
+    getClarityDocuments: vi.fn(async () => ({})),
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
   }),
 }));
@@ -157,7 +157,7 @@ function hydrate(posts: object[]) {
     maxDepth: 2,
     oxyClient: {
       getUsersByIds,
-      getLinkPreviews: vi.fn(async () => ({})),
+      getClarityDocuments: vi.fn(async () => ({})),
       getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
     } as never,
   });

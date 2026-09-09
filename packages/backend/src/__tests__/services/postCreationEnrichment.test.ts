@@ -26,8 +26,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  *   - enrichment is DETACHED — a preview service that rejects never fails create.
  */
 
-const { getLinkPreviews, getUserById } = vi.hoisted(() => ({
-  getLinkPreviews: vi.fn(),
+const { getClarityDocuments, getUserById } = vi.hoisted(() => ({
+  getClarityDocuments: vi.fn(),
   getUserById: vi.fn(),
 }));
 
@@ -59,7 +59,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     getUserById,
     getUsersByIds: vi.fn().mockResolvedValue([]),
-    getLinkPreviews,
+    getClarityDocuments,
   }),
 }));
 
@@ -74,7 +74,7 @@ const ARTICLE_URL = 'https://example.com/a-federated-article';
 
 /** The URLs the enrichment batch warm was asked to resolve, across all calls. */
 function warmedUrls(): string[] {
-  return getLinkPreviews.mock.calls.flatMap(([urls]) => urls as string[]);
+  return getClarityDocuments.mock.calls.flatMap(([urls]) => urls as string[]);
 }
 
 /** Let the detached (un-awaited) enrichment settle before asserting on it. */
@@ -123,7 +123,7 @@ afterAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
   getUserById.mockResolvedValue({ id: scope.user('remote-author'), username: 'alice' });
-  getLinkPreviews.mockResolvedValue({});
+  getClarityDocuments.mockResolvedValue({});
 });
 
 afterEach(async () => {
@@ -142,7 +142,7 @@ describe('PostCreationService — post-ingest enrichment', () => {
     await postCreationService.create(federatedCreateParams('Just some words, no link at all.'));
     await settle();
 
-    expect(getLinkPreviews).not.toHaveBeenCalled();
+    expect(getClarityDocuments).not.toHaveBeenCalled();
   });
 
   it('enriches a NATIVE post from the link in its text', async () => {
@@ -158,7 +158,7 @@ describe('PostCreationService — post-ingest enrichment', () => {
   });
 
   it('creates the post even when the preview service rejects', async () => {
-    getLinkPreviews.mockRejectedValue(new Error('preview service down'));
+    getClarityDocuments.mockRejectedValue(new Error('preview service down'));
 
     const post = await postCreationService.create(
       federatedCreateParams(`Read this ${ARTICLE_URL} today`),
@@ -188,13 +188,13 @@ describe('PostCreationService — a scheduled post is enriched when it publishes
     await settle();
 
     // Nobody can read it yet, so there is nothing to warm a preview for.
-    expect(getLinkPreviews).not.toHaveBeenCalled();
+    expect(getClarityDocuments).not.toHaveBeenCalled();
   });
 
   it('enriches when the scheduler publishes it', async () => {
     const post = await createScheduled();
     await settle();
-    expect(getLinkPreviews).not.toHaveBeenCalled();
+    expect(getClarityDocuments).not.toHaveBeenCalled();
 
     await postCreationService.publishScheduledPost(post);
     await settle();

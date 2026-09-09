@@ -57,8 +57,8 @@ vi.mock('../../utils/oxyHelpers', () => ({
 }));
 
 vi.mock('../../utils/linkPreviewWarm', () => ({
-  warmLinkPreviewForText: vi.fn().mockResolvedValue(undefined),
-  warmLinkPreviewForTextDetached: vi.fn(),
+  warmClarityDocumentForText: vi.fn().mockResolvedValue(undefined),
+  warmClarityDocumentForTextDetached: vi.fn(),
 }));
 
 // `newArticleId` stays REAL — the assertions below are about the id the

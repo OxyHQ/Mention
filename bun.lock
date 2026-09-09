@@ -16,6 +16,7 @@
       "name": "@mention/backend",
       "version": "1.0.0",
       "dependencies": {
+        "@clarity.surf/sdk": "^0.2.4",
         "@mention/shared-types": "workspace:*",
         "@oxy.so/contracts": "catalog:",
         "@oxy.so/core": "catalog:",
@@ -79,6 +80,7 @@
       "dependencies": {
         "@alia.onl/sdk": "7.2.8",
         "@babel/plugin-transform-export-namespace-from": "^7.29.7",
+        "@clarity.surf/sdk": "^0.2.4",
         "@expo/vector-icons": "^15.1.1",
         "@floating-ui/react-dom": "^2.1.9",
         "@livekit/react-native": "^2.12.0",
@@ -213,6 +215,7 @@
       "name": "@mention/shared-types",
       "version": "1.0.0",
       "dependencies": {
+        "@clarity.surf/sdk": "^0.2.4",
         "@oxy.so/contracts": "catalog:",
         "zod": "catalog:",
       },
@@ -470,6 +473,8 @@
     "@bcoe/v8-coverage": ["@bcoe/v8-coverage@1.0.2", "", {}, "sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA=="],
 
     "@bufbuild/protobuf": ["@bufbuild/protobuf@1.10.1", "", {}, "sha512-wJ8ReQbHxsAfXhrf9ixl0aYbZorRuOWpBNzm8pL8ftmSxQx/wnJD5Eg861NwJU/czy2VXFIebCeZnZrI9rktIQ=="],
+
+    "@clarity.surf/sdk": ["@clarity.surf/sdk@0.2.4", "", {}, "sha512-HFCFjLW6WH6ZPqwkknOYC05m7n7Zg4qOHecIzvOGGJOtaD4M3sTmXW1QNL0u/r3A+I+KbAfpYI9B0ihZWRItWA=="],
 
     "@dominicstop/ts-event-emitter": ["@dominicstop/ts-event-emitter@1.1.0", "", {}, "sha512-CcxmJIvUb1vsFheuGGVSQf4KdPZC44XolpUT34+vlal+LyQoBUOn31pjFET5M9ctOxEpt8xa0M3/2M7uUiAoJw=="],
 

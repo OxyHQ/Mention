@@ -13,7 +13,7 @@ function makePost(
     attachments: {
       media: [{ id: `media-${id}`, type: 'image' }],
     },
-    linkPreviews: [],
+    documents: [],
     user: {
       id: `user-${id}`,
       username: `user-${id}`,

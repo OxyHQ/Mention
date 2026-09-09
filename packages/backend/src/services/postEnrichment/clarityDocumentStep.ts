@@ -1,5 +1,5 @@
 import type { StoredPostContent } from '@mention/shared-types';
-import { getServiceOxyClient } from '../../utils/oxyHelpers';
+import { getClarityClient } from '../../utils/clarityClient';
 import { extractUrls } from '../../utils/extractUrls';
 import { getPrimaryVariant } from '../postVariants';
 import { logger } from '../../utils/logger';
@@ -11,7 +11,7 @@ import type { IngestedPost } from './types';
  * rendering nothing on this pass.
  *
  * WHY THE BATCH ENDPOINT, not the synchronous per-URL warm the create RESPONSE
- * uses (`warmLinkPreviewForText`): Oxy guards synchronous resolution with a
+ * uses (`warmClarityDocumentForText`): Oxy guards synchronous resolution with a
  * server-wide slot budget, so a bulk import taking that path would occupy a
  * shared resource on behalf of posts nobody is reading yet — and Oxy would shed
  * the overflow to its background lane anyway. The batch call resolves what it
@@ -20,12 +20,12 @@ import type { IngestedPost } from './types';
  * SSRF-safe path is its `safeFetch`; nothing is fetched here.
  *
  * BOUNDING comes from the input rather than a new limit: `extractUrls` caps
- * each body at `MAX_POST_LINK_PREVIEWS`, URLs are de-duplicated across the whole
+ * each body at `MAX_POST_DOCUMENTS`, URLs are de-duplicated across the whole
  * batch (a page of notes sharing one link costs one entry), the SDK chunks at
  * its server-side cap of 50, and the caller's page size caps how many bodies
  * arrive at once.
  */
-export async function warmLinkPreviewsForPosts(
+export async function warmClarityDocumentsForPosts(
   posts: ReadonlyArray<IngestedPost>,
 ): Promise<void> {
   const urls: string[] = [];
@@ -42,7 +42,7 @@ export async function warmLinkPreviewsForPosts(
   if (urls.length === 0) return;
 
   try {
-    await getServiceOxyClient().getLinkPreviews(urls);
+    await (await getClarityClient()).indexing.resolve({ urls });
   } catch (error) {
     // Best-effort enrichment: a preview-service hiccup must never fail an ingest.
     logger.debug('[PostEnrichment] Failed to warm link previews', {
@@ -53,6 +53,6 @@ export async function warmLinkPreviewsForPosts(
 }
 
 /** The link-preview enrichment step (detached — see `PostEnrichmentStep`). */
-export function enrichLinkPreviews(posts: ReadonlyArray<IngestedPost>): void {
-  void warmLinkPreviewsForPosts(posts);
+export function enrichClarityDocuments(posts: ReadonlyArray<IngestedPost>): void {
+  void warmClarityDocumentsForPosts(posts);
 }

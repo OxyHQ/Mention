@@ -70,7 +70,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
     getUsersByIds: vi.fn(async (ids: string[]) =>
       ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {}, languages: ['en-US'] })),
     ),
-    getLinkPreviews: vi.fn(async () => []),
+    getClarityDocuments: vi.fn(async () => []),
   }),
   createScopedOxyClient: () => oxyGraphClient,
 }));

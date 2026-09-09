@@ -159,7 +159,7 @@ describe('mapPostOg', () => {
     expect(og.description).toBe('hello world');
     expect(og.url).toBe('https://mention.earth/p/p1');
     expect(og.type).toBe('article');
-    // no media/linkPreviews → falls back to the author avatar, through the proxy.
+    // no media/documents → falls back to the author avatar, through the proxy.
     expect(og.image).toBe('http://localhost:4110/media/proxy?url=https%3A%2F%2Fcdn%2Fa.png&variant=w320');
     expect(og.jsonLd).toMatchObject({ '@type': 'SocialMediaPosting' });
   });
@@ -185,11 +185,11 @@ describe('mapPostOg', () => {
     expect(mapPostOg(boost, 'b1', SAFE).description).toBe('the boosted original body');
   });
 
-  it('prefers media url over thumb/poster/linkPreviews/avatar', () => {
+  it('prefers media url over thumb/poster/documents/avatar', () => {
     const post = {
       ...base,
       content: { text: 't', media: [{ id: 'm', type: 'image', url: 'https://m/u.jpg', thumbUrl: 'https://m/t.jpg' }] },
-      linkPreviews: [{ url: 'https://l', image: 'https://l/i.jpg' }],
+      documents: [{ url: 'https://l', image: 'https://l/i.jpg' }],
     } as unknown as HydratedPost;
     expect(mapPostOg(post, 'p1', SAFE).image).toBe('https://m/u.jpg');
   });
@@ -198,7 +198,7 @@ describe('mapPostOg', () => {
     const post = {
       ...base,
       content: { text: 't' },
-      linkPreviews: [
+      documents: [
         { url: 'https://l', image: 'https://l/i.jpg' },
         { url: 'https://l2', image: 'https://l2/i.jpg' },
       ],

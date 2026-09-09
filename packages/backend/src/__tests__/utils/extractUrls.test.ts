@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_POST_LINK_PREVIEWS } from '@mention/shared-types';
+import { MAX_POST_DOCUMENTS } from '@mention/shared-types';
 import { extractUrls } from '../../utils/extractUrls';
 
 describe('extractUrls', () => {
@@ -28,12 +28,12 @@ describe('extractUrls', () => {
     ).toEqual(['https://b.test', 'https://a.test']);
   });
 
-  it('caps the result at MAX_POST_LINK_PREVIEWS', () => {
+  it('caps the result at MAX_POST_DOCUMENTS', () => {
     const text = ['1', '2', '3', '4', '5', '6'].map((n) => `https://example.com/${n}`).join(' ');
     const urls = extractUrls(text);
 
-    expect(MAX_POST_LINK_PREVIEWS).toBe(4);
-    expect(urls).toHaveLength(MAX_POST_LINK_PREVIEWS);
+    expect(MAX_POST_DOCUMENTS).toBe(4);
+    expect(urls).toHaveLength(MAX_POST_DOCUMENTS);
     expect(urls).toEqual([
       'https://example.com/1',
       'https://example.com/2',

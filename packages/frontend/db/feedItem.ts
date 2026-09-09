@@ -39,7 +39,7 @@ type TransformOptions = {
  * keeps answering from disk with a payload that still carries it.
  */
 type HandledPostKey =
-  | 'id' | 'content' | 'attachments' | 'linkPreviews' | 'user' | 'authors'
+  | 'id' | 'content' | 'attachments' | 'documents' | 'user' | 'authors'
   | 'authorship' | 'engagement' | 'viewerState' | 'permissions' | 'metadata'
   | 'lane' | 'parentPostId' | 'replyContext'
   | 'originalPost' | 'quotedPost' | 'boost' | 'context';
@@ -77,7 +77,7 @@ export function toFeedItem(
     id: post.id,
     content: post.content,
     attachments: post.attachments,
-    linkPreviews: post.linkPreviews,
+    documents: post.documents,
     user: post.user,
     authors: post.authors,
     authorship: post.authorship,

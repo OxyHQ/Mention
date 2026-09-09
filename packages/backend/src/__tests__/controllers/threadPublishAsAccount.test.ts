@@ -72,8 +72,8 @@ vi.mock('../../connectors/threadFederation', () => ({
 }));
 
 vi.mock('../../utils/linkPreviewWarm', () => ({
-  warmLinkPreviewForText: vi.fn().mockResolvedValue(undefined),
-  warmLinkPreviewForTextDetached: vi.fn(),
+  warmClarityDocumentForText: vi.fn().mockResolvedValue(undefined),
+  warmClarityDocumentForTextDetached: vi.fn(),
 }));
 
 const create = vi.hoisted(() => vi.fn());

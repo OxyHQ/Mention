@@ -1,4 +1,4 @@
-import { enrichLinkPreviews } from './linkPreviewStep';
+import { enrichClarityDocuments } from './clarityDocumentStep';
 import { enrichMediaMetadata } from './mediaMetadataStep';
 import { logger } from '../../utils/logger';
 import type { IngestedPost, PostEnrichmentStep } from './types';
@@ -54,7 +54,7 @@ export type { IngestedPost, PostEnrichmentStep } from './types';
  */
 const POST_ENRICHMENT_STEPS: ReadonlyArray<PostEnrichmentStep> = [
   enrichMediaMetadata,
-  enrichLinkPreviews,
+  enrichClarityDocuments,
 ];
 
 /**

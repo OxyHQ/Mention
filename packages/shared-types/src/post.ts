@@ -3,6 +3,8 @@
  */
 
 import type { AccountKind, UserNameResponse } from '@oxy.so/contracts';
+import type { Document as ClarityDocument } from '@clarity.surf/sdk' with { "resolution-mode": "import" };
+export type { Document as ClarityDocument } from '@clarity.surf/sdk' with { "resolution-mode": "import" };
 import { GeoJSONPoint } from './common';
 import type { LaneSummary } from './lane';
 
@@ -1064,23 +1066,13 @@ export interface PostAttachmentBundle {
   podcast?: PostPodcastContent;
 }
 
-export interface PostLinkPreview {
-  /** Final/canonical destination opened by the card. */
-  url: string;
-  /** URL as written in the post, when it differs from the final destination. */
-  sourceUrl?: string;
-  title?: string;
-  description?: string;
-  image?: string;
-  siteName?: string;
-}
 
 /**
  * Maximum number of link-preview cards attached to a single post. Shared by the
  * backend (URL extraction + hydration) and the frontend (composer preview +
  * post rendering) so the two cannot diverge on how many links a post shows.
  */
-export const MAX_POST_LINK_PREVIEWS = 4;
+export const MAX_POST_DOCUMENTS = 4;
 
 export interface PostFeedContext {
   reason?: string;
@@ -1270,12 +1262,12 @@ export interface HydratedPostSummary {
   attachments: PostAttachmentBundle;
   /**
    * Link-preview cards for the post text, in text order, capped at
-   * {@link MAX_POST_LINK_PREVIEWS}. Every eligible URL carries at least `url`;
+   * {@link MAX_POST_DOCUMENTS}. Every eligible URL carries at least `url`;
    * title, description, image and site name are added when remote metadata
    * resolves. This can still be absent or empty when metadata hydration was not
    * requested or every extracted URL is deliberately suppressed.
    */
-  linkPreviews?: PostLinkPreview[];
+  documents?: ClarityDocument[];
   /** Primary author (owner) — backward-compatible single-author field. */
   user: PostUser;
   /**

@@ -42,7 +42,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     getUsersByIds,
-    getLinkPreviews: vi.fn(async () => ({})),
+    getClarityDocuments: vi.fn(async () => ({})),
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
   }),
 }));
@@ -94,7 +94,7 @@ async function hydrateAs(service: PostHydrationService, viewerId: string | undef
     viewerId,
     oxyClient: {
       getUsersByIds,
-      getLinkPreviews: vi.fn(async () => ({})),
+      getClarityDocuments: vi.fn(async () => ({})),
       getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
     } as never,
     maxDepth: 1,
@@ -154,7 +154,7 @@ describe('scheduled-post ACL — only the owner can obtain a scheduled post', ()
       viewerId: undefined,
       oxyClient: {
         getUsersByIds,
-        getLinkPreviews: vi.fn(async () => ({})),
+        getClarityDocuments: vi.fn(async () => ({})),
         getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
       } as never,
       maxDepth: 1,
@@ -170,7 +170,7 @@ describe('scheduled-post ACL — only the owner can obtain a scheduled post', ()
       viewerId: AUTHOR_ID,
       oxyClient: {
         getUsersByIds,
-        getLinkPreviews: vi.fn(async () => ({})),
+        getClarityDocuments: vi.fn(async () => ({})),
         getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
       } as never,
       maxDepth: 1,

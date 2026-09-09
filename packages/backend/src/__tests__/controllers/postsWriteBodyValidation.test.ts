@@ -48,8 +48,8 @@ vi.mock('../../utils/oxyHelpers', () => ({
   createUserScopedOxyServices: vi.fn(() => undefined),
 }));
 vi.mock('../../utils/linkPreviewWarm', () => ({
-  warmLinkPreviewForText: vi.fn().mockResolvedValue(undefined),
-  warmLinkPreviewForTextDetached: vi.fn(),
+  warmClarityDocumentForText: vi.fn().mockResolvedValue(undefined),
+  warmClarityDocumentForTextDetached: vi.fn(),
 }));
 vi.mock('../../db/posts/articleRepository', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),

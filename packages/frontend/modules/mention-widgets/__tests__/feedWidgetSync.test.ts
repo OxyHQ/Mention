@@ -1,4 +1,4 @@
-import type { HydratedPost } from '@mention/shared-types';
+import type { ClarityDocument, HydratedPost } from '@mention/shared-types';
 
 import {
   MAX_WIDGET_HANDOFF_POSTS,
@@ -38,6 +38,19 @@ jest.mock('@oxy.so/core/logger', () => ({
 
 const ACCOUNT = '6981c9178fcdefaf81988ffb';
 const OTHER_ACCOUNT = '70a1d2e3f4b5c6d7e8f90001';
+
+function document(url: string, title: string, imageUrl?: string): ClarityDocument {
+  return {
+    id: url,
+    canonicalUrl: url,
+    title,
+    type: 'page',
+    status: 'indexed',
+    authors: [],
+    evidence: {},
+    ...(imageUrl ? { imageUrl } : {}),
+  };
+}
 
 /** The fields of a hydrated post the projection reads; everything else is irrelevant here. */
 function post(overrides: Partial<HydratedPost> = {}): HydratedPost {
@@ -176,8 +189,8 @@ describe('toWidgetFeedPosts', () => {
             },
           ],
         },
-        linkPreviews: [
-          { url: 'https://example.test', title: 'Headline', image: 'https://img.test/1.jpg' },
+        documents: [
+          document('https://example.test', 'Headline', 'https://img.test/1.jpg'),
         ],
         user: {
           id: 'author',
@@ -238,9 +251,9 @@ describe('toWidgetFeedPosts', () => {
             { id: 'b', type: 'image', url: 'https://cloud.oxy.so/second' },
           ],
         },
-        linkPreviews: [
-          { url: 'https://one.test', title: 'First' },
-          { url: 'https://two.test', title: 'Second' },
+        documents: [
+          document('https://one.test', 'First'),
+          document('https://two.test', 'Second'),
         ],
       }),
     ]);

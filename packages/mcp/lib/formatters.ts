@@ -74,12 +74,12 @@ interface PostData {
     isBoosted?: boolean;
     isSaved?: boolean;
   };
-  linkPreviews?: Array<{
-    url?: string;
+  documents?: Array<{
+    canonicalUrl: string;
     title?: string;
     description?: string;
-    image?: string;
-    siteName?: string;
+    imageUrl?: string;
+    publisher?: string;
   }>;
 }
 
@@ -112,10 +112,9 @@ export function formatPost(post: PostData): string {
     parts.push(`Media: ${post.content.media.map((m) => `${m.type}(${m.id})`).join(", ")}`);
   }
 
-  for (const preview of post.linkPreviews ?? []) {
-    if (!preview.url) continue;
-    const previewTitle = preview.title || preview.siteName || preview.url;
-    parts.push(`Link preview: ${previewTitle}`);
+  for (const preview of post.documents ?? []) {
+    const previewTitle = preview.title || preview.publisher || preview.canonicalUrl;
+    parts.push(`Document: ${previewTitle}`);
     if (preview.description) {
       parts.push(`  ${preview.description}`);
     }

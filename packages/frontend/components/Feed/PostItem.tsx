@@ -8,7 +8,7 @@ import type {
     PostAttachmentBundle,
     PostContent,
     PostEngagementSummary,
-    PostLinkPreview,
+    ClarityDocument,
     PostRoomContent,
 } from '@mention/shared-types/post';
 import {
@@ -63,8 +63,8 @@ const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet
 const EngagementList = lazy(() => import('@/components/Post/EngagementList'));
 const CollaboratorsList = lazy(() => import('@/components/Post/CollaboratorsList'));
 
-/** Stable identity for the "no link previews" case (see `linkPreviews` below). */
-const EMPTY_LINK_PREVIEWS: PostLinkPreview[] = [];
+/** Stable identity for the "no link previews" case (see `documents` below). */
+const EMPTY_LINK_PREVIEWS: ClarityDocument[] = [];
 
 /** Stable identity for a post whose content failed to hydrate (see `content` below). */
 const EMPTY_CONTENT: PostContent = {};
@@ -219,7 +219,7 @@ const PostItem: React.FC<PostItemProps> = ({
     // Module-level EMPTY fallback: a fresh `[]` each render would give the
     // memoized PostAttachmentsRow a new array identity every time and defeat its
     // React.memo (and that of the row's children).
-    const linkPreviews: PostLinkPreview[] = viewPost?.linkPreviews ?? EMPTY_LINK_PREVIEWS;
+    const documents: ClarityDocument[] = viewPost?.documents ?? EMPTY_LINK_PREVIEWS;
     const isSensitiveContent = metadata.isSensitive === true;
     // Content warning (federated `summary` / Mastodon CW) surfaced by the backend as
     // `metadata.spoilerText`. Rendered as a visible label above the body — media blur
@@ -289,7 +289,7 @@ const PostItem: React.FC<PostItemProps> = ({
         Boolean(eventContent) ||
         Boolean(roomContent) ||
         Boolean(podcastContent) ||
-        linkPreviews.length > 0 ||
+        documents.length > 0 ||
         hasValidLocation;
 
     const attachmentDescriptors: PostAttachmentDescriptor[] | undefined = Array.isArray(content.attachments)
@@ -635,8 +635,8 @@ const PostItem: React.FC<PostItemProps> = ({
     // URLs of the previewed links, used to trim a trailing URL from the body text
     // when a card already renders it.
     const linkPreviewUrls = useMemo(
-        () => linkPreviews.map((preview) => preview.sourceUrl ?? preview.url),
-        [linkPreviews],
+        () => documents.map((document) => document.requestedUrl ?? document.canonicalUrl),
+        [documents],
     );
 
     const engagementSummary: PostEngagementSummary | undefined = viewPost?.engagement;
@@ -974,7 +974,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         sources={sourcesList}
                         onSourcesPress={hasSources ? openSourcesSheet : undefined}
                         text={content.text}
-                        linkPreviews={linkPreviews}
+                        documents={documents}
                         // Only a quote card hands a width down, and it measures the
                         // card OUTSIDE its own inset — take that off before the row
                         // sizes anything against it.

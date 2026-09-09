@@ -1,4 +1,4 @@
-import { MAX_POST_LINK_PREVIEWS } from '@mention/shared-types';
+import { MAX_POST_DOCUMENTS } from '@mention/shared-types';
 import {
   scanTextEntities,
   toOpenableUrl,
@@ -19,9 +19,9 @@ const URL_ONLY = ['url'] as const;
  *
  * URLs are deduplicated preserving first-occurrence order, matches that are not
  * parseable as a URL are discarded, and the result is capped at `max` (default
- * {@link MAX_POST_LINK_PREVIEWS}) — the number of preview cards a post renders.
+ * {@link MAX_POST_DOCUMENTS}) — the number of preview cards a post renders.
  */
-export function extractUrls(text: string, max: number = MAX_POST_LINK_PREVIEWS): string[] {
+export function extractUrls(text: string, max: number = MAX_POST_DOCUMENTS): string[] {
   if (!text || max <= 0) return [];
 
   const urls: string[] = [];

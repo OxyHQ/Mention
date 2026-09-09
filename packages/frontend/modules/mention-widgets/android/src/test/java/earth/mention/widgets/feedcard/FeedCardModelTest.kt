@@ -33,7 +33,7 @@ class FeedCardModelTest {
                 "text": "Microsoft confirms Copilot super app coming this year https://www.theverge.com/tech/972927/x"
               },
               "attachments": {},
-              "linkPreviews": [
+              "documents": [
                 {
                   "url": "https://www.theverge.com/tech/972927/x",
                   "title": "Microsoft confirms Copilot super app coming this year",
@@ -82,7 +82,7 @@ class FeedCardModelTest {
               "id": "6a6a82f9c1d2e3f4a5b60003",
               "content": { "text": "Analog Devices, which makes a lot of components, said today" },
               "attachments": {},
-              "linkPreviews": [],
+              "documents": [],
               "user": {
                 "username": "someone@poa.st",
                 "name": { "displayName": "Someone" }
@@ -115,7 +115,7 @@ class FeedCardModelTest {
 
     @Test
     fun `a preview the server resolved without a title falls back to the post text`() {
-        // Real case: `linkPreviews` is populated but `title` is absent or blank. Preferring
+        // Real case: `documents` is populated but `title` is absent or blank. Preferring
         // it blindly would leave the card with nothing to say.
         assertEquals("The body", chooseDisplayText(postText = "The body", previewTitle = ""))
         assertEquals("The body", chooseDisplayText(postText = "The body", previewTitle = "   "))
