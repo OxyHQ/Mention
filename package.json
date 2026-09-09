@@ -12,7 +12,7 @@
     "catalog": {
       "@oxyhq/bloom": "^1.14.2",
       "@oxyhq/contracts": "^0.40.0",
-      "@oxyhq/core": "23.3.0",
+      "@oxyhq/core": "23.3.1",
       "@oxyhq/mcp": "^0.5.0",
       "@oxyhq/services": "31.0.0",
       "@syra.fm/sdk": "^0.7.0",
@@ -111,7 +111,7 @@
     "metro-transform-worker": "0.84.5",
     "ob1": "0.84.5",
     "@oxyhq/bloom": "catalog:",
-    "@oxyhq/core": "23.3.0",
+    "@oxyhq/core": "23.3.1",
     "@oxyhq/services": "31.0.0",
     "fast-uri": "3.1.6",
     "fast-xml-parser": "5.10.1",
