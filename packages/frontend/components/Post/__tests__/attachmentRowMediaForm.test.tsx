@@ -71,7 +71,7 @@ describe('a media cell is the hero form only when it is alone in the row', () =>
 
   it.each([
     // The four the old list happened to name.
-    ['a link preview', { documents: [{ url: 'https://example.com' }] }],
+    ['a Clarity document', { documents: [{ canonicalUrl: 'https://example.com' }] }],
     ['a poll', { pollId: 'poll-1' }],
     ['an article', { article: { title: 'Title' } }],
     ['a quoted post', { nestedPost: { id: 'q1' }, nestingDepth: 0 }],
