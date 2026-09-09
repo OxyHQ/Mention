@@ -176,6 +176,31 @@ describe('webShell routes (integration)', () => {
     expect(res.text).toContain('rel="preconnect"');
   });
 
+  it('never points a federated profile card at the remote instance', async () => {
+    // A federated avatar is an absolute URL on someone else's media host. Emitted
+    // verbatim it made every card renderer fetch the image from that third party,
+    // which is exactly what the media proxy exists to prevent — and, once the
+    // bytes are mirrored, the proxy answers from our own copy instead.
+    stubFetch({
+      ok: true,
+      body: {
+        data: {
+          username: 'user@remote.social',
+          name: { displayName: 'User' },
+          avatar: 'https://files.remote.social/avatars/1.png',
+        },
+      },
+    });
+
+    const res = await request(makeApp()).get('/@user@remote.social').set('User-Agent', 'Twitterbot/1.0');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(
+      '<meta property="og:image" content="http://localhost:4110/media/proxy?url=https%3A%2F%2Ffiles.remote.social%2Favatars%2F1.png&amp;variant=w320">',
+    );
+    expect(res.text).not.toContain('files.remote.social/avatars');
+  });
+
   it('serves the same semantic profile document to a real browser', async () => {
     stubFetch({ ok: true, body: { data: { username: 'nate', name: { displayName: 'Nate' }, bio: 'bio' } } });
 
@@ -253,7 +278,14 @@ describe('webShell routes (integration)', () => {
     expect(res.headers['content-type']).toContain('text/html');
     expect(res.text).toContain('<meta property="og:title" content="Nate on Mention">');
     expect(res.text).toContain(`<meta property="og:url" content="https://mention.earth/p/${postId}">`);
-    expect(res.text).toContain('<meta property="og:image" content="https://cdn/a.png">');
+    // NOT the remote URL. A federated avatar lives on the remote instance's own
+    // media host, and emitting it here made every card renderer — crawlers,
+    // Slack, WhatsApp — fetch the image from that third party. Nothing outside
+    // Oxy is asked for bytes on our behalf, so it goes through our proxy.
+    expect(res.text).toContain(
+      '<meta property="og:image" content="http://localhost:4110/media/proxy?url=https%3A%2F%2Fcdn%2Fa.png&amp;variant=w320">',
+    );
+    expect(res.text).not.toContain('content="https://cdn/a.png"');
   });
 
   it('renders an OG card for a post created AFTER the id cutover', async () => {
