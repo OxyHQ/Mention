@@ -56,7 +56,7 @@ vi.mock('@oxyhq/core/server', async () => {
 /** Keep the media cache front inert so the tests hit the remote-fetch path. */
 vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
   isMediaCacheEnabled: () => false,
-  resolveOxyDownloadUrl: vi.fn(),
+  cachedMediaCdnUrl: vi.fn(),
 }));
 
 const fetchUpstreamFollowingRedirects = vi.fn();

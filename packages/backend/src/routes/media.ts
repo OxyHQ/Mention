@@ -5,7 +5,6 @@ import { logger } from '../utils/logger';
 import { RedisStore } from '../middleware/rateLimitStore';
 import { hashedIpKey } from '../utils/ipKey';
 import { SsrfRejection, assertSafePublicUrl } from '@oxyhq/core/server';
-import type { AssetUrlResolutionError } from '@oxyhq/core';
 import {
   UpstreamResult,
   contentTypeFamily,
@@ -23,7 +22,7 @@ import {
   isAllowedMediaType,
   isHlsManifestType,
 } from '../services/mediaCache/mediaTypes';
-import { isMediaCacheEnabled, resolveOxyDownloadUrl } from '../services/mediaCache/oxyMediaStore';
+import { cachedMediaCdnUrl, isMediaCacheEnabled } from '../services/mediaCache/oxyMediaStore';
 import { isNegativelyCached, markNegativelyCached } from '../services/mediaCache/negativeCache';
 import { classifyUpstreamStatus } from './mediaProxyStatus';
 import { verifyGifMediaRequest } from '../services/gifLibrary/gifMediaProxy';
@@ -567,34 +566,23 @@ function readRequestedVariant(raw: unknown): string | undefined {
 }
 
 /**
- * Attach the requested `variant` to a cached object's Oxy CDN URL so Oxy's own
- * image pipeline serves a sized render instead of the original.
+ * The variant to ask Oxy's CDN for, given what the caller wanted and what the
+ * cached object actually is.
  *
- * Applied to IMAGES only. Oxy's variant taxonomy is an image one — asking for a
- * `w320` of a video or audio object is meaningless, and the media resolver
- * cannot tell the two apart because it resolves a bare reference with no type
- * beside it. The content type recorded on the cache row can, so the guard lives
- * here, where it is known.
+ * IMAGES only. Oxy's variant taxonomy is an image one — asking for a `w320` of a
+ * video or audio object is meaningless, and the media resolver cannot tell the
+ * two apart because it resolves a bare reference with no type beside it. The
+ * content type recorded on the cache row can, so the guard lives here, where it
+ * is known.
  */
-function withImageVariant(
-  oxyUrl: string,
+function cdnVariantFor(
   variant: string | undefined,
   cachedContentType: string | undefined,
-): string {
-  if (!variant) return oxyUrl;
-  if (!contentTypeFamilyFromString(cachedContentType).startsWith(MEDIA_IMAGE_TYPE_PREFIX)) {
-    return oxyUrl;
-  }
-  try {
-    const parsed = new URL(oxyUrl);
-    // `set`, not `append`, so a variant already on the resolved URL is replaced
-    // rather than duplicated.
-    parsed.searchParams.set('variant', variant);
-    return parsed.toString();
-  } catch {
-    // Unparseable CDN URL — serve it untouched rather than dropping the redirect.
-    return oxyUrl;
-  }
+): string | undefined {
+  if (!variant) return undefined;
+  return contentTypeFamilyFromString(cachedContentType).startsWith(MEDIA_IMAGE_TYPE_PREFIX)
+    ? variant
+    : undefined;
 }
 
 /**
@@ -620,12 +608,12 @@ async function tryServeFromCache(
     const decision = decideProxyServe(row);
 
     if (decision.action === 'serve-from-oxy') {
-      const oxyUrl = await resolveOxyDownloadUrl(decision.oxyFileId);
+      const oxyUrl = cachedMediaCdnUrl(decision.oxyFileId, cdnVariantFor(variant, row?.contentType));
       // Bump access in the background; do not delay the redirect on the write.
       void bumpAccess(remoteUrl);
       setPublicMediaCors(res);
       res.setHeader('Cache-Control', MEDIA_CACHE_CONTROL);
-      res.redirect(HTTP_STATUS.FOUND, withImageVariant(oxyUrl, variant, row?.contentType));
+      res.redirect(HTTP_STATUS.FOUND, oxyUrl);
       return true;
     }
 
@@ -641,28 +629,16 @@ async function tryServeFromCache(
     }
     return false;
   } catch (error) {
-    // Cache layer unavailable (e.g. Oxy URL resolution failed) — fall back to
-    // streaming from the remote upstream, which is the existing behaviour.
+    // Cache layer unavailable (the row lookup failed) — fall back to streaming
+    // from the remote upstream, which is the existing behaviour.
     //
-    // WARN, not debug. This was debug because the fallback makes it survivable,
-    // and that reasoning holds only while the fallback actually runs: a URL the
-    // negative cache already knows is dead upstream is answered 404 a few lines
-    // below, so the viewer gets "Video unavailable" for a video we DO hold a
-    // mirrored copy of. Production showed exactly that shape — eight
-    // `/media/proxy` 404s in an hour, each with `oxyCallCount: 1,
-    // failedOxyCallCount: 1` and a ~10-15ms duration — and not one line saying
-    // which asset failed or why, because the only record of the cause was this
-    // debug call.
-    //
-    // `AssetUrlResolutionError` carries the file id and the HTTP status the
-    // resolution failed with, which is the difference between "the asset is
-    // gone" and "Oxy throttled us"; both reach the viewer identically, and only
-    // one of them is our fault to fix.
-    const resolution = error as Partial<AssetUrlResolutionError>;
+    // WARN, not debug: the fallback is what makes this survivable, and it is not
+    // always available. A URL the negative cache already knows is dead upstream
+    // is answered 404 a few lines below, so a silent failure here shows the
+    // viewer "Video unavailable" for media we DO hold a mirrored copy of. That
+    // is exactly how the inert cache front stayed invisible for so long.
     logger.warn('[MediaProxy] Cache front failed; streaming from remote', {
       reason: error instanceof Error ? error.message : 'unknown',
-      oxyFileId: resolution?.fileId,
-      status: resolution?.status,
     });
     return false;
   }
@@ -678,7 +654,7 @@ async function tryServePosterFromCache(remoteUrl: string, res: Response): Promis
     const row = await lookupCacheRow(remoteUrl);
     if (!row?.posterFileId) return false;
 
-    const oxyUrl = await resolveOxyDownloadUrl(row.posterFileId);
+    const oxyUrl = cachedMediaCdnUrl(row.posterFileId);
     void bumpAccess(remoteUrl);
     setPublicMediaCors(res);
     res.setHeader('Cache-Control', POSTER_CACHE_CONTROL);
