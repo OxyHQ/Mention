@@ -42,11 +42,8 @@ export const useLinkDetection = (text: string) => {
       return cached;
     }
 
-    // Resolve the preview through the Oxy SDK. Oxy owns resolution and re-hosts
-    // the preview image on `cloud.oxy.so`, so the returned `image` is a trusted
-    // absolute URL that is rendered directly (no app-side proxy). `wait: true`
-    // asks the server to resolve synchronously instead of returning a `pending`
-    // placeholder, so the composer gets metadata in one round-trip.
+    // Resolve through Clarity. A bounded wait may return a document immediately
+    // or a pending job; pending URLs simply have no card until the next pass.
     try {
       const resolution = await clarity.indexing.resolve({ urls: [url], waitMs: 8_000 }, { signal });
       const preview = resolution.data[0]?.document;

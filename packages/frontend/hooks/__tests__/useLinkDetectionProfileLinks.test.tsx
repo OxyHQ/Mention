@@ -18,6 +18,8 @@ import { useLinkDetection } from '../useLinkDetection';
  */
 
 const mockResolve = jest.fn();
+const mockGetCached = jest.fn();
+const mockUpsertLink = jest.fn();
 
 jest.mock('@clarity.surf/sdk', () => ({
   ClarityClient: class {
@@ -34,7 +36,7 @@ jest.mock('@oxy.so/core/logger', () => ({
   logger: { error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() },
 }));
 jest.mock('@/stores/linksStore', () => ({
-  useLinksStore: () => ({ getCached: () => undefined, upsertLink: () => {} }),
+  useLinksStore: () => ({ getCached: mockGetCached, upsertLink: mockUpsertLink }),
 }));
 
 function Probe({ text }: { text: string }) {
@@ -56,6 +58,8 @@ async function requestedPreviewUrls(text: string): Promise<string[]> {
 beforeEach(() => {
   jest.useFakeTimers();
   mockResolve.mockReset();
+  mockGetCached.mockReset();
+  mockUpsertLink.mockReset();
   mockResolve.mockImplementation(async ({ urls }: { urls: string[] }) => ({
     data: urls.map((url) => ({
       url,
@@ -63,6 +67,24 @@ beforeEach(() => {
       document: { id: url, canonicalUrl: url, title: 'a title', type: 'page', status: 'indexed', authors: [], evidence: {} },
     })),
   }));
+});
+
+it('uses cached Clarity metadata without another request', async () => {
+  mockGetCached.mockReturnValue({ url: 'https://example.com/cached', title: 'Cached', fetchedAt: 1 });
+  expect(await requestedPreviewUrls('https://example.com/cached')).toEqual([]);
+  expect(mockResolve).not.toHaveBeenCalled();
+});
+
+it('does not cache a pending resolution without a document', async () => {
+  mockResolve.mockResolvedValue({ data: [{ url: 'https://example.com/pending', status: 'queued', jobId: 'job-1' }] });
+  expect(await requestedPreviewUrls('https://example.com/pending')).toEqual(['https://example.com/pending']);
+  expect(mockUpsertLink).not.toHaveBeenCalled();
+});
+
+it('treats a resolution failure as no preview', async () => {
+  mockResolve.mockRejectedValue(new Error('unavailable'));
+  expect(await requestedPreviewUrls('https://example.com/failure')).toEqual(['https://example.com/failure']);
+  expect(mockUpsertLink).not.toHaveBeenCalled();
 });
 
 afterEach(() => {
