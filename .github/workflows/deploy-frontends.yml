@@ -17,6 +17,11 @@ env:
   BUN_VERSION: '1.3.14'
   NODE_VERSION: '24.20.0'
   DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+  # The wrangler the Worker legs run on, pinned to the version this migration was
+  # verified against rather than floating on `@4`. The Pages preview leg below
+  # keeps its own `wranglerVersion` because that leg is unchanged by this
+  # migration and is still validated at the version it has always used.
+  WRANGLER_VERSION: '4.130.0'
 
 jobs:
   scope:
@@ -89,23 +94,6 @@ jobs:
       - name: Verify current main before production changes
         run: bash .github/scripts/require-current-main.sh
 
-      - name: Capture the current production deployment
-        id: previous
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          set -euo pipefail
-          response="$(curl --fail --silent --show-error \
-            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/mention-frontend/deployments?env=production&per_page=1")"
-          deployment_id="$(jq -r '.result[0].id // empty' <<<"$response")"
-          if [[ -z "$deployment_id" ]]; then
-            echo "::error::Cloudflare returned no current production deployment."
-            exit 1
-          fi
-          echo "deployment_id=$deployment_id" >>"$GITHUB_OUTPUT"
-
       - name: Deploy an immutable Cloudflare Pages preview
         id: preview
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4
@@ -154,21 +142,73 @@ jobs:
       - name: Re-verify current main before production promotion
         run: bash .github/scripts/require-current-main.sh
 
-      - name: Promote the validated assets to Cloudflare Pages production
+      # A WORKER, not a Pages project — and for Mention that is not a tidiness
+      # change. A Pages project ALWAYS serves `<project>.pages.dev` with no way to
+      # switch it off, and here that duplicate was load bearing:
+      # `mention-frontend.pages.dev` was the origin `apexFrontendProxy` fetched
+      # the app from, so the same bytes were served to anyone who found the name,
+      # in no CORS allowlist — a shell that booted and then failed every call.
+      # `workers_dev = false` plus the access gate in
+      # `packages/frontend/worker/index.js` leaves `shell.mention.earth` as the
+      # only name, and it answers 403 to everyone but this backend.
+      #
+      # RUN THROUGH `bunx`, NOT `cloudflare/wrangler-action`, for the leg that
+      # needs a working directory: the action resolves its own wrangler by looking
+      # for a lockfile in `workingDirectory`, and `packages/frontend` has none —
+      # the lockfile is at the repository root — so it falls back to npm. That is
+      # the exact fallback that failed five consecutive Alia runs. The Pages
+      # preview leg above keeps the action because it runs from the root.
+      #
+      # `--secrets-file` uploads the access key IN THE SAME operation as the code,
+      # so no deployed version ever exists without it, and it is additive: secrets
+      # absent from the file are left alone rather than deleted. Written with `jq`
+      # rather than `printf` so a key containing `#`, a quote or whitespace cannot
+      # be mangled by .env parsing.
+      - name: Promote the validated assets to the shell Worker
         id: production
-        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          packageManager: bun
-          wranglerVersion: '4.81.0'
-          command: pages deploy packages/frontend/dist --project-name=mention-frontend --branch=main
+        working-directory: packages/frontend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MENTION_SHELL_ACCESS_KEY: ${{ secrets.MENTION_SHELL_ACCESS_KEY }}
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          set -euo pipefail
+          if [[ -z "$MENTION_SHELL_ACCESS_KEY" ]]; then
+            echo "::error::MENTION_SHELL_ACCESS_KEY is empty. The Worker would deploy without its access key and answer 503 to every backend request."
+            exit 1
+          fi
+          secrets_file="$(mktemp)"
+          trap 'rm -f "$secrets_file"' EXIT
+          jq -n --arg key "$MENTION_SHELL_ACCESS_KEY" '{SHELL_ACCESS_KEY: $key}' >"$secrets_file"
+          bunx "wrangler@$WRANGLER_VERSION" deploy --secrets-file "$secrets_file"
 
+      # The Worker has no per-deployment URL to smoke the way a Pages preview
+      # does: `wrangler deploy` replaces what `shell.mention.earth` serves, in one
+      # step, so the custom domain IS the exact deployment. The key is what makes
+      # this a test of the app rather than a test of the 403 page.
       - name: Smoke test the exact production deployment
         id: production_smoke
         env:
-          DEPLOYMENT_ORIGIN: ${{ steps.production.outputs.deployment-url }}
-        run: WEB_ORIGIN="$DEPLOYMENT_ORIGIN" bash .github/scripts/smoke-frontend.sh
+          WEB_ORIGIN: https://shell.mention.earth
+          WEB_SHELL_ACCESS_KEY: ${{ secrets.MENTION_SHELL_ACCESS_KEY }}
+        run: bash .github/scripts/smoke-frontend.sh
+
+      # The gate that proves the lock is a lock. Everything above authenticates,
+      # so nothing above would notice if the Worker started serving the app to
+      # anyone — which is the single defect this whole migration exists to remove,
+      # and the one a future `run_worker_first` regression would silently restore.
+      - name: The shell Worker refuses an unauthenticated caller
+        run: |
+          set -euo pipefail
+          code="$(curl --silent --show-error --max-time 20 --retry 5 --retry-delay 5 \
+            --retry-all-errors --max-redirs 0 --output /dev/null --write-out '%{http_code}' \
+            https://shell.mention.earth/)"
+          if [[ "$code" != "403" ]]; then
+            echo "::error::shell.mention.earth answered HTTP $code without a key (expected 403). The app is publicly readable at a second origin."
+            exit 1
+          fi
+          echo "shell.mention.earth refuses an unauthenticated caller."
 
       - name: Smoke test the apex after the backend rollout
         run: |
@@ -185,26 +225,30 @@ jobs:
             sleep 15
           done
 
-      - name: Roll back Cloudflare Pages after a failed production smoke
+      # `wrangler rollback` with no version id targets the Worker's PREVIOUS
+      # deployment, so unlike the Pages path this needs nothing captured before
+      # the deploy — the version history is the record. `--yes` is required: it
+      # prompts for confirmation otherwise and would hang the job until the
+      # runner killed it.
+      #
+      # The condition is unchanged in intent and the `production_smoke` clause is
+      # the load-bearing half: the apex smoke below it races a backend rollout, and
+      # an apex/backend race must never roll back a shell that was just proved good.
+      - name: Roll back the shell Worker after a failed production smoke
         if: >-
           failure() &&
           steps.production.outcome == 'success' &&
-          steps.production_smoke.outcome == 'failure' &&
-          steps.previous.outputs.deployment_id != ''
+          steps.production_smoke.outcome == 'failure'
+        working-directory: packages/frontend
         env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          PREVIOUS_DEPLOYMENT_ID: ${{ steps.previous.outputs.deployment_id }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: 'false'
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error \
-            --request POST \
-            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            --header 'Content-Type: application/json' \
-            --data '{}' \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/mention-frontend/deployments/$PREVIOUS_DEPLOYMENT_ID/rollback" \
-            >/dev/null
-          echo "::warning::Cloudflare Pages rolled back to $PREVIOUS_DEPLOYMENT_ID."
+          bunx "wrangler@$WRANGLER_VERSION" rollback --yes \
+            --message "Production smoke failed for $DEPLOY_SHA"
+          echo "::warning::Rolled the shell Worker back to its previous version."
 
   record-deployment:
     # Runs only after a green production rollout, so a failed or rolled back

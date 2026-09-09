@@ -4,8 +4,10 @@
  * When the frontend apex host (`mention.earth`) resolves to THIS backend (via the
  * ALB), every request that isn't a federation endpoint or an OG web-shell page
  * must be served the static Expo frontend. This middleware reverse-proxies those
- * apex requests to the frontend's static CDN (CloudFlare Pages) so we can point
- * `mention.earth` DNS at the ALB and retire the CF Pages `_worker.js`.
+ * apex requests to the frontend's static CDN — a Cloudflare Worker on
+ * `shell.mention.earth` — which is how `mention.earth` DNS can point at the ALB.
+ * That origin serves nothing without {@link SHELL_ACCESS_HEADER}, so this
+ * middleware is one of only two callers that can reach the app's own bytes.
  *
  * It is a STRICT no-op for the API host (`api.mention.earth`): a non-apex request
  * calls `next()` untouched, so every existing API route behaves exactly as before.
@@ -36,12 +38,25 @@ import { logger } from '../utils/logger';
 const APEX_HOST = extractHost(config.web.origin);
 
 /**
- * Static frontend CDN the SPA + its assets are proxied from (CloudFlare Pages).
+ * Static frontend CDN the SPA + its assets are proxied from (a Cloudflare Worker).
  * Reuses `WEB_SHELL_ORIGIN` — the same origin the OG web-shell fetches its shell
  * from — so the CDN origin is configured in exactly one place. Trailing slash is
  * stripped so it concatenates cleanly with `req.originalUrl` (which starts `/`).
  */
 const FRONTEND_CDN_ORIGIN = config.web.shellOrigin;
+
+/**
+ * Header the shell Worker requires before it serves a byte
+ * (`packages/frontend/worker/index.js`). It is what makes that origin a door
+ * rather than a second public copy of the app: under Cloudflare Pages the same
+ * export sat at `mention-frontend.pages.dev`, in no CORS allowlist, so a browser
+ * that found it booted the shell and had every API call blocked.
+ *
+ * Exported because `routes/webShell.routes.ts` fetches the same origin for its OG
+ * deep links and must present the same key — those two are the only callers the
+ * shell has.
+ */
+export const SHELL_ACCESS_HEADER = 'X-Mention-Shell-Key';
 
 /** Hard timeout for a single upstream proxy fetch. The apex must never hang on a slow CDN. */
 const PROXY_FETCH_TIMEOUT_MS = 8000;
@@ -201,6 +216,9 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
           'Accept-Encoding': acceptEncoding,
           'User-Agent':
             typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : 'Mention-apex-proxy',
+          // Never taken from the client: this is OUR credential for the shell
+          // origin, not something a caller may influence.
+          [SHELL_ACCESS_HEADER]: config.web.shellAccessKey ?? '',
         },
       },
       MAX_PROXY_REDIRECTS,
@@ -220,7 +238,7 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
 
   const contentType = upstream.headers['content-type'];
   if (isContentHashedAsset(req.path) && isHtmlContentType(contentType)) {
-    // Pages' SPA fallback must never be cached at a hashed static-asset URL.
+    // The SPA fallback must never be cached at a hashed static-asset URL.
     upstream.resume();
     res.status(404);
     res.setHeader('Cache-Control', 'no-store');

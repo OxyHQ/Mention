@@ -3,6 +3,11 @@
 set -euo pipefail
 
 WEB_ORIGIN="${WEB_ORIGIN:-https://mention.earth}"
+# Set ONLY when smoking the shell Worker directly. That origin serves nothing
+# without this key (`packages/frontend/worker/index.js`), so an unset value here
+# turns every check below into an assertion about a 403 page. The apex and the
+# Pages preview need no key and must not be given one.
+WEB_SHELL_ACCESS_KEY="${WEB_SHELL_ACCESS_KEY:-}"
 smoke_dir="$(mktemp -d)"
 temporary_root="$(realpath "${TMPDIR:-/tmp}")"
 smoke_dir="$(realpath "$smoke_dir")"
@@ -19,6 +24,10 @@ trap cleanup_smoke_dir EXIT
 request() {
   local name="$1"
   shift
+  local auth=()
+  if [[ -n "$WEB_SHELL_ACCESS_KEY" ]]; then
+    auth=(--header "X-Mention-Shell-Key: $WEB_SHELL_ACCESS_KEY")
+  fi
   curl \
     --silent \
     --show-error \
@@ -27,6 +36,7 @@ request() {
     --retry-delay 5 \
     --retry-all-errors \
     --max-redirs 0 \
+    "${auth[@]}" \
     --dump-header "$smoke_dir/$name.headers" \
     --output "$smoke_dir/$name.body" \
     --write-out '%{http_code}' \

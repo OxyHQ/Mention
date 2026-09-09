@@ -252,7 +252,7 @@ for (const workflowName of workflowNames) {
           "Smoke test the apex after the backend rollout",
         );
         const rollbackIndex = source.indexOf(
-          "Roll back Cloudflare Pages after a failed production smoke",
+          "Roll back the shell Worker after a failed production smoke",
         );
         if (
           productionSmokeIndex < 0 ||
@@ -260,14 +260,55 @@ for (const workflowName of workflowNames) {
           rollbackIndex < apexSmokeIndex
         ) {
           failures.push(
-            `${workflowName}: exact Pages smoke, apex convergence and rollback must remain separate and ordered`,
+            `${workflowName}: exact deployment smoke, apex convergence and rollback must remain separate and ordered`,
           );
         }
         if (
           !source.includes("steps.production_smoke.outcome == 'failure'")
         ) {
           failures.push(
-            `${workflowName}: an apex/backend race must not roll back a validated Pages deployment`,
+            `${workflowName}: an apex/backend race must not roll back a validated deployment`,
+          );
+        }
+
+        // The web shell is a WORKER. A Pages project always serves
+        // `<project>.pages.dev` with no way to switch it off, and for Mention that
+        // duplicate was load bearing — it was the origin the apex proxied to, and
+        // it served the app to anyone who found the name. Promoting to Pages again
+        // would restore exactly that, so the shape is asserted rather than trusted
+        // to stay put. The preview leg is still Pages on purpose (it is the release
+        // gate's candidate origin) and is matched narrowly enough not to trip it.
+        if (source.includes("pages deploy") && source.includes("--branch=main")) {
+          failures.push(
+            `${workflowName}: the web shell must be promoted to the Worker, not to a Cloudflare Pages production branch`,
+          );
+        }
+        if (!source.includes("Promote the validated assets to the shell Worker")) {
+          failures.push(
+            `${workflowName}: the production promotion step must deploy the shell Worker`,
+          );
+        }
+        // Without `--secrets-file` the upload carries no access key, and a Worker
+        // without one answers 503 to the backend — the whole web plane down, with
+        // the deploy reporting success.
+        //
+        // Matched adjacent to `deploy` rather than on its own, because the flag is
+        // named in the comment above that step too: a bare substring check passed
+        // this file with the flag deleted from the command and only the prose left.
+        if (!source.includes("deploy --secrets-file")) {
+          failures.push(
+            `${workflowName}: the Worker deploy must upload the shell access key with the code, or a deployed version can exist without it`,
+          );
+        }
+        // THE CHECK THAT MEASURES THE POINT OF THE MIGRATION. Every other check
+        // here authenticates, so none of them would notice the Worker serving the
+        // app to anyone — which is what a lost `run_worker_first`, a dropped
+        // access gate or a re-enabled `workers_dev` would each cause, silently.
+        if (
+          !source.includes("The shell Worker refuses an unauthenticated caller")
+        ) {
+          failures.push(
+            `${workflowName}: the deploy must assert that shell.mention.earth answers 403 without a key — nothing else would catch the app becoming publicly readable again`,
           );
         }
       }

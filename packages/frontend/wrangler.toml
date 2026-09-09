@@ -1,0 +1,90 @@
+# The Mention web shell is a Worker, not a Pages project.
+#
+# WHY NOT PAGES: a Pages project ALWAYS serves `<project>.pages.dev` and
+# Cloudflare offers no way to switch it off — `wrangler pages project` has only
+# `list`, `create` and `delete`. Alia measured the consequence before migrating:
+# `alia.onl` and `alia-app.pages.dev` served byte-identical deployments, and the
+# second was in no CORS allowlist, so it rendered the shell and failed every call
+# it made.
+#
+# MENTION'S VERSION OF THAT DEFECT WAS WORSE, because the duplicate was load
+# bearing. `mention.earth` does not resolve to Cloudflare Pages at all: it is a
+# proxied record in front of the AWS ALB, and the backend serves the apex itself
+# (`packages/backend/src/middleware/apexFrontendProxy.ts`), reverse-proxying every
+# web-plane request to `WEB_SHELL_ORIGIN` — which was
+# `https://mention-frontend.pages.dev`. So the `.pages.dev` name could not simply
+# be removed: it was the only origin the static export was reachable at, and it
+# was reachable by ANYONE.
+#
+# `workers_dev = false` plus the access gate in `worker/index.js` is what closes
+# that. A Worker can run code before it serves a byte, so unlike Pages this origin
+# can refuse every caller that is not the backend. `shell.mention.earth` is the
+# only door, and it answers 403 without the shared key.
+#
+# `mention.earth` and `api.mention.earth` stay on the ALB and are NOT touched by
+# this file. Deleting the apex record would take down ActivityPub and the API,
+# not just the frontend.
+#
+# Verified against wrangler 4.130.0, control-verified: a `--dry-run` accepts
+# every key set here without comment, while the same run flags an invented key as
+# "Unexpected fields" both at top level and inside `[assets]`. Recognised, not
+# ignored.
+name = "mention-frontend"
+main = "worker/index.js"
+compatibility_date = "2026-09-09"
+
+# No `mention-frontend.<subdomain>.workers.dev`. This is the whole point of the
+# migration: one stable name for this deployment, and it is the one below.
+workers_dev = false
+
+# Stated rather than left to the default, because the default is not a constant:
+# Cloudflare's rule is `preview_urls = workers_dev`, so this line currently
+# changes nothing and will keep changing nothing if that rule ever moves.
+#
+# It is also the one knob standing between this Worker and the follow-up described
+# in the PR. Moving the release gate's candidate origin off Pages needs per-version
+# preview URLs, which means flipping this to `true`. That is safe on its own — a
+# preview URL runs the same `worker/index.js` and answers 403 without the key —
+# but the gate cannot reach it until `packages/e2e/fixtures.ts` sends that key, so
+# the flip and that change belong in one commit, and not this one.
+preview_urls = false
+
+# Static assets served through the `ASSETS` binding rather than directly, because
+# `main` is set. `expo export --platform web` emits ONE `index.html` plus hashed
+# assets — a client-routed SPA, not per-route static HTML — so the fallback below
+# is what makes a deep link work.
+#
+# `public/_headers` is carried into `dist` by the export and IS honoured here:
+# measured under `wrangler dev`, wrangler reports "Parsed 2 valid header rules"
+# and a hashed bundle comes back through the Worker with
+# `cache-control: public, max-age=31536000, immutable`. `_headers` not applying to
+# Worker-generated responses is a real caveat, but it bites responses the Worker
+# builds itself — the 403 and 503 in `worker/index.js` — not what
+# `env.ASSETS.fetch` returns.
+#
+# `public/_redirects` is NOT honoured here, and is deliberately kept anyway:
+# wrangler warns "Infinite loop detected in this rule and has been ignored" for
+# `/*  /index.html  200`, and `not_found_handling` does that job instead. The file
+# stays because the release gate still deploys this same `dist` to a Cloudflare
+# Pages preview, where it is the ONLY thing providing SPA fallback. Deleting it
+# would break the gate rather than tidy the build.
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+# WITHOUT THIS THE GATE DOES NOT RUN, and it fails open and silent. By default the
+# asset pipeline answers any request matching a file and `worker/index.js` is
+# never invoked, so every byte would be served to every caller and only a 404
+# would ever have reached the access check. Measured under `wrangler dev` before
+# this line existed: `/` returned 200 with no key, with a wrong key, and with a
+# wrong-length key. With it: 403, 403, 403, and 200 only for the real key.
+run_worker_first = true
+
+# The only way in, and the only name this deployment answers to. Cloudflare writes
+# and manages the DNS record for a custom domain, which is why
+# `shell.mention.earth` must be a NEW hostname carrying no pre-existing record: a
+# Worker custom domain refuses a hostname that already has externally managed
+# records (`code: 100117`).
+[[routes]]
+pattern = "shell.mention.earth"
+custom_domain = true
