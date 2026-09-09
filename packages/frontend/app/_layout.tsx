@@ -5,7 +5,7 @@ import { registerChunkErrorRecovery } from '@/lib/chunkReload';
 import NetInfo from '@react-native-community/netinfo';
 import { focusManager, onlineManager } from '@tanstack/react-query';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { AppState, Platform, type AppStateStatus } from "react-native";
 import { BloomProvider } from '@oxyhq/bloom/provider';
 import { APP_DEFAULT_COLOR_PRESET } from '@/lib/colorEntitlement';
@@ -158,15 +158,6 @@ export default function RootLayout() {
     if (appIsReady && Platform.OS !== 'web') {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [appIsReady]);
-
-  // The backend places a semantic, crawlable representation beside Expo's root
-  // on public profile/post documents. Keep it as the no-JS/error fallback, but
-  // remove it before the first ready app frame so sighted browser users never
-  // see duplicate content. Crawlers and browsers receive the same initial HTML.
-  useLayoutEffect(() => {
-    if (Platform.OS !== 'web' || !appIsReady || typeof document === 'undefined') return;
-    document.querySelector('[data-mention-seo-fallback="true"]')?.remove();
   }, [appIsReady]);
 
   return (

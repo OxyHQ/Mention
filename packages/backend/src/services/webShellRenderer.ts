@@ -33,8 +33,6 @@ export interface OgData {
   robots?: 'index,follow' | 'noindex,follow' | 'noindex,nofollow';
   /** JSON-LD entity represented by the visible semantic body. */
   jsonLd?: Record<string, unknown>;
-  /** Public, semantic HTML rendered before the SPA becomes interactive. */
-  bodyHtml?: string;
 }
 
 /** Canonical web origin used for `og:url` (the apex the SPA is served from). */
@@ -219,17 +217,6 @@ export function renderShellWithOg(shell: string, og: OgData | null): string {
     ? html.replace(HEAD_CLOSE_RE, () => `${meta}</head>`)
     : meta + html;
 
-  if (og.bodyHtml) {
-    const fallback = `<div id="seo-root" data-mention-seo-fallback="true">${og.bodyHtml}</div>`;
-    html = /<div\s+id=(['"])root\1[^>]*>/i.test(html)
-      // The semantic document is initial content of the SPA mount point. React
-      // replaces these children on its first render, so it can never survive as
-      // a second UI above the application. Keeping it outside `#root` made the
-      // SEO fallback permanently visible after the app booted.
-      ? html.replace(/<div\s+id=(['"])root\1[^>]*>/i, (root) => `${root}${fallback}`)
-      : html.replace(/<body\b[^>]*>/i, (body) => `${body}${fallback}`);
-  }
-
   return html;
 }
 
@@ -274,15 +261,6 @@ export function mapProfileOg(data: OxyProfileData | null | undefined): OgData | 
         ...(publicLinks.length ? { sameAs: publicLinks } : {}),
       },
     },
-    bodyHtml:
-      `<main><article><header><h1>${escapeHtml(name)}</h1>` +
-      `<p>@${escapeHtml(username)}</p></header>` +
-      (description ? `<p>${escapeHtml(description)}</p>` : '') +
-      (image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(name)}">` : '') +
-      (publicLinks.length
-        ? `<nav aria-label="Links">${publicLinks.map((link) => `<a href="${escapeHtml(link)}" rel="me">${escapeHtml(link)}</a>`).join('')}</nav>`
-        : '') +
-      '</article></main>',
   };
 }
 
@@ -385,12 +363,5 @@ export function mapPostOg(post: HydratedPost, id: string, safety: PostOgSafety):
         ...(authorUrl ? { url: authorUrl } : {}),
       },
     },
-    bodyHtml:
-      `<main><article><header><h1>${escapeHtml(author)} on Mention</h1>` +
-      (authorUrl ? `<a href="${escapeHtml(authorUrl)}">${escapeHtml(authorHandle)}</a>` : '') +
-      (createdAt ? `<time datetime="${escapeHtml(createdAt)}">${escapeHtml(createdAt)}</time>` : '') +
-      `</header><p>${escapeHtml(bodyText)}</p>` +
-      (image ? `<img src="${escapeHtml(image)}" alt="">` : '') +
-      '</article></main>',
   };
 }
