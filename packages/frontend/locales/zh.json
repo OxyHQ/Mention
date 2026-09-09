@@ -210,6 +210,7 @@
   "profile.tabs.writers": "作者",
   "profile.stats.boosts": "转发",
   "profile.stats.replies": "回复",
+  "profile.stats.reputation": "声誉",
   "profile.posts": "帖子",
   "profile.postsCount": "{{count}} 条帖子",
   "profile.joined": "加入于",

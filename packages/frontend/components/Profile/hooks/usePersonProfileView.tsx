@@ -141,7 +141,7 @@ export function usePersonProfileView({
   const account = useProfileAccount(routedUsername);
   const { username, handle, isFederated } = account;
   const routedCanonicalHref = useProfileCanonicalHref({ routedFamily: 'person', account });
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, oxyServices } = useAuth();
   const { t } = useTranslation();
 
   /**
@@ -241,6 +241,20 @@ export function usePersonProfileView({
 
   const isOwnProfile = viewerOwnsProfile(profileData, currentUser?.id, isFederated);
   const isPrivate = useMemo(() => isProfilePrivate(profileData), [profileData]);
+  const reputationQuery = useQuery<number>({
+    queryKey: viewerQueryKeys.profileReputation(currentUser?.id, profileData?.id),
+    enabled: Boolean(profileData?.id) && (!isPrivate || isOwnProfile),
+    retry: false,
+    queryFn: async () => {
+      const profileId = profileData?.id;
+      if (!profileId) throw new Error('A profile ID is required to load reputation');
+      const balance = isOwnProfile
+        ? await oxyServices.getMyReputationBalance()
+        : await oxyServices.getReputationBalance(profileId);
+      return balance.total;
+    },
+  });
+  const reputationTotal = reputationQuery.data ?? null;
 
   // Number of action icons in the top-right cluster; sizes the scrolled name
   // overlay so a long display name truncates instead of sliding under them.
@@ -429,6 +443,7 @@ export function usePersonProfileView({
           isPrivate={isPrivate}
           followingCount={followingCount}
           followerCount={followerCount}
+          reputationTotal={reputationTotal}
           profileHandle={handle}
           identity={identity}
           showReplies={profileTabsForAccountKind(profileData.kind).includes('replies')}
@@ -456,6 +471,7 @@ export function usePersonProfileView({
     isPrivate,
     justFollowed,
     profileData,
+    reputationTotal,
   ]);
 
   const headerActions = (

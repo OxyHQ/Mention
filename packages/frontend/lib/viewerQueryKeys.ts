@@ -316,6 +316,14 @@ export const viewerQueryKeys = {
     'similar-profiles',
     sourceUserId ?? '',
   ] as const,
+  profileReputation: (
+    viewerId: ViewerId,
+    profileId: string | null | undefined,
+  ) => [
+    ...viewerQueryKeys.all(viewerId),
+    'profile-reputation',
+    profileId ?? '',
+  ] as const,
   mutualFollowers: (viewerId: ViewerId, profileId: string | null | undefined) => [
     ...viewerQueryKeys.all(viewerId),
     'mutual-followers',
