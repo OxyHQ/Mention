@@ -5,9 +5,10 @@ import { ExperimentalStack, Slot, usePathname } from "expo-router";
 import { useAuth } from '@oxy.so/services/ui/client';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
 import { registerPanelSurface } from '@/components/shell/panelSurface';
 
-import { BottomBar, useBottomBarReservedSpace } from "@/components/BottomBar";
+import { BottomBar } from "@/components/BottomBar";
 import { DrawerOverlay } from "@/components/DrawerOverlay";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import RegisterPush from '@/components/RegisterPushToken';
@@ -68,7 +69,7 @@ export default function AppLayout() {
   const { isAuthenticated, isAuthResolved } = useAuth();
   const { screenColor } = useScreenColor();
   const pathname = usePathname();
-  const reservedSpace = useBottomBarReservedSpace();
+  const bottomEdgeInset = useBottomEdgeInset();
   const onProfileRoute = isProfileRoute(pathname);
 
   // Unscoped app theme: this runs OUTSIDE the `<BloomColorScope>` below, so
@@ -81,14 +82,14 @@ export default function AppLayout() {
   const activeScreenColor: AppColorName | undefined =
     onProfileRoute && screenColor && APP_COLOR_PRESETS[screenColor] ? screenColor : undefined;
 
-  // Mobile-web: the BottomBar is `position: fixed` (see BottomBar.tsx) so it takes
-  // no document-scroll space. Reserve its footprint as `paddingBottom` so the last
-  // item of every route clears it. Excludes /videos (full-viewport scroll-snap
-  // slides own their bottom spacing); 0 on desktop/native. The hook already folds
-  // in the bottom safe-area inset — nothing gets added to it here.
+  // Mobile-web: the BottomBar is fixed and takes no document-scroll space. Bloom's
+  // bottom-edge registry is the authority for whether it exists and exactly how
+  // much space it occupies, including the safe area. It returns zero when the bar
+  // is absent (desktop, signed out, or keyboard open), so this shell must not
+  // duplicate those conditions or add its own clearance.
   const mobileWebBottomInset =
-    IS_WEB && !isScreenNotMobile && isAuthenticated && pathname !== '/videos'
-      ? reservedSpace
+    IS_WEB && pathname !== '/videos'
+      ? bottomEdgeInset
       : 0;
 
   // Same center content on both platforms; only the host differs. WEB uses <Slot/>

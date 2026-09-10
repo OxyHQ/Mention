@@ -14,8 +14,8 @@ import PostItem from '@/components/Feed/PostItem';
 import Feed from '@/components/Feed/Feed';
 import { FeedHeader, FEED_COMPOSER_PROMPT_HEIGHT } from '@/components/Feed/FeedHeader';
 import { PanelStickyFooter } from '@/components/shell/PanelChrome';
-import { useBottomBarReservedSpace } from '@/components/BottomBar';
-import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
+import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
+import { resolveBottomEdgeInset } from '@/components/navigation/bottomEdgeInset';
 import { useThreadPreferences, SORT_TO_API } from '@/hooks/useThreadPreferences';
 import { applyServerViewCounts, getCachedAncestorChain, usePostsStore, usePostSelector } from '@/stores/postsStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
@@ -66,8 +66,7 @@ const PostDetailScreen: React.FC = () => {
     const { t } = useTranslation();
     const { treeView, sortOrder } = useThreadPreferences();
     const { openBottomSheet, setBottomSheetContent } = React.useContext(BottomSheetContext);
-    const isScreenNotMobile = useIsScreenNotMobile();
-    const bottomBarReservedSpace = useBottomBarReservedSpace();
+    const bottomEdgeInset = useBottomEdgeInset();
 
     // The cached post for this id, read reactively from the shared cache (re-reads
     // whenever the cache mutates: background revalidation, optimistic like/boost,
@@ -135,12 +134,16 @@ const PostDetailScreen: React.FC = () => {
         sort: SORT_TO_API[sortOrder],
     }), [repliesQueryTargetId, sortOrder]);
 
-    // The floating BottomBar renders only for a signed-in user on the mobile shell
-    // (see `app/(app)/_layout.tsx`); while it is up the pinned composer has to clear
-    // its footprint instead of sitting under it. Off the mobile shell there is no bar,
-    // so the composer keeps the sticky footer's own gutter offset (web) / the bottom
-    // safe-area inset (native).
-    const bottomBarInset = user && !isScreenNotMobile ? bottomBarReservedSpace : 0;
+    // Bloom publishes the real occupied bottom edge. That value already includes
+    // the device safe area and falls back to zero whenever the bar is unmounted;
+    // reproducing its auth, viewport and keyboard gates here was what let these
+    // surfaces drift from the bar. Native still needs its safe area when no
+    // bottom-edge surface is present.
+    const effectiveBottomInset = resolveBottomEdgeInset(
+        bottomEdgeInset,
+        insets.bottom,
+        IS_WEB,
+    );
 
     // Web: <PanelStickyFooter> pins with `position: sticky`, so it takes real flow
     // space at the end of the document and only ever OVERLAYS content mid-scroll —
@@ -149,15 +152,15 @@ const PostDetailScreen: React.FC = () => {
     // overlay, so it both carries the bar/safe-area inset itself and needs the feed
     // to reserve its height as scrollable bottom padding.
     const stickyComposerStyle = useMemo(() => {
-        if (bottomBarInset > 0) return { bottom: bottomBarInset };
+        if (effectiveBottomInset > 0) return { bottom: effectiveBottomInset };
         return IS_WEB ? undefined : { bottom: insets.bottom };
-    }, [bottomBarInset, insets.bottom]);
+    }, [effectiveBottomInset, insets.bottom]);
 
     const feedContentStyle = useMemo(() => ({
         paddingBottom: IS_WEB
             ? FEED_BOTTOM_PADDING
-            : FEED_BOTTOM_PADDING + FEED_COMPOSER_PROMPT_HEIGHT + (bottomBarInset || insets.bottom),
-    }), [bottomBarInset, insets.bottom]);
+            : FEED_BOTTOM_PADDING + FEED_COMPOSER_PROMPT_HEIGHT + effectiveBottomInset,
+    }), [effectiveBottomInset]);
 
     const openReplyPreferences = useCallback(() => {
         setBottomSheetContent(<ReplyPreferencesSheet />);

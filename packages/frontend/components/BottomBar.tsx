@@ -14,7 +14,6 @@ import { useHaptics } from '@oxy.so/bloom/hooks';
 import {
     TabBar,
     TabBarButton,
-    useTabBarFootprint,
     type TabBarItem,
     type TabBarTheme,
 } from '@oxy.so/bloom/tab-bar';
@@ -90,27 +89,6 @@ const barTabName = (barIndex: number): string | undefined => BAR_TABS[barIndex]?
  * keep in step.
  */
 const CHROME_SLIDE_PX = 160;
-
-/**
- * Breathing margin (px) between the end of a screen's scrollable content and the
- * top of the pill, so the last row never sits flush against the bar.
- */
-const BOTTOM_BAR_CLEARANCE = 12;
-
-/**
- * Vertical space (px) a scrollable screen must leave free at its bottom for the
- * floating bar: Bloom's own footprint — the expanded pill plus the gap it keeps
- * from the window edge, with the bottom safe-area inset ALREADY folded in — plus
- * Mention's clearance.
- *
- * A hook rather than a constant because the footprint depends on the safe-area
- * inset. Never add `insets.bottom` to the result: Bloom folds the inset into its
- * own bottom gap, so adding it again counts the home indicator twice and strands a
- * band of dead space under every list.
- */
-export function useBottomBarReservedSpace(): number {
-    return useTabBarFootprint() + BOTTOM_BAR_CLEARANCE;
-}
 
 export const BottomBar = () => {
     const pathname = usePathname();
