@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import Animated, { runOnJS, useAnimatedReaction, useAnimatedStyle } from 'react-native-reanimated';
 
 import { Fab } from '@oxy.so/bloom/fab';
@@ -64,28 +64,35 @@ export function ChromeFab({ onPress, icon, accessibilityLabel, size = 48 }: Chro
 
     const fadeStyle = useAnimatedStyle(() => ({ opacity: 1 - hidden.value }), [hidden]);
 
-    const fab = (
-        <Fab
-            size={size}
-            onPress={onPress}
-            icon={icon}
-            accessibilityLabel={accessibilityLabel}
-        />
-    );
+    if (IS_WEB) {
+        return (
+            <Fab
+                size={size}
+                onPress={onPress}
+                icon={icon}
+                accessibilityLabel={accessibilityLabel}
+            />
+        );
+    }
 
-    if (IS_WEB) return fab;
-
-    // A plain wrapper: it takes no placement of its own, so the FAB inside keeps
-    // resolving `position: absolute` against the screen container exactly as it
-    // does unwrapped. Opacity applies to the subtree regardless.
+    // Inbox can render Bloom's positioned FAB directly. Mention needs one
+    // wrapper solely for the chrome fade, so that wrapper must preserve the
+    // consumer's full containing block. A flow-positioned wrapper at the end of
+    // the column has zero size; the absolute FAB then measures `bottom` from
+    // below the visible content and disappears off-screen.
     return (
         <Animated.View
-            style={fadeStyle}
+            style={[StyleSheet.absoluteFill, fadeStyle]}
             pointerEvents={gone ? 'none' : 'box-none'}
             accessibilityElementsHidden={gone}
             importantForAccessibility={gone ? 'no-hide-descendants' : 'auto'}
         >
-            {fab}
+            <Fab
+                size={size}
+                onPress={onPress}
+                icon={icon}
+                accessibilityLabel={accessibilityLabel}
+            />
         </Animated.View>
     );
 }

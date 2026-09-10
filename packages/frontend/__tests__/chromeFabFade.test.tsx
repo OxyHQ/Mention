@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 
 import { ChromeFab } from '@/components/ChromeFab';
@@ -64,9 +65,9 @@ function Harness({ hidden }: { hidden: number }) {
   return <ChromeFab onPress={() => {}} icon={null} accessibilityLabel="New post" />;
 }
 
-/** The Animated.View the fade rides on: the inner FAB's nearest styled ancestor. */
+/** The full-screen Animated.View the fade rides on. */
 function wrapperProps(root: ReactTestInstance) {
-  const inner = root.findAll((n) => n.props?.testID === 'inner-fab')[0];
+  const inner = root.findAll((node) => node.props?.testID === 'inner-fab')[0];
   let node = inner?.parent;
   while (node && node.props?.style === undefined) node = node.parent;
   return node?.props ?? {};
@@ -82,19 +83,29 @@ function renderAt(hidden: number) {
 
 describe('ChromeFab', () => {
   it('is fully opaque while the chrome is shown', () => {
-    expect(renderAt(0).style).toMatchObject({ opacity: 1 });
+    expect(StyleSheet.flatten(renderAt(0).style)).toMatchObject({ opacity: 1 });
   });
 
   it('tracks the chrome continuously rather than snapping', () => {
     // `hidden` is a CONTINUOUS 0..1 integration of scroll, not a flag — the FAB
     // has to interpolate off it the way the headers do, or it would step while
     // they slide.
-    expect(renderAt(0.4).style).toMatchObject({ opacity: 0.6 });
+    expect(StyleSheet.flatten(renderAt(0.4).style)).toMatchObject({ opacity: 0.6 });
+  });
+
+  it('preserves the screen containing block for Bloom positioning', () => {
+    expect(StyleSheet.flatten(renderAt(0).style)).toMatchObject({
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+    });
   });
 
   it('is invisible and inert once the chrome is fully hidden', () => {
     const props = renderAt(1);
-    expect(props.style).toMatchObject({ opacity: 0 });
+    expect(StyleSheet.flatten(props.style)).toMatchObject({ opacity: 0 });
     // An invisible target that still takes a tap is worse than a visible one.
     expect(props.pointerEvents).toBe('none');
     expect(props.accessibilityElementsHidden).toBe(true);
