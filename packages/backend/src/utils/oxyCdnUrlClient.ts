@@ -11,7 +11,7 @@ import { config } from '../config';
  *
  * They lived on `getServiceOxyClient()` in `utils/oxyHelpers`, which is the
  * SERVICE-AUTHENTICATED singleton: it reads the rotating credential, installs
- * egress instrumentation, and reaches `@oxyhq/mcp` and the server entrypoint.
+ * egress instrumentation, and reaches `@oxy.so/mcp` and the server entrypoint.
  * Depending on all of that to concatenate a string is what forced
  * `services/webShellRenderer.ts` — which deliberately keeps clear of the server
  * entrypoint — to build its own client and, from there, its own copy of the

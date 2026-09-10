@@ -8,8 +8,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  *  - own-origin http(s) (backend public URL or Oxy API origin) → passthrough.
  *  - empty/falsy → empty url.
  *
- * The Oxy client is mocked so `getFileDownloadUrl` is pure URL construction and
- * `getBaseURL` provides the Oxy origin used for the own-host check.
+ * The URL builder is the REAL SDK, reached through the resolver's own leaf
+ * module. A stub used to stand in for it and answered `api.oxy.so/assets/<id>/
+ * stream` — a shape the SDK does not produce for a public asset — so every URL
+ * assertion here described the stub rather than what the API emits. It is spied
+ * on, not replaced, so the call-argument assertions still hold.
  */
 
 const PUBLIC_BASE = 'https://api.mention.earth';
@@ -24,37 +27,33 @@ vi.mock('../../config', () => ({
   config: { publicApiUrl: 'https://api.mention.earth' },
 }));
 
-const getFileDownloadUrl = vi.fn((fileId: string, variant?: string) => {
-  const qs = variant ? `?variant=${variant}` : '';
-  return `${OXY_BASE}/assets/${encodeURIComponent(fileId)}/stream${qs}`;
+vi.mock('../../utils/oxyCdnUrlClient', async () => {
+  const { OxyServices } = await vi.importActual<typeof import('@oxyhq/core')>('@oxyhq/core');
+  return { oxyCdnUrlClient: new OxyServices({ baseURL: 'https://api.oxy.so' }) };
 });
-const getBaseURL = vi.fn(() => OXY_BASE);
-const getCloudURL = vi.fn(() => CLOUD_BASE);
 
-vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getFileDownloadUrl, getBaseURL, getCloudURL }),
-}));
-
+import { oxyCdnUrlClient } from '../../utils/oxyCdnUrlClient';
 import { resolveMediaRef, resolveAvatarUrl, resolveMediaItems } from '../../utils/mediaResolver';
+
+const getFileDownloadUrl = vi.spyOn(oxyCdnUrlClient, 'getFileDownloadUrl');
 
 describe('resolveMediaRef', () => {
   beforeEach(() => {
     getFileDownloadUrl.mockClear();
-    getBaseURL.mockClear();
   });
 
   it('resolves an Oxy file id to original url + w320 thumb + w2048 fullUrl', () => {
     const result = resolveMediaRef('file123');
 
     // `url` is the no-variant original (also the playable source for videos).
-    expect(result.url).toBe(`${OXY_BASE}/assets/file123/stream`);
+    expect(result.url).toBe(`${CLOUD_BASE}/file123`);
     // Thumbnail uses a display-sized variant, NOT the 256px `thumb` crop.
     // The post media card / profile grid are ≤320px, so this is `w320`.
-    expect(result.thumbUrl).toBe(`${OXY_BASE}/assets/file123/stream?variant=w320`);
+    expect(result.thumbUrl).toBe(`${CLOUD_BASE}/file123?variant=w320`);
     // For an image-like asset the poster mirrors the thumbnail.
     expect(result.posterUrl).toBe(result.thumbUrl);
     // The lightbox upgrade uses a large variant, not the raw original.
-    expect(result.fullUrl).toBe(`${OXY_BASE}/assets/file123/stream?variant=w2048`);
+    expect(result.fullUrl).toBe(`${CLOUD_BASE}/file123?variant=w2048`);
     expect(getFileDownloadUrl).toHaveBeenCalledWith('file123');
     expect(getFileDownloadUrl).toHaveBeenCalledWith('file123', 'w320');
     expect(getFileDownloadUrl).toHaveBeenCalledWith('file123', 'w2048');
@@ -127,6 +126,8 @@ describe('resolveMediaRef', () => {
   });
 
   it('passes through a URL already on the Oxy API origin', () => {
+    // The API origin, not the CDN one: `getOwnHosts` is built from our public
+    // base and the SDK's `getBaseURL`, so this is the case it exists for.
     const own = `${OXY_BASE}/assets/file999/stream?variant=thumb`;
     const result = resolveMediaRef(own);
 
@@ -147,7 +148,7 @@ describe('resolveAvatarUrl', () => {
     // Avatars use the dedicated 96px square `w96` crop (not the wider w320
     // used for post media, nor the 256px `thumb`), since they render tiny and
     // circular.
-    expect(resolveAvatarUrl('avatar1')).toBe(`${OXY_BASE}/assets/avatar1/stream?variant=w96`);
+    expect(resolveAvatarUrl('avatar1')).toBe(`${CLOUD_BASE}/avatar1?variant=w96`);
   });
 
   it('returns the proxy url for an external avatar, asking for the avatar variant', () => {
@@ -199,9 +200,9 @@ describe('resolveMediaItems', () => {
 
     expect(items[0].id).toBe('file1');
     expect(items[0].type).toBe('image');
-    expect(items[0].url).toBe(`${OXY_BASE}/assets/file1/stream`);
-    expect(items[0].thumbUrl).toBe(`${OXY_BASE}/assets/file1/stream?variant=w320`);
-    expect(items[0].fullUrl).toBe(`${OXY_BASE}/assets/file1/stream?variant=w2048`);
+    expect(items[0].url).toBe(`${CLOUD_BASE}/file1`);
+    expect(items[0].thumbUrl).toBe(`${CLOUD_BASE}/file1?variant=w320`);
+    expect(items[0].fullUrl).toBe(`${CLOUD_BASE}/file1?variant=w2048`);
 
     const encoded = encodeURIComponent('https://external.test/v.mp4');
     expect(items[1].id).toBe('https://external.test/v.mp4');
@@ -226,12 +227,12 @@ describe('resolveMediaItems', () => {
       { id: 'native-vid', type: 'video' },
     ]);
 
-    expect(items[0].url).toBe(`${OXY_BASE}/assets/native-img/stream`);
-    expect(items[0].thumbUrl).toBe(`${OXY_BASE}/assets/native-img/stream?variant=w320`);
-    expect(items[0].posterUrl).toBe(`${OXY_BASE}/assets/native-img/stream?variant=w320`);
-    expect(items[0].fullUrl).toBe(`${OXY_BASE}/assets/native-img/stream?variant=w2048`);
+    expect(items[0].url).toBe(`${CLOUD_BASE}/native-img`);
+    expect(items[0].thumbUrl).toBe(`${CLOUD_BASE}/native-img?variant=w320`);
+    expect(items[0].posterUrl).toBe(`${CLOUD_BASE}/native-img?variant=w320`);
+    expect(items[0].fullUrl).toBe(`${CLOUD_BASE}/native-img?variant=w2048`);
 
-    expect(items[1].thumbUrl).toBe(`${OXY_BASE}/assets/native-vid/stream?variant=w320`);
+    expect(items[1].thumbUrl).toBe(`${CLOUD_BASE}/native-vid?variant=w320`);
     expect(items[1].fullUrl).toBeUndefined();
 
     for (const item of items) {
@@ -250,9 +251,9 @@ describe('resolveMediaItems', () => {
     const items = resolveMediaItems([{ id: 'video-file', type: 'video' }]);
 
     expect(items).toHaveLength(1);
-    expect(items[0].url).toBe(`${OXY_BASE}/assets/video-file/stream`);
-    expect(items[0].thumbUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=w320`);
-    expect(items[0].posterUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=w1280`);
+    expect(items[0].url).toBe(`${CLOUD_BASE}/video-file`);
+    expect(items[0].thumbUrl).toBe(`${CLOUD_BASE}/video-file?variant=w320`);
+    expect(items[0].posterUrl).toBe(`${CLOUD_BASE}/video-file?variant=w1280`);
     expect(items[0].thumbUrl).not.toBe(items[0].posterUrl);
     expect(items[0].fullUrl).toBeUndefined();
   });
@@ -296,7 +297,7 @@ describe('resolveMediaItems', () => {
     ]);
 
     expect(items).toHaveLength(1);
-    expect(items[0].hlsUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=hls_master`);
+    expect(items[0].hlsUrl).toBe(`${CLOUD_BASE}/video-file?variant=hls_master`);
     expect(getFileDownloadUrl).toHaveBeenCalledWith('video-file', 'hls_master');
   });
 
@@ -363,7 +364,7 @@ describe('resolveMediaItems — persisted geometry passthrough', () => {
 
     expect(item).toMatchObject(geometry);
     // The URLs must still be resolved, not displaced by the geometry spread.
-    expect(item.thumbUrl).toBe(`${OXY_BASE}/assets/img-file/stream?variant=w320`);
+    expect(item.thumbUrl).toBe(`${CLOUD_BASE}/img-file?variant=w320`);
   });
 
   it('forwards geometry and durationSec for a video', () => {
@@ -372,7 +373,7 @@ describe('resolveMediaItems — persisted geometry passthrough', () => {
     ]);
 
     expect(item).toMatchObject({ ...geometry, durationSec: 12.5 });
-    expect(item.posterUrl).toBe(`${OXY_BASE}/assets/video-file/stream?variant=w1280`);
+    expect(item.posterUrl).toBe(`${CLOUD_BASE}/video-file?variant=w1280`);
   });
 
   it('forwards geometry for a GIF', () => {
