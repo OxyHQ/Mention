@@ -487,6 +487,8 @@ export interface ProfileTabsProps {
   isOwnProfile: boolean;
   isFederated?: boolean;
   actorUri?: string;
+  /** Refreshes the profile chrome alongside the active tab's own content. */
+  onProfileRefresh?: () => Promise<void>;
 }
 
 /**

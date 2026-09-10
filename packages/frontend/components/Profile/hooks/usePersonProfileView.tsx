@@ -139,6 +139,7 @@ export function usePersonProfileView({
   username: routedUsername,
 }: PersonProfileViewOptions): PersonProfileView {
   const account = useProfileAccount(routedUsername);
+  const refreshAccount = account.refresh;
   const { username, handle, isFederated } = account;
   const routedCanonicalHref = useProfileCanonicalHref({ routedFamily: 'person', account });
   const { user: currentUser, oxyServices } = useAuth();
@@ -169,7 +170,7 @@ export function usePersonProfileView({
   // The publisher's lanes that HAVE a tab. Public and reader-agnostic, so a
   // signed-out visitor sees the same strip; keyed by viewer anyway, like every
   // other private read, so an account switch drops it with the namespace.
-  const { data: laneTabs = [] } = useQuery<LaneTabInput[]>({
+  const { data: laneTabsData, refetch: refetchLaneTabs } = useQuery<LaneTabInput[]>({
     queryKey: viewerQueryKeys.lanesForOwner(currentUser?.id, profileData?.id),
     enabled: Boolean(profileData?.id) && !isFederated,
     queryFn: async () => {
@@ -177,6 +178,7 @@ export function usePersonProfileView({
       return lanes.map((lane) => ({ id: lane.id, name: lane.name }));
     },
   });
+  const laneTabs = useMemo(() => laneTabsData ?? [], [laneTabsData]);
 
   // Every person — federated included — gets the full static strip, since the
   // data behind each tab is in Oxy/Mention's DB either way. Lane tabs are
@@ -219,6 +221,8 @@ export function usePersonProfileView({
     followerCount: rawFollowerCount,
     followingCount: rawFollowingCount,
     isFollowing: isFollowingProfileUser = false,
+    fetchStatus: refreshFollowStatus,
+    fetchUserCounts: refreshFollowCounts,
   } = useFollow(stableUserId);
   const followerCount = rawFollowerCount ?? 0;
   const followingCount = rawFollowingCount ?? 0;
@@ -241,7 +245,7 @@ export function usePersonProfileView({
 
   const isOwnProfile = viewerOwnsProfile(profileData, currentUser?.id, isFederated);
   const isPrivate = useMemo(() => isProfilePrivate(profileData), [profileData]);
-  const reputationQuery = useQuery<number>({
+  const { data: reputationData, refetch: refetchReputation } = useQuery<number>({
     queryKey: viewerQueryKeys.profileReputation(currentUser?.id, profileData?.id),
     enabled: Boolean(profileData?.id) && (!isPrivate || isOwnProfile),
     retry: false,
@@ -254,7 +258,31 @@ export function usePersonProfileView({
       return balance.total;
     },
   });
-  const reputationTotal = reputationQuery.data ?? null;
+  const reputationTotal = reputationData ?? null;
+
+  const refreshProfileSurface = useCallback(async () => {
+    await Promise.all([
+      refreshAccount(),
+      ...(profileData?.id && !isFederated ? [refetchLaneTabs()] : []),
+      ...(profileData?.id && (!isPrivate || isOwnProfile)
+        ? [refetchReputation()]
+        : []),
+      ...(stableUserId && refreshFollowStatus && refreshFollowCounts
+        ? [refreshFollowStatus(), refreshFollowCounts()]
+        : []),
+    ]);
+  }, [
+    refreshAccount,
+    isFederated,
+    isOwnProfile,
+    isPrivate,
+    refetchLaneTabs,
+    profileData?.id,
+    refetchReputation,
+    refreshFollowCounts,
+    refreshFollowStatus,
+    stableUserId,
+  ]);
 
   // Number of action icons in the top-right cluster; sizes the scrolled name
   // overlay so a long display name truncates instead of sliding under them.
@@ -600,6 +628,7 @@ export function usePersonProfileView({
       isOwnProfile,
       isFederated,
       actorUri: profileData?.actorUri,
+      onProfileRefresh: refreshProfileSurface,
     },
     selectTab,
   };

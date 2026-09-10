@@ -16,6 +16,8 @@ export interface ProfileAccount {
   loading: boolean;
   /** Bloom colour preset for the profile's scope. */
   colorName: AppColorName | undefined;
+  /** Refetches the identity and appearance payloads behind the profile chrome. */
+  refresh: () => Promise<void>;
 }
 
 /**
@@ -43,7 +45,7 @@ export function useProfileAccount(routedUsername: string): ProfileAccount {
   // it is read the same way on both, because the rule belongs to the handle, not
   // to the screen.
   const isFederated = username.includes('@');
-  const { data: profileData, loading } = useProfileData(username);
+  const { data: profileData, loading, refresh } = useProfileData(username);
   const { colorName } = useProfileScreenColor({
     username,
     designColor: profileData?.design?.color,
@@ -59,7 +61,7 @@ export function useProfileAccount(routedUsername: string): ProfileAccount {
     [profileData?.username, profileData?.instance, profileData?.isFederated, username],
   );
 
-  return { username, handle, isFederated, profileData, loading, colorName };
+  return { username, handle, isFederated, profileData, loading, colorName, refresh };
 }
 
 export interface ProfileCanonicalHrefOptions {
