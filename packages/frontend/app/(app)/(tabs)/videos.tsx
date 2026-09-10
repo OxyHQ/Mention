@@ -109,12 +109,36 @@ const RETAINED_BEHIND_RADIUS = ACTIVE_WINDOW_RADIUS + 1;
  * out of the window would release the very player that window is showing — so it
  * is OR'd outside the distance test, not folded into it.
  */
-function isSlideNear(index: number, activeIndex: number, isPipOwner: boolean): boolean {
+function isSlideNear(
+    index: number,
+    activeIndex: number,
+    aheadRadius: number,
+    isPipOwner: boolean,
+): boolean {
     if (isPipOwner) return true;
     return index <= activeIndex
         ? activeIndex - index <= RETAINED_BEHIND_RADIUS
-        : index - activeIndex <= ACTIVE_WINDOW_RADIUS;
+        : index - activeIndex <= aheadRadius;
 }
+
+/**
+ * How much media the landed video must have ahead of the playhead before the
+ * neighbouring players are allowed to exist.
+ *
+ * Five live decoders fetch at once, and on a cold connection they take the
+ * bandwidth from the video the viewer is actually watching: measured over eight
+ * cold pairs, the handover froze for a median of 457ms with the neighbours
+ * mounted and 8ms without, and above 150ms in four runs of eight against one.
+ * The picture stops while `paused` stays false — starved, not paused.
+ *
+ * The number comes from both populations rather than from the broken one. In the
+ * runs that starved, the landed video had 3.0-3.9s ahead of it; in the runs that
+ * did not, 8.5-45s. Six sits between them with room either side. Its limit,
+ * because it is real: those readings were taken after landing rather than at the
+ * instant the neighbours would start, so this is a threshold that separates the
+ * two populations, not one derived from the moment of decision.
+ */
+const PRELOAD_BUFFER_SECONDS = 6;
 // Poster images are tiny (the `thumb` variant, already cached memory-disk) —
 // prefetch a wider window than the live-player radius so the very first frame
 // the viewer sees on a fast multi-swipe is already in cache, even before that
@@ -253,6 +277,8 @@ interface VideoItemProps {
     item: VideoPost;
     isActive: boolean;
     isNear: boolean;
+    /** Reported by the active slide; the screen decides when neighbours may mount. */
+    onBufferAhead?: (seconds: number) => void;
     // True only while the /videos route is the focused screen. When another
     // route is pushed on top, freezeOnBlur pauses JS but the native decoder may
     // keep playing audio/video; gating playback on this prevents that bleed.
@@ -399,6 +425,7 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
     initialDurationSec,
     intrinsicSize,
     isActive,
+    onBufferAhead,
     screenFocused,
     bottomBarHeight,
     windowHeight,
@@ -446,6 +473,7 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
         initialDurationSec,
         intrinsicSize,
         isActive,
+        onBufferAhead,
         screenFocused,
         windowHeight,
         muted,
@@ -664,6 +692,7 @@ const VideoItem = memo<VideoItemProps>(({
     item,
     isActive,
     isNear,
+    onBufferAhead,
     screenFocused,
     theme,
     onLike,
@@ -783,6 +812,7 @@ const VideoItem = memo<VideoItemProps>(({
                     initialDurationSec={item.durationSec}
                     intrinsicSize={item.intrinsicSize}
                     isActive={isActive}
+                    onBufferAhead={onBufferAhead}
                     screenFocused={screenFocused}
                     bottomBarHeight={bottomBarHeight}
                     windowHeight={windowHeight}
@@ -1127,6 +1157,18 @@ export default function VideosScreen() {
     const targetMediaIndex = target?.mediaIndex;
 
     const flatListRef = useRef<FlatList<VideoPost>>(null);
+
+    // The neighbours wait until the video the viewer is watching has runway.
+    // Re-armed on every slide, because each landing starts a fresh fetch and is
+    // exactly as starvable as the first.
+    // Held against the INDEX rather than as a flag, so it re-arms by itself when
+    // the viewer swipes — no effect, and no way to leave it armed for a slide
+    // that has not buffered anything yet.
+    const [armedIndex, setArmedIndex] = useState<number | null>(null);
+    const handleBufferAhead = useCallback((seconds: number) => {
+        if (seconds >= PRELOAD_BUFFER_SECONDS) setArmedIndex(currentVisibleIndex);
+    }, [currentVisibleIndex]);
+    const activeRadius = armedIndex === currentVisibleIndex ? ACTIVE_WINDOW_RADIUS : 0;
 
     const bottomBarHeight = useMemo(
         () => Platform.OS === 'web' ? 60 : 60 + insets.bottom,
@@ -1855,7 +1897,8 @@ export default function VideosScreen() {
             // is open, however far the pager has been scrolled from it: dropping
             // out of the live window would release the very player the window is
             // showing.
-            isNear={isSlideNear(index, currentVisibleIndex, item.id === pipOwnerId)}
+            isNear={isSlideNear(index, currentVisibleIndex, activeRadius, item.id === pipOwnerId)}
+            onBufferAhead={handleBufferAhead}
             screenFocused={isFocused}
             theme={theme}
             onLike={handleLike}
@@ -1953,7 +1996,8 @@ export default function VideosScreen() {
                                         item={item}
                                         isActive={index === currentVisibleIndex}
                                         // See the native path: the session's owner keeps its player.
-                                        isNear={isSlideNear(index, currentVisibleIndex, item.id === pipOwnerId)}
+                                        isNear={isSlideNear(index, currentVisibleIndex, activeRadius, item.id === pipOwnerId)}
+                                        onBufferAhead={handleBufferAhead}
                                         screenFocused={isFocused}
                                         theme={theme}
                                         onLike={handleLike}
