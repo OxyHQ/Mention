@@ -267,6 +267,14 @@ class FeedCardModelTest {
     }
 
     @Test
+    fun `following can retain its hydrated post through the store`() {
+        val original = parseFeedResponse(body(LINK_POST), retainHydrated = true).single()
+
+        assertNotNull(original.hydratedJson)
+        assertEquals(original, decodePosts(encodePosts(listOf(original))).single())
+    }
+
+    @Test
     fun `absent fields round trip as null rather than as empty strings`() {
         val post = WidgetPost(
             id = "1",

@@ -111,7 +111,12 @@ class FeedHandoffTest {
         val handedOver = parseHandoffPosts(HANDOFF_POST)
 
         assertEquals(1, fetched.size)
-        assertEquals(fetched, handedOver)
+        // Hydrated JSON is navigation cache, not card presentation. Each ingress
+        // preserves its own original wire object, while every drawn field must match.
+        assertEquals(
+            fetched.map { it.copy(hydratedJson = null) },
+            handedOver.map { it.copy(hydratedJson = null) },
+        )
     }
 
     @Test

@@ -14,7 +14,7 @@ import java.net.URL
 import java.util.concurrent.TimeUnit
 
 /**
- * The following widget's feed call: `GET /feed/mtn?descriptor=following`, WITH A BEARER.
+ * The following widget's feed call: `GET /feed/mtn?descriptor=following_direct`, WITH A BEARER.
  *
  * ## The two origins, which are not the same origin
  *
@@ -52,7 +52,7 @@ internal object FollowingApi {
     suspend fun fetch(context: Context, accessToken: String): List<WidgetPost> =
         withContext(Dispatchers.IO) {
             val base = context.getString(R.string.mention_widget_api_base_url).trimEnd('/')
-            val url = URL("$base/feed/mtn?descriptor=following&limit=$FEED_PAGE_LENGTH")
+            val url = URL("$base/feed/mtn?descriptor=following_direct&limit=$FEED_PAGE_LENGTH")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = CONNECT_TIMEOUT_MS
@@ -68,9 +68,12 @@ internal object FollowingApi {
                     // the same reasoning the SDK applies to an unrecognised 401 — so it is
                     // raised as a retryable failure and the widget keeps its content. Only
                     // the MINT can conclude that a credential is finished.
-                    throw IOException("GET /feed/mtn?descriptor=following responded $status")
+                    throw IOException("GET /feed/mtn?descriptor=following_direct responded $status")
                 }
-                parseFeedResponse(connection.inputStream.bufferedReader().use { it.readText() })
+                parseFeedResponse(
+                    connection.inputStream.bufferedReader().use { it.readText() },
+                    retainHydrated = true,
+                )
             } finally {
                 connection.disconnect()
             }

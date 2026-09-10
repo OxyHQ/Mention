@@ -933,7 +933,7 @@ class FeedService {
         cursor: options?.cursor,
         viewerId: viewerIdAfter,
         fetchFollowingPage: () =>
-          this.getMtnFeed('following', { limit: MAX_WIDGET_HANDOFF_POSTS }),
+          this.getMtnFeed('following_direct', { limit: MAX_WIDGET_HANDOFF_POSTS }),
       });
 
       return feed;

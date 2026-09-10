@@ -31,6 +31,16 @@ describe('resolveDefinition', () => {
     expect(def!.filters.some((f) => f.module === 'safety' && f.enabled)).toBe(true);
   });
 
+  it('following_direct → chronological source that excludes subscribed-list-only authors', async () => {
+    const def = await resolveDefinition('following_direct');
+    expect(def!.mode).toBe('chronological');
+    expect(def!.sources[0]).toMatchObject({
+      module: 'following',
+      params: { timeline: true, directOnly: true },
+    });
+    expect(def!.filters.some((f) => f.module === 'safety' && f.enabled)).toBe(true);
+  });
+
   it('author|123|media → authored media source + mediaOnly filter (no safety)', async () => {
     const def = await resolveDefinition('author|123|media' as FeedDescriptor);
     expect(def!.mode).toBe('chronological');

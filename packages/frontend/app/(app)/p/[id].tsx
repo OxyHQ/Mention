@@ -39,6 +39,7 @@ import { socketService } from '@/services/socketService';
 import { SEO } from '@/components/SEO';
 import { postAcceptsReplies } from '@/utils/postReplies';
 import { createLogger } from '@oxy.so/core/logger';
+import { getFollowingCachedPost } from '@/modules/mention-widgets';
 
 type PostDetailEntity = HydratedPost | Reply | Boost;
 
@@ -321,10 +322,33 @@ const PostDetailScreen: React.FC = () => {
                 return;
             }
 
-            // Cache miss — blocking fetch, then load the continuation spine + the
-            // ancestor chain (both gated on what the fetched post actually is).
+            // Cache miss — first consult the Android widget's account-scoped,
+            // persistent copy. A cold app launched from a card has no JS/SQLite
+            // feed cache yet, but the widget necessarily has this exact hydrated
+            // post already; painting it before revalidation avoids a redundant
+            // blocking round trip on the tap path.
             try {
                 setLoading(true);
+                const widgetJson = await getFollowingCachedPost(postId);
+                if (cancelled) return;
+                if (widgetJson) {
+                    try {
+                        const widgetPost = JSON.parse(widgetJson) as HydratedPost;
+                        if (String(widgetPost.id) === postId) {
+                            usePostsStore.getState().cachePosts([widgetPost]);
+                            setFetchedPost(widgetPost);
+                            setLoading(false);
+                            loadContinuations(widgetPost);
+                            loadAncestors(widgetPost.parentPostId);
+                            void revalidatePostById(postId);
+                            return;
+                        }
+                    } catch (error) {
+                        postDetailLogger.debug('Ignoring unreadable widget post cache', { error });
+                    }
+                }
+
+                // True cache miss: perform the normal blocking fetch.
                 const response = await getPostById(postId);
                 if (cancelled) return;
                 setFetchedPost(response);

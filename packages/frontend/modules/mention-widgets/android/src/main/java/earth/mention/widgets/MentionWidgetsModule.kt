@@ -130,6 +130,20 @@ class MentionWidgetsModule : Module() {
         }
 
         /**
+         * Give the app the exact hydrated DTO it already downloaded for a widget card.
+         * The account-qualified read is essential: a previous account's cache is never
+         * returned across the bridge, just as it is never rendered on the home screen.
+         */
+        AsyncFunction("getFollowingCachedPost") Coroutine { postId: String ->
+            val accountId = OxyBackgroundSession.activeAccountId(context)
+                ?: return@Coroutine null
+            FollowingStore.read(context, accountId)
+                .posts
+                .firstOrNull { it.id == postId }
+                ?.hydratedJson
+        }
+
+        /**
          * Hand the following widget the timeline the app just downloaded, as [accountId].
          *
          * [accountId] is a CLAIM about which account the page was fetched as, and its only

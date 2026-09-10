@@ -8,6 +8,7 @@ import {
 describe("feed descriptors", () => {
   test("accepts simple and fully-qualified descriptors", () => {
     expect(isValidFeedDescriptor("following")).toBe(true);
+    expect(isValidFeedDescriptor("following_direct")).toBe(true);
     expect(isValidFeedDescriptor("author|user-1")).toBe(true);
     expect(isValidFeedDescriptor("author|user-1|replies")).toBe(true);
     // Every profile tab must resolve to an author descriptor, and `videos` is a

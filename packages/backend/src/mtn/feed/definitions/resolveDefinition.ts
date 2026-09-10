@@ -18,6 +18,7 @@ import { loadCustomFeedDefinition } from './customFeedDefinition';
 import {
   forYouDefinition,
   followingDefinition,
+  directFollowingDefinition,
   exploreDefinition,
   videosDefinition,
   mediaDefinition,
@@ -50,6 +51,8 @@ export async function resolveDefinition(
       return forYouDefinition;
     case 'following':
       return followingDefinition;
+    case 'following_direct':
+      return directFollowingDefinition;
     case 'explore':
       return exploreDefinition;
     case 'videos':
