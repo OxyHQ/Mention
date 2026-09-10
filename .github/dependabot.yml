@@ -16,10 +16,8 @@
 # as-opened, because it has no lockfile to keep in step.
 #
 # Deliberately conservative:
-#   * The carefully pinned ecosystem packages (@oxyhq/*, expo*, react / react
-#     -native, and the metro/expo toolchain) are MANUALLY managed — their
-#     versions are coordinated across the whole Oxy ecosystem, so Dependabot is
-#     told to ignore them rather than fight the pins.
+#   * Oxy packages are proposed together as one reviewable update.
+#   * Expo, React and the native toolchain remain manually coordinated.
 #   * Everything else is grouped to keep PR volume low.
 version: 2
 
@@ -49,6 +47,9 @@ updates:
     # Group low-risk updates so we get a small number of consolidated PRs
     # instead of one PR per package.
     groups:
+      oxy-platform:
+        patterns:
+          - "@oxy.so/*"
       minor-and-patch:
         applies-to: version-updates
         update-types:
@@ -60,12 +61,8 @@ updates:
         update-types:
           - "minor"
           - "patch"
-    # MANUALLY managed — do NOT let Dependabot touch the pinned ecosystem.
-    # These versions are coordinated across all Oxy apps (Mention, Allo,
-    # Homiio, accounts, console, inbox, …) and bumped by hand.
+    # MANUALLY managed — do NOT let Dependabot touch the pinned toolchains.
     ignore:
-      # Oxy platform SDK — pinned + aligned across the monorepo.
-      - dependency-name: "@oxyhq/*"
       # Expo SDK + toolchain — locked to the Expo SDK 56 release train.
       - dependency-name: "expo"
       - dependency-name: "expo-*"

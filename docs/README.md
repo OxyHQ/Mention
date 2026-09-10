@@ -15,6 +15,7 @@ Current reference documentation:
 - [React Compiler and web virtualization](./frontend-compiler-notes.md)
 - [Moderation (CrowdSource) design detail](./moderation-crowdsource.md)
 - [Development](./development.md)
+- [Dependency updates](./dependencies.md)
 - [User mentions](./mentions.md)
 - [Compose intent URLs](./compose-intent.mdx)
 - [Theming](./THEMING.md)

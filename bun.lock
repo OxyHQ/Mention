@@ -5,6 +5,7 @@
     "": {
       "name": "mention",
       "devDependencies": {
+        "@oxy.so/doctor": "1.0.0",
         "@types/node": "catalog:",
         "semver": "^7.8.5",
         "typescript": "catalog:",
@@ -883,6 +884,8 @@
     "@oxy.so/crowdsource-testing": ["@oxy.so/crowdsource-testing@1.0.0", "", { "peerDependencies": { "@oxy.so/crowdsource-contracts": "^1.0.0" } }, "sha512-IzSNCAgn9ug7x0/v/2aBU1IGCmprp3mt5rGXP/J1H7apq5VM194GC7WwAaUzN2lCiKm0j5U795DnV2iggVPkAg=="],
 
     "@oxy.so/db": ["@oxy.so/db@1.0.0", "", { "peerDependencies": { "drizzle-orm": "^0.45.2", "postgres": "^3.4.9" } }, "sha512-5tnH+84QR7cnTRYF7FWIN1rGF7YoE0M+sfUBC2Bdclzp1Hfb7+Msr7cEvFklluZxXMP2Mv8HzPB6/gz3Kndk4Q=="],
+
+    "@oxy.so/doctor": ["@oxy.so/doctor@1.0.0", "", { "bin": { "oxy-doctor": "src/cli.mjs" } }, "sha512-Cv+CbLGkx+CTJmRkPBAfLXkHnv+afw2r9H2j6IxvORq2M8gJsnI8X9k4NpjEpK6lthjf2UYAOJPFWKOxL8SWcw=="],
 
     "@oxy.so/federation": ["@oxy.so/federation@1.0.0", "", { "dependencies": { "@oxy.so/contracts": "^1.0.0", "@oxy.so/core": "^1.0.0" }, "peerDependencies": { "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["express"] }, "sha512-BmENHxMVwKv9elTcBvofrcm08W3zlt2Nzr8ZqfnE5lwRFWwh2BvFq8XfQdOA3IpxlTKaKjiPbt2NMqe231VkMg=="],
 

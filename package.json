@@ -34,6 +34,7 @@
     "build:backend": "bun run build:shared-types && bun run --cwd packages/backend build",
     "audit:security": "bun ./scripts/audit-security.mjs",
     "doctor": "bun ./scripts/doctor.mjs",
+    "doctor:oxy": "oxy-doctor --ci",
     "check": "bun run check:workspace && bun run build && bun run check:types",
     "check:workspace": "bun run --parallel doctor validate:workflows validate:lockfile validate:i18n validate:logger validate:suite-collection validate:no-mongo validate:id-shape validate:license validate:architecture-boundaries validate:inference-boundary audit:security",
     "check:types": "bun run --parallel typecheck:frontend lint:shared-types lint:backend lint:mcp lint:e2e && bun run lint:frontend",
@@ -74,6 +75,7 @@
     "postinstall": "bun run build:shared-types"
   },
   "devDependencies": {
+    "@oxy.so/doctor": "1.0.0",
     "@types/node": "catalog:",
     "semver": "^7.8.5",
     "typescript": "catalog:",
