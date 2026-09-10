@@ -1,4 +1,0 @@
-# The Pages preview needs this file for client-side route fallback. The Worker
-# has the same behavior natively through assets.not_found_handling and must not
-# parse the Pages rewrite as a redirect.
-_redirects
