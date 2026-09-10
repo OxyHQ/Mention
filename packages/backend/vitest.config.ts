@@ -341,32 +341,41 @@ export default defineConfig({
         find: /^@mention\/shared-types$/,
         replacement: path.resolve(__dirname, '../shared-types/src'),
       },
-      // The backend production build is CommonJS. Resolve the Oxy dual packages
-      // to their CJS entrypoints in tests as well; Bun's Vitest runner otherwise
-      // selects the ESM build and mis-interops its nested Zod 3 named export.
+      // Core's TypeScript entrypoint stays in Vitest's module graph so its
+      // node:dns/promises dependency can be replaced by the SSRF test mock.
       {
-        find: /^@oxyhq\/protocol\/node$/,
+        find: /^@oxy\.so\/core\/server$/,
+        replacement: path.resolve(
+          __dirname,
+          '../../node_modules/@oxy.so/core/src/server/index.ts',
+        ),
+      },
+      // The backend production build is CommonJS. Resolve the remaining Oxy
+      // dual packages to their CJS entrypoints in tests as well; Bun's Vitest
+      // runner otherwise selects ESM and mis-interops a nested Zod 3 export.
+      {
+        find: /^@oxy\.so\/protocol\/node$/,
         replacement: path.resolve(
           __dirname,
           '../../node_modules/@oxy.so/protocol/dist/cjs/node/index.js',
         ),
       },
       {
-        find: /^@oxyhq\/protocol\/secp256k1$/,
+        find: /^@oxy\.so\/protocol\/secp256k1$/,
         replacement: path.resolve(
           __dirname,
           '../../node_modules/@oxy.so/protocol/dist/cjs/secp256k1.js',
         ),
       },
       {
-        find: /^@oxyhq\/protocol$/,
+        find: /^@oxy\.so\/protocol$/,
         replacement: path.resolve(
           __dirname,
           '../../node_modules/@oxy.so/protocol/dist/cjs/index.js',
         ),
       },
       {
-        find: /^@oxyhq\/contracts$/,
+        find: /^@oxy\.so\/contracts$/,
         replacement: path.resolve(
           __dirname,
           '../../node_modules/@oxy.so/contracts/dist/cjs/index.js',

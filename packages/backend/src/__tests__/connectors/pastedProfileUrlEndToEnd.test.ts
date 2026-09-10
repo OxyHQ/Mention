@@ -161,15 +161,11 @@ beforeEach(() => {
   mocks.makeServiceRequest.mockResolvedValue({ _id: 'oxy-elon' });
   mocks.signedFetch.mockImplementation(async (url: string) =>
     url === ACTOR_URI
-      ? {
-          ok: true,
+      ? new Response(JSON.stringify(LIVE_ACTOR), {
           status: 200,
-          headers: new Headers({ 'content-type': 'application/activity+json' }),
-          url,
-          json: async () => LIVE_ACTOR,
-          text: async () => JSON.stringify(LIVE_ACTOR),
-        }
-      : { ok: false, status: 404, headers: new Headers(), url, text: async () => '' });
+          headers: { 'content-type': 'application/activity+json' },
+        })
+      : new Response('', { status: 404 }));
 });
 
 describe('pasting https://x.com/elonmusk', () => {
