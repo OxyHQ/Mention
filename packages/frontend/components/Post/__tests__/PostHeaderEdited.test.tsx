@@ -6,15 +6,15 @@ import PostHeader from '../PostHeader';
 /**
  * The edited marker in the identity line.
  *
- * It is a pencil and NOTHING else: the edit history is not public, so the marker
- * has nothing to open and tapping it only says what the pencil means. Three
+ * It is a marker and NOTHING else: the edit history is not public, so the marker
+ * has nothing to open and tapping it only says what the marker means. Three
  * things can break, and none of them throws:
  *
- *  1. The pencil appears on a post that was never edited. A marker that is
+ *  1. The marker appears on a post that was never edited. A marker that is
  *     always there says nothing, and reads as "every post on Mention was
  *     edited" — so the ABSENT case is what makes the present case mean anything.
- *     Without it a component that renders the pencil unconditionally passes.
- *  2. The pencil never appears at all. Silent: the row still renders.
+ *     Without it a component that renders the marker unconditionally passes.
+ *  2. The marker never appears at all. Silent: the row still renders.
  *  3. The tap says the wrong thing, or says the raw key. The `t` mock below
  *     resolves against the REAL `en.json` and deliberately ignores
  *     `defaultValue`, so a key deleted from the catalog renders `post.editedToast`
@@ -26,9 +26,10 @@ const mockToast = jest.fn();
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
 
 // Host element names rather than components, so the props the header computed
-// survive into the rendered tree verbatim — the pencil is found by the `name`
-// the header passed, not by a re-encoding of it.
+// survive into the rendered tree verbatim — the marker is found as the host
+// element the header rendered, not by a re-encoding of it.
 jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
+jest.mock('@/assets/icons/draw-icon', () => ({ DrawIcon: 'DrawIcon' }));
 jest.mock('@/components/ui/LiveAvatar', () => ({ LiveAvatar: 'LiveAvatar' }));
 jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
 jest.mock('../../UserName', () => ({ __esModule: true, default: 'UserName' }));
@@ -77,17 +78,15 @@ function render(props: Partial<HeaderProps> = {}): TestRenderer.ReactTestRendere
   return renderer;
 }
 
-/** The pencil itself, found by the icon name the header passed. */
-function pencils(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
-  return renderer.root.findAll(
-    (node) => String(node.type) === 'Ionicons' && node.props?.name === 'pencil',
-  );
+/** The marker glyph itself, found as the icon the header rendered. */
+function markers(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
+  return renderer.root.findAll((node) => String(node.type) === 'DrawIcon');
 }
 
 /**
- * The pressable wrapping the pencil — the thing a reader actually taps.
+ * The pressable wrapping the marker — the thing a reader actually taps.
  *
- * Walked UP from the pencil rather than read off `pencil.parent`, because those
+ * Walked UP from the marker rather than read off `marker.parent`, because those
  * are two different nodes and only one of them can be pressed. `TouchableOpacity`
  * renders a host `View` and hands Pressability's responder handlers
  * (`onStartShouldSetResponder`, `onResponderRelease`, …) to it, together with the
@@ -102,12 +101,12 @@ function pencils(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] 
  * stopped wiring `onPress` and settle on some unrelated outer pressable — the
  * press test would go green while measuring a different button. Failing loudly
  * here is the point; there is no node this helper may return that does not press
- * the pencil.
+ * the marker.
  */
 function editedButton(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance {
-  let node: ReactTestInstance | null = pencils(renderer)[0] ?? null;
+  let node: ReactTestInstance | null = markers(renderer)[0] ?? null;
   if (node === null) {
-    throw new Error('editedButton: no pencil rendered, so there is nothing to press.');
+    throw new Error('editedButton: no marker rendered, so there is nothing to press.');
   }
   while (node !== null) {
     const onPress: unknown = node.props?.onPress;
@@ -115,7 +114,7 @@ function editedButton(renderer: TestRenderer.ReactTestRenderer): ReactTestInstan
       const role: unknown = node.props?.accessibilityRole;
       if (role !== 'button') {
         throw new Error(
-          `editedButton: the nearest pressable ancestor of the pencil has accessibilityRole ` +
+          `editedButton: the nearest pressable ancestor of the marker has accessibilityRole ` +
             `${JSON.stringify(role)}, not "button" — the walk drifted off the edited marker ` +
             `onto another pressable, so pressing it would prove nothing about the marker.`,
         );
@@ -125,8 +124,8 @@ function editedButton(renderer: TestRenderer.ReactTestRenderer): ReactTestInstan
     node = node.parent;
   }
   throw new Error(
-    'editedButton: no ancestor of the pencil carries a callable `onPress` — the edited marker ' +
-      'is not pressable, so nothing tells a reader what the pencil means.',
+    'editedButton: no ancestor of the marker carries a callable `onPress` — the edited marker ' +
+      'is not pressable, so nothing tells a reader what the marker means.',
   );
 }
 
@@ -138,20 +137,22 @@ describe('PostHeader edited marker', () => {
   it('renders NOTHING when the post carries no `isEdited` at all', () => {
     // The positive control. A post whose DTO predates the flag, or which the
     // server simply did not mark, must look exactly like it always has.
-    expect(pencils(render())).toHaveLength(0);
+    expect(markers(render())).toHaveLength(0);
   });
 
   it('renders nothing when the post was explicitly NOT edited', () => {
-    expect(pencils(render({ isEdited: false }))).toHaveLength(0);
+    expect(markers(render({ isEdited: false }))).toHaveLength(0);
   });
 
-  it('renders one pencil when the post WAS edited', () => {
+  it('renders one marker when the post WAS edited', () => {
     const renderer = render({ isEdited: true });
-    const found = pencils(renderer);
+    const found = markers(renderer);
     expect(found).toHaveLength(1);
-    // 12px, matching the `chatbubble` indicator that shares this row — a
-    // marker sized like an action-bar glyph would read as one.
-    expect(found[0].props.size).toBe(12);
+    // 14px, matching `BoostIcon`, the other SVG indicator in this row — not the
+    // 12 the icon-FONT indicators use. A Material path is drawn inside padding
+    // within its box, so the same nominal size renders smaller than a font
+    // glyph; sizing it like the font ones would make it the odd one out.
+    expect(found[0].props.size).toBe(14);
   });
 
   it('labels the marker from the catalog, not from a raw key', () => {
