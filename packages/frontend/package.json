@@ -140,7 +140,7 @@
     "nativewind": "5.0.0-preview.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "react-i18next": "^17.0.9",
+    "react-i18next": "^17.0.13",
     "react-native": "0.86.3",
     "react-native-compressor": "^2.0.3",
     "react-native-css": "^3.0.7",
