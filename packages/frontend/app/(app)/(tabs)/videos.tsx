@@ -436,7 +436,6 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
         panResponder,
         isScrubbing,
         progress,
-        hasError,
     } = useReelChrome({
         player,
         restartOnActivate,
@@ -587,12 +586,6 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
                     </View>
                 </View>
             )}
-
-            {hasError && (
-                <View style={styles.errorBadge} pointerEvents="none">
-                    <Text className="text-xs text-white">{t('videos.unavailable')}</Text>
-                </View>
-            )}
         </>
     );
 };
@@ -709,18 +702,16 @@ const VideoItem = memo<VideoItemProps>(({
         setPosterFailed(false);
     }
     // A load that failed once must not condemn the slide for the whole session.
-    // `videoError` unmounts the surface and paints "Video unavailable", and
-    // nothing ever cleared it — while the row stays mounted three slides behind
-    // the active one, so scrolling up and back down showed the same dead badge
-    // over a video that may well play now. The failures are rarely about the
-    // asset: a proxy that briefly 404'd, a decoder that was busy, a phone that
-    // lost its network for a second.
+    // `videoError` unmounts the surface and paints "Video unavailable", the row
+    // stays mounted three slides behind the active one, and nothing cleared it —
+    // so scrolling up and back down showed the same dead badge over a video that
+    // may well play now. Arriving on the slide again is the retry: it remounts
+    // the surface with a new player that loads from scratch.
     //
-    // Arriving on the slide again is the retry signal, and the honest one: it is
-    // a fresh intent to watch, it remounts the surface with a new player that
-    // loads from scratch, and it is bounded by the viewer's own scrolling — a
-    // genuinely dead video fails again at once and says so again. Adjusted
+    // On the activation EDGE, not on every render while active: the error
+    // handler would otherwise re-raise it and the two would fight. Adjusted
     // during render via a previous-value tracker, like the poster reset above.
+    // The fuller story is in `__tests__/reelErrorIsNotPermanent.test.ts`.
     const [prevIsActive, setPrevIsActive] = useState(isActive);
     if (prevIsActive !== isActive) {
         setPrevIsActive(isActive);
@@ -2076,7 +2067,6 @@ interface VideosStyles {
     scrubberTrack: ViewStyle;
     scrubberTrackActive: ViewStyle;
     scrubberFill: ViewStyle;
-    errorBadge: ViewStyle;
     overlay: ViewStyle;
     gradientOverlay: ViewStyle;
     rightActions: ViewStyle;
@@ -2217,16 +2207,6 @@ const styles = StyleSheet.create<VideosStyles>({
     scrubberFill: {
         height: '100%',
         backgroundColor: '#FFFFFF',
-    },
-    errorBadge: {
-        position: 'absolute',
-        top: 60,
-        alignSelf: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 16,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
-        zIndex: 11,
     },
     overlay: {
         position: 'absolute',

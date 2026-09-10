@@ -138,20 +138,13 @@ export function isMediaCacheEnabled(): boolean {
  * it ever reached the asset, on every call, and the cache front silently fell
  * back to streaming from the remote host.
  *
- * That is not a hypothesis. Six hours of production `/media/proxy` requests,
- * grouped by status and Oxy-call tally:
- *
- *   200  oxyCallCount 1  failedOxyCallCount 1   439
- *   404  oxyCallCount 1  failedOxyCallCount 1    37
- *   304  oxyCallCount 1  failedOxyCallCount 1     5
- *   206  oxyCallCount 0  failedOxyCallCount 0    66   (ranged; skips the front)
- *
- * 481 of 481 resolutions failed, in ~4ms each — the shape of an auth rejection,
- * not of a lookup. So the read half of the federated media cache has been
- * completely inert: we mirror the bytes into Oxy and then serve every federated
- * image and video by streaming it from the third-party host through our own
- * origin, and when that host is gone the viewer is told the media is
- * unavailable for something we hold a copy of.
+ * That is not a hypothesis: six hours of production `/media/proxy` traffic
+ * counted 481 cache fronts and 481 failed Oxy calls, ~4ms apiece — the shape of
+ * an auth rejection, not of a lookup (the per-status breakdown is on #955). So
+ * the read half of this cache has been completely inert: we mirror the bytes
+ * into Oxy and then serve every federated image and video by streaming it from
+ * the third-party host through our own origin, and when that host is gone the
+ * viewer is told the media is unavailable for something we hold.
  *
  * The variant belongs in the builder, not appended afterwards: `cloud.oxy.so`
  * honours `?variant=` on the BY-ID form (its resolver reads it and redirects to

@@ -12,10 +12,10 @@
  * The IO layer (fetching the shell, the Oxy profile, and the hydrated post) lives
  * in `routes/webShell.routes.ts`, which is the only caller of these functions.
  */
-import { OxyServices, getNormalizedUserHandle } from '@oxy.so/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { AccountKind } from '@oxy.so/core';
-import { MEDIA_VARIANT_THUMB } from '@mention/shared-types';
 import type { HydratedPost } from '@mention/shared-types';
+import { resolveMediaRef } from '../utils/mediaResolver';
 import { config } from '../config';
 
 /** Normalized OG payload injected into a shell for one profile / post URL. */
@@ -38,52 +38,22 @@ export interface OgData {
 /** Canonical web origin used for `og:url` (the apex the SPA is served from). */
 const WEB_ORIGIN = config.web.origin;
 
-/** Oxy API origin — bare-file-id avatars resolve to their public CDN URL through the SDK. */
-const OXY_API_URL = config.oxyApiUrl;
-
-/**
- * A bare, unauthenticated OxyServices instance used ONLY as the canonical
- * `getFileDownloadUrl` chokepoint for building public CDN URLs from bare Oxy
- * file ids (never hardcode `cloud.oxy.so`). It is intentionally separate from the
- * service client in `utils/oxyHelpers` — that module transitively imports the
- * server entrypoint, which would defeat this module's isolation. URL building
- * needs no auth, so a plain client is both correct and test-safe.
- */
-const cdnUrlClient = new OxyServices({ baseURL: OXY_API_URL });
-
-/** Oxy's own CDN image variant for a card-sized render of a bare file id. */
-const OXY_CDN_THUMB_VARIANT = 'thumb';
-
 /**
  * The `og:image` for an avatar, always on one of OUR origins.
  *
  * A federated avatar arrives as an absolute URL on the remote instance's own
  * media host, and emitting it verbatim made every card renderer — crawlers,
  * Slack, WhatsApp, the browser's own preview — fetch the image straight from
- * that third party. Nothing outside Oxy is ever asked for bytes on our behalf:
- * a remote reference goes through `/media/proxy`, which serves it from the
- * mirrored copy (or streams it once and mirrors it), and a bare Oxy file id goes
- * to the Oxy CDN. `thumb` in both branches, unchanged: an OG card renders small.
- *
- * The two branches name their size differently, and both names are right. Oxy's
- * CDN takes its own image variants (`thumb`), which is what a bare file id has
- * always been served at here. `/media/proxy` forwards only the three variants in
- * its allow-list (`w320`/`w2048`/`w96`) and silently drops anything else, so the
- * proxied branch must ask in that vocabulary or get the full-size original.
- *
- * The proxy URL is built here rather than through `utils/mediaResolver` on
- * purpose. That module reaches `oxyHelpers`, which transitively imports the
- * server entrypoint — the isolation this module keeps, and the reason
- * {@link cdnUrlClient} exists at all. Both read `config.publicApiUrl`, so the
- * origin still has a single source of truth.
+ * that third party. `resolveMediaRef` is the codebase's single answer to that
+ * question: a remote reference comes back proxied, a bare Oxy file id comes back
+ * on the Oxy CDN, both at card size.
  */
 function ogImageForAvatar(avatar: unknown): string | undefined {
   if (typeof avatar !== 'string' || avatar.length === 0) return undefined;
-  if (!/^https?:\/\//i.test(avatar)) {
-    return cdnUrlClient.getFileDownloadUrl(avatar, OXY_CDN_THUMB_VARIANT);
-  }
-  const proxy = `${config.publicApiUrl}/media/proxy?url=${encodeURIComponent(avatar)}`;
-  return `${proxy}&variant=${encodeURIComponent(MEDIA_VARIANT_THUMB)}`;
+  const resolved = resolveMediaRef(avatar);
+  // `thumbUrl` is absent only for a URL already on one of our origins, which is
+  // servable as it stands.
+  return resolved.thumbUrl ?? resolved.url;
 }
 
 /** Shape of the Oxy `/profiles/username/<handle>` payload we read for OG. */
