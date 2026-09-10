@@ -53,7 +53,7 @@ function post(overrides: Partial<HydratedPost> = {}): HydratedPost {
 /** A first page of `count` posts, signed in as [ACCOUNT] — the shape that qualifies. */
 function decision(overrides: Partial<Parameters<typeof feedWidgetHandoffFor>[0]> = {}) {
   return {
-    descriptor: 'following' as const,
+    descriptor: 'following_direct' as const,
     cursor: undefined,
     viewerIdBefore: ACCOUNT,
     viewerIdAfter: ACCOUNT,
@@ -88,7 +88,7 @@ function loadSync(): typeof import('../feedWidgetSync') {
 }
 
 describe('feedWidgetHandoffFor', () => {
-  it('hands a following first page to the following widget, naming the account', () => {
+  it('hands a direct-following first page to the following widget, naming the account', () => {
     expect(feedWidgetHandoffFor(decision())).toEqual({
       widget: 'following',
       accountId: ACCOUNT,
@@ -153,7 +153,7 @@ describe('feedWidgetHandoffFor', () => {
    * showing another is worse than a card that is stale.
    */
   it('refuses every other descriptor, for_you included', () => {
-    (['for_you', 'saved', 'videos', 'author|abc|posts'] as const).forEach((descriptor) => {
+    (['following', 'for_you', 'saved', 'videos', 'author|abc|posts'] as const).forEach((descriptor) => {
       expect(feedWidgetHandoffFor(decision({ descriptor }))).toBeNull();
     });
   });
@@ -200,6 +200,7 @@ describe('toWidgetFeedPosts', () => {
         name: 'The Verge',
         username: 'verge@mastodon.social',
         avatar: '6a30d42d0ef11d23d365ad09',
+        hydrated: '',
       },
     ]);
   });
@@ -223,6 +224,7 @@ describe('toWidgetFeedPosts', () => {
       name: '',
       username: '',
       avatar: '',
+      hydrated: '',
     });
     Object.values(projected).forEach((value) => expect(typeof value).toBe('string'));
   });
@@ -262,6 +264,13 @@ describe('toWidgetFeedPosts', () => {
     expect(projected).toHaveLength(MAX_WIDGET_HANDOFF_POSTS);
     expect(projected.at(-1)?.id).toBe(`post_${MAX_WIDGET_HANDOFF_POSTS - 1}`);
   });
+
+  it('retains the hydrated DTO only when preparing the private Following cache', () => {
+    const source = post({ id: 'cached_post' });
+
+    expect(toWidgetFeedPosts([source])[0].hydrated).toBe('');
+    expect(JSON.parse(toWidgetFeedPosts([source], true)[0].hydrated)).toEqual(source);
+  });
 });
 
 describe('syncFeedWidget', () => {
@@ -272,7 +281,7 @@ describe('syncFeedWidget', () => {
     expect(mockPublishFollowing).toHaveBeenCalledTimes(1);
     const [accountId, body] = mockPublishFollowing.mock.calls[0];
     expect(accountId).toBe(ACCOUNT);
-    expect(JSON.parse(body)).toEqual(toWidgetFeedPosts([post({ id: 'post_three' })]));
+    expect(JSON.parse(body)).toEqual(toWidgetFeedPosts([post({ id: 'post_three' })], true));
   });
 
   it('sends an explore page to the trending widget alone', () => {
@@ -342,8 +351,8 @@ describe('shouldOfferFollowingPrefetch', () => {
    * `following` load, and it cannot authorise another — by construction, not by relying
    * on the store having been written in between.
    */
-  it('does not offer on a following load, which is what bounds the recursion', () => {
-    expect(offer({ descriptor: 'following' })).toBe(false);
+  it('does not offer on a direct-following load, which is what bounds the recursion', () => {
+    expect(offer({ descriptor: 'following_direct' })).toBe(false);
   });
 
   it('does not offer past the first page', () => {

@@ -63,6 +63,8 @@ internal data class WidgetPost(
      * Resolved to a URL by `oxyFileUrl`.
      */
     val authorAvatar: String?,
+    /** Original hydrated DTO used to seed the app when this card is opened. */
+    val hydratedJson: String? = null,
 )
 
 /**
@@ -117,6 +119,7 @@ private const val FIELD_NAME = "name"
 private const val FIELD_DISPLAY_NAME = "displayName"
 private const val FIELD_USERNAME = "username"
 private const val FIELD_AVATAR = "avatar"
+private const val FIELD_HYDRATED = "hydrated"
 
 /**
  * Read `GET /feed/mtn?descriptor=explore`.
@@ -137,12 +140,16 @@ private const val FIELD_AVATAR = "avatar"
  * Throws [org.json.JSONException] when the body is not the documented shape; the
  * caller answers for that by keeping whatever it already had.
  */
-internal fun parseFeedResponse(body: String, limit: Int = ROTATION_LENGTH): List<WidgetPost> {
+internal fun parseFeedResponse(
+    body: String,
+    limit: Int = ROTATION_LENGTH,
+    retainHydrated: Boolean = false,
+): List<WidgetPost> {
     val items = JSONObject(body).getJSONObject(FIELD_DATA).getJSONArray(FIELD_ITEMS)
     val parsed = buildList(items.length()) {
         for (index in 0 until items.length()) {
             val post = items.optJSONObject(index) ?: continue
-            add(readPost(post) ?: continue)
+            add(readPost(post, retainHydrated) ?: continue)
         }
     }
     return preferPostsWithPictures(parsed, limit)
@@ -152,9 +159,9 @@ internal fun parseFeedResponse(body: String, limit: Int = ROTATION_LENGTH): List
  * Read the page the RUNNING APP handed over — `MentionWidgets.publish*Feed` in JS.
  *
  * The same posts as [parseFeedResponse], through a different door and in a flatter shape:
- * JS projects each post down to the ten strings the card rules consume and sends those, so
- * the bridge carries a few hundred bytes per post instead of the whole hydrated DTO (about
- * 5KB each). The field NAMES are deliberately the ones this file already uses, so there is
+ * JS sends the card fields plus, only for the private Following rotation, the hydrated DTO
+ * that makes a card tap instant. Explore leaves that field empty. The field NAMES are
+ * deliberately the ones this file already uses, so there is
  * one vocabulary for the wire shape, the handoff shape and the store shape rather than
  * three.
  *
@@ -183,6 +190,7 @@ internal fun parseHandoffPosts(body: String, limit: Int = ROTATION_LENGTH): List
                     authorName = item.optString(FIELD_NAME),
                     authorHandle = item.optString(FIELD_USERNAME),
                     authorAvatar = item.optString(FIELD_AVATAR),
+                    hydratedJson = item.optString(FIELD_HYDRATED).ifEmpty { null },
                 ) ?: continue,
             )
         }
@@ -219,7 +227,7 @@ internal fun preferPostsWithPictures(posts: List<WidgetPost>, limit: Int): List<
     return (withPicture + withoutPicture).take(limit)
 }
 
-private fun readPost(post: JSONObject): WidgetPost? {
+private fun readPost(post: JSONObject, retainHydrated: Boolean): WidgetPost? {
     val user = post.optJSONObject(FIELD_USER) ?: return null
     val firstPreview = post.optJSONArray(FIELD_LINK_PREVIEWS)?.optJSONObject(0)
     val firstMedia = post.optJSONObject(FIELD_ATTACHMENTS)?.optJSONArray(FIELD_MEDIA)?.optJSONObject(0)
@@ -235,6 +243,7 @@ private fun readPost(post: JSONObject): WidgetPost? {
         authorName = user.optJSONObject(FIELD_NAME)?.optString(FIELD_DISPLAY_NAME).orEmpty(),
         authorHandle = user.optString(FIELD_USERNAME),
         authorAvatar = user.optString(FIELD_AVATAR),
+        hydratedJson = if (retainHydrated) post.toString() else null,
     )
 }
 
@@ -268,6 +277,7 @@ internal fun buildWidgetPost(
     authorName: String,
     authorHandle: String,
     authorAvatar: String,
+    hydratedJson: String? = null,
 ): WidgetPost? {
     val postId = id.trim()
     if (postId.isEmpty()) return null
@@ -289,6 +299,7 @@ internal fun buildWidgetPost(
         // username arrives as `user@host` while the byline renders `@user@host`.
         authorHandle = authorHandle.trim().removePrefix("@"),
         authorAvatar = authorAvatar.trim().ifEmpty { null },
+        hydratedJson = hydratedJson,
     )
 }
 
@@ -346,8 +357,8 @@ internal fun chooseImageUrl(
  * Store shape for the rotation.
  *
  * Re-encoded rather than storing the response: this is what survives a process death
- * and a reboot, and the response is two orders of magnitude larger than the six fields
- * a card draws (146KB for 30 posts). Storing the DECIDED text and image also means the
+ * and a reboot. Only the five selected Following posts retain their hydrated DTO for
+ * navigation; Explore stores just the card fields. Storing the DECIDED text and image means the
  * two content rules above run once per fetch instead of on every redraw.
  */
 internal fun encodePosts(posts: List<WidgetPost>): String {
@@ -366,7 +377,8 @@ internal fun encodePosts(posts: List<WidgetPost>): String {
                 .put(FIELD_ALT, post.imageAlt.orEmpty())
                 .put(FIELD_NAME, post.authorName)
                 .put(FIELD_USERNAME, post.authorHandle)
-                .put(FIELD_AVATAR, post.authorAvatar.orEmpty()),
+                .put(FIELD_AVATAR, post.authorAvatar.orEmpty())
+                .put(FIELD_HYDRATED, post.hydratedJson.orEmpty()),
         )
     }
     return array.toString()
@@ -398,6 +410,7 @@ internal fun decodePosts(stored: String?): List<WidgetPost> {
                     authorName = authorName,
                     authorHandle = item.optString(FIELD_USERNAME),
                     authorAvatar = item.optString(FIELD_AVATAR).ifEmpty { null },
+                    hydratedJson = item.optString(FIELD_HYDRATED).ifEmpty { null },
                 ),
             )
         }
@@ -442,4 +455,3 @@ internal fun nextRotationIndex(index: Int, size: Int): Int {
     if (size <= 0) return 0
     return (normalizeRotationIndex(index, size) + 1) % size
 }
-

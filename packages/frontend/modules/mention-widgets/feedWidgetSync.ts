@@ -35,7 +35,9 @@ import {
  *
  * Not the hydrated posts — about 5KB each, most of it engagement counts, viewer
  * state and permissions no card reads. {@link toWidgetFeedPosts} projects each
- * one down to the ten strings the card's rules consume, and the native side runs
+ * one down to the strings the card's rules consume. For the private Following
+ * rotation it also carries the hydrated DTO so a card tap can seed post detail;
+ * Explore deliberately omits that viewer-scoped cache. The native side runs
  * those rules (`feedcard`'s `buildWidgetPost`) over them exactly as it does over
  * a page the worker fetched. So this module knows the WIRE FIELDS a post carries
  * and nothing at all about what a card decides to draw.
@@ -70,6 +72,8 @@ export interface WidgetFeedPost {
   name: string;
   username: string;
   avatar: string;
+  /** Full hydrated DTO, retained only for the five posts the widget selects. */
+  hydrated: string;
 }
 
 /**
@@ -109,7 +113,7 @@ export interface FeedWidgetHandoffDecision {
  * Five rules, in order:
  *
  *  1. **Nothing came back — do nothing.** This is a correctness rule and not
- *     merely an optimisation: `descriptor=following` answers an UNAUTHENTICATED
+ *     merely an optimisation: a following descriptor answers an UNAUTHENTICATED
  *     request with HTTP 200 and zero posts, so an empty page is exactly what a
  *     request whose bearer did not apply looks like. Refusing to hand over an
  *     empty page means that case can never reach a store.
@@ -121,7 +125,7 @@ export interface FeedWidgetHandoffDecision {
  *     something this client can assert. Dropped rather than guessed at.
  *  4. **`explore` feeds the trending-posts widget**, with no account: that
  *     rotation is anonymous, and the native side stamps it with nothing.
- *  5. **`following` feeds the following widget**, and only while signed in. The
+ *  5. **`following_direct` feeds the following widget**, and only while signed in. The
  *     account travels with it as a claim the native side checks against the
  *     device credential.
  *
@@ -141,7 +145,7 @@ export function feedWidgetHandoffFor({
   if (cursor) return null;
   if (viewerIdBefore !== viewerIdAfter) return null;
   if (descriptor === 'explore') return { widget: 'trending' };
-  if (descriptor === 'following' && viewerIdBefore) {
+  if (descriptor === 'following_direct' && viewerIdBefore) {
     return { widget: 'following', accountId: viewerIdBefore };
   }
   return null;
@@ -171,7 +175,10 @@ export const MAX_WIDGET_HANDOFF_POSTS = 30;
  * attributed to anyone), and inventing a fallback name here would be this module
  * overriding that rule from the wrong side of the bridge.
  */
-export function toWidgetFeedPosts(posts: readonly HydratedPost[]): WidgetFeedPost[] {
+export function toWidgetFeedPosts(
+  posts: readonly HydratedPost[],
+  includeHydrated = false,
+): WidgetFeedPost[] {
   return posts.slice(0, MAX_WIDGET_HANDOFF_POSTS).map((post) => {
     const media = post.attachments.media?.[0];
     const preview = post.linkPreviews?.[0];
@@ -186,6 +193,7 @@ export function toWidgetFeedPosts(posts: readonly HydratedPost[]): WidgetFeedPos
       name: post.user.name.displayName ?? '',
       username: post.user.username ?? '',
       avatar: post.user.avatar ?? '',
+      hydrated: includeHydrated ? JSON.stringify(post) : '',
     };
   });
 }
@@ -208,7 +216,7 @@ export function syncFeedWidget(
   const handoff = feedWidgetHandoffFor(decision);
   if (!handoff) return;
 
-  const body = JSON.stringify(toWidgetFeedPosts(posts));
+  const body = JSON.stringify(toWidgetFeedPosts(posts, handoff.widget === 'following'));
   const published =
     handoff.widget === 'trending'
       ? publishTrendingWidgetFeed(body)
@@ -237,11 +245,11 @@ export function syncFeedWidget(
  *  1. **Not while one is already in flight.** Two feed screens opening together
  *     would otherwise each start a fetch for the same widget.
  *  2. **Not when signed out.** Without a bearer the request answers 200 with
- *     zero posts (`descriptor=following` does), so it would spend a request to
+ *     zero posts (following descriptors do), so it would spend a request to
  *     learn nothing and leave the store exactly as stale.
- *  3. **Not on a `following` load.** That response already fed the widget. This
+ *  3. **Not on a `following_direct` load.** That response already fed the widget. This
  *     rule is also what makes recursion impossible BY CONSTRUCTION rather than
- *     by luck: the fetch this function authorises is itself a `following` load,
+ *     by luck: the fetch this function authorises is itself a `following_direct` load,
  *     and it cannot authorise another.
  *  4. **Only on a first page.** A reader paging through a feed is mid-session,
  *     not opening the app.
@@ -259,7 +267,7 @@ export function shouldOfferFollowingPrefetch({
 }): boolean {
   if (prefetchInFlight) return false;
   if (!viewerId) return false;
-  if (descriptor === 'following') return false;
+  if (descriptor === 'following_direct') return false;
   if (cursor) return false;
   return true;
 }
@@ -284,7 +292,7 @@ let prefetchInFlight = false;
  *
  * It fetches through the caller's own feed path and does nothing with the
  * result: the response goes through {@link syncFeedWidget} inside that call like
- * any other following load, so the projection, the account check and the store
+ * any other direct-following load, so the projection, the account check and the store
  * write happen in exactly one place.
  *
  * Fire-and-forget. Nothing the app renders depends on it, and a failure is a
@@ -300,7 +308,7 @@ export function prefetchFollowingWidgetFeed({
   descriptor: FeedDescriptor;
   cursor: string | undefined;
   viewerId: string | null;
-  /** The caller's own `following` fetch. Its response feeds the widget on the way through. */
+  /** The caller's own `following_direct` fetch. Its response feeds the widget on the way through. */
   fetchFollowingPage: () => Promise<unknown>;
 }): void {
   if (!shouldOfferFollowingPrefetch({ descriptor, cursor, viewerId, prefetchInFlight })) {

@@ -98,13 +98,18 @@ async function fetchChrono(
 }
 
 /** CHRONOLOGICAL Following-feed query (public/followers-only + subscribed lists). */
-async function gatherFollowingTimeline(ctx: FeedEngineContext, cap: number): Promise<CandidatePost[]> {
+async function gatherFollowingTimeline(
+  ctx: FeedEngineContext,
+  cap: number,
+  directOnly = false,
+): Promise<CandidatePost[]> {
   const { currentUserId, followingIds, subscribedListMemberIds } = ctx;
-  if (!currentUserId || (!followingIds?.length && !subscribedListMemberIds?.length)) return [];
+  const listMemberIds = directOnly ? [] : subscribedListMemberIds;
+  if (!currentUserId || (!followingIds?.length && !listMemberIds?.length)) return [];
 
   return fetchChrono(
     [
-      buildFollowingVisibilitySql(currentUserId, followingIds, subscribedListMemberIds),
+      buildFollowingVisibilitySql(currentUserId, followingIds, listMemberIds),
       eq(posts.status, 'published'),
     ],
     ctx.cursor,
@@ -185,7 +190,9 @@ export const followingSource: SourceModule = {
   // TRUSTED: the viewer's own follow graph is never subjected to the discovery gate.
   trusted: true,
   gather: async (ctx, params, cap) => {
-    if (params.timeline === true) return gatherFollowingTimeline(ctx, cap);
+    if (params.timeline === true) {
+      return gatherFollowingTimeline(ctx, cap, params.directOnly === true);
+    }
     return runForYouLane(ctx, gatherFollowingLane);
   },
 };

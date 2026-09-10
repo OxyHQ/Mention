@@ -245,6 +245,13 @@ export const followingDefinition: FeedDefinition = {
   },
 };
 
+/** Direct follows only — the contract promised by the Android Following widget. */
+export const directFollowingDefinition: FeedDefinition = {
+  ...followingDefinition,
+  id: 'following_direct',
+  sources: [enabled('following', { timeline: true, directOnly: true })],
+};
+
 /**
  * Discover (Explore) — pre-scored engagement×recency×relevance discovery
  * aggregation.

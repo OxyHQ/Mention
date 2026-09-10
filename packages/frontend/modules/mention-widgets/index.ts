@@ -66,6 +66,9 @@ declare class MentionWidgetsNativeModule extends NativeModule {
    * so, which for most installs is always.
    */
   followingWidgetNeedsFeed(): Promise<boolean>;
+
+  /** Return the widget's account-scoped hydrated copy of a post, when present. */
+  getFollowingCachedPost?(postId: string): Promise<string | null>;
 }
 
 const nativeModule = requireOptionalNativeModule<MentionWidgetsNativeModule>('MentionWidgets');
@@ -118,4 +121,9 @@ export function publishFollowingWidgetFeed(accountId: string, body: string): Pro
  */
 export function followingWidgetNeedsFeed(): Promise<boolean> {
   return nativeModule?.followingWidgetNeedsFeed() ?? Promise.resolve(false);
+}
+
+/** Read a post already persisted by the Following widget. */
+export function getFollowingCachedPost(postId: string): Promise<string | null> {
+  return nativeModule?.getFollowingCachedPost?.(postId) ?? Promise.resolve(null);
 }

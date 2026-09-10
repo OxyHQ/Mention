@@ -29,6 +29,7 @@ export function isAuthorFeedFilter(value: string | undefined): value is AuthorFe
 
 export type FeedDescriptor =
   | 'following'
+  | 'following_direct'
   | 'for_you'
   | 'explore'
   | 'videos'
@@ -55,6 +56,7 @@ export type FeedDescriptor =
 
 export type FeedDescriptorSource =
   | 'following'
+  | 'following_direct'
   | 'for_you'
   | 'explore'
   | 'videos'
@@ -106,7 +108,7 @@ export function buildFeedDescriptor(source: FeedDescriptorSource, ...params: str
  */
 export function isValidFeedDescriptor(value: string): value is FeedDescriptor {
   const simpleSources: ReadonlySet<FeedDescriptorSource> = new Set([
-    'following', 'for_you', 'explore', 'videos', 'media', 'saved',
+    'following', 'following_direct', 'for_you', 'explore', 'videos', 'media', 'saved',
     'trending', 'mutuals', 'friends_popular', 'friends_of_friends',
   ]);
   const [source, ...params] = value.split('|');
