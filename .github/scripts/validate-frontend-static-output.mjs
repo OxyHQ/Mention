@@ -56,14 +56,34 @@ if (await exists(resolve(outputDirectory, "_routes.json"))) {
 // SPA fallback has TWO providers because this build is deployed twice: the shell
 // Worker gets it from `not_found_handling` in `wrangler.toml`, and the Cloudflare
 // Pages preview the release gate browses gets it from `_redirects` and NOTHING
-// else. Wrangler ignores this rule with an "infinite loop detected" warning, which
-// reads exactly like dead weight — so deleting it looks like a cleanup and lands
-// as a gate that serves 404s for every deep link.
+// else. Workers must exclude that Pages-only rewrite through `.assetsignore`:
+// Workers already provide the fallback via `not_found_handling`, and current
+// Wrangler rejects the rewrite because it would conflict with canonical HTML
+// handling.
 if (!(await exists(resolve(outputDirectory, "_redirects")))) {
   failures.push(
     "_redirects is missing; the Cloudflare Pages preview the release gate runs " +
       "against has no other source of SPA fallback",
   );
+}
+
+const assetsIgnorePath = resolve(outputDirectory, ".assetsignore");
+if (!(await exists(assetsIgnorePath))) {
+  failures.push(
+    ".assetsignore is missing; the Worker upload would parse the Pages-only " +
+      "_redirects fallback and reject it as an infinite redirect",
+  );
+} else {
+  const assetsIgnore = await readFile(assetsIgnorePath, "utf8");
+  const ignoredAssets = assetsIgnore
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
+  if (!ignoredAssets.includes("_redirects")) {
+    failures.push(
+      ".assetsignore must exclude _redirects from the Worker asset upload",
+    );
+  }
 }
 
 if (failures.length > 0) {
