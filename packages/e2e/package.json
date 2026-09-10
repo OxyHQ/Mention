@@ -12,7 +12,7 @@
     "clean": "rm -rf playwright-report test-results"
   },
   "devDependencies": {
-    "@playwright/test": "1.62.1",
+    "@playwright/test": "1.63.0",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }
