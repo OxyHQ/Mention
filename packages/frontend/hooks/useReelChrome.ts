@@ -183,7 +183,6 @@ export function useReelChrome({
     // `hasRendered` latches true on the FIRST `readyToPlay` and never flips back,
     // so a mid-playback re-buffer (status → loading) does NOT re-show the poster.
     const [hasRendered, setHasRendered] = useState(false);
-    const [hasError, setHasError] = useState(false);
     // Live re-buffer flag: distinct from `hasRendered` so a mid-playback stall
     // shows only a small spinner over the already-rendered frame, never the poster.
     const [isBuffering, setIsBuffering] = useState(false);
@@ -221,7 +220,6 @@ export function useReelChrome({
     if (prevTargetUrl !== targetUrl) {
         setPrevTargetUrl(targetUrl);
         setUsedFallback(false);
-        setHasError(false);
         setUserPaused(false);
     }
 
@@ -245,7 +243,10 @@ export function useReelChrome({
             if (!usedFallback && targetFallbackUrl) {
                 setUsedFallback(true);
             } else {
-                setHasError(true);
+                // The ROW owns the failure: `onError` unmounts this surface and
+                // paints the badge in its place, in this same commit. A second
+                // latch here would never render, and would be the copy somebody
+                // later "fixes" instead of the one that matters.
                 onError();
             }
         }
@@ -650,6 +651,5 @@ export function useReelChrome({
         panResponder,
         isScrubbing,
         progress,
-        hasError,
     };
 }

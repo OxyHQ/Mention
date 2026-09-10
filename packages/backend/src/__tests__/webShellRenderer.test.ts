@@ -118,8 +118,11 @@ describe('mapProfileOg', () => {
     expect(mapProfileOg({ username: 'a', avatar: 'https://remote.example/x.png' })?.image).toBe(
       'http://localhost:4110/media/proxy?url=https%3A%2F%2Fremote.example%2Fx.png&variant=w320',
     );
+    // `w320`, the app's card-size image variant, not the CDN's own `thumb`: the
+    // card now asks in ONE vocabulary for both branches, which is what stopped
+    // the proxied branch and the CDN branch needing two different constants.
     expect(mapProfileOg({ username: 'a', avatar: 'file123' })?.image).toBe(
-      'https://cloud.oxy.so/file123?variant=thumb',
+      'https://cloud.oxy.so/file123?variant=w320',
     );
   });
 
