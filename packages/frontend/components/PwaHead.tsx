@@ -6,7 +6,7 @@ import { Platform } from 'react-native';
  *
  * Expo's `output: "single"` web export ships a bare `index.html` — the
  * `web.manifest` + `web.meta` declared in `app.config.js` are NOT wired into it,
- * so the browser never sees the manifest link or the apple/theme metas. Without a
+ * so the browser never sees the manifest link or the Apple PWA metas. Without a
  * live `<link rel="manifest">` there is no installable PWA and the Web Share
  * Target (`/compose`) is dead.
  *
@@ -25,7 +25,6 @@ import { Platform } from 'react-native';
 const MANIFEST_HREF = '/manifest.json';
 
 const PWA_META_TAGS: readonly { name: string; content: string }[] = [
-  { name: 'theme-color', content: '#0B0B0F' },
   { name: 'apple-mobile-web-app-capable', content: 'yes' },
   { name: 'apple-mobile-web-app-title', content: 'Mention' },
   { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
