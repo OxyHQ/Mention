@@ -142,6 +142,18 @@ jobs:
       - name: Re-verify current main before production promotion
         run: bash .github/scripts/require-current-main.sh
 
+      # The same export is intentionally tested as a Pages preview first. Its
+      # SPA rewrite is valid there, but Workers owns the fallback through
+      # `assets.not_found_handling` and rejects the Pages rewrite as a loop.
+      # Remove exactly that target-specific control file only after the preview
+      # and browser gates have passed; application assets remain byte-identical.
+      - name: Prepare the validated output for Workers Assets
+        run: |
+          set -euo pipefail
+          test -f packages/frontend/dist/_redirects
+          rm packages/frontend/dist/_redirects
+          test ! -e packages/frontend/dist/_redirects
+
       # A WORKER, not a Pages project — and for Mention that is not a tidiness
       # change. A Pages project ALWAYS serves `<project>.pages.dev` with no way to
       # switch it off, and here that duplicate was load bearing:

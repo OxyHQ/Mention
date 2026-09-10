@@ -62,11 +62,11 @@ preview_urls = false
 # builds itself — the 403 and 503 in `worker/index.js` — not what
 # `env.ASSETS.fetch` returns.
 #
-# `public/_redirects` is for the Pages preview only. `.assetsignore` excludes it
-# from the Worker upload because Workers implement this fallback natively through
-# `not_found_handling`; current Wrangler correctly rejects the Pages rewrite as
-# an infinite redirect. The source file stays because the release gate still
-# deploys this same `dist` to Pages, where it provides the SPA fallback.
+# `public/_redirects` is for the Pages preview only. The deploy workflow removes
+# it from the already-validated, ephemeral output before Worker promotion because
+# Workers implement this fallback natively through `not_found_handling` and
+# reject the Pages rewrite as an infinite redirect. The source file stays because
+# the release gate deploys `dist` to Pages first, where it provides the fallback.
 [assets]
 directory = "./dist"
 binding = "ASSETS"
