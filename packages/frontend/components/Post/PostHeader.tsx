@@ -11,6 +11,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { AccountBadge } from '@/components/AccountBadge';
 import { BoostIcon } from '@/assets/icons/boost-icon';
+import { DrawIcon } from '@/assets/icons/draw-icon';
 import { formatTimeAgo } from '@/utils/dateUtils';
 import { displayNameOrHandle } from '@/utils/displayName';
 import type { HydratedAuthor, PostUser } from '@mention/shared-types';
@@ -472,19 +473,26 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             </Text>
           ))}
           {isEdited ? (
-            // `flexShrink: 0` because a 12px glyph has no width to give up and
-            // the identity line's other children are already shrink-ranked
+            // `flexShrink: 0` because an indicator glyph has no width to give up
+            // and the identity line's other children are already shrink-ranked
             // against each other — the `@handle` is what yields.
+            //
+            // `alignSelf: 'center'` for the same reason {@link AccountBadge} above
+            // uses `self-center`: this row is `items-end`, so a child's BOTTOM
+            // edge is the shared line — and a text box's bottom is its descender,
+            // several pixels below the letters. An icon hung from that line reads
+            // as sunk. Centring it against the row puts it on the text's optical
+            // middle, where the badge already sits.
             <TouchableOpacity
               accessibilityRole="button"
               accessibilityLabel={t('post.editedIndicator', { defaultValue: 'Edited' })}
               hitSlop={HIT_SLOP_MD}
-              style={{ flexShrink: 0 }}
+              style={{ flexShrink: 0, alignSelf: 'center' }}
               onPress={() =>
                 toast(t('post.editedToast', { defaultValue: 'This post was edited' }))
               }
             >
-              <Ionicons name="pencil" size={12} color={theme.colors.textSecondary} />
+              <DrawIcon size={INDICATOR_ICON_SIZE} className="text-muted-foreground" />
             </TouchableOpacity>
           ) : null}
           {laneSlot}
