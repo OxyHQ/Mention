@@ -23,17 +23,17 @@ import PostHeader from '../PostHeader';
  */
 
 const mockToast = jest.fn();
-jest.mock('@oxyhq/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
 
 // Host element names rather than components, so the props the header computed
 // survive into the rendered tree verbatim — the pencil is found by the `name`
 // the header passed, not by a re-encoding of it.
 jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('@/components/ui/LiveAvatar', () => ({ LiveAvatar: 'LiveAvatar' }));
-jest.mock('@oxyhq/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
+jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
 jest.mock('../../UserName', () => ({ __esModule: true, default: 'UserName' }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#8899a6' } }),
 }));
 
@@ -60,7 +60,7 @@ jest.mock('react-i18next', () => {
   return { useTranslation: () => ({ t: (key: string) => resolve(key) }) };
 });
 
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: { username?: string | null } | null | undefined) =>
     user?.username?.trim().replace(/^@+/, '') || null,
 }));

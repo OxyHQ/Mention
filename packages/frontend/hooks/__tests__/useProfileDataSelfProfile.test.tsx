@@ -1,7 +1,7 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 
 /**
  * The viewer's OWN profile paints from the session, not from a network race.
@@ -25,7 +25,7 @@ import type { User } from '@oxyhq/core';
 const mockViewer: { current: User | null } = { current: null };
 const mockFetchProfile = jest.fn<Promise<User | null>, [string | null]>();
 
-jest.mock('@oxyhq/services', () => {
+jest.mock('@oxy.so/services', () => {
   const { useQuery } =
     jest.requireActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
   const byUsername = (username: string, viewerId: string) => [
@@ -54,7 +54,7 @@ jest.mock('@oxyhq/services', () => {
   };
 });
 
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
     user: mockViewer.current,
     oxyServices: { resolveProfile: jest.fn() },
@@ -66,7 +66,7 @@ jest.mock('@/stores/appearanceStore', () => ({
     selector({ loadForUser: async () => null }),
 }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   APP_COLOR_PRESETS: { blue: {} },
   HEX_TO_APP_COLOR: {},
 }));

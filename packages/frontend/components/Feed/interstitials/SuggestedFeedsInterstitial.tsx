@@ -3,15 +3,15 @@ import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services/ui/client';
-import { toast } from '@oxyhq/bloom/toast';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { toast } from '@oxy.so/bloom/toast';
 import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/FeedCard';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import {
   customFeedsService,
   type MarketplaceFeed,
 } from '@/services/customFeedsService';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { DismissButton } from './DismissButton';
 import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';
 import {

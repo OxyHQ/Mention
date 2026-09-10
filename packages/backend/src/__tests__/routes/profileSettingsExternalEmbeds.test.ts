@@ -58,7 +58,7 @@ function unsetDot(obj: Record<string, unknown>, path: string): void {
 }
 
 // Auth: inject a fixed authenticated user so the route runs without real tokens.
-vi.mock('@oxyhq/core/server', () => ({
+vi.mock('@oxy.so/core/server', () => ({
   requireOxyAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     (req as express.Request & { user?: { id: string }; accessToken?: string }).user = { id: TEST_USER };
     (req as express.Request & { accessToken?: string }).accessToken = 'test-token';

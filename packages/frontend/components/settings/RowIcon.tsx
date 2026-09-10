@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { Icon, type IconName } from '@/lib/icons';
 
 interface RowIconProps {

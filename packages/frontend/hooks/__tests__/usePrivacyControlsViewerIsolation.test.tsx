@@ -1,6 +1,6 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { usePrivacyStore } from '@/stores/privacyStore';
 import { usePrivacyControls } from '../usePrivacyControls';
 
@@ -8,12 +8,12 @@ const mockGetBlockedUsers = jest.fn();
 const mockGetRestrictedUsers = jest.fn();
 let mockViewerId = 'viewer-a';
 
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: jest.fn(),
 }));
 
-jest.mock('@oxyhq/core/logger', () => ({
-  ...jest.requireActual('@oxyhq/core/logger'),
+jest.mock('@oxy.so/core/logger', () => ({
+  ...jest.requireActual('@oxy.so/core/logger'),
   logger: {
     error: jest.fn(),
   },

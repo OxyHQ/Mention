@@ -3,8 +3,8 @@ import { Share, Text, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { FollowButton as OxyFollowButton, useAuth, useFollow } from '@oxyhq/services/ui/client';
-import { logger } from '@oxyhq/core/logger';
+import { FollowButton as OxyFollowButton, useAuth, useFollow } from '@oxy.so/services/ui/client';
+import { logger } from '@oxy.so/core/logger';
 import type { FeedType } from '@mention/shared-types';
 
 import { usePostsStore } from '@/stores/postsStore';

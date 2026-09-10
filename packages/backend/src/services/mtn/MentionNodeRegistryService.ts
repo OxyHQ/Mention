@@ -13,7 +13,7 @@
  *
  * ## Absolute read-path invariant
  *
- * Every node fetch here goes through `@oxyhq/core/server`'s `safeFetch`
+ * Every node fetch here goes through `@oxy.so/core/server`'s `safeFetch`
  * (HTTPS-only, private-IP denylist, DNS-pinned, bounded redirects) and runs ONLY
  * in the background — the post-registration probe (fire-and-forget) and the
  * periodic sweep. No function in a request's read path ever awaits a node: a
@@ -22,8 +22,8 @@
  */
 
 import { z } from 'zod';
-import { signEnvelope, type SignedRecordSigningFields } from '@oxyhq/protocol';
-import { safeFetch } from '@oxyhq/core/server';
+import { signEnvelope, type SignedRecordSigningFields } from '@oxy.so/protocol';
+import { safeFetch } from '@oxy.so/core/server';
 import { getMentionNodeConfig } from '../../config';
 import {
   findNodeEndpoint,

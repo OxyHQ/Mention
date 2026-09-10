@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { FollowButton, useAuth } from '@oxyhq/services/ui/client';
+import { FollowButton, useAuth } from '@oxy.so/services/ui/client';
 import {
   StarterPackCard,
   StarterPackCardSkeleton,
@@ -13,7 +13,7 @@ import {
   starterPacksService,
   type StarterPackSummary,
 } from '@/services/starterPacksService';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { DismissButton } from './DismissButton';
 import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';
 import {

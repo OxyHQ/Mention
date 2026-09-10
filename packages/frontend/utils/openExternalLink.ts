@@ -1,6 +1,6 @@
 import { Linking, Platform } from 'react-native';
 import { openBrowserAsync, type WebBrowserOpenOptions } from 'expo-web-browser';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('openExternalLink');
 

@@ -3,7 +3,7 @@
 import { cert, initializeApp, type ServiceAccount } from 'firebase-admin/app';
 import { getMessaging, type MulticastMessage } from 'firebase-admin/messaging';
 import { and, eq, inArray } from 'drizzle-orm';
-import { normalizeInlineText } from '@oxyhq/core';
+import { normalizeInlineText } from '@oxy.so/core';
 import { getFirebaseConfig } from '../config';
 import { getDb } from '../db/postgres';
 import { pushTokens } from '../db/schema/discovery';

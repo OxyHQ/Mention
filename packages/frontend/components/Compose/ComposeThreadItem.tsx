@@ -9,7 +9,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import type { AccountNode } from '@oxyhq/core';
+import type { AccountNode } from '@oxy.so/core';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
@@ -21,7 +21,7 @@ import { CloseIcon } from '@/assets/icons/close-icon';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ChevronRightIcon } from '@/assets/icons/chevron-right-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 // Deep imports rather than this directory's own barrel: the barrel re-exports
 // eight sheets, so naming it from inside `components/Compose/` pulled all of them

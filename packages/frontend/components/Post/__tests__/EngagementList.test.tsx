@@ -24,8 +24,8 @@ import EngagementList from '../EngagementList';
  * the app.
  */
 
-// A faithful copy of `getNormalizedUserHandle` from `@oxyhq/core` (local users
-// resolve to `username`; federated to `username@instance`). `@oxyhq/core` is not
+// A faithful copy of `getNormalizedUserHandle` from `@oxy.so/core` (local users
+// resolve to `username`; federated to `username@instance`). `@oxy.so/core` is not
 // transformed in this suite, so it is mocked — but with the REAL logic, so the
 // federated handle path is genuinely exercised.
 function mockNormalizeHandlePart(value?: string | null): string | null {
@@ -48,7 +48,7 @@ function mockNormalizedHandle(user: {
   return username;
 }
 
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: unknown) =>
     mockNormalizedHandle(user as Parameters<typeof mockNormalizedHandle>[0]),
 }));
@@ -65,8 +65,8 @@ jest.mock('@/services/feedService', () => ({
   },
 }));
 
-jest.mock('@oxyhq/core/logger', () => ({
-  ...jest.requireActual('@oxyhq/core/logger'),
+jest.mock('@oxy.so/core/logger', () => ({
+  ...jest.requireActual('@oxy.so/core/logger'),
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
@@ -74,7 +74,7 @@ jest.mock('@oxyhq/core/logger', () => ({
 jest.mock('@/components/Header', () => ({ Header: () => null }));
 jest.mock('@/components/ui/Button', () => ({ IconButton: () => null }));
 jest.mock('@/assets/icons/close-icon', () => ({ CloseIcon: () => null }));
-jest.mock('@oxyhq/bloom/loading', () => ({ Loading: () => null }));
+jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
 
 // The skeleton list stands in for the loading branch; render nothing so only the

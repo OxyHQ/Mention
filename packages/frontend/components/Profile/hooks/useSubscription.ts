@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import { subscriptionService } from '@/services/subscriptionService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { normalizeApiError } from '@/utils/apiError';

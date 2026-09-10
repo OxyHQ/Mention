@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import type { ChannelWriter } from '@mention/shared-types';
 import { channelWritersService } from '@/services/channelWritersService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';

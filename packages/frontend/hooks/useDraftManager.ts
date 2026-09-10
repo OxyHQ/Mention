@@ -3,7 +3,7 @@ import {
   reconcileMentionData,
   type MentionData,
 } from '@/utils/mentions';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import {
   ComposerMediaItem,
   toComposerMediaType,

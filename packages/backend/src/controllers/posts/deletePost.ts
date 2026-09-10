@@ -12,7 +12,7 @@ import { getDb } from '../../db/postgres';
 import { posts as postsTable } from '../../db/schema/posts';
 import { CHRONO_DESC, deletePostRecord, findPostRecords } from '../../db/posts/postRepository';
 import type { PostRecord } from '../../db/posts/postRecord';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { PostVisibility } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
 import { createUserScopedOxyServices } from '../../utils/oxyHelpers';

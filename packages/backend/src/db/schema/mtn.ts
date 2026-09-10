@@ -5,7 +5,7 @@
  * ## `envelope` is jsonb, and it is safe — measured, not reasoned
  *
  * The signed envelope is stored VERBATIM and re-verified by recomputing the
- * canonical signing input from the PARSED value (`@oxyhq/protocol`'s
+ * canonical signing input from the PARSED value (`@oxy.so/protocol`'s
  * `canonicalize` sorts keys at every level). jsonb's key reordering, duplicate-
  * key collapse, number reformatting and unicode unescaping are therefore
  * representation-only: canonicalization normalizes all of them before the
@@ -42,8 +42,8 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
-import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxyhq/db';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
+import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 
 /** `MTN_CHAIN_STATUS` — local fork classification, outside the signed envelope. */
 export const MTN_CHAIN_STATUSES = ['canonical', 'conflict'] as const;
@@ -82,7 +82,7 @@ export const mentionSignedRecords = pgTable(
      * `$type` is TYPE-LEVEL ONLY — it emits no DDL and changes no SQL. It is
      * here because a bare `jsonb()` infers `unknown`, and every reader of this
      * column then needs a cast to get back the shape the writer put in. The
-     * value is contract-validated (`@oxyhq/contracts`) and signature-verified by
+     * value is contract-validated (`@oxy.so/contracts`) and signature-verified by
      * the protocol engine BEFORE it reaches this column, so the declaration
      * states a guarantee the write path already enforces rather than asserting
      * an unchecked one at each read.

@@ -1,8 +1,8 @@
 import React, { memo } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
-import { useTheme } from '@oxyhq/bloom/theme';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { CHANNEL_AVATAR_SIZE } from './ChannelHeader';
 import { LAYOUT } from './types';

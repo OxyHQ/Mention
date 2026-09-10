@@ -22,8 +22,8 @@ bun run test / lint / check / clean
 ## Bumping an Oxy SDK package (`bun add` reports success and changes nothing)
 
 - **Shared versions live ONLY in `workspaces.catalog` in the root `package.json`.** A bump is one catalog edit plus `bun install`. Manifests and the root `overrides` name the package as `"catalog:"`.
-- **`bun add`/`bun update` are the wrong tools** — an override beats a workspace range, so they print success and leave the old version in `node_modules` and `bun.lock`. Doctor rejects a manifest or override re-pinning a catalogued package to a literal range, and rejects `@oxyhq/bloom` in the root `dependencies`.
-- Packages with a single consumer and an exact pin (`@oxyhq/crowdsource*`, `@oxyhq/federation`, `@oxyhq/protocol`) are deliberately NOT catalogued.
+- **`bun add`/`bun update` are the wrong tools** — an override beats a workspace range, so they print success and leave the old version in `node_modules` and `bun.lock`. Doctor rejects a manifest or override re-pinning a catalogued package to a literal range, and rejects `@oxy.so/bloom` in the root `dependencies`.
+- Packages with a single consumer and an exact pin (`@oxy.so/crowdsource*`, `@oxy.so/federation`, `@oxy.so/protocol`) are deliberately NOT catalogued.
 - **After bumping, check no NESTED copy of the old version survived** — an incremental install preserves a recorded edge by nesting it, and every gate stays green while a dependent loads the old major. `grep -oE '"[^"]*<pkg>": \["<pkg>@[0-9.]+' bun.lock | sort -u` must print exactly one line; delete the stale nested keys and reinstall rather than regenerating the lockfile.
 - `bun update` also writes touched packages into the ROOT `dependencies` — check `git diff package.json` after running it.
 - **Assert the installed version after any bump** (`node -e "…/package.json').version"`) before running any gate.

@@ -99,7 +99,7 @@ let reportId: string;
 let eventId: string;
 
 /**
- * The error shape `@oxyhq/crowdsource` throws for "come back later": a 503 or a
+ * The error shape `@oxy.so/crowdsource` throws for "come back later": a 503 or a
  * connection failure. `retryable` is the only field the outbox reads.
  */
 class RetryableTransportError extends Error {

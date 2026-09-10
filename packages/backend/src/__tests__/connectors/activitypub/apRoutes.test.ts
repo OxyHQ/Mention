@@ -125,7 +125,7 @@ import {
 import type { PostRecord } from '../../../db/posts/postRecord';
 import apRoutes from '../../../connectors/activitypub/routes/ap.routes';
 import { actorRouter } from '../../../connectors/activitypub/routes/engine.routes';
-import { AP_CONTEXT } from '@oxyhq/federation';
+import { AP_CONTEXT } from '@oxy.so/federation';
 
 const app = express();
 app.use(express.json());

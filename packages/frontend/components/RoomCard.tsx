@@ -7,7 +7,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { LIVE_INDICATOR_COLOR } from '@/styles/colors';
 
 export interface RoomCardData {

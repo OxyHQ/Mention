@@ -21,9 +21,9 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import type { FollowStatus } from '@oxyhq/contracts';
-import { useAuth } from '@oxyhq/services/ui/client';
-import { logger } from '@oxyhq/core/logger';
+import type { FollowStatus } from '@oxy.so/contracts';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { OXY_TOPIC_KIND, topicFollowUri } from '@/services/followGraph';
 

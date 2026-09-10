@@ -75,7 +75,7 @@ vi.mock('../../services/publishAsAccount', () => ({
   assertCanPublishAsAccount: vi.fn(async () => null),
 }));
 
-vi.mock('@oxyhq/core/server', () => ({
+vi.mock('@oxy.so/core/server', () => ({
   requireOxyAuth: (req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (!currentViewer) {
       res.status(401).json({ error: 'Unauthorized' });

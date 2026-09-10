@@ -4,7 +4,7 @@ import {
   type MediaItem,
   type PostContentVariant,
 } from '@mention/shared-types';
-import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
+import { normalizeInlineText, normalizeMultilineText } from '@oxy.so/core';
 import { qualifyBareHandles } from '@mention/shared-types/textEntities';
 import { isBridgeFlattenedRetweet } from './flattenedRetweet';
 import { htmlToInlineLabel, htmlToPlainText } from '../../utils/federation/htmlToPlainText';

@@ -24,7 +24,7 @@
  *
  * The tracker's outward effects are `feedService.sendFeedInteractions` and the
  * post cache, both mocked so the test never touches the network/SDK/SQLite
- * layers. `@oxyhq/core/logger` is mocked for the same reason.
+ * layers. `@oxy.so/core/logger` is mocked for the same reason.
  */
 
 import { createElement } from 'react';
@@ -62,8 +62,8 @@ jest.mock('@/services/trendingService', () => ({
     trendingService: { sendTrendEvent: jest.fn().mockResolvedValue(undefined) },
 }));
 
-jest.mock('@oxyhq/core/logger', () => ({
-    ...jest.requireActual('@oxyhq/core/logger'),
+jest.mock('@oxy.so/core/logger', () => ({
+    ...jest.requireActual('@oxy.so/core/logger'),
     createLogger: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
 

@@ -1,19 +1,19 @@
 import React, { useRef } from 'react';
 import { StyleSheet, Text, View, type PressableProps } from 'react-native';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { BoostIcon, BoostIconActive } from '@/assets/icons/boost-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
-import { useTheme } from '@oxyhq/bloom/theme';
-import { useHaptics } from '@oxyhq/bloom/hooks';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { useHaptics } from '@oxy.so/bloom/hooks';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { PressableScale } from '@oxyhq/bloom/pressable-scale';
+import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { AnimatedLikeIcon } from '@/lib/animations/AnimatedLikeIcon';
 import { CountWheel } from '@/lib/animations/CountWheel';
 import { useVoteStyle } from '@/hooks/useVoteStyle';

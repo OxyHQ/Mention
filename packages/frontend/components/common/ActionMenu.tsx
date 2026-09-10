@@ -1,7 +1,7 @@
 import React, { memo, useEffect, useMemo, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 
-import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
+import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 
 import { buildMenuGroups, type ActionMenuAction } from '@/components/common/actionMenuGroups';
 import { cn } from '@/lib/utils';

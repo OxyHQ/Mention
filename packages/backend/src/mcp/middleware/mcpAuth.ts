@@ -4,9 +4,9 @@ import {
   MENTION_MCP_RESOURCE,
   mentionCapabilityRequirementsForRequest,
 } from '@mention/shared-types/mcpCapabilities';
-import type { OxyServices } from '@oxyhq/core';
-import type { OxyAuthRequest } from '@oxyhq/core/server';
-import { extractBearerToken, introspectOxyMcpAccessToken } from '@oxyhq/mcp';
+import type { OxyServices } from '@oxy.so/core';
+import type { OxyAuthRequest } from '@oxy.so/core/server';
+import { extractBearerToken, introspectOxyMcpAccessToken } from '@oxy.so/mcp';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../../config';

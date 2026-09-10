@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useEventListener } from 'expo';
 import type { VideoPlayer, VideoTrack } from 'expo-video';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { setPipAspectRatio } from '@/modules/pip-transport';
 import { toMediaPixelSize, type MediaPixelSize } from '@/utils/mediaTypes';
 

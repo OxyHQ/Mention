@@ -1,5 +1,5 @@
 import { MENTION_LEGACY_MCP_AUTH_CUTOFF_MS } from '@mention/shared-types/mcpCapabilities';
-import type { OxyServices } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
 import type { Request, Response } from 'express';
 import { Router } from 'express';
 import {

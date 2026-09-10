@@ -18,7 +18,7 @@ const mockState = vi.hoisted(() => {
   return { instances, control };
 });
 
-vi.mock('@oxyhq/core', () => {
+vi.mock('@oxy.so/core', () => {
   class OxyServices {
     setTokens = vi.fn();
     configureServiceAuth = vi.fn();

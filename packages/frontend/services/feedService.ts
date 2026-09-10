@@ -33,7 +33,7 @@ import {
 import { FeedFilters } from '../utils/feedUtils';
 import { authenticatedClient, publicClient } from '../utils/api';
 import { oxyServices } from '@/lib/oxyServices';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { normalizeApiError } from '@/utils/apiError';
 import {
   buildBookmarkFolderMoveRequest,

@@ -6,8 +6,8 @@
  * SharedArrayBuffer required) and native alike.
  */
 
-import { useUserById as useSdkUserById } from '@oxyhq/services';
-import type { User } from '@oxyhq/core';
+import { useUserById as useSdkUserById } from '@oxy.so/services';
+import type { User } from '@oxy.so/core';
 
 /** Reactively read a cached user by id. Subscribes to the React Query cache. */
 export function useUserById(id?: string): User | undefined {

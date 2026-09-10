@@ -84,7 +84,7 @@ workarounds.
   the writer hydrates `undefined` with no error and the same post names its
   writer on a feed row but not as a thread parent.
 - **A channel can never be acted as.** `isDelegatedActAsEligibleKind`
-  (`@oxyhq/contracts`) refuses `channel`, so no session can be minted whose
+  (`@oxy.so/contracts`) refuses `channel`, so no session can be minted whose
   subject is a channel — which is why channel accounts cannot appear in the
   account switcher structurally, not by a UI filter. Publishing as one
   therefore goes through `CreatePostRequest.publishAsOxyUserId`, not a

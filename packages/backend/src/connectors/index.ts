@@ -1,5 +1,5 @@
 import type { PostContent } from '@mention/shared-types';
-import type { NetworkConnector } from '@oxyhq/federation';
+import type { NetworkConnector } from '@oxy.so/federation';
 import { registerPostFederator } from '../services/serviceRegistry';
 import { ConnectorRegistry } from './ConnectorRegistry';
 import { activityPubConnector } from './activitypub/ActivityPubConnector';

@@ -14,7 +14,7 @@ jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (_key: string, fallback: string) => fallback }),
 }));
 
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: { username?: string }) => user.username ?? null,
 }));
 

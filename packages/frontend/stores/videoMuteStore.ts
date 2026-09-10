@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Platform } from 'react-native';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { Storage } from '../utils/storage';
 
 const VIDEO_MUTE_STORAGE_KEY = 'pref:global:videoMuted';
@@ -48,4 +48,3 @@ export const useVideoMuteStore = create<VideoMuteStore>((set, get) => ({
     }
   },
 }));
-

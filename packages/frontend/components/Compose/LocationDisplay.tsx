@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
-import { Loading } from '@oxyhq/bloom/loading';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { Loading } from '@oxy.so/bloom/loading';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { LocationIcon } from "@/assets/icons/location-icon";
 import { CloseIcon } from "@/assets/icons/close-icon";

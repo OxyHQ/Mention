@@ -78,8 +78,8 @@ vi.mock('../../../utils/safeUpstreamFetch', async (importOriginal) => {
   };
 });
 
-vi.mock('@oxyhq/core/server', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
   assertSafePublicUrl: mocks.assertSafePublicUrl,
 }));
 

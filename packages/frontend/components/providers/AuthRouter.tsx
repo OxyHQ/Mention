@@ -1,6 +1,6 @@
 import { Redirect, Slot, usePathname, useRouter, useSegments } from 'expo-router';
 import React, { useEffect } from 'react';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 
 import AppSplashScreen from '@/components/AppSplashScreen';
 import { useServerAppearanceSync } from '@/hooks/useServerAppearanceSync';

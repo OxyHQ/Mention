@@ -39,7 +39,7 @@ import {
   SERIALIZATION_FAILURE,
   isUniqueViolation,
   sqlStateOf,
-} from '@oxyhq/db';
+} from '@oxy.so/db';
 import { POST_RECENT_REPLIER_LIMIT, postRecentRepliers } from '../db/schema/postContent';
 import { posts } from '../db/schema/posts';
 import { logger } from '../utils/logger';

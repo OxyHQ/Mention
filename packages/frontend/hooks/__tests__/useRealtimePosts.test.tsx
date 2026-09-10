@@ -13,7 +13,7 @@ let mockAuthState = {
   oxyServices: { getAccessToken: mockGetAccessToken },
 };
 
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => mockAuthState,
   useOxy: () => ({ activeSessionId: mockAuthState.activeSessionId }),
 }));

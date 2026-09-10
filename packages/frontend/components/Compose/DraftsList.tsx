@@ -1,14 +1,14 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, FlatList } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { Loading } from '@oxy.so/bloom/loading';
+import { useTheme } from '@oxy.so/bloom/theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { DraftsIcon } from '@/assets/icons/drafts';
 import { useDrafts, Draft } from '@/hooks/useDrafts';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
 const logger = createLogger('DraftsList');

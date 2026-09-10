@@ -6,7 +6,7 @@ import {
   markOutboxBackfillUnavailable as markActorOutboxBackfillUnavailable,
 } from '../../db/federation/actorRepository';
 import { getDb } from '../../db/postgres';
-import { isUniqueViolation, uuidv7 } from '@oxyhq/db';
+import { isUniqueViolation, uuidv7 } from '@oxy.so/db';
 import { posts } from '../../db/schema/posts';
 import {
   bumpPostCounters,
@@ -21,7 +21,7 @@ import {
   POST_CLASSIFICATION_PENDING,
   type PostRecordInput,
 } from '../../db/posts/postRecord';
-import { extractActorUriFromActivityId } from '@oxyhq/federation';
+import { extractActorUriFromActivityId } from '@oxy.so/federation';
 import {
   FEDERATION_MAX_CONTENT_LENGTH,
   AP_CONTENT_TYPE,
@@ -47,7 +47,7 @@ import {
   toClassificationScores,
 } from '../../services/contentClassification/spamQuality';
 import type { PostClassificationScores } from '@mention/shared-types';
-import { assertSafePublicUrl } from '@oxyhq/core/server';
+import { assertSafePublicUrl } from '@oxy.so/core/server';
 import { actorService } from './actor.service';
 import {
   asRecord,

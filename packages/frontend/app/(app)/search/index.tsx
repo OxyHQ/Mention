@@ -12,14 +12,14 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from "react-i18next";
 import { router, useLocalSearchParams } from "expo-router";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@oxyhq/services/ui/client";
-import { getNormalizedUserHandle } from "@oxyhq/core";
+import { useAuth } from "@oxy.so/services/ui/client";
+import { getNormalizedUserHandle } from "@oxy.so/core";
 import { useSafeBack } from "@/hooks/useSafeBack";
 import { ThemedView } from "@/components/ThemedView";
 import { Header } from "@/components/Header";
 import { IconButton } from "@/components/ui/Button";
 import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
-import { useTheme } from "@oxyhq/bloom/theme";
+import { useTheme } from "@oxy.so/bloom/theme";
 import {
     searchService,
     SEARCH_OPERATORS,
@@ -38,11 +38,11 @@ import {
     toProfileHandleSuggestion,
     type ActiveOperatorToken,
 } from "@/utils/searchSuggestions";
-import { Loading } from "@oxyhq/bloom/loading";
+import { Loading } from "@oxy.so/bloom/loading";
 import { FlashList } from "@shopify/flash-list";
 import AnimatedTabBar from "@/components/common/AnimatedTabBar";
 import PostItem from "@/components/Feed/PostItem";
-import { Search } from "@oxyhq/bloom/search";
+import { Search } from "@oxy.so/bloom/search";
 import { Search as SearchIcon } from "@/assets/icons/search-icon";
 import { SEO } from "@/components/SEO";
 import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from "@/components/ProfileCard";
@@ -59,7 +59,7 @@ import { useTrendsStore } from "@/stores/trendsStore";
 import { useTrendNavigation } from "@/hooks/useTrendNavigation";
 import type { Trend } from "@/interfaces/Trend";
 import { formatCompactNumber } from "@/utils/formatNumber";
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from "@/lib/viewerQueryKeys";
 import { useLatchedState } from "@/hooks/useLatchedState";
 import { HIT_SLOP_MD } from '@/styles/hitSlop';

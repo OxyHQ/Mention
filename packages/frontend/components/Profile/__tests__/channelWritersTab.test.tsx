@@ -76,7 +76,7 @@ const mockAuth = {
   isPrivateApiPending: false,
 };
 
-jest.mock('@oxyhq/services/ui/client', () => {
+jest.mock('@oxy.so/services/ui/client', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     useAuth: () => mockAuth,
@@ -93,7 +93,7 @@ interface HandleUser {
   federation?: { domain?: string };
 }
 
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user?: HandleUser | null): string | null => {
     const username = (user?.username ?? user?.handle ?? '').trim().replace(/^@/, '');
     if (username.length === 0) return null;
@@ -106,12 +106,12 @@ jest.mock('@oxyhq/core', () => ({
   },
 }));
 
-jest.mock('@oxyhq/bloom/avatar', () => {
+jest.mock('@oxy.so/bloom/avatar', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Avatar: () => <View testID="avatar" /> };
 });
 
-jest.mock('@oxyhq/bloom/skeleton', () => {
+jest.mock('@oxy.so/bloom/skeleton', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   const Box = ({ children }: { children?: React.ReactNode }) => (
     <View testID="skeleton">{children}</View>
@@ -119,7 +119,7 @@ jest.mock('@oxyhq/bloom/skeleton', () => {
   return { Row: Box, Col: Box, Text: Box, Circle: Box, Pill: Box, Box };
 });
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
     colors: {
       primary: '#0000ff',
@@ -133,16 +133,16 @@ jest.mock('@oxyhq/bloom/theme', () => ({
 }));
 
 // Reached through ProfileCard → UserName (its copyable handle).
-jest.mock('@oxyhq/bloom/toast', () => ({ toast: jest.fn() }));
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 
 // Reached through `SecondaryButton` (components/ui/Button).
-jest.mock('@oxyhq/bloom/hooks', () => ({
+jest.mock('@oxy.so/bloom/hooks', () => ({
   useHaptics: () => ({ trigger: jest.fn(), impact: jest.fn(), selection: jest.fn() }),
   useInteractionState: () => ({ pressed: false, hovered: false }),
   useInteractionStates: () => ({ pressed: false, hovered: false }),
 }));
 
-jest.mock('@oxyhq/bloom/button', () => {
+jest.mock('@oxy.so/bloom/button', () => {
   const { Text, TouchableOpacity } =
     jest.requireActual<typeof import('react-native')>('react-native');
   const Button = ({ label, onPress }: { label?: string; onPress?: () => void }) => (
@@ -154,7 +154,7 @@ jest.mock('@oxyhq/bloom/button', () => {
 });
 
 // Reached through ProfileCard → RemoteActorBadge → FediverseInfoDialog.
-jest.mock('@oxyhq/bloom/dialog', () => {
+jest.mock('@oxy.so/bloom/dialog', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   const Passthrough = ({ children }: { children?: React.ReactNode }) => <View>{children}</View>;
   return {

@@ -46,9 +46,9 @@ import {
   upsertThreadgate,
 } from '../db/gates/gateRepository';
 import { createPostUri } from '@mention/shared-types';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { config } from '../config';
-import { laneWriteRateLimiter, postWriteRateLimiter, translationRateLimiter } from '../middleware/security';
+import { laneWriteRateLimiter, postViewRateLimiter, postWriteRateLimiter, translationRateLimiter } from '../middleware/security';
 
 const router = Router();
 
@@ -77,6 +77,7 @@ const postWriteRateLimiters = config.runtime.isProduction
 
 /** `PATCH /:id/lane` is a LANE write; see the mount below for why not a post one. */
 const laneWriteRateLimiters = config.runtime.isProduction ? [laneWriteRateLimiter] : [];
+const postViewRateLimiters = config.runtime.isProduction ? [postViewRateLimiter] : [];
 
 /**
  * Post reads mounted on the PUBLIC API group with OPTIONAL auth (see appRoutes.ts)
@@ -150,7 +151,7 @@ router.post('/translate-draft', ...translationRateLimiters, translateDraft);
 // Owner-only raw source for the composer. Hydrated reads cannot be used for an
 // edit because their mention placeholders and reader-language choice are already
 // resolved for display.
-router.get('/:id/edit-source', getPostEditSource);
+router.get('/:id/edit-source', ...postViewRateLimiters, getPostEditSource);
 
 // Engagement lists stay behind the auth wall: unlike the public reads above,
 // they do NOT gate on the parent post's visibility, so exposing them

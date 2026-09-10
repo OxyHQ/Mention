@@ -1,5 +1,5 @@
 import { oxyServices } from '@/lib/oxyServices';
-import type { LinkedHttpClient } from '@oxyhq/core';
+import type { LinkedHttpClient } from '@oxy.so/core';
 import { create as createAxiosClient } from 'axios';
 import { API_URL } from '@/config';
 import i18n from '@/lib/i18n';

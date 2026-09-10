@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';

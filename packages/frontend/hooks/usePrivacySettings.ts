@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
-import { createLogger } from '@oxyhq/core/logger';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { createLogger } from '@oxy.so/core/logger';
+import { useAuth } from '@oxy.so/services/ui/client';
 import type { FeedSettings } from '@/hooks/useFeedSettings';
 import type { ExternalEmbedsSettings } from '@mention/shared-types';
 import {

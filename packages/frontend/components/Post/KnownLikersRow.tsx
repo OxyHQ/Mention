@@ -1,8 +1,8 @@
 import React, { memo, useMemo } from 'react';
 import { Pressable, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { AvatarGroup } from '@oxyhq/bloom/avatar-group';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { AvatarGroup } from '@oxy.so/bloom/avatar-group';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useKnownLikers } from '@/hooks/useKnownLikers';
 import { displayNameOrHandle } from '@/utils/displayName';

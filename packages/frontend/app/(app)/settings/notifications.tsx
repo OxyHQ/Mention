@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, ScrollView } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -10,12 +10,12 @@ import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { authenticatedClient } from '@/utils/api';
-import { toast } from '@oxyhq/bloom/toast';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { toast } from '@oxy.so/bloom/toast';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
 interface NotificationPreferences {
     pushEnabled: boolean;

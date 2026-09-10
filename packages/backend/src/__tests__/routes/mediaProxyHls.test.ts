@@ -42,11 +42,11 @@ vi.mock('../../middleware/rateLimitStore', () => ({
 /**
  * The route pre-validates the caller-supplied URL with the real core guard, which
  * would resolve DNS for the Bluesky hosts these fixtures name. Stub only that
- * function; the rest of `@oxyhq/core/server` stays real. Per-hop SSRF blocking is
+ * function; the rest of `@oxy.so/core/server` stays real. Per-hop SSRF blocking is
  * proven against the real guard in `utils/safeUpstreamFetchSsrf.test.ts`.
  */
-vi.mock('@oxyhq/core/server', async () => {
-  const actual = await vi.importActual<typeof import('@oxyhq/core/server')>('@oxyhq/core/server');
+vi.mock('@oxy.so/core/server', async () => {
+  const actual = await vi.importActual<typeof import('@oxy.so/core/server')>('@oxy.so/core/server');
   return {
     ...actual,
     assertSafePublicUrl: async () => ({ ok: true, ip: '203.0.113.10', family: 4 }),

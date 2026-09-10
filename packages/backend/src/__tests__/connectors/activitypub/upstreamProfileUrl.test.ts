@@ -4,7 +4,7 @@ import {
   upstreamProfileUrl,
   type FederationBridgeEntry,
   type NetworkIdentityCandidate,
-} from '@oxyhq/federation';
+} from '@oxy.so/federation';
 
 /**
  * Turning a pasted profile link into bridge accts we can actually look up.

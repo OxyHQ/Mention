@@ -1,19 +1,19 @@
 import React, { memo, useCallback, useEffect, useReducer, useRef } from 'react';
 import { View, Text, StyleSheet, Platform, type ViewProps } from 'react-native';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
-import { ActivityHeatmap } from '@oxyhq/bloom/activity-heatmap';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { ActivityHeatmap } from '@oxy.so/bloom/activity-heatmap';
 import { useRouter } from 'expo-router';
 import { flip, offset, shift, size, useFloating } from '@floating-ui/react-dom';
-import { FollowButton } from '@oxyhq/services/ui/client';
+import { FollowButton } from '@oxy.so/services/ui/client';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 
-import { BloomColorScope, useTheme } from '@oxyhq/bloom/theme';
+import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
 import { useProfileData, usePrefetchProfile } from '@/hooks/useProfileData';
 import { resolveProfileColorName } from '@/hooks/useProfileScreenColor';
 import { usePostActivity } from '@/hooks/usePostActivity';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { Portal } from '@oxyhq/bloom/portal';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Portal } from '@oxy.so/bloom/portal';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import UserName from '@/components/UserName';
 import { AccountBadge } from '@/components/AccountBadge';

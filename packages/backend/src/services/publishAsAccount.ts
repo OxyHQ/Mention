@@ -52,9 +52,9 @@
  * a refusal, not a default.
  */
 
-import type { AccountKind } from '@oxyhq/contracts';
-import { isDelegatedActAsEligibleKind } from '@oxyhq/contracts';
-import type { AccountMember, AccountNode } from '@oxyhq/core';
+import type { AccountKind } from '@oxy.so/contracts';
+import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
+import type { AccountMember, AccountNode } from '@oxy.so/core';
 import { resolveUserSummaries } from './PostHydrationService';
 import { logger } from '../utils/logger';
 
@@ -65,8 +65,8 @@ import { logger } from '../utils/logger';
  *
  * A literal because it is a WIRE value: Oxy derives each member's `permissions`
  * from their role server-side and ships the resulting strings, and neither
- * `@oxyhq/contracts` nor `@oxyhq/core` exports the permission vocabulary today.
- * Its eventual home is `@oxyhq/contracts` beside `ACCOUNT_KINDS`; until then this
+ * `@oxy.so/contracts` nor `@oxy.so/core` exports the permission vocabulary today.
+ * Its eventual home is `@oxy.so/contracts` beside `ACCOUNT_KINDS`; until then this
  * is one named constant rather than a string scattered through the checks.
  */
 const ACCOUNT_ACT_AS_PERMISSION = 'account:act_as';
@@ -86,7 +86,7 @@ const ACCOUNT_ACT_AS_PERMISSION = 'account:act_as';
  *
  * A literal for the same reason as {@link ACCOUNT_ACT_AS_PERMISSION}: Oxy derives
  * each member's `permissions` from their role server-side and ships the strings,
- * and neither `@oxyhq/contracts` nor `@oxyhq/core` exports the vocabulary today.
+ * and neither `@oxy.so/contracts` nor `@oxy.so/core` exports the vocabulary today.
  */
 const ACCOUNT_DELETE_PERMISSION = 'account:delete';
 

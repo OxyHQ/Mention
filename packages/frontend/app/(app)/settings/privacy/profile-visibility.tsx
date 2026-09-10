@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
 import { alertDialog } from '@/utils/alerts';
@@ -15,10 +15,10 @@ import {
     updatePrivacySettingsCache,
     type UserSettingsResponse,
 } from '@/hooks/usePrivacySettings';
-import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
+import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
 import { Icon, type IconName } from '@/lib/icons';
-import { logger } from '@oxyhq/core/logger';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
+import { logger } from '@oxy.so/core/logger';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
 type VisibilityOption = 'public' | 'private' | 'followers_only';
 

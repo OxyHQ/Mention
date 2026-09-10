@@ -1,4 +1,4 @@
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 
 import { refreshTrendsWidget } from './index';
 

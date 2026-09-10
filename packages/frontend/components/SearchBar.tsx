@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { View } from 'react-native'
-import { Search } from '@oxyhq/bloom/search'
+import { Search } from '@oxy.so/bloom/search'
 
 /**
  * Right-rail search box — the same Bloom `Search` field the search screen uses, so

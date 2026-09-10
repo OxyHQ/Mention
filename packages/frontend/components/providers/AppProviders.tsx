@@ -12,8 +12,8 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { MenuProvider } from 'react-native-popup-menu';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { OxyProvider } from '@oxyhq/services/ui/client';
-import { OxyServices } from '@oxyhq/core';
+import { OxyProvider } from '@oxy.so/services/ui/client';
+import { OxyServices } from '@oxy.so/core';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import AppSplashScreen from '@/components/AppSplashScreen';
 import { AccountSwitchReset } from '@/components/providers/AccountSwitchReset';
@@ -30,7 +30,7 @@ import { ChannelInfoDialogProvider } from '@/components/Channels/ChannelInfoDial
 import { LiveFeatureHost } from '@/components/providers/LiveFeatureProviders';
 import { LiveRoomControllerProvider } from '@/context/LiveRoomContext';
 import i18n from '@/lib/i18n';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('AppProviders');
 

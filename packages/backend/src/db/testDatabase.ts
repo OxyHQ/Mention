@@ -1,7 +1,7 @@
 /**
  * Mention's own migrated throwaway test database.
  *
- * `@oxyhq/db/testing`'s `createTestDatabase` creates the throwaway database
+ * `@oxy.so/db/testing`'s `createTestDatabase` creates the throwaway database
  * itself and returns its connection string; MIGRATING it is a caller-supplied
  * hook (see that module's doc comment for why: a shared package ships no
  * migration files of its own to apply). This file supplies that hook —
@@ -11,12 +11,12 @@
  * throwaway database rather than a developer's real one.
  *
  * `dropTestDatabase` needs no Mention-specific wrapping, so callers import it
- * straight from `@oxyhq/db/testing` rather than through here.
+ * straight from `@oxy.so/db/testing` rather than through here.
  */
 
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
-import { createTestDatabase as createMigratedTestDatabase } from '@oxyhq/db/testing';
+import { createTestDatabase as createMigratedTestDatabase } from '@oxy.so/db/testing';
 
 /** Milliseconds `bun run db:migrate` may take before the run is abandoned. */
 const MIGRATE_TIMEOUT_MS = 120_000;
@@ -38,7 +38,7 @@ const PACKAGE_ROOT = join(__dirname, '..', '..');
 function runMigrations(databaseUrl: string, databaseName: string): Promise<void> {
   return new Promise((resolve, reject) => {
     // `--target-database` is required by the migrator and is not a formality
-    // here: the harness (`@oxyhq/db/testing`) generated this name and built
+    // here: the harness (`@oxy.so/db/testing`) generated this name and built
     // `databaseUrl` from it, so passing it asserts that the URL still points
     // where the harness thinks it does. A test run that silently migrated the
     // DEVELOPER's database instead of its throwaway one is exactly the

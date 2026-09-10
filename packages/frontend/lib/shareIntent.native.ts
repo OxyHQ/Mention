@@ -16,7 +16,7 @@ import { useEffect, useRef } from 'react';
 import { useShareIntent } from 'expo-share-intent';
 import type { ImperativeRouter } from 'expo-router';
 
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { oxyServices } from '@/lib/oxyServices';
 import { setPendingShareMedia, type PendingShareMediaItem } from '@/utils/pendingShareMedia';
 

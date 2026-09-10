@@ -1,5 +1,5 @@
 import { defineConfig } from 'drizzle-kit';
-import { DATABASE_CASING } from '@oxyhq/db';
+import { DATABASE_CASING } from '@oxy.so/db';
 
 /**
  * drizzle-kit configuration.
@@ -16,7 +16,7 @@ import { DATABASE_CASING } from '@oxyhq/db';
  *
  * `casing` decides what the DDL CREATES; the same value passed to `createDatabase()`
  * in `src/db/postgres.ts` decides what queries REFERENCE. Both read it from
- * `@oxyhq/db`'s `casing.ts` so they cannot drift apart.
+ * `@oxy.so/db`'s `casing.ts` so they cannot drift apart.
  */
 
 const url = process.env.DATABASE_URL;

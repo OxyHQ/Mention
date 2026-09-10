@@ -1,4 +1,4 @@
-import { registrableApex } from '@oxyhq/core';
+import { registrableApex } from '@oxy.so/core';
 import { config } from '../../config';
 
 /**

@@ -4,7 +4,7 @@
  * scannable output without excessive JSON noise.
  */
 
-import { getNormalizedUserHandle } from "@oxyhq/core";
+import { getNormalizedUserHandle } from "@oxy.so/core";
 
 interface PostData {
   id?: string;

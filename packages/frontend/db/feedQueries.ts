@@ -24,7 +24,7 @@ import {
   memClearFeed,
 } from './memoryStore';
 import type { FeedFilters } from '@/utils/feedUtils';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('FeedQueries');
 

@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Switch } from '@oxyhq/bloom/switch';
-import { useHaptics } from '@oxyhq/bloom/hooks';
+import { Switch } from '@oxy.so/bloom/switch';
+import { useHaptics } from '@oxy.so/bloom/hooks';
 import type { StyleProp, ViewStyle } from 'react-native';
 
 interface ToggleProps {

@@ -26,14 +26,14 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
     colors: { primary: '#7c3aed', text: '#fff', textTertiary: '#888' },
   }),
 }));
 
 /** Bloom's row, reduced to what this file asserts on: a press target with a title. */
-jest.mock('@oxyhq/bloom/item', () => {
+jest.mock('@oxy.so/bloom/item', () => {
   const React = jest.requireActual<typeof import('react')>('react');
   const { Text: RNText, TouchableOpacity: RNTouchable } =
     jest.requireActual<typeof import('react-native')>('react-native');

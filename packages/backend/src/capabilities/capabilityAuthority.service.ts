@@ -3,11 +3,11 @@ import {
   capabilityTicketClaimsSchema,
   policyDecisionSchema,
   type CapabilityTicketClaims,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   CapabilityTicketError,
   verifyCapabilityTicket,
-} from '@oxyhq/core/server';
+} from '@oxy.so/core/server';
 import { z } from 'zod';
 import { MENTION_CAPABILITY_AUDIENCE } from '@mention/shared-types/mcpCapabilities';
 import { config } from '../config';

@@ -1,5 +1,5 @@
 /**
- * Mention Record Service — the thin WRITE API over the @oxyhq/protocol chain
+ * Mention Record Service — the thin WRITE API over the @oxy.so/protocol chain
  * engine for the MTN Protocol (`app.mention.feed.*`).
  *
  * `signAndAppend(oxyUserId, collection, rkey, payload)` is the one builder the
@@ -33,8 +33,8 @@ import {
   type SignedRecordSigningFields,
   type RejectionReason,
   type AppendOutcome,
-} from '@oxyhq/protocol';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+} from '@oxy.so/protocol';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { logger } from '../../utils/logger';
 import { buildUserDid } from './mentionDid';
 import { mentionRecordStore } from './MentionRecordStore';
@@ -276,7 +276,7 @@ export async function signAndAppend(
  * custodial managed-vault record) and append it to its subject's chain.
  *
  * This is the INGEST chokepoint: it delegates to the app-agnostic
- * `@oxyhq/protocol` engine with the SAME Mention store + resolver the dual-write
+ * `@oxy.so/protocol` engine with the SAME Mention store + resolver the dual-write
  * uses, so a record pulled from an untrusted node is held to the identical trust
  * boundary as a locally-signed one — the signature is re-checked over the
  * canonical input, the `recordId` is recomputed, the signing key must be a

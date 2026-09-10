@@ -1,5 +1,5 @@
-import { OxyInferenceError } from '@oxyhq/core';
-import type { OxyAuthRequest } from '@oxyhq/core/server';
+import { OxyInferenceError } from '@oxy.so/core';
+import type { OxyAuthRequest } from '@oxy.so/core/server';
 import type { Response } from 'express';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

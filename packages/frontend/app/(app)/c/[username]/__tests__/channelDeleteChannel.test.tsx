@@ -51,9 +51,9 @@ jest.mock('@/utils/alerts', () => ({
   confirmDialog: (...args: unknown[]) => mockConfirmDialog(...args),
 }));
 jest.mock('@/lib/actorCache', () => ({ noteIdentityChanged: jest.fn() }));
-jest.mock('@oxyhq/services', () => ({ clearedFieldsFromAccountUpdate: () => [] }));
+jest.mock('@oxy.so/services', () => ({ clearedFieldsFromAccountUpdate: () => [] }));
 
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   OxyAuthPrompt: () => null,
   useAuth: () => ({
     user: { id: 'viewer-1', username: 'operator' },
@@ -70,11 +70,11 @@ jest.mock('@oxyhq/services/ui/client', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: { username?: string } | null | undefined) =>
     user?.username ?? null,
 }));
-jest.mock('@oxyhq/core/logger', () => ({
+jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
 
@@ -114,17 +114,17 @@ jest.mock('react-i18next', () => {
 });
 
 jest.mock('@expo/vector-icons/Ionicons', () => () => null);
-jest.mock('@oxyhq/bloom/avatar', () => ({ Avatar: () => null }));
-jest.mock('@oxyhq/bloom/loading', () => ({ SpinnerIcon: () => null }));
-jest.mock('@oxyhq/bloom/switch', () => ({ Switch: () => null }));
-jest.mock('@oxyhq/bloom/toast', () => {
+jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: () => null }));
+jest.mock('@oxy.so/bloom/loading', () => ({ SpinnerIcon: () => null }));
+jest.mock('@oxy.so/bloom/switch', () => ({ Switch: () => null }));
+jest.mock('@oxy.so/bloom/toast', () => {
   const toast = Object.assign(jest.fn(), { success: jest.fn(), error: jest.fn() });
   return { toast };
 });
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#888', primary: '#00f', error: '#f00' } }),
 }));
-jest.mock('@oxyhq/bloom/settings-list', () => {
+jest.mock('@oxy.so/bloom/settings-list', () => {
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   const { Text, View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -141,7 +141,7 @@ jest.mock('@oxyhq/bloom/settings-list', () => {
       ),
   };
 });
-jest.mock('@oxyhq/bloom/item', () => ({ Item: () => null }));
+jest.mock('@oxy.so/bloom/item', () => ({ Item: () => null }));
 
 jest.mock('@/components/ThemedView', () => {
   const ReactActual = jest.requireActual<typeof import('react')>('react');

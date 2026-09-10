@@ -50,7 +50,7 @@ import { interestScoreService } from './InterestScoreService';
 import { endorsementSignalService } from './EndorsementSignalService';
 import { affinityEventService } from './AffinityEventService';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 
 /** Staleness threshold after which an actor profile is re-fetched. */
 const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours

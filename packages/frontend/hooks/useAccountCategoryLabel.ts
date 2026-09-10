@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { AccountCategoryId } from '@oxyhq/contracts';
+import type { AccountCategoryId } from '@oxy.so/contracts';
 
 import { ACCOUNT_CATEGORY_ENGLISH_LABELS } from '@/utils/accountCategories';
 

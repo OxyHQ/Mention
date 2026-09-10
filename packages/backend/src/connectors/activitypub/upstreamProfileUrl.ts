@@ -5,7 +5,7 @@ import {
   upstreamProfileUrl,
   type FederationBridgeEntry,
   type FederationNetwork,
-} from '@oxyhq/federation';
+} from '@oxy.so/federation';
 import { FEDERATION_BRIDGE_POLICY } from './federationBridgePolicy';
 
 /**

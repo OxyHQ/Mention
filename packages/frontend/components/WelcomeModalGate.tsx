@@ -1,8 +1,8 @@
 import React, { useEffect, useState, memo, Suspense, lazy } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuth } from '@oxyhq/services/ui/client';
-import { logger } from '@oxyhq/core/logger';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { logger } from '@oxy.so/core/logger';
 
 // Lazy load WelcomeModal - only loads when needed (web + unauthenticated + first time)
 const WelcomeModal = lazy(() => import('./WelcomeModal'));
@@ -74,5 +74,3 @@ const WelcomeModalGate: React.FC<WelcomeModalGateProps> = memo(({ appIsReady }) 
 WelcomeModalGate.displayName = 'WelcomeModalGate';
 
 export default WelcomeModalGate;
-
-

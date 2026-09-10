@@ -31,7 +31,7 @@ const POST_ID = 'post-1';
 const NOTIF_ID = 'notif-1';
 const VIEWER_ID = 'viewer-1';
 
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ user: { id: 'viewer-1' } }),
 }));
 
@@ -68,12 +68,12 @@ jest.mock('expo-image', () => {
   return { Image: () => <RNView /> };
 });
 
-jest.mock('@oxyhq/bloom/avatar', () => {
+jest.mock('@oxy.so/bloom/avatar', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Avatar: () => <RNView /> };
 });
 
-jest.mock('@oxyhq/bloom/button', () => {
+jest.mock('@oxy.so/bloom/button', () => {
   const { TouchableOpacity: RNTouchable, Text: RNText } =
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -93,9 +93,9 @@ jest.mock('@oxyhq/bloom/button', () => {
   };
 });
 
-jest.mock('@oxyhq/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
+jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
     colors: {
       primary: '#1d4ed8',
@@ -110,13 +110,13 @@ jest.mock('@oxyhq/bloom/theme', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/toast', () => ({ toast: jest.fn() }));
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 
-jest.mock('@oxyhq/services', () => ({
+jest.mock('@oxy.so/services', () => ({
   queryKeys: { users: { detail: (id: string) => ['users', id] } },
 }));
 
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user?: { username?: string | null } | null): string | null => {
     const username = (user?.username ?? '').trim().replace(/^@/, '');
     return username.length > 0 ? username : null;
@@ -163,8 +163,8 @@ jest.mock('@/context/BottomSheetContext', () => {
   };
 });
 
-jest.mock('@oxyhq/core/logger', () => ({
-  ...jest.requireActual('@oxyhq/core/logger'),
+jest.mock('@oxy.so/core/logger', () => ({
+  ...jest.requireActual('@oxy.so/core/logger'),
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
 

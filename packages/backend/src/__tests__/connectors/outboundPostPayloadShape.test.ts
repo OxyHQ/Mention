@@ -8,7 +8,7 @@ import path from 'node:path';
  *
  * ## Why this is a static check and not a behavioural one
  *
- * `LocalPostEventPayload` (the seam's type, in `@oxyhq/federation`) names fewer
+ * `LocalPostEventPayload` (the seam's type, in `@oxy.so/federation`) names fewer
  * fields than the Note builder reads: `metadata.isSensitive` becomes the Note's
  * `sensitive` flag and `quoteOf` becomes its quote fields, and neither is on the
  * type. Passing the document works because the extra properties ride along at

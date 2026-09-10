@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
  * So the sweep is not the fix; this is. It is worth having only because the
  * thing it measures is invisible by construction.
  *
- * Bare specifiers (`@oxyhq/core/server`, `node:https`) are NOT checked — those
+ * Bare specifiers (`@oxy.so/core/server`, `node:https`) are NOT checked — those
  * resolve through package exports and conditions, and a wrong one fails loudly
  * at import anyway. Only RELATIVE specifiers are in scope, which is where the
  * silence lives.
@@ -229,13 +229,13 @@ describe('the scan itself', () => {
     "const prose = \"vi.mock('../models/InAString')\";",
     "vi.mock('../models/GoneForGood');",
     "vi.mock('../utils/logger');",
-    "vi.mock('@oxyhq/core/server');",
+    "vi.mock('@oxy.so/core/server');",
   ].join('\n');
 
   const specs = extractMockSpecs(synthetic);
 
   it('extracts a real call and ignores one in a comment or a string', () => {
-    expect(specs).toEqual(['../models/GoneForGood', '../utils/logger', '@oxyhq/core/server']);
+    expect(specs).toEqual(['../models/GoneForGood', '../utils/logger', '@oxy.so/core/server']);
   });
 
   it('classifies a missing module dead and a present one alive', () => {

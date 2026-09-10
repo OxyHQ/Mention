@@ -13,7 +13,7 @@
 
 import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { MtnConfig } from '@mention/shared-types';
-import { TopicType } from '@oxyhq/core';
+import { TopicType } from '@oxy.so/core';
 import { getDb } from '../../db/postgres';
 import { trending, TrendingType } from '../../db/schema/discovery';
 import { logger } from '../../utils/logger';

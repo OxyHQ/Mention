@@ -8,7 +8,7 @@
  * ## Rule 1 — a federation protocol is reached through its PUBLIC connector
  *
  * Product code (`services/`, `mtn/`, `routes/`, `db/`) must reach a federation
- * protocol through `@oxyhq/federation`'s `NetworkConnector` contract or the
+ * protocol through `@oxy.so/federation`'s `NetworkConnector` contract or the
  * connector class itself (`ActivityPubConnector` / `AtprotoConnector`), never
  * through one of that protocol's internal modules (`constants.ts`,
  * `helpers.ts`, `actor.service.ts`, a mapper, and so on).
@@ -590,7 +590,7 @@ async function main() {
     for (const f of unexcused) {
       console.error(
         `  ${f.importer}: imports ${f.protocol} internal "${f.line}" with no BASELINE entry — `
-        + "route through the connector's public class, @oxyhq/federation's NetworkConnector contract, "
+        + "route through the connector's public class, @oxy.so/federation's NetworkConnector contract, "
         + "or add a reasoned BASELINE entry in scripts/validate-architecture-boundaries.mjs",
       );
     }

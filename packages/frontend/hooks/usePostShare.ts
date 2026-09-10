@@ -1,10 +1,10 @@
 import { useCallback } from 'react';
 import { Share, Platform } from 'react-native';
-import { queryKeys } from '@oxyhq/services';
-import type { User } from '@oxyhq/core';
-import { getNormalizedUserHandle } from '@oxyhq/core';
-import { logger } from '@oxyhq/core/logger';
-import { toast } from '@oxyhq/bloom/toast';
+import { queryKeys } from '@oxy.so/services';
+import type { User } from '@oxy.so/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
+import { logger } from '@oxy.so/core/logger';
+import { toast } from '@oxy.so/bloom/toast';
 import { queryClient } from '@/lib/queryClient';
 
 interface SharePostUser {

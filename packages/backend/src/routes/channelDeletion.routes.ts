@@ -50,10 +50,10 @@
  */
 
 import { Router, type Response } from 'express';
-import type { AccountKind } from '@oxyhq/contracts';
+import type { AccountKind } from '@oxy.so/contracts';
 import type { ChannelDeletionCounts } from '@mention/shared-types';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { getRequiredOxyUserId } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
+import { getRequiredOxyUserId } from '@oxy.so/core/server';
 import {
   assertCanDeleteAccount,
   PublishAsAccessError,

@@ -1,7 +1,7 @@
 import { Platform, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { toast } from '@oxyhq/bloom/toast';
-import { createLogger } from '@oxyhq/core/logger';
+import { toast } from '@oxy.so/bloom/toast';
+import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('shareLink');
 

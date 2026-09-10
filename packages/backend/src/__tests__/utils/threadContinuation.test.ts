@@ -37,7 +37,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
  * rewriting a whole collection.
  *
  * Two behaviours genuinely changed with the port, and both are marked at their
- * own cases below: `ObjectId.isValid` is gone (see `@oxyhq/db`), so a malformed
+ * own cases below: `ObjectId.isValid` is gone (see `@oxy.so/db`), so a malformed
  * id is no longer refused one branch EARLY — it names no row and is refused by
  * the same condition an unknown id always was.
  */
@@ -79,7 +79,7 @@ import {
   assertContinuesOwnThread,
 } from '../../utils/threadContinuation';
 import { PublishAsAccessError } from '../../services/publishAsAccount';
-import type { AccountMember } from '@oxyhq/core';
+import type { AccountMember } from '@oxy.so/core';
 
 const scope = serviceScope('thread-continuation');
 
@@ -98,7 +98,7 @@ const UNRESOLVABLE = scope.user('unresolvable');
  * They were `new mongoose.Types.ObjectId().toString()` and there is nothing left
  * that cares: `posts.id` is `text` holding a 24-char ObjectId hex for a
  * pre-cutover row and a uuid v7 for a new one, and no shape check survives
- * anywhere (`@oxyhq/db`). What DOES still matter is that they are unique across
+ * anywhere (`@oxy.so/db`). What DOES still matter is that they are unique across
  * the whole run — one database serves every file in parallel and this is a
  * primary key — hence the per-suite prefix.
  */
@@ -304,7 +304,7 @@ describe('assertContinuesOwnThread — what it REFUSES', () => {
    * A MALFORMED ID IS STILL REFUSED — one branch later than it used to be.
    *
    * `ObjectId.isValid` guards stood in front of this read and are deleted per
-   * `@oxyhq/db`: `posts.id` is `text`, so an id of any shape simply names no row
+   * `@oxy.so/db`: `posts.id` is `text`, so an id of any shape simply names no row
    * and is refused by conditions 1 and 3 with an absent parent and root. That is
    * the same answer the guard produced, so this case keeps its subject and loses
    * only the "asks the database nothing" half — which was a property of the

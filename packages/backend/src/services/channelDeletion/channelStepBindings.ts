@@ -7,7 +7,7 @@
 
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
-import { qualified } from '@oxyhq/db';
+import { qualified } from '@oxy.so/db';
 import { postAuthorships, postMentions, postRecentRepliers } from '../../db/schema/postContent';
 import { articles } from '../../db/schema/articles';
 import { polls, pollVotes } from '../../db/schema/polls';

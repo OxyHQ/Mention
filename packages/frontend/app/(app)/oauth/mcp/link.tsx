@@ -2,11 +2,11 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Loading } from '@oxyhq/bloom/loading';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
-import { getNormalizedUserHandle } from '@oxyhq/core';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Loading } from '@oxy.so/bloom/loading';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
+import { getNormalizedUserHandle } from '@oxy.so/core';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -17,7 +17,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { useProfileData } from '@/hooks/useProfileData';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { api } from '@/utils/api';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('McpOAuthLink');
 

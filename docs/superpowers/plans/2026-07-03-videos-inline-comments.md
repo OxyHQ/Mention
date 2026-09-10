@@ -6,7 +6,7 @@
 
 **Architecture:** A comment is an existing reply `Post` — no backend changes. A new shared `VideoComments` component (embedded `<Feed type="replies" scrollEnabled={false}>` + a new lightweight `InlineReplyComposer`) is presented two ways: inside the app's single shared bottom sheet on mobile (extended to support non-scrollable content), and inside `RightBar`'s existing 350px column on desktop (a new third branch, gated by a `commentsOpen` flag added to `VideosRailContext`).
 
-**Tech Stack:** React Native, `@oxyhq/bloom/bottom-sheet`, the existing `Feed`/`postsStore` data layer.
+**Tech Stack:** React Native, `@oxy.so/bloom/bottom-sheet`, the existing `Feed`/`postsStore` data layer.
 
 ## Global Constraints
 
@@ -26,7 +26,7 @@
 **Interfaces:**
 - Produces: `setBottomSheetContent(content: ReactNode, options？: { scrollable?: boolean })` — consumed by Task 4 (mobile wiring).
 
-**Context:** `@oxyhq/bloom/bottom-sheet`'s `BottomSheetProps` already supports a `scrollable?: boolean` prop (`node_modules/@oxyhq/bloom/lib/typescript/module/bottom-sheet/index.d.ts:56`) — "Set to false when the screen owns its own scrolling primitive (e.g. a FlatList... Nesting a VirtualizedList inside the internal ScrollView would break windowing." That is exactly our case (the embedded comments `<Feed>` owns its own list), but `BottomSheetContext.tsx`'s `<BottomSheet>` render never passes this prop through — it's hardcoded to the default (`scrollable: true`). Add a small per-invocation override, defaulting to `true` so all ~118 existing call sites (which pass no second argument) are unaffected.
+**Context:** `@oxy.so/bloom/bottom-sheet`'s `BottomSheetProps` already supports a `scrollable?: boolean` prop (`node_modules/@oxy.so/bloom/lib/typescript/module/bottom-sheet/index.d.ts:56`) — "Set to false when the screen owns its own scrolling primitive (e.g. a FlatList... Nesting a VirtualizedList inside the internal ScrollView would break windowing." That is exactly our case (the embedded comments `<Feed>` owns its own list), but `BottomSheetContext.tsx`'s `<BottomSheet>` render never passes this prop through — it's hardcoded to the default (`scrollable: true`). Add a small per-invocation override, defaulting to `true` so all ~118 existing call sites (which pass no second argument) are unaffected.
 
 - [ ] **Step 1: Read the current file**
 
@@ -183,9 +183,9 @@ Run: `grep -n "createReply" packages/frontend/stores/postsStore.ts` to confirm t
 import React, { useCallback, useState } from 'react';
 import { View, TextInput, Pressable, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { show as toast } from '@oxyhq/bloom/toast';
+import { show as toast } from '@oxy.so/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 
 interface InlineReplyComposerProps {
@@ -307,7 +307,7 @@ Run: `grep -n "^import.*Feed" "packages/frontend/app/(app)/p/[id].tsx" | head -3
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { Feed } from '@/components/Feed/Feed';
 import { InlineReplyComposer } from './InlineReplyComposer';
@@ -593,7 +593,7 @@ In `packages/frontend/app/(app)/videos.tsx`, find where `currentVisibleIndex` st
     }
 ```
 
-Where `railCommentsOpen` reads `commentsOpen` off the same `useVideosRail()` call this file already makes for `setRailState` (Task 4 introduced that call — read the CURRENT file to find its exact destructuring and extend it with `commentsOpen`, rather than adding a second `useVideosRail()` call). `openBottomSheet(false)` is a no-op if no sheet is currently presented (per `BottomSheetContext`'s `dismiss()` call — confirm this is safe to call unconditionally by reading `@oxyhq/bloom/bottom-sheet`'s `dismiss` behavior; if it is not safe to call when nothing is open, gate it on whatever local/context flag already tracks whether the comments sheet specifically is the one presented, e.g. track a local `commentsSheetOpen` boolean alongside the `setBottomSheetContent`/`openBottomSheet(true)` call from Task 4 and only call `openBottomSheet(false)` here when that's true).
+Where `railCommentsOpen` reads `commentsOpen` off the same `useVideosRail()` call this file already makes for `setRailState` (Task 4 introduced that call — read the CURRENT file to find its exact destructuring and extend it with `commentsOpen`, rather than adding a second `useVideosRail()` call). `openBottomSheet(false)` is a no-op if no sheet is currently presented (per `BottomSheetContext`'s `dismiss()` call — confirm this is safe to call unconditionally by reading `@oxy.so/bloom/bottom-sheet`'s `dismiss` behavior; if it is not safe to call when nothing is open, gate it on whatever local/context flag already tracks whether the comments sheet specifically is the one presented, e.g. track a local `commentsSheetOpen` boolean alongside the `setBottomSheetContent`/`openBottomSheet(true)` call from Task 4 and only call `openBottomSheet(false)` here when that's true).
 
 Place this block in the same component scope as `currentVisibleIndex` (not inside a callback), so it runs on every render where the index actually changed, exactly mirroring the cited precedent's placement (after other hooks, before the JSX return).
 

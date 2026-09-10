@@ -20,7 +20,7 @@
  * a loading state and refetches shortly, instead of rendering an empty profile.
  */
 
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 import { and, isNull } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { activityIdUnderActor } from './activitypub/helpers';

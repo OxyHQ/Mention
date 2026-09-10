@@ -14,7 +14,7 @@ import {
   scheduleMediaCacheRetry,
 } from '../../db/federation/mediaCacheRepository';
 import { logger } from '../../utils/logger';
-import { SsrfRejection } from '@oxyhq/core/server';
+import { SsrfRejection } from '@oxy.so/core/server';
 import {
   fetchUpstreamFollowingRedirects,
   contentTypeFamily,

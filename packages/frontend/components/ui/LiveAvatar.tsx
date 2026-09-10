@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Avatar, type AvatarProps } from '@oxyhq/bloom/avatar';
+import { Avatar, type AvatarProps } from '@oxy.so/bloom/avatar';
 import { useLiveUsers } from '@/hooks/useLiveUsers';
 import { router } from 'expo-router';
 

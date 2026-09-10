@@ -1,7 +1,7 @@
 /**
  * `moderation_events` — the webhook dedupe store.
  *
- * `@oxyhq/crowdsource-express` defaults to an in-process store and says exactly
+ * `@oxy.so/crowdsource-express` defaults to an in-process store and says exactly
  * when that is not enough: two instances behind a load balancer each keep their
  * own, so a redelivery landing on the other instance is not deduplicated. Mention
  * runs several ECS tasks behind one ALB, so this is that case.

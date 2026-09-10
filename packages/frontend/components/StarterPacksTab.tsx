@@ -1,14 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
 import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { EmptyState } from '@/components/common/EmptyState';
 import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
-import { VirtualList } from '@oxyhq/bloom/list';
+import { VirtualList } from '@oxy.so/bloom/list';
 import { useTranslation } from 'react-i18next';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 
 export function StarterPacksTab() {
   const router = useRouter();

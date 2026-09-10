@@ -41,7 +41,7 @@ No inline (non-navigating) text composer exists anywhere in the app today — ev
 
 ### Mobile: bottom-sheet
 
-Reuse the app's single shared `BottomSheetContext` (`context/BottomSheetContext.tsx`, `@oxyhq/bloom/bottom-sheet`) — the established one-sheet-at-a-time convention used ~118 places — rather than introducing a second competing sheet mechanism. **Verify during implementation** whether this shared sheet's snap-point/keyboard-avoidance behavior actually works well with a scrollable list + pinned text input (taller/more interactive than its typical usages like `ReplyPreferencesSheet`); if it does not, that's a decision point to bring back before building a parallel mechanism — do not silently work around a real limitation.
+Reuse the app's single shared `BottomSheetContext` (`context/BottomSheetContext.tsx`, `@oxy.so/bloom/bottom-sheet`) — the established one-sheet-at-a-time convention used ~118 places — rather than introducing a second competing sheet mechanism. **Verify during implementation** whether this shared sheet's snap-point/keyboard-avoidance behavior actually works well with a scrollable list + pinned text input (taller/more interactive than its typical usages like `ReplyPreferencesSheet`); if it does not, that's a decision point to bring back before building a parallel mechanism — do not silently work around a real limitation.
 
 ### Breakpoint
 

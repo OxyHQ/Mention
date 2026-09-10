@@ -16,14 +16,14 @@ import { cacheActor, cacheActors, noteIdentityChanged } from '../actorCache';
  * both that the door corrects what passes through it AND that nothing walks
  * around it.
  *
- * The MERGE itself is the SDK's own contract (verified in `@oxyhq/services`).
+ * The MERGE itself is the SDK's own contract (verified in `@oxy.so/services`).
  * What Mention owns, and what these assert, is the wiring: what is handed to it,
  * keyed to which viewer, with which fields.
  */
 
 const mockUpsertCachedUser = jest.fn();
 const mockUpsertCachedUsers = jest.fn();
-jest.mock('@oxyhq/services', () => ({
+jest.mock('@oxy.so/services', () => ({
   upsertCachedUser: (...args: unknown[]) => mockUpsertCachedUser(...args),
   upsertCachedUsers: (...args: unknown[]) => mockUpsertCachedUsers(...args),
 }));
@@ -302,7 +302,7 @@ describe('the door is the only way in', () => {
       const source = fs.readFileSync(file, 'utf8');
       // The IMPORT, not a mention in prose — several files name these helpers in
       // their docstrings, and a docstring cannot walk around anything.
-      return /import\s*\{[^}]*\bupsertCachedUsers?\b[^}]*\}\s*from\s*['"]@oxyhq\/services['"]/.test(
+      return /import\s*\{[^}]*\bupsertCachedUsers?\b[^}]*\}\s*from\s*['"]@oxy\.so\/services['"]/.test(
         source,
       );
     });

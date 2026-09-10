@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services/ui/client';
-import type { AccountKind, AccountNode } from '@oxyhq/core';
+import { useAuth } from '@oxy.so/services/ui/client';
+import type { AccountKind, AccountNode } from '@oxy.so/core';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { operatesAccount } from '@/lib/operatedAccounts';
 

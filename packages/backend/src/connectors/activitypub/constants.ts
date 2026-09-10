@@ -1,5 +1,5 @@
-import { type User } from '@oxyhq/core';
-import { createDomainPolicy, createUrlBuilders } from '@oxyhq/federation';
+import { type User } from '@oxy.so/core';
+import { createDomainPolicy, createUrlBuilders } from '@oxy.so/federation';
 import { config } from '../../config';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
@@ -59,7 +59,7 @@ export function isActivityPubAccept(accept: string | string[] | undefined): bool
 
 /**
  * Per-instance ActivityPub URL builders, bound to Mention's FEDERATION_DOMAIN /
- * ACTOR_DOMAIN via the shared `@oxyhq/federation` factory. The URL SHAPES live in
+ * ACTOR_DOMAIN via the shared `@oxy.so/federation` factory. The URL SHAPES live in
  * the engine (so every Oxy app federates identically); this module owns only the
  * domain configuration. `actorUrl` is `ACTOR_DOMAIN`-scoped; the rest are
  * `FEDERATION_DOMAIN`-scoped — unchanged from the previous hand-written builders.
@@ -83,7 +83,7 @@ export function hashtagUrl(tag: string): string {
 }
 
 /**
- * Mention's per-instance domain policy, bound via the shared `@oxyhq/federation`
+ * Mention's per-instance domain policy, bound via the shared `@oxy.so/federation`
  * factory. `isBlockedDomain` rejects our own ActivityPub domains, the Oxy identity
  * apex (both publish our own users), and every published moderation block
  * ({@link FEDERATION_BLOCKS}); `extractLocalPostId` recognises our own AP post

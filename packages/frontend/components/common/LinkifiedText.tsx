@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Text, StyleProp, TextStyle } from 'react-native';
 import { useRouter } from 'expo-router';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import {
   scanTextEntities,

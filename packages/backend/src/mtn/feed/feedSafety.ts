@@ -30,7 +30,7 @@
  */
 
 import { sql, type SQL } from 'drizzle-orm';
-import { inList, qualified } from '@oxyhq/db';
+import { inList, qualified } from '@oxy.so/db';
 import { posts } from '../../db/schema/posts';
 import { NSFW_HASHTAGS, isNsfwHashtag } from '../../services/contentClassification/nsfw';
 

@@ -65,7 +65,7 @@
  * alone is the guard.
  */
 
-import type { AccountKind } from '@oxyhq/contracts';
+import type { AccountKind } from '@oxy.so/contracts';
 import { inArray } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
@@ -103,7 +103,7 @@ export async function assertContinuesOwnThread(params: {
   if (!authorId || !parentPostId || !threadId) refuse();
 
   // NO id-SHAPE guard. `ObjectId.isValid` stood here and is deleted per
-  // `@oxyhq/db`: `posts.id` is `text`, so an id of any shape that names no row
+  // `@oxy.so/db`: `posts.id` is `text`, so an id of any shape that names no row
   // already reaches the refusals below with an absent parent and root — the
   // exact answer the guard was producing, one branch earlier.
 

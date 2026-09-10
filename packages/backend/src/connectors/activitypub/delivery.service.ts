@@ -1,5 +1,5 @@
-import { createDeliveryService, type DeliveryService } from '@oxyhq/federation/node';
-import { assertSafePublicUrl } from '@oxyhq/core/server';
+import { createDeliveryService, type DeliveryService } from '@oxy.so/federation/node';
+import { assertSafePublicUrl } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
 import { withEngineId, type EngineFederatedActorRecord } from '../../db/federation/actorRecord';
 import { findActorInboxesByUris, findActorByUri } from '../../db/federation/actorRepository';
@@ -34,7 +34,7 @@ import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
  * The delivery transport (sign → SSRF-safe POST → BullMQ/Mongo durable queue), the
  * shared-inbox dedup fan-out, and the follow protocol (Follow / Undo(Follow) /
  * Accept(Follow)) + the `Update(Person)` rebroadcast now live in
- * `@oxyhq/federation`'s `createDeliveryService` so every Oxy app federates
+ * `@oxy.so/federation`'s `createDeliveryService` so every Oxy app federates
  * identically. This module is the Mention wiring: it binds the engine to Mention's
  * private-key custody (oxy-api, via `crypto.ts`), the SSRF-safe single-hop POST
  * (`fetchUpstreamSingleHop`), the BullMQ producer + the `federation_delivery_queue`

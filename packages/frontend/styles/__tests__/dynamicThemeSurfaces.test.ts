@@ -17,7 +17,7 @@ describe('dynamic theme surfaces', () => {
   it('keeps the notification permission surface on Bloom roles in every mode', () => {
     const file = source('components', 'NotificationPermissionSheet.tsx');
 
-    expect(file).toContain("from '@oxyhq/bloom/button'");
+    expect(file).toContain("from '@oxy.so/bloom/button'");
     expect(file).toContain('text-foreground');
     expect(file).toContain('text-muted-foreground');
     expect(file).toContain('variant="primary"');

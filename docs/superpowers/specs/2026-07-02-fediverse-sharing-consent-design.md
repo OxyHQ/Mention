@@ -12,7 +12,7 @@ Mention federates every account by default with no user-facing control and no ex
 2. **OFF = full Threads-style shutdown**: actor undiscoverable, inbound follows rejected, nothing delivered, deletion requested from remote servers. Reversible; remote followers must re-follow after re-enabling.
 3. **Educational sheet triggers**: tapping the fediverse badge (own profile when sharing is ON, and on federated profiles/posts) and from the Fediverse settings screen.
 4. **Dedicated settings screen** (`Ajustes → Fediverso`), not a row buried in Privacy.
-5. **Bottom sheet = Bloom UI** (`@oxyhq/bloom/bottom-sheet`) via Mention's existing global `BottomSheetContext`.
+5. **Bottom sheet = Bloom UI** (`@oxy.so/bloom/bottom-sheet`) via Mention's existing global `BottomSheetContext`.
 6. **The consent flag lives in Oxy** (identity-level, ecosystem-wide), enforced by Mention. Revised from the first draft after Nate's review — see the boundary section.
 
 ## Boundary: what lives in Mention vs Oxy
@@ -37,7 +37,7 @@ Mention federates every account by default with no user-facing control and no ex
 ### Data + chokepoint
 
 **oxy-api (owns the flag):**
-- `privacySettings.fediverseSharing: boolean, default true` on the User model, exposed in the user/profile DTOs (so it arrives wherever the user object already travels), writable by the session user through the existing settings/profile update route (field whitelisted like its siblings), and surfaced by an SDK accessor in `@oxyhq/core`.
+- `privacySettings.fediverseSharing: boolean, default true` on the User model, exposed in the user/profile DTOs (so it arrives wherever the user object already travels), writable by the session user through the existing settings/profile update route (field whitelisted like its siblings), and surfaced by an SDK accessor in `@oxy.so/core`.
 - No new Oxy route: it is one more privacy field on existing plumbing.
 
 **Mention (reads it, never stores it):**

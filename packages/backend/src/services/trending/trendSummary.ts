@@ -29,7 +29,7 @@ import { MtnConfig } from '@mention/shared-types';
 import { createHash } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { trendSummaries } from '../../db/schema/discovery';
 import { inferenceChat, isInferenceEnabled } from '../../utils/oxyInference';
 import { logger } from '../../utils/logger';

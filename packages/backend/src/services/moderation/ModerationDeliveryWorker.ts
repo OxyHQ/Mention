@@ -45,7 +45,7 @@ export class CrowdSourceUnavailableError extends Error {
  * A delivery event that cannot become deliverable.
  *
  * `retryable: false` is the field the outbox reads to dead-letter instead of backing
- * off — the same contract every error from `@oxyhq/crowdsource` answers.
+ * off — the same contract every error from `@oxy.so/crowdsource` answers.
  */
 export class ModerationDeliveryRejectedError extends Error {
   readonly retryable = false;

@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { pollService, type PollData, type PollOption } from '@/services/pollService';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface PollCardProps {

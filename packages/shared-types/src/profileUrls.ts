@@ -137,7 +137,7 @@ function canonicalHost(host: string): string {
 
 /**
  * A handle character that would make the handle unusable as a profile
- * destination. `getNormalizedUserHandle` in `@oxyhq/core` — the one helper every
+ * destination. `getNormalizedUserHandle` in `@oxy.so/core` — the one helper every
  * profile route in the app goes through — rejects a handle containing any of
  * these, so producing one here would yield a "mention" that renders as inert
  * coloured text where a working link used to be. Better to leave it a link.

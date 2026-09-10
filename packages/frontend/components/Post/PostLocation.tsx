@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { GeoJSONPoint } from '@mention/shared-types';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 
 interface PostLocationProps {
   location: GeoJSONPoint;

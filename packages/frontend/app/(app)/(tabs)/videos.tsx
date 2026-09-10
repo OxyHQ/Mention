@@ -1,14 +1,14 @@
 import React, { useCallback, useContext, useEffect, useRef, useState, useMemo, memo } from 'react';
 import { StyleSheet, View, Text, Pressable, FlatList, Platform, Share, useWindowDimensions, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
 import { Image } from 'expo-image';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, type SharedValue } from 'react-native-reanimated';
 import { ThemedView } from '@/components/ThemedView';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { useHaptics } from '@oxyhq/bloom/hooks';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { useHaptics } from '@oxy.so/bloom/hooks';
 import { useTranslation } from 'react-i18next';
-import { useAuth, FollowButton } from '@oxyhq/services/ui/client';
+import { useAuth, FollowButton } from '@oxy.so/services/ui/client';
 import { VideoView, useVideoPlayer, type VideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -18,8 +18,8 @@ import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
 import { proxyExternalUrl, videoPosterUrl } from '@/utils/imageUrlCache';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -30,7 +30,7 @@ import { BoostIcon, BoostIconActive } from '@/assets/icons/boost-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { cn } from '@/lib/utils';
 import { videoSourceFor } from '@/utils/videoSource';
@@ -53,7 +53,7 @@ import {
     type ReelChromeParams,
     type RegisterTransportSeek,
 } from '@/hooks/useReelChrome';
-import { MediaFlightHost, hasFlight, useMediaFlight, type MediaFlightHostProps } from '@oxyhq/bloom/media-flight';
+import { MediaFlightHost, hasFlight, useMediaFlight, type MediaFlightHostProps } from '@oxy.so/bloom/media-flight';
 import { useVideoPlayerLease, videoPlayerKey, type VideoPlayerKey } from '@/stores/videoPlayerRegistry';
 import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
 
@@ -363,7 +363,7 @@ interface ActiveVideoSurfaceProps extends Omit<ReelChromeParams, 'player' | 'res
  */
 /**
  * The slot's own props. `MediaVideoSlotProps` is not exported from
- * `@oxyhq/bloom/media-flight`, so it is derived from the prop that takes it —
+ * `@oxy.so/bloom/media-flight`, so it is derived from the prop that takes it —
  * which is exported, and which stays right if the slot's shape ever changes.
  */
 type FlightVideoSlotProps = Parameters<NonNullable<MediaFlightHostProps['renderVideo']>>[0];

@@ -1,8 +1,8 @@
 import React, { useCallback, useContext } from 'react';
-import { toast } from '@oxyhq/bloom/toast';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { showActionMenu } from '@/components/common/ActionMenu';
 import type { ActionMenuAction } from '@/components/common/actionMenuGroups';

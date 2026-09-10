@@ -26,14 +26,14 @@
  * an error.
  */
 
-import type { UserNameResponse } from '@oxyhq/contracts';
+import type { UserNameResponse } from '@oxy.so/contracts';
 import { getServiceOxyClient, getMentionOxyClientId } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 
 /**
  * Wire shape of a single recommendation item as returned by Oxy's
  * `POST /profiles/recommendations`. The canonical recommendation/contract types
- * are NOT exported from the published `@oxyhq/contracts` (they live only in the
+ * are NOT exported from the published `@oxy.so/contracts` (they live only in the
  * Oxy workspace), so the HTTP wire shape Mention consumes is declared locally
  * here. `name` reuses the published canonical {@link UserNameResponse} so the
  * display name stays the single-source-of-truth contract.

@@ -1,10 +1,10 @@
-import { buildUserDid } from '@oxyhq/core';
+import { buildUserDid } from '@oxy.so/core';
 
 /**
  * MTN subject-DID helpers.
  *
  * The MTN chain is subject-keyed by the user's Oxy DID. The DID is built with
- * `@oxyhq/core`'s {@link buildUserDid} (`did:web:oxy.so:u:<oxyUserId>`) so it
+ * `@oxy.so/core`'s {@link buildUserDid} (`did:web:oxy.so:u:<oxyUserId>`) so it
  * matches EXACTLY the DID that `oxyServices.resolveDid(oxyUserId)` resolves
  * verification methods for — there is one canonical DID per Oxy account across
  * the whole ecosystem. {@link parseUserDid} is its inverse: it recovers the

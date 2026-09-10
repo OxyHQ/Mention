@@ -1,22 +1,22 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import i18n from 'i18next';
 import { setLanguage } from '@/lib/i18n';
 import { Storage } from '@/utils/storage';
 import { STORAGE_KEYS, SUPPORTED_LANGUAGES } from '@/lib/constants';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { Toggle } from '@/components/Toggle';
 import { Icon } from '@/lib/icons';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
 
 /**

@@ -45,7 +45,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { and, eq, inArray } from 'drizzle-orm';
 import { PostType } from '@mention/shared-types';
-import type { OxyAuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest } from '@oxy.so/core/server';
 
 const mocks = vi.hoisted(() => ({
   deletePendingDeliveries: vi.fn(),

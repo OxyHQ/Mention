@@ -22,7 +22,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 const TEST_USER = 'readmorebio-user-1';
 
-vi.mock('@oxyhq/core/server', () => ({
+vi.mock('@oxy.so/core/server', () => ({
   requireOxyAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     (req as express.Request & { user?: { id: string }; accessToken?: string }).user = { id: TEST_USER };
     (req as express.Request & { accessToken?: string }).accessToken = 'test-token';

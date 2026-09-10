@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services/ui/client';
-import type { User } from '@oxyhq/core';
+import { useAuth } from '@oxy.so/services/ui/client';
+import type { User } from '@oxy.so/core';
 import { isAuthError } from '@/utils/authErrors';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**

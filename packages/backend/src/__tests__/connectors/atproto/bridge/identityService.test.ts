@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { DidDocument } from '@oxyhq/contracts';
+import type { DidDocument } from '@oxy.so/contracts';
 import { buildUserDid } from '../../../../services/mtn/mentionDid';
 
 /**

@@ -1,5 +1,5 @@
 import { and, arrayOverlaps, eq, gte, inArray, or, sql } from 'drizzle-orm';
-import { canonicalFederationHost } from '@oxyhq/federation';
+import { canonicalFederationHost } from '@oxy.so/federation';
 import { getDb } from '../../db/postgres';
 import {
   trendStoryPosts,

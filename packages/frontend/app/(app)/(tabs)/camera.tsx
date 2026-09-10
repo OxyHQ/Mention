@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { router, useIsFocused } from 'expo-router';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 
 import { CameraCapture } from '@/components/Camera/CameraCapture';
 import { CaptureReview } from '@/components/Camera/CaptureReview';

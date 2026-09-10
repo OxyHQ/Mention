@@ -3,7 +3,7 @@ import https from 'node:https';
 import type { LookupAddress, LookupAllOptions, LookupOneOptions } from 'node:dns';
 import type { LookupFunction } from 'node:net';
 import { URL } from 'node:url';
-import { assertSafePublicUrl, SsrfRejection, UpstreamError, type SsrfCheckOk } from '@oxyhq/core/server';
+import { assertSafePublicUrl, SsrfRejection, UpstreamError, type SsrfCheckOk } from '@oxy.so/core/server';
 
 /**
  * Shared SSRF-safe upstream HTTP fetch primitives.

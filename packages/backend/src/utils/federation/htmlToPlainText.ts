@@ -1,5 +1,6 @@
 import { decode as decodeEntities } from 'he';
-import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
+import sanitizeHtml from 'sanitize-html';
+import { normalizeInlineText, normalizeMultilineText } from '@oxy.so/core';
 
 /**
  * Any `<a …>…</a>` anchor, capturing its attribute string and its inner HTML
@@ -41,7 +42,7 @@ const HCARD_LOOKBEHIND_CHARS = 256;
 
 /** An anchor's visible text: inner markup stripped, surrounding space trimmed. */
 function anchorVisibleText(inner: string): string {
-  return inner.replace(/<[^>]+>/g, '').trim();
+  return sanitizeHtml(inner, { allowedTags: [], allowedAttributes: {} }).trim();
 }
 
 /** True when the anchor at `offset` is wrapped by an `h-card` microformat span. */
@@ -126,8 +127,10 @@ export function htmlToPlainText(html: string): string {
   // there to be read.
   text = collapseAnchors(text);
 
-  // Strip all remaining HTML tags
-  text = text.replace(/<[^>]+>/g, '');
+  // Parse and remove all remaining markup. A parser is required here: a
+  // regex-based tag strip can leave executable markup behind when a malformed
+  // tag contains another opening delimiter.
+  text = sanitizeHtml(text, { allowedTags: [], allowedAttributes: {} });
 
   // Decode all HTML entities (named, numeric decimal, numeric hex)
   text = decodeEntities(text);

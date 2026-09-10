@@ -2,7 +2,7 @@
  * Post-related types for Mention social network
  */
 
-import type { AccountKind, UserNameResponse } from '@oxyhq/contracts';
+import type { AccountKind, UserNameResponse } from '@oxy.so/contracts';
 import { GeoJSONPoint } from './common';
 import type { LaneSummary } from './lane';
 
@@ -917,7 +917,7 @@ export interface PostFilters {
 
 /**
  * Canonical embedded user identity on a post DTO — the SAME shape as the Oxy
- * `User` / `PublicUserProfile` (`@oxyhq/core` / `@oxyhq/contracts`). Oxy is the
+ * `User` / `PublicUserProfile` (`@oxy.so/core` / `@oxy.so/contracts`). Oxy is the
  * single authority for user identity, so post hydration passes Oxy user fields
  * through UNCHANGED: there is NO Mention-local reshape (no flat `displayName`,
  * no pre-resolved `avatarUrl`, no wire `handle`).
@@ -957,7 +957,7 @@ export interface PostUser {
    * to `/@<handle>` and let the profile screen bounce — correct, but a wasted
    * navigation on every channel post.
    *
-   * `AccountKind` comes from `@oxyhq/contracts`, which owns the account graph
+   * `AccountKind` comes from `@oxy.so/contracts`, which owns the account graph
    * and which this file already imports from — restating the union here would
    * be a second definition free to drift from the one the server validates
    * against.

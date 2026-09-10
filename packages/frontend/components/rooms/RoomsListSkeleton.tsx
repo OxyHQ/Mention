@@ -1,6 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 
 /**
  * Placeholder for the initial live-rooms load. The SDK `RoomCard` renders TWO

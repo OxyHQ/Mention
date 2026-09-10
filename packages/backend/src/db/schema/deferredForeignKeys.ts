@@ -27,7 +27,7 @@
 
 import type { PgColumn, PgTable, UpdateDeleteAction } from 'drizzle-orm/pg-core';
 import { getTableColumns, getTableName } from 'drizzle-orm';
-import { sqlColumnName } from '@oxyhq/db';
+import { sqlColumnName } from '@oxy.so/db';
 import { repairFetchFailures } from './adminScripts';
 import {
   blockedDomainPurgeRuns,

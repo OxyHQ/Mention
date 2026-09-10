@@ -28,7 +28,7 @@
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 
 // The service-scoped Oxy client, so the read-side blob resolver's REVERSE lookup
 // (`getServiceAssetMetadataBySha256`, sha256 → fileId) is controllable and does

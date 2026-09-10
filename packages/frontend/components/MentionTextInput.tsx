@@ -11,7 +11,7 @@ import {
     type StyleProp,
     type TextStyle,
 } from "react-native";
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import MentionPicker, { MentionUser } from "./MentionPicker";
 import { asTextStyle } from "@/types/webStyles";
 import {

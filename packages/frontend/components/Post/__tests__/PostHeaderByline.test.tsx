@@ -33,10 +33,10 @@ import PostHeader from '../PostHeader';
 // then have to filter back out.
 jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('@/components/ui/LiveAvatar', () => ({ LiveAvatar: 'LiveAvatar' }));
-jest.mock('@oxyhq/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
+jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
 jest.mock('../../UserName', () => ({ __esModule: true, default: 'UserName' }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#8899a6' } }),
 }));
 
@@ -46,7 +46,7 @@ jest.mock('@/assets/icons/boost-icon', () => ({ BoostIcon: () => null }));
 // A load-time necessity, not an assertion: the header imports the toast module for
 // the edited marker, which this suite does not exercise. Untransformed ESM, so the
 // real module fails the whole file at `require` time before a single test runs.
-jest.mock('@oxyhq/bloom/toast', () => ({ toast: jest.fn() }));
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 
 /**
  * `t` resolves against the REAL `en.json` and deliberately IGNORES
@@ -62,7 +62,7 @@ jest.mock('react-i18next', () => {
   };
 });
 
-// `@oxyhq/core` is not transformed in this suite. Mocked with the REAL rule so
+// `@oxy.so/core` is not transformed in this suite. Mocked with the REAL rule so
 // the federated `user@domain` handle path is genuinely exercised.
 function mockHandlePart(value?: string | null): string | null {
   const trimmed = value?.trim().replace(/^@+/, '');
@@ -83,7 +83,7 @@ function mockNormalizedHandle(user: {
   }
   return username;
 }
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: unknown) =>
     mockNormalizedHandle(user as Parameters<typeof mockNormalizedHandle>[0]),
 }));

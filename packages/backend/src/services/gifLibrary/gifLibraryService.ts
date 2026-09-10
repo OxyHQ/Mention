@@ -7,11 +7,11 @@ import { pipeline } from 'node:stream/promises';
 import type { IncomingMessage } from 'node:http';
 
 import { desc, eq, gte, inArray, sql } from 'drizzle-orm';
-import { isUniqueViolation, qualified } from '@oxyhq/db';
+import { isUniqueViolation, qualified } from '@oxy.so/db';
 import { getDb } from '../../db/postgres';
 import { gifs } from '../../db/schema/discovery';
 import { logger } from '../../utils/logger';
-import { SsrfRejection } from '@oxyhq/core/server';
+import { SsrfRejection } from '@oxy.so/core/server';
 import { fetchUpstreamFollowingRedirects } from '../../utils/safeUpstreamFetch';
 import { uploadGifLibraryMedia } from '../mediaCache/oxyMediaStore';
 import type { KlipyGifItem } from '../gifService';

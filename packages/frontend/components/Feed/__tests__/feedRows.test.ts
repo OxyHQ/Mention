@@ -25,7 +25,7 @@ import {
 jest.mock('../PostItem', () => ({ __esModule: true, default: () => null }));
 jest.mock('../PostErrorBoundary', () => ({ __esModule: true, PostErrorBoundary: () => null }));
 jest.mock('../interstitials/FeedInterstitial', () => ({ __esModule: true, default: () => null }));
-jest.mock('@oxyhq/bloom/subtle-hover', () => ({ __esModule: true, SubtleHover: () => null }));
+jest.mock('@oxy.so/bloom/subtle-hover', () => ({ __esModule: true, SubtleHover: () => null }));
 jest.mock('@/stores/threadHoverStore', () => ({ __esModule: true, useThreadHoverStore: () => undefined }));
 
 // ── Fixtures ────────────────────────────────────────────────────────────────

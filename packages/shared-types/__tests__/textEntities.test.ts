@@ -279,6 +279,14 @@ describe('bareHandle', () => {
     expect(values('@-', { kinds: ['bareHandle'] })).toEqual([]);
   });
 
+  it('trims a long punctuation suffix without changing the handle span', () => {
+    const punctuation = '.-'.repeat(10_000);
+    const [entity] = scanTextEntities(`@alice${punctuation} next`, { kinds: ['bareHandle'] });
+    expect(entity.value).toBe('alice');
+    expect(entity.raw).toBe('@alice');
+    expect(entity.end).toBe(6);
+  });
+
   /**
    * `raw`/`start`/`end` describe the span a caller REPLACES, so a trim that
    * shortened the value while leaving the span long would make every rewrite

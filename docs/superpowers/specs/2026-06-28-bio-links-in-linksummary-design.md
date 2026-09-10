@@ -7,7 +7,7 @@
 
 The profile `LinkSummary` (collapsed "first link … and N other" row + bottom sheet,
 fed at `ProfileContent.tsx:211` via `normalizeProfileLinks(profile.linksMetadata,
-profile.links)` from `@oxyhq/core`) shows only the user's explicit profile links. Users
+profile.links)` from `@oxy.so/core`) shows only the user's explicit profile links. Users
 also put URLs in their **bio/description** text. Those should appear in the same link
 list, and reactively — adding/removing a URL in the bio adds/removes it from the list
 (the bio comes from React Query profile data, so re-render is automatic).
@@ -32,7 +32,7 @@ lives in ONE place (no divergence).
 ### `utils/mergeBioAndProfileLinks.ts` (new)
 ```ts
 export function mergeBioAndProfileLinks(
-  linksMetadata?: ProfileLinkMetadata[],   // from @oxyhq/core
+  linksMetadata?: ProfileLinkMetadata[],   // from @oxy.so/core
   links?: string[],
   bioText?: string,
 ): ProfileLink[]

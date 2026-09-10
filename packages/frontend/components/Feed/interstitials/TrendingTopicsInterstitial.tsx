@@ -9,7 +9,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { View } from 'react-native';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { useTranslation } from 'react-i18next';
 import type { Trend } from '@/interfaces/Trend';
 import { useTrendsStore } from '@/stores/trendsStore';

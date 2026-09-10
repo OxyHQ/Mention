@@ -9,7 +9,7 @@ import {
   TextInput,
   Platform,
 } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
@@ -22,18 +22,18 @@ import type { Trend } from '@/interfaces/Trend';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { ChromeFab } from '@/components/ChromeFab';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 import { SEO } from '@/components/SEO';
 
 import { customFeedsService } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { Search } from '@/assets/icons/search-icon';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { logger } from '@oxyhq/core/logger';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { logger } from '@oxy.so/core/logger';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const IS_WEB = Platform.OS === 'web';

@@ -20,7 +20,7 @@
  * its settings row happens to say. Anonymity is the safe answer at each of them.
  */
 
-import type { AccountKind } from '@oxyhq/contracts';
+import type { AccountKind } from '@oxy.so/contracts';
 import { loadChannelSignPostsByIds } from '../db/userProfile/userSettingsRepository';
 import { logger } from '../utils/logger';
 

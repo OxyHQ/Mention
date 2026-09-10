@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * Error legibility for the Oxy federation-signing calls in
  * `connectors/activitypub/crypto.ts`.
  *
- * The Oxy service client does NOT throw a plain `Error`: `@oxyhq/core`'s
+ * The Oxy service client does NOT throw a plain `Error`: `@oxy.so/core`'s
  * `HttpService` funnels failures through `handleHttpError`, which returns an
  * `ApiError` PLAIN OBJECT (`{ message, code, status }`). The old
  * `err instanceof Error ? err.message : String(err)` therefore logged the
@@ -51,7 +51,7 @@ describe('signViaOxy error legibility', () => {
   });
 
   it('surfaces the HTTP status from an ApiError plain object (429), never [object Object]', async () => {
-    // Exact shape @oxyhq/core throws: a plain object, NOT an Error instance.
+    // Exact shape @oxy.so/core throws: a plain object, NOT an Error instance.
     mocks.makeServiceRequest.mockRejectedValueOnce({
       message: 'Too many requests',
       code: 'RATE_LIMITED',

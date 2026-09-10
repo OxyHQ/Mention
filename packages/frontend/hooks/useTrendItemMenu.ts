@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import type { Trend } from '@/interfaces/Trend';
 import { useTrendsStore } from '@/stores/trendsStore';
 import { buildTrendUrl } from '@/hooks/useTrendNavigation';

@@ -8,7 +8,7 @@ import type {
   ReceiveContext,
   FetchPostsOptions,
   FetchPostsResult,
-} from '@oxyhq/federation';
+} from '@oxy.so/federation';
 import { withEngineId, type FederatedActorRecord } from '../../db/federation/actorRecord';
 import { resolveFederatedActorIdentity } from '../identity';
 import { isAbsoluteHttpUrl } from '../shared/url';
@@ -41,7 +41,7 @@ export {
 /**
  * The app↔SDK id translation, in the ONE place the seam is crossed inbound.
  *
- * `@oxyhq/federation`'s event payloads still spell a post's id `_id` (they were
+ * `@oxy.so/federation`'s event payloads still spell a post's id `_id` (they were
  * written against Mongo documents and the package is shared with apps that have
  * not been ported). Mention's post id is `posts.id`, a uuid v7 string, so every
  * Mention-owned shape below this line — `NoteSourcePost` included — says `id`.

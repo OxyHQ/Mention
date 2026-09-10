@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { View, Text, Platform, Pressable, type ViewStyle, type TextStyle } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { UnreadBadge } from '@/components/notifications/UnreadBadge';
 import { cn } from '@/lib/utils';
 

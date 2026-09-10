@@ -113,15 +113,11 @@ beforeEach(() => {
   );
   mocks.signedFetch.mockImplementation(async (url: string) =>
     url === ACTOR_URI
-      ? {
-          ok: true,
+      ? new Response(JSON.stringify(LIVE_ACTOR), {
           status: 200,
-          headers: new Headers({ 'content-type': 'application/activity+json' }),
-          url,
-          json: async () => LIVE_ACTOR,
-          text: async () => JSON.stringify(LIVE_ACTOR),
-        }
-      : { ok: false, status: 404, headers: new Headers(), url, text: async () => '' });
+          headers: { 'content-type': 'application/activity+json' },
+        })
+      : new Response('', { status: 404 }));
 });
 
 describe('ingesting a live bird.makeup actor', () => {
@@ -169,13 +165,9 @@ describe('ingesting a live bird.makeup actor', () => {
       summary: '<p>I run this bridge.</p>',
       attachment: [],
     };
-    mocks.signedFetch.mockImplementation(async (url: string) => ({
-      ok: true,
+    mocks.signedFetch.mockResolvedValue(new Response(JSON.stringify(admin), {
       status: 200,
-      headers: new Headers({ 'content-type': 'application/activity+json' }),
-      url,
-      json: async () => admin,
-      text: async () => JSON.stringify(admin),
+      headers: { 'content-type': 'application/activity+json' },
     }));
 
     await actorService.fetchRemoteActor('https://bird.makeup/users/admin');

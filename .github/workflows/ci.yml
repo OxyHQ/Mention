@@ -71,6 +71,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       - name: Install exact dependency graph
         run: bun install --frozen-lockfile --ignore-scripts
+      - name: Verify Oxy dependency health
+        run: bun run doctor:oxy
       - name: Verify workspace, build, lint and typecheck
         run: bun run check
       # After `check`, which builds shared-types: the Drizzle schema imports it,

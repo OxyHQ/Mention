@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { api, publicApi, isUnauthorizedError } from '@/utils/api';
 import { queryClient } from '@/lib/queryClient';
-import type { ThemeMode } from '@oxyhq/bloom/theme';
+import type { ThemeMode } from '@oxy.so/bloom/theme';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 function unwrapApiData<T>(value: T | { data: T } | null | undefined): T | null {

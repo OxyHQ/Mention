@@ -20,8 +20,8 @@ jest.mock('@/stores/postsStore', () => ({
   usePostsStore: jest.fn(),
 }));
 
-jest.mock('@oxyhq/core/logger', () => ({
-  ...jest.requireActual('@oxyhq/core/logger'),
+jest.mock('@oxy.so/core/logger', () => ({
+  ...jest.requireActual('@oxy.so/core/logger'),
   logger: { error: (...args: unknown[]) => mockLoggerError(...args) },
 }));
 

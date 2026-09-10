@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { extractBearerToken } from "@oxyhq/mcp";
+import { extractBearerToken } from "@oxy.so/mcp";
 import jwt from "jsonwebtoken";
 import {
   fingerprintMcpPrincipal,

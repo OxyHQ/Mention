@@ -56,7 +56,7 @@ function filler() {
   for (let index = 0; index < 460; index += 1) {
     const usesLogger = index < 40;
     files[`packages/frontend/generated/file-${index}.ts`] = usesLogger
-      ? `import { logger } from '@oxyhq/core/logger';\n`
+      ? `import { logger } from '@oxy.so/core/logger';\n`
         + `export function run(error: unknown) { logger.error('failed', error); }\n`
       : `export const value${index} = ${index};\n`;
   }
@@ -74,7 +74,7 @@ const cases = [
     files: {
       ...filler(),
       "packages/frontend/offender.ts":
-        `import { logger } from '@oxyhq/core/logger';\n`
+        `import { logger } from '@oxy.so/core/logger';\n`
         + `export function run(error: unknown) { logger.error('failed', { error }); }\n`,
     },
     expectFailure: true,
@@ -85,7 +85,7 @@ const cases = [
     files: {
       ...filler(),
       "packages/frontend/offender.ts":
-        `import { createLogger } from '@oxyhq/core/logger';\n`
+        `import { createLogger } from '@oxy.so/core/logger';\n`
         + `const log = createLogger('Scope');\n`
         + `export function run(error: unknown) { log.error('failed', { error }); }\n`,
     },
@@ -97,7 +97,7 @@ const cases = [
     files: {
       ...filler(),
       "packages/frontend/offender.ts":
-        `import { logger } from '@oxyhq/core/logger';\n`
+        `import { logger } from '@oxy.so/core/logger';\n`
         + `const child = logger.child('Scope');\n`
         + `export function run(error: unknown) { child.error('failed', { error }); }\n`,
     },
@@ -121,7 +121,7 @@ const cases = [
     files: {
       ...filler(),
       "packages/frontend/contextual.ts":
-        `import { logger } from '@oxyhq/core/logger';\n`
+        `import { logger } from '@oxy.so/core/logger';\n`
         + `export function run(error: unknown) {\n`
         + `  logger.debug('rollback did not apply', { error });\n`
         + `  logger.warn('degraded', { error });\n`
@@ -135,7 +135,7 @@ const cases = [
     files: {
       ...filler(),
       "packages/frontend/contextual.ts":
-        `import { logger } from '@oxyhq/core/logger';\n`
+        `import { logger } from '@oxy.so/core/logger';\n`
         + `export function run(error: unknown, postId: string) {\n`
         + `  logger.error('failed', error, { postId });\n`
         + `}\n`,
@@ -146,7 +146,7 @@ const cases = [
     name: "a broken traversal cannot pass silently (scanned-file floor)",
     files: {
       "packages/frontend/only.ts":
-        `import { logger } from '@oxyhq/core/logger';\n`
+        `import { logger } from '@oxy.so/core/logger';\n`
         + `export function run(error: unknown) { logger.error('failed', error); }\n`,
     },
     expectFailure: true,

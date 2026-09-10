@@ -83,7 +83,7 @@ vi.mock('../services/viewerFollowGraph', () => ({
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
-import { QUERY_CANCELED, sqlStateOf } from '@oxyhq/db';
+import { QUERY_CANCELED, sqlStateOf } from '@oxy.so/db';
 import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
 import searchRouter from '../routes/search';
 

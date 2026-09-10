@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
-import { toast } from '@oxyhq/bloom/toast';
-import type { FileMetadata } from '@oxyhq/core';
-import type { RouteName } from '@oxyhq/services';
+import { toast } from '@oxy.so/bloom/toast';
+import type { FileMetadata } from '@oxy.so/core';
+import type { RouteName } from '@oxy.so/services';
 import { ComposerMediaItem, toComposerMediaType } from '@/utils/composeUtils';
 import { normalizeApiError } from '@/utils/apiError';
 

@@ -30,7 +30,7 @@ jest.mock('@/utils/api', () => ({
 }));
 
 const mockToast = jest.fn();
-jest.mock('@oxyhq/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
 
 /** The reader's app language. Flipped per test. */
 let mockReaderLanguage = 'en-US';

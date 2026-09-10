@@ -28,7 +28,7 @@ export interface PostCreator {
  * The post fields outbound federation reads. A {@link PostRecord} satisfies it.
  *
  * It says `id`, not `_id`, because that is what a Mention post row's primary key
- * is called. `@oxyhq/federation`'s `LocalPostEventPayload` still says `_id` — it
+ * is called. `@oxy.so/federation`'s `LocalPostEventPayload` still says `_id` — it
  * is a shared package written against Mongo documents — so `ConnectorRegistry`
  * translates once when it builds the event, and `ActivityPubConnector` translates
  * back once when it hands the payload to the Note builders. Two lines, both at

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { type Href } from 'expo-router';
-import { getNormalizedUserHandle } from '@oxyhq/core';
-import type { AppColorName } from '@oxyhq/bloom/theme';
+import { getNormalizedUserHandle } from '@oxy.so/core';
+import type { AppColorName } from '@oxy.so/bloom/theme';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { canonicalProfileHref, type ProfileRouteFamily } from '../profileRoute';

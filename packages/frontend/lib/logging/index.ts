@@ -1,8 +1,8 @@
 /**
- * Mention's transport configuration for the shared `@oxyhq/core/logger`.
+ * Mention's transport configuration for the shared `@oxy.so/core/logger`.
  *
  * The logger itself is the SDK's — call sites import `logger` /
- * `createLogger` straight from `@oxyhq/core/logger`. This module only owns the
+ * `createLogger` straight from `@oxy.so/core/logger`. This module only owns the
  * two app-level policies the SDK deliberately leaves to the consumer:
  *
  *  1. **Scrubbing.** Every entry passes through `sanitizeLogEntry` before it
@@ -19,7 +19,7 @@ import {
   isDev,
   type LogLevel,
   type LogSink,
-} from '@oxyhq/core/logger'
+} from '@oxy.so/core/logger'
 
 import { LOG_DEBUG_FILTER, LOG_LEVEL } from '@/config'
 import { sanitizeLogEntry } from './sanitize'

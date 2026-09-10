@@ -22,7 +22,7 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
   buildProtectedResourceMetadata,
   extractBearerToken,
-} from "@oxyhq/mcp";
+} from "@oxy.so/mcp";
 import { MENTION_MCP_CAPABILITIES } from "@mention/shared-types/mcpCapabilities";
 import {
   loadMcpHttpConfig,

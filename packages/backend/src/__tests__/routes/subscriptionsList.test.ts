@@ -24,7 +24,7 @@ import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { inArray } from 'drizzle-orm';
-import type { OxyAuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest } from '@oxy.so/core/server';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
 const { mockResolveUserSummaries } = vi.hoisted(() => ({
@@ -39,7 +39,7 @@ vi.mock('../../services/PostHydrationService', async () => {
 });
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import { postSubscriptions } from '../../db/schema/engagement';
 import subscriptionsRouter from '../../routes/subscriptions';
 

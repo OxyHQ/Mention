@@ -4,8 +4,8 @@ import {
   isAuthorizedKey,
   type RecordStore,
   type ChainHead,
-} from '@oxyhq/protocol';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+} from '@oxy.so/protocol';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 
 /**
  * MTN Protocol — B3 node REGISTRATION (MentionNodeRegistryService).
@@ -22,7 +22,7 @@ import type { SignedRecordEnvelope } from '@oxyhq/contracts';
  *    base URL is unconfigured;
  *  - `probeLiveness` flips the badge from a mocked `safeFetch` result.
  *
- * The real `@oxyhq/protocol` engine runs against an in-memory `RecordStore` (so
+ * The real `@oxy.so/protocol` engine runs against an in-memory `RecordStore` (so
  * the managed record genuinely signs + verifies + appends without Mongo); the
  * `MentionUserNode` model + `safeFetch` are mocked.
  */
@@ -113,7 +113,7 @@ vi.mock('../../../services/mtn/MentionRecordStore', () => ({
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ resolveDid }),
 }));
-vi.mock('@oxyhq/core/server', () => ({
+vi.mock('@oxy.so/core/server', () => ({
   safeFetch: safeFetchMock,
 }));
 

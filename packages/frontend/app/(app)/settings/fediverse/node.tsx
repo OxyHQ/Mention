@@ -1,10 +1,10 @@
 import React, { useCallback } from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Loading } from '@oxyhq/bloom/loading';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
+import { Loading } from '@oxy.so/bloom/loading';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton, Button } from '@/components/ui/Button';

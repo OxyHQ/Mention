@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { useLocalSearchParams, useFocusEffect, router } from 'expo-router';
@@ -9,18 +9,18 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { starterPacksService } from '@/services/starterPacksService';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { useAuth, FollowButton } from '@oxyhq/services/ui/client';
-import { useHaptics } from '@oxyhq/bloom/hooks';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { useAuth, FollowButton } from '@oxy.so/services/ui/client';
+import { useHaptics } from '@oxy.so/bloom/hooks';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
+import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { ProfileCard } from '@/components/ProfileCard';
 
 import { SEO } from '@/components/SEO';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
 
 interface MemberProfile {

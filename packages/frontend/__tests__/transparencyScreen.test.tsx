@@ -87,7 +87,7 @@ jest.mock('@/assets/icons/back-arrow-icon', () => {
 
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 
-jest.mock('@oxyhq/bloom/loading', () => {
+jest.mock('@oxy.so/bloom/loading', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Loading: () => <RNView testID="loading" /> };
 });

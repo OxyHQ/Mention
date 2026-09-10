@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AccountMember } from '@oxyhq/core';
+import type { AccountMember } from '@oxy.so/core';
 
 /**
  * `assertCanPublishAsAccount` — "may this person publish as that account".

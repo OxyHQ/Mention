@@ -4,26 +4,26 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { Item } from '@oxyhq/bloom/item';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
-import { Switch } from '@oxyhq/bloom/switch';
-import { toast } from '@oxyhq/bloom/toast';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
-import { clearedFieldsFromAccountUpdate } from '@oxyhq/services';
-import { createLogger } from '@oxyhq/core/logger';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { Item } from '@oxy.so/bloom/item';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { Switch } from '@oxy.so/bloom/switch';
+import { toast } from '@oxy.so/bloom/toast';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { clearedFieldsFromAccountUpdate } from '@oxy.so/services';
+import { createLogger } from '@oxy.so/core/logger';
 import {
   getNormalizedUserHandle,
   type AccountNode,
   type UpdateAccountInput,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import {
   MAX_ACCOUNT_CATEGORIES,
   SELECTABLE_ACCOUNT_CATEGORY_IDS,
   type AccountCategoryId,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -67,8 +67,8 @@ const MAX_TITLE_LENGTH = 100;
  * archive on it, so a row that appears is a deletion all three will allow.
  *
  * A literal because it is a WIRE value — Oxy derives each member's `permissions`
- * server-side and ships the strings, and neither `@oxyhq/contracts` nor
- * `@oxyhq/core` exports the vocabulary today. The backend keeps the same constant
+ * server-side and ships the strings, and neither `@oxy.so/contracts` nor
+ * `@oxy.so/core` exports the vocabulary today. The backend keeps the same constant
  * for the same reason (`services/publishAsAccount.ts`).
  */
 const ACCOUNT_DELETE_PERMISSION = 'account:delete';

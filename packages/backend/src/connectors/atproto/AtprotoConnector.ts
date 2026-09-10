@@ -7,7 +7,7 @@ import type {
   NetworkId,
   NormalizedExternalActor,
   ReceiveContext,
-} from '@oxyhq/federation';
+} from '@oxy.so/federation';
 import { logger } from '../../utils/logger';
 import {
   deleteFollow,

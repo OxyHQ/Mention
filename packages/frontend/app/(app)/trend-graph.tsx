@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';

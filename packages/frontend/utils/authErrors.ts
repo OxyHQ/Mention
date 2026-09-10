@@ -1,4 +1,4 @@
-import { isAuthenticationError, OxyAuthenticationError } from '@oxyhq/core';
+import { isAuthenticationError, OxyAuthenticationError } from '@oxy.so/core';
 
 /** Stable code emitted by Oxy auth-timeout errors. */
 const AUTH_TIMEOUT_CODE = 'AUTH_TIMEOUT';

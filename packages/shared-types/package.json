@@ -129,7 +129,7 @@
   "author": "Mention Team",
   "license": "UNLICENSED",
   "dependencies": {
-    "@oxyhq/contracts": "catalog:",
+    "@oxy.so/contracts": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

@@ -26,12 +26,12 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
-import { decisionFixture } from '@oxyhq/crowdsource-testing';
+import { decisionFixture } from '@oxy.so/crowdsource-testing';
 
 import { closePostgres, connectPostgres, type Database } from '../../../db/postgres';
 import { moderationEnforcements } from '../../../db/schema/moderation';
 import { posts } from '../../../db/schema/posts';
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import { applyDecisionEnforcement } from '../../../services/moderation/ModerationEnforcementService';
 import { planEnforcement } from '../../../services/moderation/enforcementPlan';
 

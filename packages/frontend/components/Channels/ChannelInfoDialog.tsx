@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
-import { Button } from '@oxyhq/bloom/button';
+import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
+import { Button } from '@oxy.so/bloom/button';
 import { ChannelIcon } from '@/assets/icons/channel-icon';
 
 type ExplainerStep = 0 | 1 | 2;

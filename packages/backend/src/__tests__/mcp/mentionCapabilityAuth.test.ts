@@ -1,7 +1,7 @@
 import express from 'express';
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
-import type { CapabilityTicketClaims } from '@oxyhq/contracts';
+import type { CapabilityTicketClaims } from '@oxy.so/contracts';
 import {
   createOptionalMentionCapabilityAuth,
   type MentionCapabilityAuthDependencies,

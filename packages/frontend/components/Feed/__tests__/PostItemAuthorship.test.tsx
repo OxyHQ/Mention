@@ -74,13 +74,13 @@ jest.mock('@/stores/threadHoverStore', () => ({
 // The real `BottomSheetContext` is used — `useContext` needs a genuine context
 // object and its defaults already no-op — so only the untransformed Bloom module
 // it imports is stubbed. Nothing in these tests opens a bottom sheet.
-jest.mock('@oxyhq/bloom/bottom-sheet', () => ({ BottomSheet: 'BottomSheet' }));
+jest.mock('@oxy.so/bloom/bottom-sheet', () => ({ BottomSheet: 'BottomSheet' }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#8899a6', border: '#e1e8ed' } }),
 }));
-jest.mock('@oxyhq/bloom/hooks', () => ({ useImagePreload: () => undefined }));
-jest.mock('@oxyhq/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
+jest.mock('@oxy.so/bloom/hooks', () => ({ useImagePreload: () => undefined }));
+jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
 
 jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('@/assets/icons/pin-icon', () => ({ PinIcon: () => null }));
@@ -122,7 +122,7 @@ jest.mock('@/hooks/usePostLanguage', () => ({
 jest.mock('@/components/common/ActionMenu', () => ({ showActionMenu: () => undefined }));
 jest.mock('@/utils/feedTelemetry', () => ({ reportFeedInteraction: () => undefined }));
 
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: { username?: string } | null | undefined) =>
     user?.username ?? null,
 }));

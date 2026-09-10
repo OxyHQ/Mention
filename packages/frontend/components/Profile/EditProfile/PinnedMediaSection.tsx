@@ -2,7 +2,7 @@ import React, { useCallback, useContext } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { ProfileSong } from '../ProfileSong';

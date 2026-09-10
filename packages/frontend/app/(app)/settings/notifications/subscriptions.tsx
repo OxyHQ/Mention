@@ -19,11 +19,11 @@ import {
   type InfiniteData,
 } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
-import { getNormalizedUserHandle } from '@oxyhq/core';
-import { Loading, SpinnerIcon } from '@oxyhq/bloom/loading';
-import { toast } from '@oxyhq/bloom/toast';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { getNormalizedUserHandle } from '@oxy.so/core';
+import { Loading, SpinnerIcon } from '@oxy.so/bloom/loading';
+import { toast } from '@oxy.so/bloom/toast';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import type { PostSubscriptionItem, PostSubscriptionListResponse } from '@mention/shared-types';
 
 import { Header } from '@/components/Header';

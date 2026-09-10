@@ -10,7 +10,7 @@ import { Response } from 'express';
 import { updatePostRecord } from '../../db/posts/postRepository';
 import type { PostRecord } from '../../db/posts/postRecord';
 import { attachPollToPost, createPollWithOptions } from '../../db/polls/pollRepository';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { createMentionNotifications } from '../../utils/notificationUtils';
 import { PostVisibility, PostContent, PostContentVariant } from '@mention/shared-types';
 import type { ReplyPermission } from '@mention/shared-types';
@@ -26,7 +26,7 @@ import { normalizeMediaItems } from '../../utils/mediaInput';
 import { warmLinkPreviewForText } from '../../utils/linkPreviewWarm';
 import { resolveVariant, validateAuthorVariants } from '../../services/postVariants';
 import { assertLaneAssignable, LaneAssignmentError } from '../../utils/laneAssignment';
-import type { AccountKind } from '@oxyhq/contracts';
+import type { AccountKind } from '@oxy.so/contracts';
 import {
   assertCanPublishAsAccount,
   cacheAccountMemberReads,

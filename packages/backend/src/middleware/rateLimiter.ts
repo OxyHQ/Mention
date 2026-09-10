@@ -1,6 +1,6 @@
 import rateLimit from 'express-rate-limit';
 import { RedisStore } from './rateLimitStore';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { hashedIpKey } from '../utils/ipKey';
 
 /**

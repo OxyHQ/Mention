@@ -66,7 +66,7 @@ vi.mock('../../services/publishAsAccount', () => ({
 
 import { createThread } from '../../controllers/posts/createThread';
 import { updatePostSettings } from '../../controllers/posts/postSettings';
-import type { OxyAuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest } from '@oxy.so/core/server';
 
 const scope = postScope('channel-post-settings');
 const USER_ID = scope.user('author');

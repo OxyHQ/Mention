@@ -99,6 +99,13 @@ describe('sanitizeLogValue', () => {
     ).toBe('upstream https://public.example/[REDACTED] failed');
   });
 
+  it('handles long punctuation suffixes while preserving them outside the redacted URL', () => {
+    const punctuation = '!'.repeat(1_500);
+    expect(sanitizeLogValue(`upstream https://public.example/private${punctuation}`)).toBe(
+      `upstream https://public.example/[REDACTED]${punctuation}`,
+    );
+  });
+
   it('sanitizes Error fields and nested causes without exposing connection details', () => {
     const cause = new Error(
       'mongodb://db-user:db-password@mongo.internal/mention',

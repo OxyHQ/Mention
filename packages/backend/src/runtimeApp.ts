@@ -1,5 +1,5 @@
-import { OxyServices } from '@oxyhq/core';
-import { createOxyRateLimit } from '@oxyhq/core/server';
+import { OxyServices } from '@oxy.so/core';
+import { createOxyRateLimit } from '@oxy.so/core/server';
 import { createApp } from './app';
 import { appRoutePredicates, createAppRoutes } from './appRoutes';
 import { config } from './config';

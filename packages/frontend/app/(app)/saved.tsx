@@ -17,13 +17,13 @@ import {
     useQuery,
     useQueryClient,
 } from '@tanstack/react-query';
-import { Button } from '@oxyhq/bloom/button';
-import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
-import { Loading } from '@oxyhq/bloom/loading';
-import { Search } from '@oxyhq/bloom/search';
-import { TextField, TextFieldInput } from '@oxyhq/bloom/text-field';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { Button } from '@oxy.so/bloom/button';
+import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
+import { Loading } from '@oxy.so/bloom/loading';
+import { Search } from '@oxy.so/bloom/search';
+import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { useAuth } from '@oxy.so/services/ui/client';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
@@ -42,7 +42,7 @@ import {
     type SavedPostsPage,
 } from '@/services/feedService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import SavedPostsList, {
     type SavedPost,
 } from '@/components/saved/SavedPostsList';

@@ -1,4 +1,4 @@
-import { LanguageTagSchema } from '@oxyhq/crowdsource-contracts';
+import { LanguageTagSchema } from '@oxy.so/crowdsource-contracts';
 import { loadPostRecord } from '../../../db/posts/postRepository';
 import type { PostRecord } from '../../../db/posts/postRecord';
 import { config } from '../../../config';
@@ -28,7 +28,7 @@ import type {
  * `insufficient_context` for the right reason rather than by accident. That is the
  * honest state while the gap is open, and it is not the state it has to stay in.
  *
- * ### What closing it actually takes, as of `@oxyhq/crowdsource-contracts` 0.3.0
+ * ### What closing it actually takes, as of `@oxy.so/crowdsource-contracts` 0.3.0
  *
  * 0.3.0 changed the answer and made it much smaller than it was. `AssetRef` used to
  * be "exactly one of `uploadId` or `url`", with `uploadId` needing a presigned upload

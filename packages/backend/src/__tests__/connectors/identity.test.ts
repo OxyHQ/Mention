@@ -36,7 +36,7 @@ import {
   reportFederatedActorGone,
   resolveOxyExternalUser,
 } from '../../connectors/identity';
-import type { NormalizedExternalActor } from '@oxyhq/federation';
+import type { NormalizedExternalActor } from '@oxy.so/federation';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { userSettings } from '../../db/schema/userProfile';
 import { loadUserSettings } from '../../db/userProfile/userSettingsRepository';

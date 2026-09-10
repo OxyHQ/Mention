@@ -7,7 +7,7 @@ import { posts } from '../db/schema/posts';
 import { extractPublicProfileData, redactedProfileDesign } from '../utils/userSettings';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
 import { canViewProfileDesign, ProfileVisibility } from '../utils/privacyHelpers';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 

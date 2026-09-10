@@ -23,19 +23,19 @@ import PostHeader from '../PostHeader';
 
 jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('@/components/ui/LiveAvatar', () => ({ LiveAvatar: 'LiveAvatar' }));
-jest.mock('@oxyhq/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
+jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
 jest.mock('../../UserName', () => ({ __esModule: true, default: 'UserName' }));
-jest.mock('@oxyhq/bloom/toast', () => ({ toast: () => undefined }));
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: () => undefined }));
+jest.mock('@oxy.so/bloom/theme', () => ({
     useTheme: () => ({ colors: { textSecondary: '#8899a6' } }),
 }));
 jest.mock('@/components/AccountBadge', () => ({ AccountBadge: () => null }));
 jest.mock('@/assets/icons/boost-icon', () => ({ BoostIcon: () => null }));
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
-// `@oxyhq/core` ships ESM and is not transformed in this suite; the header only
+// `@oxy.so/core` ships ESM and is not transformed in this suite; the header only
 // reaches it for the handle, and this is its rule for a local account.
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
     getNormalizedUserHandle: (user: { username?: string }) => user?.username ?? null,
 }));
 

@@ -1,13 +1,13 @@
-import type { AccountKind } from '@oxyhq/core';
+import type { AccountKind } from '@oxy.so/core';
 
 /**
- * The SDK barrel is ESM and reaches `@oxyhq/protocol` through a crypto polyfill,
+ * The SDK barrel is ESM and reaches `@oxy.so/protocol` through a crypto polyfill,
  * neither of which this transform takes — the same reason every other suite that
  * touches it mocks it. Only the handle rule is needed here, and it is stated
  * exactly as the SDK states it: local handles pass through, a federated one is
  * qualified with its instance unless it already carries one.
  */
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: {
     username?: string | null;
     instance?: string | null;

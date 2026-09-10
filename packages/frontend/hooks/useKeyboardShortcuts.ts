@@ -1,8 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@oxyhq/services/ui/client';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 
 const COMBO_TIMEOUT = 1000; // 1 second to press second key after 'g'
 

@@ -35,7 +35,7 @@
  *
  * TARGET DATABASE. `--target-database=<name>` is REQUIRED, on every run
  * including `DRY_RUN`, and is checked against `current_database()` before any
- * other statement. See `@oxyhq/db/migrate`'s `targetDatabase.ts` for why this
+ * other statement. See `@oxy.so/db/migrate`'s `targetDatabase.ts` for why this
  * step needs the guard more than the copy does: aimed at the wrong database the
  * copy dies on a missing table, while this one applies the whole journal to
  * whatever it reached, prints `Applied N` and exits 0.
@@ -47,7 +47,7 @@
  * kept (it is drizzle's, and diverging would make this report disagree with
  * what `drizzle-kit migrate` does to the same database); what changes is that
  * `planLedgerRun` REFUSES rather than reporting a clean run. See
- * `@oxyhq/db/migrate`'s `ledger.ts` for the mechanism and for the two entries
+ * `@oxy.so/db/migrate`'s `ledger.ts` for the mechanism and for the two entries
  * already in this journal that have the shape.
  */
 
@@ -62,7 +62,7 @@ import {
   planLedgerRun,
   readAppliedMillis,
   readTargetDatabase,
-} from '@oxyhq/db/migrate';
+} from '@oxy.so/db/migrate';
 import { logger } from '../utils/logger';
 import { REQUIRED_EXTENSIONS } from './extensions';
 import { MIGRATIONS_FOLDER, readJournal } from './migrationsFolder';

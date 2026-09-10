@@ -16,7 +16,7 @@ import type {
   FeedPostSlice,
   FeedPostViewCounts,
 } from '@mention/shared-types';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { feedService, type ExtendedFeedRequest } from '../services/feedService';
 import { markLocalAction } from '../services/echoGuard';
 import { publishNewLocalPost, publishRemovedLocalPost } from '@/stores/feedScrollStore';

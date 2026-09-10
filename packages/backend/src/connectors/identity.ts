@@ -5,15 +5,15 @@ import { invalidate as invalidateUserSummaryCache } from '../services/userSummar
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../services/mediaCache/cacheWorker';
 import { FEDERATED_BANNER_DOWNLOAD_POLICY } from '../services/mediaCache/policy';
 import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
-import type { NormalizedExternalActor } from '@oxyhq/federation';
-import { createIdentityBridge, type ServiceRequest, type ServiceRequestMethod } from '@oxyhq/federation/node';
+import type { NormalizedExternalActor } from '@oxy.so/federation';
+import { createIdentityBridge, type ServiceRequest, type ServiceRequestMethod } from '@oxy.so/federation/node';
 import { findIdentityOwnerActor } from '../db/federation/actorRepository';
 
 /**
  * The network-neutral identity bridge: resolve a normalized external actor to its
  * Oxy user (`PUT /users/resolve`), and archive/delete a permanently-gone actor's
  * Oxy identity. The bridge LOGIC — the resolve body, the error classification, the
- * outcome discriminants — lives in `@oxyhq/federation` so BOTH connectors
+ * outcome discriminants — lives in `@oxy.so/federation` so BOTH connectors
  * (ActivityPub + atproto) and every Oxy app backend mint identities identically.
  *
  * This module is the Mention wiring: it supplies the service-scoped oxy-api

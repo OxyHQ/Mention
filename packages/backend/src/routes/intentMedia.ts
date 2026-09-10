@@ -1,8 +1,8 @@
 import { Router, Response } from 'express';
 import { IncomingMessage } from 'node:http';
 import rateLimit from 'express-rate-limit';
-import { OxyServices } from '@oxyhq/core';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { OxyServices } from '@oxy.so/core';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 
 import { logger } from '../utils/logger';
 import { RedisStore } from '../middleware/rateLimitStore';
@@ -10,7 +10,7 @@ import { hashedIpKey } from '../utils/ipKey';
 import { getServiceOxyClient, uploadServiceUserMedia } from '../utils/oxyHelpers';
 import type { OxyAuthRequestWithMcp } from '../mcp/middleware/mcpAuth';
 import { config } from '../config';
-import { SsrfRejection } from '@oxyhq/core/server';
+import { SsrfRejection } from '@oxy.so/core/server';
 import {
   UpstreamResult,
   contentTypeFamily,

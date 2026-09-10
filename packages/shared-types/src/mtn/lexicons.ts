@@ -2,13 +2,13 @@
  * MTN Protocol lexicons — `app.mention.feed.*` record payloads.
  *
  * The "MTN Protocol" is Mention's app layer on top of the app-agnostic Oxy
- * Protocol (`@oxyhq/protocol` + `@oxyhq/contracts`). The Oxy Protocol owns the
+ * Protocol (`@oxy.so/protocol` + `@oxy.so/contracts`). The Oxy Protocol owns the
  * WIRE grammar: a signed {@link SignedRecordEnvelope} whose `type` is an open
  * string and whose `record` is an opaque `Record<string, unknown>`. MTN layers
  * its own LEXICON on that grammar — a typed projection of the envelope's
  * `record` payload, addressed by an AtProto-style `(collection, rkey)` key —
  * WITHOUT forking the envelope schema (per the `LexiconRecord` recipe in
- * `@oxyhq/contracts/protocol`).
+ * `@oxy.so/contracts/protocol`).
  *
  * Each record kind defines:
  *  1. its `record` PAYLOAD schema as a `z.ZodType<TPayload>` (validates ONLY the
@@ -25,7 +25,7 @@
  */
 
 import * as z from 'zod';
-import type { LexiconRecord } from '@oxyhq/contracts';
+import type { LexiconRecord } from '@oxy.so/contracts';
 
 /* -------------------------------------------------------------------------- */
 /*  Collection NSIDs                                                           */

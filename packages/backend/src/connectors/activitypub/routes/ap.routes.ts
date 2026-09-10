@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { logger } from '../../../utils/logger';
 import { activityPubConnector } from '../ActivityPubConnector';
-import { AP_CONTEXT } from '@oxyhq/federation';
+import { AP_CONTEXT } from '@oxy.so/federation';
 import { getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
 import { findPostRecords, loadPostRecord } from '../../../db/posts/postRepository';

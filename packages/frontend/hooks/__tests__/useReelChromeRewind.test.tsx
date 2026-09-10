@@ -33,7 +33,7 @@ jest.mock('expo-keep-awake', () => ({
     activateKeepAwakeAsync: jest.fn(async () => {}),
     deactivateKeepAwake: jest.fn(async () => {}),
 }));
-jest.mock('@oxyhq/core/logger', () => ({
+jest.mock('@oxy.so/core/logger', () => ({
     createLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
 jest.mock('@/context/VideoPlaybackContext', () => ({

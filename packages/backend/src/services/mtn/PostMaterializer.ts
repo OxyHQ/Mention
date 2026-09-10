@@ -77,7 +77,7 @@
  */
 
 import { eq, inArray } from 'drizzle-orm';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import {
   MENTION_POST_COLLECTION,
   MENTION_LIKE_COLLECTION,
@@ -104,7 +104,7 @@ import {
 import type { StoredPostContent } from '@mention/shared-types';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { getDb, type DatabaseOrTransaction } from '../../db/postgres';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { posts } from '../../db/schema/posts';
 import type { PostRecord, PostRecordClassification } from '../../db/posts/postRecord';
 import {

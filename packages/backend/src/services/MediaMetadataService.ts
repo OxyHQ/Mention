@@ -1,5 +1,5 @@
 import type { MediaItem } from '@mention/shared-types';
-import { normalizeInlineText, type ServiceAssetMetadata } from '@oxyhq/core';
+import { normalizeInlineText, type ServiceAssetMetadata } from '@oxy.so/core';
 import { isAbsoluteHttpUrl } from '../utils/mediaResolver';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';

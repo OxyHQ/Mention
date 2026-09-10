@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CaseEnvelopeSchema } from '@oxyhq/crowdsource-contracts';
+import { CaseEnvelopeSchema } from '@oxy.so/crowdsource-contracts';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 /**

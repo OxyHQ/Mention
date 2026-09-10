@@ -18,16 +18,16 @@ import {
   keepPreviousData,
   type InfiniteData,
 } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services/ui/client';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { customFeedsService, type MarketplaceFeed } from '@/services/customFeedsService';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { formatCompactNumber } from '@/utils/formatNumber';

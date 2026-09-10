@@ -12,12 +12,12 @@ import {
 // this is a MOVE: the stylesheet left, the several hundred `styles.x` references
 // did not change.
 import { composeStyles as styles } from './ComposeScreen.styles';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
-import { getNormalizedUserHandle, type AccountNode, type FileMetadata } from '@oxyhq/core';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { getNormalizedUserHandle, type AccountNode, type FileMetadata } from '@oxy.so/core';
 import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
 import { ThemedView } from '@/components/ThemedView';
@@ -26,7 +26,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
@@ -35,13 +35,13 @@ import ComposeToolbar from '@/components/ComposeToolbar';
 import { formatScheduledShort } from '@/utils/dateUtils';
 import { ScheduleIcon, ScheduleIconActive } from '@/assets/icons/schedule-icon';
 import { useTranslation } from 'react-i18next';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import type { CreatePostRequest, HydratedPost } from '@mention/shared-types';
 import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { useHaptics } from '@oxyhq/bloom/hooks';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { useHaptics } from '@oxy.so/bloom/hooks';
 import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
 import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { SEO } from '@/components/SEO';
@@ -53,7 +53,7 @@ import { DotIcon } from '@/assets/icons/dot-icon';
 import { TrashIcon } from '@/assets/icons/trash-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
+import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
 // Import types separately (not lazy loaded)
@@ -81,7 +81,7 @@ import { useUrlUtils } from '@/hooks/useUrlUtils';
 import { useSourcesSheet } from '@/hooks/useSourcesSheet';
 import { useLinkDetection } from '@/hooks/useLinkDetection';
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
-import { LinkPreviewCard } from '@oxyhq/bloom/link-preview';
+import { LinkPreviewCard } from '@oxy.so/bloom/link-preview';
 // Deep imports, NOT the `@/components/Compose` barrel. The barrel re-exports
 // eight sheets (`AltTextSheet`, `UnpublishedSheet`, `EmojiPickerSheet`,
 // `GifPickerSheet`, `PodcastPickerSheet`, `ReplySettingsSheet`, `ScheduleSheet`,
@@ -1696,7 +1696,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         mode="embed"
         onRoomCreated={(createdRoom) => {
           setThreadRoom(threadId, {
-            roomId: createdRoom._id,
+            roomId: createdRoom.id,
             title: createdRoom.title,
             status: createdRoom.status,
             topic: createdRoom.topic ?? undefined,
@@ -2274,7 +2274,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         mode="embed"
         onRoomCreated={(createdRoom) => {
           attachRoom({
-            roomId: createdRoom._id,
+            roomId: createdRoom.id,
             title: createdRoom.title,
             status: createdRoom.status,
             topic: createdRoom.topic ?? undefined,

@@ -22,7 +22,7 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
     colors: {
       border: '#333',

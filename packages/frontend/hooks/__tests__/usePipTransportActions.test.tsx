@@ -37,8 +37,8 @@ const mockNative = {
 
 const mockDebug = jest.fn();
 
-jest.mock('@oxyhq/core/logger', () => ({
-  ...jest.requireActual('@oxyhq/core/logger'),
+jest.mock('@oxy.so/core/logger', () => ({
+  ...jest.requireActual('@oxy.so/core/logger'),
   createLogger: () => ({ debug: (...args: unknown[]) => mockDebug(...args) }),
 }));
 

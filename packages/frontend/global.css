@@ -4,21 +4,21 @@
 @import "nativewind/theme";
 
 /* Bloom canonical design tokens (RADIUS scale, spacing, typography, color
-   aliases). Single source of truth = @oxyhq/bloom/design-tokens theme.css,
+   aliases). Single source of truth = @oxy.so/bloom/design-tokens theme.css,
    generated from bloomThemeCss(). Bloom components (e.g. ContentPanel from
-   @oxyhq/bloom/content-panel) emit `rounded-radius-28` literal utilities that
+   @oxy.so/bloom/content-panel) emit `rounded-radius-28` literal utilities that
    resolve from these `--radius-*` namespace tokens. Imported instead of
    hand-copied so it stays in sync with the published package. Mention's own
    `@theme` block below runs AFTER this import, so app-local aliases win on any
    overlap. */
-@import "@oxyhq/bloom/design-tokens/theme.css";
+@import "@oxy.so/bloom/design-tokens/theme.css";
 
 @source "./app/**/*.{js,jsx,ts,tsx}";
 @source "./components/**/*.{js,jsx,ts,tsx}";
 @source "./lib/**/*.{js,jsx,ts,tsx}";
 @source "./hooks/**/*.{js,jsx,ts,tsx}";
-@source "../../node_modules/@oxyhq/services/lib/**/*.{js,jsx}";
-@source "../../node_modules/@oxyhq/bloom/lib/**/*.{js,jsx}";
+@source "../../node_modules/@oxy.so/services/lib/**/*.{js,jsx}";
+@source "../../node_modules/@oxy.so/bloom/lib/**/*.{js,jsx}";
 
 /* Colour utilities (`bg-card`, `bg-primary`, `text-muted-foreground`, …) come
    from Bloom's imported theme.css — the single source of truth — so they are

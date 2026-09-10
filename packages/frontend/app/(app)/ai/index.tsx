@@ -1,6 +1,6 @@
 import { AliaChatScreen } from "@alia.onl/sdk";
 import { VoiceSession } from "@alia.onl/sdk/voice";
-import { useAuth } from "@oxyhq/services/ui/client";
+import { useAuth } from "@oxy.so/services/ui/client";
 import React from "react";
 import { useTranslation } from "react-i18next";
 

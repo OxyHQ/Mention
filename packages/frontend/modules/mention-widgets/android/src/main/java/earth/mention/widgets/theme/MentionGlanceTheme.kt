@@ -43,8 +43,8 @@ fun MentionGlanceTheme(content: @GlanceComposable @Composable () -> Unit) {
  * the `blue` preset — seed `#1d9bf0`, variant `vivid`, the preset Mention's
  * frontend defaults to — into the full Material 3 role set for light and dark:
  *
- *     const { generateRoleColors } = require('@oxyhq/bloom/lib/commonjs/theme/color-engine')
- *     const { APP_COLOR_PRESETS } = require('@oxyhq/bloom/color-presets')
+ *     const { generateRoleColors } = require('@oxy.so/bloom/lib/commonjs/theme/color-engine')
+ *     const { APP_COLOR_PRESETS } = require('@oxy.so/bloom/color-presets')
  *     const p = APP_COLOR_PRESETS.blue
  *     generateRoleColors({ seed: p.hex, variant: p.variant, isDark: false })
  *

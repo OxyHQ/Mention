@@ -1,4 +1,4 @@
-import type { LogContext, LogEntry } from '@oxyhq/core/logger'
+import type { LogContext, LogEntry } from '@oxy.so/core/logger'
 
 export const REDACTED = '[REDACTED]'
 export const CIRCULAR = '[Circular]'

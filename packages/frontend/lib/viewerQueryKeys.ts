@@ -13,7 +13,7 @@ export function viewerCacheId(viewerId: ViewerId): string {
 /**
  * Mention-owned data that is identical for every caller. Canonical Oxy identity
  * objects are intentionally not duplicated here: callers must use
- * `@oxyhq/services`' `queryKeys.users.*` for those public identity records only.
+ * `@oxy.so/services`' `queryKeys.users.*` for those public identity records only.
  */
 export const publicQueryKeys = {
   all: () => PUBLIC_ROOT,

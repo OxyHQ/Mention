@@ -12,8 +12,8 @@
  * The IO layer (fetching the shell, the Oxy profile, and the hydrated post) lives
  * in `routes/webShell.routes.ts`, which is the only caller of these functions.
  */
-import { OxyServices, getNormalizedUserHandle } from '@oxyhq/core';
-import type { AccountKind } from '@oxyhq/core';
+import { OxyServices, getNormalizedUserHandle } from '@oxy.so/core';
+import type { AccountKind } from '@oxy.so/core';
 import { MEDIA_VARIANT_THUMB } from '@mention/shared-types';
 import type { HydratedPost } from '@mention/shared-types';
 import { config } from '../config';

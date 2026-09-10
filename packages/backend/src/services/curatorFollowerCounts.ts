@@ -33,7 +33,7 @@
  */
 
 import { MtnConfig } from '@mention/shared-types';
-import type { User as OxyUser } from '@oxyhq/core';
+import type { User as OxyUser } from '@oxy.so/core';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { getRedisClient } from '../utils/redis';
 import { withRedisFallback } from '../utils/redisHelpers';

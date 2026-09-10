@@ -6,11 +6,11 @@ import {
     StyleSheet,
     FlatList,
 } from "react-native";
-import { Loading } from '@oxyhq/bloom/loading';
-import { useAuth } from "@oxyhq/services/ui/client";
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Loading } from '@oxy.so/bloom/loading';
+import { useAuth } from "@oxy.so/services/ui/client";
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import UserName from '@/components/UserName';
 
 export interface MentionUser {

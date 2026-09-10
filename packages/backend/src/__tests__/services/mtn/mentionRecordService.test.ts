@@ -5,13 +5,13 @@ import {
   type RecordStore,
   type ChainHead,
   type AppendOutcome,
-} from '@oxyhq/protocol';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+} from '@oxy.so/protocol';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 
 /**
  * MTN Protocol — Workstream B / B1 dual-write verification.
  *
- * Exercises the REAL `@oxyhq/protocol` engine (custodial `signEnvelope` +
+ * Exercises the REAL `@oxy.so/protocol` engine (custodial `signEnvelope` +
  * `verifyAndAppend`) against an in-memory `RecordStore` and a resolver whose
  * subject VMs come from a mocked `oxyServices.resolveDid`, so the whole chain
  * (sign → verify → append → re-verify) runs without Mongo. Covers:
@@ -25,7 +25,7 @@ import type { SignedRecordEnvelope } from '@oxyhq/contracts';
  *
  * The chain STORE is still in-memory here on purpose — `MentionRecordStore` is
  * Mongo and is not part of this port, and an in-memory `RecordStore` is what
- * lets the real `@oxyhq/protocol` engine run end to end.
+ * lets the real `@oxy.so/protocol` engine run end to end.
  *
  * What did change is the emitter's INPUT. `emitPostCreated` takes a `PostRecord`
  * and reads `post.id` for the record's `rkey`, `post.content.variants` for the

@@ -197,7 +197,7 @@ eager `__common.js` chunk (see `~/Oxy/AGENTS.md` § Metro web chunking).
 
 The SSRF guard for every media route above (`/media/proxy`, `/media/poster`,
 `/media/gif`) is upstream — `assertSafePublicUrl`/`isBlockedIp` from
-`@oxyhq/core/server` — never a local copy in `utils/mediaResolver.ts`.
+`@oxy.so/core/server` — never a local copy in `utils/mediaResolver.ts`.
 `GET /media/poster` needs a `video/*` upstream content type; pointing it at
 an HLS playlist URL 415s. The S3 activity cache is gated on
 `FEDERATION_MEDIA_CACHE_WRITE_ENABLED`; unset means the proxy still works,

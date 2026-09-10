@@ -4,14 +4,14 @@ import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 

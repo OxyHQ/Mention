@@ -1,9 +1,9 @@
 /**
- * Mention's own migrations folder, and the two `@oxyhq/db/migrate` entry
+ * Mention's own migrations folder, and the two `@oxy.so/db/migrate` entry
  * points that need to know where it is.
  *
  * `readJournal` and `assertPostgresMigrationsCurrent` are pure mechanism in
- * `@oxyhq/db/migrate` — see that module's own doc comments — and take the
+ * `@oxy.so/db/migrate` — see that module's own doc comments — and take the
  * migrations folder as a required argument on purpose: a shared package ships
  * no migration files of its own, so it has nowhere it could default to that
  * would not risk resolving to the wrong place once installed. WHICH folder a
@@ -18,7 +18,7 @@ import {
   assertPostgresMigrationsCurrent as assertPostgresMigrationsCurrentAgainst,
   readJournal as readJournalFrom,
   type JournalEntry,
-} from '@oxyhq/db/migrate';
+} from '@oxy.so/db/migrate';
 
 /** How far above this module `drizzle/` may sit before the search gives up. */
 const MIGRATIONS_SEARCH_DEPTH = 6;

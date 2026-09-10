@@ -398,9 +398,9 @@ const environmentSchema = z
      * CrowdSource participatory moderation (§14.6).
      *
      * The names come from the packages, not from §14.6's table, and the difference
-     * is deliberate. `@oxyhq/crowdsource` reads `CROWDSOURCE_SERVICE_KEY` (the
+     * is deliberate. `@oxy.so/crowdsource` reads `CROWDSOURCE_SERVICE_KEY` (the
      * applicationId, credentialId and secret as ONE opaque value) and
-     * `CROWDSOURCE_BASE_URL`; `@oxyhq/crowdsource-express` reads
+     * `CROWDSOURCE_BASE_URL`; `@oxy.so/crowdsource-express` reads
      * `CROWDSOURCE_WEBHOOK_SECRET` and `CROWDSOURCE_WEBHOOK_SECRET_PREVIOUS`.
      * §14.6's `CROWDSOURCE_APP_ID` is absent on purpose: the applicationId comes
      * off the credential and there is no surface anywhere that can carry one, so a

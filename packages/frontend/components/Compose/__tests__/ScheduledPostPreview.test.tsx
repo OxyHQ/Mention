@@ -35,7 +35,7 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
     colors: {
       border: '#333',
@@ -49,15 +49,15 @@ jest.mock('@oxyhq/bloom/theme', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/loading', () => ({ Loading: () => null }));
-jest.mock('@oxyhq/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
+jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
 jest.mock('@/utils/alerts', () => ({ confirmDialog: (...args: unknown[]) => mockConfirm(...args) }));
-jest.mock('@oxyhq/core/logger', () => ({
+jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() }),
 }));
 // Reached through `ScheduledPostsList`, which this screen shares its cancel
-// helper with. `@oxyhq/core` ships ESM jest does not transform.
-jest.mock('@oxyhq/core', () => ({
+// helper with. `@oxy.so/core` ships ESM jest does not transform.
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user?: { username?: string }) => user?.username,
 }));
 

@@ -4,32 +4,32 @@ import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 
 import { ThemedText } from '@/components/ThemedText';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { Loading } from '@oxy.so/bloom/loading';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SEO } from '@/components/SEO';
 
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useRoomUsers, getDisplayName, getAvatarUrl } from '@/hooks/useRoomUsers';
 import type { FileUrlResolver } from '@/utils/imageUrlCache';
 import { useUserById } from '@/hooks/useCachedUser';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/lib/syraApi';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { confirmDialog } from '@/utils/alerts';
 import { reportService } from '@/services/reportService';
 import { ReportModal } from '@/components/report/ReportModal';
 import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 
 /** The participant grid stays glanceable; the overflow collapses into a "+N" chip. */

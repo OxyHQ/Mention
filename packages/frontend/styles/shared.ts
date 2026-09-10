@@ -4,7 +4,7 @@
  */
 
 import { StyleSheet, ViewStyle, TextStyle, ImageStyle, StyleProp } from 'react-native';
-import type { Theme } from '@oxyhq/bloom/theme';
+import type { Theme } from '@oxy.so/bloom/theme';
 import { COMPONENT_SPACING } from './spacing';
 
 /**

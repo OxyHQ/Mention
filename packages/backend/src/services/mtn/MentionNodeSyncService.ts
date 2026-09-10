@@ -17,7 +17,7 @@
  *
  * ## Absolute read-path invariant
  *
- * Every node fetch here goes through `@oxyhq/core/server`'s `safeFetch`
+ * Every node fetch here goes through `@oxy.so/core/server`'s `safeFetch`
  * (HTTPS-only, private-IP denylist, DNS-pinned, bounded redirects) and runs ONLY
  * in the background scheduler. NOTHING in a request's read path ever calls this.
  * A down/slow/malicious node leaves Mention's mirror STALE — never wrong and
@@ -71,13 +71,13 @@
  * text-only render until a later run; no fake URL is invented.
  */
 
-import { canonicalize, computeRecordId, signMessage } from '@oxyhq/protocol';
-import { NodeClient, type NodeFetch } from '@oxyhq/protocol/node';
-import { safeFetch } from '@oxyhq/core/server';
+import { canonicalize, computeRecordId, signMessage } from '@oxy.so/protocol';
+import { NodeClient, type NodeFetch } from '@oxy.so/protocol/node';
+import { safeFetch } from '@oxy.so/core/server';
 import {
   signedRecordEnvelopeSchema,
   type SignedRecordEnvelope,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 import {
   MENTION_POST_COLLECTION,
   mentionPostRecordSchema,
@@ -93,7 +93,7 @@ import {
 } from '../../db/mtn/nodeRepository';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { mentionSignedRecords } from '../../db/schema/mtn';
 import { logger } from '../../utils/logger';
 import { LWW_CURRENT_ORDER, MTN_CHAIN_STATUS } from './MentionRecordStore';
@@ -128,7 +128,7 @@ type IngestOutcome =
 
 /**
  * The injected transport for the protocol {@link NodeClient}: a thin adapter over
- * `@oxyhq/core/server`'s `safeFetch` (HTTPS-only, DNS-pinned, private-IP
+ * `@oxy.so/core/server`'s `safeFetch` (HTTPS-only, DNS-pinned, private-IP
  * denylist, bounded redirects). The client owns the bounded-body reads; this
  * adapter only hands it the SSRF-safe streamed response. The read-path invariant
  * still holds — this runs ONLY in the background scheduler.

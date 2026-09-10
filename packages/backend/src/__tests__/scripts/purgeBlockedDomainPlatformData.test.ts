@@ -384,7 +384,7 @@ describe('a disagreement between the two ends', () => {
 
     const outcome = await purgeDomainOnPlatform(DOMAIN, options(), issues);
 
-    // Both ends canonicalise with @oxyhq/federation. If they disagree, the purge
+    // Both ends canonicalise with @oxy.so/federation. If they disagree, the purge
     // is aimed at a host we never named — the one direction that is not undoable.
     expect(issuedRequests()).toHaveLength(1);
     expect(issues.canonicalDomainMismatch).toBe(1);

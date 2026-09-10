@@ -3,7 +3,7 @@ import {
   HANDLE_COLOR_NAMES,
   PREMIUM_COLOR_NAMES,
   type AppColorName,
-} from '@oxyhq/bloom/theme';
+} from '@oxy.so/bloom/theme';
 
 /**
  * WHO MAY WEAR WHICH COLOUR — the one authority, used by the picker AND by the

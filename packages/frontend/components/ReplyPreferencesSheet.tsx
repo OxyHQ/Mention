@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@/lib/icons';
-import { RadioIndicator } from '@oxyhq/bloom/radio-indicator';
-import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
+import { RadioIndicator } from '@oxy.so/bloom/radio-indicator';
+import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
 import {
     useThreadPreferencesStore,
     SORT_OPTIONS,

@@ -1,9 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { api } from '@/utils/api';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const SEARCH_DEBOUNCE_MS = 350;
@@ -24,7 +24,7 @@ export interface SearchResultPage<T> {
 
 /**
  * The raw proxy envelope. `profile/media/search` returns a `{ data, pagination }`
- * shape which `@oxyhq/core`'s HttpService leaves un-unwrapped (the `pagination`
+ * shape which `@oxy.so/core`'s HttpService leaves un-unwrapped (the `pagination`
  * key suppresses the `{ data }` unwrap), so the rows live at `res.data.data` and
  * the page metadata at `res.data.pagination`.
  */

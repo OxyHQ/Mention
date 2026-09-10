@@ -1,10 +1,10 @@
 import React, { memo, useCallback, useMemo } from 'react';
 import { ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Loading } from '@oxyhq/bloom/loading';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { useHaptics } from '@oxyhq/bloom/hooks';
-import { PressableScale } from '@oxyhq/bloom/pressable-scale';
+import { Loading } from '@oxy.so/bloom/loading';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { useHaptics } from '@oxy.so/bloom/hooks';
+import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { MediaIcon } from '@/assets/icons/media-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { LocationIcon } from '@/assets/icons/location-icon';

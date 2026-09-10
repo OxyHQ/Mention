@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { APP_COLOR_PRESETS, type AppColorName } from '@oxyhq/bloom/theme';
+import { APP_COLOR_PRESETS, type AppColorName } from '@oxy.so/bloom/theme';
 import { useScreenColor } from '@/context/ScreenColorContext';
 
 interface ProfileScreenColorInput {

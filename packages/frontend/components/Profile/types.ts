@@ -1,6 +1,6 @@
 import type { ViewStyle, TextStyle, StyleProp } from 'react-native';
 import type { Href } from 'expo-router';
-import type { AccountKind } from '@oxyhq/core';
+import type { AccountKind } from '@oxy.so/core';
 import type { ProfileData } from '@/hooks/useProfileData';
 
 /**
@@ -8,7 +8,7 @@ import type { ProfileData } from '@/hooks/useProfileData';
  * Centralized type definitions following industry standards
  */
 
-import type { useAuth } from '@oxyhq/services/ui/client';
+import type { useAuth } from '@oxy.so/services/ui/client';
 
 // Tab configuration
 export const TAB_NAMES = ['posts', 'replies', 'media', 'videos', 'likes', 'boosts', 'feeds', 'starter_packs', 'lists'] as const;
@@ -291,7 +291,7 @@ export interface ProfileScreenProps {
   laneId?: string;
 }
 
-// Component props for FollowButton from @oxyhq/services
+// Component props for FollowButton from @oxy.so/services
 export interface FollowButtonProps {
   userId: string;
   size?: 'small' | 'medium' | 'large';

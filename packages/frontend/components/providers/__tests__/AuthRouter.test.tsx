@@ -18,7 +18,7 @@
  */
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { Slot } from 'expo-router';
 import AppSplashScreen from '@/components/AppSplashScreen';
 import { AuthRouter } from '../AuthRouter';
@@ -27,7 +27,7 @@ let mockIsAuthResolved = false;
 let mockIsAuthenticated = false;
 let mockSegments: string[] = [];
 
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: jest.fn(),
 }));
 

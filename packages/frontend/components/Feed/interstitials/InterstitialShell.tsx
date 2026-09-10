@@ -3,8 +3,8 @@ import { Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { PressableScale } from '@oxyhq/bloom/pressable-scale';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { PressableScale } from '@oxy.so/bloom/pressable-scale';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { ThemedText } from '@/components/ThemedText';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import {

@@ -46,7 +46,7 @@ jest.mock('@/lib/actorCache', () => ({
  * apart — and `lib/__tests__/actorCache.test.ts` pins the forwarding contract
  * against the shape the real helper returns.
  */
-jest.mock('@oxyhq/services', () => ({
+jest.mock('@oxy.so/services', () => ({
   clearedFieldsFromAccountUpdate: (input: { bio?: string | null; avatar?: string | null }) => {
     const cleared: string[] = [];
     if ('bio' in input && !input.bio) cleared.push('bio');
@@ -58,7 +58,7 @@ jest.mock('@oxyhq/services', () => ({
 const mockUpdateAccount = jest.fn();
 const mockListAccounts = jest.fn();
 
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   OxyAuthPrompt: () => null,
   useAuth: () => ({
     user: { id: 'viewer-1', username: 'operator' },
@@ -74,11 +74,11 @@ jest.mock('@oxyhq/services/ui/client', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: { username?: string } | null | undefined) =>
     user?.username ?? null,
 }));
-jest.mock('@oxyhq/core/logger', () => ({
+jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
 
@@ -93,15 +93,15 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@expo/vector-icons/Ionicons', () => () => null);
-jest.mock('@oxyhq/bloom/avatar', () => ({ Avatar: () => null }));
-jest.mock('@oxyhq/bloom/loading', () => ({ SpinnerIcon: () => null }));
-jest.mock('@oxyhq/bloom/switch', () => ({ Switch: () => null }));
-jest.mock('@oxyhq/bloom/toast', () => {
+jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: () => null }));
+jest.mock('@oxy.so/bloom/loading', () => ({ SpinnerIcon: () => null }));
+jest.mock('@oxy.so/bloom/switch', () => ({ Switch: () => null }));
+jest.mock('@oxy.so/bloom/toast', () => {
   const toast = Object.assign(jest.fn(), { success: jest.fn(), error: jest.fn() });
   return { toast };
 });
-jest.mock('@oxyhq/bloom/theme', () => ({ useTheme: () => ({ colors: { textSecondary: '#888' } }) }));
-jest.mock('@oxyhq/bloom/settings-list', () => {
+jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { textSecondary: '#888' } }) }));
+jest.mock('@oxy.so/bloom/settings-list', () => {
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -110,7 +110,7 @@ jest.mock('@oxyhq/bloom/settings-list', () => {
     SettingsListItem: () => null,
   };
 });
-jest.mock('@oxyhq/bloom/item', () => {
+jest.mock('@oxy.so/bloom/item', () => {
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -144,7 +144,7 @@ jest.mock('@/services/channelAccountService', () => ({
  * The delete flow, stubbed at its two module boundaries. Neither is exercised
  * here — the fixture's `callerMembership` is `null`, so the row is not even
  * rendered — but both are imported by the screen, and the real `@/utils/alerts`
- * reaches `@oxyhq/bloom/dialog`, which cannot be required under jest.
+ * reaches `@oxy.so/bloom/dialog`, which cannot be required under jest.
  * `__tests__/channelDeleteChannel.test.tsx` is where the flow itself is pinned.
  */
 jest.mock('@/utils/alerts', () => ({ confirmDialog: jest.fn().mockResolvedValue(false) }));

@@ -5,7 +5,7 @@ import {
 } from '@mention/shared-types';
 import { io, Socket } from 'socket.io-client';
 import { useTrendsStore } from '@/stores/trendsStore';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('PublicRealtime');
 

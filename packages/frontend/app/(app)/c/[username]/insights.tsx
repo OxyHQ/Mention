@@ -3,9 +3,9 @@ import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
-import { getNormalizedUserHandle, type AccountNode } from '@oxyhq/core';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
+import { getNormalizedUserHandle, type AccountNode } from '@oxy.so/core';
 
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';

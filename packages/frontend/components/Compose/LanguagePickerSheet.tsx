@@ -1,8 +1,8 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import { FlatList, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Item } from '@oxyhq/bloom/item';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { Item } from '@oxy.so/bloom/item';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { IconButton } from '@/components/ui/Button';
 import { CONTENT_LANGUAGES, type ContentLanguage } from '@/constants/contentLanguages';

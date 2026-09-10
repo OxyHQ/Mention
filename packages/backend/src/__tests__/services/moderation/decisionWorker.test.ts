@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq, like } from 'drizzle-orm';
-import { decisionFixture } from '@oxyhq/crowdsource-testing';
+import { decisionFixture } from '@oxy.so/crowdsource-testing';
 
 /**
  * Applying a decision to the reports that opened the case.

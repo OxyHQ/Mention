@@ -30,7 +30,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 
 import { closePostgres, connectPostgres, type Database } from '../../../db/postgres';
 import { mentionRepoHeads, mentionSignedRecords } from '../../../db/schema/mtn';

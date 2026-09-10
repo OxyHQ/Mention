@@ -6,7 +6,7 @@
  * probe, the background liveness sweep, and the node→Mention ingest. Nothing in
  * the node services may hardcode these — import them here. A faithful port of
  * oxy-api's `nodes.constants.ts`, scoped to the `app.mention.*` namespace (a
- * `mention-node` is a DEPLOYMENT of `@oxyhq/node` with `appNamespace=app.mention`).
+ * `mention-node` is a DEPLOYMENT of `@oxy.so/node` with `appNamespace=app.mention`).
  */
 
 import { MENTION_FEED_COLLECTIONS, MENTION_BOOKMARK_COLLECTION } from '@mention/shared-types';
@@ -25,7 +25,7 @@ export const MENTION_NODE_RKEY = 'self' as const;
 /**
  * The well-known liveness manifest a `mention-node` serves. The probe fetches
  * this over HTTPS via `safeFetch`; a 2xx means the node is reachable. Matches the
- * `@oxyhq/node` manifest path (the node base is app-agnostic).
+ * `@oxy.so/node` manifest path (the node base is app-agnostic).
  */
 export const MENTION_NODE_WELL_KNOWN_PATH = '/.well-known/oxy-node.json' as const;
 

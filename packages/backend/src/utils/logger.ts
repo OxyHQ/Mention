@@ -105,8 +105,12 @@ function sanitizeLogString(
     .replace(
       /\b(?:https?|wss?|at|redis|rediss|mongodb(?:\+srv)?):\/\/[^\s"'<>]+/gi,
       (match) => {
-        const trailing = match.match(/[),.;!?]+$/)?.[0] ?? '';
-        const candidate = trailing ? match.slice(0, -trailing.length) : match;
+        let candidateEnd = match.length;
+        while (candidateEnd > 0 && '),.;!?'.includes(match[candidateEnd - 1] ?? '')) {
+          candidateEnd -= 1;
+        }
+        const candidate = match.slice(0, candidateEnd);
+        const trailing = match.slice(candidateEnd);
         try {
           const parsed = new URL(candidate);
           if (
@@ -152,7 +156,7 @@ function sanitizeLogString(
       .replace(/\b[a-f0-9]{24}\b/gi, REDACTED)
       // Any uuid VERSION, not 1-5. This class read `[1-5]` — the versions that
       // existed when RFC 4122 was the whole story — and every id this service
-      // mints is a uuid **v7** (`@oxyhq/db`'s `generatedId()`), as is every
+      // mints is a uuid **v7** (`@oxy.so/db`'s `generatedId()`), as is every
       // oxy-api id since its 2026-07-31 Postgres cutover. So the one clause here
       // whose entire job is to keep account and post ids out of the logs matched
       // nothing it was written for: it redacted third-party v4 uuids and passed

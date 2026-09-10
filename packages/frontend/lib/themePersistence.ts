@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { webLocalStorage, type BloomThemeStorage } from '@oxyhq/bloom/theme';
+import { webLocalStorage, type BloomThemeStorage } from '@oxy.so/bloom/theme';
 
 /**
  * Single source of truth for where Bloom persists the active theme

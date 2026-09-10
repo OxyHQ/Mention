@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, RefreshControl, Platform } fr
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 
 import { ThemedText } from '@/components/ThemedText';
 import { Header } from '@/components/Header';
@@ -12,11 +12,11 @@ import { RoomsListSkeleton } from '@/components/rooms/RoomsListSkeleton';
 import RoomCard from '@/components/RoomCard';
 import { SEO } from '@/components/SEO';
 
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useRoomUsers } from '@/hooks/useRoomUsers';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/lib/syraApi';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useTranslation } from 'react-i18next';
 import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';

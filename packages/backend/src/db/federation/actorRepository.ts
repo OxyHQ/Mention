@@ -2,7 +2,7 @@
  * The ONLY module that knows a federated actor is two tables and a dozen flat
  * `outbox_backfill_*` columns.
  *
- * Everything above it — the `@oxyhq/federation` actor resolver's store adapter,
+ * Everything above it — the `@oxy.so/federation` actor resolver's store adapter,
  * the delivery service, the follow/inbox/outbox services, the profile-sync job,
  * hydration, the feed controllers and the maintenance scripts — reads and writes
  * a whole {@link FederatedActorRecord}.

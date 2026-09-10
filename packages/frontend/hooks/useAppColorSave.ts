@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react';
-import { queryKeys } from '@oxyhq/services';
-import { useAuth } from '@oxyhq/services/ui/client';
-import { APP_COLOR_PRESETS, useBloomTheme, type AppColorName } from '@oxyhq/bloom/theme';
-import { logger } from '@oxyhq/core/logger';
+import { queryKeys } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { APP_COLOR_PRESETS, useBloomTheme, type AppColorName } from '@oxy.so/bloom/theme';
+import { logger } from '@oxy.so/core/logger';
 import { queryClient } from '@/lib/queryClient';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useThemeSourceStore } from '@/stores/themeSourceStore';

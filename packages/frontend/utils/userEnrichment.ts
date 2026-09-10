@@ -1,7 +1,7 @@
-import { queryKeys } from '@oxyhq/services';
+import { queryKeys } from '@oxy.so/services';
 import { cacheActor } from '@/lib/actorCache';
 import { queryClient } from '@/lib/queryClient';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 
 /**
  * For each user missing an avatar, fetch the full profiles in a SINGLE bulk

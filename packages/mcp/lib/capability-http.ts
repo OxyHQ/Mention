@@ -1,8 +1,8 @@
-import type { CapabilityTicketClaims, CatalogTool } from "@oxyhq/contracts";
+import type { CapabilityTicketClaims, CatalogTool } from "@oxy.so/contracts";
 import {
   inputSatisfiesCapabilityLimits,
   readCapabilityAuthorization,
-} from "@oxyhq/core/server";
+} from "@oxy.so/core/server";
 import { MENTION_CAPABILITY_CATALOG, MENTION_TOOL_REGISTRY } from "./mention-catalog.js";
 import { requestContext } from "./context.js";
 import type { MentionCapabilityAuthority } from "./capability-authority.js";

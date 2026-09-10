@@ -81,8 +81,8 @@ jest.mock('@/stores/feedScrollStore', () => ({
 jest.mock('@/stores/engagementInvalidation', () => ({
   invalidateEngagementLists: jest.fn(),
 }));
-jest.mock('@oxyhq/core/logger', () => ({
-  ...jest.requireActual('@oxyhq/core/logger'),
+jest.mock('@oxy.so/core/logger', () => ({
+  ...jest.requireActual('@oxy.so/core/logger'),
   createLogger: () => ({
     debug: jest.fn(),
     error: jest.fn(),

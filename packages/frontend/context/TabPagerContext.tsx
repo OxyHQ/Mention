@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { Platform } from 'react-native';
 import { router, usePathname } from 'expo-router';
 import { useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 
 import {
   BAR_SETTLE_SPRING,

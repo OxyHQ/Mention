@@ -21,7 +21,7 @@ import { eq } from 'drizzle-orm';
  *
  * `NodeClient`, `MentionUserNode`, `MentionNodeIngestWitness`,
  * `verifyAndStoreRecord`, `projectRecord`, the repo-log head, the signer, and the
- * logger are mocked — no network. The real `@oxyhq/contracts` envelope schema
+ * logger are mocked — no network. The real `@oxy.so/contracts` envelope schema
  * validates crafted envelopes.
  *
  * **The MTN chain is NOT mocked.** `currentKeyValue` (the LWW frontier read) and
@@ -43,7 +43,7 @@ const mockSignMessage = vi.fn();
 const mockComputeRecordId = vi.fn();
 
 // NodeClient is mocked to a stub that returns the canned head/log/push responses.
-vi.mock('@oxyhq/protocol/node', () => ({
+vi.mock('@oxy.so/protocol/node', () => ({
   NodeClient: class {
     head = (...a: unknown[]) => mockHead(...a);
     log = (...a: unknown[]) => mockLog(...a);
@@ -54,15 +54,15 @@ vi.mock('@oxyhq/protocol/node', () => ({
     getBlob = vi.fn(async () => null);
   },
 }));
-vi.mock('@oxyhq/protocol', async () => {
-  const actual = await vi.importActual<typeof import('@oxyhq/protocol')>('@oxyhq/protocol');
+vi.mock('@oxy.so/protocol', async () => {
+  const actual = await vi.importActual<typeof import('@oxy.so/protocol')>('@oxy.so/protocol');
   return {
     ...actual,
     computeRecordId: (...a: unknown[]) => mockComputeRecordId(...a),
     signMessage: (...a: unknown[]) => mockSignMessage(...a),
   };
 });
-vi.mock('@oxyhq/core/server', () => ({ safeFetch: vi.fn() }));
+vi.mock('@oxy.so/core/server', () => ({ safeFetch: vi.fn() }));
 vi.mock('../../../services/mtn/MentionRecordService', () => ({
   verifyAndStoreRecord: (...a: unknown[]) => mockVerifyAndStore(...a),
 }));

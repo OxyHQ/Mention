@@ -12,7 +12,7 @@ import {
   setupNotifications,
 } from '@/utils/notifications';
 import { initializeI18n } from './i18n';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 
 export interface InitializationResult {
   success: boolean;

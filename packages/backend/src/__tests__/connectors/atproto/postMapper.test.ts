@@ -60,7 +60,7 @@ import {
   importPostViews,
   mapPostViewToNormalizedPost,
 } from '../../../connectors/atproto/post.mapper';
-import type { NormalizedExternalActor } from '@oxyhq/federation';
+import type { NormalizedExternalActor } from '@oxy.so/federation';
 
 const DID = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
 

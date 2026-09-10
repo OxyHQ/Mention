@@ -10,13 +10,13 @@ import {
     type TextStyle
 } from 'react-native';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useTheme, type Theme } from '@oxyhq/bloom/theme';
+import { useTheme, type Theme } from '@oxy.so/bloom/theme';
 import { insightsService } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
+import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { usePostsStore } from '@/stores/postsStore';
 import PostItem from '@/components/Feed/PostItem';
 import type { HydratedPost } from '@mention/shared-types';
@@ -25,7 +25,7 @@ import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { EmptyState } from '@/components/common/EmptyState';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { asViewStyle, asTextStyle } from '@/types/webStyles';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { HeartIcon } from '@/assets/icons/heart-icon';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { BoostIcon } from '@/assets/icons/boost-icon';

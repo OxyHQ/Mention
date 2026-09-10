@@ -2,7 +2,7 @@ import React from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import type {
   FederationBlockCategory,
   FederationBlockSeverity,

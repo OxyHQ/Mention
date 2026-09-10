@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { View } from 'react-native';
 import { Redirect, router, type Href } from 'expo-router';
-import { BloomColorScope } from '@oxyhq/bloom/theme';
+import { BloomColorScope } from '@oxy.so/bloom/theme';
 
 import AnimatedTabBar from './common/AnimatedTabBar';
 import {

@@ -1,5 +1,5 @@
 import { Router, type Response } from 'express';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import {
   and,
   asc,
@@ -14,7 +14,7 @@ import {
   sql,
   type SQL,
 } from 'drizzle-orm';
-import { qualified } from '@oxyhq/db';
+import { qualified } from '@oxy.so/db';
 import { getDb } from '../db/postgres';
 import {
   definitionOf,

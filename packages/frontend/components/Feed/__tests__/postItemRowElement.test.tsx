@@ -44,12 +44,12 @@ jest.mock('@/stores/threadHoverStore', () => ({
     selector({ setHoveredSlice: () => undefined, hoveredSliceKey: null }),
 }));
 
-jest.mock('@oxyhq/bloom/bottom-sheet', () => ({ BottomSheet: 'BottomSheet' }));
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/bottom-sheet', () => ({ BottomSheet: 'BottomSheet' }));
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#8899a6', border: '#e1e8ed' } }),
 }));
-jest.mock('@oxyhq/bloom/hooks', () => ({ useImagePreload: () => undefined }));
-jest.mock('@oxyhq/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
+jest.mock('@oxy.so/bloom/hooks', () => ({ useImagePreload: () => undefined }));
+jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
 
 jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('@/assets/icons/pin-icon', () => ({ PinIcon: () => null }));
@@ -92,7 +92,7 @@ jest.mock('@/components/common/ActionMenu', () => ({ showActionMenu: () => undef
 jest.mock('@/components/common/ContentDialog', () => ({ showContentDialog: () => undefined }));
 jest.mock('@/utils/feedTelemetry', () => ({ reportFeedInteraction: () => undefined }));
 
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: { username?: string } | null | undefined) =>
     user?.username ?? null,
 }));

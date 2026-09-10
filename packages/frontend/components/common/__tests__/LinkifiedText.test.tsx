@@ -28,7 +28,7 @@ const mockOpenExternalLink = jest.fn();
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
     getNormalizedUserHandle: (user: { username?: string }) => user?.username ?? null,
 }));
 

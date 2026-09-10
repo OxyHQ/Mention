@@ -216,7 +216,7 @@ import { type PostContentVariant } from '@mention/shared-types';
 import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { postContentVariants, postMedia, postMentions } from '../db/schema/postContent';
-import { isLiveEntityId } from '@oxyhq/db';
+import { isLiveEntityId } from '@oxy.so/db';
 import { logger } from '../utils/logger';
 import { applyMentionPlaceholders, resolveInboundMentionsExisting } from '../connectors/activitypub/apMentions';
 import { buildFederatedNoteVariants } from '../connectors/activitypub/apPostContent';

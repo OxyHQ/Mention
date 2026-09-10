@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import type { User } from '@oxyhq/core';
-import { queryKeys } from '@oxyhq/services';
-import { useAuth } from '@oxyhq/services/ui/client';
+import type { User } from '@oxy.so/core';
+import { queryKeys } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { queryClient } from '@/lib/queryClient';
 import { getCachedFileDownloadUrlSync, type FileUrlResolver } from '@/utils/imageUrlCache';
 

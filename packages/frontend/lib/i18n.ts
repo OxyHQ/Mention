@@ -16,7 +16,7 @@ import enUS from '@/locales/en.json';
 
 import { DEFAULT_LANGUAGE, STORAGE_KEYS } from './constants';
 import { Storage } from '@/utils/storage';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 
 /**
  * `en-US` is both `DEFAULT_LANGUAGE` and `fallbackLng`, so it is needed on every

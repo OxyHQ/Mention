@@ -1,8 +1,8 @@
 import { useState } from "react";
 import * as Location from "expo-location";
 import { useTranslation } from "react-i18next";
-import { toast } from '@oxyhq/bloom/toast';
-import { logger } from '@oxyhq/core/logger';
+import { toast } from '@oxy.so/bloom/toast';
+import { logger } from '@oxy.so/core/logger';
 
 export interface LocationData {
   latitude: number;

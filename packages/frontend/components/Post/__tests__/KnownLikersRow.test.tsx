@@ -48,14 +48,14 @@ jest.mock('react-i18next', () => {
 // The face pile is Bloom's; this suite is about the copy, so record the props
 // and render nothing.
 const mockAvatarGroupProps: Record<string, unknown>[] = [];
-jest.mock('@oxyhq/bloom/avatar-group', () => ({
+jest.mock('@oxy.so/bloom/avatar-group', () => ({
   AvatarGroup: (props: Record<string, unknown>) => {
     mockAvatarGroupProps.push(props);
     return null;
   },
 }));
 
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: { username?: string } | null | undefined) =>
     user?.username ? user.username : null,
 }));

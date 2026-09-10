@@ -7,7 +7,7 @@ import {
   type MentionTextValue,
 } from '@/utils/mentions';
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
     colors: { textTertiary: '#999' },
   }),

@@ -9,19 +9,19 @@ import {
   TouchableOpacity,
   Pressable,
 } from 'react-native';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Clipboard from 'expo-clipboard';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { useQuery } from '@tanstack/react-query';
 
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 
@@ -29,10 +29,10 @@ import Feed from '@/components/Feed/Feed';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { listsService } from '@/services/listsService';
 import { subscribeToListChanges } from '@/services/listMutations';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { EntityFollowButton } from '@/components/EntityFollowButton';
-import { getNormalizedUserHandle, type User } from '@oxyhq/core';
+import { getNormalizedUserHandle, type User } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { formatCompactNumber } from '@/utils/formatNumber';

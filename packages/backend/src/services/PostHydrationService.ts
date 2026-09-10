@@ -41,9 +41,9 @@ import { readPersistedMediaFields } from './MediaMetadataService';
 // The counter-visibility flags are shared with the realtime broadcaster, which
 // has to hide exactly what the DTO hides — see `engagementCountPrivacy.ts`.
 import { DEFAULT_PRIVACY, readEngagementCountPrivacy } from './engagementCountPrivacy';
-import type { User as OxyUser } from '@oxyhq/core';
-import { getNormalizedUserHandle, getUserLanguages } from '@oxyhq/core';
-import type { LinkPreview } from '@oxyhq/contracts';
+import type { User as OxyUser } from '@oxy.so/core';
+import { getNormalizedUserHandle, getUserLanguages } from '@oxy.so/core';
+import type { LinkPreview } from '@oxy.so/contracts';
 import { assignThreadState } from './ThreadSlicingService';
 import { mget as mgetUserSummaries, mset as msetUserSummaries, CachedUserSummary } from './userSummaryCache';
 import { computeStarterPackScores, starterPackCurationDeps } from './starterPackCuration';

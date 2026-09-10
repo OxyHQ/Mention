@@ -2,13 +2,13 @@ import type { HydratedPost, PostUser } from '@mention/shared-types';
 import { resolveReplyContextRow } from '../replyContextRow';
 
 /**
- * Oxy owns handle normalization and tests it upstream; the `@oxyhq/core` barrel
+ * Oxy owns handle normalization and tests it upstream; the `@oxy.so/core` barrel
  * also drags in a crypto polyfill jest cannot load. Stub the one function at the
  * boundary — same shape as the real contract: the normalized handle, or `null`
  * when the user has no usable one. (Babel hoists `jest.mock` above the imports,
  * so declaring it here still applies to the import above.)
  */
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
     getNormalizedUserHandle: (user?: { username?: string }) =>
         user?.username && user.username.length > 0 ? user.username : null,
 }));

@@ -30,7 +30,7 @@
  *    the PDS wiring. It NEVER claims to BE the canonical `did:web` `did.json`.
  */
 
-import type { DidDocument } from '@oxyhq/contracts';
+import type { DidDocument } from '@oxy.so/contracts';
 import { getServiceOxyClient } from '../../../utils/oxyHelpers';
 import { logger } from '../../../utils/logger';
 import { resolveOxyUser } from '../../activitypub/constants';

@@ -51,7 +51,7 @@ function setDot(obj: Record<string, unknown>, path: string, value: unknown): voi
   cur[last] = value;
 }
 
-vi.mock('@oxyhq/core/server', () => ({
+vi.mock('@oxy.so/core/server', () => ({
   requireOxyAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     (req as express.Request & { user?: { id: string }; accessToken?: string }).user = { id: CALLER };
     (req as express.Request & { accessToken?: string }).accessToken = 'test-token';

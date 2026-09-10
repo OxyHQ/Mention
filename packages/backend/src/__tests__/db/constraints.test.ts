@@ -10,7 +10,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { isUniqueViolation, uuidv7 } from '@oxyhq/db';
+import { isUniqueViolation, uuidv7 } from '@oxy.so/db';
 import { posts } from '../../db/schema/posts';
 import { postAuthorships, postContentVariants } from '../../db/schema/postContent';
 import { likes } from '../../db/schema/engagement';

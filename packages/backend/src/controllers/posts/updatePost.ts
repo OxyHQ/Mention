@@ -15,7 +15,7 @@ import {
 } from '../../db/posts/postRepository';
 import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../../db/posts/postRecord';
 import { baselineContentClassifier } from '../../services/BaselineContentClassifier';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { PostVisibility, StoredPostContent, PostContentVariant, toBaseLanguages } from '@mention/shared-types';
 import { mentionTextsFromContent } from '@mention/shared-types/mentions';
 import {

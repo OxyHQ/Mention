@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import {
   listLiveConnectionsForUser,
   listLiveMembersOfBundles,

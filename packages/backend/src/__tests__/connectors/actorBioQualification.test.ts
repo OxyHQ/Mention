@@ -2,7 +2,7 @@
  * The wiring, not the mechanism.
  *
  * `qualifyBareHandles` is tested in shared-types and the engine hook is tested in
- * `@oxyhq/federation`; both were green while Mention's bios stayed unqualified,
+ * `@oxy.so/federation`; both were green while Mention's bios stayed unqualified,
  * because nothing connected them. A hook that is never supplied is invisible —
  * the resolver falls back to the previous behaviour silently, by design — so the
  * only thing that can catch a missing wire is a test that looks at the adapter.

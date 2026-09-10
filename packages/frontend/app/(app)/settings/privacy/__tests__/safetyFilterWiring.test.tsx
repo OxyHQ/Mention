@@ -46,7 +46,7 @@ jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
     isDark: false,
     colors: {
@@ -61,18 +61,18 @@ jest.mock('@oxyhq/bloom/theme', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/loading', () => {
+jest.mock('@oxy.so/bloom/loading', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Loading: () => <RNView /> };
 });
 
-jest.mock('@oxyhq/bloom/toast', () => ({ toast: jest.fn() }));
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 
 // Ships untranspiled TS, and is reached only through `BottomSheetContext`'s
 // provider — which this file replaces with its own.
-jest.mock('@oxyhq/bloom/bottom-sheet', () => ({ BottomSheet: () => null }));
+jest.mock('@oxy.so/bloom/bottom-sheet', () => ({ BottomSheet: () => null }));
 
-jest.mock('@oxyhq/bloom/settings-list', () => {
+jest.mock('@oxy.so/bloom/settings-list', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     SettingsListGroup: ({ children }: { children?: React.ReactNode }) => <RNView>{children}</RNView>,
@@ -82,7 +82,7 @@ jest.mock('@oxyhq/bloom/settings-list', () => {
   };
 });
 
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ isAuthenticated: true, user: { id: 'viewer-1' }, canUsePrivateApi: true }),
   OxyAuthPrompt: () => null,
 }));
@@ -99,8 +99,8 @@ jest.mock('@/lib/icons', () => ({ Icon: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 
-jest.mock('@oxyhq/core/logger', () => ({
-  ...jest.requireActual('@oxyhq/core/logger'),
+jest.mock('@oxy.so/core/logger', () => ({
+  ...jest.requireActual('@oxy.so/core/logger'),
   createLogger: () => ({ debug: jest.fn(), error: jest.fn(), warn: jest.fn(), info: jest.fn() }),
 }));
 

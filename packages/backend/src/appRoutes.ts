@@ -1,5 +1,5 @@
 import express, { type RequestHandler } from 'express';
-import type { OxyServices } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
 import postsRouter, { publicPostsRouter } from './routes/posts';
 import intentMediaRoutes from './routes/intentMedia';
 import healthRoutes from './routes/health.routes';

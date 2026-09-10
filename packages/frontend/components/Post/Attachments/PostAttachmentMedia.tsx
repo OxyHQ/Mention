@@ -3,8 +3,8 @@ import { Image, Pressable, Text, View, StyleSheet, ViewStyle, Platform } from 'r
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { BlurView } from 'expo-blur';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { MediaInsetBorder } from '@oxyhq/bloom/media-inset-border';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { MediaInsetBorder } from '@oxy.so/bloom/media-inset-border';
 import { LazyImage } from '@/components/ui/LazyImage';
 import VideoPlayer from '@/components/common/VideoPlayer';
 import { MEDIA_CARD_WIDTH, MEDIA_CARD_HEIGHT, MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
@@ -13,9 +13,9 @@ import {
   hasAspectRatio,
   setAspectRatio as setAspectRatioInCache,
   DEFAULT_ASPECT_RATIO,
-} from '@oxyhq/bloom/image-aspect-ratio-cache';
+} from '@oxy.so/bloom/image-aspect-ratio-cache';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
-import type { MeasuredRect } from '@oxyhq/bloom/media-flight';
+import type { MeasuredRect } from '@oxy.so/bloom/media-flight';
 import { useVideoPlayerLease, videoPlayerKey } from '@/stores/videoPlayerRegistry';
 import type { VideoPlayer as ExpoVideoPlayer } from 'expo-video';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';

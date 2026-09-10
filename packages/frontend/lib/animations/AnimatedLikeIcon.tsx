@@ -11,7 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { HeartIcon, HeartIconActive } from '@/assets/icons/heart-icon';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 
 const LIKE_ANIMATION_MS = 300;
 const easeOut = Easing.bezier(0.16, 1, 0.3, 1);

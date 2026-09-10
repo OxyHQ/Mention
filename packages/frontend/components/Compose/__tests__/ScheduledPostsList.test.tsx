@@ -27,7 +27,7 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
     colors: {
       border: '#333',
@@ -40,17 +40,17 @@ jest.mock('@oxyhq/bloom/theme', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/loading', () => ({ Loading: () => null }));
-jest.mock('@oxyhq/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
+jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
 jest.mock('@/utils/alerts', () => ({ confirmDialog: (...args: unknown[]) => mockConfirm(...args) }));
-jest.mock('@oxyhq/core/logger', () => ({
+jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() }),
 }));
-// `@oxyhq/core` ships ESM that jest does not transform, so it is stubbed at the
+// `@oxy.so/core` ships ESM that jest does not transform, so it is stubbed at the
 // one symbol this component uses — the same shape `CollaboratorsList.test.tsx`
 // takes. Returning the username IS the real behaviour for a local account, which
 // is what every channel is.
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user?: { username?: string }) => user?.username,
 }));
 

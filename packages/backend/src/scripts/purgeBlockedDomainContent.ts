@@ -201,7 +201,7 @@ import {
   recordPurgeRun,
   toLedgerCounts,
 } from '../db/blocklist/blockedDomainPurgeRepository';
-import { canonicalFederationHost } from '@oxyhq/federation';
+import { canonicalFederationHost } from '@oxy.so/federation';
 import { getBlockedDomainPolicy } from '../connectors/activitypub/federationBlockPolicy';
 import { OWN_DOMAINS } from '../connectors/activitypub/ownDomain';
 import {

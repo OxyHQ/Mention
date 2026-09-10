@@ -96,7 +96,7 @@ config.transformer = {
       dead_code: true,
       // Strips `console.*` from the production web bundle (27 KB across the 105
       // chunks). Safe because the app's only console sink (`lib/logging`, on
-      // the shared `@oxyhq/core/logger`) resolves to level `silent` outside
+      // the shared `@oxy.so/core/logger`) resolves to level `silent` outside
       // development anyway, and the minifier never runs on a development build.
       drop_console: true,
       drop_debugger: true,

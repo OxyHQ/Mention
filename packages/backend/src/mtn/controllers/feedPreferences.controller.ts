@@ -13,7 +13,7 @@
 import { Response } from 'express';
 import { PRESET_FEEDS, isValidFeedDescriptor, parseFeedDescriptor, validateForYouTuning } from '@mention/shared-types';
 import type { FeedDescriptor, SavedFeed } from '@mention/shared-types';
-import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { loadFeedLayout, replaceFeedLayout } from '../../db/feeds/feedPreferenceRepository';
 import { loadUserSettings, updateUserSettings } from '../../db/userProfile/userSettingsRepository';
 import { loadCustomFeedSource } from '../../db/feeds/customFeedRepository';

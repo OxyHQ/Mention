@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "bun:test";
-import type { CapabilityTicketClaims } from "@oxyhq/contracts";
+import type { CapabilityTicketClaims } from "@oxy.so/contracts";
 import { handleMentionCapabilityRequest } from "../lib/capability-http.js";
 import type { MentionCapabilityAuthority } from "../lib/capability-authority.js";
 

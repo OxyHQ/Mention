@@ -1,12 +1,12 @@
 import React, { memo, useCallback, useMemo } from 'react';
 import { View, Pressable, StyleSheet, Platform, TouchableOpacity } from 'react-native';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { ThemedText } from '@/components/ThemedText';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface FeedHeaderProps {

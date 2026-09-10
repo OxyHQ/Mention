@@ -5,7 +5,7 @@
  * is the source of truth for reputation; Mention stays the source of truth for
  * its own enforcement actions. These types describe only Mention's half — the
  * receipt a reporter can read and the local state of the integration — and they
- * are deliberately NOT a copy of anything `@oxyhq/crowdsource-contracts`
+ * are deliberately NOT a copy of anything `@oxy.so/crowdsource-contracts`
  * publishes. A `Decision`, a `TaxonomyCode` or a `RecommendedAction` has exactly
  * one definition and it lives in that package; what a decision produced *here*
  * lives below.

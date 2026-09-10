@@ -34,7 +34,7 @@ import type {
   NetworkId,
   LocalNetworkEvent,
   LocalPostEventPayload,
-} from '@oxyhq/federation';
+} from '@oxy.so/federation';
 import type { FederatablePost } from '../../services/serviceRegistry';
 import { ConnectorRegistry } from '../../connectors/ConnectorRegistry';
 
@@ -189,7 +189,7 @@ describe('ConnectorRegistry durable delivery', () => {
  * The extra-audience capability, declared locally the same way `deliverDurably`
  * is: a connector that cannot widen an audience simply does not implement the
  * method, and the registry falls through to plain `deliver` rather than anything
- * in `@oxyhq/federation` having to grow a field for one app's addressing need.
+ * in `@oxy.so/federation` having to grow a field for one app's addressing need.
  *
  * Each case is asserted against a connector that implements BOTH methods, so a
  * dispatch that picked the wrong one would call the wrong spy rather than

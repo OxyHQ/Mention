@@ -2,8 +2,8 @@ import {
   OxyInferenceClient,
   type OxyInferenceResponse,
   type OxyResponsesRequest,
-} from '@oxyhq/core';
-import type { InferenceMessage } from '@oxyhq/contracts';
+} from '@oxy.so/core';
+import type { InferenceMessage } from '@oxy.so/contracts';
 import { config, getOxyServiceCredentials } from '../config';
 import { getServiceOxyClient } from './oxyHelpers';
 import { logger } from './logger';

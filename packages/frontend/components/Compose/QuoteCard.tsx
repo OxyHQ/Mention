@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost, HydratedPostSummary } from '@mention/shared-types';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { HIT_SLOP_SM } from '@/styles/hitSlop';

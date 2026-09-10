@@ -15,18 +15,18 @@ jest.mock('@/components/common/VideoPlayer', () => {
   };
 });
 
-jest.mock('@oxyhq/bloom/image-aspect-ratio-cache', () => ({
+jest.mock('@oxy.so/bloom/image-aspect-ratio-cache', () => ({
   getAspectRatio: () => undefined,
   hasAspectRatio: () => false,
   setAspectRatio: jest.fn(),
   DEFAULT_ASPECT_RATIO: 1,
 }));
 
-jest.mock('@oxyhq/bloom/media-inset-border', () => ({
+jest.mock('@oxy.so/bloom/media-inset-border', () => ({
   MediaInsetBorder: () => null,
 }));
 
-jest.mock('@oxyhq/bloom/media-flight', () => ({
+jest.mock('@oxy.so/bloom/media-flight', () => ({
   useMediaFlight: () => ({ registerAnchor: jest.fn(), measureAnchor: jest.fn(), flyTo: jest.fn() }),
 }));
 
@@ -35,7 +35,7 @@ jest.mock('@/stores/videoPlayerRegistry', () => ({
   videoPlayerKey: (postId: string, mediaId: string) => `${postId}:${mediaId}`,
 }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { backgroundSecondary: '#eee' } }),
 }));
 

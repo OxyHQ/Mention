@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // This suite exercises the bounded stream/deadline adapter directly; signing is
 // outside its scope and the optional federation package is not needed.
-vi.mock('@oxyhq/federation/node', () => ({
+vi.mock('@oxy.so/federation/node', () => ({
   createSignedFetch: vi.fn(),
 }));
 vi.mock('../../../connectors/activitypub/crypto', () => ({

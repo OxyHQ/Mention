@@ -106,7 +106,7 @@ vi.mock('../../services/PostHydrationService', async (importOriginal) => {
 });
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import { notifications } from '../../db/schema/discovery';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';

@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, SectionList, type SectionListData } from 'react-native';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';

@@ -8,7 +8,7 @@
 import { Response } from 'express';
 import { loadPostRecord } from '../../db/posts/postRepository';
 import { attachPollToPost, createPollWithOptions } from '../../db/polls/pollRepository';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { PostVisibility, PostContent } from '@mention/shared-types';
 import type { ReplyPermission } from '@mention/shared-types';
 import { affinityEventService } from '../../services/AffinityEventService';

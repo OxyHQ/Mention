@@ -34,10 +34,10 @@ jest.mock('../Attachments', () => ({
 }));
 
 jest.mock('@/components/Podcast/PodcastCard', () => ({ PodcastCard: () => null }));
-jest.mock('@oxyhq/services/ui/client', () => ({ useAuth: () => ({ oxyServices: {} }) }));
+jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => ({ oxyServices: {} }) }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
-jest.mock('@oxyhq/bloom/zoomable-image-gallery', () => ({ ZoomableMediaGallery: () => null }));
-jest.mock('@oxyhq/bloom/media-flight', () => ({
+jest.mock('@oxy.so/bloom/zoomable-image-gallery', () => ({ ZoomableMediaGallery: () => null }));
+jest.mock('@oxy.so/bloom/media-flight', () => ({
   useMediaFlight: () => ({ registerAnchor: jest.fn(), measureAnchor: jest.fn(), flyTo: jest.fn() }),
 }));
 jest.mock('@/stores/videoPlayerRegistry', () => ({

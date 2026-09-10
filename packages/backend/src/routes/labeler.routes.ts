@@ -1,7 +1,7 @@
 import { Router, type Response } from 'express';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { z } from 'zod';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { validateBody, validateObjectId } from '../middleware/validate';
 import { LabelService, type LabelActionPreference } from '../services/LabelService';
 import { logger } from '../utils/logger';

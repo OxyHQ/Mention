@@ -3,15 +3,15 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { OxyServices } from '@oxyhq/core';
-import type { OxyAuthRequest } from '@oxyhq/core/server';
+import type { OxyServices } from '@oxy.so/core';
+import type { OxyAuthRequest } from '@oxy.so/core/server';
 
 process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret-that-is-at-least-32-bytes';
 
 const centralTokens = vi.hoisted(() => new Map<string, Record<string, unknown>>());
 
-vi.mock('@oxyhq/mcp', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@oxyhq/mcp')>()),
+vi.mock('@oxy.so/mcp', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/mcp')>()),
   introspectOxyMcpAccessToken: vi.fn(async (value: string) => centralTokens.get(value) ?? null),
 }));
 

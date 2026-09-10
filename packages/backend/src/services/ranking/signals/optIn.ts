@@ -16,7 +16,7 @@
  */
 
 import { MtnConfig } from '@mention/shared-types';
-import { getBaseLanguage } from '@oxyhq/core';
+import { getBaseLanguage } from '@oxy.so/core';
 import type { RankablePost, RankingUserBehavior, SignalContext } from '../signalContext';
 import { getCanonicalTopics, getClassifiedConstructiveness } from './classification';
 import type { RankingSignal } from './types';

@@ -6,7 +6,7 @@ import {
 } from '../../db/federation/followRepository';
 import { deliveryService } from './delivery.service';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
-import { AP_CONTEXT } from '@oxyhq/federation';
+import { AP_CONTEXT } from '@oxy.so/federation';
 import { actorUrl } from './constants';
 import { getFediverseSharingStateById } from '../../services/fediverseSharing';
 

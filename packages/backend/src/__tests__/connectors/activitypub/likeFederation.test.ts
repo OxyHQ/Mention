@@ -56,8 +56,8 @@ vi.mock('../../../db/federation/deliveryQueueRepository', () => ({
   insertDelivery: fallbackCreate,
 }));
 vi.mock('../../../utils/safeUpstreamFetch', () => ({ fetchUpstreamSingleHop: vi.fn() }));
-vi.mock('@oxyhq/core/server', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
   assertSafePublicUrl: vi.fn().mockResolvedValue({ ok: true }),
 }));
 vi.mock('../../../utils/mediaResolver', () => ({

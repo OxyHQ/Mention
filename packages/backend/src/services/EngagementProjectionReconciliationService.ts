@@ -46,7 +46,7 @@ import {
   isUniqueViolation,
   qualified,
   sqlStateOf,
-} from '@oxyhq/db';
+} from '@oxy.so/db';
 import { bookmarks } from '../db/schema/engagement';
 import { postRecentRepliers } from '../db/schema/postContent';
 import { posts } from '../db/schema/posts';

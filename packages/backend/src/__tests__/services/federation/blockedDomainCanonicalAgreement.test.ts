@@ -5,7 +5,7 @@ import {
   canonicalFederationHost,
   createDomainPolicy,
   isSameFederationHost,
-} from '@oxyhq/federation';
+} from '@oxy.so/federation';
 import {
   getBlockedDomainPolicy,
   resolveFederationBlocks,
@@ -22,7 +22,7 @@ import { buildBlockedContentDomains } from '../../../scripts/purgeBlockedDomainC
  * host at the wire, the transparency page TELLS the public it is refused, and
  * the automatic purge DELETES what we already hold from it. They only ever agree
  * if they decide "is this the same host?" the same way — and until
- * `@oxyhq/federation@0.6.0` they could not be made to, because the engine kept
+ * `@oxy.so/federation@0.6.0` they could not be made to, because the engine kept
  * its canonicaliser private and Mention held a hand-copy.
  *
  * That copy is now deleted and all three call `canonicalFederationHost`, the
@@ -161,7 +161,7 @@ describe('the engine, the transparency page and the purge reach one verdict', ()
 });
 
 describe('the canonicaliser is the engine’s, not a copy of it', () => {
-  it('is imported from @oxyhq/federation, which only 0.6.0 onwards exports', () => {
+  it('is imported from @oxy.so/federation, which only 0.6.0 onwards exports', () => {
     // The structural half of this change. On `^0.5.0` these were not exported at
     // all, so this file could not run — which is what makes the version bump and
     // the deletion one commit rather than two.
@@ -222,7 +222,7 @@ async function expectNoHandRolledWwwStripping(): Promise<void> {
 
   await walk(sourceRoot);
 
-  expect(offenders, 'use canonicalFederationHost from @oxyhq/federation instead').toEqual([]);
+  expect(offenders, 'use canonicalFederationHost from @oxy.so/federation instead').toEqual([]);
   // Well below the current count (472 non-test `.ts` files) so ordinary
   // deletions never trip it, but high enough that a walk which stopped
   // descending could not report a clean run.

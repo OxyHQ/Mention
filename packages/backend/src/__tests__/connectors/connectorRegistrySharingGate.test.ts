@@ -32,7 +32,7 @@ vi.mock('../../services/fediverseSharing', () => ({
 
 import { ConnectorRegistry } from '../../connectors/ConnectorRegistry';
 import type { PostContent } from '@mention/shared-types';
-import type { NetworkConnector, NetworkId, LocalPostEventPayload } from '@oxyhq/federation';
+import type { NetworkConnector, NetworkId, LocalPostEventPayload } from '@oxy.so/federation';
 import type { FederatablePost } from '../../services/serviceRegistry';
 
 /** A minimal fake connector with an overridable, spy-able `deliver`. */

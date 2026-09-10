@@ -2,9 +2,9 @@ import React from 'react';
 import { View, Text } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';

@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, StyleSheet } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { toast } from '@oxyhq/bloom/toast';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 import type {
   CustomFeed,
   FeedDefinitionInput,
@@ -27,13 +27,13 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Toggle } from '@/components/Toggle';
 import { Slider } from '@/components/Slider';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { customFeedsService } from '@/services/customFeedsService';
 import { useFeedModules } from '@/hooks/useFeedModules';
 import Feed from '@/components/Feed/Feed';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { HIT_SLOP_MD, HIT_SLOP_SM } from '@/styles/hitSlop';
 

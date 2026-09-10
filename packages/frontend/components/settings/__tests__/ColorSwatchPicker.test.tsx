@@ -23,7 +23,7 @@ import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
  * owns catalog completeness and gate metadata; this suite owns the consumer's
  * filtering, grouping and paint behavior.
  */
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   COLOR_PRESET_FAMILIES: ['brand', 'ocean', 'sunset', 'neutral'],
   COLOR_PRESET_GROUPS: {
     brand: {

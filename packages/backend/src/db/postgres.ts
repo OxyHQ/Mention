@@ -21,7 +21,7 @@
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type postgres from 'postgres';
-import { createDatabase } from '@oxyhq/db';
+import { createDatabase } from '@oxy.so/db';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { instrumentPostgresClient } from './queryMetrics';
@@ -81,7 +81,7 @@ export async function connectPostgres(): Promise<Database> {
   // `DATABASE_CASING`: drizzle applies `casing` at RUNTIME when building SQL,
   // drizzle-kit applies it at GENERATE time when emitting DDL, and they must
   // agree or queries reference columns the migrations never created — see
-  // `@oxyhq/db`'s `casing.ts`.
+  // `@oxy.so/db`'s `casing.ts`.
   const created = createDatabase({
     databaseUrl: url,
     schema,

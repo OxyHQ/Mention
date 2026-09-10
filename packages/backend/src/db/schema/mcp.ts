@@ -39,7 +39,7 @@
 
 import { sql } from 'drizzle-orm';
 import { boolean, check, index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz } from '@oxy.so/db';
 
 /**
  * How long a redeemed or expired authorization code is kept before the sweep

@@ -54,8 +54,8 @@ vi.mock('../../connectors/activitypub/helpers', () => ({
   asRecord: vi.fn(),
 }));
 vi.mock('../../connectors/activitypub/constants', () => ({ AP_CONTENT_TYPE: 'application/activity+json' }));
-vi.mock('@oxyhq/core/server', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
   assertSafePublicUrl: vi.fn(),
 }));
 
@@ -66,7 +66,7 @@ import {
   resolveOrphanAuthorUri,
 } from '../../scripts/backfillFederatedPostAuthors';
 import { extractActorUri, signedFetch, asRecord } from '../../connectors/activitypub/helpers';
-import { assertSafePublicUrl } from '@oxyhq/core/server';
+import { assertSafePublicUrl } from '@oxy.so/core/server';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 
 /** A promise plus its externally-callable resolver, for holding a resolve in-flight. */

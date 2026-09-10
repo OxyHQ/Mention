@@ -118,7 +118,7 @@ fi
 # routed yet.
 #
 # `assertPostgresMigrationsCurrent` in packages/backend/src/db/migrationsFolder.ts
-# (wrapping @oxyhq/db/migrate's assertPostgresMigrationsCurrentAgainst) is the
+# (wrapping @oxy.so/db/migrate's assertPostgresMigrationsCurrentAgainst) is the
 # other half: it refuses to let a task become ready when this step did not run.
 # Neither replaces the other — this one applies the migrations, that one
 # survives the case where somebody bypassed this one.

@@ -49,7 +49,7 @@ type MockNode = React.ReactNode;
  * passed. Registration happens in an effect, which is also what makes the
  * component's own "open on mount" assumption meaningful here.
  */
-jest.mock('@oxyhq/bloom/dialog', () => {
+jest.mock('@oxy.so/bloom/dialog', () => {
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   const closers = new Map<MockDialogControl, () => void>();
 
@@ -83,7 +83,7 @@ jest.mock('@oxyhq/bloom/dialog', () => {
   };
 });
 
-jest.mock('@oxyhq/bloom/button', () => {
+jest.mock('@oxy.so/bloom/button', () => {
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   const { Pressable, Text } = jest.requireActual<typeof import('react-native')>('react-native');
   return {

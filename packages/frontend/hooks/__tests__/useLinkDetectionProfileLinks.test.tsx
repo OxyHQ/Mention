@@ -19,12 +19,12 @@ import { useLinkDetection } from '../useLinkDetection';
 
 const mockGetLinkPreview = jest.fn();
 
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
     oxyServices: { getLinkPreview: (...args: unknown[]) => mockGetLinkPreview(...args) },
   }),
 }));
-jest.mock('@oxyhq/core/logger', () => ({
+jest.mock('@oxy.so/core/logger', () => ({
   logger: { error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() },
 }));
 jest.mock('@/stores/linksStore', () => ({

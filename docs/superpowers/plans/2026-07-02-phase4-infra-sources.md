@@ -6,7 +6,7 @@
 
 **Architecture:** Same engine module pattern (SourceModule + registry + catalog). Two need new infra: `risingCreators` (a periodic follower-count snapshot + delta) and `friendsOfFriends` (an Oxy follows-of-follows endpoint, upstream-first like mutuals). `nearby` uses the existing sparse post `location`. `moreLikeThis` uses existing classification/tag/author data — no new infra.
 
-**Tech Stack:** TS, Mongoose, Redis, vitest; `@oxyhq/core`/oxy-api for FoF (upstream); builds on merged engine.
+**Tech Stack:** TS, Mongoose, Redis, vitest; `@oxy.so/core`/oxy-api for FoF (upstream); builds on merged engine.
 
 ## Global Constraints
 
@@ -38,7 +38,7 @@ Stacked worktree from the tip of Phase 2b (after it merges) — do NOT run in pa
 ### Task 4: `friendsOfFriends` — Oxy upstream + source
 
 **Upstream (OxyHQServices, oxy-api + core, separate agent, gate deploy/publish with user):**
-- [ ] `GET /users/follows-of-follows-ids?limit=` — viewer from auth token; returns bounded ids = union of (follows of the viewer's follows) minus the viewer's own follows + self. Reuse the Follow aggregation. `@oxyhq/core getFollowsOfFollowsIds({limit?}): Promise<string[]>`. TDD; no deploy/publish without gate.
+- [ ] `GET /users/follows-of-follows-ids?limit=` — viewer from auth token; returns bounded ids = union of (follows of the viewer's follows) minus the viewer's own follows + self. Reuse the Follow aggregation. `@oxy.so/core getFollowsOfFollowsIds({limit?}): Promise<string[]>`. TDD; no deploy/publish without gate.
 **Mention:**
 - [ ] `friendsOfFriends` source (`engine/sources/socialSources.ts`): `oxyUserId ∈ ctx.fofIds` (populated by controller for this source, guarded optional-call like mutuals, ∪ nothing federated), chrono/ranked. Controller wires `ctx.fofIds` gated on the descriptor/source. `userComposable: false` (viewer-relative). TDD. Commit.
 

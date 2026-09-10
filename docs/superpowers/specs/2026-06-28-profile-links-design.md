@@ -12,23 +12,23 @@ Linktree-style). Today Mention renders links as a plain inline list of URLs insi
 `ProfileMeta` (above the stats); the user wants the new treatment **after the stats**
 and the old inline display removed.
 
-The profile **data already exists end-to-end** in Oxy: `@oxyhq/core`'s `User` has
+The profile **data already exists end-to-end** in Oxy: `@oxy.so/core`'s `User` has
 `linksMetadata?: Array<{ url; title?; description?; image?; id? }>` (plus a legacy
 `links?: string[]`), the contracts `UserProfileUpdate` supports it, the api persists +
-serializes it, and `@oxyhq/services` already has the **edit** flow
+serializes it, and `@oxy.so/services` already has the **edit** flow
 (`EditProfileFieldScreen`) and a links **screen** (`UserLinksScreen`). So **no
 model/contract/api change is needed** — this is a presentation feature.
 
 ## Goal
 
-- A shared, pure normalizer in `@oxyhq/core` (`normalizeProfileLinks`) — the single place
+- A shared, pure normalizer in `@oxy.so/core` (`normalizeProfileLinks`) — the single place
   that turns Oxy profile link data into a clean `{ id, title?, url }[]`, reused by Mention
-  and `@oxyhq/services`.
+  and `@oxy.so/services`.
 - A **Mention** component `LinkSummary` (collapsed summary row + bottom sheet), composed
   from **Bloom primitives** (`BottomSheet`/`Item`/`Icons`/`useTheme`). It is NOT a Bloom
   component — it's app UI built on the shared UI library.
 - Mention renders `LinkSummary` after the profile stats and drops its inline links.
-- `@oxyhq/services` swaps its own ad-hoc link extraction to the shared `normalizeProfileLinks`
+- `@oxy.so/services` swaps its own ad-hoc link extraction to the shared `normalizeProfileLinks`
   (its existing links UI/screen stays).
 
 ## Non-goals
@@ -40,7 +40,7 @@ model/contract/api change is needed** — this is a presentation feature.
 
 ## Architecture
 
-### 1. `@oxyhq/core` — shared normalizer (data layer)
+### 1. `@oxy.so/core` — shared normalizer (data layer)
 Add a pure helper (no UI, no new deps):
 ```ts
 export interface ProfileLink { id: string; title?: string; url: string }
@@ -59,7 +59,7 @@ New component `packages/frontend/components/Profile/LinkSummary.tsx` (+ a `LinkS
 content piece). Takes the normalized shape:
 ```ts
 interface LinkSummaryProps {
-  links: ProfileLink[];                       // from @oxyhq/core normalizeProfileLinks
+  links: ProfileLink[];                       // from @oxy.so/core normalizeProfileLinks
   onPressLink?: (url: string) => void;        // default Linking.openURL
 }
 ```
@@ -92,17 +92,17 @@ Behavior:
   no dead prop). Keep location + join date.
 - Add i18n keys (`profile.links.other`, `profile.links.others`, sheet header `profile.links.title`)
   to Mention's translation files.
-- Bump `@oxyhq/core` in Mention (Bloom unchanged at 0.23.0).
+- Bump `@oxy.so/core` in Mention (Bloom unchanged at 0.23.0).
 
-### 4. `@oxyhq/services` — adopt the shared normalizer
+### 4. `@oxy.so/services` — adopt the shared normalizer
 - `ui/screens/ProfileScreen.tsx`: replace the inline link extraction (lines ~117-133) with
   `normalizeProfileLinks(profileRes.linksMetadata, profileRes.links)`. Its existing collapsed
   `SettingsListItem` + `navigate('UserLinks')` + `UserLinksScreen` **stay unchanged** (only
   the normalization is shared now).
-- Bump `@oxyhq/core` in services; ensure the SDK profile screen still renders links.
+- Bump `@oxy.so/core` in services; ensure the SDK profile screen still renders links.
 
 ## Data flow
-`api linksMetadata` → profile DTO (`@oxyhq/core User`) → `normalizeProfileLinks` →
+`api linksMetadata` → profile DTO (`@oxy.so/core User`) → `normalizeProfileLinks` →
 `ProfileLink[]` → Mention `<LinkSummary>` (collapsed row → bottom sheet). services uses the
 same normalizer feeding its own existing UI.
 
@@ -114,9 +114,9 @@ same normalizer feeding its own existing UI.
 - Legacy `links` strings with no `linksMetadata` → normalized to `{id,url}` (no title).
 
 ## Publish / bump order (upstream-first)
-1. `@oxyhq/core`: add `normalizeProfileLinks` + unit test → build/tsc/test → bump (minor) →
+1. `@oxy.so/core`: add `normalizeProfileLinks` + unit test → build/tsc/test → bump (minor) →
    publish → verify the tarball exports it.
-2. Consumers: bump `@oxyhq/core` in Mention and OxyHQServices; wire both; run their gates.
+2. Consumers: bump `@oxy.so/core` in Mention and OxyHQServices; wire both; run their gates.
    Do not consume an unpublished workspace build. (Bloom is NOT published — Mention uses the
    already-installed 0.23.0 primitives.)
 

@@ -5,7 +5,7 @@ import {
   upstreamHandleFromAutomatedActor,
   upstreamHandleFromProfileField,
   type FederationBridgeEntry,
-} from '@oxyhq/federation';
+} from '@oxy.so/federation';
 
 /**
  * WHICH HOSTS REPUBLISH ANOTHER NETWORK'S ACCOUNTS, AND HOW TO READ THE REAL
@@ -22,7 +22,7 @@ import {
  *
  * THIS FILE IS THE POLICY, AND IT IS MENTION'S, NOT THE PLATFORM'S
  *
- *   The MECHANISM lives in `@oxyhq/federation` and every Oxy app shares it. The
+ *   The MECHANISM lives in `@oxy.so/federation` and every Oxy app shares it. The
  *   entries do not, and must not: deciding that a given operator may be trusted
  *   to re-attribute somebody's account is a moderation judgement, and putting it
  *   in the shared package would hand Homiio, Allo and everything else a decision

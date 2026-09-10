@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { MAX_POST_LINK_PREVIEWS } from '@mention/shared-types/post';
 import { type LinkMetadata, useLinksStore } from '../stores/linksStore';
 import { extractUrls } from '@/utils/extractUrls';
 import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 
 /**
  * Hook to detect the links in a post's text and resolve their previews. A post

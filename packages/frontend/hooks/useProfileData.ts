@@ -1,10 +1,10 @@
 import { useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useUserByUsername, queryKeys as sdkQueryKeys } from '@oxyhq/services';
-import { useAuth } from '@oxyhq/services/ui/client';
-import type { AccountCategoryId, AccountKind, User } from '@oxyhq/core';
+import { useUserByUsername, queryKeys as sdkQueryKeys } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
+import type { AccountCategoryId, AccountKind, User } from '@oxy.so/core';
 import { useAppearanceStore, type UserAppearance, type ProfileMedia } from '@/stores/appearanceStore';
-import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxyhq/bloom/theme';
+import { APP_COLOR_PRESETS, HEX_TO_APP_COLOR } from '@oxy.so/bloom/theme';
 import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
 import type { Community } from '@/components/Profile/types';
 import { displayNameOrHandle } from '@/utils/displayName';

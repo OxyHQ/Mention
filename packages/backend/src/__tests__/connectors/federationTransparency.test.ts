@@ -22,7 +22,7 @@ import type { FederationBlocksResponse } from '@mention/shared-types';
  *
  * The DATA is a fixture — the committed policy ships empty, and a test that
  * looped over an empty list would pass while proving nothing. The WIRING is
- * real: `constants.ts`, `createDomainPolicy` inside `@oxyhq/federation`, and the
+ * real: `constants.ts`, `createDomainPolicy` inside `@oxy.so/federation`, and the
  * live Express router, none of them stubbed. Every blocked assertion is paired
  * with an allowed-domain control, so a harness that quietly stopped working
  * could not read as a pass.
@@ -87,7 +87,7 @@ vi.mock('../../connectors/activitypub/federationBlockPolicy', async (importOrigi
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({ getUserById: mocks.getUserById }),
 }));
-vi.mock('@oxyhq/core/server', () => ({ getRequiredOxyUserId: () => 'local-user-1' }));
+vi.mock('@oxy.so/core/server', () => ({ getRequiredOxyUserId: () => 'local-user-1' }));
 vi.mock('../../connectors/atproto/constants', () => ({
   ATPROTO_ENABLED: false,
   isDid: () => false,

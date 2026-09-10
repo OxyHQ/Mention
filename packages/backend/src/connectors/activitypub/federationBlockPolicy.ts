@@ -1,4 +1,4 @@
-import { canonicalFederationHost } from '@oxyhq/federation';
+import { canonicalFederationHost } from '@oxy.so/federation';
 import type {
   FederationBlockCategory,
   FederationBlockSeverity,
@@ -1121,7 +1121,7 @@ export const FEDERATION_BLOCK_POLICY: readonly FederationBlockPolicyEntry[] = [
  * {@link resolveFederationBlocks} gives them, because it is this function's
  * output that it merges.
  *
- * Mention held a hand-copy of that rule until `@oxyhq/federation@0.6.0` exported
+ * Mention held a hand-copy of that rule until `@oxy.so/federation@0.6.0` exported
  * it. Two implementations of "are these the same host" only have to disagree
  * once for a consumer to act on a domain the engine never refused, and one of
  * these consumers DELETES content, so the copy was removed rather than

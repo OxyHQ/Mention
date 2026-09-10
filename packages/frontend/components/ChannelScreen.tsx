@@ -2,12 +2,12 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { View, Share } from 'react-native';
 import { Redirect, router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { BloomColorScope } from '@oxyhq/bloom/theme';
+import { BloomColorScope } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { FollowButton as OxyFollowButton, useAuth, useFollow } from '@oxyhq/services/ui/client';
+import { FollowButton as OxyFollowButton, useAuth, useFollow } from '@oxy.so/services/ui/client';
 import { lanesService } from '@/services/lanesService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import type { ProfileData } from '@/hooks/useProfileData';
 
 // Icons

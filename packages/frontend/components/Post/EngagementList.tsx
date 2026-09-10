@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, FlatList } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { CloseIcon } from '@/assets/icons/close-icon';
@@ -9,7 +9,7 @@ import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 
 import { useRouter } from 'expo-router';
 import { EmptyState } from '@/components/common/EmptyState';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import type { PostUser } from '@mention/shared-types';
 

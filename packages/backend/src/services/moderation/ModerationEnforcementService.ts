@@ -1,11 +1,11 @@
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
-import type { Decision } from '@oxyhq/crowdsource-contracts';
+import type { Decision } from '@oxy.so/crowdsource-contracts';
 import type {
   ModerationEnforcementAction,
   ModerationEnforcementMode,
 } from '@mention/shared-types';
 import { getDb } from '../../db/postgres';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { moderationEnforcements } from '../../db/schema/moderation';
 import { POST_STATUSES, posts } from '../../db/schema/posts';
 import { config } from '../../config';

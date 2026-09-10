@@ -1,10 +1,10 @@
 import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services/ui/client';
-import type { UserNodeStatus } from '@oxyhq/core';
+import { useAuth } from '@oxy.so/services/ui/client';
+import type { UserNodeStatus } from '@oxy.so/core';
 import { api } from '@/utils/api';
 import { isAuthError } from '@/utils/authErrors';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const nodeLogger = createLogger('MentionNode');

@@ -18,7 +18,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { OXY_USER_INVALIDATION_CHANNEL } from '@oxyhq/contracts';
+import { OXY_USER_INVALIDATION_CHANNEL } from '@oxy.so/contracts';
 
 const mocks = vi.hoisted(() => ({
   connect: vi.fn(),

@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AccountMember } from '@oxyhq/core';
+import type { AccountMember } from '@oxy.so/core';
 
 /**
  * What `PostCreationService.create` DOES with the account it was told to publish

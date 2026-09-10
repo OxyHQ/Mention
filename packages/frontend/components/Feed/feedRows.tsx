@@ -15,9 +15,9 @@ import type {
 import PostItem from './PostItem';
 import { PostErrorBoundary } from './PostErrorBoundary';
 import FeedInterstitial from './interstitials/FeedInterstitial';
-import { SubtleHover } from '@oxyhq/bloom/subtle-hover';
+import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { getItemKey, deduplicateItems, buildReplyTree, ReplyNode } from '@/utils/feedUtils';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING } from '@/styles/shared';

@@ -1,5 +1,5 @@
-import { OxyServices } from '@oxyhq/core';
-import { extractBearerToken } from '@oxyhq/mcp';
+import { OxyServices } from '@oxy.so/core';
+import { extractBearerToken } from '@oxy.so/mcp';
 import type { OxyClient } from './privacyHelpers';
 import {
   config,

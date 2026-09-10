@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
 import { ScrollView, StyleSheet, GestureResponderEvent, Dimensions, Platform, View, ViewStyle } from 'react-native';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import type {
   HydratedPostSummary,
   PollData,
@@ -25,11 +25,11 @@ import {
   type GalleryImage,
   type MeasureThumb,
   type MeasuredRect,
-} from '@oxyhq/bloom/zoomable-media-gallery';
-import { useMediaFlight } from '@oxyhq/bloom/media-flight';
+} from '@oxy.so/bloom/zoomable-media-gallery';
+import { useMediaFlight } from '@oxy.so/bloom/media-flight';
 import { holdAcrossTransition, peekVideoPlayer, videoPlayerKey } from '@/stores/videoPlayerRegistry';
 import { measurePanelSurface } from '@/components/shell/panelSurface';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import type { RegisterThumbHost } from '@/components/Post/Attachments/PostAttachmentMedia';
 import {
   PostAttachmentArticle,

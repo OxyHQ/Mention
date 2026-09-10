@@ -17,8 +17,8 @@
  */
 
 import { and, asc, eq, gt, inArray } from 'drizzle-orm';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
-import type { ChainHead } from '@oxyhq/protocol';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
+import type { ChainHead } from '@oxy.so/protocol';
 import { getDb } from '../../db/postgres';
 import { mentionSignedRecords } from '../../db/schema/mtn';
 import { canonicalChainRow, mentionRecordStore } from './MentionRecordStore';

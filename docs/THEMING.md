@@ -13,7 +13,7 @@ mode, color preset, font loading and local persistence.
 Read theme values directly from Bloom:
 
 ```tsx
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 
 function Example() {
   const { colors } = useTheme();
@@ -32,7 +32,7 @@ components. Prefer Bloom components and semantic NativeWind utilities such as
 `packages/frontend/global.css` imports the canonical token sheet:
 
 ```css
-@import "@oxyhq/bloom/design-tokens/theme.css";
+@import "@oxy.so/bloom/design-tokens/theme.css";
 ```
 
 Keep that import after Tailwind and NativeWind imports. Bloom's file is the
@@ -54,7 +54,7 @@ into it.
 
 ## Review checklist
 
-- Import theme APIs from `@oxyhq/bloom/theme`; there is no
+- Import theme APIs from `@oxy.so/bloom/theme`; there is no
   `@/hooks/useTheme`.
 - Use semantic tokens instead of hard-coded light/dark colors.
 - Keep one `BloomThemeProvider` at the application root.

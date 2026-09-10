@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import type { HydratedPost } from '@mention/shared-types';
 import { api } from '@/utils/api';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';

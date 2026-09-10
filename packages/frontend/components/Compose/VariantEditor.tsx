@@ -1,9 +1,9 @@
 import React, { memo, useCallback, type ReactNode, type Ref } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { Loading } from '@oxyhq/bloom/loading';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { Loading } from '@oxy.so/bloom/loading';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import MentionTextInput, { type MentionTextInputHandle } from '@/components/MentionTextInput';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';

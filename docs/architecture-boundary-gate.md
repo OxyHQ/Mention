@@ -9,7 +9,7 @@ validate:architecture-boundaries`, which also runs its mutation self-test
 | | Rule 1 | Rule 2 |
 | --- | --- | --- |
 | Forbids | product code importing a federation protocol's internal modules | `src/routes/**`, `src/controllers/**`, `src/mtn/controllers/**` importing `src/db/**` |
-| Allowed instead | the connector class, or `@oxyhq/federation`'s `NetworkConnector` | route/controller → service → repository |
+| Allowed instead | the connector class, or `@oxy.so/federation`'s `NetworkConnector` | route/controller → service → repository |
 | Baseline | `BASELINE`, keyed on (file, protocol) | `LAYER_BASELINE`, keyed on (file, db area) |
 | Size at landing | 10 entries / 17 crossings | 88 entries / 110 crossings |
 

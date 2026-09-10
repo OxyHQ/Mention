@@ -18,7 +18,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: jest.fn(),
 }));
 
@@ -29,8 +29,8 @@ jest.mock('@/utils/api', () => ({
   },
 }));
 
-jest.mock('@oxyhq/core/logger', () => ({
-  ...jest.requireActual('@oxyhq/core/logger'),
+jest.mock('@oxy.so/core/logger', () => ({
+  ...jest.requireActual('@oxy.so/core/logger'),
   createLogger: jest.fn(() => ({
     debug: jest.fn(),
     error: jest.fn(),

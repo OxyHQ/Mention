@@ -1,6 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 
 // Mirrors the real NotificationItem anatomy (single source of truth:

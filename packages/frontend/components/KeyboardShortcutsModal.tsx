@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Platform, ScrollView, Pressable } from 'react-native';
-import { Backdrop } from '@oxyhq/bloom/overlay';
+import { Backdrop } from '@oxy.so/bloom/overlay';
 
 import { SHORTCUTS } from '@/hooks/useKeyboardShortcuts';
 

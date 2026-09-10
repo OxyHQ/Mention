@@ -97,7 +97,7 @@
  * idempotent, so a re-run converges: a second pass over an already-deleted channel
  * returns all-zero counts and does not throw.
  */
-import type { AccountKind } from '@oxyhq/contracts';
+import type { AccountKind } from '@oxy.so/contracts';
 import { getDb } from '../../db/postgres';
 import {
   assertPostsSafeToDelete,

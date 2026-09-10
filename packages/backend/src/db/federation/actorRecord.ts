@@ -124,7 +124,7 @@ export interface FederatedActorRecord {
 }
 
 /**
- * The record as `@oxyhq/federation` requires it: `id`, plus the SAME value under
+ * The record as `@oxy.so/federation` requires it: `id`, plus the SAME value under
  * the `_id` its published `FederatedActorRecordBase` / `DeliveryActorFields`
  * contracts name.
  *
@@ -150,7 +150,7 @@ export interface FederatedActorRecord {
  * `connectors/activitypub/actor.service.ts` and
  * `connectors/activitypub/delivery.service.ts` — and nowhere else in Mention. The
  * clean fix is a store-agnostic id on the engine's own store interfaces, which is
- * an `@oxyhq/federation` change and a breaking one for the Oxy apps still on
+ * an `@oxy.so/federation` change and a breaking one for the Oxy apps still on
  * Mongo.
  */
 export type EngineFederatedActorRecord = FederatedActorRecord & { _id: string };
@@ -159,7 +159,7 @@ export type EngineFederatedActorRecord = FederatedActorRecord & { _id: string };
  * Republish a record's primary key under the `_id` the engine's contracts name.
  *
  * The ONLY producer of {@link EngineFederatedActorRecord} — everywhere Mention
- * hands a record to `@oxyhq/federation` goes through here, so the alias is
+ * hands a record to `@oxy.so/federation` goes through here, so the alias is
  * grep-able to a single function rather than spread across three adapters.
  */
 export function withEngineId(record: FederatedActorRecord): EngineFederatedActorRecord;

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { socketService } from '@/services/socketService';
-import { useAuth, useOxy } from '@oxyhq/services/ui/client';
+import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 
 // The bridge using this hook is the sole owner of the posts socket lease.
 export default function useRealtimePosts() {

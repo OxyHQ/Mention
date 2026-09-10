@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Platform } from 'react-native';
-import { webLocalStorage } from '@oxyhq/bloom/theme';
+import { webLocalStorage } from '@oxy.so/bloom/theme';
 import { BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
 
 /**

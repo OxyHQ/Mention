@@ -62,7 +62,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 /**
- * `@/components/ui/Button` reaches `@oxyhq/bloom/theme`, which jest cannot parse
+ * `@/components/ui/Button` reaches `@oxy.so/bloom/theme`, which jest cannot parse
  * (untransformed ESM in `node_modules`). It renders its children through, and
  * children — the words on the screen — are exactly what these cases are about,
  * so a stub that does the same measures the same thing.

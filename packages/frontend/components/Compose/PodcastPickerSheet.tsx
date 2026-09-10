@@ -3,8 +3,8 @@ import { ActivityIndicator, FlatList, Pressable, Text, TextInput, View } from 'r
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
-import { Item } from '@oxyhq/bloom/item';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { Item } from '@oxy.so/bloom/item';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
 import type { PodcastAttachmentData } from '@/hooks/usePodcastManager';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';

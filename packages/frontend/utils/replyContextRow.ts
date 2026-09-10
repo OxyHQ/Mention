@@ -1,4 +1,4 @@
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { HydratedPost, HydratedPostSummary } from '@mention/shared-types';
 
 /**

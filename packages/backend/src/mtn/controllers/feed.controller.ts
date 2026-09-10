@@ -8,7 +8,7 @@
 import { Response } from 'express';
 import { isValidFeedDescriptor, MtnConfig, createPostUri, parseFeedDescriptor } from '@mention/shared-types';
 import type { FeedDescriptor, FeedPostViewCounts, SlicedFeedResponse } from '@mention/shared-types';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { resolveDefinition } from '../feed/definitions/resolveDefinition';
 import { forYouUsesSocialProof } from '../feed/definitions/presets';
 import { feedEngine } from '../feed/engine/FeedEngine';
@@ -79,7 +79,7 @@ async function getFederatedMutualIds(
 
 /**
  * The viewer's mutual-follow author ids for the Mutuals feed: Oxy graph mutuals
- * (via `@oxyhq/core` `getMutualUserIds`) ∪ federated mutuals. Both branches
+ * (via `@oxy.so/core` `getMutualUserIds`) ∪ federated mutuals. Both branches
  * soft-fail to `[]`, so a failure in either source degrades the Mutuals feed to
  * the other rather than erroring. Deduped and capped.
  *
@@ -117,7 +117,7 @@ const MAX_FOF_IDS = 5000;
  * Structural capability for the Oxy follows-of-follows endpoint. The SDK method
  * is not shipped yet (upstream, handled separately), so it is invoked via a
  * runtime capability check rather than a hard dependency — exactly the mutuals
- * upstream pattern. When the method lands on `@oxyhq/core`, this guard passes and
+ * upstream pattern. When the method lands on `@oxy.so/core`, this guard passes and
  * the feed goes live with no further Mention change.
  */
 interface FollowsOfFollowsCapable {

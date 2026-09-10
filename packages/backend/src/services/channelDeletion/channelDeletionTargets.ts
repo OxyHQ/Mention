@@ -14,7 +14,7 @@
 
 import { and, count, eq, gt, inArray, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
-import { qualified } from '@oxyhq/db';
+import { qualified } from '@oxy.so/db';
 import { posts } from '../../db/schema/posts';
 import { postAuthorships } from '../../db/schema/postContent';
 import { federatedFollows } from '../../db/schema/federation';

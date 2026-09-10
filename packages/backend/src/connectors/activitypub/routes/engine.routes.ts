@@ -1,12 +1,12 @@
 import { type Request } from 'express';
 import rateLimit from 'express-rate-limit';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 import {
   createWebfingerRouter,
   createActorRouter,
   type WebfingerJrd,
   type FollowPage,
-} from '@oxyhq/federation/node';
+} from '@oxy.so/federation/node';
 import { logger } from '../../../utils/logger';
 import { getRedisClient } from '../../../utils/redis';
 import { RedisStore } from '../../../middleware/rateLimitStore';
@@ -32,7 +32,7 @@ import {
 } from '../../../services/fediverseSharing';
 
 /**
- * Mention's binding of the shared `@oxyhq/federation` webfinger + actor + inbox
+ * Mention's binding of the shared `@oxy.so/federation` webfinger + actor + inbox
  * routers.
  *
  * The routers themselves (discovery bytes, the HTTP-signature-verified inbox, the
