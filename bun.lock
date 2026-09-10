@@ -5,7 +5,7 @@
     "": {
       "name": "mention",
       "dependencies": {
-        "@oxy.so/bloom": "^1.0.1",
+        "@oxy.so/bloom": "catalog:",
       },
       "devDependencies": {
         "@types/node": "catalog:",

@@ -132,7 +132,7 @@
     "@tanstack/react-query-persist-client": "5.102.8"
   },
   "dependencies": {
-    "@oxy.so/bloom": "^1.0.1"
+    "@oxy.so/bloom": "catalog:"
   },
   "patchedDependencies": {
     "expo-router@57.0.18": "patches/expo-router@57.0.18.patch"
