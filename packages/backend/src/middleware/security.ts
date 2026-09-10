@@ -443,6 +443,24 @@ export const postViewRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+/** Bound database-backed discovery queries independently from feed scrolling. */
+const searchStore = new RedisStore({
+  prefix: 'rate-limit:search:',
+  windowMs: 60 * 1000,
+});
+export const searchRateLimiter = rateLimit({
+  store: searchStore,
+  windowMs: 60 * 1000,
+  max: 120,
+  keyGenerator: (req: Request) => {
+    const authReq = req as AuthRequest;
+    return authReq.user?.id ? `user:${authReq.user.id}` : hashedIpKey(req);
+  },
+  message: 'Too many search requests. Please slow down.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Request throttling for expensive feed operations (For You feed with ranking)
 const feedThrottleStore = new RedisStore({ 
   prefix: 'rate-limit:feed-throttle:',

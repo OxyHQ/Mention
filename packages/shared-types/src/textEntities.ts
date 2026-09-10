@@ -399,7 +399,7 @@ function classify(
     // after a handle — same trim, same reason, as the bare form below.
     // A domain cannot end in `.` or `-`; the pattern already guarantees it
     // contains one interior dot.
-    const domain = groups.fedDomain.replace(/[.-]+$/, '');
+    const domain = trimHandleEnding(groups.fedDomain);
     if (!domain.includes('.')) return null;
     const value = `${groups.fedLocal}@${domain}`;
     return { kind: 'federatedHandle', raw: `@${value}`, start, end: start + value.length + 1, value };
@@ -415,7 +415,7 @@ function classify(
     // Trimmed HERE rather than at a call site because there are nine of them and
     // "what may end a handle" is a property of the handle, not of any one
     // consumer. Same reasoning as {@link trimUrlTrailingPunctuation} for URLs.
-    const handle = groups.handle.replace(/[.-]+$/, '');
+    const handle = trimHandleEnding(groups.handle);
     // A handle of nothing but punctuation (`@...`) is not a handle at all.
     if (handle.length === 0) return null;
     return { kind: 'bareHandle', raw: `@${handle}`, start, end: start + handle.length + 1, value: handle };
@@ -427,6 +427,15 @@ function classify(
     return { kind: 'cashtag', raw, start, end, value: groups.cashtag };
   }
   return null;
+}
+
+/** Remove punctuation that may occur inside, but never at the end of, a handle. */
+function trimHandleEnding(value: string): string {
+  let end = value.length;
+  while (end > 0 && (value[end - 1] === '.' || value[end - 1] === '-')) {
+    end -= 1;
+  }
+  return value.slice(0, end);
 }
 
 /** Options for {@link stripTextEntities}. */

@@ -57,6 +57,11 @@ describe('htmlToPlainText', () => {
     expect(htmlToPlainText('<p><span class="h-card">hola</span></p>')).toBe('hola');
   });
 
+  it('removes malformed and nested executable markup without leaving a tag fragment', () => {
+    expect(htmlToPlainText('safe <<script>alert(1)</script> text')).toBe('safe < text');
+    expect(htmlToPlainText('<script><script>alert(1)</script></script>visible')).toBe('visible');
+  });
+
   it('extracts the href from a link whose text is WRAPPED in elements', () => {
     // The old rule matched only anchors with a TEXT-ONLY child, so an anchor
     // holding any element fell through to plain tag-stripping and lost the URL

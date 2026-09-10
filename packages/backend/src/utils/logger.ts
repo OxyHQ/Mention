@@ -105,8 +105,12 @@ function sanitizeLogString(
     .replace(
       /\b(?:https?|wss?|at|redis|rediss|mongodb(?:\+srv)?):\/\/[^\s"'<>]+/gi,
       (match) => {
-        const trailing = match.match(/[),.;!?]+$/)?.[0] ?? '';
-        const candidate = trailing ? match.slice(0, -trailing.length) : match;
+        let candidateEnd = match.length;
+        while (candidateEnd > 0 && '),.;!?'.includes(match[candidateEnd - 1] ?? '')) {
+          candidateEnd -= 1;
+        }
+        const candidate = match.slice(0, candidateEnd);
+        const trailing = match.slice(candidateEnd);
         try {
           const parsed = new URL(candidate);
           if (

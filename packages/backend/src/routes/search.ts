@@ -25,8 +25,13 @@ import {
   isMutedSubject,
 } from '../services/safety/muteWordMatcher';
 import { loadFollowedAuthorIds } from '../services/viewerFollowGraph';
+import { searchRateLimiter } from '../middleware/security';
 
 const router = express.Router();
+
+if (config.runtime.isProduction) {
+  router.use(searchRateLimiter);
+}
 
 /**
  * "The post has at least one media row", optionally of one type.
