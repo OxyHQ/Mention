@@ -127,6 +127,13 @@ export interface ReelChromeParams {
      */
     intrinsicSize?: MediaPixelSize;
     isActive: boolean;
+    /**
+     * Web: how many seconds of media sit ahead of the playhead, reported while
+     * this slide is the active one. The screen holds back the neighbouring
+     * players until there is enough — measured, five live decoders fetching at
+     * once starve the one that just landed.
+     */
+    onBufferAhead?: (seconds: number) => void;
     // See VideoItemProps.screenFocused — only play when active AND focused.
     screenFocused: boolean;
     // Viewport height: one slide tall, so it also yields this surface's centre-Y
@@ -165,6 +172,7 @@ export function useReelChrome({
     initialDurationSec,
     intrinsicSize,
     isActive,
+    onBufferAhead,
     screenFocused,
     windowHeight,
     muted,
@@ -260,6 +268,13 @@ export function useReelChrome({
         }
         if (duration <= 0 && player.duration > 0) {
             setDuration(player.duration);
+        }
+        // Reported from here rather than from a timer of its own: this already
+        // fires every `timeUpdateEventInterval`, and the number it carries is
+        // the playhead the buffer has to be measured against.
+        if (isActive && onBufferAhead) {
+            const ahead = player.bufferedPosition - nextTime;
+            if (Number.isFinite(ahead)) onBufferAhead(ahead);
         }
     });
 
