@@ -5,7 +5,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 
 import { ThemedText } from '@/components/ThemedText';
 import { Button } from '@/components/ui/Button';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import type { LocalCapture } from './useCaptureUpload';
 
 interface CaptureReviewProps {

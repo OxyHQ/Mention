@@ -1,6 +1,6 @@
 import type { FeedDescriptor, HydratedPost } from '@mention/shared-types';
 
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 
 import {
   followingWidgetNeedsFeed,

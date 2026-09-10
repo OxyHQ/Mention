@@ -54,7 +54,7 @@ jest.mock('react-native-reanimated', () => {
     };
 });
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
     useTheme: () => ({
         colors: { error: '#f4212e', textSecondary: '#8899a6', background: '#ffffff' },
     }),

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ViewStyle, Platform } from 'react-native';
-import { LinkPreviewCard } from '@oxyhq/bloom/link-preview';
+import { LinkPreviewCard } from '@oxy.so/bloom/link-preview';
 import { openExternalLink } from '@/utils/openExternalLink';
 
 interface PostAttachmentLinkProps {

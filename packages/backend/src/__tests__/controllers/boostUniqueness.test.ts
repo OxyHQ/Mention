@@ -26,7 +26,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Response } from 'express';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 
 vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
   emitPostCreated: vi.fn(async () => undefined),
@@ -56,7 +56,7 @@ vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => und
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { postAuthorships } from '../../db/schema/postContent';
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import { insertPostRecord } from '../../db/posts/postRepository';
 import { buildAuthorship } from '../../utils/postAuthorship';
 import { feedController } from '../../controllers/feed.controller';

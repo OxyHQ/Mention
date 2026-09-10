@@ -49,7 +49,7 @@ const OXY_IDENTITY_ORIGIN = 'https://oxy.so';
  * A topic, addressed the way its owner addresses it.
  *
  * Topics are Oxy's — `GET /topics` in the Mention backend proxies to the Oxy API
- * and `TopicData` is an `@oxyhq/core` type — so an Oxy URI is the honest
+ * and `TopicData` is an `@oxy.so/core` type — so an Oxy URI is the honest
  * identity and any other Oxy surface resolves the SAME row rather than opening a
  * second one. A URI invented per-app is what quietly gives every user two
  * parallel follows of one thing.

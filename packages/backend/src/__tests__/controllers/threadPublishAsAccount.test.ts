@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AccountMember } from '@oxyhq/core';
-import type { OxyAuthRequest } from '@oxyhq/core/server';
+import type { AccountMember } from '@oxy.so/core';
+import type { OxyAuthRequest } from '@oxy.so/core/server';
 
 /**
  * `POST /posts/thread` — publishing individual entries of a BEAST batch as

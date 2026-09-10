@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 
 import { oxyServices } from '@/lib/oxyServices';
 import { toComposerMediaType, type ComposerMediaItem } from '@/utils/composeUtils';

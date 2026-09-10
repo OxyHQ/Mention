@@ -88,7 +88,7 @@ own nouns and its id, return a `ModerationSubjectSnapshot` (subject +
 content + attachments + context) using the SDK's own input types.
 Everything else — resource ids, relations, digests, pseudonymous principal
 refs, the identity binding proof, the pinned policy version, privacy terms,
-the idempotency key, the envelope — is composed by `@oxyhq/crowdsource`.
+the idempotency key, the envelope — is composed by `@oxy.so/crowdsource`.
 
 A provider returns a DESCRIPTION and never an envelope. The dedup key is
 computed over exactly the values the SDK derives, so an app that composed

@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
-import type { ReportInput } from '@oxyhq/crowdsource';
-import { CaseUrgencySchema, type CaseUrgency } from '@oxyhq/crowdsource-contracts';
+import type { ReportInput } from '@oxy.so/crowdsource';
+import { CaseUrgencySchema, type CaseUrgency } from '@oxy.so/crowdsource-contracts';
 import { REPORT_TAXONOMY_VERSION, allegationsForCategories } from './reportTaxonomy';
 import { subjectProviderFor } from './subjects/registry';
 import type { ModerationSubjectSnapshot } from './subjects/types';
@@ -11,7 +11,7 @@ import { logger } from '../../utils/logger';
  * Turning a stored report into the thing the SDK delivers.
  *
  * The plan calls this a `CrowdSourceCaseEnvelopeBuilder` (§14.4). It is not one,
- * and the difference matters enough to name: `@oxyhq/crowdsource` builds the Case
+ * and the difference matters enough to name: `@oxy.so/crowdsource` builds the Case
  * Envelope, and it deliberately does not export the function that does it. What
  * this module produces is the SDK's `ReportInput` — a description of the material
  * — and the SDK derives the envelope from it: resource ids, relations, digests,
@@ -198,7 +198,7 @@ export async function buildModerationReportInput(
          * So a case can be read back against the mapping that produced it.
          *
          * The keys are deliberately un-branded. Every application sends these two,
-         * `buildModerationReportInput` is being lifted into `@oxyhq/crowdsource-app`
+         * `buildModerationReportInput` is being lifted into `@oxy.so/crowdsource-app`
          * for all of them, and one consumer's prefix in a shared builder is a prefix
          * the other six inherit for no reason. Renaming them is free only until the
          * first delivery: ingress fingerprints the whole envelope, so afterwards a

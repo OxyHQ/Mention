@@ -59,7 +59,7 @@ import {
   inList,
   timestamptz,
   updatedAt,
-} from '@oxyhq/db';
+} from '@oxy.so/db';
 
 /**
  * `PostType` (`@mention/shared-types`). Declared as a local tuple so the column
@@ -564,7 +564,7 @@ export const posts = pgTable(
      * own anchor and pages forever (`backfill-mtn-records` did), and a DESC one
      * silently skips rows sharing the anchor's millisecond.
      *
-     * `@oxyhq/db`'s `createdAt()` removes the precision at the source, in the
+     * `@oxy.so/db`'s `createdAt()` removes the precision at the source, in the
      * DEFAULT. This
      * constraint is what stops it coming back: a future writer reaching for raw
      * `now()` fails loudly here instead of arming the same trap for whichever

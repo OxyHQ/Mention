@@ -8,7 +8,7 @@
  *
  * Only TABLE modules belong here. `deferredForeignKeys.ts` and
  * `protectedColumns.ts` are schema support, imported directly by the code that
- * needs them; the shared column builders come from `@oxyhq/db`.
+ * needs them; the shared column builders come from `@oxy.so/db`.
  *
  * The conventions every table follows — naming, ids, enums, timestamps, foreign
  * keys, expiry, protected columns — are in `CONVENTIONS.md`. Read it before

@@ -1,4 +1,4 @@
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { authenticatedClient } from '@/utils/api';
 
 const logger = createLogger('MuteWordsService');

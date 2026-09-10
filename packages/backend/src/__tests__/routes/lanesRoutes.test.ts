@@ -32,7 +32,7 @@ import request from 'supertest';
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
-import type { OxyAuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest } from '@oxy.so/core/server';
 import { MAX_LANES_PER_OWNER, MAX_LANE_NAME_LENGTH, MAX_MUTED_LANES } from '@mention/shared-types';
 
 const mocks = vi.hoisted(() => ({ resolveUserSummaries: vi.fn() }));
@@ -40,8 +40,8 @@ const mocks = vi.hoisted(() => ({ resolveUserSummaries: vi.fn() }));
 vi.mock('../../services/PostHydrationService', () => ({
   resolveUserSummaries: mocks.resolveUserSummaries,
 }));
-vi.mock('@oxyhq/core/server', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@oxyhq/core/server')>();
+vi.mock('@oxy.so/core/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@oxy.so/core/server')>();
   return {
     ...actual,
     requireOxyAuth: (_req: unknown, _res: unknown, next: NextFunction) => next(),
@@ -51,7 +51,7 @@ vi.mock('@oxyhq/core/server', async (importOriginal) => {
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { laneMutes, lanes } from '../../db/schema/channels';
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import lanesRouter, { publicLanesRouter } from '../../routes/lanes.routes';
 import { clearPostScope, postScope, readPostRow, seedPost } from '../helpers/postFixtures';
 

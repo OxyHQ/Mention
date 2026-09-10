@@ -10,7 +10,7 @@ import { loadPostRecord } from '../../db/posts/postRepository';
 import { asc, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { pollOptions, pollVotes, polls } from '../../db/schema/polls';
-import { AP_CONTEXT } from '@oxyhq/federation';
+import { AP_CONTEXT } from '@oxy.so/federation';
 import {
   FEDERATION_DOMAIN,
   FEDERATION_ENABLED,
@@ -22,12 +22,12 @@ import { PostVisibility, canonicalizeLanguageTag, type MediaItem, type PostConte
 import { authorVariants, resolveVariant } from '../../services/postVariants';
 import { isFediverseSharingEnabled } from '../../services/fediverseSharing';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
-import type { LocalBoostEventPayload } from '@oxyhq/federation';
+import type { LocalBoostEventPayload } from '@oxy.so/federation';
 import { deliveryService } from './delivery.service';
 import { resolveMediaRef } from '../../utils/mediaResolver';
 import { linkifyApHtml, type ApMentionLink, type LinkifyApHtmlOptions } from '../../utils/federation/linkifyApHtml';
 import { normalizeHashtag, normalizeMentionIds } from '../../utils/textProcessing';
-import { getNormalizedUserHandle, type User as OxyUser } from '@oxyhq/core';
+import { getNormalizedUserHandle, type User as OxyUser } from '@oxy.so/core';
 import { isAbsoluteHttpUrl } from '../shared/url';
 
 /** The ActivityStreams public collection — the `to` addressee of a public activity. */
@@ -454,7 +454,7 @@ function buildNoteContentMap(
  *
  * The delivery TRANSPORT + the follow lifecycle (Follow / Undo(Follow) /
  * Accept(Follow)) + the `Update(Person)` rebroadcast now live in
- * `@oxyhq/federation`'s delivery service (`deliveryService`, wired in
+ * `@oxy.so/federation`'s delivery service (`deliveryService`, wired in
  * `delivery.service.ts`); this class owns only the CONTENT — the Note/boost/like
  * builders + the per-post reply/mention/poll/quote resolution — and calls
  * `deliveryService.deliverToFollowers` / `queueDelivery` to send. `federateNewPost`

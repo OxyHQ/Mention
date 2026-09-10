@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { syraClient, listPodcastEpisodes } from '../utils/syraPodcast';
 import { sendErrorResponse } from '../utils/apiHelpers';
 import { sendPaginated } from '../utils/apiResponse';

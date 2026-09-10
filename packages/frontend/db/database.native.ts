@@ -9,7 +9,7 @@
  */
 
 import * as SQLite from 'expo-sqlite';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { runMigrations } from './migrations';
 
 const logger = createLogger('Database');

@@ -3,7 +3,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { Redirect } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -11,7 +11,7 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import UserName from '@/components/UserName';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
@@ -20,7 +20,7 @@ import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { ExternalLinkIcon } from '@/assets/icons/external-link-icon';
 import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { ExternalNetwork } from '@/services/feedService';
 import type { ProfileData } from '@/hooks/useProfileData';
 import { useAccountCategoryLabel } from '@/hooks/useAccountCategoryLabel';
@@ -31,8 +31,8 @@ import {
 } from '@/components/Profile/hooks/useProfileAccount';
 import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
 import type { ProfileRouteFamily } from '@/components/Profile/profileRoute';
-import { BloomColorScope } from '@oxyhq/bloom/theme';
-import { Loading } from '@oxyhq/bloom/loading';
+import { BloomColorScope } from '@oxy.so/bloom/theme';
+import { Loading } from '@oxy.so/bloom/loading';
 
 /**
  * Bluesky's canonical network domain — an atproto account's `instance` is ALWAYS

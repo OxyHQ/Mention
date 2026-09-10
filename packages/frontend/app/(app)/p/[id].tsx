@@ -5,7 +5,7 @@ import {
     Text,
     TouchableOpacity,
 } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -26,19 +26,19 @@ import type {
   Reply,
   FeedBoost as Boost,
 } from '@mention/shared-types';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { insightsService } from '@/services/insightsService';
 import { feedService } from '@/services/feedService';
 import { socketService } from '@/services/socketService';
 import { SEO } from '@/components/SEO';
 import { postAcceptsReplies } from '@/utils/postReplies';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 type PostDetailEntity = HydratedPost | Reply | Boost;
 

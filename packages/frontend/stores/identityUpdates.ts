@@ -3,7 +3,7 @@ import type { PostUser } from '@mention/shared-types';
 // Type-only, and it has to stay that way: this module is in `PostItem`'s graph
 // (see below), so a runtime edge from here reaches every screen that renders a
 // post. An erased import costs nothing and keeps the id union the one Oxy owns.
-import type { AccountCategoryId } from '@oxyhq/contracts';
+import type { AccountCategoryId } from '@oxy.so/contracts';
 
 /**
  * The single authority for "a profile edit changed an identity that other
@@ -244,7 +244,7 @@ function fieldVerdict(
  * {@link fieldVerdict} for the ordered category list. Positional, because the
  * order carries the primary; a set comparison would read a promotion as no
  * change. Written here rather than through `utils/accountCategories`'
- * `accountCategoriesEqual` because that module imports `@oxyhq/contracts` at
+ * `accountCategoriesEqual` because that module imports `@oxy.so/contracts` at
  * RUNTIME, which is the one thing this file may not pull into `PostItem`'s
  * graph.
  */

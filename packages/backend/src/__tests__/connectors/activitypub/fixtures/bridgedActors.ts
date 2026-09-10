@@ -21,7 +21,7 @@
  * Do not hand-edit. Re-capture from production if a bridge changes shape.
  */
 
-import type { NetworkIdentityCandidate } from '@oxyhq/federation';
+import type { NetworkIdentityCandidate } from '@oxy.so/federation';
 
 export const BRIDGED_ACTOR_FIXTURES: readonly NetworkIdentityCandidate[] = [
   {

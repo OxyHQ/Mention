@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { crowdsourceWebhooks } from '@oxyhq/crowdsource-express';
+import { crowdsourceWebhooks } from '@oxy.so/crowdsource-express';
 import { config } from '../config';
 import { recordDecisionEvent, recordIgnoredEvent } from '../services/moderation/ModerationInboundService';
 import { moderationProcessedEventStore } from '../services/moderation/moderationEventStore';
@@ -15,7 +15,7 @@ import { metrics } from '../utils/metrics';
  * covers `timestamp + "." + rawBody` — the bytes that arrived — and once a JSON
  * parser has run, those bytes are gone. Mention's parser keeps a copy in
  * `req.rawBody`, but as a UTF-8 STRING for HTTP-signature verification, and
- * `@oxyhq/crowdsource-express` looks for a Buffer; it therefore sees a parsed
+ * `@oxy.so/crowdsource-express` looks for a Buffer; it therefore sees a parsed
  * `req.body`, refuses, and hands a configuration error to the error handler rather
  * than verifying a signature over a re-serialisation. That refusal is the correct
  * behaviour and it is also why the mount order cannot be got wrong silently.

@@ -1,10 +1,10 @@
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { authenticatedClient, isUnauthorizedError, publicClient } from "@/utils/api";
 import { oxyServices } from "@/lib/oxyServices";
 import { feedService } from "./feedService";
 import { Storage } from "@/utils/storage";
 import { viewerStorageKey, type ViewerId } from "@/lib/viewerQueryKeys";
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
 import type { StarterPackSummary } from './starterPacksService';
 

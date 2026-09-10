@@ -206,7 +206,7 @@ per-file baseline and shrink-only properties. Type-only imports are allowed outr
 they are erased at compile time, and baselining them would make shrink-only adversarial
 — the only way to "fix" `import type { PostRecord }` is to duplicate the row type.
 
-Known gaps, recorded so they are not mistaken for coverage: `@oxyhq/db` is a bare
+Known gaps, recorded so they are not mistaken for coverage: `@oxy.so/db` is a bare
 specifier the rule cannot see, and there is no reverse-direction rule stopping `db/`
 from importing a service.
 

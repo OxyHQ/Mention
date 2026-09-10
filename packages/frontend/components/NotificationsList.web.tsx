@@ -1,8 +1,8 @@
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import { useScrollRestoration } from '@oxyhq/bloom/scroll';
-import { Loading } from '@oxyhq/bloom/loading';
+import { useScrollRestoration } from '@oxy.so/bloom/scroll';
+import { Loading } from '@oxy.so/bloom/loading';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 import type { NotificationListItem } from '@/utils/groupNotifications';
 

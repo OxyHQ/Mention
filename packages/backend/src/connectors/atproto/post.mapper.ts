@@ -1,6 +1,6 @@
 import { PostVisibility } from '@mention/shared-types';
-import { normalizeMultilineText } from '@oxyhq/core';
-import { isUniqueViolation } from '@oxyhq/db';
+import { normalizeMultilineText } from '@oxy.so/core';
+import { isUniqueViolation } from '@oxy.so/db';
 import { logger } from '../../utils/logger';
 import { inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
@@ -11,7 +11,7 @@ import { getPostCreator } from '../../services/serviceRegistry';
 import { mapWithConcurrency } from '../../utils/concurrency';
 import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
 import type { MediaItem } from '@mention/shared-types';
-import type { NormalizedExternalActor, NormalizedExternalMedia, NormalizedExternalPost } from '@oxyhq/federation';
+import type { NormalizedExternalActor, NormalizedExternalMedia, NormalizedExternalPost } from '@oxy.so/federation';
 import { xrpcGet } from './xrpcClient';
 import { fetchAndUpsertAtprotoProfile } from './profile.mapper';
 import { BSKY_APP_ORIGIN, POST_COLLECTION, PUBLIC_APPVIEW } from './constants';

@@ -1,4 +1,4 @@
-import type { AppCapabilityCatalog } from "@oxyhq/contracts";
+import type { AppCapabilityCatalog } from "@oxy.so/contracts";
 import { registerAccountTools } from "../tools/accounts.js";
 import { registerFeedTools } from "../tools/feed.js";
 import { registerHashtagsTools } from "../tools/hashtags.js";

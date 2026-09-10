@@ -6,7 +6,7 @@ import { getServiceOxyClient } from '../../utils/oxyHelpers';
  * Mention's federation KEYS ADAPTER.
  *
  * The pure HTTP-signature crypto (`signRequest` / `verifyHttpSignature`, incl.
- * the X-Forwarded-Host host reconstruction) now lives in `@oxyhq/federation` —
+ * the X-Forwarded-Host host reconstruction) now lives in `@oxy.so/federation` —
  * a byte-identical, app-agnostic extraction. This file is what stays app-side:
  * the two adapters that bind Mention's private-key CUSTODY to that engine.
  * `getPublicKey` and `signViaOxy` both call oxy-api (`GET /federation/public-key`
@@ -48,7 +48,7 @@ function isNonEmptyString(value: unknown): value is string {
 
 /**
  * Shape of the error the Oxy service client throws. It does NOT throw a plain
- * `Error`: `@oxyhq/core`'s `HttpService` funnels every failure through
+ * `Error`: `@oxy.so/core`'s `HttpService` funnels every failure through
  * `handleHttpError`, which returns an `ApiError` PLAIN OBJECT
  * (`{ message, code, status }`). So `err instanceof Error` is false and a naive
  * `String(err)` yields the useless `"[object Object]"`. Other client layers may
@@ -103,7 +103,7 @@ function serviceErrorLogContext(err: unknown): {
  * so response bodies and free-form error content never enter structured logs.
  * NEVER returns `[object Object]`.
  *
- * Note: `@oxyhq/core`'s `ApiError` discards upstream response headers, so a
+ * Note: `@oxy.so/core`'s `ApiError` discards upstream response headers, so a
  * 429's `Retry-After` is not recoverable at this layer — surfacing the `429`
  * status itself is the legibility win.
  */

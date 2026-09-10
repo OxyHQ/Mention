@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireOxyAuth as requireAuth } from '@oxyhq/core/server';
+import { requireOxyAuth as requireAuth } from '@oxy.so/core/server';
 import { config } from '../config';
 import { feedController } from '../controllers/feed.controller';
 import { mtnFeedController } from '../mtn/controllers/feed.controller';

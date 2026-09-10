@@ -6,7 +6,7 @@
 
 **Architecture:** One new route (`app/(app)/edit-profile.tsx`) composing three new, self-contained section components (`BannerSection`, `ProfileStyleSection`, `PinnedMediaSection`) plus the existing `ColorSwatchPicker`/`useAppColorSave`, all reading/writing the same `useAppearanceStore` the source screens already use. No backend/store/API changes.
 
-**Tech Stack:** Expo Router, React Native, NativeWind (className), `@oxyhq/bloom` (theme, icons, settings-list, item), `react-i18next`, Zustand (`useAppearanceStore`).
+**Tech Stack:** Expo Router, React Native, NativeWind (className), `@oxy.so/bloom` (theme, icons, settings-list, item), `react-i18next`, Zustand (`useAppearanceStore`).
 
 ## Global Constraints
 
@@ -25,7 +25,7 @@
 - Create: `packages/frontend/components/Profile/EditProfile/BannerSection.tsx`
 
 **Interfaces:**
-- Consumes: `useAuth()` from `@oxyhq/services` (`showBottomSheet`, `oxyServices`), `useAppearanceStore` from `@/store/appearanceStore` (`mySettings`, `updateMySettings`), `useTheme` from `@oxyhq/bloom/theme`, `Icon` from `@/lib/icons`, `useTranslation` from `react-i18next`.
+- Consumes: `useAuth()` from `@oxy.so/services` (`showBottomSheet`, `oxyServices`), `useAppearanceStore` from `@/store/appearanceStore` (`mySettings`, `updateMySettings`), `useTheme` from `@oxy.so/bloom/theme`, `Icon` from `@/lib/icons`, `useTranslation` from `react-i18next`.
 - Produces: `export const BannerSection: React.FC` — a self-contained, no-props section (reads/writes the store directly, exactly like the screen it's extracted from). Later tasks render `<BannerSection />` with no props.
 
 This is a straight extraction of the "Profile header" section from `app/(app)/settings/appearance.tsx` (current lines ~40-46, 117-137, 283-329), unchanged in behavior.
@@ -42,8 +42,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useAuth } from '@oxy.so/services';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { Icon } from '@/lib/icons';
 import { useAppearanceStore } from '@/store/appearanceStore';
 
@@ -178,7 +178,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { Icon } from '@/lib/icons';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { logger } from '@/lib/logger';
@@ -383,7 +383,7 @@ git commit -m "feat(frontend): add ProfileStyleSection for the new Edit Profile 
 - Create: `packages/frontend/components/Profile/EditProfile/PinnedMediaSection.tsx`
 
 **Interfaces:**
-- Consumes: `useAppearanceStore` (`mySettings.profileMedia: ProfileMedia | null`), `BottomSheetContext` from `@/context/BottomSheetContext` (`setBottomSheetContent`, `openBottomSheet`), `MediaPickerSheet` from `./MediaPickerSheet` (`components/Profile/MediaPickerSheet.tsx` — unchanged, reused as-is), `ProfileSong` from `./ProfileSong`, `PodcastCard` from `@/components/Podcast/PodcastCard`, `useTheme`, icons `MusicNote_Stroke2_Corner0_Rounded`/`PlusLarge_Stroke2_Corner0_Rounded` from `@oxyhq/bloom/icons`, `useTranslation`.
+- Consumes: `useAppearanceStore` (`mySettings.profileMedia: ProfileMedia | null`), `BottomSheetContext` from `@/context/BottomSheetContext` (`setBottomSheetContent`, `openBottomSheet`), `MediaPickerSheet` from `./MediaPickerSheet` (`components/Profile/MediaPickerSheet.tsx` — unchanged, reused as-is), `ProfileSong` from `./ProfileSong`, `PodcastCard` from `@/components/Podcast/PodcastCard`, `useTheme`, icons `MusicNote_Stroke2_Corner0_Rounded`/`PlusLarge_Stroke2_Corner0_Rounded` from `@oxy.so/bloom/icons`, `useTranslation`.
 - Produces: `export const PinnedMediaSection: React.FC` — self-contained, no props.
 
 This is new UI, not a pure extraction: unlike `ProfileMedia.tsx` (which hides the "add" affordance for non-owners and, after Task 6, hides it entirely when empty), this section is **always** in edit mode — it's only ever rendered on the Edit Profile screen, which only the owner can reach.
@@ -399,8 +399,8 @@ Expected: `MediaPickerSheetProps { currentMedia: ProfileMedia | null; onClose: (
 import React, { useCallback, useContext } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { PlusLarge_Stroke2_Corner0_Rounded } from '@oxyhq/bloom/icons';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { PlusLarge_Stroke2_Corner0_Rounded } from '@oxy.so/bloom/icons';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { ProfileSong } from '../ProfileSong';
@@ -492,7 +492,7 @@ git commit -m "feat(frontend): add PinnedMediaSection for the new Edit Profile s
 - Modify: `packages/frontend/locales/en.json`, `packages/frontend/locales/es.json`, `packages/frontend/locales/it.json`
 
 **Interfaces:**
-- Consumes: `BannerSection` (Task 1), `ProfileStyleSection` (Task 2), `PinnedMediaSection` (Task 3), `ColorSwatchPicker` from `@/components/settings/ColorSwatchPicker`, `useAppColorSave` from `@/hooks/useAppColorSave`, `useAuth`/`OxyAuthPrompt` from `@oxyhq/services`, `Header`/`IconButton`/`BackArrowIcon`/`ThemedView`/`useSafeBack` (same imports as `profile-customization.tsx`), `SettingsListGroup`/`SettingsListItem`/`SettingsListDivider` from `@oxyhq/bloom/settings-list`, `RowIcon` from `@/components/settings/RowIcon`.
+- Consumes: `BannerSection` (Task 1), `ProfileStyleSection` (Task 2), `PinnedMediaSection` (Task 3), `ColorSwatchPicker` from `@/components/settings/ColorSwatchPicker`, `useAppColorSave` from `@/hooks/useAppColorSave`, `useAuth`/`OxyAuthPrompt` from `@oxy.so/services`, `Header`/`IconButton`/`BackArrowIcon`/`ThemedView`/`useSafeBack` (same imports as `profile-customization.tsx`), `SettingsListGroup`/`SettingsListItem`/`SettingsListDivider` from `@oxy.so/bloom/settings-list`, `RowIcon` from `@/components/settings/RowIcon`.
 - Produces: default-exported route component at `/edit-profile`. Later tasks (5) navigate to this route by string path — no typed params needed (it's a static route, no `[id]`).
 
 - [ ] **Step 1: Add the new i18n keys**
@@ -528,9 +528,9 @@ Expected: `ok`.
 import React, { useMemo } from 'react';
 import { ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services';
-import { useBloomTheme, PREMIUM_COLOR_NAMES, type AppColorName } from '@oxyhq/bloom/theme';
-import { SettingsListDivider, SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { useAuth, OxyAuthPrompt } from '@oxy.so/services';
+import { useBloomTheme, PREMIUM_COLOR_NAMES, type AppColorName } from '@oxy.so/bloom/theme';
+import { SettingsListDivider, SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
@@ -859,7 +859,7 @@ Note: `primaryColor` is deliberately dropped from this screen's payload — the 
 - [ ] **Step 4: Remove now-dead top-of-component values**
 
 Run: `grep -n "preset\b\|appColor\b\|PREMIUM_COLOR_NAMES\|AppColorName" packages/frontend/app/\(app\)/settings/appearance.tsx`
-Remove `const preset = APP_COLOR_PRESETS[appColor];`, the `appColor`/`setMode` destructure's `colorPreset: appColor` part (keep `mode: bloomMode`/`setMode` if still used by theme-mode logic), and the now-unused `APP_COLOR_PRESETS`/`PREMIUM_COLOR_NAMES`/`AppColorName` imports from `@oxyhq/bloom/theme` — keep only what theme-mode logic still needs (`useTheme`, `useBloomTheme`, and whatever `ThemeMode`-related exports remain in use).
+Remove `const preset = APP_COLOR_PRESETS[appColor];`, the `appColor`/`setMode` destructure's `colorPreset: appColor` part (keep `mode: bloomMode`/`setMode` if still used by theme-mode logic), and the now-unused `APP_COLOR_PRESETS`/`PREMIUM_COLOR_NAMES`/`AppColorName` imports from `@oxy.so/bloom/theme` — keep only what theme-mode logic still needs (`useTheme`, `useBloomTheme`, and whatever `ThemeMode`-related exports remain in use).
 
 - [ ] **Step 5: Typecheck and lint**
 

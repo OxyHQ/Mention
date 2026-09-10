@@ -11,7 +11,7 @@ import { and, arrayContains, eq, type SQL } from 'drizzle-orm';
 import { posts as postsTable } from '../../db/schema/posts';
 import { CHRONO_DESC, findPostRecords, loadPostRecord } from '../../db/posts/postRepository';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../mtn/feed/CursorBuilder';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import type { PostCorrectionsResponse } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';

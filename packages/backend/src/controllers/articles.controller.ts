@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { eq } from 'drizzle-orm';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getDb } from '../db/postgres';
 import { articles } from '../db/schema/articles';
 import { postHydrationService } from '../services/PostHydrationService';

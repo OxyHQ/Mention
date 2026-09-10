@@ -1,4 +1,4 @@
-import type { OxyServices } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
 import { eq } from 'drizzle-orm';
 import express from 'express';
 import request from 'supertest';

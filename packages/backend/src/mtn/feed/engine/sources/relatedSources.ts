@@ -86,7 +86,7 @@ function isSeedAuthorized(visibility: unknown, seedAuthorId: string, ctx: FeedEn
  * is not authorized to view that seed post.
  *
  * The Mongo original guarded the lookup with `ObjectId.isValid`. That guard is
- * DELETED per `@oxyhq/db`: it existed only to dodge a `CastError`, and a text id
+ * DELETED per `@oxy.so/db`: it existed only to dodge a `CastError`, and a text id
  * naming no row already produces the `null` this returns.
  */
 async function resolveSeed(

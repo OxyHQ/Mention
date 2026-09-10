@@ -5,7 +5,7 @@ import {
   type AdminScriptCursorState,
   type AdminScriptCursorUpdate,
 } from '../../db/adminScripts/adminScriptStateRepository';
-import { describeDriverError } from '@oxyhq/db';
+import { describeDriverError } from '@oxy.so/db';
 import { logger } from '../../utils/logger';
 
 export type { AdminScriptCursorState, AdminScriptCursorUpdate };

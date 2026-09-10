@@ -51,7 +51,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 
 import { updatePostLane } from '../../controllers/posts/postSettings';
-import type { OxyAuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest } from '@oxy.so/core/server';
 
 const scope = postScope('post-lane-write');
 const USER_ID = scope.user('author');

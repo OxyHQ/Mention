@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { and, desc, eq } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { mutes } from '../db/schema/engagement';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { viewerOperatesAccount } from '../services/operatedAccountAccess';
 import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';

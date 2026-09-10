@@ -10,7 +10,7 @@ import { bookmarks as bookmarksTable } from '../../db/schema/engagement';
 import { posts as postsTable } from '../../db/schema/posts';
 import { postContentVariants } from '../../db/schema/postContent';
 import { CHRONO_DESC, findPostRecords } from '../../db/posts/postRepository';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { userPreferenceService, readInteractionSurface } from '../../services/UserPreferenceService';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';

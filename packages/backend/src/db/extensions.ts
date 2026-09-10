@@ -6,7 +6,7 @@
  * reader can enumerate beats a rule spread across the files that happen to need
  * it. The registry stays here because it names THIS schema's own tables; the
  * mechanism that ensures it (`ensureExtensions`, `RequiredExtension`) lives in
- * `@oxyhq/db/migrate` — see that module's doc comment for why an extension has
+ * `@oxy.so/db/migrate` — see that module's doc comment for why an extension has
  * to exist before the first migration that names a type it provides, and why
  * `IF NOT EXISTS` is the right spelling on a managed database.
  *
@@ -20,7 +20,7 @@
  * database usable.
  */
 
-import type { RequiredExtension } from '@oxyhq/db/migrate';
+import type { RequiredExtension } from '@oxy.so/db/migrate';
 
 /**
  * Every extension the schema depends on. An entry here is a claim that some

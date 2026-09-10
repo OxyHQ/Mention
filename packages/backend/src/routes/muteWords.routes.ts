@@ -16,10 +16,10 @@ import { and, count, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../db/postgres';
 import { muteWords, MUTE_WORD_TARGETS } from '../db/schema/engagement';
-import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { validateBody, validateObjectId } from '../middleware/validate';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/apiHelpers';
-import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxyhq/core/server';
+import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxy.so/core/server';
 import { normalizeHashtag } from '../utils/textProcessing';
 import { logger } from '../utils/logger';
 

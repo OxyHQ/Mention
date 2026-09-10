@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { logger } from "@oxyhq/core/logger";
+import { logger } from "@oxy.so/core/logger";
 
 /**
  * Reject legacy fields that the profile-identity contract retired, so a shim

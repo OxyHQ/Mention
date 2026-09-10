@@ -19,7 +19,7 @@ import TestRenderer, { act } from 'react-test-renderer';
  * report what they were handed rather than `null`.
  */
 
-jest.mock('@oxyhq/bloom/avatar', () => {
+jest.mock('@oxy.so/bloom/avatar', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   return {
@@ -40,12 +40,12 @@ jest.mock('@/components/UserName', () => {
       ),
   };
 });
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: { username?: string } | null | undefined) =>
     user?.username ?? null,
 }));
-jest.mock('@oxyhq/services/ui/client', () => ({ FollowButton: () => null }));
-jest.mock('@oxyhq/bloom/skeleton', () => ({ Box: () => null, Group: () => null }));
+jest.mock('@oxy.so/services/ui/client', () => ({ FollowButton: () => null }));
+jest.mock('@oxy.so/bloom/skeleton', () => ({ Box: () => null, Group: () => null }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -55,7 +55,7 @@ jest.mock('react-i18next', () => ({
 jest.mock('@/lib/queryClient', () => ({
   queryClient: { invalidateQueries: jest.fn() },
 }));
-jest.mock('@oxyhq/services', () => ({
+jest.mock('@oxy.so/services', () => ({
   upsertCachedUser: jest.fn(),
   upsertCachedUsers: jest.fn(),
 }));

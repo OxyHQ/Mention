@@ -18,7 +18,7 @@ import { resolve } from 'node:path';
  * guessing at prose: every file path a scanned document points at must
  * exist. When this was first run (against `AGENTS.md` alone) it found SEVEN
  * stale references, including `utils/ssrfGuard.ts` — a security helper that
- * had moved UPSTREAM into `@oxyhq/core/server`, so the document was telling
+ * had moved UPSTREAM into `@oxy.so/core/server`, so the document was telling
  * every agent to look for a local copy of something the ecosystem rule says
  * must not be local.
  *

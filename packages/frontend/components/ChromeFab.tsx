@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Platform, View } from 'react-native';
 import Animated, { runOnJS, useAnimatedReaction, useAnimatedStyle } from 'react-native-reanimated';
 
-import { Fab } from '@oxyhq/bloom/fab';
+import { Fab } from '@oxy.so/bloom/fab';
 
 import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
 

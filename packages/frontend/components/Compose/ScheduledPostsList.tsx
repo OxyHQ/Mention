@@ -1,17 +1,17 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, FlatList } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { Loading } from '@oxy.so/bloom/loading';
+import { useTheme } from '@oxy.so/bloom/theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
-import { toast } from '@oxyhq/bloom/toast';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { toast } from '@oxy.so/bloom/toast';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { isPastDue, scheduledDate } from '@/utils/postSchedule';
 import { confirmDialog } from '@/utils/alerts';
 import { formatScheduledLabel } from '@/utils/dateUtils';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
 const logger = createLogger('ScheduledPostsList');

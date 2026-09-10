@@ -3,7 +3,7 @@ import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq, like } from 'drizzle-orm';
 import type { ChannelWritersResponse } from '@mention/shared-types';
-import type { OxyAuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest } from '@oxy.so/core/server';
 
 /**
  * `GET /channels/:oxyUserId/writers` — the list behind a channel's writers tab.

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { useRefSync } from '@/hooks/useRefSync';
 import {
   addPipActionListener,

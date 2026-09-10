@@ -18,8 +18,8 @@ The mutual-overlap aggregation already EXISTS in Oxy API but only inside the rec
 pipeline (`packages/api/src/routes/profiles.ts:~870`); it is not exposed per-profile. So this
 needs a thin new endpoint that reuses that logic, surfaced through the SDK.
 
-**Hard rule:** Mention talks to Oxy ONLY through `@oxyhq/core` (`oxyServices.*`) — NO direct
-`api.oxy.so` fetches. The new data flows API → `@oxyhq/core` method → Mention.
+**Hard rule:** Mention talks to Oxy ONLY through `@oxy.so/core` (`oxyServices.*`) — NO direct
+`api.oxy.so` fetches. The new data flows API → `@oxy.so/core` method → Mention.
 
 ## Non-goals
 
@@ -29,14 +29,14 @@ needs a thin new endpoint that reuses that logic, surfaced through the SDK.
 
 ## Architecture (upstream → down)
 
-### 1. `@oxyhq/api` (Oxy API) — new endpoint
+### 1. `@oxy.so/api` (Oxy API) — new endpoint
 `GET /users/:userId/mutuals?limit=&offset=` (authed/optional-auth).
 - **Viewer derived from the auth token server-side** (`getRequiredOxyUserId`/optional auth) — NOT a client-supplied `viewerId` (avoids IDOR/spoofing). No session → empty result.
 - Reuse the mutual aggregation from `profiles.ts:~870` (intersection of *viewer's following* ∩ *:userId's followers*, `Follow` collection, `followType: USER`), bounded window.
 - Returns `{ data: PublicUserProfile[], total }` paginated — each item with `id`, `username`, `name.displayName`, `avatar` (file id), `color` (the same `select` the followers endpoint uses). Ordered by relevance/mutualCount then recency.
 - Edge: `:userId === viewer` or anon → `{ data: [], total: 0 }`.
 
-### 2. `@oxyhq/core` (SDK) — new method
+### 2. `@oxy.so/core` (SDK) — new method
 `getUserMutuals(targetUserId: string, pagination?: { limit?; offset? }): Promise<{ mutuals: User[]; total: number; hasMore: boolean }>` — a `user` mixin method mirroring `getUserFollowers` (same caching posture). Calls the endpoint through the SDK client (auth handled by the SDK). Bump + publish core.
 
 ### 3. Mention — consume
@@ -54,7 +54,7 @@ needs a thin new endpoint that reuses that logic, surfaced through the SDK.
 - **i18n** keys: `profile.followedBy.*` (one/two/many with names + count) and the `in-common` tab label.
 
 ## Data flow
-`Follow` graph → Oxy API `/users/:id/mutuals` (viewer from auth) → `@oxyhq/core getUserMutuals` → Mention `useMutualFollowers` → `FollowedByRow` (sample) AND connections `in-common` tab (full list). One SDK method feeds both.
+`Follow` graph → Oxy API `/users/:id/mutuals` (viewer from auth) → `@oxy.so/core getUserMutuals` → Mention `useMutualFollowers` → `FollowedByRow` (sample) AND connections `in-common` tab (full list). One SDK method feeds both.
 
 ## Edge cases
 - Signed-out viewer → no row, `in-common` tab shows sign-in/empty state.
@@ -65,8 +65,8 @@ needs a thin new endpoint that reuses that logic, surfaced through the SDK.
 
 ## Publish / deploy order (upstream-first)
 1. **Oxy API**: add endpoint + test → land on OxyHQServices main → **deploy oxy-api to ECS** (the endpoint must be live on `api.oxy.so` before the SDK/Mention can call it, incl. local dev which points at prod Oxy).
-2. **`@oxyhq/core`**: add `getUserMutuals` → build/tsc/test → bump (minor) → **publish via `bun publish`** (so workspace deps resolve) → verify tarball.
-3. **Mention**: bump `@oxyhq/core` (caret) → reinstall → add hook + `FollowedByRow` + connections `in-common` tab + i18n → verify (tsc + build:frontend + frozen-lockfile) → push main.
+2. **`@oxy.so/core`**: add `getUserMutuals` → build/tsc/test → bump (minor) → **publish via `bun publish`** (so workspace deps resolve) → verify tarball.
+3. **Mention**: bump `@oxy.so/core` (caret) → reinstall → add hook + `FollowedByRow` + connections `in-common` tab + i18n → verify (tsc + build:frontend + frozen-lockfile) → push main.
 
 ## Verification
 - **Oxy API**: unit/integration test of the aggregation (viewer with mutuals → list+total; anon → empty; own profile → empty); deploy + curl the live endpoint with a service/user token.

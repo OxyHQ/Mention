@@ -1,8 +1,8 @@
 import { Router, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
-import { getNormalizedUserHandle } from '@oxyhq/core';
-import { type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { getNormalizedUserHandle } from '@oxy.so/core';
+import { type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import {
   MAX_PROFILE_LINKS_PER_BODY,
   type ProfileLinkMentionAnswer,

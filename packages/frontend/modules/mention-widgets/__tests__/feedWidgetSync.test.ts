@@ -31,8 +31,8 @@ jest.mock('../index', () => ({
   followingWidgetNeedsFeed: () => mockNeedsFeed(),
 }));
 
-jest.mock('@oxyhq/core/logger', () => ({
-  ...jest.requireActual('@oxyhq/core/logger'),
+jest.mock('@oxy.so/core/logger', () => ({
+  ...jest.requireActual('@oxy.so/core/logger'),
   logger: { debug: (...args: unknown[]) => mockDebug(...args) },
 }));
 

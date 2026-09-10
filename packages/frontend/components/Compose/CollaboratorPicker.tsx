@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
-import { useAuth } from '@oxyhq/services/ui/client';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Loading } from '@oxy.so/bloom/loading';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useTranslation } from 'react-i18next';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 

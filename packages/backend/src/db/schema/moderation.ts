@@ -34,7 +34,7 @@ import {
   text,
   unique,
 } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 
 /** `ReportedType` — the API contract, deliberately WIDER than what is delivered. */
 export const REPORTED_TYPES = ['post', 'user', 'comment', 'message', 'room'] as const;

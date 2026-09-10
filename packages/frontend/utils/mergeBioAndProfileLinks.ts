@@ -2,7 +2,7 @@ import {
   normalizeProfileLinks,
   type ProfileLink,
   type ProfileLinkMetadata,
-} from '@oxyhq/core';
+} from '@oxy.so/core';
 import { extractUrls } from './extractUrls';
 import { prettifyUrl } from './prettifyUrl';
 

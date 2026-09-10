@@ -10,13 +10,13 @@ import {
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
-import { Item } from '@oxyhq/bloom/item';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { toast } from '@oxyhq/bloom/toast';
+import { Item } from '@oxy.so/bloom/item';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
 import { useAppearanceStore, type ProfileMedia, type UserAppearance } from '@/stores/appearanceStore';
 import { useProfileSongPreview } from '@/hooks/useProfileSongPreview';
 import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { formatDuration } from '@/utils/formatDuration';
 import { SongPreviewButton } from './SongPreviewButton';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';

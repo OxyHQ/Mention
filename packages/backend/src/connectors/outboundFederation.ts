@@ -1,5 +1,5 @@
 import type { PostContent } from '@mention/shared-types';
-import type { LocalNetworkEvent } from '@oxyhq/federation';
+import type { LocalNetworkEvent } from '@oxy.so/federation';
 import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { connectorRegistry } from './index';

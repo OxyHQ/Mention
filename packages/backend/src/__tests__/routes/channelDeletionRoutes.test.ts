@@ -82,7 +82,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
-vi.mock('@oxyhq/core/server', () => ({
+vi.mock('@oxy.so/core/server', () => ({
   getRequiredOxyUserId: (req: express.Request & { user?: { id: string } }) => req.user?.id ?? '',
 }));
 

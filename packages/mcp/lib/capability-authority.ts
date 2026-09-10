@@ -3,8 +3,8 @@ import {
   capabilityTicketClaimsSchema,
   policyDecisionSchema,
   type CapabilityTicketClaims,
-} from "@oxyhq/contracts";
-import { OxyServices } from "@oxyhq/core";
+} from "@oxy.so/contracts";
+import { OxyServices } from "@oxy.so/core";
 import { z } from "zod/v4";
 import type { McpHttpConfig } from "./config.js";
 

@@ -12,7 +12,7 @@ import {
   type ReportStatus,
   type ReportedType,
 } from '../db/moderation/reportRepository';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import {
   DuplicateReportError,
   createReport,

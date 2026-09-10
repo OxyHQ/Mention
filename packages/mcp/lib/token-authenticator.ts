@@ -1,8 +1,8 @@
-import { OxyServices } from "@oxyhq/core";
+import { OxyServices } from "@oxy.so/core";
 import {
   introspectOxyMcpAccessToken,
   type McpAccessTokenClaims as OxyMcpAccessTokenClaims,
-} from "@oxyhq/mcp";
+} from "@oxy.so/mcp";
 import {
   MENTION_CAPABILITY_AUDIENCE,
   MENTION_LEGACY_MCP_AUTH_CUTOFF_MS,

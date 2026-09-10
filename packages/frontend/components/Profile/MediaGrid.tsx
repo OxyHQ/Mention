@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { Spinner } from '@/components/ui/Spinner';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { FeedItem } from '@/db';

@@ -24,7 +24,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * a shape invented by this file.
  */
 vi.mock('../../utils/oxyHelpers', async () => {
-  const { OxyServices } = await vi.importActual<typeof import('@oxyhq/core')>('@oxyhq/core');
+  const { OxyServices } = await vi.importActual<typeof import('@oxy.so/core')>('@oxy.so/core');
   const client = new OxyServices({ baseURL: 'http://oxy.test' });
   return { getServiceOxyClient: () => client };
 });

@@ -2,15 +2,15 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, type TextStyle } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { Button } from '@oxyhq/bloom/button';
-import { Item } from '@oxyhq/bloom/item';
-import { Search } from '@oxyhq/bloom/search';
-import { toast } from '@oxyhq/bloom/toast';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { Button } from '@oxy.so/bloom/button';
+import { Item } from '@oxy.so/bloom/item';
+import { Search } from '@oxy.so/bloom/search';
+import { toast } from '@oxy.so/bloom/toast';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { useAuth } from '@oxy.so/services/ui/client';
 
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -21,8 +21,8 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDestructive } from '@/utils/alerts';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { cn } from '@/lib/utils';
-import { logger } from '@oxyhq/core/logger';
-import type { User } from '@oxyhq/core';
+import { logger } from '@oxy.so/core/logger';
+import type { User } from '@oxy.so/core';
 
 interface MemberProfile {
   id: string;

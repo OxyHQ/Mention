@@ -28,8 +28,8 @@ vi.mock('../../middleware/rateLimitStore', () => ({
  * Stub only `assertSafePublicUrl`; everything else in the module stays real.
  */
 const assertSafePublicUrl = vi.fn();
-vi.mock('@oxyhq/core/server', async () => {
-  const actual = await vi.importActual<typeof import('@oxyhq/core/server')>('@oxyhq/core/server');
+vi.mock('@oxy.so/core/server', async () => {
+  const actual = await vi.importActual<typeof import('@oxy.so/core/server')>('@oxy.so/core/server');
   return {
     ...actual,
     assertSafePublicUrl: (...args: unknown[]) => assertSafePublicUrl(...args),
@@ -57,7 +57,7 @@ vi.mock('../../services/mediaCache/cacheStore', () => ({
  * failed 481 times out of 481 against the live API.
  */
 vi.mock('../../utils/oxyHelpers', async () => {
-  const { OxyServices } = await vi.importActual<typeof import('@oxyhq/core')>('@oxyhq/core');
+  const { OxyServices } = await vi.importActual<typeof import('@oxy.so/core')>('@oxy.so/core');
   const client = new OxyServices({ baseURL: 'http://oxy.test' });
   return { getServiceOxyClient: () => client };
 });

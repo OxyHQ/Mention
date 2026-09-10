@@ -29,7 +29,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 
 /* -------------------------------------------------------------------------- */
 /*  Node-ingest mocks — the network, the Mongo-side node row, and the engine.  */
@@ -45,7 +45,7 @@ const mockRepoLogHead = vi.fn();
 const mockSignMessage = vi.fn();
 const mockComputeRecordId = vi.fn();
 
-vi.mock('@oxyhq/protocol/node', () => ({
+vi.mock('@oxy.so/protocol/node', () => ({
   NodeClient: class {
     head = (...a: unknown[]) => mockHead(...a);
     log = (...a: unknown[]) => mockLog(...a);
@@ -53,15 +53,15 @@ vi.mock('@oxyhq/protocol/node', () => ({
     getBlob = vi.fn(async () => null);
   },
 }));
-vi.mock('@oxyhq/protocol', async () => {
-  const actual = await vi.importActual<typeof import('@oxyhq/protocol')>('@oxyhq/protocol');
+vi.mock('@oxy.so/protocol', async () => {
+  const actual = await vi.importActual<typeof import('@oxy.so/protocol')>('@oxy.so/protocol');
   return {
     ...actual,
     computeRecordId: (...a: unknown[]) => mockComputeRecordId(...a),
     signMessage: (...a: unknown[]) => mockSignMessage(...a),
   };
 });
-vi.mock('@oxyhq/core/server', () => ({ safeFetch: vi.fn() }));
+vi.mock('@oxy.so/core/server', () => ({ safeFetch: vi.fn() }));
 vi.mock('../../../services/mtn/MentionRecordService', () => ({
   verifyAndStoreRecord: (...a: unknown[]) => mockVerifyAndStore(...a),
 }));
@@ -83,7 +83,7 @@ import {
   mentionSignedRecords,
   mentionUserNodes,
 } from '../../../db/schema/mtn';
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import {
   MTN_CHAIN_STATUS,
   MentionRecordStoreImpl,

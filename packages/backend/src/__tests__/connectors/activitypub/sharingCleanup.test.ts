@@ -53,7 +53,7 @@ vi.mock('../../../connectors/activitypub/constants', () => ({
 // Mock the engine's copy to the simplified 2-element context so the Delete(actor)
 // activity assertion below stays readable (the full term-declaration object is
 // exercised by the engine's own golden test).
-vi.mock('@oxyhq/federation', () => ({
+vi.mock('@oxy.so/federation', () => ({
   AP_CONTEXT: ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1'],
 }));
 

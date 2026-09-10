@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { Loading } from '@oxyhq/bloom/loading';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Loading } from '@oxy.so/bloom/loading';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { flattenStyleArray } from '@/styles/shared';

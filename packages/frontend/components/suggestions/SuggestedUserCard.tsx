@@ -2,7 +2,7 @@ import React, { memo, useCallback } from 'react';
 import { Pressable } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useUserById } from '@/hooks/useCachedUser';
 import { ProfileCard, type ProfileCardData } from '@/components/ProfileCard';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';

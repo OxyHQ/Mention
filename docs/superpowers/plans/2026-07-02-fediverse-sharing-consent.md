@@ -6,7 +6,7 @@
 
 **Architecture:** Oxy stores `privacySettings.fediverseSharing` (default `true`) and exposes it as a public derived boolean on user DTOs. Mention reads it through the user objects it already resolves (Redis-cached chokepoint `services/fediverseSharing.ts`) and gates webfinger, all `/ap/*` user surfaces, inbound activity handling, and outbound delivery. Toggling OFF triggers a protocol-cleanup job (Delete(actor) to remote servers, remove inbound `FederatedFollow`, bridge-unfollow Oxy edges). Frontend: Bloom BottomSheet educational flow + `FediverseBadge` + `settings/fediverse` screen.
 
-**Tech Stack:** oxy-api (Express+Mongoose+jest), @oxyhq/core SDK, Mention backend (Express+Mongoose+BullMQ+vitest via `bun run test`), Mention frontend (Expo/RN, Bloom UI, i18next).
+**Tech Stack:** oxy-api (Express+Mongoose+jest), @oxy.so/core SDK, Mention backend (Express+Mongoose+BullMQ+vitest via `bun run test`), Mention frontend (Expo/RN, Bloom UI, i18next).
 
 **Spec:** `docs/superpowers/specs/2026-07-02-fediverse-sharing-consent-design.md` — read it first.
 
@@ -17,7 +17,7 @@
 - BOTH repos' main checkouts are owned by OTHER live sessions. ALL work happens in worktrees: `git -C <repo> fetch origin main && git -C <repo> worktree add <path> origin/main` (branch per task group), commits pushed via `git push origin HEAD:main` after tests. Never touch the shared checkouts' git state.
 - Mention backend tests MUST run from the package: `cd packages/backend && bun run test` (repo root picks up stale `.dist`). Known pre-existing flaky failure allowed: `feedRanking.test.ts` timeout.
 - BullMQ job ids must never contain `:` in the variable part — hash with the existing `shortHash`.
-- Deploy order at the end: oxy-api (push main) → publish `@oxyhq/core` → Mention backend+frontend (single push).
+- Deploy order at the end: oxy-api (push main) → publish `@oxy.so/core` → Mention backend+frontend (single push).
 - Default is ALWAYS `true`/enabled when the flag is absent (older DTOs, missing docs) — absence must never disable sharing.
 
 ---
@@ -82,7 +82,7 @@ response.fediverseSharing = userAny.privacySettings?.fediverseSharing !== false;
 
 ---
 
-### Task 2: @oxyhq/core — type + publish
+### Task 2: @oxy.so/core — type + publish
 
 **Files:**
 - Modify: `packages/core/src/models/interfaces.ts` (`PrivacySettings` ~line 76-96)
@@ -94,7 +94,7 @@ response.fediverseSharing = userAny.privacySettings?.fediverseSharing !== false;
 - [ ] **Step 1:** Add `fediverseSharing?: boolean;` to `PrivacySettings` AND to `User` (next to `isFederated`).
 - [ ] **Step 2:** `cd packages/core && bunx tsc --noEmit` (or the package build) → green; run its test suite if present.
 - [ ] **Step 3:** Commit `feat(core): fediverseSharing in PrivacySettings + User`.
-- [ ] **Step 4:** Use the `publish` skill: bump minor, `bun publish`, verify propagation with a clean external `bun add @oxyhq/core@<new>` + `import()`. (Contracts unchanged — no new contracts symbols — so no contracts republish needed.)
+- [ ] **Step 4:** Use the `publish` skill: bump minor, `bun publish`, verify propagation with a clean external `bun add @oxy.so/core@<new>` + `import()`. (Contracts unchanged — no new contracts symbols — so no contracts republish needed.)
 
 ---
 
@@ -315,7 +315,7 @@ router.post('/sharing-changed', async (req: AuthRequest, res: Response) => {
 - Modify: `packages/frontend/locales/en.json`, `es.json`, `it.json` (keys under `fediverse.*`)
 
 **Interfaces:**
-- Consumes: `useAuth()` (`user`, `oxyServices`, `isAuthenticated`) from `@oxyhq/services`; `oxyServices.updatePrivacySettings({ fediverseSharing: value })` (Task 2 type); Mention API client (`utils/api.ts` authenticated client) → `POST /federation/sharing-changed`; `BottomSheetContext` (`setBottomSheetContent(node)` + `openBottomSheet(true)` via `useContext`); Bloom: `SettingsListGroup`/`SettingsListItem` (`@oxyhq/bloom/settings-list`), `Switch` (`@oxyhq/bloom/switch`), `Dialog` (`@oxyhq/bloom/dialog`) for the OFF confirmation; `FediverseIcon` from `@/assets/icons/fediverse-icon`; `useTranslation`.
+- Consumes: `useAuth()` (`user`, `oxyServices`, `isAuthenticated`) from `@oxy.so/services`; `oxyServices.updatePrivacySettings({ fediverseSharing: value })` (Task 2 type); Mention API client (`utils/api.ts` authenticated client) → `POST /federation/sharing-changed`; `BottomSheetContext` (`setBottomSheetContent(node)` + `openBottomSheet(true)` via `useContext`); Bloom: `SettingsListGroup`/`SettingsListItem` (`@oxy.so/bloom/settings-list`), `Switch` (`@oxy.so/bloom/switch`), `Dialog` (`@oxy.so/bloom/dialog`) for the OFF confirmation; `FediverseIcon` from `@/assets/icons/fediverse-icon`; `useTranslation`.
 - Produces: `<FediverseBadge size? className?>` (tap → opens `FediverseInfoSheet` in the global sheet), `<FediverseInfoSheet initialStep? showEnableCta?>`, route `/settings/fediverse`.
 
 - [ ] **Step 1: FediverseInfoSheet.** 3 steps in local state (`useState<0|1|2>`), content per step = icon area (`FediverseIcon` large) + title + body text, footer: primary Button (`Siguiente` / on last step `Entendido` — or `Activar` when `showEnableCta` and sharing is off, which runs the same enable flow as the settings toggle) + secondary (`Atrás` / `Cancelar` closes sheet via `openBottomSheet(false)`). i18n keys: `fediverse.sheet.step1.title|body`, `step2.title|body`, `step3.title|body`, `fediverse.sheet.next|back|done|enable|cancel`. Copy mirrors Threads (adapted, es/en/it): qué es el fediverso (servidores interconectados, analogía email) / cómo funciona compartir (perfil público visible y seguible desde otros servidores; cada servidor tiene sus normas; Mention no modera lo remoto) / tu control (apágalo en ajustes; pediremos borrado a otros servidores pero no se garantiza).
@@ -336,7 +336,7 @@ router.post('/sharing-changed', async (req: AuthRequest, res: Response) => {
 ### Task 8: Ship + E2E
 
 - [ ] **Step 1:** oxy-api: full suite + tsc in its worktree → push `origin HEAD:main` (deploys oxy-api).
-- [ ] **Step 2:** `@oxyhq/core` publish (Task 2 Step 4) AFTER the api deploy is green; then bump `@oxyhq/core` in Mention `packages/frontend`/`backend` package.json + `bun install` (lockfile in the SAME commit).
+- [ ] **Step 2:** `@oxy.so/core` publish (Task 2 Step 4) AFTER the api deploy is green; then bump `@oxy.so/core` in Mention `packages/frontend`/`backend` package.json + `bun install` (lockfile in the SAME commit).
 - [ ] **Step 3:** Mention: backend suite from `packages/backend` + `bun run build:backend` + frontend typecheck in the worktree → ONE push to main (backend + frontend + lockfile together — deploy-aws has no concurrency control).
 - [ ] **Step 4: E2E on prod:** with a test account, toggle OFF → `curl -H 'Accept: application/activity+json' https://mention.earth/ap/users/<user>` → 404; webfinger → 404; Mastodon follow attempt fails to resolve; existing Mastodon follower sees the account's content deletion request. Toggle ON → actor 200 again; re-follow from Mastodon works (Accept + follower visible in app). Post → delivered. Verify `nate` (sharing untouched, default on) is unaffected throughout.
 - [ ] **Step 5:** Spawn docs-keeper: document the flag (Oxy-owned, public derived DTO field, Mention chokepoint + gates + cleanup job) in `Mention/AGENTS.md` federation section.

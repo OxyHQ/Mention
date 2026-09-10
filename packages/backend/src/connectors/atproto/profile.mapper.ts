@@ -1,4 +1,4 @@
-import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
+import { normalizeInlineText, normalizeMultilineText } from '@oxy.so/core';
 import { logger } from '../../utils/logger';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { setActorOxyUserId, upsertActor } from '../../db/federation/actorRepository';
@@ -7,8 +7,8 @@ import {
   BSKY_NETWORK_DOMAIN,
   blueskyUsernameFromHandle,
   type NormalizedExternalActor,
-} from '@oxyhq/federation';
-import { describeDriverError, isUniqueViolation } from '@oxyhq/db';
+} from '@oxy.so/federation';
+import { describeDriverError, isUniqueViolation } from '@oxy.so/db';
 import { metrics } from '../../utils/metrics';
 import { xrpcGet } from './xrpcClient';
 import { PUBLIC_APPVIEW } from './constants';
@@ -111,7 +111,7 @@ export function atprotoIdentityHandle(handle: string, did: string): string {
 }
 
 export function splitHandle(handle: string): { username: string; domain: string; federatedUsername: string } {
-  // The suffix rule itself lives in `@oxyhq/federation`'s bridge policy, beside
+  // The suffix rule itself lives in `@oxy.so/federation`'s bridge policy, beside
   // the Bluesky network record this connector's instance domain now comes from.
   // The same Bluesky account can also reach us over ActivityPub through Bridgy
   // Fed, and that path derives its username with this very function — so if the

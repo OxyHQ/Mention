@@ -6,8 +6,8 @@ import Animated, {
     useAnimatedScrollHandler,
     type AnimatedProps,
 } from 'react-native-reanimated';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { Loading } from '@oxyhq/bloom/loading';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import type { NotificationListItem } from '@/utils/groupNotifications';
 

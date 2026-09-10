@@ -10,8 +10,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { getTableName, inArray, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { sqlColumnName } from '@oxyhq/db';
-import { sweepExpiredRows } from '@oxyhq/db/expiry';
+import { sqlColumnName } from '@oxy.so/db';
+import { sweepExpiredRows } from '@oxy.so/db/expiry';
 import { EXPIRY_SWEEP_TARGETS } from '../../db/expiry';
 import { NOTIFICATION_RETENTION_SECONDS, notifications } from '../../db/schema/discovery';
 

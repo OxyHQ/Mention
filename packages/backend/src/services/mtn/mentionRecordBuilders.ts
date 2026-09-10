@@ -19,7 +19,7 @@
  * dual-write stays best-effort and a missing blob never blocks the post.
  */
 
-import type { ServiceAssetMetadata } from '@oxyhq/core';
+import type { ServiceAssetMetadata } from '@oxy.so/core';
 import type { PostRecord } from '../../db/posts/postRecord';
 import {
   canonicalizeLanguageTag,

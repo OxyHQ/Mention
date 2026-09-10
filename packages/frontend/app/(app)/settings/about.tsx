@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, ScrollView } from 'react-native';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { ThemedView } from '@/components/ThemedView';
@@ -10,8 +10,8 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { LogoIcon } from '@/assets/logo';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services/ui/client';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { confirmDialog, alertDialog } from '@/utils/alerts';
 import { API_URL } from '@/config';

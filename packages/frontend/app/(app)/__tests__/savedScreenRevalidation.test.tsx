@@ -70,9 +70,9 @@ const mockAuth = {
   isPrivateApiPending: false,
 };
 
-jest.mock('@oxyhq/services/ui/client', () => ({ useAuth: () => mockAuth }));
+jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
     isDark: false,
     colors: {
@@ -86,12 +86,12 @@ jest.mock('@oxyhq/bloom/theme', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/loading', () => {
+jest.mock('@oxy.so/bloom/loading', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Loading: () => <View testID="spinner" /> };
 });
 
-jest.mock('@oxyhq/bloom/button', () => {
+jest.mock('@oxy.so/bloom/button', () => {
   const { Text, TouchableOpacity } =
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -103,7 +103,7 @@ jest.mock('@oxyhq/bloom/button', () => {
   };
 });
 
-jest.mock('@oxyhq/bloom/dialog', () => {
+jest.mock('@oxy.so/bloom/dialog', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     Dialog: ({ children }: { children?: React.ReactNode }) => <View>{children}</View>,
@@ -111,12 +111,12 @@ jest.mock('@oxyhq/bloom/dialog', () => {
   };
 });
 
-jest.mock('@oxyhq/bloom/search', () => {
+jest.mock('@oxy.so/bloom/search', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Search: () => <View testID="search" /> };
 });
 
-jest.mock('@oxyhq/bloom/text-field', () => {
+jest.mock('@oxy.so/bloom/text-field', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   const Passthrough = ({ children }: { children?: React.ReactNode }) => <View>{children}</View>;
   return { TextField: Passthrough, TextFieldInput: () => <View testID="text-input" /> };

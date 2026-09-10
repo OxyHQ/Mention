@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 
-import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
+import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 
 interface ContentDialogRequest {
   /** Accessibility label for the surface — what the panel is about. */

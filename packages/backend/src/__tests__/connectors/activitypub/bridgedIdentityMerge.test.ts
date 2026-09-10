@@ -28,7 +28,7 @@ vi.mock('../../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: vi.fn(),
 }));
 vi.mock('../../../db/userProfile/userSettingsRepository', () => ({ updateUserSettings: vi.fn() }));
-vi.mock('@oxyhq/federation/node', async (importOriginal) => ({
+vi.mock('@oxy.so/federation/node', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   createIdentityBridge: () => ({
     resolveExternalUser: mocks.resolveOxyExternalUser,
@@ -50,7 +50,7 @@ import {
   upsertActor,
 } from '../../../db/federation/actorRepository';
 import { resolveFederatedActorIdentity } from '../../../connectors/identity';
-import type { NormalizedExternalActor } from '@oxyhq/federation';
+import type { NormalizedExternalActor } from '@oxy.so/federation';
 
 /** A bridged actor: its identity (`federatedUsername`) differs from its acct (`handle`). */
 function bridged(overrides: Partial<NormalizedExternalActor> = {}): NormalizedExternalActor {

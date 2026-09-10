@@ -63,7 +63,7 @@
 import { Router, type Response } from 'express';
 import { and, desc, eq, isNotNull, sql } from 'drizzle-orm';
 import { PostVisibility, type ChannelWriter, type ChannelWritersResponse } from '@mention/shared-types';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { userSettings } from '../db/schema/userProfile';

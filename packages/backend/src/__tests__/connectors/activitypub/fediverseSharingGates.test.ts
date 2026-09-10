@@ -9,7 +9,7 @@ import {
   seedPost,
 } from '../../helpers/federationFixtures';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { signRequest, type HttpSignatureSigner } from '@oxyhq/federation';
+import { signRequest, type HttpSignatureSigner } from '@oxy.so/federation';
 
 /**
  * Contract tests for the fediverseSharing gate on every user-scoped AP /
@@ -18,7 +18,7 @@ import { signRequest, type HttpSignatureSigner } from '@oxyhq/federation';
  * return the SAME body as an unknown user (`{ error: 'User not found' }`) —
  * see `docs/superpowers/specs/2026-07-02-fediverse-sharing-consent-design.md`.
  *
- * The routers now come from the shared `@oxyhq/federation` engine (webfinger +
+ * The routers now come from the shared `@oxy.so/federation` engine (webfinger +
  * actor + inbox + follow-graph) plus Mention's content router (outbox / featured /
  * post dereference), bound in `engine.routes.ts` / `ap.routes.ts`. The gate logic +
  * the Mention consent reads (`isFediverseSharingEnabledFromUser` /

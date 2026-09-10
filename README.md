@@ -29,7 +29,7 @@ Mention owns posts, feeds, engagement, notifications, its own mutes and its fede
 
 ### How it fits the Oxy platform
 
-Identity, sessions and the social graph come from [**oxy**](https://github.com/OxyHQ/oxy), the platform every Oxy app stands on. The client mounts one `OxyProvider` from `@oxyhq/services`, the backend verifies requests with `@oxyhq/core/server`, and neither side hand rolls a token parser.
+Identity, sessions and the social graph come from [**oxy**](https://github.com/OxyHQ/oxy), the platform every Oxy app stands on. The client mounts one `OxyProvider` from `@oxy.so/services`, the backend verifies requests with `@oxy.so/core/server`, and neither side hand rolls a token parser.
 
 The interface is built with [**Bloom**](https://github.com/OxyHQ/Bloom). Live audio rooms come from `@syra.fm/sdk`, the engine behind [**Syra**](https://github.com/OxyHQ/Syra), and load only when a room is opened.
 
@@ -123,7 +123,7 @@ Two things save time here. Rebuild `shared-types` before you trust a red type ch
 
 **Signed records (MTN)**
 
-Local posts are dual written to a per user hash chain built on `@oxyhq/protocol`. PostgreSQL stays authoritative for reads while the chain gives an author a verifiable, portable history. Native writes are signed on the device, web writes are signed custodially by the service, and a user can run their own node to hold their own chain.
+Local posts are dual written to a per user hash chain built on `@oxy.so/protocol`. PostgreSQL stays authoritative for reads while the chain gives an author a verifiable, portable history. Native writes are signed on the device, web writes are signed custodially by the service, and a user can run their own node to hold their own chain.
 
 **Federation**
 
@@ -192,5 +192,5 @@ nothing. They publish source and attribute like everyone else. See the
 The Breathe License is **source available, not open source**. It is not OSI
 approved, because charging for commercial use is discrimination against a
 field of endeavour under clause 6 of the Open Source Definition. Oxy's SDKs
-and client libraries (`@oxyhq/core`, `@oxyhq/services`, Bloom) are
+and client libraries (`@oxy.so/core`, `@oxy.so/services`, Bloom) are
 Apache-2.0, so building against Oxy carries none of this.

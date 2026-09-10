@@ -1,4 +1,4 @@
-import type { AccountNode } from '@oxyhq/core';
+import type { AccountNode } from '@oxy.so/core';
 import { operatesAccount, operatesAccountNode } from '../operatedAccounts';
 
 /**

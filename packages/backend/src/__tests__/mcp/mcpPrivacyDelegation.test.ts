@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   getUserFollowers: vi.fn(),
 }));
 
-vi.mock('@oxyhq/core', () => ({
+vi.mock('@oxy.so/core', () => ({
   OxyServices: class {
     setTokens(...args: unknown[]) {
       return mocks.setTokens(...args);

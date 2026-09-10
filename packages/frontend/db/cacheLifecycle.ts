@@ -1,6 +1,6 @@
 import { getDb, resetDb, type SQLiteDb } from './database';
 import { memClearAll } from './memoryStore';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 const VIEWER_OWNER_KEY = 'viewer_id';
 const ANONYMOUS_VIEWER_ID = 'anon';

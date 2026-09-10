@@ -1,4 +1,4 @@
-import type { TaxonomyCode } from '@oxyhq/crowdsource-contracts';
+import type { TaxonomyCode } from '@oxy.so/crowdsource-contracts';
 import type { ReportCategory } from '../../db/moderation/reportRepository';
 
 /**

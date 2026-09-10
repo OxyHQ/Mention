@@ -1,6 +1,6 @@
 /**
  * The action menu's data contract, kept free of React and Bloom so it can be
- * unit-tested: `@oxyhq/bloom/dialog` resolves to untransformed source under
+ * unit-tested: `@oxy.so/bloom/dialog` resolves to untransformed source under
  * Metro's `react-native` export condition, which jest cannot load.
  */
 import type { ReactNode } from 'react';

@@ -15,7 +15,7 @@ import {
   SOCKET_EVENT_ROOMS_LIVE_UPDATED,
   ROOMS_LIVE_REFETCH_DEBOUNCE_MS,
 } from '@/constants/realtimeEvents';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { wasRecent, type EchoAction } from './echoGuard';
 import {
   engagementQueueStorageKey,

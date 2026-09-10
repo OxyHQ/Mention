@@ -43,7 +43,7 @@ Note the two obvious-looking URLs are wrong: `/trending/hashtags` and `/hashtags
 
 A widget runs **outside the app process**. To read authenticated data it needs the device-first session: the `{deviceId, deviceSecret}` persisted in SecureStore under the shared `so.oxy.shared` UID, exchanged for a short access token at `POST /session/device/token`.
 
-**That belongs in the shared SDK, not in Mention.** The ecosystem rule is explicit: session handling lives in `@oxyhq/core` / `@oxyhq/services` so every Oxy app inherits it. A credential reader written into Mention's widget module would be copied into Homiio and Allo within a month, and would put token-minting logic in three places.
+**That belongs in the shared SDK, not in Mention.** The ecosystem rule is explicit: session handling lives in `@oxy.so/core` / `@oxy.so/services` so every Oxy app inherits it. A credential reader written into Mention's widget module would be copied into Homiio and Allo within a month, and would put token-minting logic in three places.
 
 So phases 2 and 3 are gated on an SDK-side piece: a native-readable path to the device credential and a token mint that a background worker can call. That is its own design conversation, deliberately deferred until phase 1 has shipped and there is a working widget to build it against.
 

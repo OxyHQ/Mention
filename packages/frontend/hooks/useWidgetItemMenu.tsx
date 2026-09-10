@@ -1,7 +1,7 @@
 import React, { useCallback, useContext } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { HideIcon } from '@/assets/icons/hide-icon';
 import { ShareIcon } from '@/assets/icons/share-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';

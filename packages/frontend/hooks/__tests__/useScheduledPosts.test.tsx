@@ -44,7 +44,7 @@ jest.mock('@/utils/api', () => ({
   },
 }));
 
-jest.mock('@oxyhq/services/ui/client', () => ({ useAuth: () => mockAuth }));
+jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
 
 import { useScheduledPosts } from '../useScheduledPosts';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';

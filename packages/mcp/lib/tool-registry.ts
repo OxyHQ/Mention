@@ -2,7 +2,7 @@ import {
   appCapabilityCatalogSchema,
   type AppCapabilityCatalog,
   type CatalogTool,
-} from "@oxyhq/contracts";
+} from "@oxy.so/contracts";
 import { createHash } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";

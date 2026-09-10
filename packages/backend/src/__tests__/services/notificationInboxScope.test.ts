@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AccountMember, AccountNode } from '@oxyhq/core';
+import type { AccountMember, AccountNode } from '@oxy.so/core';
 
 /**
  * WHO receives a channel's notifications — `listOperatedChannelIds` and the

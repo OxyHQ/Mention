@@ -13,7 +13,7 @@ import { PodcastAttachmentData } from "@/hooks/usePodcastManager";
 import { RoomAttachmentData } from "@/hooks/useRoomManager";
 import type { Draft } from "@/hooks/useDrafts";
 import type { ReplyPermission } from "@/components/Compose/ReplySettingsSheet";
-import type { AccountNode } from "@oxyhq/core";
+import type { AccountNode } from "@oxy.so/core";
 
 /**
  * A thread item as it comes back OUT of a stored draft: the persisted subset,

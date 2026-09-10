@@ -25,11 +25,11 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#666' } }),
 }));
 
-jest.mock('@oxyhq/bloom/pressable-scale', () => {
+jest.mock('@oxy.so/bloom/pressable-scale', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   return { PressableScale: TouchableOpacity };
 });

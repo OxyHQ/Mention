@@ -6,7 +6,7 @@ import { getDb } from './database';
 import type { LinkPreviewRow } from './schema';
 import { linkMetadataToRow, rowToLinkMetadata } from './schema';
 import type { LinkMetadata } from '@/stores/linksStore';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('LinkQueries');
 

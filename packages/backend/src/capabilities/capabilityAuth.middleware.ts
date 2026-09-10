@@ -1,9 +1,9 @@
-import type { CapabilityTicketClaims } from '@oxyhq/contracts';
+import type { CapabilityTicketClaims } from '@oxy.so/contracts';
 import {
   CapabilityTicketError,
   inputSatisfiesCapabilityLimits,
   readCapabilityAuthorization,
-} from '@oxyhq/core/server';
+} from '@oxy.so/core/server';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import {
   MENTION_TOOL_POLICIES,

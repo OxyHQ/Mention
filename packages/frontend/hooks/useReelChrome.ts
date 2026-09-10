@@ -4,7 +4,7 @@ import { useSharedValue, useAnimatedStyle, withSequence, withTiming } from 'reac
 import { useEventListener } from 'expo';
 import { VideoView, type VideoPlayer } from 'expo-video';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { videoSourceFor } from '@/utils/videoSource';
 import type { MediaPixelSize } from '@/utils/mediaTypes';
 import { useVideoPlayback } from '@/context/VideoPlaybackContext';

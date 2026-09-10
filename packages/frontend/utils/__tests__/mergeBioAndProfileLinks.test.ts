@@ -4,19 +4,19 @@ import { mergeBioAndProfileLinks } from '../mergeBioAndProfileLinks';
  * Tests run under either jest (frontend `jest-expo` preset) or vitest (workspace
  * runner). Both provide the same describe/it/expect globals.
  *
- * `@oxyhq/core`'s package entry pulls in the full runtime graph (crypto
+ * `@oxy.so/core`'s package entry pulls in the full runtime graph (crypto
  * polyfills, etc.), which is too heavy for a pure-logic util test. We only need
  * the real `normalizeProfileLinks`, which lives in a dependency-free submodule,
  * so we load that submodule directly by file path (bypassing the exports map)
  * and expose it as the mocked module. This exercises the REAL function — not a
  * reimplementation — without importing the rest of core.
  */
-jest.mock('@oxyhq/core', () => {
+jest.mock('@oxy.so/core', () => {
   const path = jest.requireActual<typeof import('node:path')>('node:path');
   const { createRequire } =
     jest.requireActual<typeof import('node:module')>('node:module');
   const localRequire = createRequire(__filename);
-  const pkgRoot = path.resolve(path.dirname(localRequire.resolve('@oxyhq/core')), '../..');
+  const pkgRoot = path.resolve(path.dirname(localRequire.resolve('@oxy.so/core')), '../..');
   return localRequire(path.join(pkgRoot, 'dist/cjs/utils/profileLinks.js'));
 });
 

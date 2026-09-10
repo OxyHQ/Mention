@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { Loading } from '@oxy.so/bloom/loading';
+import { useTheme } from '@oxy.so/bloom/theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost } from '@mention/shared-types';
@@ -10,8 +10,8 @@ import { isPastDue, scheduledDate } from '@/utils/postSchedule';
 import PostPreviewSurface from './PostPreviewSurface';
 import { confirmAndCancel } from './ScheduledPostsList';
 import { confirmDialog } from '@/utils/alerts';
-import { toast } from '@oxyhq/bloom/toast';
-import { createLogger } from '@oxyhq/core/logger';
+import { toast } from '@oxy.so/bloom/toast';
+import { createLogger } from '@oxy.so/core/logger';
 import { formatScheduledLabel } from '@/utils/dateUtils';
 
 const logger = createLogger('ScheduledPostPreview');

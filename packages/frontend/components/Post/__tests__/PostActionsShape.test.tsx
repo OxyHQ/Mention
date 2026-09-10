@@ -26,20 +26,20 @@ import PostActions from '../PostActions';
  * being pressable, it must still be THERE and still say what it said.
  */
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
     useTheme: () => ({
         colors: { primary: '#1d9bf0', success: '#00ba7c', textSecondary: '#8899a6' },
     }),
 }));
-jest.mock('@oxyhq/bloom/hooks', () => ({ useHaptics: () => () => undefined }));
-jest.mock('@oxyhq/bloom/loading', () => ({ SpinnerIcon: () => null }));
-jest.mock('@oxyhq/bloom/avatar', () => ({ Avatar: 'Avatar' }));
+jest.mock('@oxy.so/bloom/hooks', () => ({ useHaptics: () => () => undefined }));
+jest.mock('@oxy.so/bloom/loading', () => ({ SpinnerIcon: () => null }));
+jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: 'Avatar' }));
 jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('@/hooks/useVoteStyle', () => ({ useVoteStyle: () => 'icons' }));
 
 // Host element names, so a `PressableScale` reintroduced anywhere in this bar
 // shows up in the tree by name instead of dissolving into the `View` it renders.
-jest.mock('@oxyhq/bloom/pressable-scale', () => ({ PressableScale: 'PressableScale' }));
+jest.mock('@oxy.so/bloom/pressable-scale', () => ({ PressableScale: 'PressableScale' }));
 
 // Icons are react-native-svg subtrees and say nothing about the bar's shape.
 jest.mock('@/assets/icons/comment-icon', () => ({ CommentIcon: () => null }));

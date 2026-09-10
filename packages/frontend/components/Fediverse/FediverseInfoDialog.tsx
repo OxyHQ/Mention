@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Image, type ImageProps } from 'expo-image';
-import { Dialog, useDialogControl, useDialogFrame } from '@oxyhq/bloom/dialog';
-import { Button } from '@oxyhq/bloom/button';
+import { Dialog, useDialogControl, useDialogFrame } from '@oxy.so/bloom/dialog';
+import { Button } from '@oxy.so/bloom/button';
 
 type SheetStep = 0 | 1 | 2;
 

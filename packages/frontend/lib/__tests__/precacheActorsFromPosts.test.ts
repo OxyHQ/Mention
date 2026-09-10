@@ -11,7 +11,7 @@
  * and `_count`, overriding only the fields the sparse source actually carries.
  *
  * The MERGE SEMANTICS themselves are the SDK helper's own contract (and are
- * verified in the `@oxyhq/services` package). What Mention owns — and what these
+ * verified in the `@oxy.so/services` package). What Mention owns — and what these
  * tests pin — is the WIRING: that every post's actors are extracted and every
  * seeding path is delegated to the merge-upsert, so no writer here can clobber.
  */
@@ -22,7 +22,7 @@ import { getKnownIdentity, resetIdentityUpdates } from '@/stores/identityUpdates
 import { precacheActorsFromPosts } from '../precacheActorsFromPosts';
 
 const mockUpsertCachedUsers = jest.fn();
-jest.mock('@oxyhq/services', () => ({
+jest.mock('@oxy.so/services', () => ({
   upsertCachedUsers: (...args: unknown[]) => mockUpsertCachedUsers(...args),
   // `stores/identityUpdates` writes the edit through the SDK's single-user
   // upsert; this file is about what reaches the BATCH one, so it only has to

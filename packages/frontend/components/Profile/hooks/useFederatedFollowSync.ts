@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { useFollow } from '@oxyhq/services/ui/client';
+import { useFollow } from '@oxy.so/services/ui/client';
 import { feedService } from '@/services/feedService';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('FederatedFollowSync');
 

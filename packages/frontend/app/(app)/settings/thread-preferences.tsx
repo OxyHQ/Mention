@@ -6,11 +6,11 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Toggle } from '@/components/Toggle';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { SettingsListGroup } from '@oxyhq/bloom/settings-list';
+import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
 import { Icon, type IconName } from '@/lib/icons';
-import { RadioIndicator } from '@oxyhq/bloom/radio-indicator';
+import { RadioIndicator } from '@oxy.so/bloom/radio-indicator';
 import { useThreadPreferencesStore, SORT_OPTIONS, type VoteStyle } from '@/hooks/useThreadPreferences';
 
 const VOTE_STYLE_OPTIONS: { value: VoteStyle; icon: IconName; labelKey: string; defaultLabel: string }[] = [

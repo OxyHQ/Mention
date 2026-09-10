@@ -39,7 +39,7 @@
  * ARRIVE in that order: `deliverToFollowers` enqueues one BullMQ job per inbox,
  * the delivery worker runs `DELIVERY_WORKER_CONCURRENCY` jobs at a time, and
  * several ECS tasks share the queue. A real ordering guarantee would need
- * per-inbox job chaining inside `@oxyhq/federation`, which is a different
+ * per-inbox job chaining inside `@oxy.so/federation`, which is a different
  * package and a different release; this is exact parity with what the scheduled
  * path already ships (`ScheduledPostPublisher` orders its publishes, not its
  * deliveries), so it adds no risk that is not already live.

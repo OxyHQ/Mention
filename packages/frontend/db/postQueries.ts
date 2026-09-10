@@ -15,7 +15,7 @@ import {
   memUpdatePost,
   memDeletePost,
 } from './memoryStore';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('PostQueries');
 

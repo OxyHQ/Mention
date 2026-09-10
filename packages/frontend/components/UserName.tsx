@@ -1,8 +1,8 @@
 import React, { useCallback } from 'react';
 import { Text, TouchableOpacity, StyleSheet, View, type TextStyle } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { toast } from '@oxyhq/bloom/toast';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { AccountBadge } from '@/components/AccountBadge';
 import { AgentIcon } from '@/assets/icons/agent-icon';

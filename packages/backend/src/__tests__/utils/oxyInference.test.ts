@@ -30,7 +30,7 @@ vi.mock('../../utils/logger', () => ({
   logger: { error: state.logError },
 }));
 
-vi.mock('@oxyhq/core', () => ({
+vi.mock('@oxy.so/core', () => ({
   OxyInferenceClient: class {
     respond = state.respond;
   },

@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
 import { router, Slot, usePathname, type Href } from 'expo-router';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
 import { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
 import { ChromeFab } from '@/components/ChromeFab';

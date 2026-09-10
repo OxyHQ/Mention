@@ -102,11 +102,11 @@ jest.mock('@/services/entityFollowService', () => ({
 }));
 
 const mockToast = jest.fn();
-jest.mock('@oxyhq/bloom/toast', () => ({
+jest.mock('@oxy.so/bloom/toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
 }));
 
-jest.mock('@oxyhq/services/ui/client', () => {
+jest.mock('@oxy.so/services/ui/client', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     useAuth: () => ({ user: { id: VIEWER_ID }, isAuthenticated: true }),
@@ -114,14 +114,14 @@ jest.mock('@oxyhq/services/ui/client', () => {
   };
 });
 
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user?: { username?: string | null } | null): string | null => {
     const username = (user?.username ?? '').trim().replace(/^@/, '');
     return username.length > 0 ? username : null;
   },
 }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
     colors: {
       primary: '#1d4ed8',
@@ -135,18 +135,18 @@ jest.mock('@oxyhq/bloom/theme', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/loading', () => {
+jest.mock('@oxy.so/bloom/loading', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { SpinnerIcon: () => <RNView testID="spinner" /> };
 });
 
-jest.mock('@oxyhq/bloom/avatar', () => {
+jest.mock('@oxy.so/bloom/avatar', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Avatar: () => <RNView testID="avatar" /> };
 });
 
 /** The info sheet is closed until presented, so it contributes no controls. */
-jest.mock('@oxyhq/bloom/bottom-sheet', () => ({
+jest.mock('@oxy.so/bloom/bottom-sheet', () => ({
   __esModule: true,
   BottomSheet: () => null,
 }));
@@ -192,8 +192,8 @@ jest.mock('@/hooks/useFeedPreferences', () => ({
   useFeedPreferences: () => ({ isPinned: () => false, pin: jest.fn(), unpin: jest.fn() }),
 }));
 
-jest.mock('@oxyhq/core/logger', () => ({
-  ...jest.requireActual('@oxyhq/core/logger'),
+jest.mock('@oxy.so/core/logger', () => ({
+  ...jest.requireActual('@oxy.so/core/logger'),
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 

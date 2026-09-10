@@ -1,7 +1,7 @@
 import React, { memo, useState, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { Loading } from '@oxy.so/bloom/loading';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { flattenStyleArray } from '@/styles/shared';
 import Ionicons from '@expo/vector-icons/Ionicons';
 

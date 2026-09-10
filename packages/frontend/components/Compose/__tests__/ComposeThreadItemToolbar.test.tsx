@@ -39,7 +39,7 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
     colors: {
       border: '#333',
@@ -52,9 +52,9 @@ jest.mock('@oxyhq/bloom/theme', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/loading', () => ({ Loading: () => null }));
-jest.mock('@oxyhq/bloom/hooks', () => ({ useHaptics: () => jest.fn() }));
-jest.mock('@oxyhq/bloom/pressable-scale', () => {
+jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
+jest.mock('@oxy.so/bloom/hooks', () => ({ useHaptics: () => jest.fn() }));
+jest.mock('@oxy.so/bloom/pressable-scale', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   return { PressableScale: TouchableOpacity };
 });

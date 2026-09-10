@@ -2,13 +2,13 @@ import rateLimit from "express-rate-limit";
 import slowDown from "express-slow-down";
 import type { RequestHandler } from "express";
 import { Request } from "express";
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { RedisStore } from "./rateLimitStore";
 import { hashedIpKey } from "../utils/ipKey";
 import { getValidatedFeedSource, isExpensiveFeedRequest } from './feedThrottleDescriptor';
 
 // Realistic thresholds for global slow-down. The shared global rate limiter is
-// owned by @oxyhq/core/server; this file only contains app-specific throttles.
+// owned by @oxy.so/core/server; this file only contains app-specific throttles.
 const AUTHENTICATED_LIMIT_PER_WINDOW = 5000; // per 15 min
 const UNAUTHENTICATED_LIMIT_PER_WINDOW = 600; // per 15 min
 

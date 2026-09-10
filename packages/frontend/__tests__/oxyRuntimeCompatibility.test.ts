@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 
-const SERVICES_PACKAGE = require.resolve('@oxyhq/services/package.json');
+const SERVICES_PACKAGE = require.resolve('@oxy.so/services/package.json');
 const SERVICES_ROOT = dirname(SERVICES_PACKAGE);
 
 describe('Oxy runtime compatibility unit', () => {
@@ -14,7 +14,7 @@ describe('Oxy runtime compatibility unit', () => {
     const sdkRoot = dirname(sdkPackage);
     const sdkRequire = createRequire(sdkPackage);
 
-    expect(sdkRequire.resolve('@oxyhq/services/package.json')).toBe(SERVICES_PACKAGE);
+    expect(sdkRequire.resolve('@oxy.so/services/package.json')).toBe(SERVICES_PACKAGE);
     expect(existsSync(join(sdkRoot, 'node_modules', '@oxyhq', 'services', 'package.json'))).toBe(false);
 
     const servicesTypes = readFileSync(
@@ -27,11 +27,11 @@ describe('Oxy runtime compatibility unit', () => {
   it('gives Services the same Core and Bloom runtime as Mention', () => {
     const servicesRequire = createRequire(SERVICES_PACKAGE);
 
-    expect(servicesRequire.resolve('@oxyhq/core/package.json')).toBe(
-      require.resolve('@oxyhq/core/package.json'),
+    expect(servicesRequire.resolve('@oxy.so/core/package.json')).toBe(
+      require.resolve('@oxy.so/core/package.json'),
     );
-    expect(servicesRequire.resolve('@oxyhq/bloom/package.json')).toBe(
-      require.resolve('@oxyhq/bloom/package.json'),
+    expect(servicesRequire.resolve('@oxy.so/bloom/package.json')).toBe(
+      require.resolve('@oxy.so/bloom/package.json'),
     );
   });
 });

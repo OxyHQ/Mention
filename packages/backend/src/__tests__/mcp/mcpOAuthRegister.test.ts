@@ -1,4 +1,4 @@
-import type { OxyServices } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
 import express from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';

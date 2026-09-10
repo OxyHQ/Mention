@@ -35,7 +35,7 @@ vi.mock('../../runtime/oxyClient', () => ({ getRuntimeOxyClient: () => ({}) }));
 // The viewer id the routes filter their follow rows by. It has to be the SCOPE's
 // local user now that the query is real: the previous fake ignored the filter
 // entirely and returned its rows to whoever asked.
-vi.mock('@oxyhq/core/server', () => ({
+vi.mock('@oxy.so/core/server', () => ({
   getRequiredOxyUserId: () => `oxy-local-federation-follows-display-name`,
 }));
 

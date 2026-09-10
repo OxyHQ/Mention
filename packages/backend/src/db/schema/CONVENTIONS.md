@@ -47,7 +47,7 @@ keep it.
 not pass an explicit column name unless the SQL name genuinely differs from the
 property.
 
-**`@oxyhq/db`'s `casing.ts` is the naming authority.** `DATABASE_CASING` is read
+**`@oxy.so/db`'s `casing.ts` is the naming authority.** `DATABASE_CASING` is read
 by `createDatabase()` (what queries reference), by `drizzle.config.ts` (what the
 DDL creates), and by `sqlColumnName`. One setting, not three copies.
 
@@ -66,7 +66,7 @@ DDL creates), and by `sqlColumnName`. One setting, not three copies.
 > of its columns to each other, and the query returns `[]` **with no error at
 > all**. This shipped in the sibling oxy-api port: follow counts read zero on
 > every public profile until a test caught it. Qualify every correlated reference
-> with `qualified(column)` from `@oxyhq/db`, and treat "a correlated subquery
+> with `qualified(column)` from `@oxy.so/db`, and treat "a correlated subquery
 > returned nothing" as a bug in the SQL until proven otherwise.
 >
 > Related: `${col} <> all(${jsArray})` binds a TUPLE, not an array, and Postgres
@@ -96,7 +96,7 @@ quotes every identifier it emits. Hand-written SQL must quote it too.
 - CrowdSource holds `Post._id` as `subject.externalId` and `Report._id` as
   `externalReportId`.
 
-**v7 is generated in the application** (`generatedId()` from `@oxyhq/db`, via
+**v7 is generated in the application** (`generatedId()` from `@oxy.so/db`, via
 `$defaultFn`), not by a database `DEFAULT`. Postgres 17 has no native
 `uuidv7()`. Rows inserted by raw SQL get no id — intended: the backfill supplied
 each `_id` verbatim, which is how every foreign key survived the copy by
@@ -134,7 +134,7 @@ Two consequences, both of which have already cost real debugging time:
 `moderation_events.id` (the CrowdSource event id — the primary key IS the §10.8
 dedupe). A table whose id is supplied by its caller says so by having no default.
 
-**`@oxyhq/db`'s `isLiveEntityId` is the ONLY place either id shape is spelled out,
+**`@oxy.so/db`'s `isLiveEntityId` is the ONLY place either id shape is spelled out,
 and it is not a query precondition.** It exists for the one documented-400 case
 (`middleware/validate.ts` `validateObjectId`, which accepts both shapes).
 Reaching for it to guard a QUERY re-introduces the fail-open bug the port
@@ -175,7 +175,7 @@ subquery, so "every element is in range" is written as array CONTAINMENT
 
 ## Timestamps
 
-Always `timestamptz`, always `mode: 'date'` (`timestamptz()` from `@oxyhq/db`).
+Always `timestamptz`, always `mode: 'date'` (`timestamptz()` from `@oxy.so/db`).
 `timestamp` without a time zone reinterprets the value in the session's
 `TimeZone` on every read, silently changing what a Mongo `Date` meant.
 

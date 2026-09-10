@@ -2,10 +2,10 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { ChevronUpIcon } from '@/assets/icons/chevron-up-icon';
 import { ChevronDownIcon } from '@/assets/icons/chevron-down-icon';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { useHaptics } from '@oxyhq/bloom/hooks';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { useHaptics } from '@oxy.so/bloom/hooks';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { PressableScale } from '@oxyhq/bloom/pressable-scale';
+import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 
 const ARROW_SIZE = 18;
 

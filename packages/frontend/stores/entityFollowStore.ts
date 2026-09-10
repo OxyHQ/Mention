@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { entityFollowService, type EntityFollowType } from '@/services/entityFollowService';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 
 interface EntityFollowState {
   following: Record<string, boolean>;  // key: "type:id"

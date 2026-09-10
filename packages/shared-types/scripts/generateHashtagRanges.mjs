@@ -29,7 +29,7 @@
  * property-escape original → identical behavior on V8 and Hermes, zero runtime
  * cost, zero runtime dependency, and zero property escapes in the shipped code.
  *
- * This mirrors `@oxyhq/core`'s `scripts/generateDisplayNamePolicyRanges.mjs`,
+ * This mirrors `@oxy.so/core`'s `scripts/generateDisplayNamePolicyRanges.mjs`,
  * which solves the same problem for the display-name policy.
  *
  * regexpu-core bundles its own pinned Unicode tables, so the emitted ranges are

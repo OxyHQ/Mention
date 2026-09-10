@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
-import type { LinkPreview } from '@oxyhq/contracts';
+import type { LinkPreview } from '@oxy.so/contracts';
 
 /**
  * Verifies that `PostHydrationService` sources link previews from the Oxy

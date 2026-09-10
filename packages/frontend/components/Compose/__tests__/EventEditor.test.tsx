@@ -20,7 +20,7 @@ jest.mock('react-i18next', () => ({
  * the tree, so reintroducing a hand-rolled shell fails rather than merely
  * looking different.
  */
-jest.mock('@oxyhq/bloom/dialog', () => {
+jest.mock('@oxy.so/bloom/dialog', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     Dialog: (props: Record<string, unknown> & { children?: React.ReactNode }) => {
@@ -31,7 +31,7 @@ jest.mock('@oxyhq/bloom/dialog', () => {
   };
 });
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
     colors: {
       border: '#333',

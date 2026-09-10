@@ -11,14 +11,14 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { border: '#333', primary: '#70f', textSecondary: '#777' } }),
 }));
 
-jest.mock('@oxyhq/bloom/avatar', () => ({
+jest.mock('@oxy.so/bloom/avatar', () => ({
   Avatar: jest.requireActual<typeof import('react-native')>('react-native').View,
 }));
-jest.mock('@oxyhq/bloom/loading', () => ({
+jest.mock('@oxy.so/bloom/loading', () => ({
   Loading: jest.requireActual<typeof import('react-native')>('react-native').View,
 }));
 jest.mock('@/assets/icons/close-icon', () => ({

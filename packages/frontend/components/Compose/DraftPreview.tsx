@@ -1,12 +1,12 @@
 import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import type { PostUser } from '@mention/shared-types';
 import { oxyServices } from '@/lib/oxyServices';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { Draft } from '@/hooks/useDrafts';
 import { draftToPreviewPost } from '@/utils/draftPreview';
 import PostPreviewSurface from './PostPreviewSurface';

@@ -6,8 +6,8 @@
 
 import { Response } from 'express';
 import { loadPostRecord } from '../../db/posts/postRepository';
-import { OxyInferenceError } from '@oxyhq/core';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import { OxyInferenceError } from '@oxy.so/core';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';

@@ -1,4 +1,4 @@
-import type { AccountCategoryId } from '@oxyhq/contracts';
+import type { AccountCategoryId } from '@oxy.so/contracts';
 import {
   applyKnownIdentity,
   getKnownIdentity,

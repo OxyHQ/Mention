@@ -22,11 +22,11 @@
 import { useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useQuery, keepPreviousData } from '@tanstack/react-query';
 import { cacheActors } from '@/lib/actorCache';
-import { useAuth } from '@oxyhq/services/ui/client';
-import type { User } from '@oxyhq/core';
+import { useAuth } from '@oxy.so/services/ui/client';
+import type { User } from '@oxy.so/core';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { isAuthError } from '@/utils/authErrors';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import {
   fetchRecommendationsPage,
   deriveExcludeTypes,

@@ -15,13 +15,13 @@ import Animated, {
   useAnimatedStyle,
   type SharedValue,
 } from 'react-native-reanimated';
-import { useImageResolver } from '@oxyhq/bloom/image-resolver';
+import { useImageResolver } from '@oxy.so/bloom/image-resolver';
 import {
   ZoomableMediaGallery,
   type MeasuredRect,
   type ZoomableMediaGalleryHandle,
-} from '@oxyhq/bloom/zoomable-media-gallery';
-import { useAuth } from '@oxyhq/services/ui/client';
+} from '@oxy.so/bloom/zoomable-media-gallery';
+import { useAuth } from '@oxy.so/services/ui/client';
 
 import DefaultAvatar from '@/assets/images/default-avatar.jpg';
 import { useImageUrl } from '@/hooks/useImageUrl';

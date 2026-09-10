@@ -218,7 +218,7 @@ never imports ActivityPub or AT Protocol code directly. It talks to
 `ConnectorRegistry`, which fans a `LocalNetworkEvent` out to every enabled
 `NetworkConnector`. Both the contract and the normalized DTOs it trades in
 (`NormalizedExternalActor`, `NormalizedExternalPost`, the `LocalNetworkEvent`
-union) ship from the shared `@oxyhq/federation` package — not a Mention-local
+union) ship from the shared `@oxy.so/federation` package — not a Mention-local
 type — so `ActivityPubConnector` and `AtprotoConnector` are two
 implementations of one interface Mention does not own:
 
@@ -251,8 +251,8 @@ to a caller asking the interface a question before it acts — there is no
 machine-checkable "can connector X publish/delete/follow" a caller could use
 to skip the call, or a contract-test suite every implementation of
 `NetworkConnector` must pass for the operations it actually performs. Adding
-either is a change to `@oxyhq/federation` itself, which Mention does not own
-(`@oxyhq/services`/`@oxyhq/core`'s home repository does) — per this repo's
+either is a change to `@oxy.so/federation` itself, which Mention does not own
+(`@oxy.so/services`/`@oxy.so/core`'s home repository does) — per this repo's
 "fix upstream, never patch" rule, that is upstream work, tracked as
 [OxyHQ/oxy#971](https://github.com/OxyHQ/oxy/issues/971), not a local
 reimplementation of the interface.

@@ -1,6 +1,6 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
-import type { OxyServices } from '@oxyhq/core';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyServices } from '@oxy.so/core';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { bearerLooksLikeMcpToken } from '../mcp/middleware/mcpAuth';
 import { logger } from '../utils/logger';
 

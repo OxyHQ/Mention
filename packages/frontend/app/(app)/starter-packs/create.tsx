@@ -4,15 +4,15 @@ import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { starterPacksService } from '@/services/starterPacksService';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
-import { logger } from '@oxyhq/core/logger';
-import type { User } from '@oxyhq/core';
+import { logger } from '@oxy.so/core/logger';
+import type { User } from '@oxy.so/core';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;

@@ -1,7 +1,7 @@
 import React, { useContext, useEffect } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient } from '@tanstack/react-query';
-import type { OxyServices } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
 
 import { AppProviders } from '../AppProviders';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
@@ -85,7 +85,7 @@ jest.mock('expo-router', () => ({
   router: { canDismiss: () => false, dismissAll: () => {}, navigate: () => {}, prefetch: () => {} },
 }));
 
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   OxyProvider: ({ children }: { children: React.ReactNode }) => children,
   // `TabPagerProvider` needs the viewer's handle to recognise `/@<own handle>`
   // as the profile tab (on web `/you` redirects there). Signed out is the
@@ -125,7 +125,7 @@ jest.mock('@/components/Channels/ChannelInfoDialog', () => ({
 }));
 jest.mock('@/components/providers/LiveFeatureProviders', () => ({ LiveFeatureHost: () => null }));
 
-jest.mock('@oxyhq/bloom/tab-bar', () => ({
+jest.mock('@oxy.so/bloom/tab-bar', () => ({
   useMinimizeState: () => ({ minimized: { value: 0 } }),
   setMinimized: () => {},
 }));
@@ -134,7 +134,7 @@ jest.mock('@oxyhq/bloom/tab-bar', () => ({
 // React POSITION — the only thing under test — is identical either way: on
 // native the real sheet is an RN <Modal>, which keeps its children in the React
 // tree, and on web it is `createPortal`, which preserves context too.
-jest.mock('@oxyhq/bloom/bottom-sheet', () => ({
+jest.mock('@oxy.so/bloom/bottom-sheet', () => ({
   BottomSheet: ({ children }: { children: React.ReactNode }) => children,
 }));
 

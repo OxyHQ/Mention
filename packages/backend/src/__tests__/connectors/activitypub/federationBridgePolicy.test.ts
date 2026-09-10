@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
  * than computed from the same rule under test. That is the property a wrong
  * entry breaks, and breaking it is how a whole domain gets misattributed.
  *
- * The mechanism these drive is tested in `@oxyhq/federation`; what is tested here
+ * The mechanism these drive is tested in `@oxy.so/federation`; what is tested here
  * is the JUDGEMENT — that this domain mirrors that network, and that this rule
  * reads the upstream handle correctly out of an actor we actually hold.
  */
@@ -18,7 +18,7 @@ import {
   federationBridges,
 } from '../../../connectors/activitypub/federationBridgePolicy';
 import { BRIDGED_ACTOR_FIXTURES } from './fixtures/bridgedActors';
-import type { FederationBridgeEntry, NetworkIdentityCandidate } from '@oxyhq/federation';
+import type { FederationBridgeEntry, NetworkIdentityCandidate } from '@oxy.so/federation';
 
 /** The identity each captured actor MUST re-label to, written out by hand. */
 const EXPECTED_IDENTITY: Readonly<Record<string, string>> = {

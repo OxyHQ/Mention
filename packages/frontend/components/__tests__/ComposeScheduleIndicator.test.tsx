@@ -34,7 +34,7 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
     colors: {
       border: '#333',
@@ -47,19 +47,19 @@ jest.mock('@oxyhq/bloom/theme', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/hooks', () => ({ useHaptics: () => jest.fn() }));
-jest.mock('@oxyhq/bloom/pressable-scale', () => {
+jest.mock('@oxy.so/bloom/hooks', () => ({ useHaptics: () => jest.fn() }));
+jest.mock('@oxy.so/bloom/pressable-scale', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   return { PressableScale: TouchableOpacity };
 });
-jest.mock('@oxyhq/bloom/avatar-group', () => ({ AvatarGroup: () => null }));
-jest.mock('@oxyhq/bloom/toast', () => ({ toast: jest.fn() }));
+jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: () => null }));
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 // The federated badge drags Bloom's dialog into the module graph and never
 // renders here: `PostHeader` only mounts it for a federated author.
 jest.mock('@/components/AccountBadge', () => ({ AccountBadge: () => null }));
-// `@oxyhq/core` ships ESM that jest does not transform, and only the collab
+// `@oxy.so/core` ships ESM that jest does not transform, and only the collab
 // byline calls into it — a solo header never reaches this.
-jest.mock('@oxyhq/core', () => ({ getNormalizedUserHandle: () => '' }));
+jest.mock('@oxy.so/core', () => ({ getNormalizedUserHandle: () => '' }));
 jest.mock('@/components/ui/LiveAvatar', () => ({ LiveAvatar: () => null }));
 jest.mock('@/components/ProfileHoverCard', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');

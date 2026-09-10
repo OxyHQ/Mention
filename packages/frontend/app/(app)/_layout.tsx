@@ -2,9 +2,9 @@ import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { ExperimentalStack, Slot, usePathname } from "expo-router";
 
-import { useAuth } from '@oxyhq/services/ui/client';
-import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
-import { ContentPanel } from '@oxyhq/bloom/content-panel';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
 import { registerPanelSurface } from '@/components/shell/panelSurface';
 
 import { BottomBar, useBottomBarReservedSpace } from "@/components/BottomBar";
@@ -23,7 +23,7 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
 import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
 import { useScreenColor } from '@/context/ScreenColorContext';
-import { APP_COLOR_PRESETS, BloomColorScope, useTheme, type AppColorName } from '@oxyhq/bloom/theme';
+import { APP_COLOR_PRESETS, BloomColorScope, useTheme, type AppColorName } from '@oxy.so/bloom/theme';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -135,7 +135,7 @@ export default function AppLayout() {
   // route, so anything mounted at this depth is invisible to them.
   return (
     <>
-      {/* Connection loss shows as a Bloom toast — see @oxyhq/bloom/connection-status.
+      {/* Connection loss shows as a Bloom toast — see @oxy.so/bloom/connection-status.
           It replaced an app-local banner that pushed the whole screen down. */}
       <ConnectionStatusToasts />
       <RealtimePostsBridge />

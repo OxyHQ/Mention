@@ -1,14 +1,14 @@
 import React, { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
-import { PressableScale } from '@oxyhq/bloom/pressable-scale';
+import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 
 export interface FeedCardData {

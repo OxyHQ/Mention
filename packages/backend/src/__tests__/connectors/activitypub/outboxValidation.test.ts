@@ -75,7 +75,7 @@ const mocks = vi.hoisted(() => ({
   assertSafePublicUrl: vi.fn(),
 }));
 
-// `signedFetch` (helpers.ts) is built from @oxyhq/federation's createSignedFetch,
+// `signedFetch` (helpers.ts) is built from @oxy.so/federation's createSignedFetch,
 // which signs via Mention's injected `signViaOxy` (crypto.ts) and derives the
 // instance keyId from `getPublicKey('instance')`. The package's real signRequest
 // composes the Signature header; only the private-key custody is stubbed here.
@@ -96,8 +96,8 @@ vi.mock('../../../utils/safeUpstreamFetch', async (importOriginal) => {
   };
 });
 
-vi.mock('@oxyhq/core/server', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@oxyhq/core/server')>()),
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
   assertSafePublicUrl: mocks.assertSafePublicUrl,
 }));
 

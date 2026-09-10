@@ -3,7 +3,7 @@ import {
   upsertCachedUsers,
   type CacheableUser,
   type UpsertCachedUserOptions,
-} from '@oxyhq/services';
+} from '@oxy.so/services';
 import { queryClient } from '@/lib/queryClient';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import {
@@ -29,7 +29,7 @@ import {
  * SAME singleton query client to the SAME two SDK functions, so they can all
  * pass through here instead, and the correction is written once. That is also
  * why this module — not the store behind it — is the thing new code should
- * import: it is enforceable by grep (`@oxyhq/services`'s upserts have exactly
+ * import: it is enforceable by grep (`@oxy.so/services`'s upserts have exactly
  * one caller in the app, this file) in a way that "remember to correct your
  * actors" is not.
  *

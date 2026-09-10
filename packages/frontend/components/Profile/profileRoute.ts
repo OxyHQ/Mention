@@ -1,5 +1,5 @@
 import type { Href } from 'expo-router';
-import { getNormalizedUserHandle, type AccountKind, type UserHandleInput } from '@oxyhq/core';
+import { getNormalizedUserHandle, type AccountKind, type UserHandleInput } from '@oxy.so/core';
 
 /**
  * Which URL family a profile page belongs to.

@@ -30,7 +30,7 @@ function getDoc(oxyUserId: string): Record<string, unknown> {
   return doc;
 }
 
-vi.mock('@oxyhq/core/server', () => ({
+vi.mock('@oxy.so/core/server', () => ({
   requireOxyAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     (req as express.Request & { user?: { id: string }; accessToken?: string }).user = { id: TEST_USER };
     (req as express.Request & { accessToken?: string }).accessToken = 'test-token';

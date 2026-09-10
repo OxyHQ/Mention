@@ -12,7 +12,7 @@ import { getDb } from '../../db/postgres';
 import { likes as likesTable } from '../../db/schema/engagement';
 import { posts as postsTable } from '../../db/schema/posts';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../mtn/feed/CursorBuilder';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { PostUser } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
 import { resolveUserSummaries, degradedActorSummary } from '../../services/PostHydrationService';

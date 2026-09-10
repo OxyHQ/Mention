@@ -1,9 +1,9 @@
-import type { LogLevel } from '@oxyhq/core/logger';
+import type { LogLevel } from '@oxy.so/core/logger';
 
 // Base URLs (prod first → env → fallback)
 export const IS_DEVELOPMENT = process.env.NODE_ENV === 'development';
 
-// Mirrors `LogLevel` from @oxyhq/core/logger — the levels the shared logger
+// Mirrors `LogLevel` from @oxy.so/core/logger — the levels the shared logger
 // understands. Anything else in EXPO_PUBLIC_LOG_LEVEL is ignored.
 const VALID_LOG_LEVELS: readonly LogLevel[] = [
   'silent',
@@ -50,7 +50,7 @@ export const SYRA_SOCKET_URL =
 export const OXY_BASE_URL = process.env.EXPO_PUBLIC_OXY_BASE_URL || 'https://api.oxy.so';
 
 // Mention's registered Oxy OAuth client id (ApplicationCredential publicKey).
-// Required by @oxyhq/services for the cross-app device sign-in flow. Public and
+// Required by @oxy.so/services for the cross-app device sign-in flow. Public and
 // safe to commit — it travels inside the bundle, so it cannot be confidential.
 // The deploy workflow injects the PRODUCTION id from the
 // EXPO_PUBLIC_OXY_CLIENT_ID secret; the value below is only a fallback so a

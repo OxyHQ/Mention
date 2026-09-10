@@ -33,7 +33,7 @@ import {
   planLedgerRun as planMigrationRun,
   unreachableEntries,
   type JournalEntry,
-} from '@oxyhq/db/migrate';
+} from '@oxy.so/db/migrate';
 import { readJournal } from '../../db/migrationsFolder';
 
 /** A journal in the shape a merge of two long-lived branches produces. */

@@ -37,7 +37,7 @@ vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({ getUserById }),
 }));
 
-vi.mock('@oxyhq/core/server', () => ({
+vi.mock('@oxy.so/core/server', () => ({
   getRequiredOxyUserId: () => 'local-user-1',
 }));
 

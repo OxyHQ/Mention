@@ -34,12 +34,12 @@ import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
-import type { OxyAuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest } from '@oxy.so/core/server';
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { accountLists } from '../../db/schema/lists';
 import { ENTITY_FOLLOW_TYPES, entityFollows } from '../../db/schema/engagement';
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import { canViewList } from '../../services/listAccess';
 import entityFollowRouter from '../../routes/entity-follow.routes';
 

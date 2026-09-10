@@ -76,7 +76,7 @@
  *   CONFIRM_ADMIN_MUTATION=normalizeFederatedText  required for a real apply
  */
 
-import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
+import { normalizeInlineText, normalizeMultilineText } from '@oxy.so/core';
 import { and, asc, count, eq, gt } from 'drizzle-orm';
 import {
   countActors,

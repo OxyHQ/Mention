@@ -47,7 +47,7 @@ import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { eq, inArray } from 'drizzle-orm';
-import type { AccountMember, AccountNode } from '@oxyhq/core';
+import type { AccountMember, AccountNode } from '@oxy.so/core';
 
 const mocks = vi.hoisted(() => ({
   getUsersByIds: vi.fn(),
@@ -122,7 +122,7 @@ vi.mock('../../utils/push', () => ({
 }));
 
 import { closePostgres, connectPostgres, getDb, type Database } from '../../db/postgres';
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 import { notifications } from '../../db/schema/discovery';
 import { muteWords } from '../../db/schema/engagement';
 import type { PostRecordInput } from '../../db/posts/postRecord';

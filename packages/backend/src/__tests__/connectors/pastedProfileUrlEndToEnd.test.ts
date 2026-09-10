@@ -88,7 +88,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
-vi.mock('@oxyhq/core/server', () => ({ getRequiredOxyUserId: () => 'local-user-1' }));
+vi.mock('@oxy.so/core/server', () => ({ getRequiredOxyUserId: () => 'local-user-1' }));
 vi.mock('../../middleware/rateLimiter', () => ({
   apiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));

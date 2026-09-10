@@ -8,7 +8,7 @@
  * person two parallel follows of one topic.
  *
  * The chip's press rule used to be tested here too. It is now
- * `resolveFollowPrimaryAction` from `@oxyhq/services`, tested where it lives;
+ * `resolveFollowPrimaryAction` from `@oxy.so/services`, tested where it lives;
  * what remains on this side is routing its answer to a mutation, which the
  * `never` arm at the call site turns into a type error rather than a silent
  * no-op.

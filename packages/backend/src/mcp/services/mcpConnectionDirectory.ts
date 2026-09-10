@@ -10,7 +10,7 @@
  * The two write calls go out under Mention's SERVICE credential — the MCP
  * bearer is the subject of the request, never the credential for it.
  *
- * `@oxyhq/mcp` 0.6.0 ships the same two calls as `requestOxyMcpAccountLink` /
+ * `@oxy.so/mcp` 0.6.0 ships the same two calls as `requestOxyMcpAccountLink` /
  * `selectOxyMcpConnectionAccount` and the connection parser as
  * `mcpConnectionStateFrom`; this module is the same contract against the 0.5.x
  * the workspace resolves today, and collapses into those helpers when the

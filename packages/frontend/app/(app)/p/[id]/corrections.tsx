@@ -3,8 +3,8 @@ import { ScrollView, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { useAuth } from '@oxy.so/services/ui/client';
 
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';

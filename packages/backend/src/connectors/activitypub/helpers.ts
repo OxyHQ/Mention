@@ -2,7 +2,7 @@ import { and, eq, sql, type SQL } from 'drizzle-orm';
 import { logger } from '../../utils/logger';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { createSignedFetch, type SignedFetch } from '@oxyhq/federation/node';
+import { createSignedFetch, type SignedFetch } from '@oxy.so/federation/node';
 import { getPublicKey, signViaOxy } from './crypto';
 import {
   AP_CONTENT_TYPE,
@@ -13,7 +13,7 @@ import { PostVisibility, type MediaItem } from '@mention/shared-types';
 import { extractApMediaFromNote, type ApMediaType } from './apMedia';
 import { normalizeHashtag } from '../../utils/textProcessing';
 import { clampFutureDate } from '../../utils/ingestTimestamp';
-import { assertSafePublicUrl } from '@oxyhq/core/server';
+import { assertSafePublicUrl } from '@oxy.so/core/server';
 import { fetchUpstreamSingleHop, type SingleHopResult } from '../../utils/safeUpstreamFetch';
 import { isAbsoluteHttpUrl, getRemoteHost } from '../shared/url';
 
@@ -306,7 +306,7 @@ function getSignedFetch(): SignedFetch {
  * Sign a GET request using the instance actor key pair (managed by Oxy) and
  * perform it under the SSRF-safe contract.
  *
- * The signing + per-hop re-signing redirect policy lives in `@oxyhq/federation`
+ * The signing + per-hop re-signing redirect policy lives in `@oxy.so/federation`
  * (`createSignedFetch`); Mention supplies the private-key custody (`signViaOxy`,
  * which calls oxy-api — the key never enters Mention), the instance keyId, and
  * the SSRF-safe single-hop transport ({@link fetchUpstreamSingleHop}, which

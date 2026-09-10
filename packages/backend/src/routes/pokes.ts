@@ -1,12 +1,12 @@
 import { Router, Response } from 'express';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { pokes } from '../db/schema/engagement';
 import { createNotification } from '../utils/notificationUtils';
 import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 
 const router = Router();
 

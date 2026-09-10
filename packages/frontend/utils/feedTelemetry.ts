@@ -10,7 +10,7 @@ import {
 import { feedService } from '@/services/feedService';
 import { trendingService } from '@/services/trendingService';
 import { applyServerViewCounts } from '@/stores/postsStore';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { FeedFilters } from './feedUtils';
 
 /**

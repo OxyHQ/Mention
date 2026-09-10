@@ -80,7 +80,7 @@
  *     bun packages/backend/dist/src/scripts/purgeBlockedDomainPlatformData.js
  */
 
-import { canonicalFederationHost } from '@oxyhq/federation';
+import { canonicalFederationHost } from '@oxy.so/federation';
 import { getOxyServiceCredentials } from '../config';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
@@ -551,7 +551,7 @@ export async function purgeDomainOnPlatform(
       throw new DryRunViolationError(options.dryRun, result.dryRun);
     }
 
-    // Both ends canonicalise with `@oxyhq/federation`, so these agree unless the
+    // Both ends canonicalise with `@oxy.so/federation`, so these agree unless the
     // two deployments hold different versions of it — the exact drift that makes
     // a block and a deletion target different hosts. Refuse the domain rather
     // than accept a purge aimed at a host we did not name.

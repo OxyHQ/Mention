@@ -7,7 +7,7 @@ import { focusManager, onlineManager } from '@tanstack/react-query';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useState } from "react";
 import { AppState, Platform, type AppStateStatus } from "react-native";
-import { BloomProvider } from '@oxyhq/bloom/provider';
+import { BloomProvider } from '@oxy.so/bloom/provider';
 import { APP_DEFAULT_COLOR_PRESET } from '@/lib/colorEntitlement';
 
 // Components
@@ -16,8 +16,8 @@ import { NotificationPermissionGate } from '@/components/NotificationPermissionG
 import { PwaHead } from '@/components/PwaHead';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { AuthRouter } from '@/components/providers/AuthRouter';
-import { PortalOutlet, PortalProvider } from '@oxyhq/bloom/portal';
-import { MediaFlightLayer } from '@oxyhq/bloom/media-flight';
+import { PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
+import { MediaFlightLayer } from '@oxy.so/bloom/media-flight';
 
 // Hooks
 import { useHapticsStore } from '@/stores/hapticsStore';
@@ -28,7 +28,7 @@ import { queryClient } from '@/lib/queryClient';
 import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { AppInitializer } from '@/lib/appInitializer';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { configureAppLogging } from '@/lib/logging';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
 import { registerSocketBfcacheRelease } from '@/lib/socketBfcache';

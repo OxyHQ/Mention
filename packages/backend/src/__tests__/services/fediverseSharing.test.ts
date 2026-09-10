@@ -19,7 +19,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
-vi.mock('@oxyhq/core', () => ({
+vi.mock('@oxy.so/core', () => ({
   isNotFoundError: (...args: unknown[]) => mocks.isNotFoundError(...args),
 }));
 

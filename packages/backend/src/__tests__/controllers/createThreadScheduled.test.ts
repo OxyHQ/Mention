@@ -45,7 +45,7 @@ vi.mock('../../utils/notificationUtils', async (importOriginal) => ({
   createMentionNotifications: hoisted.createMentionNotifications,
 }));
 
-import { uuidv7 } from '@oxyhq/db';
+import { uuidv7 } from '@oxy.so/db';
 
 /**
  * A PLAIN record, not a Mongoose document.

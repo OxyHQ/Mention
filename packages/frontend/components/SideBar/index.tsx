@@ -13,7 +13,7 @@ import { useIsScreenNotMobile, useIsSideBarExpanded } from "@/hooks/useOptimized
 import { useTranslation } from "react-i18next";
 import { useUnreadCount } from "@/hooks/useUnreadCount";
 import { SideBarItem } from "./SideBarItem";
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 import { Home, HomeActive } from "@/assets/icons/home-icon";
@@ -25,11 +25,11 @@ import { List, ListActive } from "@/assets/icons/list-icon";
 import { Video, VideoActive } from "@/assets/icons/video-icon";
 import { Hashtag, HashtagActive } from "@/assets/icons/hashtag-icon";
 import { ChannelIcon, ChannelIconActive } from "@/assets/icons/channel-icon";
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { ProfileButton } from '@oxyhq/services';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { ProfileButton } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { asViewStyle, type WebViewStyle } from '@/types/webStyles';
 

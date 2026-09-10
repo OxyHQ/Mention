@@ -2,19 +2,19 @@ import React, { useCallback, useEffect, useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useAuth } from '@oxyhq/services/ui/client';
-import { toast } from '@oxyhq/bloom/toast';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 
 import { BaseWidget } from './BaseWidget';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import type { Room } from '@/lib/syraApi';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
 import { useUserById } from '@/hooks/useCachedUser';
 import { useWidgetItemMenu } from '@/hooks/useWidgetItemMenu';
 import { shareLink } from '@/utils/shareLink';
 import { WEB_BASE_URL } from '@/config';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { LIVE_INDICATOR_COLOR } from '@/styles/colors';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
 

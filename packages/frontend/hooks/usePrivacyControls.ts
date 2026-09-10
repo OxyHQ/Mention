@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
-import type { BlockedUser, RestrictedUser } from '@oxyhq/core';
+import type { BlockedUser, RestrictedUser } from '@oxy.so/core';
 import { usePrivacyStore } from '@/stores/privacyStore';
-import { logger } from '@oxyhq/core/logger';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { logger } from '@oxy.so/core/logger';
+import { useAuth } from '@oxy.so/services/ui/client';
 
 interface UsePrivacyControlsOptions {
     autoRefresh?: boolean;

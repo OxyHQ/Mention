@@ -8,7 +8,7 @@
  * throwaway Postgres — see the block below, which must stay FIRST in this file.
  */
 import { afterAll, beforeAll, expect, vi } from 'vitest';
-import { dropTestDatabase } from '@oxyhq/db/testing';
+import { dropTestDatabase } from '@oxy.so/db/testing';
 import { createTestDatabase } from '../db/testDatabase';
 import { needsIsolatedDatabase } from './isolatedDatabaseFiles';
 

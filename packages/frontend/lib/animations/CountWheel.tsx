@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import Animated, { LayoutAnimationConfig, useReducedMotion } from 'react-native-reanimated';
 
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import {
   countEnterFromAbove,
   countEnterFromBelow,

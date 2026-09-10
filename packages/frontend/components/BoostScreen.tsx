@@ -11,9 +11,9 @@ import {
     Platform,
     ScrollView,
 } from "react-native";
-import { toast } from '@oxyhq/bloom/toast';
-import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { toast } from '@oxy.so/bloom/toast';
+import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import type { CreateBoostRequest } from '@mention/shared-types/feed';
 import type { FeedItem } from '@/db';
@@ -21,12 +21,12 @@ import PostContentText from '@/components/Post/PostContentText';
 
 import UserName from "./UserName";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "@oxyhq/services/ui/client";
-import { getNormalizedUserHandle } from "@oxyhq/core";
+import { useAuth } from "@oxy.so/services/ui/client";
+import { getNormalizedUserHandle } from "@oxy.so/core";
 import { usePostsStore } from "../stores/postsStore";
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 
 const MAX_CHARACTERS = 280;
 

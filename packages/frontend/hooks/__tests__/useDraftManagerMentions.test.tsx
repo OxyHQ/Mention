@@ -2,8 +2,8 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { useDraftManager } from '../useDraftManager';
 
-jest.mock('@oxyhq/core/logger', () => ({
-  ...jest.requireActual('@oxyhq/core/logger'),
+jest.mock('@oxy.so/core/logger', () => ({
+  ...jest.requireActual('@oxy.so/core/logger'),
   logger: {
     error: jest.fn(),
   },

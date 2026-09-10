@@ -1,9 +1,9 @@
 /**
- * Mention RecordStore — the @oxyhq/protocol {@link RecordStore} implementation
+ * Mention RecordStore — the @oxy.so/protocol {@link RecordStore} implementation
  * over Mention's `mention_signed_records` + `mention_repo_heads` Postgres tables.
  *
  * This is the storage HALF of the MTN chain adapter: the protocol engine
- * (`@oxyhq/protocol`'s `verifyAndAppend`) owns verification + continuity policy
+ * (`@oxy.so/protocol`'s `verifyAndAppend`) owns verification + continuity policy
  * and delegates every read/write here.
  *
  * The store is **subject-keyed by the subject DID** (the protocol's notion of a
@@ -38,10 +38,10 @@
  */
 
 import { and, asc, eq, gt, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
-import type { AppendOutcome, ChainHead, RecordStore } from '@oxyhq/protocol';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
+import type { AppendOutcome, ChainHead, RecordStore } from '@oxy.so/protocol';
 import { getDb } from '../../db/postgres';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import {
   MTN_CHAIN_STATUSES,
   mentionRepoHeads,
@@ -122,7 +122,7 @@ const ENVELOPE_ISSUED_AT: SQL = sql`(${mentionSignedRecords.envelope} ->> 'issue
  *
  * This is the order the rest of the MTN layer already states —
  * `incomingWinsLww` in `MentionNodeSyncService` is the same two comparisons in
- * TypeScript, and `@oxyhq/protocol`'s `RecordStore` contract calls
+ * TypeScript, and `@oxy.so/protocol`'s `RecordStore` contract calls
  * `materializeCurrent` "last-writer-wins" and `latestIssuedAtForKey` "the
  * monotonicity frontier ... (replay/rollback defence)". Both of those are
  * statements about `issuedAt`, so `issuedAt` has to be what the SQL sorts on.

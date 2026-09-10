@@ -35,7 +35,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AccountMember, AccountNode, User } from '@oxyhq/core';
+import type { AccountMember, AccountNode, User } from '@oxy.so/core';
 import type { CachedUserSummary } from '../../services/userSummaryCache';
 
 const { getUsersByIds, cacheStore, listAccounts, listAccountMembers, claim } = vi.hoisted(() => ({

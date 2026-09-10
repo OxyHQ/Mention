@@ -13,7 +13,7 @@
  *  - the Redis {@link userSummaryCache} entry — the shared, cross-task copy that
  *    `PostHydrationService` reads for every post author;
  *  - the GET response cache of BOTH process-level Oxy clients (service and
- *    runtime). Those are per-PROCESS in-memory caches inside `@oxyhq/core`, so
+ *    runtime). Those are per-PROCESS in-memory caches inside `@oxy.so/core`, so
  *    the Redis eviction alone would leave each task serving its own stale copy
  *    of `GET /users/:id` for another five minutes.
  *
@@ -29,11 +29,11 @@
  * may throw into server startup.
  */
 
-import { OXY_USER_INVALIDATION_CHANNEL } from '@oxyhq/contracts';
+import { OXY_USER_INVALIDATION_CHANNEL } from '@oxy.so/contracts';
 import {
   createOxyUserInvalidationHandler,
   type OxyIdentityCacheEvictor,
-} from '@oxyhq/core/server';
+} from '@oxy.so/core/server';
 
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { createRedisPubSub } from '../utils/redis';

@@ -1,11 +1,11 @@
 import React from 'react';
 import { View, ScrollView } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
-import { Switch } from '@oxyhq/bloom/switch';
-import { Admonition } from '@oxyhq/bloom/admonition';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { Loading } from '@oxy.so/bloom/loading';
+import { Switch } from '@oxy.so/bloom/switch';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useTranslation } from 'react-i18next';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import {
   EXTERNAL_EMBED_SOURCES,
   externalEmbedLabels,

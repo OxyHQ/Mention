@@ -1,9 +1,9 @@
 import React, { memo, useCallback } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { useAuth } from '@oxy.so/services/ui/client';
 
 interface FeedFooterProps {
     showOnlySaved?: boolean;

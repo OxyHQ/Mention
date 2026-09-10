@@ -1,9 +1,9 @@
 import React, { useCallback } from 'react';
 import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Dialog, type DialogControlProps } from '@oxyhq/bloom/dialog';
-import { Admonition } from '@oxyhq/bloom/admonition';
-import { Button } from '@oxyhq/bloom/button';
+import { Dialog, type DialogControlProps } from '@oxy.so/bloom/dialog';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { Button } from '@oxy.so/bloom/button';
 import {
   EXTERNAL_EMBED_SOURCES,
   externalEmbedLabels,

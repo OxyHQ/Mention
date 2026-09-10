@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import type { ActivityHeatmapDay } from '@oxyhq/bloom/activity-heatmap';
+import type { ActivityHeatmapDay } from '@oxy.so/bloom/activity-heatmap';
 import { api } from '@/utils/api';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const ACTIVITY_STALE_TIME = 5 * 60 * 1000; // 5 minutes

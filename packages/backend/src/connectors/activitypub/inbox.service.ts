@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
-import { isApActorType } from '@oxyhq/federation';
-import { createInboundDispatcher } from '@oxyhq/federation/node';
+import { isApActorType } from '@oxy.so/federation';
+import { createInboundDispatcher } from '@oxy.so/federation/node';
 import { logger } from '../../utils/logger';
 import { findActorByUri } from '../../db/federation/actorRepository';
 import {
@@ -94,7 +94,7 @@ function summarizeZodError(error: z.ZodError): string {
  * / Announce / Update, and a non-follow Undo) delivered to a local user's inbox.
  *
  * The protocol DISPATCH + the follow lifecycle (Follow / Accept / Undo(Follow) /
- * Reject) now live in `@oxyhq/federation`'s inbound dispatcher (`inboundDispatcher`,
+ * Reject) now live in `@oxy.so/federation`'s inbound dispatcher (`inboundDispatcher`,
  * wired at the bottom of this module) — it validates the untrusted activity, bridges
  * the Oxy follow edge (via the identity adapter → {@link bridgeFollowEdge}), and
  * hands every CONTENT verb to {@link InboxProcessingService.onContentActivity}. This

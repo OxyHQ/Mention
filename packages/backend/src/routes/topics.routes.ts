@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { topicService } from '../services/TopicService';
-import { TopicType } from '@oxyhq/core';
+import { TopicType } from '@oxy.so/core';
 import { queryInt, queryString } from '../utils/queryParams';
 
 const router = Router();

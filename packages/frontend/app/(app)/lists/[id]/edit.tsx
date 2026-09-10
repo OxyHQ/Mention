@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, type TextStyle } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { toast } from '@oxyhq/bloom/toast';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
+import { useTheme } from '@oxy.so/bloom/theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { queryKeys } from '@oxyhq/services';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { queryKeys } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 
 import { ThemedView } from '@/components/ThemedView';
@@ -17,9 +17,9 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { listsService } from '@/services/listsService';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { queryClient } from '@/lib/queryClient';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 

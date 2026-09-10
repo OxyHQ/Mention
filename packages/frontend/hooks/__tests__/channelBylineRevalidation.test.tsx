@@ -73,8 +73,8 @@ jest.mock('@/db', () => ({
     isDbAvailable: jest.fn(() => mockDbAvailable),
 }));
 
-jest.mock('@oxyhq/core/logger', () => ({
-    ...jest.requireActual('@oxyhq/core/logger'),
+jest.mock('@oxy.so/core/logger', () => ({
+    ...jest.requireActual('@oxy.so/core/logger'),
     createLogger: () => ({ debug: jest.fn(), error: jest.fn(), warn: jest.fn() }),
 }));
 

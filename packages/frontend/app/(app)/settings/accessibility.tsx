@@ -8,7 +8,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Toggle } from '@/components/Toggle';
 import { useTranslation } from 'react-i18next';
 import { useHapticsStore } from '@/stores/hapticsStore';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
 
 export default function AccessibilitySettingsScreen() {

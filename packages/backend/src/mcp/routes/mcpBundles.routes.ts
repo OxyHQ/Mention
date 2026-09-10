@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { extractBearerToken } from '@oxyhq/mcp';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
+import { extractBearerToken } from '@oxy.so/mcp';
 import { findLiveBundleMember } from '../../db/mcp/mcpConnectionRepository';
 import {
   listBundleMembers,

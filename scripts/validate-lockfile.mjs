@@ -89,7 +89,7 @@ const ALLOWED_PACKAGE_NAME_ALIASES = [
 // the Oxy release cadence, even though the root override is authoritative. That
 // leaves the bundle able to reach Services code importing removed Bloom APIs.
 // Keep this a lockfile property rather than trusting the hoisted package only.
-const OXY_RUNTIME_SINGLETONS = ["@oxyhq/bloom", "@oxyhq/core", "@oxyhq/services"];
+const OXY_RUNTIME_SINGLETONS = ["@oxy.so/bloom", "@oxy.so/core", "@oxy.so/services"];
 
 /**
  * Override-masked range violations that are deliberate, keyed
@@ -297,7 +297,7 @@ for (const packageName of OXY_RUNTIME_SINGLETONS) {
     );
   }
 
-  if (["@oxyhq/core", "@oxyhq/services"].includes(packageName)) {
+  if (["@oxy.so/core", "@oxy.so/services"].includes(packageName)) {
     const overrideRange = rootManifest.overrides?.[packageName];
     if (overrideRange !== catalogRange) {
       failures.push(

@@ -1,4 +1,4 @@
-import type { CatalogTool } from "@oxyhq/contracts";
+import type { CatalogTool } from "@oxy.so/contracts";
 
 export const MENTION_MCP_RESOURCE = "https://mcp.mention.earth";
 export const MENTION_CAPABILITY_AUDIENCE = "mention-api";

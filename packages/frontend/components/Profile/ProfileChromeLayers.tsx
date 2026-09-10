@@ -1,7 +1,7 @@
 import React from 'react';
 import { Animated, ImageBackground, Platform, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import UserName from '@/components/UserName';
 import { PANEL_HEADER_HEIGHT } from '@/components/shell/PanelChrome';

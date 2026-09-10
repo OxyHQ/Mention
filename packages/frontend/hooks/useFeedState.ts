@@ -14,7 +14,7 @@ import {
     buildFeedScrollKey,
     mergeFeedPageContent,
 } from '@/utils/feedUtils';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { useDeepCompareEffect } from './useDeepCompare';
 import { buildFeedKey, hasFeedData, isDbAvailable } from '@/db';
 import { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';

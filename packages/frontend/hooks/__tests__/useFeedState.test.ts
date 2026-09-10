@@ -2,7 +2,7 @@
  * Tests for the feed memory-mode gate (resolveUseMemoryFeed).
  *
  * We test the pure utility function from `utils/feedMemoryMode` which has zero
- * runtime dependencies. This avoids pulling in SQLite, Zustand, @oxyhq/core ESM
+ * runtime dependencies. This avoids pulling in SQLite, Zustand, @oxy.so/core ESM
  * and other modules that don't transform cleanly in the jest-expo environment.
  *
  * The gate is the root cause of the production bug (web feed empty after SDK 56):

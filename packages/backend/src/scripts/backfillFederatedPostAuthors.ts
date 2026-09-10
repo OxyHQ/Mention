@@ -104,7 +104,7 @@ import { actorService } from '../connectors/activitypub/actor.service';
 import { extractActorUri, signedFetch, asRecord } from '../connectors/activitypub/helpers';
 import { deriveBridgyActorUri } from '../connectors/activitypub/bridgy';
 import { AP_CONTENT_TYPE } from '../connectors/activitypub/constants';
-import { assertSafePublicUrl } from '@oxyhq/core/server';
+import { assertSafePublicUrl } from '@oxy.so/core/server';
 import { buildAuthorship } from '../utils/postAuthorship';
 import { logger } from '../utils/logger';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';

@@ -1,5 +1,5 @@
-import { TopicType } from '@oxyhq/core';
-import type { TopicData, TopicTranslation } from '@oxyhq/core';
+import { TopicType } from '@oxy.so/core';
+import type { TopicData, TopicTranslation } from '@oxy.so/core';
 import type { ClassificationTopicRef } from '@mention/shared-types';
 import { asc, desc, gte, sql } from 'drizzle-orm';
 import { getDb } from '../db/postgres';

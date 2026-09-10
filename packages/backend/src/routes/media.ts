@@ -4,7 +4,7 @@ import rateLimit from 'express-rate-limit';
 import { logger } from '../utils/logger';
 import { RedisStore } from '../middleware/rateLimitStore';
 import { hashedIpKey } from '../utils/ipKey';
-import { SsrfRejection, assertSafePublicUrl } from '@oxyhq/core/server';
+import { SsrfRejection, assertSafePublicUrl } from '@oxy.so/core/server';
 import {
   UpstreamResult,
   contentTypeFamily,

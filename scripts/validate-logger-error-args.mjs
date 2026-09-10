@@ -2,7 +2,7 @@
 
 /**
  * Rejects `logger.error(message, { … })` for loggers that come from
- * `@oxyhq/core/logger`.
+ * `@oxy.so/core/logger`.
  *
  * That SDK signature is `error(message, error?, context?)` — the SECOND
  * argument is the error itself, and the THIRD is context. Passing a wrapper
@@ -47,7 +47,7 @@ const repositoryRoot = process.env.LOGGER_VALIDATOR_ROOT
   : resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** The module whose `error()` puts the error in the second argument. */
-const SDK_LOGGER_MODULE = "@oxyhq/core/logger";
+const SDK_LOGGER_MODULE = "@oxy.so/core/logger";
 
 /** Package source roots that may import the SDK logger. */
 const SOURCE_ROOTS = [
@@ -90,7 +90,7 @@ async function collectSourceFiles(directory, collected) {
 
 /**
  * The identifiers in `source` that hold an SDK logger: the names imported from
- * `@oxyhq/core/logger`, plus anything assigned from a `createLogger(...)` /
+ * `@oxy.so/core/logger`, plus anything assigned from a `createLogger(...)` /
  * `.child(...)` call on one of them.
  */
 function sdkLoggerIdentifiers(source) {

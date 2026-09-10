@@ -3,7 +3,7 @@ import type {
   NetworkConnector,
   NormalizedExternalActor,
   LocalNetworkEvent,
-} from '@oxyhq/federation';
+} from '@oxy.so/federation';
 import { logger } from '../utils/logger';
 import { isFediverseSharingEnabled } from '../services/fediverseSharing';
 import { toFederationPostPayload } from '../services/serviceRegistry';
@@ -24,7 +24,7 @@ type DurableNetworkConnector = NetworkConnector<PostContent> & {
  * {@link DurableNetworkConnector} and for the same reason: the upstream
  * `NetworkConnector` contract has no slot for it, and a connector that cannot do
  * it simply does not implement the method — the registry falls back to plain
- * `deliver`, so nothing has to be widened in `@oxyhq/federation` for one app's
+ * `deliver`, so nothing has to be widened in `@oxy.so/federation` for one app's
  * addressing need.
  *
  * The parameter is a list of Oxy user ids, NOT inboxes, so it stays

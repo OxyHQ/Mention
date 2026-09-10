@@ -13,7 +13,7 @@ interface KotlinRole {
   night: string;
 }
 
-const BLOOM_ROOT = dirname(require.resolve('@oxyhq/bloom/package.json'));
+const BLOOM_ROOT = dirname(require.resolve('@oxy.so/bloom/package.json'));
 
 // These are Bloom implementation modules rather than app runtime imports. The
 // widget cannot execute JavaScript, so the test deliberately runs the installed

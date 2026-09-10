@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 
 interface MiniChartProps {
     values: number[];
@@ -154,4 +154,3 @@ const styles = StyleSheet.create({
 });
 
 export default MiniChart;
-

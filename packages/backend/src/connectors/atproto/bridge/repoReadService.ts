@@ -31,7 +31,7 @@ import {
   PostVisibility,
 } from '@mention/shared-types';
 import { and, desc, eq, inArray, or } from 'drizzle-orm';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { getDb } from '../../../db/postgres';
 import { mentionSignedRecords } from '../../../db/schema/mtn';
 import { posts } from '../../../db/schema/posts';

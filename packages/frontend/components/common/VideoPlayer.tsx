@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { View, Pressable, StyleSheet, Text, Platform, type StyleProp, type ViewStyle, type GestureResponderEvent } from 'react-native';
 import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer, type VideoPlayer as ExpoVideoPlayer } from 'expo-video';
-import { MediaFlightHost, type MediaFlightHostProps } from '@oxyhq/bloom/media-flight';
+import { MediaFlightHost, type MediaFlightHostProps } from '@oxy.so/bloom/media-flight';
 import { useEvent, useEventListener } from 'expo';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
@@ -77,7 +77,7 @@ interface VideoPlayerProps {
 
 /**
  * The slot's own props. `MediaVideoSlotProps` is not exported from
- * `@oxyhq/bloom/media-flight`, so it is derived from the prop that takes it —
+ * `@oxy.so/bloom/media-flight`, so it is derived from the prop that takes it —
  * which is exported, and which stays right if the slot's shape ever changes.
  */
 type FlightVideoSlotProps = Parameters<NonNullable<MediaFlightHostProps['renderVideo']>>[0];

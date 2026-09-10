@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 /**
  * Route-level regression proof for `/media/proxy` AFTER the Phase 1 SSRF
- * convergence onto `@oxyhq/core/server`. The transport's SSRF blocking (private
+ * convergence onto `@oxy.so/core/server`. The transport's SSRF blocking (private
  * IP / redirect-to-internal) is proven against the REAL core guard in
  * `utils/safeUpstreamFetchSsrf.test.ts`; here we prove the Mention-ONLY
  * protections that live in the route (NOT in core's safeFetch) still hold:
@@ -37,11 +37,11 @@ vi.mock('../../middleware/rateLimitStore', () => ({
 /**
  * The route pre-validates the caller-supplied URL with the real core guard, which
  * would resolve DNS for the fake `remote.example` host. Stub only that function;
- * the rest of `@oxyhq/core/server` stays real. Per-hop SSRF blocking is proven
+ * the rest of `@oxy.so/core/server` stays real. Per-hop SSRF blocking is proven
  * against the real guard in `utils/safeUpstreamFetchSsrf.test.ts`.
  */
-vi.mock('@oxyhq/core/server', async () => {
-  const actual = await vi.importActual<typeof import('@oxyhq/core/server')>('@oxyhq/core/server');
+vi.mock('@oxy.so/core/server', async () => {
+  const actual = await vi.importActual<typeof import('@oxy.so/core/server')>('@oxy.so/core/server');
   return {
     ...actual,
     assertSafePublicUrl: async () => ({ ok: true, ip: '203.0.113.10', family: 4 }),

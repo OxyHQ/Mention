@@ -17,7 +17,7 @@
  * The module is platform-split — `chunkReload.native.ts` is a no-op.
  */
 
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 
 /** sessionStorage key holding the epoch-ms of the last recovery reload. */
 const RELOAD_STAMP_KEY = 'mention:chunkReloadAt';

@@ -45,10 +45,10 @@ jest.mock('@shopify/flash-list', () => {
     return { __esModule: true, FlashList };
 });
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
     useTheme: () => ({ colors: { primary: '#1d9bf0', background: '#fff' } }),
 }));
-jest.mock('@oxyhq/bloom/loading', () => ({ Loading: () => null }));
+jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
 
 // eslint-disable-next-line import/first -- the mocks above must be installed first.
 import { NotificationsList } from '../NotificationsList.native';

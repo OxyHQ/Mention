@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { ActivityIndicator, Pressable } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
 interface SongPreviewButtonProps {

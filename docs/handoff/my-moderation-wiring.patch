@@ -25,7 +25,7 @@ index a8e6c4b0..22363626 100644
 +  REPORT_CATEGORIES,
 +  REPORT_STATUSES,
 +} from '../db/schema/moderation';
- import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
  import {
    DuplicateReportError,
 @@ -31,9 +35,9 @@ const MAX_REPORTS_PAGE_SIZE = 100;

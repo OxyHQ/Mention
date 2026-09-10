@@ -97,7 +97,7 @@ jest.mock('@/hooks/useFeedState', () => ({
     }),
 }));
 
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
     useAuth: () => ({
         user: { id: 'reader' },
         isAuthenticated: true,
@@ -106,13 +106,13 @@ jest.mock('@oxyhq/services/ui/client', () => ({
     }),
 }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
     useTheme: () => ({ colors: { primary: '#1d9bf0', border: '#e1e8ed', background: '#fff' } }),
 }));
-jest.mock('@oxyhq/bloom/error-boundary', () => ({
+jest.mock('@oxy.so/bloom/error-boundary', () => ({
     ErrorBoundary: ({ children }: { children?: React.ReactNode }) => children ?? null,
 }));
-jest.mock('@oxyhq/bloom/scroll', () => ({ useScrollRestoration: () => undefined }));
+jest.mock('@oxy.so/bloom/scroll', () => ({ useScrollRestoration: () => undefined }));
 
 jest.mock('expo-router', () => ({
     useRouter: () => ({ push: jest.fn() }),

@@ -8,7 +8,7 @@ import type {
   FeedInterstitialSlot,
   TrendEventInput,
 } from '@mention/shared-types';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 import type { Trend } from '@/interfaces/Trend';
 import type { ProfileData } from '@/lib/recommendations';
 import type { MarketplaceFeed } from '@/services/customFeedsService';
@@ -38,7 +38,7 @@ import { TrendingTopicsInterstitial } from '../TrendingTopicsInterstitial';
  *
  * Mocks stop at the module boundary the band talks to: the data hooks/services
  * that fetch suggestions, the responsive hook that decides the layout, and the
- * SDK packages (`@oxyhq/services`, `@oxyhq/bloom`) that ship untranspiled TS
+ * SDK packages (`@oxy.so/services`, `@oxy.so/bloom`) that ship untranspiled TS
  * source. Everything from the interstitial down to the `ProfileCard` /
  * `FeedCard` / `StarterPackCard` rows — including the real telemetry module,
  * the dismiss buttons and the carousel — is the component under test.
@@ -105,7 +105,7 @@ interface FollowButtonProps {
 /** The accessible name of the single-user follow control in the mocked SDK. */
 const FOLLOW_LABEL = 'Follow';
 
-jest.mock('@oxyhq/services', () => ({
+jest.mock('@oxy.so/services', () => ({
   // The real by-id cache key, ported: the bands' avatar backfill
   // (`utils/userEnrichment`) reads `queryKeys.users.detail(id)` to skip
   // already-cached ids, so a stub-less mock would throw the moment a band
@@ -126,7 +126,7 @@ jest.mock('@oxyhq/services', () => ({
   upsertCachedUsers: jest.fn(),
 }));
 
-jest.mock('@oxyhq/services/ui/client', () => {
+jest.mock('@oxy.so/services/ui/client', () => {
   const { Text, TouchableOpacity } =
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -200,7 +200,7 @@ jest.mock('@/lib/queryClient', () => {
 });
 
 /**
- * `@oxyhq/core` resolves to its ESM build under jest. Only one runtime export
+ * `@oxy.so/core` resolves to its ESM build under jest. Only one runtime export
  * reaches these components — the app-wide handle rule — so it is ported here
  * verbatim (username, qualified with the instance for a federated actor, null
  * when there is no username: the ghost-handle rule).
@@ -214,7 +214,7 @@ interface HandleUser {
   federation?: { domain?: string | null };
 }
 
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user?: HandleUser | null): string | null => {
     const username = (user?.username ?? user?.handle ?? '').trim().replace(/^@/, '');
     if (username.length === 0) return null;
@@ -227,17 +227,17 @@ jest.mock('@oxyhq/core', () => ({
   },
 }));
 
-jest.mock('@oxyhq/bloom/avatar', () => {
+jest.mock('@oxy.so/bloom/avatar', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Avatar: () => <View testID="avatar" /> };
 });
 
-jest.mock('@oxyhq/bloom/avatar-group', () => {
+jest.mock('@oxy.so/bloom/avatar-group', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return { AvatarGroup: () => <View testID="avatar-group" /> };
 });
 
-jest.mock('@oxyhq/bloom/skeleton', () => {
+jest.mock('@oxy.so/bloom/skeleton', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   const Box = ({ children }: { children?: React.ReactNode }) => (
     <View testID="skeleton">{children}</View>
@@ -245,24 +245,24 @@ jest.mock('@oxyhq/bloom/skeleton', () => {
   return { Row: Box, Col: Box, Text: Box, Circle: Box, Pill: Box, Box };
 });
 
-jest.mock('@oxyhq/bloom/pressable-scale', () => {
+jest.mock('@oxy.so/bloom/pressable-scale', () => {
   const { TouchableOpacity } =
     jest.requireActual<typeof import('react-native')>('react-native');
   return { PressableScale: TouchableOpacity };
 });
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { primary: '#0000ff' } }),
 }));
 
-jest.mock('@oxyhq/bloom/loading', () => {
+jest.mock('@oxy.so/bloom/loading', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return { SpinnerIcon: () => <View testID="spinner" /> };
 });
 
-jest.mock('@oxyhq/bloom/toast', () => ({ toast: jest.fn() }));
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 
-jest.mock('@oxyhq/bloom/button', () => {
+jest.mock('@oxy.so/bloom/button', () => {
   const { TouchableOpacity } =
     jest.requireActual<typeof import('react-native')>('react-native');
   return { Button: TouchableOpacity };

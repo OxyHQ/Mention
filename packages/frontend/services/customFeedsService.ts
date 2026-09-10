@@ -7,7 +7,7 @@ import type {
   PostUser,
   UpdateCustomFeedRequest,
 } from '@mention/shared-types';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { normalizeApiError } from '@/utils/apiError';
 
 interface CustomFeedListParams {

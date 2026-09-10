@@ -2,8 +2,8 @@ import React from 'react';
 import { View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services/ui/client';
-import { useBloomTheme } from '@oxyhq/bloom/theme';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { useBloomTheme } from '@oxy.so/bloom/theme';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { usePostsStore } from '@/stores/postsStore';
 import { usePrivacyStore } from '@/stores/privacyStore';
@@ -41,18 +41,18 @@ jest.mock('@tanstack/react-query', () => ({
   useQueryClient: jest.fn(),
 }));
 
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: jest.fn(),
 }));
 
 // The provider reads the account's declared locales through the SDK. Mocked to
 // its identity behaviour, like every other SDK boundary in this suite, so the
 // barrel (and the crypto polyfill behind it) stays out of the module graph.
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getUserLanguages: (user: { languages?: string[] } | null | undefined) => user?.languages ?? [],
 }));
 
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useBloomTheme: jest.fn(),
 }));
 

@@ -18,8 +18,8 @@ import TestRenderer from 'react-test-renderer';
 
 const mockError = jest.fn();
 
-jest.mock('@oxyhq/core/logger', () => ({
-    ...jest.requireActual('@oxyhq/core/logger'),
+jest.mock('@oxy.so/core/logger', () => ({
+    ...jest.requireActual('@oxy.so/core/logger'),
     createLogger: () => ({ error: (...args: unknown[]) => mockError(...args) }),
 }));
 

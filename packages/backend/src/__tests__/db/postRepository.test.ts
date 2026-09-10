@@ -27,7 +27,7 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 import type { StoredPostContent } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { isCheckViolation, uuidv7 } from '@oxyhq/db';
+import { isCheckViolation, uuidv7 } from '@oxy.so/db';
 import { posts } from '../../db/schema/posts';
 import { postAuthorships, postContentVariants } from '../../db/schema/postContent';
 import {

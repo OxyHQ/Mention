@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Dialog, useDialogControl, type DialogAction } from '@oxyhq/bloom/dialog';
+import { Dialog, useDialogControl, type DialogAction } from '@oxy.so/bloom/dialog';
 import type { ConfirmOptions } from '@/utils/alerts';
 
 type ConfirmRequest = ConfirmOptions & {

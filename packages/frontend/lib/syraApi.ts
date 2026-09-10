@@ -1,7 +1,7 @@
-import type { LinkedHttpClient } from '@oxyhq/core';
+import type { LinkedHttpClient } from '@oxy.so/core';
 import { oxyServices } from '@/lib/oxyServices';
 import { SYRA_API_URL } from '@/config';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 /** Lightweight authenticated Syra HTTP client; no LiveKit or UI imports. */
 export const syraLinkedClient: LinkedHttpClient['client'] =

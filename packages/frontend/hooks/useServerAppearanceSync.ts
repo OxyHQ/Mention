@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useAppearanceStore } from '@/stores/appearanceStore';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 
 /**
  * Loads the viewer's Mention appearance settings (post-text length, read-more

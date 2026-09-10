@@ -12,7 +12,7 @@ import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { getDb } from '../../db/postgres';
 import { posts as postsTable } from '../../db/schema/posts';
 import { CHRONO_DESC, findPostRecords } from '../../db/posts/postRepository';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { config } from '../../config';

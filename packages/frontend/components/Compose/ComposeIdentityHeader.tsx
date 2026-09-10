@@ -1,6 +1,6 @@
 import React, { memo, useMemo } from 'react';
-import { useAuth } from '@oxyhq/services/ui/client';
-import { getNormalizedUserHandle, type AccountNode, type User } from '@oxyhq/core';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { getNormalizedUserHandle, type AccountNode, type User } from '@oxy.so/core';
 import type { HydratedAuthor } from '@mention/shared-types';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import PostHeader from '@/components/Post/PostHeader';

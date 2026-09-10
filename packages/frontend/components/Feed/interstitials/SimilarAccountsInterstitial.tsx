@@ -4,8 +4,8 @@ import { router, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { cacheActors } from '@/lib/actorCache';
-import { useAuth } from '@oxyhq/services/ui/client';
-import { getNormalizedUserHandle, type User } from '@oxyhq/core';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { getNormalizedUserHandle, type User } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import {
   ProfileCard,

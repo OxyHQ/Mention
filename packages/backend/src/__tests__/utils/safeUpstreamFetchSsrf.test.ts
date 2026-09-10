@@ -3,11 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 /**
  * SSRF regression proof for the media-proxy transport AFTER the Phase 1
- * convergence onto `@oxyhq/core/server`.
+ * convergence onto `@oxy.so/core/server`.
  *
  * These exercise the REAL guard: `fetchUpstreamFollowingRedirects` /
  * `fetchUpstreamSingleHop` call `assertSafePublicUrl` (now sourced from
- * `@oxyhq/core/server`) on hop 0 AND on every redirect hop. Only the socket
+ * `@oxy.so/core/server`) on hop 0 AND on every redirect hop. Only the socket
  * layer (`node:http` `request`) is mocked, so the private/metadata denylist and
  * the per-hop re-validation run for real — a redirect that points at an internal
  * address must still be rejected, never followed.
@@ -64,7 +64,7 @@ import {
   fetchUpstreamFollowingRedirects,
   fetchUpstreamSingleHop,
 } from '../../utils/safeUpstreamFetch';
-import { SsrfRejection } from '@oxyhq/core/server';
+import { SsrfRejection } from '@oxy.so/core/server';
 
 const signal = new AbortController().signal;
 

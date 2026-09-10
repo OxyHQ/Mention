@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from 'react';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { usePostsStore, useUserFeedSelector } from '@/stores/postsStore';
 import type { FeedItem } from '@/db';
 

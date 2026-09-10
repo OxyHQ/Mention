@@ -1,4 +1,4 @@
-import { canonicalFederationHost } from '@oxyhq/federation';
+import { canonicalFederationHost } from '@oxy.so/federation';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 // Type-only, so it is erased before the hoisted `vi.unmock` below runs and does
 // not pull the module in ahead of the dynamic imports.

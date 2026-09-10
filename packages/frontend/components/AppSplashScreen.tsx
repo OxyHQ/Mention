@@ -1,12 +1,12 @@
 import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import { View, Animated, StyleSheet, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { APP_COLOR_NAMES, type AppColorName, type PersistedThemeState } from '@oxyhq/bloom/theme';
-import { getPresetVars } from '@oxyhq/bloom/preset-vars';
+import { APP_COLOR_NAMES, type AppColorName, type PersistedThemeState } from '@oxy.so/bloom/theme';
+import { getPresetVars } from '@oxy.so/bloom/preset-vars';
 import { LogoIcon } from '@/assets/logo';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/lib/themePersistence';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('AppSplashScreen');
 

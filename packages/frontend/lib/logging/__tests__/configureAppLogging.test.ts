@@ -3,7 +3,7 @@ import {
   getLoggerConfig,
   resetLoggerConfig,
   type LogEntry,
-} from '@oxyhq/core/logger'
+} from '@oxy.so/core/logger'
 
 import { appLogSink, configureAppLogging } from '..'
 

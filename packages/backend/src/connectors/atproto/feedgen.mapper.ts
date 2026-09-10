@@ -1,4 +1,4 @@
-import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
+import { normalizeInlineText, normalizeMultilineText } from '@oxy.so/core';
 import { logger } from '../../utils/logger';
 import { upsertAtprotoFeedGenerator } from '../../db/feeds/feedGeneratorRepository';
 import { xrpcGet } from './xrpcClient';

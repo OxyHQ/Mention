@@ -5,19 +5,19 @@ import {
     ScrollView,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { insightsService, type AccountInsights } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import StatCard from '@/components/insights/StatCard';
 import { formatCompactNumber } from '@/utils/formatNumber';

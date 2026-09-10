@@ -14,7 +14,7 @@
  *   docker compose -f docker-compose.postgres.yml up -d postgres
  */
 
-import { dropTestDatabase } from '@oxyhq/db/testing';
+import { dropTestDatabase } from '@oxy.so/db/testing';
 import { createTestDatabase } from './src/db/testDatabase';
 
 /**

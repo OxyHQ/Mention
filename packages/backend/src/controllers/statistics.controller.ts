@@ -1,10 +1,10 @@
 import { Response } from "express";
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import { getBaseLanguage, getPrimaryLanguage } from '@oxyhq/core';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
+import { getBaseLanguage, getPrimaryLanguage } from '@oxy.so/core';
 import { and, asc, desc, eq, gte, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { PostType, PostVisibility } from '@mention/shared-types';
-import { qualified } from '@oxyhq/db';
+import { qualified } from '@oxy.so/db';
 import { getDb, type Transaction } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { postAuthorships, postContentVariants } from '../db/schema/postContent';

@@ -18,15 +18,15 @@ import Animated, {
     type AnimatedProps,
 } from 'react-native-reanimated';
 import type { FeedType } from '@mention/shared-types';
-import { ErrorBoundary } from '@oxyhq/bloom/error-boundary';
-import { useAuth } from '@oxyhq/services/ui/client';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { flattenStyleArray } from '@/styles/shared';
 import { useRouter, useIsFocused } from 'expo-router';
-import { useScrollRestoration } from '@oxyhq/bloom/scroll';
+import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { useTranslation } from 'react-i18next';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { useFeedState } from '@/hooks/useFeedState';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
 import { FeedFilters, getItemKey, shallowFiltersEqual } from '@/utils/feedUtils';

@@ -22,7 +22,7 @@ import {
   loadPostRecord,
 } from '../db/posts/postRepository';
 import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../db/posts/postRecord';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { emitPostEngagement, POST_ENGAGEMENT_EVENTS } from '../services/postEngagementBroadcast';
 import { userPreferenceService, readInteractionSurface } from '../services/UserPreferenceService';
@@ -30,7 +30,7 @@ import { affinityEventService } from '../services/AffinityEventService';
 import { postHydrationService } from '../services/PostHydrationService';
 import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
 import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility, OxyClient } from '../utils/privacyHelpers';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../utils/logger';
 import { validateAndNormalizeLimit, FEED_CONSTANTS } from '../utils/feedUtils';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy, ScoreCursor } from '../mtn/feed/CursorBuilder';

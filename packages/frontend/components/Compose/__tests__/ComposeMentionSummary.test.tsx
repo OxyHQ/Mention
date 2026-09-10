@@ -36,7 +36,7 @@ jest.mock('react-i18next', () => ({
     t: (key: string, vars?: { defaultValue?: string }) => vars?.defaultValue ?? key,
   }),
 }));
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: {} }),
 }));
 

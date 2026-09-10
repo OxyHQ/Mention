@@ -1,6 +1,6 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import {
   getDraftsStorageKey,
   useDrafts,
@@ -16,7 +16,7 @@ const mockStorageRemove = jest.fn(
   (_key: string) => Promise.resolve(true),
 );
 
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: jest.fn(),
 }));
 
@@ -28,8 +28,8 @@ jest.mock('@/utils/storage', () => ({
   },
 }));
 
-jest.mock('@oxyhq/core/logger', () => ({
-  ...jest.requireActual('@oxyhq/core/logger'),
+jest.mock('@oxy.so/core/logger', () => ({
+  ...jest.requireActual('@oxy.so/core/logger'),
   createLogger: jest.fn(() => ({
     debug: jest.fn(),
     error: jest.fn(),

@@ -16,7 +16,7 @@ import {
  * That split is deliberate: Bloom owns WHAT is gated, this owns WHETHER a given
  * viewer clears it.
  */
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   FREE_COLOR_NAMES: ['teal', 'blue', 'red'],
   HANDLE_COLOR_NAMES: ['oxy', 'faircoin'],
   PREMIUM_COLOR_NAMES: ['mono'],

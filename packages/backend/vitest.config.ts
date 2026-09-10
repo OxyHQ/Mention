@@ -348,28 +348,28 @@ export default defineConfig({
         find: /^@oxyhq\/protocol\/node$/,
         replacement: path.resolve(
           __dirname,
-          '../../node_modules/@oxyhq/protocol/dist/cjs/node/index.js',
+          '../../node_modules/@oxy.so/protocol/dist/cjs/node/index.js',
         ),
       },
       {
         find: /^@oxyhq\/protocol\/secp256k1$/,
         replacement: path.resolve(
           __dirname,
-          '../../node_modules/@oxyhq/protocol/dist/cjs/secp256k1.js',
+          '../../node_modules/@oxy.so/protocol/dist/cjs/secp256k1.js',
         ),
       },
       {
         find: /^@oxyhq\/protocol$/,
         replacement: path.resolve(
           __dirname,
-          '../../node_modules/@oxyhq/protocol/dist/cjs/index.js',
+          '../../node_modules/@oxy.so/protocol/dist/cjs/index.js',
         ),
       },
       {
         find: /^@oxyhq\/contracts$/,
         replacement: path.resolve(
           __dirname,
-          '../../node_modules/@oxyhq/contracts/dist/cjs/index.js',
+          '../../node_modules/@oxy.so/contracts/dist/cjs/index.js',
         ),
       },
     ],

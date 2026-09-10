@@ -1,4 +1,4 @@
-import { getNormalizedUserHandle, type User } from '@oxyhq/core';
+import { getNormalizedUserHandle, type User } from '@oxy.so/core';
 import { degradedActorSummary } from '../../utils/degradedActorSummary';
 
 export interface McpUserSummary {

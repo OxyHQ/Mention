@@ -1,4 +1,4 @@
-import type { OxyServices } from '@oxyhq/core';
+import type { OxyServices } from '@oxy.so/core';
 import { config } from '../config';
 
 /**
@@ -19,7 +19,7 @@ export function getRuntimeOxyClient(): OxyServices {
   if (!runtimeOxyClient) {
     // Lazy require keeps importing domain modules side-effect free. Isolated
     // tests and scripts that inject a client never load the full Oxy runtime.
-    const { OxyServices: OxyServicesConstructor } = require('@oxyhq/core') as {
+    const { OxyServices: OxyServicesConstructor } = require('@oxy.so/core') as {
       OxyServices: new (options: { baseURL: string }) => OxyServices;
     };
     runtimeOxyClient = new OxyServicesConstructor({ baseURL: config.oxyApiUrl });

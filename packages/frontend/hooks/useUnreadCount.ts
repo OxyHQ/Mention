@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { notificationService } from '@/services/notificationService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 

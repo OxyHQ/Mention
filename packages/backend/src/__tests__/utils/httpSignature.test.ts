@@ -6,11 +6,11 @@ const KEY_ID = `${ACTOR_URI}#main-key`;
 const INBOX_URL = 'https://mention.earth/ap/inbox';
 
 // Integration test of Mention's federation SIGNING wiring: the pure HTTP-signature
-// crypto now lives in `@oxyhq/federation`, and Mention supplies the private-key
+// crypto now lives in `@oxy.so/federation`, and Mention supplies the private-key
 // custody via `signViaOxy` (crypto.ts), which signs via Oxy's `/federation/sign`.
 // Stub the service client so `signViaOxy` performs the RSA signature locally with
 // the test private key — preserving an end-to-end sign/verify round-trip through
-// the REAL adapter (crypto.ts → @oxyhq/federation) without the Oxy client/network.
+// the REAL adapter (crypto.ts → @oxy.so/federation) without the Oxy client/network.
 // Uses `vi.hoisted` so the holder exists before the hoisted `vi.mock` factory runs;
 // `beforeAll` fills in the generated private key.
 const signing = vi.hoisted(() => ({ privateKeyPem: '' }));
@@ -30,7 +30,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
-import { signRequest, verifyHttpSignature } from '@oxyhq/federation';
+import { signRequest, verifyHttpSignature } from '@oxy.so/federation';
 import { signViaOxy } from '../../connectors/activitypub/crypto';
 import { AP_CONTENT_TYPE } from '../../connectors/activitypub/constants';
 

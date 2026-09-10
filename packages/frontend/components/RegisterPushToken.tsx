@@ -1,12 +1,12 @@
 import React, { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { authenticatedClient } from '@/utils/api';
 import { Storage } from '@/utils/storage';
 import { getDevicePushToken } from '@/utils/notifications';
 import i18next from 'i18next';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 
 export const RegisterPushToken: React.FC = () => {
     const { isAuthenticated, user } = useAuth();

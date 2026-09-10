@@ -3,7 +3,7 @@ import {
   MAX_ACCOUNT_CATEGORIES,
   SELECTABLE_ACCOUNT_CATEGORY_IDS,
   type AccountCategoryId,
-} from '@oxyhq/contracts';
+} from '@oxy.so/contracts';
 
 import {
   ACCOUNT_CATEGORY_ENGLISH_LABELS,

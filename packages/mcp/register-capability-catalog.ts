@@ -1,5 +1,5 @@
-import { OxyServices } from "@oxyhq/core";
-import { appCapabilityCatalogSchema } from "@oxyhq/contracts";
+import { OxyServices } from "@oxy.so/core";
+import { appCapabilityCatalogSchema } from "@oxy.so/contracts";
 import { MENTION_CAPABILITY_CATALOG } from "./lib/mention-catalog.js";
 
 const OXY_API_URL = (process.env.OXY_API_URL ?? "https://api.oxy.so").replace(/\/$/, "");

@@ -2,7 +2,7 @@ import React, { memo, useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { Backdrop } from '@oxyhq/bloom/overlay';
+import { Backdrop } from '@oxy.so/bloom/overlay';
 
 import { useDrawer } from '@/context/DrawerContext';
 import { SideBar } from '@/components/SideBar';

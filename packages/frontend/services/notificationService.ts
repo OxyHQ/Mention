@@ -1,5 +1,5 @@
 import { authenticatedClient } from '../utils/api';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import type { TRawNotification } from '@/types/validation';
 
 const logger = createLogger('NotificationService');

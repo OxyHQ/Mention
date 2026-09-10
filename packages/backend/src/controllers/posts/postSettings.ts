@@ -10,7 +10,7 @@ import { getDb } from '../../db/postgres';
 import { lanes as lanesTable } from '../../db/schema/channels';
 import { posts as postsTable } from '../../db/schema/posts';
 import { loadPostRecord, updatePostRecord, type PostRecordPatch } from '../../db/posts/postRepository';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { ReplyPermission } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
 import { createUserScopedOxyServices } from '../../utils/oxyHelpers';

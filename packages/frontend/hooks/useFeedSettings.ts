@@ -1,10 +1,10 @@
 import { useCallback, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { toast } from '@oxyhq/bloom/toast';
-import { logger } from '@oxyhq/core/logger';
+import { toast } from '@oxy.so/bloom/toast';
+import { logger } from '@oxy.so/core/logger';
 import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 

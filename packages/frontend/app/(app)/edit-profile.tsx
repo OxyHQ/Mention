@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
-import { useBloomTheme, useTheme } from '@oxyhq/bloom/theme';
-import { SettingsListDivider } from '@oxyhq/bloom/settings-list';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { Loading } from '@oxyhq/bloom/loading';
+import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
+import { useBloomTheme, useTheme } from '@oxy.so/bloom/theme';
+import { SettingsListDivider } from '@oxy.so/bloom/settings-list';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { Loading } from '@oxy.so/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
 import { Button, IconButton } from '@/components/ui/Button';

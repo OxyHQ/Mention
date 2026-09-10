@@ -19,7 +19,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { closePostgres, connectPostgres, getPostgresClient } from '../../db/postgres';
 import { assertPostgresMigrationsCurrent, readJournal } from '../../db/migrationsFolder';
-import type { JournalEntry } from '@oxyhq/db/migrate';
+import type { JournalEntry } from '@oxy.so/db/migrate';
 
 /** The tag a staged-behind entry carries — named so a failure message is legible. */
 const UNAPPLIED_TAG = '9999_migration_this_database_has_never_seen';

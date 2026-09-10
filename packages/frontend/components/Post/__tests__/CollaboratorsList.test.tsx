@@ -28,7 +28,7 @@ jest.mock('@/components/ui/Button', () => ({ IconButton: () => null }));
 jest.mock('@/assets/icons/close-icon', () => ({ CloseIcon: () => null }));
 jest.mock('@/components/ProfileCard', () => ({ ProfileCard: () => null }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
-jest.mock('@oxyhq/core', () => ({ getNormalizedUserHandle: () => 'nate' }));
+jest.mock('@oxy.so/core', () => ({ getNormalizedUserHandle: () => 'nate' }));
 
 // Resolves against the real `en.json` and ignores `defaultValue`, so a deleted
 // key renders its raw name and fails rather than silently falling back.

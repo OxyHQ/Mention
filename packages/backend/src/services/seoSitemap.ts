@@ -1,5 +1,5 @@
 import { and, asc, eq, isNotNull, isNull, max, or, sql } from 'drizzle-orm';
-import type { User } from '@oxyhq/core';
+import type { User } from '@oxy.so/core';
 import { promisify } from 'node:util';
 import { gzip, gunzip } from 'node:zlib';
 import { getDb } from '../db/postgres';

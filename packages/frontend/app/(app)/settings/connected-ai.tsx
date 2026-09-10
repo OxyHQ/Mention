@@ -1,11 +1,11 @@
 import React, { useCallback } from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loading } from '@oxyhq/bloom/loading';
-import { toast } from '@oxyhq/bloom/toast';
-import { useTheme } from '@oxyhq/bloom/theme';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
+import { Loading } from '@oxy.so/bloom/loading';
+import { toast } from '@oxy.so/bloom/toast';
+import { useTheme } from '@oxy.so/bloom/theme';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { ThemedView } from '@/components/ThemedView';
 import { Header } from '@/components/Header';
@@ -18,7 +18,7 @@ import { confirmDialog } from '@/utils/alerts';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 import { api } from '@/utils/api';
 import { getErrorMessage } from '@/utils/apiError';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const logger = createLogger('ConnectedAiSettings');

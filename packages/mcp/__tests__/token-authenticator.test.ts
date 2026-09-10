@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import jwt from "jsonwebtoken";
-import type { McpAccessTokenClaims } from "@oxyhq/mcp";
+import type { McpAccessTokenClaims } from "@oxy.so/mcp";
 import {
   authenticateMcpAccessToken,
   type CentralTokenIntrospector,

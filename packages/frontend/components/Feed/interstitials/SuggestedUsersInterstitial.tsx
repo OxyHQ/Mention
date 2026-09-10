@@ -9,7 +9,7 @@ import {
 } from '@/components/ProfileCard';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import type { ProfileData } from '@/lib/recommendations';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { DismissButton } from './DismissButton';
 import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';

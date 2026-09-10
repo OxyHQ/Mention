@@ -2,7 +2,7 @@
  * Mention VerificationMethodResolver — the identity HALF of the MTN chain
  * adapter.
  *
- * This is the Mention AUTHORIZATION policy the app-agnostic `@oxyhq/protocol`
+ * This is the Mention AUTHORIZATION policy the app-agnostic `@oxy.so/protocol`
  * engine delegates to: given a subject DID, it resolves the SUBJECT's current
  * Oxy verification methods (so a native, user-signed record where
  * `issuer === subject` is accepted) PLUS the Mention CUSTODIAL branch (so a
@@ -27,7 +27,7 @@
  * environment with no Mention key — the dual-write degrades to native-only.
  */
 
-import type { ResolvedVerificationMethods, VerificationMethodResolver } from '@oxyhq/protocol';
+import type { ResolvedVerificationMethods, VerificationMethodResolver } from '@oxy.so/protocol';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { logger } from '../../utils/logger';
 import { getMentionCustodialIssuer, getMentionCustodialPublicKey } from './mentionRecordEnv';

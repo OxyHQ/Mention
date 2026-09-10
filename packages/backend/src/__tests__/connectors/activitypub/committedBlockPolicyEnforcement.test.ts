@@ -16,7 +16,7 @@ import { describe, expect, it, vi } from 'vitest';
  * transparency page states, in as many words, that it does.
  *
  * So this file mocks NOTHING about the policy. It imports the committed array and
- * the live `isBlockedDomain` — the one built by `@oxyhq/federation`'s
+ * the live `isBlockedDomain` — the one built by `@oxy.so/federation`'s
  * `createDomainPolicy` from the same array — and checks them against each other.
  */
 

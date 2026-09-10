@@ -7,8 +7,8 @@ module.exports = {
     "./components/**/*.{js,jsx,ts,tsx}",
     "./lib/**/*.{js,jsx,ts,tsx}",
     "./hooks/**/*.{js,jsx,ts,tsx}",
-    "../../node_modules/@oxyhq/services/lib/**/*.{js,jsx}",
-    "../../node_modules/@oxyhq/bloom/lib/**/*.{js,jsx}",
+    "../../node_modules/@oxy.so/services/lib/**/*.{js,jsx}",
+    "../../node_modules/@oxy.so/bloom/lib/**/*.{js,jsx}",
     // The live-rooms UI (RoomCard, sheets) ships NativeWind classNames from the
     // Syra SDK; Tailwind must scan the package so those classes are generated.
     "../../node_modules/@syra.fm/sdk/lib/**/*.{js,jsx}",

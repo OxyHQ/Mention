@@ -34,10 +34,10 @@ jest.mock('@/components/Channels/ChannelInfoDialog', () => ({
 jest.mock('@/components/ZoomableAvatar', () => ({ ZoomableAvatar: () => null }));
 jest.mock('@/components/Profile/PrivateBadge', () => ({ PrivateBadge: () => null }));
 jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { text: '#000000', primary: '#0000ff' } }),
 }));
-jest.mock('@oxyhq/bloom/toast', () => ({ toast: jest.fn() }));
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn() }));
 
 // Host-string stand-ins so "which marker" is read off the render rather than

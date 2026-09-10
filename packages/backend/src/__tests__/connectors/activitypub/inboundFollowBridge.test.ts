@@ -117,7 +117,7 @@ import { deliveryService } from '../../../connectors/activitypub/delivery.servic
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
 // The follow-protocol dispatch (incl. the deferral throw) is owned by the engine,
 // so the follow path now throws the ENGINE's ActorResolutionPendingError.
-import { ActorResolutionPendingError } from '@oxyhq/federation/node';
+import { ActorResolutionPendingError } from '@oxy.so/federation/node';
 
 const scope = federationScope('inbound-follow-bridge');
 const actorUri = `${scope.origin}/users/bob`;

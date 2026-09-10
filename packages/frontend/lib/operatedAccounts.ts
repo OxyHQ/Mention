@@ -1,5 +1,5 @@
-import { isDelegatedActAsEligibleKind } from '@oxyhq/contracts';
-import type { AccountNode } from '@oxyhq/core';
+import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
+import type { AccountNode } from '@oxy.so/core';
 
 /**
  * The Oxy account permission that authorises assuming an account's identity, and
@@ -8,7 +8,7 @@ import type { AccountNode } from '@oxyhq/core';
  * A wire value: Oxy derives each member's `permissions` from their role
  * server-side and ships the resulting strings. The Mention backend names the same
  * constant in `services/publishAsAccount.ts` for the same reason — neither
- * `@oxyhq/contracts` nor `@oxyhq/core` exports the permission vocabulary yet.
+ * `@oxy.so/contracts` nor `@oxy.so/core` exports the permission vocabulary yet.
  * When one of them does, both call sites read it from there.
  */
 const ACCOUNT_ACT_AS_PERMISSION = 'account:act_as';

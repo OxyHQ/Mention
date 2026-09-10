@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { authenticatedClient, isUnauthorizedError, isNotFoundError } from '@/utils/api';
-import { useAuth } from '@oxyhq/services/ui/client';
-import { createLogger } from '@oxyhq/core/logger';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { createLogger } from '@oxy.so/core/logger';
 import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 
 const logger = createLogger('useFediversePreferredLanguage');

@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { confirmDialog } from '@/utils/alerts';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
@@ -11,9 +11,9 @@ import { Toggle } from '@/components/Toggle';
 import { Slider } from '@/components/Slider';
 import { useFeedSettings, DEFAULT_FEED_SETTINGS, type FeedSettings } from '@/hooks/useFeedSettings';
 import { useTranslation } from 'react-i18next';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { useAuth, OxyAuthPrompt } from '@oxyhq/services/ui/client';
+import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 
 const PRESETS = {
   mostRecent: {

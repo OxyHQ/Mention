@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';

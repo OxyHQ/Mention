@@ -5,7 +5,7 @@ import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { VideoReplies } from './videos/VideoReplies';
-import { ContentPanel } from '@oxyhq/bloom/content-panel';
+import { ContentPanel } from '@oxy.so/bloom/content-panel';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail } from '@/context/VideosRailContext';
 import { asViewStyle, asTextStyle, type WebViewStyle } from '@/types/webStyles';

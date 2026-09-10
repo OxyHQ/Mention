@@ -6,18 +6,18 @@ import { ComposeIcon, ComposeIIconActive } from '@/assets/icons/compose-icon';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { usePathname } from 'expo-router';
 import React, { useCallback, useMemo } from 'react';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
-import { useAuth } from '@oxyhq/services/ui/client';
-import { useHaptics } from '@oxyhq/bloom/hooks';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { useHaptics } from '@oxy.so/bloom/hooks';
 import {
     TabBar,
     TabBarButton,
     useTabBarFootprint,
     type TabBarItem,
     type TabBarTheme,
-} from '@oxyhq/bloom/tab-bar';
+} from '@oxy.so/bloom/tab-bar';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useTabPager } from '@/context/TabPagerContext';
 import {
@@ -134,7 +134,7 @@ export const BottomBar = () => {
     // these two are hand-matched to the theme's two tints above. Off /videos they
     // collapse to the app tokens, leaving every other screen's bar exactly as it
     // was and still following Bloom's light/dark theme.
-    const activeGlyphClass = isVideosScreen ? 'text-white' : 'text-primary';
+    const activeGlyphClass = isVideosScreen ? 'text-white' : 'text-foreground';
     const inactiveGlyphClass = isVideosScreen ? 'text-white/60' : 'text-muted-foreground';
 
     const unreadLabel = t('notification.badge', {

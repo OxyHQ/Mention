@@ -21,10 +21,10 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-jest.mock('@oxyhq/bloom/loading', () => ({ Loading: () => null }));
-jest.mock('@oxyhq/bloom/avatar', () => ({ Avatar: () => null }));
-jest.mock('@oxyhq/core/logger', () => ({ logger: { error: jest.fn() } }));
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
+jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: () => null }));
+jest.mock('@oxy.so/core/logger', () => ({ logger: { error: jest.fn() } }));
+jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
     user: { id: 'viewer' },
     oxyServices: { searchProfiles: jest.fn().mockResolvedValue({ data: [] }) },

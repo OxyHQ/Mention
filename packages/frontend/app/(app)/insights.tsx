@@ -1,7 +1,7 @@
 import React from 'react';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { ThemedView } from '@/components/ThemedView';
 import { useTranslation } from 'react-i18next';
 import { Header } from '@/components/Header';

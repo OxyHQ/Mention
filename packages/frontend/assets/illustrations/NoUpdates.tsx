@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import Svg, { G, Path, Defs, ClipPath, Rect } from 'react-native-svg';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 
 export interface NoUpdatesIllustrationProps {
     width?: number;

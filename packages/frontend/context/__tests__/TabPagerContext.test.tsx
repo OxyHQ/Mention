@@ -49,7 +49,7 @@ jest.mock('expo-router', () => ({
 }));
 
 let mockUsername: string | undefined;
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ user: mockUsername ? { username: mockUsername } : undefined }),
 }));
 

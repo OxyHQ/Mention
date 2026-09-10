@@ -35,7 +35,7 @@ what happened and where to look for the detail.
 - The 24-hex ids in `text` id columns are ported Mongo ObjectIds. New rows get
   uuid v7. The two spaces interleave under text collation, which is why no
   chronological query may order or page by id — see the id helpers in the
-  external `@oxyhq/db` package (not a file in this repo) and
+  external `@oxy.so/db` package (not a file in this repo) and
   `mtn/feed/CursorBuilder.ts`.
 - PostGIS is a privileged prerequisite on any NEW database: the application role
   cannot install it even on a database it owns, so a fresh target needs an

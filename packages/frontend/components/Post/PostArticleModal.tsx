@@ -9,8 +9,8 @@ import {
   Pressable,
   type GestureResponderEvent,
 } from 'react-native';
-import { Backdrop } from '@oxyhq/bloom/overlay';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Backdrop } from '@oxy.so/bloom/overlay';
+import { Loading } from '@oxy.so/bloom/loading';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -24,8 +24,8 @@ import { CloseIcon } from '@/assets/icons/close-icon';
 import { IconButton } from '@/components/ui/Button';
 import { articleService } from '@/services/articleService';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
-import { Portal } from '@oxyhq/bloom/portal';
-import { logger } from '@oxyhq/core/logger';
+import { Portal } from '@oxy.so/bloom/portal';
+import { logger } from '@oxy.so/core/logger';
 
 
 /**

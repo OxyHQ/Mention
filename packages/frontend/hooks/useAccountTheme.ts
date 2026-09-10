@@ -1,19 +1,19 @@
 import { useCallback, useEffect } from 'react';
-import { useAuth } from '@oxyhq/services/ui/client';
-import type { User } from '@oxyhq/core';
+import { useAuth } from '@oxy.so/services/ui/client';
+import type { User } from '@oxy.so/core';
 import {
   useBloomTheme,
   APP_COLOR_PRESETS,
   type AppColorName,
   type ThemeMode,
-} from '@oxyhq/bloom/theme';
+} from '@oxy.so/bloom/theme';
 import { useThemeSourceStore, type ThemeSource } from '@/stores/themeSourceStore';
 import { APP_DEFAULT_COLOR_PRESET, isColorEntitled } from '@/lib/colorEntitlement';
 
 /**
  * The portable account theme value that rides the Oxy user DTO
  * (`user.themePreference`). Derived from the SDK `User` so the type always
- * tracks the published contract without importing `@oxyhq/contracts` directly.
+ * tracks the published contract without importing `@oxy.so/contracts` directly.
  */
 type AccountTheme = NonNullable<User['themePreference']>;
 type PortableThemeMode = AccountTheme['mode'];

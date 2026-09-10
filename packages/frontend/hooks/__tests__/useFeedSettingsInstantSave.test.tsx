@@ -40,14 +40,14 @@ jest.mock('@/utils/api', () => ({
   isNotFoundError: () => false,
 }));
 
-jest.mock('@oxyhq/services/ui/client', () => ({ useAuth: () => mockAuth }));
-jest.mock('@oxyhq/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
+jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => mockAuth }));
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (_key: string, vars?: { defaultValue?: string }) => vars?.defaultValue ?? _key,
   }),
 }));
-jest.mock('@oxyhq/core/logger', () => ({
+jest.mock('@oxy.so/core/logger', () => ({
   logger: { error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() },
 }));
 

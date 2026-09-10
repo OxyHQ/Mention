@@ -8,7 +8,7 @@ import {
     Platform,
 } from "react-native"
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useSafeBack } from "@/hooks/useSafeBack";
 import { cn } from "@/lib/utils";
 

@@ -29,9 +29,9 @@ import {
   requireOxyAuth as requireAuth,
   getRequiredOxyUserId as getAuthenticatedUserId,
   type OxyAuthRequest as AuthRequest,
-} from '@oxyhq/core/server';
+} from '@oxy.so/core/server';
 import { getDb } from '../db/postgres';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation } from '@oxy.so/db';
 import { laneMutes, lanes } from '../db/schema/channels';
 import { posts } from '../db/schema/posts';
 import {
@@ -90,7 +90,7 @@ const updateLaneSchema = z.object({
  * The unique constraint whose violation IS the 409 on create and rename: one
  * lane name per publisher. Named so a future index on `lanes` cannot quietly
  * start answering "you already have a lane with that name" — see
- * `@oxyhq/db`'s `pgErrors.ts`.
+ * `@oxy.so/db`'s `pgErrors.ts`.
  */
 const LANE_NAME_UNIQUE = 'lanes_owner_name_lower_key';
 

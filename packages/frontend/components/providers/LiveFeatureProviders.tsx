@@ -6,7 +6,7 @@ import {
 } from 'react';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import type { CreateRoomSheetProps } from '@/components/rooms/createRoomTypes';
-import type { Room } from '@/lib/syraApi';
+import type { Room } from '@syra.fm/sdk';
 
 const DeferredLiveFeatureHost = lazy(() => import('./LiveFeatureRuntime'));
 const DeferredCreateRoomSheet = lazy(() =>
@@ -54,7 +54,7 @@ export function LiveCreateRoomSheet(props: CreateRoomSheetProps) {
   const handleRoomCreated = useCallback(
     (room: Room) => {
       if (mode === 'standalone' && !room.scheduledStart) {
-        joinLiveRoom(room._id);
+        joinLiveRoom(room.id);
       }
       onRoomCreated?.(room);
     },

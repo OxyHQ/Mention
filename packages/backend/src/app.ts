@@ -1,4 +1,4 @@
-import { createOxySecurityHeaders, type OxyCspExtensions } from '@oxyhq/core/server';
+import { createOxySecurityHeaders, type OxyCspExtensions } from '@oxy.so/core/server';
 import compression from 'compression';
 import express, {
   type ErrorRequestHandler,
@@ -29,7 +29,7 @@ export interface CreateAppDependencies {
 }
 
 /**
- * Mention's additions to the Oxy CSP baseline (`@oxyhq/core/server`). Additive
+ * Mention's additions to the Oxy CSP baseline (`@oxy.so/core/server`). Additive
  * only: the baseline already carries `'self'`, the Cloudflare Insights beacon
  * hosts, the Oxy API/CDN origins, inline styles and `data:` images/fonts, so
  * nothing it provides is restated here — only what is specific to Mention.
@@ -116,7 +116,7 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   app.use(routes.internalMetrics);
 
   // `helmet` must stay a DIRECT dependency of this package even though nothing
-  // here imports it: `@oxyhq/core` requires it at runtime but declares it as an
+  // here imports it: `@oxy.so/core` requires it at runtime but declares it as an
   // OPTIONAL peerDependency, so it is installed only because we declare it.
   // Dropping it from package.json uninstalls it and this call throws at boot.
   app.use(createOxySecurityHeaders({
@@ -127,7 +127,7 @@ export function createApp(deps: CreateAppDependencies): express.Express {
       // default would state a different policy to pre-CSP browsers.
       frameguard: { action: 'deny' },
       // Stated rather than inherited. helmet defaults to `no-referrer`, which
-      // nobody here chose — it appears nowhere in `@oxyhq/core` — and which is
+      // nobody here chose — it appears nowhere in `@oxy.so/core` — and which is
       // stricter than the web assumes. It sends nothing at all, so every site
       // Mention links to records the visit as direct traffic, and any third
       // party that identifies an embedder by referrer refuses to load: YouTube
@@ -160,7 +160,7 @@ export function createApp(deps: CreateAppDependencies): express.Express {
    * A CrowdSource webhook signature covers the bytes that arrived, and once a JSON
    * parser has consumed the stream those bytes no longer exist. The `verify` hook
    * below keeps a UTF-8 STRING copy for ActivityPub HTTP signatures, which is not
-   * what `@oxyhq/crowdsource-express` accepts — it looks for a Buffer, finds a
+   * what `@oxy.so/crowdsource-express` accepts — it looks for a Buffer, finds a
    * parsed `req.body` instead, and REFUSES rather than verifying a signature over a
    * re-serialisation. So mounting this after the parser does not silently verify the
    * wrong bytes; it fails every delivery, loudly. Mounted here anyway, because a

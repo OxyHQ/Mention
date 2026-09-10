@@ -1,5 +1,5 @@
 import { decode as decodeEntities } from 'he';
-import { normalizeInlineText, normalizeMultilineText } from '@oxyhq/core';
+import { normalizeInlineText, normalizeMultilineText } from '@oxy.so/core';
 
 /**
  * Any `<a …>…</a>` anchor, capturing its attribute string and its inner HTML

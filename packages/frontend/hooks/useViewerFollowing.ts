@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSeedFollowStatuses } from '@oxyhq/services';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useSeedFollowStatuses } from '@oxy.so/services';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /** The viewer's following graph stays fresh for 2 minutes — matches the SDK's own

@@ -54,7 +54,7 @@ jest.mock('@/context/BottomBarVisibilityContext', () => ({
   useBottomBarHidden: () => mockHidden,
 }));
 
-jest.mock('@oxyhq/bloom/fab', () => {
+jest.mock('@oxy.so/bloom/fab', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Fab: () => <View testID="inner-fab" /> };
 });

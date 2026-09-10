@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { VideoView } from 'expo-video';
 import type HlsJs from 'hls.js';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import { isHlsSource } from '@/utils/hlsSource';
 
 /**

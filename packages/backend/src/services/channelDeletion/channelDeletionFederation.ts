@@ -11,7 +11,7 @@ import { PostVisibility } from '@mention/shared-types';
 import { followService } from '../../connectors/activitypub/follow.service';
 import { deliveryService } from '../../connectors/activitypub/delivery.service';
 import { actorUrl } from '../../connectors/activitypub/constants';
-import { AP_CONTEXT } from '@oxyhq/federation';
+import { AP_CONTEXT } from '@oxy.so/federation';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { LOG_PREFIX } from './channelCascadeLog';
 import type { PostBatch } from './channelDeletionTargets';

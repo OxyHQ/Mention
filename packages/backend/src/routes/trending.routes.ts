@@ -8,7 +8,7 @@ import { feedIPRateLimiter } from '../middleware/security';
 import { parseTrendEvent, recordTrendEvent } from '../services/trending/trendTelemetry';
 import { loadTrendGraph } from '../services/trending/trendGraphQuery';
 import { getTrendingHistory } from '../services/trending/trendHistory';
-import { getBaseLanguage } from '@oxyhq/core';
+import { getBaseLanguage } from '@oxy.so/core';
 import { queryInt, queryString } from '../utils/queryParams';
 
 const router = Router();

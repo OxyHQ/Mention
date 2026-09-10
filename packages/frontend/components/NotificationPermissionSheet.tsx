@@ -3,7 +3,7 @@ import { View, Text } from "react-native";
 import { useTranslation } from "react-i18next";
 import { ThemedView } from "@/components/ThemedView";
 import { NoUpdatesIllustration } from "@/assets/illustrations/NoUpdates";
-import { Button } from '@oxyhq/bloom/button';
+import { Button } from '@oxy.so/bloom/button';
 
 interface Props {
     onEnable: () => void;

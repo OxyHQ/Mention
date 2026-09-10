@@ -46,7 +46,7 @@ import {
   upsertThreadgate,
 } from '../db/gates/gateRepository';
 import { createPostUri } from '@mention/shared-types';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { config } from '../config';
 import { laneWriteRateLimiter, postWriteRateLimiter, translationRateLimiter } from '../middleware/security';
 

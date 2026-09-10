@@ -8,7 +8,7 @@
  */
 
 import type { TrendGraphEdgeDTO, TrendGraphNodeDTO, TrendGraphResponse } from '@mention/shared-types';
-import { getBaseLanguage } from '@oxyhq/core';
+import { getBaseLanguage } from '@oxy.so/core';
 import { desc, eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { trendGraphs, trending } from '../../db/schema/discovery';

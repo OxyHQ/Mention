@@ -1,4 +1,4 @@
-import { isNotFoundError } from '@oxyhq/core';
+import { isNotFoundError } from '@oxy.so/core';
 import { config } from '../config';
 import { getRedisClient } from '../utils/redis';
 import { withRedisFallback } from '../utils/redisHelpers';

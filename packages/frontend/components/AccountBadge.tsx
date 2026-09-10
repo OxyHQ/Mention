@@ -8,7 +8,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import type { AccountKind } from '@oxyhq/core';
+import type { AccountKind } from '@oxy.so/core';
 import { ChannelIcon } from '@/assets/icons/channel-icon';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import type { ExternalNetwork } from '@/services/feedService';
@@ -172,7 +172,7 @@ export interface AccountBadgeProps extends IdentityBadgeVisualProps {
  *     moment it is opened.
  *  2. It is a rule for a case that does not yet exist, which is the cheapest
  *     time to fix it. Mention never asks for a kind when it resolves a remote
- *     actor — `@oxyhq/federation`'s identity bridge sends no `kind` key at all,
+ *     actor — `@oxy.so/federation`'s identity bridge sends no `kind` key at all,
  *     and `NormalizedExternalActor` has no field to carry one — so every
  *     federated account lands on Oxy's default kind. A `channel` arriving with
  *     `isFederated` would therefore mean the kind came from somewhere that has

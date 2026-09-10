@@ -1,4 +1,4 @@
-import type { LogEntry } from '@oxyhq/core/logger'
+import type { LogEntry } from '@oxy.so/core/logger'
 
 import {
   CIRCULAR,

@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { usePostsStore } from '@/stores/postsStore';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 
 export function usePostVote(
     postId: string | undefined,

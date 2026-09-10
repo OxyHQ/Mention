@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { userSettings } from '../../db/schema/userProfile';
-import { createLocalActorBuilder, type ActorMediaResolver } from '@oxyhq/federation';
+import { createLocalActorBuilder, type ActorMediaResolver } from '@oxy.so/federation';
 import { logger } from '../../utils/logger';
 import { resolveAvatarUrl, resolveMediaRef } from '../../utils/mediaResolver';
 import { FEDERATION_DOMAIN, federationUrls } from './constants';
@@ -10,7 +10,7 @@ import { FEDERATION_DOMAIN, federationUrls } from './constants';
  * The single builder of a LOCAL user's ActivityPub `Person` actor document.
  *
  * The byte-identical actor assembly (field set, ordering, `icon`/`image`
- * absolute-URL invariant, `publicKey`) lives in `@oxyhq/federation` so every Oxy
+ * absolute-URL invariant, `publicKey`) lives in `@oxy.so/federation` so every Oxy
  * app federates identically; this module binds it to Mention's domain, URL
  * builders, and canonical media chokepoint. It is shared by the GET actor route
  * (which serves it as a standalone JSON-LD document) and the outbound

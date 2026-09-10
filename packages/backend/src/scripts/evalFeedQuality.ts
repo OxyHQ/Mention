@@ -36,7 +36,7 @@ import type { FeedInteractionEventName, PostContent } from '@mention/shared-type
 import type { PostRecordClassification } from '../db/posts/postRecord';
 import { resolveVariant } from '../services/postVariants';
 import type { FeedTuning } from '@mention/shared-types';
-import { getBaseLanguage } from '@oxyhq/core';
+import { getBaseLanguage } from '@oxy.so/core';
 import { explainRanking } from '../mtn/feed/RankingExplainer';
 import { readTrustedScores } from '../services/contentClassification/trustedScores';
 import {

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Storage } from '@/utils/storage';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import type { DraftVariants } from '@/utils/composeVariants';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerStorageKey } from '@/lib/viewerQueryKeys';
 import { useRefSync } from '@/hooks/useRefSync';
 

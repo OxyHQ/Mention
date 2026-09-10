@@ -6,7 +6,7 @@ import type {
   TrendStatus,
   TrendScope,
 } from "@mention/shared-types";
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { authenticatedClient, publicClient } from "@/utils/api";
 
 export interface TrendingTopic {

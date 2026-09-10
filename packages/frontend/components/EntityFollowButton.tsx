@@ -1,9 +1,9 @@
 import React, { memo } from 'react';
 import { TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { useFollowEntity } from '@/hooks/useFollowEntity';
 import type { EntityFollowType } from '@/services/entityFollowService';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 
 interface EntityFollowButtonProps {

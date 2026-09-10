@@ -17,7 +17,7 @@ const failures = [];
 // equality-gated below, so taking a new release still starts with this catalog.
 const catalog = (!Array.isArray(rootManifest.workspaces) && rootManifest.workspaces?.catalog) || {};
 const CATALOG_REFERENCE = "catalog:";
-const expectedBloomVersion = String(catalog["@oxyhq/bloom"] ?? "").replace(/^\^/, "");
+const expectedBloomVersion = String(catalog["@oxy.so/bloom"] ?? "").replace(/^\^/, "");
 // The Expo SDK line and the React Native release it pairs with. Same rule as
 // Bloom above: bump these two constants when taking a new SDK, and the manifest
 // and installed-copy assertions below follow. They were spelled out inline until
@@ -78,7 +78,7 @@ if (Object.keys(rootManifest.dependencies || {}).length > 0) {
 
 const frontendManifest = await readJson("packages/frontend/package.json");
 const installedExpo = await readJson("node_modules/expo/package.json");
-const installedBloom = await readJson("node_modules/@oxyhq/bloom/package.json");
+const installedBloom = await readJson("node_modules/@oxy.so/bloom/package.json");
 
 if (!String(frontendManifest.dependencies?.expo || "").startsWith(`~${expectedExpoMajor}.`)) {
   failures.push(
@@ -117,7 +117,7 @@ if (installedBloom.version !== expectedBloomVersion) {
 // overrides are the narrow workaround; equality with the catalog keeps the
 // catalog authoritative, and validate-lockfile additionally proves one resolved
 // runtime copy.
-const literalCatalogPeerOverridePins = new Set(["@oxyhq/core", "@oxyhq/services"]);
+const literalCatalogPeerOverridePins = new Set(["@oxy.so/core", "@oxy.so/services"]);
 const workspaceManifestPaths = ["package.json"];
 for (const entry of await readdir(resolve(repositoryRoot, "packages"), { withFileTypes: true })) {
   if (!entry.isDirectory()) continue;

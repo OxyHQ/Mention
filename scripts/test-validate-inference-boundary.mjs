@@ -9,8 +9,8 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const validator = resolve(repositoryRoot, 'scripts/validate-inference-boundary.mjs');
 
 const cleanFiles = {
-  'packages/backend/package.json': JSON.stringify({ dependencies: { '@oxyhq/core': '^23.2.0' } }),
-  'packages/backend/src/edge.ts': "import { OxyInferenceClient } from '@oxyhq/core';\nexport { OxyInferenceClient };\n",
+  'packages/backend/package.json': JSON.stringify({ dependencies: { '@oxy.so/core': '^23.2.0' } }),
+  'packages/backend/src/edge.ts': "import { OxyInferenceClient } from '@oxy.so/core';\nexport { OxyInferenceClient };\n",
   // Alia is the intentional chat/agent boundary, not a provider SDK.
   'packages/frontend/app/ai.tsx': "import { AliaChatScreen } from '@alia.onl/sdk';\nexport { AliaChatScreen };\n",
   // Claude's MCP client origin is OAuth/browser infrastructure, not inference.

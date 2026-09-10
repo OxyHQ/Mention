@@ -1,5 +1,5 @@
 import { recordRepairFetchFailures as persistRepairFetchFailures } from '../../db/adminScripts/adminScriptStateRepository';
-import { describeDriverError } from '@oxyhq/db';
+import { describeDriverError } from '@oxy.so/db';
 import { logger } from '../../utils/logger';
 
 /** One failed re-fetch, reduced to what a targeted retry actually needs. */

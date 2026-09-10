@@ -23,17 +23,17 @@ import TestRenderer, { act } from 'react-test-renderer';
 
 jest.mock('@/lib/oxyServices', () => ({ oxyServices: {} }));
 jest.mock('@/utils/api', () => ({ authenticatedClient: {}, publicClient: {} }));
-jest.mock('@oxyhq/services', () => ({
+jest.mock('@oxy.so/services', () => ({
   upsertCachedUser: jest.fn(),
   upsertCachedUsers: jest.fn(),
 }));
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: { username?: string } | null | undefined) =>
     user?.username ?? null,
 }));
-jest.mock('@oxyhq/bloom/theme', () => ({ useTheme: () => ({ colors: {} }) }));
-jest.mock('@oxyhq/bloom/hooks', () => ({ useImagePreload: () => undefined }));
-jest.mock('@oxyhq/bloom/subtle-hover', () => ({
+jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: {} }) }));
+jest.mock('@oxy.so/bloom/hooks', () => ({ useImagePreload: () => undefined }));
+jest.mock('@oxy.so/bloom/subtle-hover', () => ({
   SubtleHover: ({ children }: { children?: React.ReactNode }) => children ?? null,
 }));
 jest.mock('@/components/ProfileHoverCard', () => ({

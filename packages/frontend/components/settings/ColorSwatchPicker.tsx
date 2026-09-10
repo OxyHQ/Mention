@@ -4,7 +4,7 @@ import {
   COLOR_PRESET_FAMILIES,
   COLOR_PRESET_GROUPS,
   type AppColorName,
-} from '@oxyhq/bloom/theme';
+} from '@oxy.so/bloom/theme';
 import { cn } from '@/lib/utils';
 
 const SELECTED_SWATCH_TRANSFORM = { transform: [{ scale: 1.1 }] } as const;

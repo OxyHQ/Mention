@@ -25,7 +25,7 @@ import {
 import { TREND_CATEGORIES } from '@mention/shared-types';
 import type { TrendGraphEdgeDTO, TrendGraphNodeDTO } from '@mention/shared-types';
 import type { TrendScope } from '@mention/shared-types';
-import { createdAt, generatedId, inList, timestamptz, tsvector, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, inList, timestamptz, tsvector, updatedAt } from '@oxy.so/db';
 import { posts } from './posts';
 
 /** The vocabulary the `trending.type` CHECK enforces. */

@@ -11,8 +11,8 @@ const EXPORT_PAGE_SIZE = 200;
 import { getDb } from '../db/postgres';
 import { bookmarks, likes } from '../db/schema/engagement';
 // Block and Restrict routes removed - frontend should use Oxy services directly
-import type { AccountKind } from '@oxyhq/contracts';
-import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { AccountKind } from '@oxy.so/contracts';
+import { requireOxyAuth as requireAuth, type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { buildSettingsResponseForViewer } from '../utils/userSettings';
 import {
   UnknownSettingsPathError,
@@ -24,7 +24,7 @@ import { createUserScopedOxyServices, ensureProfileMediaPublic } from '../utils/
 import { assertCanPublishAsAccount, PublishAsAccessError } from '../services/publishAsAccount';
 import { canViewProfileDesign } from '../utils/privacyHelpers';
 import { sendErrorResponse, sendSuccessResponse, validateRequired } from '../utils/apiHelpers';
-import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxyhq/core/server';
+import { getRequiredOxyUserId as getAuthenticatedUserId } from '@oxy.so/core/server';
 import { type TrackSummary, type PodcastSummary } from '@syra.fm/sdk';
 import { EXTERNAL_EMBED_SOURCES, type EmbedPlayerSource, canonicalizeLanguageTag } from '@mention/shared-types';
 import { syraClient } from '../utils/syraPodcast';

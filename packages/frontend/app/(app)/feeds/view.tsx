@@ -1,13 +1,13 @@
 import React, { useMemo } from 'react';
 import { useLocalSearchParams } from 'expo-router';
-import { Loading } from '@oxyhq/bloom/loading';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import Feed from '@/components/Feed/Feed';
 import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';

@@ -1,10 +1,10 @@
 import React, { useCallback, useState } from 'react';
 import { View, ScrollView } from 'react-native';
-import { Loading } from '@oxyhq/bloom/loading';
-import { Switch } from '@oxyhq/bloom/switch';
-import { toast } from '@oxyhq/bloom/toast';
-import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { OxyAuthPrompt, useAuth } from '@oxyhq/services/ui/client';
+import { Loading } from '@oxy.so/bloom/loading';
+import { Switch } from '@oxy.so/bloom/switch';
+import { toast } from '@oxy.so/bloom/toast';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ThemedView } from '@/components/ThemedView';
@@ -21,7 +21,7 @@ import { describeContentLanguage } from '@/constants/contentLanguages';
 import { confirmDialog } from '@/utils/alerts';
 import { api } from '@/utils/api';
 import { WEB_BASE_URL } from '@/config';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('FediverseSettings');
 

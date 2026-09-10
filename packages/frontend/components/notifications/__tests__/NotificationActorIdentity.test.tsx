@@ -20,7 +20,7 @@ import type { TRawNotification } from '@/types/validation';
  * is real — a grouped actor the screen never prewarmed has no entry to read.
  */
 
-jest.mock('@oxyhq/services/ui/client', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({ user: { id: 'viewer-1' } }),
 }));
 jest.mock('@/services/feedService', () => ({ feedService: { getPostById: jest.fn() } }));
@@ -40,7 +40,7 @@ jest.mock('expo-image', () => {
 });
 
 /** Reports the source it was handed, so the assertion reads the real value. */
-jest.mock('@oxyhq/bloom/avatar', () => {
+jest.mock('@oxy.so/bloom/avatar', () => {
   const { Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
     Avatar: ({ source }: { source?: string | null }) => (
@@ -48,18 +48,18 @@ jest.mock('@oxyhq/bloom/avatar', () => {
     ),
   };
 });
-jest.mock('@oxyhq/bloom/button', () => ({ Button: () => null }));
-jest.mock('@oxyhq/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
-jest.mock('@oxyhq/bloom/theme', () => ({
+jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
+jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
+jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#666', primary: '#000', border: '#eee' } }),
 }));
-jest.mock('@oxyhq/bloom/toast', () => ({ toast: jest.fn() }));
-jest.mock('@oxyhq/services', () => ({
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
+jest.mock('@oxy.so/services', () => ({
   queryKeys: { users: { detail: (id: string) => ['users', id] } },
   upsertCachedUser: jest.fn(),
   upsertCachedUsers: jest.fn(),
 }));
-jest.mock('@oxyhq/core', () => ({
+jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user?: { username?: string | null } | null): string | null => {
     const username = (user?.username ?? '').trim().replace(/^@/, '');
     return username.length > 0 ? username : null;
@@ -94,7 +94,7 @@ jest.mock('@/context/BottomSheetContext', () => {
     }),
   };
 });
-jest.mock('@oxyhq/core/logger', () => ({
+jest.mock('@oxy.so/core/logger', () => ({
   createLogger: () => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() }),
 }));
 // Nobody is in the user cache: the overlay alone has to carry the correction.

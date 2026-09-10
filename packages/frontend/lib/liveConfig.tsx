@@ -1,10 +1,10 @@
 import type { LiveConfig, LiveTheme, UserEntity } from '@syra.fm/sdk';
 import type { ComponentType } from 'react';
 import type { ViewStyle } from 'react-native';
-import { queryKeys } from '@oxyhq/services';
+import { queryKeys } from '@oxy.so/services';
 import { SYRA_SOCKET_URL } from '@/config';
 import { syraLinkedClient } from '@/lib/syraApi';
-import { useTheme as useBloomTheme } from '@oxyhq/bloom/theme';
+import { useTheme as useBloomTheme } from '@oxy.so/bloom/theme';
 import { useUserById } from '@/hooks/useCachedUser';
 import { queryClient } from '@/lib/queryClient';
 import {
@@ -12,8 +12,8 @@ import {
   getCachedFileDownloadUrlSync,
   isFileUrlResolver,
 } from '@/utils/imageUrlCache';
-import { Avatar } from '@oxyhq/bloom/avatar';
-import { toast } from '@oxyhq/bloom/toast';
+import { Avatar } from '@oxy.so/bloom/avatar';
+import { toast } from '@oxy.so/bloom/toast';
 import i18n from '@/lib/i18n';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';

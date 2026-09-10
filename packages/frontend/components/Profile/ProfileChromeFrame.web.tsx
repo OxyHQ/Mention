@@ -2,8 +2,8 @@ import React, { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 import { router, usePathname, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { BloomColorScope } from '@oxyhq/bloom/theme';
-import { RouterTabs, type RouterTabItem } from '@oxyhq/bloom/tabs/expo-router';
+import { BloomColorScope } from '@oxy.so/bloom/theme';
+import { RouterTabs, type RouterTabItem } from '@oxy.so/bloom/tabs/expo-router';
 
 import { ChromeFab } from '@/components/ChromeFab';
 import { EmptyState } from '@/components/common/EmptyState';

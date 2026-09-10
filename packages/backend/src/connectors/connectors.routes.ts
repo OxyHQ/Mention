@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
-import type { User as OxyUser } from '@oxyhq/core';
+import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
+import type { User as OxyUser } from '@oxy.so/core';
 import {
   PostVisibility,
   type FederationBlocksResponse,
@@ -32,7 +32,7 @@ import {
 import { isAbsoluteHttpUrl } from './shared/url';
 import { connectorRegistry } from './index';
 import { classifyQuery } from './resolve';
-import type { NetworkConnector, NormalizedExternalActor } from '@oxyhq/federation';
+import type { NetworkConnector, NormalizedExternalActor } from '@oxy.so/federation';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import { apiRateLimiter } from '../middleware/rateLimiter';
@@ -147,7 +147,7 @@ function requireAnyConnector(res: Response): boolean {
 /**
  * Resolve the authenticated Oxy user id, or write a 401 and return null.
  *
- * Identity resolution is owned entirely by `@oxyhq/core/server`
+ * Identity resolution is owned entirely by `@oxy.so/core/server`
  * (`getRequiredOxyUserId`, which throws when unauthenticated). This wrapper only
  * translates that into an HTTP 401 — these routes are mounted under `optionalAuth`.
  */

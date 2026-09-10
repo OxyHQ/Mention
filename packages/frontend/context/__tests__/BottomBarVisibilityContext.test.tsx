@@ -57,7 +57,7 @@ jest.mock('react-native-reanimated', () => ({
 // under jest, so the mock settles it immediately and tests assert on `target`.
 const mockMinimizeState = { progress: { value: 0 }, target: { value: 0 } };
 
-jest.mock('@oxyhq/bloom/tab-bar', () => ({
+jest.mock('@oxy.so/bloom/tab-bar', () => ({
     useMinimizeState: () => mockMinimizeState,
     setMinimized: (state: { progress: { value: number }; target: { value: number } }, next: 0 | 1) => {
         if (state.target.value !== next) {

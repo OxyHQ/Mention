@@ -31,7 +31,7 @@ vi.mock('../../utils/logger', () => ({
 }));
 
 import { resolveOxyExternalUser } from '../../connectors/identity';
-import type { NormalizedExternalActor } from '@oxyhq/federation';
+import type { NormalizedExternalActor } from '@oxy.so/federation';
 
 const actor: NormalizedExternalActor = {
   network: 'activitypub',

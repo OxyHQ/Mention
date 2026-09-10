@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { appCapabilityCatalogSchema } from "@oxyhq/contracts";
+import { appCapabilityCatalogSchema } from "@oxy.so/contracts";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createMcpServer } from "../lib/create-server.js";

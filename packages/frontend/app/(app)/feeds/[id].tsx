@@ -13,36 +13,36 @@ import {
   Pressable,
 } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { SpinnerIcon } from '@oxyhq/bloom/loading';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
 import { useLocalSearchParams, router } from 'expo-router';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { customFeedsService, type CustomFeedDetail } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
-import { useAuth, FollowButton } from '@oxyhq/services/ui/client';
+import { useAuth, FollowButton } from '@oxy.so/services/ui/client';
 import Feed from '@/components/Feed/Feed';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { ChromeFab } from '@/components/ChromeFab';
-import { Avatar } from '@oxyhq/bloom/avatar';
+import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
-import { toast } from '@oxyhq/bloom/toast';
+import { toast } from '@oxy.so/bloom/toast';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
-import { BottomSheet, type BottomSheetRef } from '@oxyhq/bloom/bottom-sheet';
+import { BottomSheet, type BottomSheetRef } from '@oxy.so/bloom/bottom-sheet';
 import { useTranslation } from 'react-i18next';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
 import type { PostUser } from '@mention/shared-types';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { WEB_BASE_URL } from '@/config';
-import { logger } from '@oxyhq/core/logger';
+import { logger } from '@oxy.so/core/logger';
 import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 type FeedTab = 'recent' | 'profiles' | 'topics' | 'reviews';

@@ -17,9 +17,9 @@
 import { useEffect } from 'react';
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { authenticatedClient } from '@/utils/api';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 import {
   viewerCacheId,
   viewerStorageKey,

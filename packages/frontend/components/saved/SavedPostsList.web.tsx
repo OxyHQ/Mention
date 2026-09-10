@@ -7,7 +7,7 @@ import {
 } from 'react';
 import { Pressable } from 'react-native';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
-import { useScrollRestoration } from '@oxyhq/bloom/scroll';
+import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import PostItem from '@/components/Feed/PostItem';
 import type { SavedPostsListProps } from './SavedPostsList.types';
 

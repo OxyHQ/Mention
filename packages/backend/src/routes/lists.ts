@@ -1,6 +1,6 @@
 import express, { Response } from 'express';
 import { z } from 'zod';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { config } from '../config';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../db/postgres';

@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { and, desc, eq, lt, or } from 'drizzle-orm';
-import type { OxyAuthRequest as AuthRequest } from '@oxyhq/core/server';
+import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import type {
   PostSubscriptionItem,
   PostSubscriptionListResponse,

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { createVideoPlayer, type VideoPlayer } from 'expo-video';
 import { videoSourceFor } from '@/utils/videoSource';
-import { createLogger } from '@oxyhq/core/logger';
+import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('VideoPlayerRegistry');
 

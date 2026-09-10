@@ -20,12 +20,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Backdrop } from '@oxyhq/bloom/overlay';
-import { useAuth } from '@oxyhq/services/ui/client';
+import { Backdrop } from '@oxy.so/bloom/overlay';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { useRouter } from 'expo-router';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { LogoIcon } from '@/assets/logo';
-import { Portal } from '@oxyhq/bloom/portal';
+import { Portal } from '@oxy.so/bloom/portal';
 import { Z_INDEX } from '@/lib/constants';
 import { FONT_FAMILIES } from '@/styles/typography';
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText, TSpan } from 'react-native-svg';
@@ -403,6 +403,3 @@ const styles = StyleSheet.create({
 
 // Memoize component to prevent unnecessary re-renders
 export default memo(WelcomeModal);
-
-
-

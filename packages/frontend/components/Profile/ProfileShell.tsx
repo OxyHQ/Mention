@@ -2,7 +2,7 @@ import React from 'react';
 import { Animated, Platform, StatusBar, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { ChromeFab } from '@/components/ChromeFab';
 import { EmptyState } from '@/components/common/EmptyState';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';

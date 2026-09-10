@@ -5,7 +5,7 @@
  * the port, so every table that needs it adds an entry here rather than growing
  * its own cleanup path. The registry stays here because it names THIS schema's
  * own tables; the mechanism that sweeps it (`sweepExpiredRows`,
- * `sweepAllExpiredRows`, `ExpirySweepTarget`) lives in `@oxyhq/db/expiry` — see
+ * `sweepAllExpiredRows`, `ExpirySweepTarget`) lives in `@oxy.so/db/expiry` — see
  * that module's doc comment for the full shape and for why a TTL index is a
  * behaviour of the SOURCE that does not survive a Mongo-to-Postgres port on its
  * own.
@@ -74,13 +74,13 @@
  *
  * ## Scheduling
  *
- * `@oxyhq/db/expiry`'s `sweepExpiredRows` is the mechanism; wiring it to a
+ * `@oxy.so/db/expiry`'s `sweepExpiredRows` is the mechanism; wiring it to a
  * schedule belongs with the call-site port, alongside the leader-gated jobs
  * already in `services/FeedJobScheduler.ts`. Until then it is callable and
  * tested, and nothing reads a swept table yet.
  */
 
-import type { ExpirySweepTarget } from '@oxyhq/db/expiry';
+import type { ExpirySweepTarget } from '@oxy.so/db/expiry';
 import {
   AUTHOR_FOLLOWER_SNAPSHOT_RETENTION_SECONDS,
   NOTIFICATION_RETENTION_SECONDS,

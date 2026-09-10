@@ -88,7 +88,7 @@ function body(text: string): { text: string } {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Mirrors the real policy's `canonicalFederationHost` (`@oxyhq/federation`),
+  // Mirrors the real policy's `canonicalFederationHost` (`@oxy.so/federation`),
   // which lowercases and strips a leading `www.` on BOTH sides of the comparison
   // — a stub that only matched the bare host would report the `www.` spelling of
   // our own domain as somebody else's instance, which production does not.

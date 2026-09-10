@@ -7,10 +7,10 @@ import React, {
   useState,
 } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services/ui/client';
-import { getUserLanguages } from '@oxyhq/core';
+import { useAuth } from '@oxy.so/services/ui/client';
+import { getUserLanguages } from '@oxy.so/core';
 import i18n from 'i18next';
-import { useBloomTheme } from '@oxyhq/bloom/theme';
+import { useBloomTheme } from '@oxy.so/bloom/theme';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { usePostsStore } from '@/stores/postsStore';
 import { usePrivacyStore } from '@/stores/privacyStore';

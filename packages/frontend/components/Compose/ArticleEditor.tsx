@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, TextInput, TouchableOpacity } from "react-native";
-import { Dialog } from '@oxyhq/bloom/dialog';
-import { useTheme } from '@oxyhq/bloom/theme';
+import { Dialog } from '@oxy.so/bloom/dialog';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from "react-i18next";
 
 interface ArticleEditorProps {

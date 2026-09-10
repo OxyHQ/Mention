@@ -4,7 +4,7 @@
  * post types, and preferred languages. Neutral (1.0) with no behavior data.
  */
 
-import { getBaseLanguage } from '@oxyhq/core';
+import { getBaseLanguage } from '@oxy.so/core';
 import { MtnConfig } from '@mention/shared-types';
 import type {
   BehaviorSets,

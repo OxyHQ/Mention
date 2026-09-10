@@ -1,8 +1,8 @@
 import { memo } from 'react';
 import { Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { PressableScale } from '@oxyhq/bloom/pressable-scale';
-import { useHaptics } from '@oxyhq/bloom/hooks';
+import { PressableScale } from '@oxy.so/bloom/pressable-scale';
+import { useHaptics } from '@oxy.so/bloom/hooks';
 import { formatTimeAgo } from '@/utils/dateUtils';
 
 interface ComposeScheduleIndicatorProps {

@@ -1,6 +1,6 @@
 import sanitizeHtml from 'sanitize-html';
 import { decode as decodeEntities } from 'he';
-import { normalizeInlineText } from '@oxyhq/core';
+import { normalizeInlineText } from '@oxy.so/core';
 import {
   createActorResolver,
   type ActorResolverConfig,
@@ -8,7 +8,7 @@ import {
   type FederatedActorUpsert,
   type WebFingerFetch,
   type WebFingerJrd,
-} from '@oxyhq/federation/node';
+} from '@oxy.so/federation/node';
 import { logger } from '../../utils/logger';
 import { withEngineId, type EngineFederatedActorRecord } from '../../db/federation/actorRecord';
 import {
@@ -37,7 +37,7 @@ import { reportFederatedActorGone, resolveFederatedActorIdentity } from '../iden
  *
  * The PROTOCOL — webfinger resolution, the signed actor fetch + WebFinger
  * fallback, the 410-Gone tombstone, the self-consistency/same-origin guards, the
- * staleness/refresh policy — lives in `@oxyhq/federation`'s `createActorResolver`
+ * staleness/refresh policy — lives in `@oxy.so/federation`'s `createActorResolver`
  * so every Oxy app backend resolves remote actors identically. This module is the
  * Mention wiring: it supplies the FederatedActor CACHE store (bring-your-own-store,
  * no data move), the actor↔Oxy-user identity bridge, the signed AP fetch + the
@@ -122,7 +122,7 @@ export const activityPubActorResolverConfig: ActorResolverConfig<EngineFederated
   // A bridge republishes another network's accounts under its own hostname, so an
   // actor from one is stored under the network it actually came from —
   // `@wired@x.com`, not `@wired@bird.makeup`. The MECHANISM is shared
-  // (`@oxyhq/federation`); the reviewed entries are Mention's own moderation
+  // (`@oxy.so/federation`); the reviewed entries are Mention's own moderation
   // policy in `./federationBridgePolicy`, and oxy-api keeps its own list for the
   // resolve-side trust decision. Only the IDENTITY moves — `acct`, `uri` and the
   // stored `domain` keep addressing the bridge, so the domain policy and every

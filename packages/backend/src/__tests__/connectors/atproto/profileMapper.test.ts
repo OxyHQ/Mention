@@ -9,7 +9,7 @@ import {
 } from '../../helpers/federationFixtures';
 
 const scope = federationScope('atproto-profile-mapper');
-import { getNormalizedUserHandle } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxy.so/core';
 
 /**
  * atproto profile mapping: `app.bsky.actor.getProfile` → normalized actor →
