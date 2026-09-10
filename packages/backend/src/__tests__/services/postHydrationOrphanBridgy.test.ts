@@ -53,7 +53,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     getUsersByIds: vi.fn(async () => []),
-    getLinkPreviews: vi.fn(async () => ({})),
+    getClarityDocuments: vi.fn(async () => ({})),
     getFileDownloadUrl: (id: string) => id,
   }),
 }));

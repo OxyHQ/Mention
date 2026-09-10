@@ -18,7 +18,7 @@ export type {
   PostRow,
   FeedItemRow,
   FeedMetaRow,
-  LinkPreviewRow,
+  ClarityDocumentRow,
   FeedItem,
 } from './schema';
 export {

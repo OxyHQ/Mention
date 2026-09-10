@@ -33,10 +33,10 @@ const PERSISTED_POST_KEYS = [
   'content',
   'context',
   'date',
+  'documents',
   'engagement',
   'id',
   'lane',
-  'linkPreviews',
   'mediaIds',
   'metadata',
   'originalPost',
@@ -49,14 +49,14 @@ const PERSISTED_POST_KEYS = [
 ] as const;
 
 /** The version that must ship with the key set above. */
-const VERSION_FOR_THESE_KEYS = 8;
+const VERSION_FOR_THESE_KEYS = 9;
 
 function makeFullyPopulatedPost(): HydratedPost {
   return {
     id: 'post-1',
     content: { text: 'body' },
     attachments: { media: [{ id: 'media-1', type: 'image' }] },
-    linkPreviews: [],
+    documents: [],
     user: {
       id: 'user-1',
       username: 'user1',

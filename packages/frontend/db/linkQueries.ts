@@ -3,7 +3,7 @@
  */
 
 import { getDb } from './database';
-import type { LinkPreviewRow } from './schema';
+import type { ClarityDocumentRow } from './schema';
 import { linkMetadataToRow, rowToLinkMetadata } from './schema';
 import type { LinkMetadata } from '@/stores/linksStore';
 import { createLogger } from '@oxy.so/core/logger';
@@ -64,7 +64,7 @@ export function getLink(url: string): LinkMetadata | null {
 
   const db = getDb();
   if (!db) return null;
-  const row = db.getFirstSync<LinkPreviewRow>(
+  const row = db.getFirstSync<ClarityDocumentRow>(
     'SELECT * FROM link_previews WHERE url = ?',
     normalized
   );

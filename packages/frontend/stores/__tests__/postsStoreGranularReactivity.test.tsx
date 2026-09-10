@@ -176,7 +176,7 @@ const makePost = (id: string): FeedItem => ({
     authors: [],
     content: { text: id },
     attachments: {},
-    linkPreviews: [],
+    documents: [],
     viewerState: {
       isOwner: false,
       isCollaborator: false,

@@ -21,7 +21,7 @@ import { mergeHashtags } from '../../utils/textProcessing';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { normalizeMediaItems } from '../../utils/mediaInput';
-import { warmLinkPreviewForText } from '../../utils/linkPreviewWarm';
+import { warmClarityDocumentForText } from '../../utils/clarityDocumentWarm';
 import { trackBackgroundWork } from '../../runtime/backgroundWork';
 import { resolveVariant, validateAuthorVariants } from '../../services/postVariants';
 import { validatePublicShareTarget } from '../../utils/postAccessControl';
@@ -503,7 +503,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    await warmLinkPreviewForText(resolveVariant(post.content).text);
+    await warmClarityDocumentForText(resolveVariant(post.content).text);
 
     const [hydratedPost] = await postHydrationService.hydratePosts([post], {
       viewerId: userId,

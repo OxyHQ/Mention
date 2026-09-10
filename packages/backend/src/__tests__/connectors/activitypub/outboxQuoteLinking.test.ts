@@ -35,8 +35,8 @@ const mocks = vi.hoisted(() => ({
   signViaOxy: vi.fn(),
   getServiceOxyClient: vi.fn(),
   makeServiceRequest: vi.fn(),
-  getLinkPreviews: vi.fn(),
-  getLinkPreview: vi.fn(),
+  getClarityDocuments: vi.fn(),
+  getClarityDocument: vi.fn(),
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
   postCreatorCreate: vi.fn(),
@@ -283,12 +283,12 @@ beforeEach(() => {
   mocks.recordAccess.mockResolvedValue(undefined);
   mocks.postCreatorCreate.mockResolvedValue({ id: 'created_post_1' });
   mocks.makeServiceRequest.mockResolvedValue({ id: 'oxy_user_1' });
-  mocks.getLinkPreviews.mockResolvedValue({});
-  mocks.getLinkPreview.mockResolvedValue(undefined);
+  mocks.getClarityDocuments.mockResolvedValue({});
+  mocks.getClarityDocument.mockResolvedValue(undefined);
   mocks.getServiceOxyClient.mockReturnValue({
     makeServiceRequest: mocks.makeServiceRequest,
-    getLinkPreviews: mocks.getLinkPreviews,
-    getLinkPreview: mocks.getLinkPreview,
+    getClarityDocuments: mocks.getClarityDocuments,
+    getClarityDocument: mocks.getClarityDocument,
   });
   mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   mocks.fetchUpstreamSingleHop.mockImplementation(

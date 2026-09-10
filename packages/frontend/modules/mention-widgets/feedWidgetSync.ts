@@ -181,7 +181,7 @@ export function toWidgetFeedPosts(
 ): WidgetFeedPost[] {
   return posts.slice(0, MAX_WIDGET_HANDOFF_POSTS).map((post) => {
     const media = post.attachments.media?.[0];
-    const preview = post.linkPreviews?.[0];
+    const preview = post.documents?.[0];
     return {
       id: post.id,
       text: post.content.text ?? '',
@@ -189,7 +189,7 @@ export function toWidgetFeedPosts(
       thumbUrl: media?.thumbUrl ?? '',
       url: media?.url ?? '',
       alt: media?.alt ?? '',
-      image: preview?.image ?? '',
+      image: preview?.imageUrl ?? '',
       name: post.user.name.displayName ?? '',
       username: post.user.username ?? '',
       avatar: post.user.avatar ?? '',

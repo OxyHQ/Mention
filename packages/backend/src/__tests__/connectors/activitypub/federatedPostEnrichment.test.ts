@@ -34,8 +34,8 @@ const mocks = vi.hoisted(() => ({
   signViaOxy: vi.fn(),
   getServiceOxyClient: vi.fn(),
   makeServiceRequest: vi.fn(),
-  getLinkPreviews: vi.fn(),
-  getLinkPreview: vi.fn(),
+  resolveDocuments: vi.fn(),
+  getClarityDocument: vi.fn(),
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
   postCreatorCreate: vi.fn(),
@@ -86,6 +86,10 @@ vi.mock('../../../db/userProfile/userSettingsRepository', () => ({
 
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: mocks.getServiceOxyClient,
+}));
+
+vi.mock('../../../utils/clarityClient', () => ({
+  getClarityClient: async () => ({ indexing: { resolve: mocks.resolveDocuments } }),
 }));
 
 vi.mock('../../../services/mediaCache/cacheWorker', () => ({
@@ -207,12 +211,12 @@ function deliverToInbox(activity: Record<string, unknown>) {
  * thing", instead of both reading as a bare `not.toHaveBeenCalled`.
  */
 function warmedBatchUrls(): string[] {
-  return mocks.getLinkPreviews.mock.calls.flatMap(([urls]) => urls as string[]);
+  return mocks.resolveDocuments.mock.calls.flatMap(([request]) => request.urls as string[]);
 }
 
 /** The URL set the single-post warm was asked for (the `PostCreationService` lane). */
 function warmedSingleUrls(): string[] {
-  return mocks.getLinkPreview.mock.calls.map(([url]) => url as string);
+  return mocks.getClarityDocument.mock.calls.map(([url]) => url as string);
 }
 
 /** Posts this run's actor has, straight from the table. */
@@ -242,12 +246,11 @@ beforeEach(() => {
   mocks.recordAccess.mockResolvedValue(undefined);
   mocks.postCreatorCreate.mockResolvedValue({ id: 'created_post_1' });
   mocks.makeServiceRequest.mockResolvedValue({ id: 'oxy_user_1' });
-  mocks.getLinkPreviews.mockResolvedValue({});
-  mocks.getLinkPreview.mockResolvedValue({ url: ARTICLE_URL, status: 'pending' });
+  mocks.resolveDocuments.mockResolvedValue({ data: [] });
+  mocks.getClarityDocument.mockResolvedValue({ url: ARTICLE_URL, status: 'pending' });
   mocks.getServiceOxyClient.mockReturnValue({
     makeServiceRequest: mocks.makeServiceRequest,
-    getLinkPreviews: mocks.getLinkPreviews,
-    getLinkPreview: mocks.getLinkPreview,
+    getClarityDocument: mocks.getClarityDocument,
   });
   mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   mocks.fetchUpstreamSingleHop.mockImplementation(
@@ -283,7 +286,7 @@ describe('Federated ingest — outbox backfill runs post-ingest enrichment', () 
     expect(await storedPostCount()).toBe(2);
 
     // Both links were handed to Oxy, in one batch call rather than per post.
-    expect(mocks.getLinkPreviews).toHaveBeenCalledTimes(1);
+    expect(mocks.resolveDocuments).toHaveBeenCalledTimes(1);
     expect(warmedBatchUrls()).toEqual([ARTICLE_URL, SECOND_ARTICLE_URL]);
   });
 
@@ -307,11 +310,11 @@ describe('Federated ingest — outbox backfill runs post-ingest enrichment', () 
     await settle();
 
     expect(result.newPostCount).toBe(1);
-    expect(mocks.getLinkPreviews).not.toHaveBeenCalled();
+    expect(mocks.resolveDocuments).not.toHaveBeenCalled();
   });
 
   it('imports the page even when the preview service rejects', async () => {
-    mocks.getLinkPreviews.mockRejectedValue(new Error('preview service down'));
+    mocks.resolveDocuments.mockRejectedValue(new Error('preview service down'));
     stubOutbox([createNote('withlink', `<p>Read this ${linkAnchor(ARTICLE_URL)}</p>`)]);
 
     const result = await runOutboxSync();
@@ -324,20 +327,20 @@ describe('Federated ingest — outbox backfill runs post-ingest enrichment', () 
   it('does not wait for the warm before finishing the import', async () => {
     // A preview service that never answers. If the warm were awaited, the sync
     // would never resolve and this test would time out rather than fail.
-    mocks.getLinkPreviews.mockReturnValue(new Promise(() => undefined));
+    mocks.resolveDocuments.mockReturnValue(new Promise(() => undefined));
     stubOutbox([createNote('withlink', `<p>Read this ${linkAnchor(ARTICLE_URL)}</p>`)]);
 
     const result = await runOutboxSync();
 
     expect(result.newPostCount).toBe(1);
-    expect(mocks.getLinkPreviews).toHaveBeenCalledTimes(1);
+    expect(mocks.resolveDocuments).toHaveBeenCalledTimes(1);
   });
 });
 
 /**
  * The inbox `Create` path does NOT warm for itself — it creates through
  * `PostCreationService`, which owns the enqueue (proved directly in
- * `postCreationLinkPreviewWarm.test.ts`, where the service is real). What the
+ * `postCreationClarityDocumentWarm.test.ts`, where the service is real). What the
  * inbox owes that arrangement is the half these pin: the note's link must
  * survive HTML extraction into the primary variant it hands over, and the inbox
  * must not grow a competing warm of its own.

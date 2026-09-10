@@ -5,7 +5,7 @@ import type {
   HydratedPostSummary,
   PollData,
   PostAttachmentDescriptor,
-  PostLinkPreview,
+  ClarityDocument,
   PostPodcastContent,
   PostSourceLink,
 } from '@mention/shared-types/post';
@@ -84,10 +84,10 @@ interface Props {
   text?: string;
   /**
    * Resolved previews for the links in the post body, in text order (the backend
-   * caps them at `MAX_POST_LINK_PREVIEWS`). Each one renders its own card; only
+   * caps them at `MAX_POST_DOCUMENTS`). Each one renders its own card; only
    * the FIRST embeddable link becomes an inline player — see `primaryEmbedIndex`.
    */
-  linkPreviews?: PostLinkPreview[];
+  documents?: ClarityDocument[];
   /**
    * Per-post sensitivity flag. When true, every image/video/gif cell renders
    * behind its own blurred "Tap to reveal" cover that the viewer uncovers
@@ -121,13 +121,13 @@ type AttachmentItem =
  * given URL within a session. Compared element-wise so a re-rendered parent
  * handing over an equivalent array doesn't force the row to re-render.
  */
-const areLinkPreviewsEqual = (a?: PostLinkPreview[], b?: PostLinkPreview[]): boolean => {
+const areClarityDocumentsEqual = (a?: ClarityDocument[], b?: ClarityDocument[]): boolean => {
   if (a === b) return true;
   const prev = a ?? [];
   const next = b ?? [];
   if (prev.length !== next.length) return false;
   return prev.every((preview, index) =>
-    preview.url === next[index].url && preview.sourceUrl === next[index].sourceUrl,
+    preview.canonicalUrl === next[index].canonicalUrl && preview.requestedUrl === next[index].requestedUrl,
   );
 };
 
@@ -158,7 +158,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   onRoomPress,
   podcast,
   text,
-  linkPreviews,
+  documents,
   sensitive,
   containerWidth,
   style
@@ -178,7 +178,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   const hasEvent = useMemo(() => Boolean(event && event.name?.trim?.()), [event]);
   const hasRoom = useMemo(() => Boolean(room?.roomId), [room]);
   const hasPodcast = useMemo(() => Boolean(podcast?.syraPodcastId), [podcast]);
-  const linkPreviewArray = useMemo(() => Array.isArray(linkPreviews) ? linkPreviews.filter((preview) => Boolean(preview?.url)) : [], [linkPreviews]);
+  const linkPreviewArray = useMemo(() => Array.isArray(documents) ? documents.filter((preview) => Boolean(preview?.canonicalUrl)) : [], [documents]);
 
   // Resolve a media reference to a final render URL for a given context:
   //  - `thumb`: the post media card / grid thumbnail (server `thumbUrl`).
@@ -226,14 +226,14 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     // branch — the two paths are mutually exclusive.
     const linkItems: AttachmentItem[] = linkPreviewArray.map((preview) => ({
       type: 'link',
-      url: preview.url,
+      url: preview.canonicalUrl,
       title: preview.title,
       description: preview.description,
-      image: preview.image,
-      siteName: preview.siteName,
+      image: preview.imageUrl,
+      siteName: preview.publisher,
       // Parse the embed provider once here (memoized on `linkPreviewArray`) so
       // the render loop doesn't run `new URL()` + regex on every frame.
-      embedParams: parseEmbedPlayerFromUrl(preview.url),
+      embedParams: parseEmbedPlayerFromUrl(preview.canonicalUrl),
     }));
     const mediaById = new Map<string, MediaObj>();
     const usedMedia = new Set<string>();
@@ -860,7 +860,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     </>
   );
 }, (prevProps, nextProps) => {
-  if (!areLinkPreviewsEqual(prevProps.linkPreviews, nextProps.linkPreviews)) return false;
+  if (!areClarityDocumentsEqual(prevProps.documents, nextProps.documents)) return false;
   return (
     prevProps.media === nextProps.media &&
     prevProps.attachments === nextProps.attachments &&

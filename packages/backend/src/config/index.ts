@@ -335,6 +335,7 @@ const environmentSchema = z
     // elsewhere so a local `expo export` can be served without one.
     MENTION_SHELL_ACCESS_KEY: optionalString(32),
     OXY_API_URL: z.preprocess(emptyAsUndefined, httpOrigin.default('https://api.oxy.so')),
+    CLARITY_API_URL: z.preprocess(emptyAsUndefined, httpOrigin.default('https://api.clarity.surf')),
     OXY_MEDIA_CDN_ORIGIN: z.preprocess(
       emptyAsUndefined,
       httpOrigin.default('https://cloud.oxy.so'),
@@ -787,6 +788,7 @@ export const config = {
   },
   frontendUrl: environment.FRONTEND_URL,
   oxyApiUrl: environment.OXY_API_URL,
+  clarityApiUrl: environment.CLARITY_API_URL,
   oxy: {
     requestMetricsEnabled: environment.OXY_REQUEST_METRICS_ENABLED,
   },

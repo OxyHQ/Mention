@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { ClarityClient } from '@clarity.surf/sdk';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { MAX_POST_LINK_PREVIEWS } from '@mention/shared-types/post';
+import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import { type LinkMetadata, useLinksStore } from '../stores/linksStore';
 import { extractUrls } from '@/utils/extractUrls';
 import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
@@ -8,7 +9,7 @@ import { logger } from '@oxy.so/core/logger';
 
 /**
  * Hook to detect the links in a post's text and resolve their previews. A post
- * shows up to `MAX_POST_LINK_PREVIEWS` cards (the same cap the backend applies),
+ * shows up to `MAX_POST_DOCUMENTS` cards (the same cap the backend applies),
  * so only that many URLs are resolved — metadata for links that would never get
  * a card is wasted work.
  *
@@ -24,6 +25,9 @@ export const useLinkDetection = (text: string) => {
   const [error, setError] = useState<string | null>(null);
   
   const { oxyServices } = useAuth();
+  const clarity = useMemo(() => new ClarityClient({
+    getAccessToken: () => oxyServices.getClient().getAccessToken() || Promise.reject(new Error('No active Oxy session')),
+  }), [oxyServices]);
   const { getCached, upsertLink } = useLinksStore();
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -38,22 +42,21 @@ export const useLinkDetection = (text: string) => {
       return cached;
     }
 
-    // Resolve the preview through the Oxy SDK. Oxy owns resolution and re-hosts
-    // the preview image on `cloud.oxy.so`, so the returned `image` is a trusted
-    // absolute URL that is rendered directly (no app-side proxy). `wait: true`
-    // asks the server to resolve synchronously instead of returning a `pending`
-    // placeholder, so the composer gets metadata in one round-trip.
+    // Resolve through Clarity. A bounded wait may return a document immediately
+    // or a pending job; pending URLs simply have no card until the next pass.
     try {
-      const preview = await oxyServices.getLinkPreview(url, { wait: true });
+      const resolution = await clarity.indexing.resolve({ urls: [url], waitMs: 8_000 }, { signal });
+      const preview = resolution.data[0]?.document;
+      if (!preview) return null;
       if (signal?.aborted) return null;
 
       const metadata: LinkMetadata = {
-        url,
+        url: preview.canonicalUrl,
         title: preview.title,
         description: preview.description,
-        image: preview.image,
-        siteName: preview.siteName,
-        favicon: preview.favicon,
+        image: preview.imageUrl,
+        siteName: preview.publisher,
+        favicon: preview.faviconUrl,
         fetchedAt: Date.now(),
       };
       upsertLink(metadata);
@@ -64,7 +67,7 @@ export const useLinkDetection = (text: string) => {
       logger.debug('Link preview resolution failed', { url, error: err });
       return null;
     }
-  }, [getCached, upsertLink, oxyServices]);
+  }, [clarity, getCached, upsertLink]);
 
   /**
    * Process text and fetch metadata for all detected links
@@ -83,12 +86,12 @@ export const useLinkDetection = (text: string) => {
     // Debounce link detection (wait 500ms after user stops typing)
     fetchTimeoutRef.current = setTimeout(async () => {
       // Capped BEFORE the profile-link filter, matching hydration: a body with
-      // more than `MAX_POST_LINK_PREVIEWS` links, one of them a profile link,
+      // more than `MAX_POST_DOCUMENTS` links, one of them a profile link,
       // renders one card fewer rather than promoting the next link into the
       // freed slot. Filtering first would show the author a card the published
       // post does not have.
       const urls = extractUrls(text)
-        .slice(0, MAX_POST_LINK_PREVIEWS)
+        .slice(0, MAX_POST_DOCUMENTS)
         .filter((url) => ownProfileLinkHandle(url) === undefined);
 
       if (urls.length === 0) {

@@ -39,7 +39,7 @@ vi.mock('../../runtime/oxyClient', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
     getUsersByIds,
-    getLinkPreviews: vi.fn(async () => ({})),
+    getClarityDocuments: vi.fn(async () => ({})),
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
   }),
 }));
@@ -84,7 +84,7 @@ describe('getPostById ACL — anonymous viewer cannot see non-public posts', () 
       viewerId: undefined,
       oxyClient: {
         getUsersByIds,
-        getLinkPreviews: vi.fn(async () => ({})),
+        getClarityDocuments: vi.fn(async () => ({})),
         getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
       } as never,
       maxDepth: 2,

@@ -18,7 +18,7 @@ import org.json.JSONObject
  *
  * Everything here is pure, so all of it is unit-tested on a plain JVM. The
  * distribution it is written against, measured over 30 consecutive explore posts:
- * 20% carried `attachments.media`, 57% carried `linkPreviews`, text ran from 0 to
+ * 20% carried `attachments.media`, 57% carried `documents`, text ran from 0 to
  * 1708 characters, and one post had no text at all.
  */
 
@@ -108,7 +108,7 @@ private const val FIELD_CONTENT = "content"
 private const val FIELD_TEXT = "text"
 private const val FIELD_ATTACHMENTS = "attachments"
 private const val FIELD_MEDIA = "media"
-private const val FIELD_LINK_PREVIEWS = "linkPreviews"
+private const val FIELD_LINK_PREVIEWS = "documents"
 private const val FIELD_TITLE = "title"
 private const val FIELD_IMAGE = "image"
 private const val FIELD_THUMB_URL = "thumbUrl"

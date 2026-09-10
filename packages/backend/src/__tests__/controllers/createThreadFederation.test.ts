@@ -56,9 +56,9 @@ vi.mock('../../utils/oxyHelpers', () => ({
   createUserScopedOxyServices: vi.fn(() => undefined),
 }));
 
-vi.mock('../../utils/linkPreviewWarm', () => ({
-  warmLinkPreviewForText: vi.fn().mockResolvedValue(undefined),
-  warmLinkPreviewForTextDetached: vi.fn(),
+vi.mock('../../utils/clarityDocumentWarm', () => ({
+  warmClarityDocumentForText: vi.fn().mockResolvedValue(undefined),
+  warmClarityDocumentForTextDetached: vi.fn(),
 }));
 
 vi.mock('../../services/PostCreationService', () => ({

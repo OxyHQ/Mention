@@ -1,6 +1,6 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { MAX_POST_LINK_PREVIEWS } from '@mention/shared-types/post';
+import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
 import { useLinkDetection } from '../useLinkDetection';
 
 /**
@@ -17,18 +17,30 @@ import { useLinkDetection } from '../useLinkDetection';
  * stops us paying a preview service to scrape our own profile pages.
  */
 
-const mockGetLinkPreview = jest.fn();
+const mockResolve = jest.fn();
+const mockGetCached = jest.fn();
+const mockUpsertLink = jest.fn();
+let capturedGetAccessToken: (() => string | Promise<string>) | undefined;
+
+jest.mock('@clarity.surf/sdk', () => ({
+  ClarityClient: class {
+    constructor(options: { getAccessToken: () => string | Promise<string> }) {
+      capturedGetAccessToken = options.getAccessToken;
+    }
+    indexing = { resolve: (...args: unknown[]) => mockResolve(...args) };
+  },
+}), { virtual: true });
 
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
-    oxyServices: { getLinkPreview: (...args: unknown[]) => mockGetLinkPreview(...args) },
+    oxyServices: { getClient: () => ({ getAccessToken: () => 'token' }) },
   }),
 }));
 jest.mock('@oxy.so/core/logger', () => ({
   logger: { error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() },
 }));
 jest.mock('@/stores/linksStore', () => ({
-  useLinksStore: () => ({ getCached: () => undefined, upsertLink: () => {} }),
+  useLinksStore: () => ({ getCached: mockGetCached, upsertLink: mockUpsertLink }),
 }));
 
 function Probe({ text }: { text: string }) {
@@ -44,13 +56,48 @@ async function requestedPreviewUrls(text: string): Promise<string[]> {
   await act(async () => {
     await jest.advanceTimersByTimeAsync(600);
   });
-  return mockGetLinkPreview.mock.calls.map(([url]) => url as string);
+  return mockResolve.mock.calls.flatMap(([request]) => (request as { urls: string[] }).urls);
 }
 
 beforeEach(() => {
   jest.useFakeTimers();
-  mockGetLinkPreview.mockReset();
-  mockGetLinkPreview.mockResolvedValue({ title: 'a title' });
+  mockResolve.mockReset();
+  mockGetCached.mockReset();
+  mockUpsertLink.mockReset();
+  mockResolve.mockImplementation(async ({ urls }: { urls: string[] }) => ({
+    data: urls.map((url) => ({
+      url,
+      status: 'indexed',
+      document: { id: url, canonicalUrl: url, title: 'a title', type: 'page', status: 'indexed', authors: [], evidence: {} },
+    })),
+  }));
+});
+
+it('gives the Clarity SDK the active Oxy access token', async () => {
+  await act(async () => {
+    TestRenderer.create(<Probe text="" />);
+  });
+
+  expect(capturedGetAccessToken).toBeDefined();
+  expect(await capturedGetAccessToken?.()).toBe('token');
+});
+
+it('uses cached Clarity metadata without another request', async () => {
+  mockGetCached.mockReturnValue({ url: 'https://example.com/cached', title: 'Cached', fetchedAt: 1 });
+  expect(await requestedPreviewUrls('https://example.com/cached')).toEqual([]);
+  expect(mockResolve).not.toHaveBeenCalled();
+});
+
+it('does not cache a pending resolution without a document', async () => {
+  mockResolve.mockResolvedValue({ data: [{ url: 'https://example.com/pending', status: 'queued', jobId: 'job-1' }] });
+  expect(await requestedPreviewUrls('https://example.com/pending')).toEqual(['https://example.com/pending']);
+  expect(mockUpsertLink).not.toHaveBeenCalled();
+});
+
+it('treats a resolution failure as no preview', async () => {
+  mockResolve.mockRejectedValue(new Error('unavailable'));
+  expect(await requestedPreviewUrls('https://example.com/failure')).toEqual(['https://example.com/failure']);
+  expect(mockUpsertLink).not.toHaveBeenCalled();
 });
 
 afterEach(() => {
@@ -91,12 +138,12 @@ it('renders one card fewer rather than promoting a link past the cap', async () 
   // The cap applies BEFORE the profile-link filter, which is what hydration
   // does; matching it is what makes the composer show the published shape.
   const others = Array.from(
-    { length: MAX_POST_LINK_PREVIEWS },
+    { length: MAX_POST_DOCUMENTS },
     (_, index) => `https://example.com/${index}`,
   );
   const urls = await requestedPreviewUrls(
     `https://mention.earth/@alice ${others.join(' ')}`,
   );
 
-  expect(urls).toEqual(others.slice(0, MAX_POST_LINK_PREVIEWS - 1));
+  expect(urls).toEqual(others.slice(0, MAX_POST_DOCUMENTS - 1));
 });

@@ -22,6 +22,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@clarity.surf/sdk": "^0.2.4",
     "@mention/shared-types": "workspace:*",
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "catalog:",

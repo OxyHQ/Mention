@@ -115,7 +115,7 @@ const makePost = (id: string, views: number | null): FeedItem => ({
   authors: [],
   content: { text: id },
   attachments: {},
-  linkPreviews: [],
+  documents: [],
   viewerState: {
     isOwner: false,
     isCollaborator: false,

@@ -52,7 +52,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: () => undefined,
   getServiceOxyClient: () => ({
     getUsersByIds: vi.fn(async () => []),
-    getLinkPreviews: vi.fn(async () => ({})),
+    getClarityDocuments: vi.fn(async () => ({})),
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
   }),
   createUserScopedOxyServices: () => ({ listAccountMembers: oxy.listAccountMembers }),

@@ -10,7 +10,7 @@ import { postContentVariants, postMentions } from '../../db/schema/postContent';
 import { posts } from '../../db/schema/posts';
 import { extractUrls } from '../../utils/extractUrls';
 import { logger } from '../../utils/logger';
-import { getServiceOxyClient } from '../../utils/oxyHelpers';
+import { getClarityClient } from '../../utils/clarityClient';
 import { extractTrendTerms } from './termExtraction';
 
 const MIN_RELEVANCE = 0.5;
@@ -144,15 +144,16 @@ export async function saveStoryMemberships(stories: readonly StoredStoryInput[])
     }
 
     const urls = [...new Set(bodies.flatMap((row) => extractUrls(row.body)))];
-    const previews = urls.length === 0 ? {} : await getServiceOxyClient().getLinkPreviews(urls).catch((error: unknown) => {
+    const documents = urls.length === 0 ? [] : await (await getClarityClient()).indexing.resolve({ urls, waitMs: 2_000 }).then((response) => response.data).catch((error: unknown) => {
       logger.debug('[Trending] Link evidence unavailable', { count: urls.length, error });
-      return {};
+      return [];
     });
+    const documentByUrl = new Map(documents.flatMap((resolution) => resolution.document ? [[resolution.url, resolution.document] as const] : []));
 
     const memberships = matches.flatMap((post) => {
       const body = bodyByPost.get(post.postId);
-      const resolved = (body ? extractUrls(body.body) : []).map((url) => previews[url])
-        .filter((preview) => preview?.status === 'resolved');
+      const resolved = (body ? extractUrls(body.body) : []).map((url) => documentByUrl.get(url))
+        .filter((document) => document !== undefined);
       const languages = body?.tag ? [body.tag] : undefined;
       const scored = scoreContextualStoryMembership({
         storyName: story.name,
@@ -167,8 +168,8 @@ export async function saveStoryMemberships(stories: readonly StoredStoryInput[])
       const counts = amplification.get(post.postId) ?? { repostsCount: 0, quotesCount: 0, repliesCount: 0 };
       const evidence: TrendStoryEvidence = {
         sources: scored.sources,
-        linkUrls: resolved.map((preview) => preview.url),
-        linkDomains: [...new Set(resolved.map((preview) => domainOf(preview.url))
+        linkUrls: resolved.map((document) => document.canonicalUrl),
+        linkDomains: [...new Set(resolved.map((document) => domainOf(document.canonicalUrl))
           .filter((domain): domain is string => Boolean(domain)))],
         mentionsCount: mentionCount.get(post.postId) ?? 0,
         ...counts,

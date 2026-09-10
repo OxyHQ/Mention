@@ -1,4 +1,4 @@
-import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, PostLinkPreview, PostPermissions, PostReplyContext, PostViewerState, PostVisibility, PostAuthorshipEntry, MEDIA_VARIANT_THUMB } from '@mention/shared-types';
+import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, ClarityDocument, PostPermissions, PostReplyContext, PostViewerState, PostVisibility, PostAuthorshipEntry } from '@mention/shared-types';
 import type { LaneDisplayMode, LaneSummary } from '@mention/shared-types';
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
@@ -26,6 +26,7 @@ import { ACTOR_DOMAIN, FEDERATION_DOMAIN, FEDERATION_ENABLED } from '../connecto
 import { deriveBridgyActorUri } from '../connectors/activitypub/bridgy';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
+import { getClarityClient } from '../utils/clarityClient';
 import { extractUrls } from '../utils/extractUrls';
 import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 import {
@@ -35,7 +36,7 @@ import {
   extractFollowersIds,
   OxyClient,
 } from '../utils/privacyHelpers';
-import { resolveMediaItems, attachCdnVariant } from '../utils/mediaResolver';
+import { resolveMediaItems } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
 import { readPersistedMediaFields } from './MediaMetadataService';
 // The counter-visibility flags are shared with the realtime broadcaster, which
@@ -43,7 +44,6 @@ import { readPersistedMediaFields } from './MediaMetadataService';
 import { DEFAULT_PRIVACY, readEngagementCountPrivacy } from './engagementCountPrivacy';
 import type { User as OxyUser } from '@oxy.so/core';
 import { getNormalizedUserHandle, getUserLanguages } from '@oxy.so/core';
-import type { LinkPreview } from '@oxy.so/contracts';
 import { assignThreadState } from './ThreadSlicingService';
 import { mget as mgetUserSummaries, mset as msetUserSummaries, CachedUserSummary } from './userSummaryCache';
 import { computeStarterPackScores, starterPackCurationDeps } from './starterPackCuration';
@@ -1185,8 +1185,8 @@ export class PostHydrationService {
       this.buildPollMap(postsForHydration),
       this.buildAuthorPrivacyMap(postsForHydration, viewerContext),
       options.includeLinkMetadata !== false
-        ? this.buildLinkPreviewMap(postsForHydration, resolvedMap)
-        : Promise.resolve(new Map<string, PostLinkPreview[]>()),
+        ? this.buildClarityDocumentMap(postsForHydration, resolvedMap)
+        : Promise.resolve(new Map<string, ClarityDocument[]>()),
       this.buildOrphanFederatedAuthorMap(postsForHydration),
       // `undefined` (not an empty Map) when the caller did not ask, so a post
       // with zero quotes is still reported as 0 rather than as "not counted".
@@ -2039,13 +2039,13 @@ export class PostHydrationService {
 
   /**
    * Build the per-post link-preview map for a batch of posts. Each post maps to
-   * its preview cards IN TEXT ORDER, capped at `MAX_POST_LINK_PREVIEWS` by
+   * its preview cards IN TEXT ORDER, capped at `MAX_POST_DOCUMENTS` by
    * {@link extractUrls} — a post with several links renders a card per link. The
    * URLs are read from the RESOLVED body, so a reader served the Spanish variant
    * gets the cards for the links that variant actually contains.
    *
    * Link previews are resolved through the Oxy ecosystem link-preview service
-   * ({@link OxyServices.getLinkPreviews}) instead of being scraped locally. Oxy
+   * through Clarity instead of being scraped locally. Clarity
    * owns BOTH resolution and privacy-preserving image hosting: the `image` /
    * `favicon` on every returned preview is an absolute Oxy-hosted
    * (`cloud.oxy.so`) URL — never re-proxied via `/media/proxy`, but sized down
@@ -2075,18 +2075,18 @@ export class PostHydrationService {
    * an article still gets the article's card.
    *
    * One bounded consequence, stated rather than hidden: {@link extractUrls}
-   * applies the `MAX_POST_LINK_PREVIEWS` cap BEFORE this filter, so a post
+   * applies the `MAX_POST_DOCUMENTS` cap BEFORE this filter, so a post
    * carrying more than that many links, one of which is a profile link, renders
    * one card fewer instead of promoting the next link into the freed slot. Moving
    * the filter ahead of the cap would mean teaching a generally-named URL
    * extractor about profile links, which is a worse trade for a case that needs
    * five links in one body to reach.
    */
-  private async buildLinkPreviewMap(
+  private async buildClarityDocumentMap(
     nodes: HydratedGraphNode[],
     resolvedMap: Map<string, ResolvedVariant>,
-  ): Promise<Map<string, PostLinkPreview[]>> {
-    const previewMap = new Map<string, PostLinkPreview[]>();
+  ): Promise<Map<string, ClarityDocument[]>> {
+    const previewMap = new Map<string, ClarityDocument[]>();
 
     const postToUrls = new Map<string, string[]>(); // postId -> [url] (text order)
     const uniqueUrls = new Set<string>();
@@ -2110,47 +2110,24 @@ export class PostHydrationService {
 
     if (uniqueUrls.size === 0) return previewMap;
 
-    let previews: Record<string, LinkPreview> = {};
+    const resolvedByUrl = new Map<string, ClarityDocument>();
     try {
-      previews = await getServiceOxyClient().getLinkPreviews([...uniqueUrls]);
+      const response = await (await getClarityClient()).indexing.resolve({
+        urls: [...uniqueUrls],
+        waitMs: 2_000,
+      });
+      for (const resolution of response.data) {
+        if (resolution.document) resolvedByUrl.set(resolution.url, resolution.document);
+      }
     } catch (error) {
-      // Best-effort: a preview-service hiccup must never fail feed hydration or
-      // suppress the URL-only cards the renderer can already draw.
-      logger.warn('[PostHydration] Failed to resolve link previews from Oxy', {
+      logger.warn('[PostHydration] Failed to resolve documents from Clarity', {
         count: uniqueUrls.size,
         reason: error instanceof Error ? error.message : 'unknown',
       });
     }
 
-    const resolvedByUrl = new Map<string, PostLinkPreview>();
-    for (const url of uniqueUrls) {
-      const preview = previews[url];
-      if (!preview || preview.status !== 'resolved') {
-        // Even an empty/pending metadata result may carry the final URL Oxy
-        // reached through redirects. Preserve it so URL-only cards bypass link
-        // shorteners and open the canonical destination.
-        const destinationUrl = preview?.url || url;
-        resolvedByUrl.set(url, {
-          url: destinationUrl,
-          ...(destinationUrl !== url ? { sourceUrl: url } : {}),
-        });
-        continue;
-      }
-
-      resolvedByUrl.set(url, {
-        url: preview.url,
-        ...(preview.url !== url ? { sourceUrl: url } : {}),
-        title: preview.title || undefined,
-        description: preview.description || undefined,
-        // Already an absolute Oxy-hosted `cloud.oxy.so` URL — attach the
-        // thumb-context variant instead of serving the no-variant original.
-        image: preview.image ? attachCdnVariant(preview.image, MEDIA_VARIANT_THUMB) : undefined,
-        siteName: preview.siteName || undefined,
-      });
-    }
-
     for (const [postId, urls] of postToUrls) {
-      const resolved: PostLinkPreview[] = [];
+      const resolved: ClarityDocument[] = [];
       for (const url of urls) {
         const preview = resolvedByUrl.get(url);
         if (preview) resolved.push(preview);
@@ -2493,7 +2470,7 @@ export class PostHydrationService {
     pollMap: Map<string, Record<string, unknown>>;
     userMap: Map<string, PostUser>;
     mentionCache: Map<string, PostUser>;
-    linkPreviewMap: Map<string, PostLinkPreview[]>;
+    linkPreviewMap: Map<string, ClarityDocument[]>;
     authorPrivacyMap: Map<string, typeof DEFAULT_PRIVACY>;
     recentReplierMap?: Map<string, string[]>;
     orphanAuthorMap: Map<string, PostUser>;
@@ -2613,7 +2590,7 @@ export class PostHydrationService {
     );
     const content = this.buildContent(post, pollMap, viewerContext, resolved, inlineVariants);
     const attachments = this.buildAttachments(post, pollMap, resolved);
-    const linkPreviews = linkPreviewMap.get(postId) ?? [];
+    const documents = linkPreviewMap.get(postId) ?? [];
     const viewerState = this.buildViewerState(post, postId, viewerContext, authorship);
     const permissions = this.buildPermissions(post, authorId, viewerContext, authorship);
     const authorPrivacy = authorPrivacyMap.get(authorId) ?? { ...DEFAULT_PRIVACY };
@@ -2711,7 +2688,7 @@ export class PostHydrationService {
       id: postId,
       content: content ?? { text: finalText },
       attachments,
-      linkPreviews,
+      documents,
       user,
       authors,
       ...(includeAuthorship ? { authorship } : {}),

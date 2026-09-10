@@ -87,7 +87,7 @@ export const ZEmbeddedPost = z
     authors: z.array(ZEmbeddedAuthor),
     content: z.looseObject({ text: z.string().optional() }),
     attachments: z.looseObject({}),
-    linkPreviews: z.array(z.looseObject({ url: z.string() })).optional(),
+    documents: z.array(z.looseObject({ url: z.string() })).optional(),
     engagement: z.looseObject({
       replies: z.number().nullable(),
       boosts: z.number().nullable(),

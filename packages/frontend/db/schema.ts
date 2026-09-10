@@ -73,7 +73,7 @@ export interface FeedMetaRow {
   filters_json: string | null;
 }
 
-export interface LinkPreviewRow {
+export interface ClarityDocumentRow {
   url: string;
   title: string | null;
   description: string | null;
@@ -200,7 +200,7 @@ export function postToRow(post: FeedItem): PostRow {
     quoted_post_id: post.quotedPost?.id ?? null,
     content_json: safeJsonStringify(post.content) || '{"text":""}',
     attachments_json: safeJsonStringify(post.attachments),
-    link_previews_json: safeJsonStringify(post.linkPreviews),
+    link_previews_json: safeJsonStringify(post.documents),
     permissions_json: safeJsonStringify(post.permissions),
     boost_json: safeJsonStringify(post.boost),
     context_json: safeJsonStringify(post.context),
@@ -271,7 +271,7 @@ export function rowToFeedItem(row: PostRow): FeedItem | null {
 
 // ── Link preview conversions ─────────────────────────────────────
 
-export function linkMetadataToRow(metadata: LinkMetadata): LinkPreviewRow {
+export function linkMetadataToRow(metadata: LinkMetadata): ClarityDocumentRow {
   return {
     url: metadata.url,
     title: metadata.title || null,
@@ -285,7 +285,7 @@ export function linkMetadataToRow(metadata: LinkMetadata): LinkPreviewRow {
   };
 }
 
-export function rowToLinkMetadata(row: LinkPreviewRow): LinkMetadata {
+export function rowToLinkMetadata(row: ClarityDocumentRow): LinkMetadata {
   return {
     url: row.url,
     title: row.title || undefined,

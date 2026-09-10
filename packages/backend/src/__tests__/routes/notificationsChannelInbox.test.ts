@@ -76,7 +76,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
   getServiceOxyClient: () => ({
     getUsersByIds: mocks.getUsersByIds,
-    getLinkPreviews: vi.fn(async () => ({})),
+    getClarityDocuments: vi.fn(async () => ({})),
     getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
   }),
 }));
