@@ -24,6 +24,7 @@ import type { User } from '@oxy.so/core';
 
 const mockViewer: { current: User | null } = { current: null };
 const mockFetchProfile = jest.fn<Promise<User | null>, [string | null]>();
+const mockLoadAppearance = jest.fn();
 
 jest.mock('@oxy.so/services', () => {
   const { useQuery } =
@@ -63,7 +64,7 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 
 jest.mock('@/stores/appearanceStore', () => ({
   useAppearanceStore: (selector: (state: unknown) => unknown) =>
-    selector({ loadForUser: async () => null }),
+    selector({ loadForUser: mockLoadAppearance }),
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
@@ -74,7 +75,8 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 jest.mock('@mention/shared-types/post', () => ({ MEDIA_VARIANT_BANNER: 'banner' }));
 
 jest.mock('@/utils/imageUrlCache', () => ({
-  getCachedFileDownloadUrlSync: () => undefined,
+  getCachedFileDownloadUrlSync: (_services: unknown, ref: string) =>
+    `https://cloud.oxy.so/${ref}`,
 }));
 
 import { useProfileData } from '@/hooks/useProfileData';
@@ -95,6 +97,10 @@ interface Snapshot {
 function Probe({ handle, sink }: { handle: string; sink: Snapshot[] }) {
   const { data, loading } = useProfileData(handle);
   sink.push({ loading, displayName: data?.design.displayName ?? null });
+  return null;
+}
+
+function RefreshTrigger({ onRefresh }: { onRefresh: () => Promise<void> }) {
   return null;
 }
 
@@ -132,6 +138,8 @@ function mountProbe(handle: string, sink: Snapshot[]) {
 describe('useProfileData — the viewer’s own profile', () => {
   beforeEach(() => {
     mockFetchProfile.mockReset();
+    mockLoadAppearance.mockReset();
+    mockLoadAppearance.mockResolvedValue(null);
     mockViewer.current = null;
   });
 
@@ -195,5 +203,63 @@ describe('useProfileData — the viewer’s own profile', () => {
 
     expect(sink[0]).toEqual({ loading: true, displayName: null });
     act(() => renderer.unmount());
+  });
+
+  it('refreshes identity and appearance together for profile pull-to-refresh', async () => {
+    mockViewer.current = user('viewer-1', 'nate', 'Nate');
+    mockFetchProfile
+      .mockResolvedValueOnce(user('viewer-1', 'nate', 'Nate'))
+      .mockResolvedValueOnce(user('viewer-1', 'nate', 'Nate refreshed'));
+    mockLoadAppearance
+      .mockResolvedValueOnce({
+        oxyUserId: 'viewer-1',
+        postsCount: 1,
+        profileHeaderImage: 'old-banner',
+      })
+      .mockResolvedValueOnce({
+        oxyUserId: 'viewer-1',
+        postsCount: 2,
+        profileHeaderImage: 'new-banner',
+      });
+
+    const snapshots: {
+      bannerUrl?: string;
+      displayName: string | null;
+      postsCount?: number;
+    }[] = [];
+    function RefreshProbe() {
+      const result = useProfileData('nate');
+      snapshots.push({
+        bannerUrl: result.data?.design.bannerUrl,
+        displayName: result.data?.design.displayName ?? null,
+        postsCount: result.data?.postsCount,
+      });
+      return <RefreshTrigger onRefresh={result.refresh} />;
+    }
+
+    const client = new QueryClient();
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    act(() => {
+      renderer = TestRenderer.create(
+        <QueryClientProvider client={client}>
+          <RefreshProbe />
+        </QueryClientProvider>,
+      );
+    });
+    await settle();
+
+    await act(async () => {
+      await renderer?.root.findByType(RefreshTrigger).props.onRefresh();
+    });
+    await settle();
+
+    expect(mockFetchProfile).toHaveBeenCalledTimes(2);
+    expect(mockLoadAppearance).toHaveBeenCalledTimes(2);
+    expect(snapshots[snapshots.length - 1]).toEqual({
+      bannerUrl: 'https://cloud.oxy.so/new-banner',
+      displayName: 'Nate refreshed',
+      postsCount: 2,
+    });
+    act(() => renderer?.unmount());
   });
 });

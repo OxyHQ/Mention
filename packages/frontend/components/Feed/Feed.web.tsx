@@ -45,6 +45,8 @@ interface FeedProps {
     listLeadingComponent?: React.ReactElement | null;
     threaded?: boolean;
     threadPostId?: string;
+    /** Extra data owned by the screen chrome that shares this refresh action. */
+    onRefresh?: () => Promise<void>;
 }
 
 const DEFAULT_FEED_PROPS = {
@@ -96,6 +98,7 @@ function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> &
         reloadKey,
         threaded,
         threadPostId,
+        onRefresh,
     } = props;
 
     const useScoped = !!(filters && Object.keys(filters).length) && !showOnlySaved;
@@ -155,11 +158,11 @@ function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> &
     // otherwise surface as an unhandled rejection.
     const handleRefresh = useCallback(async () => {
         try {
-            await feedRefresh();
+            await Promise.all([feedRefresh(), onRefresh?.()]);
         } catch (err) {
             logger.error('Error refreshing feed', err);
         }
-    }, [feedRefresh]);
+    }, [feedRefresh, onRefresh]);
 
     return {
         feedRows,

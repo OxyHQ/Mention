@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useCallback } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -14,6 +14,8 @@ import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Gear } from '@/assets/icons/gear-icon';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { FrostedIconButton } from '@oxy.so/bloom/frosted-icon-button';
+import { showContentDialog } from '@/components/common/ContentDialog';
+import { EditProfileForm } from './EditProfile/EditProfileForm';
 import { usePoke } from './hooks/usePoke';
 import { useFederatedFollowSync } from './hooks/useFederatedFollowSync';
 import { LAYOUT } from './types';
@@ -86,6 +88,15 @@ export const ProfileHeader = memo(function ProfileHeader({
     ],
   }));
 
+  const openEditProfile = useCallback(() => {
+    const title = t('profile.editProfile');
+    showContentDialog({
+      label: title,
+      title,
+      render: () => <EditProfileForm />,
+    });
+  }, [t]);
+
   return (
     <View className="flex-row justify-between items-end mb-2.5" style={{ marginTop: -45 }}>
       <View className="relative">
@@ -121,7 +132,7 @@ export const ProfileHeader = memo(function ProfileHeader({
           <View className="flex-row items-center gap-3">
             <TouchableOpacity
               className="border border-border bg-background rounded-full px-6 py-2"
-              onPress={() => router.push('/edit-profile')}
+              onPress={openEditProfile}
               accessibilityRole="button"
               accessibilityLabel={t('profile.editProfile')}
             >

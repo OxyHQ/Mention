@@ -5,6 +5,8 @@ import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 interface ContentDialogRequest {
   /** Accessibility label for the surface — what the panel is about. */
   label: string;
+  /** Optional visible title rendered by Bloom's dialog chrome. */
+  title?: string;
   /** Renders the panel body. `close` dismisses the dialog. */
   render: (close: () => void) => React.ReactNode;
 }
@@ -57,6 +59,7 @@ export function ContentDialogHost() {
     <Dialog
       control={control}
       label={request?.label ?? ''}
+      title={request?.title}
       placement={{ base: 'bottom', md: 'center' }}
       // The panels render a `FlatList`: the dialog must hand them a bounded
       // height and let them scroll it, not nest a VirtualizedList in a

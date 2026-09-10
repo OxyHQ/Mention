@@ -56,16 +56,26 @@ export const BannerSection: React.FC = () => {
   }, [updateMySettings]);
 
   return (
-    <View className="px-5 py-3 gap-3">
-      <View className="flex-row items-center gap-3">
-        <Icon name="image-outline" size={22} color={colors.text} />
-        <Text className="text-[16px] text-foreground">
-          {t('settings.profileHeader', 'Profile header')}
+    <View className="px-5 py-4 gap-3">
+      <View className="gap-1">
+        <View className="flex-row items-center gap-3">
+          <Icon name="image-outline" size={22} color={colors.text} />
+          <Text className="text-[16px] font-semibold text-foreground">
+            {t('settings.profileHeader', 'Profile header')}
+          </Text>
+        </View>
+        <Text className="text-sm text-muted-foreground pl-[34px]">
+          {t('settings.uploadHeaderHint', 'Recommended: 1500x500px')}
         </Text>
       </View>
 
       {headerImageRef ? (
-        <View className="rounded-xl overflow-hidden border border-border relative">
+        <Pressable
+          className="rounded-2xl overflow-hidden border border-border relative bg-muted"
+          onPress={openHeaderPicker}
+          accessibilityRole="button"
+          accessibilityLabel={`${t('common.edit')} ${t('settings.profileHeader')}`}
+        >
           <Image
             source={{
               // Same variant the profile banner asks for, so this preview and
@@ -77,37 +87,41 @@ export const BannerSection: React.FC = () => {
                 MEDIA_VARIANT_BANNER,
               ),
             }}
-            className="w-full h-32 bg-muted"
+            className="w-full aspect-[3/1] bg-muted"
             contentFit="cover"
           />
-          <View className="absolute bottom-2 right-2 flex-row gap-1.5">
+          <View className="absolute inset-x-0 bottom-0 flex-row items-center justify-between bg-black/60 px-3 py-2">
+            <View className="flex-row items-center gap-2">
+              <Icon name="camera-outline" size={17} color={colors.primaryForeground} />
+              <Text className="text-white text-sm font-semibold">
+                {t('common.edit')}
+              </Text>
+            </View>
             <Pressable
-              className="w-8 h-8 rounded-full items-center justify-center bg-black/60"
-              onPress={openHeaderPicker}
+              className="w-9 h-9 rounded-full items-center justify-center bg-black/40"
+              onPress={(event) => {
+                event.stopPropagation();
+                void removeHeaderImage();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`${t('common.remove')} ${t('settings.profileHeader')}`}
             >
-              <Icon name="camera-outline" size={16} color="#FFFFFF" />
-            </Pressable>
-            <Pressable
-              className="w-8 h-8 rounded-full items-center justify-center bg-red-500/80"
-              onPress={removeHeaderImage}
-            >
-              <Icon name="trash-outline" size={16} color="#FFFFFF" />
+              <Icon name="trash-outline" size={17} color={colors.primaryForeground} />
             </Pressable>
           </View>
-        </View>
+        </Pressable>
       ) : (
         <Pressable
-          className="rounded-xl border-[1.5px] border-dashed border-border bg-muted py-5 items-center gap-1.5"
+          className="aspect-[3/1] min-h-28 rounded-2xl border-[1.5px] border-dashed border-border bg-muted items-center justify-center gap-2"
           onPress={openHeaderPicker}
+          accessibilityRole="button"
+          accessibilityLabel={t('settings.uploadHeader', 'Upload header image')}
         >
-          <View className="w-10 h-10 rounded-full items-center justify-center bg-muted">
-            <Icon name="image-outline" size={20} color={colors.textSecondary} />
+          <View className="w-11 h-11 rounded-full items-center justify-center bg-primary/10">
+            <Icon name="camera-outline" size={21} color={colors.primary} />
           </View>
           <Text className="text-sm font-semibold text-foreground">
             {t('settings.uploadHeader', 'Upload header image')}
-          </Text>
-          <Text className="text-xs text-muted-foreground">
-            {t('settings.uploadHeaderHint', 'Recommended: 1500x500px')}
           </Text>
         </Pressable>
       )}

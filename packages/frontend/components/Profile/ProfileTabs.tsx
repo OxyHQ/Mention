@@ -61,6 +61,7 @@ export const ProfileTabs = memo(function ProfileTabs({
   listContentContainerStyle,
   listOnScroll,
   listScrollRef,
+  onProfileRefresh,
 }: ProfileTabsRuntimeProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -75,12 +76,20 @@ export const ProfileTabs = memo(function ProfileTabs({
   // A lane tab is `tab === 'posts'` too, but it shows ONE lane — a pinned post
   // that lives on another lane (or on none) has no business heading it, so the
   // query is gated off there as well.
+  const canLoadPinnedPost = tab === 'posts' && !laneId && Boolean(profileId) && !(isPrivate && !isOwnProfile);
   const pinnedPostQuery = useQuery<HydratedPost | null>({
     queryKey: viewerQueryKeys.pinnedPost(user?.id, profileId ?? ''),
     queryFn: () => feedService.getPinnedPost(profileId as string),
-    enabled: tab === 'posts' && !laneId && Boolean(profileId) && !(isPrivate && !isOwnProfile),
+    enabled: canLoadPinnedPost,
   });
   const pinnedPost = pinnedPostQuery.data ?? null;
+  const refetchPinnedPost = pinnedPostQuery.refetch;
+  const refreshProfileSurface = React.useCallback(async () => {
+    await Promise.all([
+      onProfileRefresh?.(),
+      ...(canLoadPinnedPost ? [refetchPinnedPost()] : []),
+    ]);
+  }, [canLoadPinnedPost, onProfileRefresh, refetchPinnedPost]);
 
   // Don't render feed content without a valid profile identifier
   if (!profileId && !actorUri) {
@@ -215,6 +224,7 @@ export const ProfileTabs = memo(function ProfileTabs({
           listContentContainerStyle,
           { paddingBottom: 100 },
         ]}
+        onRefresh={refreshProfileSurface}
       />
     );
   }
@@ -230,6 +240,7 @@ export const ProfileTabs = memo(function ProfileTabs({
         hideHeader={true}
         scrollEnabled={IS_WEB ? undefined : false}
         contentContainerStyle={{ paddingBottom: 100 }}
+        onRefresh={refreshProfileSurface}
       />
     </View>
   );

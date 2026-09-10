@@ -78,6 +78,8 @@ interface FeedProps {
     listLeadingComponent?: React.ReactElement | null;
     threaded?: boolean;
     threadPostId?: string;
+    /** Extra data owned by the screen chrome that shares this pull gesture. */
+    onRefresh?: () => Promise<void>;
 }
 
 const DEFAULT_FEED_PROPS = {
@@ -297,6 +299,7 @@ const Feed = ((props: FeedProps) => {
         listLeadingComponent,
         threaded,
         threadPostId,
+        onRefresh,
     } = { ...DEFAULT_FEED_PROPS, ...props };
 
     const { t } = useTranslation();
@@ -355,13 +358,13 @@ const Feed = ((props: FeedProps) => {
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
         try {
-            await feedRefresh();
+            await Promise.all([feedRefresh(), onRefresh?.()]);
         } catch (err) {
             logger.error('Error refreshing feed', err);
         } finally {
             setRefreshing(false);
         }
-    }, [feedRefresh]);
+    }, [feedRefresh, onRefresh]);
 
     // Handle load more - debounced in hook
     // For unauthenticated users, show sign-in prompt instead of loading more

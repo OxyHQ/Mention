@@ -162,6 +162,8 @@ export function useProfileData(username?: string): {
   data: ProfileData | null;
   loading: boolean;
   error: boolean;
+  /** Refetches every remote payload that contributes to the profile chrome. */
+  refresh: () => Promise<void>;
 } {
   const { oxyServices, user } = useAuth();
   const viewerId = user?.id ?? '';
@@ -249,6 +251,16 @@ export function useProfileData(username?: string): {
   });
   const appearance = appearanceQuery.data ?? null;
 
+  const refresh = useCallback(async () => {
+    const profileRequest = isFederated
+      ? federatedQuery.refetch()
+      : localQuery.refetch();
+    await Promise.all([
+      profileRequest,
+      ...(userId ? [appearanceQuery.refetch()] : []),
+    ]);
+  }, [appearanceQuery, federatedQuery, isFederated, localQuery, userId]);
+
   const profileData = useMemo<ProfileData | null>(() => {
     if (!profile) return null;
 
@@ -313,7 +325,7 @@ export function useProfileData(username?: string): {
   const loading = Boolean(handle) && isPending && !profile;
   const error = isError || (Boolean(handle) && !isPending && !profile);
 
-  return { data: profileData, loading, error };
+  return { data: profileData, loading, error, refresh };
 }
 
 /**
