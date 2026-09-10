@@ -28,7 +28,7 @@ vi.mock('../../config', () => ({
 }));
 
 vi.mock('../../utils/oxyCdnUrlClient', async () => {
-  const { OxyServices } = await vi.importActual<typeof import('@oxyhq/core')>('@oxyhq/core');
+  const { OxyServices } = await vi.importActual<typeof import('@oxy.so/core')>('@oxy.so/core');
   return { oxyCdnUrlClient: new OxyServices({ baseURL: 'https://api.oxy.so' }) };
 });
 
