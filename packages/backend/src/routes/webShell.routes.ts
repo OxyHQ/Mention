@@ -48,6 +48,7 @@ import { getShellCached } from '../services/webShellOgCache';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { webShellRateLimiter } from '../middleware/security';
+import { SHELL_ACCESS_HEADER } from '../middleware/apexFrontendProxy';
 import {
   isMentionProfilePublic,
   postSitemap,
@@ -58,6 +59,13 @@ import {
 
 /** Frontend CDN origin the static SPA shell is fetched from (NOT the apex — that would loop the Origin Rule). */
 const SHELL_ORIGIN = `${config.web.shellOrigin}/`;
+/**
+ * The shell Worker serves nothing without this key, so an OG deep link that
+ * omitted it would silently render {@link FALLBACK_SHELL} — a valid page with no
+ * app in it — rather than fail. Same header the apex proxy presents; these two
+ * are the only callers the shell origin has.
+ */
+const SHELL_ACCESS_KEY = config.web.shellAccessKey ?? '';
 /** How long a fetched shell is trusted before a background refresh. */
 const SHELL_TTL_MS = 10 * 60 * 1000;
 /** Hard timeout for the shell fetch — a slow CDN must never block a page. */
@@ -116,7 +124,7 @@ async function fetchShellHtml(): Promise<string | null> {
   const timer = setTimeout(() => controller.abort(), SHELL_FETCH_TIMEOUT_MS);
   try {
     const response = await fetch(SHELL_ORIGIN, {
-      headers: { Accept: 'text/html' },
+      headers: { Accept: 'text/html', [SHELL_ACCESS_HEADER]: SHELL_ACCESS_KEY },
       signal: controller.signal,
     });
     if (!response.ok) {

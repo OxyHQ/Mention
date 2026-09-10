@@ -111,7 +111,35 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
     expect(res.text).toContain('id="root"');
     expect(res.body.who).toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0][0])).toBe('https://mention-frontend.pages.dev/');
+    expect(String(fetchMock.mock.calls[0][0])).toBe('https://shell.mention.earth/');
+  });
+
+  // The shell Worker serves NOTHING without this header, so dropping it turns
+  // every apex page into the bootable-but-empty 502 shell — a failure that looks
+  // like a CDN outage and is not one. This asserts the header is presented at
+  // all; its value comes from `MENTION_SHELL_ACCESS_KEY`, which the suite runs
+  // without on purpose (see the allowlist comment in `vitest.config.ts`).
+  it('presents the shell access header on every proxied request', async () => {
+    const fetchMock = stubCdn();
+
+    await request(makeApp()).get('/').set('X-Forwarded-Host', APEX);
+
+    const sentHeaders = (fetchMock.mock.calls[0][1] as { headers: Record<string, string> }).headers;
+    expect(sentHeaders).toHaveProperty('X-Mention-Shell-Key');
+  });
+
+  // A client must never be able to influence the credential this backend presents
+  // to the shell: the header it sends is OURS, not something forwarded inward.
+  it('ignores a client-supplied shell access header', async () => {
+    const fetchMock = stubCdn();
+
+    await request(makeApp())
+      .get('/')
+      .set('X-Forwarded-Host', APEX)
+      .set('X-Mention-Shell-Key', 'attacker-supplied');
+
+    const sentHeaders = (fetchMock.mock.calls[0][1] as { headers: Record<string, string> }).headers;
+    expect(sentHeaders['X-Mention-Shell-Key']).not.toBe('attacker-supplied');
   });
 
   it('proxies an apex SPA route (`/explore`) to the CDN, preserving path + query', async () => {
@@ -121,7 +149,7 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
 
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="root"');
-    expect(String(fetchMock.mock.calls[0][0])).toBe('https://mention-frontend.pages.dev/explore?tab=news');
+    expect(String(fetchMock.mock.calls[0][0])).toBe('https://shell.mention.earth/explore?tab=news');
   });
 
   it('proxies apex `/feed` to the SPA instead of hitting the API feed route', async () => {
@@ -132,7 +160,7 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="root"');
     expect(res.body.who).toBeUndefined(); // NOT { who: 'api-feed' }
-    expect(String(fetchMock.mock.calls[0][0])).toBe('https://mention-frontend.pages.dev/feed');
+    expect(String(fetchMock.mock.calls[0][0])).toBe('https://shell.mention.earth/feed');
   });
 
   it('forces immutable caching for content-hashed Expo assets', async () => {

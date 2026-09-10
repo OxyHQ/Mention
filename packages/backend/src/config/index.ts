@@ -320,10 +320,20 @@ const environmentSchema = z
       emptyAsUndefined,
       httpOrigin.default('https://api.mention.earth'),
     ),
+    // The static Expo export. A Cloudflare Worker on its own hostname, NOT the
+    // apex: `mention.earth` is this backend, and asking it for the shell would
+    // loop. It was `https://mention-frontend.pages.dev` until the shell moved off
+    // Cloudflare Pages, which served those bytes to anyone who found the name.
     WEB_SHELL_ORIGIN: z.preprocess(
       emptyAsUndefined,
-      httpOrigin.default('https://mention-frontend.pages.dev'),
+      httpOrigin.default('https://shell.mention.earth'),
     ),
+    // Presented to WEB_SHELL_ORIGIN on every request. The shell Worker serves
+    // nothing without it (`packages/frontend/worker/index.js`), which is what
+    // stops the export being a second, CORS-less copy of the app on a public
+    // hostname. Required in production — see the `missing` checks below; optional
+    // elsewhere so a local `expo export` can be served without one.
+    MENTION_SHELL_ACCESS_KEY: optionalString(32),
     OXY_API_URL: z.preprocess(emptyAsUndefined, httpOrigin.default('https://api.oxy.so')),
     OXY_MEDIA_CDN_ORIGIN: z.preprocess(
       emptyAsUndefined,
@@ -811,6 +821,7 @@ export const config = {
   web: {
     origin: environment.MENTION_WEB_ORIGIN,
     shellOrigin: environment.WEB_SHELL_ORIGIN,
+    shellAccessKey: environment.MENTION_SHELL_ACCESS_KEY,
     apiOrigin: environment.MENTION_API_ORIGIN,
     oxyMediaCdnOrigin: environment.OXY_MEDIA_CDN_ORIGIN,
   },
@@ -942,6 +953,14 @@ export function validateEnvironment(): void {
   }
   if (config.runtime.isProduction && !environment.MENTION_MCP_JWT_SECRET) {
     missing.push('MENTION_MCP_JWT_SECRET');
+  }
+  // Without it the shell Worker answers 403 to this backend and EVERY apex web
+  // request falls back to the bootable-but-empty shell in `apexFrontendProxy`.
+  // That is the whole web plane down, so it fails at boot instead: a task that
+  // will not start is rolled back by the ECS circuit breaker, while one that
+  // starts and 502s is a silent outage.
+  if (config.runtime.isProduction && !environment.MENTION_SHELL_ACCESS_KEY) {
+    missing.push('MENTION_SHELL_ACCESS_KEY');
   }
   if (config.classification.enabled && !config.inference.routingProfileId) {
     missing.push('OXY_INFERENCE_ROUTING_PROFILE_ID');

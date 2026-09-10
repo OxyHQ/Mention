@@ -7,3 +7,23 @@
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# EVERY response, and the reason this rule has to exist at all: Cloudflare Pages
+# added these two headers to every response it served, automatically, with
+# nothing in this repository asking for them. Workers Static Assets does not, so
+# without this rule the move to a Worker drops both — silently, because no
+# build, deploy or test here reads a response header.
+#
+# Measured on a Pages hostname whose project has no `_headers` rule for them
+# either, which is what shows they come from the platform rather than from any
+# project:
+#
+#   oxy-auth.pages.dev  referrer-policy: strict-origin-when-cross-origin
+#                       x-content-type-options: nosniff
+#
+# `nosniff` is the one that matters: without it a browser may disregard a
+# declared Content-Type and sniff the bytes instead, which turns any response
+# carrying attacker-influenced content into a possible script.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

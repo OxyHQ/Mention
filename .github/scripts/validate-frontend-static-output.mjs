@@ -48,7 +48,21 @@ if (!(await exists(headersPath))) {
 
 if (await exists(resolve(outputDirectory, "_routes.json"))) {
   failures.push(
-    "_routes.json must not be published; Mention Pages is static and has no Worker",
+    "_routes.json must not be published; it is a Cloudflare Pages Advanced Mode " +
+      "file, and the shell Worker's routing is declared in packages/frontend/wrangler.toml",
+  );
+}
+
+// SPA fallback has TWO providers because this build is deployed twice: the shell
+// Worker gets it from `not_found_handling` in `wrangler.toml`, and the Cloudflare
+// Pages preview the release gate browses gets it from `_redirects` and NOTHING
+// else. Wrangler ignores this rule with an "infinite loop detected" warning, which
+// reads exactly like dead weight — so deleting it looks like a cleanup and lands
+// as a gate that serves 404s for every deep link.
+if (!(await exists(resolve(outputDirectory, "_redirects")))) {
+  failures.push(
+    "_redirects is missing; the Cloudflare Pages preview the release gate runs " +
+      "against has no other source of SPA fallback",
   );
 }
 

@@ -196,6 +196,40 @@ await runCase('retired routing-profile environment variable', {
 await runCase('wrong routing-profile ID', {
   'packages/backend/.env.example': 'OXY_INFERENCE_ROUTING_PROFILE_ID=other-profile-id\n',
 }, 'must pin Mention\'s exact opaque routing-profile ID');
+// The workflow-side ID check had no mutation case, so the scoping change above
+// could have disarmed it silently. These two are what make that impossible: a
+// wrong ID in the block, and a right ID that never reaches the block.
+await runCase('wrong routing-profile ID in the task env overrides', {
+  '.github/workflows/deploy-aws.yml': [
+    'env:',
+    '  TASK_ENV_OVERRIDES_JSON: >-',
+    '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"00000000-0000-0000-0000-000000000000"}',
+    '  TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN',
+    '',
+  ].join('\n'),
+}, 'must inject Mention\'s exact opaque routing-profile ID durably');
+await runCase('routing-profile ID only in a comment, not in the injected block', {
+  '.github/workflows/deploy-aws.yml': [
+    'env:',
+    '  # {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
+    '  TASK_ENV_OVERRIDES_JSON: >-',
+    '    {"SOMETHING_ELSE":"value"}',
+    '  TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN',
+    '',
+  ].join('\n'),
+}, 'must inject Mention\'s exact opaque routing-profile ID durably');
+// A second, unrelated task env var must NOT break the assertion — that is the
+// regression this scoping fixes.
+await runCase('an additional task env var alongside the routing profile', {
+  '.github/workflows/deploy-aws.yml': [
+    'env:',
+    '  TASK_ENV_OVERRIDES_JSON: >-',
+    '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd",',
+    '     "WEB_SHELL_ORIGIN":"https://shell.mention.earth"}',
+    '  TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN',
+    '',
+  ].join('\n'),
+}, null);
 await runCase('lost retirement assertion', {
   '.github/workflows/deploy-aws.yml': [
     'env:',

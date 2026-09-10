@@ -168,3 +168,11 @@ packages/e2e/playwright-report/
 /.idea
 /.vscode
 .bloom-local/
+
+# Wrangler's local state for the shell Worker: the workerd cache and its dev
+# session data, written by `wrangler dev` and `wrangler deploy --dry-run`.
+packages/frontend/.wrangler/
+# Local Worker secrets for `wrangler dev`. The real value lives in the
+# MENTION_SHELL_ACCESS_KEY GitHub secret and reaches the Worker through
+# `deploy-frontends.yml`; it is never committed.
+packages/frontend/.dev.vars

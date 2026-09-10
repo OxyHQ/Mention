@@ -235,7 +235,15 @@ if (existsSync(workflowPath)) {
   if (/\bOXY_INFERENCE_ROUTING_PROFILE\b/.test(workflow)) {
     failures.push('.github/workflows/deploy-aws.yml: still injects the retired mutable routing-profile selector');
   }
-  if (!workflow.includes(`{"${routingProfileIdName}":"${routingProfileId}"}`)) {
+  // Scoped to the TASK_ENV_OVERRIDES_JSON block rather than the whole file, and
+  // matched as a key/value pair rather than as a whole one-key object. The old
+  // form asked for the literal `{"KEY":"VALUE"}`, which tied the assertion to the
+  // block holding exactly one entry: adding any unrelated task env var broke it,
+  // while the same literal sitting in a comment anywhere in the file would have
+  // satisfied it. This is narrower on both counts — the pair has to be in the
+  // block that actually reaches the task definition.
+  const taskEnvOverrides = workflow.match(/TASK_ENV_OVERRIDES_JSON:\s*>-\s*\n([\s\S]*?\})/)?.[1];
+  if (!taskEnvOverrides?.includes(`"${routingProfileIdName}":"${routingProfileId}"`)) {
     failures.push('.github/workflows/deploy-aws.yml: must inject Mention\'s exact opaque routing-profile ID durably');
   }
 }

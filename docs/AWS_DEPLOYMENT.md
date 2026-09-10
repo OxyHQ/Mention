@@ -10,7 +10,7 @@ mutation, and serialize releases per service.
 | --- | --- | --- | --- |
 | `api.mention.earth` and the `mention.earth` apex | AWS ECS service `mention`, port `3000` | `oxy/mention` | `.github/workflows/deploy-aws.yml` |
 | `mcp.mention.earth` | AWS ECS service `mention-mcp`, port `3100` | `oxy/mention-mcp` | `.github/workflows/deploy-mcp-aws.yml` |
-| Static Expo web export | Cloudflare Pages project `mention-frontend` | — | `.github/workflows/deploy-frontends.yml` |
+| `shell.mention.earth` (static Expo web export) | Cloudflare Worker `mention-frontend` | — | `.github/workflows/deploy-frontends.yml` |
 
 GitHub Actions assumes the OIDC role `oxy-github-deploy` to push images and
 deploy; secrets sync to SSM `/oxy/mention/*` and `/oxy/mention-mcp/*`.
@@ -18,7 +18,23 @@ deploy; secrets sync to SSM `/oxy/mention/*` and `/oxy/mention-mcp/*`.
 The backend serves API, ActivityPub, OG shells and the apex proxy. ActivityPub
 paths (`/.well-known/*`, `/ap/*`, nodeinfo and inboxes) are routed directly to
 the backend and must never be redirected. The remaining apex web plane is
-proxied to the static Cloudflare Pages origin.
+proxied to `shell.mention.earth`, a Cloudflare Worker.
+
+That origin is not public. It serves nothing without the `X-Mention-Shell-Key`
+header and answers 403 otherwise, so the only ways to the app's bytes are the
+apex proxy and the OG shell renderer — both of them this backend. It is a Worker
+rather than a Cloudflare Pages project for exactly that reason: a Pages project
+always serves `<project>.pages.dev` with no way to switch it off, and
+`mention-frontend.pages.dev` was a second, unauthenticated copy of the app that
+was in no CORS allowlist, so a browser that found it booted the shell and had
+every API call blocked. Pages serves assets and runs no code; a Worker can refuse.
+
+The key is one GitHub secret, `MENTION_SHELL_ACCESS_KEY`, with two consumers:
+`deploy-aws.yml` syncs it to SSM `/oxy/mention/MENTION_SHELL_ACCESS_KEY` and
+injects it into the task, and `deploy-frontends.yml` uploads it to the Worker in
+the same operation as the code. Rotating it means running both workflows. The
+backend refuses to boot without it in production rather than start into an apex
+that answers every page with the empty fallback shell.
 
 ## Release transaction
 
@@ -36,9 +52,13 @@ proxied to the static Cloudflare Pages origin.
    checks and stickiness are infrastructure-owned and are not mutated by an
    application release.
 
-Cloudflare Pages first receives an immutable preview deployment. The exact
-preview URL is smoke-tested before the same assets are promoted to production;
-a failed production smoke rolls back to the previously captured deployment.
+Cloudflare Pages first receives an immutable preview deployment, which is what
+the browser release gate runs against — a Worker has no per-branch preview URL,
+so the candidate origin the gate requires is still a Pages deployment. The exact
+preview URL is smoke-tested and browsed before the same assets are deployed to
+the shell Worker; the deploy is then smoke-tested with the key AND asserted to
+answer 403 without one, and a failed production smoke runs `wrangler rollback`
+to the Worker's previous version.
 
 ## Health and secrets
 
