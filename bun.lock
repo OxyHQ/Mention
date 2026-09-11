@@ -282,7 +282,7 @@
     "socket.io-parser": "4.2.7",
   },
   "catalog": {
-    "@oxy.so/bloom": "^1.0.7",
+    "@oxy.so/bloom": "^1.0.8",
     "@oxy.so/contracts": "^1.0.1",
     "@oxy.so/core": "^1.0.1",
     "@oxy.so/mcp": "^1.0.0",
@@ -874,7 +874,7 @@
 
     "@oxc-project/types": ["@oxc-project/types@0.137.0", "", {}, "sha512-WT+Gb24i8hmvo85AIv2oEYouEXkRlKAlT9WaCa3TfLgNCN+GhrJOGZuIlMouAh38Qe4QOx26eUOVsq70qXrywA=="],
 
-    "@oxy.so/bloom": ["@oxy.so/bloom@1.0.7", "", { "dependencies": { "@tanstack/react-virtual": "^3.14.3", "react-native-css": "3.0.7", "react-remove-scroll-bar": "^2.3.8" }, "peerDependencies": { "@react-native-community/netinfo": ">=11.1.0", "expo": "*", "expo-blur": "*", "expo-font": "*", "expo-glass-effect": ">=0.1.9", "expo-haptics": "*", "expo-image": "*", "expo-router": ">=3.0.0", "expo-symbols": ">=0.4.5", "expo-video": "*", "nativewind": ">=5.0.0", "react": ">=18.0.0", "react-dom": ">=18.0.0", "react-native": ">=0.73.0", "react-native-gesture-handler": ">=2.16.1", "react-native-keyboard-controller": ">=1.11.4", "react-native-reanimated": ">=3.13.0", "react-native-safe-area-context": ">=5.0.0", "react-native-screens": ">=3.16.0", "react-native-svg": ">=13.0.0" }, "optionalPeers": ["@react-native-community/netinfo", "expo", "expo-font", "expo-haptics", "expo-router", "expo-video", "nativewind", "react-dom", "react-native-keyboard-controller"] }, "sha512-2F8ooPsy0GEmkUKv+971ZHfA2pUespnkxk3VzadDoPN/+g/vEi4Cw68fRawhj724tocuPbuAPEpq4mRl6vGw0A=="],
+    "@oxy.so/bloom": ["@oxy.so/bloom@1.0.8", "", { "dependencies": { "@tanstack/react-virtual": "^3.14.3", "react-native-css": "3.0.7", "react-remove-scroll-bar": "^2.3.8" }, "peerDependencies": { "@react-native-community/netinfo": ">=11.1.0", "expo": "*", "expo-blur": "*", "expo-font": "*", "expo-glass-effect": ">=0.1.9", "expo-haptics": "*", "expo-image": "*", "expo-router": ">=3.0.0", "expo-symbols": ">=0.4.5", "expo-video": "*", "nativewind": ">=5.0.0", "react": ">=18.0.0", "react-dom": ">=18.0.0", "react-native": ">=0.73.0", "react-native-gesture-handler": ">=2.16.1", "react-native-keyboard-controller": ">=1.11.4", "react-native-reanimated": ">=3.13.0", "react-native-safe-area-context": ">=5.0.0", "react-native-screens": ">=3.16.0", "react-native-svg": ">=13.0.0" }, "optionalPeers": ["@react-native-community/netinfo", "expo", "expo-font", "expo-haptics", "expo-router", "expo-video", "nativewind", "react-dom", "react-native-keyboard-controller"] }, "sha512-Bi9LM6R0SU5KVKVyYAz5zTSNr5vas8VeF5fTmMmyLU1+8vXQLVwQl+P7zo+4TK3w/vY6ooZ8lRNTJBQy5f4yiw=="],
 
     "@oxy.so/contracts": ["@oxy.so/contracts@1.0.1", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-AZGVKoRgzYidi97mSFXqdgbym840pXCxQM3/rn6MfBKd4Z0nsEAIU+vXm7mkEzerO2Ff7LKH/SJODvqCFT0CxQ=="],
 
