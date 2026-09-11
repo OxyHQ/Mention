@@ -1,7 +1,13 @@
 import React, { useCallback } from 'react';
 import { GestureResponderEvent, Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+// The SUBPATH, never the `@expo/vector-icons` barrel. The barrel re-exports
+// every icon family, so importing one glyph through it pulls Zocial, EvilIcons,
+// MaterialCommunityIcons and the rest of their fonts into the web bundle —
+// measured at +2.27 MiB of fonts (+118%) when this file got it wrong, which is
+// what the frontend bundle budget is there to catch. Every other one of the 65
+// call sites in this app uses this form.
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { CrosspostProvenance } from '@mention/shared-types';
 import { POST_CONTEXT_ROW_HEIGHT } from './postContextRowLayout';
 
