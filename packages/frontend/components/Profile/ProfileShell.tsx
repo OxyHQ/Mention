@@ -3,7 +3,7 @@ import { Animated, Platform, StatusBar, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { ChromeFab } from '@/components/ChromeFab';
+import { Fab } from '@oxy.so/bloom/fab';
 import { EmptyState } from '@/components/common/EmptyState';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
@@ -213,7 +213,8 @@ export function ProfileShell({
 
           {/* Clears the BottomBar on every platform — Bloom's Fab reads the
               bottom edge's occupancy, which the bar publishes. */}
-          <ChromeFab
+          <Fab
+            size={48}
             onPress={() => router.push('/compose')}
             icon={<ComposeIcon size={20} className="text-primary-foreground" />}
             accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}

@@ -11,7 +11,7 @@ import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
 import { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
-import { ChromeFab } from '@/components/ChromeFab';
+import { Fab } from '@oxy.so/bloom/fab';
 import { Search } from '@/assets/icons/search-icon';
 import { SEO } from '@/components/SEO';
 import { IconButton } from '@/components/ui/Button';
@@ -166,8 +166,9 @@ export default function ExploreLayout() {
             <Slot />
           </PanelChromeTopInsetProvider>
 
-          {/* Search FAB that rides the BottomBar's show/hide (web mobile). */}
-          <ChromeFab
+          {/* Bloom owns both the BottomBar clearance and its minimized position. */}
+          <Fab
+            size={48}
             onPress={() => router.push('/search')}
             icon={<Search size={22} className="text-tertiary-foreground" />}
             accessibilityLabel={t('Search')}
