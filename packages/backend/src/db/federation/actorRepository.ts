@@ -39,7 +39,11 @@
 
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
-import { federatedActorFields, federatedActors } from '../schema/federation';
+import {
+  federatedActorFields,
+  federatedActors,
+  federatedIdentityClaims,
+} from '../schema/federation';
 import type {
   FederatedActorField,
   FederatedActorRecord,
@@ -827,17 +831,32 @@ export async function updateActorSuspended(
     .where(eq(federatedActors.id, actorId));
 }
 
-/** Delete every actor row naming these protocol URIs. Returns the number removed. */
+/**
+ * Delete every actor row naming these protocol URIs, and the cross-network
+ * identity claims those actors published. Returns the number of ACTORS removed.
+ *
+ * The claims go explicitly rather than by cascade, and that is deliberate:
+ * `federated_identity_claims.subject_actor_uri` carries no foreign key, because
+ * the counterpart of a claim is frequently an actor we have never fetched and a
+ * claim is exactly what would tell us to go and look. Deleting them here — in
+ * the same transaction, beside the row delete, where it is visible — is what
+ * stops a purged actor from going on vouching for somebody.
+ */
 export async function deleteActorsByUris(
   uris: readonly string[],
   db: DatabaseOrTransaction = getDb(),
 ): Promise<number> {
   if (uris.length === 0) return 0;
-  const deleted = await db
-    .delete(federatedActors)
-    .where(inArray(federatedActors.uri, [...uris]))
-    .returning({ id: federatedActors.id });
-  return deleted.length;
+  return db.transaction(async (tx) => {
+    await tx
+      .delete(federatedIdentityClaims)
+      .where(inArray(federatedIdentityClaims.subjectActorUri, [...uris]));
+    const deleted = await tx
+      .delete(federatedActors)
+      .where(inArray(federatedActors.uri, [...uris]))
+      .returning({ id: federatedActors.id });
+    return deleted.length;
+  });
 }
 
 /** The two columns the stale-actor refresh needs to re-fetch a profile. */

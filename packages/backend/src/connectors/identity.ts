@@ -8,6 +8,7 @@ import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
 import type { NormalizedExternalActor } from '@oxy.so/federation';
 import { createIdentityBridge, type ServiceRequest, type ServiceRequestMethod } from '@oxy.so/federation/node';
 import { findIdentityOwnerActor } from '../db/federation/actorRepository';
+import { reconcileCrossNetworkIdentity } from './identityEquivalence';
 
 /**
  * The network-neutral identity bridge: resolve a normalized external actor to its
@@ -93,6 +94,23 @@ export const deleteFederatedActorIdentity = identityBridge.deleteActorIdentity;
  * them would be impersonation. The key is always the full `<handle>@<network>`,
  * so that can never happen by construction.
  *
+ * TWO NETWORKS CAN STILL BE ONE PERSON — BUT NEVER BECAUSE THE HANDLES MATCH
+ *
+ * Threads was launched on Instagram identity, so `@zuck@instagram.com` and
+ * `@zuck@threads.net` really can be one account rather than two people who
+ * picked the same word. The rule above cannot tell those apart and must not try:
+ * it is what stops `@nate@x.com` from absorbing `@nate@instagram.com`, and
+ * loosening it to let Meta through would loosen it for everybody.
+ *
+ * So the exception is a SEPARATE layer with a completely different input
+ * (`./identityEquivalence`), consulted first and only for actors whose identity
+ * domain appears in a reviewed cross-network pair. It links two identities only
+ * when each one independently ASSERTS the other, machine-readably, on its own
+ * actor — and it re-proves that from what both sides publish now, every time,
+ * so a released handle's next owner cannot inherit the previous owner's
+ * counterpart. Everything below is unchanged for every other actor, which is
+ * every actor of every ordinary instance.
+ *
  * Two ingests racing can both find no owner and both try to mint; oxy-api's unique
  * index refuses the loser, which surfaces as an unresolved actor (no orphan is
  * written) and the next refresh settles. A rare, self-correcting outcome — a lock
@@ -102,6 +120,16 @@ export async function resolveFederatedActorIdentity(
   actor: NormalizedExternalActor,
   opts?: { forceAvatarRefresh?: boolean },
 ): Promise<string | null> {
+  // The cross-NETWORK layer runs first, and runs for BOTH identity shapes. A
+  // native `threads.net` actor's identity IS its own acct, so it would otherwise
+  // take the fast path below and never be considered — and it is one of exactly
+  // two sides the reviewed Instagram↔Threads pair has. It gates itself on the
+  // policy, so an actor on any other network pays one in-memory set lookup.
+  const crossNetwork = await reconcileCrossNetworkIdentity(actor);
+  if (crossNetwork.adoptOxyUserId) {
+    return crossNetwork.adoptOxyUserId;
+  }
+
   // An actor whose identity IS its own protocol acct cannot share that identity
   // with another row — an acct is already unique per host — so there is nothing
   // to look for, and looking would put a DB round trip on every actor of every
