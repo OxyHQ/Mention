@@ -14,6 +14,8 @@ import { findClusterByPostId } from '../../db/posts/postEquivalenceRepository';
 import {
   CROSSPOST_WINDOW_MS,
   detectCrosspostEquivalence,
+  loadCrosspostVariants,
+  networkLabel,
   reevaluateClusterForPost,
   sharedMediaIdentifier,
 } from '../../services/PostEquivalenceService';
@@ -393,6 +395,102 @@ describe('a cluster that has stopped being true', () => {
       .where(eq(posts.id, survivorId));
     expect(survivor).toMatchObject({ collapsed: false });
     expect(await visibleIds()).toEqual([survivorId]);
+  });
+});
+
+describe('provenance for the rendered card', () => {
+  it('names both networks, marks the rendered one, and links the hidden variant', async () => {
+    const instagram = await createVariant({
+      actorUri: IG_ACTOR,
+      text: 'same words',
+      createdAt: NOW,
+      media: MEDIA,
+    });
+    const threads = await createVariant({
+      actorUri: THREADS_ACTOR,
+      text: 'same words',
+      createdAt: new Date(NOW.getTime() + 60_000),
+      media: MEDIA_ON_THREADS,
+    });
+    await detectCrosspostEquivalence({ postId: threads });
+
+    const variants = await loadCrosspostVariants([instagram, threads]);
+
+    // Both posts answer, because either can be the one a surface fetched.
+    expect(variants.get(instagram)).toHaveLength(2);
+    expect(variants.get(threads)).toHaveLength(2);
+
+    const forCard = variants.get(instagram)!;
+    expect(forCard.map((variant) => variant.networkDomain).sort()).toEqual([
+      'instagram.com',
+      'threads.net',
+    ]);
+    // Exactly one is the representative — the card renders that one and names
+    // the rest.
+    expect(forCard.filter((variant) => variant.preferred)).toHaveLength(1);
+    // The hidden variant is reachable: its post id is a real Mention post, so
+    // the affordance is an internal `/p/<id>` route rather than a link off-site.
+    const hidden = forCard.find((variant) => !variant.preferred)!;
+    expect([instagram, threads]).toContain(hidden.postId);
+  });
+
+  it('puts the representative first, so two readers see one order', async () => {
+    await createVariant({ actorUri: IG_ACTOR, text: 'same words', createdAt: NOW, media: MEDIA });
+    const threads = await createVariant({
+      actorUri: THREADS_ACTOR,
+      text: 'same words',
+      createdAt: new Date(NOW.getTime() + 60_000),
+      media: MEDIA_ON_THREADS,
+    });
+    await detectCrosspostEquivalence({ postId: threads });
+
+    const forCard = (await loadCrosspostVariants([threads])).get(threads)!;
+    expect(forCard[0].preferred).toBe(true);
+  });
+
+  it('answers nothing for a post in no cluster — which is almost every post', async () => {
+    const lonely = await createVariant({ actorUri: IG_ACTOR, text: 'alone', createdAt: NOW });
+
+    expect((await loadCrosspostVariants([lonely])).get(lonely)).toBeUndefined();
+  });
+
+  it('reads the network off the actor identity, never the bridge host', async () => {
+    const instagram = await createVariant({
+      actorUri: IG_ACTOR,
+      text: 'same words',
+      createdAt: NOW,
+      media: MEDIA,
+    });
+    const threads = await createVariant({
+      actorUri: THREADS_ACTOR,
+      text: 'same words',
+      createdAt: new Date(NOW.getTime() + 60_000),
+      media: MEDIA_ON_THREADS,
+    });
+    await detectCrosspostEquivalence({ postId: threads });
+
+    const domains = (await loadCrosspostVariants([instagram])).get(instagram)!
+      .map((variant) => variant.networkDomain);
+    // The Instagram copy reached us through `kilogram.makeup`. A reader must
+    // never be told that is the network it came from.
+    expect(domains).toContain('instagram.com');
+    expect(domains.join(' ')).not.toContain('kilogram.makeup');
+  });
+});
+
+describe('networkLabel', () => {
+  it.each([
+    ['instagram.com', 'Instagram'],
+    ['threads.net', 'Threads'],
+    ['INSTAGRAM.COM', 'Instagram'],
+  ])('renders %s as %s', (domain, expected) => {
+    expect(networkLabel(domain)).toBe(expected);
+  });
+
+  it('falls back to the domain for a network no declaration covers', () => {
+    // Truthful rather than blank: a reader seeing the domain learns something,
+    // and an empty chip looks like a bug.
+    expect(networkLabel('example.social')).toBe('example.social');
   });
 });
 

@@ -19,6 +19,7 @@ import PostHeader, { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import PostContentText from '../Post/PostContentText';
 import PostLaneChip from '../Post/PostLaneChip';
+import PostCrosspostRow from '../Post/PostCrosspostRow';
 import ContentWarning from '../Post/ContentWarning';
 import PostCorrectionNotice from '../Post/PostCorrectionNotice';
 import PostActions from '../Post/PostActions';
@@ -771,6 +772,25 @@ const PostItem: React.FC<PostItemProps> = ({
                     {t('post.pinned', { defaultValue: 'Pinned' })}
                 </Text>
             </View>,
+        );
+    }
+    // `Instagram · Threads` — one piece of writing published to two networks,
+    // rendered once. The provenance rides on `viewPost.crosspost` (the DTO) for
+    // the same reason the lane does: a FlashList row that is recycled must not be
+    // able to keep the previous row's provenance, and reading it off the post
+    // makes that unreachable.
+    //
+    // Last of the context rows on purpose. "Reposted by", "Pinned" and "Replying
+    // to" all say something about how this post came to be in front of the
+    // reader; this says something about the post itself, and the ordering keeps
+    // the more urgent context nearest the name.
+    if (viewPost.crosspost) {
+        contextRows.push(
+            <PostCrosspostRow
+                key="crosspost"
+                crosspost={viewPost.crosspost}
+                iconColor={theme.colors.textSecondary}
+            />,
         );
     }
     if (replyContextRow) {

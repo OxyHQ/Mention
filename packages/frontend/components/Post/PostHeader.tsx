@@ -4,6 +4,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 
+import { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from './postContextRowLayout';
 import UserName from '../UserName';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import { toast } from '@oxy.so/bloom/toast';
@@ -37,16 +38,13 @@ const ROW_GAP = 8;
  * under the header with the SAME gap a text line would produce — avoiding an
  * orphaned "reserved text line" space. See `PostItem`'s first-content-block gap.
  */
-export const HEADER_CONTENT_GAP = 4;
-
 /**
- * Fixed height of a single Bluesky-style context row ("Reposted by" / "Pinned" /
- * "Replying to") rendered through {@link PostHeaderProps.contextTop}. It is fixed
- * (rather than intrinsic) so the avatar/menu vertical offset that re-aligns them
- * with the name row stays exact and deterministic — no measurement, no `onLayout`.
- * See `headerTopOffset` in the component body.
+ * The context-row measurements, re-exported under the names every caller already
+ * uses. They live in `./postContextRowLayout` so a row component can read the
+ * height without importing this whole module — see that file for why a second
+ * hardcoded copy misaligns the avatar rather than the row.
  */
-export const POST_CONTEXT_ROW_HEIGHT = 18;
+export { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT };
 
 interface User {
   displayName?: string;

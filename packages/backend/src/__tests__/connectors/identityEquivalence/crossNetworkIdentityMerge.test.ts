@@ -57,8 +57,10 @@ import {
 } from '../../../db/federation/actorRepository';
 import {
   findIdentityLink,
+  listAttestedIdentityClaims,
   loadIdentityLinkEvidence,
 } from '../../../db/federation/identityEquivalenceRepository';
+import { recordAttestedIdentityLink } from '../../../scripts/recordAttestedIdentityLink';
 import { resolveFederatedActorIdentity } from '../../../connectors/identity';
 import type { NormalizedExternalActor } from '@oxy.so/federation';
 
@@ -402,6 +404,127 @@ describe('reversal', () => {
 
     await expect(resolveFederatedActorIdentity(normalized())).resolves.toBe('minted-user');
     expect(await findIdentityLink(IG, THREADS)).toMatchObject({ status: 'revoked' });
+  });
+});
+
+describe('a first-party attestation', () => {
+  it('links a pair that asserts NOTHING, because the operator is not the account', async () => {
+    // Neither actor publishes an alias. On bidirectional evidence alone this
+    // pair is two strangers, and the preceding suite asserts exactly that.
+    await seedActor({ uri: THREADS_URI, username: 'zuck', domain: 'threads.net', oxyUserId: 'oxy-zuck' });
+    await seedActor({ uri: IG_URI, username: 'zuck', domain: 'kilogram.makeup', networkAcct: IG });
+
+    await recordAttestedIdentityLink({
+      identityA: IG,
+      identityB: THREADS,
+      source: 'Meta connected-accounts export, ticket OPS-1234',
+      dryRun: false,
+    });
+
+    await expect(resolveFederatedActorIdentity(normalized())).resolves.toBe('oxy-zuck');
+    expect(await findIdentityLink(IG, THREADS)).toMatchObject({
+      status: 'linked',
+      reason: 'first-party-link',
+    });
+  });
+
+  /**
+   * THE ONE THAT WOULD FAIL SILENTLY. An actor refresh REPLACES that actor's
+   * whole claim set — which is what makes a withdrawn assertion revoke its link.
+   * An attestation is not the actor's to withdraw, so it is filed under a
+   * synthetic per-pair key rather than under either actor, and this is what
+   * proves the refresh cannot reach it.
+   */
+  it('survives an actor refresh, which wipes every claim the ACTOR published', async () => {
+    await seedActor({ uri: THREADS_URI, username: 'zuck', domain: 'threads.net', oxyUserId: 'oxy-zuck' });
+    await seedActor({ uri: IG_URI, username: 'zuck', domain: 'kilogram.makeup', networkAcct: IG });
+    await recordAttestedIdentityLink({
+      identityA: IG,
+      identityB: THREADS,
+      source: 'ticket OPS-1234',
+      dryRun: false,
+    });
+
+    // Two full refreshes of both actors, each of which replaces that actor's
+    // claims wholesale.
+    for (const actor of [normalized(), normalized({
+      externalId: THREADS_URI, handle: THREADS, federatedUsername: THREADS, instanceDomain: 'threads.net',
+    })]) {
+      // eslint-disable-next-line no-await-in-loop
+      await resolveFederatedActorIdentity(actor);
+    }
+
+    expect(await listAttestedIdentityClaims()).toHaveLength(2);
+    await expect(resolveFederatedActorIdentity(normalized())).resolves.toBe('oxy-zuck');
+  });
+
+  it('is reversible — withdrawing it revokes the link on the next refresh', async () => {
+    await seedActor({ uri: THREADS_URI, username: 'zuck', domain: 'threads.net', oxyUserId: 'oxy-zuck' });
+    await seedActor({ uri: IG_URI, username: 'zuck', domain: 'kilogram.makeup', networkAcct: IG });
+    await recordAttestedIdentityLink({
+      identityA: IG, identityB: THREADS, source: 'ticket OPS-1234', dryRun: false,
+    });
+    await resolveFederatedActorIdentity(normalized());
+    expect(await findIdentityLink(IG, THREADS)).toMatchObject({ status: 'linked' });
+
+    const removed = await recordAttestedIdentityLink({
+      identityA: IG, identityB: THREADS, source: '', remove: true, dryRun: false,
+    });
+    expect(removed).toMatchObject({ applied: true, rows: 2 });
+
+    // Revoked through the ORDINARY path: the verdict is recomputed from the
+    // claims that exist now, so there is no separate teardown to forget.
+    await expect(resolveFederatedActorIdentity(normalized())).resolves.toBe('minted-user');
+    expect(await findIdentityLink(IG, THREADS)).toMatchObject({ status: 'revoked' });
+  });
+
+  it('is idempotent — re-attesting updates the pair rather than multiplying it', async () => {
+    for (const source of ['first', 'second']) {
+      // eslint-disable-next-line no-await-in-loop
+      await recordAttestedIdentityLink({
+        identityA: IG, identityB: THREADS, source, dryRun: false,
+      });
+    }
+
+    const onFile = await listAttestedIdentityClaims();
+    expect(onFile).toHaveLength(2);
+    expect(onFile.every((claim) => claim.source === 'second')).toBe(true);
+  });
+
+  it('writes nothing on a dry run', async () => {
+    const outcome = await recordAttestedIdentityLink({
+      identityA: IG, identityB: THREADS, source: 'ticket OPS-1234',
+    });
+
+    expect(outcome).toMatchObject({ applied: false, rows: 0 });
+    expect(await listAttestedIdentityClaims()).toEqual([]);
+  });
+
+  /**
+   * An attestation is an EVIDENCE channel, never a way around the reviewed pair
+   * list — that list is the moderation judgement, and no amount of first-party
+   * data changes which pairs somebody reviewed.
+   */
+  it.each([
+    ['two networks nobody paired', 'nate@instagram.com', 'nate@x.com', 'pair-not-reviewed'],
+    ['a network with itself', 'a@instagram.com', 'b@instagram.com', 'pair-not-reviewed'],
+    ['a malformed identity', 'zuck', THREADS, 'malformed-identity'],
+    ['the same identity twice', IG, IG, 'same-identity'],
+  ])('refuses %s', async (_label, identityA, identityB, refusal) => {
+    const outcome = await recordAttestedIdentityLink({
+      identityA, identityB, source: 'ticket OPS-1234', dryRun: false,
+    });
+
+    expect(outcome).toMatchObject({ applied: false, refusal });
+    expect(await listAttestedIdentityClaims()).toEqual([]);
+  });
+
+  it('refuses an attestation with no provenance to show later', async () => {
+    const outcome = await recordAttestedIdentityLink({
+      identityA: IG, identityB: THREADS, source: '   ', dryRun: false,
+    });
+
+    expect(outcome).toMatchObject({ applied: false, refusal: 'missing-source' });
   });
 });
 

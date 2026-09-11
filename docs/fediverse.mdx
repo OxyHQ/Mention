@@ -249,6 +249,19 @@ pair that is provable but whose two identities ALREADY minted separate Oxy users
 is recorded `pending_reconciliation` and left alone — re-pointing one would
 strand follows, blocks, moderation records and post authorship.
 
+There is a third, stronger evidence kind: a `first-party-link`, the network
+OPERATOR stating the linkage rather than either account vouching for the other.
+It stands alone, because it is the authority the bidirectional bar exists to
+substitute for. Nothing derives one from an actor —
+`scripts/recordAttestedIdentityLink.ts` is how an operator who holds that access
+files one, with its provenance stored verbatim. It is **not** a Meta
+integration: that data is reachable only through a credentialed interface, so
+the attestation is an input rather than something this repository fetches.
+Attestations are filed under a synthetic per-pair key, deliberately outside
+every actor's claim set, because an actor refresh REPLACES that actor's claims
+and an attestation is not the actor's to withdraw. Removing it revokes the link
+through the ordinary re-proof on the next refresh.
+
 ### 3. A cross-post is one card and two stored objects
 
 Proving two accounts are one person says nothing about their posts, so
@@ -264,6 +277,15 @@ addressable; reader surfaces exclude the non-preferred member with
 twenty cards. The likes tab and bookmarks deliberately do not take that term —
 they hand back a collection the reader assembled by hand. Engagement counts are
 never summed across networks.
+
+The rendered card names the whole set — `Instagram · Threads` — as a context row
+beside "Reposted by" and "Replying to", and the hidden variant's network links
+to it at `/p/<id>`. The links are INTERNAL on purpose: both variants are real
+Mention posts, and a reader asking for the other version of what they are
+already reading should not be sent to a site that may ask them to log in.
+Naming the whole set rather than only the hidden half is deliberate too — "also
+on Threads" reads as a second, different post, which is the misunderstanding the
+collapse exists to prevent.
 
 `scripts/reconcileMetaIdentityAndCrossposts.ts` reconciles data stored before all
 of this landed, dry-run by default, delegating every decision to the live

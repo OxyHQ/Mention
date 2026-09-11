@@ -80,6 +80,27 @@ describe('canonical post cache contract', () => {
     expect(restored?.lane).toEqual(post.lane);
   });
 
+  it('carries the cross-post provenance, which names both networks on the card', () => {
+    const post = makePost('signed', {
+      crosspost: {
+        variants: [
+          { network: 'instagram.com', label: 'Instagram', postId: 'p-ig', rendered: true },
+          { network: 'threads.net', label: 'Threads', postId: 'p-th', rendered: false },
+        ],
+      },
+    });
+
+    const item = toFeedItem(post);
+
+    expect(item.crosspost).toEqual(post.crosspost);
+
+    // And it must survive the SQLite round trip, which is what a warm start
+    // reads — otherwise a collapsed cross-post silently loses its provenance on
+    // every cold-cached feed while the API response still carries it.
+    const restored = rowToFeedItem(postToRow(item));
+    expect(restored?.crosspost).toEqual(post.crosspost);
+  });
+
   it('adds only local rendering fields without synthesizing identity or viewer aliases', () => {
     const post = makePost('feed');
     const item = toFeedItem(post);

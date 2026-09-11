@@ -256,6 +256,24 @@ describe('the statement budget for one cold hydration', () => {
     await hydrate([one]);
     expect(await statementsByTable()).toEqual(expected);
 
+    // `post_equivalence_members` is DELIBERATELY absent above. A cross-post
+    // cluster only ever holds federated variants, so a batch of native posts
+    // cannot contain a member and hydration skips the read entirely rather than
+    // paying a statement that can only answer "no". The federated case is pinned
+    // separately below — without that, this absence would be indistinguishable
+    // from the provenance read having quietly stopped happening at all.
+    cacheStore.clear();
+    const federated = await seedPost(scope, {
+      oxyUserId: AUTHOR_ID,
+      federation: {
+        activityId: `https://threads.net/ap/users/1/statuses/${Date.now()}`,
+        actorUri: 'https://threads.net/ap/users/1/',
+      },
+    });
+    metrics.reset();
+    await hydrate([federated]);
+    expect((await statementsByTable()).get('post_equivalence_members')).toBe(1);
+
     cacheStore.clear();
     const many = await Promise.all(
       Array.from({ length: 20 }, () => seedPost(scope, { oxyUserId: AUTHOR_ID })),
