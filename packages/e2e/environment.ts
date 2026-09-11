@@ -61,6 +61,20 @@ export const API_ORIGIN = readOrigin('MENTION_E2E_API_ORIGIN', 'https://api.ment
 /** A local handle that exists in production, used by the profile flow. */
 export const PROFILE_HANDLE = process.env.MENTION_E2E_PROFILE_HANDLE?.trim() || 'nate';
 
+/**
+ * A bridged account, in its two addresses.
+ *
+ * `BRIDGED_NETWORK_HANDLE` is its public identity and must render;
+ * `BRIDGED_TRANSPORT_HANDLE` is the ActivityPub acct the copy arrived through
+ * and must NOT be a second public profile URL. Both are overridable, because the
+ * gate runs against a live instance and the account it names has to be one that
+ * instance actually holds.
+ */
+export const BRIDGED_NETWORK_HANDLE =
+  process.env.MENTION_E2E_BRIDGED_NETWORK_HANDLE?.trim() || 'zuck@instagram.com';
+export const BRIDGED_TRANSPORT_HANDLE =
+  process.env.MENTION_E2E_BRIDGED_TRANSPORT_HANDLE?.trim() || 'zuck@kilogram.makeup';
+
 if (CANDIDATE_ORIGIN === APP_ORIGIN) {
   throw new Error(
     'MENTION_E2E_CANDIDATE_ORIGIN must differ from MENTION_E2E_APP_ORIGIN. Pointing both at ' +

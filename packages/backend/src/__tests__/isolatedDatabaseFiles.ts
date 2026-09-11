@@ -306,6 +306,16 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'this file\'s own `scanned`/`updated` counts describe other suites\' posts.',
   },
   {
+    path: 'src/__tests__/scripts/reconcileMetaIdentityAndCrossposts.test.ts',
+    jobEntryPoint: 'reconcileMetaIdentityAndCrossposts',
+    reason:
+      'Pages every federated actor and every unclustered federated post in the table — it takes no '
+      + "scope, because a reconciliation that only fixed the caller's rows would reconcile nothing "
+      + 'in production. Its suite runs it with `dryRun: false`, so on a shared database the live '
+      + "pass would record identity claims against other suites' actors and cluster their posts "
+      + 'mid-assertion.',
+  },
+  {
     path: 'src/__tests__/scripts/backfillPostHasLinksRows.test.ts',
     jobEntryPoint: 'backfillPostHasLinks',
     reason:

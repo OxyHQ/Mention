@@ -204,6 +204,71 @@ signal, or a boost whose original carries one, gets NO `og:image`/body
 text; the verdict comes from `requiresContentWarning` and is a REQUIRED
 argument to `mapPostOg`.
 
+## Bridged identity, cross-network people, and cross-posts
+
+Three separate questions that are easy to confuse, and are kept apart on purpose.
+
+### 1. A bridge host is transport, never an identity
+
+`kilogram.makeup` republishes public Instagram accounts and `bird.makeup`
+republishes X; an actor from one is stored and rendered under the NETWORK it
+came from (`@zuck@instagram.com`), with `acct`, `uri` and `domain` still
+addressing the bridge so delivery and every moderation consumer keep working.
+The reviewed entries live in
+`connectors/activitypub/federationBridgePolicy.ts`; the mechanism is
+`@oxy.so/federation`'s, and oxy-api keeps its own separate trust list on purpose
+(see either file's docblock — do **not** consolidate them).
+
+**A transport acct is not a public profile URL.** `/@zuck@instagram.com` renders;
+`/@zuck@kilogram.makeup` does not, and is treated as not-found. The rule is
+stated in `frontend/utils/publicProfileHandle.ts` as a handle comparison — a
+federated profile URL must spell the identity it resolves to — so it needs no
+list of bridge hosts and every future `relabel: 'enabled'` entry inherits it.
+Federation resolution still accepts the transport acct, because ActivityPub
+addresses actors by it.
+
+### 2. Two networks can be one person, but never because the handles match
+
+`resolveFederatedActorIdentity` merges copies of an account ACROSS a network and
+refuses between two: `('x','nate')` and `('instagram','nate')` are unrelated
+strings that happen to match. That default is unchanged.
+
+Beside it, `connectors/identityEquivalence/` links two identities on a REVIEWED
+pair of networks — today only `instagram.com` ↔ `threads.net`, because Threads
+launched on Instagram identity — and only when each one independently ASSERTS
+the other, machine-readably, on its own actor (`alsoKnownAs`, or a profile link
+the remote instance verified). A username, display name, avatar, bio, badge or
+unverified link is never evidence. `threads.net` is native first-party
+ActivityPub and must NOT be added to the bridge policy.
+
+Only `oxy_user_id` is shared; both actor rows and both aliases survive. The
+verdict is recomputed from currently-published claims on every refresh, so a
+released Instagram handle's next owner cannot inherit the previous owner's
+Threads account, and a withdrawn assertion revokes the link on the next pass. A
+pair that is provable but whose two identities ALREADY minted separate Oxy users
+is recorded `pending_reconciliation` and left alone — re-pointing one would
+strand follows, blocks, moderation records and post authorship.
+
+### 3. A cross-post is one card and two stored objects
+
+Proving two accounts are one person says nothing about their posts, so
+`services/PostEquivalenceService.ts` is a separate concept with its own evidence
+hierarchy: a declared original on the object, the same first-party media asset,
+one object carrying the other's permalink, and only then a fallback that demands
+the same person, a reviewed network pair, a narrow window, compatible text and a
+deterministic media-equality signal.
+
+Nothing computes a perceptual hash. Both source objects stay stored and
+addressable; reader surfaces exclude the non-preferred member with
+`notCollapsedCrosspostSql()` **in the query**, so a page of twenty rows is still
+twenty cards. The likes tab and bookmarks deliberately do not take that term —
+they hand back a collection the reader assembled by hand. Engagement counts are
+never summed across networks.
+
+`scripts/reconcileMetaIdentityAndCrossposts.ts` reconciles data stored before all
+of this landed, dry-run by default, delegating every decision to the live
+modules.
+
 ## Optional AT Protocol connector
 
 AT Protocol handle resolution and read/discovery are independently gated by
