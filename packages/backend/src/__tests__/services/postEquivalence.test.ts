@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { and, eq, inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
@@ -40,9 +40,30 @@ import {
 
 const PERSON = 'oxy-crosspost-person';
 const OTHER_PERSON = 'oxy-crosspost-other';
-const IG_ACTOR = 'https://kilogram.makeup/users/zuck';
-const THREADS_ACTOR = 'https://threads.net/ap/users/17841401746480004/';
-const X_ACTOR = 'https://bird.makeup/users/zuck';
+
+/**
+ * THE HANDLE IS NAMESPACED TO THIS SUITE; THE DOMAIN IS NOT, AND CANNOT BE.
+ *
+ * The whole run shares one database, so a fixture that squats on a real public
+ * handle is a row another file can also claim. `federated_actors` carries a
+ * UNIQUE `(domain, username)` — so a second suite seeding `zuck@bird.makeup` at
+ * its own URI makes this file's URI-keyed upsert conflict — and several
+ * federation suites clean up by URI prefix, which would take these rows with
+ * them mid-file. Every other federation suite avoids all of that through
+ * `federationScope(name)`, which namespaces to `<name>.test`.
+ *
+ * This one cannot use that helper, because the DOMAIN is what is under test:
+ * `findCrossNetworkPair` keys on identity domains, so `instagram.com` and
+ * `threads.net` have to be real or the layer refuses every pair and the suite
+ * passes vacuously. So the namespacing moves to the HANDLE instead — unique to
+ * this file, on the real hosts — which closes both collisions while leaving the
+ * networks intact.
+ */
+const SUITE = 'postequiv';
+const IG_HANDLE = `${SUITE}-zuck`;
+const IG_ACTOR = `https://kilogram.makeup/users/${IG_HANDLE}`;
+const THREADS_ACTOR = `https://threads.net/ap/users/${SUITE}-17841401746480004/`;
+const X_ACTOR = `https://bird.makeup/users/${IG_HANDLE}`;
 
 let db: Database;
 const created: string[] = [];
@@ -133,9 +154,23 @@ const MEDIA_ON_THREADS = [
 
 beforeAll(async () => {
   db = await connectPostgres();
-  await seedActor(IG_ACTOR, 'zuck', 'kilogram.makeup', 'zuck@instagram.com');
-  await seedActor(THREADS_ACTOR, 'zuck', 'threads.net');
-  await seedActor(X_ACTOR, 'zuck', 'bird.makeup', 'zuck@x.com');
+});
+
+/**
+ * Re-seeded per TEST, not once per file.
+ *
+ * `seedActor` upserts, so this is idempotent and cheap — and it means a row
+ * removed between tests (by this suite's own cleanup, or by anything else
+ * sharing the database) cannot cascade into every case that follows. Without
+ * it, one lost actor turns the rest of the file into `not-applicable`: a post
+ * whose authoring actor is missing has no NETWORK, so `loadCandidate` refuses
+ * it and every collapse assertion fails for a reason that has nothing to do
+ * with cross-posts.
+ */
+beforeEach(async () => {
+  await seedActor(IG_ACTOR, IG_HANDLE, 'kilogram.makeup', `${IG_HANDLE}@instagram.com`);
+  await seedActor(THREADS_ACTOR, IG_HANDLE, 'threads.net');
+  await seedActor(X_ACTOR, IG_HANDLE, 'bird.makeup', `${IG_HANDLE}@x.com`);
 });
 
 afterEach(async () => {
