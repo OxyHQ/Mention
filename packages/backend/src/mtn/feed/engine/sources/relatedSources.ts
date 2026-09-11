@@ -19,7 +19,7 @@ import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { discoverySafeSql } from '../../feedSafety';
 import { FOLLOWER_SNAPSHOT_INTERVAL_MS } from '../../../../services/followerSnapshotJob';
 import { logger } from '../../../../utils/logger';
-import { notABoostSql } from '../../../../utils/feedQueryBuilder';
+import { notABoostSql, notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
 /**
@@ -186,7 +186,7 @@ export const moreLikeThisSource: SourceModule = {
     const windowStart = new Date(Date.now() - MtnConfig.feed.candidateSources.recencyWindowMs);
     const conditions: SQL[] = [
       eq(posts.visibility, PostVisibility.PUBLIC),
-      eq(posts.status, 'published'),
+      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       gte(posts.createdAt, windowStart),
       discoverySafeSql(),
       or(...alternatives) as SQL,
@@ -296,7 +296,7 @@ export const nearbySource: SourceModule = {
         .where(
           and(
             eq(posts.visibility, PostVisibility.PUBLIC),
-            eq(posts.status, 'published'),
+            eq(posts.status, 'published'), notCollapsedCrosspostSql(),
             discoverySafeSql(),
             notABoostSql(),
             sql`ST_DWithin(${posts.geo}, ${point}, ${radiusKm * METRES_PER_KM})`,
@@ -315,7 +315,7 @@ export const nearbySource: SourceModule = {
     const conditions: SQL[] = [
       eq(posts.classificationRegion, region),
       eq(posts.visibility, PostVisibility.PUBLIC),
-      eq(posts.status, 'published'),
+      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       discoverySafeSql(),
     ];
     if (keyset) conditions.push(keyset);
@@ -533,7 +533,7 @@ export const risingCreatorsSource: SourceModule = {
           // hitting the identical mistake in its own fixture helper.
           inArray(posts.oxyUserId, authorIds),
           eq(posts.visibility, PostVisibility.PUBLIC),
-          eq(posts.status, 'published'),
+          eq(posts.status, 'published'), notCollapsedCrosspostSql(),
           gte(posts.createdAt, windowStart),
           discoverySafeSql(),
           eq(posts.isReply, false),

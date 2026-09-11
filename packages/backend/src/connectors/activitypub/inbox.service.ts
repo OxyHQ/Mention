@@ -58,6 +58,11 @@ import {
 } from './apPostContent';
 import { identityDomainOfActor } from './identityDomain';
 import { federationBridges } from './federationBridgePolicy';
+import { declaredOriginalUrls } from './declaredOriginal';
+import {
+  detectCrosspostEquivalence,
+  reevaluateClusterForPost,
+} from '../../services/PostEquivalenceService';
 import { applyMentionPlaceholders, resolveInboundMentions } from './apMentions';
 import { isMentionBroadcast } from '@mention/shared-types/mentions';
 import { normalizeMentionIds } from '../../utils/textProcessing';
@@ -726,6 +731,21 @@ export class InboxProcessingService {
       );
     }
 
+    // CROSS-POST EQUIVALENCE, last and best-effort.
+    //
+    // A creator publishing the same photo and caption to Instagram and to
+    // Threads reaches us as two Notes on two actors, and both are stored — they
+    // have independent permalinks, replies, likes, edits and moderation state.
+    // What a reader should see is one card, so this asks whether the post that
+    // just landed is a variant of something already held, and marks the
+    // non-preferred one. It never throws and never gates the ingest: the post is
+    // stored and visible either way, and a miss costs one duplicate card, which
+    // the reconciliation one-shot picks up.
+    await detectCrosspostEquivalence({
+      postId: createdPost.id,
+      declaredOriginalUrls: declaredOriginalUrls(object),
+    });
+
     logger.debug('[Federation] stored federated post');
   }
 
@@ -1039,6 +1059,14 @@ export class InboxProcessingService {
         },
         mentionResult.ids,
       );
+      // AN EDIT CAN END AN EQUIVALENCE. A Threads post that grows three
+      // paragraphs the Instagram caption never had is no longer the same piece
+      // of writing, and continuing to collapse it because the ORIGINAL versions
+      // matched would hide text the author just wrote. Re-decided against the
+      // stored body, so a split makes the variant visible again rather than
+      // leaving a card nobody can reach.
+      await reevaluateClusterForPost(existingPost.id);
+
       logger.debug('[Federation] updated federated post');
 
       // Notify only NEWLY-added local mentions (diff against the post's prior

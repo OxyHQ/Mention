@@ -238,6 +238,23 @@ export const posts = pgTable(
 
     /** Write-time projection backing the indexable `has:links` search filter. */
     hasLinks: boolean().notNull().default(false),
+    /**
+     * Write-time projection: this post is a NON-PREFERRED member of a cross-post
+     * equivalence cluster, so reader surfaces show its sibling instead of it.
+     *
+     * The post itself is untouched — still stored, still addressable by its own
+     * permalink, still carrying its own replies, likes, edits and moderation
+     * state, because an Instagram post and the Threads copy of it are two real
+     * objects with independent everything. Only the CARD is collapsed.
+     *
+     * A projection rather than a join, for the same reason `has_links` is one: a
+     * reader surface has to be able to exclude these IN THE QUERY, or a page of
+     * 20 rows renders 12 cards and pagination silently under-fills. The
+     * authority is `post_equivalence_members.preferred`; this column is
+     * maintained beside it by `services/PostEquivalenceService`, which is the
+     * only writer of either.
+     */
+    crosspostCollapsed: boolean().notNull().default(false),
     isEdited: boolean().notNull().default(false),
 
     /**
@@ -974,9 +991,133 @@ export const posts = pgTable(
      * `postgis.test.ts` asserts these two by NAME (`am.amname = 'gist'`), so it
      * keeps passing; `hotPathIndexes.test.ts` is what pins the predicate.
      */
+    // Cross-post collapse is read as `crosspost_collapsed is not true` on every
+    // feed and search query, and is TRUE for a vanishing fraction of rows. The
+    // index therefore covers only the collapsed ones — it exists so the planner
+    // can count them and so the reconciliation report can enumerate them, not so
+    // the feed can scan it. Indexing the other 99.99% would be indexing absence,
+    // which `0025_posts_indexes_stop_indexing_absence` already removed once.
+    index('posts_crosspost_collapsed_idx')
+      .on(t.crosspostCollapsed)
+      .where(sql`${t.crosspostCollapsed}`),
     index('posts_geo_gist').using('gist', t.geo).where(sql`${t.geo} is not null`),
     index('posts_content_geo_gist')
       .using('gist', t.contentGeo)
       .where(sql`${t.contentGeo} is not null`),
+  ]
+);
+
+/** `post_equivalence_clusters.kind`. */
+export const POST_EQUIVALENCE_KINDS = ['crosspost'] as const;
+
+/**
+ * `post_equivalence_clusters.confidence` — the evidence hierarchy, STRONGEST
+ * FIRST. The order is load-bearing: `services/PostEquivalenceService` takes the
+ * strongest evidence available and refuses to weaken an existing cluster.
+ *
+ *  - `declared`        the source states it: an explicit cross-post / canonical
+ *                      / original-post relation on the object itself.
+ *  - `shared-media-id` both objects name the same first-party stable media or
+ *                      content identifier.
+ *  - `canonical-link`  one object links the other's permalink as its source.
+ *  - `fingerprint`     the conservative FALLBACK: same verified person, one
+ *                      Instagram object and one Threads object, inside a narrow
+ *                      window, identical normalized text, compatible media, and
+ *                      a deterministic media-equality signal. Everything else is
+ *                      refused.
+ */
+export const POST_EQUIVALENCE_CONFIDENCES = [
+  'declared',
+  'shared-media-id',
+  'canonical-link',
+  'fingerprint',
+] as const;
+
+/**
+ * `post_equivalence_clusters` — one piece of writing that reached us as two
+ * objects on two networks.
+ *
+ * ## Storage keeps both. Only the reader surface collapses.
+ *
+ * An Instagram post and the Threads copy of it have independent permalinks,
+ * protocol ids, edits, deletes, replies, likes, boosts, moderation state and
+ * potentially different media fidelity. Merging them would destroy all of that
+ * to fix a rendering problem. So neither object is touched: the cluster records
+ * that they are equivalent, one member is marked `preferred`, and the feed shows
+ * that one.
+ *
+ * ## Equivalence is first-class and auditable, not an in-memory feed hack
+ *
+ * Every cluster names the evidence that created it and which member each piece
+ * of evidence came from, because the question somebody asks about a collapsed
+ * card is "why are these two posts one feed item?" and the answer has to survive
+ * the request that made the decision.
+ *
+ * ## A false positive is worse than a duplicate
+ *
+ * Two people posting the same meme, similar text, a close perceptual hash,
+ * matching usernames, the same author repeating themselves a day later — none of
+ * those may create a cluster. The fallback exists only INSIDE a verified
+ * cross-network identity link, and even there it demands exact text and a
+ * deterministic media signal. Showing a duplicate is a blemish; collapsing two
+ * different people's posts into one card attributes somebody's writing to
+ * somebody else.
+ */
+export const postEquivalenceClusters = pgTable(
+  'post_equivalence_clusters',
+  {
+    id: generatedId(),
+    kind: text({ enum: POST_EQUIVALENCE_KINDS }).notNull().default('crosspost'),
+    confidence: text({ enum: POST_EQUIVALENCE_CONFIDENCES }).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check('post_equivalence_clusters_kind_check', sql`${t.kind} in (${sql.raw(inList(POST_EQUIVALENCE_KINDS))})`),
+    check(
+      'post_equivalence_clusters_confidence_check',
+      sql`${t.confidence} in (${sql.raw(inList(POST_EQUIVALENCE_CONFIDENCES))})`
+    ),
+  ]
+);
+
+/**
+ * `post_equivalence_members` — one post's membership of a cluster, and why.
+ *
+ * `post_id` is UNIQUE: a post belongs to at most one cluster. Two clusters
+ * claiming one post would make "which card renders" depend on query order, which
+ * is the same class of bug as letting arrival order decide canonicality.
+ *
+ * `preferred` marks the rendered representative, and the partial unique index is
+ * what makes "exactly one" a schema fact rather than a convention. Choosing it is
+ * DETERMINISTIC (see `services/PostEquivalenceService`) — a declared original
+ * first, then the richer media, then the earliest publication, then the id — so
+ * that re-running the choice on the same members always lands on the same post.
+ * Arrival order is deliberately not part of it.
+ */
+export const postEquivalenceMembers = pgTable(
+  'post_equivalence_members',
+  {
+    id: generatedId(),
+    clusterId: text()
+      .notNull()
+      .references(() => postEquivalenceClusters.id, { onDelete: 'cascade' }),
+    postId: text()
+      .notNull()
+      .references(() => posts.id, { onDelete: 'cascade' })
+      .unique('post_equivalence_members_post_id_key'),
+    /** The network this variant came from (`instagram.com`, `threads.net`). */
+    networkDomain: text().notNull(),
+    /** The rendered representative. Exactly one per cluster. */
+    preferred: boolean().notNull().default(false),
+    /** Why this member joined, verbatim — the audit trail for one collapse. */
+    evidence: text().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('post_equivalence_members_cluster_id_idx').on(t.clusterId),
+    uniqueIndex('post_equivalence_members_preferred_key')
+      .on(t.clusterId)
+      .where(sql`${t.preferred}`),
   ]
 );

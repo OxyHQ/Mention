@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 32.23,
-      "covered": 8076,
-      "total": 25056
+      "pct": 32.78,
+      "covered": 8232,
+      "total": 25109
     },
     "branches": {
-      "pct": 27.27,
-      "covered": 4972,
-      "total": 18232
+      "pct": 27.78,
+      "covered": 5083,
+      "total": 18291
     },
     "functions": {
-      "pct": 27.47,
-      "covered": 1719,
-      "total": 6256
+      "pct": 27.85,
+      "covered": 1745,
+      "total": 6265
     },
     "lines": {
-      "pct": 32.91,
-      "covered": 7413,
-      "total": 22519
+      "pct": 33.48,
+      "covered": 7557,
+      "total": 22568
     }
   },
   "pins": {
@@ -210,10 +210,10 @@
       "lines": 0
     },
     "hooks/useExpandableText.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 53,
+      "branches": 50,
+      "functions": 33,
+      "lines": 63
     },
     "hooks/useExternalActorResolve.ts": {
       "statements": 0,
@@ -300,10 +300,10 @@
       "lines": 100
     },
     "hooks/useLinkDetection.ts": {
-      "statements": 83,
-      "branches": 57,
+      "statements": 90,
+      "branches": 66,
       "functions": 100,
-      "lines": 85
+      "lines": 93
     },
     "hooks/useLiveUsers.ts": {
       "statements": 0,
@@ -450,10 +450,10 @@
       "lines": 29
     },
     "hooks/useProfileData.ts": {
-      "statements": 66,
-      "branches": 68,
-      "functions": 45,
-      "lines": 66
+      "statements": 68,
+      "branches": 69,
+      "functions": 50,
+      "lines": 68
     },
     "hooks/useProfileLinkMentions.ts": {
       "statements": 100,
@@ -498,10 +498,10 @@
       "lines": 0
     },
     "hooks/useReelChrome.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 56,
+      "branches": 46,
+      "functions": 45,
+      "lines": 56
     },
     "hooks/useReelImpressions.ts": {
       "statements": 100,
@@ -1302,10 +1302,10 @@
       "lines": 100
     },
     "utils/groupNotifications.ts": {
-      "statements": 89,
-      "branches": 61,
+      "statements": 91,
+      "branches": 65,
       "functions": 100,
-      "lines": 89
+      "lines": 90
     },
     "utils/hlsSource.ts": {
       "statements": 87,
@@ -1398,6 +1398,12 @@
       "lines": 100
     },
     "utils/prettifyUrl.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "utils/publicProfileHandle.ts": {
       "statements": 100,
       "branches": 100,
       "functions": 100,

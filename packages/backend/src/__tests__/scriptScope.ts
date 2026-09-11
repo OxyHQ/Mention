@@ -125,6 +125,13 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
       'Every post carrying a media row that still lacks intrinsic metadata — dimensions for an '
       + 'Oxy-backed item, orientation/duration for a remote-URL video.',
   },
+  reconcileMetaIdentityAndCrossposts: {
+    scope: 'whole-table',
+    reason:
+      'Pages every federated actor (recording each one\'s cross-network identity claims) and every '
+      + 'unclustered federated post. It takes no scope, because a reconciliation that only fixed the '
+      + "caller's rows would reconcile nothing in production.",
+  },
   backfillPostHasLinks: {
     scope: 'whole-table',
     reason:

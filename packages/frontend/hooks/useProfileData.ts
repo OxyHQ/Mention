@@ -9,6 +9,7 @@ import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
 import type { Community } from '@/components/Profile/types';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { getCachedFileDownloadUrlSync, type FileUrlResolver } from '@/utils/imageUrlCache';
+import { isPublicProfileHandle } from '@/utils/publicProfileHandle';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const PROFILE_STALE_TIME = 5 * 60 * 1000; // 5 minutes
@@ -224,7 +225,27 @@ export function useProfileData(username?: string): {
     gcTime: PROFILE_GC_TIME,
   });
 
-  const profile = (isFederated ? federatedQuery.data : localQuery.data) ?? sessionProfile;
+  /**
+   * A federated resolve is kept only when the routed handle SPELLS the identity
+   * it resolved to.
+   *
+   * A bridged account is reachable at two addresses — the transport acct the
+   * ActivityPub copy arrived through (`zuck@kilogram.makeup`) and the network
+   * identity it was re-labelled onto (`zuck@instagram.com`) — and the resolve
+   * answers for both, deliberately: federation delivery addresses actors by the
+   * protocol acct and must keep resolving it. Only the second is a PUBLIC Mention
+   * profile, so the transport address is dropped HERE, at the one place a URL
+   * becomes a rendered page, rather than by teaching the resolve to lie.
+   *
+   * See `utils/publicProfileHandle` for why the test is a handle comparison and
+   * not a list of bridge hosts.
+   */
+  const federatedProfile =
+    federatedQuery.data && isPublicProfileHandle(handle, federatedQuery.data.username)
+      ? federatedQuery.data
+      : null;
+
+  const profile = (isFederated ? federatedProfile : localQuery.data) ?? sessionProfile;
   const isPending = isFederated ? federatedQuery.isPending : localQuery.isPending;
   const isError = isFederated ? federatedQuery.isError : localQuery.isError;
 

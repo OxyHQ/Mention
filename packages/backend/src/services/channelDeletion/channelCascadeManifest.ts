@@ -293,6 +293,17 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why: 'Non-media attachments of a destroyed post. `ON DELETE CASCADE` on `posts.id`.',
   },
   {
+    table: 'post_equivalence_members',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why:
+      'A destroyed post\'s membership of a cross-post equivalence cluster. `ON DELETE CASCADE` on '
+      + '`posts.id`. The cluster it leaves behind is repaired by `deletePostSubtree`, which reads the '
+      + 'cluster ids before the delete for exactly this reason — a channel\'s post can be the '
+      + 'PREFERRED member, and losing it silently would leave a surviving variant collapsed forever.',
+  },
+  {
     table: 'post_sources',
     column: 'postId',
     scope: 'channel-posts',
@@ -644,6 +655,17 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
       'A channel is a LOCAL account, so no anchor row should ever name it — these are written only for ' +
       'remote actors. Swept so that a mislabelled row cannot survive as the last thing pointing at the ' +
       'channel; `federated_actor_fields` cascades from the row.',
+  },
+  {
+    table: 'federated_identity_links',
+    column: 'oxyUserId',
+    scope: 'channel-account',
+    action: 'delete-row',
+    why:
+      'The Oxy user two proven-equivalent REMOTE network identities share. A channel is a local account '
+      + 'and can never be one, for the same reason `federated_actors.oxy_user_id` can never name it — '
+      + 'and swept for the same reason: a mislabelled row must not survive as the last thing pointing '
+      + 'at the channel. `federated_identity_link_evidence` cascades from the row.',
   },
 
   // ---------------------------------------------------------------------------
@@ -1157,6 +1179,19 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ['entity_follows.entityId', 'a hashtag or list id; entityType is never "user"'],
   ['federated_actor_fields.actorId', 'the FederatedActor row a profile field belongs to; it cascades from the actor'],
   ['federated_actors.publicKeyId', 'a remote actor\'s AP key id'],
+  [
+    'federated_identity_claims.subjectActorUri',
+    'the REMOTE actor a cross-network identity claim was read off. A channel is a local account and '
+      + 'publishes no such claim',
+  ],
+  [
+    'federated_identity_link_evidence.linkId',
+    'the identity link an evidence snapshot belongs to; it cascades from the link',
+  ],
+  [
+    'federated_identity_link_evidence.subjectActorUri',
+    'the REMOTE actor a snapshotted claim was read off, as on the claims table',
+  ],
   ['federated_follows.activityId', 'the AP activity that created the follow'],
   [
     'federated_follows.remoteActorUri',
@@ -1191,6 +1226,10 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ['poll_votes.pollId', 'denormalized from the option so one-vote-per-poll can be a UNIQUE constraint'],
   ['post_attachments.attachmentId', 'an Oxy file id or an external attachment id, never an account'],
   ['post_classification_topic_refs.topicId', 'a topic id'],
+  [
+    'post_equivalence_members.clusterId',
+    'the cross-post equivalence cluster a member belongs to; it cascades from the cluster',
+  ],
   ['post_media.mediaId', 'an Oxy file id, or a remote URL for federated media the cache never rewrote'],
   ['post_variant_alt_texts.mediaId', 'an Oxy file id the localized alt text describes'],
   ['post_variant_alt_texts.variantId', 'the language rendition the alt text belongs to'],

@@ -138,6 +138,7 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
    * suite that coins its own `runBackfill()` would otherwise match any other
    * file that coined the same helper name.
    */
+  { name: 'reconcileMetaIdentityAndCrossposts', call: /\breconcileMetaIdentityAndCrossposts\s*\(/ },
   { name: 'backfillFederatedThreadLinks', call: /\bbackfillFederatedThreadLinks\s*\(/ },
   { name: 'normalizeStoredText', call: /\bnormalizeStoredText\s*\(/ },
   // Keyed on the FILE, not on a call: its suite runs the entry point as a

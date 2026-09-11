@@ -68,6 +68,8 @@ import { contentLabels } from '../db/schema/moderation';
 import { postgates, threadgates } from '../db/schema/gates';
 import { feedInteractions } from '../db/schema/feeds';
 import { deletePendingDeliveriesReferencingObjects } from '../db/federation/deliveryQueueRepository';
+import { findClusterIdsForPosts } from '../db/posts/postEquivalenceRepository';
+import { reevaluateClusters } from './PostEquivalenceService';
 import { logger } from '../utils/logger';
 import { metrics } from '../utils/metrics';
 import {
@@ -490,18 +492,36 @@ export interface DeletedPostSubtree {
  * Best-effort work — the replier projection, the surviving-row counters, the
  * federation tombstone — is deliberately NOT here: it runs after the commit, in
  * the caller, so a failure cannot turn a completed deletion into an error.
+ *
+ * ## The one exception, and why it cannot be the caller's
+ *
+ * Cross-post equivalence clusters are repaired HERE, after the commit. Every
+ * other best-effort step can be performed from what the caller already has; this
+ * one cannot, because `post_equivalence_members.post_id` is `ON DELETE CASCADE`
+ * — the moment the post rows go, the only thing that could find the clusters
+ * goes with them. So the ids are read INSIDE the transaction, before the delete,
+ * and the repair runs on the way out.
+ *
+ * Leaving it to the caller would mean the knowledge is captured in one place and
+ * acted on in three, and a fourth caller that forgot would leave a surviving
+ * variant collapsed forever — invisible on every feed, with no symptom except an
+ * author asking where their post went. `reevaluateClusters` swallows its own
+ * failures, so this keeps the guarantee the paragraph above makes.
  */
 export async function deletePostSubtree(
   postId: string,
   ownership: SQL | undefined,
 ): Promise<DeletedPostSubtree | null> {
   let result: DeletedPostSubtree | null = null;
+  let equivalenceClusterIds: string[] = [];
   try {
     await getDb().transaction(async (tx) => {
       const collected = await collectDeletionTargets(postId, tx);
       if (!collected) return;
 
       const all = allDeletionTargets(collected);
+      // Read before anything is deleted — see the docblock.
+      equivalenceClusterIds = await findClusterIdsForPosts(all.map((row) => row.id), tx);
       await cascadePostReferences(all, tx);
 
       if (collected.replies.length > 0) {
@@ -516,6 +536,13 @@ export async function deletePostSubtree(
   } catch (error) {
     if (error instanceof PostDeletionClaimFailedError) return null;
     throw error;
+  }
+
+  // A cluster that has lost a member may have lost its PREFERRED one, which
+  // would leave the survivor collapsed behind a card that no longer exists.
+  // Never throws.
+  if (equivalenceClusterIds.length > 0) {
+    await reevaluateClusters(equivalenceClusterIds);
   }
   return result;
 }

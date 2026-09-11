@@ -41,7 +41,13 @@ import { contentLabels, labelers, moderationEnforcements, reports } from '../../
 import { endorsementOutbox, engagementOutbox } from '../../db/schema/outbox';
 import { repairFetchFailures } from '../../db/schema/adminScripts';
 import { lanes, laneMutes } from '../../db/schema/channels';
-import { actorKeyPairs, federatedActors, federatedFollows, federationDeliveryQueue } from '../../db/schema/federation';
+import {
+  actorKeyPairs,
+  federatedActors,
+  federatedFollows,
+  federatedIdentityLinks,
+  federationDeliveryQueue,
+} from '../../db/schema/federation';
 import { mcpAuthCodes, mcpConnections, mcpEffectReceipts } from '../../db/schema/mcp';
 import {
   mentionNodeIngestWitnesses,
@@ -209,6 +215,11 @@ export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
     phase: 'account',
     table: federatedActors,
     where: accountEq(federatedActors.oxyUserId),
+  },
+  'federated_identity_links.oxyUserId|channel-account': {
+    phase: 'account',
+    table: federatedIdentityLinks,
+    where: accountEq(federatedIdentityLinks.oxyUserId),
   },
 
   // --- Rows keyed on the channel ACCOUNT -------------------------------------
