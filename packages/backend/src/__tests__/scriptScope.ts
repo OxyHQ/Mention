@@ -162,6 +162,13 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
       'where(scope ? and(cursor, inArray(posts.id, scope)) : cursor), and the suite always ' +
       'passes { postIds: [...] }. The counter-example that shows the class is not "backfills".',
   },
+  recordAttestedIdentityLink: {
+    scope: 'caller-scoped',
+    reason:
+      'It has no driving select at all. The two identities to attest are ARGUMENTS, and the write '
+      + 'is two rows under one synthetic per-pair key derived from them — so the rows it can touch '
+      + 'are named by the caller and by nothing else. The removal path deletes by that same key.',
+  },
   purgeBlockedDomainContent: {
     scope: 'caller-scoped',
     reason:

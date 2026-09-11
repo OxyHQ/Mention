@@ -57,15 +57,35 @@ import {
 } from '../../../db/federation/actorRepository';
 import {
   findIdentityLink,
+  listAttestedIdentityClaims,
   loadIdentityLinkEvidence,
 } from '../../../db/federation/identityEquivalenceRepository';
+import { recordAttestedIdentityLink } from '../../../scripts/recordAttestedIdentityLink';
 import { resolveFederatedActorIdentity } from '../../../connectors/identity';
 import type { NormalizedExternalActor } from '@oxy.so/federation';
 
-const IG_URI = 'https://kilogram.makeup/users/zuck';
-const THREADS_URI = 'https://threads.net/ap/users/17841401746480004/';
-const IG = 'zuck@instagram.com';
-const THREADS = 'zuck@threads.net';
+/**
+ * THE HANDLE IS NAMESPACED TO THIS SUITE; THE DOMAIN IS NOT, AND CANNOT BE.
+ *
+ * The whole run shares one database, so a fixture on a real public handle is a
+ * row another file can also claim — and this file's `afterEach` deletes the
+ * actors it seeded BY URI, so any other suite holding the same URI loses its
+ * fixtures mid-test. That is not hypothetical: `services/postEquivalence.test.ts`
+ * seeded the identical `https://kilogram.makeup/users/zuck`, the two landed in
+ * different workers on one database, and twelve of its cases failed as
+ * `not-applicable` — a post whose authoring actor has vanished has no NETWORK,
+ * so detection refuses it for a reason that has nothing to do with cross-posts.
+ *
+ * The DOMAIN has to stay real (`findCrossNetworkPair` keys on identity domains,
+ * and a `.test` host would make the layer refuse every pair and pass this suite
+ * vacuously), so the namespacing moves to the handle.
+ */
+const SUITE = 'xnet';
+const HANDLE = `${SUITE}-zuck`;
+const IG_URI = `https://kilogram.makeup/users/${HANDLE}`;
+const THREADS_URI = `https://threads.net/ap/users/${SUITE}-17841401746480004/`;
+const IG = `${HANDLE}@instagram.com`;
+const THREADS = `${HANDLE}@threads.net`;
 
 /** A verified `rel="me"` profile field, as the actor cache stores one. */
 function verifiedLink(href: string): { name: string; value: string; verifiedAt: Date } {
@@ -128,7 +148,7 @@ function normalized(over: Partial<NormalizedExternalActor> = {}): NormalizedExte
   return {
     network: 'activitypub',
     externalId: IG_URI,
-    handle: 'zuck@kilogram.makeup',
+    handle: `${HANDLE}@kilogram.makeup`,
     federatedUsername: IG,
     instanceDomain: 'instagram.com',
     ...over,
@@ -139,10 +159,10 @@ function normalized(over: Partial<NormalizedExternalActor> = {}): NormalizedExte
 async function seedInstagramAsserting(opts: { oxyUserId?: string } = {}): Promise<void> {
   await seedActor({
     uri: IG_URI,
-    username: 'zuck',
+    username: HANDLE,
     domain: 'kilogram.makeup',
     networkAcct: IG,
-    alsoKnownAs: ['https://www.threads.net/@zuck'],
+    alsoKnownAs: [`https://www.threads.net/@${HANDLE}`],
     ...opts,
   });
 }
@@ -151,9 +171,9 @@ async function seedInstagramAsserting(opts: { oxyUserId?: string } = {}): Promis
 async function seedThreadsAsserting(opts: { oxyUserId?: string } = {}): Promise<void> {
   await seedActor({
     uri: THREADS_URI,
-    username: 'zuck',
+    username: HANDLE,
     domain: 'threads.net',
-    fields: [verifiedLink('https://www.instagram.com/zuck')],
+    fields: [verifiedLink(`https://www.instagram.com/${HANDLE}`)],
     ...opts,
   });
 }
@@ -233,8 +253,8 @@ describe('a verified Instagram + Threads pair', () => {
     // rows alone, months later, without re-fetching either actor.
     const evidence = await loadIdentityLinkEvidence(link!.id);
     expect(evidence.map((claim) => `${claim.subject}->${claim.target}`).sort()).toEqual([
-      'zuck@instagram.com->zuck@threads.net',
-      'zuck@threads.net->zuck@instagram.com',
+      `${IG}->${THREADS}`,
+      `${THREADS}->${IG}`,
     ]);
   });
 
@@ -249,7 +269,7 @@ describe('a verified Instagram + Threads pair', () => {
     // Only `oxy_user_id` is shared. Nothing is rewritten and nothing is deleted,
     // which is what keeps the link withdrawable.
     expect(await findActorByUri(IG_URI)).toMatchObject({
-      acct: 'zuck@kilogram.makeup',
+      acct: `${HANDLE}@kilogram.makeup`,
       domain: 'kilogram.makeup',
       networkAcct: IG,
     });
@@ -262,10 +282,10 @@ describe('a verified Instagram + Threads pair', () => {
 
 describe('what must never merge', () => {
   it('refuses the same handle on both networks when NEITHER asserts anything', async () => {
-    await seedActor({ uri: THREADS_URI, username: 'zuck', domain: 'threads.net', oxyUserId: 'oxy-threads' });
+    await seedActor({ uri: THREADS_URI, username: HANDLE, domain: 'threads.net', oxyUserId: 'oxy-threads' });
     await seedActor({
       uri: IG_URI,
-      username: 'zuck',
+      username: HANDLE,
       domain: 'kilogram.makeup',
       networkAcct: IG,
     });
@@ -275,7 +295,7 @@ describe('what must never merge', () => {
   });
 
   it('refuses a ONE-WAY assertion, which is the shape anybody can publish', async () => {
-    await seedActor({ uri: THREADS_URI, username: 'zuck', domain: 'threads.net', oxyUserId: 'oxy-threads' });
+    await seedActor({ uri: THREADS_URI, username: HANDLE, domain: 'threads.net', oxyUserId: 'oxy-threads' });
     await seedInstagramAsserting();
     await resolveFederatedActorIdentity(
       normalized({ externalId: THREADS_URI, handle: THREADS, federatedUsername: THREADS, instanceDomain: 'threads.net' }),
@@ -286,29 +306,29 @@ describe('what must never merge', () => {
   });
 
   it('refuses Instagram + X, however loudly both sides assert each other', async () => {
-    const X_URI = 'https://bird.makeup/users/zuck';
+    const X_URI = `https://bird.makeup/users/${HANDLE}`;
     await seedActor({
       uri: X_URI,
-      username: 'zuck',
+      username: HANDLE,
       domain: 'bird.makeup',
-      networkAcct: 'zuck@x.com',
-      alsoKnownAs: ['https://www.instagram.com/zuck'],
+      networkAcct: `${HANDLE}@x.com`,
+      alsoKnownAs: [`https://www.instagram.com/${HANDLE}`],
       oxyUserId: 'oxy-x',
     });
     await seedActor({
       uri: IG_URI,
-      username: 'zuck',
+      username: HANDLE,
       domain: 'kilogram.makeup',
       networkAcct: IG,
-      alsoKnownAs: ['https://x.com/zuck'],
+      alsoKnownAs: [`https://x.com/${HANDLE}`],
     });
 
     await resolveFederatedActorIdentity(
-      normalized({ externalId: X_URI, handle: 'zuck@bird.makeup', federatedUsername: 'zuck@x.com', instanceDomain: 'x.com' }),
+      normalized({ externalId: X_URI, handle: `${HANDLE}@bird.makeup`, federatedUsername: `${HANDLE}@x.com`, instanceDomain: 'x.com' }),
     );
 
     await expect(resolveFederatedActorIdentity(normalized())).resolves.toBe('minted-user');
-    expect(await findIdentityLink(IG, 'zuck@x.com')).toBeNull();
+    expect(await findIdentityLink(IG, `${HANDLE}@x.com`)).toBeNull();
   });
 
   it('never looks at an actor on a network no reviewed pair mentions', async () => {
@@ -348,7 +368,7 @@ describe('reversal', () => {
     // is the pass that takes the link down — no separate sweep.
     await seedActor({
       uri: IG_URI,
-      username: 'zuck',
+      username: HANDLE,
       domain: 'kilogram.makeup',
       networkAcct: IG,
       alsoKnownAs: [],
@@ -370,7 +390,7 @@ describe('reversal', () => {
     );
     await resolveFederatedActorIdentity(normalized());
 
-    await seedActor({ uri: IG_URI, username: 'zuck', domain: 'kilogram.makeup', networkAcct: IG });
+    await seedActor({ uri: IG_URI, username: HANDLE, domain: 'kilogram.makeup', networkAcct: IG });
     await expect(resolveFederatedActorIdentity(normalized())).resolves.toBe('minted-user');
   });
 
@@ -394,14 +414,135 @@ describe('reversal', () => {
     // records as `handleStability: 'recyclable'`.
     await seedActor({
       uri: IG_URI,
-      username: 'zuck',
+      username: HANDLE,
       domain: 'kilogram.makeup',
       networkAcct: IG,
-      alsoKnownAs: ['https://www.threads.net/@someoneelse'],
+      alsoKnownAs: [`https://www.threads.net/@${SUITE}-someoneelse`],
     });
 
     await expect(resolveFederatedActorIdentity(normalized())).resolves.toBe('minted-user');
     expect(await findIdentityLink(IG, THREADS)).toMatchObject({ status: 'revoked' });
+  });
+});
+
+describe('a first-party attestation', () => {
+  it('links a pair that asserts NOTHING, because the operator is not the account', async () => {
+    // Neither actor publishes an alias. On bidirectional evidence alone this
+    // pair is two strangers, and the preceding suite asserts exactly that.
+    await seedActor({ uri: THREADS_URI, username: HANDLE, domain: 'threads.net', oxyUserId: 'oxy-zuck' });
+    await seedActor({ uri: IG_URI, username: HANDLE, domain: 'kilogram.makeup', networkAcct: IG });
+
+    await recordAttestedIdentityLink({
+      identityA: IG,
+      identityB: THREADS,
+      source: 'Meta connected-accounts export, ticket OPS-1234',
+      dryRun: false,
+    });
+
+    await expect(resolveFederatedActorIdentity(normalized())).resolves.toBe('oxy-zuck');
+    expect(await findIdentityLink(IG, THREADS)).toMatchObject({
+      status: 'linked',
+      reason: 'first-party-link',
+    });
+  });
+
+  /**
+   * THE ONE THAT WOULD FAIL SILENTLY. An actor refresh REPLACES that actor's
+   * whole claim set — which is what makes a withdrawn assertion revoke its link.
+   * An attestation is not the actor's to withdraw, so it is filed under a
+   * synthetic per-pair key rather than under either actor, and this is what
+   * proves the refresh cannot reach it.
+   */
+  it('survives an actor refresh, which wipes every claim the ACTOR published', async () => {
+    await seedActor({ uri: THREADS_URI, username: HANDLE, domain: 'threads.net', oxyUserId: 'oxy-zuck' });
+    await seedActor({ uri: IG_URI, username: HANDLE, domain: 'kilogram.makeup', networkAcct: IG });
+    await recordAttestedIdentityLink({
+      identityA: IG,
+      identityB: THREADS,
+      source: 'ticket OPS-1234',
+      dryRun: false,
+    });
+
+    // Two full refreshes of both actors, each of which replaces that actor's
+    // claims wholesale.
+    for (const actor of [normalized(), normalized({
+      externalId: THREADS_URI, handle: THREADS, federatedUsername: THREADS, instanceDomain: 'threads.net',
+    })]) {
+      // eslint-disable-next-line no-await-in-loop
+      await resolveFederatedActorIdentity(actor);
+    }
+
+    expect(await listAttestedIdentityClaims()).toHaveLength(2);
+    await expect(resolveFederatedActorIdentity(normalized())).resolves.toBe('oxy-zuck');
+  });
+
+  it('is reversible — withdrawing it revokes the link on the next refresh', async () => {
+    await seedActor({ uri: THREADS_URI, username: HANDLE, domain: 'threads.net', oxyUserId: 'oxy-zuck' });
+    await seedActor({ uri: IG_URI, username: HANDLE, domain: 'kilogram.makeup', networkAcct: IG });
+    await recordAttestedIdentityLink({
+      identityA: IG, identityB: THREADS, source: 'ticket OPS-1234', dryRun: false,
+    });
+    await resolveFederatedActorIdentity(normalized());
+    expect(await findIdentityLink(IG, THREADS)).toMatchObject({ status: 'linked' });
+
+    const removed = await recordAttestedIdentityLink({
+      identityA: IG, identityB: THREADS, source: '', remove: true, dryRun: false,
+    });
+    expect(removed).toMatchObject({ applied: true, rows: 2 });
+
+    // Revoked through the ORDINARY path: the verdict is recomputed from the
+    // claims that exist now, so there is no separate teardown to forget.
+    await expect(resolveFederatedActorIdentity(normalized())).resolves.toBe('minted-user');
+    expect(await findIdentityLink(IG, THREADS)).toMatchObject({ status: 'revoked' });
+  });
+
+  it('is idempotent — re-attesting updates the pair rather than multiplying it', async () => {
+    for (const source of ['first', 'second']) {
+      // eslint-disable-next-line no-await-in-loop
+      await recordAttestedIdentityLink({
+        identityA: IG, identityB: THREADS, source, dryRun: false,
+      });
+    }
+
+    const onFile = await listAttestedIdentityClaims();
+    expect(onFile).toHaveLength(2);
+    expect(onFile.every((claim) => claim.source === 'second')).toBe(true);
+  });
+
+  it('writes nothing on a dry run', async () => {
+    const outcome = await recordAttestedIdentityLink({
+      identityA: IG, identityB: THREADS, source: 'ticket OPS-1234',
+    });
+
+    expect(outcome).toMatchObject({ applied: false, rows: 0 });
+    expect(await listAttestedIdentityClaims()).toEqual([]);
+  });
+
+  /**
+   * An attestation is an EVIDENCE channel, never a way around the reviewed pair
+   * list — that list is the moderation judgement, and no amount of first-party
+   * data changes which pairs somebody reviewed.
+   */
+  it.each([
+    ['two networks nobody paired', 'nate@instagram.com', 'nate@x.com', 'pair-not-reviewed'],
+    ['a network with itself', 'a@instagram.com', 'b@instagram.com', 'pair-not-reviewed'],
+    ['a malformed identity', 'zuck', THREADS, 'malformed-identity'],
+    ['the same identity twice', IG, IG, 'same-identity'],
+  ])('refuses %s', async (_label, identityA, identityB, refusal) => {
+    const outcome = await recordAttestedIdentityLink({
+      identityA, identityB, source: 'ticket OPS-1234', dryRun: false,
+    });
+
+    expect(outcome).toMatchObject({ applied: false, refusal });
+    expect(await listAttestedIdentityClaims()).toEqual([]);
+  });
+
+  it('refuses an attestation with no provenance to show later', async () => {
+    const outcome = await recordAttestedIdentityLink({
+      identityA: IG, identityB: THREADS, source: '   ', dryRun: false,
+    });
+
+    expect(outcome).toMatchObject({ applied: false, refusal: 'missing-source' });
   });
 });
 

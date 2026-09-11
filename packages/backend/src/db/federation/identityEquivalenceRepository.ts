@@ -97,6 +97,95 @@ export async function replaceIdentityClaims(
   });
 }
 
+/**
+ * The `subject_actor_uri` an ATTESTED claim is filed under.
+ *
+ * Deliberately NOT an actor URI, and that is the whole mechanism. A derived
+ * claim belongs to the actor that publishes it, and
+ * {@link replaceIdentityClaims} wipes an actor's whole set on every refresh —
+ * which is exactly what makes a withdrawn assertion revoke its link. An attested
+ * claim is not the actor's to withdraw: it comes from the network OPERATOR,
+ * through a first-party interface, and an actor refresh must not be able to
+ * delete it. Filing it under a synthetic per-PAIR key puts it outside every
+ * actor's set by construction, rather than relying on some future caller
+ * remembering to exclude it.
+ *
+ * Per-pair rather than per-operator so that removing one attestation cannot take
+ * another down with it.
+ */
+export function attestationSubjectKey(identityA: string, identityB: string): string {
+  const [left, right] = identityPairKey(identityA, identityB);
+  return `attestation:${left}|${right}`;
+}
+
+/**
+ * File a first-party attestation that two network identities are one person.
+ *
+ * Written in BOTH directions. One would be enough for `evaluateEquivalence`,
+ * which accepts a first-party claim from either side — but which side is
+ * readable depends on which actor happens to be resolving, and a record that
+ * answers from only one end is a record that behaves differently depending on
+ * arrival order. Symmetric costs one row and removes the question.
+ *
+ * Idempotent: re-attesting the same pair updates the two rows rather than
+ * multiplying them, because `(subject_actor_uri, target, kind)` is unique.
+ */
+export async function recordAttestedIdentityClaims(
+  params: { identityA: string; identityB: string; source: string },
+  db: DatabaseOrTransaction = getDb(),
+): Promise<void> {
+  const a = params.identityA.trim().toLowerCase();
+  const b = params.identityB.trim().toLowerCase();
+  const subjectActorUri = attestationSubjectKey(a, b);
+
+  await db
+    .insert(federatedIdentityClaims)
+    .values([
+      { subjectActorUri, subject: a, target: b, kind: 'first-party-link' as const, source: params.source },
+      { subjectActorUri, subject: b, target: a, kind: 'first-party-link' as const, source: params.source },
+    ])
+    .onConflictDoUpdate({
+      target: [
+        federatedIdentityClaims.subjectActorUri,
+        federatedIdentityClaims.target,
+        federatedIdentityClaims.kind,
+      ],
+      set: { source: params.source, observedAt: new Date() },
+    });
+}
+
+/** Withdraw an attestation. Returns how many rows went — 0, or 2. */
+export async function removeAttestedIdentityClaims(
+  params: { identityA: string; identityB: string },
+  db: DatabaseOrTransaction = getDb(),
+): Promise<number> {
+  const removed = await db
+    .delete(federatedIdentityClaims)
+    .where(eq(
+      federatedIdentityClaims.subjectActorUri,
+      attestationSubjectKey(params.identityA, params.identityB),
+    ))
+    .returning({ id: federatedIdentityClaims.id });
+  return removed.length;
+}
+
+/** Every attestation on file — the reconciliation report's inventory. */
+export async function listAttestedIdentityClaims(
+  db: DatabaseOrTransaction = getDb(),
+): Promise<CrossNetworkIdentityClaim[]> {
+  const rows = await db
+    .select()
+    .from(federatedIdentityClaims)
+    .where(eq(federatedIdentityClaims.kind, 'first-party-link'));
+  return rows.map((row) => ({
+    subject: row.subject,
+    subjectActorUri: row.subjectActorUri,
+    target: row.target,
+    kind: row.kind,
+    source: row.source,
+  }));
+}
+
 /** Every claim published by the actors currently stored under an identity. */
 export async function findIdentityClaimsBySubject(
   subject: string,

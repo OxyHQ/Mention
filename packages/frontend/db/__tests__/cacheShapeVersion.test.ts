@@ -32,6 +32,7 @@ const PERSISTED_POST_KEYS = [
   'boost',
   'content',
   'context',
+  'crosspost',
   'date',
   'documents',
   'engagement',
@@ -49,7 +50,7 @@ const PERSISTED_POST_KEYS = [
 ] as const;
 
 /** The version that must ship with the key set above. */
-const VERSION_FOR_THESE_KEYS = 9;
+const VERSION_FOR_THESE_KEYS = 10;
 
 function makeFullyPopulatedPost(): HydratedPost {
   return {
@@ -94,6 +95,12 @@ function makeFullyPopulatedPost(): HydratedPost {
       updatedAt: '2026-08-02T00:00:00.000Z',
     },
     lane: { id: 'lane-1', name: 'Opinion', displayMode: 'mixed' },
+    crosspost: {
+      variants: [
+        { network: 'instagram.com', label: 'Instagram', postId: 'post-1', rendered: true },
+        { network: 'threads.net', label: 'Threads', postId: 'post-2', rendered: false },
+      ],
+    },
     originalPost: null,
     quotedPost: null,
     boost: null,

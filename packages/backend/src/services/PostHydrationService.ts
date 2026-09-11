@@ -1,5 +1,10 @@
 import { FeedPostSlice, FeedSliceItem, HydratedPost, HydratedPostSummary, HydratedBoostContext, HydratedAuthor, PostUser, PostAttachmentBundle, PostEngagementSummary, ClarityDocument, PostPermissions, PostReplyContext, PostViewerState, PostVisibility, PostAuthorshipEntry } from '@mention/shared-types';
-import type { LaneDisplayMode, LaneSummary } from '@mention/shared-types';
+import type { CrosspostProvenance, LaneDisplayMode, LaneSummary } from '@mention/shared-types';
+import {
+  loadCrosspostVariants,
+  networkLabel,
+  type CrosspostVariantRow,
+} from './PostEquivalenceService';
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { bookmarks as bookmarksTable, likes as likesTable } from '../db/schema/engagement';
@@ -1089,6 +1094,32 @@ function mayNeedCurrentChannelAuthority(
   return ownershipDecidesReadability(post, authorId, viewerContext);
 }
 
+/**
+ * The `crosspost` field for one post, or `undefined` when it has none.
+ *
+ * A cluster of fewer than two members is treated as no provenance rather than as
+ * a one-item list: one network is not provenance, it is simply where the post
+ * is. That state is transient — `reevaluateCluster` dissolves a cluster the
+ * moment it drops below two — but hydration can read a page mid-repair, and a
+ * card reading `Instagram` on its own would say nothing while looking like it
+ * meant something.
+ */
+function buildCrosspostProvenance(
+  variants: CrosspostVariantRow[] | undefined,
+): { crosspost: CrosspostProvenance } | undefined {
+  if (!variants || variants.length < 2) return undefined;
+  return {
+    crosspost: {
+      variants: variants.map((variant) => ({
+        network: variant.networkDomain,
+        label: networkLabel(variant.networkDomain),
+        postId: variant.postId,
+        rendered: variant.preferred,
+      })),
+    },
+  };
+}
+
 export class PostHydrationService {
   async hydratePosts(rawPosts: object[], options: HydrationOptions = {}): Promise<HydratedPost[]> {
     if (!Array.isArray(rawPosts) || rawPosts.length === 0) {
@@ -1148,6 +1179,7 @@ export class PostHydrationService {
       orphanAuthorMap,
       quoteCountMap,
       laneMap,
+      crosspostMap,
     ] = await Promise.all([
       this.populateViewerInteractions(postIds, viewerContext),
       (async () => {
@@ -1194,6 +1226,18 @@ export class PostHydrationService {
         ? this.buildQuoteCountMap(postIds)
         : Promise.resolve(undefined),
       this.buildLaneMap(postsForHydration),
+      // Cross-post provenance for the whole page in ONE query — an `in (...)`
+      // over the batch, so twenty posts cost what one does.
+      //
+      // Skipped entirely when the batch holds no federated post. A cross-post
+      // cluster needs two federated variants on a reviewed pair of networks, so
+      // a page of native posts cannot contain one, and an all-native feed — the
+      // overwhelmingly common case — pays nothing at all rather than one
+      // statement for a field it can never have. The test is over rows already
+      // in memory, so the saving is free. Same discipline as
+      // `participatesInCrossNetworkIdentity`: gate the cost on the thing that
+      // makes it possible.
+      this.buildCrosspostMap(postsForHydration, postIds),
     ]);
     const mentionCache: Map<string, PostUser> = new Map(userMap);
 
@@ -1216,6 +1260,7 @@ export class PostHydrationService {
           replyParentAuthorIdByPostId,
           selfContinuationPostIds,
           laneMap,
+          crosspostMap,
           signingChannelIds,
         })
       )
@@ -1873,6 +1918,25 @@ export class PostHydrationService {
    * Fail-soft: a lookup failure yields an empty map, so the post renders without
    * a chip rather than not rendering at all.
    */
+  /**
+   * Cross-post provenance for the batch, or an empty map when no post in it
+   * could possibly have any.
+   *
+   * A cluster only ever holds federated variants — `detectCrosspostEquivalence`
+   * requires two posts whose authoring actors sit on a reviewed pair of
+   * NETWORKS, which a native Mention post has none of — so a batch with no
+   * `federation.activityId` anywhere cannot contain a member, and asking is a
+   * round trip that can only ever answer "no".
+   */
+  private async buildCrosspostMap(
+    nodes: HydratedGraphNode[],
+    postIds: string[],
+  ): Promise<Map<string, CrosspostVariantRow[]>> {
+    const anyFederated = nodes.some(({ post }) => Boolean(post?.federation?.activityId));
+    if (!anyFederated) return new Map();
+    return loadCrosspostVariants(postIds);
+  }
+
   private async buildLaneMap(nodes: HydratedGraphNode[]): Promise<Map<string, LaneSummary>> {
     const laneIds = Array.from(
       new Set(
@@ -2483,10 +2547,11 @@ export class PostHydrationService {
     selfContinuationPostIds: Set<string>;
     /** The author's lanes, keyed by lane id — the `› Lane name` chip in the name row. */
     laneMap: Map<string, LaneSummary>;
+    crosspostMap: Map<string, CrosspostVariantRow[]>;
     /** Channel accounts in this page whose `signPosts` is on — see {@link buildSigningChannelIds}. */
     signingChannelIds: Set<string>;
   }): Promise<HydratedPostSummary | null> {
-    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId, selfContinuationPostIds, laneMap, signingChannelIds } = params;
+    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId, selfContinuationPostIds, laneMap, crosspostMap, signingChannelIds } = params;
 
     const postId = this.resolveId(post);
     if (!postId) return null;
@@ -2703,6 +2768,11 @@ export class PostHydrationService {
       ...(typeof post.laneId === 'string' && laneMap.has(post.laneId)
         ? { lane: laneMap.get(post.laneId) }
         : {}),
+      // Cross-post provenance — `Instagram · Threads` — when this post is one
+      // variant of a piece of writing published to two networks. Absent
+      // otherwise, which is almost always, and absent for a cluster that somehow
+      // holds a single member: one network is not provenance, it is the post.
+      ...(buildCrosspostProvenance(crosspostMap.get(postId)) ?? {}),
       // Include parentPostId for thread hierarchy in replies
       ...(post.parentPostId ? { parentPostId: String(post.parentPostId) } : {}),
       // The reply marker rides on the POST, so every surface that renders one —

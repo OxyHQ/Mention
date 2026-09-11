@@ -50,7 +50,10 @@ import { connectPostgres, getDb } from '../db/postgres';
 import { federatedActors } from '../db/schema/federation';
 import { postEquivalenceMembers, posts } from '../db/schema/posts';
 import { countEquivalence } from '../db/posts/postEquivalenceRepository';
-import { listIdentityLinks } from '../db/federation/identityEquivalenceRepository';
+import {
+  listAttestedIdentityClaims,
+  listIdentityLinks,
+} from '../db/federation/identityEquivalenceRepository';
 import {
   CROSS_NETWORK_IDENTITY_POLICY,
   participatesInCrossNetworkIdentity,
@@ -77,6 +80,8 @@ export interface ReconciliationReport {
   instagramBridgeActorsRelabelled: number;
   instagramBridgeActorsStillUnderBridgeIdentity: number;
   crossNetworkIdentityClaimsFound: number;
+  /** First-party attestations on file — see `recordAttestedIdentityLink`. */
+  firstPartyAttestationsOnFile: number;
   identityPairsLinked: number;
   identityPairsRefusedOrAmbiguous: number;
   postCrosspostCandidates: number;
@@ -191,6 +196,12 @@ async function reconcileIdentities(report: ReconciliationReport, dryRun: boolean
   // the report describes the state of the world and not the state of the loop —
   // an already-linked pair contributes on every run, which is what makes the
   // number comparable between runs.
+  // Filed in both directions, so the pair count is half the row count. Reported
+  // because an attestation is the one evidence kind no actor publishes — it is
+  // invisible in the claim scan above, and an operator needs to see what is on
+  // file rather than infer it from the links it produced.
+  report.firstPartyAttestationsOnFile = (await listAttestedIdentityClaims()).length / 2;
+
   const linked = await listIdentityLinks('linked');
   const pending = await listIdentityLinks('pending_reconciliation');
   report.identityPairsLinked = Math.max(report.identityPairsLinked, linked.length);
@@ -271,6 +282,7 @@ export async function reconcileMetaIdentityAndCrossposts(
     instagramBridgeActorsRelabelled: 0,
     instagramBridgeActorsStillUnderBridgeIdentity: 0,
     crossNetworkIdentityClaimsFound: 0,
+    firstPartyAttestationsOnFile: 0,
     identityPairsLinked: 0,
     identityPairsRefusedOrAmbiguous: 0,
     postCrosspostCandidates: 0,

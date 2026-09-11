@@ -40,7 +40,7 @@ const logger = createLogger('Schema');
  * changes without this number moving, so the rule is enforced rather than
  * remembered.
  */
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 /**
  * Create the full schema from scratch. Idempotent (IF NOT EXISTS).

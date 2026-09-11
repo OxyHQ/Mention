@@ -1,4 +1,5 @@
-import { and, eq, gte, isNull, lte, ne, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lte, ne, sql, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { normalizeMultilineText } from '@oxy.so/core';
 import { getDb } from '../db/postgres';
 import { postEquivalenceMembers, posts } from '../db/schema/posts';
@@ -15,6 +16,7 @@ import {
   type EquivalenceMemberWrite,
 } from '../db/posts/postEquivalenceRepository';
 import { findCrossNetworkPair } from '../connectors/identityEquivalence';
+import { CLAIMABLE_NETWORKS } from '../connectors/identityEquivalence/threadsNetwork';
 import { logger } from '../utils/logger';
 import { metrics } from '../utils/metrics';
 
@@ -629,4 +631,81 @@ export async function classifyStoredPair(
 export async function findCrosspostSiblings(postId: string): Promise<string[]> {
   const candidate = await loadCandidate(postId);
   return candidate ? findSiblingIds(candidate) : [];
+}
+
+/** One variant of a cluster, as the hydration path reads it. */
+export interface CrosspostVariantRow {
+  postId: string;
+  networkDomain: string;
+  preferred: boolean;
+}
+
+/**
+ * The cross-post variants of every post in `postIds`, keyed by post id.
+ *
+ * ONE query for the whole page, and it joins members to members rather than
+ * looping: a feed page can carry several collapsed cross-posts, and asking per
+ * post would put a round trip on every card of every feed for a shape almost no
+ * post has. Posts in no cluster are simply absent from the map, which is the
+ * overwhelming majority and costs them nothing beyond this single query.
+ *
+ * Returns an empty map on failure. Provenance is a label; a card that renders
+ * without it is the same card, so it must never be able to fail a page.
+ */
+export async function loadCrosspostVariants(
+  postIds: readonly string[],
+): Promise<Map<string, CrosspostVariantRow[]>> {
+  const byPost = new Map<string, CrosspostVariantRow[]>();
+  if (postIds.length === 0) return byPost;
+
+  try {
+    const mine = alias(postEquivalenceMembers, 'mine');
+    const rows = await getDb()
+      .select({
+        forPostId: mine.postId,
+        postId: postEquivalenceMembers.postId,
+        networkDomain: postEquivalenceMembers.networkDomain,
+        preferred: postEquivalenceMembers.preferred,
+      })
+      .from(mine)
+      .innerJoin(
+        postEquivalenceMembers,
+        eq(postEquivalenceMembers.clusterId, mine.clusterId),
+      )
+      .where(inArray(mine.postId, [...postIds]))
+      // Deterministic, and the same order the card renders: the representative
+      // first, then by network, so two readers of one cluster never see the two
+      // names in a different order.
+      .orderBy(desc(postEquivalenceMembers.preferred), postEquivalenceMembers.networkDomain);
+
+    for (const row of rows) {
+      const list = byPost.get(row.forPostId) ?? [];
+      list.push({
+        postId: row.postId,
+        networkDomain: row.networkDomain,
+        preferred: row.preferred,
+      });
+      byPost.set(row.forPostId, list);
+    }
+  } catch (err) {
+    logger.warn('[Equivalence] failed to load cross-post provenance', { err });
+    return new Map();
+  }
+  return byPost;
+}
+
+/**
+ * The display name of a network identity domain — `instagram.com` → `Instagram`.
+ *
+ * Read off the SAME `FederationNetwork` declarations the claim parser and the
+ * ingest use, so the label and the identity can never name different networks. A
+ * domain no declaration covers falls back to the domain itself, which is
+ * truthful rather than blank.
+ */
+export function networkLabel(networkDomain: string): string {
+  const canonical = networkDomain.trim().toLowerCase();
+  const known = CLAIMABLE_NETWORKS.find(
+    (network) => network.domain.toLowerCase() === canonical,
+  );
+  return known?.name ?? networkDomain;
 }

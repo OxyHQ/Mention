@@ -41,7 +41,7 @@ type TransformOptions = {
 type HandledPostKey =
   | 'id' | 'content' | 'attachments' | 'documents' | 'user' | 'authors'
   | 'authorship' | 'engagement' | 'viewerState' | 'permissions' | 'metadata'
-  | 'lane' | 'parentPostId' | 'replyContext'
+  | 'lane' | 'crosspost' | 'parentPostId' | 'replyContext'
   | 'originalPost' | 'quotedPost' | 'boost' | 'context';
 
 type UnhandledPostKey = Exclude<keyof HydratedPost, HandledPostKey>;
@@ -97,6 +97,18 @@ export function toFeedItem(
     // still carries it, and it is optional on `HydratedPost`, so the omission
     // type-checks cleanly and no test that ignores it can see it.
     lane: post.lane,
+    // Carried so a collapsed cross-post keeps naming both networks when the row
+    // is served from the offline cache.
+    //
+    // ADDING a key moves `SCHEMA_VERSION` too, and it is worth saying why, because
+    // the intuition runs the other way: a stale row merely LACKS `crosspost`, so
+    // it looks harmless. It is not — `PostItem` reads `storePost ?? post`, so the
+    // cached copy WINS over the response the API just sent. A row written before
+    // this key existed would therefore go on suppressing the provenance row for
+    // as long as it lives in the cache, while the API response beside it carries
+    // one. That is the same failure this converter's own docblock records as
+    // having bitten twice.
+    crosspost: post.crosspost,
     originalPost,
     quotedPost,
     boost,

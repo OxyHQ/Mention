@@ -1256,6 +1256,50 @@ export interface PostReplyContext {
   parentAuthor?: PostUser;
 }
 
+/**
+ * ONE VARIANT of a cross-posted piece of writing, as the card reads it.
+ *
+ * A creator who publishes the same photo and caption to Instagram and to Threads
+ * produces two real objects with independent permalinks, replies, likes, edits
+ * and moderation state. Mention stores both and renders ONE — this is how the
+ * rendered card names the others, and how a reader reaches them.
+ */
+export interface CrosspostVariant {
+  /** The network's identity domain — `instagram.com`, `threads.net`. */
+  network: string;
+  /**
+   * The network's display name — `Instagram`, `Threads`.
+   *
+   * Sent by the server rather than mapped in the renderer: which domains are
+   * which networks is federation's declaration, and a second copy in the client
+   * is a copy that goes stale the day a network is added. These are proper
+   * nouns, so they are deliberately NOT translated.
+   */
+  label: string;
+  /** The Mention post id of this variant — an INTERNAL `/p/<id>` route. */
+  postId: string;
+  /** True for the one variant the card is rendering. Exactly one is true. */
+  rendered: boolean;
+}
+
+/**
+ * The provenance of a collapsed cross-post: every network it exists on, in a
+ * stable order.
+ *
+ * It names the whole set rather than only the hidden half, because
+ * `Instagram · Threads` tells a reader what happened — one thing was published
+ * twice — where "also on Threads" reads as a second, different post.
+ *
+ * Engagement is deliberately NOT aggregated anywhere in this shape. Each card
+ * renders its own variant's likes, replies and boosts, because those belong to
+ * one object on one network and summing them would present a number no platform
+ * ever reported.
+ */
+export interface CrosspostProvenance {
+  /** Every variant, the rendered one included, in a deterministic order. */
+  variants: CrosspostVariant[];
+}
+
 export interface HydratedPostSummary {
   id: string;
   content: PostContent;
@@ -1291,6 +1335,15 @@ export interface HydratedPostSummary {
   viewerState: PostViewerState;
   permissions: PostPermissions;
   metadata: PostMetadataState;
+  /**
+   * The other networks this piece of writing was published to, when it is part
+   * of a cross-post equivalence cluster — what the card renders as a quiet
+   * `Instagram · Threads` provenance row.
+   *
+   * ABSENT for the overwhelming majority of posts, and absent for a post that is
+   * in no cluster. See {@link CrosspostProvenance}.
+   */
+  crosspost?: CrosspostProvenance;
   /**
    * The author's lane for this post, when it has one — what the name row renders
    * as a `› Lane name` chip after the time.
