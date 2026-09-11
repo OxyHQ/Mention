@@ -33,6 +33,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
 import { PanelStickyHeader, PanelChromeTopInsetProvider, PANEL_HEADER_HEIGHT, PANEL_CHROME_TOP_INSET } from '@/components/shell/PanelChrome';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { HOME_FAB_CONTAINING_BLOCK_STYLE } from '@/components/navigation/homeFabGeometry';
 
 type HomeTab = string;
 
@@ -259,7 +260,14 @@ const HomeScreen: React.FC = () => {
                 gutter ring never clips them. The feed below them stays at z-0,
                 still masked. No effect on native. */}
             <SafeAreaView className="flex-1 bg-background web:z-auto" edges={["top"]}>
-                <ThemedView className="flex-1 web:z-auto relative flex-col">
+                {/* `min-h-0` is part of the FAB's containing-block contract. The
+                    feed is allowed to shrink and scroll inside this viewport;
+                    otherwise its intrinsic height grows this positioned column
+                    past the screen and `bottom` means the end of the feed. */}
+                <ThemedView
+                    className="web:z-auto flex-col"
+                    style={HOME_FAB_CONTAINING_BLOCK_STYLE}
+                >
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
 
                     {/* Header - animated. <PanelStickyHeader> owns the web sticky
