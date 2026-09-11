@@ -13,8 +13,9 @@
  * that drifts does not misrender the row — it misaligns the AVATAR, one column
  * away from the number that caused it.
  *
- * `PostHeader` still re-exports both under their original names, so every
- * existing import keeps working and there is one definition behind them.
+ * Every consumer imports from HERE. `PostHeader` deliberately does not re-export
+ * them for convenience: a constant reachable from two modules is a constant with
+ * two import paths, and the next caller picks whichever one autocomplete offers.
  */
 
 /** Gap between the context rows and the name row beneath them. */

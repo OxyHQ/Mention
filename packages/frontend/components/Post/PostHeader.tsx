@@ -38,14 +38,6 @@ const ROW_GAP = 8;
  * under the header with the SAME gap a text line would produce — avoiding an
  * orphaned "reserved text line" space. See `PostItem`'s first-content-block gap.
  */
-/**
- * The context-row measurements, re-exported under the names every caller already
- * uses. They live in `./postContextRowLayout` so a row component can read the
- * height without importing this whole module — see that file for why a second
- * hardcoded copy misaligns the avatar rather than the row.
- */
-export { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT };
-
 interface User {
   displayName?: string;
   handle: string;

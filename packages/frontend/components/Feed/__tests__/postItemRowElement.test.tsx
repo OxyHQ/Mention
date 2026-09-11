@@ -29,8 +29,6 @@ import PostItem from '../PostItem';
 jest.mock('../../Post/PostHeader', () => ({
   __esModule: true,
   default: () => null,
-  HEADER_CONTENT_GAP: 4,
-  POST_CONTEXT_ROW_HEIGHT: 18,
 }));
 
 // No `usePathname`: the point of the change is that this component never asks.

@@ -15,7 +15,8 @@ import {
     MEDIA_VARIANT_AVATAR,
 } from '@mention/shared-types/post';
 import { usePostSelector } from '../../stores/postsStore';
-import PostHeader, { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post/PostHeader';
+import PostHeader from '../Post/PostHeader';
+import { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post/postContextRowLayout';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import PostContentText from '../Post/PostContentText';
 import PostLaneChip from '../Post/PostLaneChip';
