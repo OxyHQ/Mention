@@ -93,8 +93,6 @@ jest.mock('@/components/Post/PostHeader', () => {
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   return {
     __esModule: true,
-    HEADER_CONTENT_GAP: 4,
-    POST_CONTEXT_ROW_HEIGHT: 20,
     default: (props: {
       avatarSource?: string | null;
       user?: { displayName?: string; handle?: string };

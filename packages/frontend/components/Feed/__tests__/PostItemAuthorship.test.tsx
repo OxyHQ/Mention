@@ -33,8 +33,6 @@ jest.mock('../../Post/PostHeader', () => ({
     mockHeaderProps.push(props);
     return null;
   },
-  HEADER_CONTENT_GAP: 4,
-  POST_CONTEXT_ROW_HEIGHT: 18,
 }));
 
 /**
