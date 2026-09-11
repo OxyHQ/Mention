@@ -335,6 +335,10 @@ const HomeScreen: React.FC = () => {
                     {canUsePrivateApi && (
                         <Fab
                             size={48}
+                            label={Platform.OS === 'web'
+                                ? t('compose.newPost', { defaultValue: 'New post' })
+                                : undefined}
+                            minimizeBehavior="collapse"
                             onPress={() => router.push('/compose')}
                             icon={<ComposeIcon size={22} className="text-tertiary-foreground" />}
                             accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
