@@ -62,7 +62,11 @@ import { sensitiveExcludeSql, isSensitivePost } from '../feedSafety';
 import { viewerLanguageSql } from '../feedLanguage';
 import { logger } from '../../../utils/logger';
 import { followedAuthorsSql } from '../../../utils/postAuthorship';
-import { excludeSeenSql, notABoostSql } from '../../../utils/feedQueryBuilder';
+import {
+  excludeSeenSql,
+  notABoostSql,
+  notCollapsedCrosspostSql,
+} from '../../../utils/feedQueryBuilder';
 import { engagementScoreSql } from '../engine/sources/discoverySources';
 import { chronoOrderBy } from '../CursorBuilder';
 import type { CandidatePost as EngineCandidatePost } from '../engine/types';
@@ -143,7 +147,7 @@ const sharedContentAffinityService = new ContentAffinityService();
 function buildBaseConditions(seenPostIds: string[], since: Date): SQL[] {
   const conditions: SQL[] = [
     eq(posts.visibility, PostVisibility.PUBLIC),
-    eq(posts.status, 'published'),
+    eq(posts.status, 'published'), notCollapsedCrosspostSql(),
     gte(posts.createdAt, since),
     eq(posts.isReply, false),
     notABoostSql(),

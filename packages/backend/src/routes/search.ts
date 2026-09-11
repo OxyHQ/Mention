@@ -18,6 +18,7 @@ import { chronoOrderBy } from '../mtn/feed/CursorBuilder';
 import { scanTextEntities } from '@mention/shared-types/textEntities';
 import { isAbsoluteHttpUrl } from '../connectors/shared/url';
 import { discoverySafeSql } from '../mtn/feed/feedSafety';
+import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { loadMuteWords, loadShowSensitiveContent } from '../services/safety/viewerSafety';
 import {
   NO_FOLLOWED_AUTHORS,
@@ -219,7 +220,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       // Build query with filters
       const conditions: SQL[] = [
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       ];
       // Sensitive/NSFW exclusion happens in the QUERY (not post-hoc) so a safe-mode
       // viewer's page is filled with results they can actually see. Same clause the

@@ -24,7 +24,12 @@ import {
 import { getDb } from '../../../../db/postgres';
 import { postMedia, posts } from '../../../../db/schema';
 import { assemblePostRecords } from '../../../../db/posts/postRepository';
-import { FeedQueryBuilder, authorNotInSql, notABoostSql } from '../../../../utils/feedQueryBuilder';
+import {
+  FeedQueryBuilder,
+  authorNotInSql,
+  notABoostSql,
+  notCollapsedCrosspostSql,
+} from '../../../../utils/feedQueryBuilder';
 import { engagementRankSql } from '../../../../db/schema/posts';
 import { rankingWeight } from '../../../../utils/rankingWeight';
 import { fetchWithRecencyFallback } from '../../../../utils/feedUtils';
@@ -340,7 +345,7 @@ export const exploreSource: SourceModule = {
 
     const conditions: SQL[] = [
       eq(posts.visibility, 'public'),
-      eq(posts.status, 'published'),
+      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       // Freeze both ends of the candidate window for the whole cursor session:
       // advancing the wall clock or publishing a new post cannot move existing
       // candidates across a page boundary.
@@ -421,7 +426,7 @@ export const popularSource: SourceModule = {
   gather: async (ctx, _params, cap) => {
     const baseConditions: SQL[] = [
       eq(posts.visibility, 'public'),
-      eq(posts.status, 'published'),
+      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       discoverySafeSql(),
       eq(posts.isReply, false),
       notABoostSql(),

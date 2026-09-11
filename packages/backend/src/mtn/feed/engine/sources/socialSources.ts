@@ -38,7 +38,7 @@ import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { discoverySafeSql } from '../../feedSafety';
 import { engagementScoreSql } from './discoverySources';
 import { logger } from '../../../../utils/logger';
-import { notABoostSql } from '../../../../utils/feedQueryBuilder';
+import { notABoostSql, notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
 import type { CandidatePost, SourceModule } from '../types';
 
 /**
@@ -147,7 +147,7 @@ export const friendsEngagedSource: SourceModule = {
     const conditions: SQL[] = [
       inArray(posts.id, Array.from(friendCountByPost.keys())),
       eq(posts.visibility, PostVisibility.PUBLIC),
-      eq(posts.status, 'published'),
+      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       notABoostSql(),
     ];
     if (ctx.currentUserId) {
@@ -199,7 +199,7 @@ export const quotesSource: SourceModule = {
     return fetchChrono(
       [
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
         or(...alternatives) as SQL,
       ],
       ctx.cursor,
@@ -221,7 +221,7 @@ export const repliesFromFollowsSource: SourceModule = {
       [
         inArray(posts.oxyUserId, followingIds),
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
         eq(posts.isReply, true),
       ],
       ctx.cursor,
@@ -248,7 +248,7 @@ export const boostsFromFollowsSource: SourceModule = {
       [
         eq(posts.type, PostType.BOOST),
         inArray(posts.oxyUserId, followingIds),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -277,7 +277,7 @@ export const mentionsOfMeSource: SourceModule = {
       [
         mentioned,
         inArray(posts.visibility, [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY]),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -331,7 +331,7 @@ export const hashtagFollowsSource: SourceModule = {
         // because `hashtags` is nullable and `NULL && ARRAY[…]` is NULL.
         sql`coalesce(${arrayOverlaps(posts.hashtags, tags)}, false)`,
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -370,7 +370,7 @@ export const starterPackSource: SourceModule = {
       [
         inArray(posts.oxyUserId, memberIds),
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -408,7 +408,7 @@ export const onThisDaySource: SourceModule = {
     return fetchChrono(
       [
         inArray(posts.oxyUserId, authorIds),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
         sql`extract(month from ${utc}) = ${now.getUTCMonth() + 1}`,
         sql`extract(day from ${utc}) = ${now.getUTCDate()}`,
         sql`extract(year from ${utc}) < ${now.getUTCFullYear()}`,
@@ -429,7 +429,7 @@ export const questionsSource: SourceModule = {
       [
         eq(posts.classificationIntent, 'question'),
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -445,7 +445,7 @@ export const newsSource: SourceModule = {
     fetchChrono(
       [
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
         or(
           eq(posts.classificationIntent, 'news'),
           sql`coalesce(${posts.classificationTopics} @> array['news']::text[], false)`,
@@ -480,7 +480,7 @@ export const instanceSource: SourceModule = {
 
     const conditions: SQL[] = [
       eq(posts.visibility, PostVisibility.PUBLIC),
-      eq(posts.status, 'published'),
+      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
     ];
 
     if (domain === 'local') {
@@ -537,7 +537,7 @@ export const linksSource: SourceModule = {
     return fetchChrono(
       [
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
         or(inSources, inBody) as SQL,
       ],
       ctx.cursor,
@@ -590,7 +590,7 @@ export const newVoicesSource: SourceModule = {
       .where(
         and(
           eq(posts.visibility, PostVisibility.PUBLIC),
-          eq(posts.status, 'published'),
+          eq(posts.status, 'published'), notCollapsedCrosspostSql(),
           gte(posts.createdAt, windowStart),
           discoverySafeSql(),
           eq(posts.isReply, false),
@@ -645,7 +645,7 @@ export const topRepliesSource: SourceModule = {
       .where(
         and(
           eq(posts.visibility, PostVisibility.PUBLIC),
-          eq(posts.status, 'published'),
+          eq(posts.status, 'published'), notCollapsedCrosspostSql(),
           gte(posts.createdAt, windowStart),
           discoverySafeSql(),
           eq(posts.isReply, true),
@@ -677,7 +677,7 @@ export const friendsOfFriendsSource: SourceModule = {
       [
         inArray(posts.oxyUserId, fofIds),
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -699,7 +699,7 @@ export const curatedSource: SourceModule = {
       [
         eq(posts.curated, true),
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,

@@ -33,6 +33,7 @@
 
 import { MtnConfig, PostType, PostVisibility } from '@mention/shared-types';
 import { and, eq, exists, gt, gte, inArray, isNull, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { qualified } from '@oxy.so/db';
 import { getDb } from '../db/postgres';
 import { postAttachments, postMedia, posts } from '../db/schema';
 
@@ -57,6 +58,44 @@ export interface VideosQueryOptions {
  */
 export function notABoostSql(): SQL {
   return isNull(posts.boostOf);
+}
+
+/**
+ * "This post is not the collapsed half of a cross-post."
+ *
+ * A creator who publishes the same photo and caption to Instagram and to Threads
+ * reaches us as TWO objects, and both are kept — they have independent
+ * permalinks, replies, likes, edits and moderation state, and merging them would
+ * destroy all of that to fix a rendering problem. What a reader should see is one
+ * card, so `services/PostEquivalenceService` marks every non-preferred member of
+ * an equivalence cluster and this excludes them.
+ *
+ * IT IS A QUERY TERM, NOT A POST-FETCH FILTER, AND THAT IS THE POINT.
+ *
+ *   Dropping the duplicates after the page is fetched returns 20 rows that
+ *   render 12 cards — the feed pages correctly and LOOKS short, which reads to a
+ *   user as "the feed ran out" and to an operator as a ranking change. Excluding
+ *   them in the query means the page is filled with real candidates before it is
+ *   cut.
+ *
+ * IT IS PER-SURFACE, AND NOT AN ALWAYS-ON ENGINE FILTER
+ *
+ *   The obvious tidier version is one predicate in `FeedEngine` beside the muted
+ *   lanes, applied to every definition. It would be wrong. A mute is a reader's
+ *   standing preference and belongs to every surface; a collapse is a RENDERING
+ *   choice for surfaces that are choosing what to show. The two sources that are
+ *   not — the likes tab and bookmarks — hand back a collection the reader
+ *   assembled by hand, and hiding the Threads copy they explicitly saved would
+ *   be losing their bookmark, not de-duplicating a feed. So each surface takes
+ *   this term deliberately, and those two do not.
+ *
+ * `IS NOT TRUE` rather than `= false` for the reason every shared predicate in
+ * this file spells its negations that way: the column is `NOT NULL` today, so
+ * the two agree, and they stop agreeing the moment anything makes it nullable —
+ * at which point `= false` silently drops every row instead of erroring.
+ */
+export function notCollapsedCrosspostSql(): SQL {
+  return sql`${qualified(posts.crosspostCollapsed)} is not true`;
 }
 
 /**

@@ -24,7 +24,7 @@ import { assemblePostRecords, loadPostRecords } from '../../../../db/posts/postR
 import { ProfileVisibility, requiresAccessCheck } from '../../../../utils/privacyHelpers';
 import { excludedDisplayModesForTab, loadExcludedLaneIds } from '../../../../services/laneVisibility';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
-import { notABoostSql } from '../../../../utils/feedQueryBuilder';
+import { notABoostSql, notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
 import { trendTermMatchSql } from '../../../../services/trending/termSpace';
 import { logger } from '../../../../utils/logger';
 import type { AuthorFeedFilter } from '@mention/shared-types';
@@ -152,7 +152,7 @@ export const keywordsSource: SourceModule = {
 
     if (hashtags.length === 0 && keywords.length === 0) return [];
 
-    const conditions: SQL[] = [eq(posts.visibility, 'public'), eq(posts.status, 'published')];
+    const conditions: SQL[] = [eq(posts.visibility, 'public'), eq(posts.status, 'published'), notCollapsedCrosspostSql()];
     const alternatives: SQL[] = [];
 
     if (keywords.length > 0) {
@@ -274,7 +274,7 @@ export const trendTermsSource: SourceModule = {
       [
         membership,
         eq(posts.visibility, 'public'),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -295,7 +295,7 @@ export const accountsSource: SourceModule = {
       [
         inArray(posts.oxyUserId, authorIds),
         eq(posts.visibility, 'public'),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -332,7 +332,7 @@ function buildAuthoredConditions(
 ): SQL[] {
   const conditions: SQL[] = [
     eq(posts.visibility, PostVisibility.PUBLIC),
-    eq(posts.status, 'published'),
+    eq(posts.status, 'published'), notCollapsedCrosspostSql(),
   ];
 
   // The author's own curation (see `services/laneVisibility` for which modes are
@@ -649,7 +649,7 @@ export const laneSource: SourceModule = {
         eq(posts.laneId, laneId),
         eq(posts.oxyUserId, lane.ownerId),
         eq(posts.visibility, PostVisibility.PUBLIC),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,
@@ -718,7 +718,7 @@ export const mutualsSource: SourceModule = {
       [
         inArray(posts.oxyUserId, mutualIds),
         inArray(posts.visibility, [PostVisibility.PUBLIC, PostVisibility.FOLLOWERS_ONLY]),
-        eq(posts.status, 'published'),
+        eq(posts.status, 'published'), notCollapsedCrosspostSql(),
       ],
       ctx.cursor,
       cap,

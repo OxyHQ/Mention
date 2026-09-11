@@ -260,6 +260,13 @@
       "when": 1789158473876,
       "tag": "0036_cross_network_identity_equivalence",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1789159449192,
+      "tag": "0037_post_crosspost_equivalence",
+      "breakpoints": true
     }
   ]
 }

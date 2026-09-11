@@ -15,6 +15,7 @@ import { accountListMembers, posts } from '../../../../db/schema';
 import { assemblePostRecords } from '../../../../db/posts/postRepository';
 import { followedAuthorsSql } from '../../../../utils/postAuthorship';
 import { topicSlugSql } from '../../../../utils/postTopicMatch';
+import { notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
 import { chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { logger } from '../../../../utils/logger';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
@@ -110,7 +111,7 @@ async function gatherFollowingTimeline(
   return fetchChrono(
     [
       buildFollowingVisibilitySql(currentUserId, followingIds, listMemberIds),
-      eq(posts.status, 'published'),
+      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
     ],
     ctx.cursor,
     cap,
@@ -142,7 +143,7 @@ async function gatherListTimeline(listId: string, ctx: FeedEngineContext, cap: n
     [
       inArray(posts.oxyUserId, memberIds),
       eq(posts.visibility, 'public'),
-      eq(posts.status, 'published'),
+      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
     ],
     ctx.cursor,
     cap,
@@ -160,7 +161,7 @@ async function gatherListTimeline(listId: string, ctx: FeedEngineContext, cap: n
  */
 async function gatherTopicTimeline(slug: string, ctx: FeedEngineContext, cap: number): Promise<CandidatePost[]> {
   return fetchChrono(
-    [topicSlugSql(slug), eq(posts.visibility, 'public'), eq(posts.status, 'published')],
+    [topicSlugSql(slug), eq(posts.visibility, 'public'), eq(posts.status, 'published'), notCollapsedCrosspostSql()],
     ctx.cursor,
     cap,
   );

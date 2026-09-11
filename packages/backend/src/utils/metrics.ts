@@ -41,6 +41,11 @@ const DEFINITIONS = {
     help: 'ActivityPub content normalization decisions by bounded ingest path',
     labelNames: ['path', 'decision'],
   },
+  post_equivalence_decision_total: {
+    kind: 'counter',
+    help: 'Cross-post equivalence decisions, by outcome and the evidence (or the refusal) behind it',
+    labelNames: ['outcome', 'reason'],
+  },
   feed_discovery_gated_total: {
     kind: 'counter',
     help: 'Feed discovery candidates rejected by the discovery gate',

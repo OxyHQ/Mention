@@ -283,6 +283,18 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       'WHERE (lane_id IS NOT NULL)',
   },
   {
+    name: 'posts_crosspost_collapsed_idx',
+    table: 'posts',
+    serves:
+      'counting and enumerating collapsed cross-post variants — the reconciliation report and the '
+      + "planner's estimate for `crosspost_collapsed is not true`. PARTIAL on the TRUE side, which is a "
+      + 'vanishing fraction of rows: the feed predicate excludes them and is served by the ordinary '
+      + 'chrono indexes, so indexing the 99.99% that pass would be indexing absence',
+    definition:
+      'CREATE INDEX posts_crosspost_collapsed_idx ON public.posts USING btree (crosspost_collapsed) '
+      + 'WHERE crosspost_collapsed',
+  },
+  {
     name: 'posts_hashtags_gin',
     table: 'posts',
     serves: 'hashtag feeds and `trendTermMatchSql` — an array overlap a btree cannot serve at all',
