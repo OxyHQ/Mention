@@ -77,3 +77,42 @@ historical audit counts; mutating invocation fails. Its callable entry point
 returns `oxy_identity_authority_required` for both registration and removal.
 Historical identity claim/link tables remain for audit. No deploy in this change
 drops those tables or treats their old rows as current authority.
+
+
+## Run through the protected production workflow
+
+After Oxy's authoritative resolver and Mention's package update are deployed,
+use **Reconcile source identity projections** (`run-source-identity-reconciliation.yml`).
+A repository admin sets `SOURCE_IDENTITY_RECONCILIATION_OPERATORS` to the allowed
+GitHub logins. Dispatch only from protected `main`; reruns by another actor are
+refused. The workflow uses the deployed backend task definition, including its
+roles, secrets and VPC configuration, without registering a replacement or
+updating the service. No input accepts code, commands, image repositories or refs.
+
+1. Verify the backend deployment has reached the exact current `main` commit.
+   Record its immutable `sha256:…` digest from the ECS task definition. The
+   workflow checks the `deployed/backend` source marker, ECR commit tag digest,
+   healthy ECS deployment and live digest all agree before starting a task.
+2. Dispatch with `dry_run=true` (the default) and `expected_image_digest` set to
+   that digest. Download and read the `source-identity-reconciliation` artifact
+   and the Actions summary. It contains source SHA, image digest, mode, exit code
+   and the script's count/refusal report. Dry-run is lookup-only: unresolved Oxy
+   identities and post clustering are not predictions of the subsequent apply.
+3. For apply, dispatch again at the same source/image with `dry_run=false`, the
+   successful preview's `preview_run_id`, and
+   `confirm_write=reconcileMetaIdentityAndCrossposts`. The workflow validates the
+   earlier workflow run and artifact against the exact source and image before
+   giving the script its existing `CONFIRM_ADMIN_MUTATION` confirmation. If main
+   or the image changed, obtain a fresh preview after the new backend deploy.
+4. Read every refusal and authorship conflict in the apply report. Exit zero
+   means the scan finished, not that every source was resolved. Preserve the
+   artifact (retained for 30 days), address refusals, then preview/apply again.
+
+The ECS command is fixed and has a 55-minute timeout with a 30-second termination
+grace. The workflow waits at most 60 minutes for completion. A timeout, nonzero
+exit, missing/invalid JSON tally or incomplete log retrieval fails the workflow;
+inspect the task ARN in ECS before retrying, since earlier writes remain committed.
+The workflow cannot stop ECS tasks with the deploy role. Reports contain only
+counts; inherited secret references, task definitions and raw source logs are
+never uploaded. This workflow does not migrate Oxy's identity evidence or create
+Mention-owned identity claims.
