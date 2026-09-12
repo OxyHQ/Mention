@@ -1,8 +1,10 @@
+import { resolveAvatarUrl } from '../../utils/mediaResolver';
 import { normalizeInlineText, normalizeMultilineText } from '@oxy.so/core';
 import { logger } from '../../utils/logger';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
-import { setActorOxyUserId, upsertActor } from '../../db/federation/actorRepository';
-import { resolveFederatedActorIdentity } from '../identity';
+import { upsertActor } from '../../db/federation/actorRepository';
+import { resolveOxyIdentity } from '../oxyIdentity';
+import { reconcileActorIdentityProjection } from '../../services/ActorIdentityProjectionService';
 import {
   BSKY_NETWORK_DOMAIN,
   blueskyUsernameFromHandle,
@@ -186,6 +188,15 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
   const identityHandle = atprotoIdentityHandle(actor.handle, did);
   const { username, domain } = splitHandle(identityHandle);
 
+  let resolved: Awaited<ReturnType<typeof resolveOxyIdentity>>;
+  try {
+    resolved = await resolveOxyIdentity({ actorUri: did, transportAcct: identityHandle, protocol: 'atproto' });
+    if (resolved.externalIdentity.actorUri !== did) throw new Error('Oxy resolved a different source actor');
+  } catch (err) {
+    logger.warn('[atproto] Oxy identity resolution failed', { did, err });
+    return { ...actor, oxyUserId: undefined };
+  }
+
   let fedActor: FederatedActorRecord | null = null;
   try {
     // The AP-shaped columns this profile has no analogue for are written at their
@@ -204,8 +215,9 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
         // Normalized again (idempotent) rather than trusted: this function is
         // exported and does not require its caller to have gone through
         // `mapProfileToNormalizedActor`.
-        summary: normalizeMultilineText(actor.bio ?? ''),
-        avatarUrl: actor.avatarUrl,
+        summary: resolved.user.bio ?? '',
+        avatarUrl: resolveAvatarUrl(resolved.user.avatar),
+        networkAcct: resolved.externalIdentity.canonicalAcct,
         headerUrl: actor.bannerUrl,
         type: 'Person',
         manuallyApprovesFollowers: false,
@@ -253,25 +265,18 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
     return { ...actor, oxyUserId: undefined };
   }
 
-  const existingOxyId = fedActor?.oxyUserId ?? undefined;
-  // Routed through the shared merge rather than straight at the identity bridge:
-  // the SAME Bluesky account can also reach us over ActivityPub through Bridgy
-  // Fed, and whichever protocol arrives second must adopt the first's Oxy user
-  // instead of minting a second identity under a username that is uniquely
-  // indexed. Both directions have to go through it or the merge only works when
-  // the bridged copy happens to arrive last.
-  const oxyId = await resolveFederatedActorIdentity({ ...actor, oxyUserId: existingOxyId });
-  if (!oxyId) {
-    // Hard runtime dependency: oxy-api `PUT /users/resolve` must accept a `did:`
-    // actorUri. Until it does this returns null — fail soft (no throw, no orphan).
-    logger.warn('[atproto] import skipped while Oxy user is unresolved');
-    return { ...actor, oxyUserId: undefined };
-  }
-
-  if (fedActor && fedActor.oxyUserId !== oxyId) {
-    await setActorOxyUserId(fedActor.id, oxyId);
-  }
-  return { ...actor, oxyUserId: oxyId };
+  if (!fedActor) return { ...actor, oxyUserId: undefined };
+  const projection = await reconcileActorIdentityProjection({ actorUri: did, oxyUserId: resolved.user.id, networkAcct: resolved.externalIdentity.canonicalAcct });
+  if (projection.refusal) return { ...actor, oxyUserId: undefined };
+  return {
+    ...actor,
+    oxyUserId: resolved.user.id,
+    federatedUsername: resolved.user.username,
+    instanceDomain: resolved.externalIdentity.network,
+    displayName: resolved.user.name?.displayName,
+    avatarUrl: resolveAvatarUrl(resolved.user.avatar),
+    bio: resolved.user.bio ?? '',
+  };
 }
 
 /**

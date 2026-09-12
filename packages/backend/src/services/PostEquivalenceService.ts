@@ -15,10 +15,10 @@ import {
   type EquivalenceClusterRecord,
   type EquivalenceMemberWrite,
 } from '../db/posts/postEquivalenceRepository';
-import { findCrossNetworkPair } from '../connectors/identityEquivalence';
-import { CLAIMABLE_NETWORKS } from '../connectors/identityEquivalence/threadsNetwork';
+import { FEDERATION_NETWORKS, canonicalFederationHost } from '@oxy.so/federation';
 import { logger } from '../utils/logger';
 import { metrics } from '../utils/metrics';
+import { lookupOxyIdentities } from '../connectors/oxyIdentity';
 
 /**
  * ONE PIECE OF WRITING, TWO OBJECTS — AND WHY THAT IS NOT THE SAME QUESTION AS
@@ -46,7 +46,8 @@ import { metrics } from '../utils/metrics';
  *                     relation on the object itself. Deterministic; nothing else
  *                     is checked once it holds.
  *   `shared-media-id` both objects name the same first-party media asset.
- *   `canonical-link`  one object carries the other's permalink as its source.
+ * Arbitrary links in captions do not declare a canonical source. Explicit
+ * source metadata reaches the `declared` tier through the ingest contract.
  *   `fingerprint`     the conservative FALLBACK, and the only tier that can be
  *                     wrong. It demands ALL of: the same Oxy person through a
  *                     PROVEN cross-network identity link; two networks that are
@@ -127,10 +128,12 @@ export interface CrosspostDetectionInput {
 /** The post fields every tier reads. */
 interface EquivalenceCandidate {
   id: string;
+  actorUri: string;
   oxyUserId: string;
   /** The authoring actor's NETWORK identity domain — see {@link networkDomainSql}. */
   networkDomain: string;
   createdAt: Date;
+  isEdited: boolean;
   federationUrl: string | null;
   /** The primary rendition's body, normalized for comparison. */
   text: string;
@@ -174,6 +177,11 @@ export function sharedMediaIdentifier(remoteUrl: string | null): string | undefi
   } catch {
     return undefined;
   }
+  // Only Meta's asset namespace makes a basename comparable across CDN hosts.
+  // An unrelated origin can serve a different file under that same name.
+  if (url.protocol !== 'https:' || !['cdninstagram.com', 'fbcdn.net'].some(
+    (domain) => url.hostname === domain || url.hostname.endsWith(`.${domain}`),
+  )) return undefined;
   const segments = url.pathname.split('/').filter((segment) => segment.length > 0);
   const terminal = segments[segments.length - 1];
   if (!terminal) return undefined;
@@ -214,9 +222,11 @@ async function loadCandidate(postId: string): Promise<EquivalenceCandidate | nul
   const [row] = await db
     .select({
       id: posts.id,
+      actorUri: posts.federationActorUri,
       oxyUserId: posts.oxyUserId,
       networkDomain: networkDomainSql(),
       createdAt: posts.createdAt,
+      isEdited: posts.isEdited,
       federationUrl: posts.federationUrl,
       status: posts.status,
       boostOf: posts.boostOf,
@@ -226,7 +236,7 @@ async function loadCandidate(postId: string): Promise<EquivalenceCandidate | nul
     .where(eq(posts.id, postId))
     .limit(1);
   if (!row || row.status !== 'published' || row.boostOf !== null) return null;
-  if (!row.oxyUserId || !row.networkDomain || !row.createdAt) return null;
+  if (!row.oxyUserId || !row.actorUri || !row.networkDomain || !row.createdAt) return null;
 
   const [variant] = await db
     .select({ body: postContentVariants.body })
@@ -249,9 +259,11 @@ async function loadCandidate(postId: string): Promise<EquivalenceCandidate | nul
 
   return {
     id: row.id,
+    actorUri: row.actorUri,
     oxyUserId: row.oxyUserId,
     networkDomain: row.networkDomain,
     createdAt: row.createdAt,
+    isEdited: row.isEdited,
     federationUrl: row.federationUrl,
     text: normalizeMultilineText(variant?.body ?? '').trim(),
     media,
@@ -291,18 +303,49 @@ async function findSiblingIds(candidate: EquivalenceCandidate): Promise<string[]
   return rows.map((row) => row.id);
 }
 
+/** One request per detection/re-evaluation, scoped to the current decision. */
+async function loadIdentityProof(candidates: Iterable<EquivalenceCandidate>) {
+  const identifiers = [...new Set([...candidates].map((candidate) => candidate.actorUri))];
+  if (identifiers.length === 0) return [];
+  try {
+    return await lookupOxyIdentities(identifiers);
+  } catch (err) {
+    logger.warn('[Equivalence] Oxy identity proof unavailable', { err });
+    return [];
+  }
+}
+
 /** The evidence linking two candidates, strongest first, or `undefined`. */
 function classifyPair(
   a: EquivalenceCandidate,
   b: EquivalenceCandidate,
   declaredOriginalUrls: readonly string[],
+  identities: Awaited<ReturnType<typeof lookupOxyIdentities>>,
 ): { confidence: EquivalenceClusterRecord['confidence']; evidence: string } | undefined {
+  // Reconciliation and cluster re-evaluation call this without the sibling
+  // query. Recheck Oxy ownership here too: a corrected identity must make its
+  // posts visible again, even when the content evidence still matches.
+  if (a.oxyUserId !== b.oxyUserId) return undefined;
+  if (Math.abs(a.createdAt.getTime() - b.createdAt.getTime()) > CROSSPOST_WINDOW_MS) return undefined;
+  if ((a.isEdited || b.isEdited) && a.text !== b.text) return undefined;
+
   // The two networks must be a REVIEWED pair. Sharing an Oxy user is not enough
   // on its own: the bridged merge also produces one, and two copies of the same
   // X account arriving through two bridges are the same OBJECT rather than a
   // cross-post — clustering those would collapse a duplicate that the identity
   // layer is already responsible for.
-  if (!findCrossNetworkPair(a.networkDomain, b.networkDomain)) return undefined;
+  // Content policy only. Oxy has already established the person; Mention
+  // limits its media comparison to the networks whose content it understands.
+  const domains = [a.networkDomain, b.networkDomain].map(canonicalFederationHost).sort();
+  if (domains[0] !== 'instagram.com' || domains[1] !== 'threads.net') return undefined;
+
+  // Cached author ids are projections; only current Oxy proof authorizes collapse.
+  for (const candidate of [a, b]) {
+    const identity = identities.find((entry) => entry.identifier === candidate.actorUri);
+    if (identity?.userId !== candidate.oxyUserId || !identity.externalIdentities.some(
+      (source) => source.actorUri === candidate.actorUri && source.network === candidate.networkDomain,
+    )) return undefined;
+  }
 
   const declared = declaredOriginalUrls.find(
     (url) => b.federationUrl !== null && sameUrl(url, b.federationUrl),
@@ -320,9 +363,6 @@ function classifyPair(
 
   const sharedAsset = sharedMediaAsset(a, b);
   if (sharedAsset) return { confidence: 'shared-media-id', evidence: `shared-media-id:${sharedAsset}` };
-
-  const canonical = canonicalLink(a, b);
-  if (canonical) return { confidence: 'canonical-link', evidence: `canonical-link:${canonical}` };
 
   return fingerprint(a, b);
 }
@@ -344,13 +384,15 @@ function textsCompatible(a: EquivalenceCandidate, b: EquivalenceCandidate): bool
   return a.text.length === 0 || b.text.length === 0;
 }
 
-/** Whether two URLs name the same resource once transient query state is dropped. */
+/** Whether two URLs name the same resource, preserving resource-selecting queries. */
 function sameUrl(left: string, right: string): boolean {
   try {
     const a = new URL(left);
     const b = new URL(right);
-    return a.host.toLowerCase() === b.host.toLowerCase()
-      && a.pathname.replace(/\/+$/, '') === b.pathname.replace(/\/+$/, '');
+    return a.protocol === b.protocol
+      && a.host.toLowerCase() === b.host.toLowerCase()
+      && a.pathname.replace(/\/+$/, '') === b.pathname.replace(/\/+$/, '')
+      && a.search === b.search;
   } catch {
     return false;
   }
@@ -359,22 +401,14 @@ function sameUrl(left: string, right: string): boolean {
 /** A first-party media identifier both posts carry, or `undefined`. */
 function sharedMediaAsset(a: EquivalenceCandidate, b: EquivalenceCandidate): string | undefined {
   if (a.media.length === 0 || a.media.length !== b.media.length) return undefined;
-  const theirs = new Set(
-    b.media.map((item) => sharedMediaIdentifier(item.remoteUrl)).filter((id): id is string => Boolean(id)),
-  );
-  if (theirs.size === 0) return undefined;
+  const theirs = b.media.map((item) => `${item.type}:${sharedMediaIdentifier(item.remoteUrl)}`).sort();
   // EVERY item must match, not merely one. One shared asset inside two different
   // carousels is one reused photo, which is a thing people do on purpose.
-  const ours = a.media.map((item) => sharedMediaIdentifier(item.remoteUrl));
-  if (ours.some((id) => id === undefined || !theirs.has(id))) return undefined;
-  return ours[0];
-}
-
-/** Either post naming the other's permalink as its source, or `undefined`. */
-function canonicalLink(a: EquivalenceCandidate, b: EquivalenceCandidate): string | undefined {
-  if (b.federationUrl && a.text.includes(b.federationUrl)) return b.federationUrl;
-  if (a.federationUrl && b.text.includes(a.federationUrl)) return a.federationUrl;
-  return undefined;
+  const identifiers = a.media.map((item) => sharedMediaIdentifier(item.remoteUrl));
+  if (identifiers.some((id) => id === undefined)) return undefined;
+  const ours = a.media.map((item, index) => `${item.type}:${identifiers[index]}`).sort();
+  if (ours.some((id, index) => id !== theirs[index])) return undefined;
+  return identifiers[0];
 }
 
 /**
@@ -384,7 +418,8 @@ function canonicalLink(a: EquivalenceCandidate, b: EquivalenceCandidate): string
  * (tighter with no media), identical normalized text when there IS text, the
  * same media count and the same types in the same order, and — because nothing
  * above is a content identity — a deterministic media-equality signal from
- * dimensions and byte size. A pair missing any one of them is not clustered and
+ * the same source URL, with matching dimensions and byte size. Equal dimensions
+ * and byte size alone cannot identify content. A pair missing any condition is not clustered and
  * is not clustered "with lower confidence" either: there is no such thing here.
  */
 function fingerprint(
@@ -408,6 +443,9 @@ function fingerprint(
     const ours = a.media[i];
     const theirs = b.media[i];
     if (ours.type !== theirs.type) return undefined;
+    // A source URL is an equality signal; dimensions and byte size alone are
+    // not. Preserve its query because it may select the underlying resource.
+    if (!ours.remoteUrl || ours.remoteUrl !== theirs.remoteUrl) return undefined;
     // Dimensions and byte size, both present and both equal. A missing value is
     // a refusal rather than a pass: "we could not tell" is not "they matched",
     // and treating it as one is how a fingerprint check becomes a text check
@@ -442,12 +480,14 @@ export function preferredVariant(
 
   return [...members]
     .sort((left, right) => {
-      const declaredLeft = left.evidence.startsWith('declared-original:') ? 0 : 1;
-      const declaredRight = right.evidence.startsWith('declared-original:') ? 0 : 1;
-      if (declaredLeft !== declaredRight) return declaredLeft - declaredRight;
-
       const a = candidates.get(left.postId);
       const b = candidates.get(right.postId);
+      const declaredLeft = left.evidence.startsWith('declared-original:') && a?.federationUrl
+        && sameUrl(left.evidence.slice('declared-original:'.length), a.federationUrl) ? 0 : 1;
+      const declaredRight = right.evidence.startsWith('declared-original:') && b?.federationUrl
+        && sameUrl(right.evidence.slice('declared-original:'.length), b.federationUrl) ? 0 : 1;
+      if (declaredLeft !== declaredRight) return declaredLeft - declaredRight;
+
       const mediaCount = (b?.media.length ?? 0) - (a?.media.length ?? 0);
       if (mediaCount !== 0) return mediaCount;
       const area = pixels(b) - pixels(a);
@@ -481,11 +521,11 @@ export async function detectCrosspostEquivalence(
     if (siblingIds.length === 0) return decision('refused', 'no-sibling-in-window');
 
     const declared = input.declaredOriginalUrls ?? [];
-    for (const siblingId of siblingIds) {
-      // eslint-disable-next-line no-await-in-loop
-      const sibling = await loadCandidate(siblingId);
-      if (!sibling) continue;
-      const match = classifyPair(candidate, sibling, declared);
+    const siblings = (await Promise.all(siblingIds.map(loadCandidate)))
+      .filter((sibling): sibling is EquivalenceCandidate => sibling !== null);
+    const identities = await loadIdentityProof([candidate, ...siblings]);
+    for (const sibling of siblings) {
+      const match = classifyPair(candidate, sibling, declared, identities);
       if (!match) continue;
 
       const candidates = new Map([[candidate.id, candidate], [sibling.id, sibling]]);
@@ -536,10 +576,9 @@ export async function detectCrosspostEquivalence(
  * the hidden post visible again rather than by leaving a card pointing at
  * nothing.
  *
- * Members whose evidence was DETERMINISTIC are re-checked too. A declared
- * original stays declared through an edit, so the tier that created the cluster
- * is the tier that re-decides it — which is why this re-runs `classifyPair`
- * rather than trusting the stored confidence.
+ * Deterministic evidence is re-checked too. After an edit, an old declaration
+ * cannot stand in for current source metadata: the changed objects must match
+ * through their current content evidence.
  */
 export async function reevaluateCluster(clusterId: string): Promise<void> {
   try {
@@ -569,16 +608,19 @@ export async function reevaluateCluster(clusterId: string): Promise<void> {
     // no longer matches is SPLIT OUT and made visible again rather than the
     // whole cluster being torn down — the remaining variants are still each
     // other's cross-posts.
+    const identities = await loadIdentityProof(loaded.values());
     const anchorId = preferredVariant(surviving, loaded);
     const anchor = loaded.get(anchorId)!;
     let removed = 0;
     for (const member of surviving) {
       if (member.postId === anchorId) continue;
       const other = loaded.get(member.postId)!;
-      const declared = member.evidence.startsWith('declared-original:')
+      // Stored declarations describe the old source object. An edit must prove
+      // equivalence again from current content rather than inherit that claim.
+      const declared = !anchor.isEdited && !other.isEdited && member.evidence.startsWith('declared-original:')
         ? [member.evidence.slice('declared-original:'.length)]
         : [];
-      if (classifyPair(anchor, other, declared)) continue;
+      if (classifyPair(other, anchor, declared, identities)) continue;
       // eslint-disable-next-line no-await-in-loop
       await removeClusterMember(clusterId, member.postId);
       removed += 1;
@@ -624,7 +666,7 @@ export async function classifyStoredPair(
 ): Promise<{ confidence: EquivalenceClusterRecord['confidence']; evidence: string } | undefined> {
   const [a, b] = await Promise.all([loadCandidate(postId), loadCandidate(otherPostId)]);
   if (!a || !b) return undefined;
-  return classifyPair(a, b, declaredOriginalUrls);
+  return classifyPair(a, b, declaredOriginalUrls, await loadIdentityProof([a, b]));
 }
 
 /** The sibling posts a stored post would be compared against — dry-run only. */
@@ -704,7 +746,8 @@ export async function loadCrosspostVariants(
  */
 export function networkLabel(networkDomain: string): string {
   const canonical = networkDomain.trim().toLowerCase();
-  const known = CLAIMABLE_NETWORKS.find(
+  if (canonical === 'threads.net') return 'Threads';
+  const known = Object.values(FEDERATION_NETWORKS).find(
     (network) => network.domain.toLowerCase() === canonical,
   );
   return known?.name ?? networkDomain;

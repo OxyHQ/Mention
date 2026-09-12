@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { and, eq, inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
@@ -10,9 +10,11 @@ import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepositor
 import { upsertActor } from '../../db/federation/actorRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
+import { recheckCrosspostClusters } from '../../services/CrosspostReconciliationJob';
 import { findClusterByPostId } from '../../db/posts/postEquivalenceRepository';
 import {
   CROSSPOST_WINDOW_MS,
+  classifyStoredPair,
   detectCrosspostEquivalence,
   loadCrosspostVariants,
   networkLabel,
@@ -40,6 +42,8 @@ import {
 
 const PERSON = 'oxy-crosspost-person';
 const OTHER_PERSON = 'oxy-crosspost-other';
+const mocks = vi.hoisted(() => ({ lookupOxyIdentities: vi.fn() }));
+vi.mock('../../connectors/oxyIdentity', () => ({ lookupOxyIdentities: mocks.lookupOxyIdentities }));
 
 /**
  * THE HANDLE IS NAMESPACED TO THIS SUITE; THE DOMAIN IS NOT, AND CANNOT BE.
@@ -168,6 +172,11 @@ beforeAll(async () => {
  * with cross-posts.
  */
 beforeEach(async () => {
+  mocks.lookupOxyIdentities.mockReset();
+  mocks.lookupOxyIdentities.mockResolvedValue([
+    { identifier: IG_ACTOR, userId: PERSON, externalIdentities: [{ actorUri: IG_ACTOR, network: 'instagram.com' }] },
+    { identifier: THREADS_ACTOR, userId: PERSON, externalIdentities: [{ actorUri: THREADS_ACTOR, network: 'threads.net' }] },
+  ]);
   await seedActor(IG_ACTOR, IG_HANDLE, 'kilogram.makeup', `${IG_HANDLE}@instagram.com`);
   await seedActor(THREADS_ACTOR, IG_HANDLE, 'threads.net');
   await seedActor(X_ACTOR, IG_HANDLE, 'bird.makeup', `${IG_HANDLE}@x.com`);
@@ -272,9 +281,95 @@ describe('what collapses', () => {
     // decided from the members, so the full-resolution variant still wins.
     expect(await visibleIds()).toEqual([fullResolution]);
   });
+
+  it('prefers the declared original over an earlier richer copy and preserves it on re-evaluation', async () => {
+    const originalUrl = 'https://www.instagram.com/p/declared-original/';
+    const instagram = await createVariant({
+      actorUri: IG_ACTOR, text: 'original', createdAt: NOW, federationUrl: originalUrl,
+    });
+    const threads = await createVariant({
+      actorUri: THREADS_ACTOR, text: 'copy',
+      createdAt: new Date(NOW.getTime() - 60_000), media: MEDIA_ON_THREADS,
+    });
+
+    expect(await detectCrosspostEquivalence({
+      postId: threads, declaredOriginalUrls: [originalUrl],
+    })).toMatchObject({ outcome: 'clustered', reason: 'declared' });
+    expect(await visibleIds()).toEqual([instagram]);
+
+    await reevaluateClusterForPost(threads);
+    expect(await visibleIds()).toEqual([instagram]);
+    expect(await findClusterByPostId(threads)).not.toBeNull();
+  });
+
+  it('uses the exact source URL as media evidence when no stable Meta asset id exists', async () => {
+    const media = [{ remoteUrl: 'https://media.example.com/photo.jpg?asset=one', width: 1080, height: 1350, sizeBytes: 204800 }];
+    await createVariant({ actorUri: IG_ACTOR, text: 'same words', createdAt: NOW, media });
+    const threads = await createVariant({
+      actorUri: THREADS_ACTOR, text: 'same words',
+      createdAt: new Date(NOW.getTime() + 60_000), media,
+    });
+    expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({
+      outcome: 'clustered', reason: 'fingerprint',
+    });
+  });
 });
 
 describe('what must never collapse', () => {
+  it('periodically restores untouched posts after Oxy proof expires, with bounded durable progress', async () => {
+    const clustered: string[] = [];
+    for (let index = 0; index < 2; index += 1) {
+      const createdAt = new Date(NOW.getTime() + index * 86_400_000);
+      await createVariant({ actorUri: IG_ACTOR, text: 'same words', createdAt, media: MEDIA });
+      const threads = await createVariant({ actorUri: THREADS_ACTOR, text: 'same words', createdAt, media: MEDIA_ON_THREADS });
+      expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({ outcome: 'clustered' });
+      clustered.push(threads);
+    }
+    const oldest = (await findClusterByPostId(clustered[0]))!;
+    const next = (await findClusterByPostId(clustered[1]))!;
+    await getDb().update(postEquivalenceClusters).set({ updatedAt: new Date(0) }).where(eq(postEquivalenceClusters.id, oldest.id));
+    await getDb().update(postEquivalenceClusters).set({ updatedAt: new Date(1) }).where(eq(postEquivalenceClusters.id, next.id));
+    expect(await recheckCrosspostClusters(1)).toBe(1);
+    mocks.lookupOxyIdentities.mockResolvedValue([]);
+    expect(await recheckCrosspostClusters(1)).toBe(1);
+    expect(await findClusterByPostId(clustered[1])).toBeNull();
+    expect(await findClusterByPostId(clustered[0])).not.toBeNull();
+    expect(await recheckCrosspostClusters(1)).toBe(1);
+    expect(await visibleIds()).toHaveLength(4);
+  });
+
+  it('refuses stale matching cached author ids after Oxy revokes the identity proof', async () => {
+    await createVariant({ actorUri: IG_ACTOR, text: 'same words', createdAt: NOW, media: MEDIA });
+    const threads = await createVariant({ actorUri: THREADS_ACTOR, text: 'same words', createdAt: NOW, media: MEDIA_ON_THREADS });
+    mocks.lookupOxyIdentities.mockResolvedValue([
+      { identifier: IG_ACTOR, userId: PERSON, externalIdentities: [{ actorUri: IG_ACTOR, network: 'instagram.com' }] },
+      { identifier: THREADS_ACTOR, userId: OTHER_PERSON, externalIdentities: [{ actorUri: THREADS_ACTOR, network: 'threads.net' }] },
+    ]);
+    expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({ outcome: 'refused' });
+    expect(await visibleIds()).toHaveLength(2);
+  });
+  it('refuses reconciliation across different Oxy people even with a declared original', async () => {
+    const originalUrl = 'https://www.instagram.com/p/identity-gate/';
+    const instagram = await createVariant({
+      actorUri: IG_ACTOR,
+      text: 'same words',
+      createdAt: NOW,
+      media: MEDIA,
+      federationUrl: originalUrl,
+    });
+    const threads = await createVariant({
+      actorUri: THREADS_ACTOR,
+      text: 'same words',
+      createdAt: new Date(NOW.getTime() + 60_000),
+      media: MEDIA_ON_THREADS,
+      oxyUserId: OTHER_PERSON,
+    });
+
+    expect(await classifyStoredPair(threads, instagram)).toBeUndefined();
+    expect(await classifyStoredPair(threads, instagram, [originalUrl])).toBeUndefined();
+    expect(await visibleIds()).toHaveLength(2);
+  });
+
   it('refuses the same content from two DIFFERENT people', async () => {
     await createVariant({ actorUri: IG_ACTOR, text: 'same words', createdAt: NOW, media: MEDIA });
     const theirs = await createVariant({
@@ -306,7 +401,7 @@ describe('what must never collapse', () => {
   });
 
   it('refuses the same author repeating themselves outside the window', async () => {
-    await createVariant({ actorUri: IG_ACTOR, text: 'good morning', createdAt: NOW, media: MEDIA });
+    const instagram = await createVariant({ actorUri: IG_ACTOR, text: 'good morning', createdAt: NOW, media: MEDIA });
     const later = await createVariant({
       actorUri: THREADS_ACTOR,
       text: 'good morning',
@@ -318,6 +413,20 @@ describe('what must never collapse', () => {
       outcome: 'refused',
       reason: 'no-sibling-in-window',
     });
+    expect(await classifyStoredPair(later, instagram)).toBeUndefined();
+  });
+
+  it('refuses carousels that reuse an asset a different number of times', async () => {
+    await createVariant({
+      actorUri: IG_ACTOR, text: 'same words', createdAt: NOW,
+      media: [...MEDIA, { remoteUrl: PHOTO_B, width: 1080, height: 1350, sizeBytes: 204800 }],
+    });
+    const threads = await createVariant({
+      actorUri: THREADS_ACTOR, text: 'same words',
+      createdAt: new Date(NOW.getTime() + 60_000), media: [...MEDIA_ON_THREADS, ...MEDIA_ON_THREADS],
+    });
+    expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({ outcome: 'refused' });
+    expect(await visibleIds()).toHaveLength(2);
   });
 
   /**
@@ -356,6 +465,40 @@ describe('what must never collapse', () => {
     });
   });
 
+  it.each([
+    ['different assets with equal dimensions and byte size', PHOTO_B],
+    ['an unrelated origin reusing a Meta filename', 'https://media.example.com/489123456789012_n.jpg'],
+  ])('refuses %s', async (_scenario, remoteUrl) => {
+    await createVariant({ actorUri: IG_ACTOR, text: 'same words', createdAt: NOW, media: MEDIA });
+    const threads = await createVariant({
+      actorUri: THREADS_ACTOR, text: 'same words',
+      createdAt: new Date(NOW.getTime() + 60_000),
+      media: [{ remoteUrl, width: 1080, height: 1350, sizeBytes: 204800 }],
+    });
+    expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({ outcome: 'refused' });
+    expect(await visibleIds()).toHaveLength(2);
+  });
+
+  it('does not treat a caption mentioning another post as a canonical declaration', async () => {
+    const originalUrl = 'https://www.instagram.com/p/mentioned-post/';
+    await createVariant({ actorUri: IG_ACTOR, text: '', createdAt: NOW, federationUrl: originalUrl, media: MEDIA });
+    const threads = await createVariant({
+      actorUri: THREADS_ACTOR, text: `I changed my mind about ${originalUrl}`,
+      createdAt: new Date(NOW.getTime() + 60_000),
+    });
+    expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({ outcome: 'refused' });
+    expect(await visibleIds()).toHaveLength(2);
+  });
+
+  it('preserves resource-selecting query parameters in declared-original URLs', async () => {
+    await createVariant({ actorUri: IG_ACTOR, text: 'original', createdAt: NOW, federationUrl: 'https://www.instagram.com/post?id=one' });
+    const threads = await createVariant({ actorUri: THREADS_ACTOR, text: 'different', createdAt: NOW });
+    expect(await detectCrosspostEquivalence({
+      postId: threads, declaredOriginalUrls: ['https://www.instagram.com/post?id=two'],
+    })).toMatchObject({ outcome: 'refused' });
+    expect(await visibleIds()).toHaveLength(2);
+  });
+
   it('refuses two empty bodies, which are equal to every other empty body', async () => {
     await createVariant({ actorUri: IG_ACTOR, text: '', createdAt: NOW });
     const other = await createVariant({
@@ -371,6 +514,32 @@ describe('what must never collapse', () => {
 });
 
 describe('a cluster that has stopped being true', () => {
+  it('restores an image-only source when its sibling edit adds unique text', async () => {
+    const instagram = await createVariant({ actorUri: IG_ACTOR, text: '', createdAt: NOW, media: MEDIA });
+    const threads = await createVariant({ actorUri: THREADS_ACTOR, text: '', createdAt: NOW, media: MEDIA_ON_THREADS });
+    expect(await detectCrosspostEquivalence({ postId: threads })).toMatchObject({ outcome: 'clustered' });
+    await db.update(posts).set({ isEdited: true }).where(eq(posts.id, threads));
+    await db.update(postContentVariants).set({ body: 'A new paragraph unique to this version.' })
+      .where(and(eq(postContentVariants.postId, threads), eq(postContentVariants.position, 0)));
+    await reevaluateClusterForPost(threads);
+    expect(await visibleIds()).toEqual([instagram, threads].sort());
+  });
+
+  it('does not retain a stored original declaration after a material edit', async () => {
+    const originalUrl = 'https://www.instagram.com/p/edited-declaration/';
+    const instagram = await createVariant({ actorUri: IG_ACTOR, text: 'original', createdAt: NOW, federationUrl: originalUrl });
+    const threads = await createVariant({ actorUri: THREADS_ACTOR, text: 'original', createdAt: NOW });
+    expect(await detectCrosspostEquivalence({ postId: threads, declaredOriginalUrls: [originalUrl] }))
+      .toMatchObject({ outcome: 'clustered', reason: 'declared' });
+    await db.update(posts).set({ isEdited: true }).where(eq(posts.id, threads));
+    await db.update(postContentVariants).set({ body: 'a different piece of writing' })
+      .where(and(eq(postContentVariants.postId, threads), eq(postContentVariants.position, 0)));
+
+    await reevaluateClusterForPost(threads);
+    expect(await visibleIds()).toEqual([instagram, threads].sort());
+    expect(await findClusterByPostId(threads)).toBeNull();
+  });
+
   async function collapsedPair(): Promise<{ instagram: string; threads: string }> {
     const instagram = await createVariant({
       actorUri: IG_ACTOR,
@@ -410,6 +579,17 @@ describe('a cluster that has stopped being true', () => {
     // Both visible again: an author's new text must not be hidden because the
     // ORIGINAL versions matched.
     expect(await visibleIds()).toHaveLength(2);
+    expect(await findClusterByPostId(threads)).toBeNull();
+  });
+
+  it('restores both source posts when their Oxy identities no longer match', async () => {
+    const { instagram, threads } = await collapsedPair();
+    await db.update(posts).set({ oxyUserId: OTHER_PERSON }).where(eq(posts.id, threads));
+
+    await reevaluateClusterForPost(threads);
+
+    expect(await visibleIds()).toEqual([instagram, threads].sort());
+    expect(await findClusterByPostId(instagram)).toBeNull();
     expect(await findClusterByPostId(threads)).toBeNull();
   });
 
@@ -590,6 +770,8 @@ describe('sharedMediaIdentifier', () => {
     ['no path at all', 'https://example.com/'],
     ['not a url', 'image.jpg'],
     ['nothing', null],
+    ['a Meta-looking filename on an unrelated origin', 'https://example.com/489123456789012_n.jpg'],
+    ['a lookalike CDN hostname', 'https://fbcdn.net.example.com/489123456789012_n.jpg'],
   ])('refuses %s, which names an asset on a thousand sites', (_label, url) => {
     expect(sharedMediaIdentifier(url)).toBeUndefined();
   });

@@ -1,3 +1,4 @@
+import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { Router, Response } from 'express';
 import type { ProfileMedia } from '../db/userProfile/userSettingsRecord';
 import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
@@ -79,6 +80,7 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
       eq(posts.oxyUserId, userId),
       eq(posts.visibility, PostVisibility.PUBLIC),
       eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
     );
     const [counts] = await getDb()
       .select({

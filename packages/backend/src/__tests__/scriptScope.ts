@@ -128,8 +128,8 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
   reconcileMetaIdentityAndCrossposts: {
     scope: 'whole-table',
     reason:
-      'Pages every federated actor (recording each one\'s cross-network identity claims) and every '
-      + 'unclustered federated post. It takes no scope, because a reconciliation that only fixed the '
+      'Pages every federated actor against Oxy authority and every '
+      + 'federated post, including previously collapsed rows. It takes no scope, because a reconciliation that only fixed the '
       + "caller's rows would reconcile nothing in production.",
   },
   backfillPostHasLinks: {
@@ -164,10 +164,7 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
   },
   recordAttestedIdentityLink: {
     scope: 'caller-scoped',
-    reason:
-      'It has no driving select at all. The two identities to attest are ARGUMENTS, and the write '
-      + 'is two rows under one synthetic per-pair key derived from them — so the rows it can touch '
-      + 'are named by the caller and by nothing else. The removal path deletes by that same key.',
+    reason: 'Retired writer: all requests return oxy_identity_authority_required; CLI only counts historical audit rows.',
   },
   purgeBlockedDomainContent: {
     scope: 'caller-scoped',

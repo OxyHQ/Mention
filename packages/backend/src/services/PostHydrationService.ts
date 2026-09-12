@@ -661,9 +661,9 @@ async function resolveOxyUserSummaryMisses(
     );
     for (const user of Array.isArray(users) ? users : []) {
       const id = String((user as { id?: unknown }).id ?? '');
-      if (id && requestedIds.has(id)) {
-        freshlyResolved.set(id, toCachedUser(id, user));
-      }
+      const aliases = (user as unknown as { redirectedUserIds?: unknown }).redirectedUserIds;
+      const keys = [id, ...(Array.isArray(aliases) ? aliases.filter((alias): alias is string => typeof alias === 'string') : [])];
+      for (const key of keys) if (key && requestedIds.has(key)) freshlyResolved.set(key, toCachedUser(id, user));
     }
   } catch (error) {
     bulkFailure = error;

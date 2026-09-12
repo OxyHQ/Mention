@@ -80,6 +80,7 @@ interface SeedOptions {
   federationSensitive?: boolean;
   spamScore?: number;
   isBoost?: boolean;
+  crosspostCollapsed?: boolean;
 }
 
 async function seedPost(options: SeedOptions = {}): Promise<string> {
@@ -87,6 +88,7 @@ async function seedPost(options: SeedOptions = {}): Promise<string> {
     .insert(posts)
     .values({
       status: options.status ?? 'published',
+      crosspostCollapsed: options.crosspostCollapsed ?? false,
       visibility: options.visibility ?? 'public',
       createdAt: options.createdAt ?? recently(),
       oxyUserId: options.oxyUserId === undefined ? `author-${RUN}-${createdPostIds.length}` : options.oxyUserId,
@@ -142,6 +144,15 @@ afterAll(async () => {
 });
 
 describe('aggregateTermCandidates — what is allowed to count', () => {
+  it('excludes collapsed source variants from term volume', async () => {
+    const crosspost = term('crosspost');
+    await seedMany(MIN_VOLUME, { trendTerms: [crosspost] });
+    await seedMany(MIN_VOLUME, { trendTerms: [crosspost], crosspostCollapsed: true });
+    const [candidate] = await candidatesFor([crosspost]);
+    expect(candidate.measurement.volume).toBe(MIN_VOLUME);
+    expect(candidate.measurement.recentVolume).toBe(MIN_VOLUME);
+  });
+
   it('excludes every sensitive flag independently, and each is nullable', async () => {
     /**
      * The three flags are INDEPENDENTLY sufficient and each is nullable, so a

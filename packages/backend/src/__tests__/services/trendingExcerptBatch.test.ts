@@ -112,6 +112,14 @@ afterAll(async () => {
 });
 
 describe('loadExcerptsByTerm — the batch must be the per-term queries, exactly', () => {
+  it('uses the preferred source only as trend-label evidence', async () => {
+    const crosspost = term('crosspost');
+    await seedPost(crosspost, 'preferred caption', { minutesAgo: 20 });
+    const sibling = await seedPost(crosspost, 'collapsed source caption', { minutesAgo: 10 });
+    await db.update(posts).set({ crosspostCollapsed: true }).where(inArray(posts.id, [sibling]));
+    expect((await loadExcerptsByTerm([crosspost])).get(crosspost)).toEqual(['preferred caption']);
+  });
+
   it('gives every term the same excerpts, in the same order, as querying it alone', async () => {
     const alpha = term('alpha');
     const beta = term('beta');

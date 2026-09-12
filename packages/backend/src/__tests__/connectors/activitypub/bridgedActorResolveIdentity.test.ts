@@ -21,7 +21,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   resolveWebFinger: vi.fn(),
   fetchRemoteActor: vi.fn(),
-  resolveFederatedActorIdentity: vi.fn(),
+  resolveOxyExternalUser: vi.fn(),
 }));
 
 vi.mock('../../../connectors/activitypub/actor.service', () => ({
@@ -69,7 +69,7 @@ vi.mock('../../../connectors/activitypub/constants', () => ({
 }));
 
 vi.mock('../../../connectors/identity', () => ({
-  resolveFederatedActorIdentity: mocks.resolveFederatedActorIdentity,
+  resolveOxyExternalUser: mocks.resolveOxyExternalUser,
 }));
 
 vi.mock('../../../services/fediverseSharing', () => ({
@@ -97,7 +97,7 @@ const registry = new ConnectorRegistry([activityPubConnector]);
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.resolveWebFinger.mockResolvedValue(ACTOR_URI);
-  mocks.resolveFederatedActorIdentity.mockResolvedValue('oxy-user-1');
+  mocks.resolveOxyExternalUser.mockResolvedValue('oxy-user-1');
 });
 
 describe('resolving a bridged actor', () => {
@@ -122,8 +122,8 @@ describe('resolving a bridged actor', () => {
 
     const actor = await registry.resolve('elonmusk@bird.makeup');
 
-    expect(mocks.resolveFederatedActorIdentity).toHaveBeenCalledTimes(1);
-    expect(mocks.resolveFederatedActorIdentity.mock.calls[0][0]).toMatchObject({
+    expect(mocks.resolveOxyExternalUser).toHaveBeenCalledTimes(1);
+    expect(mocks.resolveOxyExternalUser.mock.calls[0][0]).toMatchObject({
       externalId: ACTOR_URI,
       federatedUsername: 'elonmusk@x.com',
       instanceDomain: 'x.com',

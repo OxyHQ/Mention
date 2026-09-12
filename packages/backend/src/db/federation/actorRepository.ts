@@ -42,7 +42,6 @@ import { getDb, type DatabaseOrTransaction } from '../postgres';
 import {
   federatedActorFields,
   federatedActors,
-  federatedIdentityClaims,
 } from '../schema/federation';
 import type {
   FederatedActorField,
@@ -831,26 +830,13 @@ export async function updateActorSuspended(
     .where(eq(federatedActors.id, actorId));
 }
 
-/**
- * Delete every actor row naming these protocol URIs, and the cross-network
- * identity claims those actors published. Returns the number of ACTORS removed.
- *
- * The claims go explicitly rather than by cascade, and that is deliberate:
- * `federated_identity_claims.subject_actor_uri` carries no foreign key, because
- * the counterpart of a claim is frequently an actor we have never fetched and a
- * claim is exactly what would tell us to go and look. Deleting them here — in
- * the same transaction, beside the row delete, where it is visible — is what
- * stops a purged actor from going on vouching for somebody.
- */
+/** Delete actor caches while retaining legacy identity evidence as audit history. */
 export async function deleteActorsByUris(
   uris: readonly string[],
   db: DatabaseOrTransaction = getDb(),
 ): Promise<number> {
   if (uris.length === 0) return 0;
   return db.transaction(async (tx) => {
-    await tx
-      .delete(federatedIdentityClaims)
-      .where(inArray(federatedIdentityClaims.subjectActorUri, [...uris]));
     const deleted = await tx
       .delete(federatedActors)
       .where(inArray(federatedActors.uri, [...uris]))

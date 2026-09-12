@@ -1,14 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-/**
- * `resolveOxyExternalUser` — the network-neutral identity bridge that upserts a
- * federated actor into Oxy (`PUT /users/resolve`) and then mirrors its banner.
- *
- * The banner mirror is best-effort: a failure there must NEVER discard an
- * already-successful user resolution. These tests pin that a throw out of the
- * banner path still returns the resolved Oxy id, while a genuine resolution
- * failure still returns `null`.
- */
+/** Oxy supplies canonical identity; Mention imports source content and renders that exact profile. */
 
 const mocks = vi.hoisted(() => ({
   makeServiceRequest: vi.fn(),
@@ -32,6 +24,7 @@ vi.mock('../../utils/logger', () => ({
 
 import { resolveOxyExternalUser } from '../../connectors/identity';
 import type { NormalizedExternalActor } from '@oxy.so/federation';
+import { oxyIdentityFixture } from '../helpers/oxyIdentityFixtures';
 
 const actor: NormalizedExternalActor = {
   network: 'activitypub',
@@ -52,19 +45,19 @@ beforeEach(() => {
 });
 
 describe('resolveOxyExternalUser', () => {
-  it('returns the resolved Oxy id even when the banner persist throws', async () => {
-    mocks.makeServiceRequest.mockResolvedValue({ _id: 'oxy-user-1' });
+  it('uses Oxy profile ownership without running Mention banner persistence', async () => {
+    mocks.makeServiceRequest.mockResolvedValue(oxyIdentityFixture({ actorUri: actor.externalId, transportAcct: actor.handle, canonicalAcct: actor.federatedUsername, network: actor.instanceDomain, userId: 'oxy-user-1' }));
     mocks.persistRemoteMedia.mockRejectedValue(new Error('S3 upload timeout'));
 
     const result = await resolveOxyExternalUser(actor);
 
     // The user was resolved; a banner-mirror failure must not drop it.
     expect(result).toBe('oxy-user-1');
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('PUT', '/users/resolve', expect.any(Object));
+    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', { actorUri: actor.externalId, transportAcct: actor.handle, protocol: 'activitypub' });
   });
 
-  it('returns the resolved Oxy id even when the UserSettings banner write throws', async () => {
-    mocks.makeServiceRequest.mockResolvedValue({ _id: 'oxy-user-2' });
+  it('resolves without writing Mention profile settings', async () => {
+    mocks.makeServiceRequest.mockResolvedValue(oxyIdentityFixture({ actorUri: actor.externalId, transportAcct: actor.handle, canonicalAcct: actor.federatedUsername, network: actor.instanceDomain, userId: 'oxy-user-2' }));
     mocks.persistRemoteMedia.mockResolvedValue({
       ok: true,
       media: { oxyFileId: 'banner_file', contentType: 'image/png', sizeBytes: 10 },

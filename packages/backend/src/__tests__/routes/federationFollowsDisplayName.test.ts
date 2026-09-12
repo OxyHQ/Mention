@@ -169,7 +169,7 @@ describe('GET /federation/following — Oxy name.displayName', () => {
     expect(byUri.get(bobUri)?.isFollowPending).toBe(true);
   });
 
-  it('falls back to the @acct handle when the Oxy user is missing from the response', async () => {
+  it('does not publish a transport handle when Oxy cannot supply the public profile', async () => {
     await seedFollowedActor('ghost', 'oxy-ghost');
     // Oxy returns no user for oxy-ghost.
     getUsersByIds.mockResolvedValue([]);
@@ -177,7 +177,8 @@ describe('GET /federation/following — Oxy name.displayName', () => {
     const res = await request(app).get('/federation/following').expect(200);
 
     const [first] = res.body.following as FollowResult[];
-    expect(first.displayName).toBe(`@ghost@${scope.domain}`);
+    expect(first.displayName).toBe('Unavailable profile');
+    expect(first.fullHandle).toBe('');
   });
 });
 
@@ -190,6 +191,19 @@ describe('GET /federation/followers — Oxy name.displayName', () => {
 
     const [first] = res.body.followers as FollowResult[];
     expect(first.displayName).toBe('Carol Clean');
-    expect(first.fullHandle).toBe(`@carol@${scope.domain}`);
+    expect(first.fullHandle).toBe('@oxy-carol-handle');
   });
+});
+
+it.each(['outbound', 'inbound'] as const)('uses Oxy canonical aliases on %s follow cards', async (direction) => {
+  await seedFollowedActor('transport-name', 'old-source-id', { direction });
+  getUsersByIds.mockResolvedValue([{ ...oxyUser('canonical-person', 'Public Name'),
+    username: 'person@instagram.com', redirectedUserIds: ['old-source-id'], avatar: 'oxy-avatar-file',
+  }]);
+  const key = direction === 'outbound' ? 'following' : 'followers';
+  const response = await request(app).get(`/federation/${key}`).expect(200);
+  expect(response.body[key][0]).toMatchObject({ handle: 'person', instance: 'instagram.com',
+    fullHandle: '@person@instagram.com', oxyUserId: 'canonical-person', displayName: 'Public Name',
+  });
+  expect(response.body[key][0].avatarUrl).toContain('oxy-avatar-file');
 });

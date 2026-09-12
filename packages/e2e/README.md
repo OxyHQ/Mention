@@ -42,6 +42,13 @@ document URL, CORS contract, CSP and per-origin storage are production's; the
 HTML and every Expo chunk are the candidate's. Requests to `api.mention.earth`
 and the media CDN are left alone.
 
+`identity-alias-routing.spec.ts` explicitly substitutes one Oxy profile response
+for a fresh synthetic handle. It verifies that the actual exported app accepts
+Oxy-proven aliases, refuses transport/unproven routes, and publishes the canonical
+profile title. It is a browser routing contract, not proof of live cold identity
+discovery. Oxy's real-PostgreSQL API tests cover cold discovery; the existing
+`bridge-transport-route.spec.ts` continues to exercise the live resolver.
+
 This has one consequence worth stating plainly: the backend the gate exercises
 is the live one, so a backend outage will also fail this gate.
 

@@ -29,7 +29,7 @@ import {
   extractLocalPostIdFromApUri,
 } from './constants';
 import { parentIsChannelPost } from '../../utils/channelReplyGate';
-import { federationBridges } from './federationBridgePolicy';
+import { dropsFlattenedReposts } from './repostTransportPolicy';
 import { PostVisibility } from '@mention/shared-types';
 import { extractApLanguage, extractApLanguages } from './apLanguage';
 import {
@@ -863,7 +863,7 @@ export class OutboxSyncService {
           // host comes from its URI — the same value `federated_actors.domain`
           // holds, which is the host that DELIVERED the activity rather than any
           // re-labelled bridged identity.
-          dropFlattenedRetweets: federationBridges.findBridge(getRemoteHost(actor.uri ?? '') ?? '') !== undefined,
+          dropFlattenedRetweets: dropsFlattenedReposts(getRemoteHost(actor.uri ?? '') ?? ''),
           ingestPath: 'outbox',
         });
         if (built.skip) {
@@ -1630,7 +1630,7 @@ export class OutboxSyncService {
       // Third site of the same gate. A boosted original, a reply ancestor and a
       // quoted note all arrive here, so without it a flattened retweet reaches
       // the database as somebody else's post the moment anything references it.
-      dropFlattenedRetweets: federationBridges.findBridge(authorActor?.domain ?? '') !== undefined,
+      dropFlattenedRetweets: dropsFlattenedReposts(authorActor?.domain ?? ''),
       ingestPath: 'dependency',
     });
     if (built.skip) {
