@@ -29,7 +29,7 @@ import { userPreferenceService, readInteractionSurface } from '../services/UserP
 import { affinityEventService } from '../services/AffinityEventService';
 import { postHydrationService } from '../services/PostHydrationService';
 import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
-import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, resolveViewerPrivacyAndGraph, ProfileVisibility, OxyClient } from '../utils/privacyHelpers';
+import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, resolveViewerPrivacyAndGraph, ProfileVisibility, OxyClient, ViewerPrivacyContext, ViewerGraphContext } from '../utils/privacyHelpers';
 import { getOrLoadPostRecord } from '../services/postDetailCache';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../utils/logger';
@@ -146,11 +146,11 @@ class FeedController {
       includeQuoteCounts?: boolean;
       operatedAccountReader?: OperatedAccountReader;
       // Threaded by a caller that already resolved these (e.g. `getFeedItemById`
-      // via `resolveViewerPrivacyAndGraph`) so hydration skips its own untreated
+      // via `resolveViewerPrivacyAndGraph`) so hydration skips its own unthreaded
       // fallback — two separate sequential Oxy round trips otherwise, on every
       // call. See `HydrationOptions.viewerPrivacy`/`viewerGraph`.
-      viewerPrivacy?: { blockedIds: readonly string[]; restrictedIds: readonly string[] };
-      viewerGraph?: { followingIds: string[]; followerIds: string[] };
+      viewerPrivacy?: ViewerPrivacyContext;
+      viewerGraph?: ViewerGraphContext;
     } = {},
   ): Promise<HydratedPost[]> {
     try {

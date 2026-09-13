@@ -1243,11 +1243,9 @@ export async function updatePostRecord(
     await replaceTopicRefs(postId, classification.topicRefs, db);
   }
 
-  if (Object.keys(values).length === 0) {
-    await invalidatePostDetailCache(postId);
-    return;
+  if (Object.keys(values).length > 0) {
+    await db.update(posts).set(values).where(eq(posts.id, postId));
   }
-  await db.update(posts).set(values).where(eq(posts.id, postId));
   await invalidatePostDetailCache(postId);
 }
 

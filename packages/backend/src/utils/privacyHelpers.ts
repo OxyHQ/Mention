@@ -283,11 +283,27 @@ export function extractFollowersIds(followersRes: unknown): string[] {
 
 
 /**
+ * A viewer's block/restrict lists, as threaded into `HydrationOptions` (and
+ * `resolveViewerPrivacyAndGraph`'s return) so every caller retyping this shape
+ * retypes the SAME one.
+ */
+export interface ViewerPrivacyContext {
+  blockedIds: readonly string[];
+  restrictedIds: readonly string[];
+}
+
+/** A viewer's follow graph, threaded the same way — see {@link ViewerPrivacyContext}. */
+export interface ViewerGraphContext {
+  followingIds: string[];
+  followerIds: string[];
+}
+
+/**
  * Resolve a viewer's block/restrict list AND follow graph in ONE round trip
  * pair, for a caller that hydrates posts without a feed request's context to
  * thread through.
  *
- * `PostHydrationService.buildViewerContext`'s untreaded fallback resolves
+ * `PostHydrationService.buildViewerContext`'s unthreaded fallback resolves
  * these as two SEPARATE sequential round trips — blocked+restricted, THEN
  * following+followers — because each half predates the other's threading
  * support. Nothing in the second half depends on the first, so a caller that
@@ -308,8 +324,8 @@ export async function resolveViewerPrivacyAndGraph(
   viewerId: string | undefined,
   client: OxyClient | undefined,
 ): Promise<{
-  viewerPrivacy: { blockedIds: string[]; restrictedIds: string[] };
-  viewerGraph: { followingIds: string[]; followerIds: string[] };
+  viewerPrivacy: ViewerPrivacyContext;
+  viewerGraph: ViewerGraphContext;
 } | undefined> {
   if (!viewerId) return undefined;
 

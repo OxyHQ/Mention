@@ -40,6 +40,8 @@ import {
   extractFollowingIds,
   extractFollowersIds,
   OxyClient,
+  ViewerGraphContext,
+  ViewerPrivacyContext,
 } from '../utils/privacyHelpers';
 import { resolveMediaItems } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
@@ -198,7 +200,7 @@ interface HydrationOptions {
    * Oxy fetch, so those paths are unchanged. Both id lists are required together
    * (the feed always threads both) so the graph is applied atomically.
    */
-  viewerGraph?: { followingIds: string[]; followerIds: string[] };
+  viewerGraph?: ViewerGraphContext;
   /**
    * The viewer's already-resolved Oxy privacy lists, threaded from the feed
    * controller's `UserPrivacyManager.loadPrivacyState`. Exactly the same
@@ -223,7 +225,7 @@ interface HydrationOptions {
    * a half-threaded state would hydrate with real blocks and an empty restricted
    * set, which reads as "this viewer restricts nobody".
    */
-  viewerPrivacy?: { blockedIds: readonly string[]; restrictedIds: readonly string[] };
+  viewerPrivacy?: ViewerPrivacyContext;
   /**
    * The language preference carried by the REQUEST — an explicit `?lang=` the
    * reader picked, then `Accept-Language` — most-preferred first, from

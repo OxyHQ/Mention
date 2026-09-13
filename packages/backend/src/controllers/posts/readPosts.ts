@@ -71,7 +71,7 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
     // the assembled post (cache-fronted — see `postDetailCache`) doesn't need
     // the viewer's privacy/graph state, and that state doesn't need the post.
     // The privacy/graph resolution otherwise happens INSIDE hydration on its
-    // untreated fallback path as two separate sequential Oxy round trips, on
+    // unthreaded fallback path as two separate sequential Oxy round trips, on
     // every view of every post; resolving both here and threading the result
     // in cuts that to one — see `resolveViewerPrivacyAndGraph`.
     const [post, viewerContext] = await Promise.all([

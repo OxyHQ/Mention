@@ -100,7 +100,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
   extractFollowingIds: vi.fn(() => []),
   extractFollowersIds: vi.fn(() => []),
   // `getPostById` resolves this once, up front, instead of leaving hydration to
-  // call the four mocks above on its own untreaded fallback — same empty result
+  // call the four mocks above on its own unthreaded fallback — same empty result
   // either way, just fetched by a different caller.
   resolveViewerPrivacyAndGraph: vi.fn(async (viewerId?: string) =>
     viewerId
