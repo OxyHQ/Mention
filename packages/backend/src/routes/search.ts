@@ -474,12 +474,19 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       // (privacy, interactions, viewerState) resolve, and maxDepth:1 so quoted
       // posts and boost originals are embedded (a maxDepth:0 boost renders
       // blank). Mirrors the profile/posts.controller hydration path.
+      //
+      // `includeFullArticleBody: false` matches the feed's own choice (full
+      // article bodies aren't needed in a result card) — but `includeFullMetadata`
+      // stays at its default (`true`): the mute-word filter a few lines below
+      // reads `post.metadata?.hashtags`, which `includeFullMetadata: false` would
+      // drop entirely, silently disabling muted-hashtag filtering in search.
       const scopedOxyClient = createScopedOxyClient(req);
       const transformedPosts = await postHydrationService.hydratePosts(postsToReturn, {
         viewerId: currentUserId,
         oxyClient: scopedOxyClient,
         maxDepth: 1,
         includeLinkMetadata: true,
+        includeFullArticleBody: false,
       });
 
       // Muted words are matched on the HYDRATED post — the rendition and canonical
