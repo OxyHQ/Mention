@@ -89,6 +89,15 @@ describe('resolveUserSummaries Oxy bounds', () => {
     expect(result.get('bulk-a')?.user.username).toBe('user-bulk-a');
   });
 
+  it('maps authoritative redirected ids in one bulk fetch without per-id fallbacks', async () => {
+    getUsersByIds.mockResolvedValue([{ ...oxyUser('canonical'), redirectedUserIds: ['legacy-a', 'legacy-b'] }]);
+    const result = await resolveUserSummaries(['legacy-a', 'legacy-b', 'canonical']);
+    expect(result.get('legacy-a')?.user.id).toBe('canonical');
+    expect(result.get('legacy-b')?.user.id).toBe('canonical');
+    expect(getUserById).not.toHaveBeenCalled();
+    expect(getUsersByIds).toHaveBeenCalledTimes(1);
+  });
+
   it('limits the public per-id fallback to eight concurrent requests', async () => {
     const ids = Array.from({ length: 25 }, (_, index) => `bounded-${index}`);
     let active = 0;

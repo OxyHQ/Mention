@@ -14,6 +14,7 @@ import { getDb } from '../../db/postgres';
 import { postContentVariants } from '../../db/schema/postContent';
 import { posts } from '../../db/schema/posts';
 import { logger } from '../../utils/logger';
+import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
 import { trendTermMatchSql } from './termSpace';
 import { sensitiveExcludeSql } from '../../mtn/feed/feedSafety';
 
@@ -67,6 +68,7 @@ export function termExcerptBranch(term: string) {
       ),
     )
     .where(and(
+      notCollapsedCrosspostSql(),
       trendTermMatchSql(term),
       eq(posts.status, 'published'),
       eq(posts.visibility, PostVisibility.PUBLIC),

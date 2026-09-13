@@ -47,14 +47,15 @@ const SOURCE_ROOT = path.resolve(__dirname, '../..');
 
 /**
  * The smallest number of `federation:` blocks this scan may find and still be
- * believed. Nine exist today: the three ActivityPub Note ingest sites (inbox
+ * believed. Eight exist today: the three ActivityPub Note ingest sites (inbox
  * `Create`, outbox backfill, `ensureFederatedNote`) which share
  * `buildFederatedNoteProvenance`, the ActivityPub `Announce` importer, the
  * atproto post importer, the mention-repair script's row type and its rebuilt
- * block, plus two blocks that describe no post at all (the federation config and
- * a hydrated user's federation summary) and so carry no `activityId`.
+ * block, plus the federation config, which describes no post and carries no
+ * `activityId`. The removed transport-derived user summary was not an ingest
+ * site; the identified-post floor below remains unchanged.
  */
-const MINIMUM_BLOCKS = 9;
+const MINIMUM_BLOCKS = 8;
 
 /**
  * The smallest number of those blocks that name an `activityId` — the subset the

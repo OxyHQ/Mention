@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import {
@@ -9,21 +9,8 @@ import {
 
 const scope = federationScope('hydration-fed-repair');
 
-/**
- * Regression harness for the "federated author renders without its real handle"
- * bug. A federated (e.g. Mastodon) post whose author cannot be resolved from Oxy
- * degrades to {@link degradedActorSummary} (empty `username`, "Unknown user").
- * For a LOCAL author that neutral placeholder is the best we can do, but a
- * FEDERATED author's canonical `username@domain` + avatar are knowable WITHOUT
- * Oxy from Mention's own FederatedActor record — so `resolveUserSummaries`
- * enriches the degraded summary in place (restoring `username` / `instance` /
- * `avatar` but NEVER inventing a `name.displayName`) instead of leaving a
- * nameless "Unknown user". This is the canonical-Oxy-User replacement for the old
- * `repairFederatedFallbackSummaries` pass and closes the earlier ghost-handle
- * variant where the fallback used the raw Mongo id as the handle.
- */
-
-const { getUsersByIds, getUserById } = vi.hoisted(() => ({
+const { getUsersByIds, getUserById, cachedSummaries } = vi.hoisted(() => ({
+  cachedSummaries: vi.fn(async (..._args: unknown[]) => new Map()),
   getUsersByIds: vi.fn(),
   getUserById: vi.fn(),
 }));
@@ -51,12 +38,10 @@ vi.mock('../../utils/privacyHelpers', () => ({
   extractFollowersIds: vi.fn(() => []),
 }));
 
-// The starter-pack CURATION aggregation runs on the cache-fill path (it stamps the
-// ranking-side `starterPackScore`). No DB here → no packs → no scores.
-// Cache always misses (so every author flows through the Oxy resolve + enrich
-// path), and writes are no-ops.
+// Cache misses exercise Oxy outages; the cache-hit case models a previously
+// fetched public Oxy DTO. Writes are isolated from other suites.
 vi.mock('../../services/userSummaryCache', () => ({
-  mget: vi.fn(async () => new Map()),
+  mget: (...args: unknown[]) => cachedSummaries(...args),
   mset: vi.fn(async () => undefined),
   invalidate: vi.fn(async () => undefined),
 }));
@@ -81,9 +66,10 @@ afterAll(async () => {
   await closePostgres();
 });
 
-describe('resolveUserSummaries federated enrichment', () => {
+describe('resolveUserSummaries Oxy public identity authority', () => {
   beforeEach(async () => {
     await clearFederationScope(scope);
+    cachedSummaries.mockResolvedValue(new Map());
     getUsersByIds.mockReset();
     getUserById.mockReset();
     // Force degradation: Oxy returns nothing from the bulk call and the per-id
@@ -99,42 +85,35 @@ describe('resolveUserSummaries federated enrichment', () => {
     expect(isFallbackUserSummary(degraded)).toBe(true);
   });
 
-  it('enriches a degraded federated author with its FederatedActor handle + avatar, never a name', async () => {
+  it.each([
+    ['bridge', 'alice@threads.net', 'alice@ap.brid.gy', 'ap.brid.gy'],
+    ['ordinary AP', 'alice@mastodon.social', 'alice@mastodon.social', 'mastodon.social'],
+    ['unknown projection', null, 'alice@ap.brid.gy', 'ap.brid.gy'],
+  ] as const)('keeps %s unavailable during Oxy outage without publishing transport identity', async (_kind, networkAcct, acct, domain) => {
     await seedActor(scope, {
-      username: 'kaleidotrope',
-      uri: `${scope.origin}/users/kaleidotrope`,
-      acct: `kaleidotrope@${scope.domain}`,
-      oxyUserId: FED_ID,
-      avatarUrl: `${scope.origin}/a.png`,
+      username: 'alice', uri: `${scope.origin}/users/alice`,
+      acct, domain, networkAcct, oxyUserId: FED_ID,
+      avatarUrl: 'https://ap.brid.gy/transport-avatar.png',
     });
-
-    const resolved = await resolveUserSummaries([FED_ID]);
-    const user = resolved.get(FED_ID)?.user;
-
-    expect(user?.username).toBe('kaleidotrope');
-    expect(user?.username).not.toBe('');
-    expect(user?.username).not.toBe(FED_ID);
-    expect(user?.isFederated).toBe(true);
-    expect(user?.instance).toBe(scope.domain);
-    expect(user?.federation?.domain).toBe(scope.domain);
-    expect(user?.avatar).toBe(`${scope.origin}/a.png`);
-    // Never invent a display name — the FederatedActor has none.
-    expect(user?.name.displayName).toBeUndefined();
-    expect(isFallbackUserSummary(user!)).toBe(false);
+    const user = (await resolveUserSummaries([FED_ID])).get(FED_ID)?.user;
+    expect(user?.username).toBe('');
+    expect(user?.name.displayName).toBe('Unknown user');
+    expect(user?.instance).toBeUndefined();
+    expect(user?.federation).toBeUndefined();
+    expect(user?.avatar).toBeNull();
+    expect(JSON.stringify(user)).not.toContain('brid.gy');
   });
 
-  it('derives the username from acct when the username field is absent', async () => {
-    // `username` is written as an empty string, which is what a legacy row that
-    // only ever carried an `acct` reads as — the derivation is from `acct`.
-    await seedActor(scope, {
-      username: '',
-      uri: `${scope.origin}/users/kaleidotrope`,
-      acct: `kaleidotrope@${scope.domain}`,
-      oxyUserId: FED_ID,
-    });
-
-    const resolved = await resolveUserSummaries([FED_ID]);
-    expect(resolved.get(FED_ID)?.user.username).toBe('kaleidotrope');
+  it('retains an Oxy-issued cached public profile without contacting Oxy', async () => {
+    cachedSummaries.mockResolvedValue(new Map([[FED_ID, { user: {
+      id: FED_ID, username: 'alice@threads.net', name: { displayName: 'Alice' },
+      avatar: null, isFederated: true,
+    } }]]));
+    const user = (await resolveUserSummaries([FED_ID])).get(FED_ID)?.user;
+    expect(user?.username).toBe('alice@threads.net');
+    expect(user?.name.displayName).toBe('Alice');
+    expect(getUsersByIds).not.toHaveBeenCalled();
+    expect(getUserById).not.toHaveBeenCalled();
   });
 
   it('leaves a properly-resolved Oxy user untouched and never queries FederatedActor', async () => {
@@ -149,8 +128,8 @@ describe('resolveUserSummaries federated enrichment', () => {
     expect(user?.name.displayName).toBe('Kaleidotrope');
   });
 
-  it('stays degraded (never throws) when the actor lookup fails', async () => {
-    // A closed pool is the real "database unavailable" failure this soft-fails on.
+  it('stays degraded when both Oxy and the local database are unavailable', async () => {
+    // The transport cache cannot supply an alternative public identity.
     await closePostgres();
 
     const resolved = await resolveUserSummaries([FED_ID]);

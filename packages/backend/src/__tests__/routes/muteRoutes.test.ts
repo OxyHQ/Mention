@@ -1,3 +1,4 @@
+import { getServiceOxyClient } from '../../utils/oxyHelpers';
 /**
  * `/mute` and `/mute-words` against real rows.
  *
@@ -49,6 +50,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.spyOn(getServiceOxyClient(), 'getUsersByIds').mockResolvedValue([]);
 });
 
 afterEach(async () => {

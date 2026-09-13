@@ -1,0 +1,212 @@
+name: Reconcile source identity projections
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Fixed operation: reconcile, inspect, recover, or cancel a verified read-only preview'
+        type: choice
+        options: [reconcile, inspect_cache, recover_report, inspect_request, stop_preview]
+        default: reconcile
+        required: true
+      recovery_run_id:
+        description: 'recover_report/stop_preview: prior reconciliation workflow run to inspect without starting a task'
+        type: string
+        required: false
+      request_inspection:
+        description: 'inspect_request only: JSON requestId, startTime/endTime UTC, sourceSha; fixed federation resolve route'
+        type: string
+        required: false
+      actor_uri:
+        description: 'inspect_cache only: exact public HTTPS source actor URI'
+        type: string
+        required: false
+      canonical_acct:
+        description: 'inspect_cache only: exact lowercase public network acct'
+        type: string
+        required: false
+      transport_acct:
+        description: 'inspect_cache only: exact lowercase delivery acct'
+        type: string
+        required: false
+      dry_run:
+        description: 'Preview current Oxy projections without writes'
+        type: boolean
+        required: true
+        default: true
+      expected_image_digest:
+        description: 'Exact deployed backend sha256 digest reviewed for this run'
+        type: string
+        required: true
+      preview_run_id:
+        description: 'Apply only: successful dry-run workflow run ID for this exact source/image'
+        type: string
+        required: false
+      confirm_write:
+        description: 'Apply only: reconcileMetaIdentityAndCrossposts'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+concurrency:
+  group: mention-source-identity-reconciliation
+  cancel-in-progress: false
+env:
+  AWS_REGION: us-west-2
+  CLUSTER: oxy-cluster
+  SERVICE: mention
+  DEPLOY_SHA: ${{ github.sha }}
+
+jobs:
+  reconcile:
+    if: github.ref == 'refs/heads/main' && github.ref_protected && github.triggering_actor == github.actor
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 75
+    steps:
+      - name: Authorize operator and inputs before credentials
+        env:
+          OPERATORS: ${{ vars.SOURCE_IDENTITY_RECONCILIATION_OPERATORS }}
+          ACTOR: ${{ github.actor }}
+          OPERATION: ${{ inputs.operation }}
+          ACTOR_URI: ${{ inputs.actor_uri }}
+          CANONICAL_ACCT: ${{ inputs.canonical_acct }}
+          TRANSPORT_ACCT: ${{ inputs.transport_acct }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CONFIRM_WRITE: ${{ inputs.confirm_write }}
+          EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_image_digest }}
+          PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+          RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
+          REQUEST_INSPECTION: ${{ inputs.request_inspection }}
+        run: |
+          set -euo pipefail
+          operators="${OPERATORS//[[:space:]]/}"
+          [[ -n "$operators" && ",$operators," == *",$ACTOR,"* ]] || { echo '::error::Dispatcher must be in SOURCE_IDENTITY_RECONCILIATION_OPERATORS'; exit 1; }
+          [[ "$EXPECTED_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || exit 1
+          case "$OPERATION" in
+            reconcile) ;;
+            inspect_cache) [[ "$DRY_RUN" == true ]] || exit 1 ;;
+            inspect_request) [[ "$DRY_RUN" == true ]] || exit 1 ;;
+            stop_preview) [[ "$DRY_RUN" == true && -z "$CONFIRM_WRITE" && "$RECOVERY_RUN_ID" =~ ^[0-9]+$ ]] || exit 1 ;;
+            recover_report) [[ "$DRY_RUN" == true && "$RECOVERY_RUN_ID" =~ ^[0-9]+$ ]] || exit 1 ;;
+            *) exit 1 ;;
+          esac
+          case "$DRY_RUN" in
+            true) ;;
+            false) [[ "$CONFIRM_WRITE" == reconcileMetaIdentityAndCrossposts && "$PREVIEW_RUN_ID" =~ ^[0-9]+$ ]] || exit 1 ;;
+            *) exit 1 ;;
+          esac
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 2
+      - name: Verify current protected main
+        run: bash .github/scripts/require-current-main.sh
+      - name: Fetch reviewed preview for apply
+        if: inputs.operation == 'reconcile' && inputs.dry_run == false
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PREVIEW_RUN_ID" > preview-run.json
+          jq -e --arg sha "$DEPLOY_SHA" '.head_sha == $sha and .head_branch == "main" and .event == "workflow_dispatch" and .conclusion == "success" and .path == ".github/workflows/run-source-identity-reconciliation.yml"' preview-run.json >/dev/null
+          gh run download "$PREVIEW_RUN_ID" --repo "$GITHUB_REPOSITORY" --name source-identity-reconciliation --dir reviewed-preview
+      - name: Configure AWS credentials
+        if: inputs.operation == 'reconcile' || inputs.operation == 'inspect_cache'
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Configure read-only recovery credentials
+        if: inputs.operation == 'recover_report' || inputs.operation == 'inspect_request' || inputs.operation == 'stop_preview'
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+          inline-session-policy: >-
+            {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ecs:DescribeTasks","ecs:DescribeTaskDefinition","ecs:DescribeServices","ecs:ListTasks","ecr:BatchGetImage","logs:GetLogEvents"],"Resource":"*"}]}
+      - name: Re-verify current main immediately before execution
+        run: bash .github/scripts/require-current-main.sh
+      - name: Recover historical task diagnostics without executing a task
+        if: inputs.operation == 'recover_report'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
+          EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_image_digest }}
+          ACTOR: ${{ github.actor }}
+        run: bash .github/scripts/recover-source-identity-report.sh
+      - name: Authenticate standalone preview and retain pre-stop evidence
+        id: stop-preview-selector
+        if: inputs.operation == 'stop_preview'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
+          EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_image_digest }}
+          ACTOR: ${{ github.actor }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CONFIRM_WRITE: ${{ inputs.confirm_write }}
+        run: bash .github/scripts/stop-source-identity-preview.sh prepare
+      - name: Retain authenticated evidence before cancellation
+        if: inputs.operation == 'stop_preview'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: source-identity-preview-before-stop
+          path: |
+            reconciliation-run.json
+            reconciliation-diagnostics.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Configure credentials for the exact authenticated preview only
+        if: inputs.operation == 'stop_preview'
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+          unset-current-credentials: true
+          inline-session-policy: >-
+            {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ecs:DescribeTasks","ecs:DescribeTaskDefinition","ecs:DescribeServices","ecs:ListTasks","ecr:BatchGetImage","logs:GetLogEvents"],"Resource":"*"},{"Effect":"Allow","Action":"ecs:StopTask","Resource":"${{ steps.stop-preview-selector.outputs.task_arn }}"}]}
+      - name: Stop only the authenticated read-only preview
+        if: inputs.operation == 'stop_preview'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
+          EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_image_digest }}
+          ACTOR: ${{ github.actor }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CONFIRM_WRITE: ${{ inputs.confirm_write }}
+          STOP_TASK_ARN: ${{ steps.stop-preview-selector.outputs.task_arn }}
+        run: |
+          bash .github/scripts/require-current-main.sh
+          bash .github/scripts/stop-source-identity-preview.sh stop
+      - name: Inspect one failed live request without executing a task
+        if: inputs.operation == 'inspect_request'
+        env:
+          REQUEST_INSPECTION: ${{ inputs.request_inspection }}
+          EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_image_digest }}
+        run: bash .github/scripts/inspect-source-identity-request.sh
+      - name: Reconcile with the exact deployed image
+        if: inputs.operation == 'reconcile' || inputs.operation == 'inspect_cache'
+        env:
+          OPERATION: ${{ inputs.operation }}
+          ACTOR_URI: ${{ inputs.actor_uri }}
+          CANONICAL_ACCT: ${{ inputs.canonical_acct }}
+          TRANSPORT_ACCT: ${{ inputs.transport_acct }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CONFIRM_WRITE: ${{ inputs.confirm_write }}
+          EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_image_digest }}
+        run: bash .github/scripts/run-source-identity-reconciliation.sh
+      - name: Retain structured report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: source-identity-reconciliation
+          path: |
+            reconciliation-report.json
+            reconciliation-run.json
+            reconciliation-diagnostics.json
+            reconciliation-request.json
+          if-no-files-found: warn
+          retention-days: 30

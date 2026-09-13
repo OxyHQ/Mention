@@ -225,23 +225,10 @@ export function useProfileData(username?: string): {
     gcTime: PROFILE_GC_TIME,
   });
 
-  /**
-   * A federated resolve is kept only when the routed handle SPELLS the identity
-   * it resolved to.
-   *
-   * A bridged account is reachable at two addresses — the transport acct the
-   * ActivityPub copy arrived through (`zuck@kilogram.makeup`) and the network
-   * identity it was re-labelled onto (`zuck@instagram.com`) — and the resolve
-   * answers for both, deliberately: federation delivery addresses actors by the
-   * protocol acct and must keep resolving it. Only the second is a PUBLIC Mention
-   * profile, so the transport address is dropped HERE, at the one place a URL
-   * becomes a rendered page, rather than by teaching the resolve to lie.
-   *
-   * See `utils/publicProfileHandle` for why the test is a handle comparison and
-   * not a list of bridge hosts.
-   */
+  // Oxy's canonical username and proven network aliases are public routes.
+  // Shared-contract validation rejects transport-only and incomplete identity data.
   const federatedProfile =
-    federatedQuery.data && isPublicProfileHandle(handle, federatedQuery.data.username)
+    federatedQuery.data && isPublicProfileHandle(handle, federatedQuery.data.username, federatedQuery.data)
       ? federatedQuery.data
       : null;
 

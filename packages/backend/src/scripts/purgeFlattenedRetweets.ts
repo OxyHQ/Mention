@@ -22,7 +22,7 @@
  * promise a promotion that can never happen.
  *
  * IT REUSES THE INGEST PREDICATE RATHER THAN RESTATING IT. `isBridgeFlattenedRetweet`
- * and `FEDERATION_BRIDGE_POLICY` are the same two things the ingest gate
+ * and `REVIEWED_REPOST_TRANSPORT_HOSTS` are the same two things the ingest gate
  * consults, so this pass is provably the same decision applied to rows already
  * stored — not a regex that happens to look similar. The SQL `^RT:` term is only
  * a cheap prefilter to keep the scan off bodies that cannot match; what DECIDES
@@ -59,7 +59,7 @@ import { postContentVariants } from '../db/schema/postContent';
 import { federatedActors } from '../db/schema/federation';
 import { deletePostRecord } from '../db/posts/postRepository';
 import { isBridgeFlattenedRetweet } from '../connectors/activitypub/flattenedRetweet';
-import { FEDERATION_BRIDGE_POLICY } from '../connectors/activitypub/federationBridgePolicy';
+import { REVIEWED_REPOST_TRANSPORT_HOSTS } from '../connectors/activitypub/repostTransportPolicy';
 
 export interface PurgeFlattenedRetweetResult {
   /** Rows on a reviewed bridge whose body opens `RT:` — the cheap prefilter. */
@@ -80,7 +80,7 @@ export async function purgeFlattenedRetweets(
   const db = getDb();
 
   /** Every host the ingest gate treats as a reviewed bridge — one source, not a copy. */
-  const bridgeHosts = FEDERATION_BRIDGE_POLICY.map((entry) => entry.host);
+  const bridgeHosts = [...REVIEWED_REPOST_TRANSPORT_HOSTS];
   if (bridgeHosts.length === 0) {
     return { candidates: 0, matched: 0, deleted: 0, noOpWrites: false };
   }

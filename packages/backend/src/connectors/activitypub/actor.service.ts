@@ -1,3 +1,4 @@
+import { resolveAvatarUrl } from '../../utils/mediaResolver';
 import sanitizeHtml from 'sanitize-html';
 import { decode as decodeEntities } from 'he';
 import { normalizeInlineText } from '@oxy.so/core';
@@ -14,12 +15,10 @@ import { withEngineId, type EngineFederatedActorRecord } from '../../db/federati
 import {
   findActorByPublicKeyId,
   findActorByUri,
-  setActorOxyUserId,
   tombstoneActor,
   upsertActor,
 } from '../../db/federation/actorRepository';
 import { FEDERATION_ENABLED, isBlockedDomain } from './constants';
-import { federationBridges } from './federationBridgePolicy';
 import { qualifyBareHandles } from '@mention/shared-types/textEntities';
 import { htmlToPlainText } from '../../utils/federation/htmlToPlainText';
 import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
@@ -30,7 +29,9 @@ import {
   domainFromAcct,
 } from './helpers';
 import { readBoundedResponseBody } from '../shared/httpBody';
-import { reportFederatedActorGone, resolveFederatedActorIdentity } from '../identity';
+import { reportFederatedActorGone } from '../identity';
+import { resolveOxyIdentity } from '../oxyIdentity';
+import { reconcileActorIdentityProjection } from '../../services/ActorIdentityProjectionService';
 
 /**
  * Resolution, caching and refresh of remote ActivityPub actors.
@@ -60,18 +61,26 @@ const store: FederatedActorStore<EngineFederatedActorRecord> = {
     // column, so it is split out here and the repository replaces the whole list
     // inside the same transaction as the row.
     //
-    // An absent `networkAcct` CLEARS the column rather than leaving it alone —
-    // `upsertActor` writes every optional column as `?? null` — which is what a
-    // row that STOPPED being bridged needs (a bridge removed from the policy, or
-    // an actor that no longer satisfies its rule): it must not keep claiming an
-    // identity it no longer derives. Mongo needed an explicit `$unset` for the
-    // same behaviour, because an absent key in a `$set` is a no-op there.
+    // Oxy's per-source alias is a projection for content provenance. Transport
+    // acct/domain/keys remain the remote actor's delivery coordinates.
     const { fields, uri: _uri, ...columns } = update;
-    return withEngineId(await upsertActor(uri, columns, fields));
+    const resolved = await resolveOxyIdentity({ actorUri: uri, transportAcct: update.acct, protocol: 'activitypub' });
+    if (resolved.externalIdentity.actorUri !== uri) throw new Error('Oxy resolved a different source actor');
+    const row = await upsertActor(uri, {
+      ...columns,
+      networkAcct: resolved.externalIdentity.canonicalAcct,
+      summary: resolved.user.bio ?? '',
+      avatarUrl: resolveAvatarUrl(resolved.user.avatar),
+    }, fields);
+    if (!row) return null;
+    const projection = await reconcileActorIdentityProjection({ actorUri: uri, oxyUserId: resolved.user.id, networkAcct: resolved.externalIdentity.canonicalAcct });
+    if (projection.refusal) throw new Error('Source identity projection failed');
+    return withEngineId({ ...row, oxyUserId: resolved.user.id });
   },
   findActorByPublicKeyId: async (keyId) => withEngineId(await findActorByPublicKeyId(keyId)),
-  setActorOxyUserId: async (actorId, oxyUserId) => {
-    await setActorOxyUserId(String(actorId), oxyUserId);
+  setActorOxyUserId: async () => {
+    // The source-aware upsert has already resolved and reconciled identity.
+    throw new Error('Identity must be assigned through source projection');
   },
   tombstoneActor: (uri) => tombstoneActor(uri),
 };
@@ -119,21 +128,9 @@ export const activityPubActorResolverConfig: ActorResolverConfig<EngineFederated
   normalizeFederatedAcct,
   domainFromAcct,
   firstStringUrl,
-  // A bridge republishes another network's accounts under its own hostname, so an
-  // actor from one is stored under the network it actually came from —
-  // `@wired@x.com`, not `@wired@bird.makeup`. The MECHANISM is shared
-  // (`@oxy.so/federation`); the reviewed entries are Mention's own moderation
-  // policy in `./federationBridgePolicy`, and oxy-api keeps its own list for the
-  // resolve-side trust decision. Only the IDENTITY moves — `acct`, `uri` and the
-  // stored `domain` keep addressing the bridge, so the domain policy and every
-  // moderation consumer are unaffected.
-  //
-  // `isBlockedDomain` is evaluated by the resolver well before this runs, and a
-  // blocked host never reaches it.
-  deriveNetworkIdentity: federationBridges.deriveNetworkIdentity,
   store,
   identity: {
-    resolveExternalUser: (actor, opts) => resolveFederatedActorIdentity(actor, opts),
+    resolveExternalUser: async (actor) => actor.oxyUserId ?? null,
     reportActorGone: (oxyUserId) => reportFederatedActorGone(oxyUserId),
   },
   text: {

@@ -41,7 +41,7 @@ import { createCache } from '../utils/cache';
  *  - `v5` — the cached Oxy user now carries `kind` (the account
  *    classification), which the reply gate reads off `user.kind`.
  */
-const USER_SUMMARY_PREFIX = 'usersummary:v5:';
+const USER_SUMMARY_PREFIX = 'usersummary:v6:';
 
 /**
  * TTL for a cached summary. Display name / avatar / verification change rarely;
