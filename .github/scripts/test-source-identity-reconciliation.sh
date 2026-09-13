@@ -94,6 +94,10 @@ run_case() {
       ! grep -q '^ecs run-task$' "$test_directory/calls" || { echo "Started a task before refusing $name"; exit 1; }
     fi
   fi
+  if grep -q '^ecs run-task$' "$test_directory/calls"; then
+    jq -e --arg sha "$DEPLOY_SHA" '.sourceSha == $sha and .taskArn == "arn:fixture/task/one"' "$case_dir/reconciliation-run.json" >/dev/null
+    jq -e '.taskStopped == true and (.exitCode | type) == "number"' "$case_dir/reconciliation-diagnostics.json" >/dev/null
+  fi
   echo "PASS $name"
 }
 run_case success pass
