@@ -6,11 +6,15 @@ on:
       operation:
         description: 'Fixed operation: reconcile or read-only cache inspection'
         type: choice
-        options: [reconcile, inspect_cache, recover_report]
+        options: [reconcile, inspect_cache, recover_report, inspect_request]
         default: reconcile
         required: true
       recovery_run_id:
         description: 'recover_report only: prior reconciliation workflow run to inspect without starting a task'
+        type: string
+        required: false
+      request_inspection:
+        description: 'inspect_request only: JSON requestId, startTime/endTime UTC, sourceSha; fixed federation resolve route'
         type: string
         required: false
       actor_uri:
@@ -75,6 +79,7 @@ jobs:
           EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_image_digest }}
           PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
           RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
+          REQUEST_INSPECTION: ${{ inputs.request_inspection }}
         run: |
           set -euo pipefail
           operators="${OPERATORS//[[:space:]]/}"
@@ -83,6 +88,7 @@ jobs:
           case "$OPERATION" in
             reconcile) ;;
             inspect_cache) [[ "$DRY_RUN" == true ]] || exit 1 ;;
+            inspect_request) [[ "$DRY_RUN" == true ]] || exit 1 ;;
             recover_report) [[ "$DRY_RUN" == true && "$RECOVERY_RUN_ID" =~ ^[0-9]+$ ]] || exit 1 ;;
             *) exit 1 ;;
           esac
@@ -108,19 +114,19 @@ jobs:
           jq -e --arg sha "$DEPLOY_SHA" '.head_sha == $sha and .head_branch == "main" and .event == "workflow_dispatch" and .conclusion == "success" and .path == ".github/workflows/run-source-identity-reconciliation.yml"' preview-run.json >/dev/null
           gh run download "$PREVIEW_RUN_ID" --repo "$GITHUB_REPOSITORY" --name source-identity-reconciliation --dir reviewed-preview
       - name: Configure AWS credentials
-        if: inputs.operation != 'recover_report'
+        if: inputs.operation != 'recover_report' && inputs.operation != 'inspect_request'
         uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6
         with:
           role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
           aws-region: ${{ env.AWS_REGION }}
       - name: Configure read-only recovery credentials
-        if: inputs.operation == 'recover_report'
+        if: inputs.operation == 'recover_report' || inputs.operation == 'inspect_request'
         uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6
         with:
           role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
           aws-region: ${{ env.AWS_REGION }}
           inline-session-policy: >-
-            {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ecs:DescribeTasks","ecs:DescribeTaskDefinition","ecr:BatchGetImage","logs:GetLogEvents"],"Resource":"*"}]}
+            {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ecs:DescribeTasks","ecs:DescribeTaskDefinition","ecs:DescribeServices","ecs:ListTasks","ecr:BatchGetImage","logs:GetLogEvents"],"Resource":"*"}]}
       - name: Re-verify current main immediately before execution
         run: bash .github/scripts/require-current-main.sh
       - name: Recover historical task diagnostics without executing a task
@@ -131,8 +137,14 @@ jobs:
           EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_image_digest }}
           ACTOR: ${{ github.actor }}
         run: bash .github/scripts/recover-source-identity-report.sh
+      - name: Inspect one failed live request without executing a task
+        if: inputs.operation == 'inspect_request'
+        env:
+          REQUEST_INSPECTION: ${{ inputs.request_inspection }}
+          EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_image_digest }}
+        run: bash .github/scripts/inspect-source-identity-request.sh
       - name: Reconcile with the exact deployed image
-        if: inputs.operation != 'recover_report'
+        if: inputs.operation != 'recover_report' && inputs.operation != 'inspect_request'
         env:
           OPERATION: ${{ inputs.operation }}
           ACTOR_URI: ${{ inputs.actor_uri }}
@@ -151,5 +163,6 @@ jobs:
             reconciliation-report.json
             reconciliation-run.json
             reconciliation-diagnostics.json
+            reconciliation-request.json
           if-no-files-found: warn
           retention-days: 30
