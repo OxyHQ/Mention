@@ -68,7 +68,15 @@ test('cold public discovery preserves one Oxy identity and source profile', asyn
   await page.getByText(evidence.expectedMentionLabel, { exact: true }).first().click();
   await expect.poll(() => decodeURIComponent(new URL(page.url()).pathname)).toBe(`/@${evidence.expectedMentionHandle}`);
   for (const source of evidence.sources.filter(item => item.transportAcct !== item.canonicalAcct)) {
-    await page.goto(`/@${source.transportAcct}`);
+    const transportDocument = await page.goto(`/@${source.transportAcct}`);
+    if (!transportDocument) throw new Error('Transport navigation returned no document');
+    expect(transportDocument.status()).toBe(404);
+    const initialHtml = await transportDocument.text();
+    expect(initialHtml).toContain('noindex');
+    expect(initialHtml).not.toContain('ProfilePage');
+    expect(initialHtml).not.toContain(evidence.expectedBioText);
+    expect(initialHtml).not.toContain(`@${canonicalHandle}`);
+    await testInfo.attach('transport-initial-html', { body: initialHtml, contentType: 'text/html' });
     await expect(page.getByText('Profile not found', { exact: false })).toBeAttached();
     await expect(page.getByText(`@${source.transportAcct}`, { exact: true })).toHaveCount(0);
     await expect(page).not.toHaveTitle(new RegExp(`@${canonicalHandle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));

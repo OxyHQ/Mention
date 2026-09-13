@@ -29,6 +29,7 @@
  * `/@channel` must reach the actor, and a redirect chain is exactly what
  * Mastodon's strict redirector refuses.
  */
+import { externalIdentityReferenceSchema } from '@oxy.so/contracts';
 import { Router, Request, Response } from 'express';
 import { config } from '../config';
 import { loadPostRecord } from '../db/posts/postRepository';
@@ -207,8 +208,16 @@ async function fetchProfile(handle: string): Promise<OxyProfileData | null> {
 }
 
 /** The cached profile for a handle, SWR-backed. Null when unknown or unreachable. */
-function cachedProfile(handle: string): Promise<OxyProfileData | null> {
-  return getShellCached(`profile:${handle}`, () => fetchProfile(handle), { rethrow: true });
+async function cachedProfile(handle: string): Promise<OxyProfileData | null> {
+  const profile = await getShellCached(`profile:${handle}`, () => fetchProfile(handle), { rethrow: true });
+  // Revalidate cached payloads too: transport lookups may return an Oxy person,
+  // but only their canonical username or proven public aliases grant a URL.
+  if (!profile?.username) return null;
+  const normalize = (value: string) => value.trim().replace(/^@+/, '').toLowerCase();
+  if (normalize(handle) === normalize(profile.username)) return profile;
+  const aliases = externalIdentityReferenceSchema.array().safeParse(profile.externalIdentities);
+  return aliases.success && aliases.data.some(alias => normalize(alias.canonicalAcct) === normalize(handle))
+    ? profile : null;
 }
 
 async function isOxyAuthorPublic(oxyUserId: string): Promise<boolean> {

@@ -58,6 +58,7 @@ function ogImageForAvatar(avatar: unknown): string | undefined {
 
 /** Shape of the Oxy `/profiles/username/<handle>` payload we read for OG. */
 export interface OxyProfileData {
+  externalIdentities?: unknown;
   id?: string;
   username?: string;
   name?: { displayName?: string };
