@@ -13,15 +13,15 @@ import { reconcileActorIdentityProjection, unmuteIdentityProjection } from '../.
 import { reconcileMetaIdentityAndCrossposts } from '../../scripts/reconcileMetaIdentityAndCrossposts';
 import { logger } from '../../utils/logger';
 import { recordAttestedIdentityLink } from '../../scripts/recordAttestedIdentityLink';
-const mocks = vi.hoisted(() => ({ lookup: vi.fn(), resolve: vi.fn(), users: vi.fn(), detect: vi.fn() }));
+const mocks = vi.hoisted(() => ({ lookup: vi.fn(), resolve: vi.fn(), users: vi.fn(), detect: vi.fn(), reevaluate: vi.fn() }));
 vi.mock('../../connectors/oxyIdentity', () => ({ lookupOxyIdentities: mocks.lookup, resolveOxyIdentity: mocks.resolve }));
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ getUsersByIds: mocks.users }) }));
-vi.mock('../../services/PostEquivalenceService', () => ({ detectCrosspostEquivalence: mocks.detect, reevaluateClusterForPost: vi.fn(), reevaluateClusters: vi.fn() }));
+vi.mock('../../services/PostEquivalenceService', () => ({ detectCrosspostEquivalence: mocks.detect, reevaluateClusterForPost: mocks.reevaluate, reevaluateClusters: vi.fn() }));
 const source = 'https://kilogram.makeup/users/source';
 const otherSource = 'did:plc:other-source';
 beforeAll(connectPostgres);
 afterAll(closePostgres);
-beforeEach(() => { vi.clearAllMocks(); mocks.lookup.mockResolvedValue([]); mocks.detect.mockResolvedValue({ outcome: 'refused', reason: 'no_current_content_proof' }); });
+beforeEach(() => { vi.clearAllMocks(); mocks.lookup.mockResolvedValue([]); mocks.reevaluate.mockReset(); mocks.detect.mockResolvedValue({ outcome: 'refused', reason: 'no_current_content_proof' }); });
 afterEach(async () => {
   vi.restoreAllMocks();
   await getDb().delete(postEquivalenceClusters);
@@ -144,4 +144,18 @@ it('stops an apply batch before writes if the authoritative lookup fails', async
   expect(mocks.detect).not.toHaveBeenCalled();
   const [row] = await getDb().select().from(posts).where(eq(posts.federationActorUri, source));
   expect(row.oxyUserId).toBe('old-person');
+});
+
+
+it.each(['detect', 'reevaluate'] as const)('administrative apply rejects %s failures without reporting completion', async phase => {
+  const info = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
+  await actor(source);
+  const stored = await post(source);
+  mocks.lookup.mockResolvedValue([{ identifier: source, userId: 'old-person', externalIdentities: [{ actorUri: source, canonicalAcct: 'source@instagram.com' }] }]);
+  mocks[phase].mockRejectedValueOnce(new Error('crosspost operation unavailable'));
+  await expect(reconcileMetaIdentityAndCrossposts({ dryRun: false })).rejects.toThrow('crosspost operation unavailable');
+  expect(mocks.reevaluate).toHaveBeenCalledWith(stored.id, { failOnError: true });
+  if (phase === 'detect') expect(mocks.detect).toHaveBeenCalledWith({ postId: stored.id }, { failOnError: true });
+  else expect(mocks.detect).not.toHaveBeenCalled();
+  expect(info.mock.calls.some(([message]) => message === '[reconcileMetaIdentityAndCrossposts] complete')).toBe(false);
 });

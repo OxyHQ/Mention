@@ -303,13 +303,19 @@ async function findSiblingIds(candidate: EquivalenceCandidate): Promise<string[]
   return rows.map((row) => row.id);
 }
 
+/** Administrative repair must distinguish unavailable authority from negative proof. */
+interface EquivalenceErrorOptions {
+  failOnError?: boolean;
+}
+
 /** One request per detection/re-evaluation, scoped to the current decision. */
-async function loadIdentityProof(candidates: Iterable<EquivalenceCandidate>) {
+async function loadIdentityProof(candidates: Iterable<EquivalenceCandidate>, options: EquivalenceErrorOptions = {}) {
   const identifiers = [...new Set([...candidates].map((candidate) => candidate.actorUri))];
   if (identifiers.length === 0) return [];
   try {
     return await lookupOxyIdentities(identifiers);
   } catch (err) {
+    if (options.failOnError) throw err;
     logger.warn('[Equivalence] Oxy identity proof unavailable', { err });
     return [];
   }
@@ -503,12 +509,14 @@ export function preferredVariant(
  * Decide whether a freshly-stored post is a cross-post of something we already
  * hold, and cluster it if so.
  *
- * Never throws. A failure here must not fail an ingest — the post is stored and
+ * By default never throws. A failure here must not fail an ingest — the post is stored and
  * visible either way, and the worst outcome of a miss is the duplicate card this
- * exists to remove. The reconciliation one-shot picks up anything skipped.
+ * exists to remove. Administrative reconciliation opts into failOnError so
+ * skipped work cannot be reported as a successful repair.
  */
 export async function detectCrosspostEquivalence(
   input: CrosspostDetectionInput,
+  options: EquivalenceErrorOptions = {},
 ): Promise<CrosspostDecision> {
   try {
     const candidate = await loadCandidate(input.postId);
@@ -523,7 +531,7 @@ export async function detectCrosspostEquivalence(
     const declared = input.declaredOriginalUrls ?? [];
     const siblings = (await Promise.all(siblingIds.map(loadCandidate)))
       .filter((sibling): sibling is EquivalenceCandidate => sibling !== null);
-    const identities = await loadIdentityProof([candidate, ...siblings]);
+    const identities = await loadIdentityProof([candidate, ...siblings], options);
     for (const sibling of siblings) {
       const match = classifyPair(candidate, sibling, declared, identities);
       if (!match) continue;
@@ -560,6 +568,7 @@ export async function detectCrosspostEquivalence(
 
     return decision('refused', 'no-sufficient-evidence');
   } catch (err) {
+    if (options.failOnError) throw err;
     logger.warn('[Equivalence] cross-post detection failed', { post: input.postId, err });
     return decision('not-applicable', 'detection-failed');
   }
@@ -580,7 +589,7 @@ export async function detectCrosspostEquivalence(
  * cannot stand in for current source metadata: the changed objects must match
  * through their current content evidence.
  */
-export async function reevaluateCluster(clusterId: string): Promise<void> {
+export async function reevaluateCluster(clusterId: string, options: EquivalenceErrorOptions = {}): Promise<void> {
   try {
     const cluster = await findClusterById(clusterId);
     if (!cluster) return;
@@ -608,7 +617,7 @@ export async function reevaluateCluster(clusterId: string): Promise<void> {
     // no longer matches is SPLIT OUT and made visible again rather than the
     // whole cluster being torn down — the remaining variants are still each
     // other's cross-posts.
-    const identities = await loadIdentityProof(loaded.values());
+    const identities = await loadIdentityProof(loaded.values(), options);
     const anchorId = preferredVariant(surviving, loaded);
     const anchor = loaded.get(anchorId)!;
     let removed = 0;
@@ -636,14 +645,18 @@ export async function reevaluateCluster(clusterId: string): Promise<void> {
     }
     await setPreferredMember(clusterId, anchorId);
   } catch (err) {
+    if (options.failOnError) throw err;
     logger.warn('[Equivalence] cluster re-evaluation failed', { cluster: clusterId, err });
   }
 }
 
 /** Re-check the cluster a post belongs to, if any. The edit path's entry point. */
-export async function reevaluateClusterForPost(postId: string): Promise<void> {
-  const cluster = await findClusterByPostId(postId).catch(() => null);
-  if (cluster) await reevaluateCluster(cluster.id);
+export async function reevaluateClusterForPost(postId: string, options: EquivalenceErrorOptions = {}): Promise<void> {
+  const cluster = await findClusterByPostId(postId).catch(error => {
+    if (options.failOnError) throw error;
+    return null;
+  });
+  if (cluster) await reevaluateCluster(cluster.id, options);
 }
 
 /** Re-check several clusters — the post-deletion repair. */

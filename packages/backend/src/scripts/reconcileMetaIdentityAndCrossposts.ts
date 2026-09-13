@@ -74,8 +74,8 @@ export async function reconcileMetaIdentityAndCrossposts(opts: { dryRun?: boolea
     for (const post of rows) {
       report.postsExamined++;
       if (dryRun) continue;
-      await reevaluateClusterForPost(post.id);
-      const decision = await detectCrosspostEquivalence({ postId: post.id });
+      await reevaluateClusterForPost(post.id, { failOnError: true });
+      const decision = await detectCrosspostEquivalence({ postId: post.id }, { failOnError: true });
       if (decision.outcome === 'clustered') report.postClustersCreated++;
       else if (decision.outcome === 'refused') refuse(decision.reason);
     }
