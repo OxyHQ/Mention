@@ -11,6 +11,7 @@ import { upsertActor, setActorOxyUserId, deleteActorsByUris } from '../../db/fed
 import { createCluster } from '../../db/posts/postEquivalenceRepository';
 import { reconcileActorIdentityProjection, unmuteIdentityProjection } from '../../services/ActorIdentityProjectionService';
 import { reconcileMetaIdentityAndCrossposts } from '../../scripts/reconcileMetaIdentityAndCrossposts';
+import { logger } from '../../utils/logger';
 import { recordAttestedIdentityLink } from '../../scripts/recordAttestedIdentityLink';
 const mocks = vi.hoisted(() => ({ lookup: vi.fn(), resolve: vi.fn(), users: vi.fn(), detect: vi.fn() }));
 vi.mock('../../connectors/oxyIdentity', () => ({ lookupOxyIdentities: mocks.lookup, resolveOxyIdentity: mocks.resolve }));
@@ -22,6 +23,7 @@ beforeAll(connectPostgres);
 afterAll(closePostgres);
 beforeEach(() => { vi.clearAllMocks(); mocks.detect.mockResolvedValue({ outcome: 'refused', reason: 'no_current_content_proof' }); });
 afterEach(async () => {
+  vi.restoreAllMocks();
   await getDb().delete(postEquivalenceClusters);
   await getDb().delete(posts);
   await getDb().delete(federatedActors);
@@ -46,9 +48,14 @@ it('remaps exactly one immutable source and its owner rows, idempotently', async
   expect((await reconcileActorIdentityProjection({ actorUri: source, oxyUserId: 'current-source', networkAcct: 'source@instagram.com' })).postsChanged).toBe(0);
 });
 it('dry-run projects counts but never resolves Oxy or writes Mention', async () => {
+  const info = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
   await actor(source); await actor(otherSource); await post(source);
   mocks.lookup.mockResolvedValue([{ identifier: source, userId: 'new-person', externalIdentities: [{ actorUri: source, canonicalAcct: 'source@instagram.com' }] }]);
   const report = await reconcileMetaIdentityAndCrossposts();
+  expect(info.mock.calls.filter(([message]) => message === '[reconcileMetaIdentityAndCrossposts] progress')).toEqual([
+    ['[reconcileMetaIdentityAndCrossposts] progress', { dryRun: true, phase: 'actors', batchesCompleted: 1, actorsExamined: 2, actorsChanged: 1, postsChanged: 1, authorshipConflicts: 0 }],
+    ['[reconcileMetaIdentityAndCrossposts] progress', { dryRun: true, phase: 'posts', batchesCompleted: 1, postsExamined: 1, postClustersCreated: 0 }],
+  ]);
   expect(report.actorsExamined).toBe(2);
   expect(report.postsChanged).toBe(1);
   expect(report.refused.oxy_identity_not_resolved).toBe(1);

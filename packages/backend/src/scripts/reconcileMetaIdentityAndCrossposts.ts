@@ -26,6 +26,7 @@ export async function reconcileMetaIdentityAndCrossposts(opts: { dryRun?: boolea
   const dryRun = opts.dryRun ?? true;
   const report: ReconciliationReport = { actorsExamined: 0, actorsChanged: 0, postsChanged: 0, authorshipConflicts: 0, mutesPreserved: 0, clustersDissolved: 0, postsExamined: 0, postClustersCreated: 0, refused: {} };
   const refuse = (reason: string) => { report.refused[reason] = (report.refused[reason] ?? 0) + 1; };
+  let actorBatchesCompleted = 0;
   let cursor: string | undefined;
   while (true) {
     const actors = await getDb().select().from(federatedActors).where(cursor ? gt(federatedActors.id, cursor) : undefined).orderBy(asc(federatedActors.id)).limit(100);
@@ -53,9 +54,16 @@ export async function reconcileMetaIdentityAndCrossposts(opts: { dryRun?: boolea
       }
     }
     cursor = actors[actors.length - 1].id;
+    actorBatchesCompleted++;
+    logger.info(`[${SCRIPT_NAME}] progress`, {
+      dryRun, phase: 'actors', batchesCompleted: actorBatchesCompleted,
+      actorsExamined: report.actorsExamined, actorsChanged: report.actorsChanged,
+      postsChanged: report.postsChanged, authorshipConflicts: report.authorshipConflicts,
+    });
   }
   // Includes already-collapsed rows: a withdrawn/expired proof must reveal them.
   // This pass is bounded and independent of how many posts any one actor owns.
+  let postBatchesCompleted = 0;
   let postCursor: string | undefined;
   while (true) {
     const rows = await getDb().select({ id: posts.id }).from(posts).where(and(isNotNull(posts.federationActorUri), postCursor ? gt(posts.id, postCursor) : undefined)).orderBy(asc(posts.id)).limit(100);
@@ -69,6 +77,11 @@ export async function reconcileMetaIdentityAndCrossposts(opts: { dryRun?: boolea
       else if (decision.outcome === 'refused') refuse(decision.reason);
     }
     postCursor = rows[rows.length - 1].id;
+    postBatchesCompleted++;
+    logger.info(`[${SCRIPT_NAME}] progress`, {
+      dryRun, phase: 'posts', batchesCompleted: postBatchesCompleted,
+      postsExamined: report.postsExamined, postClustersCreated: report.postClustersCreated,
+    });
   }
   logger.info(`[${SCRIPT_NAME}] complete`, { dryRun, ...report });
   return report;
