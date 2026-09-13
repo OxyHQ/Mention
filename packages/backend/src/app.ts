@@ -8,6 +8,7 @@ import express, {
 import type { AppRoutes } from './appRoutes';
 
 export interface AppMiddleware {
+  activity?: RequestHandler;
   requestObservability: RequestHandler;
   rateLimiter: RequestHandler;
   bruteForceProtection: RequestHandler;
@@ -78,6 +79,7 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   const { middleware, routes } = deps;
   const app = express();
 
+  if (middleware.activity) app.use(middleware.activity);
   app.set('trust proxy', 1);
   app.use(middleware.requestObservability);
 

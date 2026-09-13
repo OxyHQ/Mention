@@ -17,6 +17,7 @@ import { closeSocketRedisAdapter } from './socketRedisAdapter';
 const SHUTDOWN_DEADLINE_MS = 10_000;
 
 export interface GracefulShutdownDeps {
+  stopActivity?: () => Promise<void>;
   server: http.Server;
   io: SocketIOServer;
   presence: PresenceRegistry;
@@ -110,6 +111,7 @@ export function registerGracefulShutdown(deps: GracefulShutdownDeps): void {
         closePostgres(),
       ]);
 
+      await deps.stopActivity?.();
       clearTimeout(hardTimeout);
       logger.info('HTTP, sockets, queues, Redis and PostgreSQL closed');
       process.exit(0);
