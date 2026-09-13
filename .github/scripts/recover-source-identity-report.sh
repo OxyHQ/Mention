@@ -25,4 +25,4 @@ jq -e --arg digest "$EXPECTED_IMAGE_DIGEST" '(.failures | length == 0) and (.ima
 jq -n --arg sha "$source_sha" --arg digest "$EXPECTED_IMAGE_DIGEST" --arg task "$task" --arg definition "$definition" --arg run "$RECOVERY_RUN_ID" --arg state "$task_state" '{taskStatus:$state,operation:"recover_report",sourceSha:$sha,imageDigest:$digest,taskArn:$task,taskDefinition:$definition,recoveredRunId:$run,readOnly:true}' > reconciliation-run.json
 bash "$(dirname "${BASH_SOURCE[0]}")/collect-source-identity-diagnostics.sh" "$scratch/result.json" "$scratch/definition.json" "$task"
 # A live-task snapshot remains useful evidence, but never a completed recovery.
-jq -e '.taskStopped == true and .logsComplete == true and .terminalEventObserved == true' reconciliation-diagnostics.json >/dev/null
+jq -e '.recoveryComplete == true' reconciliation-diagnostics.json >/dev/null

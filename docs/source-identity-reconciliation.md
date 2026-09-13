@@ -211,3 +211,10 @@ Recovery also retains authenticated snapshots of tasks still `PENDING` or
 Recovery succeeds only for a stopped task with complete log pagination and a
 terminal event. A live or incomplete task still fails the workflow while its
 diagnostic artifacts remain available. Recovery never stops or starts a task.
+
+Recovered diagnostics retain the latest numeric progress counters for each
+finite phase and a validated completion summary when present. Identical
+summaries are deduplicated; conflicting or malformed summaries make recovery
+incomplete. Refusals are reduced to a numeric total, without arbitrary reason
+keys. These diagnostic fields never replace the successful-preview artifact or
+authorize an apply from a failed workflow.
