@@ -21,6 +21,8 @@ import { topicSlugSql } from '../../utils/postTopicMatch';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { listPostCorrections } from '../../db/posts/postCorrectionsRepository';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './postPageBounds';
+import { resolveViewerPrivacyAndGraph } from '../../utils/privacyHelpers';
+import { getOrLoadPostRecord } from '../../services/postDetailCache';
 
 // Get all posts
 export const getPosts = async (req: AuthRequest, res: Response) => {
@@ -63,8 +65,19 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
     // everything after, so a validity check would 404 every post created since
     // the cutover. An unknown id simply matches no row, which is the same 404.
     const postId = String(req.params.id);
+    const oxyClient = createScopedOxyClient(req);
 
-    const post = await loadPostRecord(postId);
+    // Two independent reads run concurrently rather than one after the other:
+    // the assembled post (cache-fronted — see `postDetailCache`) doesn't need
+    // the viewer's privacy/graph state, and that state doesn't need the post.
+    // The privacy/graph resolution otherwise happens INSIDE hydration on its
+    // untreated fallback path as two separate sequential Oxy round trips, on
+    // every view of every post; resolving both here and threading the result
+    // in cuts that to one — see `resolveViewerPrivacyAndGraph`.
+    const [post, viewerContext] = await Promise.all([
+      getOrLoadPostRecord(postId, () => loadPostRecord(postId)),
+      resolveViewerPrivacyAndGraph(currentUserId, oxyClient),
+    ]);
 
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
@@ -72,7 +85,9 @@ export const getPostById = async (req: AuthRequest, res: Response) => {
 
     const hydrated = await postHydrationService.hydratePosts([post], {
       viewerId: currentUserId,
-      oxyClient: createScopedOxyClient(req),
+      oxyClient,
+      viewerPrivacy: viewerContext?.viewerPrivacy,
+      viewerGraph: viewerContext?.viewerGraph,
       requestLanguages: requestLanguageCandidates(req),
       maxDepth: 2,
       includeLinkMetadata: true,

@@ -84,6 +84,13 @@ import {
   type PostRecordInput,
   type PostRecordTopicRef,
 } from './postRecord';
+// A repository importing a service is the reverse of this codebase's usual
+// route→service→repository direction — accepted here on purpose: invalidation
+// belongs at the single choke point every existing AND FUTURE write path goes
+// through, not duplicated at every caller that happens to remember it. See
+// `services/postDetailCache.ts`'s own doc comment for what it does and does not
+// invalidate.
+import { invalidate as invalidatePostDetailCache } from '../../services/postDetailCache';
 
 type PostRow = typeof posts.$inferSelect;
 type PostInsert = typeof posts.$inferInsert;
@@ -643,6 +650,51 @@ export async function assemblePostRecords(
 }
 
 /**
+ * Every child-row Map empty, reused by {@link assembleShellRecords} so
+ * `assembleRecord` folds every child-table-derived field — `authorship`,
+ * `mentions`, and the child-table halves of `content` (variants/media/
+ * attachments/sources) and `postClassification` (`topicRefs`) — down to its
+ * `[]`/`undefined` default instead of a live lookup.
+ */
+const NO_CHILD_ROWS: PostChildRows = {
+  authorships: new Map(),
+  variants: new Map(),
+  media: new Map(),
+  variantMedia: new Map(),
+  variantAltTexts: new Map(),
+  attachments: new Map(),
+  sources: new Map(),
+  mentions: new Map(),
+  topicRefs: new Map(),
+};
+
+/**
+ * Assemble a set of `posts` rows WITHOUT their child tables — every flat
+ * column (author, visibility, stats, the flat halves of `content` and
+ * `postClassification`, etc.) is populated; `authorship`, `mentions`, and the
+ * child-table halves of `content`/`postClassification` are left empty.
+ *
+ * This is the first phase of a two-phase candidate read: a feed source that
+ * only needs these fields to rank, dedup and slice can skip the 6-9
+ * child-table queries {@link assemblePostRecords} would otherwise run per
+ * source, and pay for full assembly (via {@link loadPostRecords}) exactly
+ * once, for exactly the page it ends up rendering — see
+ * `mtn/feed/feeds/forYouCandidateSources.ts` and
+ * `PostHydrationService.hydrateSlices`.
+ *
+ * A caller ranking on these must know that `mediaBoost`/`portraitBoost`
+ * (`services/ranking/signals/optIn.ts`) and any topic-REF-based signal score
+ * every shell neutrally, the same as a post that genuinely has none of that —
+ * `content.media` and `postClassification.topicRefs` are child-table-only and
+ * are not reconstructable without the join this function exists to skip. The
+ * flat `postClassification.topics`/`sensitive`/`trendTerms` columns are NOT
+ * affected; only the registry-linked `topicRefs` is.
+ */
+export function assembleShellRecords(rows: readonly PostRow[]): PostRecord[] {
+  return rows.map((row) => assembleRecord(row, NO_CHILD_ROWS));
+}
+
+/**
  * Load posts by id.
  *
  * Returned in the order `postIds` asked for, skipping ids with no row — the
@@ -711,6 +763,7 @@ export async function claimScheduledPost(
     ))
     .returning({ id: posts.id });
   if (!claimed) return null;
+  await invalidatePostDetailCache(postId);
   return loadPostRecord(claimed.id, db);
 }
 
@@ -1190,8 +1243,12 @@ export async function updatePostRecord(
     await replaceTopicRefs(postId, classification.topicRefs, db);
   }
 
-  if (Object.keys(values).length === 0) return;
+  if (Object.keys(values).length === 0) {
+    await invalidatePostDetailCache(postId);
+    return;
+  }
   await db.update(posts).set(values).where(eq(posts.id, postId));
+  await invalidatePostDetailCache(postId);
 }
 
 /**
@@ -1433,6 +1490,7 @@ export async function replacePostContent(
   } else {
     await write(db);
   }
+  await invalidatePostDetailCache(postId);
 }
 
 /**
@@ -1477,6 +1535,7 @@ export async function replacePostAuthorship(
   } else {
     await write(db);
   }
+  await invalidatePostDetailCache(postId);
 }
 
 /**
@@ -1503,6 +1562,7 @@ export async function deletePostRecord(
     .returning({ id: posts.id });
 
   if (deleted.length === 0) return null;
+  await invalidatePostDetailCache(postId);
 
   // A deleted reply STOPS counting on its parent.
   //

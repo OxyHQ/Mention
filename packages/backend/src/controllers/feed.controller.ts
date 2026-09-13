@@ -29,7 +29,8 @@ import { userPreferenceService, readInteractionSurface } from '../services/UserP
 import { affinityEventService } from '../services/AffinityEventService';
 import { postHydrationService } from '../services/PostHydrationService';
 import { loadUserSettings } from '../db/userProfile/userSettingsRepository';
-import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, ProfileVisibility, OxyClient } from '../utils/privacyHelpers';
+import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, resolveViewerPrivacyAndGraph, ProfileVisibility, OxyClient } from '../utils/privacyHelpers';
+import { getOrLoadPostRecord } from '../services/postDetailCache';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../utils/logger';
 import { validateAndNormalizeLimit, FEED_CONSTANTS } from '../utils/feedUtils';
@@ -141,7 +142,16 @@ class FeedController {
     // the list timeline beside it filters on status), so it is the only one that
     // supplies an operated-account reader — see `HydrationOptions` for what
     // decides whether that reader is ever actually asked anything.
-    options: { includeQuoteCounts?: boolean; operatedAccountReader?: OperatedAccountReader } = {},
+    options: {
+      includeQuoteCounts?: boolean;
+      operatedAccountReader?: OperatedAccountReader;
+      // Threaded by a caller that already resolved these (e.g. `getFeedItemById`
+      // via `resolveViewerPrivacyAndGraph`) so hydration skips its own untreated
+      // fallback — two separate sequential Oxy round trips otherwise, on every
+      // call. See `HydrationOptions.viewerPrivacy`/`viewerGraph`.
+      viewerPrivacy?: { blockedIds: readonly string[]; restrictedIds: readonly string[] };
+      viewerGraph?: { followingIds: string[]; followerIds: string[] };
+    } = {},
   ): Promise<HydratedPost[]> {
     try {
       if (!posts || posts.length === 0) {
@@ -159,6 +169,8 @@ class FeedController {
         includeFullMetadata: false, // Skip some metadata fields for performance
         includeQuoteCounts: options.includeQuoteCounts === true,
         operatedAccountReader: options.operatedAccountReader,
+        viewerPrivacy: options.viewerPrivacy,
+        viewerGraph: options.viewerGraph,
       });
       
       // Ensure all posts have required fields
@@ -1167,7 +1179,13 @@ class FeedController {
         return res.status(400).json({ error: 'Post ID is required' });
       }
 
-      const post = await loadPostRecord(id);
+      const oxyClient = createScopedOxyClient(req);
+      // Independent of the post itself, so it runs concurrently with the load
+      // below rather than after it — see `resolveViewerPrivacyAndGraph`.
+      const [post, viewerContext] = await Promise.all([
+        getOrLoadPostRecord(id, () => loadPostRecord(id)),
+        resolveViewerPrivacyAndGraph(currentUserId, oxyClient),
+      ]);
       if (!post) {
         return res.status(404).json({ error: 'Post not found' });
       }
@@ -1177,10 +1195,12 @@ class FeedController {
       const [transformed] = await this.transformPostsWithProfiles(
         [post],
         currentUserId,
-        createScopedOxyClient(req),
+        oxyClient,
         {
           includeQuoteCounts: true,
           operatedAccountReader: createUserScopedOxyServices(req),
+          viewerPrivacy: viewerContext?.viewerPrivacy,
+          viewerGraph: viewerContext?.viewerGraph,
         },
       );
 

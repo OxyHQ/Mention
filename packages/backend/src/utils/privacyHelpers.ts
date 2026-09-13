@@ -1,4 +1,5 @@
 import { getServiceOxyClient } from './oxyHelpers';
+import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { logger } from './logger';
 
 /**
@@ -280,6 +281,60 @@ export function extractFollowersIds(followersRes: unknown): string[] {
     .filter((id): id is string => Boolean(id));
 }
 
+
+/**
+ * Resolve a viewer's block/restrict list AND follow graph in ONE round trip
+ * pair, for a caller that hydrates posts without a feed request's context to
+ * thread through.
+ *
+ * `PostHydrationService.buildViewerContext`'s untreaded fallback resolves
+ * these as two SEPARATE sequential round trips — blocked+restricted, THEN
+ * following+followers — because each half predates the other's threading
+ * support. Nothing in the second half depends on the first, so a caller that
+ * needs both (post detail, feed-item detail) can fetch all 4 here concurrently
+ * and thread the result in as `viewerPrivacy`/`viewerGraph`, paying for one
+ * round trip instead of two.
+ *
+ * Preserves `buildViewerContext`'s exact fail-open/fail-closed split: blocked/
+ * restricted PROPAGATE (`getBlockedUserIds`/`getRestrictedUserIds` throw and
+ * must not be swallowed — see `OxyPrivacyUnavailableError`), while a
+ * follow-graph fetch failure soft-fails to an empty list, exactly as today.
+ *
+ * @param viewerId - the authenticated viewer; `undefined` resolves to `undefined`
+ * @param client - per-request scoped Oxy client; falls back to the runtime
+ *   client for the follow-graph half only, matching `buildViewerContext`
+ */
+export async function resolveViewerPrivacyAndGraph(
+  viewerId: string | undefined,
+  client: OxyClient | undefined,
+): Promise<{
+  viewerPrivacy: { blockedIds: string[]; restrictedIds: string[] };
+  viewerGraph: { followingIds: string[]; followerIds: string[] };
+} | undefined> {
+  if (!viewerId) return undefined;
+
+  const oxyForFollows = client || getRuntimeOxyClient();
+  const [blockedIds, restrictedIds, followingRes, followersRes] = await Promise.all([
+    getBlockedUserIds(client),
+    getRestrictedUserIds(client),
+    oxyForFollows.getUserFollowing(viewerId).catch((error: unknown) => {
+      logger.warn('[OxyPrivacy] getUserFollowing failed:', error);
+      return [];
+    }),
+    oxyForFollows.getUserFollowers(viewerId).catch((error: unknown) => {
+      logger.warn('[OxyPrivacy] getUserFollowers failed:', error);
+      return [];
+    }),
+  ]);
+
+  return {
+    viewerPrivacy: { blockedIds, restrictedIds },
+    viewerGraph: {
+      followingIds: extractFollowingIds(followingRes),
+      followerIds: extractFollowersIds(followersRes),
+    },
+  };
+}
 
 /**
  * Fetch the viewer's following list once and expose it as a Set for batched

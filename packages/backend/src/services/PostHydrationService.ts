@@ -1323,6 +1323,29 @@ export class PostHydrationService {
       }
     }
 
+    // For You's candidate sources may hand back UNASSEMBLED shells — flat
+    // columns only, `authorship`/`mentions`/`content` media/variants left at
+    // their empty default (see `assembleShellRecords` in `postRepository.ts`)
+    // — to avoid paying for a 9-table join on every candidate ranking then
+    // discards. This is the one choke point every ranked/sliced feed's posts
+    // pass through before hydration, so it is where the DEFERRED join finally
+    // happens, for exactly the page that survived to here. Any other feed
+    // type, which never produces a shell, pays nothing extra: the scan below
+    // finds nothing and `unassembledIds` stays empty.
+    const unassembledIds = allRawPosts
+      .filter((post) => (post as { _unassembled?: boolean })._unassembled === true)
+      .map((post) => (post as { id: string }).id);
+    if (unassembledIds.length > 0) {
+      const assembled = await loadPostRecords(unassembledIds);
+      const assembledById = new Map(assembled.map((record) => [record.id, record]));
+      for (let i = 0; i < allRawPosts.length; i++) {
+        const shell = allRawPosts[i] as { id?: string; _unassembled?: boolean };
+        if (shell._unassembled !== true) continue;
+        const full = assembledById.get(shell.id ?? '');
+        if (full) allRawPosts[i] = full;
+      }
+    }
+
     // Hydrate all posts in one batch
     const hydratedPosts = await this.hydratePosts(allRawPosts, options);
 
