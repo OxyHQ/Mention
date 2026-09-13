@@ -1,3 +1,5 @@
+import { observeEdgeRequest } from '@oxy.so/telemetry/edge';
+
 /**
  * Mention web shell Worker — the origin the static Expo export is served from,
  * and the reason this is a Worker rather than a Pages project.
@@ -64,21 +66,23 @@ function denial(status, body) {
   });
 }
 
-export default {
-  async fetch(request, env) {
+const assetWorker = {
+  async fetch(request, env, ctx) {
     const configured = env.SHELL_ACCESS_KEY;
     if (!configured) {
       // Loud and distinct from 403: this is the deployment being wrong, not the
       // caller. `deploy-frontends.yml` asserts the secret before it promotes a
       // version, so reaching this in production means that assertion was removed.
-      return denial(503, "Shell access key is not configured on this Worker.");
+      return observeEdgeRequest({ service: 'mention', request, env, ctx, next: () => Promise.resolve(denial(503, 'Shell access key is not configured on this Worker.')) });
     }
 
     const presented = request.headers.get(SHELL_ACCESS_HEADER);
     if (!presented || !keyMatches(presented, configured)) {
-      return denial(403, "Not accessible directly. Use https://mention.earth.");
+      return observeEdgeRequest({ service: 'mention', request, env, ctx, next: () => Promise.resolve(denial(403, 'Not accessible directly. Use https://mention.earth.')) });
     }
 
-    return env.ASSETS.fetch(request);
+    return observeEdgeRequest({ service: 'mention', request, env, ctx, peer: { service: 'mention' }, next: () => env.ASSETS.fetch(request) });
   },
 };
+
+export default assetWorker;

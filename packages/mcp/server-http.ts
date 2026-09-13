@@ -15,6 +15,7 @@
  *   MCP_MAX_SESSIONS             — Max active HTTP/SSE sessions (default: 1000)
  *   MENTION_MCP_JWT_SECRET       — Shared HS256 secret (required)
  */
+import { startPlatformActivity } from './lib/platform-activity.js';
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -308,7 +309,10 @@ async function handleStreamableMcp(
 async function main() {
   const { createServer } = await import("node:http");
 
+  let listening = false;
+  const activity = startPlatformActivity(() => listening);
   const httpServer = createServer((req, res) => {
+    activity?.observeHttp(req, res, () => {});
     void (async () => {
     const url = new URL(req.url || "/", `http://localhost:${PORT}`);
     const pathname = url.pathname;
@@ -484,6 +488,7 @@ async function main() {
   });
 
   httpServer.listen(PORT, "0.0.0.0", () => {
+    listening = true;
     const address = httpServer.address();
     const listeningPort =
       typeof address === "object" && address !== null ? address.port : PORT;
@@ -497,6 +502,7 @@ async function main() {
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     if (shutdownStarted) return;
     shutdownStarted = true;
+    listening = false;
     logInfo("Shutdown started", {
       signal,
       activeSessions: sessions.size,
@@ -515,6 +521,7 @@ async function main() {
     await sessions.closeAll();
     httpServer.closeIdleConnections?.();
     await serverClosed;
+    await activity?.stop();
     clearTimeout(forceExit);
     logInfo("Shutdown complete");
     process.exit(0);

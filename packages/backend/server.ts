@@ -1,4 +1,7 @@
 import http from "http";
+import type { Socket } from 'socket.io';
+import { startPlatformActivity } from './src/runtime/platformActivity';
+import { getRuntimeHealthState } from './src/utils/runtimeHealth';
 import { hostname } from 'os';
 import { config, validateEnvironment } from './src/config';
 import { connectPostgres, getPostgresClient } from "./src/db/postgres";
@@ -34,7 +37,8 @@ import {
 // have finished, so the sanitizer and validated config are live in a handler.
 registerGlobalErrorHandlers();
 
-export const { app, oxy } = createRuntimeApp();
+const activity = startPlatformActivity(() => getRuntimeHealthState().phase === 'ready');
+export const { app, oxy } = createRuntimeApp(activity?.observeHttp);
 
 // --- Sockets ---
 const server = http.createServer(app);
@@ -56,6 +60,9 @@ const presence = new PresenceRegistry({
 presence.startHousekeeping();
 
 const namespaces = createSocketNamespaces(io, oxy);
+for (const namespace of [io.of('/'), ...Object.values(namespaces)]) {
+  namespace.on('connection', (socket: Socket) => activity?.observeSocket(socket));
+}
 registerSocketHandlers(io, namespaces, presence);
 const notificationsNamespace = namespaces.notificationsNamespace;
 
@@ -144,6 +151,7 @@ const bootServer = async () => {
 };
 
 registerGracefulShutdown({
+  stopActivity: () => activity?.stop() ?? Promise.resolve(),
   server,
   io,
   presence,
