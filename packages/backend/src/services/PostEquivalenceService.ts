@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, lte, ne, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { normalizeMultilineText } from '@oxy.so/core';
 import { getDb } from '../db/postgres';
@@ -214,6 +214,29 @@ function networkDomainSql(): SQL<string | null> {
     nullif(split_part(${federatedActors.networkAcct}, '@', 2), ''),
     ${federatedActors.domain}
   )`;
+}
+
+/**
+ * Administrative scan only; this is not evidence authorizing a collapse.
+ * Requires the same LEFT JOIN to federatedActors as loadCandidate. Keep every
+ * existing member/collapsed row even if its author, network or status changed.
+ */
+export function crosspostReconciliationPostSql(): SQL {
+  // Mirror canonicalFederationHost used by classifyPair (trim, lowercase,
+  // remove one www. prefix); networkAcct still takes precedence over domain.
+  const trimCharacters = ' \t\n\v\f\r\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
+  const domain = sql<string>`regexp_replace(lower(btrim(${networkDomainSql()}, ${trimCharacters})), '^www[.]', '')`;
+  return or(
+    and(
+      eq(posts.status, 'published'),
+      isNull(posts.boostOf),
+      ne(posts.oxyUserId, ''),
+      ne(posts.federationActorUri, ''),
+      inArray(domain, ['instagram.com', 'threads.net']),
+    ),
+    eq(posts.crosspostCollapsed, true),
+    sql`exists (select 1 from ${postEquivalenceMembers} where ${postEquivalenceMembers.postId} = ${posts.id})`,
+  )!;
 }
 
 /** Load everything the tiers read about one post, or `null` when it is gone. */

@@ -18,7 +18,7 @@ vi.mock('../../services/userSummaryCache', () => ({ invalidate: mocks.invalidate
 vi.mock('../../utils/redis', async importOriginal => ({ ...(await importOriginal<object>()), getRedisClient: () => ({ isReady: true, scanIterator: mocks.scan, del: mocks.del }) }));
 vi.mock('../../connectors/oxyIdentity', () => ({ lookupOxyIdentities: mocks.lookup, resolveOxyIdentity: mocks.resolve }));
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ getUsersByIds: mocks.users }) }));
-vi.mock('../../services/PostEquivalenceService', () => ({ detectCrosspostEquivalence: mocks.detect, reevaluateClusterForPost: mocks.reevaluate, reevaluateClusters: vi.fn() }));
+vi.mock('../../services/PostEquivalenceService', async importOriginal => ({ ...await importOriginal<typeof import('../../services/PostEquivalenceService')>(), detectCrosspostEquivalence: mocks.detect, reevaluateClusterForPost: mocks.reevaluate, reevaluateClusters: vi.fn() }));
 const source = 'https://kilogram.makeup/users/source';
 const otherSource = 'did:plc:other-source';
 beforeAll(connectPostgres);
@@ -52,6 +52,7 @@ it('remaps exactly one immutable source and its owner rows, idempotently', async
 it('dry-run projects counts but never resolves Oxy or writes Mention', async () => {
   const info = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
   await actor(source); await actor(otherSource); await post(source);
+  await getDb().update(federatedActors).set({ networkAcct: 'source@instagram.com' }).where(eq(federatedActors.uri, source));
   mocks.lookup.mockResolvedValue([{ identifier: source, userId: 'new-person', externalIdentities: [{ actorUri: source, canonicalAcct: 'source@instagram.com' }] }]);
   const report = await reconcileMetaIdentityAndCrossposts();
   expect(info.mock.calls.filter(([message]) => message === '[reconcileMetaIdentityAndCrossposts] progress')).toEqual([
@@ -92,7 +93,8 @@ it('scans native and AP actors in apply mode and records explicit refusals', asy
   mocks.resolve.mockImplementation(async ({ actorUri }: { actorUri: string }) => ({ externalIdentity: { userId: actorUri === source ? 'ig-user' : 'native-user', canonicalAcct: actorUri === source ? 'source@instagram.com' : 'other@bsky.social' } }));
   const result = await reconcileMetaIdentityAndCrossposts({ dryRun: false });
   expect(result.actorsExamined).toBe(2); expect(result.postsChanged).toBe(2);
-  expect(result.refused.no_current_content_proof).toBe(2);
+  expect(result.refused.no_current_content_proof).toBe(1);
+  expect(result.postsExamined).toBe(1);
 });
 it('retires both manual attestation creation and deletion without touching historical rows', async () => {
   const before = await getDb().select().from(federatedIdentityClaims);

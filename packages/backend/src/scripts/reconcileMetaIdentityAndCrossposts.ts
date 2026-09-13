@@ -1,11 +1,11 @@
 /** Source-by-source Oxy projection repair; Mention never creates identity evidence. */
-import { asc, gt, isNotNull, and } from 'drizzle-orm';
+import { asc, gt, eq, and } from 'drizzle-orm';
 import { connectPostgres, getDb } from '../db/postgres';
 import { federatedActors } from '../db/schema/federation';
 import { posts } from '../db/schema/posts';
 import { lookupOxyIdentities, resolveOxyIdentity } from '../connectors/oxyIdentity';
 import { createActorProjectionCacheBatch, reconcileActorIdentityProjection } from '../services/ActorIdentityProjectionService';
-import { detectCrosspostEquivalence, reevaluateClusterForPost } from '../services/PostEquivalenceService';
+import { crosspostReconciliationPostSql, detectCrosspostEquivalence, reevaluateClusterForPost } from '../services/PostEquivalenceService';
 import { assertAdminMutationAllowed } from './lib/adminScriptSafety';
 import { closeAdminScriptResources } from './lib/adminScriptLifecycle';
 import { logger } from '../utils/logger';
@@ -68,12 +68,16 @@ export async function reconcileMetaIdentityAndCrossposts(opts: { dryRun?: boolea
         postsChanged: report.postsChanged, authorshipConflicts: report.authorshipConflicts,
       });
     }
-    // Includes already-collapsed rows: a withdrawn/expired proof must reveal them.
+    // Only potential Meta candidates plus ALL existing members/collapsed rows:
+    // withdrawn proof and orphaned/non-Meta clusters must still be re-evaluated.
     // This pass is bounded and independent of how many posts any one actor owns.
     let postBatchesCompleted = 0;
     let postCursor: string | undefined;
     while (true) {
-      const rows = await getDb().select({ id: posts.id }).from(posts).where(and(isNotNull(posts.federationActorUri), postCursor ? gt(posts.id, postCursor) : undefined)).orderBy(asc(posts.id)).limit(100);
+      const rows = await getDb().select({ id: posts.id }).from(posts)
+        .leftJoin(federatedActors, eq(federatedActors.uri, posts.federationActorUri))
+        .where(and(crosspostReconciliationPostSql(), postCursor ? gt(posts.id, postCursor) : undefined))
+        .orderBy(asc(posts.id)).limit(100);
       if (!rows.length) break;
       for (const post of rows) {
         report.postsExamined++;
