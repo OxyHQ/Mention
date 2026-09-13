@@ -140,3 +140,40 @@ This is separate from Oxy's own pre/post inspection: proving absence in only one
 service does not establish a cold discovery across both. An inspection artifact
 cannot authorize reconciliation apply; apply requires `operation=reconcile`
 in the earlier successful preview report.
+
+### Recover a failed workflow report
+
+The workflow retains `reconciliation-run.json` as soon as ECS returns the task
+selector, and `reconciliation-diagnostics.json` when the task stops. Diagnostics
+contain the exit code and allowlisted failure categories, HTTP statuses and schema
+issue paths; they never contain arbitrary log messages or task environment values.
+A missing completion tally still fails the run and cannot authorize an apply.
+
+For an older failed run without an artifact, dispatch the same workflow with
+`operation=recover_report`, `dry_run=true`, its `recovery_run_id`, and the reviewed
+`expected_image_digest`. The dispatcher must match the original operator. Recovery
+verifies the prior main workflow, its unique launcher task selector, the stopped
+ECS task and its immutable image against the prior source tag. It only reads ECS,
+ECR and CloudWatch; it never starts or changes a task. Expired ECS task metadata
+or unavailable logs cause recovery to fail rather than guess at another task.
+Recovery evidence is diagnostic and cannot be used as a reconciliation preview.
+
+### Inspect a failed live resolve request
+
+Use `operation=inspect_request`, `dry_run=true`, the reviewed image digest and
+`request_inspection` JSON containing exactly `requestId`, `sourceSha`, `startTime`
+and `endTime`. Times use UTC seconds (`YYYY-MM-DDTHH:mm:ssZ`); the interval must
+be in the past and at most five minutes. The fixed route is `/federation/resolve`.
+The workflow verifies a healthy service, all current task images, and the source
+ECR tag before reading that interval from the current tasks' logs. Its session
+policy permits only the necessary ECS, ECR and CloudWatch reads.
+
+The generated `reconciliation-request.json` contains exact request-correlated
+events and separately marked uncorrelated global-handler failures from the same
+interval. The current global error handler does not record request IDs and the
+logger does not automatically add them; proximity alone cannot establish that an
+uncorrelated exception belongs to the requested call. Only timestamps, finite
+exception names/codes, status and repository-owned stack module names survive
+extraction. Raw messages, SQL, headers, bodies and stack text are never retained.
+A redeployment may replace the historical tasks; an empty result is a failed
+inspection, not evidence that the request succeeded.

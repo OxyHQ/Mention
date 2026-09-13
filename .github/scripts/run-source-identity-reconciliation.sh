@@ -70,6 +70,7 @@ aws ecs run-task --cluster "$CLUSTER" --task-definition "$live_task_def" --launc
 jq -e '.failures | length == 0' "$work_dir/run.json" >/dev/null
 task_arn=$(jq -er '.tasks[0].taskArn' "$work_dir/run.json")
 task_stopped=false
+jq -n --arg sha "$DEPLOY_SHA" --arg digest "$EXPECTED_IMAGE_DIGEST" --arg operation "$operation" --arg task "$task_arn" --arg definition "$live_task_def" --argjson dry "$DRY_RUN" '{sourceSha:$sha,imageDigest:$digest,operation:$operation,taskArn:$task,taskDefinition:$definition,dryRun:$dry}' > reconciliation-run.json
 echo "Reconciliation task: $task_arn"
 for ((elapsed=0; elapsed<3600; elapsed+=15)); do
   aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn" --output json > "$work_dir/result.json"
@@ -77,6 +78,7 @@ for ((elapsed=0; elapsed<3600; elapsed+=15)); do
   sleep 15
 done
 [[ "$task_stopped" == true ]] || { echo '::error::Reconciliation exceeded its wait bound'; exit 1; }
+bash "$(dirname "${BASH_SOURCE[0]}")/collect-source-identity-diagnostics.sh" "$work_dir/result.json" "$work_dir/taskdef.json" "$task_arn"
 exit_code=$(jq -er --arg name "$container" '.tasks[0].containers[] | select(.name == $name) | .exitCode' "$work_dir/result.json")
 log_group=$(jq -er '.containerDefinitions[0].logConfiguration.options["awslogs-group"]' "$work_dir/taskdef.json")
 log_prefix=$(jq -er '.containerDefinitions[0].logConfiguration.options["awslogs-stream-prefix"]' "$work_dir/taskdef.json")
