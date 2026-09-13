@@ -3408,13 +3408,7 @@
 
     "@oxy.so/contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
-    "@oxy.so/core/@oxy.so/contracts": ["@oxy.so/contracts@1.0.1", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-AZGVKoRgzYidi97mSFXqdgbym840pXCxQM3/rn6MfBKd4Z0nsEAIU+vXm7mkEzerO2Ff7LKH/SJODvqCFT0CxQ=="],
-
     "@oxy.so/core/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
-
-    "@oxy.so/mcp/@oxy.so/contracts": ["@oxy.so/contracts@1.0.1", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-AZGVKoRgzYidi97mSFXqdgbym840pXCxQM3/rn6MfBKd4Z0nsEAIU+vXm7mkEzerO2Ff7LKH/SJODvqCFT0CxQ=="],
-
-    "@oxy.so/protocol/@oxy.so/contracts": ["@oxy.so/contracts@1.0.1", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-AZGVKoRgzYidi97mSFXqdgbym840pXCxQM3/rn6MfBKd4Z0nsEAIU+vXm7mkEzerO2Ff7LKH/SJODvqCFT0CxQ=="],
 
     "@oxy.so/protocol/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
@@ -3983,8 +3977,6 @@
     "@livekit/react-native-webrtc/debug/ms": ["ms@2.1.2", "", {}, "sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w=="],
 
     "@modelcontextprotocol/sdk/ajv/json-schema-traverse": ["json-schema-traverse@1.0.0", "", {}, "sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug=="],
-
-    "@oxy.so/mcp/@oxy.so/contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@oxy.so/services/@oxy.so/contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
