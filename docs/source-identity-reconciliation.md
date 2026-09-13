@@ -218,3 +218,25 @@ summaries are deduplicated; conflicting or malformed summaries make recovery
 incomplete. Refusals are reduced to a numeric total, without arbitrary reason
 keys. These diagnostic fields never replace the successful-preview artifact or
 authorize an apply from a failed workflow.
+
+### Cancel a legacy read-only preview
+
+Use `stop_preview` only after `recover_report` shows an unfinished standalone
+preview. Supply its original `recovery_run_id`, reviewed image digest,
+`dry_run: true`, and an empty `confirm_write`. The original workflow and retained
+artifact must identify the same operator, source, image and exact task, with
+`operation: reconcile` and `dryRun: true`. Tasks with an apply command, mutation
+confirmation, unexpected overrides, or a task definition still used by the live
+service are refused.
+
+The workflow uploads sanitized evidence before obtaining a second AWS session
+whose `ecs:StopTask` permission names only that authenticated task ARN. It repeats
+validation before cancellation and polls for `STOPPED` for at most 120 seconds.
+No application summary is required for an intentionally aborted preview.
+`reconciliation-run.json` marks `previewCancelled` only after requesting cancellation and observing `STOPPED`,
+and always records `applyEligible: false`; the diagnostics describe the snapshot
+before stopping. An already stopped task succeeds without claiming cancellation.
+The original task is marked `previewReadOnly: true`; the cancellation operation
+is marked `readOnly: false` because it changes ECS task state. A failed stop or polling timeout retains the evidence and fails
+the workflow. Cancellation never produces a reconciliation report and cannot
+serve as an apply preview.

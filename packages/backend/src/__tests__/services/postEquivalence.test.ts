@@ -12,6 +12,7 @@ import type { PostRecordInput } from '../../db/posts/postRecord';
 import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
 import { recheckCrosspostClusters } from '../../services/CrosspostReconciliationJob';
 import { findClusterByPostId } from '../../db/posts/postEquivalenceRepository';
+import * as equivalenceRepository from '../../db/posts/postEquivalenceRepository';
 import {
   CROSSPOST_WINDOW_MS,
   classifyStoredPair,
@@ -183,6 +184,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   for (const id of created.splice(0).reverse()) {
     await deletePostRecord(id).catch(() => undefined);
   }
@@ -774,5 +776,68 @@ describe('sharedMediaIdentifier', () => {
     ['a lookalike CDN hostname', 'https://fbcdn.net.example.com/489123456789012_n.jpg'],
   ])('refuses %s, which names an asset on a thousand sites', (_label, url) => {
     expect(sharedMediaIdentifier(url)).toBeUndefined();
+  });
+});
+
+
+describe('strict administrative error handling', () => {
+  async function pair() {
+    const instagram = await createVariant({ actorUri: IG_ACTOR, text: 'same source post', createdAt: NOW, media: MEDIA });
+    const threads = await createVariant({ actorUri: THREADS_ACTOR, text: 'same source post', createdAt: NOW, media: MEDIA_ON_THREADS });
+    return { instagram, threads };
+  }
+
+  it('rejects unavailable Oxy authority before detection writes; live detection remains fail-open', async () => {
+    const { threads } = await pair();
+    const before = await db.select().from(posts).where(inArray(posts.id, created));
+    mocks.lookupOxyIdentities.mockRejectedValue(new Error('authority unavailable'));
+    await expect(detectCrosspostEquivalence({ postId: threads }, { failOnError: true })).rejects.toThrow('authority unavailable');
+    expect(await findClusterByPostId(threads)).toBeNull();
+    expect(await db.select().from(posts).where(inArray(posts.id, created))).toEqual(before);
+    await expect(detectCrosspostEquivalence({ postId: threads })).resolves.toMatchObject({ outcome: 'refused', reason: 'no-sufficient-evidence' });
+  });
+
+  it('rejects unavailable authority before splitting an existing cluster; live reevaluation still reveals it', async () => {
+    const { threads } = await pair();
+    expect((await detectCrosspostEquivalence({ postId: threads })).outcome).toBe('clustered');
+    const before = await findClusterByPostId(threads);
+    const beforePosts = await db.select().from(posts).where(inArray(posts.id, created));
+    mocks.lookupOxyIdentities.mockRejectedValue(new Error('authority unavailable'));
+    await expect(reevaluateClusterForPost(threads, { failOnError: true })).rejects.toThrow('authority unavailable');
+    expect(await findClusterByPostId(threads)).toEqual(before);
+    expect(await db.select().from(posts).where(inArray(posts.id, created))).toEqual(beforePosts);
+    await expect(reevaluateClusterForPost(threads)).resolves.toBeUndefined();
+    expect(await findClusterByPostId(threads)).toBeNull();
+  });
+
+  it('surfaces failed candidate/cluster reads only for strict callers', async () => {
+    const { threads } = await pair();
+    const fault = () => { throw new Error('database read unavailable'); };
+    vi.spyOn(db, 'select').mockImplementationOnce(fault);
+    await expect(detectCrosspostEquivalence({ postId: threads }, { failOnError: true })).rejects.toThrow('database read unavailable');
+    vi.spyOn(db, 'select').mockImplementationOnce(fault);
+    await expect(detectCrosspostEquivalence({ postId: threads })).resolves.toMatchObject({ outcome: 'not-applicable', reason: 'detection-failed' });
+    vi.spyOn(equivalenceRepository, 'findClusterByPostId').mockRejectedValue(new Error('cluster read unavailable'));
+    await expect(reevaluateClusterForPost(threads, { failOnError: true })).rejects.toThrow('cluster read unavailable');
+    await expect(reevaluateClusterForPost(threads)).resolves.toBeUndefined();
+  });
+
+  it('surfaces cluster creation and reevaluation write failures only for strict callers', async () => {
+    const { threads } = await pair();
+    const create = vi.spyOn(equivalenceRepository, 'createCluster').mockRejectedValue(new Error('cluster write unavailable'));
+    await expect(detectCrosspostEquivalence({ postId: threads }, { failOnError: true })).rejects.toThrow('cluster write unavailable');
+    await expect(detectCrosspostEquivalence({ postId: threads })).resolves.toMatchObject({ reason: 'detection-failed' });
+    expect(await findClusterByPostId(threads)).toBeNull();
+    create.mockRestore();
+    expect((await detectCrosspostEquivalence({ postId: threads })).outcome).toBe('clustered');
+    vi.spyOn(equivalenceRepository, 'setPreferredMember').mockRejectedValue(new Error('reevaluation write unavailable'));
+    await expect(reevaluateClusterForPost(threads, { failOnError: true })).rejects.toThrow('reevaluation write unavailable');
+    await expect(reevaluateClusterForPost(threads)).resolves.toBeUndefined();
+  });
+
+  it('keeps legitimate negative decisions available in strict mode', async () => {
+    const instagram = await createVariant({ actorUri: IG_ACTOR, text: 'no counterpart', createdAt: NOW });
+    await expect(detectCrosspostEquivalence({ postId: instagram }, { failOnError: true })).resolves.toMatchObject({ outcome: 'refused', reason: 'no-sibling-in-window' });
+    await expect(detectCrosspostEquivalence({ postId: 'missing-post' }, { failOnError: true })).resolves.toMatchObject({ outcome: 'not-applicable', reason: 'post-not-eligible' });
   });
 });
