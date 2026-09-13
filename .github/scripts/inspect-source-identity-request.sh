@@ -40,7 +40,7 @@ for task in "${tasks[@]}"; do
     jq -c --arg request "$request" --slurpfile modules "$scratch/modules.json" '
       .events[] | .timestamp as $timestamp | .message | fromjson? | objects | select(.requestId == $request or .msg == "Unhandled error in request handler") |
       {timestamp:$timestamp,requestCorrelated:(.requestId == $request),route:(if .route == "/federation/resolve" or .routeTemplate == "/federation/resolve" then "/federation/resolve" elif .route == "/unmatched" or .routeTemplate == "/unmatched" then "/unmatched" else "unrecorded" end),
-       category:(if ([.error,.err] | tostring | test("WRONGTYPE|NOSCRIPT|READONLY|OOM command|not an integer|Error running script|ERR.*script";"i")) then "redis_operation"
+       category:(if ([.error,.err] | tostring | test("WRONGTYPE|NOSCRIPT|READONLY|(^|[^A-Z])OOM([^A-Z]|$)|not an integer|Error running script|ERR.*script";"i")) then "redis_operation"
          elif ([.error,.err] | tostring | test("Cannot read propert|Cannot destructure|undefined is not|null is not";"i")) then "invalid_object_access"
          elif ([.error,.err] | tostring | test("ZodError|invalid_type|invalid_union";"i")) then "response_validation"
          elif ([.error,.err] | tostring | test("postgres|relation .* does not exist|SQL|database";"i")) then "database"
@@ -52,7 +52,7 @@ for task in "${tasks[@]}"; do
          (if $detail | test("WRONGTYPE") then "WRONGTYPE" else empty end),
          (if $detail | test("NOSCRIPT") then "NOSCRIPT" else empty end),
          (if $detail | test("READONLY") then "READONLY" else empty end),
-         (if $detail | test("OOM command") then "OOM" else empty end),
+         (if $detail | test("(^|[^A-Z])OOM([^A-Z]|$)") then "OOM" else empty end),
          (if $detail | test("not an integer";"i") then "NONINTEGER" else empty end),
          (if $detail | test("Error running script|ERR.*script";"i") then "SCRIPT_FAILURE" else empty end)]),
        status:([.. | objects | (.statusCode // .status // empty) | numbers | select(. >= 400 and . <= 599)] | unique),
