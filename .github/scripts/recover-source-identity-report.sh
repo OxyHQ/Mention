@@ -15,12 +15,14 @@ mapfile -t tasks < <(sed -nE 's/^reconcile[[:space:]]+Reconcile with the exact d
 task=${tasks[0]}
 aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task" --output json > "$scratch/result.json"
 jq -e --arg task "$task" '.failures | length == 0' "$scratch/result.json" >/dev/null
-jq -e --arg task "$task" '.tasks | length == 1 and .[0].taskArn == $task and .[0].lastStatus == "STOPPED" and .[0].startedBy == "gh-source-identity-reconcile"' "$scratch/result.json" >/dev/null
+jq -e --arg task "$task" '.tasks | length == 1 and .[0].taskArn == $task and (.[0].lastStatus | IN("PENDING", "RUNNING", "STOPPED")) and .[0].startedBy == "gh-source-identity-reconcile"' "$scratch/result.json" >/dev/null
+task_state=$(jq -er '.tasks[0].lastStatus' "$scratch/result.json")
 definition=$(jq -er '.tasks[0].taskDefinitionArn' "$scratch/result.json")
 aws ecs describe-task-definition --task-definition "$definition" --query taskDefinition --output json > "$scratch/definition.json"
 jq -e --arg image "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mention@$EXPECTED_IMAGE_DIGEST" '.containerDefinitions | length == 1 and .[0].image == $image' "$scratch/definition.json" >/dev/null
 aws ecr batch-get-image --repository-name oxy/mention --image-ids "imageTag=$source_sha" --output json > "$scratch/image.json"
 jq -e --arg digest "$EXPECTED_IMAGE_DIGEST" '(.failures | length == 0) and (.images | length == 1 and .[0].imageId.imageDigest == $digest)' "$scratch/image.json" >/dev/null
-jq -n --arg sha "$source_sha" --arg digest "$EXPECTED_IMAGE_DIGEST" --arg task "$task" --arg definition "$definition" --arg run "$RECOVERY_RUN_ID" '{operation:"recover_report",sourceSha:$sha,imageDigest:$digest,taskArn:$task,taskDefinition:$definition,recoveredRunId:$run,readOnly:true}' > reconciliation-run.json
+jq -n --arg sha "$source_sha" --arg digest "$EXPECTED_IMAGE_DIGEST" --arg task "$task" --arg definition "$definition" --arg run "$RECOVERY_RUN_ID" --arg state "$task_state" '{taskStatus:$state,operation:"recover_report",sourceSha:$sha,imageDigest:$digest,taskArn:$task,taskDefinition:$definition,recoveredRunId:$run,readOnly:true}' > reconciliation-run.json
 bash "$(dirname "${BASH_SOURCE[0]}")/collect-source-identity-diagnostics.sh" "$scratch/result.json" "$scratch/definition.json" "$task"
-jq -e '.logsComplete == true and .terminalEventObserved == true' reconciliation-diagnostics.json >/dev/null
+# A live-task snapshot remains useful evidence, but never a completed recovery.
+jq -e '.taskStopped == true and .logsComplete == true and .terminalEventObserved == true' reconciliation-diagnostics.json >/dev/null

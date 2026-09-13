@@ -20,7 +20,7 @@ aws() {
   local command="$1 $2"
   echo "$command" >> "$TEST_ROOT/calls"
   case "$command" in
-    'ecs describe-tasks') jq -n --arg task "$FIXTURE_TASK" --arg started "$(if [[ "$TEST_CASE" == wrong-task ]]; then echo unrelated; else echo gh-source-identity-reconcile; fi)" '{failures:[],tasks:[{taskArn:$task,startedBy:$started,lastStatus:"STOPPED",taskDefinitionArn:"fixture:1",containers:[{name:"backend",exitCode:1}]}]}' ;;
+    'ecs describe-tasks') jq -n --arg task "$FIXTURE_TASK" --arg state "$(if [[ "$TEST_CASE" == running-task ]]; then echo RUNNING; elif [[ "$TEST_CASE" == pending-task ]]; then echo PENDING; else echo STOPPED; fi)" --arg started "$(if [[ "$TEST_CASE" == wrong-task ]]; then echo unrelated; else echo gh-source-identity-reconcile; fi)" '{failures:[],tasks:[{taskArn:$task,startedBy:$started,lastStatus:$state,taskDefinitionArn:"fixture:1",containers:[{name:"backend",exitCode:(if $state == "STOPPED" then 1 else null end)}]}]}' ;;
     'ecs describe-task-definition') jq -n --arg image "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mention@$EXPECTED_IMAGE_DIGEST" '{containerDefinitions:[{name:"backend",image:$image,logConfiguration:{options:{"awslogs-group":"group","awslogs-stream-prefix":"ecs"}}}]}' ;;
     'ecr batch-get-image') jq -n --arg digest "$(if [[ "$TEST_CASE" == wrong-image ]]; then echo sha256:wrong; else echo "$EXPECTED_IMAGE_DIGEST"; fi)" '{failures:[],images:[{imageId:{imageDigest:$digest}}]}' ;;
     'logs get-log-events')
@@ -45,7 +45,7 @@ aws() {
 }
 sleep() { :; }
 export -f gh aws sleep
-for TEST_CASE in success mixed-errors delayed-diagnostics wrong-operator ambiguous-task wrong-task wrong-image log-failure no-terminal; do
+for TEST_CASE in success mixed-errors delayed-diagnostics wrong-operator ambiguous-task wrong-task wrong-image log-failure no-terminal running-task pending-task; do
   export TEST_CASE
   mkdir "$scratch/$TEST_CASE"
   : > "$scratch/calls"
@@ -55,6 +55,14 @@ for TEST_CASE in success mixed-errors delayed-diagnostics wrong-operator ambiguo
     [[ "$status" == 0 ]] || { cat "$scratch/$TEST_CASE/output"; exit 1; }
     jq -e '.exitCode == 1 and .logsComplete and ([.failureCategories[] | select(.category == "response_validation" and .validationIssues == [{code:"invalid_type",path:["identities",0,"userId"]}])] | length == 1)' "$scratch/$TEST_CASE/reconciliation-diagnostics.json" >/dev/null
   else [[ "$status" != 0 ]] || { echo "Accepted $TEST_CASE"; exit 1; }; fi
+  if [[ "$TEST_CASE" == running-task || "$TEST_CASE" == pending-task ]]; then
+    jq -e --arg state "$(if [[ "$TEST_CASE" == running-task ]]; then echo RUNNING; else echo PENDING; fi)" '.taskStatus == $state and .taskStopped == false and .recoveryComplete == false and .exitCode == null and .terminalEventObserved == true' "$scratch/$TEST_CASE/reconciliation-diagnostics.json" >/dev/null
+    [[ -s "$scratch/$TEST_CASE/reconciliation-run.json" ]]
+  fi
+  if [[ "$TEST_CASE" == log-failure ]]; then
+    jq -e '.taskStatus == "STOPPED" and .logsComplete == false and .recoveryComplete == false' "$scratch/$TEST_CASE/reconciliation-diagnostics.json" >/dev/null
+    [[ -s "$scratch/$TEST_CASE/reconciliation-run.json" ]]
+  fi
   if [[ "$TEST_CASE" == no-terminal ]]; then
     jq -e '.logsComplete == true and .terminalEventObserved == false and .failureCategories == []' "$scratch/$TEST_CASE/reconciliation-diagnostics.json" >/dev/null
     [[ -s "$scratch/$TEST_CASE/reconciliation-run.json" ]]
