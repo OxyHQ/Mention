@@ -240,3 +240,11 @@ The original task is marked `previewReadOnly: true`; the cancellation operation
 is marked `readOnly: false` because it changes ECS task state. A failed stop or polling timeout retains the evidence and fails
 the workflow. Cancellation never produces a reconciliation report and cannot
 serve as an apply preview.
+
+Administrative projection repair deduplicates user-summary invalidations within
+each batch of at most 100 actors and flushes them even if part of a batch fails.
+Anonymous-feed invalidation runs once when the operation exits, including after
+partial writes followed by failure. During the run an old anonymous snapshot can
+remain visible until its existing 45-second TTL expires. Live projection calls
+continue to invalidate immediately. Network-account-only corrections do not
+rewrite post or ownership rows that already have the authoritative Oxy user.

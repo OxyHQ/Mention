@@ -14,6 +14,8 @@ export interface ActorIdentityProjectionInput {
   oxyUserId: string;
   networkAcct?: string;
   dryRun?: boolean;
+  /** Administrative batches own flushing; live callers invalidate immediately. */
+  cacheInvalidation?: ActorProjectionCacheInvalidation;
 }
 export interface ActorIdentityProjectionResult {
   actorChanged: boolean;
@@ -24,6 +26,43 @@ export interface ActorIdentityProjectionResult {
   previousUserIds: string[];
   oxyUserId: string;
   refusal?: 'actor_not_cached';
+}
+
+export interface ActorProjectionCacheInvalidation {
+  record(userIds: readonly string[]): void;
+}
+
+async function invalidateAnonymousFeeds(): Promise<void> {
+  const redis = getRedisClient();
+  if (redis.isReady) {
+    try {
+      for await (const keys of redis.scanIterator({ MATCH: 'anonfeed:*', COUNT: 100 })) if (keys.length) await redis.del(keys);
+    } catch (error) { logger.warn('[ActorIdentityProjection] feed cache invalidation failed', { error }); }
+  }
+}
+
+/** IDs live for one admin batch; anonymous snapshots already expire after 45s. */
+export function createActorProjectionCacheBatch() {
+  const pending = new Set<string>();
+  let feedsChanged = false;
+  return {
+    record(userIds: readonly string[]) {
+      for (const id of userIds) pending.add(id);
+      feedsChanged = true;
+    },
+    async flushUsers() {
+      if (!pending.size) return;
+      await invalidateUsers([...pending]);
+      pending.clear();
+    },
+    async finish() {
+      try { await this.flushUsers(); }
+      finally {
+        if (feedsChanged) await invalidateAnonymousFeeds();
+        feedsChanged = false;
+      }
+    },
+  };
 }
 
 /**
@@ -77,38 +116,47 @@ export async function reconcileActorIdentityProjection(input: ActorIdentityProje
         select affected.cluster_id from post_equivalence_members affected join posts source on source.id = affected.post_id where source.federation_actor_uri = ${input.actorUri}) returning 1
     ) select count(*)::int as count from removed`);
     result.clustersDissolved = clusters.count;
-    await tx.execute(sql`with eligible as (
+    if (result.postsChanged) await tx.execute(sql`with eligible as materialized (
       select p.id from posts p where p.federation_actor_uri = ${input.actorUri}
+      and (p.oxy_user_id is distinct from ${input.oxyUserId}
+        or exists (select 1 from post_authorships owner where owner.post_id = p.id and owner.role = 'owner' and owner.oxy_user_id <> ${input.oxyUserId}))
       and exists (select 1 from post_authorships owner where owner.post_id = p.id and owner.role = 'owner')
       and not exists (select 1 from post_authorships other where other.post_id = p.id and other.role <> 'owner' and other.oxy_user_id = ${input.oxyUserId})
     ), changed_authors as (
-      update post_authorships set oxy_user_id = ${input.oxyUserId} where role = 'owner' and post_id in (select id from eligible) returning post_id
-    ) update posts set oxy_user_id = ${input.oxyUserId} where id in (select post_id from changed_authors)`);
+      update post_authorships set oxy_user_id = ${input.oxyUserId} where role = 'owner' and oxy_user_id is distinct from ${input.oxyUserId} and post_id in (select id from eligible) returning post_id
+    ) update posts set oxy_user_id = ${input.oxyUserId} where id in (select id from eligible) and oxy_user_id is distinct from ${input.oxyUserId}`);
     await tx.update(federatedActors).set({ oxyUserId: input.oxyUserId, ...(input.networkAcct !== undefined ? { networkAcct: input.networkAcct } : {}) }).where(eq(federatedActors.id, actor.id));
     return result;
   });
-  let clustersReevaluated = 0;
-  if (!input.dryRun && !result.refusal) {
-    const { reevaluateClusters } = await import('./PostEquivalenceService.js');
-    let cursor: string | undefined;
-    while (true) {
-      const clusters = await getDb().selectDistinct({ id: postEquivalenceMembers.clusterId }).from(postEquivalenceMembers)
-        .innerJoin(posts, eq(posts.id, postEquivalenceMembers.postId))
-        .where(and(eq(posts.federationActorUri, input.actorUri), cursor ? gt(postEquivalenceMembers.clusterId, cursor) : undefined))
-        .orderBy(asc(postEquivalenceMembers.clusterId)).limit(100);
-      if (!clusters.length) break;
-      await reevaluateClusters(clusters.map(row => row.id));
-      clustersReevaluated += clusters.length;
-      cursor = clusters[clusters.length - 1].id;
+  const changedIds = [...result.previousUserIds, input.oxyUserId];
+  let invalidationRecorded = false;
+  const recordInvalidation = () => {
+    if (invalidationRecorded || input.dryRun) return;
+    input.cacheInvalidation?.record(changedIds);
+    invalidationRecorded = true;
+  };
+  // Record committed writes before re-evaluation can fail. The administrative
+  // caller will flush its batch/finally even if this call cannot return a result.
+  if (result.actorChanged || result.postsChanged) recordInvalidation();
+  try {
+    if (!input.dryRun && !result.refusal) {
+      const { reevaluateClusters } = await import('./PostEquivalenceService.js');
+      let cursor: string | undefined;
+      while (true) {
+        const clusters = await getDb().selectDistinct({ id: postEquivalenceMembers.clusterId }).from(postEquivalenceMembers)
+          .innerJoin(posts, eq(posts.id, postEquivalenceMembers.postId))
+          .where(and(eq(posts.federationActorUri, input.actorUri), cursor ? gt(postEquivalenceMembers.clusterId, cursor) : undefined))
+          .orderBy(asc(postEquivalenceMembers.clusterId)).limit(100);
+        if (!clusters.length) break;
+        recordInvalidation();
+        await reevaluateClusters(clusters.map(row => row.id));
+        cursor = clusters[clusters.length - 1].id;
+      }
     }
-  }
-  if (!input.dryRun && (result.actorChanged || result.postsChanged || clustersReevaluated)) {
-    await invalidateUsers([...result.previousUserIds, input.oxyUserId]);
-    const redis = getRedisClient();
-    if (redis.isReady) {
-      try {
-        for await (const keys of redis.scanIterator({ MATCH: 'anonfeed:*', COUNT: 100 })) if (keys.length) await redis.del(keys);
-      } catch (error) { logger.warn('[ActorIdentityProjection] feed cache invalidation failed', { error }); }
+  } finally {
+    if (invalidationRecorded && !input.cacheInvalidation) {
+      await invalidateUsers(changedIds);
+      await invalidateAnonymousFeeds();
     }
   }
   return result;

@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { connectPostgres, closePostgres, getDb } from '../../db/postgres';
 import { federatedActors, federatedIdentityClaims } from '../../db/schema/federation';
@@ -9,19 +9,21 @@ import { mutes } from '../../db/schema/engagement';
 import { insertPostRecord } from '../../db/posts/postRepository';
 import { upsertActor, setActorOxyUserId, deleteActorsByUris } from '../../db/federation/actorRepository';
 import { createCluster } from '../../db/posts/postEquivalenceRepository';
-import { reconcileActorIdentityProjection, unmuteIdentityProjection } from '../../services/ActorIdentityProjectionService';
+import { createActorProjectionCacheBatch, reconcileActorIdentityProjection, unmuteIdentityProjection } from '../../services/ActorIdentityProjectionService';
 import { reconcileMetaIdentityAndCrossposts } from '../../scripts/reconcileMetaIdentityAndCrossposts';
 import { logger } from '../../utils/logger';
 import { recordAttestedIdentityLink } from '../../scripts/recordAttestedIdentityLink';
-const mocks = vi.hoisted(() => ({ lookup: vi.fn(), resolve: vi.fn(), users: vi.fn(), detect: vi.fn(), reevaluate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ lookup: vi.fn(), resolve: vi.fn(), users: vi.fn(), detect: vi.fn(), reevaluate: vi.fn(), invalidate: vi.fn(), scan: vi.fn(), del: vi.fn() }));
+vi.mock('../../services/userSummaryCache', () => ({ invalidate: mocks.invalidate }));
+vi.mock('../../utils/redis', async importOriginal => ({ ...(await importOriginal<object>()), getRedisClient: () => ({ isReady: true, scanIterator: mocks.scan, del: mocks.del }) }));
 vi.mock('../../connectors/oxyIdentity', () => ({ lookupOxyIdentities: mocks.lookup, resolveOxyIdentity: mocks.resolve }));
 vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ getUsersByIds: mocks.users }) }));
-vi.mock('../../services/PostEquivalenceService', () => ({ detectCrosspostEquivalence: mocks.detect, reevaluateClusterForPost: mocks.reevaluate, reevaluateClusters: vi.fn() }));
+vi.mock('../../services/PostEquivalenceService', async importOriginal => ({ ...await importOriginal<typeof import('../../services/PostEquivalenceService')>(), detectCrosspostEquivalence: mocks.detect, reevaluateClusterForPost: mocks.reevaluate, reevaluateClusters: vi.fn() }));
 const source = 'https://kilogram.makeup/users/source';
 const otherSource = 'did:plc:other-source';
 beforeAll(connectPostgres);
 afterAll(closePostgres);
-beforeEach(() => { vi.clearAllMocks(); mocks.lookup.mockResolvedValue([]); mocks.reevaluate.mockReset(); mocks.detect.mockResolvedValue({ outcome: 'refused', reason: 'no_current_content_proof' }); });
+beforeEach(() => { vi.clearAllMocks(); mocks.invalidate.mockResolvedValue(undefined); mocks.scan.mockImplementation(async function* () { yield ['anonfeed:fixture']; }); mocks.del.mockResolvedValue(1); mocks.lookup.mockResolvedValue([]); mocks.reevaluate.mockReset(); mocks.detect.mockResolvedValue({ outcome: 'refused', reason: 'no_current_content_proof' }); });
 afterEach(async () => {
   vi.restoreAllMocks();
   await getDb().delete(postEquivalenceClusters);
@@ -50,6 +52,7 @@ it('remaps exactly one immutable source and its owner rows, idempotently', async
 it('dry-run projects counts but never resolves Oxy or writes Mention', async () => {
   const info = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
   await actor(source); await actor(otherSource); await post(source);
+  await getDb().update(federatedActors).set({ networkAcct: 'source@instagram.com' }).where(eq(federatedActors.uri, source));
   mocks.lookup.mockResolvedValue([{ identifier: source, userId: 'new-person', externalIdentities: [{ actorUri: source, canonicalAcct: 'source@instagram.com' }] }]);
   const report = await reconcileMetaIdentityAndCrossposts();
   expect(info.mock.calls.filter(([message]) => message === '[reconcileMetaIdentityAndCrossposts] progress')).toEqual([
@@ -90,7 +93,8 @@ it('scans native and AP actors in apply mode and records explicit refusals', asy
   mocks.resolve.mockImplementation(async ({ actorUri }: { actorUri: string }) => ({ externalIdentity: { userId: actorUri === source ? 'ig-user' : 'native-user', canonicalAcct: actorUri === source ? 'source@instagram.com' : 'other@bsky.social' } }));
   const result = await reconcileMetaIdentityAndCrossposts({ dryRun: false });
   expect(result.actorsExamined).toBe(2); expect(result.postsChanged).toBe(2);
-  expect(result.refused.no_current_content_proof).toBe(2);
+  expect(result.refused.no_current_content_proof).toBe(1);
+  expect(result.postsExamined).toBe(1);
 });
 it('retires both manual attestation creation and deletion without touching historical rows', async () => {
   const before = await getDb().select().from(federatedIdentityClaims);
@@ -158,4 +162,69 @@ it.each(['detect', 'reevaluate'] as const)('administrative apply rejects %s fail
   if (phase === 'detect') expect(mocks.detect).toHaveBeenCalledWith({ postId: stored.id }, { failOnError: true });
   else expect(mocks.detect).not.toHaveBeenCalled();
   expect(info.mock.calls.some(([message]) => message === '[reconcileMetaIdentityAndCrossposts] complete')).toBe(false);
+});
+
+async function rowVersions(id: string) {
+  const [row] = await getDb().execute<{ postVersion: string; ownerVersion: string }>(sql`
+    select p.xmin::text as "postVersion", a.xmin::text as "ownerVersion"
+    from posts p join post_authorships a on a.post_id=p.id and a.role='owner' where p.id=${id}
+  `);
+  return row;
+}
+
+it('changes network metadata without rewriting already correct post or owner rows', async () => {
+  await actor(source); const stored = await post(source);
+  const before = await rowVersions(stored.id);
+  const result = await reconcileActorIdentityProjection({ actorUri: source, oxyUserId: 'old-person', networkAcct: 'source@instagram.com' });
+  expect(result.actorChanged).toBe(true); expect(result.postsChanged).toBe(0);
+  expect(await rowVersions(stored.id)).toEqual(before);
+  expect(mocks.invalidate).toHaveBeenCalledTimes(1);
+  expect(mocks.scan).toHaveBeenCalledTimes(1); // live default remains immediate
+});
+
+it('repairs each divergent ownership row without rewriting its correct counterpart', async () => {
+  await actor(source, 'current');
+  const wrongOwner = await post(source, 'current');
+  const wrongPost = await post(source, 'current');
+  await getDb().update(postAuthorships).set({ oxyUserId: 'old' }).where(eq(postAuthorships.postId, wrongOwner.id));
+  await getDb().update(posts).set({ oxyUserId: 'old' }).where(eq(posts.id, wrongPost.id));
+  const ownerBefore = await rowVersions(wrongOwner.id); const postBefore = await rowVersions(wrongPost.id);
+  expect((await reconcileActorIdentityProjection({ actorUri: source, oxyUserId: 'current' })).postsChanged).toBe(2);
+  const ownerAfter = await rowVersions(wrongOwner.id); const postAfter = await rowVersions(wrongPost.id);
+  expect(ownerAfter.postVersion).toBe(ownerBefore.postVersion);
+  expect(ownerAfter.ownerVersion).not.toBe(ownerBefore.ownerVersion);
+  expect(postAfter.ownerVersion).toBe(postBefore.ownerVersion);
+  expect(postAfter.postVersion).not.toBe(postBefore.postVersion);
+  expect((await getDb().select().from(postAuthorships)).every(row => row.oxyUserId === 'current')).toBe(true);
+  expect((await getDb().select().from(posts)).every(row => row.oxyUserId === 'current')).toBe(true);
+});
+
+it.each([false, true])('coalesces admin invalidations across batches, including lookup failure=%s', async failSecondBatch => {
+  await getDb().insert(federatedActors).values(Array.from({ length: 101 }, (_, i) => ({ uri: `https://example.social/users/batch-${i}`, username: `batch-${i}`, domain: "example.social", acct: `batch-${i}@example.social`, oxyUserId: "old-person" })));
+  mocks.lookup.mockImplementation(async (uris: string[]) => {
+    if (failSecondBatch && mocks.lookup.mock.calls.length === 2) throw new Error('second batch unavailable');
+    return uris.map(uri => ({ identifier: uri, userId: 'shared-new', externalIdentities: [{ actorUri: uri, canonicalAcct: 'network@example.social' }] }));
+  });
+  const run = reconcileMetaIdentityAndCrossposts({ dryRun: false });
+  if (failSecondBatch) await expect(run).rejects.toThrow('second batch unavailable');
+  else expect((await run).actorsChanged).toBe(101);
+  expect(mocks.invalidate).toHaveBeenCalledTimes(failSecondBatch ? 1 : 2);
+  for (const [ids] of mocks.invalidate.mock.calls) expect(new Set(ids)).toEqual(new Set(['old-person', 'shared-new']));
+  expect(mocks.scan).toHaveBeenCalledTimes(1);
+  expect(mocks.del).toHaveBeenCalledWith(['anonfeed:fixture']);
+  expect((await getDb().select().from(federatedActors)).filter(row => row.oxyUserId === 'shared-new')).toHaveLength(failSecondBatch ? 100 : 101);
+});
+
+it('records committed invalidations before a later cluster read fails', async () => {
+  await actor(source); await post(source);
+  const batch = createActorProjectionCacheBatch();
+  const record = vi.spyOn(batch, 'record');
+  const failure = vi.spyOn(getDb(), 'selectDistinct').mockImplementationOnce(() => { throw new Error('cluster read failed'); });
+  try {
+    await expect(reconcileActorIdentityProjection({ actorUri: source, oxyUserId: 'new', cacheInvalidation: batch })).rejects.toThrow('cluster read failed');
+    expect(record).toHaveBeenCalledWith(['old-person', 'new']);
+    expect((await getDb().select().from(federatedActors))[0].oxyUserId).toBe('new');
+  } finally { failure.mockRestore(); await batch.finish(); }
+  expect(mocks.invalidate).toHaveBeenCalledWith(['old-person', 'new']);
+  expect(mocks.scan).toHaveBeenCalledTimes(1);
 });
