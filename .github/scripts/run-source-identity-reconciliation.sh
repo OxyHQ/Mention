@@ -55,9 +55,12 @@ jq -e --arg digest "$EXPECTED_IMAGE_DIGEST" '.failures | length == 0' "$work_dir
 jq -e --arg digest "$EXPECTED_IMAGE_DIGEST" '.images | length == 1 and .[0].imageId.imageDigest == $digest' "$work_dir/image.json" >/dev/null
 jq '{awsvpcConfiguration:.services[0].networkConfiguration.awsvpcConfiguration}' "$work_dir/service.json" > "$work_dir/network.json"
 jq -e '.awsvpcConfiguration | (.subnets | length > 0) and (.securityGroups | length > 0) and (.assignPublicIp == "ENABLED" or .assignPublicIp == "DISABLED")' "$work_dir/network.json" >/dev/null
+# Keep a shell as container PID 1: BusyBox timeout execs its command in place,
+# and a namespace init process cannot be killed by its child watchdog. The
+# explicit status handling prevents the shell from optimizing into exec.
 jq -n --arg name "$container" --arg dry "$DRY_RUN" --arg operation "$operation" --arg actor "${ACTOR_URI:-}" --arg canonical "${CANONICAL_ACCT:-}" --arg transport "${TRANSPORT_ACCT:-}" '
   {containerOverrides:[{name:$name,
-    command: (["busybox","timeout","-s","TERM","-k","30","3300","bun"] +
+    command: (["sh","-c","busybox timeout -s TERM -k 30 3300 bun \"$1\"; status=$?; exit \"$status\"","mention-source-identity"] +
       [if $operation == "inspect_cache" then "packages/backend/dist/src/scripts/inspectFederatedIdentityCache.js" else "packages/backend/dist/src/scripts/reconcileMetaIdentityAndCrossposts.js" end]),
     environment: (if $operation == "inspect_cache" then [
       {name:"DRY_RUN",value:"true"},{name:"CONFIRM_ADMIN_MUTATION",value:""},
