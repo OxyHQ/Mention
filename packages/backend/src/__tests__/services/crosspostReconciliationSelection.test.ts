@@ -35,10 +35,11 @@ async function post(uri: string | null, changes: Partial<typeof posts.$inferInse
   created.push(row.id);
   return row.id;
 }
+// Other integration suites may create eligible rows in the same test database.
 async function selected(cursor?: string) {
   return (await getDb().select({ id: posts.id }).from(posts)
     .leftJoin(federatedActors, eq(federatedActors.uri, posts.federationActorUri))
-    .where(and(crosspostReconciliationPostSql(), cursor ? gt(posts.id, cursor) : undefined))
+    .where(and(inArray(posts.id, created), crosspostReconciliationPostSql(), cursor ? gt(posts.id, cursor) : undefined))
     .orderBy(asc(posts.id)).limit(100)).map(row => row.id);
 }
 
