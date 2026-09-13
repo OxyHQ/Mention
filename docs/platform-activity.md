@@ -24,3 +24,9 @@ lease expires. Oxy broadcasts authoritative snapshots over Socket.IO.
 Counters describe observed application operations, not network bytes. Direct
 object-storage downloads, media transports, database wire protocols and third
 party runtime internals require instrumentation at their owning services.
+
+## Static edge requests
+
+The deployed frontend Worker observes requests before its ASSETS binding, including static files and navigations. Enable with private Worker bindings `OXY_EDGE_ACTIVITY_ENABLED=true`, `OXY_EDGE_ACTIVITY_API_KEY`, `OXY_EDGE_ACTIVITY_API_SECRET`, and optional `OXY_EDGE_ACTIVITY_API_URL`. These credentials are separate from backend credentials and must never use a public frontend environment prefix. Disabled or unavailable telemetry leaves the response unchanged; publication runs in `ctx.waitUntil`.
+
+The serving Cloudflare PoP appears as a pulse for external edge activity. It does not fabricate an arc to a visitor location. Verified internal peers may supply a known source region.
