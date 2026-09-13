@@ -1,0 +1,128 @@
+name: Reconcile source identity projections
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Fixed operation: reconcile or read-only cache inspection'
+        type: choice
+        options: [reconcile, inspect_cache]
+        default: reconcile
+        required: true
+      actor_uri:
+        description: 'inspect_cache only: exact public HTTPS source actor URI'
+        type: string
+        required: false
+      canonical_acct:
+        description: 'inspect_cache only: exact lowercase public network acct'
+        type: string
+        required: false
+      transport_acct:
+        description: 'inspect_cache only: exact lowercase delivery acct'
+        type: string
+        required: false
+      dry_run:
+        description: 'Preview current Oxy projections without writes'
+        type: boolean
+        required: true
+        default: true
+      expected_image_digest:
+        description: 'Exact deployed backend sha256 digest reviewed for this run'
+        type: string
+        required: true
+      preview_run_id:
+        description: 'Apply only: successful dry-run workflow run ID for this exact source/image'
+        type: string
+        required: false
+      confirm_write:
+        description: 'Apply only: reconcileMetaIdentityAndCrossposts'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+concurrency:
+  group: mention-source-identity-reconciliation
+  cancel-in-progress: false
+env:
+  AWS_REGION: us-west-2
+  CLUSTER: oxy-cluster
+  SERVICE: mention
+  DEPLOY_SHA: ${{ github.sha }}
+
+jobs:
+  reconcile:
+    if: github.ref == 'refs/heads/main' && github.ref_protected && github.triggering_actor == github.actor
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 75
+    steps:
+      - name: Authorize operator and inputs before credentials
+        env:
+          OPERATORS: ${{ vars.SOURCE_IDENTITY_RECONCILIATION_OPERATORS }}
+          ACTOR: ${{ github.actor }}
+          OPERATION: ${{ inputs.operation }}
+          ACTOR_URI: ${{ inputs.actor_uri }}
+          CANONICAL_ACCT: ${{ inputs.canonical_acct }}
+          TRANSPORT_ACCT: ${{ inputs.transport_acct }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CONFIRM_WRITE: ${{ inputs.confirm_write }}
+          EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_image_digest }}
+          PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+        run: |
+          set -euo pipefail
+          operators="${OPERATORS//[[:space:]]/}"
+          [[ -n "$operators" && ",$operators," == *",$ACTOR,"* ]] || { echo '::error::Dispatcher must be in SOURCE_IDENTITY_RECONCILIATION_OPERATORS'; exit 1; }
+          [[ "$EXPECTED_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || exit 1
+          case "$OPERATION" in
+            reconcile) ;;
+            inspect_cache) [[ "$DRY_RUN" == true ]] || exit 1 ;;
+            *) exit 1 ;;
+          esac
+          case "$DRY_RUN" in
+            true) ;;
+            false) [[ "$CONFIRM_WRITE" == reconcileMetaIdentityAndCrossposts && "$PREVIEW_RUN_ID" =~ ^[0-9]+$ ]] || exit 1 ;;
+            *) exit 1 ;;
+          esac
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 2
+      - name: Verify current protected main
+        run: bash .github/scripts/require-current-main.sh
+      - name: Fetch reviewed preview for apply
+        if: inputs.operation == 'reconcile' && inputs.dry_run == false
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PREVIEW_RUN_ID" > preview-run.json
+          jq -e --arg sha "$DEPLOY_SHA" '.head_sha == $sha and .head_branch == "main" and .event == "workflow_dispatch" and .conclusion == "success" and .path == ".github/workflows/run-source-identity-reconciliation.yml"' preview-run.json >/dev/null
+          gh run download "$PREVIEW_RUN_ID" --repo "$GITHUB_REPOSITORY" --name source-identity-reconciliation --dir reviewed-preview
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Re-verify current main immediately before execution
+        run: bash .github/scripts/require-current-main.sh
+      - name: Reconcile with the exact deployed image
+        env:
+          OPERATION: ${{ inputs.operation }}
+          ACTOR_URI: ${{ inputs.actor_uri }}
+          CANONICAL_ACCT: ${{ inputs.canonical_acct }}
+          TRANSPORT_ACCT: ${{ inputs.transport_acct }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CONFIRM_WRITE: ${{ inputs.confirm_write }}
+          EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_image_digest }}
+        run: bash .github/scripts/run-source-identity-reconciliation.sh
+      - name: Retain structured report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: source-identity-reconciliation
+          path: reconciliation-report.json
+          if-no-files-found: warn
+          retention-days: 30

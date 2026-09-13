@@ -25,6 +25,7 @@ import type { User } from '@oxy.so/core';
 const mockViewer: { current: User | null } = { current: null };
 const mockFetchProfile = jest.fn<Promise<User | null>, [string | null]>();
 const mockLoadAppearance = jest.fn();
+const mockResolveProfile = jest.fn();
 
 jest.mock('@oxy.so/services', () => {
   const { useQuery } =
@@ -58,7 +59,7 @@ jest.mock('@oxy.so/services', () => {
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
     user: mockViewer.current,
-    oxyServices: { resolveProfile: jest.fn() },
+    oxyServices: { resolveProfile: mockResolveProfile },
   }),
 }));
 
@@ -261,5 +262,31 @@ describe('useProfileData — the viewer’s own profile', () => {
       postsCount: 2,
     });
     act(() => renderer?.unmount());
+  });
+});
+
+
+describe('useProfileData — Oxy-proven public aliases', () => {
+  beforeEach(() => {
+    mockViewer.current = null;
+    mockResolveProfile.mockReset();
+    mockLoadAppearance.mockResolvedValue(null);
+  });
+  const canonical = { ...user('fresh-person', 'freshperson@instagram.com', 'Fresh Person'), externalIdentities: [
+    { canonicalAcct: 'freshperson@threads.net', network: 'threads.net', protocol: 'activitypub', actorUri: 'https://threads.net/ap/users/freshperson', transportAcct: 'freshperson@threads.net', sourceUserId: 'threads-source' },
+    { canonicalAcct: 'freshperson@instagram.com', network: 'instagram.com', protocol: 'activitypub', actorUri: 'https://bridge.example/users/freshperson', transportAcct: 'freshperson@bridge.example', sourceUserId: 'instagram-source' },
+  ] };
+  it.each([
+    ['freshperson@threads.net', canonical, 'Fresh Person'],
+    ['freshperson@bridge.example', canonical, null],
+    ['freshperson@threads.net', { ...canonical, externalIdentities: [] }, null],
+  ])('gates first uncached route %s by the resolved Oxy aliases', async (handle, response, displayName) => {
+    mockResolveProfile.mockResolvedValue(response);
+    const sink: Snapshot[] = [];
+    const renderer = mountProbe(handle, sink);
+    await settle();
+    expect(mockResolveProfile).toHaveBeenCalledWith(handle);
+    expect(sink.at(-1)).toMatchObject({ loading: false, displayName });
+    act(() => renderer.unmount());
   });
 });

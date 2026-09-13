@@ -121,6 +121,8 @@ interface JobEntryPoint {
 }
 
 const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
+  // Global reads also need isolation when their result cohort is the fixture.
+  { name: 'gatherGlobalLane', call: /\bgatherGlobalLane\s*\(/ },
   { name: 'reconcileEngagementProjections', call: /\breconcileEngagementProjections\s*\(/ },
   { name: 'dispatchEngagementOutbox', call: /\bdispatchEngagementOutbox\s*\(/ },
   { name: 'dispatchModerationOutbox', call: /\bdispatchModerationOutbox\s*\(/ },

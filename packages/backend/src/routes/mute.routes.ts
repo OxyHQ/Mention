@@ -1,3 +1,4 @@
+import { activeMuteIdentityIds, unmuteIdentityProjection } from '../services/ActorIdentityProjectionService';
 import { Router, Response } from 'express';
 import { and, desc, eq } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
@@ -81,7 +82,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     const db = getDb();
     const [created] = await db
       .insert(mutes)
-      .values({ userId, mutedId })
+      .values((await activeMuteIdentityIds(mutedId)).map(id => ({ userId, mutedId: id })))
       .onConflictDoNothing({ target: [mutes.userId, mutes.mutedId] })
       .returning();
 
@@ -132,10 +133,7 @@ router.delete('/:mutedId', async (req: AuthRequest, res: Response) => {
     }
 
     // Delete mute record
-    const [result] = await getDb()
-      .delete(mutes)
-      .where(and(eq(mutes.userId, userId), eq(mutes.mutedId, mutedId)))
-      .returning({ id: mutes.id });
+    const result = await unmuteIdentityProjection(userId, mutedId);
 
     if (!result) {
       return res.status(404).json({ message: 'Mute not found' });

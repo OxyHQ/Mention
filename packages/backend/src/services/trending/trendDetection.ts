@@ -15,6 +15,7 @@ import { MtnConfig, PostVisibility } from '@mention/shared-types';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { logger } from '../../utils/logger';
+import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
 import { isNsfwHashtag } from '../contentClassification/nsfw';
 import { isTopicSlug } from '../contentClassification/taxonomy';
 import { isTrendStopWord } from './termExtraction';
@@ -169,6 +170,7 @@ export async function aggregateTermCandidates(now: Date): Promise<TermCandidateR
   // shrinking both the corpus and every term's count. `is not true` is total:
   // NULL and false both pass, which is the Mongo behaviour.
   const windowMatch = and(
+    notCollapsedCrosspostSql(),
     gte(posts.createdAt, windowStart),
     eq(posts.status, 'published'),
     eq(posts.visibility, PostVisibility.PUBLIC),

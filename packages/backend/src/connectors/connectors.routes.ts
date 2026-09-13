@@ -1,7 +1,9 @@
+import { resolveAvatarUrl } from '../utils/mediaResolver';
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import type { User as OxyUser } from '@oxy.so/core';
+import { getErrorStatus } from '@oxy.so/core';
 import {
   PostVisibility,
   type FederationBlocksResponse,
@@ -24,15 +26,11 @@ import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
 import { FEDERATION_BLOCKS, FEDERATION_ENABLED } from './activitypub/constants';
 import { ATPROTO_ENABLED, isDid, isAtUri, isAtprotoHandle } from './atproto/constants';
 import { activityIdUnderActor, normalizeFederatedAcct } from './activitypub/helpers';
-import {
-  networkHandleCandidates,
-  upstreamProfileUrlCandidates,
-  type UpstreamProfileUrlCandidate,
-} from './activitypub/upstreamProfileUrl';
+import { resolveOxyIdentity } from './oxyIdentity';
 import { isAbsoluteHttpUrl } from './shared/url';
 import { connectorRegistry } from './index';
 import { classifyQuery } from './resolve';
-import type { NetworkConnector, NormalizedExternalActor } from '@oxy.so/federation';
+import type { NetworkConnector } from '@oxy.so/federation';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import { apiRateLimiter } from '../middleware/rateLimiter';
@@ -182,21 +180,11 @@ function hasUnavailableCurrentOutbox(actor: { outboxUrl?: string; outboxBackfill
   );
 }
 
-/**
- * Resolve the canonical Oxy `name.displayName` for a batch of federated actors,
- * keyed by actor URI.
- *
- * Display names are owned by the Oxy API (`name.displayName`) and are the SINGLE
- * source of truth — Mention never reads a local `federated_actors` name copy.
- * Actors are batch-resolved by their `oxyUserId` through the service client
- * (mirrors `PostHydrationService.resolveUserSummaries`). An actor whose Oxy user
- * is missing from the response is omitted, so the caller falls back to the
- * actor's `@<acct>` handle.
- */
-async function resolveActorDisplayNamesByUri(
+/** Batch Oxy profiles by source URI, including historical IDs redirected to the same person. */
+async function resolveActorProfilesByUri(
   actors: Array<{ uri: string; oxyUserId?: string }>,
-): Promise<Map<string, string>> {
-  const byUri = new Map<string, string>();
+): Promise<Map<string, OxyUser>> {
+  const byUri = new Map<string, OxyUser>();
   const oxyUserIds = Array.from(
     new Set(actors.map((a) => a.oxyUserId).filter((id): id is string => Boolean(id))),
   );
@@ -210,17 +198,21 @@ async function resolveActorDisplayNamesByUri(
     return byUri;
   }
 
-  const nameByOxyId = new Map<string, string>();
+  const userByOxyId = new Map<string, OxyUser>();
   for (const user of users) {
-    const id = String((user as { id?: unknown }).id ?? '');
-    const displayName = user.name.displayName;
-    if (id && displayName) nameByOxyId.set(id, displayName);
+    if (user.id) userByOxyId.set(user.id, user);
+    const aliases = 'redirectedUserIds' in user ? user.redirectedUserIds : undefined;
+    if (Array.isArray(aliases)) {
+      for (const alias of aliases) {
+        if (typeof alias === 'string') userByOxyId.set(alias, user);
+      }
+    }
   }
 
   for (const actor of actors) {
     if (!actor.oxyUserId) continue;
-    const displayName = nameByOxyId.get(actor.oxyUserId);
-    if (displayName) byUri.set(actor.uri, displayName);
+    const user = userByOxyId.get(actor.oxyUserId);
+    if (user) byUri.set(actor.uri, user);
   }
   return byUri;
 }
@@ -250,62 +242,7 @@ router.get('/blocked-domains', (_req: AuthRequest, res: Response) => {
   return res.json(body);
 });
 
-/**
- * Resolve a pasted upstream profile URL (`https://x.com/elonmusk`) through the
- * bridges that republish that network, or `null`.
- *
- * The URL itself is NEVER fetched — see `activitypub/upstreamProfileUrl`. Every
- * host contacted here comes from our own committed bridge policy, and the pasted
- * value only ever contributes the handle inside a derived acct.
- *
- * Candidates are tried in policy order and the FIRST that answers wins: the
- * response carries one actor, and ingesting the same person from a second bridge
- * would change nothing about which Oxy identity they end up under (the
- * duplicate-identity merge collapses copies onto one), so it would buy an extra
- * round trip per paste and nothing else.
- *
- * A resolved actor is kept only if it re-labelled onto the identity the URL
- * names. `<handle>@<bridge-host>` is a derivation from how each bridge names its
- * mirrors, not something the actor asserts, so an actor that turns out to be
- * somebody else — the bridge operator's own account, most obviously — is dropped
- * rather than shown as the account that was pasted.
- */
-async function resolveThroughCandidates(
-  candidates: readonly UpstreamProfileUrlCandidate[],
-): Promise<NormalizedExternalActor | null> {
-  for (const candidate of candidates) {
-    // Sequential on purpose: the first answer ends the search, so fanning out
-    // would fetch from bridges whose answer is already unnecessary.
-    // eslint-disable-next-line no-await-in-loop
-    const actor = await connectorRegistry.resolve(candidate.acct);
-    if (!actor) continue;
-    if (actor.federatedUsername === candidate.expectedFederatedUsername) return actor;
-    logger.info('[Connectors] bridge answered for a different account than the query names', {
-      bridgeHost: candidate.bridgeHost,
-      expected: candidate.expectedFederatedUsername,
-      resolved: actor.federatedUsername,
-    });
-  }
-  return null;
-}
-
-/** The pasted-URL entry point: derive this URL's candidates, then resolve them. */
-async function resolveThroughBridges(rawUrl: string): Promise<NormalizedExternalActor | null> {
-  return resolveThroughCandidates(upstreamProfileUrlCandidates(rawUrl));
-}
-
-/**
- * GET /federation/resolve?handle=...
- *
- * Unified cross-network handle resolution. Classifies the query (ActivityPub /
- * atproto / local), dispatches to the connector that owns it, and returns a
- * normalized actor card with the Oxy user it maps to plus the viewer's follow
- * state. Local Oxy handles are out of scope here (resolved by Oxy `/profiles`).
- *
- * A pasted profile URL takes its own lane BEFORE classification: it names an
- * account on a network we reach only through a bridge, so there is no handle to
- * classify and nothing a connector could be handed directly.
- */
+/** Resolve public identifiers through Oxy, then import the returned protocol source. */
 router.get('/resolve', async (req: AuthRequest, res: Response) => {
   if (!requireAnyConnector(res)) return;
 
@@ -336,25 +273,13 @@ router.get('/resolve', async (req: AuthRequest, res: Response) => {
   }
 
   try {
-    let actor = isPastedUrl
-      ? await resolveThroughBridges(query)
-      : await connectorRegistry.resolve(query);
-
-    // A NETWORK HANDLE IS THE ONE SHAPE THE CONNECTOR LANE CANNOT ANSWER.
-    //
-    // `@elonmusk@x.com` is what this endpoint RETURNS for a bridged actor, what
-    // the profile page shows, and what a reader will type or paste back. But
-    // `x.com` runs no WebFinger — it is not a fediverse host at all — so the
-    // connector can only ever miss, and the handle we render was the one string
-    // that 404'd while both the pasted URL and the bridge acct resolved.
-    //
-    // Tried only AFTER the connector, so nothing that resolves today changes
-    // path: this can add an answer where there was none, never replace one. The
-    // cost is one failed lookup on a query that was already going to 404.
-    if (!actor && !isPastedUrl) {
-      actor = await resolveThroughCandidates(networkHandleCandidates(query));
-    }
-    if (!actor) return res.json({ actor: null });
+    const resolved = await resolveOxyIdentity({ handle: query });
+    const source = resolved.externalIdentity;
+    const connector = connectorRegistry.connectorFor(source.actorUri);
+    if (!connector?.enabled || connector.id !== source.protocol) return res.json({ actor: null });
+    const actor = await connector.fetchProfile(source.actorUri);
+    if (!actor || actor.externalId !== source.actorUri
+      || (actor.oxyUserId && actor.oxyUserId !== resolved.user.id)) return res.json({ actor: null });
 
     // Follow state for the (optional) viewer — keyed on the actor's protocol id.
     let followed = false;
@@ -370,7 +295,7 @@ router.get('/resolve', async (req: AuthRequest, res: Response) => {
 
     return res.json({
       actor: {
-        network: actor.network,
+        network: source.protocol,
         externalId: actor.externalId,
         // The IDENTITY, never the protocol address. `handle` is the account this
         // row IS — the same `local@domain` the ingest just stored in Oxy — while
@@ -383,14 +308,15 @@ router.get('/resolve', async (req: AuthRequest, res: Response) => {
         // next to the Oxy row for the same person as a visible twin. An atproto
         // actor's differs too (`alice.bsky.social` addresses, `alice@bsky.social`
         // identifies), and had the same duplicate-row consequence.
-        handle: actor.federatedUsername,
-        displayName: actor.displayName,
-        avatarUrl: actor.avatarUrl,
-        oxyUserId: actor.oxyUserId,
+        handle: resolved.user.username,
+        displayName: resolved.user.name?.displayName,
+        avatarUrl: resolveAvatarUrl(resolved.user.avatar),
+        oxyUserId: resolved.user.id,
         followed,
       },
     });
   } catch (err) {
+    if (getErrorStatus(err) === 404) return res.json({ actor: null });
     logger.error('Federation resolve error:', err);
     return res.status(500).json({ error: 'Resolve failed' });
   }
@@ -565,19 +491,22 @@ router.get('/following', async (req: AuthRequest, res: Response) => {
     const actorUris = follows.map((f) => f.remoteActorUri);
     const actors = await findActorsByUris(actorUris);
     const actorMap = new Map(actors.map((a) => [a.uri, a]));
-    const displayNameByUri = await resolveActorDisplayNamesByUri(actors);
+    const profilesByUri = await resolveActorProfilesByUri(actors);
 
     const results = follows.map((f) => {
       const actor = actorMap.get(f.remoteActorUri);
-      const handleFallback = actor ? `@${actor.acct}` : f.remoteActorUri;
+      const profile = actor ? profilesByUri.get(actor.uri) : undefined;
+      const username = profile?.username ?? '';
+      const separator = username.lastIndexOf('@');
       return {
         actorUri: f.remoteActorUri,
         network: actor?.protocol ?? f.network ?? 'activitypub',
-        handle: actor?.username || 'unknown',
-        instance: actor?.domain || 'unknown',
-        fullHandle: handleFallback,
-        displayName: (actor && displayNameByUri.get(actor.uri)) || handleFallback,
-        avatarUrl: actor?.avatarUrl,
+        handle: separator > 0 ? username.slice(0, separator) : username,
+        instance: separator > 0 ? username.slice(separator + 1) : '',
+        fullHandle: username ? `@${username}` : '',
+        displayName: profile?.name?.displayName || (username ? `@${username}` : 'Unavailable profile'),
+        avatarUrl: resolveAvatarUrl(profile?.avatar),
+        oxyUserId: profile?.id,
         isFollowing: f.status === 'accepted',
         isFollowPending: f.status === 'pending',
       };
@@ -609,19 +538,22 @@ router.get('/followers', async (req: AuthRequest, res: Response) => {
     const actorUris = follows.map((f) => f.remoteActorUri);
     const actors = await findActorsByUris(actorUris);
     const actorMap = new Map(actors.map((a) => [a.uri, a]));
-    const displayNameByUri = await resolveActorDisplayNamesByUri(actors);
+    const profilesByUri = await resolveActorProfilesByUri(actors);
 
     const results = follows.map((f) => {
       const actor = actorMap.get(f.remoteActorUri);
-      const handleFallback = actor ? `@${actor.acct}` : f.remoteActorUri;
+      const profile = actor ? profilesByUri.get(actor.uri) : undefined;
+      const username = profile?.username ?? '';
+      const separator = username.lastIndexOf('@');
       return {
         actorUri: f.remoteActorUri,
         network: actor?.protocol ?? f.network ?? 'activitypub',
-        handle: actor?.username || 'unknown',
-        instance: actor?.domain || 'unknown',
-        fullHandle: handleFallback,
-        displayName: (actor && displayNameByUri.get(actor.uri)) || handleFallback,
-        avatarUrl: actor?.avatarUrl,
+        handle: separator > 0 ? username.slice(0, separator) : username,
+        instance: separator > 0 ? username.slice(separator + 1) : '',
+        fullHandle: username ? `@${username}` : '',
+        displayName: profile?.name?.displayName || (username ? `@${username}` : 'Unavailable profile'),
+        avatarUrl: resolveAvatarUrl(profile?.avatar),
+        oxyUserId: profile?.id,
       };
     });
 

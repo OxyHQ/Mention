@@ -29,7 +29,7 @@ const mocks = vi.hoisted(() => ({
   /** The actor-row write itself — `(uri, columns, fields)`. */
   upsertActor: vi.fn(),
   setActorOxyUserId: vi.fn(),
-  resolveFederatedActorIdentity: vi.fn(),
+  resolveOxyIdentity: vi.fn(),
   signedFetch: vi.fn(),
 }));
 
@@ -44,10 +44,9 @@ vi.mock('../../../db/federation/actorRepository', () => ({
   tombstoneActor: vi.fn(async () => null),
 }));
 
-vi.mock('../../../connectors/identity', () => ({
-  reportFederatedActorGone: vi.fn(),
-  resolveFederatedActorIdentity: mocks.resolveFederatedActorIdentity,
-}));
+vi.mock('../../../connectors/identity', () => ({ reportFederatedActorGone: vi.fn() }));
+vi.mock('../../../connectors/oxyIdentity', () => ({ resolveOxyIdentity: mocks.resolveOxyIdentity }));
+vi.mock('../../../services/userSummaryCache', () => ({ invalidate: vi.fn() }));
 
 // Only the network call is stubbed. The bridge policy, the boilerplate patterns,
 // the field sanitizer and `htmlToPlainText` are all the real ones — they are what
@@ -59,6 +58,7 @@ vi.mock('../../../connectors/activitypub/helpers', async () => {
   return { ...actual, signedFetch: mocks.signedFetch };
 });
 
+import { oxyIdentityFixture } from '../../helpers/oxyIdentityFixtures';
 import { actorService } from '../../../connectors/activitypub/actor.service';
 
 const ACTOR_URI = 'https://bird.makeup/users/elonmusk';
@@ -103,7 +103,7 @@ let storedRow: Record<string, unknown>;
 beforeEach(() => {
   vi.clearAllMocks();
   storedRow = {};
-  mocks.resolveFederatedActorIdentity.mockResolvedValue('oxy-user-1');
+  mocks.resolveOxyIdentity.mockResolvedValue(oxyIdentityFixture({ actorUri: ACTOR_URI, transportAcct: 'elonmusk@bird.makeup', canonicalAcct: 'elonmusk@x.com', network: 'x.com' }));
   mocks.findActorByUri.mockResolvedValue(null);
   mocks.upsertActor.mockImplementation(
     (uri: string, columns: Record<string, unknown>) => {
@@ -144,13 +144,9 @@ describe('ingesting a live bird.makeup actor', () => {
   it('hands the re-labelled identity to the Oxy identity bridge', async () => {
     await actorService.fetchRemoteActor(ACTOR_URI);
 
-    expect(mocks.resolveFederatedActorIdentity).toHaveBeenCalledTimes(1);
-    expect(mocks.resolveFederatedActorIdentity.mock.calls[0][0]).toMatchObject({
-      externalId: ACTOR_URI,
-      handle: 'elonmusk@bird.makeup',
-      federatedUsername: 'elonmusk@x.com',
-      instanceDomain: 'x.com',
-      displayName: 'Elon Musk',
+    expect(mocks.resolveOxyIdentity).toHaveBeenCalledTimes(1);
+    expect(mocks.resolveOxyIdentity.mock.calls[0][0]).toEqual({
+      actorUri: ACTOR_URI, transportAcct: 'elonmusk@bird.makeup', protocol: 'activitypub',
     });
   });
 
@@ -170,13 +166,14 @@ describe('ingesting a live bird.makeup actor', () => {
       headers: { 'content-type': 'application/activity+json' },
     }));
 
+    mocks.resolveOxyIdentity.mockResolvedValue(oxyIdentityFixture({ actorUri: admin.id,
+      transportAcct: 'admin@bird.makeup', canonicalAcct: 'admin@bird.makeup', network: 'bird.makeup', bio: 'I run this bridge.' }));
     await actorService.fetchRemoteActor('https://bird.makeup/users/admin');
 
-    expect(storedRow.networkAcct).toBeUndefined();
+    expect(storedRow.networkAcct).toBe('admin@bird.makeup');
     expect(storedRow.summary).toBe('I run this bridge.');
-    expect(mocks.resolveFederatedActorIdentity.mock.calls[0][0]).toMatchObject({
-      federatedUsername: 'admin@bird.makeup',
-      instanceDomain: 'bird.makeup',
+    expect(mocks.resolveOxyIdentity.mock.calls[0][0]).toMatchObject({
+      actorUri: admin.id, transportAcct: 'admin@bird.makeup', protocol: 'activitypub',
     });
   });
 });

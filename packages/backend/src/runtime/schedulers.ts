@@ -7,6 +7,13 @@ import { logger } from '../utils/logger';
  * lease. Each service logs its own startup status.
  */
 export function startSchedulers(): void {
+  try {
+    const { crosspostReconciliationJob } = require("../services/CrosspostReconciliationJob");
+    crosspostReconciliationJob.start();
+  } catch (error) {
+    logger.warn("Failed to start cross-post reconciliation job", error);
+  }
+
   // Feed job scheduler
   try {
     const { feedJobScheduler } = require("../services/FeedJobScheduler");
@@ -102,6 +109,13 @@ export function startSchedulers(): void {
  * cache, not a shared cron job, so every task (leader or not) must keep it.
  */
 export function stopSchedulers(): void {
+  try {
+    const { crosspostReconciliationJob } = require("../services/CrosspostReconciliationJob");
+    crosspostReconciliationJob.stop();
+  } catch (error) {
+    logger.warn("Failed to stop cross-post reconciliation job", error);
+  }
+
   try {
     const { feedJobScheduler } = require("../services/FeedJobScheduler");
     feedJobScheduler.stop();

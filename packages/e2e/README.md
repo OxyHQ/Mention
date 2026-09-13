@@ -42,6 +42,13 @@ document URL, CORS contract, CSP and per-origin storage are production's; the
 HTML and every Expo chunk are the candidate's. Requests to `api.mention.earth`
 and the media CDN are left alone.
 
+`identity-alias-routing.spec.ts` explicitly substitutes one Oxy profile response
+for a fresh synthetic handle. It verifies that the actual exported app accepts
+Oxy-proven aliases, refuses transport/unproven routes, and publishes the canonical
+profile title. It is a browser routing contract, not proof of live cold identity
+discovery. Oxy's real-PostgreSQL API tests cover cold discovery; the existing
+`bridge-transport-route.spec.ts` continues to exercise the live resolver.
+
 This has one consequence worth stating plainly: the backend the gate exercises
 is the live one, so a backend outage will also fail this gate.
 
@@ -168,3 +175,78 @@ the gate has earned the budget.
 The suite is not wired into the PR gate yet. That comes after the promotion gate
 has proven itself non-flaky, and the natural hook is CI's existing
 `frontend-bundle` job, which already exports `dist/` and could serve it locally.
+
+### Cold external identity acceptance
+
+`identity-cold-live.spec.ts` is opt-in and skipped in the normal gate. It uses real
+APIs and browser search discovery. The separate `identity-alias-routing.spec.ts`
+uses mocked profile data and proves routing only.
+
+Before any candidate lookup, run `inspect_cache` on protected deployed main in
+both repositories for each candidate source. Oxy's
+`reconcile-external-identities.yml` takes `mode=inspect_cache`, `dry_run=true`,
+`expected_source_sha`, `actor_uri`, `canonical_acct`, and `transport_acct`.
+Mention's `run-source-identity-reconciliation.yml` takes
+`operation=inspect_cache`, `dry_run=true`, `expected_image_digest`, and those same
+three source identifiers. Download successful runs' artifacts. No candidate
+profile resolve, federation resolve, or search may precede these inspections.
+
+Create a local JSON manifest; paths are relative to it:
+
+```json
+{
+  "oxySha": "<40-character deployed source SHA>",
+  "oxyDigest": "sha256:<64-character deployed digest>",
+  "mentionSha": "<40-character deployed source SHA>",
+  "mentionDigest": "sha256:<64-character deployed digest>",
+  "sources": [{
+    "actorUri": "https://bridge.example/users/alice",
+    "canonicalAcct": "alice@instagram.com",
+    "transportAcct": "alice@bridge.example",
+    "oxyRunReport": "pre/oxy/run.json",
+    "oxySummaryReport": "pre/oxy/summary.json",
+    "mentionReport": "pre/mention/reconciliation-report.json"
+  }],
+  "expectedBioText": "A distinctive source biography sentence",
+  "expectedMentionLabel": "@friend@instagram.com",
+  "expectedMentionHandle": "friend@instagram.com",
+  "forbiddenBioText": ["Exact reviewed bridge boilerplate"]
+}
+```
+
+Supply two distinct sources to prove Instagram/Threads convergence, or one for
+independent bridge/biography acceptance. Each needs reports from both databases.
+Expected text and mention must occur in the independently reviewed source
+biography, within its initial 200-character collapsed view. Reports must be under
+30 minutes old, match identifiers/source/image, and show all history counts zero.
+
+```bash
+# Offline validation; no external requests.
+node --test packages/e2e/coldIdentityEvidence.test.mjs
+
+# Only after both successful absence artifacts have been reviewed.
+MENTION_E2E_COLD_IDENTITY=1 \
+MENTION_E2E_COLD_EVIDENCE=/absolute/path/evidence.json \
+MENTION_E2E_CANDIDATE_ORIGIN=https://immutable-candidate.pages.dev \
+bun run --cwd packages/e2e test --config playwright.identity-cold.config.ts
+```
+
+This config validates evidence before navigation, replaces the normal feed
+preflight, uses one worker, and disables retries. The candidate fixture replaces
+application assets at the production origin; Oxy and Mention API responses stay
+real. Optionally set `MENTION_E2E_CHROMIUM_EXECUTABLE` for installed Chromium.
+
+The browser searches transport accounts from new documents, checks the canonical
+first response and internal source URI, opens profiles with the same Oxy ID and
+biography, follows the canonical biography mention, rejects public transport
+routes, clears storage, and repeats discovery. Keep
+`test-results/identity-cold-live/` (trace, screenshots, manifest and discovery JSON)
+beside the original workflow artifacts. A manifest alone is not an inspection.
+
+After the first discovery, rerun exact read-only inspections under `post/`.
+Oxy user/registry counts and Mention actor counts must be positive. Source-post
+counts may remain zero because profile discovery does not import posts. Repeat
+inspection after another browser search and compare these positive counts to
+prove row-count idempotence; browser ID equality alone does not prove this.
+A failed cold attempt consumes that candidate's zero state: retain the evidence,
+fix the cause, and inspect a new candidate instead of retrying it as cold.

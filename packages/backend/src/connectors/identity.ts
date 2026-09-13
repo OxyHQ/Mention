@@ -7,22 +7,9 @@ import { FEDERATED_BANNER_DOWNLOAD_POLICY } from '../services/mediaCache/policy'
 import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
 import type { NormalizedExternalActor } from '@oxy.so/federation';
 import { createIdentityBridge, type ServiceRequest, type ServiceRequestMethod } from '@oxy.so/federation/node';
-import { findIdentityOwnerActor } from '../db/federation/actorRepository';
-import { reconcileCrossNetworkIdentity } from './identityEquivalence';
+import { resolveOxyIdentity } from './oxyIdentity';
 
-/**
- * The network-neutral identity bridge: resolve a normalized external actor to its
- * Oxy user (`PUT /users/resolve`), and archive/delete a permanently-gone actor's
- * Oxy identity. The bridge LOGIC — the resolve body, the error classification, the
- * outcome discriminants — lives in `@oxy.so/federation` so BOTH connectors
- * (ActivityPub + atproto) and every Oxy app backend mint identities identically.
- *
- * This module is the Mention wiring: it supplies the service-scoped oxy-api
- * transport, the post-resolve user-summary cache invalidation, and the banner
- * mirror (which uses Mention's own media cache — the one piece that stays
- * app-side). `resolveOxyExternalUser` / `reportFederatedActorGone` /
- * `deleteFederatedActorIdentity` keep their names + signatures for every caller.
- */
+/** Oxy owns discovery and profiles; this module exposes Mention's transport adapter. */
 
 /** Service-scoped oxy-api request, resolved at call time (the client is per-request). */
 const callOxyService: ServiceRequest = <T>(method: ServiceRequestMethod, path: string, body?: unknown): Promise<T> =>
@@ -30,28 +17,27 @@ const callOxyService: ServiceRequest = <T>(method: ServiceRequestMethod, path: s
 
 const identityBridge = createIdentityBridge({
   makeServiceRequest: callOxyService,
-  // A re-resolve can refresh the federated actor's display name / avatar in Oxy;
-  // evict any warm user-summary cache entry so the next feed hydration reads fresh.
-  onUserResolved: (oxyUserId) => invalidateUserSummaryCache([oxyUserId]),
-  // Best-effort banner mirror through Mention's own media cache (see below). It
-  // handles its own errors and never throws, so it can never drop a resolved user.
-  mirrorBanner: async (bannerUrl, oxyUserId, actorUri) => {
-    await mirrorFederatedBanner(bannerUrl, oxyUserId, actorUri);
-  },
   logger: {
     info: (message, meta) => logger.info(message, meta),
     warn: (message, meta) => logger.warn(message, meta),
   },
 });
 
-/**
- * Resolve/mint the Oxy user a normalized external actor maps to (via
- * `PUT /users/resolve`), then mirror its banner. Returns the resolved Oxy user id,
- * or `null` when Oxy is unreachable / returns no id (callers must then skip, never
- * persisting an orphan). This is `NetworkConnector.mapIdentity`'s implementation,
- * shared by the ActivityPub and atproto connectors.
- */
-export const resolveOxyExternalUser = identityBridge.resolveExternalUser;
+/** Resolve only transport coordinates; Oxy independently verifies identity and profile fields. */
+export async function resolveOxyExternalUser(actor: NormalizedExternalActor): Promise<string | null> {
+  try {
+    const resolved = await resolveOxyIdentity({
+      actorUri: actor.externalId,
+      transportAcct: actor.handle,
+      protocol: actor.network === 'atproto' ? 'atproto' : 'activitypub',
+    });
+    await invalidateUserSummaryCache([resolved.user.id]);
+    return resolved.user.id;
+  } catch (err) {
+    logger.warn('[FedSync] Oxy identity resolution failed', { actor: actor.externalId, err });
+    return null;
+  }
+}
 
 /**
  * Teardown counterpart: tell oxy-api that a federated actor is permanently gone so
@@ -67,133 +53,6 @@ export const reportFederatedActorGone = identityBridge.reportActorGone;
  * re-confirming the remote actor still returns 410 Gone. Never throws.
  */
 export const deleteFederatedActorIdentity = identityBridge.deleteActorIdentity;
-
-/**
- * Resolve a normalized actor to its Oxy user, MERGING separate copies of the same
- * upstream person into one identity.
- *
- * An upstream handle is globally unique on its own network — there is one
- * `@wired` on X, one `georgemonbiot.bsky.social` on Bluesky — so two actor rows
- * that resolve to the same `<handle>@<network>` are not two people who happen to
- * collide. They are one person reaching us twice: mirrored by two bridges, or (the
- * larger case) held NATIVELY over one protocol and again over ActivityPub through
- * a bridge.
- *
- * Minting a second Oxy identity for the second copy is not merely untidy, it does
- * not work: `PUT /users/resolve` keys on the actor URI while the username carries
- * a unique index, so the second copy is refused outright. The second row therefore
- * ADOPTS the first row's Oxy user.
- *
- * Reversible by construction. Nothing is rewritten and nothing is deleted — the
- * absorbed row keeps its own URI, acct, domain and content, and shares only which
- * identity it points at. Drop a bridge from the policy and its rows derive their
- * own identity again on the next refresh.
- *
- * ACROSS a network, never between networks: `('x','nate')` and
- * `('instagram','nate')` are unrelated strings that happen to match, and merging
- * them would be impersonation. The key is always the full `<handle>@<network>`,
- * so that can never happen by construction.
- *
- * TWO NETWORKS CAN STILL BE ONE PERSON — BUT NEVER BECAUSE THE HANDLES MATCH
- *
- * Threads was launched on Instagram identity, so `@zuck@instagram.com` and
- * `@zuck@threads.net` really can be one account rather than two people who
- * picked the same word. The rule above cannot tell those apart and must not try:
- * it is what stops `@nate@x.com` from absorbing `@nate@instagram.com`, and
- * loosening it to let Meta through would loosen it for everybody.
- *
- * So the exception is a SEPARATE layer with a completely different input
- * (`./identityEquivalence`), consulted first and only for actors whose identity
- * domain appears in a reviewed cross-network pair. It links two identities only
- * when each one independently ASSERTS the other, machine-readably, on its own
- * actor — and it re-proves that from what both sides publish now, every time,
- * so a released handle's next owner cannot inherit the previous owner's
- * counterpart. Everything below is unchanged for every other actor, which is
- * every actor of every ordinary instance.
- *
- * Two ingests racing can both find no owner and both try to mint; oxy-api's unique
- * index refuses the loser, which surfaces as an unresolved actor (no orphan is
- * written) and the next refresh settles. A rare, self-correcting outcome — a lock
- * around a cross-service call would be the worse trade.
- */
-export async function resolveFederatedActorIdentity(
-  actor: NormalizedExternalActor,
-  opts?: { forceAvatarRefresh?: boolean },
-): Promise<string | null> {
-  // The cross-NETWORK layer runs first, and runs for BOTH identity shapes. A
-  // native `threads.net` actor's identity IS its own acct, so it would otherwise
-  // take the fast path below and never be considered — and it is one of exactly
-  // two sides the reviewed Instagram↔Threads pair has. It gates itself on the
-  // policy, so an actor on any other network pays one in-memory set lookup.
-  const crossNetwork = await reconcileCrossNetworkIdentity(actor);
-  if (crossNetwork.adoptOxyUserId) {
-    return crossNetwork.adoptOxyUserId;
-  }
-
-  // An actor whose identity IS its own protocol acct cannot share that identity
-  // with another row — an acct is already unique per host — so there is nothing
-  // to look for, and looking would put a DB round trip on every actor of every
-  // ordinary instance. This is the overwhelmingly common path.
-  if (actor.federatedUsername === actor.handle) {
-    return resolveOxyExternalUser(actor, opts);
-  }
-
-  try {
-    const owner = await findIdentityOwnerActor({
-      federatedUsername: actor.federatedUsername,
-      excludeUri: actor.externalId,
-    });
-
-    // A valid collision has EXACTLY ONE actor per source domain. A bridge holds
-    // one actor per upstream handle, so two actors on the SAME domain resolving
-    // to one identity is impossible under a correct rule — it means the
-    // derivation is broken, most likely yielding a constant, and merging on it
-    // would collapse every actor on that domain into one person. Refuse; never
-    // merge. Cheapest possible guard against the worst possible outcome.
-    // The domain the actor itself came from. An ActivityPub acct carries it after
-    // the `@`; an atproto handle is a whole DNS name with NO `@` at all
-    // (`georgemonbiot.bsky.social`), and for those the source domain is the
-    // network — which is what `instanceDomain` holds.
-    //
-    // Reading it off the handle unconditionally made this guard INERT on the
-    // atproto path: `lastIndexOf('@')` returns -1, `slice(0)` hands back the whole
-    // handle, and comparing `georgemonbiot.bsky.social` against a stored domain of
-    // `bsky.social` can never match. So the one guard built to catch a broken
-    // derivation collapsing a domain onto one identity would not have fired for
-    // native Bluesky rows. It is unreachable today — a default handle's local part
-    // is a single label and a custom-domain handle must contain a dot, so the two
-    // cannot derive the same string — but that is a property of Bluesky's handle
-    // rules, not of this code, and it is not what the guard should rest on.
-    const sourceDomain = actor.handle.includes('@')
-      ? actor.handle.slice(actor.handle.lastIndexOf('@') + 1)
-      : actor.instanceDomain;
-    if (owner && owner.domain === sourceDomain) {
-      logger.error(
-        '[FedSync] two actors on one source domain resolve to the same identity — '
-        + 'the derivation rule is broken; refusing to merge',
-        { actor: actor.externalId, owner: owner.uri, networkAcct: actor.federatedUsername },
-      );
-      return null;
-    }
-
-    if (owner?.oxyUserId) {
-      // Identifiers ride in the structured payload, never interpolated into the
-      // message — the backend logging policy holds every call site to that.
-      logger.info(
-        '[FedSync] identity is already held by another actor; adopting its Oxy user',
-        { actor: actor.externalId, networkAcct: actor.federatedUsername, owner: owner.uri },
-      );
-      return owner.oxyUserId;
-    }
-  } catch (err) {
-    // A failed lookup must not lose the actor: fall through and resolve normally.
-    // The worst case is the duplicate this merge exists to avoid, which oxy-api
-    // then refuses — visible and recoverable, unlike dropping the actor.
-    logger.warn('[FedSync] duplicate-identity owner lookup failed', { actor: actor.externalId, err });
-  }
-
-  return resolveOxyExternalUser(actor, opts);
-}
 
 /**
  * Best-effort outcome of {@link mirrorFederatedBanner}. `permanent` distinguishes a

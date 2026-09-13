@@ -1,20 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { inArray } from 'drizzle-orm';
 
-/**
- * Network-neutral identity bridge (`resolveOxyExternalUser`) — asserts the EXACT
- * `PUT /users/resolve` body sent to oxy-api for each protocol.
- *
- * Regression guard: oxy-api binds the federated `username` to `domain` (the
- * username domain after `@` MUST equal `domain`) and requires a `local@domain`
- * username. A Bluesky actor's bare DNS handle (`alice.bsky.social`) is NOT a
- * valid federated username — sending it (and a guessed domain) made
- * `PUT /users/resolve` 400, so the actor never resolved to an Oxy user, no posts
- * imported, and the only media that ever surfaced was hot-loaded through
- * `/media/proxy`. The connector now supplies the canonical `federatedUsername`
- * (`<handle>@<instance-domain>`) and `instanceDomain`, which this bridge passes
- * through verbatim.
- */
+/** Oxy supplies canonical identity; Mention imports source content and renders that exact profile. */
 
 const mocks = vi.hoisted(() => ({
   makeServiceRequest: vi.fn(),
@@ -36,10 +23,9 @@ import {
   reportFederatedActorGone,
   resolveOxyExternalUser,
 } from '../../connectors/identity';
-import type { NormalizedExternalActor } from '@oxy.so/federation';
+import { oxyIdentityFixture } from '../helpers/oxyIdentityFixtures';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { userSettings } from '../../db/schema/userProfile';
-import { loadUserSettings } from '../../db/userProfile/userSettingsRepository';
 
 /** Every settings row these cases create, so cleanup reaches exactly them. */
 const settingsOwners = ['oxy-resolved', 'oxy-bob'];
@@ -70,144 +56,28 @@ afterAll(async () => {
 });
 
 describe('resolveOxyExternalUser', () => {
-  it('sends the canonical handle@domain username + instance domain for an atproto (did:) actor', async () => {
-    const actor: NormalizedExternalActor = {
-      network: 'atproto',
-      externalId: 'did:plc:ewvi7nxzyoun6zhxrhs64oiz',
-      handle: 'alice.bsky.social',
-      federatedUsername: 'alice.bsky.social@bsky.social',
-      instanceDomain: 'bsky.social',
-      displayName: 'Alice',
-      avatarUrl: 'https://cdn.bsky.app/img/avatar/plain/did/cid@jpeg',
-      bio: 'hello from bluesky',
-    };
-
-    const oxyId = await resolveOxyExternalUser(actor);
-
-    expect(oxyId).toBe('oxy-resolved');
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('PUT', '/users/resolve', {
-      type: 'federated',
-      // The canonical Oxy username — NOT the bare handle, which oxy-api rejects.
-      username: 'alice.bsky.social@bsky.social',
-      // The DID is stored verbatim as the dedup key (oxy-api skips host binding).
-      actorUri: 'did:plc:ewvi7nxzyoun6zhxrhs64oiz',
-      // The instance domain — equals the username domain, so the binding holds.
-      domain: 'bsky.social',
-      displayName: 'Alice',
-      avatar: 'https://cdn.bsky.app/img/avatar/plain/did/cid@jpeg',
-      bio: 'hello from bluesky',
-      refresh: false,
-      forceAvatarRefresh: false,
-    });
-  });
-
-  it('passes the AP acct through as both username and (via instanceDomain) domain', async () => {
-    const actor: NormalizedExternalActor = {
-      network: 'activitypub',
-      externalId: 'https://mastodon.social/users/alice',
-      handle: 'alice@mastodon.social',
-      federatedUsername: 'alice@mastodon.social',
-      instanceDomain: 'mastodon.social',
-      displayName: 'Alice',
-      avatarUrl: 'https://files.mastodon.social/avatar.png',
-    };
-
-    await resolveOxyExternalUser(actor, { forceAvatarRefresh: true });
-
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('PUT', '/users/resolve', expect.objectContaining({
-      type: 'federated',
-      username: 'alice@mastodon.social',
-      actorUri: 'https://mastodon.social/users/alice',
-      domain: 'mastodon.social',
-      refresh: true,
-      forceAvatarRefresh: true,
+  it.each(['activitypub', 'atproto'] as const)('asks Oxy to verify %s transport without app identity claims', async (protocol) => {
+    const actorUri = protocol === 'atproto' ? 'did:plc:ewvi7nxzyoun6zhxrhs64oiz' : 'https://bird.makeup/users/alice';
+    const transportAcct = protocol === 'atproto' ? 'alice.bsky.social' : 'alice@bird.makeup';
+    mocks.makeServiceRequest.mockResolvedValue(oxyIdentityFixture({
+      actorUri, transportAcct, protocol, canonicalAcct: 'alice@x.com', network: 'x.com',
     }));
-  });
-
-  it('returns null (caller skips, no orphan) when Oxy returns no id', async () => {
-    mocks.makeServiceRequest.mockResolvedValue(null);
-    const actor: NormalizedExternalActor = {
-      network: 'atproto',
-      externalId: 'did:plc:ewvi7nxzyoun6zhxrhs64oiz',
-      handle: 'alice.bsky.social',
-      federatedUsername: 'alice.bsky.social@bsky.social',
-      instanceDomain: 'bsky.social',
-    };
-    expect(await resolveOxyExternalUser(actor)).toBeNull();
-  });
-
-  it('mirrors the actor banner as a public federated asset and stores its file id', async () => {
-    mocks.persistRemoteMedia.mockResolvedValue({
-      ok: true,
-      media: { oxyFileId: 'banner_file_1', contentType: 'image/png', sizeBytes: 1234 },
+    expect(await resolveOxyExternalUser({
+      network: protocol, externalId: actorUri, handle: transportAcct,
+      federatedUsername: 'untrusted@app.test', instanceDomain: 'app.test', bio: 'raw transport bio',
+    })).toBe('oxy-resolved');
+    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
+      actorUri, transportAcct, protocol,
     });
-    const actor: NormalizedExternalActor = {
-      network: 'activitypub',
-      externalId: 'https://mastodon.social/users/alice',
-      handle: 'alice@mastodon.social',
-      federatedUsername: 'alice@mastodon.social',
-      instanceDomain: 'mastodon.social',
-      bannerUrl: 'https://files.mastodon.social/banner.png',
-    };
-
-    await resolveOxyExternalUser(actor);
-
-    // The banner mirrors through the SAME service-token public-upload path as
-    // federated post media (`persistRemoteMediaForFederatedOwnerDetailed`), NOT
-    // the user-authenticated SDK `uploadProfileBanner` (which 401s here).
-    expect(mocks.persistRemoteMedia).toHaveBeenCalledWith(
-      'https://files.mastodon.social/banner.png',
-      'oxy-resolved',
-      expect.objectContaining({
-        role: 'banner',
-        actorUri: 'https://mastodon.social/users/alice',
-        remoteHost: 'files.mastodon.social',
-      }),
-      // Constrained to `image/` — see mirrorFederatedBanner.test.ts.
-      expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
-    );
-    // The STORED ROW, not the call. This is also the round trip meeting
-    // `actorObject.loadProfileBanner`, which reads the same column for the
-    // actor JSON and the `Update(Person)` broadcast — write and read are both
-    // Postgres now, which is the first time this field works end to end.
-    expect((await loadUserSettings('oxy-resolved'))?.profileHeaderImage).toBe('banner_file_1');
-  });
-
-  it('does not store a profile header image when banner mirroring fails', async () => {
-    mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: true, reason: 'not-media' });
-    const actor: NormalizedExternalActor = {
-      network: 'activitypub',
-      externalId: 'https://mastodon.social/users/bob',
-      handle: 'bob@mastodon.social',
-      federatedUsername: 'bob@mastodon.social',
-      instanceDomain: 'mastodon.social',
-      bannerUrl: 'https://files.mastodon.social/banner.txt',
-    };
-
-    await resolveOxyExternalUser(actor);
-
-    expect(mocks.persistRemoteMedia).toHaveBeenCalledWith(
-      'https://files.mastodon.social/banner.txt',
-      'oxy-resolved',
-      expect.objectContaining({ role: 'banner' }),
-      expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
-    );
-    expect(await loadUserSettings('oxy-resolved')).toBeNull();
-  });
-
-  it('skips banner mirroring when the actor has no banner', async () => {
-    const actor: NormalizedExternalActor = {
-      network: 'activitypub',
-      externalId: 'https://mastodon.social/users/carol',
-      handle: 'carol@mastodon.social',
-      federatedUsername: 'carol@mastodon.social',
-      instanceDomain: 'mastodon.social',
-    };
-
-    await resolveOxyExternalUser(actor);
-
     expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
-    expect(await loadUserSettings('oxy-resolved')).toBeNull();
+  });
+
+  it('returns null when Oxy returns no authoritative identity', async () => {
+    mocks.makeServiceRequest.mockResolvedValue({ id: 'legacy-only-id' });
+    expect(await resolveOxyExternalUser({
+      network: 'activitypub', externalId: 'https://bird.makeup/users/alice',
+      handle: 'alice@bird.makeup', federatedUsername: 'alice@x.com', instanceDomain: 'x.com',
+    })).toBeNull();
   });
 });
 

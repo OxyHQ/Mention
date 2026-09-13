@@ -260,7 +260,7 @@ export const federatedActorFields = pgTable(
   ]
 );
 
-/** `federated_identity_claims.kind` — see `connectors/identityEquivalence/identityClaims`. */
+/** Historical Mention identity claim kinds, retained for audit. */
 export const IDENTITY_CLAIM_KINDS = [
   'first-party-link',
   'also-known-as',
@@ -271,30 +271,9 @@ export const IDENTITY_CLAIM_KINDS = [
 export const IDENTITY_LINK_STATUSES = ['linked', 'pending_reconciliation', 'revoked'] as const;
 
 /**
- * `federated_identity_claims` — one account saying, machine-readably, that it is
- * also an account on another network.
- *
- * Claims are OBSERVATIONS, not conclusions. A row here means an actor published
- * something; whether two accounts are one person is decided from BOTH sides'
- * rows by `connectors/identityEquivalence/equivalenceEvidence` and recorded in
- * `federated_identity_links`.
- *
- * ## The whole claim set of an actor is REPLACED on every refresh
- *
- * That is what makes an equivalence reversible without a second mechanism. An
- * account that stops asserting its counterpart simply has no row here after the
- * next refresh, and the link that rested on it has nothing left to rest on. If
- * rows accumulated instead, a link could outlive the evidence for it forever —
- * and with a recyclable handle, outlive the PERSON it was about.
- *
- * ## No foreign key to `federated_actors`
- *
- * Keyed on `subject_actor_uri` rather than on the actor row's id for the same
- * reason `federated_follows.remote_actor_uri` is: the counterpart of a claim is
- * frequently an actor we have never fetched, and the claim is exactly what would
- * tell us to go and look. A cascade delete is not wanted either — a purged actor
- * should take its own claims with it, which `deleteActorsByUris` does explicitly
- * beside the row delete, where it is visible.
+ * Historical Mention identity observations. No current resolver writes or trusts
+ * this table. Oxy owns current source verification and revocable equivalence.
+ * Keep rows after actor-cache deletion so old decisions remain inspectable.
  */
 export const federatedIdentityClaims = pgTable(
   'federated_identity_claims',

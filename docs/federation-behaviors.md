@@ -36,30 +36,17 @@ them — that reconstructs from prose a relationship the bridge already
 destroyed, and it is the fragility that was deliberately removed from the
 identity path.
 
-## Bridge identity comes from the actor's `type`, not from its bio
+## Oxy owns bridge identity and public biography normalization
 
-A bridge on stock server software has nothing to fingerprint. The tempting
-tell is the per-account notice it writes into each mirrored bio — and that
-fails on LANGUAGE: mastox serves the same sentence in English, French and
-Spanish, an entry listing two of them left 18 of 50 held actors unrelabelled,
-and nobody would report it because the account merely looks ordinary.
+Mention resolves each source through Oxy's verified identity endpoint. It does
+not identify mirror accounts from biography prose, match handles across
+networks, or maintain its own source-profile derivation list. The public name,
+biography, network handle and active aliases all come from Oxy.
 
-`upstreamHandleFromAutomatedActor` reads `type` instead: every mirror is
-published as a `Service`, the operator's own account is a `Person`.
-`Application` is refused — that is the SERVER'S own actor
-(`https://<host>/actor`, `mastodon.internal`), and accepting it re-labels the
-instance itself.
-
-Not "relabel the whole host and exclude the admin": an exclusion list is
-unbounded, and one miss publishes a real person as an account on a network
-they may not use. Asking each actor what it is needs no list.
-
-The relabelling policy lives in
-`connectors/activitypub/federationBridgePolicy.ts`; the blocklist above is a
-separate, deliberately unconsolidated policy in
-`federationBlockPolicy.ts`. Enforcement and the public transparency page
-read the SAME relabelling array. oxy-api keeps its own trust list — the two
-are not merged.
+Mention's `repostTransportPolicy.ts` is limited to the content rule above: known
+transports can flatten reposts into misleading `RT:` bodies. It does not carry
+identity or profile-normalization rules. Domain blocking remains Mention's
+separate delivery/content policy in `federationBlockPolicy.ts`.
 
 ## Handles in synced text are qualified only where the result resolves
 

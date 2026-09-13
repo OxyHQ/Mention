@@ -20,10 +20,10 @@ import { posts } from '../../db/schema/posts';
 import { federatedActors } from '../../db/schema/federation';
 import { insertPostRecord } from '../../db/posts/postRepository';
 import { purgeFlattenedRetweets } from '../../scripts/purgeFlattenedRetweets';
-import { FEDERATION_BRIDGE_POLICY } from '../../connectors/activitypub/federationBridgePolicy';
+import { REVIEWED_REPOST_TRANSPORT_HOSTS } from '../../connectors/activitypub/repostTransportPolicy';
 
 /** A host the INGEST gate really treats as a bridge — read, not invented. */
-const BRIDGE_HOST = FEDERATION_BRIDGE_POLICY[0].host;
+const BRIDGE_HOST = REVIEWED_REPOST_TRANSPORT_HOSTS[0];
 const ORDINARY_HOST = 'ordinary-instance.test';
 
 const createdPosts: string[] = [];
