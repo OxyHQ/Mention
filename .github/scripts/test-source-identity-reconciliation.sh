@@ -38,9 +38,9 @@ aws() {
       [[ "$taskdef" == fixture-task:1 ]]
       jq -e '.awsvpcConfiguration.subnets == ["subnet-source"] and .awsvpcConfiguration.securityGroups == ["sg-source"] and .awsvpcConfiguration.assignPublicIp == "ENABLED"' "$network" >/dev/null
       if [[ "$OPERATION" == inspect_cache ]]; then
-        jq -e --arg actor "$ACTOR_URI" --arg canonical "$CANONICAL_ACCT" --arg transport "$TRANSPORT_ACCT" '.containerOverrides[0] | .command == ["busybox","timeout","-s","TERM","-k","30","3300","bun","packages/backend/dist/src/scripts/inspectFederatedIdentityCache.js"] and .environment == [{name:"DRY_RUN",value:"true"},{name:"CONFIRM_ADMIN_MUTATION",value:""},{name:"INSPECT_ACTOR_URI",value:$actor},{name:"INSPECT_CANONICAL_ACCT",value:$canonical},{name:"INSPECT_TRANSPORT_ACCT",value:$transport}]' "$overrides" >/dev/null
+        jq -e --arg actor "$ACTOR_URI" --arg canonical "$CANONICAL_ACCT" --arg transport "$TRANSPORT_ACCT" '.containerOverrides[0] | .command == ["sh","-c","busybox timeout -s TERM -k 30 3300 bun \"$1\"; status=$?; exit \"$status\"","mention-source-identity","packages/backend/dist/src/scripts/inspectFederatedIdentityCache.js"] and .environment == [{name:"DRY_RUN",value:"true"},{name:"CONFIRM_ADMIN_MUTATION",value:""},{name:"INSPECT_ACTOR_URI",value:$actor},{name:"INSPECT_CANONICAL_ACCT",value:$canonical},{name:"INSPECT_TRANSPORT_ACCT",value:$transport}]' "$overrides" >/dev/null
       else
-      jq -e --arg dry "$DRY_RUN" '.containerOverrides[0] | .command == ["busybox","timeout","-s","TERM","-k","30","3300","bun","packages/backend/dist/src/scripts/reconcileMetaIdentityAndCrossposts.js"] and .environment[0] == {name:"DRY_RUN",value:$dry} and .environment[1].value == (if $dry == "false" then "reconcileMetaIdentityAndCrossposts" else "" end)' "$overrides" >/dev/null
+      jq -e --arg dry "$DRY_RUN" '.containerOverrides[0] | .command == ["sh","-c","busybox timeout -s TERM -k 30 3300 bun \"$1\"; status=$?; exit \"$status\"","mention-source-identity","packages/backend/dist/src/scripts/reconcileMetaIdentityAndCrossposts.js"] and .environment[0] == {name:"DRY_RUN",value:$dry} and .environment[1].value == (if $dry == "false" then "reconcileMetaIdentityAndCrossposts" else "" end)' "$overrides" >/dev/null
       fi
       echo '{"failures":[],"tasks":[{"taskArn":"arn:fixture/task/one"}]}' ;;
     'ecs describe-tasks')

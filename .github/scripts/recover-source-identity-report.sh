@@ -23,4 +23,4 @@ aws ecr batch-get-image --repository-name oxy/mention --image-ids "imageTag=$sou
 jq -e --arg digest "$EXPECTED_IMAGE_DIGEST" '(.failures | length == 0) and (.images | length == 1 and .[0].imageId.imageDigest == $digest)' "$scratch/image.json" >/dev/null
 jq -n --arg sha "$source_sha" --arg digest "$EXPECTED_IMAGE_DIGEST" --arg task "$task" --arg definition "$definition" --arg run "$RECOVERY_RUN_ID" '{operation:"recover_report",sourceSha:$sha,imageDigest:$digest,taskArn:$task,taskDefinition:$definition,recoveredRunId:$run,readOnly:true}' > reconciliation-run.json
 bash "$(dirname "${BASH_SOURCE[0]}")/collect-source-identity-diagnostics.sh" "$scratch/result.json" "$scratch/definition.json" "$task"
-jq -e '.logsComplete == true' reconciliation-diagnostics.json >/dev/null
+jq -e '.logsComplete == true and .terminalEventObserved == true' reconciliation-diagnostics.json >/dev/null

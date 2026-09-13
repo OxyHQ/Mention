@@ -11,6 +11,7 @@ import { upsertActor, setActorOxyUserId, deleteActorsByUris } from '../../db/fed
 import { createCluster } from '../../db/posts/postEquivalenceRepository';
 import { reconcileActorIdentityProjection, unmuteIdentityProjection } from '../../services/ActorIdentityProjectionService';
 import { reconcileMetaIdentityAndCrossposts } from '../../scripts/reconcileMetaIdentityAndCrossposts';
+import { logger } from '../../utils/logger';
 import { recordAttestedIdentityLink } from '../../scripts/recordAttestedIdentityLink';
 const mocks = vi.hoisted(() => ({ lookup: vi.fn(), resolve: vi.fn(), users: vi.fn(), detect: vi.fn() }));
 vi.mock('../../connectors/oxyIdentity', () => ({ lookupOxyIdentities: mocks.lookup, resolveOxyIdentity: mocks.resolve }));
@@ -20,8 +21,9 @@ const source = 'https://kilogram.makeup/users/source';
 const otherSource = 'did:plc:other-source';
 beforeAll(connectPostgres);
 afterAll(closePostgres);
-beforeEach(() => { vi.clearAllMocks(); mocks.detect.mockResolvedValue({ outcome: 'refused', reason: 'no_current_content_proof' }); });
+beforeEach(() => { vi.clearAllMocks(); mocks.lookup.mockResolvedValue([]); mocks.detect.mockResolvedValue({ outcome: 'refused', reason: 'no_current_content_proof' }); });
 afterEach(async () => {
+  vi.restoreAllMocks();
   await getDb().delete(postEquivalenceClusters);
   await getDb().delete(posts);
   await getDb().delete(federatedActors);
@@ -46,9 +48,14 @@ it('remaps exactly one immutable source and its owner rows, idempotently', async
   expect((await reconcileActorIdentityProjection({ actorUri: source, oxyUserId: 'current-source', networkAcct: 'source@instagram.com' })).postsChanged).toBe(0);
 });
 it('dry-run projects counts but never resolves Oxy or writes Mention', async () => {
+  const info = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
   await actor(source); await actor(otherSource); await post(source);
   mocks.lookup.mockResolvedValue([{ identifier: source, userId: 'new-person', externalIdentities: [{ actorUri: source, canonicalAcct: 'source@instagram.com' }] }]);
   const report = await reconcileMetaIdentityAndCrossposts();
+  expect(info.mock.calls.filter(([message]) => message === '[reconcileMetaIdentityAndCrossposts] progress')).toEqual([
+    ['[reconcileMetaIdentityAndCrossposts] progress', { dryRun: true, phase: 'actors', batchesCompleted: 1, actorsExamined: 2, actorsChanged: 1, postsChanged: 1, authorshipConflicts: 0 }],
+    ['[reconcileMetaIdentityAndCrossposts] progress', { dryRun: true, phase: 'posts', batchesCompleted: 1, postsExamined: 1, postClustersCreated: 0 }],
+  ]);
   expect(report.actorsExamined).toBe(2);
   expect(report.postsChanged).toBe(1);
   expect(report.refused.oxy_identity_not_resolved).toBe(1);
@@ -96,4 +103,45 @@ it('retains old identity evidence when a source actor cache is purged', async ()
   await getDb().insert(federatedIdentityClaims).values({ subjectActorUri: source, subject: 'a@instagram.com', target: 'a@threads.net', kind: 'first-party-link', source: 'historical attestation' });
   expect(await deleteActorsByUris([source])).toBe(1);
   expect(await getDb().select().from(federatedIdentityClaims)).toHaveLength(1);
+});
+
+it('applies fresh registered authority and resolves only the missing exact source', async () => {
+  await actor(source); await actor(otherSource); await post(source); await post(otherSource);
+  mocks.lookup.mockResolvedValue([
+    { identifier: source, userId: 'current-canonical', externalIdentities: [{ actorUri: source, canonicalAcct: 'source@instagram.com', sourceUserId: 'source-owner' }], redirectedUserIds: ['old-person'] },
+    // A different actor in the same projection cannot stand in for this source.
+    { identifier: otherSource, userId: 'unrelated', externalIdentities: [{ actorUri: 'did:plc:foreign', canonicalAcct: 'foreign@bsky.social' }] },
+  ]);
+  mocks.resolve.mockResolvedValue({ externalIdentity: { userId: 'resolved-native', canonicalAcct: 'other@bsky.social' } });
+  const report = await reconcileMetaIdentityAndCrossposts({ dryRun: false });
+  expect(mocks.lookup).toHaveBeenCalledTimes(1);
+  expect(new Set(mocks.lookup.mock.calls[0][0])).toEqual(new Set([source, otherSource]));
+  expect(mocks.resolve).toHaveBeenCalledTimes(1);
+  expect(mocks.resolve).toHaveBeenCalledWith({ actorUri: otherSource, transportAcct: 'other@bsky.social', protocol: 'atproto' });
+  expect(report.postsChanged).toBe(2);
+  const rows = await getDb().select().from(posts);
+  expect(rows.find(row => row.federationActorUri === source)?.oxyUserId).toBe('current-canonical');
+  expect(rows.find(row => row.federationActorUri === otherSource)?.oxyUserId).toBe('resolved-native');
+});
+
+it('reads Oxy again on each apply and restores a source after authority separates it', async () => {
+  await actor(source, 'former-group'); await post(source, 'former-group');
+  mocks.lookup.mockResolvedValueOnce([{ identifier: source, userId: 'canonical-group', externalIdentities: [{ actorUri: source, canonicalAcct: 'source@instagram.com' }] }]);
+  await reconcileMetaIdentityAndCrossposts({ dryRun: false });
+  mocks.lookup.mockResolvedValueOnce([{ identifier: source, userId: 'independent-source', externalIdentities: [{ actorUri: source, canonicalAcct: 'source@instagram.com' }] }]);
+  await reconcileMetaIdentityAndCrossposts({ dryRun: false });
+  expect(mocks.lookup).toHaveBeenCalledTimes(2);
+  expect(mocks.resolve).not.toHaveBeenCalled();
+  const [row] = await getDb().select().from(posts).where(eq(posts.federationActorUri, source));
+  expect(row.oxyUserId).toBe('independent-source');
+});
+
+it('stops an apply batch before writes if the authoritative lookup fails', async () => {
+  await actor(source); await post(source);
+  mocks.lookup.mockRejectedValue(new Error('Authority temporarily unavailable'));
+  await expect(reconcileMetaIdentityAndCrossposts({ dryRun: false })).rejects.toThrow('Authority temporarily unavailable');
+  expect(mocks.resolve).not.toHaveBeenCalled();
+  expect(mocks.detect).not.toHaveBeenCalled();
+  const [row] = await getDb().select().from(posts).where(eq(posts.federationActorUri, source));
+  expect(row.oxyUserId).toBe('old-person');
 });

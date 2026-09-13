@@ -6,7 +6,7 @@ set -euo pipefail
 scratch=$(mktemp -d)
 trap 'rm -rf -- "$scratch"' EXIT
 printf '%s' "$REQUEST_INSPECTION" > "$scratch/selector.json"
-jq -e 'keys == ["endTime","requestId","sourceSha","startTime"] and (.requestId | test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) and (.sourceSha | test("^[0-9a-f]{40}$")) and ([.startTime,.endTime] | all(test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")))' "$scratch/selector.json" >/dev/null
+jq -e 'keys == ["endTime","requestId","sourceSha","startTime"] and (.requestId | test("^[a-zA-Z0-9_.:-]{8,128}$")) and (.sourceSha | test("^[0-9a-f]{40}$")) and ([.startTime,.endTime] | all(test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")))' "$scratch/selector.json" >/dev/null
 request=$(jq -er '.requestId' "$scratch/selector.json")
 source_sha=$(jq -er '.sourceSha' "$scratch/selector.json")
 start=$(jq -er '.startTime | fromdateiso8601' "$scratch/selector.json")
@@ -58,7 +58,7 @@ for task in "${tasks[@]}"; do
        status:([.. | objects | (.statusCode // .status // empty) | numbers | select(. >= 400 and . <= 599)] | unique),
        names:([(.. | objects | .name? | strings), ((.stack? // "") | strings | split(":")[0])] | map(select(. == "Error" or . == "TypeError" or . == "RangeError" or . == "ReferenceError" or . == "ZodError" or . == "PostgresError" or . == "AxiosError")) | unique),
        codes:([.. | objects | .code? | strings | select(. == "23505" or . == "23503" or . == "23502" or . == "42P01" or . == "42703" or . == "22P02" or . == "57014" or . == "53300" or . == "ECONNREFUSED" or . == "ETIMEDOUT" or . == "ECONNRESET" or . == "ERR_BAD_REQUEST" or . == "ERR_BAD_RESPONSE")] | unique),
-       modules:([.. | objects | .stack? | strings | . as $stack | $modules[0][] | . as $module | select($stack | contains($module))] | unique)}' "$scratch/page.json" >> "$scratch/matches.jsonl"
+       modules:([.. | objects | .stack? | strings | . as $stack | $modules[0][] | . as $owned_module | select($stack | contains($owned_module))] | unique)}' "$scratch/page.json" >> "$scratch/matches.jsonl"
     next=$(jq -er '.nextForwardToken' "$scratch/page.json")
     if [[ "$next" == "$token" ]]; then break; fi
     token=$next
