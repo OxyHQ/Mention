@@ -878,6 +878,33 @@ export const posts = pgTable(
     index('posts_classification_languages_gin').using('gin', t.classificationLanguages),
     index('posts_classification_trend_terms_gin').using('gin', t.classificationTrendTerms),
     /**
+     * TRIGRAM, not membership — `GET /hashtags/search` (`routes/hashtags.ts`)
+     * asks a different question than `posts_hashtags_gin` above answers.
+     * That one serves `hashtags @> {'x'}`/`&&`, exact membership; hashtag
+     * SEARCH is `lower(tag) LIKE '%needle%'` per unnested element, a
+     * per-element SUBSTRING match no membership index (or btree) can accelerate.
+     * `pg_trgm`'s `gin_trgm_ops` can accelerate `LIKE`/`ILIKE` — but only
+     * against a real expression, and `unnest()` produces one per QUERY, not one
+     * per ROW, so there is nothing here to index per element. This indexes the
+     * CONCATENATION instead, via `posts_hashtags_search_text` — a thin
+     * IMMUTABLE SQL wrapper the migration defines around `array_to_string`
+     * (itself only STABLE, so it cannot appear directly in an index
+     * expression) — which narrows candidate POSTS cheaply; the query still
+     * runs the exact per-element `unnest` + `LIKE` recheck itself;
+     * concatenation can only ever expand which rows this index passes through
+     * (a boundary match across two tags, e.g.), never narrow past a real
+     * answer — see `db/extensions.ts`'s `pg_trgm` entry for why this needs a
+     * new extension `posts_hashtags_gin` did not.
+     *
+     * PARTIAL on the exact scope `taggedPublicPosts()` searches: public posts
+     * that carry at least one hashtag. A private post or one with an empty
+     * array can never surface from this search regardless, so indexing it
+     * would only cost write-time maintenance for no read ever satisfied.
+     */
+    index('posts_hashtags_trgm_gin')
+      .using('gin', sql`posts_hashtags_search_text(${t.hashtags})`)
+      .where(sql`${t.visibility} = 'public' and coalesce(cardinality(${t.hashtags}), 0) > 0`),
+    /**
      * PARTIAL on `classification_region is not null`. The only two predicates
      * are `eq(posts.classificationRegion, region)` (`forYouCandidateSources`,
      * `relatedSources`) — strict, so the implication is provable — and nothing

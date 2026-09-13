@@ -90,6 +90,16 @@ export interface IsolatedDatabaseFile {
 }
 
 export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
+  ...[
+    'src/__tests__/mtn/forYouCandidateGatheringStatementBudget.test.ts',
+    'src/__tests__/forYouCandidateSources.test.ts',
+  ].map(path => ({
+    path,
+    jobEntryPoint: 'gatherGlobalLane',
+    reason: 'Global candidate discovery reads every eligible post. Concurrent suites can add '
+      + 'reply candidates whose parent hydration changes the measured final-page assembly cost; '
+      + 'the fixture must own its entire candidate pool without changing production query scope.',
+  })),
   {
     path: 'src/__tests__/services/engagementProjections.test.ts',
     jobEntryPoint: 'reconcileEngagementProjections',

@@ -284,6 +284,17 @@ const environmentSchema = z
      */
     OXY_REQUEST_METRICS_ENABLED: booleanFromEnv(process.env.NODE_ENV !== 'test'),
 
+    /**
+     * Whether `utils/cloudwatchEmf.ts` writes a CloudWatch Embedded Metric
+     * Format line per request, turning `durationMs`/`queryCount`/`oxyCallCount`
+     * into real CloudWatch custom metrics (namespace `Mention/Backend`) — no
+     * new infra, since EMF rides the same stdout → `awslogs` path every log
+     * line already takes. Off in tests for the same reason the two flags
+     * above are: nothing here is behaviour, and a test asserting on stdout
+     * shape would be asserting on this instead of on itself.
+     */
+    CLOUDWATCH_EMF_ENABLED: booleanFromEnv(process.env.NODE_ENV !== 'test'),
+
     REDIS_URL: optionalRedisUrl,
     REDIS_URI: optionalRedisUrl,
     REDIS_HOST: optionalHost,
@@ -851,6 +862,9 @@ export const config = {
     enabled: environment.INTERNAL_METRICS_ENABLED,
     token: environment.INTERNAL_METRICS_TOKEN,
     allowedIps: environment.METRICS_ALLOWED_IPS,
+  },
+  cloudwatch: {
+    emfEnabled: environment.CLOUDWATCH_EMF_ENABLED,
   },
   cache: {
     userTTL: environment.CACHE_USER_TTL,

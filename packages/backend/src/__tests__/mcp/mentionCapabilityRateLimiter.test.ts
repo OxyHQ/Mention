@@ -1,6 +1,8 @@
+import type { Server } from 'node:http';
 import express from 'express';
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
+import { useHttpTestServers } from '../helpers/httpTestServers';
 
 const { MemoryStore } = vi.hoisted(() => ({
   MemoryStore: class {
@@ -28,16 +30,18 @@ vi.mock('../../middleware/rateLimitStore', () => ({ RedisStore: MemoryStore }));
 
 import { mentionCapabilityRateLimiter } from '../../capabilities/capabilityRateLimiter';
 
-function buildApp(): express.Express {
+const listen = useHttpTestServers();
+
+function buildApp(): Promise<Server> {
   const app = express();
   app.use(mentionCapabilityRateLimiter);
   app.get('/resource', (_request, response) => response.json({ ok: true }));
-  return app;
+  return listen(app);
 }
 
 describe('Mention capability authorization rate limiting', () => {
   it('bounds capability tickets before authorization work', async () => {
-    const app = buildApp();
+    const app = await buildApp();
 
     for (let requestIndex = 0; requestIndex < 120; requestIndex += 1) {
       const response = await request(app)
@@ -54,7 +58,7 @@ describe('Mention capability authorization rate limiting', () => {
   });
 
   it('does not spend the capability budget for ordinary callers', async () => {
-    const response = await request(buildApp()).get('/resource');
+    const response = await request(await buildApp()).get('/resource');
 
     expect(response.status).toBe(200);
     expect(response.headers['ratelimit-limit']).toBeUndefined();

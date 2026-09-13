@@ -45,6 +45,18 @@ export type CandidatePost = PostRecord & {
    * `languageMismatchPenalty` ranking signal.
    */
   _discovery?: boolean;
+  /**
+   * SHELL marker. Stamped `true` by a source (today, only For You's lanes —
+   * see `assembleShellRecords` / `forYouCandidateSources.ts`) whose `posts` row
+   * was mapped straight to a `PostRecord` WITHOUT its child tables: `authorship`
+   * and `mentions` are `[]`, and the child-table halves of `content`
+   * (media/variants/attachments/sources) and `postClassification` (`topicRefs`)
+   * are absent. `PostHydrationService.hydrateSlices` resolves every candidate
+   * still carrying this flag to its full record — via one batched
+   * `loadPostRecords` — right before hydration, so the 9-table join is paid for
+   * exactly once, for exactly the page that survives ranking/dedup/slicing.
+   */
+  _unassembled?: boolean;
 };
 
 export type ModuleKind = 'source' | 'signal' | 'filter';

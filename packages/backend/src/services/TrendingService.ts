@@ -23,6 +23,7 @@ import { rankTrendCandidates, topUpWithPopular } from './trending/trendScoring';
 import { aggregateTermCandidates } from './trending/trendDetection';
 import { buildTrendItems, type TrendItem } from './trending/trendItems';
 import { cleanupOldTrends, saveTrendingBatch } from './trending/trendBatchStore';
+import { getOrLoadTrendSummary } from './trending/trendSummaryCache';
 import { loadTrendActors, loadVolumeSeries } from './trending/trendDecoration';
 import {
   LANGUAGE_OVERFETCH,
@@ -340,36 +341,41 @@ class TrendingService {
     const normalized = term.trim().toLowerCase();
     if (!normalized) return {};
 
-    const db = getDb();
-    const [latestBatch] = await db
-      .select({ calculatedAt: trendBatches.calculatedAt })
-      .from(trendBatches)
-      .orderBy(desc(trendBatches.calculatedAt))
-      .limit(1);
-    if (!latestBatch) return {};
+    // Cached 30s (`trendSummaryCache.ts`) — the frontend's own `staleTime: 0`
+    // re-fetch policy is a VIEWER freshness choice, not a reason every one of
+    // a popular trend's concurrent viewers should re-run both reads below.
+    return getOrLoadTrendSummary(normalized, async () => {
+      const db = getDb();
+      const [latestBatch] = await db
+        .select({ calculatedAt: trendBatches.calculatedAt })
+        .from(trendBatches)
+        .orderBy(desc(trendBatches.calculatedAt))
+        .limit(1);
+      if (!latestBatch) return {};
 
-    const [row] = await db
-      .select({
-        startedAt: trending.startedAt,
-        displayName: trending.displayName,
-        category: trending.category,
-        description: trending.description,
-      })
-      .from(trending)
-      .where(and(
-        eq(trending.name, normalized),
-        eq(trending.calculatedAt, latestBatch.calculatedAt),
-      ))
-      .limit(1);
-    // Not in the current batch, or written before onset tracking: either way
-    // there is no run to attribute a summary to, so there is nothing to do.
-    if (!row?.startedAt) return {};
+      const [row] = await db
+        .select({
+          startedAt: trending.startedAt,
+          displayName: trending.displayName,
+          category: trending.category,
+          description: trending.description,
+        })
+        .from(trending)
+        .where(and(
+          eq(trending.name, normalized),
+          eq(trending.calculatedAt, latestBatch.calculatedAt),
+        ))
+        .limit(1);
+      // Not in the current batch, or written before onset tracking: either way
+      // there is no run to attribute a summary to, so there is nothing to do.
+      if (!row?.startedAt) return {};
 
-    return {
-      ...(row.description ? { description: row.description } : {}),
-      ...(row.displayName ? { displayName: row.displayName } : {}),
-      ...(row.category ? { category: row.category } : {}),
-    };
+      return {
+        ...(row.description ? { description: row.description } : {}),
+        ...(row.displayName ? { displayName: row.displayName } : {}),
+        ...(row.category ? { category: row.category } : {}),
+      };
+    });
   }
 
   /**

@@ -4,7 +4,7 @@
  */
 
 import { Response } from 'express';
-import { and, desc, eq, exists, ilike, inArray, isNotNull, sql, type SQL } from 'drizzle-orm';
+import { and, eq, exists, ilike, isNotNull, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { bookmarks as bookmarksTable } from '../../db/schema/engagement';
 import { posts as postsTable } from '../../db/schema/posts';
@@ -125,22 +125,36 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
 
     const folderFilter = queryString(req.query.folder);
 
-    // Get saved post IDs for the user, optionally filtered by folder
-    const savedPosts = await getDb()
-      .select({ postId: bookmarksTable.postId })
-      .from(bookmarksTable)
-      .where(
-        folderFilter
-          ? and(eq(bookmarksTable.userId, userId), eq(bookmarksTable.folder, folderFilter))
-          : eq(bookmarksTable.userId, userId),
-      )
-      .orderBy(desc(bookmarksTable.createdAt));
-
-    const postIds = savedPosts.map((saved) => saved.postId);
-
     // Build query for posts
     // Don't filter by visibility - users should be able to see their saved posts regardless of visibility
-    const conditions: SQL[] = [inArray(postsTable.id, postIds)];
+    //
+    // Membership is a correlated EXISTS against `bookmarks`, not a pre-fetched
+    // id list fed through `inArray`: the old shape loaded EVERY bookmark row
+    // for the user (no limit) before this query even ran, so a heavy saver
+    // paid for their whole bookmark history on every page of results. `posts`
+    // is what's paginated and ordered (`CHRONO_DESC` below) either way, so
+    // membership only needs to be checked per candidate row — which
+    // `bookmarks_post_id_idx`/`bookmarks_user_id_post_id_key` (`db/schema/
+    // engagement.ts`) already serve — never materialized as a whole list.
+    const conditions: SQL[] = [
+      exists(
+        getDb()
+          .select({ one: sql`1` })
+          .from(bookmarksTable)
+          .where(
+            folderFilter
+              ? and(
+                eq(bookmarksTable.postId, postsTable.id),
+                eq(bookmarksTable.userId, userId),
+                eq(bookmarksTable.folder, folderFilter),
+              )
+              : and(
+                eq(bookmarksTable.postId, postsTable.id),
+                eq(bookmarksTable.userId, userId),
+              ),
+          ),
+      ) as SQL,
+    ];
 
     // Add search filter if provided
     if (searchQuery && searchQuery.trim()) {
@@ -167,20 +181,15 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
             ),
         ),
       );
-      logger.debug('Built saved-post query', {
-        savedPostCount: postIds.length,
-        hasSearchFilter: true,
-      });
+      logger.debug('Built saved-post query', { hasSearchFilter: true });
     }
 
     // Get the actual posts
-    const posts = postIds.length === 0
-      ? []
-      : await findPostRecords(and(...conditions), {
-        orderBy: CHRONO_DESC,
-        limit,
-        offset: (page - 1) * limit,
-      });
+    const posts = await findPostRecords(and(...conditions), {
+      orderBy: CHRONO_DESC,
+      limit,
+      offset: (page - 1) * limit,
+    });
 
     const hydratedPosts = await postHydrationService.hydratePosts(posts, {
       viewerId: userId,

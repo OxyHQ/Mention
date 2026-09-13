@@ -22,6 +22,8 @@ const READ_ONLY_SCRIPTS = new Set([
   'evalFeedQuality.ts',
   // Prints what a term's posts store; makes no write of any kind.
   'inspectTrendTerms.ts',
+  // Exact source identifiers, one SELECT in a read-only transaction; no resolver or writes.
+  'inspectFederatedIdentityCache.ts',
   // Retired writer: callable entry refuses every mutation; CLI counts audit rows only.
   'recordAttestedIdentityLink.ts',
   // Re-derives one field from a pure function over data already on the post.

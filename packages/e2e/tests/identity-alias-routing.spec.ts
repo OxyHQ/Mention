@@ -40,4 +40,3 @@ for (const scenario of [
     expect(candidate.scriptErrors).toEqual([]);
   });
 }
-

@@ -197,6 +197,10 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
       'The suite imports only the pure planHistoricalEmojiCleanup decision helper and never ' +
       'calls the module\'s table-wide run entry point.',
   },
+  'inspectFederatedIdentityCache': {
+    scope: 'caller-scoped',
+    reason: 'Read-only counts restricted to the exact actor URI and accounts supplied by the caller.',
+  },
   'fixtures/feedQualityLabels': {
     scope: 'caller-scoped',
     reason: 'A fixture module of static labels; it touches no database at all.',

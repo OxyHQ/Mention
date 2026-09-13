@@ -99,6 +99,14 @@ vi.mock('../../utils/privacyHelpers', () => ({
   getRestrictedUserIds: vi.fn(async () => []),
   extractFollowingIds: vi.fn(() => []),
   extractFollowersIds: vi.fn(() => []),
+  // `getPostById` resolves this once, up front, instead of leaving hydration to
+  // call the four mocks above on its own unthreaded fallback — same empty result
+  // either way, just fetched by a different caller.
+  resolveViewerPrivacyAndGraph: vi.fn(async (viewerId?: string) =>
+    viewerId
+      ? { viewerPrivacy: { blockedIds: [], restrictedIds: [] }, viewerGraph: { followingIds: [], followerIds: [] } }
+      : undefined,
+  ),
 }));
 
 vi.mock('../../services/userSummaryCache', () => ({

@@ -112,7 +112,31 @@ The ECS command is fixed and has a 55-minute timeout with a 30-second terminatio
 grace. The workflow waits at most 60 minutes for completion. A timeout, nonzero
 exit, missing/invalid JSON tally or incomplete log retrieval fails the workflow;
 inspect the task ARN in ECS before retrying, since earlier writes remain committed.
-The workflow cannot stop ECS tasks with the deploy role. Reports contain only
-counts; inherited secret references, task definitions and raw source logs are
+The workflow cannot stop ECS tasks with the deploy role. Reports contain counts and inspected public selectors; inherited secret references, task definitions and raw source logs are
 never uploaded. This workflow does not migrate Oxy's identity evidence or create
 Mention-owned identity claims.
+
+## Prove a candidate is absent before public discovery
+
+The same workflow has a fixed `operation=inspect_cache` mode. Keep `dry_run=true`
+and supply the exact public `actor_uri`, lowercase `canonical_acct`, and lowercase
+`transport_acct`, along with the reviewed deployed image digest. This invokes
+only the compiled form of `inspectFederatedIdentityCache.ts`; it makes no Oxy
+requests, resolves no actors and writes no application rows. A read-only repeatable-read transaction
+counts exact matches with a 15-second statement timeout.
+
+Save its artifact before opening the candidate's profile. The report identifies
+`operation=inspect_cache`, the queried public selectors, observation timestamp,
+source SHA and image digest, plus four counts: actor URI matches, canonical acct
+matches across `acct`/`network_acct`, transport acct matches across those columns,
+and posts whose `federation_actor_uri` matches the source. All four must be zero
+for absence evidence. Tombstoned actors, private posts and other retained source
+history count too; a cached acct under another actor URI prevents a false claim
+of absence. No profile or post content is included.
+
+Run the same inspection after public discovery and compare the identical
+selectors. A nonzero result then records Mention's materialized cache state.
+This is separate from Oxy's own pre/post inspection: proving absence in only one
+service does not establish a cold discovery across both. An inspection artifact
+cannot authorize reconciliation apply; apply requires `operation=reconcile`
+in the earlier successful preview report.
