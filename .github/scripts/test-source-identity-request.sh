@@ -18,7 +18,7 @@ aws() {
     'logs get-log-events')
       [[ "$*" == *'--start-time 1789286750000 --end-time 1789286780000'* ]]
       if [[ "$*" == *--next-token* ]]; then echo '{"events":[],"nextForwardToken":"done"}'; return; fi
-      jq -n '{events:[{timestamp:1789286763891,message:({requestId:"a5956d3d-c89f-4c8a-b8c5-5abce3ac7c10",route:"/federation/resolve",status:500,error:{name:"PostgresError",code:"23505",message:"PRIVATE_TOKEN",stack:"TypeError: PRIVATE_TOKEN\n at /app/packages/backend/dist/src/utils/error.js:45:1"}} | tojson)},{timestamp:1789286763892,message:({msg:"Unhandled error in request handler",error:"PRIVATE_TOKEN",stack:"TypeError: PRIVATE_TOKEN\n at /app/packages/backend/dist/src/utils/error.js:45:1"} | tojson)},{timestamp:1789286763893,message:({requestId:"unrelated",error:"PRIVATE_TOKEN"} | tojson)}],nextForwardToken:"done"}' ;;
+      jq -n '{events:[{timestamp:1789286763891,message:({requestId:"a5956d3d-c89f-4c8a-b8c5-5abce3ac7c10",route:"/unmatched",oxyCallCount:0,failedOxyCallCount:0,queryCount:2,failedQueryCount:0,status:500,error:{name:"PostgresError",code:"23505",message:"PRIVATE_TOKEN",stack:"TypeError: PRIVATE_TOKEN\n at /app/packages/backend/dist/src/utils/error.js:45:1"}} | tojson)},{timestamp:1789286763892,message:({msg:"Unhandled error in request handler",error:"WRONGTYPE Operation against PRIVATE_TOKEN; value is not an integer",stack:"TypeError: PRIVATE_TOKEN\n at /app/packages/backend/dist/src/utils/error.js:45:1"} | tojson)},{timestamp:1789286763893,message:({requestId:"unrelated",error:"PRIVATE_TOKEN"} | tojson)}],nextForwardToken:"done"}' ;;
     *) echo "Unexpected operation $command" >&2; return 1 ;;
   esac
 }
@@ -35,7 +35,7 @@ for TEST_CASE in success wrong-image wrong-selector wrong-window; do
   (cd "$scratch/$TEST_CASE" && bash "$root/.github/scripts/inspect-source-identity-request.sh") > "$scratch/$TEST_CASE/output" 2>&1 || status=$?
   if [[ "$TEST_CASE" == success ]]; then
     [[ "$status" == 0 ]] || { cat "$scratch/$TEST_CASE/output"; exit 1; }
-    jq -e '.readOnly and (.matches | length == 2) and .matches[0].requestCorrelated and .matches[0].codes == ["23505"] and .matches[0].modules == ["src/utils/error.js"] and (.matches[1].requestCorrelated | not) and .matches[1].names == ["TypeError"]' "$scratch/$TEST_CASE/reconciliation-request.json" >/dev/null
+    jq -e '.readOnly and (.matches | length == 2) and .matches[0].requestCorrelated and .matches[0].codes == ["23505"] and .matches[0].modules == ["src/utils/error.js"] and (.matches[1].requestCorrelated | not) and .matches[1].names == ["TypeError"] and .matches[0].route == "/unmatched" and .matches[0].counts == {oxyCallCount:0,failedOxyCallCount:0,queryCount:2,failedQueryCount:0} and .matches[1].category == "redis_operation" and .matches[1].redisFailures == ["WRONGTYPE","NONINTEGER"]' "$scratch/$TEST_CASE/reconciliation-request.json" >/dev/null
   else [[ "$status" != 0 ]] || { echo "Accepted $TEST_CASE"; exit 1; }; fi
   if [[ "$TEST_CASE" == wrong-selector || "$TEST_CASE" == wrong-window ]]; then
     [[ ! -s "$scratch/calls" ]] || { echo "Read AWS before refusing $TEST_CASE"; exit 1; }
