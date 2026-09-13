@@ -152,7 +152,7 @@ A missing completion tally still fails the run and cannot authorize an apply.
 For an older failed run without an artifact, dispatch the same workflow with
 `operation=recover_report`, `dry_run=true`, its `recovery_run_id`, and the reviewed
 `expected_image_digest`. The dispatcher must match the original operator. Recovery
-verifies the prior main workflow, its unique launcher task selector, the stopped
+verifies the prior main workflow, its unique launcher task selector, the
 ECS task and its immutable image against the prior source tag. It only reads ECS,
 ECR and CloudWatch; it never starts or changes a task. Expired ECS task metadata
 or unavailable logs cause recovery to fail rather than guess at another task.
@@ -204,3 +204,17 @@ of at most 100 actors or posts. It records the phase, dry-run mode, completed
 batch count and cumulative numeric counters. Progress events contain no actor
 identifiers or profile content and do not count as a completed reconciliation
 report or authorize an apply.
+
+Recovery also retains authenticated snapshots of tasks still `PENDING` or
+`RUNNING`. Those artifacts report the observed task state and
+`recoveryComplete=false`; a terminal log alone cannot prove the task stopped.
+Recovery succeeds only for a stopped task with complete log pagination and a
+terminal event. A live or incomplete task still fails the workflow while its
+diagnostic artifacts remain available. Recovery never stops or starts a task.
+
+Recovered diagnostics retain the latest numeric progress counters for each
+finite phase and a validated completion summary when present. Identical
+summaries are deduplicated; conflicting or malformed summaries make recovery
+incomplete. Refusals are reduced to a numeric total, without arbitrary reason
+keys. These diagnostic fields never replace the successful-preview artifact or
+authorize an apply from a failed workflow.
