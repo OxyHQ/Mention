@@ -39,19 +39,23 @@ jq -e --arg task "$task" --arg definition "$definition" --arg container "$contai
        .command == ["sh","-c","busybox timeout -s TERM -k 30 3300 bun \"$1\"; status=$?; exit \"$status\"","mention-source-identity","packages/backend/dist/src/scripts/reconcileMetaIdentityAndCrossposts.js"]) and
       (.environment | sort_by(.name)) == [{name:"CONFIRM_ADMIN_MUTATION",value:""},{name:"DRY_RUN",value:"true"}]
     )))' "$scratch/task.json" >/dev/null
-jq '. + {operation:"stop_preview",previewCancelled:false,applyEligible:false,diagnosticsPhase:"before_stop"}' reconciliation-run.json > "$scratch/snapshot.json"
+jq '. + {operation:"stop_preview",previewCancelled:false,applyEligible:false,diagnosticsPhase:"before_stop",readOnly:false,previewReadOnly:true,stopRequested:false}' reconciliation-run.json > "$scratch/snapshot.json"
 mv "$scratch/snapshot.json" reconciliation-run.json
 if [[ "$mode" == prepare ]]; then
   printf 'task_arn=%s\n' "$task" >> "${GITHUB_OUTPUT:?}"
   exit 0
 fi
 [[ "${STOP_TASK_ARN:?}" == "$task" ]] || exit 1
+stop_requested=false
 if [[ $(jq -r '.tasks[0].lastStatus' "$scratch/task.json") != STOPPED ]]; then
   # Discard raw AWS errors, which can contain environment overrides.
   if ! aws ecs stop-task --cluster "$CLUSTER" --task "$task" --reason 'Cancel authenticated read-only legacy source identity preview' > "$scratch/stop.json" 2> "$scratch/stop-error"; then
     echo '::error::Stopping the authenticated preview failed; pre-stop evidence retained'
     exit 1
   fi
+  stop_requested=true
+  jq '. + {stopRequested:true}' reconciliation-run.json > "$scratch/requested.json"
+  mv "$scratch/requested.json" reconciliation-run.json
 fi
 # Bound the entire observation phase, including AWS request latency.
 cat > "$scratch/poll.sh" <<'POLL'
@@ -65,7 +69,7 @@ cat > "$scratch/poll.sh" <<'POLL'
   exit 1
 POLL
 if timeout 120 bash "$scratch/poll.sh" "$CLUSTER" "$task" "$scratch"; then
-  jq '. + {taskStatus:"STOPPED",previewCancelled:true,applyEligible:false}' reconciliation-run.json > "$scratch/cancelled.json"
+  jq --argjson requested "$stop_requested" '. + {taskStatus:"STOPPED",previewCancelled:$requested,applyEligible:false}' reconciliation-run.json > "$scratch/cancelled.json"
   mv "$scratch/cancelled.json" reconciliation-run.json
   exit 0
 fi

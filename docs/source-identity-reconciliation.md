@@ -233,8 +233,10 @@ The workflow uploads sanitized evidence before obtaining a second AWS session
 whose `ecs:StopTask` permission names only that authenticated task ARN. It repeats
 validation before cancellation and polls for `STOPPED` for at most 120 seconds.
 No application summary is required for an intentionally aborted preview.
-`reconciliation-run.json` marks `previewCancelled` only after observing `STOPPED`,
+`reconciliation-run.json` marks `previewCancelled` only after requesting cancellation and observing `STOPPED`,
 and always records `applyEligible: false`; the diagnostics describe the snapshot
-before stopping. A failed stop or polling timeout retains the evidence and fails
+before stopping. An already stopped task succeeds without claiming cancellation.
+The original task is marked `previewReadOnly: true`; the cancellation operation
+is marked `readOnly: false` because it changes ECS task state. A failed stop or polling timeout retains the evidence and fails
 the workflow. Cancellation never produces a reconciliation report and cannot
 serve as an apply preview.

@@ -65,7 +65,7 @@ aws() {
   case "$1 $2" in
     'ecs describe-tasks')
       local state=RUNNING
-      [[ -f "$TEST_ROOT/stopped" ]] && state=STOPPED
+      [[ -f "$TEST_ROOT/stopped" || "$TEST_CASE" == already-stopped ]] && state=STOPPED
       jq -n --arg task "$FIXTURE_TASK" --arg state "$state" --arg scenario "$TEST_CASE" '{failures:[],tasks:[{taskArn:$task,taskDefinitionArn:"fixture:1",startedBy:"gh-source-identity-reconcile",lastStatus:$state,group:(if $scenario == "service-group" then "service:mention" else "family:oxy-mention" end),containers:[{name:"backend"}],overrides:{containerOverrides:[{name:"backend",command:(if $scenario == "supervisor" then ["sh","-c","busybox timeout -s TERM -k 30 3300 bun \"$1\"; status=$?; exit \"$status\"","mention-source-identity","packages/backend/dist/src/scripts/reconcileMetaIdentityAndCrossposts.js"] else ["busybox","timeout","-s","TERM","-k","30","3300","bun",(if $scenario == "wrong-command" then "arbitrary.js" else "packages/backend/dist/src/scripts/reconcileMetaIdentityAndCrossposts.js" end)] end),environment:[{name:"DRY_RUN",value:(if $scenario == "apply-task" then "false" else "true" end)},{name:"CONFIRM_ADMIN_MUTATION",value:""}]}]}}]}' ;;
     'ecs describe-services') jq -n --arg scenario "$TEST_CASE" '{failures:[],services:[{status:"ACTIVE",taskDefinition:(if $scenario == "live-definition" then "fixture:1" else "fixture:2" end),deployments:[{taskDefinition:"fixture:2"}]}]}' ;;
     'ecs list-tasks') jq -n --arg scenario "$TEST_CASE" --arg task "$FIXTURE_TASK" '{taskArns:(if $scenario == "service-task" then [$task] else [] end)}' ;;
@@ -86,7 +86,7 @@ gh() {
   else read_gh "$@"; fi
 }
 export -f aws read_aws gh read_gh
-for TEST_CASE in success prepare supervisor apply-task apply-artifact wrong-command service-group live-definition service-task wrong-operator ambiguous-task wrong-image wrong-selector stop-failure never-stopped; do
+for TEST_CASE in success prepare supervisor already-stopped apply-task apply-artifact wrong-command service-group live-definition service-task wrong-operator ambiguous-task wrong-image wrong-selector stop-failure never-stopped; do
   export TEST_CASE
   mkdir "$scratch/$TEST_CASE"
   rm -f "$scratch/stopped"
@@ -100,6 +100,10 @@ for TEST_CASE in success prepare supervisor apply-task apply-artifact wrong-comm
   if [[ "$TEST_CASE" == success || "$TEST_CASE" == supervisor ]]; then
     [[ $status == 0 ]] || { cat "$scratch/$TEST_CASE/output"; exit 1; }
     jq -e '.operation == "stop_preview" and .previewCancelled == true and .applyEligible == false and .taskStatus == "STOPPED"' "$scratch/$TEST_CASE/reconciliation-run.json" >/dev/null
+  elif [[ "$TEST_CASE" == already-stopped ]]; then
+    [[ $status == 0 ]]
+    jq -e '.previewCancelled == false and .stopRequested == false and .taskStatus == "STOPPED" and .applyEligible == false' "$scratch/$TEST_CASE/reconciliation-run.json" >/dev/null
+    ! grep -q '^stop$' "$scratch/calls"
   elif [[ "$TEST_CASE" == prepare ]]; then
     [[ $status == 0 ]]
     grep -Fxq "task_arn=$FIXTURE_TASK" "$GITHUB_OUTPUT"
