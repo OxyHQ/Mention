@@ -23,7 +23,7 @@ import {
 } from 'drizzle-orm';
 import { getDb } from '../../../../db/postgres';
 import { postMedia, posts } from '../../../../db/schema';
-import { assemblePostRecords } from '../../../../db/posts/postRepository';
+import { assemblePostRecords, assembleShellRecords } from '../../../../db/posts/postRepository';
 import {
   FeedQueryBuilder,
   authorNotInSql,
@@ -326,6 +326,17 @@ function exploreFinalScoreSql(now: Date, relevance: SQL): SQL<number> {
  * non-followed public SFW content. Returns candidates decorated with a
  * `finalScore` and sorted, with the score cursor already applied — the engine's
  * pre-scored ranked path slices/diversifies/paginates it.
+ *
+ * Returns SHELLS (`assembleShellRecords`, flat columns only — see its doc in
+ * `postRepository.ts`), not full records: `preScored: true` means this feed
+ * never reaches `FeedRankingService.rankPosts` (`FeedEngine.finalizeRanked`'s
+ * dedupe-only branch), so nothing downstream of this query reads
+ * `content`/`authorship`/`mentions` before `PostHydrationService.hydrateSlices`
+ * resolves the final page — unlike For You's lanes, Explore has no ranking
+ * signal that would score a shell any differently than a fully-assembled
+ * record, since scoring already happened here, in SQL, as `finalScore`. The
+ * cap (`cap + 1`, `candidateMultiplier` wide) is fetched and scored the same
+ * as before; only the 9-table join is deferred to the page that survives it.
  */
 export const exploreSource: SourceModule = {
   id: 'explore',
@@ -393,10 +404,11 @@ export const exploreSource: SourceModule = {
       .orderBy(desc(finalScore), desc(posts.id))
       .limit(cap + 1);
 
-    const candidates: CandidatePost[] = await assemblePostRecords(rows, db);
-    return candidates.map((candidate, index) => {
-      candidate.finalScore = rows[index].finalScore;
-      return candidate;
+    const shells: CandidatePost[] = assembleShellRecords(rows);
+    return shells.map((shell, index) => {
+      shell.finalScore = rows[index].finalScore;
+      shell._unassembled = true;
+      return shell;
     });
   },
 };
