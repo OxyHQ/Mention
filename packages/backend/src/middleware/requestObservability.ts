@@ -7,6 +7,7 @@ import {
 } from '../db/queryMetrics';
 import { logger } from '../utils/logger';
 import { metrics } from '../utils/metrics';
+import { emitRequestMetrics } from '../utils/cloudwatchEmf';
 import {
   isOxyInstrumentationEnabled,
   runWithOxyAccounting,
@@ -86,10 +87,9 @@ function reportRequest(
         failedQueryCount: tally.errorCount,
       }
       : {}),
-    // The line, not the histogram, is what survives the process: nothing scrapes
-    // `/internal/metrics` (see `docs/PERFORMANCE_BUDGETS.md`). Read beside
-    // `queryCount`, these two say whether a slow route is slow in Postgres or
-    // slow waiting on Oxy — which no existing signal could distinguish.
+    // Read beside `queryCount`, these two say whether a slow route is slow in
+    // Postgres or slow waiting on Oxy — which no existing signal could
+    // distinguish.
     ...(oxyTally
       ? {
         oxyCallCount: oxyTally.count,
@@ -97,6 +97,17 @@ function reportRequest(
         failedOxyCallCount: oxyTally.errorCount,
       }
       : {}),
+  });
+
+  // A retained time series for the numbers just logged — see
+  // `utils/cloudwatchEmf.ts` for why this is a separate stdout write rather
+  // than folded into the call above.
+  emitRequestMetrics({
+    route,
+    method: labels.method,
+    durationMs,
+    queryCount: tally?.count,
+    oxyCallCount: oxyTally?.count,
   });
 }
 
