@@ -24,6 +24,10 @@ aws() {
     'ecs describe-task-definition') jq -n --arg image "237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/mention@$EXPECTED_IMAGE_DIGEST" '{containerDefinitions:[{name:"backend",image:$image,logConfiguration:{options:{"awslogs-group":"group","awslogs-stream-prefix":"ecs"}}}]}' ;;
     'ecr batch-get-image') jq -n --arg digest "$(if [[ "$TEST_CASE" == wrong-image ]]; then echo sha256:wrong; else echo "$EXPECTED_IMAGE_DIGEST"; fi)" '{failures:[],images:[{imageId:{imageDigest:$digest}}]}' ;;
     'logs get-log-events')
+      if [[ "$TEST_CASE" == no-terminal ]]; then
+        echo '{"events":[],"nextForwardToken":"done"}'
+        return
+      fi
       if [[ "$TEST_CASE" == delayed-diagnostics && "$*" != *--next-token* && ! -f "$TEST_ROOT/empty-stream-once" ]]; then
         touch "$TEST_ROOT/empty-stream-once"
         echo '{"events":[],"nextForwardToken":"done"}'
@@ -41,7 +45,7 @@ aws() {
 }
 sleep() { :; }
 export -f gh aws sleep
-for TEST_CASE in success mixed-errors delayed-diagnostics wrong-operator ambiguous-task wrong-task wrong-image log-failure; do
+for TEST_CASE in success mixed-errors delayed-diagnostics wrong-operator ambiguous-task wrong-task wrong-image log-failure no-terminal; do
   export TEST_CASE
   mkdir "$scratch/$TEST_CASE"
   : > "$scratch/calls"
@@ -51,6 +55,10 @@ for TEST_CASE in success mixed-errors delayed-diagnostics wrong-operator ambiguo
     [[ "$status" == 0 ]] || { cat "$scratch/$TEST_CASE/output"; exit 1; }
     jq -e '.exitCode == 1 and .logsComplete and ([.failureCategories[] | select(.category == "response_validation" and .validationIssues == [{code:"invalid_type",path:["identities",0,"userId"]}])] | length == 1)' "$scratch/$TEST_CASE/reconciliation-diagnostics.json" >/dev/null
   else [[ "$status" != 0 ]] || { echo "Accepted $TEST_CASE"; exit 1; }; fi
+  if [[ "$TEST_CASE" == no-terminal ]]; then
+    jq -e '.logsComplete == true and .terminalEventObserved == false and .failureCategories == []' "$scratch/$TEST_CASE/reconciliation-diagnostics.json" >/dev/null
+    [[ -s "$scratch/$TEST_CASE/reconciliation-run.json" ]]
+  fi
   ! grep -R -q PRIVATE_TOKEN "$scratch/$TEST_CASE"
   ! grep -q 'run-task\|register-task-definition\|update-service\|stop-task' "$scratch/calls"
   echo "PASS recovery $TEST_CASE"
