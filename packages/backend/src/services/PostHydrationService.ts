@@ -40,6 +40,8 @@ import {
   extractFollowingIds,
   extractFollowersIds,
   OxyClient,
+  ViewerGraphContext,
+  ViewerPrivacyContext,
 } from '../utils/privacyHelpers';
 import { resolveMediaItems } from '../utils/mediaResolver';
 import { logger } from '../utils/logger';
@@ -198,7 +200,7 @@ interface HydrationOptions {
    * Oxy fetch, so those paths are unchanged. Both id lists are required together
    * (the feed always threads both) so the graph is applied atomically.
    */
-  viewerGraph?: { followingIds: string[]; followerIds: string[] };
+  viewerGraph?: ViewerGraphContext;
   /**
    * The viewer's already-resolved Oxy privacy lists, threaded from the feed
    * controller's `UserPrivacyManager.loadPrivacyState`. Exactly the same
@@ -223,7 +225,7 @@ interface HydrationOptions {
    * a half-threaded state would hydrate with real blocks and an empty restricted
    * set, which reads as "this viewer restricts nobody".
    */
-  viewerPrivacy?: { blockedIds: readonly string[]; restrictedIds: readonly string[] };
+  viewerPrivacy?: ViewerPrivacyContext;
   /**
    * The language preference carried by the REQUEST — an explicit `?lang=` the
    * reader picked, then `Accept-Language` — most-preferred first, from
@@ -1320,6 +1322,29 @@ export class PostHydrationService {
           postIdToSlicePositions.set(postId, []);
         }
         postIdToSlicePositions.get(postId)!.push({ sliceIdx: si, itemIdx: ii });
+      }
+    }
+
+    // For You's candidate sources may hand back UNASSEMBLED shells — flat
+    // columns only, `authorship`/`mentions`/`content` media/variants left at
+    // their empty default (see `assembleShellRecords` in `postRepository.ts`)
+    // — to avoid paying for a 9-table join on every candidate ranking then
+    // discards. This is the one choke point every ranked/sliced feed's posts
+    // pass through before hydration, so it is where the DEFERRED join finally
+    // happens, for exactly the page that survived to here. Any other feed
+    // type, which never produces a shell, pays nothing extra: the scan below
+    // finds nothing and `unassembledIds` stays empty.
+    const unassembledIds = allRawPosts
+      .filter((post) => (post as { _unassembled?: boolean })._unassembled === true)
+      .map((post) => (post as { id: string }).id);
+    if (unassembledIds.length > 0) {
+      const assembled = await loadPostRecords(unassembledIds);
+      const assembledById = new Map(assembled.map((record) => [record.id, record]));
+      for (let i = 0; i < allRawPosts.length; i++) {
+        const shell = allRawPosts[i] as { id?: string; _unassembled?: boolean };
+        if (shell._unassembled !== true) continue;
+        const full = assembledById.get(shell.id ?? '');
+        if (full) allRawPosts[i] = full;
       }
     }
 

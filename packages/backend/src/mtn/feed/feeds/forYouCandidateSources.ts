@@ -56,7 +56,7 @@ import { MtnConfig, PostVisibility } from '@mention/shared-types';
 import { and, arrayOverlaps, desc, eq, gte, type SQL } from 'drizzle-orm';
 import { getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema';
-import { assemblePostRecords } from '../../../db/posts/postRepository';
+import { assembleShellRecords } from '../../../db/posts/postRepository';
 import { ContentAffinityService } from '../../../services/ContentAffinityService';
 import { sensitiveExcludeSql, isSensitivePost } from '../feedSafety';
 import { viewerLanguageSql } from '../feedLanguage';
@@ -208,6 +208,19 @@ function withViewerLanguage(conditions: SQL[], viewerLanguages: readonly string[
   return language ? [...conditions, language] : conditions;
 }
 
+/**
+ * Mark a batch of shell records (flat columns only — see `assembleShellRecords`)
+ * as `_unassembled`, so `PostHydrationService.hydrateSlices` knows to resolve
+ * the full 9-table join later, ONLY for whichever of these survive to the
+ * final page. Ranking, dedup and slicing all read flat columns only and never
+ * throw on the empty `authorship`/`mentions`/`content` media/variants a shell
+ * carries — see `assembleShellRecords`'s doc comment for the one exception
+ * that matters (mediaBoost/portraitBoost score a shell neutrally).
+ */
+function toUnassembledCandidates(rows: readonly (typeof posts.$inferSelect)[]): CandidatePost[] {
+  return assembleShellRecords(rows).map((record) => ({ ...record, _unassembled: true }));
+}
+
 /** Run a bounded source query; soft-fail to `[]` so one bad source never sinks the feed. */
 async function runSource(
   label: string,
@@ -232,7 +245,10 @@ async function runSource(
       // lanes run this per For You request.
       .orderBy(...chronoOrderBy())
       .limit(cap);
-    return assemblePostRecords(rows, db);
+    // Shell-only: the 9-table join is deferred until the engine knows which
+    // ~20-40 candidates, of the up to 7 lanes' worth gathered here, actually
+    // make the final page — see `toUnassembledCandidates`.
+    return toUnassembledCandidates(rows);
   } catch (error) {
     logger.warn(`[ForYouCandidates] source "${label}" failed; skipping`, error);
     return [];
@@ -429,7 +445,7 @@ export async function gatherTrendingLane(params: GatherForYouCandidatesParams): 
       .where(and(...conditions))
       .orderBy(desc(engagementScore), desc(posts.createdAt), desc(posts.id))
       .limit(cfg.perSource.trending);
-    return assemblePostRecords(rows, db);
+    return toUnassembledCandidates(rows);
   } catch (error) {
     logger.warn('[ForYouCandidates] source "trending" failed; skipping', error);
     return [];
