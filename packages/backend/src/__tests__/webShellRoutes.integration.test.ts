@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import express from 'express';
 import request from 'supertest';
 import { PostType } from '@mention/shared-types';
+import type { ExternalIdentityReference } from '@oxy.so/contracts';
 import { createHash } from 'node:crypto';
 
 /**
@@ -174,6 +175,82 @@ describe('webShell routes (integration)', () => {
     expect(res.text).not.toContain('<title>Mention</title>');
     // Head hints are always injected (browsers benefit; crawlers ignore them).
     expect(res.text).toContain('rel="preconnect"');
+  });
+
+  const canonicalIdentity = {
+    username: 'ssr-canonical@instagram.com',
+    name: { displayName: 'Canonical SSR Person' },
+    bio: 'Canonical SSR biography must stay on verified routes',
+    avatar: 'https://cdn.example/ssr-canonical-private-route-avatar.png',
+  };
+
+  function provenAlias(handle: string): ExternalIdentityReference {
+    return {
+      canonicalAcct: handle,
+      network: 'threads.net',
+      protocol: 'activitypub',
+      actorUri: 'https://bridge.example/actors/ssr-proof',
+      transportAcct: 'ssr-transport@bridge.example',
+      sourceUserId: 'ssr-source-user',
+    };
+  }
+
+  function expectNoCanonicalProfile(res: request.Response) {
+    expect(res.status).toBe(404);
+    expect(res.headers.location).toBeUndefined();
+    expect(res.text).toContain('<meta name="robots" content="noindex,nofollow">');
+    expect(res.text).not.toContain('"@type":"ProfilePage"');
+    expect(res.text).not.toContain(canonicalIdentity.name.displayName);
+    expect(res.text).not.toContain(canonicalIdentity.bio);
+    expect(res.text).not.toContain('ssr-canonical-private-route-avatar');
+    expect(res.text).not.toContain('ssr-canonical%40instagram.com');
+    expect(res.text).not.toContain(canonicalIdentity.username);
+  }
+
+  it.each(['ssr-canonical@instagram.com', 'ssr-proven@threads.net'])(
+    'renders canonical metadata for the Oxy-authorized handle %s',
+    async (handle) => {
+      stubFetch({ ok: true, body: { data: {
+        ...canonicalIdentity,
+        externalIdentities: [provenAlias('ssr-proven@threads.net')],
+      } } });
+
+      const res = await request(makeApp()).get(`/@${handle}`).set('User-Agent', 'Twitterbot/1.0');
+
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('"@type":"ProfilePage"');
+      expect(res.text).toContain(canonicalIdentity.name.displayName);
+      expect(res.text).toContain(canonicalIdentity.bio);
+      expect(res.text).toContain('ssr-canonical-private-route-avatar');
+      expect(res.text).toContain('<link rel="canonical" href="https://mention.earth/@ssr-canonical%40instagram.com">');
+    },
+  );
+
+  it.each(['/@', '/c/'])(
+    'withholds canonical metadata from a transport handle at %s',
+    async (prefix) => {
+      stubFetch({ ok: true, body: { data: {
+        ...canonicalIdentity,
+        externalIdentities: [provenAlias('ssr-proven@threads.net')],
+      } } });
+
+      const res = await request(makeApp()).get(`${prefix}ssr-transport@bridge.example`)
+        .set('User-Agent', 'Twitterbot/1.0');
+
+      expectNoCanonicalProfile(res);
+    },
+  );
+
+  it.each([
+    { label: 'missing', proof: undefined },
+    { label: 'incomplete', proof: [{ canonicalAcct: 'ssr-incomplete@threads.net' }] },
+    { label: 'malformed', proof: [{ ...provenAlias('ssr-malformed@threads.net'), protocol: 'unverified' }] },
+  ])('withholds canonical metadata when alias proof is $label', async ({ label, proof }) => {
+    stubFetch({ ok: true, body: { data: { ...canonicalIdentity, externalIdentities: proof } } });
+
+    const res = await request(makeApp()).get(`/@ssr-${label}@threads.net`).set('User-Agent', 'Twitterbot/1.0');
+
+    expectNoCanonicalProfile(res);
   });
 
   it('never points a federated profile card at the remote instance', async () => {

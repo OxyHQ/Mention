@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateColdEvidence } from './coldIdentityEvidence.ts';
+import { validateColdEvidence, validateColdAppOrigin } from './coldIdentityEvidence.ts';
 
 const now = Date.parse('2026-09-13T10:00:00Z');
 function fixture() {
@@ -34,3 +34,10 @@ for (const [name, mutate] of [
   ['unknown count', f => { delete f.reports.oxy.counts.registryActors; }],
   ['no reviewed boilerplate', f => { f.manifest.forbiddenBioText = []; }],
 ]) test(`refuses ${name} before any discovery`, () => { const f = fixture(); mutate(f); assert.throws(f.validate); });
+
+test('cold gate refuses static previews that bypass server HTML', () => {
+  assert.throws(() => validateColdAppOrigin('https://preview.pages.dev', 'https://mention.earth'), /deployed app origin/);
+});
+test('cold gate accepts the deployed app origin', () => {
+  assert.doesNotThrow(() => validateColdAppOrigin('https://mention.earth', 'https://mention.earth'));
+});

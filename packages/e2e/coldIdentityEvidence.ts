@@ -95,3 +95,10 @@ export function loadColdEvidence(): ColdEvidence {
   const read = (path: string): unknown => JSON.parse(readFileSync(resolve(file, '..', path), 'utf8'));
   return validateColdEvidence(JSON.parse(readFileSync(file, 'utf8')), read);
 }
+
+/** A static preview cannot prove the deployed server's public-profile boundary. */
+export function validateColdAppOrigin(candidateOrigin: string, appOrigin: string): void {
+  if (candidateOrigin !== appOrigin) {
+    throw new Error('Cold acceptance must use the deployed app origin to exercise initial server HTML.');
+  }
+}

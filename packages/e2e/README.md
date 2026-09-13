@@ -178,7 +178,7 @@ has proven itself non-flaky, and the natural hook is CI's existing
 
 ### Cold external identity acceptance
 
-`identity-cold-live.spec.ts` is opt-in and skipped in the normal gate. It uses real
+`identity-cold-live.spec.ts` is opt-in and skipped in the normal gate. Run it only after deployment, with the candidate origin equal to the app origin; preflight rejects static previews because they bypass the server-rendered profile boundary. Transport checks require the initial HTTP 404 and HTML without profile metadata before checking the hydrated page. It uses real
 APIs and browser search discovery. The separate `identity-alias-routing.spec.ts`
 uses mocked profile data and proves routing only.
 
@@ -227,7 +227,7 @@ node --test packages/e2e/coldIdentityEvidence.test.mjs
 # Only after both successful absence artifacts have been reviewed.
 MENTION_E2E_COLD_IDENTITY=1 \
 MENTION_E2E_COLD_EVIDENCE=/absolute/path/evidence.json \
-MENTION_E2E_CANDIDATE_ORIGIN=https://immutable-candidate.pages.dev \
+MENTION_E2E_CANDIDATE_ORIGIN=https://mention.earth \
 bun run --cwd packages/e2e test --config playwright.identity-cold.config.ts
 ```
 
