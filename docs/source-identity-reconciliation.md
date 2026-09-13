@@ -192,6 +192,13 @@ connection timeouts for later migrations. A timeout rolls back the index and its
 ledger entry; it does not authorize bypassing the migration or increasing the
 bound without reviewing the deployment's workload.
 
+Both preview and apply read each batch from Oxy's uncached authoritative lookup.
+Oxy evaluates current proof expiry, revocation and redirects; Mention projects the
+returned canonical user for the exact source actor URI. Apply invokes Oxy's
+resolver only when the lookup lacks that source reference. A failed lookup stops
+the batch before writes rather than treating an unavailable authority as missing
+identity data. Preview never resolves unknown sources.
+
 The reconciler emits one structured progress event after each completed batch
 of at most 100 actors or posts. It records the phase, dry-run mode, completed
 batch count and cumulative numeric counters. Progress events contain no actor

@@ -21,7 +21,7 @@ export interface ReconciliationReport {
   postClustersCreated: number;
   refused: Record<string, number>;
 }
-/** Full actor scan, keyset-paginated. Preview only LOOKS UP; it never resolves remotely. */
+/** Full actor scan using fresh Oxy authority; only apply resolves unknown sources. */
 export async function reconcileMetaIdentityAndCrossposts(opts: { dryRun?: boolean } = {}): Promise<ReconciliationReport> {
   const dryRun = opts.dryRun ?? true;
   const report: ReconciliationReport = { actorsExamined: 0, actorsChanged: 0, postsChanged: 0, authorshipConflicts: 0, mutesPreserved: 0, clustersDissolved: 0, postsExamined: 0, postClustersCreated: 0, refused: {} };
@@ -31,15 +31,18 @@ export async function reconcileMetaIdentityAndCrossposts(opts: { dryRun?: boolea
   while (true) {
     const actors = await getDb().select().from(federatedActors).where(cursor ? gt(federatedActors.id, cursor) : undefined).orderBy(asc(federatedActors.id)).limit(100);
     if (!actors.length) break;
-    const known = dryRun ? await lookupOxyIdentities(actors.map(actor => actor.uri)) : [];
+    // Oxy re-evaluates current proof, expiry and redirects in this uncached
+    // batch lookup. Existing sources need projection, not another remote fetch.
+    // A failed authority read aborts the batch before any projection writes.
+    const known = await lookupOxyIdentities(actors.map(actor => actor.uri));
     for (const actor of actors) {
       report.actorsExamined++;
       try {
         const lookup = known.find(row => row.identifier === actor.uri);
         const reference = lookup?.externalIdentities.find(row => row.actorUri === actor.uri);
-        const identity = dryRun
-          ? (lookup?.userId && reference ? { ...reference, userId: lookup.userId } : undefined)
-          : (await resolveOxyIdentity({ actorUri: actor.uri, transportAcct: actor.acct, protocol: actor.protocol })).externalIdentity;
+        const registered = lookup?.userId && reference ? { ...reference, userId: lookup.userId } : undefined;
+        const identity = registered ?? (dryRun ? undefined
+          : (await resolveOxyIdentity({ actorUri: actor.uri, transportAcct: actor.acct, protocol: actor.protocol })).externalIdentity);
         if (!identity) { refuse('oxy_identity_not_resolved'); continue; }
         const result = await reconcileActorIdentityProjection({ actorUri: actor.uri, oxyUserId: identity.userId, networkAcct: identity.canonicalAcct, dryRun });
         report.actorsChanged += Number(result.actorChanged);
