@@ -36,4 +36,16 @@ export const REQUIRED_EXTENSIONS: readonly RequiredExtension[] = [
       'source query. `geography`, `ST_MakePoint`, `ST_DWithin` and ' +
       '`ST_Distance` all come from PostGIS.',
   },
+  {
+    name: 'pg_trgm',
+    reason:
+      '`posts_hashtags_trgm_gin` (a GIN index on `array_to_string(hashtags, ' +
+      '\' \')` using `gin_trgm_ops`) is what lets `GET /hashtags/search` ' +
+      'accelerate its substring match — `hashtags` is a GIN-indexed array for ' +
+      'MEMBERSHIP already (`posts_hashtags_gin`), but no membership index can ' +
+      'serve a per-element substring (`LIKE \'%needle%\'`), which is what a ' +
+      'hashtag search actually is. A standard Postgres contrib module (ships ' +
+      'with every mainline `postgres`/`postgis/postgis` image), not a ' +
+      'third-party one like PostGIS.',
+  },
 ];

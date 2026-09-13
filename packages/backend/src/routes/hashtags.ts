@@ -82,11 +82,24 @@ async function searchHashtagsWithCounts(rawQuery: string, offset: number, limit:
     .slice(0, HASHTAG_QUERY_MAX_LENGTH)
     .replace(/[\\%_]/g, (char) => `\\${char}`);
 
+  const pattern = `%${needle}%`;
   const rows = await getDb()
     .select({ tag: UNNESTED_TAG, count: sql<number>`count(*)::int` })
     .from(posts)
     .innerJoin(sql`lateral unnest(${posts.hashtags}) as tag(value)`, sql`true`)
-    .where(and(taggedPublicPosts(), sql`lower(tag.value) like ${`%${needle}%`}`))
+    .where(and(
+      taggedPublicPosts(),
+      // Redundant with the exact per-element check below on purpose: this one
+      // is what lets Postgres use `posts_hashtags_trgm_gin` (a trigram index
+      // over the CONCATENATED tags) to narrow candidate POSTS cheaply, instead
+      // of unnesting and pattern-matching every tagged post's every tag. It can
+      // only ever admit MORE rows than the real answer (a match spanning a
+      // boundary between two tags), never fewer, so the exact check right
+      // after it is what the result actually depends on — see the index's own
+      // comment in `db/schema/posts.ts`.
+      sql`array_to_string(${posts.hashtags}, ' ') ilike ${pattern}`,
+      sql`lower(tag.value) like ${pattern}`,
+    ))
     .groupBy(UNNESTED_TAG)
     .orderBy(desc(sql`count(*)`), asc(UNNESTED_TAG))
     .offset(offset)

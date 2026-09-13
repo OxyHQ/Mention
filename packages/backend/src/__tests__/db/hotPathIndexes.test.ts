@@ -301,6 +301,21 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
     definition: 'CREATE INDEX posts_hashtags_gin ON public.posts USING gin (hashtags)',
   },
   {
+    name: 'posts_hashtags_trgm_gin',
+    table: 'posts',
+    serves:
+      "`GET /hashtags/search`'s coarse filter (routes/hashtags.ts) — a per-element "
+      + "SUBSTRING match (`LIKE '%needle%'` on an unnested tag), which "
+      + '`posts_hashtags_gin` (a MEMBERSHIP index) cannot accelerate at all. Trigram '
+      + '(`pg_trgm`) over the concatenated tags, via the IMMUTABLE wrapper '
+      + '`posts_hashtags_search_text` an index expression on the merely-STABLE '
+      + '`array_to_string` cannot be',
+    definition:
+      'CREATE INDEX posts_hashtags_trgm_gin ON public.posts USING gin '
+      + '(posts_hashtags_search_text(hashtags) gin_trgm_ops) '
+      + "WHERE ((visibility = 'public'::text) AND (COALESCE(cardinality(hashtags), 0) > 0))",
+  },
+  {
     name: 'posts_classification_topics_gin',
     table: 'posts',
     serves: 'topic-matched feed candidates and the trend term space',
