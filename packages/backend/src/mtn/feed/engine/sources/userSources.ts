@@ -4,7 +4,7 @@
  */
 
 import { isAuthorFeedFilter, PostType, PostVisibility } from '@mention/shared-types';
-import { and, arrayOverlaps, desc, eq, exists, inArray, isNull, lt, notExists, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, arrayOverlaps, eq, exists, inArray, isNull, lt, notExists, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../../../../db/postgres';
 import {
   bookmarks,
@@ -15,7 +15,6 @@ import {
   postContentVariants,
   postMedia,
   posts,
-  trending,
   trendStoryPosts,
   userSettings,
 } from '../../../../db/schema';
@@ -26,7 +25,7 @@ import { excludedDisplayModesForTab, loadExcludedLaneIds } from '../../../../ser
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../../CursorBuilder';
 import { notABoostSql, notCollapsedCrosspostSql } from '../../../../utils/feedQueryBuilder';
 import { trendTermMatchSql } from '../../../../services/trending/termSpace';
-import { logger } from '../../../../utils/logger';
+import { resolveTrendStory } from '../../../../services/trendStoryCache';
 import type { AuthorFeedFilter } from '@mention/shared-types';
 import type { CandidatePost, FeedEngineContext, SourceModule } from '../types';
 
@@ -213,34 +212,10 @@ export const keywordsSource: SourceModule = {
  * possible place for that. (Same rule as the `authored` source; see AGENTS.md
  * § Profile feed.)
  */
-/**
- * Every term the trend named `term` stands for — itself, plus anything merged
- * into it.
- *
- * Reads the most recent row for the name, served by
- * `trending_name_calculated_at_type_key` as an exact prefix on `name`. Fail-soft
- * to the bare term: a lookup that finds nothing is the ordinary case for an
- * unmerged trend, and a lookup that throws should cost the extra posts, never
- * the feed.
- *
- * `terms` is nullable — 90 days of rows predate clustering — and a NULL there
- * means the same thing an unmerged row means, so both fall back to `[term]`.
- */
-async function resolveTrendStory(term: string): Promise<{ terms: string[]; trendId?: string }> {
-  try {
-    const [row] = await getDb()
-      .select({ id: trending.id, terms: trending.terms })
-      .from(trending)
-      .where(eq(trending.name, term))
-      .orderBy(desc(trending.calculatedAt))
-      .limit(1);
-    const terms = row?.terms ?? [];
-    return { terms: terms.length > 1 ? terms : [term], ...(row ? { trendId: row.id } : {}) };
-  } catch (error) {
-    logger.warn('[Feed] Trend term lookup failed; matching the bare term', { term, error });
-    return { terms: [term] };
-  }
-}
+// `resolveTrendStory` (the `trending` row lookup, 30s-cached) now lives in
+// `services/trendStoryCache.ts` — its own file, matching `userSummaryCache.ts`/
+// `postDetailCache.ts`, and independently mockable in a test the way this
+// large multi-source file itself is not.
 
 export const trendTermsSource: SourceModule = {
   id: 'trendTerms',
