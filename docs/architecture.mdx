@@ -97,6 +97,45 @@ viewer state, while mutations enforce identity.
 bulk user resolution, bounded fallback work, and viewer-aware hydration without
 letting controllers build competing post shapes.
 
+### Commerce boundary (Mercaria)
+
+Commerce belongs to Mercaria, and Mention reaches it only as
+`Mention -> @mercaria.co/sdk -> Mercaria` (#951, Mercaria#1017).
+
+| Owned by the SDK | Owned by Mention |
+| --- | --- |
+| Hosts, `/public/v1` routes, wire envelope, response parsing | Which account or post points at which ref |
+| `MercariaProduct`/`MercariaStore`/`MercariaCollection` and every ref type | Rendering, ordering and failure policy for a hydrated card |
+| Typed errors (not found, gone, retryable) and canonical links | Configuration: `MERCARIA_API_URL`, `MERCARIA_WEB_URL`, timeout |
+
+`services/commerce/mercariaClient.ts` holds the one lazily created client:
+anonymous reads only, a 5s timeout, and unset origins meaning the SDK's own.
+`services/commerce/mercariaHydration.ts` turns persisted refs, read as unknown
+data, into one state each and never throws:
+
+| State | Meaning |
+| --- | --- |
+| `available` | Current Mercaria truth, with the SDK's canonical `url` |
+| `gone` | Mercaria says it existed and is no longer public |
+| `not_found` | Mercaria says it never existed (a proxy's bare 404 is not this) |
+| `unavailable` | Any other failure, carrying the SDK's `retryable` verdict |
+| `invalid` | The stored value is not a ref of the expected kind; nothing is sent |
+
+Hide an attachment on `gone`/`not_found` rather than deleting its ref.
+
+**Freshness.** Persist refs only — never a title, price or availability.
+Hydration caches nothing; any cache added later must be short-lived, keyed by
+`formatMercariaRef`, treated as a freshness hint, and keyed per viewer once
+reads carry a token. **Distribution.** Hydration is presentation: no ranking,
+feed, search or trending code may read it, so an attached product reaches
+exactly the audience the same post reaches without it.
+
+`bun run validate:commerce-boundary` (part of `check:workspace`) fails on a
+Mercaria host or `/public/v1` path anywhere in production source outside the
+client module. `mercariaHydration.test.ts` is the consumer-conformance suite
+Mercaria#1017 requires: it drives the real SDK against Mercaria's wire envelope
+with the platform `fetch` as the only double.
+
 ## Feed engine
 
 The MTN feed engine is under `packages/backend/src/mtn/feed`. A validated

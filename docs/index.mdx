@@ -29,6 +29,9 @@ Prometheus instrumentation.
   notifications, Mention mutes, federation records, and MCP connection data.
 - **MTN** appends verifiable signed records for eligible local writes. It does
   not replace the application's PostgreSQL read model.
+- **Mercaria** is authoritative for commerce: catalog, price, availability,
+  checkout and orders. Mention persists only SDK refs and reads everything else
+  through `@mercaria.co/sdk` (see Architecture, "Commerce boundary").
 - **External connectors** isolate ActivityPub and optional AT Protocol behavior
   from post creation and feed code.
 
