@@ -1,0 +1,129 @@
+diff --git a/build/VideoPlayer.web.js b/build/VideoPlayer.web.js
+index 46dfa8353eab9ab89ca0ff591b0235114185bc33..8fc417ebad239a175b8ff34d14d18bb6bf053146 100644
+--- a/build/VideoPlayer.web.js
++++ b/build/VideoPlayer.web.js
+@@ -1,5 +1,14 @@
+ import { useMemo } from 'react';
+ import resolveAssetSource from './resolveAssetSource';
++// Removing, pausing, or replacing media can cancel a pending browser play.
++// Consume only that expected cancellation; unexpected failures stay observable.
++function playVideo(video) {
++  void video.play().catch((error) => {
++    if (error instanceof DOMException && error.name === 'AbortError') return;
++    throw error;
++  });
++}
++
+ export function useVideoPlayer(source, setup) {
+     const parsedSource = typeof source === 'string' ? { uri: source } : source;
+     return useMemo(() => {
+@@ -228,7 +237,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+     }
+     play() {
+         this._mountedVideos.forEach((video) => {
+-            video.play();
++            playVideo(video);
+         });
+     }
+     pause() {
+@@ -243,7 +252,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+             if (uri) {
+                 video.setAttribute('src', uri);
+                 video.load();
+-                video.play();
++                playVideo(video);
+             }
+             else {
+                 video.removeAttribute('src');
+@@ -268,7 +277,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+     replay() {
+         this._mountedVideos.forEach((video) => {
+             video.currentTime = 0;
+-            video.play();
++            playVideo(video);
+         });
+         this.playing = true;
+     }
+@@ -283,7 +292,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+             video.pause();
+         }
+         else {
+-            video.play();
++            playVideo(video);
+         }
+         video.currentTime = firstVideo.currentTime;
+         video.volume = firstVideo.volume;
+@@ -309,7 +318,7 @@ export default class VideoPlayerWeb extends globalThis.expo.SharedObject {
+             this.playing = true;
+             this._mountedVideos.forEach((mountedVideo) => {
+                 if (e.target !== mountedVideo) {
+-                    mountedVideo.play();
++                    playVideo(mountedVideo);
+                 }
+             });
+         };
+diff --git a/src/VideoPlayer.web.tsx b/src/VideoPlayer.web.tsx
+index 5cfdf596c5e0d4f3ecfbf96074d732e25e18b23c..6299720a81ab2f7b9f125b0c45b6d96ff322c2cd 100644
+--- a/src/VideoPlayer.web.tsx
++++ b/src/VideoPlayer.web.tsx
+@@ -17,6 +17,15 @@ import type { VideoPlayerEvents } from './VideoPlayerEvents.types';
+ import type { VideoThumbnail } from './VideoThumbnail';
+ import resolveAssetSource from './resolveAssetSource';
+ 
++// Removing, pausing, or replacing media can cancel a pending browser play.
++// Consume only that expected cancellation; unexpected failures stay observable.
++function playVideo(video: HTMLVideoElement): void {
++  void video.play().catch((error) => {
++    if (error instanceof DOMException && error.name === 'AbortError') return;
++    throw error;
++  });
++}
++
+ export function useVideoPlayer(
+   source: VideoSource,
+   setup?: (player: VideoPlayer) => void
+@@ -290,7 +299,7 @@ export default class VideoPlayerWeb
+ 
+   play(): void {
+     this._mountedVideos.forEach((video) => {
+-      video.play();
++      playVideo(video);
+     });
+   }
+ 
+@@ -307,7 +316,7 @@ export default class VideoPlayerWeb
+       if (uri) {
+         video.setAttribute('src', uri);
+         video.load();
+-        video.play();
++        playVideo(video);
+       } else {
+         video.removeAttribute('src');
+         video.load();
+@@ -334,7 +343,7 @@ export default class VideoPlayerWeb
+   replay(): void {
+     this._mountedVideos.forEach((video) => {
+       video.currentTime = 0;
+-      video.play();
++      playVideo(video);
+     });
+     this.playing = true;
+   }
+@@ -350,7 +359,7 @@ export default class VideoPlayerWeb
+     if (firstVideo.paused) {
+       video.pause();
+     } else {
+-      video.play();
++      playVideo(video);
+     }
+     video.currentTime = firstVideo.currentTime;
+     video.volume = firstVideo.volume;
+@@ -382,7 +391,7 @@ export default class VideoPlayerWeb
+       this.playing = true;
+       this._mountedVideos.forEach((mountedVideo) => {
+         if (e.target !== mountedVideo) {
+-          mountedVideo.play();
++          playVideo(mountedVideo);
+         }
+       });
+     };
