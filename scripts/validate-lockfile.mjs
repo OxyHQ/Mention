@@ -105,8 +105,6 @@ const OXY_RUNTIME_SINGLETONS = ["@oxy.so/bloom", "@oxy.so/core", "@oxy.so/servic
  * too, so this cannot rot into a list of claims nothing tests.
  */
 const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
-  "@oxy.so/services -> @oxy.so/contracts@1.0.1":
-    "services 1.0.3 only imports runtime username helpers; published contracts username.js is byte-identical in 1.0.1 and 1.1.1 (SHA256 a96f2d7cae8b0a7d50a4dadbfedc9477347d4123652853aed0fa0cfba7944e05). Frontend typecheck passes with the shared contracts singleton required by core 1.1.2.",
   "markdown-it -> linkify-it@^2.0.0":
     "linkify-it is held at one copy for hardened link matching; markdown-it works against the newer API.",
   "@tailwindcss/node -> lightningcss@1.32.0":

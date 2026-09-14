@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 32.78,
-      "covered": 8232,
-      "total": 25109
+      "pct": 32.93,
+      "covered": 8274,
+      "total": 25120
     },
     "branches": {
-      "pct": 27.78,
-      "covered": 5083,
-      "total": 18291
+      "pct": 27.94,
+      "covered": 5115,
+      "total": 18301
     },
     "functions": {
-      "pct": 27.85,
-      "covered": 1745,
-      "total": 6265
+      "pct": 28.01,
+      "covered": 1757,
+      "total": 6272
     },
     "lines": {
-      "pct": 33.48,
-      "covered": 7557,
-      "total": 22568
+      "pct": 33.61,
+      "covered": 7588,
+      "total": 22571
     }
   },
   "pins": {
@@ -64,6 +64,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 16
+    },
+    "components/providers/handleLanguageError.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "db/cacheLifecycle.ts": {
       "statements": 83,
@@ -396,10 +402,10 @@
       "lines": 0
     },
     "hooks/usePostLanguage.ts": {
-      "statements": 95,
-      "branches": 84,
+      "statements": 100,
+      "branches": 90,
       "functions": 100,
-      "lines": 96
+      "lines": 100
     },
     "hooks/usePostLanguagePicker.tsx": {
       "statements": 100,
@@ -450,10 +456,10 @@
       "lines": 29
     },
     "hooks/useProfileData.ts": {
-      "statements": 68,
-      "branches": 69,
-      "functions": 50,
-      "lines": 68
+      "statements": 70,
+      "branches": 76,
+      "functions": 58,
+      "lines": 70
     },
     "hooks/useProfileLinkMentions.ts": {
       "statements": 100,
@@ -678,10 +684,10 @@
       "lines": 100
     },
     "lib/constants.ts": {
-      "statements": 0,
+      "statements": 100,
       "branches": 100,
       "functions": 100,
-      "lines": 0
+      "lines": 100
     },
     "lib/hlsPlayback.native.ts": {
       "statements": 0,
@@ -1380,8 +1386,8 @@
       "lines": 81
     },
     "utils/postLanguages.ts": {
-      "statements": 93,
-      "branches": 85,
+      "statements": 96,
+      "branches": 88,
       "functions": 100,
       "lines": 100
     },
