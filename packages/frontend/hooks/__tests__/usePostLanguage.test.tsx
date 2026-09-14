@@ -32,13 +32,31 @@ jest.mock('@/utils/api', () => ({
 const mockToast = jest.fn();
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
 
-/** The reader's app language. Flipped per test. */
+/** The reader's app display language. Flipped per test. */
 let mockReaderLanguage = 'en-US';
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,
     i18n: { language: mockReaderLanguage },
   }),
+}));
+
+/**
+ * The reader's OWN declared account languages, most-preferred first — separate
+ * from the app display language above, exactly as a real bilingual reader's
+ * account locales differ from whatever locale their UI chrome happens to be
+ * in. Empty by default so existing single-language tests keep testing exactly
+ * one language, the app display one.
+ *
+ * Combined into the ONE `readerLanguages` list `trendsStore` holds — the hook
+ * reads that store directly (`AccountSwitchReset` is what actually computes
+ * and pushes this list in the real app), so the mock reproduces its shape
+ * rather than the hook's own retired internal derivation.
+ */
+let mockAccountLanguages: string[] = [];
+jest.mock('@/stores/trendsStore', () => ({
+  useTrendsStore: (selector: (state: { readerLanguages: string[] }) => unknown) =>
+    selector({ readerLanguages: [...mockAccountLanguages, mockReaderLanguage].filter(Boolean) }),
 }));
 
 /** The auto-translate preference. Flipped per test. */
@@ -100,6 +118,7 @@ beforeEach(() => {
   mockApiPost.mockReset();
   mockToast.mockReset();
   mockReaderLanguage = 'en-US';
+  mockAccountLanguages = [];
   mockAutoTranslateEnabled = false;
 });
 
@@ -418,6 +437,16 @@ describe('whether the action bar shows a translate icon at all', () => {
   it('offers nothing on a post with no body to translate', async () => {
     mockReaderLanguage = 'es-ES';
     await render({ text: '   ', textLang: 'en' });
+    expect(state.canTranslate).toBe(false);
+  });
+
+  it('offers nothing when the post is served in ANY of the reader’s several account languages, not just the app’s display language', async () => {
+    // The app chrome is in English, but the reader's account also lists
+    // Spanish, and this post is served in Spanish — they already understand
+    // it, so translating would do nothing.
+    mockReaderLanguage = 'en-US';
+    mockAccountLanguages = ['en', 'es'];
+    await render({ text: 'Hola mundo', textLang: 'es-ES' });
     expect(state.canTranslate).toBe(false);
   });
 });

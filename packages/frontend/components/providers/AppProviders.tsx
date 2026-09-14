@@ -29,7 +29,8 @@ import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInf
 import { ChannelInfoDialogProvider } from '@/components/Channels/ChannelInfoDialog';
 import { LiveFeatureHost } from '@/components/providers/LiveFeatureProviders';
 import { LiveRoomControllerProvider } from '@/context/LiveRoomContext';
-import i18n from '@/lib/i18n';
+import i18n, { setLanguage } from '@/lib/i18n';
+import { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES } from '@/lib/constants';
 import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('AppProviders');
@@ -94,6 +95,12 @@ export const AppProviders = memo(function AppProviders({
             storageKeyPrefix="mention"
             queryClient={queryClient}
             backgroundSession
+            language={{
+              supportedLocales: SUPPORTED_LANGUAGES,
+              fallbackLocale: DEFAULT_LANGUAGE,
+              onChange: setLanguage,
+              onError: (error, locale) => logger.error('Failed to follow the Oxy-resolved language', error, { locale }),
+            }}
           >
             {/*
              * The boot visual, held up for exactly as long as AccountSwitchReset

@@ -4,9 +4,10 @@ import { toast } from '@oxy.so/bloom/toast';
 import type { PostContent } from '@mention/shared-types';
 import { api } from '@/utils/api';
 import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
+import { useTrendsStore } from '@/stores/trendsStore';
 import {
   buildPostLanguageOptions,
-  findOptionForLanguage,
+  resolveTranslateTarget,
   servedLanguageTag,
   shouldOfferTranslation,
   type PostLanguageOption,
@@ -87,9 +88,24 @@ export function usePostLanguage(
   postId: string | undefined,
   postLanguage?: string,
 ): PostLanguageState {
-  const { t, i18n } = useTranslation();
-  const readerLanguage = i18n.language;
+  const { t } = useTranslation();
   const autoTranslateEnabled = useAutoTranslateStore((s) => s.enabled);
+
+  /**
+   * Every language this reader understands, most-preferred first — the
+   * account's OWN declared locales (the same ordered list the backend already
+   * resolves a post's served variant against), with the app's display language
+   * behind them so a signed-out reader still gets one. A reader who lists
+   * `[en, es]` must not be offered a translation for a Spanish post just
+   * because English happens to be their app chrome's language.
+   *
+   * Read from `trendsStore` rather than re-derived here: `AccountSwitchReset`
+   * already computes this exact list once per identity change for feed
+   * ranking, and re-deriving it per post row would mean every visible row in
+   * a scrolling feed subscribing to the full auth/session context just to
+   * read `user.languages`.
+   */
+  const readerLanguages = useTrendsStore((s) => s.readerLanguages);
 
   /**
    * THE OVERRIDE IS STAMPED WITH THE POST IT BELONGS TO, and that stamp is the
@@ -204,14 +220,15 @@ export function usePostLanguage(
       patchOverride({ selectedTag: null });
       return;
     }
-    const existing = findOptionForLanguage(options, readerLanguage);
-    selectLanguage(existing?.tag ?? readerLanguage);
-  }, [selectedTag, options, readerLanguage, selectLanguage]);
+    const target = resolveTranslateTarget(options, readerLanguages);
+    if (target) selectLanguage(target);
+  }, [selectedTag, options, readerLanguages, selectLanguage]);
 
-  const canTranslate = shouldOfferTranslation({ content, postLanguage, readerLanguage, options });
+  const canTranslate = shouldOfferTranslation({ content, postLanguage, readerLanguages, options });
 
   // Auto-translate, computed during render and fired once per post. It stays
-  // silent when the author already wrote this post in the reader's language.
+  // silent when the author already wrote this post in a language the reader
+  // understands.
   if (
     autoTranslateEnabled &&
     autoTranslateAttempted.current !== postId &&
@@ -221,8 +238,8 @@ export function usePostLanguage(
     canTranslate
   ) {
     autoTranslateAttempted.current = postId;
-    const target = findOptionForLanguage(options, readerLanguage)?.tag ?? readerLanguage;
-    queueMicrotask(() => selectLanguage(target));
+    const target = resolveTranslateTarget(options, readerLanguages);
+    if (target) queueMicrotask(() => selectLanguage(target));
   }
 
   const activeTag = selectedTag ?? servedTag;
