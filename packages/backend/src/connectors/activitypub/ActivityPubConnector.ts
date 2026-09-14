@@ -10,7 +10,7 @@ import type {
   FetchPostsResult,
 } from '@oxy.so/federation';
 import { withEngineId, type FederatedActorRecord } from '../../db/federation/actorRecord';
-import { resolveFederatedActorIdentity } from '../identity';
+import { resolveOxyExternalUser } from '../identity';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
 import { deliveryService } from './delivery.service';
@@ -298,7 +298,7 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
    * it, so the actor resolves to nothing at all.
    */
   mapIdentity(actor: NormalizedExternalActor): Promise<string | null> {
-    return resolveFederatedActorIdentity(actor);
+    return resolveOxyExternalUser(actor);
   }
 
   /** Map a stored {@link FederatedActorRecord} to the network-neutral shape. */

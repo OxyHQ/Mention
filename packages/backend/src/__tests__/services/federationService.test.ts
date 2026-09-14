@@ -1,4 +1,5 @@
 import { PassThrough } from 'node:stream';
+import type { ResolveExternalIdentityResponse } from '@oxy.so/contracts';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
@@ -158,8 +159,8 @@ function ownedPosts(): SQL {
 async function clearScopePosts(): Promise<void> {
   const db = getDb();
   // `oxy_user_1` is the id the mocked Oxy resolution hands back, so the settings
-  // row the banner mirror writes is not reachable by this suite's own prefix.
-  await db.delete(userSettings).where(eq(userSettings.oxyUserId, 'oxy_user_1'));
+  // rows the appearance-preservation fixtures seed are outside this suite's prefix.
+  await db.delete(userSettings).where(inArray(userSettings.oxyUserId, ['oxy_user_1', 'oxy_source_1']));
   const owned = ownedPosts();
   const rows = await db.select({ id: posts.id }).from(posts).where(owned);
   if (rows.length > 0) {
@@ -286,7 +287,36 @@ beforeEach(async () => {
   mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   mocks.recordAccess.mockResolvedValue(undefined);
-  mocks.makeServiceRequest.mockResolvedValue({ id: 'oxy_user_1' });
+  mocks.makeServiceRequest.mockImplementation(async (
+    method: string,
+    path: string,
+    input: { actorUri: string; transportAcct: string; protocol: 'activitypub' },
+  ) => {
+    if (method !== 'POST' || path !== '/federation/identities/resolve') {
+      throw new Error(`Unexpected Oxy request: ${method} ${path}`);
+    }
+    const identity = {
+      actorUri: input.actorUri,
+      transportAcct: input.transportAcct,
+      canonicalAcct: input.transportAcct,
+      protocol: input.protocol,
+      network: input.transportAcct.slice(input.transportAcct.lastIndexOf('@') + 1),
+      sourceUserId: 'oxy_source_1',
+    };
+    return {
+      user: {
+        id: 'oxy_user_1',
+        username: identity.canonicalAcct,
+        name: { displayName: 'Oxy verified name' },
+        bio: 'Oxy verified bio\n\n@friend@remote.example',
+        externalIdentities: [identity],
+        redirectedUserIds: [],
+      },
+      externalIdentity: { ...identity, userId: 'oxy_user_1' },
+      externalIdentities: [identity],
+      redirectedUserIds: [],
+    } satisfies ResolveExternalIdentityResponse;
+  });
   mocks.fetchUpstreamFollowingRedirects.mockReset();
   // `signedFetch` is built on `fetchUpstreamSingleHop` (IP-pinned, no global
   // `fetch`). Adapt it to the per-test stubbed global `fetch` so existing tests
@@ -426,12 +456,12 @@ describe('federationService.fetchRemoteActor', () => {
       outboxUrl: 'https://www.threads.net/ap/users/mosseri/outbox',
     });
     expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
-      'PUT',
-      '/users/resolve',
+      'POST',
+      '/federation/identities/resolve',
       expect.objectContaining({
-        username: 'mosseri@threads.net',
+        transportAcct: 'mosseri@threads.net',
         actorUri: 'https://www.threads.net/ap/users/mosseri/',
-        domain: 'threads.net',
+        protocol: 'activitypub',
       }),
     );
   });
@@ -528,17 +558,17 @@ describe('federationService.fetchRemoteActor', () => {
       domain: 'evil.example',
     });
     expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
-      'PUT',
-      '/users/resolve',
+      'POST',
+      '/federation/identities/resolve',
       expect.objectContaining({
-        username: 'mallory@evil.example',
+        transportAcct: 'mallory@evil.example',
         actorUri: 'https://evil.example/users/mallory',
-        domain: 'evil.example',
+        protocol: 'activitypub',
       }),
     );
   });
 
-  it('mirrors the actor banner to a public federated asset and stores its file id', async () => {
+  it('caches a transport banner without copying it to the canonical profile', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url === 'https://remote.example/users/alice') {
         return jsonResponse({
@@ -562,27 +592,19 @@ describe('federationService.fetchRemoteActor', () => {
 
     await federationService.fetchRemoteActor('https://remote.example/users/alice');
 
-    // The banner is mirrored through the SAME service-token public-upload path as
-    // all other federated media (`persistRemoteMediaForFederatedOwnerDetailed` →
-    // `POST /assets/service/federation`), NOT the user-authenticated SDK
-    // `uploadProfileBanner` (which 401s on the service client). SSRF guarding +
-    // content validation now live inside that helper's `downloadToTempFile`.
-    expect(mocks.persistRemoteMedia).toHaveBeenCalledWith(
-      'https://remote.example/banner.jpg',
-      'oxy_user_1',
-      expect.objectContaining({ role: 'banner', remoteHost: 'remote.example' }),
-      // Banners download under an image-only policy, never the generic
-      // federated-media video/audio allowance (see policy.ts).
-      expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
-    );
-    // The mirrored file id is STORED on the actor's Mention-side settings row —
-    // `user_settings.profile_header_image` is what `buildLocalActorObject` reads
-    // back to emit the AP `image`, so a mirror that never reached the column
-    // leaves the banner mirrored and invisible.
-    expect(await readProfileHeaderImage('oxy_user_1')).toBe('banner_file_1');
+    expect(await readActor('https://remote.example/users/alice')).toMatchObject({
+      oxyUserId: 'oxy_user_1',
+      headerUrl: 'https://remote.example/banner.jpg',
+    });
+    expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
+    expect(await readProfileHeaderImage('oxy_user_1')).toBeUndefined();
   });
 
-  it('does not store a profile header image when banner mirroring fails', async () => {
+  it('preserves canonical and linked-source appearance when a transport advertises a banner', async () => {
+    await getDb().insert(userSettings).values([
+      { oxyUserId: 'oxy_user_1', profileHeaderImage: 'custom_canonical_banner' },
+      { oxyUserId: 'oxy_source_1', profileHeaderImage: 'custom_source_banner' },
+    ]);
     const fetchMock = vi.fn(async (url: string) => {
       if (url === 'https://remote.example/users/bob') {
         return jsonResponse({
@@ -590,7 +612,7 @@ describe('federationService.fetchRemoteActor', () => {
           type: 'Person',
           preferredUsername: 'bob',
           inbox: 'https://remote.example/users/bob/inbox',
-          image: 'https://remote.example/banner.txt',
+          image: 'https://remote.example/bob-banner.jpg',
         });
       }
 
@@ -598,26 +620,46 @@ describe('federationService.fetchRemoteActor', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    mocks.persistRemoteMedia.mockResolvedValue({ ok: false, reason: 'not-media', permanent: true });
+    mocks.persistRemoteMedia.mockResolvedValue({
+      ok: true,
+      media: { oxyFileId: 'transport_banner', contentType: 'image/jpeg', sizeBytes: 1234 },
+    });
 
     await federationService.fetchRemoteActor('https://remote.example/users/bob');
 
-    expect(mocks.persistRemoteMedia).toHaveBeenCalledWith(
-      'https://remote.example/banner.txt',
-      'oxy_user_1',
-      expect.objectContaining({ role: 'banner' }),
-      expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
-    );
-    // Nothing stored: a failed mirror must not leave a header pointing at a file
-    // that was never uploaded.
+    expect(await readActor('https://remote.example/users/bob')).toMatchObject({
+      oxyUserId: 'oxy_user_1',
+      headerUrl: 'https://remote.example/bob-banner.jpg',
+    });
+    expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
+    expect(await readProfileHeaderImage('oxy_user_1')).toBe('custom_canonical_banner');
+    expect(await readProfileHeaderImage('oxy_source_1')).toBe('custom_source_banner');
+  });
+
+  it('does not mirror a banner or cache an actor when Oxy rejects its identity', async () => {
+    const actorUri = `${scope.origin}/users/rejected`;
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+      id: actorUri,
+      type: 'Person',
+      preferredUsername: 'rejected',
+      inbox: `${actorUri}/inbox`,
+      image: { url: `${scope.origin}/banner.jpg` },
+    })));
+    mocks.makeServiceRequest.mockRejectedValueOnce(new Error('Unverified source identity'));
+    mocks.persistRemoteMedia.mockResolvedValue({
+      ok: true,
+      media: { oxyFileId: 'untrusted_banner', contentType: 'image/jpeg', sizeBytes: 1234 },
+    });
+
+    expect(await federationService.fetchRemoteActor(actorUri)).toBeNull();
+    expect(await readActor(actorUri)).toBeNull();
+    expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
     expect(await readProfileHeaderImage('oxy_user_1')).toBeUndefined();
   });
 
-  it('normalizes the whitespace of every remote text field on the actor', async () => {
-    // Remote actor text arrives with the whitespace of the remote server's
-    // markup. The display name is the worst of them: it crosses the identity
-    // bridge into Oxy, is cached in Redis, and ships on every post DTO — so a
-    // newline in it would be rendered verbatim across the whole app.
+  it('normalizes transport fields while storing the authoritative Oxy bio', async () => {
+    // Protocol metadata is normalized locally. Public profile text comes from
+    // Oxy and must not be replaced by the transport document's summary.
     const fetchMock = vi.fn(async (url: string) => {
       if (url === 'https://remote.example/users/carol') {
         return jsonResponse({
@@ -643,20 +685,24 @@ describe('federationService.fetchRemoteActor', () => {
     const stored = await readActor('https://remote.example/users/carol');
     expect(stored).toMatchObject({
       username: 'carol',
-      // The bio is a body: the author's paragraph break survives, the markup's
-      // indentation and blank line do not.
-      summary: 'Primera línea\n\nSegunda línea',
+      oxyUserId: 'oxy_user_1',
+      networkAcct: 'carol@remote.example',
+      summary: 'Oxy verified bio\n\n@friend@remote.example',
     });
     // The verified-links table is a SECOND table now, so it is read back rather
     // than compared inside the upsert payload.
     expect(await loadActorFields(stored!.id)).toEqual([
       { name: 'Sitio web', value: '<a href="https://carol.example">carol.example</a>', verifiedAt: undefined },
     ]);
-    // The display name that crosses into Oxy is collapsed to a single line.
+    // Mention sends source coordinates only; Oxy verifies the public profile.
     expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
-      'PUT',
-      '/users/resolve',
-      expect.objectContaining({ displayName: 'Carol Danvers' }),
+      'POST',
+      '/federation/identities/resolve',
+      {
+        actorUri: 'https://remote.example/users/carol',
+        transportAcct: 'carol@remote.example',
+        protocol: 'activitypub',
+      },
     );
   });
 

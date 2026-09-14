@@ -77,6 +77,27 @@ afterEach(() => {
 });
 
 describe('createApp', () => {
+  it('observes public, federation and rejected private requests without a dashboard connection', async () => {
+    const { createApp } = await import('../app');
+    const deps = createDependencies();
+    const responses: Array<{ path: string; status: number }> = [];
+    deps.middleware.activity = (req, res, next) => {
+      const path = req.path;
+      res.once('finish', () => responses.push({ path, status: res.statusCode }));
+      next();
+    };
+    deps.routes.requireAuth = (_req, res) => { res.sendStatus(401); };
+    const app = createApp(deps);
+    await request(app).get('/feed').set('Host', 'api.mention.earth').expect(200);
+    await request(app).get('/.well-known/webfinger').set('Host', 'mention.earth').expect(200);
+    await request(app).get('/private-request').set('Host', 'api.mention.earth').expect(401);
+    expect(responses).toEqual([
+      { path: '/feed', status: 200 },
+      { path: '/.well-known/webfinger', status: 200 },
+      { path: '/private-request', status: 401 },
+    ]);
+  });
+
   it('imports and creates the app without connections, timers, sockets, or listen', async () => {
     vi.resetModules();
     const intervalSpy = vi.spyOn(globalThis, 'setInterval');

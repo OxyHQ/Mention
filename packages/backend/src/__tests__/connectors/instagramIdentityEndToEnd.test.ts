@@ -2,36 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-/**
- * AN INSTAGRAM ACCOUNT IS `@zuck@instagram.com`, NEVER `@zuck@kilogram.makeup`.
- *
- * `kilogram.makeup` is the ActivityPub bridge that republishes public Instagram
- * accounts. It is TRANSPORT — how a copy of the account reached us — and the
- * reviewed bridge policy already says so, with unit fixtures proving the
- * derivation round-trips for `robert.habeck`, `umwelthilfe` and `plex`.
- *
- * Those fixtures stop at the derivation. This one does not: it runs the whole
- * lane — WebFinger → signed actor fetch → re-label → the identity Oxy is asked to
- * store → the row kept for reaching the actor → the JSON the client renders — so
- * the assertion lands on the API RESPONSE rather than on a pure function two
- * seams away from it. That gap is not hypothetical: the X side of this shipped
- * with a green policy test while readers still saw `@elonmusk@bird.makeup`,
- * because the bug lived in the AGREEMENT between the ingest and the route and
- * neither half's tests looked at both.
- *
- * It also pins the three ADDRESSES that must converge on one account — the
- * bridge acct, the network identity, and a pasted `instagram.com` link — because
- * a reader who sees `@zuck@instagram.com` will type it back, and that string
- * names no fediverse host at all.
- *
- * The actor document is captured live from
- * `https://kilogram.makeup/users/zuck` on 2026-09-11 with
- * `Accept: application/activity+json`; only the fields the ingest reads are kept.
- * Note what it carries besides the `Official` field the rule reads: a `🔗` link
- * to meta.com and a `Twitter` h-card pointing at `bird.makeup/users/finkd`.
- * Neither is an identity assertion about this account, and the derivation must
- * keep ignoring both.
- */
+/** Oxy supplies canonical identity; Mention imports source content and renders that exact profile. */
 
 /**
  * The JRD `kilogram.makeup` serves, synthesized from the queried resource rather
@@ -61,7 +32,7 @@ const mocks = vi.hoisted(() => ({
   findActorByUri: vi.fn(),
   /** The actor-row write itself — `(uri, columns, fields)`. */
   upsertActor: vi.fn(),
-  setActorOxyUserId: vi.fn(),
+  reconcileProjection: vi.fn().mockResolvedValue({}),
   findIdentityOwnerActor: vi.fn(),
   makeServiceRequest: vi.fn(),
 }));
@@ -99,7 +70,6 @@ vi.mock('../../db/federation/actorRepository', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../db/federation/actorRepository')>()),
   findActorByUri: mocks.findActorByUri,
   upsertActor: mocks.upsertActor,
-  setActorOxyUserId: mocks.setActorOxyUserId,
   findIdentityOwnerActor: mocks.findIdentityOwnerActor,
 }));
 
@@ -123,12 +93,14 @@ vi.mock('../../services/fediverseSharing', () => ({
   isFediverseSharingEnabled: vi.fn(async () => true),
   invalidateFediverseSharing: vi.fn(),
 }));
+vi.mock('../../services/ActorIdentityProjectionService', () => ({ reconcileActorIdentityProjection: mocks.reconcileProjection }));
 vi.mock('../../services/userSummaryCache', () => ({ invalidate: vi.fn() }));
 vi.mock('../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: vi.fn(async () => ({ ok: false, permanent: true })),
 }));
 
 import connectorsRoutes from '../../connectors/connectors.routes';
+import { oxyIdentityFixture } from '../helpers/oxyIdentityFixtures';
 
 const ACTOR_URI = 'https://kilogram.makeup/users/zuck';
 const AVATAR = 'https://ipfs.kilogram.makeup/ipfs/Qmbm6jXQnwGErrzkoMhioMtf1Cb8chtFrZ8Kcmg9tQtUuf';
@@ -213,12 +185,6 @@ app.use('/federation', connectorsRoutes);
  */
 let storedRow: Record<string, unknown>;
 
-/** The body sent to `PUT /users/resolve`, or undefined when it was never called. */
-function usersResolveBody(): Record<string, unknown> | undefined {
-  const call = mocks.makeServiceRequest.mock.calls.find(([, path]) => path === '/users/resolve');
-  return call?.[2] as Record<string, unknown> | undefined;
-}
-
 function serveActor(document: Record<string, unknown>): void {
   mocks.signedFetch.mockImplementation(async (url: string) =>
     url === document.id
@@ -238,11 +204,23 @@ beforeEach(() => {
     storedRow = { uri, ...columns };
     return Promise.resolve({ ...storedRow, id: 'row-1' });
   });
-  mocks.makeServiceRequest.mockResolvedValue({ _id: 'oxy-zuck' });
+  mocks.makeServiceRequest.mockResolvedValue(oxyIdentityFixture({
+    actorUri: ACTOR_URI, transportAcct: 'zuck@kilogram.makeup', canonicalAcct: 'zuck@instagram.com',
+    network: 'instagram.com', userId: 'oxy-zuck', displayName: 'Mark Zuckerberg', bio: 'I build stuff', avatar: AVATAR,
+  }));
   serveActor(LIVE_ACTOR);
 });
 
 describe('resolving @zuck@kilogram.makeup', () => {
+  it('refuses discovery if source-scoped identity projection cannot complete', async () => {
+    mocks.reconcileProjection.mockResolvedValueOnce({ refusal: 'actor_not_cached' });
+    const res = await request(app).get('/federation/resolve').query({ handle: '@zuck@kilogram.makeup' });
+    expect(res.body.actor).toBeNull();
+    expect(mocks.reconcileProjection).toHaveBeenCalledWith({
+      actorUri: 'https://kilogram.makeup/users/zuck', oxyUserId: 'oxy-zuck', networkAcct: 'zuck@instagram.com',
+    });
+  });
+
   it('answers with the Instagram identity while keeping the bridge URI addressable', async () => {
     const res = await request(app)
       .get('/federation/resolve')
@@ -256,21 +234,21 @@ describe('resolving @zuck@kilogram.makeup', () => {
       // bridge, which is what keeps inbox/outbox/follow delivery working.
       externalId: ACTOR_URI,
       oxyUserId: 'oxy-zuck',
-      avatarUrl: AVATAR,
+      avatarUrl: expect.stringContaining(encodeURIComponent(AVATAR)),
     });
     expect(JSON.stringify(res.body.actor.handle)).not.toContain('kilogram.makeup');
   });
 
-  it('asks Oxy to store the same identity the response renders', async () => {
+  it('asks Oxy to discover the person without sending app-derived profile assertions', async () => {
     await request(app).get('/federation/resolve').query({ handle: '@zuck@kilogram.makeup' });
-
-    expect(usersResolveBody()).toMatchObject({
-      type: 'federated',
-      username: 'zuck@instagram.com',
-      domain: 'instagram.com',
-      actorUri: ACTOR_URI,
-      displayName: 'Mark Zuckerberg',
+    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
+      handle: '@zuck@kilogram.makeup',
     });
+    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
+      actorUri: ACTOR_URI, transportAcct: 'zuck@kilogram.makeup', protocol: 'activitypub',
+    });
+    expect(mocks.makeServiceRequest.mock.calls.some(([, path]) => path === '/users/resolve')).toBe(false);
+    expect(mocks.findIdentityOwnerActor).not.toHaveBeenCalled();
   });
 
   it('keeps the bridge address on the row it holds for reaching the actor', async () => {
@@ -319,16 +297,49 @@ describe('the three addresses that must converge on one account', () => {
 });
 
 describe('what the bridge lane deliberately leaves alone', () => {
+  it('uses Oxy canonical identity and bio on the first discovery of an unknown bird.makeup actor', async () => {
+    const actorUri = 'https://bird.makeup/users/jordievole';
+    serveActor({ ...LIVE_ACTOR, id: actorUri, preferredUsername: 'jordievole',
+      inbox: `${actorUri}/inbox`, outbox: `${actorUri}/outbox`,
+      summary: "Uno @delbarriotv y de @lodeevole<br>This account is a replica from Twitter. Patreon.",
+    });
+    mocks.makeServiceRequest.mockResolvedValue(oxyIdentityFixture({
+      actorUri, transportAcct: 'jordievole@bird.makeup', canonicalAcct: 'jordievole@x.com',
+      network: 'x.com', userId: 'oxy-jordievole', bio: 'Uno @delbarriotv@x.com y de @lodeevole@x.com',
+    }));
+
+    expect(storedRow).toEqual({});
+    const first = await request(app).get('/federation/resolve').query({ handle: 'jordievole@bird.makeup' });
+    expect(first.body.actor).toMatchObject({ handle: 'jordievole@x.com', oxyUserId: 'oxy-jordievole', externalId: actorUri });
+    expect(storedRow).toMatchObject({ networkAcct: 'jordievole@x.com',
+      summary: 'Uno @delbarriotv@x.com y de @lodeevole@x.com', acct: 'jordievole@bird.makeup',
+    });
+    const repeated = await request(app).get('/federation/resolve').query({ handle: 'jordievole@bird.makeup' });
+    expect(repeated.body.actor).toEqual(first.body.actor);
+  });
+
+  it('does not mint a transport identity when Oxy is unavailable', async () => {
+    mocks.makeServiceRequest.mockRejectedValue(new Error('Oxy unavailable'));
+    const response = await request(app).get('/federation/resolve').query({ handle: 'zuck@kilogram.makeup' });
+    expect(response.status).toBe(500);
+    expect(mocks.upsertActor).not.toHaveBeenCalled();
+    expect(mocks.findIdentityOwnerActor).not.toHaveBeenCalled();
+  });
+
   it("does not re-attribute the operator's own account to a person on Instagram", async () => {
     serveActor(OPERATOR_ACTOR);
-    mocks.makeServiceRequest.mockResolvedValue({ _id: 'oxy-operator' });
+    mocks.makeServiceRequest.mockResolvedValue(oxyIdentityFixture({
+      actorUri: OPERATOR_ACTOR.id, transportAcct: 'kilogram.makeup@kilogram.makeup',
+      canonicalAcct: 'kilogram.makeup@kilogram.makeup', network: 'kilogram.makeup',
+      userId: 'oxy-operator', bio: OPERATOR_ACTOR.summary,
+    }));
 
     const res = await request(app)
       .get('/federation/resolve')
       .query({ handle: '@kilogram.makeup@kilogram.makeup' });
 
     expect(res.body.actor.handle).toBe('kilogram.makeup@kilogram.makeup');
-    expect(storedRow.networkAcct).toBeFalsy();
-    expect(usersResolveBody()).toMatchObject({ domain: 'kilogram.makeup' });
+    expect(storedRow.networkAcct).toBe('kilogram.makeup@kilogram.makeup');
+    expect(storedRow.summary).toBe(OPERATOR_ACTOR.summary);
   });
 });

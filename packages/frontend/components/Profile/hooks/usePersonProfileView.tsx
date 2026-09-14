@@ -140,7 +140,7 @@ export function usePersonProfileView({
 }: PersonProfileViewOptions): PersonProfileView {
   const account = useProfileAccount(routedUsername);
   const refreshAccount = account.refresh;
-  const { username, handle, isFederated } = account;
+  const { handle, isFederated } = account;
   const routedCanonicalHref = useProfileCanonicalHref({ routedFamily: 'person', account });
   const { user: currentUser, oxyServices } = useAuth();
   const { t } = useTranslation();
@@ -585,8 +585,8 @@ export function usePersonProfileView({
     <SEO
       title={t('seo.profile.title', {
         name: profileData.design.displayName,
-        username,
-        defaultValue: `${profileData.design.displayName} (@${username}) on Mention`,
+        username: profileData.username,
+        defaultValue: `${profileData.design.displayName} (@${profileData.username}) on Mention`,
       })}
       description={
         profileData.bio

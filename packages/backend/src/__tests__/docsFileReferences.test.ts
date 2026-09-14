@@ -72,6 +72,9 @@ function scannedFiles(): string[] {
  * in the other direction, and the list must only ever shrink.
  */
 const UNRESOLVABLE_BY_DESIGN: ReadonlyMap<string, string> = new Map([
+  ['reconciliation-request.json', 'Generated read-only ECS request inspection artifact, never a tracked source file'],
+  ['reconciliation-run.json', 'Generated ECS reconciliation launch or recovery artifact, never a tracked source file'],
+  ['reconciliation-diagnostics.json', 'Generated ECS reconciliation diagnostic artifact, never a tracked source file'],
   ['__common.js', "Metro's generated shared chunk — an output artifact, never a repo file"],
   ['X.web.tsx', "packages/frontend/docs/TESTING-POLICY.md's illustrative example name for a `.web` fork, not a real file"],
 ]);

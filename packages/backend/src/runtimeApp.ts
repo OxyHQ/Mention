@@ -1,3 +1,4 @@
+import type { RequestHandler } from 'express';
 import { OxyServices } from '@oxy.so/core';
 import { createOxyRateLimit } from '@oxy.so/core/server';
 import { createApp } from './app';
@@ -52,7 +53,7 @@ export function countLocalPostsCached(): Promise<number> {
 }
 
 /** Compose production HTTP dependencies. Runtime bootstrap calls this once. */
-export function createRuntimeApp() {
+export function createRuntimeApp(activity?: RequestHandler) {
   initConnectors();
 
   const oxy = new OxyServices({ baseURL: config.oxyApiUrl });
@@ -92,6 +93,7 @@ export function createRuntimeApp() {
     countLocalPosts: countLocalPostsCached,
     logger,
     middleware: {
+      activity,
       requestObservability,
       rateLimiter,
       bruteForceProtection,

@@ -1,6 +1,8 @@
+import type { Server } from 'node:http';
 import express from 'express';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useHttpTestServers } from '../helpers/httpTestServers';
 
 /**
  * Rate limiting on `GET /lanes/mine`.
@@ -116,6 +118,7 @@ import lanesRouter from '../../routes/lanes.routes';
  * one test's hammering spend the next test's budget, and the failure would read
  * as an over-tight limit rather than cross-test bleed.
  */
+const listen = useHttpTestServers();
 let identityCounter = 0;
 function buildApp(userId = `viewer-${(identityCounter += 1)}`) {
   const app = express();
@@ -125,11 +128,11 @@ function buildApp(userId = `viewer-${(identityCounter += 1)}`) {
     next();
   });
   app.use('/lanes', lanesRouter);
-  return app;
+  return listen(app);
 }
 
 /** Issue `count` sequential GETs and return the last status seen. */
-async function hammer(app: express.Express, path: string, count: number): Promise<number> {
+async function hammer(app: Server, path: string, count: number): Promise<number> {
   let status = 0;
   for (let i = 0; i < count; i += 1) {
     status = (await request(app).get(path)).status;
@@ -151,18 +154,18 @@ beforeEach(() => {
 
 describe('GET /lanes/mine rate limiting', () => {
   it('serves the whole budget, then answers 429', async () => {
-    const app = buildApp();
+    const app = await buildApp();
 
     expect(await hammer(app, '/lanes/mine', LIMIT)).toBe(200);
     expect((await request(app).get('/lanes/mine')).status).toBe(429);
   });
 
   it('keys per CALLER — one caller\'s spend never throttles another', async () => {
-    const noisy = buildApp();
+    const noisy = await buildApp();
     await hammer(noisy, '/lanes/mine', LIMIT + 1);
 
     // A fresh identity, same route, same module-level store.
-    const quiet = buildApp();
+    const quiet = await buildApp();
     expect((await request(quiet).get('/lanes/mine')).status).toBe(200);
   });
 
@@ -182,7 +185,7 @@ describe('GET /lanes/mine rate limiting', () => {
     // something `rateLimitPrefixUniqueness` already proves statically and
     // exhaustively across the whole tree. Prefix separation is that test's job;
     // this one owns budget separation.
-    const app = buildApp();
+    const app = await buildApp();
     await hammer(app, '/lanes/mine', LIMIT + 1);
 
     expect((await request(app).get('/lanes/muted')).status).toBe(200);

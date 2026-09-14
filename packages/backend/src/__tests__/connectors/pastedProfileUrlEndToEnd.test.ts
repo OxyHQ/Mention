@@ -2,25 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-/**
- * PASTING A PROFILE LINK, ALL THE WAY THROUGH.
- *
- * Every other test on this path stops at a seam: the route tests hand the lane a
- * pre-normalized actor, and the ingest tests stop at the identity bridge. Both
- * passed while the reader still saw `@elonmusk@bird.makeup`, because the bug was
- * in neither half — it was in the AGREEMENT between them. The ingest stored the
- * account under `elonmusk@x.com` and the route answered with the bridge address
- * for the same actor, and no test looked at both.
- *
- * So this one runs the whole lane against the actor document `bird.makeup`
- * actually serves: URL → derived bridge acct → WebFinger → actor fetch → re-label
- * → the identity Oxy is asked to store → the response the client renders. Only
- * the network, the actor-row store and the Oxy service client are stubbed; the
- * bridge policy, the connector registry and the resolver are the real ones.
- *
- * Captured live from `https://bird.makeup/users/elonmusk` on 2026-08-03 with
- * `Accept: application/activity+json`; only the fields the ingest reads are kept.
- */
+/** Oxy supplies canonical identity; Mention imports source content and renders that exact profile. */
 
 const { WEBFINGER_JRD } = vi.hoisted(() => ({
   WEBFINGER_JRD: {
@@ -34,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   findActorByUri: vi.fn(),
   /** The actor-row write itself — `(uri, columns, fields)`. */
   upsertActor: vi.fn(),
-  setActorOxyUserId: vi.fn(),
+  reconcileProjection: vi.fn().mockResolvedValue({}),
   findIdentityOwnerActor: vi.fn(),
   makeServiceRequest: vi.fn(),
 }));
@@ -75,7 +57,6 @@ vi.mock('../../db/federation/actorRepository', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../db/federation/actorRepository')>()),
   findActorByUri: mocks.findActorByUri,
   upsertActor: mocks.upsertActor,
-  setActorOxyUserId: mocks.setActorOxyUserId,
   findIdentityOwnerActor: mocks.findIdentityOwnerActor,
 }));
 
@@ -99,12 +80,14 @@ vi.mock('../../services/fediverseSharing', () => ({
   isFediverseSharingEnabled: vi.fn(async () => true),
   invalidateFediverseSharing: vi.fn(),
 }));
+vi.mock('../../services/ActorIdentityProjectionService', () => ({ reconcileActorIdentityProjection: mocks.reconcileProjection }));
 vi.mock('../../services/userSummaryCache', () => ({ invalidate: vi.fn() }));
 vi.mock('../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: vi.fn(async () => ({ ok: false, permanent: true })),
 }));
 
 import connectorsRoutes from '../../connectors/connectors.routes';
+import { oxyIdentityFixture } from '../helpers/oxyIdentityFixtures';
 
 const ACTOR_URI = 'https://bird.makeup/users/elonmusk';
 const AVATAR = 'https://pbs.twimg.com/profile_images/2053244804520427520/m8mdWZCG.jpg';
@@ -143,12 +126,6 @@ app.use('/federation', connectorsRoutes);
  */
 let storedRow: Record<string, unknown>;
 
-/** The body sent to `PUT /users/resolve`, or undefined when it was never called. */
-function usersResolveBody(): Record<string, unknown> | undefined {
-  const call = mocks.makeServiceRequest.mock.calls.find(([, path]) => path === '/users/resolve');
-  return call?.[2] as Record<string, unknown> | undefined;
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
   storedRow = {};
@@ -158,7 +135,7 @@ beforeEach(() => {
     storedRow = { uri, ...columns };
     return Promise.resolve({ ...storedRow, id: 'row-1' });
   });
-  mocks.makeServiceRequest.mockResolvedValue({ _id: 'oxy-elon' });
+  mocks.makeServiceRequest.mockResolvedValue(oxyIdentityFixture({ actorUri: ACTOR_URI, transportAcct: 'elonmusk@bird.makeup', canonicalAcct: 'elonmusk@x.com', network: 'x.com', userId: 'oxy-elon', avatar: AVATAR }));
   mocks.signedFetch.mockImplementation(async (url: string) =>
     url === ACTOR_URI
       ? new Response(JSON.stringify(LIVE_ACTOR), {
@@ -182,19 +159,15 @@ describe('pasting https://x.com/elonmusk', () => {
       handle: 'elonmusk@x.com',
       externalId: ACTOR_URI,
       oxyUserId: 'oxy-elon',
-      avatarUrl: AVATAR,
+      avatarUrl: expect.stringContaining(encodeURIComponent(AVATAR)),
     });
 
     // The identity Oxy is asked to store, which is the thing the response must
     // agree with — the whole bug was these two disagreeing.
-    expect(usersResolveBody()).toMatchObject({
-      type: 'federated',
-      username: 'elonmusk@x.com',
-      domain: 'x.com',
-      actorUri: ACTOR_URI,
-      displayName: 'Elon Musk',
+    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
+      handle: 'https://x.com/elonmusk',
     });
-    expect(res.body.actor.handle).toBe(usersResolveBody()?.username);
+    expect(res.body.actor.handle).toBe('elonmusk@x.com');
   });
 
   it('stores the bridge address on the row it keeps for reaching the actor', async () => {

@@ -362,6 +362,8 @@ const environmentSchema = z
     }),
     FEDERATION_DELIVERY_RETRIES: integerFromEnv(5, { maximum: 20 }),
     FEDERATION_BLOCKED_DOMAINS: commaSeparatedDomains(),
+    CROSSPOST_RECHECK_INTERVAL_MS: integerFromEnv(60_000, { minimum: 1_000, maximum: 86_400_000 }),
+    CROSSPOST_RECHECK_BATCH_SIZE: integerFromEnv(100, { minimum: 1, maximum: 1_000 }),
     FEDERATION_MEDIA_CACHE_WRITE_ENABLED: booleanFromEnv(false),
 
     MENTION_MCP_PUBLIC_URL: z.preprocess(
@@ -816,6 +818,8 @@ export const config = {
     maxContentLength: environment.FEDERATION_MAX_CONTENT_LENGTH,
     deliveryRetries: environment.FEDERATION_DELIVERY_RETRIES,
     blockedDomains: environment.FEDERATION_BLOCKED_DOMAINS,
+    crosspostRecheckIntervalMs: environment.CROSSPOST_RECHECK_INTERVAL_MS,
+    crosspostRecheckBatchSize: environment.CROSSPOST_RECHECK_BATCH_SIZE,
     mediaCacheWriteEnabled: environment.FEDERATION_MEDIA_CACHE_WRITE_ENABLED,
   },
   mcp: {

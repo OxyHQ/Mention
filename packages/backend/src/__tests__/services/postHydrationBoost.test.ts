@@ -302,7 +302,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     // dropped — its content must render so the boost is not blank. With no
     // `actorUri` (a brid.gy/Bluesky-style note carrying only an `activityId`) and
     // no FederatedActor row, the author degrades to a neutral "Unknown user"
-    // marked federated with the origin instance — never a fabricated handle.
+    // marked federated without a public transport identity — never a fabricated handle.
     const original = await seedOriginal({
       oxyUserId: null,
       authorship: [],
@@ -320,17 +320,17 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     expect(hydrated.originalPost?.id).toBe(original.id);
     expect(hydrated.boost?.originalPost?.content?.text).toBe('the original note body');
     // The author is the neutral, un-tappable "Unknown user" (ghost-handle rule:
-    // empty handle), marked federated with the origin instance.
+    // empty handle), marked federated without a public transport identity.
     const originalUser = hydrated.boost?.originalPost?.user;
     expect(originalUser?.username).toBe('');
     expect(originalUser?.name?.displayName).toBe('Unknown user');
     expect(originalUser?.isFederated).toBe(true);
-    expect(originalUser?.instance).toBe('zpravobot.news');
+    expect(originalUser?.instance).toBeUndefined();
     // No collaborator byline for an orphan — the header falls back to `user`.
     expect(hydrated.boost?.originalPost?.authors).toEqual([]);
   });
 
-  it('renders an orphan federated boost original with its real handle from the FederatedActor record', async () => {
+  it('renders an orphan boost original from its cached Oxy profile through the source link', async () => {
     const ACTOR_URI = 'https://mastodon.online/users/kaleidotrope';
     const original = await seedOriginal({
       oxyUserId: null,
@@ -342,23 +342,28 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     // The orphan-author resolution looks the actor up by `uri`.
     await seedActor(scope, {
       uri: ACTOR_URI,
-      username: 'kaleidotrope',
+      username: 'transport',
+      oxyUserId: ORIGINAL_AUTHOR_OXY_ID,
       acct: 'kaleidotrope@mastodon.online',
       domain: 'mastodon.online',
       avatarUrl: 'https://mastodon.online/a.png',
     });
 
+    cacheStore.set(ORIGINAL_AUTHOR_OXY_ID, { user: {
+      id: ORIGINAL_AUTHOR_OXY_ID, username: 'kaleidotrope@mastodon.online',
+      name: { displayName: 'Oxy public name' }, avatar: null, isFederated: true,
+    } });
     const [hydrated] = await hydrate(boost, undefined);
 
     const originalUser = hydrated.boost?.originalPost?.user;
     expect(hydrated.boost?.originalPost?.content?.text).toBe('the original note body');
-    // Authoritative federated handle + avatar, never an invented display name.
-    expect(originalUser?.username).toBe('kaleidotrope');
+    // Source-row fields cannot override the canonical cached Oxy DTO.
+    expect(originalUser?.username).toBe('kaleidotrope@mastodon.online');
     expect(originalUser?.isFederated).toBe(true);
-    expect(originalUser?.instance).toBe('mastodon.online');
-    expect(originalUser?.federation?.domain).toBe('mastodon.online');
-    expect(originalUser?.avatar).toBe('https://mastodon.online/a.png');
-    expect(originalUser?.name?.displayName).toBeUndefined();
+    expect(originalUser?.instance).toBeUndefined();
+    expect(originalUser?.federation).toBeUndefined();
+    expect(originalUser?.avatar).toBeNull();
+    expect(originalUser?.name?.displayName).toBe('Oxy public name');
   });
 
   it('hydrates a bare orphan federated post viewed directly (not dropped from the depth-0 set)', async () => {
@@ -380,7 +385,7 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     expect(hydrated.user?.username).toBe('');
     expect(hydrated.user?.name?.displayName).toBe('Unknown user');
     expect(hydrated.user?.isFederated).toBe(true);
-    expect(hydrated.user?.instance).toBe('bsky.brid.gy');
+    expect(hydrated.user?.instance).toBeUndefined();
   });
 
   it('renders the Oxy name.displayName for a resolved federated boost original', async () => {

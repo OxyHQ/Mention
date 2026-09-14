@@ -115,6 +115,14 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       'USING btree (federation_activity_id) WHERE (federation_activity_id IS NOT NULL)',
   },
   {
+    name: 'posts_federation_actor_uri_idx',
+    table: 'posts',
+    serves: 'source identity projection and cache inspection — avoid scanning all posts for each immutable source actor',
+    definition:
+      'CREATE INDEX posts_federation_actor_uri_idx ON public.posts ' +
+      'USING btree (federation_actor_uri) WHERE (federation_actor_uri IS NOT NULL)',
+  },
+  {
     name: 'post_public_chrono_v1',
     table: 'posts',
     serves:
@@ -867,5 +875,31 @@ describe('the narrowed queue index is still reachable by the queue, and only by 
       'set cannot serve, so this plan is measuring a WIDER index than the one 0026 created',
     ).not.toContain('queue_probe_idx');
     expect(failedSelect).toMatch(/Seq Scan on queue_probe$/m);
+  });
+});
+
+it('bounds source index creation, restores prior timeouts and serves exact actor lookups', async () => {
+  const migration = readFileSync(path.resolve(__dirname, '../../../drizzle/0039_source_identity_projection_index.sql'), 'utf8');
+  await db.transaction(async tx => {
+    // A private table shadows public.posts only on this transaction's connection.
+    await tx.execute(sql`create temp table posts (federation_actor_uri text, oxy_user_id text) on commit drop`);
+    await tx.execute(sql`insert into posts select case when n % 4 = 0 then null else 'https://fixture.invalid/' || (n % 200)::text end, 'old' from generate_series(1, 2000) n`);
+    await tx.execute(sql`set local lock_timeout = '750ms'`);
+    await tx.execute(sql`set local statement_timeout = '90s'`);
+    let boundedBuildObserved = false;
+    for (const statement of migration.split('--> statement-breakpoint')) {
+      if (statement.trimStart().startsWith('CREATE INDEX')) {
+        const [settings] = await tx.execute<{ lock_timeout: string; statement_timeout: string }>(sql`select current_setting('lock_timeout') lock_timeout, current_setting('statement_timeout') statement_timeout`);
+        expect(settings).toEqual({ lock_timeout: '5s', statement_timeout: '1min' });
+        boundedBuildObserved = true;
+      }
+      await tx.execute(sql.raw(statement));
+    }
+    expect(boundedBuildObserved).toBe(true);
+    const [restored] = await tx.execute<{ lock_timeout: string; statement_timeout: string }>(sql`select current_setting('lock_timeout') lock_timeout, current_setting('statement_timeout') statement_timeout`);
+    expect(restored).toEqual({ lock_timeout: '750ms', statement_timeout: '90s' });
+    await tx.execute(sql`analyze posts`);
+    const rows = await tx.execute<{ 'QUERY PLAN': string }>(sql`explain (costs off) select distinct oxy_user_id from posts where federation_actor_uri = 'https://fixture.invalid/101'`);
+    expect(rows.map(row => row['QUERY PLAN']).join('\n')).toContain('posts_federation_actor_uri_idx');
   });
 });

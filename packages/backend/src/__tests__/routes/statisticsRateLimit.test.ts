@@ -1,6 +1,8 @@
+import type { Server } from 'node:http';
 import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useHttpTestServers } from '../helpers/httpTestServers';
 
 /**
  * Rate limiting on the statistics router (CodeQL `js/missing-rate-limiting`,
@@ -95,6 +97,7 @@ const POST_VIEW_MAX = 120;
  * budget, and the failure would look like an over-tight limit rather than
  * cross-test bleed.
  */
+const listen = useHttpTestServers();
 let identityCounter = 0;
 function buildApp(userId = `viewer-${(identityCounter += 1)}`) {
   const app = express();
@@ -104,12 +107,12 @@ function buildApp(userId = `viewer-${(identityCounter += 1)}`) {
   });
   app.use('/statistics', statisticsRoutes);
   app.use('/public-statistics', publicStatisticsRouter);
-  return app;
+  return listen(app);
 }
 
 /** Issue `count` sequential GET/POSTs and return the last status seen. */
 async function hammer(
-  app: express.Express,
+  app: Server,
   method: 'get' | 'post',
   path: string,
   count: number,
@@ -135,21 +138,21 @@ describe('statistics router rate limiting', () => {
   });
 
   it.each(AUTHENTICATED_ROUTES)('bounds %s', async (path, method) => {
-    const app = buildApp();
+    const app = await buildApp();
 
     expect(await hammer(app, method as 'get', path, ROUTER_MAX)).toBe(200);
     expect(await hammer(app, method as 'get', path, 1)).toBe(429);
   });
 
   it('bounds the public activity route, which an anonymous caller can reach', async () => {
-    const app = buildApp();
+    const app = await buildApp();
 
     expect(await hammer(app, 'get', '/public-statistics/user/someone/activity', ROUTER_MAX)).toBe(200);
     expect(await hammer(app, 'get', '/public-statistics/user/someone/activity', 1)).toBe(429);
   });
 
   it('bounds the view write more tightly than the router does', async () => {
-    const app = buildApp();
+    const app = await buildApp();
 
     // Tighter: the write is capped before the router's own ceiling is reached.
     expect(await hammer(app, 'post', '/statistics/post/abc/view', POST_VIEW_MAX)).toBe(200);
@@ -162,7 +165,7 @@ describe('statistics router rate limiting', () => {
     // need distinct Redis prefixes: one store for both would mean opening posts
     // silently spends the budget for reading statistics (and, with the feed's
     // store, for scrolling).
-    const app = buildApp();
+    const app = await buildApp();
 
     await hammer(app, 'post', '/statistics/post/abc/view', POST_VIEW_MAX);
     expect(await hammer(app, 'post', '/statistics/post/abc/view', 1)).toBe(429);
@@ -172,12 +175,12 @@ describe('statistics router rate limiting', () => {
   });
 
   it('buckets per viewer, so one caller cannot throttle another', async () => {
-    const noisy = buildApp();
+    const noisy = await buildApp();
     await hammer(noisy, 'post', '/statistics/post/abc/view', POST_VIEW_MAX);
     expect(await hammer(noisy, 'post', '/statistics/post/abc/view', 1)).toBe(429);
 
     // A different identity against the SAME module-level limiter instance.
-    const quiet = buildApp();
+    const quiet = await buildApp();
     expect(await hammer(quiet, 'post', '/statistics/post/abc/view', 1)).toBe(200);
   });
 });

@@ -697,6 +697,13 @@ export const posts = pgTable(
       .on(t.federationActivityId)
       .where(sql`${t.federationActivityId} is not null`),
 
+    // Source identity projection reads all posts for one immutable actor URI.
+    // Keep local posts out of the index; reconciliation must not scan every
+    // post twice for each resolved source actor.
+    index('posts_federation_actor_uri_idx')
+      .on(t.federationActorUri)
+      .where(sql`${t.federationActorUri} is not null`),
+
     // ── Hot paths, ported from the Mongo index manifest + the model's own list ──
     // The names are the manifest's, kept so a DBA reading `pg_indexes` and a
     // developer reading the migration see the same ones. Both the manifest and

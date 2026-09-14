@@ -31,13 +31,14 @@ function readOrigin(name: string, fallback?: string): string {
 
 /**
  * The immutable Cloudflare Pages deployment holding the build being gated. Its
- * bytes are what the browser actually executes — see `fixtures.ts`.
+ * bytes are what the browser actually executes — see `fixtures.ts`. The opt-in
+ * cold identity gate instead requires the deployed app origin for server HTML.
  */
 export const CANDIDATE_ORIGIN = readOrigin('MENTION_E2E_CANDIDATE_ORIGIN');
 
 /**
- * The origin the browser runs at. This is NOT interchangeable with the candidate
- * origin, and the difference is the reason this suite is shaped the way it is:
+ * The origin the browser runs at. For the ordinary release gate this is NOT
+ * interchangeable with the candidate origin, because:
  *
  *   * the production build hardcodes `https://api.mention.earth` as its API
  *     (`packages/frontend/config.ts` ignores `EXPO_PUBLIC_API_URL` when
@@ -75,7 +76,9 @@ export const BRIDGED_NETWORK_HANDLE =
 export const BRIDGED_TRANSPORT_HANDLE =
   process.env.MENTION_E2E_BRIDGED_TRANSPORT_HANDLE?.trim() || 'zuck@kilogram.makeup';
 
-if (CANDIDATE_ORIGIN === APP_ORIGIN) {
+// The opt-in cold identity gate exercises deployed server HTML directly. Its
+// preflight requires matching origins and fresh database absence evidence.
+if (CANDIDATE_ORIGIN === APP_ORIGIN && process.env.MENTION_E2E_COLD_IDENTITY !== '1') {
   throw new Error(
     'MENTION_E2E_CANDIDATE_ORIGIN must differ from MENTION_E2E_APP_ORIGIN. Pointing both at ' +
       'the live site turns every assertion below into a test of the release that already shipped.',

@@ -8,7 +8,8 @@
   "scripts": {
     "test": "playwright test",
     "install-browser": "playwright install --with-deps chromium",
-    "lint": "tsc --noEmit",
+    "lint": "tsc --noEmit && bun run test:identity-evidence",
+    "test:identity-evidence": "node --test coldIdentityEvidence.test.mjs",
     "clean": "rm -rf playwright-report test-results"
   },
   "devDependencies": {

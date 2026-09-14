@@ -2,25 +2,13 @@ import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-/**
- * `GET /federation/resolve` given a PASTED PROFILE URL.
- *
- * A reader pastes `https://x.com/elonmusk`. There is no handle to classify and no
- * connector that owns x.com, so the query takes its own lane: derive the accts
- * the reviewed bridges would hold that account under, ask them in order, and keep
- * the first answer that turns out to BE that account.
- *
- * Three properties this route must never lose, each one a way the lane could
- * quietly become something else:
- *
- *  - the pasted URL is never handed to a connector, so it is never fetched;
- *  - only hosts from the committed bridge policy are contacted;
- *  - an actor that did not re-label onto the pasted account is not that account,
- *    however plausibly the acct we guessed resolved.
- */
+/** Oxy supplies canonical identity; Mention imports source content and renders that exact profile. */
 
-const { resolve, classifyQuery, getUserById } = vi.hoisted(() => ({
+const { resolve, classifyQuery, getUserById, makeServiceRequest, connectorFor, fetchProfile } = vi.hoisted(() => ({
   resolve: vi.fn(),
+  makeServiceRequest: vi.fn(),
+  connectorFor: vi.fn(),
+  fetchProfile: vi.fn(),
   classifyQuery: vi.fn(() => 'activitypub' as const),
   getUserById: vi.fn(),
 }));
@@ -66,7 +54,7 @@ vi.mock('../../connectors/atproto/constants', () => ({
 vi.mock('../../connectors/index', () => ({
   connectorRegistry: {
     list: () => [],
-    connectorFor: vi.fn(() => undefined),
+    connectorFor,
     resolve: (...args: unknown[]) => resolve(...args),
   },
 }));
@@ -87,7 +75,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(),
-  getServiceOxyClient: () => ({ getUserById }),
+  getServiceOxyClient: () => ({ getUserById, makeServiceRequest }),
 }));
 
 vi.mock('../../services/fediverseSharing', () => ({
@@ -95,169 +83,65 @@ vi.mock('../../services/fediverseSharing', () => ({
 }));
 
 import connectorsRoutes from '../../connectors/connectors.routes';
+import { oxyIdentityFixture } from '../helpers/oxyIdentityFixtures';
 
 const app = express();
 app.use(express.json());
 app.use('/federation', connectorsRoutes);
 
-/** A resolved actor as the bridge's row normalizes — re-labelled onto X. */
-function bridgedActor(federatedUsername: string, acct: string) {
-  return {
-    network: 'activitypub' as const,
-    externalId: `https://${acct.slice(acct.indexOf('@') + 1)}/users/${acct.slice(0, acct.indexOf('@'))}`,
-    handle: acct,
-    federatedUsername,
-    instanceDomain: federatedUsername.slice(federatedUsername.indexOf('@') + 1),
-    oxyUserId: 'oxy-user-1',
-  };
-}
+const source = { actorUri: 'https://bird.makeup/users/elonmusk', transportAcct: 'elonmusk@bird.makeup', canonicalAcct: 'elonmusk@x.com', network: 'x.com' };
 
 beforeEach(() => {
   vi.clearAllMocks();
   classifyQuery.mockReturnValue('activitypub');
-  resolve.mockResolvedValue(null);
+  makeServiceRequest.mockResolvedValue(oxyIdentityFixture(source));
+  connectorFor.mockReturnValue({ id: 'activitypub', enabled: true, fetchProfile });
+  fetchProfile.mockResolvedValue({ externalId: source.actorUri, handle: source.transportAcct });
 });
 
-describe('GET /federation/resolve — a pasted profile URL', () => {
-  it('reaches the account through the bridge that mirrors its network', async () => {
-    resolve.mockImplementation(async (acct: string) =>
-      acct === 'elonmusk@bird.makeup' ? bridgedActor('elonmusk@x.com', acct) : null);
+describe('GET /federation/resolve delegates public identity discovery to Oxy', () => {
+  it.each(['https://x.com/elonmusk', '@elonmusk@x.com', '@elonmusk@bird.makeup'])(
+    'passes %s to Oxy and imports only its returned transport actor', async (handle) => {
+      const res = await request(app).get('/federation/resolve').query({ handle });
+      expect(res.status).toBe(200);
+      expect(res.body.actor).toMatchObject({ handle: 'elonmusk@x.com', externalId: source.actorUri, oxyUserId: 'oxy-resolved' });
+      expect(makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', { handle });
+      expect(fetchProfile).toHaveBeenCalledExactlyOnceWith(source.actorUri);
+      expect(resolve).not.toHaveBeenCalled();
+    },
+  );
 
-    const res = await request(app).get('/federation/resolve').query({ handle: 'https://x.com/elonmusk' });
-
-    expect(res.status).toBe(200);
-    expect(res.body.actor).toMatchObject({
-      network: 'activitypub',
-      // The account, not the bridge it was reached through. `externalId` keeps
-      // the protocol id, which is what the follow is addressed to.
-      handle: 'elonmusk@x.com',
-      externalId: 'https://bird.makeup/users/elonmusk',
-      oxyUserId: 'oxy-user-1',
-    });
-    expect(res.body.actor.handle).not.toContain('bird.makeup');
-    expect(resolve).toHaveBeenCalledWith('elonmusk@bird.makeup');
-  });
-
-  it('never hands the pasted URL to a connector, and never classifies it as a handle', async () => {
-    // Fetching a user-supplied URL is the whole surface this lane exists to
-    // avoid: every host contacted comes from our own policy, and the pasted
-    // value only ever contributes the handle inside a derived acct.
-    await request(app).get('/federation/resolve').query({ handle: 'https://x.com/elonmusk' });
-
-    expect(resolve).toHaveBeenCalled();
-    for (const [subject] of resolve.mock.calls) {
-      expect(subject).not.toContain('://');
-      expect(subject).toMatch(/^elonmusk@(bird\.makeup|mastox\.eu)$/);
-    }
-    expect(classifyQuery).not.toHaveBeenCalled();
-  });
-
-  it('tries the next reviewed bridge when the first has no copy', async () => {
-    resolve.mockImplementation(async (acct: string) =>
-      acct === 'elonmusk@mastox.eu' ? bridgedActor('elonmusk@x.com', acct) : null);
-
-    const res = await request(app).get('/federation/resolve').query({ handle: 'https://x.com/elonmusk' });
-
-    expect(res.status).toBe(200);
-    // Which bridge answered is an implementation detail of how we reached the
-    // account, and it must not reach the reader as the account's name.
-    expect(res.body.actor.handle).toBe('elonmusk@x.com');
-    expect(resolve.mock.calls.map(([acct]) => acct)).toEqual(['elonmusk@bird.makeup', 'elonmusk@mastox.eu']);
-  });
-
-  it('stops at the first answer instead of ingesting a copy from every bridge', async () => {
-    resolve.mockImplementation(async (acct: string) => bridgedActor('elonmusk@x.com', acct));
-
-    await request(app).get('/federation/resolve').query({ handle: 'https://x.com/elonmusk' });
-
-    expect(resolve).toHaveBeenCalledTimes(1);
-  });
-
-  it('drops an actor that turns out to be a different account', async () => {
-    // `<handle>@<bridge-host>` is a derivation from how a bridge names its
-    // mirrors, not something the actor asserts. When it lands on somebody else —
-    // the operator's own account is the obvious case — that is not the pasted
-    // account, however well the acct resolved.
-    resolve.mockImplementation(async (acct: string) => bridgedActor('someone.else@x.com', acct));
-
-    const res = await request(app).get('/federation/resolve').query({ handle: 'https://x.com/elonmusk' });
-
+  it('returns no match when Oxy cannot prove a profile for the query', async () => {
+    makeServiceRequest.mockRejectedValue(Object.assign(new Error('Unknown profile'), { status: 404 }));
+    const res = await request(app).get('/federation/resolve').query({ handle: 'https://x.com/unknown' });
     expect(res.status).toBe(200);
     expect(res.body.actor).toBeNull();
-    // Every reviewed bridge was still asked — a wrong answer from one is not an
-    // answer about the others.
-    expect(resolve.mock.calls.map(([acct]) => acct)).toEqual(['elonmusk@bird.makeup', 'elonmusk@mastox.eu']);
+    expect(fetchProfile).not.toHaveBeenCalled();
   });
 
-  it('drops an actor the bridge never re-labelled at all', async () => {
-    // An actor that does not satisfy its bridge's rule keeps the bridge identity
-    // — by design, since that is how the operator's own accounts are left alone.
-    resolve.mockImplementation(async (acct: string) => bridgedActor(acct, acct));
-
+  it('does not import a source rejected by Mention transport policy', async () => {
+    connectorFor.mockReturnValue(undefined);
     const res = await request(app).get('/federation/resolve').query({ handle: 'https://x.com/elonmusk' });
-
-    expect(res.status).toBe(200);
     expect(res.body.actor).toBeNull();
+    expect(fetchProfile).not.toHaveBeenCalled();
   });
 
-  it('answers a plain no-match for a URL on a host no reviewed bridge covers, without asking anyone', async () => {
-    const res = await request(app)
-      .get('/federation/resolve')
-      .query({ handle: 'https://mastodon.social/@Gargron' });
-
-    expect(res.status).toBe(200);
-    expect(res.body.actor).toBeNull();
-    expect(resolve).not.toHaveBeenCalled();
+  it('does not use a source response whose Oxy owner disagrees with the public profile', async () => {
+    const response = oxyIdentityFixture(source);
+    response.externalIdentity.userId = 'somebody-else';
+    makeServiceRequest.mockResolvedValue(response);
+    const res = await request(app).get('/federation/resolve').query({ handle: source.transportAcct });
+    expect(res.status).toBe(500);
+    expect(fetchProfile).not.toHaveBeenCalled();
   });
 
-  it('still resolves an ordinary handle query verbatim', async () => {
-    resolve.mockResolvedValue(bridgedActor('alice@mastodon.social', 'alice@mastodon.social'));
-
-    const res = await request(app)
-      .get('/federation/resolve')
-      .query({ handle: '@alice@mastodon.social' });
-
-    expect(res.status).toBe(200);
-    expect(res.body.actor.handle).toBe('alice@mastodon.social');
-    expect(resolve).toHaveBeenCalledWith('@alice@mastodon.social');
-    expect(classifyQuery).toHaveBeenCalledWith('@alice@mastodon.social');
-  });
-
-  it('returns the stored identity for an atproto handle, not the DNS handle it was queried by', async () => {
-    // Not a bridge case, and it was wrong in the same way: a default Bluesky
-    // handle ADDRESSES `alice.bsky.social` and is STORED as `alice@bsky.social`,
-    // so returning the address left the resolved row unable to match the Oxy row
-    // for the same person — a duplicate in the results for every default-handle
-    // Bluesky account already ingested.
-    resolve.mockResolvedValue({
-      network: 'atproto' as const,
-      externalId: 'did:plc:z72i7hdynmk6r22z27h6tvur',
-      handle: 'alice.bsky.social',
-      federatedUsername: 'alice@bsky.social',
-      instanceDomain: 'bsky.social',
-      oxyUserId: 'oxy-user-2',
-    });
-
-    const res = await request(app).get('/federation/resolve').query({ handle: 'alice.bsky.social' });
-
-    expect(res.status).toBe(200);
-    expect(res.body.actor).toMatchObject({
-      handle: 'alice@bsky.social',
-      externalId: 'did:plc:z72i7hdynmk6r22z27h6tvur',
-    });
-  });
-
-  it('still refuses a local username without asking a connector, with a plain no-match', async () => {
-    classifyQuery.mockReturnValue('local');
-
-    const res = await request(app).get('/federation/resolve').query({ handle: '@nate' });
-
-    expect(res.status).toBe(200);
-    expect(res.body.actor).toBeNull();
-    // The load-bearing half: a local handle is answered WITHOUT touching a
-    // connector. `actor: null` alone would also be produced by asking one and
-    // getting nothing, which is a different thing costing a network round trip
-    // on every keystroke that types a local name.
-    expect(resolve).not.toHaveBeenCalled();
+  it('imports atproto by the DID Oxy verified and renders its canonical username', async () => {
+    const did = 'did:plc:verified';
+    makeServiceRequest.mockResolvedValue(oxyIdentityFixture({ actorUri: did, transportAcct: 'alice.bsky.social',
+      canonicalAcct: 'alice@bsky.social', network: 'bsky.social', protocol: 'atproto' }));
+    connectorFor.mockReturnValue({ id: 'atproto', enabled: true, fetchProfile });
+    fetchProfile.mockResolvedValue({ externalId: did });
+    const res = await request(app).get('/federation/resolve').query({ handle: did });
+    expect(res.body.actor).toMatchObject({ handle: 'alice@bsky.social', externalId: did, network: 'atproto' });
   });
 });

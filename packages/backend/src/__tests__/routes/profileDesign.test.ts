@@ -2,6 +2,8 @@ import express from 'express';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PostType, PostVisibility } from '@mention/shared-types';
+import { eq } from 'drizzle-orm';
+import { posts } from '../../db/schema/posts';
 
 /**
  * The profile-design post counts, against REAL ROWS.
@@ -38,7 +40,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
   canViewProfileDesign: vi.fn().mockResolvedValue(true),
 }));
 
-import { closePostgres, connectPostgres } from '../../db/postgres';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import profileDesignRoutes from '../../routes/profileDesign';
@@ -85,6 +87,15 @@ afterAll(async () => {
 });
 
 describe('profile design public counts', () => {
+  it('counts a collapsed cross-post once while retaining both source records', async () => {
+    await seed();
+    const sibling = await seed();
+    await getDb().update(posts).set({ crosspostCollapsed: true }).where(eq(posts.id, sibling));
+    const response = await request(app).get(`/profile/design/${AUTHOR}`).expect(200);
+    expect(response.body.data.postsCount).toBe(1);
+    expect(await getDb().select({ id: posts.id }).from(posts).where(eq(posts.id, sibling))).toHaveLength(1);
+  });
+
   it('counts only published public posts, boosts, and replies of THIS author', async () => {
     const root = await seed();
     await seed({ parentPostId: root });

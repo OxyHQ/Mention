@@ -1,20 +1,6 @@
 import { isPublicProfileHandle } from '../utils/publicProfileHandle';
 
-/**
- * A bridge transport acct must not be a second public Mention profile URL.
- *
- * `https://mention.earth/@zuck@kilogram.makeup` rendered Zuckerberg's profile
- * even though the canonical identity the page itself shows is
- * `@zuck@instagram.com`. Both addresses reach the same account on purpose — the
- * federation layer has to resolve the protocol acct, because ActivityPub
- * addresses actors by it — but only one of them is an IDENTITY, and publishing
- * the other as a working profile URL gives one person two canonical addresses
- * and puts the bridge hostname where the reader expects a network.
- *
- * The rule is stated as a handle comparison rather than a list of bridge hosts,
- * so every entry in the backend's reviewed bridge policy inherits it without a
- * second review here — see the module's own doc comment.
- */
+/** Oxy owns public network identities; transport delivery accts cannot grant routes. */
 
 describe('isPublicProfileHandle — transport accts are not public identities', () => {
   it.each([
@@ -46,16 +32,29 @@ describe('isPublicProfileHandle — the identities that must keep rendering', ()
     expect(isPublicProfileHandle('@Gargron@Mastodon.social', 'gargron@mastodon.social')).toBe(true);
   });
 
-  /**
-   * Failing OPEN here is deliberate. A resolve that answers without an identity
-   * is an unexpected wire shape, not evidence that the reader typed a transport
-   * address — and failing closed on it would 404 every federated profile at once.
-   */
   it.each([
     ['an absent username', undefined],
     ['a null username', null],
     ['an empty username', ''],
-  ])('renders anyway on %s, rather than hiding accounts we hold', (_label, resolved) => {
-    expect(isPublicProfileHandle('zuck@kilogram.makeup', resolved)).toBe(true);
+  ])('refuses %s without a public identity', (_label, resolved) => {
+    expect(isPublicProfileHandle('zuck@kilogram.makeup', resolved)).toBe(false);
+  });
+});
+
+
+describe('Oxy-proven aliases', () => {
+  const profile = { externalIdentities: [{ canonicalAcct: 'freshperson@threads.net', network: 'threads.net', protocol: 'activitypub', actorUri: 'https://threads.net/ap/users/freshperson', transportAcct: 'freshperson@threads.net', sourceUserId: 'threads-source' },
+    { canonicalAcct: 'freshperson@instagram.com', network: 'instagram.com', protocol: 'activitypub', actorUri: 'https://bridge.example/users/freshperson', transportAcct: 'freshperson@bridge.example', sourceUserId: 'instagram-source' }] };
+  it('accepts the other proven network alias of one canonical person', () => {
+    expect(isPublicProfileHandle('@FreshPerson@Threads.net', 'freshperson@instagram.com', profile)).toBe(true);
+  });
+  it('does not promote the same proven source transport acct', () => {
+    expect(isPublicProfileHandle('freshperson@bridge.example', 'freshperson@instagram.com', profile)).toBe(false);
+  });
+  it('does not infer a link from a matching handle without Oxy proof', () => {
+    expect(isPublicProfileHandle('freshperson@threads.net', 'freshperson@instagram.com', {})).toBe(false);
+  });
+  it('rejects malformed alias metadata rather than adopting its handle', () => {
+    expect(isPublicProfileHandle('freshperson@threads.net', 'freshperson@instagram.com', { externalIdentities: [{ canonicalAcct: 'freshperson@threads.net' }] })).toBe(false);
   });
 });

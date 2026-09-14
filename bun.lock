@@ -24,7 +24,7 @@
         "@oxy.so/crowdsource-contracts": "1.0.0",
         "@oxy.so/crowdsource-express": "1.0.0",
         "@oxy.so/db": "^1.0.0",
-        "@oxy.so/federation": "^1.0.0",
+        "@oxy.so/federation": "^1.0.1",
         "@oxy.so/mcp": "catalog:",
         "@oxy.so/protocol": "^1.0.1",
         "@socket.io/redis-adapter": "^8.3.0",
@@ -91,6 +91,7 @@
         "@oxy.so/contracts": "catalog:",
         "@oxy.so/core": "catalog:",
         "@oxy.so/services": "catalog:",
+        "@oxy.so/telemetry": "^1.1.1",
         "@react-native-async-storage/async-storage": "^2.2.0",
         "@react-native-community/netinfo": "^12.0.1",
         "@shopify/flash-list": "2.0.2",
@@ -227,12 +228,14 @@
     },
   },
   "patchedDependencies": {
+    "expo-video@57.0.3": "patches/expo-video@57.0.3.patch",
     "expo-router@57.0.18": "patches/expo-router@57.0.18.patch",
   },
   "overrides": {
     "@expo/log-box": "57.0.4",
     "@oxy.so/bloom": "catalog:",
-    "@oxy.so/core": "^1.0.1",
+    "@oxy.so/contracts": "catalog:",
+    "@oxy.so/core": "^1.1.2",
     "@oxy.so/services": "^1.1.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native/babel-preset": "0.86.3",
@@ -283,8 +286,8 @@
   },
   "catalog": {
     "@oxy.so/bloom": "^1.0.8",
-    "@oxy.so/contracts": "^1.0.1",
-    "@oxy.so/core": "^1.0.1",
+    "@oxy.so/contracts": "^1.1.1",
+    "@oxy.so/core": "^1.1.2",
     "@oxy.so/mcp": "^1.0.0",
     "@oxy.so/services": "^1.1.0",
     "@syra.fm/sdk": "^0.13.1",
@@ -892,7 +895,7 @@
 
     "@oxy.so/doctor": ["@oxy.so/doctor@1.0.0", "", { "bin": { "oxy-doctor": "src/cli.mjs" } }, "sha512-Cv+CbLGkx+CTJmRkPBAfLXkHnv+afw2r9H2j6IxvORq2M8gJsnI8X9k4NpjEpK6lthjf2UYAOJPFWKOxL8SWcw=="],
 
-    "@oxy.so/federation": ["@oxy.so/federation@1.0.0", "", { "dependencies": { "@oxy.so/contracts": "^1.0.0", "@oxy.so/core": "^1.0.0" }, "peerDependencies": { "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["express"] }, "sha512-BmENHxMVwKv9elTcBvofrcm08W3zlt2Nzr8ZqfnE5lwRFWwh2BvFq8XfQdOA3IpxlTKaKjiPbt2NMqe231VkMg=="],
+    "@oxy.so/federation": ["@oxy.so/federation@1.0.1", "", { "dependencies": { "@oxy.so/contracts": "^1.0.0", "@oxy.so/core": "^1.0.0" }, "peerDependencies": { "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["express"] }, "sha512-1bGjqHNxLv+nCFgYYgK9qzJ0tVdh/kpjYSX2TJpcL1aqFQx3R19DkcdkcwGhGkFuOWjYXOqnjI1H3l79jXbuAA=="],
 
     "@oxy.so/mcp": ["@oxy.so/mcp@1.0.0", "", { "dependencies": { "@modelcontextprotocol/sdk": "^1.30.0", "@oxy.so/contracts": "^1.0.1", "zod": "^4.5.4" } }, "sha512-FDKoxHdHLszzKzfrIsgNqRlxopyRySR04nnjtxHlImNsZydVXn6/Crs6R+Biv9W8DErjcdjtyVtwEnm0AIu+4Q=="],
 

@@ -266,3 +266,18 @@ export async function countEquivalence(
     .where(eq(posts.crosspostCollapsed, true));
   return { clusters: clusters?.count ?? 0, collapsedPosts: collapsed?.count ?? 0 };
 }
+
+/** Oldest checked first: durable ordering prevents restarts starving later clusters. */
+export async function findClustersForRecheck(limit: number): Promise<string[]> {
+  const rows = await getDb().select({ id: postEquivalenceClusters.id })
+    .from(postEquivalenceClusters)
+    .orderBy(postEquivalenceClusters.updatedAt, postEquivalenceClusters.id)
+    .limit(limit);
+  return rows.map((row) => row.id);
+}
+
+/** Advance surviving clusters after each check; dissolved clusters are already gone. */
+export async function markClusterRechecked(clusterId: string): Promise<void> {
+  await getDb().update(postEquivalenceClusters).set({ updatedAt: new Date() })
+    .where(eq(postEquivalenceClusters.id, clusterId));
+}
