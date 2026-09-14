@@ -330,6 +330,30 @@ describe('asking for a language the post does not carry', () => {
     expect(state.displayText).toBe('Hallo Welt');
   });
 
+  it('keys the body by the REQUESTED tag when the server names none', async () => {
+    mockApiPost.mockResolvedValue({ data: { translatedText: 'Hallo Welt' } });
+    await render(englishOnly);
+
+    await act(async () => {
+      state.selectLanguage('de');
+    });
+
+    expect(state.activeTag).toBe('de');
+    expect(state.displayText).toBe('Hallo Welt');
+  });
+
+  it('never asks the server for a post with no id', async () => {
+    await act(async () => {
+      TestRenderer.create(<Probe content={englishOnly} />);
+    });
+
+    await act(async () => {
+      state.selectLanguage('de');
+    });
+
+    expect(mockApiPost).not.toHaveBeenCalled();
+  });
+
   it('falls back to the original body and says so when the translation fails', async () => {
     mockApiPost.mockRejectedValue({ response: { status: 429 } });
     await render(englishOnly);
@@ -341,6 +365,22 @@ describe('asking for a language the post does not carry', () => {
     expect(state.displayText).toBeNull();
     expect(state.activeTag).toBe('en');
     expect(mockToast).toHaveBeenCalledWith('translation.rateLimited', { type: 'error' });
+  });
+
+  it('falls back and says so when the server answers with no usable text', async () => {
+    // A 200 with an empty/absent `translatedText` — the request succeeded but
+    // produced nothing to show, which must be treated the same as a failure
+    // rather than silently displaying an empty body.
+    mockApiPost.mockResolvedValue({ data: { translatedText: '' } });
+    await render(englishOnly);
+
+    await act(async () => {
+      state.selectLanguage('de');
+    });
+
+    expect(state.displayText).toBeNull();
+    expect(state.activeTag).toBe('en');
+    expect(mockToast).toHaveBeenCalledWith('translation.failed', { type: 'error' });
   });
 });
 
@@ -374,6 +414,22 @@ describe('the translate button', () => {
 
     expect(state.displayText).toBeNull();
     expect(state.isTranslated).toBe(false);
+  });
+
+  it('does nothing when the reader has no language at all to translate into', async () => {
+    // No account languages and no app display language resolved — nothing
+    // for the picker's "translate into my language" action to target. Must
+    // not crash and must not guess a language to call the server with.
+    mockReaderLanguage = '';
+    mockAccountLanguages = [];
+    await render(englishOnly);
+
+    await act(async () => {
+      state.toggleReaderTranslation();
+    });
+
+    expect(mockApiPost).not.toHaveBeenCalled();
+    expect(state.displayText).toBeNull();
   });
 
   it('reaches for the author’s own rendition before asking a machine', async () => {

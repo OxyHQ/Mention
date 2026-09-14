@@ -31,6 +31,7 @@ import { LiveFeatureHost } from '@/components/providers/LiveFeatureProviders';
 import { LiveRoomControllerProvider } from '@/context/LiveRoomContext';
 import i18n, { setLanguage } from '@/lib/i18n';
 import { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES } from '@/lib/constants';
+import { handleLanguageError } from '@/components/providers/handleLanguageError';
 import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('AppProviders');
@@ -99,7 +100,7 @@ export const AppProviders = memo(function AppProviders({
               supportedLocales: SUPPORTED_LANGUAGES,
               fallbackLocale: DEFAULT_LANGUAGE,
               onChange: setLanguage,
-              onError: (error, locale) => logger.error('Failed to follow the Oxy-resolved language', error, { locale }),
+              onError: handleLanguageError,
             }}
           >
             {/*
