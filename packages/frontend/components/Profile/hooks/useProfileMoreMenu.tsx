@@ -10,6 +10,7 @@ import { ReportModal } from '@/components/report/ReportModal';
 import { AddToListSheet } from '@/components/Lists/AddToListSheet';
 import { AddToStarterPackSheet } from '@/components/AddToStarterPackSheet';
 import { muteService } from '@/services/muteService';
+import { refreshPrivacyLists } from '@/services/privacyService';
 import { reportService } from '@/services/reportService';
 import { confirmDialog } from '@/utils/alerts';
 import { List as ListIcon } from '@/assets/icons/list-icon';
@@ -121,6 +122,11 @@ export function useProfileMoreMenu({
       }
       try {
         await oxyServices.blockUser(profileData.id);
+        // The block is written in Oxy; Mention caches the viewer's blocked list
+        // per request window, so tell it to drop that entry or the feed keeps
+        // showing the blocked account until the window expires. Best-effort —
+        // the block itself has already succeeded.
+        await refreshPrivacyLists();
         toast(
           t('profile.blocked', {
             username: displayUsername,

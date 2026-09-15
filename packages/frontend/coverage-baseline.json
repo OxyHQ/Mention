@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 32.93,
-      "covered": 8274,
-      "total": 25120
+      "pct": 33.32,
+      "covered": 8383,
+      "total": 25157
     },
     "branches": {
-      "pct": 27.94,
-      "covered": 5115,
-      "total": 18301
+      "pct": 28.48,
+      "covered": 5219,
+      "total": 18319
     },
     "functions": {
-      "pct": 28.01,
-      "covered": 1757,
-      "total": 6272
+      "pct": 28.2,
+      "covered": 1771,
+      "total": 6278
     },
     "lines": {
-      "pct": 33.61,
-      "covered": 7588,
-      "total": 22571
+      "pct": 34.01,
+      "covered": 7688,
+      "total": 22605
     }
   },
   "pins": {
@@ -252,10 +252,10 @@
       "lines": 97
     },
     "hooks/useFeedState.ts": {
-      "statements": 65,
-      "branches": 54,
-      "functions": 59,
-      "lines": 67
+      "statements": 68,
+      "branches": 58,
+      "functions": 60,
+      "lines": 69
     },
     "hooks/useFollowEntity.ts": {
       "statements": 0,
@@ -912,10 +912,10 @@
       "lines": 0
     },
     "services/feedService.ts": {
-      "statements": 20,
-      "branches": 12,
-      "functions": 19,
-      "lines": 22
+      "statements": 36,
+      "branches": 26,
+      "functions": 29,
+      "lines": 40
     },
     "services/feedTuningService.ts": {
       "statements": 0,
@@ -988,6 +988,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "services/privacyService.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "services/publicRealtimeService.ts": {
       "statements": 87,
@@ -1116,8 +1122,8 @@
       "lines": 75
     },
     "stores/postsStore.ts": {
-      "statements": 51,
-      "branches": 34,
+      "statements": 52,
+      "branches": 35,
       "functions": 54,
       "lines": 56
     },
@@ -1182,10 +1188,10 @@
       "lines": 0
     },
     "utils/apiError.ts": {
-      "statements": 92,
-      "branches": 83,
+      "statements": 98,
+      "branches": 92,
       "functions": 100,
-      "lines": 91
+      "lines": 98
     },
     "utils/attachmentsUtils.ts": {
       "statements": 58,
@@ -1274,6 +1280,12 @@
     "utils/feedMemoryMode.ts": {
       "statements": 100,
       "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "utils/feedRetry.ts": {
+      "statements": 97,
+      "branches": 96,
       "functions": 100,
       "lines": 100
     },

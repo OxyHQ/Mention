@@ -46,6 +46,7 @@ import type { FeedItem, FeedMetaData } from '@/db';
 import { toFeedItem } from '@/db/feedItem';
 import { precacheActorsFromPosts } from '@/lib/precacheActorsFromPosts';
 import type { FeedFilters } from '@/utils/feedUtils';
+import { classifyFeedFailure, type FeedFailureKind } from '@/utils/feedRetry';
 
 const logger = createLogger('PostsStore');
 
@@ -183,6 +184,14 @@ const syncSaveStateFromServer = (
 interface FeedSliceUI {
   isLoading: boolean;
   error: string | null;
+  /**
+   * What KIND of failure `error` was, classified once from the status the error
+   * carried (never from its message). Meaningless while `error` is null, and
+   * read only through the feed selectors below — it exists so the SQLite feed
+   * path can tell an offline device from a backend hiccup exactly as the
+   * memory-mode path does in `useFeedState`.
+   */
+  errorKind?: FeedFailureKind;
   lastUpdated: number;
   filters?: FeedFilters;
   /**
@@ -430,6 +439,19 @@ const defaultFeedUI = (): FeedSliceUI => ({
   lastUpdated: 0,
 });
 
+/**
+ * The failure fields a feed's UI slice records: a message for diagnostics, plus
+ * the kind classified from the HTTP status the error carries. One helper so all
+ * five feed operations record a failure identically.
+ */
+const feedFailure = (
+  error: unknown,
+  fallbackMessage: string,
+): Pick<FeedSliceUI, 'error' | 'errorKind'> => ({
+  error: error instanceof Error ? error.message : fallbackMessage,
+  errorKind: classifyFeedFailure(error).kind,
+});
+
 // ── Store ────────────────────────────────────────────────────────
 
 export const usePostsStore = create<PostsStoreState>()(
@@ -534,10 +556,10 @@ export const usePostsStore = create<PostsStoreState>()(
           abortController.signal.aborted ||
           !isCurrentViewerStateEpoch(operationEpoch)
         ) return;
-        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch feed';
+        const failure = feedFailure(error, 'Failed to fetch feed');
         set((s) => ({
-          feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false, error: errorMessage } },
-          error: errorMessage,
+          feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false, ...failure } },
+          error: failure.error,
         }));
       } finally {
         const current = pendingRequests.get(requestKey);
@@ -641,9 +663,15 @@ export const usePostsStore = create<PostsStoreState>()(
         ) {
           return { pending: false };
         }
-        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch user feed';
         set((s) => ({
-          feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false, error: errorMessage } },
+          feedUI: {
+            ...s.feedUI,
+            [feedKey]: {
+              ...s.feedUI[feedKey],
+              isLoading: false,
+              ...feedFailure(error, 'Failed to fetch user feed'),
+            },
+          },
         }));
         return { pending: false };
       } finally {
@@ -701,10 +729,10 @@ export const usePostsStore = create<PostsStoreState>()(
           abortController.signal.aborted ||
           !isCurrentViewerStateEpoch(operationEpoch)
         ) return;
-        const errorMessage = error instanceof Error ? error.message : 'Failed to fetch saved posts';
+        const failure = feedFailure(error, 'Failed to fetch saved posts');
         set((s) => ({
-          feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false, error: errorMessage } },
-          error: errorMessage,
+          feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false, ...failure } },
+          error: failure.error,
         }));
       } finally {
         const current = pendingRequests.get(requestKey);
@@ -775,9 +803,15 @@ export const usePostsStore = create<PostsStoreState>()(
           abortController.signal.aborted ||
           !isCurrentViewerStateEpoch(operationEpoch)
         ) return;
-        const errorMessage = error instanceof Error ? error.message : 'Failed to refresh feed';
         set((s) => ({
-          feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false, error: errorMessage } },
+          feedUI: {
+            ...s.feedUI,
+            [feedKey]: {
+              ...s.feedUI[feedKey],
+              isLoading: false,
+              ...feedFailure(error, 'Failed to refresh feed'),
+            },
+          },
         }));
       } finally {
         const current = pendingRequests.get(requestKey);
@@ -861,9 +895,15 @@ export const usePostsStore = create<PostsStoreState>()(
           abortController.signal.aborted ||
           !isCurrentViewerStateEpoch(operationEpoch)
         ) return;
-        const errorMessage = error instanceof Error ? error.message : 'Failed to load more feed';
         set((s) => ({
-          feedUI: { ...s.feedUI, [feedKey]: { ...s.feedUI[feedKey], isLoading: false, error: errorMessage } },
+          feedUI: {
+            ...s.feedUI,
+            [feedKey]: {
+              ...s.feedUI[feedKey],
+              isLoading: false,
+              ...feedFailure(error, 'Failed to load more feed'),
+            },
+          },
         }));
       } finally {
         const current = pendingRequests.get(requestKey);
@@ -1862,6 +1902,7 @@ export const useFeedSelector = (type: FeedType) => {
     totalCount: meta?.totalCount ?? 0,
     isLoading: ui?.isLoading ?? false,
     error: ui?.error ?? null,
+    errorKind: ui?.errorKind,
     lastUpdated: ui?.lastUpdated ?? 0,
     filters: ui?.filters,
   };
@@ -1881,6 +1922,7 @@ export const useUserFeedSelector = (userId: string, type: FeedType) => {
     totalCount: meta?.totalCount ?? 0,
     isLoading: ui?.isLoading ?? false,
     error: ui?.error ?? null,
+    errorKind: ui?.errorKind,
     lastUpdated: ui?.lastUpdated ?? 0,
   };
 };

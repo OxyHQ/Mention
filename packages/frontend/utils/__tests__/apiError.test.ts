@@ -5,6 +5,7 @@
 
 import { AxiosError, AxiosHeaders } from 'axios';
 import {
+  getErrorMessage,
   normalizeApiError,
   isNetworkError,
   isRateLimitError,
@@ -82,6 +83,27 @@ describe('normalizeApiError', () => {
     expect(result.message).toBe('Invalid');
   });
 
+  it('recovers status from a non-axios cause (the shape @oxy.so/core throws)', () => {
+    // The SDK's `handleHttpError` throws `{ message, code, status }`, and a
+    // service rethrows it wrapped in a message-only Error. Reporting the
+    // wrapper's statusless view made every 5xx look like "no response", which a
+    // retry/offline classifier reads as the device having no connection.
+    const wrapper = new Error('Failed to fetch feed', {
+      cause: { message: 'HTTP 503 error', code: 'SERVICE_UNAVAILABLE', status: 503 },
+    });
+    expect(normalizeApiError(wrapper)).toEqual({
+      status: 503,
+      code: 'SERVICE_UNAVAILABLE',
+      message: 'HTTP 503 error',
+    });
+  });
+
+  it('keeps the statusless view when no link carries a status', () => {
+    const wrapper = new Error('Failed to fetch feed', { cause: new Error('socket closed') });
+    expect(normalizeApiError(wrapper).message).toBe('Failed to fetch feed');
+    expect(normalizeApiError(wrapper).status).toBeUndefined();
+  });
+
   it('falls back to the Error message for a plain Error', () => {
     expect(normalizeApiError(new Error('boom'))).toEqual({ message: 'boom' });
   });
@@ -89,6 +111,27 @@ describe('normalizeApiError', () => {
   it('handles non-Error thrown values', () => {
     expect(normalizeApiError('oops').message).toBe('oops');
     expect(normalizeApiError(undefined).message).toBe('Unexpected error');
+  });
+
+  it('ignores an object that carries none of the three fields', () => {
+    expect(normalizeApiError({}).message).toBe('Unexpected error');
+    expect(normalizeApiError({ status: 'nope' }).status).toBeUndefined();
+  });
+
+  it('keeps an Error with an empty message as an Error, not as "unexpected"', () => {
+    expect(normalizeApiError(new Error('')).message).toBe('');
+  });
+});
+
+describe('getErrorMessage', () => {
+  it('prefers the server `error` field, then `message`, from a response body', () => {
+    expect(getErrorMessage({ response: { data: { error: 'Too long' } } }, 'fallback')).toBe('Too long');
+    expect(getErrorMessage({ response: { data: { message: 'Nope' } } }, 'fallback')).toBe('Nope');
+  });
+
+  it('never surfaces transport internals — a non-response error yields the fallback', () => {
+    expect(getErrorMessage(new Error('socket hang up'), 'fallback')).toBe('fallback');
+    expect(getErrorMessage({ response: { data: {} } }, 'fallback')).toBe('fallback');
   });
 });
 

@@ -163,6 +163,57 @@ describe('useFeedState memory-mode retention and request ownership', () => {
         act(() => second.unmount());
     });
 
+    it('asks the feed service exactly once for a failed load — the policy is the service\'s', async () => {
+        // The hook used to wrap every fetch in four attempts of its own on top
+        // of the service's, so one failed load could cost 16 requests. It now
+        // calls the service once and lets `utils/feedRetry` own the budget.
+        getFeedMock.mockRejectedValue({ message: 'HTTP 500 error', status: 500 });
+
+        let renderer!: TestRenderer.ReactTestRenderer;
+        await act(async () => {
+            renderer = TestRenderer.create(<Probe />);
+        });
+        await flush();
+
+        expect(getFeedMock).toHaveBeenCalledTimes(1);
+        expect(latest?.error).toBe('Failed to load');
+        // Classified from the status the error carried, never from its message.
+        expect(latest?.errorKind).toBe('transient');
+        expect(latest?.isLoading).toBe(false);
+
+        act(() => renderer.unmount());
+    });
+
+    it('reports an unanswered request as offline so the empty state can say so', async () => {
+        getFeedMock.mockRejectedValue({ message: 'Network error', code: 'NETWORK_ERROR', status: 0 });
+
+        let renderer!: TestRenderer.ReactTestRenderer;
+        await act(async () => {
+            renderer = TestRenderer.create(<Probe />);
+        });
+        await flush();
+
+        expect(latest?.errorKind).toBe('offline');
+
+        act(() => renderer.unmount());
+    });
+
+    it('keeps the loaded rows and reports no error kind once a retry succeeds', async () => {
+        getFeedMock.mockResolvedValue(page(['p1'], 'cursor-1'));
+
+        let renderer!: TestRenderer.ReactTestRenderer;
+        await act(async () => {
+            renderer = TestRenderer.create(<Probe />);
+        });
+        await flush();
+
+        expect(latest?.items.map((item) => item.id)).toEqual(['p1']);
+        expect(latest?.error).toBeNull();
+        expect(latest?.errorKind).toBeNull();
+
+        act(() => renderer.unmount());
+    });
+
     it('aborts and ignores stale pagination when refresh starts, even if transport resolves late', async () => {
         const stalePage = deferred<SlicedFeedResponse>();
         const refreshedPage = deferred<SlicedFeedResponse>();

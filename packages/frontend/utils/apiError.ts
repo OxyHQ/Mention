@@ -94,21 +94,28 @@ export function normalizeApiError(error: unknown): NormalizedApiError {
   }
 
   // Non-axios path: a service may have rethrown a plain Error and stamped a
-  // numeric `status`/string `code` onto it.
+  // numeric `status`/string `code` onto it — and `@oxy.so/core` throws exactly
+  // that shape (`handleHttpError` → `{ message, code, status }`, with status 0
+  // for a failure that never reached the server).
+  //
+  // Prefer the candidate that carries a STATUS. A service that rethrew
+  // `new Error(msg, { cause })` leaves the status on the CAUSE while the wrapper
+  // carries only a message, so returning the first message-bearing candidate
+  // reported a 500 as statusless — which a retry/offline classifier then reads
+  // as "the device has no connection". The axios branch above already lets the
+  // cause win for the same reason.
+  let statusless: NormalizedApiError | undefined;
   for (const candidate of [error, cause]) {
-    if (isRecord(candidate)) {
-      const status = typeof candidate.status === 'number' ? candidate.status : undefined;
-      const code = readString(candidate.code);
-      const message = readString(candidate.message);
-      if (status !== undefined || code !== undefined || message !== undefined) {
-        return {
-          status,
-          code,
-          message: message ?? 'Unexpected error',
-        };
-      }
-    }
+    if (!isRecord(candidate)) continue;
+    const status = typeof candidate.status === 'number' ? candidate.status : undefined;
+    const code = readString(candidate.code);
+    const message = readString(candidate.message);
+    if (status === undefined && code === undefined && message === undefined) continue;
+    const normalized: NormalizedApiError = { status, code, message: message ?? 'Unexpected error' };
+    if (status !== undefined) return normalized;
+    statusless ??= normalized;
   }
+  if (statusless) return statusless;
 
   if (error instanceof Error) {
     return { message: error.message };
