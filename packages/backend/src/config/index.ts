@@ -408,6 +408,13 @@ const environmentSchema = z
     MENTION_NODE_BASE_URL: optionalHttpOrigin,
 
     SYRA_API_URL: z.preprocess(emptyAsUndefined, httpOrigin.default('https://api.syra.fm')),
+    // Mercaria (commerce, #951). Optional, and deliberately WITHOUT a default
+    // here: absent means `@mercaria.co/sdk`'s own production origins, so no
+    // Mercaria hostname is written anywhere in Mention. Set them only to point
+    // at a staging or local Mercaria. `services/commerce/mercariaClient.ts` is
+    // the one reader.
+    MERCARIA_API_URL: optionalHttpOrigin,
+    MERCARIA_WEB_URL: optionalHttpOrigin,
     POST_CLASSIFICATION_ENABLED: booleanFromEnv(false),
 
     DISCOVERY_GATE_ROLLOUT: z.preprocess(
@@ -939,6 +946,20 @@ export const config = {
   },
   syra: {
     apiUrl: environment.SYRA_API_URL,
+  },
+  mercaria: {
+    /** `undefined` → the SDK's default API origin. */
+    apiUrl: environment.MERCARIA_API_URL,
+    /** `undefined` → the SDK's default web origin, which canonical links are built on. */
+    webUrl: environment.MERCARIA_WEB_URL,
+    /**
+     * Per request. Well under the SDK's 15s default: a product card is an
+     * enrichment of a post that must render without it, so a slow Mercaria has
+     * to degrade to `unavailable` quickly rather than hold a response open.
+     */
+    timeoutMs: 5_000,
+    /** Distinct refs read in flight at once by one hydration call. */
+    hydrationConcurrency: 4,
   },
   classification: {
     enabled: environment.POST_CLASSIFICATION_ENABLED,

@@ -1,5 +1,5 @@
 import { and, asc, eq, isNotNull, isNull, max, or, sql } from 'drizzle-orm';
-import type { User } from '@oxy.so/core';
+import { normalizeUserIdentity, type User } from '@oxy.so/core';
 import { promisify } from 'node:util';
 import { gzip, gunzip } from 'node:zlib';
 import { getDb } from '../db/postgres';
@@ -7,9 +7,10 @@ import { posts } from '../db/schema/posts';
 import { userSettings } from '../db/schema/userProfile';
 import { discoverySafeSql } from '../mtn/feed/feedSafety';
 import { config } from '../config';
+import { createCache } from '../utils/cache';
+import { logger } from '../utils/logger';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { canonicalProfilePath } from './webShellRenderer';
-import { getShellCached } from './webShellOgCache';
 
 /** Safely below Google's 50,000-URL and 50 MB limits. */
 export const SITEMAP_URL_LIMIT = 40_000;
@@ -17,6 +18,29 @@ export const SITEMAP_URL_LIMIT = 40_000;
 export const SITEMAP_BUCKET_COUNT = 64;
 const OXY_BULK_BATCH_SIZE = 100;
 const OXY_BULK_CONCURRENCY = 2;
+const SITEMAP_CACHE_PREFIX = 'seo:sitemap:v5:';
+const SITEMAP_FAILURE_PREFIX = 'seo:sitemap:failed:v1:';
+/**
+ * Sitemaps change slowly and a shard rebuild costs up to
+ * `SITEMAP_URL_LIMIT / OXY_BULK_BATCH_SIZE` Oxy calls, all drawn from the ONE
+ * per-egress-IP budget this backend shares with user-facing reads (feed privacy
+ * lists). So a built sitemap is fresh for hours, and kept for days so a failed
+ * refresh keeps serving the last good copy instead of re-asking Oxy.
+ */
+const SITEMAP_FRESH_MS = 6 * 60 * 60 * 1000;
+const SITEMAP_TTL_SECONDS = 7 * 24 * 60 * 60;
+/**
+ * After a failed build, every request for that sitemap answers 503 without
+ * rebuilding for this long. Crawlers retry a 503 within seconds; without the
+ * cooldown each retry repeated the whole Oxy fan-out against an exhausted budget.
+ */
+export const SITEMAP_FAILURE_COOLDOWN_SECONDS = 10 * 60;
+
+const sitemapCache = createCache({
+  name: 'seoSitemapCache',
+  ttlSeconds: SITEMAP_TTL_SECONDS,
+  staleAfterMs: SITEMAP_FRESH_MS,
+});
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
 
@@ -136,13 +160,53 @@ async function buildSitemapCatalog(): Promise<SitemapCatalog> {
   return { profiles: expandBuckets(profileRows), posts: expandBuckets(postRows) };
 }
 
-export async function sitemapCatalog(): Promise<SitemapCatalog> {
-  const cached = await getShellCached('sitemap:catalog:v3', buildSitemapCatalog, { rethrow: true });
-  if (!cached) throw new Error('Sitemap catalog unexpectedly empty');
-  return cached;
+/** A sitemap build skipped because the same build failed moments ago. */
+export class SitemapBuildCoolingDownError extends Error {
+  constructor(cacheKey: string) {
+    super(`Sitemap build ${cacheKey} failed recently; cooling down`);
+    this.name = 'SitemapBuildCoolingDownError';
+  }
 }
 
-async function bulkUsers(ids: string[]): Promise<User[]> {
+/**
+ * Serve a sitemap artifact from its long-lived SWR cache. A cold miss builds
+ * inline; a stale hit is served while one background rebuild runs. Either kind
+ * of rebuild is skipped during the failure cooldown, and a failed rebuild starts
+ * one — so an Oxy outage or 429 costs one fan-out per cooldown, not one per
+ * crawler retry.
+ */
+export async function cachedSitemapArtifact<T>(cacheKey: string, build: () => Promise<T>): Promise<T> {
+  const failureKey = SITEMAP_FAILURE_PREFIX + cacheKey;
+  return sitemapCache.getOrCompute<T>(SITEMAP_CACHE_PREFIX + cacheKey, async () => {
+    if (await sitemapCache.has(failureKey)) {
+      throw new SitemapBuildCoolingDownError(cacheKey);
+    }
+    try {
+      return await build();
+    } catch (error) {
+      await sitemapCache.set(failureKey, true, { ttlSeconds: SITEMAP_FAILURE_COOLDOWN_SECONDS });
+      logger.warn('[seoSitemap] Build failed; cooling down before the next attempt', {
+        cacheKey,
+        cooldownSeconds: SITEMAP_FAILURE_COOLDOWN_SECONDS,
+        reason: error instanceof Error ? error.message : 'unknown',
+      });
+      throw error;
+    }
+  });
+}
+
+export async function sitemapCatalog(): Promise<SitemapCatalog> {
+  return cachedSitemapArtifact('catalog', buildSitemapCatalog);
+}
+
+/**
+ * Resolve users through Oxy's bulk endpoint in bounded batches. Deliberately NOT
+ * `getUsersByIds`: that SDK method logs and swallows a failed chunk, which here
+ * meant a 429 storm produced silently truncated sitemaps AND kept firing every
+ * remaining batch into the exhausted budget. The first failed batch stops the
+ * whole resolution and fails the build.
+ */
+export async function bulkUsers(ids: string[]): Promise<User[]> {
   const unique = Array.from(new Set(ids));
   const batches = Array.from(
     { length: Math.ceil(unique.length / OXY_BULK_BATCH_SIZE) },
@@ -150,10 +214,21 @@ async function bulkUsers(ids: string[]): Promise<User[]> {
   );
   const resolved: User[][] = Array.from({ length: batches.length });
   let nextBatch = 0;
+  let failed = false;
   const workers = Array.from({ length: Math.min(OXY_BULK_CONCURRENCY, batches.length) }, async () => {
-    while (nextBatch < batches.length) {
+    while (!failed && nextBatch < batches.length) {
       const index = nextBatch++;
-      resolved[index] = await getServiceOxyClient().getUsersByIds(batches[index]);
+      try {
+        const users = await getServiceOxyClient().makeServiceRequest<User[]>(
+          'POST',
+          '/users/by-ids',
+          { ids: batches[index] },
+        );
+        resolved[index] = Array.isArray(users) ? users.map((user) => normalizeUserIdentity(user)) : [];
+      } catch (error) {
+        failed = true;
+        throw error;
+      }
     }
   });
   await Promise.all(workers);
@@ -174,12 +249,12 @@ async function publiclyResolvableUsers(ids: string[]): Promise<User[]> {
 }
 
 async function cachedSitemapXml(cacheKey: string, build: () => Promise<string>): Promise<string> {
-  const cached = await getShellCached<CompressedXml>(cacheKey, async () => ({
+  const cached = await cachedSitemapArtifact<CompressedXml>(cacheKey, async () => ({
     encoding: 'gzip-base64-v1',
     data: (await gzipAsync(await build())).toString('base64'),
-  }), { rethrow: true });
-  if (!cached || cached.encoding !== 'gzip-base64-v1') {
-    throw new Error('Sitemap cache unexpectedly empty');
+  }));
+  if (cached.encoding !== 'gzip-base64-v1') {
+    throw new Error('Sitemap cache entry has an unexpected encoding');
   }
   return (await gunzipAsync(Buffer.from(cached.data, 'base64'))).toString('utf8');
 }
@@ -216,7 +291,7 @@ async function buildProfileSitemap(shard: SitemapShard): Promise<string> {
 export async function profileSitemap(shard: SitemapShard): Promise<string> {
   validateShard(shard);
   return cachedSitemapXml(
-    `sitemap:profiles:v4:${shard.bucket}:${shard.page}`,
+    `profiles:${shard.bucket}:${shard.page}`,
     () => buildProfileSitemap(shard),
   );
 }
@@ -246,7 +321,7 @@ async function buildPostSitemap(shard: SitemapShard): Promise<string> {
 export async function postSitemap(shard: SitemapShard): Promise<string> {
   validateShard(shard);
   return cachedSitemapXml(
-    `sitemap:posts:v4:${shard.bucket}:${shard.page}`,
+    `posts:${shard.bucket}:${shard.page}`,
     () => buildPostSitemap(shard),
   );
 }

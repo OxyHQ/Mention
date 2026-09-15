@@ -26,15 +26,18 @@ vi.mock('../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn() },
 }));
 
-const { getProfileByUsername, getUsersByIds } = vi.hoisted(() => ({
+const { getProfileByUsername, getUsersByIds, makeServiceRequest } = vi.hoisted(() => ({
   getProfileByUsername: vi.fn(),
   getUsersByIds: vi.fn(async (ids: string[]) =>
     ids.map((id) => ({ id, username: 'nate', name: { displayName: 'Nate' } })),
   ),
+  makeServiceRequest: vi.fn(async (_method: string, _url: string, body: { ids: string[] }) =>
+    body.ids.map((id) => ({ id, username: 'nate', name: { displayName: 'Nate' } })),
+  ),
 }));
 
 vi.mock('../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getProfileByUsername, getUsersByIds }),
+  getServiceOxyClient: () => ({ getProfileByUsername, getUsersByIds, makeServiceRequest }),
 }));
 
 import webShellRoutes from '../routes/webShell.routes';
@@ -156,7 +159,7 @@ describe('webShell routes (integration)', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('application/xml');
     expect(res.text).toContain(`https://mention.earth/p/${postId}`);
-    expect(getUsersByIds).toHaveBeenCalled();
+    expect(makeServiceRequest).toHaveBeenCalledWith('POST', '/users/by-ids', expect.anything());
     expect(getProfileByUsername).not.toHaveBeenCalled();
   });
 

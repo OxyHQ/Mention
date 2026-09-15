@@ -10,6 +10,7 @@
  *   node nav-latency.mjs control  [n]  # activate something that does NOT navigate; must be all nulls
  *   node nav-latency.mjs post     [n]  # feed row -> /p/<id>
  *   node nav-latency.mjs hot      [n]  # the SECOND such navigation in one page, module already evaluated
+ *   node nav-latency.mjs warm     [n]  # the route chunk EVALUATED before the tap, nothing else changed
  *
  *   CDP=http://127.0.0.1:39871  ORIGIN=https://mention.earth  VW=430 VH=932
  *
@@ -270,7 +271,37 @@ async function run(mode, runs) {
 
             await page.evaluate(INSTRUMENT, { pathPattern: POST_PATH, marker: row.label });
 
-            if (mode === 'hot') {
+            if (mode === 'warm') {
+                // The experiment behind the fix, run against the SHIPPED build so
+                // it needs no local export: evaluate the route's split bundle
+                // before the activation, which is what Metro's `__prefetchImport`
+                // does. If the wait survives this, registering the module is not
+                // enough and `__prefetchImport` would not help either.
+                const warmed = await page.evaluate(async () => {
+                    const entry = [...document.querySelectorAll('script[src]')]
+                        .map((element) => element.src)
+                        .find((source) => source.includes('/_expo/static/js/web/entry-'));
+                    if (!entry) return { ok: false, why: 'no entry bundle on the page' };
+                    const source = await (await fetch(entry)).text();
+                    const match = /\/_expo\/static\/js\/web\/\[id\]-[a-f0-9]+\.js/.exec(source);
+                    if (!match) return { ok: false, why: 'entry bundle names no [id] chunk' };
+                    await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = match[0];
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        document.head.appendChild(script);
+                    });
+                    return { ok: true, chunk: match[0] };
+                });
+                if (!warmed.ok) throw new Error(`warm failed: ${warmed.why}`);
+                if (attempt === 0) console.log(`warmed: ${warmed.chunk}`);
+                await page.waitForTimeout(300);
+                await activateRow(page, 0);
+                await page.waitForFunction(() => window.__nav?.tFMP !== null, null, { timeout: 25_000 })
+                    .catch(() => undefined);
+                await page.waitForTimeout(300);
+            } else if (mode === 'hot') {
                 // Navigate once and come back, so the route module is already
                 // registered. If the wait survives that, it is not module
                 // resolution — it is whatever the shell does on every commit.
