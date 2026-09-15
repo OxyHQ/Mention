@@ -17,10 +17,10 @@ env:
   BUN_VERSION: '1.3.14'
   NODE_VERSION: '24.20.0'
   DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
-  # The wrangler the Worker legs run on, pinned to the version this migration was
-  # verified against rather than floating on `@4`. The Pages preview leg below
-  # keeps its own `wranglerVersion` because that leg is unchanged by this
-  # migration and is still validated at the version it has always used.
+  # The wrangler every leg runs on — the Pages preview and both Worker legs —
+  # pinned to the version the Worker migration was verified against rather than
+  # floating on `@4`. The preview leg used to run 4.81.0 inside
+  # cloudflare/wrangler-action; it moved here when the action was dropped.
   WRANGLER_VERSION: '4.130.0'
 
 jobs:
@@ -94,15 +94,34 @@ jobs:
       - name: Verify current main before production changes
         run: bash .github/scripts/require-current-main.sh
 
+      # `bunx wrangler`, NOT `cloudflare/wrangler-action` (forbidden fleet-wide).
+      # The action installs its own wrangler mid-deploy, and that install
+      # intermittently dies with `Fail extracting tarball for "wrangler"` and
+      # publishes nothing. Same pinned wrangler as the Worker legs below.
+      #
+      # The smoke and browser gates read `steps.preview.outputs.deployment-url`,
+      # which the action used to set. wrangler writes the same value itself:
+      # with WRANGLER_OUTPUT_FILE_PATH set it appends a `pages-deploy-detailed`
+      # ND-JSON entry whose `url` is this exact deployment — the entry the
+      # action read. An empty URL fails here rather than smoking nothing.
       - name: Deploy an immutable Cloudflare Pages preview
         id: preview
-        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          packageManager: bun
-          wranglerVersion: '4.81.0'
-          command: pages deploy packages/frontend/dist --project-name=mention-frontend --branch=candidate-${{ env.DEPLOY_SHA }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          output_file="$(mktemp)"
+          trap 'rm -f "$output_file"' EXIT
+          WRANGLER_OUTPUT_FILE_PATH="$output_file" \
+            bunx "wrangler@$WRANGLER_VERSION" pages deploy packages/frontend/dist \
+            --project-name=mention-frontend --branch="candidate-$DEPLOY_SHA"
+          url="$(jq -r 'select(.type == "pages-deploy-detailed") | .url // empty' "$output_file" | tail -n 1)"
+          if [[ -z "$url" ]]; then
+            echo "::error::wrangler reported no Pages deployment URL; the preview gates would have nothing to test."
+            exit 1
+          fi
+          echo "deployment-url=$url" >>"$GITHUB_OUTPUT"
 
       - name: Smoke test the exact preview deployment
         env:
@@ -164,12 +183,12 @@ jobs:
       # `packages/frontend/worker/index.js` leaves `shell.mention.earth` as the
       # only name, and it answers 403 to everyone but this backend.
       #
-      # RUN THROUGH `bunx`, NOT `cloudflare/wrangler-action`, for the leg that
-      # needs a working directory: the action resolves its own wrangler by looking
-      # for a lockfile in `workingDirectory`, and `packages/frontend` has none —
-      # the lockfile is at the repository root — so it falls back to npm. That is
-      # the exact fallback that failed five consecutive Alia runs. The Pages
-      # preview leg above keeps the action because it runs from the root.
+      # RUN THROUGH `bunx`, NOT `cloudflare/wrangler-action`, like the preview
+      # leg above. For this leg there is a second reason: the action resolves its
+      # own wrangler by looking for a lockfile in `workingDirectory`, and
+      # `packages/frontend` has none — the lockfile is at the repository root —
+      # so it falls back to npm. That is the exact fallback that failed five
+      # consecutive Alia runs.
       #
       # `--secrets-file` uploads the access key IN THE SAME operation as the code,
       # so no deployed version ever exists without it, and it is additive: secrets
