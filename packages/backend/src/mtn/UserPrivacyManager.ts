@@ -78,9 +78,9 @@ export class UserPrivacyManager {
       });
 
     const [blockedIds, mutedUsers, restrictedIds] = await Promise.all([
-      getBlockedUserIds(options.oxyClient),
+      getBlockedUserIds(options.oxyClient, userId),
       mutedUsersPromise,
-      getRestrictedUserIds(options.oxyClient),
+      getRestrictedUserIds(options.oxyClient, userId),
     ]);
 
     const blockedUserIds = new Set(blockedIds.filter(validId));

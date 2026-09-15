@@ -80,8 +80,10 @@ describe('UserPrivacyManager Oxy authority', () => {
     expect(state.excludedUserIds).toEqual(
       new Set(['blocked', 'duplicate', 'muted', 'restricted']),
     );
-    expect(mocks.getBlockedUserIds).toHaveBeenCalledWith(scopedOxyClient);
-    expect(mocks.getRestrictedUserIds).toHaveBeenCalledWith(scopedOxyClient);
+    // The viewer id rides along with the client because it is what keys the
+    // per-viewer privacy cache: without it every read goes back to Oxy.
+    expect(mocks.getBlockedUserIds).toHaveBeenCalledWith(scopedOxyClient, VIEWER);
+    expect(mocks.getRestrictedUserIds).toHaveBeenCalledWith(scopedOxyClient, VIEWER);
   });
 
   /**
@@ -110,8 +112,10 @@ describe('UserPrivacyManager Oxy authority', () => {
 
     expect(state.excludedUserIds).toEqual(new Set(['blocked', 'muted']));
     expect(state.restrictedUserIds).toEqual(new Set(['restricted']));
-    expect(mocks.getBlockedUserIds).toHaveBeenCalledWith(scopedOxyClient);
-    expect(mocks.getRestrictedUserIds).toHaveBeenCalledWith(scopedOxyClient);
+    // The viewer id rides along with the client because it is what keys the
+    // per-viewer privacy cache: without it every read goes back to Oxy.
+    expect(mocks.getBlockedUserIds).toHaveBeenCalledWith(scopedOxyClient, VIEWER);
+    expect(mocks.getRestrictedUserIds).toHaveBeenCalledWith(scopedOxyClient, VIEWER);
   });
 
   it('preserves Oxy exclusions when the stored mute read fails', async () => {

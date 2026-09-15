@@ -104,14 +104,18 @@ function buildApp() {
 describe('MCP feed privacy delegation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // What Oxy ACTUALLY answers a service credential here: the empty graph, 200.
+    // It withholds blocks and restrictions from a service token by design (its
+    // own route test: "service-token delegation returns the empty graph even
+    // when a delegated viewer resolves, because blocks and restrictions are
+    // private data"). This stub used to return populated lists — an assumption
+    // no one had checked against the provider — which is exactly why the
+    // fail-open below went unnoticed.
     mocks.makeServiceRequest.mockImplementation(
       async (_method: string, path: string) => {
         if (path === '/users/me/graph') {
           return {
-            data: {
-              blockedIds: ['blocked-user'],
-              restrictedIds: ['restricted-user'],
-            },
+            data: { followingIds: [], mutualIds: [], blockedIds: [], restrictedIds: [] },
           };
         }
         throw new Error(`Unexpected Oxy path: ${path}`);
@@ -119,44 +123,27 @@ describe('MCP feed privacy delegation', () => {
     );
   });
 
-  it('uses service delegation for the active bundle account and filters both lists', async () => {
-    const response = await request(buildApp())
-      .get('/feed/mtn')
-      .set('Authorization', `Bearer ${token}`)
-      .expect(200);
-
-    expect(response.body).toEqual({
-      viewerId: 'active-user',
-      visibleAuthorIds: ['safe-user'],
-    });
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
-      'GET',
-      '/users/me/graph',
-      undefined,
-      'active-user',
-    );
-    // Blocks and restrictions share ONE graph read, so the two callers must not
-    // each pay for a round trip.
-    expect(mocks.makeServiceRequest).toHaveBeenCalledTimes(1);
-    expect(mocks.setTokens).not.toHaveBeenCalled();
-  });
-
-  it('fails closed instead of returning an unfiltered feed on delegated auth failure', async () => {
-    mocks.makeServiceRequest.mockRejectedValue(
-      Object.assign(new Error('Forbidden'), { status: 403, code: 'FORBIDDEN' }),
-    );
-
+  /**
+   * The case this file was written to prove — "delegation resolves the viewer's
+   * blocks" — is not something Oxy will do for a service credential, so the only
+   * honest assertion is the opposite one: a delegated caller is TOLD it cannot
+   * resolve the lists. Answering the empty graph as if it were the viewer's own
+   * would ship an unfiltered feed to every MCP client.
+   */
+  it('refuses a delegated privacy read rather than reading the empty graph as the viewer’s', async () => {
     const response = await request(buildApp())
       .get('/feed/mtn')
       .set('Authorization', `Bearer ${token}`)
       .expect(503);
 
-    expect(response.body).toEqual({ error: 'OxyPrivacyAuthorizationError' });
+    expect(response.body).toEqual({ error: 'OxyPrivacyUnavailableError' });
     expect(response.body.visibleAuthorIds).toBeUndefined();
+    // No graph round trip is made for a read it cannot answer.
+    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
     expect(mocks.setTokens).not.toHaveBeenCalled();
   });
 
-  it('fails closed instead of returning an unfiltered feed on an Oxy outage', async () => {
+  it('refuses the same way when Oxy is unreachable, never with a partial feed', async () => {
     mocks.makeServiceRequest.mockRejectedValue(
       Object.assign(new Error('network unavailable'), { code: 'NETWORK_ERROR' }),
     );

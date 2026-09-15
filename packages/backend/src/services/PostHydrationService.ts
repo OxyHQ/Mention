@@ -1331,8 +1331,8 @@ export class PostHydrationService {
     const [blockedIds, restrictedIds] = threadedPrivacy
       ? [threadedPrivacy.blockedIds, threadedPrivacy.restrictedIds]
       : await Promise.all([
-        getBlockedUserIds(client),
-        getRestrictedUserIds(client),
+        getBlockedUserIds(client, viewerId),
+        getRestrictedUserIds(client, viewerId),
       ]);
 
     blockedIds.forEach((id) => context.blockedIds.add(String(id)));
