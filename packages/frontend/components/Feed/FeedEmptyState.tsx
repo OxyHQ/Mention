@@ -3,12 +3,19 @@ import { View, Text } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import type { FeedType } from '@mention/shared-types';
+import type { FeedFailureKind } from '@/utils/feedRetry';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Spinner } from '@/components/ui/Spinner';
 
 interface FeedEmptyStateProps {
     isLoading: boolean;
     error: string | null;
+    /**
+     * What kind of failure `error` was. Only `offline` changes what the reader
+     * is told — retrying is futile until the connection is back, and they are
+     * the one who can fix it. Everything else reads as a passing hiccup.
+     */
+    errorKind?: FeedFailureKind | null;
     hasItems: boolean;
     type: FeedType;
     showOnlySaved?: boolean;
@@ -25,7 +32,7 @@ interface FeedEmptyStateProps {
  * Handles loading, error, and empty states
  */
 export const FeedEmptyState = memo<FeedEmptyStateProps>(
-    ({ isLoading, error, hasItems, type, showOnlySaved, onRetry, pending }) => {
+    ({ isLoading, error, errorKind, hasItems, type, showOnlySaved, onRetry, pending }) => {
         const { t } = useTranslation();
         if (isLoading || pending) return (
             <View className="items-center justify-center py-12 gap-3">
@@ -41,18 +48,29 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
         const hasError = !!error;
         const hasNoItems = !hasItems;
 
+        // A feed that failed with nothing to show. By the time this renders the
+        // read has already been retried and given up (`utils/feedRetry`), and
+        // `isLoading` covered every attempt above — so a transient backend blip
+        // never gets this far while a retry is still pending.
+        //
+        // Deliberately quiet: the title and the Try again button, with no
+        // alarm-red icon disc, because "the server had a moment" is not the
+        // reader's problem to solve. An OFFLINE device is the exception — that
+        // one they can act on, so it keeps the connection icon and says so.
         if (hasError && hasNoItems && onRetry) {
+            const isOffline = errorKind === 'offline';
             return (
                 <EmptyState
                     error={{
                         title: t('feed.empty.title'),
-                        message: t('feed.empty.message'),
+                        message: isOffline
+                            ? t('No connection. Check your network and try again.', {
+                                defaultValue: 'No connection. Check your network and try again.',
+                            })
+                            : t('feed.empty.message'),
                         onRetry,
                     }}
-                    icon={{
-                        name: 'cloud-offline-outline',
-                        size: 36,
-                    }}
+                    icon={isOffline ? { name: 'cloud-offline-outline', size: 36 } : undefined}
                 />
             );
         }

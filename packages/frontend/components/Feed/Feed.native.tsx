@@ -41,6 +41,7 @@ import {
 } from '@/stores/feedScrollStore';
 import { usePanelChromeTopInset } from '@/components/shell/PanelChrome';
 import { resolveFeedDescriptor, useFeedImpressionTracker } from '@/utils/feedTelemetry';
+import { classifyFeedFailure, logFeedFailure } from '@/utils/feedRetry';
 import { VideoViewabilityProvider, VideoViewabilityScope } from '@/context/VideoPlaybackContext';
 import {
     type FeedItem,
@@ -360,7 +361,7 @@ const Feed = ((props: FeedProps) => {
         try {
             await Promise.all([feedRefresh(), onRefresh?.()]);
         } catch (err) {
-            logger.error('Error refreshing feed', err);
+            logFeedFailure(logger, 'Feed refresh failed', classifyFeedFailure(err));
         } finally {
             setRefreshing(false);
         }
@@ -728,7 +729,11 @@ const Feed = ((props: FeedProps) => {
         try {
             await feedFetchInitial(true);
         } catch (retryError) {
-            logger.error('Retry failed', retryError);
+            // `fetchInitial` reports its own failures and resolves; anything
+            // that escapes it is a transport failure the feed has already
+            // retried, so it is a warn with a bounded context, not a red
+            // console entry (or a LogBox pop-up) over a passing hiccup.
+            logFeedFailure(logger, 'Feed retry failed', classifyFeedFailure(retryError));
         }
     }, [feedClearError, feedFetchInitial]);
 
@@ -737,6 +742,7 @@ const Feed = ((props: FeedProps) => {
             <FeedEmptyState
                 isLoading={feedState.isLoading}
                 error={feedState.error}
+                errorKind={feedState.errorKind}
                 hasItems={false}
                 type={type}
                 showOnlySaved={showOnlySaved}
@@ -744,7 +750,7 @@ const Feed = ((props: FeedProps) => {
                 pending={feedState.pending}
             />
         ),
-        [feedState.isLoading, feedState.error, feedState.pending, type, showOnlySaved, handleRetry]
+        [feedState.isLoading, feedState.error, feedState.errorKind, feedState.pending, type, showOnlySaved, handleRetry]
     );
 
     // Track if we're loading more (loading while we already have items)

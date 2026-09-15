@@ -17,6 +17,7 @@ import { FeedFooter } from './FeedFooter';
 import { FeedEmptyState } from './FeedEmptyState';
 import { usePrivacyControls } from '@/hooks/usePrivacyControls';
 import { resolveFeedDescriptor, useFeedImpressionTracker } from '@/utils/feedTelemetry';
+import { classifyFeedFailure, logFeedFailure } from '@/utils/feedRetry';
 import {
     type FeedRow,
     buildFeedRows,
@@ -149,7 +150,9 @@ function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> &
         try {
             await feedFetchInitial(true);
         } catch (retryError) {
-            logger.error('Retry failed', retryError);
+            // See the native file: a failure that escapes `fetchInitial` has
+            // already been retried, so it logs as a warn rather than red.
+            logFeedFailure(logger, 'Feed retry failed', classifyFeedFailure(retryError));
         }
     }, [feedClearError, feedFetchInitial]);
 
@@ -160,7 +163,7 @@ function useWebFeed(props: Required<Pick<FeedProps, 'type' | 'showOnlySaved'>> &
         try {
             await Promise.all([feedRefresh(), onRefresh?.()]);
         } catch (err) {
-            logger.error('Error refreshing feed', err);
+            logFeedFailure(logger, 'Feed refresh failed', classifyFeedFailure(err));
         }
     }, [feedRefresh, onRefresh]);
 
@@ -227,6 +230,7 @@ function EmbeddedWebFeed(props: FeedProps) {
                 <FeedEmptyState
                     isLoading={feedState.isLoading}
                     error={feedState.error}
+                    errorKind={feedState.errorKind}
                     hasItems={false}
                     type={type}
                     showOnlySaved={showOnlySaved}
@@ -522,6 +526,7 @@ function VirtualizedWebFeed(props: FeedProps) {
                     <FeedEmptyState
                         isLoading={feedState.isLoading}
                         error={feedState.error}
+                        errorKind={feedState.errorKind}
                         hasItems={false}
                         type={type}
                         showOnlySaved={showOnlySaved}

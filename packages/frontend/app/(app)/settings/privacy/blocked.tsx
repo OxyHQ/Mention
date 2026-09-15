@@ -24,6 +24,7 @@ import { MessageBottomSheet } from '@/components/common/MessageBottomSheet';
 import { EmptyState } from '@/components/common/EmptyState';
 import { createLogger } from '@oxy.so/core/logger';
 import { usePrivacyStore } from '@/stores/privacyStore';
+import { refreshPrivacyLists } from '@/services/privacyService';
 
 const blockedLogger = createLogger('BlockedUsers');
 
@@ -201,6 +202,11 @@ export default function BlockedUsersScreen() {
             await oxyServices.blockUser(userId);
             blockedLogger.info('User blocked successfully');
 
+            // Drop Mention's cached copy of this viewer's blocked list so the
+            // feed acts on the block now rather than when the freshness window
+            // expires. Best-effort: the write to Oxy has already landed.
+            await refreshPrivacyLists();
+
             setStoreBlocked(userId, true);
 
             await loadBlockedUsers();
@@ -247,6 +253,8 @@ export default function BlockedUsersScreen() {
 
                 await oxyServices.unblockUser(userId);
                 blockedLogger.info('User unblocked successfully');
+
+                await refreshPrivacyLists();
 
                 setStoreBlocked(userId, false);
 

@@ -24,6 +24,7 @@ import { MessageBottomSheet } from '@/components/common/MessageBottomSheet';
 import { EmptyState } from '@/components/common/EmptyState';
 import { createLogger } from '@oxy.so/core/logger';
 import { usePrivacyStore } from '@/stores/privacyStore';
+import { refreshPrivacyLists } from '@/services/privacyService';
 
 const restrictedLogger = createLogger('RestrictedUsers');
 
@@ -261,6 +262,10 @@ export default function RestrictedUsersScreen() {
             await oxyServices.restrictUser(userId);
             restrictedLogger.debug('User restricted successfully');
 
+            // Same as a block: Mention caches the viewer's restricted list per
+            // request window, so it has to be told. Best-effort.
+            await refreshPrivacyLists();
+
             setStoreRestricted(userId, true);
 
             await loadRestrictedUsers();
@@ -307,6 +312,8 @@ export default function RestrictedUsersScreen() {
 
                 await oxyServices.unrestrictUser(userId);
                 restrictedLogger.debug('User unrestricted successfully');
+
+                await refreshPrivacyLists();
 
                 setStoreRestricted(userId, false);
 
