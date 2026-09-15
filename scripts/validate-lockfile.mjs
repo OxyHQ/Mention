@@ -77,11 +77,21 @@ const ALLOWED_NON_REGISTRY_PROTOCOLS = ["workspace:"];
  * `google-gax` → `rimraf` → `glob` → `jackspeak`, and each resolves to a
  * registry tarball with integrity like any other dependency; the alias only
  * renames the edge. Nothing here is a second copy admitted by the back door.
+ *
+ * The two `@jest/react-is-*` entries are `pretty-format@30`'s own declarations,
+ * which arrived with jest 30: it aliases BOTH react-is majors
+ * (`"@jest/react-is-18": "npm:react-is@^18.3.1"`,
+ * `"@jest/react-is-19": "npm:react-is@^19.2.5"`) so its React element plugin can
+ * recognise elements from either reconciler without declaring a peer on the
+ * app's `react`. Same shape as the `-cjs` entries above — a renamed edge to a
+ * registry tarball, not an extra copy of the app's React.
  */
 const ALLOWED_PACKAGE_NAME_ALIASES = [
   "string-width-cjs:string-width",
   "strip-ansi-cjs:strip-ansi",
   "wrap-ansi-cjs:wrap-ansi",
+  "@jest/react-is-18:react-is",
+  "@jest/react-is-19:react-is",
 ];
 
 // Bloom 1.x, Services 30 and Core 21 are one compatibility unit. Bun can
