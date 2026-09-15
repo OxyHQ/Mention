@@ -35,6 +35,7 @@ import { authenticatedClient, publicClient } from '../utils/api';
 import { oxyServices } from '@/lib/oxyServices';
 import { logger } from '@oxy.so/core/logger';
 import { normalizeApiError } from '@/utils/apiError';
+import { classifyFeedFailure, logFeedFailure, withFeedRetry } from '@/utils/feedRetry';
 import {
   buildBookmarkFolderMoveRequest,
   buildSavedPostsRequestConfig,
@@ -169,6 +170,12 @@ export interface ExtendedFeedRequest extends Omit<FeedRequest, 'filters'> {
 interface PublicReadRequestConfig {
   params?: Record<string, unknown>;
   signal?: AbortSignal;
+  /**
+   * Transport-level retry (`@oxy.so/core`'s linked client). Feed reads pass
+   * `false` and keep one policy of their own — see {@link readFeedPage}. Inert
+   * on the anonymous axios path, which has no retry to turn off.
+   */
+  retry?: boolean;
 }
 
 interface FeedDataEnvelope {
@@ -256,6 +263,36 @@ const makeViewerAwarePublicRead = async <T = unknown>(
   }
 };
 
+/**
+ * Read one page of a feed under the feed's single retry policy.
+ *
+ * Every feed read in this service goes through here, and `retry: false` hands
+ * the transport's own retry (four attempts, 1s/2s/4s) over to `withFeedRetry`:
+ * stacked, the two policies cost up to 16 requests for one failed load. See
+ * `utils/feedRetry` for the budget and the reasoning.
+ */
+const readFeedPage = async <T = unknown>(
+  endpoint: string,
+  config?: PublicReadRequestConfig,
+): Promise<T> =>
+  await withFeedRetry(
+    () => makeViewerAwarePublicRead<T>(endpoint, { ...config, retry: false }),
+    config?.signal,
+  );
+
+/**
+ * The same policy for a feed page that is authenticated-only (no anonymous
+ * fallback): a custom feed's timeline, a thread's replies.
+ */
+const readAuthenticatedFeedPage = async <T = unknown>(
+  endpoint: string,
+  config?: PublicReadRequestConfig,
+): Promise<T> =>
+  await withFeedRetry(
+    async () => (await authenticatedClient.get<T>(endpoint, { ...config, retry: false })).data,
+    config?.signal,
+  );
+
 interface FeedServiceOptions {
   signal?: AbortSignal;
 }
@@ -335,7 +372,7 @@ class FeedService {
             if (request.cursor) tagParams.cursor = request.cursor;
             if (request.limit) tagParams.limit = request.limit;
 
-            return await makeViewerAwarePublicRead<FeedServiceResponse>(`/posts/hashtag/${tag}`, {
+            return await readFeedPage<FeedServiceResponse>(`/posts/hashtag/${tag}`, {
               params: tagParams,
               signal: options?.signal,
             });
@@ -348,7 +385,7 @@ class FeedService {
             if (request.cursor) topicParams.cursor = request.cursor;
             if (request.limit) topicParams.limit = request.limit;
 
-            return await makeViewerAwarePublicRead<FeedServiceResponse>(`/posts/topic/${topic}`, {
+            return await readFeedPage<FeedServiceResponse>(`/posts/topic/${topic}`, {
               params: topicParams,
               signal: options?.signal,
             });
@@ -361,11 +398,10 @@ class FeedService {
             if (request.cursor) timelineParams.cursor = request.cursor;
             if (request.limit) timelineParams.limit = request.limit;
 
-            const response = await authenticatedClient.get<FeedServiceResponse>(`/feeds/${feedId}/timeline`, {
+            return await readAuthenticatedFeedPage<FeedServiceResponse>(`/feeds/${feedId}/timeline`, {
               params: timelineParams,
               signal: options?.signal,
             });
-            return response.data;
           }
 
           // Handle replies feed
@@ -379,11 +415,10 @@ class FeedService {
             if (request.limit) repliesParams.limit = request.limit;
             if (request.filters?.sort) repliesParams.sort = request.filters.sort;
 
-            const response = await authenticatedClient.get<FeedServiceResponse>(`/feed/replies/${parentId}`, {
+            return await readAuthenticatedFeedPage<FeedServiceResponse>(`/feed/replies/${parentId}`, {
               params: repliesParams,
               signal: options?.signal,
             });
-            return response.data;
           }
 
           // Handle quotes feed — the posts quoting a given post, behind the
@@ -397,7 +432,7 @@ class FeedService {
             if (request.cursor) quotesParams.cursor = request.cursor;
             if (request.limit) quotesParams.limit = request.limit;
 
-            return await makeViewerAwarePublicRead<FeedServiceResponse>(`/feed/quotes/${quotedId}`, {
+            return await readFeedPage<FeedServiceResponse>(`/feed/quotes/${quotedId}`, {
               params: quotesParams,
               signal: options?.signal,
             });
@@ -411,17 +446,17 @@ class FeedService {
             signal: options?.signal,
           });
         } catch (error) {
-          const normalized = normalizeApiError(error);
-          logger.error('Error fetching feed', undefined, {
-            message: normalized.message,
-            status: normalized.status,
-            code: normalized.code,
-            feedType: request.type,
-          });
+          // Already retried (see `readFeedPage`), so this is the final answer.
+          // Logged at the level the failure earns: a rate limit or a 5xx from a
+          // backend having a moment is not a defect in this client, and an
+          // error-level line here is a red console entry — or a LogBox pop-up —
+          // for something the reader is about to be told about calmly.
+          const failure = classifyFeedFailure(error);
+          logFeedFailure(logger, 'Feed read failed', failure, { feedType: request.type });
 
           // Preserve the original error (status, server payload, stack) via
           // `cause` so callers can recover context with `normalizeApiError`.
-          throw new Error(normalized.message || 'Failed to fetch feed', { cause: error });
+          throw new Error(failure.message || 'Failed to fetch feed', { cause: error });
         }
       })();
 
@@ -900,7 +935,7 @@ class FeedService {
       // request carried), and a change across the round trip means a switch
       // raced it. `syncFeedWidget` refuses to attribute the page in that case.
       const viewerIdBefore = readViewerId();
-      const response = await makeViewerAwarePublicRead<FeedDataResponse>('/feed/mtn', {
+      const response = await readFeedPage<FeedDataResponse>('/feed/mtn', {
         params,
         signal: options?.signal,
       });

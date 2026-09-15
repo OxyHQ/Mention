@@ -15,6 +15,11 @@ import {
     mergeFeedPageContent,
 } from '@/utils/feedUtils';
 import { createLogger } from '@oxy.so/core/logger';
+import {
+    classifyFeedFailure,
+    logFeedFailure,
+    type FeedFailureKind,
+} from '@/utils/feedRetry';
 import { useDeepCompareEffect } from './useDeepCompare';
 import { buildFeedKey, hasFeedData, isDbAvailable } from '@/db';
 import { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
@@ -43,10 +48,6 @@ export { resolveUseMemoryFeed } from '@/utils/feedMemoryMode';
 
 const logger = createLogger('useFeedState');
 
-// Retry configuration
-const MAX_RETRIES = 3;
-const BASE_RETRY_DELAY = 1000;
-
 // Federated outbox-sync polling: when a profile feed responds with `pending`
 // (its ActivityPub outbox is still syncing in the background), we refetch a few
 // times until posts arrive, then stop. The delays back off (1s → 2.5s → 5s) so
@@ -54,35 +55,6 @@ const BASE_RETRY_DELAY = 1000;
 // space out instead of hammering a still-syncing outbox. The number of entries
 // is the (bounded) poll budget, so we never poll indefinitely.
 const FED_PENDING_POLL_DELAYS_MS = [1000, 2500, 5000] as const;
-
-async function withRetry<T>(
-    fn: () => Promise<T>,
-    options: {
-        maxRetries?: number;
-        baseDelay?: number;
-        signal?: AbortSignal;
-        onRetry?: (attempt: number, error: unknown) => void;
-    } = {}
-): Promise<T> {
-    const { maxRetries = MAX_RETRIES, baseDelay = BASE_RETRY_DELAY, signal, onRetry } = options;
-    let lastError: unknown;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        try {
-            if (signal?.aborted) throw new Error('Request aborted');
-            return await fn();
-        } catch (error) {
-            lastError = error;
-            if (signal?.aborted) throw error;
-            if (attempt === maxRetries) throw error;
-            if (error instanceof Error && error.message.includes('4')) throw error;
-            onRetry?.(attempt + 1, error);
-            const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 500;
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
-    }
-    throw lastError;
-}
 
 export interface UseFeedStateOptions {
     type: FeedType;
@@ -109,6 +81,13 @@ export interface UseFeedStateReturn {
     hasMore: boolean;
     isLoading: boolean;
     error: string | null;
+    /**
+     * What KIND of failure `error` was, for a surface that has to choose what to
+     * say about it. `null` whenever there is no error. Only ever set after the
+     * feed's retries are exhausted (`utils/feedRetry`), so a surface reading it
+     * is never pre-empting a retry that is still in flight.
+     */
+    errorKind: FeedFailureKind | null;
     nextCursor?: string;
     /**
      * True while a federated profile feed is still populating in the background
@@ -207,6 +186,7 @@ export function useFeedState({
     const [localNextCursor, setLocalNextCursor] = useState<string | undefined>(() => seed?.nextCursor);
     const [localLoading, setLocalLoading] = useState<boolean>(false);
     const [localError, setLocalError] = useState<string | null>(null);
+    const [localErrorKind, setLocalErrorKind] = useState<FeedFailureKind | null>(null);
 
     // Latest local items/slices/interstitials, mirrored into refs so the new-post
     // broadcast listener can read current state without re-subscribing on every
@@ -420,6 +400,7 @@ export function useFeedState({
     const clearError = useCallback(() => {
         if (useMemoryFeed) {
             setLocalError(null);
+            setLocalErrorKind(null);
         } else {
             clearGlobalError();
         }
@@ -613,19 +594,17 @@ export function useFeedState({
                 if (useMemoryFeed) {
                     setLocalLoading(true);
                     setLocalError(null);
+                    setLocalErrorKind(null);
 
+                    // No retry wrapper here: `feedService` owns the one policy
+                    // (see `utils/feedRetry`), so the read below has already
+                    // exhausted its attempts by the time it rejects — and the
+                    // loading state stays up for all of them, which is why a
+                    // blip never flashes an error screen.
                     const feedReq: FeedRequest = { type, limit: 20, filters };
-                    const resp = await withRetry(
-                        () => userId
-                            ? feedService.getUserFeed(userId, feedReq, { signal })
-                            : feedService.getFeed({ type, limit: 20, filters }, { signal }),
-                        {
-                            signal,
-                            onRetry: (attempt) => {
-                                logger.debug(`Retrying feed request (attempt ${attempt})`);
-                            },
-                        }
-                    );
+                    const resp = await (userId
+                        ? feedService.getUserFeed(userId, feedReq, { signal })
+                        : feedService.getFeed({ type, limit: 20, filters }, { signal }));
 
                     if (signal.aborted || !ownsPrimary()) return;
 
@@ -698,9 +677,11 @@ export function useFeedState({
                     logger.debug('Request aborted');
                     return;
                 }
-                logger.error('Error fetching feed', err);
+                const failure = classifyFeedFailure(err);
+                logFeedFailure(logger, 'Feed load failed', failure, { feedType: type });
                 if (useMemoryFeed && ownsPrimary()) {
                     setLocalError('Failed to load');
+                    setLocalErrorKind(failure.kind);
                 }
             } finally {
                 // Only clear the spinner if this request still owns the primary
@@ -795,19 +776,13 @@ export function useFeedState({
             if (useMemoryFeed) {
                 setLocalLoading(true);
                 setLocalError(null);
+                setLocalErrorKind(null);
 
+                // One retry policy, owned by `feedService` — see fetchInitial.
                 const feedReq: FeedRequest = { type, limit: 20, filters };
-                const resp = await withRetry(
-                    () => userId
-                        ? feedService.getUserFeed(userId, feedReq, { signal })
-                        : feedService.getFeed({ type, limit: 20, filters }, { signal }),
-                    {
-                        signal,
-                        onRetry: (attempt) => {
-                            logger.debug(`Retrying refresh (attempt ${attempt})`);
-                        },
-                    }
-                );
+                const resp = await (userId
+                    ? feedService.getUserFeed(userId, feedReq, { signal })
+                    : feedService.getFeed({ type, limit: 20, filters }, { signal }));
 
                 if (signal.aborted || !ownsPrimary()) return;
 
@@ -860,9 +835,11 @@ export function useFeedState({
             }
         } catch (err: unknown) {
             if (signal.aborted) return;
-            logger.error('Error refreshing feed after retries', err);
+            const failure = classifyFeedFailure(err);
+            logFeedFailure(logger, 'Feed refresh failed', failure, { feedType: type });
             if (useMemoryFeed && ownsPrimary()) {
                 setLocalError('Failed to refresh');
+                setLocalErrorKind(failure.kind);
             }
         } finally {
             if (ownsPrimary()) {
@@ -921,20 +898,13 @@ export function useFeedState({
 
                 setLocalLoading(true);
                 setLocalError(null);
+                setLocalErrorKind(null);
 
+                // One retry policy, owned by `feedService` — see fetchInitial.
                 const feedReq: FeedRequest = { type, limit: 20, cursor: localNextCursor, filters };
-                const resp = await withRetry(
-                    () => userId
-                        ? feedService.getUserFeed(userId, feedReq, { signal })
-                        : feedService.getFeed({ type, limit: 20, cursor: localNextCursor, filters }, { signal }),
-                    {
-                        signal,
-                        maxRetries: 2,
-                        onRetry: (attempt) => {
-                            logger.debug(`Retrying load more (attempt ${attempt})`);
-                        },
-                    }
-                );
+                const resp = await (userId
+                    ? feedService.getUserFeed(userId, feedReq, { signal })
+                    : feedService.getFeed({ type, limit: 20, cursor: localNextCursor, filters }, { signal }));
 
                 if (signal.aborted || !ownsLoadMore()) return;
 
@@ -1017,11 +987,14 @@ export function useFeedState({
                 logger.debug('Load more aborted');
                 return;
             }
-            logger.error('Error loading more', err);
+            const failure = classifyFeedFailure(err);
+            logFeedFailure(logger, 'Feed pagination failed', failure, { feedType: type });
             if (useMemoryFeed && ownsLoadMore()) {
-                let errorMessage = 'Failed to load more posts';
-                if (err instanceof Error) errorMessage = err.message;
-                setLocalError(errorMessage);
+                // A stable marker, not the transport's message: the rows already
+                // on screen stay, and nothing renders this string — the empty
+                // state owns its own copy and only appears with no rows at all.
+                setLocalError('Failed to load more posts');
+                setLocalErrorKind(failure.kind);
             }
         } finally {
             // Only clear the spinner if this loadMore still owns its controller.
@@ -1140,6 +1113,10 @@ export function useFeedState({
     const hasMore = useMemoryFeed ? localHasMore : !!globalFeed?.hasMore;
     const isLoading = !isViewerCacheTrusted || (useMemoryFeed ? localLoading : !!globalFeed?.isLoading);
     const error = useMemoryFeed ? localError : globalFeed?.error || null;
+    // Both paths classify at the point they catch — the memory path here, the
+    // SQLite path in `postsStore` — so neither has to re-derive a kind from a
+    // message string.
+    const errorKind = useMemoryFeed ? localErrorKind : globalFeed?.errorKind ?? null;
     const nextCursor = useMemoryFeed ? localNextCursor : globalFeed?.nextCursor;
 
     return {
@@ -1150,6 +1127,7 @@ export function useFeedState({
         hasMore,
         isLoading,
         error,
+        errorKind: error ? errorKind : null,
         nextCursor,
         pending,
         fetchInitial,
