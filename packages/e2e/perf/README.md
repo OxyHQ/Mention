@@ -191,6 +191,7 @@ node nav-latency.mjs selftest      # markers match on a direct load; refuses to 
 node nav-latency.mjs control  [n]  # activate something that does NOT navigate; must be all nulls
 node nav-latency.mjs post     [n]  # feed row -> /p/<id>
 node nav-latency.mjs hot      [n]  # the SECOND such navigation in one page
+node nav-latency.mjs warm     [n]  # the route chunk EVALUATED before the tap, nothing else changed
 ```
 
 ## Why four timestamps
@@ -248,10 +249,32 @@ And the attribution, which is what makes those numbers actionable:
 - the DOM is torn down at +7 ms (`<Slot/>` unmounts the feed) and rebuilt in a
   single commit at +311 ms, with nothing in between.
 
-So the wait is neither the download, nor the backend, nor render cost. It is the
-**first-time resolution of the route module**, and the `hot` column is the proof
-and the ceiling: the identical navigation costs 13 ms once that has happened.
+So the wait is neither the download, nor the backend, nor render cost.
 
-This killed one plan and started a better one. "Warm the chunk because the
-download is slow" was wrong — the download is 1 ms. "Do the resolution before
-the tap" is right, and `hot` says what it is worth.
+## And warming the chunk does not fix it either
+
+`warm` is the experiment for the obvious next move — evaluate the route's split
+bundle before the tap, which is exactly what Metro's `__prefetchImport`
+intrinsic does. It runs against the SHIPPED build (it finds the `[id]` chunk
+by reading the entry bundle's own chunk map and appends it as a `<script>`), so
+it needs no local export and no deploy.
+
+Three arms, same build, same session, 430x932:
+
+| | blank frame p50 | tap → real content p50 |
+| --- | --- | --- |
+| `post` — cold | 308 ms | 318 ms |
+| `warm` — chunk evaluated first | **311 ms** | **322 ms** |
+| `hot` — navigated once already | **1 ms** | **14 ms** |
+
+**Warming the chunk buys nothing.** Registering the module is not what the app
+is waiting for, so `__prefetchImport` would not help and neither would a
+`<link rel="prefetch">` manifest. `hot` is 23x faster than both, so something
+that happens on the FIRST navigation — and not on the second — owns the whole
+310 ms.
+
+That is where the next investigation starts, and it needs a local build with
+source maps: the production bundle is minified, the main thread is idle
+throughout, and no `PerformanceResourceTiming` can see what is being awaited.
+What is already ruled out, with numbers: the download, the backend, main-thread
+work, and module registration.
