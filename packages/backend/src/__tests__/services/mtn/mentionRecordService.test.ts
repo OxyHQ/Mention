@@ -195,7 +195,11 @@ import { closePostgres, connectPostgres } from '../../../db/postgres';
 import { clearServiceScope, seedPost, serviceScope } from '../../helpers/serviceFixtures';
 import { PostVisibility } from '@mention/shared-types';
 import { signAndAppend } from '../../../services/mtn/MentionRecordService';
-import { mentionVerificationResolver, clearVerificationMethodCache } from '../../../services/mtn/mentionVerificationResolver';
+import {
+  mentionCustodialVerificationResolver,
+  mentionVerificationResolver,
+  clearVerificationMethodCache,
+} from '../../../services/mtn/mentionVerificationResolver';
 import {
   emitLikeCreatedStrict,
   emitPostCreated,
@@ -456,6 +460,41 @@ describe('MentionRecordService.signAndAppend', () => {
     expect(resolved?.currentPublicKeys).toContain(CUSTODIAL_PUBLIC);
     expect(resolved?.custodialIssuer).toBe(MENTION_DID);
     expect(resolved?.custodialPublicKey).toBe(CUSTODIAL_PUBLIC);
+  });
+
+  it('signs custodial records without spending an Oxy DID lookup', async () => {
+    const result = await signAndAppend(SUBJECT_OXY_ID, MENTION_POST_COLLECTION, 'post-1', {
+      text: 'burst',
+      createdAt: new Date().toISOString(),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(resolveDid).not.toHaveBeenCalled();
+  });
+
+  it('never authorizes a self-issued record through the custodial resolver', async () => {
+    const resolved = await mentionCustodialVerificationResolver.resolve(SUBJECT_DID);
+    expect(resolved?.currentPublicKeys).toEqual([]);
+    expect(isAuthorizedKey(resolved, {
+      issuer: SUBJECT_DID,
+      subject: SUBJECT_DID,
+      publicKey: CUSTODIAL_PUBLIC,
+    } as Parameters<typeof isAuthorizedKey>[1]).ok).toBe(false);
+  });
+
+  it('shares concurrent DID lookups and remembers a failed one instead of retrying Oxy', async () => {
+    resolveDid.mockRejectedValueOnce(Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 }));
+
+    const [first, second] = await Promise.all([
+      mentionVerificationResolver.resolve(SUBJECT_DID),
+      mentionVerificationResolver.resolve(SUBJECT_DID),
+    ]);
+    const third = await mentionVerificationResolver.resolve(SUBJECT_DID);
+
+    expect(resolveDid).toHaveBeenCalledTimes(1);
+    for (const resolved of [first, second, third]) {
+      expect(resolved?.currentPublicKeys).toEqual([]);
+    }
   });
 });
 

@@ -38,7 +38,7 @@ import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { logger } from '../../utils/logger';
 import { buildUserDid } from './mentionDid';
 import { mentionRecordStore } from './MentionRecordStore';
-import { mentionVerificationResolver } from './mentionVerificationResolver';
+import { mentionCustodialVerificationResolver, mentionVerificationResolver } from './mentionVerificationResolver';
 import {
   getMentionCustodialIssuer,
   getMentionCustodialPrivateKey,
@@ -210,7 +210,7 @@ export async function signAndAppend(
         : mentionRecordStore;
       const outcome = await verifyAndAppend(
         appendStore,
-        mentionVerificationResolver,
+        mentionCustodialVerificationResolver,
         envelope,
       );
 
