@@ -38,7 +38,10 @@ vi.mock('@oxy.so/core', () => {
   return { OxyServices };
 });
 
-vi.mock('../../utils/privacyHelpers', () => ({}));
+// Was `() => ({})`, which stubbed the module out entirely — including the
+// `OxyPrivacyUnavailableError` the delegated client throws. The real module is
+// imported instead: it is pure error/id-shape logic and reaches no network.
+vi.mock('../../utils/privacyHelpers', async (importOriginal) => importOriginal());
 
 import {
   createScopedOxyClient,
@@ -110,6 +113,29 @@ describe('request-scoped Oxy clients', () => {
         claims: { resource: { effectiveAccountId: 'assigned-account' } },
       },
     })).toBeUndefined();
+  });
+
+  /**
+   * Oxy answers `/users/me/graph` with the EMPTY graph for a service credential
+   * on purpose — blocks and restrictions are private relationship data it will
+   * not disclose to one. Reading the privacy lists off that 200 said "this
+   * viewer blocks nobody", which is the fail-OPEN the privacy path exists to
+   * prevent. A delegated caller must be told it cannot resolve them.
+   */
+  it('refuses to answer a delegated privacy read rather than reporting no blocks', async () => {
+    const client = createScopedOxyClient({
+      headers: { authorization: 'Bearer mcp-access-token' },
+      mcp: { activeUserId: 'assigned-account' },
+    });
+
+    await expect(client?.getBlockedUsers()).rejects.toMatchObject({
+      name: 'OxyPrivacyUnavailableError',
+      code: 'SERVICE_DELEGATION_NOT_AUTHORIZED',
+    });
+    await expect(client?.getRestrictedUsers()).rejects.toMatchObject({
+      name: 'OxyPrivacyUnavailableError',
+      code: 'SERVICE_DELEGATION_NOT_AUTHORIZED',
+    });
   });
 });
 
