@@ -23,6 +23,7 @@ import gifsRoutes from './routes/gifs';
 import articlesRoutes from './routes/articles';
 import muteRoutes from './routes/mute.routes';
 import muteWordsRoutes from './routes/muteWords.routes';
+import privacyRoutes from './routes/privacy.routes';
 import profileLinkMentionsRoutes, {
   profileLinkMentionsRateLimiter,
 } from './routes/profileLinkMentions.routes';
@@ -150,6 +151,7 @@ export function createAppRoutes({
   authenticatedApi.use('/gifs', gifsRoutes);
   authenticatedApi.use('/mute', muteRoutes);
   authenticatedApi.use('/mute-words', muteWordsRoutes);
+  authenticatedApi.use('/privacy', privacyRoutes);
   // Authenticated because it takes author-typed URLs and answers with identities;
   // the mount is the gate, so the handler needs no auth check of its own.
   authenticatedApi.use('/mentions', profileLinkMentionsRateLimiter, profileLinkMentionsRoutes);

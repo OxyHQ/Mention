@@ -1,6 +1,6 @@
 import { OxyServices } from '@oxy.so/core';
 import { extractBearerToken } from '@oxy.so/mcp';
-import type { OxyClient } from './privacyHelpers';
+import { OxyPrivacyUnavailableError, type OxyClient } from './privacyHelpers';
 import {
   config,
   getOxyServiceCredentials,
@@ -108,48 +108,47 @@ function unwrapDataEnvelope(value: unknown): unknown {
 }
 
 /**
- * Read one bounded id list off the delegated viewer graph. A missing or
- * non-array list is an error, never an empty result: treating it as "no
- * blocks/restrictions" would disclose the accounts the viewer hid.
- */
-function delegatedGraphIds(response: unknown, key: 'blockedIds' | 'restrictedIds'): string[] {
-  const graph = unwrapDataEnvelope(response);
-  if (!graph || typeof graph !== 'object') {
-    throw new Error('Oxy delegated viewer graph response is malformed');
-  }
-  const ids = (graph as Record<string, unknown>)[key];
-  if (!Array.isArray(ids)) {
-    throw new Error(`Oxy delegated viewer graph is missing ${key}`);
-  }
-  return ids.filter((id): id is string => typeof id === 'string' && id.length > 0);
-}
-
-/**
- * Privacy/graph client for an MCP bundle member. Every private read is made
- * with Mention's service credential and an explicit, server-verified viewer id;
- * the incoming MCP token never leaves Mention.
+ * Privacy/graph client for an MCP bundle member. Every read is made with
+ * Mention's service credential and an explicit, server-verified viewer id; the
+ * incoming MCP token never leaves Mention.
+ *
+ * WHAT A SERVICE CREDENTIAL CANNOT READ — blocks and restrictions. Oxy answers
+ * `GET /users/me/graph` with the EMPTY graph for any service-token caller, by
+ * design and asserted by its own route tests: "service-token delegation returns
+ * the empty graph even when a delegated viewer resolves, because blocks and
+ * restrictions are private data". It is a 200 carrying empty arrays, not an
+ * error, so reading the privacy lists off it produced a well-formed answer that
+ * said "this viewer blocks nobody" — the exact fail-OPEN that
+ * `getUserIdsFromPrivacyList` exists to prevent, on every MCP/capability request
+ * that hydrated a post. So the two privacy reads below refuse instead: an MCP
+ * caller has no way to resolve them today, and saying so is the only honest
+ * answer a fail-closed path can be given.
+ *
+ * The follow ids come off the same empty graph and are NOT a privacy decision —
+ * a caller that cannot resolve them degrades its ranking, which every graph
+ * read here already soft-fails to. They stay, unchanged.
  */
 function createServiceDelegatedOxyClient(viewerId: string): OxyClient {
   const client = getServiceOxyClient();
-  // Blocks, restrictions and the following list all come off the viewer graph,
-  // and the callers run in the same `Promise.all`, so the request is made once
-  // and shared. The per-user privacy routes are user-token only, and a delegated
-  // caller has no user token — the graph endpoint is the one that accepts a
-  // service credential with an explicit viewer.
   let graph: Promise<unknown> | undefined;
   const viewerGraph = (): Promise<unknown> => {
     graph ??= client.makeServiceRequest('GET', OXY_VIEWER_GRAPH_PATH, undefined, viewerId);
     return graph;
   };
 
+  /** Oxy discloses no private relationship data to a service credential. */
+  const privacyUnavailable = (listType: 'blocked' | 'restricted'): never => {
+    throw new OxyPrivacyUnavailableError(listType, {
+      code: 'SERVICE_DELEGATION_NOT_AUTHORIZED',
+    });
+  };
+
   return {
     async getBlockedUsers(): Promise<unknown[]> {
-      const ids = delegatedGraphIds(await viewerGraph(), 'blockedIds');
-      return ids.map((blockedId) => ({ blockedId }));
+      return privacyUnavailable('blocked');
     },
     async getRestrictedUsers(): Promise<unknown[]> {
-      const ids = delegatedGraphIds(await viewerGraph(), 'restrictedIds');
-      return ids.map((restrictedId) => ({ restrictedId }));
+      return privacyUnavailable('restricted');
     },
     // Unwrapped so the delegated shape matches what OxyServices.getViewerGraph
     // returns for a session-scoped client: the graph object itself, never the

@@ -75,6 +75,34 @@ async function makeList(options: {
   return list.id;
 }
 
+/**
+ * {@link makeList} in bulk, for the cap cases that need thousands of rows: ONE
+ * insert for the lists and one for their members, instead of a round trip per
+ * list. The per-list loop took longer than the test timeout on a busy CI runner
+ * — a property of the seeding, not of the cap being asserted, and it failed as
+ * "expected 5000, got 18" rather than as the timeout it was.
+ */
+async function makeLists(
+  count: number,
+  memberFor: (index: number) => string,
+): Promise<string[]> {
+  const lists = await db
+    .insert(accountLists)
+    .values(Array.from({ length: count }, () => ({
+      ownerOxyUserId: OWNER_ID,
+      title: `List ${randomUUID()}`,
+      isPublic: true,
+    })))
+    .returning({ id: accountLists.id });
+
+  const listIds = lists.map((list) => list.id);
+  createdListIds.push(...listIds);
+  await db.insert(accountListMembers).values(
+    listIds.map((listId, index) => ({ listId, oxyUserId: memberFor(index), position: 0 })),
+  );
+  return listIds;
+}
+
 async function subscribe(listId: string, userId: string = VIEWER_ID): Promise<void> {
   subscriberIds.add(userId);
   await db.insert(entityFollows).values({ userId, entityType: LIST_ENTITY_TYPE, entityId: listId });
@@ -220,12 +248,10 @@ describe('the feed caps warn rather than truncating silently', () => {
   it('caps the number of subscribed lists and says so', async () => {
     const overCap = MAX_SUBSCRIBED_LISTS_FOR_FEED + 1;
     // One member per list, so the author cap cannot fire and confuse the check.
-    const listIds: string[] = [];
-    for (let index = 0; index < overCap; index += 1) {
-      listIds.push(
-        await makeList({ isPublic: true, members: [`capped-member-${String(index).padStart(4, '0')}`] }),
-      );
-    }
+    const listIds = await makeLists(
+      overCap,
+      (index) => `capped-member-${String(index).padStart(4, '0')}`,
+    );
     await db.insert(entityFollows).values(
       listIds.map((entityId) => ({ userId: VIEWER_ID, entityType: LIST_ENTITY_TYPE, entityId })),
     );
