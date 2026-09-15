@@ -523,7 +523,14 @@ class MtnFeedController {
             muteWords,
             hideBoosts: false,
             hideReplies: false,
-            hideSensitive: false,
+            // The viewer's own sensitive-content opt-in, already resolved this
+            // request by `loadViewerFeedContext` (`context.showSensitiveContent`,
+            // read from `userSettings.privacy.showSensitiveContent`) — reused here
+            // rather than fetched again. `showSensitiveContent` is `undefined` for
+            // any viewer/request path that never loaded it, and `!undefined` is
+            // `true`, so a missing preference fails CLOSED (sensitive content
+            // hidden) rather than defaulting open.
+            hideSensitive: !context.showSensitiveContent,
           },
         });
         syncFlattenedItemsWithSlices(response);
