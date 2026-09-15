@@ -3,6 +3,7 @@ import { CONTENT_LANGUAGES } from '@/constants/contentLanguages';
 import {
   buildPostLanguageOptions,
   findOptionForLanguage,
+  findOptionForLanguages,
   languageLabel,
   servedLanguageTag,
   shouldOfferTranslation,
@@ -125,7 +126,7 @@ describe('shouldOfferTranslation', () => {
     shouldOfferTranslation({
       content,
       postLanguage,
-      readerLanguage,
+      readerLanguages: [readerLanguage],
       options: buildPostLanguageOptions(content, postLanguage),
     });
 
@@ -155,6 +156,52 @@ describe('shouldOfferTranslation', () => {
 
   it('never fires on an empty body', () => {
     expect(autoTranslate({ text: '   ', textLang: 'en-US' }, 'es-ES')).toBe(false);
+  });
+
+  it('does NOT fire when the served language is any of the reader’s SEVERAL languages, not just their first', () => {
+    // The post is served in Spanish; the reader's account lists English first
+    // and Spanish second. They already understand it — offering to translate a
+    // post into a language they read fluently would be noise, not help.
+    const servedInSpanish: PostContent = { ...bilingual, text: 'Hola mundo', textLang: 'es-ES' };
+    expect(
+      shouldOfferTranslation({
+        content: servedInSpanish,
+        readerLanguages: ['en', 'es'],
+        options: buildPostLanguageOptions(servedInSpanish),
+      }),
+    ).toBe(false);
+  });
+
+  it('fires only when NONE of the reader’s several languages match', () => {
+    expect(
+      shouldOfferTranslation({
+        content: englishWithMachineItalian,
+        readerLanguages: ['fr', 'de'],
+        options: buildPostLanguageOptions(englishWithMachineItalian),
+      }),
+    ).toBe(true);
+  });
+
+  it('never fires with no reader language at all', () => {
+    expect(
+      shouldOfferTranslation({
+        content: englishWithMachineItalian,
+        readerLanguages: [],
+        options: buildPostLanguageOptions(englishWithMachineItalian),
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('findOptionForLanguages', () => {
+  const options = buildPostLanguageOptions(bilingual);
+
+  it('tries each reader language in order and returns the first the post actually has', () => {
+    expect(findOptionForLanguages(options, ['fr', 'en'])?.tag).toBe('en');
+  });
+
+  it('is null when none of the reader’s languages match', () => {
+    expect(findOptionForLanguages(options, ['fr', 'de'])).toBeNull();
   });
 });
 

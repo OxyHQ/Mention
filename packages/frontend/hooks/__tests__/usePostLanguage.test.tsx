@@ -32,13 +32,31 @@ jest.mock('@/utils/api', () => ({
 const mockToast = jest.fn();
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
 
-/** The reader's app language. Flipped per test. */
+/** The reader's app display language. Flipped per test. */
 let mockReaderLanguage = 'en-US';
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,
     i18n: { language: mockReaderLanguage },
   }),
+}));
+
+/**
+ * The reader's OWN declared account languages, most-preferred first — separate
+ * from the app display language above, exactly as a real bilingual reader's
+ * account locales differ from whatever locale their UI chrome happens to be
+ * in. Empty by default so existing single-language tests keep testing exactly
+ * one language, the app display one.
+ *
+ * Combined into the ONE `readerLanguages` list `trendsStore` holds — the hook
+ * reads that store directly (`AccountSwitchReset` is what actually computes
+ * and pushes this list in the real app), so the mock reproduces its shape
+ * rather than the hook's own retired internal derivation.
+ */
+let mockAccountLanguages: string[] = [];
+jest.mock('@/stores/trendsStore', () => ({
+  useTrendsStore: (selector: (state: { readerLanguages: string[] }) => unknown) =>
+    selector({ readerLanguages: [...mockAccountLanguages, mockReaderLanguage].filter(Boolean) }),
 }));
 
 /** The auto-translate preference. Flipped per test. */
@@ -100,6 +118,7 @@ beforeEach(() => {
   mockApiPost.mockReset();
   mockToast.mockReset();
   mockReaderLanguage = 'en-US';
+  mockAccountLanguages = [];
   mockAutoTranslateEnabled = false;
 });
 
@@ -311,6 +330,30 @@ describe('asking for a language the post does not carry', () => {
     expect(state.displayText).toBe('Hallo Welt');
   });
 
+  it('keys the body by the REQUESTED tag when the server names none', async () => {
+    mockApiPost.mockResolvedValue({ data: { translatedText: 'Hallo Welt' } });
+    await render(englishOnly);
+
+    await act(async () => {
+      state.selectLanguage('de');
+    });
+
+    expect(state.activeTag).toBe('de');
+    expect(state.displayText).toBe('Hallo Welt');
+  });
+
+  it('never asks the server for a post with no id', async () => {
+    await act(async () => {
+      TestRenderer.create(<Probe content={englishOnly} />);
+    });
+
+    await act(async () => {
+      state.selectLanguage('de');
+    });
+
+    expect(mockApiPost).not.toHaveBeenCalled();
+  });
+
   it('falls back to the original body and says so when the translation fails', async () => {
     mockApiPost.mockRejectedValue({ response: { status: 429 } });
     await render(englishOnly);
@@ -322,6 +365,22 @@ describe('asking for a language the post does not carry', () => {
     expect(state.displayText).toBeNull();
     expect(state.activeTag).toBe('en');
     expect(mockToast).toHaveBeenCalledWith('translation.rateLimited', { type: 'error' });
+  });
+
+  it('falls back and says so when the server answers with no usable text', async () => {
+    // A 200 with an empty/absent `translatedText` — the request succeeded but
+    // produced nothing to show, which must be treated the same as a failure
+    // rather than silently displaying an empty body.
+    mockApiPost.mockResolvedValue({ data: { translatedText: '' } });
+    await render(englishOnly);
+
+    await act(async () => {
+      state.selectLanguage('de');
+    });
+
+    expect(state.displayText).toBeNull();
+    expect(state.activeTag).toBe('en');
+    expect(mockToast).toHaveBeenCalledWith('translation.failed', { type: 'error' });
   });
 });
 
@@ -355,6 +414,22 @@ describe('the translate button', () => {
 
     expect(state.displayText).toBeNull();
     expect(state.isTranslated).toBe(false);
+  });
+
+  it('does nothing when the reader has no language at all to translate into', async () => {
+    // No account languages and no app display language resolved — nothing
+    // for the picker's "translate into my language" action to target. Must
+    // not crash and must not guess a language to call the server with.
+    mockReaderLanguage = '';
+    mockAccountLanguages = [];
+    await render(englishOnly);
+
+    await act(async () => {
+      state.toggleReaderTranslation();
+    });
+
+    expect(mockApiPost).not.toHaveBeenCalled();
+    expect(state.displayText).toBeNull();
   });
 
   it('reaches for the author’s own rendition before asking a machine', async () => {
@@ -418,6 +493,16 @@ describe('whether the action bar shows a translate icon at all', () => {
   it('offers nothing on a post with no body to translate', async () => {
     mockReaderLanguage = 'es-ES';
     await render({ text: '   ', textLang: 'en' });
+    expect(state.canTranslate).toBe(false);
+  });
+
+  it('offers nothing when the post is served in ANY of the reader’s several account languages, not just the app’s display language', async () => {
+    // The app chrome is in English, but the reader's account also lists
+    // Spanish, and this post is served in Spanish — they already understand
+    // it, so translating would do nothing.
+    mockReaderLanguage = 'en-US';
+    mockAccountLanguages = ['en', 'es'];
+    await render({ text: 'Hola mundo', textLang: 'es-ES' });
     expect(state.canTranslate).toBe(false);
   });
 });

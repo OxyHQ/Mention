@@ -95,15 +95,52 @@ export function findOptionForLanguage(
 }
 
 /**
+ * The option to offer a reader who understands SEVERAL languages, tried most
+ * preferred first — a reader whose account lists `[en, es]` and who opens a
+ * Spanish/English bilingual post is offered the Spanish rendition even though
+ * English leads their list, because the first language of theirs the post
+ * actually has wins over the order of their own preference.
+ */
+export function findOptionForLanguages(
+  options: readonly PostLanguageOption[],
+  languages: readonly string[],
+): PostLanguageOption | null {
+  for (const language of languages) {
+    const found = findOptionForLanguage(options, language);
+    if (found) return found;
+  }
+  return null;
+}
+
+/**
+ * The tag to translate this post into for a reader who asked for it (the
+ * translate icon, or auto-translate): an existing rendition in one of their
+ * languages when the post already has one, otherwise their single
+ * most-preferred language, as a fresh translate target.
+ */
+export function resolveTranslateTarget(
+  options: readonly PostLanguageOption[],
+  readerLanguages: readonly string[],
+): string | undefined {
+  return findOptionForLanguages(options, readerLanguages)?.tag ?? readerLanguages[0];
+}
+
+/**
  * Whether translating this post would give the reader anything.
  *
  * ONE predicate with two consumers: it decides whether the action bar shows the
  * translate icon at all, and — for a reader who has auto-translate on — whether
  * the translation fires by itself. Both must answer the same question, because
- * an icon that translates a post into the language it is already written in does
- * nothing, and auto-translating such a post replaces the author's own words with
- * a robot's. The comparison is on the BASE subtag throughout: an `es-MX` reader
- * and an `es-ES` post speak the same language.
+ * an icon that translates a post into a language the reader already understands
+ * does nothing, and auto-translating such a post replaces the author's own
+ * words with a robot's. The comparison is on the BASE subtag throughout: an
+ * `es-MX` reader and an `es-ES` post speak the same language.
+ *
+ * `readerLanguages` is the reader's WHOLE list, most-preferred first — not just
+ * the app's display language. A reader whose account lists `[en, es]` reads
+ * Spanish, even though English leads that list, so a Spanish post is exactly as
+ * needless to translate for them as an English one; checking only the first
+ * entry would offer to "translate" a post they already understand.
  *
  * It stays true once the reader HAS translated — it reads the tag the server
  * served, which a local override never moves — so the icon survives to undo
@@ -112,18 +149,19 @@ export function findOptionForLanguage(
 export function shouldOfferTranslation(params: {
   content: PostContent;
   postLanguage?: string;
-  readerLanguage: string | undefined;
+  readerLanguages: readonly string[];
   options: readonly PostLanguageOption[];
 }): boolean {
-  const { content, postLanguage, readerLanguage, options } = params;
-  if (!readerLanguage) return false;
+  const { content, postLanguage, readerLanguages, options } = params;
+  if (readerLanguages.length === 0) return false;
   if (typeof content.text !== 'string' || content.text.trim().length === 0) return false;
 
   const served = servedLanguageTag(content, postLanguage);
-  if (sameBaseLanguage(served, readerLanguage)) return false;
+  if (readerLanguages.some((language) => sameBaseLanguage(served, language))) return false;
 
   const authored = options.some(
-    (option) => option.source === 'author' && sameBaseLanguage(option.tag, readerLanguage),
+    (option) => option.source === 'author'
+      && readerLanguages.some((language) => sameBaseLanguage(option.tag, language)),
   );
   return !authored;
 }

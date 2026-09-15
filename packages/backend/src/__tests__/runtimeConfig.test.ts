@@ -50,6 +50,23 @@ describe('runtime configuration', () => {
     expect(() => parseRuntimeEnvironment(source)).toThrow(expectedField);
   });
 
+  it('leaves the Mercaria origins to the SDK unless an override is supplied', () => {
+    const unset = parseRuntimeEnvironment({ MERCARIA_API_URL: '', MERCARIA_WEB_URL: '  ' });
+    expect(unset.MERCARIA_API_URL).toBeUndefined();
+    expect(unset.MERCARIA_WEB_URL).toBeUndefined();
+
+    const overridden = parseRuntimeEnvironment({
+      MERCARIA_API_URL: 'https://mercaria-api.example.test/',
+      MERCARIA_WEB_URL: 'http://localhost:8081',
+    });
+    expect(overridden.MERCARIA_API_URL).toBe('https://mercaria-api.example.test');
+    expect(overridden.MERCARIA_WEB_URL).toBe('http://localhost:8081');
+
+    expect(() =>
+      parseRuntimeEnvironment({ MERCARIA_API_URL: 'https://mercaria-api.example.test/public/v1' }),
+    ).toThrow('MERCARIA_API_URL');
+  });
+
   it('rejects conflicting Redis aliases instead of choosing one silently', () => {
     expect(() =>
       parseRuntimeEnvironment({
