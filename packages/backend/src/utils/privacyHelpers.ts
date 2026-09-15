@@ -1,3 +1,4 @@
+import { createCache } from './cache';
 import { getServiceOxyClient } from './oxyHelpers';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { logger } from './logger';
@@ -172,12 +173,64 @@ export class OxyPrivacyUnavailableError extends Error {
 }
 
 /**
+ * Per-viewer cache for the Oxy privacy lists.
+ *
+ * WHY: these lists are read on nearly every authenticated request (the feed,
+ * post detail, notifications, search, hydration's unthreaded fallback), each
+ * read is an Oxy round trip on the critical path, and the read fails CLOSED — so
+ * a momentary Oxy failure became an error on the reader's screen, on every
+ * request they made, while nothing had actually changed about who they block.
+ *
+ * Stale-while-revalidate is what makes fail-closed survivable: an entry younger
+ * than {@link VIEWER_PRIVACY_FRESH_MS} is served as-is, an older one is served
+ * immediately while ONE refresh runs behind the response, and the entry is
+ * RETAINED for {@link VIEWER_PRIVACY_RETENTION_SECONDS} so a refresh that fails
+ * keeps answering from the last list Oxy confirmed. Fail-closed still applies
+ * where it must: a viewer with no retained entry propagates the error rather
+ * than being served "blocks nobody".
+ *
+ * Staleness is bounded on both ends. Oxy busts its own graph cache on every
+ * block/unblock write, and a client that writes one asks Mention to drop this
+ * entry ({@link invalidateViewerPrivacyLists}, `POST /api/privacy/refresh`), so
+ * the freshness window is the backstop for writes nobody told us about — not the
+ * normal path by which a new block takes effect.
+ *
+ * A retained entry is only ever served to the viewer it belongs to, and these
+ * lists only ever REMOVE content from that viewer's own reading, so serving one
+ * while Oxy is unreachable cannot disclose anything.
+ */
+const VIEWER_PRIVACY_FRESH_MS = 30 * 1000;
+const VIEWER_PRIVACY_RETENTION_SECONDS = 30 * 60;
+const VIEWER_PRIVACY_KEY_PREFIX = 'mtn:viewer:privacy:v1:';
+
+const viewerPrivacyCache = createCache({
+  name: 'viewerPrivacyCache',
+  ttlSeconds: VIEWER_PRIVACY_RETENTION_SECONDS,
+  staleAfterMs: VIEWER_PRIVACY_FRESH_MS,
+});
+
+function viewerPrivacyKey(listType: 'blocked' | 'restricted', viewerId: string): string {
+  return `${VIEWER_PRIVACY_KEY_PREFIX}${listType}:${viewerId}`;
+}
+
+/**
+ * Drop a viewer's cached lists so their next read resolves from Oxy. Called by
+ * `POST /api/privacy/refresh` after the client blocks, unblocks or restricts.
+ */
+export async function invalidateViewerPrivacyLists(viewerId: string): Promise<void> {
+  await viewerPrivacyCache.delete([
+    viewerPrivacyKey('blocked', viewerId),
+    viewerPrivacyKey('restricted', viewerId),
+  ]);
+}
+
+/**
  * Get user IDs from Oxy privacy API (blocked or restricted users)
  * @param getUserList - Function to fetch the user list from Oxy API
  * @param listType - Type of list for error logging ('blocked' or 'restricted')
  * @returns Array of user IDs
  */
-async function getUserIdsFromPrivacyList(
+async function readPrivacyList(
   getUserList: () => Promise<unknown[]>,
   listType: 'blocked' | 'restricted'
 ): Promise<string[]> {
@@ -208,29 +261,57 @@ async function getUserIdsFromPrivacyList(
 }
 
 /**
+ * {@link readPrivacyList} through the per-viewer cache above.
+ *
+ * `viewerId` is what keys the cache, so a caller that does not know whose lists
+ * these are (there is one: the MCP delegated client resolves its viewer
+ * elsewhere) reads straight through to Oxy — uncached, exactly as before.
+ *
+ * Returns a fresh array per call: callers push federated ids onto what they
+ * receive, and a cached array handed out twice would accumulate them.
+ */
+async function getUserIdsFromPrivacyList(
+  getUserList: () => Promise<unknown[]>,
+  listType: 'blocked' | 'restricted',
+  viewerId?: string,
+): Promise<string[]> {
+  if (!viewerId) return readPrivacyList(getUserList, listType);
+
+  const ids = await viewerPrivacyCache.getOrCompute(
+    viewerPrivacyKey(listType, viewerId),
+    () => readPrivacyList(getUserList, listType),
+  );
+  return [...ids];
+}
+
+/**
  * Get blocked user IDs for the authenticated user from Oxy
  * @param client - OxyServices instance (per-request, with auth token set)
+ * @param viewerId - whose list this is; keys the per-viewer cache (see
+ *   {@link invalidateViewerPrivacyLists}). Omitted ⇒ read straight from Oxy.
  */
-export async function getBlockedUserIds(client?: OxyClient): Promise<string[]> {
+export async function getBlockedUserIds(client?: OxyClient, viewerId?: string): Promise<string[]> {
   if (!client) {
     throw new OxyPrivacyUnavailableError('blocked', {
       code: 'MISSING_PRIVACY_CLIENT',
     });
   }
-  return getUserIdsFromPrivacyList(() => client.getBlockedUsers(), 'blocked');
+  return getUserIdsFromPrivacyList(() => client.getBlockedUsers(), 'blocked', viewerId);
 }
 
 /**
  * Get restricted user IDs for the authenticated user from Oxy
  * @param client - OxyServices instance (per-request, with auth token set)
+ * @param viewerId - whose list this is; keys the per-viewer cache (see
+ *   {@link invalidateViewerPrivacyLists}). Omitted ⇒ read straight from Oxy.
  */
-export async function getRestrictedUserIds(client?: OxyClient): Promise<string[]> {
+export async function getRestrictedUserIds(client?: OxyClient, viewerId?: string): Promise<string[]> {
   if (!client) {
     throw new OxyPrivacyUnavailableError('restricted', {
       code: 'MISSING_PRIVACY_CLIENT',
     });
   }
-  return getUserIdsFromPrivacyList(() => client.getRestrictedUsers(), 'restricted');
+  return getUserIdsFromPrivacyList(() => client.getRestrictedUsers(), 'restricted', viewerId);
 }
 
 /**
@@ -331,8 +412,8 @@ export async function resolveViewerPrivacyAndGraph(
 
   const oxyForFollows = client || getRuntimeOxyClient();
   const [blockedIds, restrictedIds, followingRes, followersRes] = await Promise.all([
-    getBlockedUserIds(client),
-    getRestrictedUserIds(client),
+    getBlockedUserIds(client, viewerId),
+    getRestrictedUserIds(client, viewerId),
     oxyForFollows.getUserFollowing(viewerId).catch((error: unknown) => {
       logger.warn('[OxyPrivacy] getUserFollowing failed:', error);
       return [];
