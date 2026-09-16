@@ -1,9 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
-import { pollService, type PollData, type PollOption } from '@/services/pollService';
-import { useAuth } from '@oxy.so/services/ui/client';
+import { toast } from '@oxy.so/bloom/toast';
+import { createLogger } from '@oxy.so/core/logger';
+import { pollService, PollContractError, type PollDetail, type PollDetailOption } from '@/services/pollService';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
+
+const logger = createLogger('PollCard');
 
 interface PollCardProps {
   pollId: string;
@@ -11,8 +14,7 @@ interface PollCardProps {
 }
 
 const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
-  const { user } = useAuth();
-  const [poll, setPoll] = useState<PollData | null>(null);
+  const [poll, setPoll] = useState<PollDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +25,8 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
       const res = await pollService.getPoll(pollId);
       setPoll(res.data);
       setError(null);
-    } catch {
+    } catch (err) {
+      logger.error('Failed to load poll', err);
       setError('Failed to load poll');
     } finally {
       setLoading(false);
@@ -34,15 +37,22 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
     void loadPoll();
   }, [loadPoll]);
 
+  // `voteCount` is unconditional and always a number — see `PollDetailOption`
+  // in `@mention/shared-types`. It used to be an array of voter ids for a
+  // visible poll and a bare count for an anonymous one under the SAME field,
+  // which is what made this sum silently read zero and `hasVoted` throw the
+  // first time an anonymous poll got a vote.
   const totalVotes = useMemo(() => {
     if (!poll) return 0;
-    return poll.options.reduce((sum: number, opt: PollOption) => sum + (opt.votes?.length || 0), 0);
+    return poll.options.reduce((sum: number, opt: PollDetailOption) => sum + opt.voteCount, 0);
   }, [poll]);
 
+  // The viewer's own selection, never another voter's — carried explicitly
+  // rather than reconstructed from a voter list this response never contains.
   const hasVoted = useMemo(() => {
-    if (!poll || !user?.id) return false;
-    return poll.options.some((opt: PollOption) => (opt.votes || []).includes(user.id));
-  }, [poll, user?.id]);
+    if (!poll) return false;
+    return poll.viewerSelectedOptionIds.length > 0;
+  }, [poll]);
 
   const ended = useMemo(() => {
     if (!poll?.endsAt) return false;
@@ -56,10 +66,17 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
     if (hasVoted && !poll?.isMultipleChoice) return;
     try {
       setVoting(true);
-      await pollService.vote(pollId, optionId);
-      await loadPoll();
-    } catch {
-      // swallow for now
+      // Apply the vote's own response directly — it is already the poll's
+      // canonical post-vote state, so a second GET right behind it only ever
+      // reread what this response already carried.
+      const { data } = await pollService.vote(pollId, optionId);
+      setPoll(data);
+    } catch (err) {
+      logger.error('Failed to record vote', err);
+      const message = err instanceof PollContractError
+        ? 'The vote could not be understood by the app'
+        : 'Failed to record your vote';
+      toast.error(message);
     } finally {
       setVoting(false);
     }
@@ -77,9 +94,8 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
     <View className="flex-1 w-full p-3 bg-background" style={{ width }}>
       <Text className="text-foreground text-base font-semibold mb-2" numberOfLines={3}>{poll.question}</Text>
       <View className="gap-2">
-        {(poll.options || []).map((opt: PollOption) => {
-          const votes = opt.votes?.length || 0;
-          const pct = totalVotes > 0 ? (votes / totalVotes) : 0;
+        {poll.options.map((opt: PollDetailOption) => {
+          const pct = totalVotes > 0 ? (opt.voteCount / totalVotes) : 0;
           return (
             <Pressable
               key={opt._id}

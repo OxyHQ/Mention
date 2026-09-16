@@ -62,6 +62,9 @@ export * from './realtime';
 // Local moderation-integration state (CrowdSource reports, decisions, enforcement)
 export * from './moderation';
 
+// The standalone /polls/* attachment resource's wire contract
+export * from './poll';
+
 // Canonical MCP tool policy metadata shared by the transport and API guard.
 export * from './mcpCapabilities';
 
