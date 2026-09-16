@@ -561,7 +561,7 @@ export default function CreateJobScreen() {
           ) : (
             <Text className="text-muted-foreground text-xs mt-2">
               {t('jobs.create.applyViaMentionHint', {
-                defaultValue: 'Applicants apply through Mention. The native application flow ships in a later phase.',
+                defaultValue: 'Applicants apply through Mention, and you’ll review applications from your dashboard.',
               })}
             </Text>
           )}

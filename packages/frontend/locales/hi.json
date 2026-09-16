@@ -2166,5 +2166,180 @@
   "compose.languages.sheetTitle": "पोस्ट की भाषाएँ",
   "compose.languages.main": "मुख्य भाषा",
   "compose.languages.addFull": "इस पोस्ट में पहले से सभी संभव भाषाएँ हैं",
-  "compose.languages.a11y": "इस पोस्ट की भाषा चुनें"
+  "compose.languages.a11y": "इस पोस्ट की भाषा चुनें",
+  "jobs": {
+    "detail": {
+      "linkCopied": "Link copied",
+      "shareFailed": "Could not share this job",
+      "reportSubmitted": "Thanks — this listing has been reported",
+      "reportFailed": "Could not submit this report",
+      "title": "Job",
+      "notFound": "This job could not be found",
+      "skills": "Skills",
+      "apply": "Apply",
+      "applyOnMention": "Apply on Mention",
+      "share": "Share",
+      "report": "Report this listing"
+    },
+    "mine": {
+      "actionFailed": "That action failed",
+      "discardTitle": "Discard this draft?",
+      "discardMessage": "This closes the draft. It will no longer appear as active.",
+      "title": "My jobs",
+      "create": "Create job",
+      "loadFailed": "Could not load your jobs",
+      "emptyTitle": "No jobs yet",
+      "emptySubtitle": "Create a job listing for an organization or project account you operate.",
+      "publishedAgo": "Published {{time}}",
+      "createdAgo": "Created {{time}}",
+      "applications": "{{count}} applications",
+      "publish": "Publish",
+      "discard": "Discard",
+      "pause": "Pause",
+      "close": "Close",
+      "duplicate": "Duplicate",
+      "viewApplications": "View applications"
+    },
+    "discovery": {
+      "reportSubmitted": "Thanks — this listing has been reported",
+      "reportFailed": "Could not submit this report",
+      "reportTitle": "Report this listing",
+      "reportSubtitle": "This job is indexed from another site. Your report goes to its source, via Clarity.",
+      "unsave": "Remove from saved",
+      "save": "Save job",
+      "onMention": "On Mention",
+      "viaSource": "{{domain}} · via Clarity",
+      "report": "Report",
+      "saved": "Job saved",
+      "unsaved": "Removed from saved",
+      "searchPlaceholder": "Search jobs",
+      "location": "Location",
+      "hideFilters": "Hide filters",
+      "moreFilters": "More filters",
+      "datePosted": "Date posted",
+      "anyTime": "Any time",
+      "past24h": "Past 24h",
+      "pastWeek": "Past week",
+      "pastMonth": "Past month",
+      "errorTitle": "Could not load jobs",
+      "errorMessage": "Check your connection and try again.",
+      "emptyTitle": "No jobs found",
+      "emptySubtitle": "Try a different search or clear a filter.",
+      "title": "Jobs"
+    },
+    "create": {
+      "employerPickerTitle": "Publish as",
+      "noEmployers": "You do not operate an organization or project account yet. Create one to publish a job.",
+      "published": "Job published",
+      "savedDraft": "Draft saved",
+      "entitlementFailed": "This account cannot publish a job right now",
+      "failed": "Could not save this job",
+      "title": "Create job",
+      "employer": "Publish as",
+      "selectEmployer": "Select an organization or project",
+      "jobTitle": "Job title",
+      "description": "Description",
+      "location": "Location",
+      "hideLocationDetails": "Hide location details",
+      "addLocationDetails": "Add country / region / city (optional)",
+      "countryCode": "Country",
+      "region": "Region",
+      "city": "City",
+      "workplaceType": "Workplace type",
+      "notSpecified": "Not specified",
+      "employmentType": "Employment type",
+      "salary": "Salary (optional)",
+      "salaryMin": "Min",
+      "salaryMax": "Max",
+      "currency": "Currency",
+      "salaryInterval": "Per",
+      "skills": "Skills",
+      "addSkill": "Add a skill",
+      "applicationMode": "How do people apply?",
+      "applyViaMention": "On Mention",
+      "applyExternally": "External link",
+      "externalApplyUrl": "Application URL",
+      "applyViaMentionHint": "Applicants apply through Mention, and you’ll review applications from your dashboard.",
+      "saveDraft": "Save draft",
+      "publish": "Publish"
+    },
+    "edit": {
+      "saved": "Job updated",
+      "failed": "Could not save these changes",
+      "title": "Edit job",
+      "loadFailed": "Could not load this job",
+      "save": "Save changes"
+    },
+    "apply": {
+      "thisEmployer": "this employer",
+      "resumeAttached": "Resume attached",
+      "submitted": "Application sent",
+      "failed": "Could not submit your application",
+      "title": "Apply",
+      "unavailable": "This job cannot be applied to on Mention",
+      "notAccepting": "This job is not currently accepting applications",
+      "reviewTitle": "Review what you are sharing",
+      "reviewSubtitle": "This is exactly what {{employer}} will see. Nothing else about your Mention account is shared.",
+      "displayName": "Name",
+      "notProvided": "Not provided",
+      "contactMethod": "Contact method (email, etc.)",
+      "coverNote": "Cover note (optional)",
+      "portfolio": "Portfolio links (optional)",
+      "resume": "Resume",
+      "backToEdit": "Edit",
+      "submit": "Submit application",
+      "privacyNote": "Only the fields you fill in here are shared with the employer — never your posts, follows, likes or DMs.",
+      "addLink": "Add a link",
+      "attachResume": "Attach a resume",
+      "review": "Review and submit"
+    },
+    "applications": {
+      "title": "Applications",
+      "all": "All",
+      "forbidden": "Only this job’s operators can view applications",
+      "errorTitle": "Could not load applications",
+      "emptyTitle": "No applications yet",
+      "unnamed": "Applicant",
+      "viewDetails": "View details",
+      "statusUpdated": "Status updated",
+      "statusFailed": "Could not update status",
+      "noteFailed": "Could not add this note",
+      "appliedAgo": "Applied {{time}}",
+      "contact": "Contact",
+      "coverNote": "Cover note",
+      "portfolio": "Portfolio links",
+      "viewResume": "View resume",
+      "changeStatus": "Change status",
+      "internalNotes": "Internal notes (never shown to the applicant)",
+      "noNotes": "No notes yet",
+      "addNote": "Add a note"
+    }
+  },
+  "profile": {
+    "jobs": {
+      "manage": "Manage jobs",
+      "empty": "No jobs yet"
+    },
+    "tabs": {
+      "jobs": "Jobs"
+    }
+  },
+  "post": {
+    "job": {
+      "label": "Job"
+    }
+  },
+  "common": {
+    "add": "Add",
+    "loading": "Loading…",
+    "view": "View"
+  },
+  "compose": {
+    "job": {
+      "add": "Attach a job",
+      "title": "Attach a job",
+      "loadError": "Could not load your jobs",
+      "empty": "{{employer}} has no job listings yet. Create one from your Jobs dashboard first."
+    }
+  }
 }
