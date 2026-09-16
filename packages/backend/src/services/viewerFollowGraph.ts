@@ -11,7 +11,7 @@
 
 import { findActorsByUris } from '../db/federation/actorRepository';
 import { distinctRemoteActorUris } from '../db/federation/followRepository';
-import { extractFollowingIds, type OxyClient } from '../utils/privacyHelpers';
+import { getFollowingIds, type OxyClient } from '../utils/privacyHelpers';
 import { logger } from '../utils/logger';
 
 /**
@@ -76,7 +76,7 @@ export async function loadFollowedAuthorIds(
   const ids: string[] = [];
   if (oxyClient) {
     try {
-      ids.push(...extractFollowingIds(await oxyClient.getUserFollowing(userId)));
+      ids.push(...await getFollowingIds(userId, oxyClient));
     } catch (error) {
       logger.warn('[viewerFollowGraph] Failed to load following list', error);
     }

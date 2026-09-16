@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
@@ -46,16 +47,23 @@ const BOOSTER_OXY_ID = scope.user('booster');
 const ORIGINAL_AUTHOR_OXY_ID = scope.user('original-author');
 const VIEWER_ID = scope.user('viewer');
 
-const { getUserById, getUsersByIds, cacheStore } = vi.hoisted(() => ({
+const { getUserById, getUsersByIds, getUserFollowing, cacheStore } = vi.hoisted(() => ({
   getUserById: vi.fn(),
   getUsersByIds: vi.fn(),
+  /**
+   * The viewer's following list as OXY answers it. The two followers-only cases
+   * below used to fake a follow by stubbing `extractFollowingIds`, an internal
+   * of `privacyHelpers`; stating it here instead means the ACL under test is
+   * reached the way production reaches it, through the graph read.
+   */
+  getUserFollowing: vi.fn(async () => [] as unknown[]),
   cacheStore: new Map<string, CachedUserSummary>(),
 }));
 
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
     getUserById,
-    getUserFollowing: vi.fn(async () => []),
+    getUserFollowing,
     getUserFollowers: vi.fn(async () => []),
   }),
 }));
@@ -71,11 +79,18 @@ vi.mock('../../utils/oxyHelpers', () => ({
 // Privacy helpers: no blocks/restricts, empty follows. The authenticated path
 // loads these; we return empty so the only difference from anon is "viewerId is
 // set" — which is precisely what the cold-boot refetch changes.
-vi.mock('../../utils/privacyHelpers', () => ({
+/**
+ * The REAL module with only the two authoritative privacy reads stubbed to
+ * "nobody blocked". A wholesale literal stopped covering the module as it grew:
+ * the viewer's follow-graph reads live here now (cached per viewer), and a
+ * partial mock answered them with `undefined`, which the caller's soft-fail
+ * turned into "follows nobody". Everything real here is pure id-shape logic plus
+ * a fail-open cache, so keeping it real costs nothing and cannot drift again.
+ */
+vi.mock('../../utils/privacyHelpers', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../utils/privacyHelpers')>(),
   getBlockedUserIds: vi.fn(async () => []),
   getRestrictedUserIds: vi.fn(async () => []),
-  extractFollowingIds: vi.fn(() => []),
-  extractFollowersIds: vi.fn(() => []),
 }));
 
 vi.mock('../../services/userSummaryCache', () => ({
@@ -271,10 +286,12 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     });
     const boost = await seedBoost(original.id);
 
-    const { extractFollowingIds } = await import('../../utils/privacyHelpers');
-    vi.mocked(extractFollowingIds).mockReturnValueOnce([ORIGINAL_AUTHOR_OXY_ID]);
+    // A viewer id of its own: the graph read is cached per viewer, so a shared
+    // id would let a sibling case's "follows nobody" answer this one.
+    const follower = scope.user(`follower-${randomUUID()}`);
+    getUserFollowing.mockResolvedValue([{ id: ORIGINAL_AUTHOR_OXY_ID }]);
 
-    const [hydrated] = await hydrate(boost, VIEWER_ID);
+    const [hydrated] = await hydrate(boost, follower);
 
     expect(hydrated.boost?.originalPost?.id).toBe(original.id);
     expect(hydrated.originalPost?.id).toBe(original.id);
@@ -480,11 +497,11 @@ describe('PostHydrationService — boost original embedding is deterministic', (
     });
     const boost = await seedBoost(original.id);
 
-    const { extractFollowingIds } = await import('../../utils/privacyHelpers');
-    vi.mocked(extractFollowingIds).mockReturnValue([ORIGINAL_AUTHOR_OXY_ID]);
+    const follower = scope.user(`follower-${randomUUID()}`);
+    getUserFollowing.mockResolvedValue([{ id: ORIGINAL_AUTHOR_OXY_ID }]);
     try {
       const [broadcast] = await service.hydratePosts([boost], {
-        viewerId: VIEWER_ID,
+        viewerId: follower,
         maxDepth: 1,
         publicReferencesOnly: true,
         includeLinkMetadata: false,
@@ -496,14 +513,14 @@ describe('PostHydrationService — boost original embedding is deterministic', (
       // The control, so the case cannot pass because the fixture is simply
       // invisible: the SAME viewer, without `publicReferencesOnly`, does see it.
       const [personal] = await service.hydratePosts([boost], {
-        viewerId: VIEWER_ID,
+        viewerId: follower,
         maxDepth: 1,
         includeLinkMetadata: false,
         includeFullMetadata: false,
       });
       expect(personal.boost?.originalPost?.id).toBe(original.id);
     } finally {
-      vi.mocked(extractFollowingIds).mockReturnValue([]);
+      getUserFollowing.mockResolvedValue([]);
     }
   });
 });

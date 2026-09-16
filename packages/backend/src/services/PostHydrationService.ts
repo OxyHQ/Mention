@@ -33,8 +33,8 @@ import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 import {
   getBlockedUserIds,
   getRestrictedUserIds,
-  extractFollowingIds,
-  extractFollowersIds,
+  getFollowingIds,
+  getFollowerIds,
   OxyClient,
   ViewerGraphContext,
   ViewerPrivacyContext,
@@ -1352,19 +1352,19 @@ export class PostHydrationService {
       // pre-resolve the graph — fall back to the live Oxy fetch (unchanged).
       try {
         const oxyForFollows = client || getRuntimeOxyClient();
-        const [followingResponse, followersResponse] = await Promise.all([
-          oxyForFollows.getUserFollowing(viewerId).catch((error: unknown) => {
+        const [followingIds, followerIds] = await Promise.all([
+          getFollowingIds(viewerId, oxyForFollows).catch((error: unknown) => {
             logger.warn('[PostHydration] getUserFollowing failed:', error);
             return [];
           }),
-          oxyForFollows.getUserFollowers(viewerId).catch((error: unknown) => {
+          getFollowerIds(viewerId, oxyForFollows).catch((error: unknown) => {
             logger.warn('[PostHydration] getUserFollowers failed:', error);
             return [];
           }),
         ]);
 
-        extractFollowingIds(followingResponse).forEach((id) => context.follows.add(String(id)));
-        extractFollowersIds(followersResponse).forEach((id) => context.followedBy.add(String(id)));
+        followingIds.forEach((id) => context.follows.add(String(id)));
+        followerIds.forEach((id) => context.followedBy.add(String(id)));
       } catch (error) {
         logger.warn('[PostHydration] Failed to load follower/following context:', error);
       }

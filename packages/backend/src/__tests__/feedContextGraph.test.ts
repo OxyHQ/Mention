@@ -20,8 +20,23 @@ vi.mock('../services/UserPreferenceService', () => ({
   userPreferenceService: { getUserBehavior: vi.fn(async () => undefined), getTopRegion: vi.fn(() => undefined) },
 }));
 
+import { randomUUID } from 'node:crypto';
+
 import { loadViewerFeedContext } from '../mtn/feed/feedContext';
 import type { OxyClient } from '../utils/privacyHelpers';
+
+/**
+ * A viewer id nobody else has used.
+ *
+ * The graph reads are cached PER VIEWER now (`utils/privacyHelpers`, Redis with
+ * stale-while-revalidate), so a fixed id would let the first case in this file
+ * answer every later one from the cache and the Oxy call counts below would
+ * assert nothing. Each case gets its own reader, which is also what makes them
+ * order-independent.
+ */
+function freshViewer(): string {
+  return `viewer-${randomUUID()}`;
+}
 
 function makeOxyClient(overrides: Partial<OxyClient> = {}): {
   client: OxyClient;
@@ -47,13 +62,14 @@ beforeEach(() => {
 describe('loadViewerFeedContext — viewer-graph resolution', () => {
   it('resolves following and followers exactly once each and threads both onto the context', async () => {
     const { client, getUserFollowing, getUserFollowers } = makeOxyClient();
+    const viewer = freshViewer();
 
-    const context = await loadViewerFeedContext('viewer1', client);
+    const context = await loadViewerFeedContext(viewer, client);
 
     expect(getUserFollowing).toHaveBeenCalledTimes(1);
-    expect(getUserFollowing).toHaveBeenCalledWith('viewer1');
+    expect(getUserFollowing).toHaveBeenCalledWith(viewer);
     expect(getUserFollowers).toHaveBeenCalledTimes(1);
-    expect(getUserFollowers).toHaveBeenCalledWith('viewer1');
+    expect(getUserFollowers).toHaveBeenCalledWith(viewer);
 
     expect(context.followingIds).toEqual(['a', 'b']);
     expect(context.followerIds).toEqual(['x', 'y', 'z']);
@@ -66,7 +82,7 @@ describe('loadViewerFeedContext — viewer-graph resolution', () => {
       }),
     });
 
-    const context = await loadViewerFeedContext('viewer1', client);
+    const context = await loadViewerFeedContext(freshViewer(), client);
 
     expect(getUserFollowing).toHaveBeenCalledTimes(1);
     expect(context.followingIds).toEqual(['a', 'b']);
@@ -80,7 +96,7 @@ describe('loadViewerFeedContext — viewer-graph resolution', () => {
       }),
     });
 
-    const context = await loadViewerFeedContext('viewer1', client);
+    const context = await loadViewerFeedContext(freshViewer(), client);
 
     expect(context.followingIds).toEqual([]);
     expect(context.followerIds).toEqual(['x', 'y', 'z']);
@@ -103,13 +119,14 @@ describe('loadViewerFeedContext — viewer-graph resolution', () => {
       getRestrictedUsers: vi.fn(async () => []),
     } as unknown as OxyClient;
 
-    const pending = loadViewerFeedContext('viewer1', client);
-    // Let the microtask queue drain so both calls have been dispatched.
-    await Promise.resolve();
-    await Promise.resolve();
+    const pending = loadViewerFeedContext(freshViewer(), client);
 
-    // followers was dispatched WITHOUT waiting for following to settle → concurrent.
-    expect(getUserFollowers).toHaveBeenCalledTimes(1);
+    // followers is dispatched WITHOUT waiting for following to settle → concurrent.
+    // AWAITED rather than counted after N microtasks: each read now consults the
+    // per-viewer cache first, so the dispatch is one Redis round trip away and a
+    // fixed number of ticks proves nothing either way. `following` is still
+    // gated, so this can only pass if the two do not serialise.
+    await vi.waitFor(() => expect(getUserFollowers).toHaveBeenCalledTimes(1));
 
     followingResolve?.();
     const context = await pending;

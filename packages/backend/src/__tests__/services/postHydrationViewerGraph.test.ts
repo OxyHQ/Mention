@@ -13,7 +13,12 @@ import type { CachedUserSummary } from '../../services/userSummaryCache';
  */
 
 const AUTHOR_OXY_ID = 'oxy-author';
-const VIEWER_ID = 'oxy-viewer';
+/**
+ * A viewer nobody else has used: the graph reads are cached per viewer, so a
+ * fixed id would let the first case answer the later ones and the Oxy call
+ * counts below would assert nothing.
+ */
+const VIEWER_ID = `oxy-viewer-${randomUUID()}`;
 const POST_ID = '650000000000000000000010';
 
 const { getUsersByIds, getUserFollowing, getUserFollowers } = vi.hoisted(() => ({
@@ -37,14 +42,18 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
-vi.mock('../../utils/privacyHelpers', () => ({
+/**
+ * The REAL module with only the two authoritative privacy reads stubbed to
+ * "nobody blocked". A wholesale literal stopped covering the module as it grew:
+ * the viewer's follow-graph reads live here now (cached per viewer), and a
+ * partial mock answered them with `undefined`, which the caller's soft-fail
+ * turned into "follows nobody". Everything real here is pure id-shape logic plus
+ * a fail-open cache, so keeping it real costs nothing and cannot drift again.
+ */
+vi.mock('../../utils/privacyHelpers', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../utils/privacyHelpers')>(),
   getBlockedUserIds: vi.fn(async () => []),
   getRestrictedUserIds: vi.fn(async () => []),
-  // Real extraction so a threaded/fetched list maps to ids faithfully.
-  extractFollowingIds: (res: unknown) =>
-    Array.isArray((res as { following?: unknown[] })?.following) ? (res as { following: string[] }).following : [],
-  extractFollowersIds: (res: unknown) =>
-    Array.isArray((res as { followers?: unknown[] })?.followers) ? (res as { followers: string[] }).followers : [],
 }));
 
 const cacheStore = new Map<string, CachedUserSummary>();
@@ -61,6 +70,8 @@ vi.mock('../../services/userSummaryCache', () => ({
     for (const [id, value] of entries) cacheStore.set(id, value);
   }),
 }));
+
+import { randomUUID } from 'node:crypto';
 
 import { PostHydrationService } from '../../services/PostHydrationService';
 
