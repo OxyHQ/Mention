@@ -90,7 +90,7 @@ async function employerDisplayName(employerOxyUserId: string): Promise<string> {
  *
  * A MODULE FUNCTION, deliberately not a class method: Express registers every
  * handler below DETACHED (`router.post('/:id/publish', jobsManagementController.publish)`),
- * so a handler that reached this through `this.transition(...)` would find
+ * so a handler that called a shared body through the receiver would find
  * `this` undefined at call time — the exact bug `polls.controller.ts` already
  * hit in production (recorded in its `serializePoll` docblock).
  */
