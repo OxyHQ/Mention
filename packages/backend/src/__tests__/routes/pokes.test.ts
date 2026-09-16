@@ -22,6 +22,9 @@ const mocks = vi.hoisted(() => ({
   getUserFollowing: vi.fn(),
   sendPushToUser: vi.fn(),
   formatPushForNotification: vi.fn(),
+  isUserBlocked: vi.fn(),
+  userScopedClient: vi.fn(),
+  getBlockedUserIds: vi.fn(),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -31,6 +34,17 @@ vi.mock('../../utils/oxyHelpers', () => ({
     getUserFollowers: mocks.getUserFollowers,
     getUserFollowing: mocks.getUserFollowing,
   }),
+  // A stand-in for the caller's own bearer-scoped client — real shape
+  // verified in `oxyHelpers.test.ts`; here only the one method the block
+  // check calls is exercised.
+  createUserScopedOxyServices: (...args: unknown[]) => mocks.userScopedClient(...args),
+  // The route also asks for this to feed `getBlockedUserIds`; its own return
+  // value is irrelevant since that function is mocked below.
+  createScopedOxyClient: () => ({}),
+}));
+
+vi.mock('../../utils/privacyHelpers', () => ({
+  getBlockedUserIds: (...args: unknown[]) => mocks.getBlockedUserIds(...args),
 }));
 
 vi.mock('../../utils/push', () => ({
@@ -86,6 +100,9 @@ beforeEach(() => {
   mocks.getUserFollowers.mockResolvedValue([]);
   mocks.getUserFollowing.mockResolvedValue([]);
   mocks.formatPushForNotification.mockResolvedValue({ title: 't', body: 'b', data: {} });
+  mocks.isUserBlocked.mockResolvedValue(false);
+  mocks.userScopedClient.mockReturnValue({ isUserBlocked: mocks.isUserBlocked });
+  mocks.getBlockedUserIds.mockResolvedValue([]);
 });
 
 afterEach(async () => {
@@ -156,6 +173,57 @@ describe('POST /pokes/:userId', () => {
   });
 });
 
+describe('POST /pokes/:userId — the block relationship gate', () => {
+  it('refuses the first poke when a block exists between the two accounts, with zero side effects', async () => {
+    const poker = userId('poker');
+    const poked = userId('poked');
+    mocks.isUserBlocked.mockResolvedValue(true);
+
+    await request(makeApp(poker)).post(`/${poked}`).expect(403);
+
+    expect(mocks.isUserBlocked).toHaveBeenCalledWith(poked);
+    expect(await db.select().from(pokes).where(eq(pokes.pokerId, poker))).toEqual([]);
+    expect(await db.select().from(notifications).where(eq(notifications.recipientId, poked))).toEqual([]);
+    expect(mocks.sendPushToUser).not.toHaveBeenCalled();
+  });
+
+  it('refuses in the reverse direction the same way', async () => {
+    const poker = userId('poker');
+    const poked = userId('poked');
+    mocks.isUserBlocked.mockResolvedValue(true);
+
+    await request(makeApp(poked)).post(`/${poker}`).expect(403);
+    expect(await db.select().from(pokes).where(eq(pokes.pokerId, poked))).toEqual([]);
+  });
+
+  it('fails closed, not open, when the block relationship cannot be verified', async () => {
+    const poker = userId('poker');
+    const poked = userId('poked');
+    mocks.isUserBlocked.mockRejectedValue(new Error('Oxy privacy graph unavailable'));
+
+    await request(makeApp(poker)).post(`/${poked}`).expect(403);
+    expect(await db.select().from(pokes).where(eq(pokes.pokerId, poker))).toEqual([]);
+  });
+
+  it('fails closed when no user-scoped Oxy client is available for the request', async () => {
+    const poker = userId('poker');
+    const poked = userId('poked');
+    mocks.userScopedClient.mockReturnValue(undefined);
+
+    await request(makeApp(poker)).post(`/${poked}`).expect(403);
+    expect(await db.select().from(pokes).where(eq(pokes.pokerId, poker))).toEqual([]);
+  });
+
+  it('still lets an unblocked poke through', async () => {
+    const poker = userId('poker');
+    const poked = userId('poked');
+    mocks.isUserBlocked.mockResolvedValue(false);
+
+    await request(makeApp(poker)).post(`/${poked}`).expect(200, { poked: true });
+    expect(await db.select().from(pokes).where(eq(pokes.pokerId, poker))).toHaveLength(1);
+  });
+});
+
 describe('DELETE /pokes/:userId', () => {
   it('removes only the caller’s own poke in that direction', async () => {
     const poker = userId('poker');
@@ -213,6 +281,23 @@ describe('GET /pokes/received', () => {
     const res = await request(makeApp(viewer)).get('/received').expect(200);
     expect(res.body.pokes).toEqual([]);
   });
+
+  it('hides a poke from someone the viewer has since blocked, without deleting the row', async () => {
+    const viewer = userId('viewer');
+    const blocked = userId('blocked');
+    const other = userId('other');
+    await db.insert(pokes).values([
+      { pokerId: blocked, pokedId: viewer },
+      { pokerId: other, pokedId: viewer },
+    ]);
+    mocks.getBlockedUserIds.mockResolvedValue([blocked]);
+
+    const res = await request(makeApp(viewer)).get('/received').expect(200);
+
+    expect(res.body.pokes.map((poke: { user: { id: string } }) => poke.user.id)).toEqual([other]);
+    // Blocking does not rewrite history — the row itself survives.
+    expect(await db.select().from(pokes).where(eq(pokes.pokerId, blocked))).toHaveLength(1);
+  });
 });
 
 describe('GET /pokes/sent and /status', () => {
@@ -239,6 +324,21 @@ describe('GET /pokes/suggested', () => {
     mocks.getUserFollowers.mockResolvedValue({ followers: [oxyUser(alreadyPoked)] });
     mocks.getUserFollowing.mockResolvedValue({ following: [oxyUser(fresh), oxyUser(viewer)] });
     await request(makeApp(viewer)).post(`/${alreadyPoked}`).expect(200);
+
+    const res = await request(makeApp(viewer)).get('/suggested').expect(200);
+
+    expect(res.body.suggestions.map((entry: { user: { id: string } }) => entry.user.id)).toEqual([
+      fresh,
+    ]);
+  });
+
+  it('excludes a follow-graph member the caller has blocked', async () => {
+    const viewer = userId('viewer');
+    const blocked = userId('blocked');
+    const fresh = userId('fresh');
+
+    mocks.getUserFollowers.mockResolvedValue({ followers: [oxyUser(blocked), oxyUser(fresh)] });
+    mocks.getBlockedUserIds.mockResolvedValue([blocked]);
 
     const res = await request(makeApp(viewer)).get('/suggested').expect(200);
 

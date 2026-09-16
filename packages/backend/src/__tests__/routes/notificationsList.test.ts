@@ -482,25 +482,54 @@ describe('push tokens', () => {
     await request(makeApp(viewer)).post('/push-token').send({ token: ['a'] }).expect(400);
   });
 
-  it('PRE-EXISTING BUG: DELETE /push-token is shadowed by DELETE /:id and never unregisters', async () => {
+  it('unregisters a device, reaching the handler rather than the shadowing /:id route', async () => {
     /**
-     * `router.delete('/:id')` is declared BEFORE `router.delete('/push-token')`,
-     * so Express matches the parameterised route first and the unregister
-     * handler is unreachable — a device can be registered but never removed, so
-     * signing out does not stop the pushes.
-     *
-     * This predates the port and the port did not cause it, but it DID change
-     * how it fails: Mongo cast `'push-token'` to an ObjectId, threw, and answered
-     * 500, whereas a `text` id simply names no row and answers 404. Pinned here
-     * rather than fixed, because reordering the routes revives a dead endpoint
-     * and that is a behaviour change to decide deliberately, not a port. When
-     * someone does fix it, this test goes red and points at the decision.
+     * `router.delete('/:id')` used to be declared BEFORE `router.delete('/push-token')`,
+     * so Express matched the parameterised route first (`id = 'push-token'`) and
+     * this handler was unreachable — a device could be registered but never
+     * removed, so signing out did not stop the pushes. Fixed by declaring this
+     * route first; this test is what goes red if that ordering regresses.
      */
     const owner = viewerId();
     const deviceToken = token();
     await request(makeApp(owner)).post('/push-token').send({ token: deviceToken }).expect(200);
 
-    await request(makeApp(owner)).delete('/push-token').send({ token: deviceToken }).expect(404);
+    await request(makeApp(owner)).delete('/push-token').send({ token: deviceToken }).expect(200);
+    expect(await db.select().from(pushTokens).where(eq(pushTokens.token, deviceToken))).toHaveLength(0);
+  });
+
+  it('repeating the unregister is idempotent', async () => {
+    const owner = viewerId();
+    const deviceToken = token();
+    await request(makeApp(owner)).post('/push-token').send({ token: deviceToken }).expect(200);
+
+    await request(makeApp(owner)).delete('/push-token').send({ token: deviceToken }).expect(200);
+    // The row is already gone; a second unregister finds nothing to delete and
+    // still answers success rather than 404 — "not registered" is not an error.
+    await request(makeApp(owner)).delete('/push-token').send({ token: deviceToken }).expect(200);
+  });
+
+  it('will not let another account unregister a token it does not own', async () => {
+    const owner = viewerId();
+    const intruder = viewerId();
+    const deviceToken = token();
+    await request(makeApp(owner)).post('/push-token').send({ token: deviceToken }).expect(200);
+
+    await request(makeApp(intruder)).delete('/push-token').send({ token: deviceToken }).expect(200);
+    // Answers success either way (there is nothing case-specific to disclose),
+    // but the row itself must survive untouched.
     expect(await db.select().from(pushTokens).where(eq(pushTokens.token, deviceToken))).toHaveLength(1);
+  });
+
+  it('still 400s a missing token on unregister', async () => {
+    await request(makeApp(viewerId())).delete('/push-token').send({}).expect(400);
+  });
+
+  it('deleting an ordinary notification still works now that /push-token is registered first', async () => {
+    const viewer = viewerId();
+    const row = await seed(viewer, { id: objectIdShaped(1) });
+
+    await request(makeApp(viewer)).delete(`/${row.id}`).expect(200);
+    expect(await db.select().from(notifications).where(eq(notifications.id, row.id))).toHaveLength(0);
   });
 });
