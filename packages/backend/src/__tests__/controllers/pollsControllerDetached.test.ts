@@ -15,8 +15,10 @@
  *
  * **The wire format.** Storage moved from one document with an embedded option
  * array to three tables and the client did not: `frontend/services/pollService.ts`
- * reads `_id` on the poll AND on every option, treats `opt.votes` as an array of
- * voter ids, and names the timestamps `created_at`/`updated_at`.
+ * reads `_id` on the poll AND on every option, and names the timestamps
+ * `created_at`/`updated_at`. No option ever carries voter identities — a
+ * `voteCount` and the caller's own `viewerSelectedOptionIds`, never a list of
+ * who else voted, anonymous poll or not.
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -136,11 +138,14 @@ describe('polls controller called the way Express calls it', () => {
     const body = captured.body as { success: boolean; data: Record<string, unknown> };
     expect(body.success).toBe(true);
     expect(body.data._id).toBe(poll.id);
-    // Anonymous polls expose counts, never voter ids.
+    // Anonymous or not, options carry counts alone — never voter ids.
     expect(body.data.options).toEqual([
-      { _id: choices[0].id, text: 'yes', votes: 2 },
-      { _id: choices[1].id, text: 'no', votes: 0 },
+      { _id: choices[0].id, text: 'yes', voteCount: 2 },
+      { _id: choices[1].id, text: 'no', voteCount: 0 },
     ]);
+    // 'u1' voted for choices[0]; that is THEIR own selection, not the fact
+    // that 'u2' also voted there.
+    expect(body.data.viewerSelectedOptionIds).toEqual([choices[0].id]);
     expect(acl).toHaveBeenCalledWith(postId, 'u1');
   });
 
@@ -158,10 +163,15 @@ describe('polls controller called the way Express calls it', () => {
     });
 
     expect(next).not.toHaveBeenCalled();
-    const body = captured.body as { success: boolean; data: { options: Array<{ votes: string[] }> } };
+    const body = captured.body as {
+      success: boolean;
+      data: { options: Array<{ voteCount: number }>; viewerSelectedOptionIds: string[] };
+    };
     expect(body.success).toBe(true);
-    // Not anonymous, so the voter ids come back as the array the client expects.
-    expect(body.data.options[0].votes).toEqual(['u1']);
+    expect(body.data.options[0].voteCount).toBe(1);
+    // The voter's own response tells them what THEY picked — not a list of
+    // every voter, which this contract never sends regardless of anonymity.
+    expect(body.data.viewerSelectedOptionIds).toEqual([choices[0].id]);
     expect(await db.select().from(pollVotes).where(eq(pollVotes.pollId, poll.id))).toHaveLength(1);
   });
 
@@ -242,9 +252,12 @@ describe('createPoll', () => {
 
     expect(body.data.postId).toBe(postId);
     expect(body.data.createdBy).toBe(author);
-    // Mongoose named these `created_at`/`updated_at`, and the client reads them.
-    expect(body.data.created_at).toBeInstanceOf(Date);
-    expect(body.data.updated_at).toBeInstanceOf(Date);
+    // Mongoose named these `created_at`/`updated_at`, and the client reads
+    // them as ISO strings — the shape `PollDetail` declares and the shape a
+    // real `res.json()` would have produced from a `Date` anyway.
+    expect(body.data.created_at).toEqual(expect.any(String));
+    expect(body.data.updated_at).toEqual(expect.any(String));
+    expect(Number.isNaN(new Date(body.data.created_at as string).getTime())).toBe(false);
     expect(body.data).not.toHaveProperty('__v');
     expect((body.data.options as Array<{ text: string }>).map((o) => o.text)).toEqual([
       'Tabs',
@@ -345,14 +358,14 @@ describe('getResults', () => {
         id: string;
         totalVotes: number;
         isEnded: boolean;
-        results: Array<{ id: string; votes: number; percentage: number }>;
+        results: Array<{ id: string; voteCount: number; percentage: number }>;
       };
     };
 
     expect(body.data.id).toBe(poll.id);
     expect(body.data.totalVotes).toBe(3);
     expect(body.data.isEnded).toBe(false);
-    expect(body.data.results.map((r) => r.votes)).toEqual([2, 1]);
+    expect(body.data.results.map((r) => r.voteCount)).toEqual([2, 1]);
     expect(body.data.results[0].percentage).toBeCloseTo(66.67, 1);
   });
 

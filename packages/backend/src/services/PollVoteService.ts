@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, count, eq } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../db/postgres';
 import { pollOptions, pollVotes, polls } from '../db/schema/polls';
 
@@ -12,27 +12,21 @@ export type PollVoteFailureReason =
   | 'option_not_found'
   | 'already_voted';
 
-/**
- * One choice with the voters that picked it.
- *
- * Mongo held `votes: [String]` INSIDE each option subdocument and the API
- * published exactly that, so the array survives on the wire even though the rows
- * now live in `poll_votes`. Order is vote order, which is what `$push` gave.
- */
-export interface PollOptionRecord {
-  id: string;
-  text: string;
-  votes: string[];
-}
+/** The poll's own columns — everything about it EXCEPT its options and votes. */
+const POLL_HEADER_COLUMNS = {
+  id: polls.id,
+  question: polls.question,
+  postId: polls.postId,
+  createdBy: polls.createdBy,
+  endsAt: polls.endsAt,
+  isMultipleChoice: polls.isMultipleChoice,
+  isAnonymous: polls.isAnonymous,
+  createdAt: polls.createdAt,
+  updatedAt: polls.updatedAt,
+} as const;
 
-/**
- * A poll and its options, reassembled from the three tables.
- *
- * This is the storage-neutral shape both the HTTP controller and the federation
- * path work with. `polls.controller.ts` turns it into the response body (which
- * still carries `_id` and the Mongoose-named `created_at`/`updated_at`).
- */
-export interface PollRecord {
+/** A poll's own row, with no option or vote data — cheap enough to read before deciding an ACL. */
+export interface PollHeader {
   id: string;
   question: string;
   postId: string | null;
@@ -42,67 +36,120 @@ export interface PollRecord {
   isAnonymous: boolean;
   createdAt: Date;
   updatedAt: Date;
-  options: PollOptionRecord[];
+}
+
+/** One option's tally, with no voter identities attached. */
+export interface PollOptionSummary {
+  id: string;
+  text: string;
+  voteCount: number;
+}
+
+/**
+ * A poll as a specific viewer may see it: the header, every option's COUNT
+ * (never its voters), and that viewer's own selection.
+ */
+export interface PollSummary extends PollHeader {
+  options: PollOptionSummary[];
+  /** The option ids THIS viewer voted for. Never another voter's. */
+  viewerSelectedOptionIds: string[];
 }
 
 export type PollVoteResult =
-  | { ok: true; poll: PollRecord }
+  | { ok: true; poll: PollSummary }
   | { ok: false; reason: PollVoteFailureReason };
 
-/**
- * Load a poll with its options and votes.
- *
- * Lives here rather than in the controller because the vote path has to re-read
- * the poll it just wrote in order to answer with it, and the two readers must
- * not be able to disagree about ordering or about how an option with no votes is
- * represented (an empty array, never a missing key).
- *
- * Takes a {@link DatabaseOrTransaction} so the post-vote read happens INSIDE the
- * voting transaction — a plain `Database` handle would run on another connection
- * and could observe the poll without the vote that was just recorded.
- */
-export async function loadPollRecord(
+/** Read a poll's own row. No options, no votes — the minimum an ACL needs. */
+export async function loadPollHeader(
   db: DatabaseOrTransaction,
   pollId: string,
-): Promise<PollRecord | null> {
-  const [poll] = await db.select().from(polls).where(eq(polls.id, pollId)).limit(1);
-  if (!poll) return null;
+): Promise<PollHeader | null> {
+  const [header] = await db
+    .select(POLL_HEADER_COLUMNS)
+    .from(polls)
+    .where(eq(polls.id, pollId))
+    .limit(1);
+  return header ?? null;
+}
 
-  const options = await db
+/** A poll's options in author order. Bounded by option count, never by vote count. */
+async function loadPollOptions(
+  db: DatabaseOrTransaction,
+  pollId: string,
+): Promise<Array<{ id: string; text: string }>> {
+  return db
     .select({ id: pollOptions.id, text: pollOptions.text })
     .from(pollOptions)
     .where(eq(pollOptions.pollId, pollId))
     .orderBy(asc(pollOptions.position));
+}
 
-  // `poll_votes.poll_id` is denormalized from the option precisely so this is one
-  // indexed read rather than a fan-out per option.
-  const votes = await db
-    .select({ optionId: pollVotes.optionId, userId: pollVotes.userId })
+/**
+ * Per-option vote counts and one viewer's own selection — an aggregate and a
+ * viewer-scoped read, NEITHER of which materializes another voter's identity
+ * in the application. Both are bounded by option count and by this viewer's
+ * own vote count; neither grows with the poll's total voter count the way
+ * reconstructing every option's voter array in Node used to.
+ */
+async function loadPollVoteSummary(
+  db: DatabaseOrTransaction,
+  pollId: string,
+  viewerId: string,
+): Promise<{ counts: Map<string, number>; viewerOptionIds: string[] }> {
+  // Sequential, not `Promise.all`: a transaction's connection processes one
+  // statement at a time, and this same function runs inside `record`'s
+  // transaction as well as against a plain pooled handle.
+  const countRows = await db
+    .select({ optionId: pollVotes.optionId, voteCount: count() })
     .from(pollVotes)
     .where(eq(pollVotes.pollId, pollId))
-    .orderBy(asc(pollVotes.createdAt), asc(pollVotes.id));
-
-  const votersByOption = new Map<string, string[]>(options.map((option) => [option.id, []]));
-  for (const vote of votes) {
-    votersByOption.get(vote.optionId)?.push(vote.userId);
-  }
+    .groupBy(pollVotes.optionId);
+  const viewerRows = await db
+    .select({ optionId: pollVotes.optionId })
+    .from(pollVotes)
+    .where(and(eq(pollVotes.pollId, pollId), eq(pollVotes.userId, viewerId)));
 
   return {
-    id: poll.id,
-    question: poll.question,
-    postId: poll.postId,
-    createdBy: poll.createdBy,
-    endsAt: poll.endsAt,
-    isMultipleChoice: poll.isMultipleChoice,
-    isAnonymous: poll.isAnonymous,
-    createdAt: poll.createdAt,
-    updatedAt: poll.updatedAt,
+    counts: new Map(countRows.map((row) => [row.optionId, row.voteCount])),
+    viewerOptionIds: viewerRows.map((row) => row.optionId),
+  };
+}
+
+/** Merge a header, its options and a vote summary into one {@link PollSummary}. No I/O. */
+function composePollSummary(
+  header: PollHeader,
+  options: Array<{ id: string; text: string }>,
+  counts: Map<string, number>,
+  viewerOptionIds: string[],
+): PollSummary {
+  return {
+    ...header,
     options: options.map((option) => ({
       id: option.id,
       text: option.text,
-      votes: votersByOption.get(option.id) ?? [],
+      voteCount: counts.get(option.id) ?? 0,
     })),
+    viewerSelectedOptionIds: viewerOptionIds,
   };
+}
+
+/**
+ * The full poll a specific viewer would see: header, per-option counts, and
+ * that viewer's own selection. The general-purpose read — `getPoll`,
+ * `createPoll` and `updatePollPostId` all use this; `record` below builds its
+ * own success value inline because it already holds the header and options
+ * from earlier in the same transaction.
+ */
+export async function loadPollSummary(
+  db: DatabaseOrTransaction,
+  pollId: string,
+  viewerId: string,
+): Promise<PollSummary | null> {
+  const header = await loadPollHeader(db, pollId);
+  if (!header) return null;
+  const options = await loadPollOptions(db, pollId);
+  const { counts, viewerOptionIds } = await loadPollVoteSummary(db, pollId, viewerId);
+  return composePollSummary(header, options, counts, viewerOptionIds);
 }
 
 /** Picks the option a caller meant out of a poll's ordered option list. */
@@ -138,6 +185,17 @@ type OptionSelector = (options: Array<{ id: string; text: string }>) => { id: st
  * The lock is taken uniformly rather than only on the single-choice branch: one
  * code path is worth more than a saved lock on a poll that is already the row
  * every vote touches.
+ *
+ * ## What runs under the lock, and why it got shorter
+ *
+ * The header select now grabs every column `PollHeader` needs (not just the
+ * three the guard reads), so the row this transaction already locked can also
+ * serve as the success response's header — no second full-poll reload after
+ * the insert. What DOES still run under the lock is `loadPollVoteSummary`: the
+ * counts it returns must reflect the vote this same transaction just wrote, so
+ * reading them after `COMMIT` could race a concurrent read. It is bounded by
+ * option count and by this voter's own vote count, never by total voters, so
+ * it does not reintroduce the cost this replaces.
  */
 class PollVoteService {
   /** Record a vote identified by the option's id (the local HTTP vote route). */
@@ -171,25 +229,16 @@ class PollVoteService {
     selectOption: OptionSelector,
   ): Promise<PollVoteResult> {
     return getDb().transaction(async (tx): Promise<PollVoteResult> => {
-      const [poll] = await tx
-        .select({
-          id: polls.id,
-          endsAt: polls.endsAt,
-          isMultipleChoice: polls.isMultipleChoice,
-        })
+      const [header] = await tx
+        .select(POLL_HEADER_COLUMNS)
         .from(polls)
         .where(eq(polls.id, pollId))
         .limit(1)
         .for('update');
-      if (!poll) return { ok: false, reason: 'poll_not_found' };
-      if (new Date() > poll.endsAt) return { ok: false, reason: 'poll_ended' };
+      if (!header) return { ok: false, reason: 'poll_not_found' };
+      if (new Date() > header.endsAt) return { ok: false, reason: 'poll_ended' };
 
-      const options = await tx
-        .select({ id: pollOptions.id, text: pollOptions.text })
-        .from(pollOptions)
-        .where(eq(pollOptions.pollId, pollId))
-        .orderBy(asc(pollOptions.position));
-
+      const options = await loadPollOptions(tx, pollId);
       const option = selectOption(options);
       if (!option) return { ok: false, reason: 'option_not_found' };
 
@@ -199,7 +248,7 @@ class PollVoteService {
         .select({ id: pollVotes.id })
         .from(pollVotes)
         .where(
-          poll.isMultipleChoice
+          header.isMultipleChoice
             ? and(eq(pollVotes.optionId, option.id), eq(pollVotes.userId, voterId))
             : and(eq(pollVotes.pollId, pollId), eq(pollVotes.userId, voterId)),
         )
@@ -212,10 +261,8 @@ class PollVoteService {
         userId: voterId,
       });
 
-      const updated = await loadPollRecord(tx, pollId);
-      // Unreachable while the row lock above is held; answering `poll_not_found`
-      // rather than asserting keeps a lost poll from becoming a 500.
-      return updated ? { ok: true, poll: updated } : { ok: false, reason: 'poll_not_found' };
+      const { counts, viewerOptionIds } = await loadPollVoteSummary(tx, pollId, voterId);
+      return { ok: true, poll: composePollSummary(header, options, counts, viewerOptionIds) };
     });
   }
 }

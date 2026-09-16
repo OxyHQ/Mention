@@ -10,11 +10,14 @@ import { config } from '../config';
 import { createError } from '../utils/error';
 import { logger } from '../utils/logger';
 import {
-  loadPollRecord,
+  loadPollHeader,
+  loadPollSummary,
   pollVoteService,
-  type PollRecord,
+  type PollHeader,
+  type PollSummary,
 } from '../services/PollVoteService';
 import { postHydrationService } from '../services/PostHydrationService';
+import type { PollDetail, PollResultOption, PollResults } from '@mention/shared-types';
 
 /** Default poll lifetime when the client does not supply `endsAt`. */
 const DEFAULT_POLL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -92,14 +95,14 @@ const voteSchema = z.object({
 });
 
 /**
- * The poll as it goes on the wire.
+ * The poll as it goes on the wire — {@link PollDetail} in `@mention/shared-types`.
  *
  * Storage moved from one document with an embedded option array to three tables,
  * and NONE of that may reach a client: `frontend/services/pollService.ts` types
- * `_id` on the poll AND on every option, reads `opt.votes` as an array of voter
- * ids, and names the timestamps `created_at`/`updated_at` — which is what
- * `models/Poll.ts` asked Mongoose for (`timestamps: { createdAt: 'created_at',
- * updatedAt: 'updated_at' }`), not the camelCase every other model uses.
+ * `_id` on the poll AND on every option, and names the timestamps
+ * `created_at`/`updated_at` — which is what `models/Poll.ts` asked Mongoose for
+ * (`timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }`), not the
+ * camelCase every other model uses.
  *
  * `__v` is the one Mongoose artefact NOT reproduced: no reader has ever looked
  * at it, and `schema/CONVENTIONS.md` forbids carrying it into Postgres. Same
@@ -110,29 +113,35 @@ const voteSchema = z.object({
  * state was a `temp_…` placeholder, a write-order artefact the schema
  * deliberately stores as NULL (`db/schema/polls.ts`).
  *
+ * No option ever carries voter identities, anonymous poll or not — see
+ * {@link PollDetailOption} in `@mention/shared-types` for why. `poll` already
+ * carries only THIS viewer's own selection (`PollVoteService` resolved it), so
+ * this function does no anonymity branching of its own; it cannot leak what it
+ * was never handed.
+ *
  * A module function, NOT a method: Express registers handlers detached
  * (`router.get('/:id', pollsController.getPoll)`), so a handler reaching this
  * through `this` gets `undefined` at call time and throws — which is exactly
  * how `GET /polls/:id` and the success path of `POST /polls/:id/vote` came to
  * answer 500 in production (the vote was recorded, then the response blew up).
  */
-function serializePoll(poll: PollRecord) {
+function serializePoll(poll: PollSummary): PollDetail {
   return {
     _id: poll.id,
     question: poll.question,
     options: poll.options.map((option) => ({
       _id: option.id,
       text: option.text,
-      // Anonymous polls expose counts, never voter ids.
-      votes: poll.isAnonymous ? option.votes.length : option.votes,
+      voteCount: option.voteCount,
     })),
     ...(poll.postId === null ? {} : { postId: poll.postId }),
     createdBy: poll.createdBy,
-    endsAt: poll.endsAt,
+    endsAt: poll.endsAt.toISOString(),
     isMultipleChoice: poll.isMultipleChoice,
     isAnonymous: poll.isAnonymous,
-    created_at: poll.createdAt,
-    updated_at: poll.updatedAt,
+    created_at: poll.createdAt.toISOString(),
+    updated_at: poll.updatedAt.toISOString(),
+    viewerSelectedOptionIds: poll.viewerSelectedOptionIds,
   };
 }
 
@@ -168,7 +177,7 @@ function validationError(res: Response, message: string) {
  * creator; once attached, the post gate covers status, visibility, follows,
  * blocks, profile privacy, and collaborators in one place.
  */
-async function canViewerAccessPoll(poll: PollRecord, viewerId: string): Promise<boolean> {
+async function canViewerAccessPoll(poll: PollHeader, viewerId: string): Promise<boolean> {
   if (poll.postId === null) return poll.createdBy === viewerId;
   try {
     return await postHydrationService.canViewerReadPostId(poll.postId, viewerId);
@@ -301,7 +310,7 @@ class PollsController {
               .where(eq(posts.id, attachedPostId));
           }
 
-          const record = await loadPollRecord(tx, row.id);
+          const record = await loadPollSummary(tx, row.id, userId);
           if (!record) throw new Error(`Poll ${row.id} vanished inside its own transaction`);
           return record;
         });
@@ -346,9 +355,16 @@ class PollsController {
         });
       }
 
-      const poll = await loadPollRecord(getDb(), id);
       const viewerId = req.user?.id;
-      if (!poll || !viewerId || !(await canViewerAccessPoll(poll, viewerId))) return pollNotFound(res);
+      if (!viewerId) return pollNotFound(res);
+
+      // The ACL runs off the header alone — a refused viewer costs one
+      // indexed row lookup, not every option's vote count.
+      const header = await loadPollHeader(getDb(), id);
+      if (!header || !(await canViewerAccessPoll(header, viewerId))) return pollNotFound(res);
+
+      const poll = await loadPollSummary(getDb(), id, viewerId);
+      if (!poll) return pollNotFound(res);
 
       res.json({
         success: true,
@@ -380,8 +396,11 @@ class PollsController {
         });
       }
 
-      const poll = await loadPollRecord(getDb(), id);
-      if (!poll || !(await canViewerAccessPoll(poll, userId))) return pollNotFound(res);
+      // The ACL runs off the header alone, before the write: the vote path
+      // used to hydrate every voter on the poll just to decide whether the
+      // caller may even see it.
+      const header = await loadPollHeader(getDb(), id);
+      if (!header || !(await canViewerAccessPoll(header, userId))) return pollNotFound(res);
 
       // Record the vote through the shared service (the SAME atomic dedup path the
       // inbound ActivityPub poll-vote handler uses), then map its result to HTTP.
@@ -417,31 +436,33 @@ class PollsController {
         });
       }
 
-      const poll = await loadPollRecord(getDb(), id);
       const viewerId = req.user?.id;
-      if (!poll || !viewerId || !(await canViewerAccessPoll(poll, viewerId))) return pollNotFound(res);
+      if (!viewerId) return pollNotFound(res);
 
-      // Calculate results
-      const totalVotes = poll.options.reduce((sum, option) => sum + option.votes.length, 0);
-      const results = poll.options.map(option => ({
+      const header = await loadPollHeader(getDb(), id);
+      if (!header || !(await canViewerAccessPoll(header, viewerId))) return pollNotFound(res);
+
+      const poll = await loadPollSummary(getDb(), id, viewerId);
+      if (!poll) return pollNotFound(res);
+
+      const totalVotes = poll.options.reduce((sum, option) => sum + option.voteCount, 0);
+      const results: PollResultOption[] = poll.options.map((option) => ({
         id: option.id,
         text: option.text,
-        votes: option.votes.length,
-        percentage: totalVotes > 0 ? (option.votes.length / totalVotes) * 100 : 0
+        voteCount: option.voteCount,
+        percentage: totalVotes > 0 ? (option.voteCount / totalVotes) * 100 : 0,
       }));
 
-      res.json({
-        success: true,
-        data: {
-          id: poll.id,
-          question: poll.question,
-          results,
-          totalVotes,
-          endsAt: poll.endsAt,
-          isEnded: new Date() > poll.endsAt,
-          isAnonymous: poll.isAnonymous
-        }
-      });
+      const body: PollResults = {
+        id: poll.id,
+        question: poll.question,
+        results,
+        totalVotes,
+        endsAt: poll.endsAt.toISOString(),
+        isEnded: new Date() > poll.endsAt,
+        isAnonymous: poll.isAnonymous,
+      };
+      res.json({ success: true, data: body });
     } catch (error) {
       logger.error('[Polls] Error fetching poll results:', error);
       next(createError(500, 'Error fetching poll results'));
@@ -586,7 +607,7 @@ class PollsController {
       const updated = await getDb().transaction(async (tx) => {
         await tx.update(polls).set({ postId }).where(eq(polls.id, poll.id));
         await tx.update(posts).set({ contentPollId: poll.id }).where(eq(posts.id, postId));
-        const record = await loadPollRecord(tx, poll.id);
+        const record = await loadPollSummary(tx, poll.id, userId);
         if (!record) throw new Error(`Poll ${poll.id} vanished inside its own transaction`);
         return record;
       });

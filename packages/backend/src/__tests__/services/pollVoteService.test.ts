@@ -13,8 +13,12 @@
  *    the second has a unique constraint behind it (`poll_votes_option_id_user_id_key`);
  *    the first is held by the `select … for update` on the poll row, which the
  *    concurrency test below exercises directly.
- *  - **The wire array survives.** Mongo published `options[].votes` as an array
- *    of voter ids in vote order; the rows have to come back the same way.
+ *  - **No voter identity ever comes back, from either side of the anonymity
+ *    line.** `options[].votes` used to publish the array of voter ids Mongo
+ *    held for a visible poll (and, for an anonymous one, its own `.length`
+ *    under the SAME field — the ambiguity that crashed the poll card). Both are
+ *    gone: `voteCount` is unconditionally a number, and `viewerSelectedOptionIds`
+ *    carries only the CALLER's own selection.
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -24,7 +28,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { uuidv7 } from '@oxy.so/db';
 import { pollOptions, pollVotes, polls } from '../../db/schema/polls';
-import { loadPollRecord, pollVoteService } from '../../services/PollVoteService';
+import { loadPollHeader, loadPollSummary, pollVoteService } from '../../services/PollVoteService';
 
 let db: Database;
 const createdPollIds: string[] = [];
@@ -80,7 +84,7 @@ afterAll(async () => {
 });
 
 describe('recordVoteByOptionId — the local HTTP vote route', () => {
-  it('records the vote and returns the poll with the voter on that option', async () => {
+  it('records the vote and returns counts plus the voter\'s own selection', async () => {
     const { poll, options } = await seedPoll();
     const voter = `voter-${randomUUID()}`;
 
@@ -89,12 +93,32 @@ describe('recordVoteByOptionId — the local HTTP vote route', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.poll.options.map((option) => option.text)).toEqual(['Red', 'Blue']);
-    expect(result.poll.options[0].votes).toEqual([]);
-    expect(result.poll.options[1].votes).toEqual([voter]);
+    expect(result.poll.options[0].voteCount).toBe(0);
+    expect(result.poll.options[1].voteCount).toBe(1);
+    expect(result.poll.viewerSelectedOptionIds).toEqual([options[1].id]);
+    // The rest of `PollHeader` rides along unchanged.
+    expect(result.poll.id).toBe(poll.id);
+    expect(result.poll.question).toBe('Favourite colour?');
 
     const rows = await voteRows(poll.id);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ optionId: options[1].id, pollId: poll.id, userId: voter });
+  });
+
+  it('reports another voter\'s ballot only as a count, never in viewerSelectedOptionIds', async () => {
+    const { poll, options } = await seedPoll();
+    const first = `voter-a-${randomUUID()}`;
+    const second = `voter-b-${randomUUID()}`;
+
+    await pollVoteService.recordVoteByOptionId(poll.id, options[0].id, first);
+    const result = await pollVoteService.recordVoteByOptionId(poll.id, options[0].id, second);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.poll.options[0].voteCount).toBe(2);
+    // `second` voted for options[0] too, so it is THEIR own selection — not a
+    // trace of `first`'s ballot, which never appears anywhere in the response.
+    expect(result.poll.viewerSelectedOptionIds).toEqual([options[0].id]);
   });
 
   it('refuses a second vote on a SINGLE-choice poll and writes no row', async () => {
@@ -112,13 +136,17 @@ describe('recordVoteByOptionId — the local HTTP vote route', () => {
     const { poll, options } = await seedPoll({ isMultipleChoice: true });
     const voter = `voter-${randomUUID()}`;
 
-    expect((await pollVoteService.recordVoteByOptionId(poll.id, options[0].id, voter)).ok).toBe(true);
-    expect((await pollVoteService.recordVoteByOptionId(poll.id, options[1].id, voter)).ok).toBe(true);
+    const firstVote = await pollVoteService.recordVoteByOptionId(poll.id, options[0].id, voter);
+    expect(firstVote.ok).toBe(true);
+    const secondVote = await pollVoteService.recordVoteByOptionId(poll.id, options[1].id, voter);
+    expect(secondVote.ok).toBe(true);
+    if (!secondVote.ok) return;
+    expect(secondVote.poll.viewerSelectedOptionIds.sort()).toEqual([options[0].id, options[1].id].sort());
+
     expect(await pollVoteService.recordVoteByOptionId(poll.id, options[1].id, voter)).toEqual({
       ok: false,
       reason: 'already_voted',
     });
-
     expect(await voteRows(poll.id)).toHaveLength(2);
   });
 
@@ -201,8 +229,25 @@ describe('recordVoteByOptionText — the inbound ActivityPub path', () => {
   });
 });
 
-describe('loadPollRecord', () => {
-  it('keeps options in author order and voters in vote order', async () => {
+describe('loadPollHeader', () => {
+  it('reads the poll\'s own columns, with no options and no votes', async () => {
+    const { poll } = await seedPoll({ isAnonymous: true });
+    const header = await loadPollHeader(db, poll.id);
+    expect(header).toMatchObject({
+      id: poll.id,
+      question: 'Favourite colour?',
+      isAnonymous: true,
+    });
+    expect(header && Object.keys(header)).not.toContain('options');
+  });
+
+  it('returns null for a poll that does not exist', async () => {
+    expect(await loadPollHeader(db, uuidv7())).toBeNull();
+  });
+});
+
+describe('loadPollSummary', () => {
+  it('keeps options in author order and counts every voter without naming them', async () => {
     const { poll, options } = await seedPoll({ options: ['A', 'B', 'C'] });
     const first = `voter-a-${randomUUID()}`;
     const second = `voter-b-${randomUUID()}`;
@@ -212,14 +257,39 @@ describe('loadPollRecord', () => {
     await pollVoteService.recordVoteByOptionId(poll.id, options[1].id, second);
     await pollVoteService.recordVoteByOptionId(poll.id, options[2].id, third);
 
-    const record = await loadPollRecord(db, poll.id);
-    expect(record?.options.map((option) => option.text)).toEqual(['A', 'B', 'C']);
-    expect(record?.options[0].votes).toEqual([]);
-    expect(record?.options[1].votes).toEqual([first, second]);
-    expect(record?.options[2].votes).toEqual([third]);
+    const summary = await loadPollSummary(db, poll.id, second);
+    expect(summary?.options.map((option) => option.text)).toEqual(['A', 'B', 'C']);
+    expect(summary?.options.map((option) => option.voteCount)).toEqual([0, 2, 1]);
+    // `second` is the viewer here: their own ballot, and no one else's.
+    expect(summary?.viewerSelectedOptionIds).toEqual([options[1].id]);
+  });
+
+  it('reports no selection for a viewer who has not voted', async () => {
+    const { poll } = await seedPoll();
+    const summary = await loadPollSummary(db, poll.id, `non-voter-${randomUUID()}`);
+    expect(summary?.viewerSelectedOptionIds).toEqual([]);
   });
 
   it('returns null for a poll that does not exist', async () => {
-    expect(await loadPollRecord(db, uuidv7())).toBeNull();
+    expect(await loadPollSummary(db, uuidv7(), 'voter-1')).toBeNull();
+  });
+
+  it('stays correct at a vote count no single-row read could produce by accident', async () => {
+    // Not a benchmark — the issue is explicit that timing claims need real
+    // instrumentation this suite does not have. What this DOES prove: counts
+    // and viewer selection are computed by aggregation, not by an off-by-one
+    // in a hand-rolled reduce that happens to pass at N=3.
+    const { poll, options } = await seedPoll({ options: ['A', 'B'] });
+    const voters = Array.from({ length: 97 }, () => `voter-${randomUUID()}`);
+    for (const [index, voter] of voters.entries()) {
+      await pollVoteService.recordVoteByOptionId(poll.id, options[index % 2 === 0 ? 0 : 1].id, voter);
+    }
+    const expectedA = voters.filter((_, index) => index % 2 === 0).length;
+    const expectedB = voters.length - expectedA;
+
+    const viewer = voters[41];
+    const summary = await loadPollSummary(db, poll.id, viewer);
+    expect(summary?.options.map((option) => option.voteCount)).toEqual([expectedA, expectedB]);
+    expect(summary?.viewerSelectedOptionIds).toEqual([options[41 % 2 === 0 ? 0 : 1].id]);
   });
 });
