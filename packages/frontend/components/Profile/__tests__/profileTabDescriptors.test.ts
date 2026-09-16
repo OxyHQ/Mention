@@ -1,5 +1,6 @@
 import {
   CHANNEL_ONLY_TAB_NAMES,
+  ORGANIZATION_ONLY_TAB_NAMES,
   TAB_NAMES,
   buildProfileTabDescriptors,
   laneTabKey,
@@ -9,7 +10,7 @@ import {
 } from '@/components/Profile/types';
 
 const LABELS: Record<ProfileTab, string> = Object.fromEntries(
-  [...TAB_NAMES, ...CHANNEL_ONLY_TAB_NAMES].map((tab) => [tab, `label:${tab}`]),
+  [...TAB_NAMES, ...CHANNEL_ONLY_TAB_NAMES, ...ORGANIZATION_ONLY_TAB_NAMES].map((tab) => [tab, `label:${tab}`]),
 ) as Record<ProfileTab, string>;
 
 /**
@@ -99,12 +100,33 @@ describe('profile tab descriptors', () => {
     expect(profileTabsForAccountKind('channel')).toContain('boosts');
   });
 
-  it.each(['personal', 'organization', 'project', 'bot', undefined] as const)(
+  it.each(['personal', 'bot', undefined] as const)(
     'leaves the full strip alone for kind %s',
     (kind) => {
       expect(profileTabsForAccountKind(kind)).toEqual([...TAB_NAMES]);
     },
   );
+
+  /**
+   * `organization` and `project` (OxyHQ/Mention#952) are the one case that
+   * grows the static strip rather than trimming it — a job's employer must be
+   * one of these two kinds, so only they get the tab, unconditionally (no
+   * `disclosesWriters`-style runtime gate — see `ORGANIZATION_ONLY_TAB_NAMES`'s
+   * docblock for why an empty jobs tab is not a privacy concern the way an
+   * empty writers tab would be).
+   */
+  it.each(['organization', 'project'] as const)(
+    'appends the jobs tab, and only the jobs tab, for kind %s',
+    (kind) => {
+      expect(profileTabsForAccountKind(kind)).toEqual([...TAB_NAMES, 'jobs']);
+    },
+  );
+
+  it('never gives a channel, a person, or a bot a jobs tab', () => {
+    for (const kind of ['channel', 'personal', 'bot', undefined] as const) {
+      expect(profileTabsForAccountKind(kind)).not.toContain('jobs');
+    }
+  });
 
   it('still splices a channel’s lanes directly after posts', () => {
     const descriptors = buildProfileTabDescriptors(

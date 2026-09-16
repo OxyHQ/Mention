@@ -31,9 +31,27 @@ export const TAB_NAMES = ['posts', 'replies', 'media', 'videos', 'likes', 'boost
  */
 export const CHANNEL_ONLY_TAB_NAMES = ['writers'] as const;
 
+/**
+ * Tabs only an ORGANIZATION or PROJECT account's profile has, appended after
+ * {@link TAB_NAMES} — same shape of list as {@link CHANNEL_ONLY_TAB_NAMES}, for
+ * the same reason: `jobs` is a tab those two kinds HAVE, not a subset of the
+ * static strip filtered back out for everybody else.
+ *
+ * - **`jobs`** (OxyHQ/Mention#952) — a Mention job listing's employer must be
+ *   an organization or project account (`MENTION_JOB_ELIGIBLE_EMPLOYER_KINDS`
+ *   in `@mention/shared-types`, enforced server-side by `jobAuthority.ts`), so
+ *   no other kind can ever have one to show. Unlike `writers`, this tab is
+ *   NOT conditional on a second runtime disclosure — an org/project account
+ *   with zero jobs still gets the tab, showing its own "no jobs yet" state,
+ *   because (unlike a channel's writers list) there is no privacy reason to
+ *   hide an empty one.
+ */
+export const ORGANIZATION_ONLY_TAB_NAMES = ['jobs'] as const;
+
 export type ProfileTab =
   | (typeof TAB_NAMES)[number]
-  | (typeof CHANNEL_ONLY_TAB_NAMES)[number];
+  | (typeof CHANNEL_ONLY_TAB_NAMES)[number]
+  | (typeof ORGANIZATION_ONLY_TAB_NAMES)[number];
 
 /**
  * The static tabs a CHANNEL account's profile does NOT get.
@@ -112,6 +130,9 @@ const CHANNEL_EXCLUDED_TABS = [
 export function profileTabsForAccountKind(
   kind: AccountKind | undefined,
 ): readonly ProfileTab[] {
+  if (kind === 'organization' || kind === 'project') {
+    return [...TAB_NAMES, ...ORGANIZATION_ONLY_TAB_NAMES];
+  }
   if (kind !== 'channel') return TAB_NAMES;
   const excluded = CHANNEL_EXCLUDED_TABS as readonly ProfileTab[];
   return [...TAB_NAMES.filter((tab) => !excluded.includes(tab)), ...CHANNEL_ONLY_TAB_NAMES];

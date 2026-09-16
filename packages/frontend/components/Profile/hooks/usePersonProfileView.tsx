@@ -202,6 +202,9 @@ export function usePersonProfileView({
           // reason to know which subset survives, and an unused label costs one
           // `t()`.
           writers: t('profile.tabs.writers', { defaultValue: 'Writers' }),
+          // Same contract, for the organization/project-only `jobs` tab
+          // (OxyHQ/Mention#952) — most profiles here never render it either.
+          jobs: t('profile.tabs.jobs', { defaultValue: 'Jobs' }),
         },
         laneTabs,
         profileData?.kind,

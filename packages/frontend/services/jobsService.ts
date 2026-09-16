@@ -1,5 +1,6 @@
 import { authenticatedClient } from '@/utils/api';
 import { getErrorMessage, normalizeApiError } from '@/utils/apiError';
+import type { JobSearchResponse } from '@clarity.surf/sdk';
 import type {
   CreateMentionJobRequest,
   MentionJobEmploymentType,
@@ -51,6 +52,19 @@ export interface MentionJobListResponse {
   nextCursor?: string;
 }
 
+/**
+ * `GET /jobs`'s actual response — proxied UNMODIFIED from Clarity
+ * (`jobs.controller.ts#search`: `res.json(result)` where `result` is
+ * `client.jobs.search(...)`'s own return value). That is `JobSearchResponse`
+ * (`{data: JobSearchResult[], nextCursor?, mode, degraded?}`) — a different
+ * shape from every other read in this file, none of which is
+ * `MentionJobListResponse` (a Mention-authored `{jobs: MentionJobPosting[]}`
+ * page). `list()` below is fixed to this shape rather than reusing
+ * `MentionJobListResponse`, which was never populated by anything this route
+ * returns.
+ */
+export type MentionJobDiscoveryResponse = JobSearchResponse;
+
 export interface MentionJobCollectionResponse {
   jobs: MentionJobPosting[];
 }
@@ -60,9 +74,9 @@ export interface MentionJobResponse {
 }
 
 class JobsService {
-  /** `GET /jobs` — public Clarity-backed discovery. */
-  async list(filters?: MentionJobDiscoveryFilters): Promise<MentionJobListResponse> {
-    const res = await authenticatedClient.get<MentionJobListResponse>(JOBS_BASE, { params: filters });
+  /** `GET /jobs` — public Clarity-backed discovery. See {@link MentionJobDiscoveryResponse}. */
+  async list(filters?: MentionJobDiscoveryFilters): Promise<MentionJobDiscoveryResponse> {
+    const res = await authenticatedClient.get<MentionJobDiscoveryResponse>(JOBS_BASE, { params: filters });
     return res.data;
   }
 

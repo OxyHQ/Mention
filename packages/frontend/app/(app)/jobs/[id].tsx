@@ -1,5 +1,5 @@
-import React, { useCallback } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import React, { Suspense, lazy, useCallback, useContext } from 'react';
+import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +8,7 @@ import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { Chip } from '@oxy.so/bloom/chip';
 import { Loading } from '@oxy.so/bloom/loading';
+import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -21,7 +22,12 @@ import { displayNameOrHandle } from '@/utils/displayName';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { shareLink } from '@/utils/shareLink';
 import { jobsService } from '@/services/jobsService';
+import { reportService } from '@/services/reportService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
+
+const ReportModal = lazy(() => import('@/components/report/ReportModal').then((m) => ({ default: m.ReportModal })));
 
 const WORKPLACE_LABELS: Record<string, string> = {
   onsite: 'On-site',
@@ -73,6 +79,7 @@ export default function JobDetailScreen() {
   const { t } = useTranslation();
   const { user, oxyServices } = useAuth();
   const safeBack = useSafeBack();
+  const bottomSheet = useContext(BottomSheetContext);
 
   const jobQuery = useQuery({
     queryKey: viewerQueryKeys.jobDetail(user?.id, idOrSlug),
@@ -83,7 +90,7 @@ export default function JobDetailScreen() {
   const job = jobQuery.data?.job;
 
   const employerQuery = useQuery<User>({
-    queryKey: ['mention-jobs', 'employer', job?.employerOxyUserId],
+    queryKey: viewerQueryKeys.jobEmployerProfile(user?.id, job?.employerOxyUserId),
     queryFn: () => oxyServices.getUserById(job!.employerOxyUserId),
     enabled: Boolean(job?.employerOxyUserId),
   });
@@ -109,6 +116,37 @@ export default function JobDetailScreen() {
       errorToast: t('jobs.detail.shareFailed', { defaultValue: 'Could not share this job' }),
     });
   }, [job, t]);
+
+  /**
+   * This page renders only a Mention-OWNED job, so its report affordance goes
+   * through the app's EXISTING generic report mechanism
+   * (`reportedType: 'job'`, `reportedId: <mention job id>`) — the same
+   * `ReportModal` a post/user/room already uses — rather than a new UI.
+   * `jobApplicationsService.reportExternalJob` is a DIFFERENT endpoint for a
+   * DIFFERENT case: a Clarity-only listing that is not this app's own
+   * (`components/Jobs/JobDiscoveryResultCard.tsx`'s report action).
+   */
+  const openReport = useCallback(() => {
+    if (!job) return;
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <ReportModal
+          visible
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          onSubmit={async (categories, details) => {
+            const success = await reportService.reportJob(job.id, categories, details);
+            toast(
+              success
+                ? t('jobs.detail.reportSubmitted', { defaultValue: 'Thanks — this listing has been reported' })
+                : t('jobs.detail.reportFailed', { defaultValue: 'Could not submit this report' }),
+              { type: success ? 'success' : 'error' },
+            );
+          }}
+        />
+      </Suspense>,
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [job, bottomSheet, t]);
 
   const header = (
     <Header
@@ -213,18 +251,26 @@ export default function JobDetailScreen() {
               {t('jobs.detail.apply', { defaultValue: 'Apply' })}
             </Button>
           ) : (
-            // The Mention-native application flow is a later phase (issue
-            // #952 "Applications") another agent may build — this screen
-            // must not crash on it, so it shows a disabled "coming soon"
-            // state instead of a working submit.
-            <Button variant="secondary" size="large" style={{ flex: 1 }} disabled>
-              {t('jobs.detail.applyComingSoon', { defaultValue: 'Apply on Mention — coming soon' })}
+            <Button
+              variant="primary"
+              size="large"
+              style={{ flex: 1 }}
+              disabled={!isPublished}
+              onPress={() => router.push(`/jobs/${job.id}/apply`)}
+            >
+              {t('jobs.detail.applyOnMention', { defaultValue: 'Apply on Mention' })}
             </Button>
           )}
           <Button variant="secondary" size="large" onPress={share}>
             {t('jobs.detail.share', { defaultValue: 'Share' })}
           </Button>
         </View>
+
+        <TouchableOpacity onPress={openReport} className="mt-4 self-center" hitSlop={HIT_SLOP_MD}>
+          <Text className="text-muted-foreground text-xs">
+            {t('jobs.detail.report', { defaultValue: 'Report this listing' })}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </ThemedView>
   );

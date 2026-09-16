@@ -51,6 +51,14 @@ interface ComposeToolbarProps {
     onRoomPress?: () => void;
     onPodcastPress?: () => void;
     /**
+     * Attach one of the composing account's own Mention job listings
+     * (OxyHQ/Mention#952). Omitted outright — not merely disabled — when the
+     * composing account is not an organization/project operator, since only
+     * those accounts have jobs to attach; see `ComposeScreen.tsx`'s
+     * `canAttachJob`.
+     */
+    onJobPress?: () => void;
+    /**
      * Open the collaborator picker. A post's collaborators are its own, but a
      * BATCH cannot have any — `POST /posts/thread` refuses `collaboratorIds`
      * outright, per entry and at the top level alike (400) — so the composer
@@ -75,6 +83,8 @@ interface ComposeToolbarProps {
     hasEvent?: boolean;
     hasRoom?: boolean;
     hasPodcast?: boolean;
+    /** The post already has a Mention job attached (OxyHQ/Mention#952). */
+    hasJob?: boolean;
     /** The post already names at least one collaborator. */
     hasCollaborators?: boolean;
     /** The post is already assigned to one of the publisher's lanes. */
@@ -97,6 +107,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     onEventPress,
     onRoomPress,
     onPodcastPress,
+    onJobPress,
     onCollaboratorsPress,
     onLanePress,
     hasLocation = false,
@@ -108,6 +119,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     hasEvent = false,
     hasRoom = false,
     hasPodcast = false,
+    hasJob = false,
     hasCollaborators = false,
     collaboratorsEnabled = true,
     hasLane = false,
@@ -263,6 +275,22 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                         name="mic-outline"
                         size={20}
                         color={disabled ? theme.colors.textTertiary : (hasPodcast ? theme.colors.primary : theme.colors.textSecondary)}
+                    />
+                </PressableScale>
+            )}
+
+            {onJobPress && (
+                <PressableScale
+                    onPress={withHaptic(onJobPress)}
+                    disabled={disabled}
+                    className="p-1"
+                    accessibilityRole="button"
+                    accessibilityLabel={t('compose.job.add', { defaultValue: 'Attach a job' })}
+                >
+                    <Ionicons
+                        name="briefcase-outline"
+                        size={20}
+                        color={disabled ? theme.colors.textTertiary : (hasJob ? theme.colors.primary : theme.colors.textSecondary)}
                     />
                 </PressableScale>
             )}

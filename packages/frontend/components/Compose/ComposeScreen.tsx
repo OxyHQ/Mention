@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -71,6 +72,7 @@ import { useArticleManager } from '@/hooks/useArticleManager';
 import { useEventManager } from '@/hooks/useEventManager';
 import { useRoomManager } from '@/hooks/useRoomManager';
 import { usePodcastManager } from '@/hooks/usePodcastManager';
+import { useJobAttachmentManager } from '@/hooks/useJobAttachmentManager';
 import { useAttachmentOrder } from '@/hooks/useAttachmentOrder';
 import { useScheduleManager } from '@/hooks/useScheduleManager';
 import { useDraftManager } from '@/hooks/useDraftManager';
@@ -110,6 +112,7 @@ import {
   EVENT_ATTACHMENT_KEY,
   ROOM_ATTACHMENT_KEY,
   PODCAST_ATTACHMENT_KEY,
+  JOB_ATTACHMENT_KEY,
   isMediaAttachmentKey,
   getMediaIdFromAttachmentKey,
   isLinkAttachmentKey,
@@ -171,6 +174,7 @@ const EmojiPickerSheet = lazy(() => import('@/components/Compose/EmojiPickerShee
 const SourcesSheet = lazy(() => import('@/components/Compose/SourcesSheet'));
 const ScheduleSheet = lazy(() => import('@/components/Compose/ScheduleSheet'));
 const PodcastPickerSheet = lazy(() => import('@/components/Compose/PodcastPickerSheet'));
+const JobPickerSheet = lazy(() => import('@/components/Compose/JobPickerSheet'));
 const ReplySettingsSheet = lazy(() => import('@/components/Compose/ReplySettingsSheet'));
 
 /**
@@ -319,6 +323,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const eventManager = useEventManager();
   const roomManager = useRoomManager();
   const podcastManager = usePodcastManager();
+  const jobManager = useJobAttachmentManager();
 
   // Destructure for easier access (need these first for useAttachmentOrder)
   const { mediaIds, setMediaIds, removeMedia, setMediaAlt } = mediaManager;
@@ -425,11 +430,19 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     loadPodcastFromDraft,
     clearPodcast,
   } = podcastManager;
+  const {
+    job,
+    saveJob,
+    removeJob,
+    hasContent: jobHasContent,
+    clearJob,
+  } = jobManager;
 
   const hasArticleContent = useMemo(() => articleHasContent(), [articleHasContent]);
   const hasEventContent = useMemo(() => eventHasContent(), [eventHasContent]);
   const hasRoomContent = useMemo(() => roomHasContent(), [roomHasContent]);
   const hasPodcastContent = useMemo(() => podcastHasContent(), [podcastHasContent]);
+  const hasJobContent = useMemo(() => jobHasContent(), [jobHasContent]);
 
   // The author's saved default primary language, applied to fresh composes below.
   const { preferredLanguage } = useFediversePreferredLanguage();
@@ -660,6 +673,17 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
    */
   const effectiveMainPublishAs = mainPublishAsEligible ? publishAs : null;
 
+  /**
+   * Whether the ROOT post may attach a Mention job (OxyHQ/Mention#952). Only
+   * an organization/project account has jobs to attach — the same eligible
+   * employer kinds `MENTION_JOB_ELIGIBLE_EMPLOYER_KINDS` enforces server-side
+   * — so posting as "myself" (a personal account) or as a channel never shows
+   * the icon at all, rather than showing it disabled.
+   */
+  const canAttachJob = Boolean(
+    effectiveMainPublishAs && (effectiveMainPublishAs.kind === 'organization' || effectiveMainPublishAs.kind === 'project'),
+  );
+
   // Schedule manager
   const scheduleManager = useScheduleManager({
     bottomSheet,
@@ -772,6 +796,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     room: attachedRoom,
     hasPodcastContent,
     podcast,
+    hasJobContent,
+    job,
     location,
     sources,
     mediaIds,
@@ -1164,7 +1190,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     const hasMedia = mediaIds.length > 0;
     const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
 
-    if (!(hasText || hasMedia || hasPoll || hasArticleContent || hasEventContent || hasRoomContent || hasPodcastContent)) {
+    if (!(hasText || hasMedia || hasPoll || hasArticleContent || hasEventContent || hasRoomContent || hasPodcastContent || hasJobContent)) {
       toast(t('Add text, an image, a poll, or an article'), { type: 'error' });
       return;
     }
@@ -1218,6 +1244,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         hasRoomContent,
         podcast,
         hasPodcastContent,
+        job,
+        hasJobContent,
         location,
         formattedSources,
         attachmentOrder: attachmentOrderRef.current || attachmentOrder,
@@ -1382,6 +1410,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       clearEvent();
       clearRoom();
       clearPodcast();
+      clearJob();
 
       // Navigate back after posting
       dismiss();
@@ -2299,6 +2328,27 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   }, [bottomSheet, savePodcast]);
 
   /**
+   * Attach one of `effectiveMainPublishAs`'s own Mention jobs to the ROOT
+   * post (OxyHQ/Mention#952). A no-op if there is no eligible employer
+   * selected — `ComposeToolbar` never shows the icon in that case
+   * (`canAttachJob`), but the guard keeps this safe if it is ever called
+   * another way.
+   */
+  const openJobPicker = useCallback(() => {
+    if (!effectiveMainPublishAs) return;
+    bottomSheet.setBottomSheetContent(
+      <Suspense fallback={null}>
+        <JobPickerSheet
+          employer={effectiveMainPublishAs}
+          onClose={() => bottomSheet.openBottomSheet(false)}
+          onSelect={saveJob}
+        />
+      </Suspense>
+    );
+    bottomSheet.openBottomSheet(true);
+  }, [bottomSheet, effectiveMainPublishAs, saveJob]);
+
+  /**
    * The same picker, answering for one thread box. A show is per POST — the
    * thread controller reads `content.podcast` off every entry, root or not — so
    * each box attaches its own rather than inheriting the first box's.
@@ -2431,6 +2481,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       hasArticleContent ||
                       hasEventContent ||
                       hasPodcastContent ||
+                      hasJobContent ||
                       hasVariantWork(variants);
                     if (hasContent && !isEditMode) {
                       discardControl.open();
@@ -2770,6 +2821,41 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                             );
                           }
 
+                          if (key === JOB_ATTACHMENT_KEY) {
+                            if (!(hasJobContent && job)) return null;
+                            return (
+                              <AttachmentCarouselItem
+                                key={key}
+                                attachmentKey={key}
+                                index={index}
+                                total={total}
+                                onMove={moveAttachment}
+                                onRemove={removeJob}
+                                wrapperStyle={[styles.articleAttachmentWrapper, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
+                              >
+                                {/* Not `JobCard` (which navigates to the job page on
+                                    press): tapping this preview mid-compose must not
+                                    push the author away from an unsaved draft, so it
+                                    reopens the picker to change the selection instead. */}
+                                <Pressable
+                                  onPress={openJobPicker}
+                                  style={[styles.articleAttachmentPreview, { justifyContent: 'center' }]}
+                                >
+                                  <Ionicons name="briefcase-outline" size={20} color={theme.colors.primary} />
+                                  <Text
+                                    numberOfLines={2}
+                                    style={{ color: theme.colors.text, fontSize: 15, fontWeight: '700', marginTop: 8 }}
+                                  >
+                                    {job.title}
+                                  </Text>
+                                  <Text numberOfLines={1} style={{ color: theme.colors.textSecondary, fontSize: 13, marginTop: 2 }}>
+                                    {job.employerName}
+                                  </Text>
+                                </Pressable>
+                              </AttachmentCarouselItem>
+                            );
+                          }
+
                           if (isLinkAttachmentKey(key)) {
                             const linkUrl = getUrlFromLinkAttachmentKey(key);
                             const link = detectedLinks.find(detected => detected.url === linkUrl);
@@ -2851,6 +2937,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       onEventPress={openEventEditor}
                       onRoomPress={handleMainRoomPress}
                       onPodcastPress={openPodcastPicker}
+                      onJobPress={canAttachJob ? openJobPicker : undefined}
                       // Omitted outright where the post cannot take
                       // collaborators — a reply, a thread, or an edit of an
                       // already-collaborative post. A batch refuses them at the
@@ -2872,6 +2959,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       hasEvent={hasEventContent}
                       hasRoom={hasRoomContent}
                       hasPodcast={hasPodcastContent}
+                      hasJob={hasJobContent}
                       hasSourceErrors={invalidSources}
                       disabled={isPosting}
                     />
@@ -3042,6 +3130,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                           onEventPress={openEventEditor}
                           onRoomPress={handleMainRoomPress}
                           onPodcastPress={openPodcastPicker}
+                          onJobPress={canAttachJob ? openJobPicker : undefined}
                           onCollaboratorsPress={collaboratorsEligible ? () => {
                             setActiveTag(variants.primaryTag);
                             handleCollaboratorsPress();
@@ -3059,6 +3148,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                           hasEvent={hasEventContent}
                           hasRoom={hasRoomContent}
                           hasPodcast={hasPodcastContent}
+                          hasJob={hasJobContent}
                           hasSourceErrors={invalidSources}
                           disabled={isPosting}
                         />
@@ -3493,6 +3583,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 clearEvent();
                 clearRoom();
                 clearPodcast();
+                clearJob();
                 clearAllThreads();
                 clearAttachmentOrder();
                 clearSchedule({ silent: true });

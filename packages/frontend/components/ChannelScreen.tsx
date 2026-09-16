@@ -136,6 +136,10 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                     starter_packs: t('profile.tabs.starter_packs', { defaultValue: 'Starter Packs' }),
                     lists: t('profile.tabs.lists', { defaultValue: 'Lists' }),
                     writers: t('profile.tabs.writers', { defaultValue: 'Writers' }),
+                    // A channel never gets this tab either (`profileTabsForAccountKind`
+                    // grants it only to `organization`/`project`) — same
+                    // every-`ProfileTab`-covered contract as `writers` above.
+                    jobs: t('profile.tabs.jobs', { defaultValue: 'Jobs' }),
                 },
                 laneTabs,
                 'channel',

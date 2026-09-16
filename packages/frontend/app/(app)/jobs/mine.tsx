@@ -293,6 +293,19 @@ export default function MyJobsScreen() {
                           {t('jobs.mine.duplicate', { defaultValue: 'Duplicate' })}
                         </Button>
                       )}
+                      {/* Applications only exist for jobs applicants apply to
+                          THROUGH Mention — an `external` job's applications
+                          live on whatever site its `externalApplyUrl` points
+                          to, and Mention never sees them. */}
+                      {job.applicationMode === 'mention' && (
+                        <Button
+                          variant="secondary"
+                          size="small"
+                          onPress={() => router.push(`/jobs/${job.id}/applications`)}
+                        >
+                          {t('jobs.mine.viewApplications', { defaultValue: 'View applications' })}
+                        </Button>
+                      )}
                     </View>
                   </View>
                 </View>

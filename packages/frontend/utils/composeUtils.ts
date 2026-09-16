@@ -13,6 +13,8 @@ export const LOCATION_ATTACHMENT_KEY = "location";
 export const SOURCES_ATTACHMENT_KEY = "sources";
 export const ROOM_ATTACHMENT_KEY = "room";
 export const PODCAST_ATTACHMENT_KEY = "podcast";
+/** OxyHQ/Mention#952 — the ROOT post only (see `useJobAttachmentManager.ts`). */
+export const JOB_ATTACHMENT_KEY = "job";
 export const MEDIA_ATTACHMENT_PREFIX = "media:";
 /**
  * A post can carry several link previews, so each detected link gets its OWN
