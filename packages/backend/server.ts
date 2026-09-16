@@ -18,6 +18,7 @@ import { attachSocketRedisAdapter } from './src/runtime/socketRedisAdapter';
 import { setRuntimeSocketServer } from './src/runtime/socketServer';
 import { createRuntimeApp } from './src/runtimeApp';
 import { DistributedPresenceService } from './src/services/DistributedPresenceService';
+import { presenceRoom } from '@mention/shared-types';
 import { engagementOutboxDispatcher } from './src/services/EngagementOutboxDispatcher';
 import { leaderElection } from "./src/services/LeaderElection";
 import { moderationOutboxDispatcher } from './src/services/moderation/ModerationOutboxDispatcher';
@@ -54,7 +55,7 @@ const presence = new PresenceRegistry({
   // Emit to users subscribed to this user's presence. Targeted emit only — no
   // global broadcast.
   emitPresence: (userId, payload) => {
-    io.to(`presence:${userId}`).emit('user:presence', payload);
+    io.to(presenceRoom(userId)).emit('user:presence', payload);
   },
 });
 presence.startHousekeeping();

@@ -12,10 +12,34 @@ import { resolveNotificationInboxIds } from '../services/notificationInbox';
 import { createSocketRateLimiter } from '../middleware/socketRateLimit';
 import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
+import {
+  PRESENCE_ROOM_PREFIX,
+  presenceRoom,
+  isValidPresenceUserId,
+} from '@mention/shared-types';
 import type { PresenceRegistry } from './presenceRegistry';
 import type { DisconnectReason, SocketNamespaces } from './socketIoServer';
 
 type SocketRateLimiter = ReturnType<typeof createSocketRateLimiter>;
+
+/**
+ * How many other users' presence one socket may subscribe to at once.
+ *
+ * Unlike `joinFeed`, `targetUserId` here is not drawn from a fixed set — it is
+ * any user id, so nothing but a cap bounds how many `presence:*` rooms one
+ * connection can accumulate. 100 matches `DistributedPresenceService`'s own
+ * bulk-lookup ceiling: that is already the largest number of users' presence
+ * this server treats as one legitimate request.
+ *
+ * As with post rooms, the ceiling drops the OLDEST subscription rather than
+ * refusing the new one — the user just asked about is the one currently on
+ * screen.
+ */
+const MAX_PRESENCE_ROOMS_PER_SOCKET = 100;
+
+function joinedPresenceRooms(socket: { rooms: Set<string> }): string[] {
+  return Array.from(socket.rooms).filter((room) => room.startsWith(PRESENCE_ROOM_PREFIX));
+}
 
 function registerNotificationsHandlers(
   namespace: SocketNamespaces['notificationsNamespace'],
@@ -259,16 +283,25 @@ function registerMainNamespaceHandlers(
 
     // Subscribe to a user's presence changes
     socket.on("subscribePresence", socketRateLimiter.wrap(socket, 'subscribePresence', async (targetUserId: string) => {
-      if (!targetUserId || typeof targetUserId !== 'string') return;
-      socket.join(`presence:${targetUserId}`);
+      if (!isValidPresenceUserId(targetUserId)) return;
+      const room = presenceRoom(targetUserId);
+      if (!socket.rooms.has(room)) {
+        const occupied = joinedPresenceRooms(socket);
+        if (occupied.length >= MAX_PRESENCE_ROOMS_PER_SOCKET) {
+          for (const stale of occupied.slice(0, occupied.length - MAX_PRESENCE_ROOMS_PER_SOCKET + 1)) {
+            socket.leave(stale);
+          }
+        }
+        socket.join(room);
+      }
       const online = await presence.isOnline(targetUserId);
       socket.emit('user:presence', { userId: targetUserId, online });
     }));
 
     // Unsubscribe from a user's presence changes
     socket.on("unsubscribePresence", socketRateLimiter.wrap(socket, 'unsubscribePresence', (targetUserId: string) => {
-      if (!targetUserId || typeof targetUserId !== 'string') return;
-      socket.leave(`presence:${targetUserId}`);
+      if (!isValidPresenceUserId(targetUserId)) return;
+      socket.leave(presenceRoom(targetUserId));
     }));
   });
 }

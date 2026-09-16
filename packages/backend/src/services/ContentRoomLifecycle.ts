@@ -2,6 +2,9 @@ import type { Socket } from 'socket.io';
 import {
   POST_ENGAGEMENT_ROOM_PREFIX,
   postEngagementRoom,
+  SOCKET_FEED_TYPES,
+  feedRoom,
+  type SocketFeedType,
 } from '@mention/shared-types';
 import { postHydrationService } from './PostHydrationService';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
@@ -114,6 +117,10 @@ function readHandshakeToken(socket: Socket): string | undefined {
  * removes a closing socket from every room it holds, so a manual sweep would be
  * a second cleanup authority that can only ever disagree with the first.
  */
+function isSocketFeedType(value: unknown): value is SocketFeedType {
+  return typeof value === 'string' && (SOCKET_FEED_TYPES as readonly string[]).includes(value);
+}
+
 export function registerContentRoomHandlers(
   socket: AuthenticatedContentSocket,
   rateLimiter: SocketRateLimiter,
@@ -121,23 +128,35 @@ export function registerContentRoomHandlers(
   // A join is asynchronous, so two rapid requests for the same post would both
   // pay for the ACL. The second is dropped rather than queued — it would be
   // asking a question already in flight.
-  const pendingJoins = new Set<string>();
+  //
+  // Keyed to a per-attempt token, not just presence: `join -> leave -> rejoin`
+  // for the SAME post starts a second attempt while the first is still
+  // in-flight. Both used to share one `stillWanted` check keyed only on the
+  // post id, so whichever attempt's ACL round trip resolved LAST decided the
+  // final state — often the stale one, since its `finally` deleted whatever
+  // entry was in the map, including the second attempt's. The token makes
+  // `stillWanted` and the cleanup ask "am I still the current attempt for this
+  // post?" instead of "is this post still pending at all?".
+  const pendingJoins = new Map<string, number>();
+  let joinAttemptSeq = 0;
 
   socket.on('joinPost', rateLimiter.wrap(socket, 'joinPost', (postId: string) => {
     if (!postId || typeof postId !== 'string') return;
     if (pendingJoins.has(postId)) return;
-    pendingJoins.add(postId);
-    // Membership in `pendingJoins` doubles as "this join is still wanted":
-    // `leavePost` removes the entry, and the `finally` below only clears it once
-    // this attempt has finished.
-    void joinPostRoom(socket, postId, () => pendingJoins.has(postId))
+    const token = ++joinAttemptSeq;
+    pendingJoins.set(postId, token);
+    void joinPostRoom(socket, postId, () => pendingJoins.get(postId) === token)
       .catch((error) => {
         logger.warn('Post room join failed', {
           error: error instanceof Error ? error.message : String(error),
         });
       })
       .finally(() => {
-        pendingJoins.delete(postId);
+        // Only clear this attempt's own entry — a later `joinPost` may already
+        // have replaced it with a new token by the time this settles.
+        if (pendingJoins.get(postId) === token) {
+          pendingJoins.delete(postId);
+        }
       });
   }));
 
@@ -149,19 +168,24 @@ export function registerContentRoomHandlers(
     socket.leave(postEngagementRoom(postId));
   }));
 
+  // `feedType` comes from the client, so it is checked against the fixed set
+  // the broadcaster actually targets before it becomes part of a room name —
+  // otherwise a client could mint `feed:user:<victim>` and land in the same
+  // room namespace `feed:user:<selfId>` below reserves for one person. No
+  // membership cap is needed on top of the allow-list: joining is idempotent
+  // and there are only `SOCKET_FEED_TYPES.length` possible rooms plus the
+  // caller's own, so membership is already bounded by the allow-list itself.
   socket.on('joinFeed', rateLimiter.wrap(socket, 'joinFeed', (data: { feedType?: string }) => {
-    const feedType = data?.feedType;
-    if (feedType && typeof feedType === 'string') {
-      socket.join(`feed:${feedType}`);
+    if (isSocketFeedType(data?.feedType)) {
+      socket.join(feedRoom(data.feedType));
     }
     const selfId = socket.user?.id;
     if (selfId) socket.join(`feed:user:${selfId}`);
   }));
 
   socket.on('leaveFeed', rateLimiter.wrap(socket, 'leaveFeed', (data: { feedType?: string }) => {
-    const feedType = data?.feedType;
-    if (feedType && typeof feedType === 'string') {
-      socket.leave(`feed:${feedType}`);
+    if (isSocketFeedType(data?.feedType)) {
+      socket.leave(feedRoom(data.feedType));
     }
     const selfId = socket.user?.id;
     if (selfId) socket.leave(`feed:user:${selfId}`);
