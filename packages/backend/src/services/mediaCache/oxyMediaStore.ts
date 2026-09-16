@@ -142,11 +142,19 @@ function beginWriteBudgetCooldown(
   retryAfter: string | string[] | undefined,
 ): OxyMediaStoreThrottledError {
   const cooldownMs = cooldownFromRetryAfter(retryAfter);
-  const until = Date.now() + cooldownMs;
+  const now = Date.now();
+  const until = now + cooldownMs;
   // ONE line per window, not one per refused write — the flood this replaces was
-  // itself part of the problem.
+  // itself part of the problem. Gated on whether a cooldown was ALREADY open, not
+  // on whether this response's deadline is later than the stored one: two writes
+  // refused concurrently both compute `until` from a still-zero deadline, and the
+  // second call's `until` is later than the first call's just because it read the
+  // clock a moment after — comparing deadlines logged both.
+  const wasAlreadyCoolingDown = writeBudgetCooldownUntil[operation] > now;
   if (until > writeBudgetCooldownUntil[operation]) {
     writeBudgetCooldownUntil[operation] = until;
+  }
+  if (!wasAlreadyCoolingDown) {
     logger.warn('[MediaCache] Oxy media-write budget spent; pausing this operation', {
       operation,
       cooldownSeconds: Math.ceil(cooldownMs / 1000),
