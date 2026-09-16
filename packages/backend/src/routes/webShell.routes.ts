@@ -281,6 +281,38 @@ async function fetchPostOg(id: string): Promise<OgData | null> {
   }
 }
 
+/**
+ * A bounded description of a dependency failure, for the 503 paths below.
+ *
+ * Those catches used to be SILENT — a crawler sweeping deep links drew 48 503s
+ * in twelve minutes with nothing in the log naming the path or the reason, and
+ * `fetchPostOg`'s own report is at `debug`, which production does not emit. The
+ * status is the part that decides what to do (a 429 is a rate budget, a 5xx is
+ * an outage), and a plain `String(error)` prints `[object Object]` for the Oxy
+ * SDK's plain-object rejections, so the fields are read defensively — off an
+ * `Error` too, which is where an HTTP client usually hangs its status.
+ */
+function describeShellFailure(error: unknown): Record<string, unknown> {
+  if (typeof error !== 'object' || error === null) return { reason: String(error) };
+
+  // Read the same three fields whether or not this is an `Error`: an HTTP client
+  // rejection is often an Error that ALSO carries `status`, and dropping it on
+  // that branch would lose the one field that says "rate budget".
+  const fields = error as { message?: unknown; status?: unknown; statusCode?: unknown; code?: unknown };
+  const status = typeof fields.status === 'number'
+    ? fields.status
+    : (typeof fields.statusCode === 'number' ? fields.statusCode : undefined);
+  const message = typeof fields.message === 'string' && fields.message.length > 0
+    ? fields.message
+    : undefined;
+
+  return {
+    reason: message ?? 'unknown failure',
+    ...(status !== undefined ? { status } : {}),
+    ...(typeof fields.code === 'string' && fields.code.length > 0 ? { code: fields.code } : {}),
+  };
+}
+
 /** Serve the shell with head hints + optional OG injected, overriding the API no-store default. */
 async function serveShell(res: Response, og: OgData | null, status = 200): Promise<void> {
   const shell = (await getShell()) ?? FALLBACK_SHELL;
@@ -405,7 +437,11 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
   let profile: OxyProfileData | null;
   try {
     profile = await cachedProfile(handle);
-  } catch {
+  } catch (error) {
+    logger.warn('[webShell] Profile page resolution failed', {
+      path: req.path,
+      ...describeShellFailure(error),
+    });
     res.setHeader('Retry-After', '60');
     await serveShell(
       res,
@@ -417,7 +453,11 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
 
   try {
     if (profile && !(await isMentionProfilePublic(profile.id))) profile = null;
-  } catch {
+  } catch (error) {
+    logger.warn('[webShell] Profile visibility read failed', {
+      path: req.path,
+      ...describeShellFailure(error),
+    });
     res.setHeader('Retry-After', '60');
     await serveShell(
       res,
@@ -469,7 +509,11 @@ router.get(/^\/c\/([^/]+)\/?$/, async (req: Request, res: Response) => {
       return;
     }
     await serveShell(res, mapProfileOg(profile));
-  } catch {
+  } catch (error) {
+    logger.warn('[webShell] Channel page resolution failed', {
+      path: req.path,
+      ...describeShellFailure(error),
+    });
     res.setHeader('Retry-After', '60');
     await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Mention is temporarily unavailable', 'Please try again shortly.'), 503);
   }
@@ -509,7 +553,11 @@ router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: R
       return;
     }
     await serveShell(res, og);
-  } catch {
+  } catch (error) {
+    logger.warn('[webShell] Post page resolution failed', {
+      path: req.path,
+      ...describeShellFailure(error),
+    });
     res.setHeader('Retry-After', '60');
     await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Mention is temporarily unavailable', 'Please try again shortly.'), 503);
   }
