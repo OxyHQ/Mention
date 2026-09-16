@@ -46,7 +46,11 @@ interface CapturedRequest {
 }
 
 const requests: CapturedRequest[] = [];
-let respond: (captured: CapturedRequest) => { statusCode: number; body: string } = () => ({
+let respond: (captured: CapturedRequest) => {
+  statusCode: number;
+  body: string;
+  headers?: Record<string, string>;
+} = () => ({
   statusCode: 200,
   body: JSON.stringify({ data: { file: { id: 'oxy_file_default' } } }),
 });
@@ -62,9 +66,12 @@ class FakeClientRequest extends PassThrough {
     return this;
   }
   private flushResponse(): void {
-    const { statusCode, body } = respond(this.captured);
-    const res = new PassThrough() as PassThrough & { statusCode: number };
+    const { statusCode, body, headers } = respond(this.captured);
+    const res = new PassThrough() as PassThrough & { statusCode: number; headers: Record<string, string> };
     res.statusCode = statusCode;
+    // Response headers matter here: `Retry-After` is what sizes the store's
+    // write-budget cooldown.
+    res.headers = headers ?? {};
     this.onResponse(res);
     res.end(Buffer.from(body, 'utf8'));
   }
@@ -82,9 +89,10 @@ class FakeBodylessRequest extends EventEmitter {
     /* no-op for tests */
   }
   end(): void {
-    const { statusCode, body } = respond(this.captured);
-    const res = new PassThrough() as PassThrough & { statusCode: number };
+    const { statusCode, body, headers } = respond(this.captured);
+    const res = new PassThrough() as PassThrough & { statusCode: number; headers: Record<string, string> };
     res.statusCode = statusCode;
+    res.headers = headers ?? {};
     this.onResponse(res);
     res.end(Buffer.from(body, 'utf8'));
   }
@@ -114,8 +122,12 @@ import {
   uploadCachedMedia,
   uploadFederatedMedia,
   deleteCachedMedia,
+  isMediaStoreThrottled,
+  resetWriteBudgetCooldowns,
   OxyMediaStoreRequestError,
+  OxyMediaStoreThrottledError,
 } from '../../services/mediaCache/oxyMediaStore';
+import { logger } from '../../utils/logger';
 
 let workDir: string;
 
@@ -125,6 +137,7 @@ beforeEach(async () => {
   getBaseURL.mockClear();
   invalidateServiceToken.mockClear();
   respond = () => ({ statusCode: 200, body: JSON.stringify({ data: { file: { id: 'oxy_file_default' } } }) });
+  resetWriteBudgetCooldowns();
   workDir = await mkdtemp(join(tmpdir(), 'oxy-media-store-test-'));
 });
 
@@ -348,5 +361,134 @@ describe('oxyMediaStore.deleteCachedMedia', () => {
 
     expect(requests).toHaveLength(1);
     expect(invalidateServiceToken).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Oxy caps media-cache writes per application (30 uploads/min) and answers 429
+ * when the window's budget is spent — a statement about the WINDOW, not the
+ * object. Nothing here noticed, so the worker kept firing its whole batch and
+ * the eviction sweep its whole page: 54 upload 429s in two minutes for ~32
+ * queued entries, and 50 eviction deletes failing per sweep, every sweep.
+ *
+ * These pin the local brake: the first 429 opens a cooldown, later calls fail
+ * without touching the network, and nothing else is affected.
+ */
+describe('oxyMediaStore write-budget cooldown', () => {
+  async function mediaFile(name = 'media.bin'): Promise<string> {
+    const filePath = join(workDir, name);
+    await writeFile(filePath, Buffer.from('bytes'));
+    return filePath;
+  }
+
+  it('refuses the next upload locally instead of spending another request', async () => {
+    respond = () => ({ statusCode: 429, body: 'Too many media cache uploads. Please slow down.' });
+    const filePath = await mediaFile();
+
+    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' }))
+      .rejects.toBeInstanceOf(OxyMediaStoreThrottledError);
+    expect(requests).toHaveLength(1);
+
+    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' }))
+      .rejects.toBeInstanceOf(OxyMediaStoreThrottledError);
+    // No second request: the refusal is local, so it costs no socket, no service
+    // token and no file stream.
+    expect(requests).toHaveLength(1);
+  });
+
+  it('sizes the cooldown from Retry-After and resumes once it passes', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-09-16T05:00:00.000Z'));
+      respond = () => ({ statusCode: 429, body: 'slow down', headers: { 'retry-after': '2' } });
+      const filePath = await mediaFile();
+
+      const throttled = await uploadCachedMedia({ filePath, contentType: 'image/png' })
+        .catch((error: unknown) => error);
+      expect(isMediaStoreThrottled(throttled)).toBe(true);
+      expect((throttled as OxyMediaStoreThrottledError).retryAfterMs).toBe(2000);
+
+      vi.setSystemTime(Date.now() + 1_000);
+      await expect(uploadCachedMedia({ filePath, contentType: 'image/png' })).rejects.toBeInstanceOf(
+        OxyMediaStoreThrottledError,
+      );
+      expect(requests).toHaveLength(1);
+
+      vi.setSystemTime(Date.now() + 1_500);
+      respond = () => ({ statusCode: 200, body: JSON.stringify({ data: { file: { id: 'oxy_after_cooldown' } } }) });
+      await expect(uploadCachedMedia({ filePath, contentType: 'image/png' })).resolves.toMatchObject({
+        oxyFileId: 'oxy_after_cooldown',
+      });
+      expect(requests).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('falls back to the budget window when Retry-After is absent or nonsense', async () => {
+    respond = () => ({ statusCode: 429, body: 'slow down', headers: { 'retry-after': 'soon' } });
+    const filePath = await mediaFile();
+
+    const throttled = await uploadCachedMedia({ filePath, contentType: 'image/png' })
+      .catch((error: unknown) => error) as OxyMediaStoreThrottledError;
+
+    expect(throttled.retryAfterMs).toBe(60_000);
+  });
+
+  it('pauses only the operation that was refused', async () => {
+    respond = (captured) => (captured.options.method === 'DELETE'
+      ? { statusCode: 429, body: 'slow down' }
+      : { statusCode: 200, body: JSON.stringify({ data: { file: { id: 'oxy_upload_ok' } } }) });
+    const filePath = await mediaFile();
+
+    await expect(deleteCachedMedia('oxy_file_1')).rejects.toBeInstanceOf(OxyMediaStoreThrottledError);
+    // Uploads still go out: the two operations have separate budgets upstream.
+    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' })).resolves.toMatchObject({
+      oxyFileId: 'oxy_upload_ok',
+    });
+    await expect(deleteCachedMedia('oxy_file_2')).rejects.toBeInstanceOf(OxyMediaStoreThrottledError);
+    expect(requests.filter((r) => r.options.method === 'DELETE')).toHaveLength(1);
+  });
+
+  it('leaves an ordinary failure alone — only 429 opens a cooldown', async () => {
+    respond = () => ({ statusCode: 500, body: 'boom' });
+    const filePath = await mediaFile();
+
+    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' }))
+      .rejects.toBeInstanceOf(OxyMediaStoreRequestError);
+    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' }))
+      .rejects.toBeInstanceOf(OxyMediaStoreRequestError);
+
+    // Both reached the network: a 500 says nothing about the budget.
+    expect(requests).toHaveLength(2);
+  });
+
+  it('announces the pause once per window, not once per refusal', async () => {
+    respond = () => ({ statusCode: 429, body: 'slow down' });
+    const warn = vi.spyOn(logger, 'warn');
+    const filePath = await mediaFile();
+
+    const [first, second] = await Promise.all([
+      uploadCachedMedia({ filePath, contentType: 'image/png' }).catch((error: unknown) => error),
+      uploadCachedMedia({ filePath, contentType: 'image/png' }).catch((error: unknown) => error),
+    ]);
+    await uploadCachedMedia({ filePath, contentType: 'image/png' }).catch(() => undefined);
+
+    expect(isMediaStoreThrottled(first)).toBe(true);
+    expect(isMediaStoreThrottled(second)).toBe(true);
+    expect(warn.mock.calls.filter(([message]) =>
+      message === '[MediaCache] Oxy media-write budget spent; pausing this operation')).toHaveLength(1);
+  });
+
+  it('refuses a federated upload on the same budget as a cache upload', async () => {
+    respond = () => ({ statusCode: 429, body: 'slow down' });
+    const filePath = await mediaFile();
+
+    await expect(uploadCachedMedia({ filePath, contentType: 'image/png' }))
+      .rejects.toBeInstanceOf(OxyMediaStoreThrottledError);
+    await expect(uploadFederatedMedia({ filePath, contentType: 'image/png', ownerUserId: 'owner-1' }))
+      .rejects.toBeInstanceOf(OxyMediaStoreThrottledError);
+
+    expect(requests).toHaveLength(1);
   });
 });

@@ -56,6 +56,111 @@ export class OxyMediaStoreRequestError extends Error {
   }
 }
 
+/**
+ * Raised INSTEAD of issuing a request when this app's Oxy media-write budget for
+ * the current window is known to be spent.
+ *
+ * Oxy caps media-cache writes per application (30 uploads/min). When the cap is
+ * reached it answers 429 — a statement about the WINDOW, not about the object —
+ * and nothing here noticed: the worker kept firing its whole batch and the
+ * eviction sweep its whole page, so one exhausted budget became dozens of 429s
+ * and dozens of warn lines. Measured in production: 54 upload 429s in two
+ * minutes for ~32 queued entries, plus 50 eviction deletes failing per sweep,
+ * every sweep.
+ *
+ * So the first 429 opens a cooldown and every later call in that window fails
+ * FAST and locally. Nothing is lost: both callers already treat a failed write as
+ * non-permanent — the entry stays `pending`, the row stays `cached` — so the work
+ * happens in the next window instead of being spent on refusals.
+ */
+export class OxyMediaStoreThrottledError extends Error {
+  readonly operation: 'upload' | 'delete';
+  readonly retryAfterMs: number;
+
+  constructor(operation: 'upload' | 'delete', retryAfterMs: number) {
+    super(
+      `Oxy media store ${operation} budget is spent for this window; ` +
+        `retrying in ${Math.ceil(retryAfterMs / 1000)}s`,
+    );
+    this.name = 'OxyMediaStoreThrottledError';
+    this.operation = operation;
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+/** True when `error` is the local refusal above (never a remote failure). */
+export function isMediaStoreThrottled(error: unknown): error is OxyMediaStoreThrottledError {
+  return error instanceof OxyMediaStoreThrottledError;
+}
+
+/** The budget window Oxy's media-write limiter uses, and this cooldown's default. */
+const WRITE_BUDGET_WINDOW_MS = 60 * 1000;
+/** Bounds on a server-supplied `Retry-After`, so a bad header cannot park writes for hours. */
+const MIN_COOLDOWN_MS = 1_000;
+const MAX_COOLDOWN_MS = 10 * 60 * 1000;
+
+/**
+ * Per-operation cooldown deadlines, in this process.
+ *
+ * Deliberately NOT shared through Redis: each task learns the budget is spent
+ * from its own first 429, which costs one refused request per task per window
+ * and keeps the store client free of a dependency it would otherwise need only
+ * for this. The cap it protects is per APPLICATION, so a shared deadline would
+ * be more precise but not more correct.
+ */
+const writeBudgetCooldownUntil: Record<'upload' | 'delete', number> = { upload: 0, delete: 0 };
+
+/** Read `Retry-After` (delta-seconds or HTTP date), bounded; else the budget window. */
+function cooldownFromRetryAfter(header: string | string[] | undefined): number {
+  const raw = Array.isArray(header) ? header[0] : header;
+  if (typeof raw === 'string' && raw.trim().length > 0) {
+    const seconds = Number(raw.trim());
+    const ms = Number.isFinite(seconds)
+      ? seconds * 1000
+      : new Date(raw).getTime() - Date.now();
+    if (Number.isFinite(ms) && ms > 0) {
+      return Math.min(Math.max(ms, MIN_COOLDOWN_MS), MAX_COOLDOWN_MS);
+    }
+  }
+  return WRITE_BUDGET_WINDOW_MS;
+}
+
+/**
+ * Refuse locally while the cooldown holds. Called before the request is built,
+ * so a refused write costs no socket, no service token and no stream.
+ */
+function assertWriteBudget(operation: 'upload' | 'delete'): void {
+  const remaining = writeBudgetCooldownUntil[operation] - Date.now();
+  if (remaining > 0) {
+    throw new OxyMediaStoreThrottledError(operation, remaining);
+  }
+}
+
+/** Open (or extend) the cooldown after Oxy reported the budget spent. */
+function beginWriteBudgetCooldown(
+  operation: 'upload' | 'delete',
+  retryAfter: string | string[] | undefined,
+): OxyMediaStoreThrottledError {
+  const cooldownMs = cooldownFromRetryAfter(retryAfter);
+  const until = Date.now() + cooldownMs;
+  // ONE line per window, not one per refused write — the flood this replaces was
+  // itself part of the problem.
+  if (until > writeBudgetCooldownUntil[operation]) {
+    writeBudgetCooldownUntil[operation] = until;
+    logger.warn('[MediaCache] Oxy media-write budget spent; pausing this operation', {
+      operation,
+      cooldownSeconds: Math.ceil(cooldownMs / 1000),
+    });
+  }
+  return new OxyMediaStoreThrottledError(operation, cooldownMs);
+}
+
+/** Test seam: forget the cooldowns so a case starts from an unspent budget. */
+export function resetWriteBudgetCooldowns(): void {
+  writeBudgetCooldownUntil.upload = 0;
+  writeBudgetCooldownUntil.delete = 0;
+}
+
 export interface UploadedAsset {
   oxyFileId: string;
   sizeBytes?: number;
@@ -84,6 +189,8 @@ const HTTP_OK = 200;
 const HTTP_CREATED = 201;
 /** A successful delete may answer 200 or 204 (no content). */
 const HTTP_NO_CONTENT = 204;
+/** Oxy's answer when this app's media-write budget for the window is spent. */
+const HTTP_TOO_MANY_REQUESTS = 429;
 /**
  * Unauthorized — the SDK-managed service token was rejected (e.g. revoked,
  * rotated, or expired right at the clock-drift boundary). We recover ONCE by
@@ -246,6 +353,7 @@ export async function uploadCachedMedia(source: CachedMediaSource): Promise<Uplo
   if (!isMediaCacheEnabled()) {
     throw new MediaStoreUnavailableError('upload');
   }
+  assertWriteBudget('upload');
 
   return uploadMediaToOxy(OXY_ASSET_CACHE_PATH, source);
 }
@@ -269,6 +377,7 @@ export async function uploadCachedMedia(source: CachedMediaSource): Promise<Uplo
  *    posts) require.
  */
 export async function uploadGifLibraryMedia(source: CachedMediaSource): Promise<UploadedAsset> {
+  assertWriteBudget('upload');
   return uploadMediaToOxy(OXY_ASSET_CACHE_PATH, source);
 }
 
@@ -287,6 +396,8 @@ export async function uploadFederatedMedia(source: FederatedMediaSource): Promis
   if (!isMediaCacheEnabled()) {
     throw new MediaStoreUnavailableError('upload');
   }
+
+  assertWriteBudget('upload');
 
   const metadata = source.metadata ? JSON.stringify(source.metadata).slice(0, 4096) : undefined;
   return uploadMediaToOxy(OXY_ASSET_FEDERATION_PATH, source, {
@@ -323,6 +434,11 @@ async function uploadMediaToOxy(
   });
   const status = response.statusCode ?? 0;
 
+  if (status === HTTP_TOO_MANY_REQUESTS) {
+    response.resume();
+    throw beginWriteBudgetCooldown('upload', response.headers['retry-after']);
+  }
+
   if (status !== HTTP_OK && status !== HTTP_CREATED) {
     const detail = await readErrorSnippet(response);
     throw new OxyMediaStoreRequestError('upload', status, detail || 'no response body');
@@ -354,6 +470,8 @@ export async function deleteCachedMedia(oxyFileId: string): Promise<void> {
     throw new MediaStoreUnavailableError('delete');
   }
 
+  assertWriteBudget('delete');
+
   const target = new URL(`${getOxyApiBaseUrl()}${OXY_ASSET_CACHE_PATH}/${encodeURIComponent(oxyFileId)}`);
 
   // Token acquired inside the closure so a 401 retry mints a fresh bearer. The
@@ -367,6 +485,11 @@ export async function deleteCachedMedia(oxyFileId: string): Promise<void> {
     return streamRequest('DELETE', target, headers);
   });
   const status = response.statusCode ?? 0;
+
+  if (status === HTTP_TOO_MANY_REQUESTS) {
+    response.resume();
+    throw beginWriteBudgetCooldown('delete', response.headers['retry-after']);
+  }
 
   if (status !== HTTP_OK && status !== HTTP_NO_CONTENT) {
     const detail = await readErrorSnippet(response);

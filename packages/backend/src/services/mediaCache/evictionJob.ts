@@ -9,7 +9,7 @@ import {
   MEDIA_CACHE_EVICTION_CONCURRENCY,
   MEDIA_CACHE_TTL_MS,
 } from './constants';
-import { deleteCachedMedia, isMediaCacheEnabled } from './oxyMediaStore';
+import { deleteCachedMedia, isMediaCacheEnabled, isMediaStoreThrottled } from './oxyMediaStore';
 
 /**
  * Delete the Oxy object(s) for one idle entry and transition it to `evicted`,
@@ -17,23 +17,30 @@ import { deleteCachedMedia, isMediaCacheEnabled } from './oxyMediaStore';
  * delete fails the row is left `cached` so the next sweep retries — we never
  * mark `evicted` while bytes may still live in S3 (avoids orphaned objects).
  */
-async function evictOne(candidate: MediaCacheEvictionCandidate): Promise<void> {
+async function evictOne(candidate: MediaCacheEvictionCandidate): Promise<'done' | 'budget-spent'> {
   const fileIds = [candidate.oxyFileId, candidate.posterFileId].filter(
     (id): id is string => typeof id === 'string' && id.length > 0,
   );
 
   // Delete every associated object first; only flip to `evicted` if all succeed.
   const results = await Promise.allSettled(fileIds.map((id) => deleteCachedMedia(id)));
-  const failed = results.filter((r) => r.status === 'rejected');
+  const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
   if (failed.length > 0) {
+    // A spent write budget is not this entry's failure, and it will be the next
+    // entry's too — say so ONCE (the store logs the pause itself) and let the
+    // sweep stop. The row stays `cached`, which is what the next sweep needs.
+    if (failed.some((result) => isMediaStoreThrottled(result.reason))) {
+      return 'budget-spent';
+    }
     logger.warn('[MediaCache] Eviction delete failed; leaving entry cached for retry', {
       remoteUrl: candidate.remoteUrl,
       failedCount: failed.length,
     });
-    return;
+    return 'done';
   }
 
   await markMediaCacheEvicted(candidate.remoteUrl);
+  return 'done';
 }
 
 /**
@@ -56,6 +63,16 @@ export async function runEvictionOnce(): Promise<void> {
 
   for (let i = 0; i < candidates.length; i += MEDIA_CACHE_EVICTION_CONCURRENCY) {
     const batch = candidates.slice(i, i + MEDIA_CACHE_EVICTION_CONCURRENCY);
-    await Promise.allSettled(batch.map((candidate) => evictOne(candidate)));
+    const settled = await Promise.allSettled(batch.map((candidate) => evictOne(candidate)));
+
+    // Every remaining delete this sweep would only buy another refusal: the
+    // budget is per application and per window. Measured before this: 50
+    // eviction deletes failing per sweep, every sweep, with a warn line each.
+    if (settled.some((result) => result.status === 'fulfilled' && result.value === 'budget-spent')) {
+      logger.info('[MediaCache] Eviction stopping early; media-write budget spent', {
+        remaining: candidates.length - (i + batch.length),
+      });
+      return;
+    }
   }
 }
