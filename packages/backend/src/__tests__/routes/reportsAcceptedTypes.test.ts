@@ -158,15 +158,20 @@ describe('POST /reports — accepted types vs delivered types', () => {
     expect(createReport).toHaveBeenCalledTimes(REPORTED_TYPES.length);
   });
 
-  it('delivers exactly three of them, and no more', async () => {
+  it('delivers exactly four of them, and no more', async () => {
     /**
      * A vacuity floor over the seam that actually matters. The difference between a
      * delivered type and a local-only one is invisible in a 201, so registering a
-     * provider — or failing to — is a change no response body reveals. If a fourth
+     * provider — or failing to — is a change no response body reveals. If a fifth
      * provider is registered this fails, and whoever added it has to say why that
      * object is Mention's to send for review.
+     *
+     * `job` joined this list in OxyHQ/Mention#952 Phase E — see
+     * `subjects/jobSubject.ts`. An EXTERNAL Clarity-only job still has no provider
+     * and never will through this seam; its report goes through Clarity's own
+     * mechanism (`POST /jobs/external/:clarityJobId/report`).
      */
-    expect(deliverableTypes().sort()).toEqual(['comment', 'post', 'user']);
+    expect(deliverableTypes().sort()).toEqual(['comment', 'job', 'post', 'user']);
     // And the accepted surface is strictly wider, which is the whole design.
     expect(REPORTED_TYPES.length).toBeGreaterThan(deliverableTypes().length);
   });
