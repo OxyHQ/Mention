@@ -7,6 +7,7 @@ import type { Document as ClarityDocument } from '@clarity.surf/sdk' with { "res
 export type { Document as ClarityDocument } from '@clarity.surf/sdk' with { "resolution-mode": "import" };
 import { GeoJSONPoint } from './common';
 import type { LaneSummary } from './lane';
+import type { PostJobContent, PostJobInput } from './job';
 
 export enum PostType {
   TEXT = 'text',
@@ -168,7 +169,7 @@ export interface MediaItem {
   hlsUrl?: string;
 }
 
-export type PostAttachmentType = 'media' | 'poll' | 'article' | 'location' | 'sources' | 'event' | 'room' | 'podcast';
+export type PostAttachmentType = 'media' | 'poll' | 'article' | 'location' | 'sources' | 'event' | 'room' | 'podcast' | 'job';
 
 export interface PostAttachmentDescriptor {
   type: PostAttachmentType;
@@ -226,6 +227,15 @@ export interface PostPodcastContent {
 export interface PostPodcastInput {
   syraPodcastId: string;
 }
+
+/**
+ * A Mention-authored job shared as an ordinary post — see {@link PostJobContent}
+ * in `./job`. The share is an ordinary post: normal feed distribution/ranking
+ * applies, the job card is a deep-link attachment, and paying for the listing
+ * never boosts the post. Re-exported here (not just imported) so a consumer of
+ * `PostContent` can reach the job attachment shape without a second import.
+ */
+export type { PostJobContent, PostJobInput } from './job';
 
 /**
  * Where a localized rendition came from.
@@ -309,6 +319,7 @@ export interface StoredPostContent {
   event?: PostEventContent;
   room?: PostRoomContent;
   podcast?: PostPodcastContent;
+  job?: PostJobContent;
   attachments?: PostAttachmentDescriptor[];
 }
 
@@ -355,6 +366,7 @@ export interface PostContent {
   event?: PostEventContent; // Optional event content
   room?: PostRoomContent; // Optional room content
   podcast?: PostPodcastContent; // Optional Syra podcast show attached to the post
+  job?: PostJobContent; // Optional Mention job listing attached to the post
   attachments?: PostAttachmentDescriptor[]; // Ordered attachments for rendering (media, poll, article, event, etc.)
   /**
    * The tag actually served in `text` — what the UI shows as "Showing in
@@ -365,11 +377,13 @@ export interface PostContent {
 
 /**
  * Content shape a CLIENT submits when creating a post. Identical to
- * {@link PostContent} except `podcast` carries only the id ({@link PostPodcastInput});
- * the server denormalizes the full show metadata before persisting.
+ * {@link PostContent} except `podcast` and `job` carry only an id
+ * ({@link PostPodcastInput}, {@link PostJobInput}); the server denormalizes the
+ * full show/job metadata before persisting.
  */
-export type PostContentInput = Omit<PostContent, 'podcast'> & {
+export type PostContentInput = Omit<PostContent, 'podcast' | 'job'> & {
   podcast?: PostPodcastInput;
+  job?: PostJobInput;
 };
 
 export interface PollData {
@@ -1064,6 +1078,7 @@ export interface PostAttachmentBundle {
   event?: PostEventContent;
   room?: PostRoomContent;
   podcast?: PostPodcastContent;
+  job?: PostJobContent;
 }
 
 

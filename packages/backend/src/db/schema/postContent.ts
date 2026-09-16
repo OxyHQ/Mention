@@ -100,6 +100,7 @@ export const POST_ATTACHMENT_TYPES = [
   'sources',
   'room',
   'podcast',
+  'job',
 ] as const;
 
 /** `ClassificationTopicRef.type`. */

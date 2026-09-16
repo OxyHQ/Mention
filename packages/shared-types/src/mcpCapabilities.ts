@@ -28,6 +28,7 @@ export type MentionToolPolicy = Pick<
 
 const account = ["mention_account"];
 const post = ["mention_account", "post"];
+const job = ["mention_account", "job"];
 
 function read(
   path: string,
@@ -158,6 +159,14 @@ export const MENTION_TOOL_POLICIES: Readonly<Record<string, MentionToolPolicy>> 
   "use-gif": write("POST", "/gifs/use", "create", "social.media.create", ["mention_account", "media"], { rollback: "supported" }),
   "link-account": mcpOnly(write("POST", "/mcp/bundles/link-token", "delegate", "social.accounts.link", account, { rollback: "none" })),
   "switch-account": mcpOnly(write("POST", "/mcp/bundles/active", "administer", "social.accounts.switch", account, { rollback: "supported" })),
+
+  "list-my-jobs": read("/jobs/mine", "social.jobs.read", job, true),
+  "get-job-applications": read("/jobs/{id}/applications", "social.jobs.applications.read", ["mention_account", "job", "job_application"], true),
+  "create-job": write("POST", "/jobs", "create", "social.jobs.create", job, { rollback: "supported" }),
+  "update-job": write("PUT", "/jobs/{id}", "administer", "social.jobs.update", job, { rollback: "supported" }),
+  "publish-job": write("POST", "/jobs/{id}/publish", "administer", "social.jobs.update", job, { rollback: "supported" }),
+  "pause-job": write("POST", "/jobs/{id}/pause", "administer", "social.jobs.update", job, { rollback: "supported" }),
+  "close-job": write("POST", "/jobs/{id}/close", "administer", "social.jobs.update", job, { rollback: "none" }),
 };
 
 export const MENTION_MCP_CAPABILITIES = Object.freeze(

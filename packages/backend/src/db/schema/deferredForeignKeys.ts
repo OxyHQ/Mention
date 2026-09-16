@@ -44,6 +44,7 @@ import { entityFollows } from './engagement';
 import { actorKeyPairs, federatedActors, federatedMediaCache } from './federation';
 import { laneMutes, lanes } from './channels';
 import { gifs } from './discovery';
+import { mentionJobApplications, mentionJobs } from './jobs';
 import {
   contentLabels,
   moderationEnforcements,
@@ -138,6 +139,17 @@ const OXY_ACCOUNT_COLUMN_NAMES: ReadonlySet<string> = new Set([
   // Oxy account id like every other name here, so it belongs to the
   // predicate rather than the individually-reasoned list below.
   'active_oxy_user_id',
+  // The Oxy organization/project account a job is published under
+  // (`mention_jobs`). An Oxy account id like every other name here.
+  'employer_oxy_user_id',
+  // Who created a job row, for audit only (`mention_jobs`) — never the
+  // authority check, which is always re-read live against Oxy membership.
+  'author_oxy_user_id',
+  // Who submitted a job application (`mention_job_applications`).
+  'applicant_oxy_user_id',
+  // The employer-account operator an application is assigned to for review
+  // (`mention_job_applications`).
+  'assigned_to_oxy_user_id',
 ]);
 
 /**
@@ -651,6 +663,22 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'identifier. The consumer already tolerates a stale id: it intersects these ' +
       "with the sweep's live candidate filter rather than trusting them alone, " +
       'which is what keeps a dangling row costing nothing beyond being skipped.',
+  },
+  {
+    table: mentionJobs,
+    column: mentionJobs.clarityDocumentId,
+    reason:
+      "Clarity's own document id for this job's indexed representation, set once " +
+      "`clarity.jobs.ingest` returns one. It is a foreign SERVICE's id, exactly " +
+      "like an Oxy account id but for Clarity instead of Oxy — there is no " +
+      'Clarity table in this database to reference, and a re-ingest after Clarity ' +
+      'deduplicates or re-clusters the listing must be free to change it without a ' +
+      'constraint standing in the way.',
+  },
+  {
+    table: mentionJobApplications,
+    column: mentionJobApplications.resumeFileId,
+    reason: 'An Oxy S3 file id for the uploaded resume. Oxy owns files.',
   },
 ];
 
