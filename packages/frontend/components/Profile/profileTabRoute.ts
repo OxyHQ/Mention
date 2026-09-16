@@ -1,5 +1,15 @@
 import type { Href } from 'expo-router';
-import { TAB_NAMES, laneTabKey, type ProfileTab, type ProfileTabDescriptor } from './types';
+import { ORGANIZATION_ONLY_TAB_NAMES, TAB_NAMES, laneTabKey, type ProfileTab, type ProfileTabDescriptor } from './types';
+
+/**
+ * Segments the layout will actually recognize as a tab from a pathname —
+ * {@link TAB_NAMES} plus `jobs` (an organization/project-only tab that, unlike
+ * `writers`, IS routed: it has its own file, `app/(app)/[username]/jobs.tsx`,
+ * so a shared link must resolve back to it). `writers` stays unrouted on
+ * purpose — no `writers.tsx` file exists, and reaching it is local
+ * tab-strip-press state only, same as before this addition.
+ */
+const ROUTED_TAB_NAMES: readonly string[] = [...TAB_NAMES, ...ORGANIZATION_ONLY_TAB_NAMES];
 
 /**
  * A profile tab's URL, and the reverse reading of one.
@@ -69,7 +79,7 @@ export function profileTabSelectionFromPathname(pathname: string): ProfileTabSel
   if (!handleSegment) return null;
   if (segments.length === 1) return { tab: 'posts', key: 'posts' };
   if (segments.length === 2) {
-    return second !== 'posts' && (TAB_NAMES as readonly string[]).includes(second ?? '')
+    return second !== 'posts' && ROUTED_TAB_NAMES.includes(second ?? '')
       ? { tab: second as ProfileTab, key: second as string }
       : null;
   }

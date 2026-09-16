@@ -313,7 +313,7 @@ type RawAttachmentInput =
       kind?: string;
     };
 
-const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'event', 'room', 'location', 'sources', 'podcast'];
+const ATTACHMENT_TYPES: PostAttachmentType[] = ['media', 'poll', 'article', 'event', 'room', 'location', 'sources', 'podcast', 'job'];
 
 const normalizeAttachmentInput = (entry: RawAttachmentInput): PostAttachmentDescriptor | null => {
   if (!entry) return null;
@@ -371,6 +371,7 @@ interface AttachmentBuildOptions {
   includeLocation?: boolean;
   includeSources?: boolean;
   includePodcast?: boolean;
+  includeJob?: boolean;
 }
 
 export const buildOrderedAttachments = ({
@@ -382,7 +383,8 @@ export const buildOrderedAttachments = ({
   includeRoom = false,
   includeLocation = false,
   includeSources = false,
-  includePodcast = false
+  includePodcast = false,
+  includeJob = false
 }: AttachmentBuildOptions): PostAttachmentDescriptor[] | undefined => {
   const descriptors: PostAttachmentDescriptor[] = [];
   const nonMediaTypes = new Set<PostAttachmentType>();
@@ -445,6 +447,9 @@ export const buildOrderedAttachments = ({
       case 'podcast':
         if (includePodcast) addNonMedia('podcast');
         break;
+      case 'job':
+        if (includeJob) addNonMedia('job');
+        break;
       default:
         break;
     }
@@ -468,6 +473,7 @@ export const buildOrderedAttachments = ({
   if (includeSources) addNonMedia('sources');
   if (includeLocation) addNonMedia('location');
   if (includePodcast) addNonMedia('podcast');
+  if (includeJob) addNonMedia('job');
 
   media.forEach((item) => {
     const id = String(item.id);

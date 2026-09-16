@@ -2850,6 +2850,20 @@ export class PostHydrationService {
       };
     }
 
+    if (content.job) {
+      attachments.job = {
+        mentionJobId: content.job.mentionJobId,
+        title: content.job.title,
+        employerName: content.job.employerName,
+        employerOxyUserId: content.job.employerOxyUserId,
+        status: content.job.status,
+        canonicalUrl: content.job.canonicalUrl,
+        location: content.job.location,
+        workplaceType: content.job.workplaceType,
+        employmentType: content.job.employmentType,
+      };
+    }
+
     return attachments;
   }
 

@@ -12,6 +12,7 @@ import {
   SOURCES_ATTACHMENT_KEY,
   ROOM_ATTACHMENT_KEY,
   PODCAST_ATTACHMENT_KEY,
+  JOB_ATTACHMENT_KEY,
 } from '@/utils/composeUtils';
 import type { ArticleData } from './useArticleManager';
 import type { EventData } from './useEventManager';
@@ -19,6 +20,7 @@ import type { LocationData } from './useLocationManager';
 import type { PodcastAttachmentData } from './usePodcastManager';
 import type { RoomAttachmentData } from './useRoomManager';
 import type { Source } from './useSourcesManager';
+import type { JobAttachmentData } from './useJobAttachmentManager';
 
 interface UseAttachmentOrderProps {
   showPollCreator: boolean;
@@ -30,6 +32,9 @@ interface UseAttachmentOrderProps {
   room: RoomAttachmentData | null;
   hasPodcastContent: boolean;
   podcast: PodcastAttachmentData | null;
+  /** ROOT post only — see `useJobAttachmentManager.ts`. */
+  hasJobContent: boolean;
+  job: JobAttachmentData | null;
   location: LocationData | null;
   sources: Source[];
   mediaIds: ComposerMediaItem[];
@@ -48,6 +53,8 @@ export const useAttachmentOrder = ({
   room,
   hasPodcastContent,
   podcast,
+  hasJobContent,
+  job,
   location,
   sources,
   mediaIds,
@@ -65,6 +72,7 @@ export const useAttachmentOrder = ({
     if (hasEventContent && event) keys.add(EVENT_ATTACHMENT_KEY);
     if (hasRoomContent && room) keys.add(ROOM_ATTACHMENT_KEY);
     if (hasPodcastContent && podcast) keys.add(PODCAST_ATTACHMENT_KEY);
+    if (hasJobContent && job) keys.add(JOB_ATTACHMENT_KEY);
     if (location) keys.add(LOCATION_ATTACHMENT_KEY);
     if (sources.some(source => source?.url?.trim?.().length)) keys.add(SOURCES_ATTACHMENT_KEY);
     linkUrls.forEach((url: string) => {
@@ -74,7 +82,7 @@ export const useAttachmentOrder = ({
       keys.add(createMediaAttachmentKey(media.id));
     });
     return keys;
-  }, [showPollCreator, hasArticleContent, article, hasEventContent, event, hasRoomContent, room, hasPodcastContent, podcast, location, sources, mediaIds, linkUrls]);
+  }, [showPollCreator, hasArticleContent, article, hasEventContent, event, hasRoomContent, room, hasPodcastContent, podcast, hasJobContent, job, location, sources, mediaIds, linkUrls]);
 
   // Preserve the last computed ordering between attachment changes.
   const stableOrderRef = useRef<string[]>([]);

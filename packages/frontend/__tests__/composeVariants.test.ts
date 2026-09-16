@@ -83,6 +83,8 @@ const mainPostParams = {
   hasRoomContent: false,
   podcast: null,
   hasPodcastContent: false,
+  job: null,
+  hasJobContent: false,
   location: null,
   formattedSources: [],
   attachmentOrder: [],

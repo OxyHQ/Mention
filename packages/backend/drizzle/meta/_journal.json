@@ -281,6 +281,13 @@
       "when": 1789290430594,
       "tag": "0039_source_identity_projection_index",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1789565617919,
+      "tag": "0040_fresh_daimon_hellstrom",
+      "breakpoints": true
     }
   ]
 }

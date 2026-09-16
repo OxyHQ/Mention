@@ -37,15 +37,25 @@ import {
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 
 /** `ReportedType` — the API contract, deliberately WIDER than what is delivered. */
-export const REPORTED_TYPES = ['post', 'user', 'comment', 'message', 'room'] as const;
+export const REPORTED_TYPES = ['post', 'user', 'comment', 'message', 'room', 'job'] as const;
 
-/** `ReportCategory`. */
+/**
+ * `ReportCategory`. `scam`, `discriminatory`, `impersonation`, `already_filled`
+ * and `duplicate` exist for `job` reports (issue #952 "Moderation / abuse") —
+ * kept in this one shared closed vocabulary rather than a job-only enum,
+ * matching how every other category here already applies across reported types.
+ */
 export const REPORT_CATEGORIES = [
   'spam',
   'hate_speech',
   'harassment',
   'misinformation',
   'explicit_content',
+  'scam',
+  'discriminatory',
+  'impersonation',
+  'already_filled',
+  'duplicate',
   'other',
 ] as const;
 

@@ -23,6 +23,7 @@ export * from './engagement';
 export * from './federation';
 export * from './feeds';
 export * from './gates';
+export * from './jobs';
 export * from './lists';
 export * from './mcp';
 export * from './moderation';

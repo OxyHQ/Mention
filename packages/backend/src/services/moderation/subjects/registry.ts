@@ -1,5 +1,6 @@
 import { createPostSubjectProvider } from './postSubject';
 import { createUserSubjectProvider } from './userSubject';
+import { createJobSubjectProvider } from './jobSubject';
 import type { ModerationSubjectProvider } from './types';
 
 /**
@@ -51,6 +52,11 @@ const PROVIDERS: readonly ModerationSubjectProvider[] = Object.freeze([
     subjectType: 'social.comment',
   }),
   createUserSubjectProvider(),
+  // A Mention-authored job listing (OxyHQ/Mention#952 Phase E). See
+  // `jobSubject.ts` for why `social.job_listing` rather than a `commerce.*`
+  // type, and for why an EXTERNAL Clarity-only job has no provider here at all
+  // (its report routes through Clarity's own mechanism instead).
+  createJobSubjectProvider(),
 ]);
 
 const BY_REPORTED_TYPE: ReadonlyMap<string, ModerationSubjectProvider> = new Map(

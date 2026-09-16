@@ -69,6 +69,35 @@ class ReportService {
       return false;
     }
   }
+
+  /**
+   * A MENTION-OWNED job listing (`reportedType: 'job'`, `reportedId` is the
+   * Mention job's own id) — the SAME generic report surface every other
+   * subject here goes through. An EXTERNAL (Clarity-indexed-only) job never
+   * calls this: it has no Mention `reportedId` to name, and its report goes to
+   * `jobApplicationsService.reportExternalJob` instead, which proxies to
+   * Clarity's own report mechanism (see issue #952: "route/report to the
+   * correct Clarity/canonical-source mechanism rather than pretending Mention
+   * owns the listing").
+   */
+  async reportJob(jobId: string, categories: string[], details?: string): Promise<boolean> {
+    try {
+      await authenticatedClient.post("/reports", {
+        reportedType: 'job',
+        reportedId: jobId,
+        categories,
+        details
+      });
+      return true;
+    } catch (error: unknown) {
+      if (normalizeApiError(error).status === 409) {
+        logger.warn("Already reported this job");
+        return true;
+      }
+      logger.warn("Failed to report job", { error });
+      return false;
+    }
+  }
 }
 
 export const reportService = new ReportService();

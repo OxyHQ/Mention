@@ -26,6 +26,7 @@ import type { ArticleData } from '@/hooks/useArticleManager';
 import type { EventData } from '@/hooks/useEventManager';
 import type { RoomAttachmentData } from '@/hooks/useRoomManager';
 import type { PodcastAttachmentData } from '@/hooks/usePodcastManager';
+import type { JobAttachmentData } from '@/hooks/useJobAttachmentManager';
 
 type ComposeLocation = {
   latitude: number;
@@ -47,6 +48,12 @@ interface BuildMainPostParams {
   hasRoomContent: boolean;
   podcast: PodcastAttachmentData | null;
   hasPodcastContent: boolean;
+  /**
+   * A Mention job attached to this post (OxyHQ/Mention#952). ROOT post only —
+   * `buildThreadPost` below does not take one yet; see its own TODO.
+   */
+  job: JobAttachmentData | null;
+  hasJobContent: boolean;
   location: ComposeLocation | null;
   formattedSources: PostSourceLink[];
   attachmentOrder: string[];
@@ -106,6 +113,8 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     hasRoomContent,
     podcast,
     hasPodcastContent,
+    job,
+    hasJobContent,
     location,
     formattedSources,
     attachmentOrder,
@@ -132,6 +141,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
   );
 
   const podcastId = hasPodcastContent && podcast ? podcast.syraPodcastId : undefined;
+  const jobId = hasJobContent && job ? job.mentionJobId : undefined;
 
   const attachmentsPayload = buildAttachmentsPayload(attachmentOrder, mediaIds, {
     includePoll: hasPoll,
@@ -141,6 +151,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     includeLocation: Boolean(location),
     includeSources: formattedSources.length > 0,
     podcastId,
+    jobId,
   });
 
   const articlePayload = hasArticleContent && article ? {
@@ -193,6 +204,7 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
         }
       }),
       ...(podcastId && { podcast: { syraPodcastId: podcastId } }),
+      ...(jobId && { job: { mentionJobId: jobId } }),
       ...(attachmentsPayload.length > 0 && { attachments: attachmentsPayload })
     },
     mentions: mentionIds,
@@ -288,6 +300,14 @@ export const buildEditPost = (params: BuildEditPostParams): UpdatePostRequest =>
  * batch before anything is written. So a lane chosen in beast mode and then left
  * behind by a switch to thread must not reach the wire — the composer narrows it
  * once, and the icon the box draws and the field it sends read the same value.
+ *
+ * TODO(#952): unlike `podcast`, a thread/beast box cannot attach a Mention job
+ * yet — `ThreadItem` (`hooks/useThreadManager.ts`) carries no `job` field, and
+ * `ComposeToolbar`'s job icon is wired only on the ROOT post's toolbar
+ * (`ComposeScreen.tsx`). The wire itself is ready (`content.job` on
+ * `CreateThreadPostRequest`, exactly like `content.podcast`); what's missing is
+ * `item.job` plumbing through `useThreadManager`, `useDraftManager` and a
+ * per-thread-item job picker (`openThreadPodcastPicker`'s counterpart).
  */
 export const buildThreadPost = (
   item: ThreadItem,

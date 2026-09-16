@@ -5,7 +5,7 @@ import {
   profileTabHref,
   profileTabSelectionFromPathname,
 } from '../profileTabRoute';
-import { TAB_NAMES, laneTabKey } from '../types';
+import { ORGANIZATION_ONLY_TAB_NAMES, TAB_NAMES, laneTabKey } from '../types';
 
 /**
  * Which profile URLs get the tab chrome, and which get none.
@@ -56,10 +56,25 @@ function pathnameFor(file: string): string {
 const ROUTE_FILES = walk(PROFILE_ROUTES);
 const ROUTE_PATHNAMES = ROUTE_FILES.map(pathnameFor);
 
-/** Every route this segment serves that IS one of the profile's tabs. */
+/**
+ * Every route this segment serves that IS one of the profile's tabs.
+ *
+ * Includes {@link ORGANIZATION_ONLY_TAB_NAMES} alongside the static
+ * {@link TAB_NAMES}: `jobs` (OxyHQ/Mention#952) is, per the issue itself, "an
+ * organization Jobs tab" — routed at its own file
+ * (`app/(app)/[username]/jobs.tsx`) so a shared link resolves, but tab
+ * chrome, not a sibling screen. `CHANNEL_ONLY_TAB_NAMES` never needed the same
+ * treatment because `writers` has no routed file to misclassify — see
+ * `profileTabRoute.ts`'s own comment on why.
+ */
 const TAB_PATHNAMES = ROUTE_PATHNAMES.filter((pathname) => {
   const [, second] = pathname.split('/').filter(Boolean);
-  return second === undefined || second === 'lane' || (TAB_NAMES as readonly string[]).includes(second);
+  return (
+    second === undefined ||
+    second === 'lane' ||
+    (TAB_NAMES as readonly string[]).includes(second) ||
+    (ORGANIZATION_ONLY_TAB_NAMES as readonly string[]).includes(second)
+  );
 });
 
 /** Everything else it serves: full screens with their own header and back arrow. */

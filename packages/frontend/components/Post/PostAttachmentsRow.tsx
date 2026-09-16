@@ -7,6 +7,7 @@ import type {
   PostAttachmentDescriptor,
   ClarityDocument,
   PostPodcastContent,
+  PostJobContent,
   PostSourceLink,
 } from '@mention/shared-types/post';
 import type { GeoJSONPoint } from '@mention/shared-types/common';
@@ -16,6 +17,7 @@ import {
 } from '@mention/shared-types/post';
 import { useRouter } from 'expo-router';
 import { PodcastCard } from '@/components/Podcast/PodcastCard';
+import JobCard from '@/components/Post/JobCard';
 import { MEDIA_CARD_HEIGHT, MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
 import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
@@ -78,6 +80,8 @@ interface Props {
   room?: { roomId: string; title: string; status?: 'scheduled' | 'live' | 'ended'; topic?: string; host?: string } | null;
   onRoomPress?: (() => void) | null;
   podcast?: PostPodcastContent | null;
+  /** Denormalized Mention job attachment — see `PostJobContent`. */
+  job?: PostJobContent | null;
   location?: GeoJSONPoint | null;
   sources?: PostSourceLink[];
   onSourcesPress?: (() => void) | null;
@@ -110,6 +114,7 @@ type AttachmentItem =
   | { type: 'event' }
   | { type: 'room' }
   | { type: 'podcast' }
+  | { type: 'job' }
   | { type: 'link'; url: string; title?: string; description?: string; image?: string; siteName?: string; embedParams?: EmbedPlayerParams }
   | { type: 'video'; mediaId: string; src: string; poster?: string; width?: number; height?: number; aspectRatio?: number; orientation?: 'portrait' | 'landscape' | 'square'; durationSec?: number }
   | { type: 'gif'; mediaId: string; src: string; width?: number; height?: number; aspectRatio?: number }
@@ -157,6 +162,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   room,
   onRoomPress,
   podcast,
+  job,
   text,
   documents,
   sensitive,
@@ -178,6 +184,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   const hasEvent = useMemo(() => Boolean(event && event.name?.trim?.()), [event]);
   const hasRoom = useMemo(() => Boolean(room?.roomId), [room]);
   const hasPodcast = useMemo(() => Boolean(podcast?.syraPodcastId), [podcast]);
+  const hasJob = useMemo(() => Boolean(job?.mentionJobId), [job]);
   const linkPreviewArray = useMemo(() => Array.isArray(documents) ? documents.filter((preview) => Boolean(preview?.canonicalUrl)) : [], [documents]);
 
   // Resolve a media reference to a final render URL for a given context:
@@ -320,6 +327,11 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               results.push({ type: 'podcast' });
             }
             break;
+          case 'job':
+            if (hasJob && !results.some(item => item.type === 'job')) {
+              results.push({ type: 'job' });
+            }
+            break;
           case 'media':
             if (descriptor.id) {
               addMediaItem(descriptor.id, descriptor.mediaType);
@@ -335,6 +347,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       if (hasEvent) results.push({ type: 'event' });
       if (hasRoom) results.push({ type: 'room' });
       if (hasPodcast) results.push({ type: 'podcast' });
+      if (hasJob) results.push({ type: 'job' });
       results.push(...linkItems);
     }
 
@@ -353,6 +366,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     }
     if (hasPodcast && !results.some(item => item.type === 'podcast')) {
       results.push({ type: 'podcast' });
+    }
+    if (hasJob && !results.some(item => item.type === 'job')) {
+      results.push({ type: 'job' });
     }
 
     // The descriptor switch above has no `link` case, so a descriptor-driven post
@@ -374,7 +390,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     }
 
     return results;
-  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasEvent, hasRoom, hasPodcast, linkPreviewArray, resolveMediaSrc, oxyServices]);
+  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasEvent, hasRoom, hasPodcast, hasJob, linkPreviewArray, resolveMediaSrc, oxyServices]);
 
   type Item =
     | { type: 'nested' }
@@ -789,6 +805,10 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
             />
           );
         }
+        if (item.type === 'job') {
+          if (!job) return null;
+          return <JobCard key={`job-${idx}`} job={job} />;
+        }
         if (item.type === 'poll') {
           return (
             <PostAttachmentPoll
@@ -877,6 +897,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     prevProps.room === nextProps.room &&
     prevProps.onRoomPress === nextProps.onRoomPress &&
     prevProps.podcast === nextProps.podcast &&
+    prevProps.job === nextProps.job &&
     prevProps.text === nextProps.text &&
     prevProps.location === nextProps.location &&
     prevProps.sources === nextProps.sources &&

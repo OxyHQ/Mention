@@ -255,6 +255,8 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const podcastContent = attachmentsBundle.podcast ?? content.podcast ?? null;
 
+    const jobContent = attachmentsBundle.job ?? content.job ?? null;
+
     const pollData = attachmentsBundle.poll ?? content.poll ?? null;
     const pollId = content.pollId ?? null;
 
@@ -291,6 +293,7 @@ const PostItem: React.FC<PostItemProps> = ({
         Boolean(eventContent) ||
         Boolean(roomContent) ||
         Boolean(podcastContent) ||
+        Boolean(jobContent) ||
         documents.length > 0 ||
         hasValidLocation;
 
@@ -991,6 +994,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         room={roomProp}
                         onRoomPress={roomId ? handleRoomPress : undefined}
                         podcast={podcastContent}
+                        job={jobContent}
                         location={location}
                         sources={sourcesList}
                         onSourcesPress={hasSources ? openSourcesSheet : undefined}

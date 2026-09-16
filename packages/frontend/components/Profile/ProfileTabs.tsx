@@ -18,11 +18,15 @@ import { customFeedsService } from '@/services/customFeedsService';
 import { ListCard, type ListCardData } from '@/components/ListCard';
 import { starterPacksService } from '@/services/starterPacksService';
 import { listsService } from '@/services/listsService';
-import type { FeedType, HydratedPost } from '@mention/shared-types';
+import { jobsService } from '@/services/jobsService';
+import OrganizationJobRow from '@/components/Jobs/OrganizationJobRow';
+import { useOperatesAccount } from './hooks/useOperatesAccount';
+import type { FeedType, HydratedPost, MentionJobPosting } from '@mention/shared-types';
 import type { ProfileTabsProps } from './types';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
+import { Button } from '@oxy.so/bloom/button';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -125,6 +129,13 @@ export const ProfileTabs = memo(function ProfileTabs({
         viewerId={user?.id}
       />
     );
+  }
+
+  // Jobs tab (OxyHQ/Mention#952) — organization/project accounts only; see
+  // `ORGANIZATION_ONLY_TAB_NAMES` for why reaching this branch already means
+  // the account is eligible.
+  if (tab === 'jobs') {
+    return <ProfileJobs employerOxyUserId={profileId} isOwnProfile={isOwnProfile} viewerId={user?.id} />;
   }
 
   // Lists tab
@@ -366,6 +377,88 @@ const ProfileFeeds = memo(function ProfileFeeds({
           />
         );
       })}
+    </View>
+  );
+});
+
+/**
+ * A profile's Jobs tab (OxyHQ/Mention#952) — one organization/project
+ * account's own listings, read via
+ * `jobsService.getOrganizationJobs(employerOxyUserId)`. The endpoint itself
+ * splits visibility by caller authority (published-only for a stranger, every
+ * status for an authorized operator — `jobs.controller.ts`), so this
+ * component just renders whatever it gets back; it does not re-derive that
+ * split client-side.
+ */
+const ProfileJobs = memo(function ProfileJobs({
+  employerOxyUserId,
+  isOwnProfile,
+  viewerId,
+}: {
+  employerOxyUserId?: string;
+  isOwnProfile: boolean;
+  viewerId?: string;
+}) {
+  const { t } = useTranslation();
+  const theme = useTheme();
+
+  // `accountKind: 'organization'` is a stand-in, not an assertion about which
+  // of the two eligible kinds this profile actually is — `useOperatesAccount`
+  // only branches on `=== 'personal'` vs. anything else, and reaching this
+  // component at all already means `profileTabsForAccountKind` classified the
+  // account as organization or project (see that function, and
+  // `ORGANIZATION_ONLY_TAB_NAMES`'s docblock). `ProfileTabsProps` carries no
+  // `kind` field to thread the real value through.
+  const viewerOperatesAccount = useOperatesAccount({
+    accountId: employerOxyUserId,
+    accountKind: 'organization',
+  });
+
+  const { data: jobs = [], isPending: loading } = useQuery<MentionJobPosting[]>({
+    queryKey: viewerQueryKeys.organizationJobs(viewerId, employerOxyUserId ?? ''),
+    enabled: Boolean(employerOxyUserId),
+    queryFn: async () => {
+      try {
+        const res = await jobsService.getOrganizationJobs(employerOxyUserId as string);
+        return res.jobs;
+      } catch {
+        logger.warn('Failed to load organization jobs');
+        return [];
+      }
+    },
+  });
+
+  if (loading) {
+    return (
+      <View className="items-center justify-center p-8">
+        <Spinner />
+      </View>
+    );
+  }
+
+  return (
+    <View className="p-4 gap-3">
+      {(isOwnProfile || viewerOperatesAccount) && (
+        <Button
+          variant="secondary"
+          size="small"
+          style={{ alignSelf: 'flex-start' }}
+          onPress={() => router.push('/jobs/mine')}
+        >
+          {t('profile.jobs.manage', { defaultValue: 'Manage jobs' })}
+        </Button>
+      )}
+
+      {jobs.length === 0 ? (
+        <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
+          <Ionicons name="briefcase-outline" size={48} color={theme.colors.textSecondary} />
+          <Text className="text-muted-foreground text-base font-medium">
+            {t('profile.jobs.empty', { defaultValue: 'No jobs yet' })}
+          </Text>
+        </View>
+      ) : (
+        jobs.map((job) => <OrganizationJobRow key={job.id} job={job} />)
+      )}
     </View>
   );
 });

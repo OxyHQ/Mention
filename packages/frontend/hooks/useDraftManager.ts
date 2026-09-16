@@ -12,12 +12,14 @@ import {
   LOCATION_ATTACHMENT_KEY,
   SOURCES_ATTACHMENT_KEY,
   PODCAST_ATTACHMENT_KEY,
+  JOB_ATTACHMENT_KEY,
   createMediaAttachmentKey,
 } from '@/utils/composeUtils';
 import type { ArticleData } from './useArticleManager';
 import type { Draft, DraftInput } from './useDrafts';
 import type { LocationData } from './useLocationManager';
 import type { PodcastAttachmentData } from './usePodcastManager';
+import type { JobAttachmentData } from './useJobAttachmentManager';
 import type { Source } from './useSourcesManager';
 import type { DraftThreadItem, ThreadItem } from './useThreadManager';
 import {
@@ -96,6 +98,8 @@ interface ComposeDraftRefs {
   sources: Source[];
   article: ArticleData | null;
   podcast: PodcastAttachmentData | null;
+  /** ROOT post only — see `useJobAttachmentManager.ts`. */
+  job: JobAttachmentData | null;
   threadItems: ThreadItem[];
   mentions: MentionData[];
   postingMode: 'thread' | 'beast';
@@ -120,6 +124,7 @@ interface DraftManagerProps {
     articleDraftTitle: string;
     articleDraftBody: string;
     podcast: PodcastAttachmentData | null;
+    job: JobAttachmentData | null;
     scheduledAt: Date | null;
     attachmentOrder: string[];
     mentions: MentionData[];
@@ -182,6 +187,7 @@ export const useDraftManager = ({
         ...(refs.podcast.author ? { author: refs.podcast.author } : {}),
         ...(refs.podcast.artworkUrl ? { artworkUrl: refs.podcast.artworkUrl } : {}),
       } : undefined,
+      job: refs.job ? { ...refs.job } : undefined,
       threadItems: refs.threadItems.map(item => ({
         id: item.id,
         text: item.text,
@@ -225,7 +231,8 @@ export const useDraftManager = ({
       (refs.article && ((refs.article.title && refs.article.title.trim().length > 0) ||
                         (refs.article.body && refs.article.body.trim().length > 0))) ||
       Boolean(refs.podcast?.syraPodcastId) ||
-      refs.sources.some(source => (source.title && source.title.trim().length > 0) || 
+      Boolean(refs.job?.mentionJobId) ||
+      refs.sources.some(source => (source.title && source.title.trim().length > 0) ||
                                    (source.url && source.url.trim().length > 0)) ||
       refs.threadItems.some(item => item.text.trim().length > 0 || item.mediaIds.length > 0 ||
         (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) ||
@@ -300,6 +307,26 @@ export const useDraftManager = ({
       };
     }
 
+    let jobData: JobAttachmentData | null = null;
+    const storedJob = isRecord(draft.job) ? draft.job : null;
+    const mentionJobId = storedJob ? readString(storedJob.mentionJobId) : undefined;
+    const jobEmployerOxyUserId = storedJob ? readString(storedJob.employerOxyUserId) : undefined;
+    const jobCanonicalUrl = storedJob ? readString(storedJob.canonicalUrl) : undefined;
+    const jobStatus = storedJob ? readString(storedJob.status) : undefined;
+    if (storedJob && mentionJobId && jobEmployerOxyUserId && jobCanonicalUrl && jobStatus) {
+      jobData = {
+        mentionJobId,
+        title: readString(storedJob.title) ?? '',
+        employerName: readString(storedJob.employerName) ?? '',
+        employerOxyUserId: jobEmployerOxyUserId,
+        canonicalUrl: jobCanonicalUrl,
+        status: jobStatus as JobAttachmentData['status'],
+        location: readString(storedJob.location),
+        workplaceType: readString(storedJob.workplaceType) as JobAttachmentData['workplaceType'],
+        employmentType: readString(storedJob.employmentType) as JobAttachmentData['employmentType'],
+      };
+    }
+
     let scheduledAtData: Date | null = null;
     const storedScheduledAt = readString(draft.scheduledAt);
     if (storedScheduledAt) {
@@ -319,6 +346,9 @@ export const useDraftManager = ({
     }
     if (podcastData) {
       availableAttachmentKeys.push(PODCAST_ATTACHMENT_KEY);
+    }
+    if (jobData) {
+      availableAttachmentKeys.push(JOB_ATTACHMENT_KEY);
     }
     if (locationData) {
       availableAttachmentKeys.push(LOCATION_ATTACHMENT_KEY);
@@ -390,6 +420,7 @@ export const useDraftManager = ({
       articleDraftTitle,
       articleDraftBody,
       podcast: podcastData,
+      job: jobData,
       scheduledAt: scheduledAtData,
       attachmentOrder: sanitizedAttachmentOrder,
       mentions: mentionsData,

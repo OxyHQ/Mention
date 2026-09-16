@@ -378,6 +378,111 @@ export const viewerQueryKeys = {
     'starter-packs',
     'mine',
   ] as const,
+  /**
+   * `jobsService.getMine()` — every Mention job listing the caller can act on,
+   * across every organization/project account they operate. One key for the
+   * whole set (not per-status): the dashboard filters client-side, and a
+   * status-scoped key would fan one create/publish/pause/close/duplicate
+   * mutation out into several invalidations for what is really one list.
+   */
+  jobsMine: (viewerId: ViewerId) => [
+    ...viewerQueryKeys.all(viewerId),
+    'jobs',
+    'mine',
+  ] as const,
+  /** One job by id or slug (`jobsService.get`) — the edit form and the public job page share this key. */
+  jobDetail: (viewerId: ViewerId, idOrSlug: string) => [
+    ...viewerQueryKeys.all(viewerId),
+    'jobs',
+    'detail',
+    idOrSlug,
+  ] as const,
+  /** `jobsService.getMetrics(id)` — the employer-only aggregate summary shown on the job's own edit screen. */
+  jobMetrics: (viewerId: ViewerId, jobId: string) => [
+    ...viewerQueryKeys.all(viewerId),
+    'jobs',
+    'metrics',
+    jobId,
+  ] as const,
+  /**
+   * The employer's Oxy profile (`oxyServices.getUserById`), for the public
+   * job page and the native-apply screen's "who you're applying to" link —
+   * a plain identity lookup, not job data, but scoped alongside the other
+   * `jobs` keys since both call sites reach it FROM a job.
+   */
+  jobEmployerProfile: (viewerId: ViewerId, employerOxyUserId: string | null | undefined) => [
+    ...viewerQueryKeys.all(viewerId),
+    'jobs',
+    'employer-profile',
+    employerOxyUserId ?? '',
+  ] as const,
+  /**
+   * `jobsService.list()` — the public Clarity-backed discovery screen
+   * (`app/(app)/jobs/index.tsx`). Keyed by viewer anyway, like every other
+   * private read (`search` above is the same shape of key for the same
+   * reason): discovery itself needs no signed-in session, but the screen is
+   * reached only from inside the authenticated app shell, and an account
+   * switch should drop it with the rest of that viewer's namespace rather than
+   * leak a stale results page into the next session.
+   */
+  jobDiscovery: (
+    viewerId: ViewerId,
+    filters: Readonly<Record<string, unknown>>,
+  ) => [
+    ...viewerQueryKeys.all(viewerId),
+    'jobs',
+    'discovery',
+    filters,
+  ] as const,
+  /**
+   * `jobsService.getOrganizationJobs(employerOxyUserId)` — one organization or
+   * project account's Jobs profile tab. Keyed by the EMPLOYER's id, not the
+   * viewer's own — a profile's jobs are the same list for every visitor
+   * (published only) or the fuller operator list (every status), and the
+   * response itself already varies by caller authority, so this key only has
+   * to keep one visitor's cached page from being served to another employer's
+   * tab, not re-derive the authority split itself.
+   */
+  organizationJobs: (viewerId: ViewerId, employerOxyUserId: string) => [
+    ...viewerQueryKeys.all(viewerId),
+    'jobs',
+    'organization',
+    employerOxyUserId,
+  ] as const,
+  /**
+   * `jobApplicationsService.listForEmployer(jobId)` — the applicant inbox for
+   * one job, optionally narrowed by status. One key per (job, status) pair
+   * rather than one for the whole job: the inbox's own status tabs page
+   * independently, and a status-scoped key lets switching tabs read a cached
+   * page instead of refetching one the viewer already loaded this session.
+   */
+  /** Every status-filtered view of one job's applications — the prefix a status-change invalidates, since it moves a row between buckets. */
+  jobApplicationsRoot: (viewerId: ViewerId, jobId: string) => [
+    ...viewerQueryKeys.all(viewerId),
+    'jobs',
+    'applications',
+    jobId,
+  ] as const,
+  jobApplications: (
+    viewerId: ViewerId,
+    jobId: string,
+    status?: string,
+  ) => [
+    ...viewerQueryKeys.jobApplicationsRoot(viewerId, jobId),
+    status ?? 'all',
+  ] as const,
+  /** `jobApplicationsService.listNotes(jobId, applicationId)` — one application's internal notes thread. */
+  jobApplicationNotes: (
+    viewerId: ViewerId,
+    jobId: string,
+    applicationId: string,
+  ) => [
+    ...viewerQueryKeys.all(viewerId),
+    'jobs',
+    'application-notes',
+    jobId,
+    applicationId,
+  ] as const,
   connectedAi: (viewerId: ViewerId) => [
     ...viewerQueryKeys.all(viewerId),
     'connected-ai',

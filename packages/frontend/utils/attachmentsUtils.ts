@@ -13,6 +13,8 @@ export const buildAttachmentsPayload = (
     includeRoom?: boolean;
     /** When set, a `{ type: 'podcast', id }` descriptor is emitted at the podcast slot. */
     podcastId?: string;
+    /** When set, a `{ type: 'job', id }` descriptor is emitted at the job slot (OxyHQ/Mention#952). */
+    jobId?: string;
   }
 ): PostAttachmentDescriptor[] => {
   const descriptors: PostAttachmentDescriptor[] = [];
@@ -48,6 +50,12 @@ export const buildAttachmentsPayload = (
     descriptors.push({ type: "podcast", id: options.podcastId });
   };
 
+  const addJob = () => {
+    if (!options.jobId) return;
+    if (descriptors.some((d) => d.type === "job")) return;
+    descriptors.push({ type: "job", id: options.jobId });
+  };
+
   const POLL_ATTACHMENT_KEY = "poll";
   const ARTICLE_ATTACHMENT_KEY = "article";
   const EVENT_ATTACHMENT_KEY = "event";
@@ -55,6 +63,7 @@ export const buildAttachmentsPayload = (
   const SOURCES_ATTACHMENT_KEY = "sources";
   const ROOM_ATTACHMENT_KEY = "room";
   const PODCAST_ATTACHMENT_KEY = "podcast";
+  const JOB_ATTACHMENT_KEY = "job";
   const MEDIA_ATTACHMENT_PREFIX = "media:";
   const isMediaAttachmentKey = (key: string) => key.startsWith(MEDIA_ATTACHMENT_PREFIX);
   const getMediaIdFromAttachmentKey = (key: string) => key.slice(MEDIA_ATTACHMENT_PREFIX.length);
@@ -88,6 +97,10 @@ export const buildAttachmentsPayload = (
       addPodcast();
       return;
     }
+    if (key === JOB_ATTACHMENT_KEY) {
+      addJob();
+      return;
+    }
     if (isMediaAttachmentKey(key)) {
       const mediaId = getMediaIdFromAttachmentKey(key);
       addMedia(mediaId);
@@ -101,6 +114,7 @@ export const buildAttachmentsPayload = (
   if (options.includeSources) addNonMedia("sources");
   if (options.includeRoom) addNonMedia("room");
   addPodcast();
+  addJob();
 
   mediaList.forEach((item) => {
     if (!usedMedia.has(item.id)) {

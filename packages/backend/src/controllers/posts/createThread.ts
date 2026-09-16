@@ -33,6 +33,7 @@ import {
   PublishAsAccessError,
 } from '../../services/publishAsAccount';
 import { sanitizePodcast, resolvePodcastContent } from '../../utils/syraPodcast';
+import { sanitizeJobInput, resolveJobContent } from '../../utils/jobPostAttachment';
 import { federatePostBatchDetached } from '../../connectors/threadFederation';
 import {
   type ParsedPollInput,
@@ -482,6 +483,19 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         }
       }
 
+      // Handle a Mention job attachment: same untrusted-reference treatment as
+      // podcast, and the same drop-and-log-rather-than-400 policy every other
+      // best-effort thread attachment gets.
+      const threadSanitizedJob = sanitizeJobInput(content?.job);
+      if (threadSanitizedJob) {
+        try {
+          const jobContent = await resolveJobContent(threadSanitizedJob.mentionJobId);
+          if (jobContent) postContent.job = jobContent;
+        } catch (jobError) {
+          logger.warn('Failed to resolve Mention job for thread post; dropping', { userId, mentionJobId: threadSanitizedJob.mentionJobId, error: jobError });
+        }
+      }
+
       // Handle poll creation
       let pollId = null;
       const poll = entryPolls[i];
@@ -518,7 +532,8 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         includeRoom: Boolean(postContent.room),
         includeLocation: Boolean(postContent.location),
         includeSources: Boolean(postContent.sources && postContent.sources.length),
-        includePodcast: Boolean(postContent.podcast)
+        includePodcast: Boolean(postContent.podcast),
+        includeJob: Boolean(postContent.job)
       });
 
       if (computedAttachments) {
