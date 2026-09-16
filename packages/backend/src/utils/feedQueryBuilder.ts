@@ -78,23 +78,39 @@ export function notABoostSql(): SQL {
  *   them in the query means the page is filled with real candidates before it is
  *   cut.
  *
- * IT IS PER-SURFACE, AND NOT AN ALWAYS-ON ENGINE FILTER
+ * WHICH SURFACES TAKE IT — a policy, and a mechanism that does not yet serve it
  *
- *   The obvious tidier version is one predicate in `FeedEngine` beside the muted
- *   lanes, applied to every definition. It would be wrong. A mute is a reader's
- *   standing preference and belongs to every surface; a collapse is a RENDERING
- *   choice for surfaces that are choosing what to show. The two sources that are
- *   not — the likes tab and bookmarks — hand back a collection the reader
- *   assembled by hand, and hiding the Threads copy they explicitly saved would
- *   be losing their bookmark, not de-duplicating a feed. So each surface takes
- *   this term deliberately, and those two do not.
+ *   The POLICY. A mute is a reader's standing preference and belongs to every
+ *   surface; a collapse is a RENDERING choice for surfaces that are CHOOSING
+ *   what to show. The collections a reader assembled by hand — bookmarks, the
+ *   profile likes tab — are not choosing, and hiding the Threads copy somebody
+ *   explicitly saved would be losing their bookmark rather than de-duplicating a
+ *   feed. Source-specific reply trees are not choosing either: a reply to the
+ *   Instagram post is the INSTAGRAM post's reply. That policy is settled.
  *
- *   The three content predicates in THIS file carry it for the same reason the
- *   sources do, and they are the ones it was missing from longest: a Meta
- *   cross-post is a photo or a video, so the Videos and Media lanes are where a
- *   reader was most likely to meet the duplicate, and they are the only discovery
- *   surfaces that take their content rule from here instead of spelling it at the
- *   source. `crosspostCollapseSurfaces.test.ts` drives every one of them.
+ *   The MECHANISM is spelling this term at each call site, and it is weaker than
+ *   the policy it serves. ~50 sites carry it; three deliberately do not. Nothing
+ *   distinguishes a decision from an omission, so forgetting one is silent and
+ *   has happened repeatedly — eleven surfaces at once most recently, including
+ *   the Videos and Media lanes, which a Meta cross-post (a photo or a video) was
+ *   likeliest of all to be seen twice in.
+ *
+ *   The argument that this MUST be per-surface does not survive reading the
+ *   exempt code: `savedSource` and `gatherAuthorLikes` reach `posts` through
+ *   `inArray(posts.id, …)` after paging `bookmarks`/`likes`. They never scan, so
+ *   they could not inherit a default applied to the scanning reader path — the
+ *   exemptions cost nothing. Compare `mtn/feed/feedSafety.ts`, whose docblock
+ *   records the same shape of gate being copy-pasted per feed until
+ *   `ForYouFeed.fetchPopular` leaked NSFW into For You, and which was then
+ *   centralised for exactly this reason.
+ *
+ *   So treat per-surface as the CURRENT mechanism, not the intended one. The
+ *   deeper fix is a shared `readerVisibleSql()` (public + published + not
+ *   collapsed) that reader surfaces spell instead of the three terms separately,
+ *   leaving the exemptions a visibly different function name rather than an
+ *   invisible absent term. Until then, `crosspostCollapseSurfaces.test.ts` and
+ *   `controllers/crosspostControllerFeeds.test.ts` drive every surface and pin
+ *   all three exemptions.
  *
  * `IS NOT TRUE` rather than `= false` for the reason every shared predicate in
  * this file spells its negations that way: the column is `NOT NULL` today, so

@@ -1,28 +1,18 @@
 /**
  * One Meta cross-post is ONE card, on every surface that chooses what to show.
  *
- * A creator who publishes the same video to Instagram and to Threads reaches us
- * as two objects, and `#990` is explicit that both are kept: independent
- * permalinks, replies, likes, edits and moderation state. What a reader sees is
- * one card, and the mechanism is `posts.crosspost_collapsed` — a projection
- * `PostEquivalenceService` writes onto every non-preferred cluster member —
- * excluded IN THE QUERY by {@link notCollapsedCrosspostSql}.
+ * WHY the collapse exists, WHICH surfaces are exempt and WHY it is a query term
+ * rather than a post-fetch filter are all argued once, at
+ * {@link notCollapsedCrosspostSql} in `utils/feedQueryBuilder.ts`. This file does
+ * not restate any of it. What follows is only what is peculiar to testing it.
  *
  * ## Why a suite rather than trusting the predicate
  *
- * The term is spelled at ~35 call sites across seven files, and the failure mode
- * of forgetting one is silent: the page still pages, nothing errors, and the only
- * symptom is a reader meeting the same photo twice under the same name. Nothing
- * about the predicate's own correctness can catch that — only driving the
- * shipped surfaces over a real cluster can.
- *
- * It caught three, and their shape is the argument for the file existing. The
- * Videos and Media lanes take their content rule from `FeedQueryBuilder` rather
- * than spelling it at the source, so they inherited every guard that file
- * carried and none it did not — and a Meta cross-post is a photo or a video, so
- * those are the two lanes a reader was most likely to meet the duplicate in.
- * Trending story membership was the same omission one module over, next to two
- * sibling reads that already excluded it.
+ * The term is spelled at ~50 call sites, and the failure mode of forgetting one
+ * is silent: the page still pages, nothing errors, and the only symptom is a
+ * reader meeting the same photo twice under the same name. Nothing about the
+ * predicate's own correctness can catch that — only driving the shipped surfaces
+ * over a real cluster can. It caught three omissions on the commit that added it.
  *
  * ## Every case is DIFFERENTIAL, and that is what makes it evidence
  *
@@ -32,24 +22,21 @@
  * never reached the fixtures — the exact way a capped corpus-wide read goes
  * quietly green in a shared database.
  *
- * ## The two surfaces that must NOT collapse
+ * ## The exempt surfaces are asserted here too
  *
- * Bookmarks and the profile likes tab hand back a collection the reader
- * assembled by hand. Hiding the Threads copy somebody explicitly saved is losing
- * their bookmark, not de-duplicating a feed. They are asserted to return BOTH,
- * so the exemption is a decision on the record rather than an omission the next
- * reader of `feedQueryBuilder.ts` tidies away.
+ * Bookmarks and the profile likes tab must return BOTH, so that exemption is a
+ * decision on the record rather than an omission the next reader of
+ * `feedQueryBuilder.ts` tidies away.
  */
-
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { and, inArray } from 'drizzle-orm';
+import { and, inArray, type SQL } from 'drizzle-orm';
 import { MtnConfig, PostType, PostVisibility } from '@mention/shared-types';
 
 import { closePostgres, connectPostgres, getDb } from '../db/postgres';
 import { bookmarks, likes, posts } from '../db/schema';
-import { insertPostRecord } from '../db/posts/postRepository';
-import { createCluster, dissolveCluster } from '../db/posts/postEquivalenceRepository';
-import { FeedQueryBuilder, notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
+import { dissolveCluster } from '../db/posts/postEquivalenceRepository';
+import { clearPostScope, postScope, seedCrosspostCluster, seedPost } from './helpers/postFixtures';
+import { FeedQueryBuilder } from '../utils/feedQueryBuilder';
 import { buildPostsByHashtagFilter, buildPostsByTopicFilter } from '../controllers/posts/readPosts';
 import { buildActorPostsScopeSql } from '../connectors/connectors.routes';
 import { chronoOrderBy } from '../mtn/feed/CursorBuilder';
@@ -59,9 +46,10 @@ import { authoredSource, savedSource } from '../mtn/feed/engine/sources/userSour
 import { moreLikeThisSource } from '../mtn/feed/engine/sources/relatedSources';
 import type { CandidatePost, FeedEngineContext } from '../mtn/feed/engine/types';
 
-const AUTHOR = 'crosspost-collapse-author';
-const VIEWER = 'crosspost-collapse-viewer';
-const STRANGER = 'crosspost-collapse-stranger';
+const scope = postScope('crosspost-collapse-surfaces');
+const AUTHOR = scope.user('author');
+const VIEWER = scope.user('viewer');
+const STRANGER = scope.user('stranger');
 
 /**
  * A tag and a topic no other suite uses, so the naturally-scoped surfaces
@@ -85,6 +73,13 @@ const at = (minutes: number) => new Date(BASE.getTime() + minutes * 60_000);
 const PORTRAIT = { width: 720, height: 1280, orientation: 'portrait' as const };
 const LONG_ENOUGH = MtnConfig.videosFeed.minDurationSec + 5;
 
+/**
+ * The ids this suite created, in seeding order.
+ *
+ * `postFixtures` keeps its own list module-private for teardown, and
+ * {@link suiteIdsOf} needs to read it — so the ids are tracked twice
+ * deliberately, rather than re-implementing the insert to get at one.
+ */
 const created: string[] = [];
 
 /**
@@ -98,15 +93,13 @@ const created: string[] = [];
 async function seedVariant(
   label: string,
   createdAt: Date,
-  overrides: { oxyUserId?: string } = {},
+  owner: string = AUTHOR,
 ): Promise<string> {
-  const owner = overrides.oxyUserId ?? AUTHOR;
-  const record = await insertPostRecord({
+  const record = await seedPost(scope, {
     oxyUserId: owner,
     authorship: [{ oxyUserId: owner, role: 'owner', status: 'accepted' }],
     type: PostType.VIDEO,
     visibility: PostVisibility.PUBLIC,
-    status: 'published',
     createdAt,
     hashtags: [TAG],
     federation: { activityId: `https://source.test/${label}-${createdAt.getTime()}` },
@@ -128,22 +121,11 @@ interface Pair {
   clusterId: string;
 }
 
-/**
- * Two variants of one cross-post, clustered through the SHIPPED writer.
- *
- * `createCluster` is what moves `posts.crosspost_collapsed`, in the same
- * transaction as the member rows. Setting the column by hand would make every
- * assertion below a statement about a fixture rather than about the projection
- * production writes.
- */
+/** Two variants of one cross-post, clustered through the shipped writer. */
 async function crosspostPair(): Promise<Pair> {
   const shown = await seedVariant('instagram-variant', at(20));
   const hidden = await seedVariant('threads-variant', at(10));
-  const clusterId = await createCluster('declared', [
-    { postId: shown, networkDomain: 'instagram.com', preferred: true, evidence: 'declared original' },
-    { postId: hidden, networkDomain: 'threads.net', preferred: false, evidence: 'declared crosspost of the Instagram original' },
-  ]);
-  return { shown, hidden, clusterId };
+  return { shown, hidden, clusterId: await seedCrosspostCluster(shown, hidden) };
 }
 
 /** The ids THIS suite created, in order — for a read that sweeps the whole corpus. */
@@ -157,13 +139,10 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
-  const ids = created.splice(0);
-  if (ids.length > 0) {
-    // Bookmarks, likes, media, authorships and cluster membership all cascade.
-    await getDb().delete(bookmarks).where(inArray(bookmarks.postId, ids));
-    await getDb().delete(likes).where(inArray(likes.postId, ids));
-    await getDb().delete(posts).where(inArray(posts.id, ids));
-  }
+  created.length = 0;
+  // Bookmarks, likes, media, authorships and cluster membership go with the post
+  // by `ON DELETE cascade` — see `db/schema/engagement.ts`.
+  await clearPostScope(scope);
 });
 
 afterAll(async () => {
@@ -188,16 +167,15 @@ async function expectsCollapse(
 
 describe('the content predicates, driven directly', () => {
   /**
-   * The five exported predicates behind a reader surface that pages over
-   * `posts` without going through a source module — three that the Videos and
-   * Media lanes take their content rule from, and the two discovery pages.
+   * The six exported predicates behind a reader surface that pages over `posts`
+   * without going through a source module.
    *
    * Scoped rather than corpus-wide because these are predicates, not pages:
    * `inArray` makes "exactly these two rows, filtered" a determinate question in
    * a database other files are writing to, and the lanes themselves are driven
    * end-to-end further down.
    */
-  async function matching(where: ReturnType<typeof notCollapsedCrosspostSql>): Promise<string[]> {
+  async function matching(where: SQL): Promise<string[]> {
     const rows = await getDb()
       .select({ id: posts.id })
       .from(posts)
@@ -206,40 +184,20 @@ describe('the content predicates, driven directly', () => {
     return [...rows].map((row) => row.id);
   }
 
-  it('excludes the collapsed half from the ranked video predicate', async () => {
+  it.each<[string, () => SQL]>([
+    ['the ranked video predicate', () => FeedQueryBuilder.buildVideosQuery([])],
+    ['the chronological video predicate', () => FeedQueryBuilder.videoPostConditions([])],
+    ['the media predicate', () => FeedQueryBuilder.buildMediaFeedQuery([])],
+    ['the hashtag page', () => buildPostsByHashtagFilter(TAG)],
+    ['the topic page', () => buildPostsByTopicFilter(TOPIC)],
+    // One Oxy person owning BOTH source actors of a proven Instagram ↔ Threads
+    // pair is the whole reason this branch needs the term: it selects by
+    // `oxy_user_id`, so both halves land on one remote actor's page.
+    ["an adopted actor's page",
+      () => buildActorPostsScopeSql({ uri: 'https://kilogram.makeup/users/gate', oxyUserId: AUTHOR })],
+  ])('excludes the collapsed half from %s', async (_label, predicate) => {
     const pair = await crosspostPair();
-    await expectsCollapse(pair, () => matching(FeedQueryBuilder.buildVideosQuery([])));
-  });
-
-  it('excludes the collapsed half from the chronological video predicate', async () => {
-    const pair = await crosspostPair();
-    await expectsCollapse(pair, () => matching(FeedQueryBuilder.videoPostConditions([])));
-  });
-
-  it('excludes the collapsed half from the media predicate', async () => {
-    const pair = await crosspostPair();
-    await expectsCollapse(pair, () => matching(FeedQueryBuilder.buildMediaFeedQuery([])));
-  });
-
-  it('excludes the collapsed half from the hashtag page', async () => {
-    const pair = await crosspostPair();
-    await expectsCollapse(pair, () => matching(buildPostsByHashtagFilter(TAG)));
-  });
-
-  it('excludes the collapsed half from the topic page', async () => {
-    const pair = await crosspostPair();
-    await expectsCollapse(pair, () => matching(buildPostsByTopicFilter(TOPIC)));
-  });
-
-  /**
-   * One Oxy person owning BOTH source actors of a proven Instagram ↔ Threads
-   * pair is the whole reason this branch needs the term: it selects by
-   * `oxy_user_id`, so both halves land on one remote actor's page.
-   */
-  it("excludes the collapsed half from an adopted actor's page", async () => {
-    const pair = await crosspostPair();
-    await expectsCollapse(pair, () =>
-      matching(buildActorPostsScopeSql({ uri: 'https://kilogram.makeup/users/gate', oxyUserId: AUTHOR })));
+    await expectsCollapse(pair, () => matching(predicate()));
   });
 });
 
@@ -305,12 +263,9 @@ describe('the collections a reader assembled by hand', () => {
     // The likes tab lists posts the profile owner liked, so the variants are
     // somebody else's — which is also why the collapse would be least expected
     // here: the reader is looking at their own record of what they liked.
-    const shown = await seedVariant('liked-instagram', at(20), { oxyUserId: STRANGER });
-    const hidden = await seedVariant('liked-threads', at(10), { oxyUserId: STRANGER });
-    await createCluster('declared', [
-      { postId: shown, networkDomain: 'instagram.com', preferred: true, evidence: 'declared original' },
-      { postId: hidden, networkDomain: 'threads.net', preferred: false, evidence: 'declared crosspost' },
-    ]);
+    const shown = await seedVariant('liked-instagram', at(20), STRANGER);
+    const hidden = await seedVariant('liked-threads', at(10), STRANGER);
+    await seedCrosspostCluster(shown, hidden);
     // Explicit instants: the likes tab pages over the LIKE, so its order is
     // `likes.(created_at, id)` and two rows sharing a default timestamp would
     // leave the assertion resting on id order.
@@ -329,14 +284,7 @@ describe('the collections a reader assembled by hand', () => {
 });
 
 describe('pagination', () => {
-  /**
-   * The reason the term is a query term and not a post-fetch filter.
-   *
-   * Dropping the collapsed half after the page is read returns a page of two
-   * that renders one card — a feed that pages correctly and LOOKS like it ran
-   * out. With the term in the query, a cap of two is filled with two VISIBLE
-   * posts and the collapsed one never occupies a slot.
-   */
+  /** The observable consequence of `IT IS A QUERY TERM` in the predicate's docblock. */
   it('fills the requested page with visible posts, not with collapsed ones', async () => {
     const pair = await crosspostPair();
     const third = await seedVariant('unrelated-visible', at(5));

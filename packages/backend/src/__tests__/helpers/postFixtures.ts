@@ -27,6 +27,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { lanes } from '../../db/schema/channels';
 import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';
+import { createCluster } from '../../db/posts/postEquivalenceRepository';
 import type { PostRecord, PostRecordInput } from '../../db/posts/postRecord';
 import { posts } from '../../db/schema/posts';
 
@@ -116,6 +117,33 @@ export function track(scope: PostScope, id: string): void {
   const existing = seededIds.get(scope.name);
   if (existing) existing.push(id);
   else seededIds.set(scope.name, [id]);
+}
+
+/**
+ * Cluster two posts as one Meta cross-post: `preferred` renders, the other
+ * collapses.
+ *
+ * Through `createCluster`, which is the writer that moves
+ * `posts.crosspost_collapsed` in the same transaction as the member rows —
+ * setting that column by hand would make every assertion about a collapse an
+ * assertion about the fixture instead of about the projection production writes.
+ *
+ * Instagram/Threads because those are the networks `crosspostReconciliationPostSql`
+ * recognises; a suite that needs another pair passes its own domains.
+ */
+export async function seedCrosspostCluster(
+  preferredId: string,
+  collapsedId: string,
+  options: {
+    confidence?: Parameters<typeof createCluster>[0];
+    networks?: readonly [string, string];
+  } = {},
+): Promise<string> {
+  const [preferredNetwork, collapsedNetwork] = options.networks ?? ['instagram.com', 'threads.net'];
+  return createCluster(options.confidence ?? 'declared', [
+    { postId: preferredId, networkDomain: preferredNetwork, preferred: true, evidence: 'declared original' },
+    { postId: collapsedId, networkDomain: collapsedNetwork, preferred: false, evidence: 'declared crosspost' },
+  ]);
 }
 
 /** The stored row, for asserting what a write path actually persisted. */

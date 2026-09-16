@@ -8,7 +8,7 @@ import {
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { trending, trendStoryPosts } from '../../db/schema/discovery';
 import { posts } from '../../db/schema/posts';
-import { createCluster } from '../../db/posts/postEquivalenceRepository';
+import { seedCrosspostCluster } from '../helpers/postFixtures';
 
 describe('deterministic story membership', () => {
   it('keeps the representative term authoritative', () => {
@@ -68,13 +68,10 @@ describe('scoreContextualStoryMembership', () => {
  * A story's members, against real rows.
  *
  * The scoring above decides whether ONE post belongs; this decides which posts
- * were ever offered to it, and that read had drifted from the rest of its
- * module family. `trendDetection` counts a Meta cross-post's term volume once
- * and `trendExcerpts` quotes it once, because both exclude the collapsed half of
- * an equivalence cluster — so a story that listed the Instagram copy and the
- * Threads copy as two members was reporting two pieces of evidence for a volume
- * of one. See `#990`, and `crosspostCollapseSurfaces.test.ts` for the reader
- * surfaces that answer the same question.
+ * were ever offered to it — the half that had drifted from the rest of its
+ * module family. The reasoning is at the `matches` query in
+ * `services/trending/storyMembership.ts`; `crosspostCollapseSurfaces.test.ts`
+ * covers the reader surfaces that answer the same question.
  */
 describe('saveStoryMemberships — which posts a story can be built from', () => {
   /** A term no other suite's fixtures carry, so only these rows can match. */
@@ -117,10 +114,7 @@ describe('saveStoryMemberships — which posts a story can be built from', () =>
   it('counts one cross-post once while keeping both source posts stored', async () => {
     const shown = await variant();
     const hidden = await variant();
-    await createCluster('declared', [
-      { postId: shown, networkDomain: 'instagram.com', preferred: true, evidence: 'declared original' },
-      { postId: hidden, networkDomain: 'threads.net', preferred: false, evidence: 'declared crosspost' },
-    ]);
+    await seedCrosspostCluster(shown, hidden);
 
     const calculatedAt = new Date();
     const [trend] = await getDb()

@@ -51,9 +51,8 @@ vi.mock('../../services/EndorsementSignalService', () => ({
 import { closePostgres, connectPostgres, getDb, type Database } from '../../db/postgres';
 import { accountListMembers, accountLists } from '../../db/schema/lists';
 import { posts } from '../../db/schema/posts';
-import { createCluster } from '../../db/posts/postEquivalenceRepository';
 import { uuidv7 } from '@oxy.so/db';
-import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
+import { clearPostScope, postScope, seedCrosspostCluster, seedPost } from '../helpers/postFixtures';
 import listRoutes from '../../routes/lists';
 
 const scope = postScope('lists-routes');
@@ -705,10 +704,7 @@ describe('GET /lists/:id/timeline', () => {
     const listId = await seedList({ isPublic: true, members: [MEMBER_A] });
     const shown = await seedMemberPost(MEMBER_A);
     const hidden = await seedMemberPost(MEMBER_A);
-    await createCluster('declared', [
-      { postId: shown.id, networkDomain: 'instagram.com', preferred: true, evidence: 'declared original' },
-      { postId: hidden.id, networkDomain: 'threads.net', preferred: false, evidence: 'declared crosspost' },
-    ]);
+    await seedCrosspostCluster(shown.id, hidden.id);
 
     expect((await timeline(listId, { limit: 50 })).items.map((item) => item.id)).toEqual([shown.id]);
     expect(await getDb().select({ id: posts.id }).from(posts)
