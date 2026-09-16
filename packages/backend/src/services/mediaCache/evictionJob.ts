@@ -12,6 +12,29 @@ import {
 import { deleteCachedMedia, isMediaCacheEnabled, isMediaStoreThrottled } from './oxyMediaStore';
 
 /**
+ * A bounded description of why a delete failed, for the warn below.
+ *
+ * `OxyMediaStoreRequestError` carries the HTTP status, which is what decides the
+ * answer: a 404 means the object is already gone and the row should stop being
+ * retried, a 403 means the credential, a 5xx means wait. The fields are read
+ * defensively because a rejection here can also be a plain SDK object, for which
+ * `String(error)` prints `[object Object]`.
+ */
+function describeDeleteFailure(error: unknown): Record<string, unknown> {
+  if (typeof error !== 'object' || error === null) return { reason: String(error) };
+  const fields = error as { message?: unknown; statusCode?: unknown; status?: unknown };
+  const status = typeof fields.statusCode === 'number'
+    ? fields.statusCode
+    : (typeof fields.status === 'number' ? fields.status : undefined);
+  return {
+    reason: typeof fields.message === 'string' && fields.message.length > 0
+      ? fields.message.slice(0, 300)
+      : 'unknown failure',
+    ...(status !== undefined ? { status } : {}),
+  };
+}
+
+/**
  * Delete the Oxy object(s) for one idle entry and transition it to `evicted`,
  * KEEPING the row (file ids cleared) so a future access re-caches it. If a
  * delete fails the row is left `cached` so the next sweep retries — we never
@@ -32,9 +55,14 @@ async function evictOne(candidate: MediaCacheEvictionCandidate): Promise<'done' 
     if (failed.some((result) => isMediaStoreThrottled(result.reason))) {
       return 'budget-spent';
     }
+    // The REASON, not just the count. Without it this line said only "something
+    // failed" — and it said it for the same 50 rows on every sweep, so the one
+    // question it needed to answer (is the object already gone, is the
+    // credential refused, is Oxy down?) was the one it could not.
     logger.warn('[MediaCache] Eviction delete failed; leaving entry cached for retry', {
       remoteUrl: candidate.remoteUrl,
       failedCount: failed.length,
+      ...describeDeleteFailure(failed[0].reason),
     });
     return 'done';
   }
