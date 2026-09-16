@@ -297,4 +297,62 @@ describe('viewer-scoped private cache', () => {
     );
     expect(publicQueryKeys.marketplaceCategories()).toContain('marketplace-categories');
   });
+
+  it('keeps every job-related key viewer-scoped and distinct by its own parameters', () => {
+    expect(viewerQueryKeys.jobsMine('viewer-a')).not.toEqual(viewerQueryKeys.jobsMine('viewer-b'));
+
+    expect(viewerQueryKeys.jobDetail('viewer-a', 'job-1')).not.toEqual(
+      viewerQueryKeys.jobDetail('viewer-a', 'job-2'),
+    );
+    expect(viewerQueryKeys.jobDetail('viewer-a', 'job-1')).not.toEqual(
+      viewerQueryKeys.jobDetail('viewer-b', 'job-1'),
+    );
+
+    expect(viewerQueryKeys.jobMetrics('viewer-a', 'job-1')).not.toEqual(
+      viewerQueryKeys.jobMetrics('viewer-a', 'job-2'),
+    );
+    expect(viewerQueryKeys.jobMetrics('viewer-a', 'job-1')).not.toEqual(
+      viewerQueryKeys.jobDetail('viewer-a', 'job-1'),
+    );
+
+    // `employerOxyUserId` may be absent while the job is still loading — the
+    // fallback empty string still keys distinctly from a real employer id.
+    expect(viewerQueryKeys.jobEmployerProfile('viewer-a', undefined)).not.toEqual(
+      viewerQueryKeys.jobEmployerProfile('viewer-a', 'employer-1'),
+    );
+    expect(viewerQueryKeys.jobEmployerProfile('viewer-a', null)).toEqual(
+      viewerQueryKeys.jobEmployerProfile('viewer-a', undefined),
+    );
+    expect(viewerQueryKeys.jobEmployerProfile('viewer-a', 'employer-1')).not.toEqual(
+      viewerQueryKeys.jobEmployerProfile('viewer-b', 'employer-1'),
+    );
+
+    expect(viewerQueryKeys.jobDiscovery('viewer-a', { q: 'engineer' })).not.toEqual(
+      viewerQueryKeys.jobDiscovery('viewer-a', { q: 'designer' }),
+    );
+    expect(viewerQueryKeys.jobDiscovery('viewer-a', {})).not.toEqual(
+      viewerQueryKeys.jobDiscovery('viewer-b', {}),
+    );
+
+    expect(viewerQueryKeys.organizationJobs('viewer-a', 'employer-1')).not.toEqual(
+      viewerQueryKeys.organizationJobs('viewer-a', 'employer-2'),
+    );
+
+    // `jobApplications` extends its own `jobApplicationsRoot` prefix, and an
+    // absent status falls back to the 'all' bucket rather than a distinct key.
+    expect(viewerQueryKeys.jobApplications('viewer-a', 'job-1')).toEqual([
+      ...viewerQueryKeys.jobApplicationsRoot('viewer-a', 'job-1'),
+      'all',
+    ]);
+    expect(viewerQueryKeys.jobApplications('viewer-a', 'job-1', undefined)).toEqual(
+      viewerQueryKeys.jobApplications('viewer-a', 'job-1'),
+    );
+    expect(viewerQueryKeys.jobApplications('viewer-a', 'job-1', 'new')).not.toEqual(
+      viewerQueryKeys.jobApplications('viewer-a', 'job-1', 'reviewing'),
+    );
+
+    expect(viewerQueryKeys.jobApplicationNotes('viewer-a', 'job-1', 'app-1')).not.toEqual(
+      viewerQueryKeys.jobApplicationNotes('viewer-a', 'job-1', 'app-2'),
+    );
+  });
 });

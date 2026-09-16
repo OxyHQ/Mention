@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 33.32,
-      "covered": 8383,
-      "total": 25157
+      "pct": 33.38,
+      "covered": 8701,
+      "total": 26060
     },
     "branches": {
-      "pct": 28.48,
-      "covered": 5219,
-      "total": 18319
+      "pct": 28.53,
+      "covered": 5422,
+      "total": 19001
     },
     "functions": {
-      "pct": 28.2,
-      "covered": 1771,
-      "total": 6278
+      "pct": 28.28,
+      "covered": 1858,
+      "total": 6570
     },
     "lines": {
       "pct": 34.01,
-      "covered": 7688,
-      "total": 22605
+      "covered": 7970,
+      "total": 23433
     }
   },
   "pins": {
@@ -198,10 +198,10 @@
       "lines": 66
     },
     "hooks/useDraftManager.ts": {
-      "statements": 50,
-      "branches": 22,
+      "statements": 53,
+      "branches": 23,
       "functions": 27,
-      "lines": 51
+      "lines": 53
     },
     "hooks/useDrafts.ts": {
       "statements": 50,
@@ -280,6 +280,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "hooks/useJobAttachmentManager.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useKeyboardShortcuts.ts": {
       "statements": 0,
@@ -935,6 +941,18 @@
       "functions": 0,
       "lines": 0
     },
+    "services/jobApplicationsService.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "services/jobsService.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "services/labelerService.ts": {
       "statements": 0,
       "branches": 100,
@@ -1194,10 +1212,10 @@
       "lines": 98
     },
     "utils/attachmentsUtils.ts": {
-      "statements": 58,
-      "branches": 37,
-      "functions": 72,
-      "lines": 72
+      "statements": 97,
+      "branches": 86,
+      "functions": 100,
+      "lines": 100
     },
     "utils/authErrors.ts": {
       "statements": 0,
@@ -1212,10 +1230,10 @@
       "lines": 99
     },
     "utils/composeUtils.ts": {
-      "statements": 44,
+      "statements": 45,
       "branches": 28,
       "functions": 14,
-      "lines": 57
+      "lines": 58
     },
     "utils/composeVariants.ts": {
       "statements": 85,
@@ -1230,10 +1248,10 @@
       "lines": 100
     },
     "utils/dateUtils.ts": {
-      "statements": 68,
-      "branches": 31,
+      "statements": 74,
+      "branches": 40,
       "functions": 70,
-      "lines": 72
+      "lines": 80
     },
     "utils/displayName.ts": {
       "statements": 100,
@@ -1395,7 +1413,7 @@
       "statements": 69,
       "branches": 37,
       "functions": 45,
-      "lines": 81
+      "lines": 82
     },
     "utils/postLanguages.ts": {
       "statements": 96,
