@@ -48,8 +48,10 @@ vi.mock('../../services/EndorsementSignalService', () => ({
   },
 }));
 
-import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
+import { closePostgres, connectPostgres, getDb, type Database } from '../../db/postgres';
 import { accountListMembers, accountLists } from '../../db/schema/lists';
+import { posts } from '../../db/schema/posts';
+import { createCluster } from '../../db/posts/postEquivalenceRepository';
 import { uuidv7 } from '@oxy.so/db';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 import listRoutes from '../../routes/lists';
@@ -542,6 +544,22 @@ describe('GET /lists/:id/timeline', () => {
 
     expect(body.items.map((item) => item.id).sort()).toEqual([fromA.id, fromB.id].sort());
     expect(body.totalCount).toBe(2);
+  });
+
+  it('shows a member\u2019s Meta cross-post once, keeping both source posts stored', async () => {
+    // A list timeline is a feed of cards, so it answers to `#990` exactly as the
+    // MTN `lists` source does: both source objects stay, one of them renders.
+    const listId = await seedList({ isPublic: true, members: [MEMBER_A] });
+    const shown = await seedMemberPost(MEMBER_A);
+    const hidden = await seedMemberPost(MEMBER_A);
+    await createCluster('declared', [
+      { postId: shown.id, networkDomain: 'instagram.com', preferred: true, evidence: 'declared original' },
+      { postId: hidden.id, networkDomain: 'threads.net', preferred: false, evidence: 'declared crosspost' },
+    ]);
+
+    expect((await timeline(listId, { limit: 50 })).items.map((item) => item.id)).toEqual([shown.id]);
+    expect(await getDb().select({ id: posts.id }).from(posts)
+      .where(inArray(posts.id, [shown.id, hidden.id]))).toHaveLength(2);
   });
 
   it('returns an empty page for a list with no members, without querying posts', async () => {

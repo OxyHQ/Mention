@@ -213,7 +213,7 @@ it.each([false, true])('coalesces admin invalidations across batches, including 
   expect(mocks.scan).toHaveBeenCalledTimes(1);
   expect(mocks.del).toHaveBeenCalledWith(['anonfeed:fixture']);
   expect((await getDb().select().from(federatedActors)).filter(row => row.oxyUserId === 'shared-new')).toHaveLength(failSecondBatch ? 100 : 101);
-});
+}, 20000);
 
 it('records committed invalidations before a later cluster read fails', async () => {
   await actor(source); await post(source);

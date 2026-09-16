@@ -18,6 +18,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
+import { createCluster } from '../../db/posts/postEquivalenceRepository';
 import hashtagsRoutes from '../../routes/hashtags';
 
 const app = express();
@@ -80,6 +81,25 @@ describe('GET /hashtags/search — pagination', () => {
 
   it('rejects a missing query with 400', async () => {
     await request(app).get('/hashtags/search').expect(400);
+  });
+
+  it('counts a Meta cross-post once, as trend volume does', async () => {
+    // A creator who publishes one photo to Instagram and to Threads used the tag
+    // once; both source objects carry it, and counting both would report twice
+    // the volume that one publication earned. `trendDetection` measures its term
+    // space this way, and `#990` asks the discovery surfaces to agree.
+    const tag = `${PREFIX}99`;
+    const shown = await seedPost(scope, { hashtags: [tag] });
+    const hidden = await seedPost(scope, { hashtags: [tag] });
+    await createCluster('declared', [
+      { postId: shown.id, networkDomain: 'instagram.com', preferred: true, evidence: 'declared original' },
+      { postId: hidden.id, networkDomain: 'threads.net', preferred: false, evidence: 'declared crosspost' },
+    ]);
+
+    const { tags, counts } = await page({ query: tag, limit: 10 });
+
+    expect(tags).toEqual([tag]);
+    expect(counts).toEqual([1]);
   });
 
   it('ranks by post count and reports the real count per tag', async () => {

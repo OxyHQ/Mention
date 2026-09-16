@@ -18,6 +18,7 @@ import { postHydrationService } from '../../services/PostHydrationService';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
 import { queryInt, queryString } from '../../utils/queryParams';
 import { topicSlugSql } from '../../utils/postTopicMatch';
+import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 import { listPostCorrections } from '../../db/posts/postCorrectionsRepository';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './postPageBounds';
@@ -32,7 +33,11 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
     const currentUserId = req.user?.id;
 
     const posts = await findPostRecords(
-      and(eq(postsTable.visibility, 'public'), eq(postsTable.status, 'published')),
+      and(
+        eq(postsTable.visibility, 'public'),
+        eq(postsTable.status, 'published'),
+        notCollapsedCrosspostSql(),
+      ),
       { orderBy: CHRONO_DESC, limit, offset: (page - 1) * limit },
     );
 
@@ -184,6 +189,7 @@ export function buildPostsByHashtagFilter(hashtag: string): SQL {
     arrayContains(postsTable.hashtags, [hashtag.toLowerCase()]),
     eq(postsTable.status, 'published'),
     eq(postsTable.visibility, 'public'),
+    notCollapsedCrosspostSql(),
   ) as SQL;
 }
 
@@ -238,6 +244,7 @@ export function buildPostsByTopicFilter(topicName: string): SQL {
     topicSlugSql(topicName),
     eq(postsTable.status, 'published'),
     eq(postsTable.visibility, 'public'),
+    notCollapsedCrosspostSql(),
   ) as SQL;
 }
 
