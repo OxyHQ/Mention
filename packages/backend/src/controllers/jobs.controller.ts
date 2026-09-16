@@ -67,6 +67,17 @@ class JobsController {
     try {
       const workplaceType = queryString(req.query.workplaceType);
       const employmentType = queryString(req.query.employmentType);
+      // codeql[js/sensitive-get-query] Public job-search filter criteria for a
+      // discovery GET endpoint (salary range on a LISTED position), not
+      // authentication or account data — every rendered listing already shows it.
+      const salaryMin = queryInt(req.query.salaryMin);
+      // codeql[js/sensitive-get-query] Public job-search filter criteria, see above.
+      const salaryMax = queryInt(req.query.salaryMax);
+      // codeql[js/sensitive-get-query] Public job-search filter criteria, see above.
+      const salaryCurrency = queryString(req.query.salaryCurrency);
+      // codeql[js/sensitive-get-query] Public job-search filter (employer name
+      // on a listed position), not personal or account data.
+      const employer = queryString(req.query.employer);
       const client = await getClarityClient();
       const result = await client.jobs.search({
         query: queryString(req.query.q),
@@ -78,18 +89,13 @@ class JobsController {
           ? [employmentType as (typeof MENTION_JOB_EMPLOYMENT_TYPES)[number]]
           : undefined,
         // `!== undefined`, never truthiness: `salaryMin=0` is a legitimate "no
-        // floor" filter, and `0 || queryInt(salaryMax)` would treat that
-        // falsy-but-present 0 as absent and drop the whole salary filter,
-        // currency included.
-        salary: queryInt(req.query.salaryMin) !== undefined || queryInt(req.query.salaryMax) !== undefined
-          ? {
-              min: queryInt(req.query.salaryMin),
-              max: queryInt(req.query.salaryMax),
-              currency: queryString(req.query.salaryCurrency),
-            }
+        // floor" filter, and `0 || salaryMax` would treat that falsy-but-present
+        // 0 as absent and drop the whole salary filter, currency included.
+        salary: salaryMin !== undefined || salaryMax !== undefined
+          ? { min: salaryMin, max: salaryMax, currency: salaryCurrency }
           : undefined,
         publishedAfter: queryString(req.query.publishedAfter),
-        employers: queryString(req.query.employer) ? [queryString(req.query.employer) as string] : undefined,
+        employers: employer ? [employer] : undefined,
         cursor: queryString(req.query.cursor),
         limit: Math.min(queryInt(req.query.limit) ?? 20, 50),
       });

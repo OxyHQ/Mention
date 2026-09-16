@@ -273,6 +273,70 @@ export const operatedAccountSettingsRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+/**
+ * `routes/jobsManagement.ts` — job lifecycle writes (create, update, publish,
+ * pause, close, duplicate). Every route calls `requireEmployerAuthority`
+ * (`assertCanManageJob`), which reads the caller's LIVE Oxy membership on
+ * every request and is never cached — the same shape as
+ * `operatedAccountSettingsRateLimiter` above, and the same reason: a caller
+ * who operates nothing can still spend one upstream Oxy round trip per
+ * request, which is what this bounds.
+ *
+ * Its own store prefix, for the reason spelled out above `lanesStore`.
+ *
+ * 30/minute, matching `operatedAccountSettingsRateLimiter`: managing a job
+ * posting is a handful of requests per sitting, not a feed.
+ */
+const jobsManagementStore = new RedisStore({
+  prefix: 'rate-limit:jobs-management:',
+  windowMs: 60 * 1000,
+});
+export const jobsManagementRateLimiter = rateLimit({
+  store: jobsManagementStore,
+  windowMs: 60 * 1000,
+  max: 30,
+  keyGenerator: (req: Request) => {
+    const authReq = req as AuthRequest;
+    return authReq.user?.id ? `user:${authReq.user.id}` : hashedIpKey(req);
+  },
+  message: 'Too many job management requests. Please slow down.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/**
+ * `routes/jobApplications.ts` — the applicant AND employer sides of the
+ * application lifecycle (submit, withdraw, an external-listing report, and
+ * the employer's review queue: list/update-status/note). The employer-facing
+ * handlers share `jobsManagementStore`'s rationale (a live, uncached
+ * `requireEmployerAuthority` read per request), and the applicant-facing ones
+ * are plain writes — one limiter for the whole router, matching how
+ * `statisticsRateLimiter`'s doc describes bounding the SURFACE rather than
+ * only the one route CodeQL's dataflow happened to reach.
+ *
+ * Its own store prefix, for the reason spelled out above `lanesStore`.
+ *
+ * 60/minute, matching `postWriteRateLimiter`'s generosity: a busy applicant
+ * paging through their own submissions, or an employer triaging a queue of
+ * notes, still comes nowhere close.
+ */
+const jobApplicationsStore = new RedisStore({
+  prefix: 'rate-limit:job-applications:',
+  windowMs: 60 * 1000,
+});
+export const jobApplicationsRateLimiter = rateLimit({
+  store: jobApplicationsStore,
+  windowMs: 60 * 1000,
+  max: 60,
+  keyGenerator: (req: Request) => {
+    const authReq = req as AuthRequest;
+    return authReq.user?.id ? `user:${authReq.user.id}` : hashedIpKey(req);
+  },
+  message: 'Too many job application requests. Please slow down.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 export const lanesRateLimiter = rateLimit({
   store: lanesStore,
   windowMs: 60 * 1000,
