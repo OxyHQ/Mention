@@ -89,6 +89,13 @@ export function notABoostSql(): SQL {
  *   be losing their bookmark, not de-duplicating a feed. So each surface takes
  *   this term deliberately, and those two do not.
  *
+ *   The three content predicates in THIS file carry it for the same reason the
+ *   sources do, and they are the ones it was missing from longest: a Meta
+ *   cross-post is a photo or a video, so the Videos and Media lanes are where a
+ *   reader was most likely to meet the duplicate, and they are the only discovery
+ *   surfaces that take their content rule from here instead of spelling it at the
+ *   source. `crosspostCollapseSurfaces.test.ts` drives every one of them.
+ *
  * `IS NOT TRUE` rather than `= false` for the reason every shared predicate in
  * this file spells its negations that way: the column is `NOT NULL` today, so
  * the two agree, and they stop agreeing the moment anything makes it nullable —
@@ -200,6 +207,7 @@ export class FeedQueryBuilder {
     const conditions: SQL[] = [
       eq(posts.visibility, PostVisibility.PUBLIC),
       eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
       exists(
         getDb()
           .select({ one: sql`1` })
@@ -285,6 +293,7 @@ export class FeedQueryBuilder {
     const conditions: SQL[] = [
       eq(posts.visibility, PostVisibility.PUBLIC),
       eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
       notABoostSql(),
     ];
 
@@ -321,6 +330,7 @@ export class FeedQueryBuilder {
     const conditions: SQL[] = [
       eq(posts.visibility, PostVisibility.PUBLIC),
       eq(posts.status, 'published'),
+      notCollapsedCrosspostSql(),
       or(
         inArray(posts.type, [PostType.IMAGE, PostType.VIDEO]),
         exists(db.select({ one: sql`1` }).from(postMedia).where(eq(postMedia.postId, posts.id))),
