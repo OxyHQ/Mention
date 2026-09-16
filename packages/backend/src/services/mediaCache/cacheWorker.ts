@@ -40,7 +40,7 @@ import {
   uploadFederatedMedia,
   type CachedMediaSource,
   type UploadedAsset,
-} from './oxyMediaStore';
+  isMediaStoreThrottled,} from './oxyMediaStore';
 
 /** Random bytes for temp filenames (collision resistance). */
 const TEMP_NAME_RANDOM_BYTES = 16;
@@ -186,10 +186,17 @@ async function readFilePrefix(filePath: string, maxBytes: number): Promise<Buffe
  * (`failed`) per the policy. Idempotent and self-cleaning (temp dir removed in
  * `finally`). Best-effort cleanup of an orphaned media upload if the poster
  * step throws after the media upload succeeded.
+ *
+ * Answers `'budget-spent'` when Oxy refused the write because this app's
+ * media-write budget for the window is gone. That is not a property of this
+ * entry, and the caller uses it to stop the sweep rather than buying one
+ * refusal per remaining entry (the failure is handled here either way, so the
+ * signal is a RETURN value and not a rejection).
  */
-async function processEntry(remoteUrl: string): Promise<void> {
+async function processEntry(remoteUrl: string): Promise<'done' | 'budget-spent'> {
   const dir = await mkdtemp(join(tmpdir(), TEMP_DIR_PREFIX));
   let uploadedMediaFileId: string | undefined;
+  let budgetSpent = false;
 
   try {
     const outcome = await downloadToTempFile(remoteUrl, dir);
@@ -198,11 +205,11 @@ async function processEntry(remoteUrl: string): Promise<void> {
       // not-media / too-large / gone media are permanent for this URL → mark failed (proxy-only).
       if (isPermanentCacheFailure(outcome)) {
         await markMediaCacheFailed(remoteUrl);
-        return;
+        return 'done';
       }
       // Transient (upstream-error / ssrf) → backoff or give up.
       await applyFailureBackoff(remoteUrl);
-      return;
+      return 'done';
     }
 
     const { filePath, contentType, sizeBytes } = outcome.download;
@@ -225,6 +232,7 @@ async function processEntry(remoteUrl: string): Promise<void> {
       contentType,
       sizeBytes,
     });
+    return 'done';
   } catch (error) {
     if (error instanceof MediaStoreUnavailableError) {
       // Upload capability is not available — do NOT churn failCount toward a
@@ -232,6 +240,13 @@ async function processEntry(remoteUrl: string): Promise<void> {
       logger.error('[MediaCache] Media store unavailable during caching', {
         reason: error.message,
       });
+    } else if (isMediaStoreThrottled(error)) {
+      // The budget for this window is spent, which says nothing about THIS
+      // entry: no failure is counted against it (a fail count would push a
+      // perfectly good URL toward `failed` for being queued at a busy minute)
+      // and no warn line is emitted — the store logs the pause once per window.
+      logger.debug('[MediaCache] Entry deferred; media-write budget spent', { remoteUrl });
+      budgetSpent = true;
     } else {
       logger.warn('[MediaCache] Worker entry failed', {
         reason: error instanceof Error ? error.message : 'unknown',
@@ -255,6 +270,8 @@ async function processEntry(remoteUrl: string): Promise<void> {
       });
     });
   }
+
+  return budgetSpent ? 'budget-spent' : 'done';
 }
 
 /**
@@ -485,6 +502,16 @@ export async function runCacheWorkerOnce(): Promise<void> {
 
   for (let i = 0; i < due.length; i += MEDIA_CACHE_WORKER_CONCURRENCY) {
     const batch = due.slice(i, i + MEDIA_CACHE_WORKER_CONCURRENCY);
-    await Promise.allSettled(batch.map((remoteUrl) => processEntry(remoteUrl)));
+    const settled = await Promise.allSettled(batch.map((remoteUrl) => processEntry(remoteUrl)));
+
+    // Stop the sweep the moment Oxy says the write budget is spent. The
+    // remaining entries would each buy one refusal and nothing else; they are
+    // still `pending`, so the next run takes them with a fresh budget.
+    if (settled.some((result) => result.status === 'fulfilled' && result.value === 'budget-spent')) {
+      logger.info('[MediaCache] Worker stopping early; media-write budget spent', {
+        remaining: due.length - (i + batch.length),
+      });
+      return;
+    }
   }
 }
