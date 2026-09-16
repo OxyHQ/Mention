@@ -543,6 +543,31 @@ router.patch('/:id/archive', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Unregister a device push token.
+//
+// Registered BEFORE the parameterised `/:id` below, deliberately: Express
+// matches routes in registration order, and `/:id` matches ANY single path
+// segment, `'push-token'` included. With this route declared after it,
+// `DELETE /notifications/push-token` matched `/:id` first (with
+// `id = 'push-token'`), deleted nothing, answered 404, and never reached this
+// handler — so unregistering a device on sign-out silently did not work, and
+// an enabled token stayed eligible for `sendPushToUser` indefinitely.
+router.delete('/push-token', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+    const { token } = req.body || {};
+    if (typeof token !== 'string' || !token) return res.status(400).json({ message: 'Token required' });
+    await getDb()
+      .delete(pushTokens)
+      .where(and(eq(pushTokens.userId, userId), eq(pushTokens.token, token)));
+    res.json({ ok: true });
+  } catch (e) {
+    logger.error('[Notifications] Failed to unregister push token:', { userId: req.user?.id, error: e });
+    res.status(500).json({ message: 'Failed to unregister token' });
+  }
+});
+
 // Delete a notification
 router.delete("/:id", async (req: AuthRequest, res: Response) => {
   try {
@@ -616,23 +641,6 @@ router.post('/push-token', async (req: AuthRequest, res: Response) => {
   } catch (e) {
     logger.error('[Notifications] Failed to register push token:', { userId: req.user?.id, error: e });
     res.status(500).json({ message: 'Failed to register token' });
-  }
-});
-
-// Unregister a device push token
-router.delete('/push-token', async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
-    const { token } = req.body || {};
-    if (typeof token !== 'string' || !token) return res.status(400).json({ message: 'Token required' });
-    await getDb()
-      .delete(pushTokens)
-      .where(and(eq(pushTokens.userId, userId), eq(pushTokens.token, token)));
-    res.json({ ok: true });
-  } catch (e) {
-    logger.error('[Notifications] Failed to unregister push token:', { userId: req.user?.id, error: e });
-    res.status(500).json({ message: 'Failed to unregister token' });
   }
 });
 

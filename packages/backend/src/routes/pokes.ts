@@ -5,7 +5,8 @@ import { getDb } from '../db/postgres';
 import { pokes } from '../db/schema/engagement';
 import { createNotification } from '../utils/notificationUtils';
 import { logger } from '../utils/logger';
-import { getServiceOxyClient } from '../utils/oxyHelpers';
+import { createScopedOxyClient, createUserScopedOxyServices, getServiceOxyClient } from '../utils/oxyHelpers';
+import { getBlockedUserIds } from '../utils/privacyHelpers';
 import type { User } from '@oxy.so/core';
 
 const router = Router();
@@ -61,7 +62,15 @@ router.get('/received', async (req: AuthRequest, res: Response) => {
       .where(eq(pokes.pokedId, userId))
       .orderBy(desc(pokes.createdAt))
       .limit(POKES_LIMIT);
-    const pokerIds = received.map((p) => p.pokerId);
+    // The same block policy the write path enforces, applied to this read: a
+    // poke from someone the viewer has since blocked stays in `poke_votes`
+    // (blocking does not rewrite history) but does not surface here. Only the
+    // viewer's OWN block list is checkable from their own bearer — see the
+    // block check in `POST /:userId` for why the other direction is not.
+    const blockedIds = new Set(await getBlockedUserIds(createScopedOxyClient(req), userId));
+    const visibleReceived = received.filter((p) => !blockedIds.has(p.pokerId));
+
+    const pokerIds = visibleReceived.map((p) => p.pokerId);
     const pokedBackRows = pokerIds.length > 0
       ? await db
           .select({ pokedId: pokes.pokedId })
@@ -72,7 +81,7 @@ router.get('/received', async (req: AuthRequest, res: Response) => {
     const pokedBackSet = new Set(pokedBackRows.map((p) => p.pokedId));
     const profiles = await resolveUsers(pokerIds);
 
-    const items = received.flatMap((p) => {
+    const items = visibleReceived.flatMap((p) => {
       const user = profiles.get(p.pokerId);
       return user
         ? [{
@@ -143,9 +152,13 @@ router.get('/suggested', async (req: AuthRequest, res: Response) => {
     const followerIds = extractUsersFromResult(followersResult, 'followers').map((user) => user.id);
     const followingIds = extractUsersFromResult(followingResult, 'following').map((user) => user.id);
 
-    // Merge and deduplicate the follow graph, excluding self.
+    // Merge and deduplicate the follow graph, excluding self and anyone the
+    // viewer has blocked — the same policy `POST /:userId` enforces, applied
+    // here to what gets SUGGESTED rather than what gets sent. Only the
+    // viewer's own block list is checkable from their own bearer.
+    const blockedIds = new Set(await getBlockedUserIds(createScopedOxyClient(req), userId));
     const candidatePool = [...new Set([...followerIds, ...followingIds])]
-      .filter((id) => id !== userId);
+      .filter((id) => id !== userId && !blockedIds.has(id));
 
     // Bound the poke-state lookup to the suggestion candidates instead of the
     // caller's entire poke history.
@@ -207,6 +220,34 @@ router.post('/:userId', async (req: AuthRequest, res: Response) => {
     if (!pokerId) return res.status(401).json({ message: 'Unauthorized' });
     if (!userId) return res.status(400).json({ message: 'userId is required' });
     if (userId === pokerId) return res.status(400).json({ message: 'Cannot poke yourself' });
+
+    // Oxy is the sole authority for the block relationship between these two
+    // accounts — Mention holds no copy of it, and a SERVICE credential cannot
+    // read one at all (`createServiceDelegatedOxyClient`'s docblock: Oxy answers
+    // a service token's own graph read with the EMPTY graph, by design, because
+    // blocks are private to the account that set them). `isUserBlocked` is the
+    // one relationship read authorized against the CALLER's own bearer that
+    // answers for both directions, which is what "respect the block policy
+    // either way" requires here — there is no local list to fall back on to
+    // check the other direction, and building one is exactly the second privacy
+    // authority this fix must not become.
+    //
+    // An unanswerable check is refused, not treated as permission — the same
+    // fail-closed rule `canViewerAccessPoll`/`canViewerReadPostId` use.
+    const oxy = createUserScopedOxyServices(req);
+    try {
+      if (!oxy) throw new Error('no user-scoped Oxy client for this request');
+      if (await oxy.isUserBlocked(userId)) {
+        return res.status(403).json({ message: 'You cannot poke this user' });
+      }
+    } catch (error) {
+      logger.warn('[Pokes] Refusing poke: block relationship could not be verified', {
+        userId: pokerId,
+        targetId: userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return res.status(403).json({ message: 'Unable to verify you may contact this user' });
+    }
 
     // One active poke per ORDERED pair — `pokes_poker_id_poked_id_key` is
     // directional, so A→B and B→A are two rows. `ON CONFLICT DO NOTHING` on that

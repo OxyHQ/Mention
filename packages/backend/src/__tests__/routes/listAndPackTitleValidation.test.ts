@@ -152,6 +152,79 @@ describe('POST/PUT /lists title and description', () => {
   });
 });
 
+/**
+ * `isPublic` used to be `z.unknown()` and written through `!!isPublic`, which
+ * is TOTAL over any JSON value in the wrong way: `"false"` (a non-empty
+ * string), `[]`, `{}` and any number but `0` are all truthy, so a client that
+ * sent the STRING `"false"` meaning to keep a list private wrote `true`. A
+ * real `z.boolean()` still accepts genuine `true`/`false` and now rejects
+ * everything else outright rather than reinterpreting it.
+ */
+describe('POST/PUT /lists isPublic', () => {
+  it.each([true, false])('a genuine boolean %s round-trips through POST', async (value) => {
+    const res = await createList({ title: `Genuine ${value}`, isPublic: value });
+    expect(res.status).toBe(201);
+    const [row] = await db.select().from(accountLists).where(eq(accountLists.id, res.body.id));
+    expect(row.isPublic).toBe(value);
+  });
+
+  it.each([
+    ['the string "false"', 'false'],
+    ['the string "true"', 'true'],
+    ['a number', 1],
+    ['an empty array', []],
+    ['an empty object', {}],
+    ['null', null],
+  ])('rejects %s instead of coercing it by truthiness', async (_label, value) => {
+    const res = await createList({ title: `Rejects ${JSON.stringify(value)}`, isPublic: value });
+    expect(res.status).toBe(400);
+    const rows = await db
+      .select({ title: accountLists.title })
+      .from(accountLists)
+      .where(eq(accountLists.ownerOxyUserId, VIEWER_ID));
+    expect(rows.map((row) => row.title)).not.toContain(`Rejects ${JSON.stringify(value)}`);
+  });
+
+  it('defaults a POST that omits isPublic to true', async () => {
+    const res = await createList({ title: 'Default visibility' });
+    expect(res.status).toBe(201);
+    const [row] = await db.select().from(accountLists).where(eq(accountLists.id, res.body.id));
+    expect(row.isPublic).toBe(true);
+  });
+
+  it('flips a real boolean on PUT in both directions', async () => {
+    const created = await createList({ title: 'Flippable', isPublic: true });
+
+    await request(app).put(`/lists/${created.body.id}`).send({ isPublic: false }).expect(200);
+    let [row] = await db.select().from(accountLists).where(eq(accountLists.id, created.body.id));
+    expect(row.isPublic).toBe(false);
+
+    await request(app).put(`/lists/${created.body.id}`).send({ isPublic: true }).expect(200);
+    [row] = await db.select().from(accountLists).where(eq(accountLists.id, created.body.id));
+    expect(row.isPublic).toBe(true);
+  });
+
+  it('omitting isPublic on PUT preserves the stored value', async () => {
+    const created = await createList({ title: 'Untouched', isPublic: false });
+
+    await request(app).put(`/lists/${created.body.id}`).send({ title: 'Untouched renamed' }).expect(200);
+
+    const [row] = await db.select().from(accountLists).where(eq(accountLists.id, created.body.id));
+    expect(row.isPublic).toBe(false);
+    expect(row.title).toBe('Untouched renamed');
+  });
+
+  it('rejects a non-boolean isPublic on PUT without touching the stored value', async () => {
+    const created = await createList({ title: 'Guarded', isPublic: false });
+
+    const res = await request(app).put(`/lists/${created.body.id}`).send({ isPublic: 'false' });
+
+    expect(res.status).toBe(400);
+    const [row] = await db.select().from(accountLists).where(eq(accountLists.id, created.body.id));
+    expect(row.isPublic).toBe(false);
+  });
+});
+
 describe('POST/PUT /starter-packs name and description', () => {
   it('still accepts the write body the create screen sends', async () => {
     const res = await createPack({

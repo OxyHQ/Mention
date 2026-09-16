@@ -52,15 +52,22 @@ const MAX_LIST_PAGE_SIZE = 100;
  * been; capping them here would refuse rows that already exist, which is a
  * different decision from refusing a value that was never a title.
  *
- * `isPublic` and `memberOxyUserIds` are deliberately `unknown`: `!!isPublic` and
- * `normalizeMemberIds` are already total over any JSON value, so giving them a
- * shape would NARROW what the route accepts for no safety gain. They are named
- * here only because zod strips a key it was not told about.
+ * `isPublic` is a real `z.boolean()`, not `z.unknown()` plus `!!isPublic` at the
+ * write site: truthiness is total over any JSON value, which is exactly the
+ * problem — `"false"` (a non-empty string), `[]` and `{}` are all truthy, so a
+ * client that sent the STRING `"false"` meaning to keep a list private wrote
+ * `true`. `z.coerce.boolean()` would not fix this either; it coerces by the same
+ * truthiness rule. A real JSON `false` and `true` still parse as themselves, and
+ * anything else is now a 400 rather than a silent reinterpretation.
+ *
+ * `memberOxyUserIds` stays `z.unknown()`: `normalizeMemberIds` is already total
+ * over any JSON value and, unlike a boolean, there is no truthy/falsy value it
+ * could silently misread the same way.
  */
 const createListSchema = z.object({
   title: z.string('Title is required').min(1, 'Title is required'),
   description: z.string('description must be a string').nullish(),
-  isPublic: z.unknown().optional(),
+  isPublic: z.boolean('isPublic must be a boolean').optional(),
   memberOxyUserIds: z.unknown().optional(),
 });
 
@@ -68,7 +75,7 @@ const createListSchema = z.object({
 const updateListSchema = z.object({
   title: z.string('title must be a non-empty string').min(1, 'title must be a non-empty string').optional(),
   description: z.string('description must be a string').nullish(),
-  isPublic: z.unknown().optional(),
+  isPublic: z.boolean('isPublic must be a boolean').optional(),
   memberOxyUserIds: z.unknown().optional(),
 });
 
@@ -238,7 +245,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
           // `if (list.description)` would then render an empty field instead of
           // none. Mongoose stored `undefined` for exactly this.
           description: description ? description : null,
-          isPublic: !!isPublic,
+          isPublic,
         })
         .returning();
       await replaceMembers(tx, row.id, members);
@@ -418,7 +425,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
         .set({
           ...(title === undefined ? {} : { title }),
           ...(description === undefined ? {} : { description: description ? description : null }),
-          ...(isPublic === undefined ? {} : { isPublic: !!isPublic }),
+          ...(isPublic === undefined ? {} : { isPublic }),
           // Always stamped, matching Mongoose's `save()`: the previous route
           // bumped `updatedAt` on every PUT whether or not a field changed, and
           // `updated_at` is the sort key `GET /lists` pages on.
