@@ -94,7 +94,6 @@ describe('useJobAttachmentManager', () => {
   it('hasContent is false for a job with a falsy mentionJobId', () => {
     mount();
     act(() => {
-      // @ts-expect-error — deliberately malformed to exercise the guard.
       harnessRef.current!.saveJob({ ...SAMPLE, mentionJobId: '' });
     });
     expect(harnessRef.current!.hasContent()).toBe(false);
