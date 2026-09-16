@@ -378,6 +378,25 @@ export const viewerQueryKeys = {
     'starter-packs',
     'mine',
   ] as const,
+  /**
+   * `jobsService.getMine()` — every Mention job listing the caller can act on,
+   * across every organization/project account they operate. One key for the
+   * whole set (not per-status): the dashboard filters client-side, and a
+   * status-scoped key would fan one create/publish/pause/close/duplicate
+   * mutation out into several invalidations for what is really one list.
+   */
+  jobsMine: (viewerId: ViewerId) => [
+    ...viewerQueryKeys.all(viewerId),
+    'jobs',
+    'mine',
+  ] as const,
+  /** One job by id or slug (`jobsService.get`) — the edit form and the public job page share this key. */
+  jobDetail: (viewerId: ViewerId, idOrSlug: string) => [
+    ...viewerQueryKeys.all(viewerId),
+    'jobs',
+    'detail',
+    idOrSlug,
+  ] as const,
   connectedAi: (viewerId: ViewerId) => [
     ...viewerQueryKeys.all(viewerId),
     'connected-ai',
