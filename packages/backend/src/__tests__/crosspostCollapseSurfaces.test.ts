@@ -51,6 +51,7 @@ import { insertPostRecord } from '../db/posts/postRepository';
 import { createCluster, dissolveCluster } from '../db/posts/postEquivalenceRepository';
 import { FeedQueryBuilder, notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { buildPostsByHashtagFilter, buildPostsByTopicFilter } from '../controllers/posts/readPosts';
+import { buildActorPostsScopeSql } from '../connectors/connectors.routes';
 import { chronoOrderBy } from '../mtn/feed/CursorBuilder';
 import { mediaSource, videosSource } from '../mtn/feed/engine/sources/discoverySources';
 import { followingSource } from '../mtn/feed/engine/sources/forYouSources';
@@ -86,7 +87,14 @@ const LONG_ENOUGH = MtnConfig.videosFeed.minDurationSec + 5;
 
 const created: string[] = [];
 
-/** A public, published, qualifying-video post carrying the suite's tag and topic. */
+/**
+ * A public, published, qualifying-video post carrying the suite's tag and topic.
+ *
+ * FEDERATED, because a cross-post always is: the remote-actor page selects on
+ * `federation.activityId is not null`, and a native post could never be a
+ * cluster member in the first place (`detectCrosspostEquivalence` requires two
+ * authoring actors on a reviewed pair of networks).
+ */
 async function seedVariant(
   label: string,
   createdAt: Date,
@@ -101,6 +109,7 @@ async function seedVariant(
     status: 'published',
     createdAt,
     hashtags: [TAG],
+    federation: { activityId: `https://source.test/${label}-${createdAt.getTime()}` },
     postClassification: { topics: [TOPIC] },
     content: {
       variants: [{ source: 'author', tag: 'en', text: `${label} #${TAG}` }],
@@ -220,6 +229,17 @@ describe('the content predicates, driven directly', () => {
   it('excludes the collapsed half from the topic page', async () => {
     const pair = await crosspostPair();
     await expectsCollapse(pair, () => matching(buildPostsByTopicFilter(TOPIC)));
+  });
+
+  /**
+   * One Oxy person owning BOTH source actors of a proven Instagram ↔ Threads
+   * pair is the whole reason this branch needs the term: it selects by
+   * `oxy_user_id`, so both halves land on one remote actor's page.
+   */
+  it("excludes the collapsed half from an adopted actor's page", async () => {
+    const pair = await crosspostPair();
+    await expectsCollapse(pair, () =>
+      matching(buildActorPostsScopeSql({ uri: 'https://kilogram.makeup/users/gate', oxyUserId: AUTHOR })));
   });
 });
 

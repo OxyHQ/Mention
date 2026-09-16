@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, lt, max, sql, type SQL } from 'drizzle-orm';
 import { HASHTAG_TOKEN_SOURCE } from "@mention/shared-types/hashtags";
 import { getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
+import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
 import { resolveVariant } from "../services/postVariants";
 import { logger } from "../utils/logger";
@@ -48,6 +49,11 @@ interface HashtagSearchPage {
 function taggedPublicPosts(extra?: SQL): SQL {
   return and(
     eq(posts.visibility, 'public'),
+    // A cross-post carries its tags on both source objects, and counting both
+    // gives the tag twice the volume one publication earned — the same argument
+    // the bilingual-variant note below makes, one axis over. `trendDetection`
+    // measures its term space the same way.
+    notCollapsedCrosspostSql(),
     // `cardinality > 0` covers BOTH shapes Mongo needed two clauses for
     // (`$exists: true` and `$ne: []`); a NULL array is excluded by the
     // comparison being NULL, which is the same answer.
@@ -203,6 +209,7 @@ router.get("/", async (req: Request, res: Response) => {
       const scanned = await findPostRecords(
         and(
           eq(posts.visibility, 'public'),
+          notCollapsedCrosspostSql(),
           gte(posts.createdAt, fallbackSince),
         ),
         { orderBy: CHRONO_DESC, limit: FALLBACK_SCAN_LIMIT },

@@ -13,6 +13,7 @@ import { endorsementSignalService } from '../services/EndorsementSignalService';
 import { canViewList } from '../services/listAccess';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
+import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { feedIPRateLimiter, feedRateLimiter } from '../middleware/security';
 
 const router = express.Router();
@@ -600,6 +601,7 @@ router.get('/:id/timeline', ...timelineRateLimiters, async (req: AuthRequest, re
     const scope = and(
       inArray(posts.oxyUserId, memberIds),
       eq(posts.visibility, 'public'),
+      notCollapsedCrosspostSql(),
     ) as SQL;
     const docs = memberIds.length === 0
       ? []

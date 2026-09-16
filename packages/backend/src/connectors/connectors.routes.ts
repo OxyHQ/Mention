@@ -3,6 +3,7 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { getRequiredOxyUserId, type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import type { User as OxyUser } from '@oxy.so/core';
+import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { getErrorStatus } from '@oxy.so/core';
 import {
   PostVisibility,
@@ -565,6 +566,47 @@ router.get('/followers', async (req: AuthRequest, res: Response) => {
 });
 
 /**
+ * Which stored posts belong to one remote actor's page.
+ *
+ * Exported, and for the same reason as `buildPostsByHashtagFilter` /
+ * `buildPostsByTopicFilter`: the scope IS the whole decision this route makes
+ * about which posts exist for an actor, and naming it lets that be asserted
+ * against rows rather than against the page a stubbed route happened to build.
+ *
+ * Two branches, because an actor Oxy has adopted and one it has not are reached
+ * by different keys:
+ *
+ *  - With an Oxy link, `is not null`, NOT `<> null`: Mongo's `$ne: null` also
+ *    matched a MISSING `federation` subdocument, while SQL's `<>` against NULL
+ *    is NULL and matches nothing — the literal translation would return an empty
+ *    author feed for every actor that HAS an Oxy link, which is all of them.
+ *  - Without one, a PREFIX rather than a range — see `activityIdUnderActor`. The
+ *    range this replaces matched nothing under a linguistic collation, so an
+ *    actor with no Oxy link served an empty feed however many posts it had.
+ *
+ * The collapsed half of a Meta cross-post is excluded from the FIRST branch
+ * only, and the asymmetry is real rather than an oversight: one Oxy person can
+ * own both source actors of a proven Instagram ↔ Threads pair, so that branch is
+ * exactly where both halves can reach one page. The prefix branch is scoped to a
+ * single actor URI, where at most one half can match at all.
+ */
+export function buildActorPostsScopeSql(
+  actor: { uri: string; oxyUserId?: string | null },
+): SQL {
+  return (actor.oxyUserId
+    ? and(
+      eq(postsTable.oxyUserId, actor.oxyUserId),
+      isNotNull(postsTable.federationActivityId),
+      eq(postsTable.visibility, PostVisibility.PUBLIC),
+      notCollapsedCrosspostSql(),
+    )
+    : and(
+      activityIdUnderActor(actor.uri),
+      eq(postsTable.visibility, PostVisibility.PUBLIC),
+    )) as SQL;
+}
+
+/**
  * GET /federation/actor/posts?uri=...&cursor=...
  * Get posts from a federated actor stored locally (any network). The empty-state
  * background sync dispatches by the actor's protocol.
@@ -587,19 +629,7 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
     // `federation` subdocument, while SQL's `<>` against NULL is NULL and matches
     // nothing — the literal translation would return an empty author feed for
     // every actor that HAS an Oxy link, which is all of them.
-    const conditions: SQL[] = actor.oxyUserId
-      ? [
-        eq(postsTable.oxyUserId, actor.oxyUserId),
-        isNotNull(postsTable.federationActivityId),
-        eq(postsTable.visibility, PostVisibility.PUBLIC),
-      ]
-      : [
-        // Prefix, not a range — see `activityIdUnderActor`. The range this
-        // replaces matched nothing under a linguistic collation, so an actor
-        // with no Oxy link served an empty feed however many posts it had.
-        activityIdUnderActor(actor.uri),
-        eq(postsTable.visibility, PostVisibility.PUBLIC),
-      ];
+    const conditions: SQL[] = [buildActorPostsScopeSql(actor)];
     if (parsed.data.cursor) {
       conditions.push(lt(postsTable.createdAt, new Date(parsed.data.cursor)));
     }
