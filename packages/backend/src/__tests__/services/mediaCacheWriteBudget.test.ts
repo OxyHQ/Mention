@@ -19,6 +19,8 @@
 import { PassThrough } from 'node:stream';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { logger } from '../../utils/logger';
+
 const { ThrottledError, mocks } = vi.hoisted(() => {
   /** Stands in for the store's own throttled error; `isMediaStoreThrottled` matches it. */
   class ThrottledError extends Error {
@@ -180,6 +182,31 @@ describe('the eviction sweep and a spent write budget', () => {
     expect(mocks.deleteCachedMedia).toHaveBeenCalledTimes(MEDIA_CACHE_EVICTION_CONCURRENCY);
     // Never `evicted` while the bytes may still be in S3.
     expect(mocks.markMediaCacheEvicted).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The same 50 rows failed to evict on every sweep, and the warn line said only
+   * `failedCount: 1` — so the one question it needed to answer (already gone?
+   * credential refused? Oxy down?) was the one it could not. The status is what
+   * decides the answer, so it must be in the line.
+   */
+  it('names the status when a delete fails, not just that one did', async () => {
+    mocks.findEvictableMediaCacheEntries.mockResolvedValue(candidates.slice(0, 1));
+    mocks.deleteCachedMedia.mockRejectedValue(
+      Object.assign(new Error('Oxy media store delete failed (HTTP 404): not found'), { statusCode: 404 }),
+    );
+    const warn = vi.spyOn(logger, 'warn');
+
+    await runEvictionOnce();
+
+    expect(warn).toHaveBeenCalledWith(
+      '[MediaCache] Eviction delete failed; leaving entry cached for retry',
+      expect.objectContaining({
+        reason: 'Oxy media store delete failed (HTTP 404): not found',
+        status: 404,
+        failedCount: 1,
+      }),
+    );
   });
 
   it('keeps going past an ordinary delete failure, as before', async () => {
