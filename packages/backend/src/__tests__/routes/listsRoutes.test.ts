@@ -203,7 +203,12 @@ describe('membership order survives the junction', () => {
     expect(res.body.memberOxyUserIds).toEqual(['a', 'b', 'c']);
   });
 
-  it('removes members and re-closes the position gap they left', async () => {
+  it('removes a member with a targeted delete, leaving the gap rather than renumbering the rest', async () => {
+    // A remove is now `DELETE ... WHERE oxy_user_id IN (...)`, not the full
+    // delete-then-reinsert `replaceMembers` does — so `c`'s position stays 2,
+    // not renumbered down to 1. Nothing depends on positions being
+    // contiguous: every reader orders BY position, and a later append relies
+    // on `nextMemberPosition` (the max in the table), not a row count.
     const created = await createList({ memberOxyUserIds: ['a', 'b', 'c'] });
 
     const res = await request(app)
@@ -214,7 +219,24 @@ describe('membership order survives the junction', () => {
     expect(res.body.memberOxyUserIds).toEqual(['a', 'c']);
     expect(await readMemberRows(created.body.id)).toEqual([
       { oxyUserId: 'a', position: 0 },
-      { oxyUserId: 'c', position: 1 },
+      { oxyUserId: 'c', position: 2 },
+    ]);
+  });
+
+  it('appends after a gap a removal left, without colliding on position', async () => {
+    const created = await createList({ memberOxyUserIds: ['a', 'b', 'c'] });
+    await request(app).delete(`/lists/${created.body.id}/members`).send({ userIds: ['b'] }).expect(200);
+
+    const res = await request(app)
+      .post(`/lists/${created.body.id}/members`)
+      .send({ userIds: ['d'] })
+      .expect(200);
+
+    expect(res.body.memberOxyUserIds).toEqual(['a', 'c', 'd']);
+    expect(await readMemberRows(created.body.id)).toEqual([
+      { oxyUserId: 'a', position: 0 },
+      { oxyUserId: 'c', position: 2 },
+      { oxyUserId: 'd', position: 3 },
     ]);
   });
 
@@ -233,6 +255,137 @@ describe('membership order survives the junction', () => {
     await request(app).delete(`/lists/${created.body.id}`).expect(200);
 
     expect(await readMemberRows(created.body.id)).toEqual([]);
+  });
+});
+
+/**
+ * Two writers computing a result from the SAME prior state, under READ
+ * COMMITTED, with no lock on the list row: T1 reads `[A]`, T2 reads `[A]`, T1
+ * writes `[A, B]` and commits, T2 — having already computed its answer from
+ * the state it read — writes `[A, C]` and B silently disappears. Every case
+ * here proves the fix (`SELECT … FOR UPDATE` on the list row before its
+ * membership is read) with a CONTROLLED barrier: a held lock the test
+ * releases on purpose, with an explicit assertion that both writers were
+ * genuinely still blocked on it beforehand. A bare `Promise.all` of two
+ * ordinary requests could pass by the two simply not overlapping — this
+ * cannot, because nothing proceeds until the release below fires.
+ */
+describe('concurrent member writes — a controlled barrier, not a hopeful race', () => {
+  /**
+   * Holds the list row's lock open until `run` calls the release function it
+   * is given, then waits for the holder transaction to finish committing.
+   */
+  async function withHeldLock<T>(
+    listId: string,
+    run: (release: () => void) => Promise<T>,
+  ): Promise<T> {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    let acquired: () => void = () => undefined;
+    const acquiredPromise = new Promise<void>((resolve) => { acquired = resolve; });
+
+    const holder = db.transaction(async (tx) => {
+      await tx.select().from(accountLists).where(eq(accountLists.id, listId)).limit(1).for('update');
+      acquired();
+      await held;
+    });
+
+    await acquiredPromise;
+    const result = await run(release);
+    await holder;
+    return result;
+  }
+
+  /** True only if `promise` has NOT settled within `ms` — the "still blocked" proof. */
+  async function isStillPending(promise: Promise<unknown>, ms = 150): Promise<boolean> {
+    const pending = Symbol('pending');
+    const outcome = await Promise.race([
+      promise.then(() => 'settled' as const, () => 'settled' as const),
+      new Promise((resolve) => setTimeout(() => resolve(pending), ms)),
+    ]);
+    return outcome === pending;
+  }
+
+  it('add + add: neither addition is lost', async () => {
+    const created = await createList({ memberOxyUserIds: ['a'] });
+    const listId = created.body.id;
+
+    const [resB, resC] = await withHeldLock(listId, async (release) => {
+      const reqB = request(app).post(`/lists/${listId}/members`).send({ userIds: ['b'] });
+      const reqC = request(app).post(`/lists/${listId}/members`).send({ userIds: ['c'] });
+      expect(await isStillPending(reqB)).toBe(true);
+      expect(await isStillPending(reqC)).toBe(true);
+      release();
+      return Promise.all([reqB, reqC]);
+    });
+
+    expect(resB.status).toBe(200);
+    expect(resC.status).toBe(200);
+    const members = new Set((await readMemberRows(listId)).map((row) => row.oxyUserId));
+    expect(members).toEqual(new Set(['a', 'b', 'c']));
+  });
+
+  it('add + delete: a concurrent add is not lost, and the delete still lands', async () => {
+    const created = await createList({ memberOxyUserIds: ['a', 'b'] });
+    const listId = created.body.id;
+
+    const [resAdd, resDel] = await withHeldLock(listId, async (release) => {
+      const reqAdd = request(app).post(`/lists/${listId}/members`).send({ userIds: ['c'] });
+      const reqDel = request(app).delete(`/lists/${listId}/members`).send({ userIds: ['a'] });
+      expect(await isStillPending(reqAdd)).toBe(true);
+      expect(await isStillPending(reqDel)).toBe(true);
+      release();
+      return Promise.all([reqAdd, reqDel]);
+    });
+
+    expect(resAdd.status).toBe(200);
+    expect(resDel.status).toBe(200);
+    const members = new Set((await readMemberRows(listId)).map((row) => row.oxyUserId));
+    expect(members).toEqual(new Set(['b', 'c']));
+  });
+
+  it('full replace + add: a PUT replacing membership does not silently erase a concurrent add', async () => {
+    const created = await createList({ memberOxyUserIds: ['a'] });
+    const listId = created.body.id;
+
+    const [resPut, resAdd] = await withHeldLock(listId, async (release) => {
+      const reqPut = request(app).put(`/lists/${listId}`).send({ memberOxyUserIds: ['a', 'z'] });
+      const reqAdd = request(app).post(`/lists/${listId}/members`).send({ userIds: ['c'] });
+      expect(await isStillPending(reqPut)).toBe(true);
+      expect(await isStillPending(reqAdd)).toBe(true);
+      release();
+      return Promise.all([reqPut, reqAdd]);
+    });
+
+    expect(resPut.status).toBe(200);
+    expect(resAdd.status).toBe(200);
+    // Whichever handler ran second saw the FIRST one's committed result — the
+    // add's own set includes it, or the PUT (if it ran second) still holds
+    // 'a' and 'z'. Never a blind overwrite of state neither of them observed.
+    const members = new Set((await readMemberRows(listId)).map((row) => row.oxyUserId));
+    expect(members.has('c')).toBe(true);
+    expect(members.has('a') || members.has('z')).toBe(true);
+  });
+
+  it('list delete + a concurrent member write: one consistent outcome, never a torn one', async () => {
+    const created = await createList({ memberOxyUserIds: ['a'] });
+    const listId = created.body.id;
+
+    const [resDel, resAdd] = await withHeldLock(listId, async (release) => {
+      const reqDel = request(app).delete(`/lists/${listId}`);
+      const reqAdd = request(app).post(`/lists/${listId}/members`).send({ userIds: ['c'] });
+      expect(await isStillPending(reqDel)).toBe(true);
+      expect(await isStillPending(reqAdd)).toBe(true);
+      release();
+      return Promise.all([reqDel, reqAdd]);
+    });
+
+    expect(resDel.status).toBe(200);
+    // Either the add ran first (200, then the delete removes it and
+    // everything with it) or the delete ran first and the add finds nothing
+    // to add to (404) — never a 500 from writing into a list mid-delete.
+    expect([200, 404]).toContain(resAdd.status);
+    expect(await db.select().from(accountLists).where(eq(accountLists.id, listId))).toEqual([]);
   });
 });
 
