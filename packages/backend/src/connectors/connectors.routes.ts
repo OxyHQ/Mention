@@ -593,17 +593,14 @@ router.get('/followers', async (req: AuthRequest, res: Response) => {
 export function buildActorPostsScopeSql(
   actor: { uri: string; oxyUserId?: string | null },
 ): SQL {
-  return (actor.oxyUserId
-    ? and(
+  const reachedBy = actor.oxyUserId
+    ? [
       eq(postsTable.oxyUserId, actor.oxyUserId),
       isNotNull(postsTable.federationActivityId),
-      eq(postsTable.visibility, PostVisibility.PUBLIC),
       notCollapsedCrosspostSql(),
-    )
-    : and(
-      activityIdUnderActor(actor.uri),
-      eq(postsTable.visibility, PostVisibility.PUBLIC),
-    )) as SQL;
+    ]
+    : [activityIdUnderActor(actor.uri)];
+  return and(eq(postsTable.visibility, PostVisibility.PUBLIC), ...reachedBy) as SQL;
 }
 
 /**
@@ -622,19 +619,12 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
     if (!actor) return res.json({ posts: [], hasMore: false });
 
     const limit = 20;
-    // Query by oxyUserId (the canonical user identity in Oxy) for federated posts.
-    // Falls back to the activity ID range query if the actor has no Oxy link yet.
-    //
-    // `is not null`, NOT `<> null`: Mongo's `$ne: null` also matched a MISSING
-    // `federation` subdocument, while SQL's `<>` against NULL is NULL and matches
-    // nothing — the literal translation would return an empty author feed for
-    // every actor that HAS an Oxy link, which is all of them.
-    const conditions: SQL[] = [buildActorPostsScopeSql(actor)];
-    if (parsed.data.cursor) {
-      conditions.push(lt(postsTable.createdAt, new Date(parsed.data.cursor)));
-    }
+    // `and` drops an `undefined` operand, so the cursor needs no array to live in.
+    const cursor = parsed.data.cursor
+      ? lt(postsTable.createdAt, new Date(parsed.data.cursor))
+      : undefined;
 
-    let posts = await findPostRecords(and(...conditions), {
+    let posts = await findPostRecords(and(buildActorPostsScopeSql(actor), cursor), {
       orderBy: CHRONO_DESC,
       limit: limit + 1,
     });

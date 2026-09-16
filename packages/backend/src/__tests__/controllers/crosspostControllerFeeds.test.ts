@@ -63,8 +63,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 import { inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
-import { createCluster } from '../../db/posts/postEquivalenceRepository';
-import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
+import { clearPostScope, postScope, seedCrosspostCluster, seedPost } from '../helpers/postFixtures';
 import { feedController } from '../../controllers/feed.controller';
 import { getNearbyPosts } from '../../controllers/posts/geo';
 
@@ -78,14 +77,13 @@ const LNG = -68.3029;
 interface Payload {
   items?: Array<{ id: string }>;
   posts?: Array<{ id: string }>;
-  status?: number;
 }
 
-function buildResponse(): { res: unknown; payload: { value?: Payload; status?: number } } {
-  const payload: { value?: Payload; status?: number } = {};
+function buildResponse(): { res: unknown; payload: { value?: Payload } } {
+  const payload: { value?: Payload } = {};
   const res = {
-    status(code: number) {
-      payload.status = code;
+    // Chainable so an error path still composes; no case asserts the code.
+    status() {
       return this;
     },
     json(body: unknown) {
@@ -97,18 +95,17 @@ function buildResponse(): { res: unknown; payload: { value?: Payload; status?: n
 }
 
 /**
- * Two variants of one cross-post, clustered through the shipped writer, with
- * `apply` deciding what each variant IS — a quote, a reply, or a located post.
+ * Two variants of one cross-post, clustered through the shipped writer.
+ *
+ * `overrides` says what both variants ARE — a quote, a reply, or a located post
+ * — because that is the only thing the three cases below vary.
  */
 async function crosspostPair(
-  apply: (label: 'instagram' | 'threads') => Parameters<typeof seedPost>[1],
+  overrides: Parameters<typeof seedPost>[1] = {},
 ): Promise<{ shown: string; hidden: string }> {
-  const shown = (await seedPost(scope, { oxyUserId: AUTHOR, ...apply('instagram') })).id;
-  const hidden = (await seedPost(scope, { oxyUserId: AUTHOR, ...apply('threads') })).id;
-  await createCluster('declared', [
-    { postId: shown, networkDomain: 'instagram.com', preferred: true, evidence: 'declared original' },
-    { postId: hidden, networkDomain: 'threads.net', preferred: false, evidence: 'declared crosspost' },
-  ]);
+  const shown = (await seedPost(scope, { oxyUserId: AUTHOR, ...overrides })).id;
+  const hidden = (await seedPost(scope, { oxyUserId: AUTHOR, ...overrides })).id;
+  await seedCrosspostCluster(shown, hidden);
   return { shown, hidden };
 }
 
@@ -128,7 +125,7 @@ afterAll(async () => {
 describe('the quotes feed', () => {
   it('shows a cross-posted quote once, and keeps both source posts stored', async () => {
     const anchor = await seedPost(scope, { oxyUserId: scope.user('quoted') });
-    const { shown, hidden } = await crosspostPair(() => ({ quoteOf: anchor.id }));
+    const { shown, hidden } = await crosspostPair({ quoteOf: anchor.id });
 
     const { res, payload } = buildResponse();
     await feedController.getQuotesFeed(
@@ -144,7 +141,7 @@ describe('the quotes feed', () => {
 
 describe('the nearby-posts map', () => {
   it('drops one pin for a cross-post, not two', async () => {
-    const { shown, hidden } = await crosspostPair(() => ({}));
+    const { shown, hidden } = await crosspostPair();
     // The `geography` column the radius read uses is GENERATED from the pair of
     // coordinate columns, so the fixture sets those and the index does the rest.
     await getDb()
@@ -169,10 +166,7 @@ describe('the replies feed', () => {
    */
   it('keeps both source replies to the same parent', async () => {
     const parent = await seedPost(scope, { oxyUserId: scope.user('parent-author') });
-    const { shown, hidden } = await crosspostPair(() => ({
-      parentPostId: parent.id,
-      isReply: true,
-    }));
+    const { shown, hidden } = await crosspostPair({ parentPostId: parent.id, isReply: true });
 
     const { res, payload } = buildResponse();
     await feedController.getRepliesFeed(
