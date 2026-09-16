@@ -15,7 +15,7 @@
 import { MtnConfig, toBaseLanguages, type FeedTuning } from '@mention/shared-types';
 import type { FeedRankingSettings } from '../../services/ranking/signalContext';
 import type { OxyClient } from '../../utils/privacyHelpers';
-import { extractFollowingIds, extractFollowersIds } from '../../utils/privacyHelpers';
+import { getFollowingIds, getFollowerIds } from '../../utils/privacyHelpers';
 import { loadUserSettings } from '../../db/userProfile/userSettingsRepository';
 import { listSubscriptionService } from '../../services/ListSubscriptionService';
 import { userPreferenceService } from '../../services/UserPreferenceService';
@@ -181,7 +181,7 @@ export async function loadViewerFeedContext(
       let ids: string[] = [];
       if (oxyClient) {
         try {
-          ids = extractFollowingIds(await oxyClient.getUserFollowing(currentUserId));
+          ids = await getFollowingIds(currentUserId, oxyClient);
         } catch (error) {
           logger.warn('[feedContext] Failed to load following list', error);
         }
@@ -204,7 +204,7 @@ export async function loadViewerFeedContext(
     const followerPromise = (async (): Promise<string[]> => {
       if (!oxyClient) return [];
       try {
-        return extractFollowersIds(await oxyClient.getUserFollowers(currentUserId));
+        return await getFollowerIds(currentUserId, oxyClient);
       } catch (error) {
         logger.warn('[feedContext] Failed to load followers list', error);
         return [];

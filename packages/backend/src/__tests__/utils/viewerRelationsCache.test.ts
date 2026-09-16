@@ -1,14 +1,17 @@
 /**
- * The viewer privacy cache (`resolveViewerPrivacyLists`).
+ * The per-viewer relations cache — blocked, restricted, following, followers.
  *
- * What these pin is the reason it exists: the blocked/restricted read fails
- * CLOSED, so before this cache a single Oxy 429 became an error on the reader's
- * screen for every request they made. The cache must therefore
+ * What these pin is the reason it exists: the four lists were read from Oxy on
+ * every authenticated request, charged to the reader's own Oxy rate budget, and
+ * the blocked/restricted half fails CLOSED — so one 429 became an error on the
+ * reader's screen for every request they made, while their lists had not
+ * changed at all. The cache must therefore
  *
- *  - ask Oxy at most once per viewer per freshness window,
+ *  - ask Oxy at most once per viewer per list per freshness window,
  *  - keep answering from the last lists Oxy confirmed when a refresh fails,
- *  - still fail closed for a viewer it has never resolved, and
- *  - hand every caller its own arrays, because callers push ids onto them.
+ *  - still fail closed for a viewer it has never resolved,
+ *  - hand every caller its own arrays, because callers push ids onto them, and
+ *  - forget all four lists together when the viewer writes a relation.
  *
  * The real {@link createCache} runs against an in-memory Redis double, so the
  * stale-while-revalidate behaviour under test is the primitive's own, not a
@@ -49,8 +52,10 @@ vi.mock('../../runtime/oxyClient', () => ({
 
 import {
   getBlockedUserIds,
+  getFollowerIds,
+  getFollowingIds,
   getRestrictedUserIds,
-  invalidateViewerPrivacyLists,
+  invalidateViewerRelations,
   type OxyClient,
 } from '../../utils/privacyHelpers';
 
@@ -75,13 +80,22 @@ const VIEWER = 'viewer-1';
 /** Freshness is 30s; this is comfortably past it without touching retention. */
 const PAST_FRESHNESS_MS = 60 * 1000;
 
-function oxyClientReturning(blocked: string[], restricted: string[]) {
+function oxyClientReturning(
+  blocked: string[],
+  restricted: string[],
+  following: string[] = [],
+  followers: string[] = [],
+) {
   return {
     getBlockedUsers: vi.fn(async () => blocked.map((blockedId) => ({ blockedId }))),
     getRestrictedUsers: vi.fn(async () => restricted.map((restrictedId) => ({ restrictedId }))),
+    getUserFollowing: vi.fn(async () => ({ following: following.map((id) => ({ id })) })),
+    getUserFollowers: vi.fn(async () => ({ followers: followers.map((id) => ({ id })) })),
   } as unknown as OxyClient & {
     getBlockedUsers: ReturnType<typeof vi.fn>;
     getRestrictedUsers: ReturnType<typeof vi.fn>;
+    getUserFollowing: ReturnType<typeof vi.fn>;
+    getUserFollowers: ReturnType<typeof vi.fn>;
   };
 }
 
@@ -103,7 +117,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('resolveViewerPrivacyLists', () => {
+describe('the viewer relations cache', () => {
   it('reads Oxy once per viewer within the freshness window', async () => {
     const oxy = oxyClientReturning(['blocked-1'], ['restricted-1']);
 
@@ -168,7 +182,7 @@ describe('resolveViewerPrivacyLists', () => {
     const oxy = oxyClientReturning(['blocked-1'], []);
     await resolveViewerPrivacyLists(VIEWER, oxy);
 
-    await invalidateViewerPrivacyLists(VIEWER);
+    await invalidateViewerRelations(VIEWER);
     const afterBlock = oxyClientReturning(['blocked-1', 'blocked-2'], []);
     const served = await resolveViewerPrivacyLists(VIEWER, afterBlock);
 
@@ -185,5 +199,87 @@ describe('resolveViewerPrivacyLists', () => {
 
     expect(other.blockedIds).toEqual(['blocked-2']);
     expect(theirs.getBlockedUsers).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the follow half of the cache', () => {
+  it('reads each list from Oxy once per viewer per window', async () => {
+    const oxy = oxyClientReturning([], [], ['followed-1'], ['follower-1']);
+
+    const following = await getFollowingIds(VIEWER, oxy);
+    const followers = await getFollowerIds(VIEWER, oxy);
+    await getFollowingIds(VIEWER, oxy);
+    await getFollowerIds(VIEWER, oxy);
+
+    expect(following).toEqual(['followed-1']);
+    expect(followers).toEqual(['follower-1']);
+    expect(oxy.getUserFollowing).toHaveBeenCalledTimes(1);
+    expect(oxy.getUserFollowers).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps serving the last confirmed follow list when Oxy stops answering', async () => {
+    const healthy = oxyClientReturning([], [], ['followed-1']);
+    await getFollowingIds(VIEWER, healthy);
+
+    vi.setSystemTime(Date.now() + PAST_FRESHNESS_MS);
+    const rateLimited = {
+      getUserFollowing: vi.fn(async () => {
+        throw Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
+      }),
+    } as unknown as OxyClient;
+
+    expect(await getFollowingIds(VIEWER, rateLimited)).toEqual(['followed-1']);
+    await settleBackgroundRefresh();
+    expect(await getFollowingIds(VIEWER, rateLimited)).toEqual(['followed-1']);
+  });
+
+  /**
+   * The follow graph is a RANKING signal, so its callers degrade a failure to an
+   * empty list rather than refusing the request. The cache must not change that
+   * for a viewer it has never resolved: it propagates, and the caller decides.
+   */
+  it('propagates a cold failure so the caller can keep its own soft-fail', async () => {
+    const rateLimited = {
+      getUserFollowing: vi.fn(async () => {
+        throw Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
+      }),
+    } as unknown as OxyClient;
+
+    await expect(getFollowingIds(VIEWER, rateLimited)).rejects.toThrow('HTTP 429');
+    expect([...store.keys()]).not.toContain(`mtn:viewer:relations:v1:following:${VIEWER}`);
+  });
+
+  /**
+   * `mergeFederatedFollowIds` pushes federated ids onto the array it is handed,
+   * so a cached array returned twice would accumulate them across requests.
+   */
+  it('hands each caller its own follow array', async () => {
+    const oxy = oxyClientReturning([], [], ['followed-1']);
+
+    (await getFollowingIds(VIEWER, oxy)).push('federated-1');
+
+    expect(await getFollowingIds(VIEWER, oxy)).toEqual(['followed-1']);
+  });
+
+  it('reads through, uncached, when the caller does not know whose list it is', async () => {
+    const oxy = oxyClientReturning([], [], ['followed-1']);
+
+    await getFollowingIds(undefined, oxy);
+    await getFollowingIds(undefined, oxy);
+
+    expect(oxy.getUserFollowing).toHaveBeenCalledTimes(2);
+    expect(store.size).toBe(0);
+  });
+
+  it('forgets all four lists when the viewer writes a relation', async () => {
+    const oxy = oxyClientReturning(['blocked-1'], ['restricted-1'], ['followed-1'], ['follower-1']);
+    await resolveViewerPrivacyLists(VIEWER, oxy);
+    await getFollowingIds(VIEWER, oxy);
+    await getFollowerIds(VIEWER, oxy);
+    expect(store.size).toBe(4);
+
+    await invalidateViewerRelations(VIEWER);
+
+    expect(store.size).toBe(0);
   });
 });

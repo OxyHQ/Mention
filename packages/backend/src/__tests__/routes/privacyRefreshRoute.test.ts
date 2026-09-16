@@ -12,10 +12,10 @@ import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const invalidateViewerPrivacyLists = vi.fn(async () => {});
+const invalidateViewerRelations = vi.fn(async () => {});
 
 vi.mock('../../utils/privacyHelpers', () => ({
-  invalidateViewerPrivacyLists: (viewerId: string) => invalidateViewerPrivacyLists(viewerId),
+  invalidateViewerRelations: (viewerId: string) => invalidateViewerRelations(viewerId),
 }));
 
 import privacyRouter from '../../routes/privacy.routes';
@@ -36,19 +36,19 @@ beforeEach(() => {
 });
 
 describe('POST /privacy/refresh', () => {
-  it('drops the authenticated caller’s cached lists', async () => {
+  it('drops the authenticated caller’s cached relations', async () => {
     const res = await request(makeApp('viewer-1'))
       .post('/privacy/refresh')
       .send({ userId: 'someone-else' });
 
     expect(res.status).toBe(204);
-    expect(invalidateViewerPrivacyLists).toHaveBeenCalledWith('viewer-1');
+    expect(invalidateViewerRelations).toHaveBeenCalledWith('viewer-1');
   });
 
   it('refuses a caller with no session and evicts nothing', async () => {
     const res = await request(makeApp(undefined)).post('/privacy/refresh');
 
     expect(res.status).toBe(401);
-    expect(invalidateViewerPrivacyLists).not.toHaveBeenCalled();
+    expect(invalidateViewerRelations).not.toHaveBeenCalled();
   });
 });

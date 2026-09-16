@@ -78,12 +78,20 @@ vi.mock('../../runtime/oxyClient', () => ({
   }),
 }));
 
-vi.mock('../../utils/privacyHelpers', () => ({
+/**
+ * The REAL module with only the two authoritative privacy reads stubbed to
+ * "nobody blocked". It used to be replaced wholesale by a four-export literal,
+ * which silently stopped covering the module as it grew: the follow-graph read
+ * the muted-word `exclude-following` scope depends on now lives here too (it is
+ * cached per viewer), and a partial mock answered that read with `undefined`,
+ * which the caller's soft-fail turned into "follows nobody" — the rule under
+ * test, quietly disabled. Everything real here is pure id-shape logic plus a
+ * fail-open cache, so keeping it real costs nothing and cannot drift again.
+ */
+vi.mock('../../utils/privacyHelpers', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../utils/privacyHelpers')>(),
   getBlockedUserIds: vi.fn(async () => []),
   getRestrictedUserIds: vi.fn(async () => []),
-  extractFollowingIds: (value: unknown) =>
-    (Array.isArray(value) ? value : []).map((entry) => (entry as { id: string }).id),
-  extractFollowersIds: vi.fn(() => []),
 }));
 
 // Redis. A miss is the honest default and forces the cold Oxy path above.
