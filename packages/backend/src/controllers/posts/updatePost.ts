@@ -434,7 +434,8 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       includeRoom: Boolean(content.room),
       includeLocation: Boolean(content.location),
       includeSources: Boolean(content.sources && content.sources.length),
-      includePodcast: Boolean(content.podcast)
+      includePodcast: Boolean(content.podcast),
+      includeJob: Boolean(content.job)
     });
 
     content.attachments = updatedAttachments ?? undefined;

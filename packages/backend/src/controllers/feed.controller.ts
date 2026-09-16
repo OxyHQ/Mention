@@ -58,6 +58,7 @@ import {
   repostRecordUri,
 } from '../services/mtn/MentionRecordEmitter';
 import { sanitizePodcast, resolvePodcastContent } from '../utils/syraPodcast';
+import { sanitizeJobInput, resolveJobContent } from '../utils/jobPostAttachment';
 import { recordRecentReplierForPost } from '../services/PostRecentReplierService';
 import { UserPrivacyManager } from '../mtn/UserPrivacyManager';
 
@@ -285,7 +286,7 @@ class FeedController {
   // The persisted reply content is the OUTPUT shape: the client-supplied podcast
   // is only `{ syraPodcastId }` (input), so we drop it here and re-attach the
   // server-denormalized show below; everything else carries over.
-  const replyContent: PostContent = typeof content === 'string' ? { text: content } : { ...(content ?? { text: '' }), podcast: undefined };
+  const replyContent: PostContent = typeof content === 'string' ? { text: content } : { ...(content ?? { text: '' }), podcast: undefined, job: undefined };
 
       // A reply carries composer media, so it is a write boundary like
       // `POST /posts`: the client's items go through the SAME normalizer
@@ -449,6 +450,19 @@ class FeedController {
           replyContent.podcast = await resolvePodcastContent(replySanitizedPodcast.syraPodcastId);
         } catch (podcastError) {
           logger.warn('createReply: failed to resolve Syra podcast; dropping', { userId: currentUserId, syraPodcastId: replySanitizedPodcast.syraPodcastId, error: podcastError });
+        }
+      }
+
+      // A reply may attach a Mention job listing, same untrusted-reference
+      // treatment as podcast: only the id crosses the boundary, the card is
+      // denormalized server-side.
+      const replySanitizedJob = sanitizeJobInput(typeof content === 'string' ? undefined : content?.job);
+      if (replySanitizedJob) {
+        try {
+          const jobContent = await resolveJobContent(replySanitizedJob.mentionJobId);
+          if (jobContent) replyContent.job = jobContent;
+        } catch (jobError) {
+          logger.warn('createReply: failed to resolve Mention job; dropping', { userId: currentUserId, mentionJobId: replySanitizedJob.mentionJobId, error: jobError });
         }
       }
 
@@ -663,10 +677,10 @@ class FeedController {
       // Create boost
       const mergedTags = mergeHashtags(content?.text || '', parsedHashtags);
       // `CreateBoostRequest.content` is the client's INPUT shape, whose `podcast`
-      // carries only an id. A boost never denormalizes a show (the boosted
-      // original owns its own attachments), so the field is dropped rather than
-      // half-resolved.
-      const boostContent: PostContent = { ...(content ?? { text: '' }), podcast: undefined };
+      // and `job` carry only an id. A boost never denormalizes a show or a job
+      // card (the boosted original owns its own attachments), so both fields
+      // are dropped rather than half-resolved.
+      const boostContent: PostContent = { ...(content ?? { text: '' }), podcast: undefined, job: undefined };
       // The comment on a boost is a body the author typed, so a profile link in
       // it becomes a mention on the same terms as every other write boundary.
       const foldedMentions = await foldProfileLinkMentions(boostContent, mentions);

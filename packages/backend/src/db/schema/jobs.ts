@@ -35,6 +35,7 @@ export const MENTION_JOB_SALARY_INTERVALS = ['hour', 'day', 'month', 'year'] as 
 export const MENTION_JOB_APPLICATION_MODES = ['mention', 'external'] as const;
 export const MENTION_JOB_STATUSES = ['draft', 'published', 'paused', 'closed', 'expired'] as const;
 export const MENTION_JOB_CLARITY_SYNC_STATUSES = ['pending', 'synced', 'failed'] as const;
+export type MentionJobClaritySyncStatus = (typeof MENTION_JOB_CLARITY_SYNC_STATUSES)[number];
 
 /** `mention_jobs` — a Mention-authored, Mention-owned job listing. */
 export const mentionJobs = pgTable(

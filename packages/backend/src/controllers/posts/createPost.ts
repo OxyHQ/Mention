@@ -29,6 +29,7 @@ import { LaneAssignmentError } from '../../utils/laneAssignment';
 import { assertParentAcceptsReplies, ChannelReplyError } from '../../utils/channelReplyGate';
 import { PublishAsAccessError } from '../../services/publishAsAccount';
 import { sanitizePodcast, resolvePodcastContent } from '../../utils/syraPodcast';
+import { sanitizeJobInput, resolveJobContent } from '../../utils/jobPostAttachment';
 import { postCollaborationService, CollabValidationError } from '../../services/PostCollaborationService';
 import { resolveMcpAutoAcceptIds } from '../../mcp/utils/resolveMcpAutoAcceptIds';
 import {
@@ -322,6 +323,23 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Handle a Mention job attachment: the client only sends an untrusted
+    // `{ mentionJobId }` reference, the card is resolved + denormalized
+    // server-side from Mention's own job record — never trusted from the client.
+    const sanitizedJob = sanitizeJobInput(content?.job || req.body.job);
+    if (sanitizedJob) {
+      try {
+        const jobContent = await resolveJobContent(sanitizedJob.mentionJobId);
+        if (!jobContent) {
+          return res.status(400).json({ message: 'Unable to resolve the selected job' });
+        }
+        postContent.job = jobContent;
+      } catch (jobError) {
+        logger.warn('Failed to resolve Mention job for post', { userId, mentionJobId: sanitizedJob.mentionJobId, error: jobError });
+        return res.status(400).json({ message: 'Unable to resolve the selected job' });
+      }
+    }
+
     const attachmentsInput = content?.attachments || content?.attachmentOrder || req.body.attachments || req.body.attachmentOrder;
     const computedAttachments = buildOrderedAttachments({
       rawAttachments: attachmentsInput || postContent.attachments,
@@ -332,7 +350,8 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       includeRoom: Boolean(postContent.room),
       includeLocation: Boolean(postContent.location),
       includeSources: Boolean(postContent.sources && postContent.sources.length),
-      includePodcast: Boolean(postContent.podcast)
+      includePodcast: Boolean(postContent.podcast),
+      includeJob: Boolean(postContent.job)
     });
 
     if (computedAttachments) {

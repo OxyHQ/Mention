@@ -34,6 +34,19 @@ import type { ReportCategory } from '../../db/moderation/reportRepository';
  * honest reading of what a reporter means by "explicit", and a jury that finds
  * only nudity will say so — whereas alleging nudity when explicit activity was
  * reported would understate the report and could route it to a lighter review.
+ *
+ * **The five `job`-only categories (#952) read as listing-accuracy claims, not
+ * person-harm ones**, which is why three of them land in `commerce.*`/`integrity.*`
+ * rather than `harassment.*`: `scam` is `integrity.scam` (an exact match — a
+ * claim of intent to defraud). `discriminatory` is `hate.protected_targeting`,
+ * the same code `hate_speech` uses — an employment listing that excludes a
+ * protected class is that same allegation aimed at a job posting rather than a
+ * post. `impersonation` is `integrity.impersonation` (exact match — a claim the
+ * employer identity itself is fake). `already_filled` is `commerce.misleading_listing`:
+ * the claim is that the listing no longer reflects reality, the same shape as a
+ * marketplace listing for something no longer for sale. `duplicate` is
+ * `integrity.spam`, matching how `spam` itself is mapped — a repeat posting is
+ * that allegation aimed at a listing.
  */
 export const REPORT_TAXONOMY_VERSION = '2026.07';
 
@@ -43,6 +56,11 @@ const CATEGORY_TO_ALLEGATION: Readonly<Record<ReportCategory, TaxonomyCode>> = O
   harassment: 'harassment.targeted_abuse',
   misinformation: 'other.policy_specific',
   explicit_content: 'sexual_content.explicit_activity',
+  scam: 'integrity.scam',
+  discriminatory: 'hate.protected_targeting',
+  impersonation: 'integrity.impersonation',
+  already_filled: 'commerce.misleading_listing',
+  duplicate: 'integrity.spam',
   other: 'other.unclassifiable',
 });
 
