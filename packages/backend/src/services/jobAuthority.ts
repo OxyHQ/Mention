@@ -14,13 +14,17 @@
  * Oxy account membership on every call, never a cached flag on the job row.
  */
 
+import type { AccountNode } from '@oxy.so/core';
 import { MENTION_JOB_ELIGIBLE_EMPLOYER_KINDS } from '@mention/shared-types';
 import {
   assertCanPublishAsAccount,
+  membershipAuthorizesActingFor,
   PublishAsAccessError,
   type AccountMemberReader,
+  type OperatedAccountReader,
   type PublishAsAuthor,
 } from './publishAsAccount';
+import { logger } from '../utils/logger';
 
 /**
  * Refuse unless `callerId` currently has authority to manage jobs published
@@ -62,4 +66,40 @@ export async function assertCanManageJob(params: {
   }
 
   return author;
+}
+
+/**
+ * The organization/project accounts this caller currently operates — the
+ * employer set behind `GET /jobs/mine`.
+ *
+ * Same inversion as {@link listOperatedChannelIds} and for the same reason:
+ * `GET /accounts/:id/members` is authorized against the CALLER, so there is no
+ * way to ask "which organizations does this person operate" except the other
+ * direction — `GET /accounts`, read with the caller's own bearer, returning
+ * each account's `callerMembership` alongside it.
+ *
+ * Fail-soft to `[]`: an Oxy outage degrades the dashboard to "no jobs found"
+ * rather than 500ing it, and it can never ADD an employer the caller does not
+ * actually operate.
+ */
+export async function listOperatedJobEmployerIds(
+  reader: OperatedAccountReader | undefined,
+): Promise<string[]> {
+  if (!reader) return [];
+  let accounts: AccountNode[];
+  try {
+    accounts = await reader.listAccounts();
+  } catch (error) {
+    logger.warn('[jobAuthority] Failed to list operated accounts', error);
+    return [];
+  }
+  const eligibleKinds: readonly string[] = MENTION_JOB_ELIGIBLE_EMPLOYER_KINDS;
+  return accounts
+    .filter(
+      (node) =>
+        eligibleKinds.includes(node.kind) &&
+        membershipAuthorizesActingFor(node.kind, node.callerMembership),
+    )
+    .map((node) => node.accountId)
+    .filter((accountId): accountId is string => Boolean(accountId));
 }

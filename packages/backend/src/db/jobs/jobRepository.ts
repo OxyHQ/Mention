@@ -143,25 +143,40 @@ export async function getJobBySlug(slug: string): Promise<MentionJobRow | undefi
   return row;
 }
 
-export interface UpdateJobParams extends UpdateMentionJobRequest {}
+/**
+ * Same as {@link UpdateMentionJobRequest} except the clearable object/enum
+ * fields also accept `null` to mean "clear this field" — `undefined` means
+ * "leave it alone". The distinction is load-bearing: drizzle's `.set()`
+ * FILTERS OUT any key whose value is `undefined` (`mapUpdateSet` in
+ * `drizzle-orm/utils.js`; verified empirically — it even throws "No values to
+ * set" when every key is undefined), so `location: undefined` and
+ * `location: null` are not the same request and must not collapse into one.
+ */
+export interface UpdateJobParams extends Omit<UpdateMentionJobRequest, 'location' | 'workplaceType' | 'employmentType' | 'salary' | 'externalApplyUrl'> {
+  location?: UpdateMentionJobRequest['location'] | null;
+  workplaceType?: UpdateMentionJobRequest['workplaceType'] | null;
+  employmentType?: UpdateMentionJobRequest['employmentType'] | null;
+  salary?: UpdateMentionJobRequest['salary'] | null;
+  externalApplyUrl?: UpdateMentionJobRequest['externalApplyUrl'] | null;
+}
 
 export async function updateJob(id: string, patch: UpdateJobParams): Promise<MentionJobRow | undefined> {
   const values: Partial<typeof mentionJobs.$inferInsert> = {};
   if (patch.title !== undefined) values.title = patch.title;
   if (patch.description !== undefined) values.description = patch.description;
   if (patch.location !== undefined) {
-    values.locationRaw = patch.location?.raw;
-    values.locationCountryCode = patch.location?.countryCode;
-    values.locationRegion = patch.location?.region;
-    values.locationCity = patch.location?.city;
+    values.locationRaw = patch.location?.raw ?? null;
+    values.locationCountryCode = patch.location?.countryCode ?? null;
+    values.locationRegion = patch.location?.region ?? null;
+    values.locationCity = patch.location?.city ?? null;
   }
   if (patch.workplaceType !== undefined) values.workplaceType = patch.workplaceType;
   if (patch.employmentType !== undefined) values.employmentType = patch.employmentType;
   if (patch.salary !== undefined) {
-    values.salaryMin = patch.salary?.min;
-    values.salaryMax = patch.salary?.max;
-    values.salaryCurrency = patch.salary?.currency;
-    values.salaryInterval = patch.salary?.interval;
+    values.salaryMin = patch.salary?.min ?? null;
+    values.salaryMax = patch.salary?.max ?? null;
+    values.salaryCurrency = patch.salary?.currency ?? null;
+    values.salaryInterval = patch.salary?.interval ?? null;
   }
   if (patch.skills !== undefined) values.skills = patch.skills;
   if (patch.applicationMode !== undefined) values.applicationMode = patch.applicationMode;

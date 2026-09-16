@@ -10,6 +10,8 @@ import hashtagsRoutes from './routes/hashtags';
 import searchRoutes from './routes/search';
 import feedRoutes from './routes/feed.routes';
 import pollsRoutes from './routes/polls';
+import jobsRoutes from './routes/jobs';
+import jobsManagementRoutes from './routes/jobsManagement';
 import customFeedsRoutes from './routes/customFeeds.routes';
 import labelerRoutes from './routes/labeler.routes';
 import statisticsRoutes, { publicStatisticsRouter } from './routes/statistics.routes';
@@ -127,6 +129,7 @@ export function createAppRoutes({
   publicApi.use('/feeds', optionalAuth, customFeedsRoutes);
   publicApi.use('/recommendations', optionalAuth, recommendationsRoutes);
   publicApi.use('/starter-packs', optionalAuth, starterPacksRoutes);
+  publicApi.use('/jobs', optionalAuth, jobsRoutes);
   // Reader-agnostic: the lanes a visitor needs to draw a publisher's tabs.
   publicApi.use('/lanes', optionalAuth, publicLanesRouter);
   // A channel's page is public, so its writers list is readable anonymously —
@@ -145,6 +148,7 @@ export function createAppRoutes({
   authenticatedApi.use('/search', searchRoutes);
   authenticatedApi.use('/labelers', labelerRoutes);
   authenticatedApi.use('/polls', pollsRoutes);
+  authenticatedApi.use('/jobs', jobsManagementRoutes);
   authenticatedApi.use('/profile/media', profileMediaRoutes);
   authenticatedApi.use('/profile', profileSettingsRoutes);
   authenticatedApi.use('/subscriptions', subscriptionsRoutes);
