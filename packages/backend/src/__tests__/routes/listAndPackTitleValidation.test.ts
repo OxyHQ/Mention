@@ -39,7 +39,13 @@ vi.mock('../../services/EndorsementSignalService', () => ({
 }));
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
-import { accountLists, starterPacks } from '../../db/schema/lists';
+import {
+  ACCOUNT_LIST_MAX_MEMBERS,
+  ACCOUNT_LIST_MAX_MEMBER_ID_LENGTH,
+  accountListMembers,
+  accountLists,
+  starterPacks,
+} from '../../db/schema/lists';
 import listRoutes from '../../routes/lists';
 import starterPacksRoutes from '../../routes/starterPacks';
 
@@ -279,5 +285,73 @@ describe('POST/PUT /starter-packs name and description', () => {
     const [row] = await db.select().from(starterPacks).where(eq(starterPacks.id, created.body.id));
     expect(row.name).toBe('After');
     expect(row.description).toBe('blurb');
+  });
+});
+
+/**
+ * `normalizeMemberIds` deduplicated and dropped non-string entries but never
+ * bounded HOW MANY members a list could hold or how long one member's id
+ * could be. Neither bound is new client-visible validation surface exactly:
+ * the length bound drops a value the same way an object or a number always
+ * has (nothing real is anywhere near it), while the count bound is a genuine
+ * new 400 — a list this large was never a value `normalizeMemberIds` could
+ * have silently produced by accident.
+ */
+describe('POST/PUT /lists member bounds', () => {
+  it(`refuses to create a list with more than ${ACCOUNT_LIST_MAX_MEMBERS} members`, async () => {
+    const memberOxyUserIds = Array.from({ length: ACCOUNT_LIST_MAX_MEMBERS + 1 }, (_, i) => `member-${i}`);
+
+    const res = await createList({ title: 'Too big', memberOxyUserIds });
+
+    expect(res.status).toBe(400);
+    const rows = await db
+      .select({ title: accountLists.title })
+      .from(accountLists)
+      .where(eq(accountLists.ownerOxyUserId, VIEWER_ID));
+    expect(rows.map((row) => row.title)).not.toContain('Too big');
+  });
+
+  it(`refuses a PUT that would grow a list past ${ACCOUNT_LIST_MAX_MEMBERS} members`, async () => {
+    const created = await createList({ title: 'Grows too big', memberOxyUserIds: ['seed'] });
+    const memberOxyUserIds = Array.from({ length: ACCOUNT_LIST_MAX_MEMBERS + 1 }, (_, i) => `member-${i}`);
+
+    const res = await request(app).put(`/lists/${created.body.id}`).send({ memberOxyUserIds });
+
+    expect(res.status).toBe(400);
+    const rows = await db
+      .select({ oxyUserId: accountListMembers.oxyUserId })
+      .from(accountListMembers)
+      .where(eq(accountListMembers.listId, created.body.id));
+    expect(rows.map((row) => row.oxyUserId)).toEqual(['seed']);
+  });
+
+  it(`refuses a members-add that would grow a list past ${ACCOUNT_LIST_MAX_MEMBERS}`, async () => {
+    const created = await createList({ title: 'Add too many' });
+    const userIds = Array.from({ length: ACCOUNT_LIST_MAX_MEMBERS + 1 }, (_, i) => `member-${i}`);
+
+    const res = await request(app).post(`/lists/${created.body.id}/members`).send({ userIds });
+
+    expect(res.status).toBe(400);
+    const rows = await db
+      .select({ oxyUserId: accountListMembers.oxyUserId })
+      .from(accountListMembers)
+      .where(eq(accountListMembers.listId, created.body.id));
+    expect(rows).toEqual([]);
+  });
+
+  it('silently drops a member id past the length bound, keeping the rest', async () => {
+    const tooLong = 'x'.repeat(ACCOUNT_LIST_MAX_MEMBER_ID_LENGTH + 1);
+
+    const res = await createList({
+      title: 'Has one bad id',
+      memberOxyUserIds: ['real-member', tooLong],
+    });
+
+    expect(res.status).toBe(201);
+    const rows = await db
+      .select({ oxyUserId: accountListMembers.oxyUserId })
+      .from(accountListMembers)
+      .where(eq(accountListMembers.listId, res.body.id));
+    expect(rows.map((row) => row.oxyUserId)).toEqual(['real-member']);
   });
 });

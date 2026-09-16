@@ -4,7 +4,12 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { config } from '../config';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../db/postgres';
-import { accountListMembers, accountLists } from '../db/schema/lists';
+import {
+  ACCOUNT_LIST_MAX_MEMBERS,
+  ACCOUNT_LIST_MAX_MEMBER_ID_LENGTH,
+  accountListMembers,
+  accountLists,
+} from '../db/schema/lists';
 import { posts } from '../db/schema/posts';
 import { findPostRecords } from '../db/posts/postRepository';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../mtn/feed/CursorBuilder';
@@ -157,8 +162,8 @@ function serializeList(
 }
 
 /**
- * The member ids a client sent, in the order they sent them: non-empty strings
- * only, deduplicated.
+ * The member ids a client sent, in the order they sent them: non-empty
+ * strings within a real id's length, deduplicated.
  *
  * Mongo stored the raw array, so a repeated id simply sat there twice. The
  * junction's `(list_id, oxy_user_id)` unique constraint refuses that outright,
@@ -166,12 +171,20 @@ function serializeList(
  * what preserves the arrangement the owner chose. A non-string could never name
  * an Oxy account, and Mongoose's cast would have turned an object into
  * `"[object Object]"` rather than rejecting it, so those are dropped too.
+ *
+ * The length bound is the same kind of drop, not a new category of rejection:
+ * nothing this table has ever held is anywhere near
+ * {@link ACCOUNT_LIST_MAX_MEMBER_ID_LENGTH} long, so a string past it could not
+ * have named a real Oxy account either — it is silently invalid the same way
+ * an object or a number is, not a client-visible validation error.
  */
 function normalizeMemberIds(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
   const seen = new Set<string>();
   for (const value of input) {
-    if (typeof value === 'string' && value.length > 0) seen.add(value);
+    if (typeof value === 'string' && value.length > 0 && value.length <= ACCOUNT_LIST_MAX_MEMBER_ID_LENGTH) {
+      seen.add(value);
+    }
   }
   return Array.from(seen);
 }
@@ -222,6 +235,24 @@ async function replaceMembers(tx: Transaction, listId: string, memberIds: string
   );
 }
 
+/**
+ * The position an APPENDED member should take — one past the highest position
+ * currently in the table, never a count of rows.
+ *
+ * A remove leaves gaps (`account_list_members_list_id_position_key` is on the
+ * pair, not on a contiguous range), so `COUNT(*)` after a remove UNDER-states
+ * the highest position still in use. Appending at `count` would then collide
+ * with a row the earlier remove left behind — the exact "reassign positions
+ * and hit the unique constraint" failure this function exists to avoid.
+ */
+async function nextMemberPosition(tx: Transaction, listId: string): Promise<number> {
+  const [row] = await tx
+    .select({ maxPosition: sql<number | null>`max(${accountListMembers.position})` })
+    .from(accountListMembers)
+    .where(eq(accountListMembers.listId, listId));
+  return (row?.maxPosition ?? -1) + 1;
+}
+
 // Create list (accounts)
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
@@ -235,6 +266,9 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     const { title, description, isPublic = true, memberOxyUserIds } = parsed.data;
 
     const members = normalizeMemberIds(memberOxyUserIds);
+    if (members.length > ACCOUNT_LIST_MAX_MEMBERS) {
+      return res.status(400).json({ error: `Maximum ${ACCOUNT_LIST_MAX_MEMBERS} members allowed` });
+    }
     const list = await getDb().transaction(async (tx) => {
       const [row] = await tx
         .insert(accountLists)
@@ -390,7 +424,33 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
 type ListWriteOutcome =
   | { kind: 'notFound' }
   | { kind: 'forbidden' }
+  | { kind: 'tooManyMembers' }
   | { kind: 'ok'; list: typeof accountLists.$inferSelect; previousMemberIds: string[]; memberIds: string[] };
+
+/**
+ * The three non-`ok` outcomes every write handler below answers the same way.
+ * A type predicate, not a plain boolean: `if (respondToFailure(res, outcome))
+ * return;` needs the compiler to narrow `outcome` to `{ kind: 'ok' }` in the
+ * code that follows, which a bare `boolean` return cannot do.
+ */
+function respondToFailure(
+  res: Response,
+  outcome: ListWriteOutcome,
+): outcome is Exclude<ListWriteOutcome, { kind: 'ok' }> {
+  if (outcome.kind === 'notFound') {
+    res.status(404).json({ error: 'List not found' });
+    return true;
+  }
+  if (outcome.kind === 'forbidden') {
+    res.status(403).json({ error: 'Not allowed' });
+    return true;
+  }
+  if (outcome.kind === 'tooManyMembers') {
+    res.status(400).json({ error: `Maximum ${ACCOUNT_LIST_MAX_MEMBERS} members allowed` });
+    return true;
+  }
+  return false;
+}
 
 // Update list
 router.put('/:id', async (req: AuthRequest, res: Response) => {
@@ -404,17 +464,26 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     const replacesMembers = Array.isArray(memberOxyUserIds);
 
     const outcome = await getDb().transaction<ListWriteOutcome>(async (tx) => {
+      // `FOR UPDATE`: this handler reads the list's current membership, computes
+      // the next state in application memory, then writes it — the exact
+      // read-compute-write shape where READ COMMITTED lets two concurrent
+      // writers both read the SAME prior state and one's result silently
+      // overwrite the other's. Locking the row here, before that read, means a
+      // second writer's own `FOR UPDATE` blocks until this transaction commits
+      // and then reads what THIS one actually wrote, not what it read.
       const [existing] = await tx
         .select()
         .from(accountLists)
         .where(eq(accountLists.id, String(req.params.id)))
-        .limit(1);
+        .limit(1)
+        .for('update');
       if (!existing) return { kind: 'notFound' };
       if (existing.ownerOxyUserId !== userId) return { kind: 'forbidden' };
 
       const members = await loadMembersByList(tx, [existing.id]);
       const previousMemberIds = members.get(existing.id) ?? [];
       const memberIds = replacesMembers ? normalizeMemberIds(memberOxyUserIds) : previousMemberIds;
+      if (memberIds.length > ACCOUNT_LIST_MAX_MEMBERS) return { kind: 'tooManyMembers' };
 
       // Built from LITERAL keys only. Drizzle keys `set()` by column PROPERTY
       // name and silently ignores an unknown one — writing nothing and throwing
@@ -445,8 +514,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
       return { kind: 'ok', list, previousMemberIds, memberIds };
     });
 
-    if (outcome.kind === 'notFound') return res.status(404).json({ error: 'List not found' });
-    if (outcome.kind === 'forbidden') return res.status(403).json({ error: 'Not allowed' });
+    if (respondToFailure(res, outcome)) return;
 
     if (replacesMembers) {
       syncListMembershipChange(
@@ -470,11 +538,16 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const outcome = await getDb().transaction<ListWriteOutcome>(async (tx) => {
+      // Locked for the same reason every member-write below is: a concurrent
+      // `POST /:id/members` (or any other writer) must either finish first and
+      // have its result deleted, or block until this delete commits and find
+      // the list already gone — never interleave with this read.
       const [existing] = await tx
         .select()
         .from(accountLists)
         .where(eq(accountLists.id, String(req.params.id)))
-        .limit(1);
+        .limit(1)
+        .for('update');
       if (!existing) return { kind: 'notFound' };
       if (existing.ownerOxyUserId !== userId) return { kind: 'forbidden' };
 
@@ -486,8 +559,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
       return { kind: 'ok', list: existing, previousMemberIds: memberIds, memberIds };
     });
 
-    if (outcome.kind === 'notFound') return res.status(404).json({ error: 'List not found' });
-    if (outcome.kind === 'forbidden') return res.status(403).json({ error: 'Not allowed' });
+    if (respondToFailure(res, outcome)) return;
 
     void endorsementSignalService
       .syncScopeRemoval('accountList', outcome.list.id, outcome.list.ownerOxyUserId, outcome.memberIds)
@@ -510,23 +582,31 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
         .select()
         .from(accountLists)
         .where(eq(accountLists.id, String(req.params.id)))
-        .limit(1);
+        .limit(1)
+        .for('update');
       if (!existing) return { kind: 'notFound' };
       if (existing.ownerOxyUserId !== userId) return { kind: 'forbidden' };
 
       const members = await loadMembersByList(tx, [existing.id]);
       const previousMemberIds = members.get(existing.id) ?? [];
-      // Existing members keep their positions and the new ones are APPENDED —
-      // the same result `new Set([...existing, ...incoming])` produced.
-      const memberIds = Array.from(
-        new Set([...previousMemberIds, ...normalizeMemberIds(userIds)]),
-      );
-      await replaceMembers(tx, existing.id, memberIds);
+      const existingIds = new Set(previousMemberIds);
+      // Existing members keep their positions and ROW. Only the ones actually
+      // NEW are appended — a small add no longer rewrites the whole membership
+      // the way `replaceMembers`'s delete-then-insert did.
+      const toAdd = normalizeMemberIds(userIds).filter((id) => !existingIds.has(id));
+      const memberIds = [...previousMemberIds, ...toAdd];
+      if (memberIds.length > ACCOUNT_LIST_MAX_MEMBERS) return { kind: 'tooManyMembers' };
+
+      if (toAdd.length > 0) {
+        const startPosition = await nextMemberPosition(tx, existing.id);
+        await tx.insert(accountListMembers).values(
+          toAdd.map((oxyUserId, i) => ({ listId: existing.id, oxyUserId, position: startPosition + i })),
+        );
+      }
       return { kind: 'ok', list: existing, previousMemberIds, memberIds };
     });
 
-    if (outcome.kind === 'notFound') return res.status(404).json({ error: 'List not found' });
-    if (outcome.kind === 'forbidden') return res.status(403).json({ error: 'Not allowed' });
+    if (respondToFailure(res, outcome)) return;
 
     syncListEndorsements(outcome.list.id);
     res.json(serializeList(outcome.list, outcome.memberIds));
@@ -547,7 +627,8 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
         .select()
         .from(accountLists)
         .where(eq(accountLists.id, String(req.params.id)))
-        .limit(1);
+        .limit(1)
+        .for('update');
       if (!existing) return { kind: 'notFound' };
       if (existing.ownerOxyUserId !== userId) return { kind: 'forbidden' };
 
@@ -555,12 +636,23 @@ router.delete('/:id/members', async (req: AuthRequest, res: Response) => {
       const previousMemberIds = members.get(existing.id) ?? [];
       const toRemove = new Set(normalizeMemberIds(userIds));
       const memberIds = previousMemberIds.filter((id) => !toRemove.has(id));
-      await replaceMembers(tx, existing.id, memberIds);
+
+      // A targeted delete of only the removed rows — never the full
+      // rewrite `replaceMembers` does. It leaves gaps in `position`, which is
+      // fine: every reader orders BY position, none of them assume it is
+      // contiguous, and `nextMemberPosition` (not a row count) is what a later
+      // append relies on instead.
+      if (toRemove.size > 0) {
+        await tx
+          .delete(accountListMembers)
+          .where(
+            and(eq(accountListMembers.listId, existing.id), inArray(accountListMembers.oxyUserId, [...toRemove])),
+          );
+      }
       return { kind: 'ok', list: existing, previousMemberIds, memberIds };
     });
 
-    if (outcome.kind === 'notFound') return res.status(404).json({ error: 'List not found' });
-    if (outcome.kind === 'forbidden') return res.status(403).json({ error: 'Not allowed' });
+    if (respondToFailure(res, outcome)) return;
 
     syncListMembershipChange(
       outcome.list.id,

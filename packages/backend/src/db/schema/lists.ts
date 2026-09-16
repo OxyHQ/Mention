@@ -24,6 +24,22 @@ export const EXTERNAL_LIST_NETWORKS = ['atproto'] as const;
 /** `StarterPack` member cap, enforced by the write API. */
 export const STARTER_PACK_MAX_MEMBERS = 150;
 
+/**
+ * `AccountList` member cap, enforced by the write API.
+ *
+ * The route previously imposed none: `normalizeMemberIds` deduplicated and
+ * dropped invalid entries but never bounded how many could accumulate, so a
+ * single list's membership — and the write that replaces it wholesale on
+ * every PUT — could grow without limit. 500 is a safety bound, not a measured
+ * capacity figure: no saturation threshold has been benchmarked. Existing
+ * lists already past it are left alone (see the write sites this guards); the
+ * cap only refuses a write that would grow a list PAST it.
+ */
+export const ACCOUNT_LIST_MAX_MEMBERS = 500;
+
+/** Bound on one member id's length, so a write cannot ask this table to hold an arbitrarily long string. */
+export const ACCOUNT_LIST_MAX_MEMBER_ID_LENGTH = 128;
+
 /** `account_lists` — a user-curated set of accounts, followable as a subscription. */
 export const accountLists = pgTable(
   'account_lists',
