@@ -41,6 +41,7 @@ vi.mock('../utils/oxyHelpers', () => ({
 }));
 
 import webShellRoutes from '../routes/webShell.routes';
+import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import type { HydratedPost } from '@mention/shared-types';
 import { closePostgres, connectPostgres } from '../db/postgres';
@@ -348,6 +349,56 @@ describe('webShell routes (integration)', () => {
     expect(res.headers.location).toBeUndefined();
     expect(res.text).toContain('<div id="root"></div>');
     expect(res.text).not.toContain('data-mention-seo-fallback="true"');
+  });
+
+  /**
+   * The 503 paths used to catch with a bare `catch {}`.
+   *
+   * A crawler sweeping deep links drew 48 of them in twelve minutes in
+   * production with NOTHING in the log naming the path or the reason —
+   * `fetchPostOg` reports at `debug`, which production does not emit — so the
+   * only evidence was a status code on an `/unmatched` route label. A 503 that
+   * cannot say what failed cannot be acted on, so each one now names itself.
+   */
+  it('names the dependency and the path when a post page degrades to 503', async () => {
+    stubPublicAuthor();
+    const postId = await seedOgPost();
+    vi.mocked(postHydrationService.hydratePosts).mockRejectedValue(
+      Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429, code: 'INTERNAL_ERROR' }),
+    );
+    const warn = vi.spyOn(logger, 'warn');
+
+    const res = await request(makeApp()).get(`/p/${postId}`).set('User-Agent', 'facebookexternalhit/1.1');
+
+    expect(res.status).toBe(503);
+    expect(res.headers['retry-after']).toBe('60');
+    expect(warn).toHaveBeenCalledWith('[webShell] Post page resolution failed', {
+      path: `/p/${postId}`,
+      reason: 'HTTP 429: Too Many Requests',
+      status: 429,
+      code: 'INTERNAL_ERROR',
+    });
+  });
+
+  it('names a profile page failure the same way, with the upstream status', async () => {
+    // The Oxy SDK rejects with a PLAIN OBJECT, which `String(error)` would have
+    // printed as `[object Object]`; the status is what says "rate budget".
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      if (String(url).includes('/profiles/username/')) {
+        throw Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
+      }
+      return { ok: true, text: async () => SHELL } as unknown as Response;
+    }));
+    const warn = vi.spyOn(logger, 'warn');
+
+    const res = await request(makeApp()).get('/@nate').set('User-Agent', 'Twitterbot/1.0');
+
+    expect(res.status).toBe(503);
+    expect(warn).toHaveBeenCalledWith('[webShell] Profile page resolution failed', {
+      path: '/@nate',
+      reason: 'HTTP 429: Too Many Requests',
+      status: 429,
+    });
   });
 
   it('serves the shell with post OG for a crawler /p/:id request', async () => {
