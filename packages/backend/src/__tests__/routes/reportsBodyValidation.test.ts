@@ -185,7 +185,7 @@ describe('POST /reports body validation', () => {
       });
 
     expect(flood.status).toBe(400);
-    expect(flood.body.message).toContain('at most 6');
+    expect(flood.body.message).toContain('at most 11');
     expect(createReport).not.toHaveBeenCalled();
 
     // Seven entries is already one value named twice too many.
