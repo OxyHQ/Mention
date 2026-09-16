@@ -34,6 +34,7 @@ import { getOrLoadPostRecord } from '../services/postDetailCache';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../utils/logger';
 import { validateAndNormalizeLimit, FEED_CONSTANTS } from '../utils/feedUtils';
+import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy, ScoreCursor } from '../mtn/feed/CursorBuilder';
 import { rankingWeight } from '../utils/rankingWeight';
 import { mergeHashtags, reconcileMentionIdsForPost } from '../utils/textProcessing';
@@ -1058,6 +1059,11 @@ class FeedController {
         eq(postsTable.quoteOf, postId),
         eq(postsTable.visibility, 'public'),
         eq(postsTable.status, 'published'),
+        // One quote, not one per network the quoter cross-posted it to. The MTN
+        // `quotes` source already reads it this way; the REPLIES feed above
+        // deliberately does not, because `#990` requires source-specific reply
+        // trees to stay source-specific.
+        notCollapsedCrosspostSql(),
       ];
       const keyset = await chronoCursorSql(cursor);
       if (keyset) conditions.push(keyset);

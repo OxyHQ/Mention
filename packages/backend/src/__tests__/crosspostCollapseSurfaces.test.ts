@@ -50,6 +50,7 @@ import { bookmarks, likes, posts } from '../db/schema';
 import { insertPostRecord } from '../db/posts/postRepository';
 import { createCluster, dissolveCluster } from '../db/posts/postEquivalenceRepository';
 import { FeedQueryBuilder, notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
+import { buildPostsByHashtagFilter, buildPostsByTopicFilter } from '../controllers/posts/readPosts';
 import { chronoOrderBy } from '../mtn/feed/CursorBuilder';
 import { mediaSource, videosSource } from '../mtn/feed/engine/sources/discoverySources';
 import { followingSource } from '../mtn/feed/engine/sources/forYouSources';
@@ -100,7 +101,7 @@ async function seedVariant(
     status: 'published',
     createdAt,
     hashtags: [TAG],
-    classificationTopics: [TOPIC],
+    postClassification: { topics: [TOPIC] },
     content: {
       variants: [{ source: 'author', tag: 'en', text: `${label} #${TAG}` }],
       media: [{ id: `${label}-media`, type: 'video', durationSec: LONG_ENOUGH, ...PORTRAIT }],
@@ -176,10 +177,11 @@ async function expectsCollapse(
   expect(await read()).toEqual([pair.shown, pair.hidden]);
 }
 
-describe("FeedQueryBuilder's content predicates", () => {
+describe('the content predicates, driven directly', () => {
   /**
-   * The three predicates the Videos and Media lanes take their content rule
-   * from, driven directly and scoped to this suite's ids.
+   * The five exported predicates behind a reader surface that pages over
+   * `posts` without going through a source module — three that the Videos and
+   * Media lanes take their content rule from, and the two discovery pages.
    *
    * Scoped rather than corpus-wide because these are predicates, not pages:
    * `inArray` makes "exactly these two rows, filtered" a determinate question in
@@ -208,6 +210,16 @@ describe("FeedQueryBuilder's content predicates", () => {
   it('excludes the collapsed half from the media predicate', async () => {
     const pair = await crosspostPair();
     await expectsCollapse(pair, () => matching(FeedQueryBuilder.buildMediaFeedQuery([])));
+  });
+
+  it('excludes the collapsed half from the hashtag page', async () => {
+    const pair = await crosspostPair();
+    await expectsCollapse(pair, () => matching(buildPostsByHashtagFilter(TAG)));
+  });
+
+  it('excludes the collapsed half from the topic page', async () => {
+    const pair = await crosspostPair();
+    await expectsCollapse(pair, () => matching(buildPostsByTopicFilter(TOPIC)));
   });
 });
 

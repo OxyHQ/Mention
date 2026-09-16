@@ -18,6 +18,7 @@ import { postHydrationService } from '../../services/PostHydrationService';
 import { config } from '../../config';
 import { createScopedOxyClient } from '../../utils/oxyHelpers';
 import { queryString } from '../../utils/queryParams';
+import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
 
 const DEFAULT_NEARBY_RADIUS_METERS = config.posts.defaultNearbyRadiusMeters;
@@ -80,6 +81,7 @@ export const getNearbyPosts = async (req: AuthRequest, res: Response) => {
       and(
         eq(postsTable.visibility, 'public'),
         eq(postsTable.status, 'published'),
+        notCollapsedCrosspostSql(),
         withinRadius(geoColumn, longitude, latitude, radiusMeters),
       ),
       // Chronological, not nearest-first: `$near` sorts by distance, but the
@@ -147,6 +149,7 @@ export const getPostsInArea = async (req: AuthRequest, res: Response) => {
       and(
         eq(postsTable.visibility, 'public'),
         eq(postsTable.status, 'published'),
+        notCollapsedCrosspostSql(),
         sql`${geoColumn} is not null and ${geoColumn} && ${envelope}`,
       ),
       { orderBy: CHRONO_DESC, limit: MAX_AREA_POSTS },
@@ -197,6 +200,7 @@ export const getNearbyPostsBothLocations = async (req: AuthRequest, res: Respons
       and(
         eq(postsTable.visibility, 'public'),
         eq(postsTable.status, 'published'),
+        notCollapsedCrosspostSql(),
         or(
           withinRadius(postsTable.contentGeo, longitude, latitude, radiusMeters),
           withinRadius(postsTable.geo, longitude, latitude, radiusMeters),
