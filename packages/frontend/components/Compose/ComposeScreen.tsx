@@ -719,6 +719,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       setArticleDraftTitle(draft.articleDraftTitle);
       setArticleDraftBody(draft.articleDraftBody);
       loadPodcastFromDraft(draft.podcast);
+      jobManager.setJob(draft.job);
       setScheduledAt(draft.scheduledAt);
       setAttachmentOrder(draft.attachmentOrder);
       setPostingMode(draft.postingMode);
@@ -1472,6 +1473,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         sources,
         article,
         podcast,
+        job,
         threadItems,
         mentions,
         postingMode,
@@ -1488,7 +1490,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, sources, threadItems, mentions, postingMode, attachmentOrder, scheduledAt, article, podcast, currentDraftId, variants, autoSaveDraft, autoSaveTimeoutRef]);
+  }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, sources, threadItems, mentions, postingMode, attachmentOrder, scheduledAt, article, podcast, job, currentDraftId, variants, autoSaveDraft, autoSaveTimeoutRef]);
 
   // back navigation
 

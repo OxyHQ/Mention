@@ -397,6 +397,13 @@ export const viewerQueryKeys = {
     'detail',
     idOrSlug,
   ] as const,
+  /** `jobsService.getMetrics(id)` — the employer-only aggregate summary shown on the job's own edit screen. */
+  jobMetrics: (viewerId: ViewerId, jobId: string) => [
+    ...viewerQueryKeys.all(viewerId),
+    'jobs',
+    'metrics',
+    jobId,
+  ] as const,
   /**
    * The employer's Oxy profile (`oxyServices.getUserById`), for the public
    * job page and the native-apply screen's "who you're applying to" link —

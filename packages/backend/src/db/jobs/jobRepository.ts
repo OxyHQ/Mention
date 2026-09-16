@@ -5,7 +5,7 @@
  * directly, so the two cannot drift.
  */
 
-import { and, desc, eq, lt, or } from 'drizzle-orm';
+import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
 import { isUniqueViolation } from '@oxy.so/db';
 import type {
   CreateMentionJobRequest,
@@ -19,6 +19,7 @@ import { getDb } from '../postgres';
 import { mentionJobs, type MentionJobClaritySyncStatus } from '../schema/jobs';
 import { config } from '../../config';
 import { slugify } from '../../utils/textProcessing';
+import { logger } from '../../utils/logger';
 
 type MentionJobRow = typeof mentionJobs.$inferSelect;
 
@@ -208,9 +209,10 @@ export async function setJobStatus(
 }
 
 /**
- * Flip every `published` job whose `closesAt` has passed to `expired`. Called
- * lazily from the read paths (`getJobById`/list) rather than a scheduled sweep
- * — see `services/jobExpiry.ts`.
+ * Flip every `published` job among `ids` whose `closesAt` has passed to
+ * `expired`. There is no scheduled sweep — {@link expireIfDue} is the actual
+ * caller, invoked from every job read path, so an overdue job is corrected on
+ * its own next fetch rather than by a cron job that does not exist.
  */
 export async function expireDueJobs(ids: readonly string[]): Promise<void> {
   if (ids.length === 0) return;
@@ -224,6 +226,25 @@ export async function expireDueJobs(ids: readonly string[]): Promise<void> {
         or(...ids.map((id) => eq(mentionJobs.id, id))),
       ),
     );
+}
+
+/**
+ * If `row` is `published` and past its `closesAt`, returns a copy reporting
+ * `status: 'expired'` and fires the persistent flip in the background (never
+ * awaited — a slow write must not hold up the read that discovered it);
+ * otherwise returns `row` unchanged. Call this at every job read path
+ * (`jobs.controller.ts`), not inside {@link toMentionJobPosting}: that mapper
+ * stays a pure, side-effect-free projection, callable from write paths
+ * (`clarityJobsAdapter.ts`) without also triggering a database write.
+ */
+export function expireIfDue(row: MentionJobRow): MentionJobRow {
+  if (row.status !== 'published' || !row.closesAt || row.closesAt.getTime() > Date.now()) {
+    return row;
+  }
+  void expireDueJobs([row.id]).catch((error) => {
+    logger.warn('[jobRepository] Failed to persist job expiry', { jobId: row.id, error });
+  });
+  return { ...row, status: 'expired' };
 }
 
 export async function listJobsByEmployer(
@@ -241,13 +262,16 @@ export async function listJobsByEmployer(
     .limit(limit);
 }
 
+/**
+ * Atomic — a SQL-computed increment, never SELECT-then-UPDATE. Two concurrent
+ * submissions to the same job must both land, not race on a stale read (the
+ * exact bug `jobMetricsRepository.ts`'s `onConflictDoUpdate` increments avoid
+ * for the same reason).
+ */
 export async function incrementApplicationCount(jobId: string, delta: number): Promise<void> {
-  const db = getDb();
-  const [row] = await db.select({ count: mentionJobs.applicationCount }).from(mentionJobs).where(eq(mentionJobs.id, jobId)).limit(1);
-  if (!row) return;
-  await db
+  await getDb()
     .update(mentionJobs)
-    .set({ applicationCount: Math.max(0, row.count + delta) })
+    .set({ applicationCount: sql`greatest(0, ${mentionJobs.applicationCount} + ${delta})` })
     .where(eq(mentionJobs.id, jobId));
 }
 

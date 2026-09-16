@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -18,7 +18,7 @@ import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { jobsService } from '@/services/jobsService';
+import { jobsService, recordJobMetric } from '@/services/jobsService';
 import { jobApplicationsService, getJobErrorMessage } from '@/services/jobApplicationsService';
 
 /**
@@ -43,6 +43,14 @@ export default function JobApplyScreen() {
     enabled: Boolean(jobId),
   });
   const job = jobQuery.data?.job;
+
+  // One `apply_start` per job whose apply screen this mount actually opened.
+  const startedJobIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!job || startedJobIdRef.current === job.id) return;
+    startedJobIdRef.current = job.id;
+    recordJobMetric(job.id, 'apply_start');
+  }, [job]);
 
   const employerQuery = useQuery<User>({
     queryKey: viewerQueryKeys.jobEmployerProfile(user?.id, job?.employerOxyUserId),
@@ -108,6 +116,7 @@ export default function JobApplyScreen() {
         resumeFileId: resumeFileId ?? undefined,
       }),
     onSuccess: async () => {
+      recordJobMetric(jobId, 'application_completed');
       await queryClient.invalidateQueries({ queryKey: viewerQueryKeys.jobDetail(user?.id, jobId) });
       toast(t('jobs.apply.submitted', { defaultValue: 'Application sent' }), { type: 'success' });
       router.replace(`/jobs/${jobId}`);

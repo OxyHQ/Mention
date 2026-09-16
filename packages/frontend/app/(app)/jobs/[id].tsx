@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useCallback, useContext } from 'react';
+import React, { Suspense, lazy, useCallback, useContext, useEffect, useRef } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -21,7 +21,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { shareLink } from '@/utils/shareLink';
-import { jobsService } from '@/services/jobsService';
+import { jobsService, recordJobMetric } from '@/services/jobsService';
 import { reportService } from '@/services/reportService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
@@ -89,6 +89,15 @@ export default function JobDetailScreen() {
 
   const job = jobQuery.data?.job;
 
+  // One `view` per job actually shown, not per render/re-fetch — the ref
+  // tracks which job id this mount has already recorded.
+  const viewedJobIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!job || viewedJobIdRef.current === job.id) return;
+    viewedJobIdRef.current = job.id;
+    recordJobMetric(job.id, 'view');
+  }, [job]);
+
   const employerQuery = useQuery<User>({
     queryKey: viewerQueryKeys.jobEmployerProfile(user?.id, job?.employerOxyUserId),
     queryFn: () => oxyServices.getUserById(job!.employerOxyUserId),
@@ -101,7 +110,9 @@ export default function JobDetailScreen() {
   }, [employerQuery.data]);
 
   const applyExternally = useCallback(() => {
-    if (job?.externalApplyUrl) void openExternalLink(job.externalApplyUrl);
+    if (!job?.externalApplyUrl) return;
+    recordJobMetric(job.id, 'external_apply_click');
+    void openExternalLink(job.externalApplyUrl);
   }, [job]);
 
   const share = useCallback(() => {

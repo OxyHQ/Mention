@@ -45,7 +45,7 @@ export default function JobApplicationsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const jobId = String(id);
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, canUsePrivateApi } = useAuth();
   const safeBack = useSafeBack();
   const bottomSheet = useContext(BottomSheetContext);
   const queryClient = useQueryClient();
@@ -61,7 +61,11 @@ export default function JobApplicationsScreen() {
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
-    enabled: Boolean(jobId),
+    // This endpoint is employer-only (401/403 otherwise) — gate on
+    // `canUsePrivateApi`, not just a truthy jobId, so this doesn't fire an
+    // authenticated request during the SSO-restore window before auth is
+    // actually ready (docs/frontend-rules.md).
+    enabled: Boolean(jobId) && canUsePrivateApi,
   });
 
   const applications = useMemo(

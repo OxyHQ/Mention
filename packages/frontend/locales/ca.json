@@ -2292,7 +2292,11 @@
       "failed": "Could not save these changes",
       "title": "Edit job",
       "loadFailed": "Could not load this job",
-      "save": "Save changes"
+      "save": "Save changes",
+      "metricsViews": "Views",
+      "metricsApplyStarts": "Apply starts",
+      "metricsExternalClicks": "External clicks",
+      "metricsCompleted": "Completed applications"
     },
     "apply": {
       "thisEmployer": "this employer",

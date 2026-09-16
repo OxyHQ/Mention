@@ -51,11 +51,14 @@ interface JobPickerSheetProps {
  */
 const JobPickerSheet = memo(function JobPickerSheet({ employer, onSelect, onClose }: JobPickerSheetProps) {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, canUsePrivateApi } = useAuth();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: viewerQueryKeys.jobsMine(user?.id),
     queryFn: () => jobsService.getMine(),
+    // GET /jobs/mine is caller-scoped and private — same guard `mine.tsx`
+    // uses, so this picker never fires during the SSO-restore window.
+    enabled: canUsePrivateApi,
   });
 
   const employerName = displayNameOrHandle(employer.account.name?.displayName, `@${employer.account.username}`);

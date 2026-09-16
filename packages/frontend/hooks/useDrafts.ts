@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Storage } from '@/utils/storage';
 import { createLogger } from '@oxy.so/core/logger';
 import type { DraftVariants } from '@/utils/composeVariants';
+import type { PostJobContent } from '@mention/shared-types';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerStorageKey } from '@/lib/viewerQueryKeys';
 import { useRefSync } from '@/hooks/useRefSync';
@@ -19,6 +20,8 @@ export interface Draft {
   sources?: Array<{ id?: string; title?: string; url?: string }>;
   article?: { title?: string; body?: string } | null;
   podcast?: { syraPodcastId: string; title: string; author?: string; artworkUrl?: string } | null;
+  /** The ROOT post's attached Mention job, if any (OxyHQ/Mention#952). Thread items don't carry one yet. */
+  job?: PostJobContent | null;
   attachmentOrder?: string[];
   scheduledAt?: string | null;
   threadItems: Array<{

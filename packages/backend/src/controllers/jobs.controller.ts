@@ -18,29 +18,43 @@ import { queryInt, queryString } from '../utils/queryParams';
 import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { getClarityClient } from '../utils/clarityClient';
 import {
+  expireIfDue,
   getJobById,
   getJobBySlug,
   listJobsByEmployer,
   toMentionJobPosting,
+  type MentionJobRow,
 } from '../db/jobs/jobRepository';
 import { assertCanManageJob, listOperatedJobEmployerIds } from '../services/jobAuthority';
 import { PublishAsAccessError } from '../services/publishAsAccount';
-import { retryFailedClarityJobSyncs } from '../services/clarityJobsAdapter';
+import { syncJobToClarityInBackground } from '../services/clarityJobsAdapter';
 import { resolveUserSummaries } from '../services/PostHydrationService';
 
 function jobNotFound(res: Response) {
   return res.status(404).json({ error: 'Not found', message: 'Job not found' });
 }
 
-/** Best-effort, fire-and-forget resync for a job whose last Clarity sync failed — never blocks the response. */
-function retryIfSyncFailed(job: MentionJobPosting): void {
-  if (job.claritySyncStatus !== 'failed') return;
-  void retryFailedClarityJobSyncs(async (employerOxyUserId) => {
-    const summary = (await resolveUserSummaries([employerOxyUserId])).get(employerOxyUserId);
-    return summary?.user.name?.displayName ?? summary?.user.username ?? employerOxyUserId;
-  }, 1).catch((error) => {
-    logger.debug('[Jobs] Lazy Clarity resync failed', { jobId: job.id, error });
-  });
+/**
+ * Best-effort, fire-and-forget resync for THIS job whose last Clarity sync
+ * failed — never blocks the response.
+ *
+ * Takes the row (not `listFailedClaritySyncs`'s global "most recently failed"
+ * batch, which `retryFailedClarityJobSyncs` wraps): that batch has no jobId
+ * filter, so calling it here would resync whichever job failed most recently
+ * ACROSS THE WHOLE SITE — almost never the one this request is actually
+ * viewing — and leave this job's own failure unretried indefinitely.
+ */
+function retryIfSyncFailed(row: MentionJobRow): void {
+  if (row.claritySyncStatus !== 'failed') return;
+  void resolveUserSummaries([row.employerOxyUserId])
+    .then((summaries) => {
+      const summary = summaries.get(row.employerOxyUserId);
+      const employerName = summary?.user.name?.displayName ?? summary?.user.username ?? row.employerOxyUserId;
+      syncJobToClarityInBackground(row, employerName);
+    })
+    .catch((error) => {
+      logger.debug('[Jobs] Lazy Clarity resync failed', { jobId: row.id, error });
+    });
 }
 
 class JobsController {
@@ -63,7 +77,11 @@ class JobsController {
         employmentTypes: employmentType && (MENTION_JOB_EMPLOYMENT_TYPES as readonly string[]).includes(employmentType)
           ? [employmentType as (typeof MENTION_JOB_EMPLOYMENT_TYPES)[number]]
           : undefined,
-        salary: queryInt(req.query.salaryMin) || queryInt(req.query.salaryMax)
+        // `!== undefined`, never truthiness: `salaryMin=0` is a legitimate "no
+        // floor" filter, and `0 || queryInt(salaryMax)` would treat that
+        // falsy-but-present 0 as absent and drop the whole salary filter,
+        // currency included.
+        salary: queryInt(req.query.salaryMin) !== undefined || queryInt(req.query.salaryMax) !== undefined
           ? {
               min: queryInt(req.query.salaryMin),
               max: queryInt(req.query.salaryMax),
@@ -102,6 +120,7 @@ class JobsController {
         .flat()
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
         .slice(0, Math.min(limit ?? 20, 100))
+        .map(expireIfDue)
         .map(toMentionJobPosting);
       res.json({ jobs });
     } catch (error) {
@@ -134,7 +153,8 @@ class JobsController {
         ? (queryString(req.query.status) as MentionJobPosting['status'] | undefined)
         : 'published';
       const rows = await listJobsByEmployer(employerOxyUserId, { status, limit: queryInt(req.query.limit) });
-      const jobs = isAuthorizedOperator ? rows : rows.filter((row) => row.status === 'published');
+      const expired = rows.map(expireIfDue);
+      const jobs = isAuthorizedOperator ? expired : expired.filter((row) => row.status === 'published');
       res.json({ jobs: jobs.map(toMentionJobPosting) });
     } catch (error) {
       logger.error('[Jobs] Error in getOrganizationJobs:', error);
@@ -151,8 +171,9 @@ class JobsController {
   async getJob(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const idOrSlug = req.params.id as string;
-      const row = (await getJobById(idOrSlug)) ?? (await getJobBySlug(idOrSlug));
-      if (!row) return jobNotFound(res);
+      const found = (await getJobById(idOrSlug)) ?? (await getJobBySlug(idOrSlug));
+      if (!found) return jobNotFound(res);
+      const row = expireIfDue(found);
 
       if (row.status === 'draft') {
         try {
@@ -168,7 +189,7 @@ class JobsController {
       }
 
       const job = toMentionJobPosting(row);
-      retryIfSyncFailed(job);
+      retryIfSyncFailed(row);
       res.json({ job });
     } catch (error) {
       logger.error('[Jobs] Error in getJob:', error);

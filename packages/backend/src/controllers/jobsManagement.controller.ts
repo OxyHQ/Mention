@@ -16,10 +16,8 @@ import {
 } from '@mention/shared-types';
 import { createError } from '../utils/error';
 import { logger } from '../utils/logger';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { resolveUserSummaries } from '../services/PostHydrationService';
-import { assertCanManageJob } from '../services/jobAuthority';
-import { PublishAsAccessError } from '../services/publishAsAccount';
+import { requireEmployerAuthority } from '../services/jobAuthority';
 import { checkJobEntitlement } from '../services/jobEntitlement';
 import { syncJobToClarityInBackground } from '../services/clarityJobsAdapter';
 import {
@@ -63,17 +61,27 @@ const createJobSchema = z
     path: ['externalApplyUrl'],
   });
 
-const updateJobSchema = z.object({
-  title: z.string().min(1).max(200).optional(),
-  description: z.string().min(1).optional(),
-  location: locationSchema.nullish(),
-  workplaceType: z.enum(MENTION_JOB_WORKPLACE_TYPES).nullish(),
-  employmentType: z.enum(MENTION_JOB_EMPLOYMENT_TYPES).nullish(),
-  salary: salarySchema.nullish(),
-  skills: z.array(z.string()).max(50).optional(),
-  applicationMode: z.enum(MENTION_JOB_APPLICATION_MODES).optional(),
-  externalApplyUrl: z.string().url().nullish(),
-});
+const updateJobSchema = z
+  .object({
+    title: z.string().min(1).max(200).optional(),
+    description: z.string().min(1).optional(),
+    location: locationSchema.nullish(),
+    workplaceType: z.enum(MENTION_JOB_WORKPLACE_TYPES).nullish(),
+    employmentType: z.enum(MENTION_JOB_EMPLOYMENT_TYPES).nullish(),
+    salary: salarySchema.nullish(),
+    skills: z.array(z.string()).max(50).optional(),
+    applicationMode: z.enum(MENTION_JOB_APPLICATION_MODES).optional(),
+    externalApplyUrl: z.string().url().nullish(),
+  })
+  // Mirrors createJobSchema's refine: a patch that SWITCHES applicationMode to
+  // 'external' must supply the URL in the SAME patch — the row's existing
+  // externalApplyUrl is guaranteed null coming from 'mention' mode (the DB
+  // CHECK enforces that), so there is never an old value to fall back on.
+  // A patch that leaves applicationMode untouched needs no check here at all.
+  .refine((data) => data.applicationMode !== 'external' || Boolean(data.externalApplyUrl), {
+    message: 'externalApplyUrl is required when setting applicationMode to external',
+    path: ['externalApplyUrl'],
+  });
 
 function validationError(res: Response, message: string) {
   return res.status(400).json({ error: 'Validation error', message });
@@ -108,18 +116,7 @@ async function transitionJobStatus(
     const existing = await getJobById(jobId);
     if (!existing) return res.status(404).json({ error: 'Not found', message: 'Job not found' });
 
-    try {
-      await assertCanManageJob({
-        employerOxyUserId: existing.employerOxyUserId,
-        callerId: userId,
-        memberReader: createUserScopedOxyServices(req),
-      });
-    } catch (error) {
-      if (error instanceof PublishAsAccessError) {
-        return res.status(error.status).json({ error: error.message });
-      }
-      throw error;
-    }
+    if (!(await requireEmployerAuthority(existing.employerOxyUserId, req, res))) return;
 
     if (targetStatus === 'published') {
       const entitlement = await checkJobEntitlement(existing.employerOxyUserId);
@@ -153,18 +150,7 @@ class JobsManagementController {
       }
       const input = parsed.data;
 
-      try {
-        await assertCanManageJob({
-          employerOxyUserId: input.employerOxyUserId,
-          callerId: userId,
-          memberReader: createUserScopedOxyServices(req),
-        });
-      } catch (error) {
-        if (error instanceof PublishAsAccessError) {
-          return res.status(error.status).json({ error: error.message });
-        }
-        throw error;
-      }
+      if (!(await requireEmployerAuthority(input.employerOxyUserId, req, res))) return;
 
       if (input.publish) {
         const entitlement = await checkJobEntitlement(input.employerOxyUserId);
@@ -195,18 +181,7 @@ class JobsManagementController {
       const existing = await getJobById(jobId);
       if (!existing) return res.status(404).json({ error: 'Not found', message: 'Job not found' });
 
-      try {
-        await assertCanManageJob({
-          employerOxyUserId: existing.employerOxyUserId,
-          callerId: userId,
-          memberReader: createUserScopedOxyServices(req),
-        });
-      } catch (error) {
-        if (error instanceof PublishAsAccessError) {
-          return res.status(error.status).json({ error: error.message });
-        }
-        throw error;
-      }
+      if (!(await requireEmployerAuthority(existing.employerOxyUserId, req, res))) return;
 
       const parsed = updateJobSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -249,18 +224,7 @@ class JobsManagementController {
       const existing = await getJobById(jobId);
       if (!existing) return res.status(404).json({ error: 'Not found', message: 'Job not found' });
 
-      try {
-        await assertCanManageJob({
-          employerOxyUserId: existing.employerOxyUserId,
-          callerId: userId,
-          memberReader: createUserScopedOxyServices(req),
-        });
-      } catch (error) {
-        if (error instanceof PublishAsAccessError) {
-          return res.status(error.status).json({ error: error.message });
-        }
-        throw error;
-      }
+      if (!(await requireEmployerAuthority(existing.employerOxyUserId, req, res))) return;
 
       const source = toMentionJobPosting(existing);
       const row = await createJob({

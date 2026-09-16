@@ -4,6 +4,8 @@ import type { JobSearchResponse } from '@clarity.surf/sdk';
 import type {
   CreateMentionJobRequest,
   MentionJobEmploymentType,
+  MentionJobMetricEvent,
+  MentionJobMetricsSummary,
   MentionJobPosting,
   MentionJobStatus,
   MentionJobWorkplaceType,
@@ -139,9 +141,34 @@ class JobsService {
     const res = await authenticatedClient.post<MentionJobResponse>(`${JOBS_BASE}/${id}/duplicate`);
     return res.data;
   }
+
+  /**
+   * `POST /jobs/:id/metrics` — public, records one privacy-safe aggregate
+   * event (never a named-viewer trail). Callers fire this best-effort and
+   * never await/surface its failure — a dropped analytics ping must not
+   * affect the page it was recorded from.
+   */
+  async recordMetric(id: string, event: MentionJobMetricEvent): Promise<void> {
+    await authenticatedClient.post(`${JOBS_BASE}/${id}/metrics`, { event });
+  }
+
+  /** `GET /jobs/:id/metrics` — employer-only aggregate summary for the job's own dashboard. */
+  async getMetrics(id: string): Promise<{ metrics: MentionJobMetricsSummary }> {
+    const res = await authenticatedClient.get<{ metrics: MentionJobMetricsSummary }>(`${JOBS_BASE}/${id}/metrics`);
+    return res.data;
+  }
 }
 
 export const jobsService = new JobsService();
+
+/**
+ * Fire-and-forget wrapper for {@link JobsService.recordMetric} — the shape
+ * every call site actually wants: never awaited, never lets a dropped
+ * analytics ping surface as a page error.
+ */
+export function recordJobMetric(id: string, event: MentionJobMetricEvent): void {
+  void jobsService.recordMetric(id, event).catch(() => {});
+}
 
 /**
  * `true` when a job write was refused on Oxy's billing entitlement

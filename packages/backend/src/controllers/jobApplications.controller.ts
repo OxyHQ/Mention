@@ -37,10 +37,8 @@ import { MENTION_JOB_APPLICATION_STATUSES } from '@mention/shared-types';
 import { createError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
 import { getClarityClient } from '../utils/clarityClient';
-import { assertCanManageJob } from '../services/jobAuthority';
-import { PublishAsAccessError } from '../services/publishAsAccount';
+import { requireEmployerAuthority } from '../services/jobAuthority';
 import { getJobById, incrementApplicationCount } from '../db/jobs/jobRepository';
 import {
   APPLICATION_UNIQUE_CONSTRAINT,
@@ -111,36 +109,6 @@ function jobNotFound(res: Response) {
 
 function applicationNotFound(res: Response) {
   return res.status(404).json({ error: 'Not found', message: 'Application not found' });
-}
-
-/**
- * The EMPLOYER-side authority gate, shared by every handler below that acts on
- * behalf of the employer rather than the applicant. Answers the response
- * itself and returns whether the caller may proceed, so every call site reads
- * `if (!authorized) return;` rather than repeating the try/catch.
- *
- * A module function, not a class method — see the file's detached-handler
- * discipline note above.
- */
-async function requireEmployerAuthority(
-  employerOxyUserId: string,
-  req: AuthRequest,
-  res: Response,
-): Promise<boolean> {
-  try {
-    await assertCanManageJob({
-      employerOxyUserId,
-      callerId: req.user?.id,
-      memberReader: createUserScopedOxyServices(req),
-    });
-    return true;
-  } catch (error) {
-    if (error instanceof PublishAsAccessError) {
-      res.status(error.status).json({ error: error.message });
-      return false;
-    }
-    throw error;
-  }
 }
 
 const APPLICATION_STATUS_VALUES: readonly string[] = MENTION_JOB_APPLICATION_STATUSES;

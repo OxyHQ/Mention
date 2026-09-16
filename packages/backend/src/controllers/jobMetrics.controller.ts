@@ -20,9 +20,7 @@ import { z } from 'zod';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { createError } from '../utils/error';
 import { logger } from '../utils/logger';
-import { createUserScopedOxyServices } from '../utils/oxyHelpers';
-import { assertCanManageJob } from '../services/jobAuthority';
-import { PublishAsAccessError } from '../services/publishAsAccount';
+import { requireEmployerAuthority } from '../services/jobAuthority';
 import { getJobById } from '../db/jobs/jobRepository';
 import { getJobMetricsSummary, recordJobMetricEvent } from '../db/jobs/jobMetricsRepository';
 
@@ -82,18 +80,7 @@ class JobMetricsController {
       const job = await getJobById(jobId);
       if (!job) return jobNotFound(res);
 
-      try {
-        await assertCanManageJob({
-          employerOxyUserId: job.employerOxyUserId,
-          callerId: req.user?.id,
-          memberReader: createUserScopedOxyServices(req),
-        });
-      } catch (error) {
-        if (error instanceof PublishAsAccessError) {
-          return res.status(error.status).json({ error: error.message });
-        }
-        throw error;
-      }
+      if (!(await requireEmployerAuthority(job.employerOxyUserId, req, res))) return;
 
       const metrics = await getJobMetricsSummary(jobId);
       res.json({ metrics });

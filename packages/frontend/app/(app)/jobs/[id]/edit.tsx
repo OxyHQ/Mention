@@ -63,7 +63,7 @@ export default function EditJobScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const jobId = String(id);
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, canUsePrivateApi } = useAuth();
   const safeBack = useSafeBack();
   const queryClient = useQueryClient();
 
@@ -72,6 +72,15 @@ export default function EditJobScreen() {
     queryFn: () => jobsService.get(jobId),
     enabled: Boolean(jobId),
   });
+
+  // Employer-only aggregate view/apply counters for this one job — privacy-safe,
+  // never a named-viewer trail (see MentionJobMetricsSummary).
+  const metricsQuery = useQuery({
+    queryKey: viewerQueryKeys.jobMetrics(user?.id, jobId),
+    queryFn: () => jobsService.getMetrics(jobId),
+    enabled: Boolean(jobId) && canUsePrivateApi,
+  });
+  const metrics = metricsQuery.data?.metrics;
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -240,6 +249,26 @@ export default function EditJobScreen() {
     <ThemedView className="flex-1">
       {header}
       <ScrollView contentContainerClassName="px-4 pb-16 pt-2" keyboardShouldPersistTaps="handled">
+        {metrics ? (
+          <View className="flex-row flex-wrap gap-4 mb-4 p-3 bg-muted rounded-[12px]">
+            <View>
+              <Text className="text-foreground text-[18px] font-bold">{metrics.views}</Text>
+              <Text className="text-muted-foreground text-[11px]">{t('jobs.edit.metricsViews', { defaultValue: 'Views' })}</Text>
+            </View>
+            <View>
+              <Text className="text-foreground text-[18px] font-bold">{metrics.applyStarts}</Text>
+              <Text className="text-muted-foreground text-[11px]">{t('jobs.edit.metricsApplyStarts', { defaultValue: 'Apply starts' })}</Text>
+            </View>
+            <View>
+              <Text className="text-foreground text-[18px] font-bold">{metrics.externalApplyClicks}</Text>
+              <Text className="text-muted-foreground text-[11px]">{t('jobs.edit.metricsExternalClicks', { defaultValue: 'External clicks' })}</Text>
+            </View>
+            <View>
+              <Text className="text-foreground text-[18px] font-bold">{metrics.completedApplications}</Text>
+              <Text className="text-muted-foreground text-[11px]">{t('jobs.edit.metricsCompleted', { defaultValue: 'Completed applications' })}</Text>
+            </View>
+          </View>
+        ) : null}
         <View className="mt-1">
           <TextField>
             <TextFieldInput label={t('jobs.create.jobTitle', { defaultValue: 'Job title' })} value={title} onChangeText={setTitle} maxLength={200} />

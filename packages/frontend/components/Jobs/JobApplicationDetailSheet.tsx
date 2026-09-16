@@ -44,13 +44,17 @@ interface JobApplicationDetailSheetProps {
  */
 const JobApplicationDetailSheet = ({ jobId, application, onStatusChanged }: JobApplicationDetailSheetProps) => {
   const { t } = useTranslation();
-  const { user, oxyServices } = useAuth();
+  const { user, oxyServices, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
   const [noteDraft, setNoteDraft] = useState('');
 
   const notesQuery = useQuery({
     queryKey: viewerQueryKeys.jobApplicationNotes(user?.id, jobId, application.id),
     queryFn: () => jobApplicationsService.listNotes(jobId, application.id),
+    // Employer-only endpoint (GET /jobs/:id/applications/:applicationId/notes)
+    // — gate on `canUsePrivateApi`, matching every other private query in
+    // this feature (docs/frontend-rules.md).
+    enabled: canUsePrivateApi,
   });
 
   const statusMutation = useMutation({
