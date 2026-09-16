@@ -5,7 +5,7 @@ import type {
   PostEngagementCountsPayload,
   PostEngagementEvent,
 } from '@mention/shared-types';
-import { POST_ENGAGEMENT_EVENTS } from '@mention/shared-types';
+import { POST_ENGAGEMENT_EVENTS, SOCKET_FEED_TYPES } from '@mention/shared-types';
 import { AppState, type AppStateStatus } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { usePostsStore } from '../stores/postsStore';
@@ -25,8 +25,9 @@ import {
 
 const logger = createLogger('SocketService');
 
-// Valid feed types for validation
-const VALID_FEED_TYPES: string[] = ['posts', 'media', 'replies', 'likes', 'boosts', 'mixed', 'for_you', 'following', 'saved', 'explore', 'custom'];
+// Valid feed types for validation — the room contract `joinFeed`/`leaveFeed`
+// accept, shared with the backend so the two cannot drift apart.
+const VALID_FEED_TYPES: readonly string[] = SOCKET_FEED_TYPES;
 
 /**
  * The counters a post-engagement event carried, keyed the way the store keys

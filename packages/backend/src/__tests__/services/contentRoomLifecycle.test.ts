@@ -1,5 +1,5 @@
 import type { Socket } from 'socket.io';
-import { postEngagementRoom } from '@mention/shared-types';
+import { postEngagementRoom, feedRoom } from '@mention/shared-types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const canViewerReadPostId = vi.fn<(postId: string, viewerId: string, options?: unknown) => Promise<boolean>>();
@@ -200,5 +200,87 @@ describe('post room membership', () => {
 
     expect(canViewerReadPostId).not.toHaveBeenCalled();
     expect(socket.rooms.size).toBe(0);
+  });
+
+  it('does not let a stale attempt cancel a fresher rejoin for the same post', async () => {
+    // Two in-flight attempts for the same post, in order: open, close before
+    // the ACL answers, reopen. The FIRST (stale) attempt resolves first here,
+    // refused; the SECOND (current) attempt resolves after, allowed. Before
+    // the per-attempt token, both attempts shared one "still wanted" signal
+    // keyed only on the post id, so the stale attempt's `finally` deleted the
+    // bookkeeping the fresh attempt depended on, and the fresh attempt's own
+    // `stillWanted()` came back false even though it was the request that
+    // should have won.
+    let releaseFirst: (allowed: boolean) => void = () => undefined;
+    let releaseSecond: (allowed: boolean) => void = () => undefined;
+    canViewerReadPostId
+      .mockReturnValueOnce(new Promise((resolve) => { releaseFirst = resolve; }))
+      .mockReturnValueOnce(new Promise((resolve) => { releaseSecond = resolve; }));
+    const socket = setup();
+
+    socket.send('joinPost', '507f1f77bcf86cd799439011');
+    socket.send('leavePost', '507f1f77bcf86cd799439011');
+    socket.send('joinPost', '507f1f77bcf86cd799439011');
+
+    releaseFirst(false);
+    await settle();
+    releaseSecond(true);
+    await settle();
+
+    expect(canViewerReadPostId).toHaveBeenCalledTimes(2);
+    expect(socket.rooms.has(postEngagementRoom('507f1f77bcf86cd799439011'))).toBe(true);
+  });
+});
+
+describe('feed room membership', () => {
+  it('joins the room for an allow-listed feed type, plus the caller\'s own room', () => {
+    const socket = setup();
+
+    socket.send('joinFeed', { feedType: 'for_you' });
+
+    expect(socket.rooms.has(feedRoom('for_you'))).toBe(true);
+    expect(socket.rooms.has('feed:user:viewer-1')).toBe(true);
+  });
+
+  it('refuses a feed type outside the allow-list, so it cannot collide with the reserved user room', () => {
+    const socket = setup();
+
+    socket.send('joinFeed', { feedType: 'user:victim' });
+
+    expect(socket.rooms.has('feed:user:victim')).toBe(false);
+    // The caller still gets their OWN reserved room — just not the forged one.
+    expect(socket.rooms.has('feed:user:viewer-1')).toBe(true);
+    expect(socket.rooms.size).toBe(1);
+  });
+
+  it('ignores a non-string or missing feedType', () => {
+    const socket = setup();
+
+    socket.send('joinFeed', {});
+    socket.send('joinFeed', { feedType: 123 });
+    socket.send('joinFeed', undefined);
+
+    expect(Array.from(socket.rooms).every((room) => room === 'feed:user:viewer-1')).toBe(true);
+  });
+
+  it('leaves an allow-listed feed room on unsubscribe', () => {
+    const socket = setup();
+
+    socket.send('joinFeed', { feedType: 'explore' });
+    socket.send('leaveFeed', { feedType: 'explore' });
+
+    expect(socket.rooms.has(feedRoom('explore'))).toBe(false);
+  });
+
+  it('does not leave a forged room it was never allowed to join', () => {
+    const socket = setup();
+
+    socket.send('joinFeed', { feedType: 'explore' });
+    socket.send('leaveFeed', { feedType: 'user:victim' });
+
+    // The forged leaveFeed still clears the caller's own room (existing
+    // behaviour on every leaveFeed call) but must not touch anything keyed by
+    // the rejected type.
+    expect(socket.rooms.has(feedRoom('explore'))).toBe(true);
   });
 });

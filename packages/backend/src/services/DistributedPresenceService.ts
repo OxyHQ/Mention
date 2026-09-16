@@ -1,12 +1,9 @@
 import type { RedisClientType } from 'redis';
+import { isValidPresenceUserId as validUserId } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 
 const PRESENCE_PREFIX = 'presence:v1:user:';
 const DEFAULT_TTL_SECONDS = 90;
-
-function validUserId(userId: string): boolean {
-  return /^[a-zA-Z0-9_.:@-]{1,160}$/.test(userId);
-}
 
 export class DistributedPresenceService {
   constructor(

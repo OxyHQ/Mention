@@ -131,3 +131,50 @@ export interface PostEngagementCountsPayload {
   /** ISO timestamp of the write. */
   timestamp: string;
 }
+
+/**
+ * Feed types the live `joinFeed`/`leaveFeed` socket contract accepts as a room
+ * key. Deliberately narrower than `FeedType` (see `feed.ts`): several of its
+ * values (`hashtag`, `topic`, `quotes`, `trending`, ...) describe a feed's
+ * QUERY shape, not a room a socket subscribes to, and letting any of them
+ * through as a room key is how a client could mint an arbitrary room name —
+ * see {@link FEED_ROOM_PREFIX}.
+ */
+export const SOCKET_FEED_TYPES = [
+  'posts', 'media', 'replies', 'likes', 'boosts', 'mixed',
+  'for_you', 'following', 'saved', 'explore', 'custom',
+] as const;
+
+export type SocketFeedType = (typeof SOCKET_FEED_TYPES)[number];
+
+/**
+ * The room prefix `joinFeed`/`leaveFeed` join under. `feedRoom` is scoped to
+ * the {@link SOCKET_FEED_TYPES} allow-list; {@link feedUserRoom} is the
+ * separate, reserved per-viewer room. Keeping them as distinct functions
+ * (rather than one that accepts any string) is what makes
+ * `feedRoom('user:<victim>')` impossible to construct — `'user:<victim>'` is
+ * not a `SocketFeedType`, so it cannot type-check as an argument here.
+ */
+export const FEED_ROOM_PREFIX = 'feed:';
+
+export const feedRoom = (feedType: SocketFeedType): string =>
+  `${FEED_ROOM_PREFIX}${feedType}`;
+
+/** The room a client joins to watch one user's presence (`subscribePresence`/`unsubscribePresence`). */
+export const PRESENCE_ROOM_PREFIX = 'presence:';
+
+export const presenceRoom = (userId: string): string =>
+  `${PRESENCE_ROOM_PREFIX}${userId}`;
+
+/**
+ * Shape a user id must have to be trusted as a Socket.IO room key or a
+ * `DistributedPresenceService` Redis key component. Applied before a socket
+ * joins {@link presenceRoom}, not just before the Redis write — Socket.IO
+ * accepts any string as a room name, so validating only the Redis side left
+ * the join itself unbounded.
+ */
+export const PRESENCE_USER_ID_PATTERN = /^[a-zA-Z0-9_.:@-]{1,160}$/;
+
+export function isValidPresenceUserId(userId: unknown): userId is string {
+  return typeof userId === 'string' && PRESENCE_USER_ID_PATTERN.test(userId);
+}
