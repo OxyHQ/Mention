@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   fetchUpstreamFollowingRedirects: vi.fn(),
@@ -36,6 +36,16 @@ vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
 // keeping a store out of the way that this path does not reach. It was never
 // asserted against, and once the cache moved to Postgres it named a module the
 // file under test no longer imports.
+
+// The first import of the cache worker loads its whole module graph, and on a CI
+// runner that alone takes about five seconds — the entire budget of a test. Left
+// to the tests, whichever one ran first timed out on the import, not on anything
+// it asserts. Pay it once here, under a hook budget sized for it; every test's
+// own `import()` then resolves from the module cache. The mocks above are
+// hoisted, so they apply to this import exactly as they do to the tests'.
+beforeAll(async () => {
+  await import('../../services/mediaCache/cacheWorker');
+}, 60_000);
 
 function upstreamResponse(statusCode: number, headers: Record<string, unknown>) {
   return {
