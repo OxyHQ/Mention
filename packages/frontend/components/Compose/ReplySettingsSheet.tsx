@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { View, Text, Pressable, Animated, Platform } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiCheckLine } from '@oxy.so/bloom/icons';
 
 export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
 
@@ -349,7 +349,7 @@ function CheckboxIndicator({
       }}
     >
       {selected && (
-        <Ionicons name="checkmark" size={13} color="#fff" />
+        <RiCheckLine width={13} height={13} fill="#fff" />
       )}
     </View>
   );

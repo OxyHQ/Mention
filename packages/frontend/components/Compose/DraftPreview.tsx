@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { useTheme } from '@oxy.so/bloom/theme';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { View, Text } from 'react-native';
+import { Button } from '@oxy.so/bloom/button';
+import { RiEditLine } from '@oxy.so/bloom/icons';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { PostUser } from '@mention/shared-types';
@@ -33,7 +33,6 @@ export interface DraftPreviewProps {
  * the whole thread is a different surface from the one this shares.
  */
 const DraftPreview: React.FC<DraftPreviewProps> = ({ draft, onBack, onEdit }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
   const { user } = useAuth();
 
@@ -68,18 +67,9 @@ const DraftPreview: React.FC<DraftPreviewProps> = ({ draft, onBack, onEdit }) =>
       onBack={onBack}
     >
       <View className="px-4 py-3 border-t border-border">
-        <TouchableOpacity
-          className="flex-row items-center justify-center gap-2 py-3 rounded-full bg-primary"
-          onPress={onEdit}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={t('compose.draftPreviewEdit', { defaultValue: 'Continue writing' })}
-        >
-          <Ionicons name="create-outline" size={16} color={theme.colors.card} />
-          <Text className="text-sm font-semibold" style={{ color: theme.colors.card }}>
-            {t('compose.draftPreviewEdit', { defaultValue: 'Continue writing' })}
-          </Text>
-        </TouchableOpacity>
+        <Button size="large" leadingIcon={RiEditLine} onPress={onEdit}>
+          {t('compose.draftPreviewEdit', { defaultValue: 'Continue writing' })}
+        </Button>
       </View>
     </PostPreviewSurface>
   );

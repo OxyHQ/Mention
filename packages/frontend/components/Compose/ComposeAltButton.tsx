@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, TouchableOpacity } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiCheckLine } from '@oxy.so/bloom/icons';
 import { cn } from '@/lib/utils';
 import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
@@ -31,7 +31,7 @@ export const ComposeAltButton: React.FC<ComposeAltButtonProps> = ({ hasAlt, rais
     hitSlop={HIT_SLOP_SM}
     accessibilityRole="button"
   >
-    {hasAlt ? <Ionicons name="checkmark" size={11} color="#ffffff" /> : null}
+    {hasAlt ? <RiCheckLine width={11} height={11} fill="#ffffff" /> : null}
     <Text className="text-white text-[11px] font-bold">ALT</Text>
   </TouchableOpacity>
 );

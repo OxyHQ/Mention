@@ -3,9 +3,9 @@ import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
-import { ThemedText } from '@/components/ThemedText';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@oxy.so/bloom/button';
 import { Loading } from '@oxy.so/bloom/loading';
+import { Text } from '@oxy.so/bloom/typography';
 import type { LocalCapture } from './useCaptureUpload';
 
 interface CaptureReviewProps {
@@ -73,7 +73,7 @@ export function CaptureReview({
         accessibilityRole="button"
         accessibilityLabel={t('camera.retake', { defaultValue: 'Retake' })}
       >
-        <ThemedText className="text-white text-2xl">×</ThemedText>
+        <Text className="text-white text-2xl">×</Text>
       </Pressable>
 
       <View style={styles.actions}>
@@ -81,28 +81,28 @@ export function CaptureReview({
             does next: one means the file never left the device, the other means
             it did and no post came of it. Neither loses the capture. */}
         {uploadFailed ? (
-          <ThemedText className="text-white text-center mb-3">
+          <Text className="text-white text-base leading-6 text-center mb-3">
             {t('camera.uploadFailed', {
               defaultValue: "That didn't upload. Check your connection and try again.",
             })}
-          </ThemedText>
+          </Text>
         ) : null}
         {publishFailed ? (
-          <ThemedText className="text-white text-center mb-3">
+          <Text className="text-white text-base leading-6 text-center mb-3">
             {t('camera.publishFailed', {
               defaultValue: "That didn't post. Your capture is still here — try again.",
             })}
-          </ThemedText>
+          </Text>
         ) : null}
         {busy ? (
           <View style={styles.busy}>
             <Loading className="text-white" size="small" />
           </View>
         ) : null}
-        <Button onPress={onAddText} disabled={busy} variant="secondary">
+        <Button onPress={onAddText} disabled={busy} variant="secondary" size="large">
           {t('camera.addText', { defaultValue: 'Add text' })}
         </Button>
-        <Button onPress={onPublish} disabled={busy}>
+        <Button onPress={onPublish} disabled={busy} size="large">
           {t('camera.publish', { defaultValue: 'Post' })}
         </Button>
       </View>

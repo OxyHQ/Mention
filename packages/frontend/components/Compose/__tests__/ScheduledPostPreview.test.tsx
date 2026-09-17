@@ -50,6 +50,63 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiArrowRightSLine: () => null,
+  RiCalendarLine: () => null,
+  RiDeleteBinLine: () => null,
+  RiEditLine: () => null,
+  RiImageLine: () => null,
+  RiListCheck3: () => null,
+  RiSendPlaneLine: () => null,
+}));
+
+/** The header's back button and its title/subtitle, which the cases read. */
+jest.mock('@oxy.so/bloom/page-header', () => {
+  const react = jest.requireActual('react');
+  const { Text: RNText, TouchableOpacity, View: RNView } = jest.requireActual('react-native');
+  return {
+    PageHeader: (props: {
+      title: string;
+      subtitle?: React.ReactNode;
+      onBack: () => void;
+      backLabel: string;
+    }) =>
+      react.createElement(
+        RNView,
+        null,
+        react.createElement(TouchableOpacity, {
+          accessibilityRole: 'button',
+          accessibilityLabel: props.backLabel,
+          onPress: props.onBack,
+        }),
+        react.createElement(RNText, null, props.title),
+        props.subtitle,
+      ),
+  };
+});
+
+jest.mock('@oxy.so/bloom/button', () => {
+  const react = jest.requireActual('react');
+  const { Text: RNText, TouchableOpacity } = jest.requireActual('react-native');
+  return {
+    Button: (props: {
+      children?: React.ReactNode;
+      onPress?: () => void;
+      disabled?: boolean;
+      accessibilityLabel?: string;
+    }) =>
+      react.createElement(
+        TouchableOpacity,
+        {
+          accessibilityRole: 'button',
+          accessibilityLabel: props.accessibilityLabel,
+          onPress: props.onPress,
+          disabled: props.disabled,
+        },
+        react.createElement(RNText, null, props.children),
+      ),
+  };
+});
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
 jest.mock('@/utils/alerts', () => ({ confirmDialog: (...args: unknown[]) => mockConfirm(...args) }));
 jest.mock('@oxy.so/core/logger', () => ({

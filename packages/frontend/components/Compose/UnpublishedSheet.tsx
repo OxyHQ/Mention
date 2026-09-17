@@ -3,9 +3,9 @@ import { useRouter } from 'expo-router';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { CloseIcon } from '@/assets/icons/close-icon';
+import { Button } from '@oxy.so/bloom/button';
+import { RiCloseLine } from '@oxy.so/bloom/icons';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import type { HydratedPost } from '@mention/shared-types';
 import type { Draft } from '@/hooks/useDrafts';
 import { useScheduledPosts } from '@/hooks/useScheduledPosts';
@@ -162,17 +162,18 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
 
   return (
     <View className="flex-1 max-h-[600px] bg-background">
-      <Header
-        options={{
-          title: t('compose.unpublished', { defaultValue: 'Unpublished' }),
-          rightComponents: [
-            <IconButton variant="icon" key="close" onPress={onClose}>
-              <CloseIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder={true}
-        disableSticky={true}
+      <PageHeader
+        title={t('compose.unpublished', { defaultValue: 'Unpublished' })}
+        safeArea={false}
+        actions={
+          <Button
+            variant="secondary"
+            iconOnly
+            leadingIcon={RiCloseLine}
+            onPress={onClose}
+            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+          />
+        }
       />
 
       <View className="flex-row border-b border-border" accessibilityRole="tablist">

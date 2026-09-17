@@ -1,10 +1,10 @@
 import React, { useMemo, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput } from 'react-native';
+import { Button } from '@oxy.so/bloom/button';
+import { RiAddLine, RiCloseLine } from '@oxy.so/bloom/icons';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { CloseIcon } from '@/assets/icons/close-icon';
-import { Plus } from '@/assets/icons/plus-icon';
-import { IconButton } from '@/components/ui/Button';
 import { EmptyState } from '@/components/common/EmptyState';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
@@ -52,17 +52,22 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
 
   return (
     <View className="flex-1 pb-6 bg-background">
-      <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border mb-3">
-        <IconButton variant="icon" onPress={onClose} className="mr-1.5 z-[1]">
-          <CloseIcon size={20} className="text-foreground" />
-        </IconButton>
-        <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground pointer-events-none">
-          {t('compose.sources.heading', { defaultValue: 'Sources' })}
-        </Text>
-        <View className="w-9 h-9 ml-auto" />
-      </View>
+      <PageHeader
+        title={t('compose.sources.heading', { defaultValue: 'Sources' })}
+        titleAlign="center"
+        safeArea={false}
+        leading={
+          <Button
+            variant="secondary"
+            iconOnly
+            leadingIcon={RiCloseLine}
+            onPress={onClose}
+            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+          />
+        }
+      />
 
-      <Text className="text-[13px] text-muted-foreground mb-3 px-4" style={{ lineHeight: 18 }}>
+      <Text className="text-[13px] text-muted-foreground mt-3 mb-3 px-4" style={{ lineHeight: 18 }}>
         {t('compose.sources.help', { defaultValue: 'Share links to help readers verify your post.' })}
       </Text>
 
@@ -109,7 +114,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                       {t('compose.sources.itemLabel', { defaultValue: 'Source {{index}}', index: index + 1 })}
                     </Text>
                     <TouchableOpacity onPress={() => onRemove(source.id)} className="p-1" hitSlop={HIT_SLOP_MD}>
-                      <CloseIcon size={16} className="text-muted-foreground" />
+                      <RiCloseLine size="sm" fill={theme.colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
 
@@ -153,20 +158,16 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
       </ScrollView>
 
       {sources.length > 0 && (
-        <TouchableOpacity
+        <Button
+          className="mt-3 mx-4"
+          variant="secondary"
+          size="large"
+          leadingIcon={RiAddLine}
           onPress={onAdd}
-          className="flex-row items-center justify-center gap-2 py-3 rounded-full border-[1.5px] border-border mt-3 mx-4"
-          style={{
-            backgroundColor: theme.colors.card,
-            opacity: canAddMore ? 1 : 0.6,
-          }}
           disabled={!canAddMore}
         >
-          <Plus size={16} className="text-primary" />
-          <Text className="text-sm font-semibold text-foreground">
-            {t('compose.sources.addAnother', { defaultValue: 'Add another source' })}
-          </Text>
-        </TouchableOpacity>
+          {t('compose.sources.addAnother', { defaultValue: 'Add another source' })}
+        </Button>
       )}
 
       {!canAddMore && (

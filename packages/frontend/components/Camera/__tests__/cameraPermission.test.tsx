@@ -62,14 +62,18 @@ jest.mock('react-i18next', () => ({
 }));
 
 /**
- * `@/components/ui/Button` reaches `@oxy.so/bloom/theme`, which jest cannot parse
- * (untransformed ESM in `node_modules`). It renders its children through, and
- * children — the words on the screen — are exactly what these cases are about,
- * so a stub that does the same measures the same thing.
+ * Bloom's `Button` and `Text` are untransformed ESM in `node_modules`, which jest
+ * cannot parse. Both render their children through, and children — the words on
+ * the screen — are exactly what these cases are about, so stubs that do the
+ * same measure the same thing.
  */
-jest.mock('@/components/ui/Button', () => ({
+jest.mock('@oxy.so/bloom/button', () => ({
   Button: ({ children }: { children: React.ReactNode }) => children,
 }));
+jest.mock('@oxy.so/bloom/typography', () => {
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { Text };
+});
 
 import { CameraCapture } from '../CameraCapture';
 

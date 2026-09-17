@@ -2,13 +2,27 @@ import React from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { Icon } from '@/lib/icons';
+import {
+    RiArrowDownLine,
+    RiLineChartLine,
+    RiListUnordered,
+    RiNodeTree,
+    RiTimeLine,
+} from '@oxy.so/bloom/icons';
+import type { BloomIcon } from '@/components/settings/RowIcon';
 import { RadioIndicator } from '@oxy.so/bloom/radio-indicator';
 import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
 import {
     useThreadPreferencesStore,
     SORT_OPTIONS,
+    type SortOrder,
 } from '@/hooks/useThreadPreferences';
+
+const SORT_ICONS: Record<SortOrder, BloomIcon> = {
+    top: RiLineChartLine,
+    oldest: RiTimeLine,
+    newest: RiArrowDownLine,
+};
 
 export default function ReplyPreferencesSheet() {
     const { t } = useTranslation();
@@ -28,7 +42,7 @@ export default function ReplyPreferencesSheet() {
                 >
                     <View className="flex-row items-center gap-3">
                         <View className="w-7 items-center justify-center">
-                            <Icon name="list-outline" size={20} color={colors.textSecondary} />
+                            <RiListUnordered size="md" fill={colors.textSecondary} />
                         </View>
                         <Text className="text-[15px] font-medium text-foreground">
                             {t('replyPreferences.linear', { defaultValue: 'Linear' })}
@@ -42,7 +56,7 @@ export default function ReplyPreferencesSheet() {
                 >
                     <View className="flex-row items-center gap-3">
                         <View className="w-7 items-center justify-center">
-                            <Icon name="git-branch-outline" size={20} color={colors.textSecondary} />
+                            <RiNodeTree size="md" fill={colors.textSecondary} />
                         </View>
                         <Text className="text-[15px] font-medium text-foreground">
                             {t('replyPreferences.threaded', { defaultValue: 'Threaded' })}
@@ -54,27 +68,26 @@ export default function ReplyPreferencesSheet() {
 
             {/* Reply sorting */}
             <SettingsListGroup title={t('replyPreferences.replySorting', { defaultValue: 'Reply sorting' })}>
-                {SORT_OPTIONS.map((option) => (
-                    <Pressable
-                        key={option.value}
-                        className="px-4 py-3.5 flex-row items-center justify-between"
-                        onPress={() => setSortOrder(option.value)}
-                    >
-                        <View className="flex-row items-center gap-3">
-                            <View className="w-7 items-center justify-center">
-                                <Icon
-                                    name={option.icon}
-                                    size={20}
-                                    color={colors.textSecondary}
-                                />
+                {SORT_OPTIONS.map((option) => {
+                    const SortIcon = SORT_ICONS[option.value];
+                    return (
+                        <Pressable
+                            key={option.value}
+                            className="px-4 py-3.5 flex-row items-center justify-between"
+                            onPress={() => setSortOrder(option.value)}
+                        >
+                            <View className="flex-row items-center gap-3">
+                                <View className="w-7 items-center justify-center">
+                                    <SortIcon size="md" fill={colors.textSecondary} />
+                                </View>
+                                <Text className="text-[15px] font-medium text-foreground">
+                                    {t(option.labelKey, { defaultValue: option.defaultLabel })}
+                                </Text>
                             </View>
-                            <Text className="text-[15px] font-medium text-foreground">
-                                {t(option.labelKey, { defaultValue: option.defaultLabel })}
-                            </Text>
-                        </View>
-                        <RadioIndicator selected={sortOrder === option.value} />
-                    </Pressable>
-                ))}
+                            <RadioIndicator selected={sortOrder === option.value} />
+                        </Pressable>
+                    );
+                })}
             </SettingsListGroup>
         </ScrollView>
     );
