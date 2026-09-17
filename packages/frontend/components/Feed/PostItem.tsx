@@ -71,7 +71,7 @@ const EMPTY_LINK_PREVIEWS: ClarityDocument[] = [];
 /** Stable identity for a post whose content failed to hydrate (see `content` below). */
 const EMPTY_CONTENT: PostContent = {};
 
-/** Inset of the nested (quote) card — see `styles.nestedPostContainer`. */
+/** Vertical inset of the nested (quote) card — see `styles.nestedPostContainer`. */
 const NESTED_CARD_PADDING = 12;
 
 interface PostItemProps {
@@ -933,7 +933,7 @@ const PostItem: React.FC<PostItemProps> = ({
                         onPressCollaborators={isCollab ? openCollaboratorsList : undefined}
                         onPressAuthor={goToAuthor}
                         onPressMenu={openMenu}
-                        paddingHorizontal={isNested ? 0 : HPAD}
+                        paddingHorizontal={HPAD}
                     >
                         {spoilerText ? <ContentWarning text={spoilerText} /> : null}
                         {content.text ? <PostContentText content={content} postId={viewPostId} previewChars={isDetailMain ? Infinity : undefined} overrideText={languageDisplayText} linkPreviewUrls={linkPreviewUrls} /> : null}
@@ -1000,10 +1000,10 @@ const PostItem: React.FC<PostItemProps> = ({
                         onSourcesPress={hasSources ? openSourcesSheet : undefined}
                         text={content.text}
                         documents={documents}
-                        // Only a quote card hands a width down, and it measures the
-                        // card OUTSIDE its own inset — take that off before the row
-                        // sizes anything against it.
-                        containerWidth={containerWidth !== undefined ? containerWidth - NESTED_CARD_PADDING * 2 : undefined}
+                        // Only a quote card hands a width down. The card has no
+                        // horizontal inset (see `nestedPostContainer`), so the row
+                        // spans exactly that width, edge to edge like a feed row.
+                        containerWidth={containerWidth}
                     />
                 )}
 
@@ -1081,7 +1081,13 @@ const styles = StyleSheet.create({
     nestedPostContainer: {
         borderWidth: StyleSheet.hairlineWidth,
         borderRadius: 16,
-        padding: NESTED_CARD_PADDING,
+        // Vertical inset only, laid out exactly like a feed row: the header and
+        // every block carry their own HPAD / AVATAR_OFFSET, and the attachments
+        // carousel runs to both edges of the card, which clips it at its border.
+        // A horizontal padding here shifted the row off the text column and
+        // stopped the carousel short of both sides.
+        paddingVertical: NESTED_CARD_PADDING,
+        overflow: 'hidden',
         // No top margin: the nested card's spacing from the outer header/content is
         // owned by the parent content column's flex `gap` (see PostItem render).
     },
