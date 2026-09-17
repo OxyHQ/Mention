@@ -115,18 +115,23 @@ interface ThemeControls {
  * other Oxy apps pick it up on their next session load.
  */
 export function useThemeControls(): ThemeControls {
-  const { oxyServices, user } = useAuth();
+  const { oxyServices, user, isAuthenticated } = useAuth();
   const { mode, colorPreset, setMode, setColorPreset } = useBloomTheme();
   const source = useThemeSourceStore((state) => state.source);
   const setSource = useThemeSourceStore((state) => state.setSource);
 
+  // Signed out there is no account to write to: the change stays local, exactly
+  // as under the `app` source. Calling through anyway rejected with
+  // AUTH_REQUIRED_OFFLINE_SESSION the moment the appearance screen set its mode.
   const persistAccountTheme = useCallback(
-    (next: { mode: ThemeMode; colorPreset: AppColorName }) =>
-      oxyServices.updateThemePreference({
+    async (next: { mode: ThemeMode; colorPreset: AppColorName }) => {
+      if (!isAuthenticated) return;
+      await oxyServices.updateThemePreference({
         mode: toPortableMode(next.mode),
         colorPreset: next.colorPreset,
-      }),
-    [oxyServices],
+      });
+    },
+    [oxyServices, isAuthenticated],
   );
 
   const changeThemeMode = useCallback(
