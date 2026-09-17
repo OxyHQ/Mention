@@ -1,15 +1,14 @@
 import React from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { ScrollView, Platform } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Toggle } from '@/components/Toggle';
 import { useTranslation } from 'react-i18next';
 import { useHapticsStore } from '@/stores/hapticsStore';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiFontSize, RiHand } from '@oxy.so/bloom/icons';
 
 export default function AccessibilitySettingsScreen() {
     const { t } = useTranslation();
@@ -19,29 +18,18 @@ export default function AccessibilitySettingsScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <Header
-                options={{
-                    title: t('settings.accessibility.title', { defaultValue: 'Accessibility' }),
-                    leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                            <BackArrowIcon size={20} className="text-foreground" />
-                        </IconButton>,
-                    ],
-                }}
-                hideBottomBorder
-                disableSticky
-            />
+            <PageHeader title={t('settings.accessibility.title', { defaultValue: 'Accessibility' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
 
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="px-4 pt-4 pb-8"
+                contentContainerClassName="px-screen-margin pt-4 pb-8"
                 showsVerticalScrollIndicator={false}
             >
                 {/* Interaction */}
                 {Platform.OS !== 'web' ? (
                     <SettingsListGroup title={t('settings.accessibility.interaction', { defaultValue: 'Interaction' })}>
                         <SettingsListItem
-                            icon={<RowIcon name="hand-left" />}
+                            icon={<RowIcon icon={RiHand} />}
                             title={t('settings.accessibility.hapticFeedback', { defaultValue: 'Haptic feedback' })}
                             description={t('settings.accessibility.hapticFeedbackDesc', { defaultValue: 'Vibration feedback on interactions' })}
                             showChevron={false}
@@ -58,7 +46,7 @@ export default function AccessibilitySettingsScreen() {
                 {/* Media */}
                 <SettingsListGroup title={t('settings.accessibility.media', { defaultValue: 'Media' })}>
                     <SettingsListItem
-                        icon={<RowIcon name="text" />}
+                        icon={<RowIcon icon={RiFontSize} />}
                         title={t('settings.accessibility.requireAltText', { defaultValue: 'Require alt text' })}
                         description={t('settings.accessibility.requireAltTextDesc', { defaultValue: 'Require alt text before posting images' })}
                         showChevron={false}

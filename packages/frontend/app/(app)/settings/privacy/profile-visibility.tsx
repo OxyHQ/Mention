@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -118,18 +116,7 @@ export default function ProfileVisibilityScreen() {
     if (!isAuthResolved || isPrivateApiPending) {
         return (
             <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.privacy.privateProfile'),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
+                <PageHeader title={t('settings.privacy.privateProfile')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
                 <View className="flex-1 items-center justify-center">
                     <Loading />
                 </View>
@@ -140,18 +127,7 @@ export default function ProfileVisibilityScreen() {
     if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.privacy.privateProfile'),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
+                <PageHeader title={t('settings.privacy.privateProfile')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
                 <OxyAuthPrompt
                     label={t('settings.privacy.profileVisibility.signInRequired', { defaultValue: 'Sign in to set profile visibility' })}
                     description={t('settings.privacy.profileVisibility.signInRequiredDesc', { defaultValue: 'Choose who can see your profile and posts.' })}
@@ -163,18 +139,7 @@ export default function ProfileVisibilityScreen() {
     if (loading) {
         return (
             <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.privacy.privateProfile'),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
+                <PageHeader title={t('settings.privacy.privateProfile')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -205,27 +170,11 @@ export default function ProfileVisibilityScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <Header
-                options={{
-                    title: t('settings.privacy.privateProfile'),
-                    leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                            <BackArrowIcon size={20} className="text-foreground" />
-                        </IconButton>,
-                    ],
-                    rightComponents: saving ? [
-                        <View key="saving" className="pr-2">
-                            <Loading className="text-primary" variant="inline" size="small" />
-                        </View>,
-                    ] : [],
-                }}
-                hideBottomBorder
-                disableSticky
-            />
+            <PageHeader title={t('settings.privacy.privateProfile')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} actions={saving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />
 
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="py-2"
+                contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
                 <SettingsListGroup title={t('settings.privacy.privateProfile')}>

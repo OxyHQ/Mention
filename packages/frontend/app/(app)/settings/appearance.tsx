@@ -1,9 +1,7 @@
 import React, { useState, useCallback } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView } from 'react-native';
 import { useAppearanceStore, type PostTextExpand, type PostReadMoreAction } from '@/stores/appearanceStore';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme, useBloomTheme } from '@oxy.so/bloom/theme';
@@ -14,6 +12,7 @@ import { SettingsListDivider, SettingsListGroup, SettingsListItem } from '@oxy.s
 import { Icon } from '@/lib/icons';
 import { Toggle } from '@/components/Toggle';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiUploadCloud2Line } from '@oxy.so/bloom/icons';
 import { useThemeControls } from '@/hooks/useAccountTheme';
 
 type ThemeMode = 'system' | 'light' | 'dark';
@@ -75,27 +74,11 @@ export default function AppearanceSettingsScreen() {
 
   return (
     <ThemedView className="flex-1">
-      <Header
-        options={{
-          title: t('settings.appearance', 'Appearance'),
-          leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-          rightComponents: settingsSaving ? [
-            <View key="saving" className="pr-2">
-              <Loading className="text-primary" variant="inline" size="small" />
-            </View>,
-          ] : [],
-        }}
-        hideBottomBorder
-        disableSticky
-      />
+      <PageHeader title={t('settings.appearance', 'Appearance')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} actions={settingsSaving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="py-4"
+        contentContainerClassName="px-screen-margin py-4"
         showsVerticalScrollIndicator={false}
       >
         {/* Theme source: portable account theme vs. a device-local app theme */}
@@ -106,7 +89,7 @@ export default function AppearanceSettingsScreen() {
           )}
         >
           <SettingsListItem
-            icon={<RowIcon name="cloud-outline" />}
+            icon={<RowIcon icon={RiUploadCloud2Line} />}
             title={t('settings.theme.source.useAccount', 'Sync theme with account')}
             description={t('settings.theme.source.useAccountDesc', 'Use your Oxy account theme on this device')}
             showChevron={false}
@@ -122,7 +105,7 @@ export default function AppearanceSettingsScreen() {
         <SettingsListDivider />
 
         {/* Color mode */}
-        <View className="px-5 py-3 gap-3">
+        <View className="py-3 gap-3">
           <View className="flex-row items-center gap-3">
             <Icon name="phone-portrait" size={22} color={colors.text} />
             <Text className="text-[16px] text-foreground">
@@ -149,7 +132,7 @@ export default function AppearanceSettingsScreen() {
         <SettingsListDivider />
 
         {/* Post text length */}
-        <View className="px-5 py-3 gap-3">
+        <View className="py-3 gap-3">
           <View className="flex-row items-center gap-3">
             <Icon name="text-outline" size={22} color={colors.text} />
             <Text className="text-[16px] text-foreground">
@@ -179,7 +162,7 @@ export default function AppearanceSettingsScreen() {
         <SettingsListDivider />
 
         {/* Read more tap behavior */}
-        <View className="px-5 py-3 gap-3">
+        <View className="py-3 gap-3">
           <View className="flex-row items-center gap-3">
             <Icon name="expand-outline" size={22} color={colors.text} />
             <Text className="text-[16px] text-foreground">
@@ -203,7 +186,7 @@ export default function AppearanceSettingsScreen() {
         <SettingsListDivider />
 
         {/* Profile bio collapse */}
-        <View className="px-5 py-3 gap-3">
+        <View className="py-3 gap-3">
           <View className="flex-row items-center gap-3">
             <Icon name="reader-outline" size={22} color={colors.text} />
             <Text className="text-[16px] text-foreground">

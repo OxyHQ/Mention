@@ -1,11 +1,9 @@
 import React from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loading } from '@oxy.so/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -84,18 +82,7 @@ export default function LivePresenceScreen() {
     const selected: LiveVisibility = preference ?? 'active';
 
     const renderHeader = () => (
-        <Header
-            options={{
-                title: t('settings.livePresence.title', { defaultValue: 'Live presence' }),
-                leftComponents: [
-                    <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                        <BackArrowIcon size={20} className="text-foreground" />
-                    </IconButton>,
-                ],
-            }}
-            hideBottomBorder
-            disableSticky
-        />
+        <PageHeader title={t('settings.livePresence.title', { defaultValue: 'Live presence' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
     );
 
     if (isPrivateApiPending) {
@@ -137,7 +124,7 @@ export default function LivePresenceScreen() {
             {renderHeader()}
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="py-2"
+                contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
                 <SettingsListGroup

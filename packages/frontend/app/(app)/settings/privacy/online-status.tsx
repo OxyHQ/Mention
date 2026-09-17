@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, ScrollView } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
 import { Toggle } from '@/components/Toggle';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiCheckboxBlankCircleLine } from '@oxy.so/bloom/icons';
 import { logger } from '@oxy.so/core/logger';
 import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
@@ -71,18 +70,7 @@ export default function OnlineStatusScreen() {
     if (isPrivateApiPending) {
         return (
             <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.privacy.onlineStatus'),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
+                <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -93,18 +81,7 @@ export default function OnlineStatusScreen() {
     if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.privacy.onlineStatus'),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
+                <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
                 <OxyAuthPrompt
                     label={t('settings.privacy.onlineStatus.signInRequired', { defaultValue: 'Sign in to manage your online status' })}
                     description={t('settings.privacy.onlineStatus.signInRequiredDesc', { defaultValue: 'Decide whether others see when you are online.' })}
@@ -116,18 +93,7 @@ export default function OnlineStatusScreen() {
     if (loading) {
         return (
             <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.privacy.onlineStatus'),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
+                <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -137,27 +103,16 @@ export default function OnlineStatusScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <Header
-                options={{
-                    title: t('settings.privacy.onlineStatus'),
-                    leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                            <BackArrowIcon size={20} className="text-foreground" />
-                        </IconButton>,
-                    ],
-                }}
-                hideBottomBorder
-                disableSticky
-            />
+            <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
 
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="py-2"
+                contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
                 <SettingsListGroup>
                     <SettingsListItem
-                        icon={<RowIcon name="ellipse" />}
+                        icon={<RowIcon icon={RiCheckboxBlankCircleLine} />}
                         title={t('settings.privacy.showOnlineStatus')}
                         description={t('settings.privacy.showOnlineStatusDesc')}
                         showChevron={false}

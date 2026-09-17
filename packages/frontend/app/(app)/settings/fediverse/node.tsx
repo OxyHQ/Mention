@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxy.so/bloom/loading';
@@ -6,10 +7,9 @@ import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton, Button } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { Button } from '@/components/ui/Button';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiCloseCircleLine, RiShieldCheckLine } from '@oxy.so/bloom/icons';
 import { Icon, type IconName } from '@/lib/icons';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDialog } from '@/utils/alerts';
@@ -21,7 +21,7 @@ import { useMentionNode, type MentionNode } from '@/hooks/useMentionNode';
 function ActionError({ message }: { message: string }) {
   const { colors } = useTheme();
   return (
-    <View className="flex-row gap-2.5 mx-5 mt-3 p-3.5 rounded-xl" style={{ backgroundColor: colors.error + '14' }}>
+    <View className="flex-row gap-2.5 mt-3 p-3.5 rounded-xl" style={{ backgroundColor: colors.error + '14' }}>
       <Icon name="alert-circle" size={18} color={colors.error} />
       <Text className="flex-1 text-[13px] text-foreground">{message}</Text>
     </View>
@@ -105,18 +105,7 @@ export default function MentionNodeScreen() {
   } = useMentionNode();
 
   const header = (
-    <Header
-      options={{
-        title: t('settings.node.title', { defaultValue: 'Your Mention node' }),
-        leftComponents: [
-          <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-            <BackArrowIcon size={20} className="text-foreground" />
-          </IconButton>,
-        ],
-      }}
-      hideBottomBorder
-      disableSticky
-    />
+    <PageHeader title={t('settings.node.title', { defaultValue: 'Your Mention node' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
   );
 
   const handleDisconnect = useCallback(async () => {
@@ -175,7 +164,7 @@ export default function MentionNodeScreen() {
   return (
     <ThemedView className="flex-1">
       {header}
-      <ScrollView className="flex-1" contentContainerClassName="py-2" showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1" contentContainerClassName="px-screen-margin py-2" showsVerticalScrollIndicator={false}>
         {isError ? (
           <View className="px-6 py-10 items-center gap-3">
             <Icon name="cloud-offline-outline" size={44} color={colors.textSecondary} />
@@ -242,7 +231,7 @@ export default function MentionNodeScreen() {
 
             <SettingsListGroup>
               <SettingsListItem
-                icon={<RowIcon name="unlink-outline" destructive />}
+                icon={<RowIcon icon={RiCloseCircleLine} destructive />}
                 title={t('settings.node.disconnect.action', { defaultValue: 'Disconnect' })}
                 description={t('settings.node.disconnect.rowDesc', {
                   defaultValue: 'Stop syncing with this node',
@@ -292,7 +281,7 @@ export default function MentionNodeScreen() {
 
             <SettingsListGroup title={t('settings.node.create.title', { defaultValue: 'Recommended' })}>
               <SettingsListItem
-                icon={<RowIcon name="shield-checkmark-outline" />}
+                icon={<RowIcon icon={RiShieldCheckLine} />}
                 title={t('settings.node.create.managedTitle', { defaultValue: 'Create a managed vault' })}
                 description={t('settings.node.create.managedDesc', {
                   defaultValue: 'Mention runs it for you — one tap, nothing to host',
@@ -327,7 +316,7 @@ export default function MentionNodeScreen() {
               screen exposes only the working managed-vault action and states the
               self-host path honestly rather than presenting a form that does nothing.
             */}
-            <View className="flex-row gap-2.5 mx-5 mt-3 p-3.5 rounded-xl" style={{ backgroundColor: colors.info + '14' }}>
+            <View className="flex-row gap-2.5 mt-3 p-3.5 rounded-xl" style={{ backgroundColor: colors.info + '14' }}>
               <Icon name="information-circle" size={18} color={colors.info} />
               <Text className="flex-1 text-[13px] text-foreground">
                 {t('settings.node.selfHostNotice', {

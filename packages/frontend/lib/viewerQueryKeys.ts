@@ -632,6 +632,11 @@ export const viewerQueryKeys = {
     ...viewerQueryKeys.all(viewerId),
     'mention-node',
   ] as const,
+  /** Syra podcast shows the viewer is subscribed to (the podcast card's save button). */
+  syraPodcastSubscriptions: (viewerId: ViewerId) => [
+    ...viewerQueryKeys.all(viewerId),
+    'syra-podcast-subscriptions',
+  ] as const,
   federatedProfile: (viewerId: ViewerId, handle: string) => [
     ...viewerQueryKeys.all(viewerId),
     'federated-profile',

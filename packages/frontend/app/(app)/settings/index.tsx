@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useMemo } from "react";
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, Animated, ScrollView } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
-import { Header } from "@/components/Header";
-import { Button, IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
+import { Button } from '@oxy.so/bloom/button';
 import { useAuth, OxySignInButton } from "@oxy.so/services/ui/client";
 import { useTranslation } from "react-i18next";
 import { useLayoutScroll } from "@/context/LayoutScrollContext";
@@ -15,6 +14,7 @@ import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Loading } from '@oxy.so/bloom/loading';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiAccessibilityLine, RiBroadcastLine, RiChat3Line, RiEarthLine, RiEqualizerLine, RiEyeOffLine, RiGlobalLine, RiHeartLine, RiInformationLine, RiListUnordered, RiLogoutBoxRLine, RiNotification3Line, RiPaletteLine, RiPlayLine, RiQuestionLine, RiSparklingLine } from '@oxy.so/bloom/icons';
 import { LogoIcon } from "@/assets/logo";
 import { confirmDialog } from "@/utils/alerts";
 import { createLogger } from '@oxy.so/core/logger';
@@ -88,23 +88,12 @@ export default function SettingsScreen() {
                 already `disableSticky` (non-sticky, in flow above the inner
                 scroller). Adopting PanelStickyHeader here would require changing
                 the scroll model, so it is intentionally left as-is. */}
-            <Header
-                options={{
-                    title: t("settings.title"),
-                    leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                            <BackArrowIcon size={20} className="text-foreground" />
-                        </IconButton>,
-                    ],
-                }}
-                hideBottomBorder
-                disableSticky
-            />
+            <PageHeader title={t("settings.title")} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
 
             <Animated.ScrollView
                 ref={assignScrollViewRef}
                 className="flex-1"
-                contentContainerClassName="py-4"
+                contentContainerClassName="px-screen-margin py-4"
                 showsVerticalScrollIndicator={false}
                 onScroll={onScroll}
                 scrollEventThrottle={scrollEventThrottle}
@@ -153,7 +142,7 @@ export default function SettingsScreen() {
                             {t('settings.account.signedOutSubtitle', { defaultValue: 'Sign in to access your privacy, notifications, feed, and personalization settings.' })}
                         </Text>
                         <View className="mt-2 w-full max-w-[320px]">
-                            <OxySignInButton variant="contained" />
+                            <OxySignInButton variant="contained" fullWidth />
                         </View>
                     </View>
                 )}
@@ -161,19 +150,19 @@ export default function SettingsScreen() {
                 {isAuthenticated && (
                     <SettingsListGroup>
                         <SettingsListItem
-                            icon={<RowIcon name="eye-off-outline" />}
+                            icon={<RowIcon icon={RiEyeOffLine} />}
                             title={t('settings.privacy.title')}
                             description={t('settings.privacy.description', { defaultValue: 'Profile visibility, blocked profiles, hidden words' })}
                             onPress={() => router.push('/settings/privacy')}
                         />
                         <SettingsListItem
-                            icon={<RowIcon name="globe-outline" />}
+                            icon={<RowIcon icon={RiEarthLine} />}
                             title={t('fediverse.settings.title')}
                             description={t('fediverse.settings.entryDescription')}
                             onPress={() => router.push('/settings/fediverse')}
                         />
                         <SettingsListItem
-                            icon={<RowIcon name="sparkles-outline" />}
+                            icon={<RowIcon icon={RiSparklingLine} />}
                             title={t('mcp.connections.title', { defaultValue: 'Connected AI' })}
                             description={t('mcp.connections.description', { defaultValue: 'AI apps connected to your account' })}
                             onPress={() => router.push('/settings/connected-ai')}
@@ -184,25 +173,25 @@ export default function SettingsScreen() {
                 {isAuthenticated && (
                     <SettingsListGroup>
                         <SettingsListItem
-                            icon={<RowIcon name="notifications-outline" />}
+                            icon={<RowIcon icon={RiNotification3Line} />}
                             title={t('settings.preferences.notifications')}
                             description={t('settings.preferences.notificationsDesc', { defaultValue: 'Push notifications, email alerts' })}
                             onPress={() => router.push('/settings/notifications')}
                         />
                         <SettingsListItem
-                            icon={<RowIcon name="reader-outline" />}
+                            icon={<RowIcon icon={RiListUnordered} />}
                             title={t('settings.feed.title')}
                             description={t('settings.feed.description', { defaultValue: 'Content preferences, feed algorithm' })}
                             onPress={() => router.push('/settings/feed')}
                         />
                         <SettingsListItem
-                            icon={<RowIcon name="options-outline" />}
+                            icon={<RowIcon icon={RiEqualizerLine} />}
                             title={t('feed.tuning.title', { defaultValue: 'For You' })}
                             description={t('feed.tuning.entryDescription', { defaultValue: 'Tune the quality, engagement, and content filters on your For You feed' })}
                             onPress={() => router.push('/settings/for-you')}
                         />
                         <SettingsListItem
-                            icon={<RowIcon name="radio-outline" />}
+                            icon={<RowIcon icon={RiBroadcastLine} />}
                             title={t('settings.livePresence.title', { defaultValue: 'Live presence' })}
                             description={t('settings.livePresence.description', { defaultValue: 'When your avatar shows a live badge' })}
                             onPress={() => router.push('/settings/live-presence')}
@@ -212,31 +201,31 @@ export default function SettingsScreen() {
 
                 <SettingsListGroup>
                     <SettingsListItem
-                        icon={<RowIcon name="color-palette-outline" />}
+                        icon={<RowIcon icon={RiPaletteLine} />}
                         title={t('settings.preferences.appearance')}
                         description={t('settings.preferences.appearanceDesc', { defaultValue: 'Theme, text, display' })}
                         onPress={() => router.push('/settings/appearance')}
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="accessibility-outline" />}
+                        icon={<RowIcon icon={RiAccessibilityLine} />}
                         title={t('settings.accessibility.title', { defaultValue: 'Accessibility' })}
                         description={t('settings.accessibility.description', { defaultValue: 'Haptic feedback, alt text' })}
                         onPress={() => router.push('/settings/accessibility')}
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="play-circle-outline" />}
+                        icon={<RowIcon icon={RiPlayLine} />}
                         title={t('settings.externalMedia.title', { defaultValue: 'External Media Preferences' })}
                         description={t('settings.externalMedia.description', { defaultValue: 'Inline players for YouTube, Spotify, and more' })}
                         onPress={() => router.push('/settings/external-media')}
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="chatbubbles-outline" />}
+                        icon={<RowIcon icon={RiChat3Line} />}
                         title={t('settings.threadPreferences.title', { defaultValue: 'Thread preferences' })}
                         description={t('settings.threadPreferences.description', { defaultValue: 'Reply sorting, thread display' })}
                         onPress={() => router.push('/settings/thread-preferences')}
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="language-outline" />}
+                        icon={<RowIcon icon={RiGlobalLine} />}
                         title={t('Language')}
                         description={t('settings.language.description', { defaultValue: 'App display language' })}
                         onPress={() => router.push('/settings/language')}
@@ -246,7 +235,7 @@ export default function SettingsScreen() {
                 {isAuthenticated && (
                     <SettingsListGroup>
                         <SettingsListItem
-                            icon={<RowIcon name="heart-outline" />}
+                            icon={<RowIcon icon={RiHeartLine} />}
                             title={t('settings.preferences.interests', { defaultValue: 'Your interests' })}
                             description={t('settings.preferences.interestsDesc', { defaultValue: 'Topics and categories you follow' })}
                             onPress={() => router.push('/settings/interests')}
@@ -256,13 +245,13 @@ export default function SettingsScreen() {
 
                 <SettingsListGroup>
                     <SettingsListItem
-                        icon={<RowIcon name="help-circle-outline" />}
+                        icon={<RowIcon icon={RiQuestionLine} />}
                         title={t('settings.supportFeedback.helpSupport')}
                         description={t('settings.supportFeedback.helpSupportDesc')}
                         onPress={() => router.push('/settings/about')}
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="information-circle-outline" />}
+                        icon={<RowIcon icon={RiInformationLine} />}
                         title={t('settings.aboutMention.title', { defaultValue: 'About' })}
                         description={t('settings.aboutMention.description', { defaultValue: 'Version, system info, debug' })}
                         onPress={() => router.push('/settings/about')}
@@ -272,7 +261,7 @@ export default function SettingsScreen() {
                 {isAuthenticated && (
                     <SettingsListGroup>
                         <SettingsListItem
-                            icon={<RowIcon name="log-out-outline" destructive />}
+                            icon={<RowIcon icon={RiLogoutBoxRLine} destructive />}
                             title={t("settings.signOut")}
                             onPress={handleSignOut}
                             destructive

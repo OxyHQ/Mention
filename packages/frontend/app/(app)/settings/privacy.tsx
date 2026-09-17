@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, ScrollView } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Switch } from '@oxy.so/bloom/switch';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { authenticatedClient } from '@/utils/api';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
-import { RowIcon } from '@/components/settings/RowIcon';
-import type { IconName } from '@/lib/icons';
+import { RowIcon, type BloomIcon } from '@/components/settings/RowIcon';
+import { RiAlertLine, RiAtLine, RiCheckboxBlankCircleLine, RiCloseCircleLine, RiEarthLine, RiEyeOffLine, RiGitMergeLine, RiGroupLine, RiHeartLine, RiLockLine, RiRefreshLine, RiSparklingLine } from '@oxy.so/bloom/icons';
 import { logger } from '@oxy.so/core/logger';
 import {
     type RecommendationFilters,
@@ -32,7 +30,7 @@ import { invalidateSafetyFilters } from '@/stores/safetyInvalidation';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
 const FILTER_TOGGLES: {
-    icon: IconName;
+    icon: BloomIcon;
     titleKey: string;
     descKey: string;
     titleDefault: string;
@@ -40,7 +38,7 @@ const FILTER_TOGGLES: {
     filterKey: keyof RecommendationFilters;
 }[] = [
     {
-        icon: 'globe-outline',
+        icon: RiEarthLine,
         titleKey: 'settings.privacy.showFediverse',
         descKey: 'settings.privacy.showFediverseDesc',
         titleDefault: 'Fediverse accounts in suggestions',
@@ -48,7 +46,7 @@ const FILTER_TOGGLES: {
         filterKey: 'showFederated',
     },
     {
-        icon: 'sparkles-outline',
+        icon: RiSparklingLine,
         titleKey: 'settings.privacy.showAgents',
         descKey: 'settings.privacy.showAgentsDesc',
         titleDefault: 'AI agents in suggestions',
@@ -56,7 +54,7 @@ const FILTER_TOGGLES: {
         filterKey: 'showAgents',
     },
     {
-        icon: 'sync-outline',
+        icon: RiRefreshLine,
         titleKey: 'settings.privacy.showAutomated',
         descKey: 'settings.privacy.showAutomatedDesc',
         titleDefault: 'Automated accounts in suggestions',
@@ -150,18 +148,7 @@ export default function PrivacySettingsScreen() {
     if (!isAuthResolved || isPrivateApiPending) {
         return (
             <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.privacy.title'),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
+                <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
                 <View className="flex-1 items-center justify-center">
                     <Loading />
                 </View>
@@ -172,18 +159,7 @@ export default function PrivacySettingsScreen() {
     if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.privacy.title'),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
+                <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
                 <OxyAuthPrompt
                     label={t('settings.privacy.signInRequired', { defaultValue: 'Sign in to manage your privacy settings' })}
                     description={t('settings.privacy.signInRequiredDesc', { defaultValue: 'Control who can see your profile, mention you, and more.' })}
@@ -195,18 +171,7 @@ export default function PrivacySettingsScreen() {
     if (loading) {
         return (
             <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.privacy.title'),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
+                <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -216,40 +181,29 @@ export default function PrivacySettingsScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <Header
-                options={{
-                    title: t('settings.privacy.title'),
-                    leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                            <BackArrowIcon size={20} className="text-foreground" />
-                        </IconButton>,
-                    ],
-                }}
-                hideBottomBorder
-                disableSticky
-            />
+            <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
 
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="py-2"
+                contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
                 <SettingsListGroup>
                     <SettingsListItem
-                        icon={<RowIcon name="lock-closed" />}
+                        icon={<RowIcon icon={RiLockLine} />}
                         title={t('settings.privacy.privateProfile')}
                         description={t('settings.privacy.privateProfileDesc', { defaultValue: 'Control who can see your profile' })}
                         value={getProfileVisibilityText()}
                         onPress={() => router.push('/settings/privacy/profile-visibility')}
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="at" />}
+                        icon={<RowIcon icon={RiAtLine} />}
                         title={t('settings.privacy.tagsAndMentions')}
                         description={t('settings.privacy.tagsAndMentionsDesc', { defaultValue: 'Choose who can tag or mention you' })}
                         onPress={() => router.push('/settings/privacy/tags-mentions')}
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="ellipse" />}
+                        icon={<RowIcon icon={RiCheckboxBlankCircleLine} />}
                         title={t('settings.privacy.onlineStatus')}
                         description={t('settings.privacy.onlineStatusDesc', { defaultValue: 'Show when you are active' })}
                         onPress={() => router.push('/settings/privacy/online-status')}
@@ -258,13 +212,13 @@ export default function PrivacySettingsScreen() {
 
                 <SettingsListGroup>
                     <SettingsListItem
-                        icon={<RowIcon name="people" />}
+                        icon={<RowIcon icon={RiGroupLine} />}
                         title={t('settings.privacy.restrictedProfiles')}
                         description={t('settings.privacy.restrictedProfilesDesc', { defaultValue: 'Limit interactions from specific people' })}
                         onPress={() => router.push('/settings/privacy/restricted')}
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="close-circle" />}
+                        icon={<RowIcon icon={RiCloseCircleLine} />}
                         title={t('settings.privacy.blockedProfiles')}
                         description={t('settings.privacy.blockedProfilesDesc', { defaultValue: 'People you have blocked' })}
                         onPress={() => router.push('/settings/privacy/blocked')}
@@ -273,7 +227,7 @@ export default function PrivacySettingsScreen() {
 
                 <SettingsListGroup>
                     <SettingsListItem
-                        icon={<RowIcon name="eye-off" />}
+                        icon={<RowIcon icon={RiEyeOffLine} />}
                         title={t('settings.privacy.hiddenWords')}
                         description={t('settings.privacy.hiddenWordsDesc', { defaultValue: 'Filter posts containing specific words' })}
                         onPress={() => router.push('/settings/privacy/hidden-words')}
@@ -285,13 +239,13 @@ export default function PrivacySettingsScreen() {
                         a muted lane is a timeline preference that reaches feeds
                         only. */}
                     <SettingsListItem
-                        icon={<RowIcon name="git-branch-outline" />}
+                        icon={<RowIcon icon={RiGitMergeLine} />}
                         title={t('lanes.muted.title', { defaultValue: 'Muted lanes' })}
                         description={t('lanes.muted.settingsDesc', { defaultValue: 'Hide one track of an account you follow' })}
                         onPress={() => router.push('/settings/privacy/muted-lanes')}
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="heart-outline" />}
+                        icon={<RowIcon icon={RiHeartLine} />}
                         title={t('settings.privacy.hideLikeShareCounts')}
                         description={t('settings.privacy.hideLikeShareCountsDesc', { defaultValue: 'Hide engagement counts on posts' })}
                         onPress={() => router.push('/settings/privacy/hide-counts')}
@@ -300,7 +254,7 @@ export default function PrivacySettingsScreen() {
 
                 <SettingsListGroup title={t('settings.privacy.content')}>
                     <SettingsListItem
-                        icon={<RowIcon name="alert-circle-outline" />}
+                        icon={<RowIcon icon={RiAlertLine} />}
                         title={t('settings.privacy.showSensitiveContent')}
                         description={t('settings.privacy.showSensitiveContentDesc', { defaultValue: "Sensitive and NSFW posts never appear in your feeds. They remain visible on the author's profile." })}
                         showChevron={false}
@@ -317,7 +271,7 @@ export default function PrivacySettingsScreen() {
                     {FILTER_TOGGLES.map(({ icon, titleKey, descKey, titleDefault, descDefault, filterKey }) => (
                         <SettingsListItem
                             key={filterKey}
-                            icon={<RowIcon name={icon} />}
+                            icon={<RowIcon icon={icon} />}
                             title={t(titleKey, { defaultValue: titleDefault })}
                             description={t(descKey, { defaultValue: descDefault })}
                             showChevron={false}

@@ -14,21 +14,23 @@ interface PostAttachmentPollProps {
     question: string;
     options: string[];
   };
+  /** Card width; the standard card width when absent. */
+  width?: number;
   style?: ViewStyle;
 }
 
-const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({ pollId, pollData, style }) => {
+const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({ pollId, pollData, width = MEDIA_CARD_WIDTH, style }) => {
   return (
     <View
-      className="border border-border rounded-[15px] overflow-hidden w-[280px]"
-      style={[webGrabCursorStyle, style]}
+      className="border border-border rounded-[15px] overflow-hidden"
+      style={[{ width }, webGrabCursorStyle, style]}
     >
       {pollId ? (
         // Use interactive PollCard when we have a pollId
-        <PollCard pollId={pollId} width={MEDIA_CARD_WIDTH} />
+        <PollCard pollId={pollId} width={width} />
       ) : pollData ? (
         // Fallback to simple display if we only have poll data without ID
-        <View className="bg-muted p-4 rounded-[15px]">
+        <View className="flex-1 bg-muted p-4">
           <Text className="text-foreground text-base font-bold mb-3">{pollData.question}</Text>
           {pollData.options?.map((option: string, optIdx: number) => (
             <View key={optIdx} className="bg-background border border-border p-3 rounded-lg mb-2">

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -11,9 +12,6 @@ import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 
 import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Toggle } from '@/components/Toggle';
 import { Slider } from '@/components/Slider';
@@ -111,18 +109,7 @@ export default function ForYouTuningScreen() {
   const groups = useMemo(() => groupByCategory(), []);
 
   const header = (
-    <Header
-      options={{
-        title: t('feed.tuning.title', { defaultValue: 'For You' }),
-        leftComponents: [
-          <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-            <BackArrowIcon size={20} className="text-foreground" />
-          </IconButton>,
-        ],
-      }}
-      hideBottomBorder
-      disableSticky
-    />
+    <PageHeader title={t('feed.tuning.title', { defaultValue: 'For You' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
   );
 
   if (!isAuthenticated) {
@@ -153,8 +140,8 @@ export default function ForYouTuningScreen() {
   return (
     <ThemedView className="flex-1">
       {header}
-      <ScrollView className="flex-1" contentContainerClassName="py-2" showsVerticalScrollIndicator={false}>
-        <View className="px-5 pt-2 pb-1">
+      <ScrollView className="flex-1" contentContainerClassName="px-screen-margin py-2" showsVerticalScrollIndicator={false}>
+        <View className="pt-2 pb-1">
           <Text className="text-[13px] leading-[18px] text-muted-foreground">
             {t('feed.tuning.intro', {
               defaultValue:

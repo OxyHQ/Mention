@@ -1,18 +1,17 @@
 import React from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { ThemedView } from '@/components/ThemedView';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { LogoIcon } from '@/assets/logo';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiChat4Line, RiCodeSSlashLine, RiDeleteBinLine, RiEarthLine, RiQuestionLine, RiShieldCheckLine, RiSmartphoneLine, RiToolsFill } from '@oxy.so/bloom/icons';
 import { confirmDialog, alertDialog } from '@/utils/alerts';
 import { API_URL } from '@/config';
 
@@ -64,22 +63,11 @@ export default function AboutScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <Header
-                options={{
-                    title: t('settings.aboutMention.title', { defaultValue: 'About' }),
-                    leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                            <BackArrowIcon size={20} className="text-foreground" />
-                        </IconButton>,
-                    ],
-                }}
-                hideBottomBorder
-                disableSticky
-            />
+            <PageHeader title={t('settings.aboutMention.title', { defaultValue: 'About' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
 
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="px-4 pt-4 pb-8"
+                contentContainerClassName="px-screen-margin pt-4 pb-8"
                 showsVerticalScrollIndicator={false}
             >
                 {/* App identity */}
@@ -98,31 +86,31 @@ export default function AboutScreen() {
                 {/* System info */}
                 <SettingsListGroup title={t('settings.aboutMention.systemInfo', { defaultValue: 'System information' })}>
                     <SettingsListItem
-                        icon={<RowIcon name="hammer" />}
+                        icon={<RowIcon icon={RiToolsFill} />}
                         title={t('settings.aboutMention.build')}
                         value={String(runtimeVersion)}
                         showChevron={false}
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="phone-portrait" />}
+                        icon={<RowIcon icon={RiSmartphoneLine} />}
                         title={t('settings.aboutMention.platform')}
                         value={platformName}
                         showChevron={false}
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="code-slash" />}
+                        icon={<RowIcon icon={RiCodeSSlashLine} />}
                         title={t('settings.aboutMention.expoSDK')}
                         value={String(expoSdkVersion)}
                         showChevron={false}
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="code-slash" />}
+                        icon={<RowIcon icon={RiCodeSSlashLine} />}
                         title={t('settings.aboutMention.oxySDK')}
                         value={String(oxySdkVersion)}
                         onPress={() => showBottomSheet?.('AppInfo')}
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="globe" />}
+                        icon={<RowIcon icon={RiEarthLine} />}
                         title={t('settings.aboutMention.apiUrl')}
                         value={apiUrl}
                         showChevron={false}
@@ -132,7 +120,7 @@ export default function AboutScreen() {
                 {/* Moderation policy, stated publicly */}
                 <SettingsListGroup>
                     <SettingsListItem
-                        icon={<RowIcon name="shield-checkmark" />}
+                        icon={<RowIcon icon={RiShieldCheckLine} />}
                         title={t('transparency.title')}
                         description={t('transparency.list.title')}
                         onPress={() => router.push('/transparency')}
@@ -142,7 +130,7 @@ export default function AboutScreen() {
                 {/* Support */}
                 <SettingsListGroup title={t('settings.sections.supportFeedback')}>
                     <SettingsListItem
-                        icon={<RowIcon name="help-circle" />}
+                        icon={<RowIcon icon={RiQuestionLine} />}
                         title={t('settings.supportFeedback.helpSupport')}
                         description={t('settings.supportFeedback.helpSupportDesc')}
                         onPress={() => {
@@ -150,7 +138,7 @@ export default function AboutScreen() {
                         }}
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="chatbubble" />}
+                        icon={<RowIcon icon={RiChat4Line} />}
                         title={t('settings.supportFeedback.sendFeedback')}
                         description={t('settings.supportFeedback.sendFeedbackDesc')}
                         onPress={async () => {
@@ -170,7 +158,7 @@ export default function AboutScreen() {
                 {/* Debug */}
                 <SettingsListGroup title={t('settings.debug', { defaultValue: 'Debug' })}>
                     <SettingsListItem
-                        icon={<RowIcon name="trash" destructive />}
+                        icon={<RowIcon icon={RiDeleteBinLine} destructive />}
                         title={t('settings.data.clearCache')}
                         description={t('settings.data.clearCacheDesc')}
                         onPress={handleClearCache}

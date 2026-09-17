@@ -1,10 +1,8 @@
 import React, { useState, useCallback } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -306,18 +304,7 @@ export default function BlockedUsersScreen() {
     if (!isAuthResolved || isPrivateApiPending) {
         return (
             <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.privacy.blockedUsers'),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
+                <PageHeader title={t('settings.privacy.blockedUsers')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
                 <View className="flex-1 items-center justify-center">
                     <Loading />
                 </View>
@@ -328,18 +315,7 @@ export default function BlockedUsersScreen() {
     if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.privacy.blockedProfiles'),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
+                <PageHeader title={t('settings.privacy.blockedProfiles')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
                 <OxyAuthPrompt
                     label={t('settings.privacy.blocked.signInRequired', { defaultValue: 'Sign in to manage blocked accounts' })}
                     description={t('settings.privacy.blocked.signInRequiredDesc', { defaultValue: 'You can block or unblock people once signed in.' })}
@@ -350,22 +326,11 @@ export default function BlockedUsersScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <Header
-                options={{
-                    title: t('settings.privacy.blockedProfiles'),
-                    leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                            <BackArrowIcon size={20} className="text-foreground" />
-                        </IconButton>,
-                    ],
-                }}
-                hideBottomBorder
-                disableSticky
-            />
+            <PageHeader title={t('settings.privacy.blockedProfiles')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
 
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="py-2"
+                contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
                 <SettingsListGroup title={t('settings.privacy.searchUsersToBlock')}>

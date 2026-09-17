@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, ScrollView } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Switch } from '@oxy.so/bloom/switch';
@@ -8,10 +9,8 @@ import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiBox3Line, RiEarthLine, RiGlobalLine, RiQuestionLine, RiShieldCheckLine } from '@oxy.so/bloom/icons';
 import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
 import LanguagePickerSheet from '@/components/Compose/LanguagePickerSheet';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
@@ -148,12 +147,12 @@ function FediverseSharingBody() {
   return (
     <ScrollView
       className="flex-1"
-      contentContainerClassName="py-2"
+      contentContainerClassName="px-screen-margin py-2"
       showsVerticalScrollIndicator={false}
     >
       <SettingsListGroup footer={t('fediverse.settings.description')}>
         <SettingsListItem
-          icon={<RowIcon name="globe-outline" />}
+          icon={<RowIcon icon={RiEarthLine} />}
           title={t('fediverse.settings.share')}
           description={federatedHandle}
           showChevron={false}
@@ -170,7 +169,7 @@ function FediverseSharingBody() {
         })}
       >
         <SettingsListItem
-          icon={<RowIcon name="language-outline" />}
+          icon={<RowIcon icon={RiGlobalLine} />}
           title={t('fediverse.settings.preferredLanguage.title', { defaultValue: 'Preferred language' })}
           description={preferredLabel}
           onPress={openPreferredLanguagePicker}
@@ -179,7 +178,7 @@ function FediverseSharingBody() {
 
       <SettingsListGroup>
         <SettingsListItem
-          icon={<RowIcon name="cube-outline" />}
+          icon={<RowIcon icon={RiBox3Line} />}
           title={t('settings.node.title', { defaultValue: 'Your Mention node' })}
           description={t('settings.node.description', { defaultValue: 'Your own copy of your signed posts' })}
           onPress={() => router.push('/settings/fediverse/node')}
@@ -188,12 +187,12 @@ function FediverseSharingBody() {
 
       <SettingsListGroup>
         <SettingsListItem
-          icon={<RowIcon name="help-circle-outline" />}
+          icon={<RowIcon icon={RiQuestionLine} />}
           title={t('fediverse.settings.whatIs')}
           onPress={openInfoSheet}
         />
         <SettingsListItem
-          icon={<RowIcon name="shield-checkmark-outline" />}
+          icon={<RowIcon icon={RiShieldCheckLine} />}
           title={t('transparency.title')}
           description={t('transparency.list.title')}
           onPress={() => router.push('/transparency')}
@@ -208,18 +207,11 @@ export default function FediverseSettingsScreen() {
   const safeBack = useSafeBack();
   const { isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
 
-  const headerOptions = {
-    title: t('fediverse.settings.title'),
-    leftComponents: [
-      <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-        <BackArrowIcon size={20} className="text-foreground" />
-      </IconButton>,
-    ],
-  };
+  const header = <PageHeader title={t('fediverse.settings.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />;
 
   return (
     <ThemedView className="flex-1">
-      <Header options={headerOptions} hideBottomBorder disableSticky />
+      {header}
       {!isAuthResolved || isPrivateApiPending ? (
         <View className="flex-1 items-center justify-center">
           <Loading />

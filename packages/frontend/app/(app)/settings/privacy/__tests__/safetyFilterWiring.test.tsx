@@ -92,7 +92,7 @@ jest.mock('@/components/ThemedView', () => {
   return { ThemedView: ({ children }: { children?: React.ReactNode }) => <RNView>{children}</RNView> };
 });
 
-jest.mock('@/components/Header', () => ({ Header: () => null }));
+jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@/components/ui/Button', () => ({ IconButton: () => null }));
 jest.mock('@/assets/icons/back-arrow-icon', () => ({ BackArrowIcon: () => null }));
 jest.mock('@/lib/icons', () => ({ Icon: () => null }));

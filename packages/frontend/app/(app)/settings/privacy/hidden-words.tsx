@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loading } from '@oxy.so/bloom/loading';
@@ -8,9 +9,6 @@ import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Icon } from '@/lib/icons';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -38,14 +36,7 @@ export default function HiddenWordsScreen() {
     const queryClient = useQueryClient();
     const [input, setInput] = useState('');
 
-    const headerOptions = {
-        title: t('settings.privacy.hiddenWords'),
-        leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-        ],
-    };
+    const header = <PageHeader title={t('settings.privacy.hiddenWords')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />;
 
     const {
         data: mutedWords = [],
@@ -126,7 +117,7 @@ export default function HiddenWordsScreen() {
     if (!isAuthenticated) {
         return (
             <ThemedView className="flex-1">
-                <Header options={headerOptions} hideBottomBorder disableSticky />
+                {header}
                 <OxyAuthPrompt
                     label={t('settings.privacy.hiddenWordsSignInRequired', {
                         defaultValue: 'Sign in to manage muted words',
@@ -141,11 +132,11 @@ export default function HiddenWordsScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <Header options={headerOptions} hideBottomBorder disableSticky />
+            {header}
 
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="py-2"
+                contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
             >

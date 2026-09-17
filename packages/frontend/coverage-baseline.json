@@ -3,23 +3,23 @@
   "total": {
     "statements": {
       "pct": 33.38,
-      "covered": 8701,
-      "total": 26060
+      "covered": 8756,
+      "total": 26225
     },
     "branches": {
-      "pct": 28.53,
-      "covered": 5422,
-      "total": 19001
+      "pct": 28.6,
+      "covered": 5481,
+      "total": 19159
     },
     "functions": {
-      "pct": 28.28,
-      "covered": 1858,
-      "total": 6570
+      "pct": 28.3,
+      "covered": 1870,
+      "total": 6607
     },
     "lines": {
-      "pct": 34.01,
-      "covered": 7970,
-      "total": 23433
+      "pct": 34.04,
+      "covered": 8020,
+      "total": 23557
     }
   },
   "pins": {
@@ -382,6 +382,12 @@
       "branches": 100,
       "functions": 0,
       "lines": 0
+    },
+    "hooks/usePodcastSave.ts": {
+      "statements": 94,
+      "branches": 76,
+      "functions": 90,
+      "lines": 100
     },
     "hooks/usePollManager.ts": {
       "statements": 0,
@@ -756,8 +762,8 @@
       "lines": 66
     },
     "lib/logging/sanitize.ts": {
-      "statements": 88,
-      "branches": 68,
+      "statements": 89,
+      "branches": 69,
       "functions": 86,
       "lines": 91
     },
@@ -826,6 +832,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "lib/syraPodcasts.ts": {
+      "statements": 60,
+      "branches": 100,
+      "functions": 66,
+      "lines": 60
     },
     "lib/themePersistence.ts": {
       "statements": 0,
@@ -1266,10 +1278,10 @@
       "lines": 100
     },
     "utils/embedPlayer.ts": {
-      "statements": 18,
-      "branches": 19,
+      "statements": 24,
+      "branches": 25,
       "functions": 100,
-      "lines": 18
+      "lines": 24
     },
     "utils/emojiData.ts": {
       "statements": 0,
@@ -1355,6 +1367,12 @@
       "functions": 0,
       "lines": 0
     },
+    "utils/isHostOf.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "utils/linkifyPattern.ts": {
       "statements": 91,
       "branches": 83,
@@ -1362,10 +1380,10 @@
       "lines": 100
     },
     "utils/mediaTypes.ts": {
-      "statements": 55,
-      "branches": 41,
+      "statements": 60,
+      "branches": 52,
       "functions": 50,
-      "lines": 52
+      "lines": 58
     },
     "utils/mentions.ts": {
       "statements": 92,

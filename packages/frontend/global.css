@@ -37,9 +37,9 @@
      The numbers are the hook's, unchanged. */
   --breakpoint-shell: 500px;
 
-  /* Bloom 2 registers Inter itself (FontLoader) and publishes the stack as
-     --bloom-font-sans; the literal fallback only covers the pre-bundle paint. */
-  --font-sans: var(--bloom-font-sans, Inter, sans-serif);
+  /* The LAYERED value, outranked by the unlayered `:root` rule below. It
+     registers the token, which is what makes the `font-sans` utility exist. */
+  --font-sans: var(--bloom-font-sans);
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -58,8 +58,28 @@
   }
 }
 
+/* Bloom's typeface, not one of Mention's own. NativeWind's theme.css ships an
+   UNLAYERED `:root { @media ios { --font-sans: System } }` that outranks anything
+   `@theme` emits, so restate Bloom's family here, unlayered and after that import.
+   Native gets the bare family name: RN's `fontFamily` takes ONE family, not a CSS
+   stack, and `--bloom-font-*` is web-only (injected at runtime by
+   `applyFontFaces`). The `var()` fallback covers the static export's first paint,
+   before that runs. The literal names mirror `fontFamilies.sans` in @oxy.so/bloom/fonts;
+   keep them in step when Bloom changes its default. */
+:root {
+  --font-sans: var(--bloom-font-sans, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+
+  @media ios {
+    --font-sans: Inter;
+  }
+
+  @media android {
+    --font-sans: Inter;
+  }
+}
+
 html, body, #root {
-  font-family: var(--bloom-font-sans, Inter, sans-serif);
+  font-family: var(--font-sans);
   /* Pre-hydration dark canvas. Bloom applies the real theme (the `.dark` class +
      `--background` var) at RUNTIME from BloomThemeProvider, so before the JS
      bundle runs there is no themed background and the first paint would be white.

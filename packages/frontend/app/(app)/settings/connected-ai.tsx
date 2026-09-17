@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loading } from '@oxy.so/bloom/loading';
@@ -8,10 +9,9 @@ import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton, Button } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { Button } from '@/components/ui/Button';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiSparklingLine } from '@oxy.so/bloom/icons';
 import { Icon } from '@/lib/icons';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDialog } from '@/utils/alerts';
@@ -79,18 +79,7 @@ export default function ConnectedAiScreen() {
   const queryClient = useQueryClient();
 
   const header = (
-    <Header
-      options={{
-        title: t('mcp.connections.title', { defaultValue: 'Connected AI' }),
-        leftComponents: [
-          <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-            <BackArrowIcon size={20} className="text-foreground" />
-          </IconButton>,
-        ],
-      }}
-      hideBottomBorder
-      disableSticky
-    />
+    <PageHeader title={t('mcp.connections.title', { defaultValue: 'Connected AI' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
   );
 
   const {
@@ -178,7 +167,7 @@ export default function ConnectedAiScreen() {
   return (
     <ThemedView className="flex-1">
       {header}
-      <ScrollView className="flex-1" contentContainerClassName="py-2" showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1" contentContainerClassName="px-screen-margin py-2" showsVerticalScrollIndicator={false}>
         {isLoading ? (
           <View className="py-10 items-center">
             <Loading />
@@ -234,7 +223,7 @@ export default function ConnectedAiScreen() {
               return (
                 <SettingsListItem
                   key={connection.id}
-                  icon={<RowIcon name="sparkles-outline" />}
+                  icon={<RowIcon icon={RiSparklingLine} />}
                   title={connectionTitle(connection)}
                   description={description}
                   showChevron={false}
