@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { RiAddCircleLine, RiEyeOffLine, RiFontSize, RiHashtag, RiInformationFill } from '@oxy.so/bloom/icons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,9 +9,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { ThemedView } from '@/components/ThemedView';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { Icon } from '@/lib/icons';
 import { EmptyState } from '@/components/common/EmptyState';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { ConfirmBottomSheet } from '@/components/common/ConfirmBottomSheet';
@@ -116,7 +115,7 @@ export default function HiddenWordsScreen() {
 
     if (!isAuthenticated) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 {header}
                 <OxyAuthPrompt
                     label={t('settings.privacy.hiddenWordsSignInRequired', {
@@ -126,12 +125,12 @@ export default function HiddenWordsScreen() {
                         defaultValue: 'Muted words and hashtags hide matching posts from your feeds.',
                     })}
                 />
-            </ThemedView>
+            </View>
         );
     }
 
     return (
-        <ThemedView className="flex-1">
+        <View className="flex-1">
             {header}
 
             <ScrollView
@@ -140,9 +139,9 @@ export default function HiddenWordsScreen() {
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
             >
-                <SettingsListGroup>
+                <SettingsListGroup variant="filled">
                     <View className="px-4 py-3.5 flex-row items-center gap-3">
-                        <Icon name="information-circle" size={20} color={colors.primary} />
+                        <RiInformationFill width={20} height={20} fill={colors.primary} />
                         <Text className="flex-1 text-[13px] text-foreground">
                             {t('settings.privacy.hiddenWordsDescription', {
                                 defaultValue:
@@ -152,9 +151,9 @@ export default function HiddenWordsScreen() {
                     </View>
                 </SettingsListGroup>
 
-                <SettingsListGroup title={t('settings.privacy.addMutedWord', { defaultValue: 'Add a word or hashtag' })}>
+                <SettingsListGroup variant="filled" title={t('settings.privacy.addMutedWord', { defaultValue: 'Add a word or hashtag' })}>
                     <View className="px-4 py-3 flex-row items-center gap-3">
-                        <Icon name="eye-off-outline" size={20} color={colors.textSecondary} />
+                        <RiEyeOffLine width={20} height={20} fill={colors.textSecondary} />
                         <TextInput
                             className="flex-1 text-[15px] text-foreground"
                             placeholder={t('settings.privacy.addWordPlaceholder', {
@@ -179,17 +178,13 @@ export default function HiddenWordsScreen() {
                                 onPress={handleAdd}
                                 activeOpacity={0.7}
                             >
-                                <Icon
-                                    name="add-circle"
-                                    size={26}
-                                    color={input.trim().length === 0 ? colors.textSecondary : colors.primary}
-                                />
+                                <RiAddCircleLine width={26} height={26} fill={input.trim().length === 0 ? colors.textSecondary : colors.primary} />
                             </TouchableOpacity>
                         )}
                     </View>
                 </SettingsListGroup>
 
-                <SettingsListGroup title={t('settings.privacy.mutedWords', { defaultValue: 'Muted words and hashtags' })}>
+                <SettingsListGroup variant="filled" title={t('settings.privacy.mutedWords', { defaultValue: 'Muted words and hashtags' })}>
                     {isLoading ? (
                         <View className="py-10 items-center">
                             <Loading className="text-primary" size="large" style={{ flex: undefined }} />
@@ -228,11 +223,11 @@ export default function HiddenWordsScreen() {
                                 <SettingsListItem
                                     key={word.id}
                                     icon={
-                                        <Icon
-                                            name={isHashtag ? 'pricetag-outline' : 'text-outline'}
-                                            size={20}
-                                            color={colors.textSecondary}
-                                        />
+                                        isHashtag ? (
+                                            <RiHashtag width={20} height={20} fill={colors.textSecondary} />
+                                        ) : (
+                                            <RiFontSize width={20} height={20} fill={colors.textSecondary} />
+                                        )
                                     }
                                     title={muteWordDisplayValue(word)}
                                     description={
@@ -263,6 +258,6 @@ export default function HiddenWordsScreen() {
                     )}
                 </SettingsListGroup>
             </ScrollView>
-        </ThemedView>
+        </View>
     );
 }

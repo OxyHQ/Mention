@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useMemo } from "react";
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, Animated, ScrollView } from "react-native";
-import { ThemedView } from "@/components/ThemedView";
 import { Button } from '@oxy.so/bloom/button';
 import { useAuth, OxySignInButton } from "@oxy.so/services/ui/client";
 import { useTranslation } from "react-i18next";
@@ -81,7 +80,7 @@ export default function SettingsScreen() {
     };
 
     return (
-        <ThemedView className="flex-1">
+        <View className="flex-1">
             {/* Bloom's PageHeader pins itself (`position: sticky` on web) and fades
                 its separator in with the window scroll, so it needs no
                 PanelStickyHeader wrapper. */}
@@ -145,7 +144,7 @@ export default function SettingsScreen() {
                 )}
 
                 {isAuthenticated && (
-                    <SettingsListGroup>
+                    <SettingsListGroup variant="filled">
                         <SettingsListItem
                             icon={<RowIcon icon={RiEyeOffLine} />}
                             title={t('settings.privacy.title')}
@@ -168,7 +167,7 @@ export default function SettingsScreen() {
                 )}
 
                 {isAuthenticated && (
-                    <SettingsListGroup>
+                    <SettingsListGroup variant="filled">
                         <SettingsListItem
                             icon={<RowIcon icon={RiNotification3Line} />}
                             title={t('settings.preferences.notifications')}
@@ -196,7 +195,7 @@ export default function SettingsScreen() {
                     </SettingsListGroup>
                 )}
 
-                <SettingsListGroup>
+                <SettingsListGroup variant="filled">
                     <SettingsListItem
                         icon={<RowIcon icon={RiPaletteLine} />}
                         title={t('settings.preferences.appearance')}
@@ -230,7 +229,7 @@ export default function SettingsScreen() {
                 </SettingsListGroup>
 
                 {isAuthenticated && (
-                    <SettingsListGroup>
+                    <SettingsListGroup variant="filled">
                         <SettingsListItem
                             icon={<RowIcon icon={RiHeartLine} />}
                             title={t('settings.preferences.interests', { defaultValue: 'Your interests' })}
@@ -240,7 +239,7 @@ export default function SettingsScreen() {
                     </SettingsListGroup>
                 )}
 
-                <SettingsListGroup>
+                <SettingsListGroup variant="filled">
                     <SettingsListItem
                         icon={<RowIcon icon={RiQuestionLine} />}
                         title={t('settings.supportFeedback.helpSupport')}
@@ -256,7 +255,7 @@ export default function SettingsScreen() {
                 </SettingsListGroup>
 
                 {isAuthenticated && (
-                    <SettingsListGroup>
+                    <SettingsListGroup variant="filled">
                         <SettingsListItem
                             icon={<RowIcon icon={RiLogoutBoxRLine} destructive />}
                             title={t("settings.signOut")}
@@ -267,6 +266,6 @@ export default function SettingsScreen() {
                     </SettingsListGroup>
                 )}
             </Animated.ScrollView>
-        </ThemedView>
+        </View>
     );
 }

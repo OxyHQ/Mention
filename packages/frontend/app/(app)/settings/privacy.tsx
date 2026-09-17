@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, ScrollView } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
-import { ThemedView } from '@/components/ThemedView';
 import { Switch } from '@oxy.so/bloom/switch';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -147,40 +146,40 @@ export default function PrivacySettingsScreen() {
 
     if (!isAuthResolved || isPrivateApiPending) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 items-center justify-center">
                     <Loading />
                 </View>
-            </ThemedView>
+            </View>
         );
     }
 
     if (!canUsePrivateApi) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <OxyAuthPrompt
                     label={t('settings.privacy.signInRequired', { defaultValue: 'Sign in to manage your privacy settings' })}
                     description={t('settings.privacy.signInRequiredDesc', { defaultValue: 'Control who can see your profile, mention you, and more.' })}
                 />
-            </ThemedView>
+            </View>
         );
     }
 
     if (loading) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
-            </ThemedView>
+            </View>
         );
     }
 
     return (
-        <ThemedView className="flex-1">
+        <View className="flex-1">
             <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
@@ -188,7 +187,7 @@ export default function PrivacySettingsScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup>
+                <SettingsListGroup variant="filled">
                     <SettingsListItem
                         icon={<RowIcon icon={RiLockLine} />}
                         title={t('settings.privacy.privateProfile')}
@@ -210,7 +209,7 @@ export default function PrivacySettingsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup>
+                <SettingsListGroup variant="filled">
                     <SettingsListItem
                         icon={<RowIcon icon={RiGroupLine} />}
                         title={t('settings.privacy.restrictedProfiles')}
@@ -225,7 +224,7 @@ export default function PrivacySettingsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup>
+                <SettingsListGroup variant="filled">
                     <SettingsListItem
                         icon={<RowIcon icon={RiEyeOffLine} />}
                         title={t('settings.privacy.hiddenWords')}
@@ -252,7 +251,7 @@ export default function PrivacySettingsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup title={t('settings.privacy.content')}>
+                <SettingsListGroup variant="filled" title={t('settings.privacy.content')}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiAlertLine} />}
                         title={t('settings.privacy.showSensitiveContent')}
@@ -267,7 +266,7 @@ export default function PrivacySettingsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup>
+                <SettingsListGroup variant="filled">
                     {FILTER_TOGGLES.map(({ icon, titleKey, descKey, titleDefault, descDefault, filterKey }) => (
                         <SettingsListItem
                             key={filterKey}
@@ -285,6 +284,6 @@ export default function PrivacySettingsScreen() {
                     ))}
                 </SettingsListGroup>
             </ScrollView>
-        </ThemedView>
+        </View>
     );
 }

@@ -252,7 +252,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
             row is marked as the primary, which is the only thing that explains
             why that one and not another appears under the name. */}
         {categories.length > 0 && (
-          <SettingsListGroup title={t('accountCategories.title', { defaultValue: 'Categories' })}>
+          <SettingsListGroup variant="filled" title={t('accountCategories.title', { defaultValue: 'Categories' })}>
             {categories.map((category, index) => (
               <SettingsListItem
                 key={category.id}
@@ -270,7 +270,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
 
         {/* Account details — dates, location, activity */}
         {hasAccountDetails && (
-          <SettingsListGroup title={t('Account details', { defaultValue: 'Account details' })}>
+          <SettingsListGroup variant="filled" title={t('Account details', { defaultValue: 'Account details' })}>
             {joinDate && (
               <SettingsListItem
                 icon={<CalendarMonthIcon size={20} className="text-muted-foreground" />}
@@ -317,7 +317,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
         {/* Verification — its own section, matching the profile's emphasis on the
             verified badge */}
         {profileData.verified && (
-          <SettingsListGroup title={t('Verification', { defaultValue: 'Verification' })}>
+          <SettingsListGroup variant="filled" title={t('Verification', { defaultValue: 'Verification' })}>
             <SettingsListItem
               icon={<VerifiedIcon size={20} />}
               title={t('Verified', { defaultValue: 'Verified' })}
@@ -335,7 +335,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
             existing educational FediverseInfoSheet (fediverse networks only —
             Bluesky is a separate network, not the fediverse). */}
         {federationInfo && (
-          <SettingsListGroup
+          <SettingsListGroup variant="filled"
             title={federationInfo.network === 'atproto'
               ? t('fediverse.about.titleBluesky', { defaultValue: 'Bluesky' })
               : t('fediverse.about.title', { defaultValue: 'Fediverse' })}

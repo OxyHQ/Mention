@@ -28,11 +28,9 @@ import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list
 import type { PostSubscriptionItem, PostSubscriptionListResponse } from '@mention/shared-types';
 
 import { SEO } from '@/components/SEO';
-import { ThemedView } from '@/components/ThemedView';
-import { IconButton } from '@/components/ui/Button';
-import { BellActive } from '@/assets/icons/bell-icon';
+import { Button } from '@oxy.so/bloom/button';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { RiNotification3Line } from '@oxy.so/bloom/icons';
+import { RiNotification3Fill, RiNotification3Line } from '@oxy.so/bloom/icons';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Error as ErrorComponent } from '@/components/Error';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
@@ -136,13 +134,14 @@ export default function ActivitySubscriptionsScreen() {
           key={item.author.id}
           profile={item.author}
           accessory={
-            <IconButton
+            <Button
               variant="icon"
+              iconOnly
+              leadingIcon={RiNotification3Fill}
               onPress={() => unsubscribe(item.author.id)}
               disabled={isUnsubscribing}
-              accessibilityLabel={label}>
-              <BellActive size={20} className="text-primary" />
-            </IconButton>
+              accessibilityLabel={label}
+            />
           }
         />
       );
@@ -152,7 +151,7 @@ export default function ActivitySubscriptionsScreen() {
 
   const listHeader = useMemo(
     () => (
-      <SettingsListGroup>
+      <SettingsListGroup variant="filled">
         <SettingsListItem
           icon={<RowIcon icon={RiNotification3Line} />}
           title={t('subscription.list.intro.title', { defaultValue: 'Activity from others' })}
@@ -285,10 +284,10 @@ export default function ActivitySubscriptionsScreen() {
           defaultValue: 'Manage the accounts that notify you when they post.',
         })}
       />
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         {renderContent()}
-      </ThemedView>
+      </View>
     </>
   );
 }

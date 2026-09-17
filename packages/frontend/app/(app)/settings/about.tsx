@@ -4,7 +4,6 @@ import { View, Text, ScrollView } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import { ThemedView } from '@/components/ThemedView';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { LogoIcon } from '@/assets/logo';
 import { useTranslation } from 'react-i18next';
@@ -62,7 +61,7 @@ export default function AboutScreen() {
     };
 
     return (
-        <ThemedView className="flex-1">
+        <View className="flex-1">
             <PageHeader title={t('settings.aboutMention.title', { defaultValue: 'About' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
@@ -84,7 +83,7 @@ export default function AboutScreen() {
                 </View>
 
                 {/* System info */}
-                <SettingsListGroup title={t('settings.aboutMention.systemInfo', { defaultValue: 'System information' })}>
+                <SettingsListGroup variant="filled" title={t('settings.aboutMention.systemInfo', { defaultValue: 'System information' })}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiToolsFill} />}
                         title={t('settings.aboutMention.build')}
@@ -118,7 +117,7 @@ export default function AboutScreen() {
                 </SettingsListGroup>
 
                 {/* Moderation policy, stated publicly */}
-                <SettingsListGroup>
+                <SettingsListGroup variant="filled">
                     <SettingsListItem
                         icon={<RowIcon icon={RiShieldCheckLine} />}
                         title={t('transparency.title')}
@@ -128,7 +127,7 @@ export default function AboutScreen() {
                 </SettingsListGroup>
 
                 {/* Support */}
-                <SettingsListGroup title={t('settings.sections.supportFeedback')}>
+                <SettingsListGroup variant="filled" title={t('settings.sections.supportFeedback')}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiQuestionLine} />}
                         title={t('settings.supportFeedback.helpSupport')}
@@ -156,7 +155,7 @@ export default function AboutScreen() {
                 </SettingsListGroup>
 
                 {/* Debug */}
-                <SettingsListGroup title={t('settings.debug', { defaultValue: 'Debug' })}>
+                <SettingsListGroup variant="filled" title={t('settings.debug', { defaultValue: 'Debug' })}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiDeleteBinLine} destructive />}
                         title={t('settings.data.clearCache')}
@@ -166,6 +165,6 @@ export default function AboutScreen() {
                     />
                 </SettingsListGroup>
             </ScrollView>
-        </ThemedView>
+        </View>
     );
 }

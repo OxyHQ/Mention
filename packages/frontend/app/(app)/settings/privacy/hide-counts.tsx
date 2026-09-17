@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, ScrollView } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
-import { ThemedView } from '@/components/ThemedView';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
@@ -122,40 +121,40 @@ export default function HideCountsScreen() {
 
     if (isPrivateApiPending) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
-            </ThemedView>
+            </View>
         );
     }
 
     if (!canUsePrivateApi) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <OxyAuthPrompt
                     label={t('settings.privacy.hideCounts.signInRequired', { defaultValue: 'Sign in to hide engagement counts' })}
                     description={t('settings.privacy.hideCounts.signInRequiredDesc', { defaultValue: 'Hide likes, boosts, replies, and saves on your posts.' })}
                 />
-            </ThemedView>
+            </View>
         );
     }
 
     if (loading) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
-            </ThemedView>
+            </View>
         );
     }
 
     return (
-        <ThemedView className="flex-1">
+        <View className="flex-1">
             <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
@@ -163,7 +162,7 @@ export default function HideCountsScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup>
+                <SettingsListGroup variant="filled">
                     <SettingsListItem
                         icon={<RowIcon icon={RiEyeOffLine} />}
                         title={t('settings.privacy.hideAllCounts')}
@@ -178,7 +177,7 @@ export default function HideCountsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup title={t('settings.privacy.individualSettings')}>
+                <SettingsListGroup variant="filled" title={t('settings.privacy.individualSettings')}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiHeartLine} />}
                         title={t('settings.privacy.hideLikeCounts')}
@@ -241,6 +240,6 @@ export default function HideCountsScreen() {
                     />
                 </SettingsListGroup>
             </ScrollView>
-        </ThemedView>
+        </View>
     );
 }

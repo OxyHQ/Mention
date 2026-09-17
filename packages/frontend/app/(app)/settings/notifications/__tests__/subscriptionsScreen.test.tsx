@@ -143,19 +143,20 @@ jest.mock('@oxy.so/bloom/typography', () => {
 
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 
-// Reached through `IconButton` (components/ui/Button).
-jest.mock('@oxy.so/bloom/hooks', () => ({
-  useHaptics: () => ({ trigger: jest.fn(), impact: jest.fn(), selection: jest.fn() }),
-  useInteractionState: () => ({ pressed: false, hovered: false }),
-  useInteractionStates: () => ({ pressed: false, hovered: false }),
-}));
-
 jest.mock('@oxy.so/bloom/button', () => {
   const { Text, TouchableOpacity } =
     jest.requireActual<typeof import('react-native')>('react-native');
-  const Button = ({ label, onPress }: { label?: string; onPress?: () => void }) => (
-    <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} onPress={onPress}>
-      <Text>{label}</Text>
+  const Button = ({
+    children,
+    accessibilityLabel,
+    onPress,
+  }: {
+    children?: React.ReactNode;
+    accessibilityLabel?: string;
+    onPress?: () => void;
+  }) => (
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel={accessibilityLabel} onPress={onPress}>
+      {children ? <Text>{children}</Text> : null}
     </TouchableOpacity>
   );
   return { Button, ButtonText: Text };
@@ -175,7 +176,10 @@ jest.mock('@oxy.so/bloom/settings-list', () => {
 });
 
 // Bloom's icon barrel is untranspiled ESM; the row icon's drawing is not under test.
-jest.mock('@oxy.so/bloom/icons', () => ({ RiNotification3Line: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiNotification3Fill: () => null,
+  RiNotification3Line: () => null,
+}));
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 
 const mockList = jest.fn<Promise<PostSubscriptionListResponse>, [string?, number?]>();
