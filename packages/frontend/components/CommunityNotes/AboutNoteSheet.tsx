@@ -9,7 +9,8 @@ import { CommunityNoteCard } from './CommunityNoteCard';
 
 interface AboutNoteSheetProps {
   note: CommunityNoteSummary;
-  onRate: (rating: CommunityNoteRating) => void;
+  /** Absent until ratings can be sent — the card then shows no rating buttons. */
+  onRate?: (rating: CommunityNoteRating) => void;
   onClose: () => void;
 }
 

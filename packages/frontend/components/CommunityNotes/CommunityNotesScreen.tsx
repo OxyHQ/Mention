@@ -92,7 +92,7 @@ export function CommunityNotesScreen({ toRate, rated, written, handlers }: Commu
                   note={note}
                   variant="rate"
                   onRate={
-                    tab === 'notes'
+                    tab === 'notes' || !sheets.canRate
                       ? undefined
                       : (rating) =>
                           sheets.openRateReasons(note, rating, (done) =>

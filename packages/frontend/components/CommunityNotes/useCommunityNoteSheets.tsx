@@ -106,10 +106,22 @@ export function useCommunityNoteSheets(handlers: CommunityNoteWriteHandlers = {}
 
   const openAbout = useCallback(
     (note: CommunityNoteSummary) => {
-      show(<AboutNoteSheet note={note} onClose={close} onRate={(rating) => openRateReasons(note, rating)} />, true);
+      show(
+        <AboutNoteSheet note={note} onClose={close} onRate={rateNote ? (rating) => openRateReasons(note, rating) : undefined} />,
+        true,
+      );
     },
-    [show, close, openRateReasons],
+    [show, close, openRateReasons, rateNote],
   );
 
-  return { openWriteFlow, openRateReasons, openAbout, openManageNotes };
+  // A flow is offered only when something can receive what it collects: a
+  // "submitted" sheet for a note that went nowhere would lie to the writer.
+  return {
+    openWriteFlow,
+    openRateReasons,
+    openAbout,
+    openManageNotes,
+    canWrite: Boolean(submitNote),
+    canRate: Boolean(rateNote),
+  };
 }

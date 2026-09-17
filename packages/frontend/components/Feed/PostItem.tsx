@@ -591,7 +591,7 @@ const PostItem: React.FC<PostItemProps> = ({
     }, [communityNote, noteSheets]);
 
     const openMenu = useCallback(() => {
-        const communityNoteAction = !isOwner && viewPost ? [{
+        const communityNoteAction = noteSheets.canWrite && !isOwner && viewPost ? [{
             icon: <RiTeamLine width={20} height={20} fill={theme.colors.textSecondary} />,
             label: t('communityNotes.menu.add', { defaultValue: 'Add community note' }),
             onPress: () => noteSheets.openWriteFlow(viewPost),
