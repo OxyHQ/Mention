@@ -44,8 +44,8 @@ interface PodcastCardProps {
   width?: number;
   /**
    * Fixed height, when the card shares a row whose items all take one height.
-   * The card centers its content in it; the video variant gives the video
-   * whatever the strip below it does not use.
+   * Only the `'video'` variant uses it — the video takes whatever the compact
+   * strip below it does not. The plain card is always its own compact height.
    */
   height?: number;
   /**
@@ -179,14 +179,6 @@ export const PodcastCard = memo(function PodcastCard({
   }, [showUrl]);
 
   const handlePress = onPress ?? (showUrl ? openShow : undefined);
-  // In a fixed-height row the artwork grows with the card (Threads' card is
-  // mostly cover), capped so the title column keeps room for two lines.
-  // Never more than 40% of the card, so a narrow card (a quote on a phone) keeps
-  // room for the title instead of being all artwork.
-  const cardArtwork = Math.min(
-    height !== undefined ? Math.min(height - 20, 150) : CARD_ARTWORK,
-    Math.round((width ?? 320) * 0.4),
-  );
 
   if (variant === 'full') {
     return (
@@ -315,8 +307,8 @@ export const PodcastCard = memo(function PodcastCard({
       style={[
         {
           width: width ?? 320,
-          height,
-          // Never stretch to a taller neighbour in the attachments carousel.
+          // Always the compact card — never stretched to a taller row, so every
+          // podcast card in the feed looks the same whatever sits beside it.
           alignSelf: 'flex-start',
           borderRadius: CARD_RADIUS,
           overflow: 'hidden',
@@ -334,7 +326,7 @@ export const PodcastCard = memo(function PodcastCard({
         className="flex-1 flex-row items-center"
         style={{ padding: 10, gap: 12 }}
       >
-        <Artwork uri={artworkUrl} size={cardArtwork} radius={10} />
+        <Artwork uri={artworkUrl} size={CARD_ARTWORK} radius={10} />
         <View className="flex-1 shrink justify-center" style={{ paddingVertical: 2, gap: 3 }}>
           <Text className="text-white text-[15px] font-bold leading-[19px]" numberOfLines={2}>
             {episode?.title ?? title}
