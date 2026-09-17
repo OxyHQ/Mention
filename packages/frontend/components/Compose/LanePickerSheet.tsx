@@ -1,15 +1,16 @@
 import React, { memo, useCallback } from 'react';
-import { FlatList, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { Button } from '@oxy.so/bloom/button';
+import { RiCloseLine } from '@oxy.so/bloom/icons';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Item } from '@oxy.so/bloom/item';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountNode } from '@oxy.so/core';
 import type { Lane } from '@mention/shared-types';
-import { CloseIcon } from '@/assets/icons/close-icon';
-import { IconButton } from '@/components/ui/Button';
 import { lanesService } from '@/services/lanesService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
@@ -112,15 +113,20 @@ const LanePickerSheet = memo(function LanePickerSheet({
 
   return (
     <View className="flex-1 pb-6 bg-background">
-      <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border">
-        <IconButton variant="icon" onPress={onClose} className="mr-1.5 z-[1]">
-          <CloseIcon size={20} className="text-foreground" />
-        </IconButton>
-        <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground pointer-events-none">
-          {t('lanes.picker.title', { defaultValue: 'Post lane' })}
-        </Text>
-        <View className="w-9 h-9 ml-auto" />
-      </View>
+      <PageHeader
+        title={t('lanes.picker.title', { defaultValue: 'Post lane' })}
+        titleAlign="center"
+        safeArea={false}
+        leading={
+          <Button
+            variant="secondary"
+            iconOnly
+            leadingIcon={RiCloseLine}
+            onPress={onClose}
+            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+          />
+        }
+      />
 
       <Item
         onPress={() => handleSelect(null)}
@@ -169,15 +175,9 @@ const LanePickerSheet = memo(function LanePickerSheet({
           than pointed somewhere that would edit the wrong publisher's lanes. */}
       {publishAs ? null : (
         <View className="mt-2 mx-4">
-          <TouchableOpacity
-            onPress={handleManage}
-            className="flex-row items-center justify-center py-3 rounded-full border border-border"
-            activeOpacity={0.85}
-          >
-            <Text className="text-sm font-semibold text-primary">
-              {t('lanes.picker.manage', { defaultValue: 'Manage lanes' })}
-            </Text>
-          </TouchableOpacity>
+          <Button variant="secondary" size="large" onPress={handleManage}>
+            {t('lanes.picker.manage', { defaultValue: 'Manage lanes' })}
+          </Button>
         </View>
       )}
     </View>

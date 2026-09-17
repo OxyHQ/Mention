@@ -1,8 +1,8 @@
 import React, { memo, useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
+import { RiCloseCircleLine, RiMic2Line, RiSearchLine } from '@oxy.so/bloom/icons';
 import { Item } from '@oxy.so/bloom/item';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
@@ -53,7 +53,7 @@ const PodcastResultRow = memo(function PodcastResultRow({
             className="rounded-md bg-muted items-center justify-center"
             style={{ width: 40, height: 40 }}
           >
-            <Ionicons name="mic-outline" size={20} color={colors.textSecondary} />
+            <RiMic2Line size="md" fill={colors.textSecondary} />
           </View>
         )
       }
@@ -99,7 +99,7 @@ const PodcastPickerSheet = memo(function PodcastPickerSheet({
 
       {/* Search input — mirrors MediaPickerSheet's styled search row. */}
       <View className="flex-row items-center px-3 py-2.5 rounded-xl bg-muted gap-2.5">
-        <Ionicons name="search-outline" size={16} color={colors.textSecondary} />
+        <RiSearchLine size="sm" fill={colors.textSecondary} />
         <TextInput
           className="flex-1 text-[15px] text-foreground"
           placeholder={t('compose.podcast.searchPlaceholder')}
@@ -117,7 +117,7 @@ const PodcastPickerSheet = memo(function PodcastPickerSheet({
             accessibilityLabel={t('profile.media.clearSearch')}
             hitSlop={HIT_SLOP_MD}
           >
-            <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+            <RiCloseCircleLine size="sm" fill={colors.textSecondary} />
           </Pressable>
         )}
       </View>
@@ -138,7 +138,7 @@ const PodcastPickerSheet = memo(function PodcastPickerSheet({
           </Text>
         ) : search.results.length === 0 ? (
           <View className="items-center justify-center py-10 gap-2">
-            <Ionicons name="search-outline" size={32} color={colors.textSecondary} />
+            <RiSearchLine size="2xl" fill={colors.textSecondary} />
             <Text className="text-muted-foreground text-[15px]">
               {t('compose.podcast.empty')}
             </Text>

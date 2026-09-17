@@ -23,6 +23,14 @@ jest.mock('react-i18next', () => ({
 
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
 jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiCloseCircleLine: () => null,
+  RiCloseLine: () => null,
+  RiSearchLine: () => null,
+}));
+jest.mock('@oxy.so/bloom/theme', () => ({
+  useTheme: () => ({ colors: { textSecondary: '#666' } }),
+}));
 jest.mock('@oxy.so/core/logger', () => ({ logger: { error: jest.fn() } }));
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({

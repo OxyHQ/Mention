@@ -1,11 +1,10 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { Loading } from '@oxy.so/bloom/loading';
+import { View, Text } from 'react-native';
+import { Button } from '@oxy.so/bloom/button';
+import { RiCalendarLine, RiDeleteBinLine, RiEditLine, RiSendPlaneLine } from '@oxy.so/bloom/icons';
 import { useTheme } from '@oxy.so/bloom/theme';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost } from '@mention/shared-types';
-import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { isPastDue, scheduledDate } from '@/utils/postSchedule';
 import PostPreviewSurface from './PostPreviewSurface';
 import { confirmAndCancel } from './ScheduledPostsList';
@@ -109,7 +108,7 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
       title={t('compose.scheduled.previewTitle', { defaultValue: 'Preview' })}
       subtitle={(
         <View className="flex-row items-center gap-1.5 mt-0.5">
-          <CalendarIcon size={12} color={theme.colors.textSecondary} />
+          <RiCalendarLine size="xs" fill={theme.colors.textSecondary} />
           <Text className="text-xs text-muted-foreground">
             {publishAt === null
               ? t('compose.scheduled.unknownTime', { defaultValue: 'Time unavailable' })
@@ -134,57 +133,42 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
       onBack={onBack}
     >
       <View className="px-4 pt-3 border-t border-border">
-        <TouchableOpacity
-          className="flex-row items-center justify-center gap-2 py-3 rounded-full bg-primary"
+        <Button
+          size="large"
+          leadingIcon={RiSendPlaneLine}
           onPress={handlePublishNow}
           disabled={busy}
-          activeOpacity={0.85}
-          accessibilityRole="button"
+          loading={isPublishing}
           accessibilityLabel={t('compose.scheduled.publishNow', { defaultValue: 'Post now' })}
         >
-          {isPublishing ? (
-            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
-          ) : (
-            <Ionicons name="send" size={16} color={theme.colors.card} />
-          )}
-          <Text className="text-sm font-semibold" style={{ color: theme.colors.card }}>
-            {t('compose.scheduled.publishNow', { defaultValue: 'Post now' })}
-          </Text>
-        </TouchableOpacity>
+          {t('compose.scheduled.publishNow', { defaultValue: 'Post now' })}
+        </Button>
       </View>
 
       <View className="flex-row items-center gap-2 px-4 py-3">
-        <TouchableOpacity
-          className="flex-1 flex-row items-center justify-center gap-2 py-3 rounded-full bg-muted"
+        <Button
+          className="flex-1"
+          variant="secondary"
+          size="large"
+          leadingIcon={RiEditLine}
           onPress={onEdit}
           disabled={busy}
-          activeOpacity={0.85}
-          accessibilityRole="button"
           accessibilityLabel={t('compose.scheduled.edit', { defaultValue: 'Edit scheduled post' })}
         >
-          <Ionicons name="create-outline" size={16} color={theme.colors.text} />
-          <Text className="text-sm font-semibold text-foreground">
-            {t('common.edit', { defaultValue: 'Edit' })}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          className="flex-1 flex-row items-center justify-center gap-2 py-3 rounded-full"
-          style={{ backgroundColor: `${theme.colors.error}1A` }}
+          {t('common.edit', { defaultValue: 'Edit' })}
+        </Button>
+        <Button
+          className="flex-1"
+          variant="destructive"
+          size="large"
+          leadingIcon={RiDeleteBinLine}
           onPress={handleCancel}
           disabled={busy}
-          activeOpacity={0.85}
-          accessibilityRole="button"
+          loading={isCancelling}
           accessibilityLabel={t('compose.scheduled.cancelTitle', { defaultValue: 'Cancel scheduled post' })}
         >
-          {isCancelling ? (
-            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
-          ) : (
-            <Ionicons name="trash-outline" size={16} color={theme.colors.error} />
-          )}
-          <Text className="text-sm font-semibold" style={{ color: theme.colors.error }}>
-            {t('common.cancel')}
-          </Text>
-        </TouchableOpacity>
+          {t('common.cancel')}
+        </Button>
       </View>
     </PostPreviewSurface>
   );

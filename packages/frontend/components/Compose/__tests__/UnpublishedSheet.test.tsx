@@ -50,16 +50,18 @@ jest.mock('@oxy.so/bloom/theme', () => ({
   }),
 }));
 
-jest.mock('@/components/Header', () => {
+jest.mock('@oxy.so/bloom/page-header', () => {
   const react = jest.requireActual('react');
   const { View } = jest.requireActual('react-native');
-  return { Header: () => react.createElement(View) };
+  return { PageHeader: () => react.createElement(View) };
 });
 
-jest.mock('@/components/ui/Button', () => {
+jest.mock('@oxy.so/bloom/button', () => {
   const { TouchableOpacity } = jest.requireActual('react-native');
-  return { IconButton: TouchableOpacity };
+  return { Button: TouchableOpacity };
 });
+
+jest.mock('@oxy.so/bloom/icons', () => ({ RiCloseLine: () => null }));
 
 jest.mock('@/hooks/useScheduledPosts', () => ({
   useScheduledPosts: () => mockScheduled,
