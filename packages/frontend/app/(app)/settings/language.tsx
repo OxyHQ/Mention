@@ -1,7 +1,6 @@
 import React, { useCallback } from 'react';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { ScrollView } from 'react-native';
-import { ThemedView } from '@/components/ThemedView';
+import { ScrollView, View } from 'react-native';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { useAuth, useOxy } from '@oxy.so/services/ui/client';
@@ -40,7 +39,7 @@ export default function LanguageSettingsScreen() {
     const languageDescription = selectedLanguages.map((code) => getNativeLanguageName(code)).join(', ');
 
     return (
-        <ThemedView className="flex-1">
+        <View className="flex-1">
             <PageHeader title={t('Language')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
@@ -48,7 +47,7 @@ export default function LanguageSettingsScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup title={t('settings.language.selectLanguage')}>
+                <SettingsListGroup variant="filled" title={t('settings.language.selectLanguage')}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiGlobalLine} />}
                         title={t('Language')}
@@ -57,7 +56,7 @@ export default function LanguageSettingsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup title={t('settings.language.autoTranslate')}>
+                <SettingsListGroup variant="filled" title={t('settings.language.autoTranslate')}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiGlobalLine} />}
                         title={t('settings.language.autoTranslate')}
@@ -71,6 +70,6 @@ export default function LanguageSettingsScreen() {
                     />
                 </SettingsListGroup>
             </ScrollView>
-        </ThemedView>
+        </View>
     );
 }

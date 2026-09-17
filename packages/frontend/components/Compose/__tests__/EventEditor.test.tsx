@@ -47,11 +47,6 @@ jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
-jest.mock('@/components/ui/Button', () => {
-  const { TouchableOpacity } = jest.requireActual('react-native');
-  return { IconButton: TouchableOpacity };
-});
-
 const noop = () => {};
 
 const renderEditor = (date: string, onDateChange: (next: string) => void) => {

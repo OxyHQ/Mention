@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { RiAddCircleLine, RiInformationFill, RiSearchLine } from '@oxy.so/bloom/icons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
-import { ThemedView } from '@/components/ThemedView';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +10,6 @@ import { searchService } from '@/services/searchService';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
-import { Icon } from '@/lib/icons';
 import { useFocusEffect } from 'expo-router';
 import { queryKeys } from '@oxy.so/services';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
@@ -362,29 +361,29 @@ export default function RestrictedUsersScreen() {
 
     if (!isAuthResolved || isPrivateApiPending) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.privacy.restrictedUsers')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 items-center justify-center">
                     <Loading />
                 </View>
-            </ThemedView>
+            </View>
         );
     }
 
     if (!canUsePrivateApi) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.privacy.restrictedProfiles')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <OxyAuthPrompt
                     label={t('settings.privacy.restricted.signInRequired', { defaultValue: 'Sign in to manage restricted accounts' })}
                     description={t('settings.privacy.restricted.signInRequiredDesc', { defaultValue: 'Restricted accounts can interact with you but their replies are hidden by default.' })}
                 />
-            </ThemedView>
+            </View>
         );
     }
 
     return (
-        <ThemedView className="flex-1">
+        <View className="flex-1">
             <PageHeader title={t('settings.privacy.restrictedProfiles')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
@@ -392,18 +391,18 @@ export default function RestrictedUsersScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup>
+                <SettingsListGroup variant="filled">
                     <View className="px-4 py-3.5 flex-row items-center gap-3">
-                        <Icon name="information-circle" size={20} color={colors.primary} />
+                        <RiInformationFill width={20} height={20} fill={colors.primary} />
                         <Text className="flex-1 text-[13px] text-foreground">
                             {t('settings.privacy.restrictedUsersDescription')}
                         </Text>
                     </View>
                 </SettingsListGroup>
 
-                <SettingsListGroup title={t('settings.privacy.searchUsersToRestrict')}>
+                <SettingsListGroup variant="filled" title={t('settings.privacy.searchUsersToRestrict')}>
                     <View className="px-4 py-3 flex-row items-center gap-3">
-                        <Icon name="search" size={20} color={colors.textSecondary} />
+                        <RiSearchLine width={20} height={20} fill={colors.textSecondary} />
                         <TextInput
                             className="flex-1 text-[15px] text-foreground"
                             placeholder={t('settings.privacy.searchUsersToRestrict')}
@@ -420,7 +419,7 @@ export default function RestrictedUsersScreen() {
                 </SettingsListGroup>
 
                 {searchQuery.length > 0 && searchResults.length > 0 && (
-                    <SettingsListGroup>
+                    <SettingsListGroup variant="filled">
                         {searchResults.map((user) => {
                             const userId = getUserId(user);
                             const handle = user.username || user.handle || '';
@@ -440,7 +439,7 @@ export default function RestrictedUsersScreen() {
                                         isRestricting ? (
                                             <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
                                         ) : (
-                                            <Icon name="add-circle" size={22} color={colors.primary} />
+                                            <RiAddCircleLine width={22} height={22} fill={colors.primary} />
                                         )
                                     }
                                 />
@@ -457,7 +456,7 @@ export default function RestrictedUsersScreen() {
                     </View>
                 )}
 
-                <SettingsListGroup title={t('settings.privacy.restrictedUsers')}>
+                <SettingsListGroup variant="filled" title={t('settings.privacy.restrictedUsers')}>
                     {loading ? (
                         <View className="py-10 items-center">
                             <Loading className="text-primary" size="large" style={{ flex: undefined }} />
@@ -518,6 +517,6 @@ export default function RestrictedUsersScreen() {
                     )}
                 </SettingsListGroup>
             </ScrollView>
-        </ThemedView>
+        </View>
     );
 }

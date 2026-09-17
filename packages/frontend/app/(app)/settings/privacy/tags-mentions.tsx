@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, ScrollView } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
-import { ThemedView } from '@/components/ThemedView';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { authenticatedClient } from '@/utils/api';
@@ -72,40 +71,40 @@ export default function TagsMentionsScreen() {
 
     if (!isAuthResolved || isPrivateApiPending) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 items-center justify-center">
                     <Loading />
                 </View>
-            </ThemedView>
+            </View>
         );
     }
 
     if (!canUsePrivateApi) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <OxyAuthPrompt
                     label={t('settings.privacy.tagsMentions.signInRequired', { defaultValue: 'Sign in to manage tags and mentions' })}
                     description={t('settings.privacy.tagsMentions.signInRequiredDesc', { defaultValue: 'Control who can tag or mention you in posts.' })}
                 />
-            </ThemedView>
+            </View>
         );
     }
 
     if (loading) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
-            </ThemedView>
+            </View>
         );
     }
 
     return (
-        <ThemedView className="flex-1">
+        <View className="flex-1">
             <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
@@ -113,7 +112,7 @@ export default function TagsMentionsScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup>
+                <SettingsListGroup variant="filled">
                     <SettingsListItem
                         icon={<RowIcon icon={RiHashtag} />}
                         title={t('settings.privacy.allowTags')}
@@ -146,6 +145,6 @@ export default function TagsMentionsScreen() {
                     />
                 </SettingsListGroup>
             </ScrollView>
-        </ThemedView>
+        </View>
     );
 }

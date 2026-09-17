@@ -1,4 +1,5 @@
 import React from 'react';
+import { RiGitMergeLine, RiInformationFill } from '@oxy.so/bloom/icons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -11,9 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { createLogger } from '@oxy.so/core/logger';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { MutedLane } from '@mention/shared-types';
-import { ThemedView } from '@/components/ThemedView';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { Icon } from '@/lib/icons';
 import { EmptyState } from '@/components/common/EmptyState';
 import { getErrorMessage } from '@/utils/apiError';
 import { lanesService } from '@/services/lanesService';
@@ -73,7 +72,7 @@ export default function MutedLanesScreen() {
 
     if (!isAuthenticated) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 {header}
                 <OxyAuthPrompt
                     label={t('lanes.muted.signInRequired', { defaultValue: 'Sign in to manage muted lanes' })}
@@ -81,12 +80,12 @@ export default function MutedLanesScreen() {
                         defaultValue: 'A muted lane stops appearing in your feeds. You keep following its author, and everything else they post still reaches you.',
                     })}
                 />
-            </ThemedView>
+            </View>
         );
     }
 
     return (
-        <ThemedView className="flex-1">
+        <View className="flex-1">
             {header}
 
             <ScrollView
@@ -94,9 +93,9 @@ export default function MutedLanesScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup>
+                <SettingsListGroup variant="filled">
                     <View className="px-4 py-3.5 flex-row items-center gap-3">
-                        <Icon name="information-circle" size={20} color={colors.primary} />
+                        <RiInformationFill width={20} height={20} fill={colors.primary} />
                         <Text className="flex-1 text-[13px] text-foreground">
                             {t('lanes.muted.description', {
                                 defaultValue: 'A muted lane stops appearing in your feeds. You keep following its author, and everything else they post still reaches you.',
@@ -105,7 +104,7 @@ export default function MutedLanesScreen() {
                     </View>
                 </SettingsListGroup>
 
-                <SettingsListGroup title={t('lanes.muted.title', { defaultValue: 'Muted lanes' })}>
+                <SettingsListGroup variant="filled" title={t('lanes.muted.title', { defaultValue: 'Muted lanes' })}>
                     {isLoading ? (
                         <View className="py-10 items-center">
                             <Loading className="text-primary" size="large" style={{ flex: undefined }} />
@@ -140,7 +139,7 @@ export default function MutedLanesScreen() {
                             return (
                                 <SettingsListItem
                                     key={entry.lane.id}
-                                    icon={<Icon name="git-branch-outline" size={20} color={colors.textSecondary} />}
+                                    icon={<RiGitMergeLine width={20} height={20} fill={colors.textSecondary} />}
                                     title={entry.lane.name}
                                     description={handle ? `@${handle}` : undefined}
                                     showChevron={false}
@@ -164,6 +163,6 @@ export default function MutedLanesScreen() {
                     )}
                 </SettingsListGroup>
             </ScrollView>
-        </ThemedView>
+        </View>
     );
 }

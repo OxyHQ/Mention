@@ -9,7 +9,6 @@ import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { resolveFollowPrimaryAction, useFollowTarget } from '@oxy.so/services';
 import type { TopicData } from '@oxy.so/core';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { ThemedView } from '@/components/ThemedView';
 import { topicService } from '@/services/topicService';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { cn } from '@/lib/utils';
@@ -71,7 +70,7 @@ export default function InterestsSettingsScreen() {
     if (isPrivateApiPending) {
         return (
             <InterestsShell t={t} safeBack={safeBack}>
-                <View className="flex-1 justify-center items-center bg-background">
+                <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
             </InterestsShell>
@@ -117,7 +116,7 @@ export default function InterestsSettingsScreen() {
                     />
                 </View>
 
-                <SettingsListGroup
+                <SettingsListGroup variant="filled"
                     title={t('settings.interests.title', { defaultValue: 'Your interests' })}
                     footer={t('settings.interests.description', {
                         defaultValue:
@@ -173,10 +172,10 @@ interface ShellProps {
 /** The chrome every branch of this screen shares, so the header cannot drift. */
 function InterestsShell({ t, safeBack, children }: ShellProps) {
     return (
-        <ThemedView className="flex-1">
+        <View className="flex-1">
             <PageHeader title={t('settings.interests.title', { defaultValue: 'Your interests' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
             {children}
-        </ThemedView>
+        </View>
     );
 }
 

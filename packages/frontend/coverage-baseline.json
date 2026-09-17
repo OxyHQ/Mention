@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 33.4,
-      "covered": 8781,
-      "total": 26284
+      "pct": 33.85,
+      "covered": 8868,
+      "total": 26196
     },
     "branches": {
-      "pct": 28.71,
-      "covered": 5493,
-      "total": 19127
+      "pct": 29.25,
+      "covered": 5579,
+      "total": 19070
     },
     "functions": {
-      "pct": 28.35,
-      "covered": 1882,
-      "total": 6638
+      "pct": 28.85,
+      "covered": 1912,
+      "total": 6626
     },
     "lines": {
-      "pct": 34.04,
-      "covered": 8039,
-      "total": 23610
+      "pct": 34.49,
+      "covered": 8115,
+      "total": 23523
     }
   },
   "pins": {
@@ -150,10 +150,10 @@
       "lines": 100
     },
     "hooks/useAccountTheme.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 50,
+      "branches": 37,
+      "functions": 50,
+      "lines": 53
     },
     "hooks/useAppColorSave.ts": {
       "statements": 0,
@@ -718,12 +718,6 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
-    },
-    "lib/icons.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
     },
     "lib/keyedAsyncQueue.ts": {
       "statements": 84,
@@ -1332,10 +1326,10 @@
       "lines": 93
     },
     "utils/forYouTuning.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "utils/formatDuration.ts": {
       "statements": 100,
@@ -1374,10 +1368,10 @@
       "lines": 100
     },
     "utils/jobVocabulary.ts": {
-      "statements": 88,
+      "statements": 91,
       "branches": 91,
-      "functions": 85,
-      "lines": 87
+      "functions": 92,
+      "lines": 90
     },
     "utils/linkifyPattern.ts": {
       "statements": 91,
@@ -1482,16 +1476,16 @@
       "lines": 100
     },
     "utils/shareLink.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 52,
+      "branches": 50,
+      "functions": 100,
+      "lines": 52
     },
     "utils/storage.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "utils/trendGraphTree.ts": {
       "statements": 96,

@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,11 +9,9 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { ThemedView } from '@/components/ThemedView';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@oxy.so/bloom/button';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { RiSparklingLine } from '@oxy.so/bloom/icons';
-import { Icon } from '@/lib/icons';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDialog } from '@/utils/alerts';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
@@ -141,18 +140,18 @@ export default function ConnectedAiScreen() {
 
   if (!isAuthResolved || isPrivateApiPending) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center">
           <Loading />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   if (!canUsePrivateApi) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <OxyAuthPrompt
           label={t('mcp.connections.signInRequired', { defaultValue: 'Sign in to manage connected apps' })}
@@ -160,12 +159,12 @@ export default function ConnectedAiScreen() {
             defaultValue: 'Sign in to review and revoke AI apps connected to your Mention account.',
           })}
         />
-      </ThemedView>
+      </View>
     );
   }
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1">
       {header}
       <ScrollView className="flex-1" contentContainerClassName="px-screen-margin py-2" showsVerticalScrollIndicator={false}>
         {isLoading ? (
@@ -174,7 +173,7 @@ export default function ConnectedAiScreen() {
           </View>
         ) : isError ? (
           <View className="px-6 py-10 items-center gap-3">
-            <Icon name="cloud-offline-outline" size={44} color={colors.textSecondary} />
+            <Ionicons name="cloud-offline-outline" size={44} color={colors.textSecondary} />
             <Text className="text-base text-foreground text-center">
               {t('mcp.connections.loadError', { defaultValue: "Couldn't load connected apps" })}
             </Text>
@@ -187,7 +186,7 @@ export default function ConnectedAiScreen() {
             <View
               className="w-16 h-16 rounded-full items-center justify-center bg-primary/10"
             >
-              <Icon name="sparkles-outline" size={32} color={colors.primary} />
+              <RiSparklingLine width={32} height={32} fill={colors.primary} />
             </View>
             <Text className="text-xl font-bold text-foreground text-center">
               {t('mcp.connections.empty.title', { defaultValue: 'No connected apps' })}
@@ -200,7 +199,7 @@ export default function ConnectedAiScreen() {
             </Text>
           </View>
         ) : (
-          <SettingsListGroup
+          <SettingsListGroup variant="filled"
             footer={t('mcp.connections.footer', {
               defaultValue: 'These apps can access your Mention account on your behalf. Revoke any you no longer use.',
             })}
@@ -247,6 +246,6 @@ export default function ConnectedAiScreen() {
           </SettingsListGroup>
         )}
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }

@@ -1,8 +1,8 @@
 import React, { useState, useCallback } from 'react';
+import { RiAddCircleLine, RiSearchLine } from '@oxy.so/bloom/icons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
-import { ThemedView } from '@/components/ThemedView';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +10,6 @@ import { searchService } from '@/services/searchService';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
-import { Icon } from '@/lib/icons';
 import { useFocusEffect } from 'expo-router';
 import { queryKeys } from '@oxy.so/services';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
@@ -303,29 +302,29 @@ export default function BlockedUsersScreen() {
 
     if (!isAuthResolved || isPrivateApiPending) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.privacy.blockedUsers')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 items-center justify-center">
                     <Loading />
                 </View>
-            </ThemedView>
+            </View>
         );
     }
 
     if (!canUsePrivateApi) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.privacy.blockedProfiles')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <OxyAuthPrompt
                     label={t('settings.privacy.blocked.signInRequired', { defaultValue: 'Sign in to manage blocked accounts' })}
                     description={t('settings.privacy.blocked.signInRequiredDesc', { defaultValue: 'You can block or unblock people once signed in.' })}
                 />
-            </ThemedView>
+            </View>
         );
     }
 
     return (
-        <ThemedView className="flex-1">
+        <View className="flex-1">
             <PageHeader title={t('settings.privacy.blockedProfiles')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
@@ -333,9 +332,9 @@ export default function BlockedUsersScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup title={t('settings.privacy.searchUsersToBlock')}>
+                <SettingsListGroup variant="filled" title={t('settings.privacy.searchUsersToBlock')}>
                     <View className="px-4 py-3 flex-row items-center gap-3">
-                        <Icon name="search" size={20} color={colors.textSecondary} />
+                        <RiSearchLine width={20} height={20} fill={colors.textSecondary} />
                         <TextInput
                             className="flex-1 text-[15px] text-foreground"
                             placeholder={t('settings.privacy.searchUsersToBlock')}
@@ -352,7 +351,7 @@ export default function BlockedUsersScreen() {
                 </SettingsListGroup>
 
                 {searchQuery.length > 0 && searchResults.length > 0 && (
-                    <SettingsListGroup>
+                    <SettingsListGroup variant="filled">
                         {searchResults.map((user) => {
                             const userId = getUserId(user);
                             const handle = user.username || user.handle || '';
@@ -372,7 +371,7 @@ export default function BlockedUsersScreen() {
                                         isBlocking ? (
                                             <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
                                         ) : (
-                                            <Icon name="add-circle" size={22} color={colors.primary} />
+                                            <RiAddCircleLine width={22} height={22} fill={colors.primary} />
                                         )
                                     }
                                 />
@@ -389,7 +388,7 @@ export default function BlockedUsersScreen() {
                     </View>
                 )}
 
-                <SettingsListGroup title={t('settings.privacy.blockedUsers')}>
+                <SettingsListGroup variant="filled" title={t('settings.privacy.blockedUsers')}>
                     {loading ? (
                         <View className="py-10 items-center">
                             <Loading className="text-primary" size="large" style={{ flex: undefined }} />
@@ -450,6 +449,6 @@ export default function BlockedUsersScreen() {
                     )}
                 </SettingsListGroup>
             </ScrollView>
-        </ThemedView>
+        </View>
     );
 }

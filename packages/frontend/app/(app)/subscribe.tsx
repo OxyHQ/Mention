@@ -37,7 +37,7 @@ export default function SubscribeScreen() {
             </View>
 
             {/* Features */}
-            <SettingsListGroup title={t('subscribe.featuresTitle')}>
+            <SettingsListGroup variant="filled" title={t('subscribe.featuresTitle')}>
                 <SettingsListItem icon={<RowIcon icon={RiSparklingLine} />} title={t('subscribe.aiFeatures')} showChevron={false} />
                 <SettingsListItem icon={<RowIcon icon={RiShieldCheckLine} />} title={t('subscribe.verifiedBadge')} showChevron={false} />
             </SettingsListGroup>

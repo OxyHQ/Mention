@@ -1,7 +1,6 @@
 import React from 'react';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { ScrollView, Platform } from 'react-native';
-import { ThemedView } from '@/components/ThemedView';
+import { ScrollView, Platform, View } from 'react-native';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Toggle } from '@/components/Toggle';
 import { useTranslation } from 'react-i18next';
@@ -17,7 +16,7 @@ export default function AccessibilitySettingsScreen() {
     const setHapticsDisabled = useHapticsStore((s) => s.setDisabled);
 
     return (
-        <ThemedView className="flex-1">
+        <View className="flex-1">
             <PageHeader title={t('settings.accessibility.title', { defaultValue: 'Accessibility' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
@@ -27,7 +26,7 @@ export default function AccessibilitySettingsScreen() {
             >
                 {/* Interaction */}
                 {Platform.OS !== 'web' ? (
-                    <SettingsListGroup title={t('settings.accessibility.interaction', { defaultValue: 'Interaction' })}>
+                    <SettingsListGroup variant="filled" title={t('settings.accessibility.interaction', { defaultValue: 'Interaction' })}>
                         <SettingsListItem
                             icon={<RowIcon icon={RiHand} />}
                             title={t('settings.accessibility.hapticFeedback', { defaultValue: 'Haptic feedback' })}
@@ -44,7 +43,7 @@ export default function AccessibilitySettingsScreen() {
                 ) : null}
 
                 {/* Media */}
-                <SettingsListGroup title={t('settings.accessibility.media', { defaultValue: 'Media' })}>
+                <SettingsListGroup variant="filled" title={t('settings.accessibility.media', { defaultValue: 'Media' })}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiFontSize} />}
                         title={t('settings.accessibility.requireAltText', { defaultValue: 'Require alt text' })}
@@ -59,6 +58,6 @@ export default function AccessibilitySettingsScreen() {
                     />
                 </SettingsListGroup>
             </ScrollView>
-        </ThemedView>
+        </View>
     );
 }
