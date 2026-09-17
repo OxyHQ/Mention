@@ -64,7 +64,7 @@ export function ProfileChromeLayers({
     <>
       {/* Banner. NATIVE: `absolute left-0 right-0 top:0` (height 170,
           zIndex 1) over the NON-scrolling root — the content scrolls OVER
-          it, and the `bg-background` overlay fades it out over the first
+          it, and the `bg-card` overlay fades it out over the first
           120px via `headerBackgroundOpacity`. WEB: there is no inner
           ScrollView (the DOCUMENT scrolls), so an `absolute` banner would
           scroll away. Instead it is `web:sticky` + `panelStickyTopInset`
@@ -90,7 +90,7 @@ export function ProfileChromeLayers({
               style={{ height: BANNER_HEIGHT, transform: [{ scale: chrome.bannerScale }] }}
             />
             <Animated.View
-              className="absolute left-0 right-0 top-0 overflow-hidden bg-background"
+              className="absolute left-0 right-0 top-0 overflow-hidden bg-card"
               style={{
                 height: BANNER_HEIGHT,
                 zIndex: 1,
@@ -105,7 +105,7 @@ export function ProfileChromeLayers({
             style={[webStickyChrome.banner, chrome.panelStickyTopInset, { height: BANNER_HEIGHT }]}
           >
             <Animated.View
-              className="bg-background"
+              className="bg-card"
               style={[StyleSheet.absoluteFill, { opacity: chrome.headerBackgroundOpacity }]}
             />
           </View>
@@ -115,10 +115,10 @@ export function ProfileChromeLayers({
           pinned in contact with the tab bar, the action cluster +
           compact-name overlay are 0-flow-height anchors with NO background
           of their own — so the scrolling feed (z-3) would show THROUGH the
-          header band while the opaque tabs (`bg-background`) sit right
+          header band while the opaque tabs (`bg-card`) sit right
           below, reading as an incoherent transparent-header / opaque-tabs
           split. This sticky surface fills the 48px header band with the SAME
-          `bg-background` token the tab bar uses, so header + tabs read as
+          `bg-card` token the tab bar uses, so header + tabs read as
           ONE cohesive opaque bar. Its opacity is driven by the SAME
           `headerBackgroundOpacity` as the banner fade: 0 when expanded (the
           banner shows through — restored parallax preserved) → 1 once
@@ -141,7 +141,7 @@ export function ProfileChromeLayers({
           style={[chrome.panelStickyTopInset, { height: PANEL_HEADER_HEIGHT }]}
         >
           <Animated.View
-            className="bg-background"
+            className="bg-card"
             style={[StyleSheet.absoluteFill, { opacity: chrome.headerBackgroundOpacity }]}
           />
         </View>

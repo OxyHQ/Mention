@@ -30,7 +30,7 @@ export function ProfileTabBarRow({ children, showLanes }: ProfileTabBarRowProps)
   const { t } = useTranslation();
   const { colors } = useTheme();
   return (
-    <View className="flex-row items-center border-b border-border bg-background">
+    <View className="flex-row items-center border-b border-border bg-card">
       <View className="flex-1" style={{ minWidth: 0 }}>
         {children}
       </View>

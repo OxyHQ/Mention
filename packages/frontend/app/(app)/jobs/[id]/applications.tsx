@@ -156,7 +156,7 @@ export default function JobApplicationsScreen() {
             data={applications}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <View className="mx-4 mb-3 border border-border bg-background rounded-[14px] p-4">
+              <View className="mx-4 mb-3 border border-border bg-card rounded-[14px] p-4">
                 <View className="flex-row items-start justify-between gap-2">
                   <Text
                     className="flex-1 text-foreground text-[15px] font-semibold"

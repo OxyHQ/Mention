@@ -127,7 +127,7 @@ const ChipInput = ({
         placeholder={t('feeds.builder.chipPlaceholder')}
         placeholderTextColor={theme.colors.textSecondary}
         style={styles.input}
-        className="text-[15px] text-foreground bg-background border border-border rounded-xl px-3"
+        className="text-[15px] text-foreground bg-card border border-border rounded-xl px-3"
         blurOnSubmit={false}
         returnKeyType="done"
       />
@@ -204,7 +204,7 @@ const AccountPicker = ({
         placeholder={t('feeds.builder.searchAccounts')}
         placeholderTextColor={theme.colors.textSecondary}
         style={styles.input}
-        className="text-[15px] text-foreground bg-background border border-border rounded-xl px-3"
+        className="text-[15px] text-foreground bg-card border border-border rounded-xl px-3"
       />
 
       {results.map((u) => (
@@ -415,7 +415,7 @@ const SchemaParamField = ({
           }}
           placeholderTextColor={theme.colors.textSecondary}
           style={styles.input}
-          className="text-[15px] text-foreground bg-background border border-border rounded-xl px-3"
+          className="text-[15px] text-foreground bg-card border border-border rounded-xl px-3"
         />
       </View>
     );
@@ -429,7 +429,7 @@ const SchemaParamField = ({
         onChangeText={(txt) => onChange(txt)}
         placeholderTextColor={theme.colors.textSecondary}
         style={styles.input}
-        className="text-[15px] text-foreground bg-background border border-border rounded-xl px-3"
+        className="text-[15px] text-foreground bg-card border border-border rounded-xl px-3"
       />
     </View>
   );

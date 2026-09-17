@@ -271,7 +271,7 @@ export default function EditStarterPackScreen() {
           onChangeText={setName}
           placeholder="e.g. Tech people to follow"
           placeholderTextColor={theme.colors.textSecondary}
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-background font-primary"
+          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
           style={INPUT_STYLE}
         />
 
@@ -281,7 +281,7 @@ export default function EditStarterPackScreen() {
           onChangeText={setDescription}
           placeholder="What is this starter pack about?"
           placeholderTextColor={theme.colors.textSecondary}
-          className="border border-border rounded-[10px] p-2.5 mb-3 text-foreground bg-background font-primary h-20"
+          className="border border-border rounded-[10px] p-2.5 mb-3 text-foreground bg-card font-primary h-20"
           style={INPUT_STYLE}
           multiline
         />
@@ -316,7 +316,7 @@ export default function EditStarterPackScreen() {
         )}
 
         {results.length > 0 && (
-          <View className="border border-border rounded-[14px] overflow-hidden mt-2.5 bg-background">
+          <View className="border border-border rounded-[14px] overflow-hidden mt-2.5 bg-card">
             {results.map((u, index) => {
               const already = memberIdSet.has(u.id);
               const busy = pendingIds.has(u.id);
@@ -381,7 +381,7 @@ export default function EditStarterPackScreen() {
             </Text>
           </View>
         ) : (
-          <View className="border border-border rounded-[14px] overflow-hidden bg-background">
+          <View className="border border-border rounded-[14px] overflow-hidden bg-card">
             {members.map((m, index) => {
               const busy = pendingIds.has(m.id);
               return (

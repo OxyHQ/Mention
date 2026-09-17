@@ -59,7 +59,7 @@ export function InlineReplyComposer({ postId, onPosted, focusNonce = 0 }: Inline
   }, [text, submitting, createReply, postId, onPosted, t]);
 
   return (
-    <View style={styles.row} className="border-t border-border bg-background">
+    <View style={styles.row} className="border-t border-border bg-card">
       <TextInput
         ref={inputRef}
         value={text}

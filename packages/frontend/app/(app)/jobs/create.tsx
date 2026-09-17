@@ -291,7 +291,7 @@ export default function CreateJobScreen() {
         <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
           {t('jobs.create.employer', { defaultValue: 'Publish as' })}
         </Text>
-        <View className="border border-border rounded-[14px] overflow-hidden bg-background">
+        <View className="border border-border rounded-[14px] overflow-hidden bg-card">
           <Item
             onPress={() => setEmployerPickerOpen(true)}
             leading={

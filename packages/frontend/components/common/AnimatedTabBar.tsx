@@ -167,7 +167,7 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
 
     return (
         <View
-            className="relative border-b border-border bg-background"
+            className="relative border-b border-border bg-card"
             style={style}
             onLayout={(e) => { containerWidthRef.current = e.nativeEvent.layout.width; }}
         >

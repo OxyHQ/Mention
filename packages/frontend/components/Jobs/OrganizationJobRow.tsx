@@ -86,7 +86,7 @@ const OrganizationJobRow = memo(function OrganizationJobRow({ job }: Organizatio
   return (
     <Pressable
       onPress={open}
-      className="border border-border bg-background rounded-[14px] p-4"
+      className="border border-border bg-card rounded-[14px] p-4"
       accessibilityRole="button"
       accessibilityLabel={job.title}
     >

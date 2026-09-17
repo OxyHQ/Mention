@@ -216,7 +216,7 @@ export default function EditListMembersScreen() {
         <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
           {t('lists.edit.addMembers', { defaultValue: 'Add members' })}
         </Text>
-        <View className="flex-row items-center border border-border rounded-[10px] px-2.5 mb-2.5 bg-background">
+        <View className="flex-row items-center border border-border rounded-[10px] px-2.5 mb-2.5 bg-card">
           <RiSearchLine width={18} height={18} fill={theme.colors.textSecondary} />
           <TextInput
             value={search}

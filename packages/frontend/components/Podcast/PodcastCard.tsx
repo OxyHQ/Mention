@@ -204,7 +204,7 @@ export const PodcastCard = memo(function PodcastCard({
           />
         ) : (
           <View
-            className="rounded-xl bg-background items-center justify-center"
+            className="rounded-xl bg-card items-center justify-center"
             style={{ width: 56, height: 56 }}
           >
             <RiMic2Line size="lg" fill={colors.textSecondary} />

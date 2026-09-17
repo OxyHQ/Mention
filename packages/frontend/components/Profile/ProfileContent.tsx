@@ -64,7 +64,7 @@ export const ProfileContent = memo(function ProfileContent({
 
   return (
     <View
-      className="bg-background"
+      className="bg-card"
       style={{
         paddingHorizontal: LAYOUT.DEFAULT_PADDING,
         paddingBottom: LAYOUT.DEFAULT_PADDING,

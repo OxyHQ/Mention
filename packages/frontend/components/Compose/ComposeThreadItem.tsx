@@ -367,7 +367,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                     onPress={handlePollPress}
                   >
                     <View style={styles.pollAttachmentHeader}>
-                      <View className="bg-background" style={styles.pollAttachmentBadge}>
+                      <View className="bg-card" style={styles.pollAttachmentBadge}>
                         <PollIcon size={16} className="text-primary" />
                         <Text className="text-primary" style={styles.pollAttachmentBadgeText}>
                           {t('compose.poll.title', { defaultValue: 'Poll' })}
@@ -394,7 +394,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                         return (
                           <View
                             key={`thread-${threadId}-poll-opt-${index}`}
-                            className="border-border bg-background" style={styles.pollAttachmentOption}
+                            className="border-border bg-card" style={styles.pollAttachmentOption}
                           >
                             <Text className="text-muted-foreground" style={styles.pollAttachmentOptionText} numberOfLines={1}>
                               {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: 'Option {{index}}', index: index + 1 })}
@@ -411,7 +411,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={handlePollRemove}
-                    className="bg-background" style={styles.pollAttachmentRemoveButton}
+                    className="bg-card" style={styles.pollAttachmentRemoveButton}
                     hitSlop={HIT_SLOP_SM}
                   >
                     <CloseIcon size={16} className="text-foreground" />
@@ -462,7 +462,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                     ) : null}
                     <TouchableOpacity
                       onPress={() => onMediaRemove(threadId, mediaItem.id)}
-                      className="bg-background" style={styles.mediaRemoveButton}
+                      className="bg-card" style={styles.mediaRemoveButton}
                       hitSlop={HIT_SLOP_SM}
                     >
                       <CloseIcon size={16} className="text-foreground" />
@@ -488,7 +488,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={handleArticleRemove}
-                    className="bg-background" style={styles.pollAttachmentRemoveButton}
+                    className="bg-card" style={styles.pollAttachmentRemoveButton}
                     hitSlop={HIT_SLOP_SM}
                   >
                     <CloseIcon size={16} className="text-foreground" />
@@ -514,7 +514,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={handleEventRemove}
-                    className="bg-background" style={styles.pollAttachmentRemoveButton}
+                    className="bg-card" style={styles.pollAttachmentRemoveButton}
                     hitSlop={HIT_SLOP_SM}
                   >
                     <CloseIcon size={16} className="text-foreground" />
@@ -539,7 +539,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                   </View>
                   <TouchableOpacity
                     onPress={handlePodcastRemove}
-                    className="bg-background" style={styles.pollAttachmentRemoveButton}
+                    className="bg-card" style={styles.pollAttachmentRemoveButton}
                     hitSlop={HIT_SLOP_SM}
                   >
                     <CloseIcon size={16} className="text-foreground" />
@@ -567,7 +567,7 @@ const ComposeThreadItem = memo<ComposeThreadItemProps>(({
                   </View>
                   <TouchableOpacity
                     onPress={handleRoomRemove}
-                    className="bg-background" style={styles.pollAttachmentRemoveButton}
+                    className="bg-card" style={styles.pollAttachmentRemoveButton}
                     hitSlop={HIT_SLOP_SM}
                   >
                     <CloseIcon size={16} className="text-foreground" />

@@ -83,7 +83,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
   };
 
   if (loading) return (
-    <View className="flex-1 w-full p-3 bg-background" style={{ width }}>
+    <View className="flex-1 w-full p-3 bg-card" style={{ width }}>
       <Loading className="text-primary" size="small" style={{ flex: undefined }} />
     </View>
   );
@@ -91,7 +91,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
   if (error || !poll) return null;
 
   return (
-    <View className="flex-1 w-full p-3 bg-background" style={{ width }}>
+    <View className="flex-1 w-full p-3 bg-card" style={{ width }}>
       <Text className="text-foreground text-base font-semibold mb-2" numberOfLines={3}>{poll.question}</Text>
       <View className="gap-2">
         {poll.options.map((opt: PollDetailOption) => {
@@ -102,7 +102,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
               onPress={() => handleVote(opt._id)}
               hitSlop={HIT_SLOP_MD}
               disabled={ended || (hasVoted && !poll.isMultipleChoice) || voting}
-              className="border-border bg-background"
+              className="border-border bg-card"
               style={({ pressed }) => [
                 styles.option,
                 pressed ? { opacity: 0.9 } : null,

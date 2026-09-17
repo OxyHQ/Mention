@@ -222,7 +222,7 @@ function EmbeddedWebFeed(props: FeedProps) {
     );
 
     return (
-        <View className="bg-background" style={[{ minHeight: 0 }, merged.style]}>
+        <View className="bg-card" style={[{ minHeight: 0 }, merged.style]}>
             {header}
             {listStickyHeaderComponent}
             {listLeadingComponent}
@@ -517,7 +517,7 @@ function VirtualizedWebFeed(props: FeedProps) {
             retryLabel={t("error.boundary.retry")}
             onError={handleBoundaryError}
         >
-            <View className="bg-background" style={merged.style}>
+            <View className="bg-card" style={merged.style}>
                 {header}
                 {listStickyHeaderComponent}
                 {listLeadingComponent}

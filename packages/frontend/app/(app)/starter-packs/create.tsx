@@ -90,7 +90,7 @@ export default function CreateStarterPackScreen() {
           value={name}
           onChangeText={setName}
           placeholder="e.g. Tech people to follow"
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-background font-primary"
+          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
           style={styles.input}
         />
 
@@ -99,7 +99,7 @@ export default function CreateStarterPackScreen() {
           value={description}
           onChangeText={setDescription}
           placeholder={t('starterPacks.descriptionPlaceholder')}
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-background font-primary h-20"
+          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary h-20"
           style={styles.input}
           multiline
         />
@@ -109,7 +109,7 @@ export default function CreateStarterPackScreen() {
           value={search}
           onChangeText={doSearch}
           placeholder={t('starterPacks.searchUsersPlaceholder')}
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-background font-primary"
+          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
           style={styles.input}
         />
 

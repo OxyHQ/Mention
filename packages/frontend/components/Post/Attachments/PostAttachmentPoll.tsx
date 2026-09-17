@@ -33,7 +33,7 @@ const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({ pollId, pollDat
         <View className="flex-1 bg-muted p-4">
           <Text className="text-foreground text-base font-bold mb-3">{pollData.question}</Text>
           {pollData.options?.map((option: string, optIdx: number) => (
-            <View key={optIdx} className="bg-background border border-border p-3 rounded-lg mb-2">
+            <View key={optIdx} className="bg-card border border-border p-3 rounded-lg mb-2">
               <Text className="text-foreground text-sm">{option}</Text>
             </View>
           ))}

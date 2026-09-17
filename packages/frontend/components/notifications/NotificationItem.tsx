@@ -530,7 +530,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
     });
 
     bottomSheet.setBottomSheetContent(
-      <View className="bg-background p-4">
+      <View className="bg-card p-4">
         {rows.map((row, index) => (
           <NotificationActionRow
             key={row.key}
@@ -648,7 +648,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   // get the same subtle primary tint the feed uses for emphasis.
   return (
     <Pressable
-      className={cn('group w-full bg-background border-b border-border py-3', hasUnread && 'bg-primary/5')}
+      className={cn('group w-full bg-card border-b border-border py-3', hasUnread && 'bg-primary/5')}
       onPress={handlePress}
       onLongPress={handleLongPress}
       accessibilityRole="button"
