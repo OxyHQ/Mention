@@ -48,7 +48,15 @@ const MIN_WIDTH = 100;
 const SINGLE_MEDIA_FALLBACK_ASPECT_RATIO = MEDIA_CARD_WIDTH / MEDIA_CARD_HEIGHT;
 /** Portrait floor (4:5) — the tallest a single-media card may grow before clamping. */
 const SINGLE_MEDIA_MIN_ASPECT_RATIO = 4 / 5;
-const SINGLE_MEDIA_MAX_HEIGHT = Math.round(MEDIA_CARD_WIDTH / SINGLE_MEDIA_MIN_ASPECT_RATIO);
+
+/**
+ * Width of a media cell that is ALONE in the row: the whole row. A lone
+ * attachment is the post's content, not one card among several, so it is laid
+ * out edge to edge like any other full-width element of the post.
+ */
+function singleCardWidth(availableWidth?: number): number {
+  return availableWidth !== undefined && availableWidth > 0 ? availableWidth : MEDIA_CARD_WIDTH;
+}
 
 /**
  * Width of a media card, never wider than the space the row actually has. A
@@ -90,6 +98,7 @@ function useMediaCardStyle(
   hasSingleMedia: boolean,
   recordAspectRatio?: number,
   availableWidth?: number,
+  rowHeight: number = MEDIA_CARD_HEIGHT,
 ): {
   cardStyle: ViewStyle;
   onAspectRatio: (ratio: number) => void;
@@ -113,22 +122,24 @@ function useMediaCardStyle(
       // an image sitting side by side match: fixed card height, width from the
       // ratio, floored so a very tall portrait video is still tappable.
       const preferredWidth = aspectRatio !== undefined
-        ? Math.max(MEDIA_CARD_HEIGHT * aspectRatio, MIN_WIDTH)
-        : MEDIA_CARD_WIDTH;
+        ? Math.max(rowHeight * aspectRatio, MIN_WIDTH)
+        : rowHeight * SINGLE_MEDIA_FALLBACK_ASPECT_RATIO;
       return {
         width: clampCardWidth(preferredWidth, availableWidth),
-        height: MEDIA_CARD_HEIGHT,
+        height: rowHeight,
         alignSelf: 'flex-start',
       };
     }
-    const width = clampCardWidth(MEDIA_CARD_WIDTH, availableWidth);
+    const width = singleCardWidth(availableWidth);
     if (aspectRatio === undefined) {
       return Platform.OS === 'web'
         ? { width }
-        : { width, aspectRatio: SINGLE_MEDIA_FALLBACK_ASPECT_RATIO, maxHeight: SINGLE_MEDIA_MAX_HEIGHT };
+        : { width, aspectRatio: SINGLE_MEDIA_FALLBACK_ASPECT_RATIO };
     }
-    return { width, aspectRatio, maxHeight: SINGLE_MEDIA_MAX_HEIGHT };
-  }, [hasSingleMedia, aspectRatio, availableWidth]);
+    // A portrait video is letterboxed inside a 4:5 box rather than running a
+    // full-width card off the bottom of the screen.
+    return { width, aspectRatio: Math.max(aspectRatio, SINGLE_MEDIA_MIN_ASPECT_RATIO) };
+  }, [hasSingleMedia, aspectRatio, availableWidth, rowHeight]);
   return { cardStyle, onAspectRatio };
 }
 
@@ -170,6 +181,11 @@ interface PostAttachmentMediaProps {
    */
   availableWidth?: number;
   /**
+   * The one height every item of a multi-item row shares. Ignored for a cell
+   * that is alone in the row (`hasSingleMedia`), which takes the full width.
+   */
+  rowHeight?: number;
+  /**
    * Image only: registers the thumbnail's measurable host node with the parent
    * row's per-index registry so the gallery can fly back to it on dismiss.
    */
@@ -194,6 +210,7 @@ interface PostAttachmentVideoProps {
   onPress?: () => void;
   hasSingleMedia?: boolean;
   availableWidth?: number;
+  rowHeight?: number;
 }
 
 /**
@@ -212,9 +229,9 @@ interface PostAttachmentVideoProps {
 const PostAttachmentVideoShell: React.FC<PostAttachmentVideoProps & {
   player?: ExpoVideoPlayer;
   flightHostId?: string;
-}> = ({ src, poster, aspectRatio, width, height, postId, onPress, hasSingleMedia, availableWidth, player, flightHostId }) => {
+}> = ({ src, poster, aspectRatio, width, height, postId, onPress, hasSingleMedia, availableWidth, rowHeight, player, flightHostId }) => {
   const recordRatio = readMediaAspectRatio({ aspectRatio, width, height });
-  const { cardStyle, onAspectRatio } = useMediaCardStyle(Boolean(hasSingleMedia), recordRatio, availableWidth);
+  const { cardStyle, onAspectRatio } = useMediaCardStyle(Boolean(hasSingleMedia), recordRatio, availableWidth, rowHeight);
   return (
     <View
       className="bg-muted rounded-[15px] overflow-hidden"
@@ -268,9 +285,10 @@ const PostAttachmentGif: React.FC<{
   postId?: string;
   hasSingleMedia?: boolean;
   availableWidth?: number;
-}> = ({ src, aspectRatio, width, height, postId, hasSingleMedia, availableWidth }) => {
+  rowHeight?: number;
+}> = ({ src, aspectRatio, width, height, postId, hasSingleMedia, availableWidth, rowHeight }) => {
   const recordRatio = readMediaAspectRatio({ aspectRatio, width, height });
-  const { cardStyle, onAspectRatio } = useMediaCardStyle(Boolean(hasSingleMedia), recordRatio, availableWidth);
+  const { cardStyle, onAspectRatio } = useMediaCardStyle(Boolean(hasSingleMedia), recordRatio, availableWidth, rowHeight);
   return (
     <View
       className="bg-muted rounded-[15px] overflow-hidden"
@@ -303,7 +321,8 @@ const PostAttachmentImage: React.FC<{
   registerHost?: RegisterThumbHost;
   hasSingleMedia?: boolean;
   availableWidth?: number;
-}> = ({ src, alt, aspectRatio: dtoAspectRatio, width, height, onPress, registerHost, hasSingleMedia, availableWidth }) => {
+  rowHeight?: number;
+}> = ({ src, alt, aspectRatio: dtoAspectRatio, width, height, onPress, registerHost, hasSingleMedia, availableWidth, rowHeight = MEDIA_CARD_HEIGHT }) => {
   const theme = useTheme();
   const wrapperRef = useRef<View | null>(null);
   const initialRatio = readMediaAspectRatio({ aspectRatio: dtoAspectRatio, width, height })
@@ -364,19 +383,23 @@ const PostAttachmentImage: React.FC<{
     });
   }, [onPress]);
 
-  // The box is aspect-derived from the standard card height, then capped at the
-  // width the row actually has. A SINGLE image also lets the height follow the
-  // ratio inside that cap, so a narrower parent (a quote card) SHRINKS the box
-  // rather than squeezing the image into a fixed-height one — the crop. Grids
-  // keep the fixed card height so their thumbnails line up, and keep `cover` so
-  // they are not each letterboxed against the card background.
-  const preferredWidth = aspectRatio !== undefined
-    ? Math.max(MEDIA_CARD_HEIGHT * aspectRatio, MIN_WIDTH)
-    : MEDIA_CARD_WIDTH;
-  const computedWidth = clampCardWidth(preferredWidth, availableWidth);
-  const computedHeight = hasSingleMedia && aspectRatio !== undefined
-    ? Math.min(MEDIA_CARD_HEIGHT, computedWidth / aspectRatio)
-    : MEDIA_CARD_HEIGHT;
+  // A SINGLE image spans the row, its height following the ratio down to a 4:5
+  // floor (a taller portrait is cropped to it, as every feed does). In a
+  // multi-item row every cell shares `rowHeight` and takes the width its ratio
+  // gives at that height, capped at the row — so thumbnails line up with the
+  // link, poll and podcast cards beside them.
+  let computedWidth: number;
+  let computedHeight: number;
+  if (hasSingleMedia) {
+    computedWidth = singleCardWidth(availableWidth);
+    computedHeight = computedWidth / Math.max(aspectRatio ?? SINGLE_MEDIA_FALLBACK_ASPECT_RATIO, SINGLE_MEDIA_MIN_ASPECT_RATIO);
+  } else {
+    const preferredWidth = aspectRatio !== undefined
+      ? Math.max(rowHeight * aspectRatio, MIN_WIDTH)
+      : rowHeight * SINGLE_MEDIA_FALLBACK_ASPECT_RATIO;
+    computedWidth = clampCardWidth(preferredWidth, availableWidth);
+    computedHeight = rowHeight;
+  }
 
   const containerStyles: ViewStyle[] = [
     styles.itemContainer,
@@ -397,10 +420,9 @@ const PostAttachmentImage: React.FC<{
       source={{ uri: src }}
       containerStyle={containerStyles}
       style={styles.fullSize}
-      // A single image gets the same fit as a single video/gif in this row: the
-      // box already carries its ratio, so nothing is cropped and nothing is
-      // letterboxed except where MIN_WIDTH forces a taller box than the ratio.
-      resizeMode={hasSingleMedia ? 'contain' : 'cover'}
+      // The box already carries the image's ratio; `cover` only crops where a
+      // clamp (the 4:5 floor, MIN_WIDTH, the row width) overrides it.
+      resizeMode="cover"
       accessibilityLabel={hasAlt ? alt : undefined}
       placeholder={
         <View
@@ -500,6 +522,7 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   onPress,
   hasSingleMedia,
   availableWidth,
+  rowHeight,
   registerHost,
   sensitive,
 }) => {
@@ -521,6 +544,7 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
         onPress={onPress}
         hasSingleMedia={hasSingleMedia}
         availableWidth={availableWidth}
+        rowHeight={rowHeight}
       />
     );
   } else if (type === 'gif') {
@@ -533,6 +557,7 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
         postId={postId}
         hasSingleMedia={hasSingleMedia}
         availableWidth={availableWidth}
+        rowHeight={rowHeight}
       />
     );
   } else {
@@ -547,6 +572,7 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
         registerHost={registerHost}
         hasSingleMedia={hasSingleMedia}
         availableWidth={availableWidth}
+        rowHeight={rowHeight}
       />
     );
   }

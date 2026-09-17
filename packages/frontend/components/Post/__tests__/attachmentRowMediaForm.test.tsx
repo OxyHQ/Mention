@@ -33,7 +33,7 @@ jest.mock('../Attachments', () => ({
   PostAttachmentRoom: () => null,
 }));
 
-jest.mock('@/components/Podcast/PodcastCard', () => ({ PodcastCard: () => null }));
+jest.mock('@/components/Podcast/PostPodcastAttachment', () => ({ PostPodcastAttachment: () => null }));
 jest.mock('@/components/Post/JobCard', () => ({ __esModule: true, default: () => null }));
 jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => ({ oxyServices: {} }) }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
@@ -70,12 +70,17 @@ describe('a media cell is the hero form only when it is alone in the row', () =>
     expect(formOfVideo({})).toBe(true);
   });
 
+  // A quoted post renders BELOW the row, not in it, so it leaves the video alone
+  // in the row.
+  it('is still the hero beside a quoted post', () => {
+    expect(formOfVideo({ nestedPost: { id: 'q1' }, nestingDepth: 0 })).toBe(true);
+  });
+
   it.each([
-    // The four the old list happened to name.
+    // The old list's names (minus the quoted post, which left the row).
     ['a Clarity document', { documents: [{ canonicalUrl: 'https://example.com' }] }],
     ['a poll', { pollId: 'poll-1' }],
     ['an article', { article: { title: 'Title' } }],
-    ['a quoted post', { nestedPost: { id: 'q1' }, nestingDepth: 0 }],
     // The three it did NOT, which is the point: these failed before the fix.
     ['an event', { event: { name: 'Launch' } }],
     ['a room', { room: { roomId: 'room-1' } }],

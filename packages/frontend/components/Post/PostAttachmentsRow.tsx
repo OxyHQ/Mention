@@ -16,9 +16,9 @@ import {
   MEDIA_VARIANT_FULL,
 } from '@mention/shared-types/post';
 import { useRouter } from 'expo-router';
-import { PodcastCard } from '@/components/Podcast/PodcastCard';
 import JobCard from '@/components/Post/JobCard';
-import { MEDIA_CARD_HEIGHT, MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
+import { PostPodcastAttachment } from '@/components/Podcast/PostPodcastAttachment';
+import { MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
 import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
 import {
@@ -137,6 +137,11 @@ const areClarityDocumentsEqual = (a?: ClarityDocument[], b?: ClarityDocument[]):
 };
 
 const logger = createLogger('PostAttachmentsRow');
+
+/** The one height every item of a multi-item row shares. */
+const ROW_HEIGHT = 200;
+/** The shared height of a row holding a poll or a video podcast. */
+const TALL_ROW_HEIGHT = 264;
 
 /**
  * Ceiling on each leg of the hand-off before the tap goes through regardless.
@@ -392,24 +397,14 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     return results;
   }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasEvent, hasRoom, hasPodcast, hasJob, linkPreviewArray, resolveMediaSrc, oxyServices]);
 
-  type Item =
-    | { type: 'nested' }
-    | AttachmentItem;
+  type Item = AttachmentItem;
 
-  const items = useMemo(() => {
-    const computed: Item[] = [...attachmentItems];
-    const shouldIncludeNested = nestedPost && nestingDepth < 2;
-    if (shouldIncludeNested) {
-      const firstMediaIdx = computed.findIndex(item => item.type === 'image' || item.type === 'video' || item.type === 'gif');
-      const nestedItem: Item = { type: 'nested' };
-      if (firstMediaIdx === -1) {
-        computed.push(nestedItem);
-      } else {
-        computed.splice(firstMediaIdx, 0, nestedItem);
-      }
-    }
-    return computed;
-  }, [attachmentItems, nestedPost, nestingDepth]);
+  // The quoted post is NOT an item of the row: it is its own block, rendered
+  // below the row at the row's full width. A quote card among thumbnails would
+  // either be squeezed to their height or break the one-height rule for all of
+  // them.
+  const items: Item[] = attachmentItems;
+  const showNested = Boolean(nestedPost) && nestingDepth < 2;
 
   const mediaItems = useMemo(() =>
     items.filter((item): item is Extract<Item, { type: 'image' | 'video' | 'gif' }> => item.type === 'image' || item.type === 'video' || item.type === 'gif'),
@@ -432,6 +427,15 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   // were never on it, so a video beside one of those still claimed the hero form
   // while its neighbour was constrained to the card height.
   const hasSingleMedia = items.length === 1 && mediaItems.length === 1;
+
+  // Every item of a multi-item row shares ONE height, so the row reads as one
+  // strip rather than a skyline. A poll or a video podcast cannot say anything
+  // useful in the standard height, so a row holding one grows for all its items.
+  const isSingleItem = items.length === 1;
+  const rowHeight = items.some((item) => item.type === 'poll' || (item.type === 'podcast' && Boolean(podcast?.episode?.videoUrl)))
+    ? TALL_ROW_HEIGHT
+    : ROW_HEIGHT;
+  const rowItemHeight = isSingleItem ? undefined : rowHeight;
 
   const { measureAnchor, flyTo } = useMediaFlight();
 
@@ -704,7 +708,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     };
   }, [items.length]);
 
-  if (items.length === 0) return null;
+  if (items.length === 0 && !showNested) return null;
 
   const scrollerPaddingRight = 12;
   const scrollerPaddingLeft = Math.abs(leftOffset);
@@ -713,7 +717,8 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   const availableWidth = scrollViewWidth - scrollerPaddingLeft - scrollerPaddingRight;
 
   return (
-    <>
+    <View style={style}>
+    {items.length > 0 && (
     <ScrollView
       ref={scrollViewRef}
       horizontal
@@ -725,7 +730,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       onStartShouldSetResponderCapture={() => true}
       onStartShouldSetResponder={() => true}
       onLayout={(e) => setMeasuredWidth(e.nativeEvent.layout.width)}
-      style={style}
+      scrollEnabled={!isSingleItem}
       contentContainerStyle={[styles.scroller, leftOffset ? { paddingLeft: leftOffset } : null]}
     >
       {items.map((item, idx) => {
@@ -736,6 +741,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               title={article?.title?.trim()}
               body={article?.body?.trim()}
               onPress={onArticlePress || undefined}
+              style={isSingleItem ? { width: availableWidth } : { width: 200, height: rowItemHeight }}
             />
           );
         }
@@ -747,6 +753,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               date={event?.date || ''}
               location={event?.location}
               onPress={onEventPress || undefined}
+              style={isSingleItem ? { width: availableWidth } : { width: 240, height: rowItemHeight }}
             />
           );
         }
@@ -760,19 +767,18 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               topic={room?.topic}
               host={room?.host}
               onPress={onRoomPress || undefined}
+              style={isSingleItem ? { width: availableWidth } : { width: 260, height: rowItemHeight }}
             />
           );
         }
         if (item.type === 'podcast') {
           if (!podcast) return null;
           return (
-            <PodcastCard
+            <PostPodcastAttachment
               key={`podcast-${idx}`}
-              variant="card"
-              title={podcast.title}
-              author={podcast.author}
-              artworkUrl={podcast.artworkUrl}
-              showUrl={podcast.showUrl}
+              podcast={podcast}
+              width={isSingleItem ? availableWidth : Math.min(availableWidth, podcast.episode?.videoUrl ? 300 : 340)}
+              height={rowItemHeight}
             />
           );
         }
@@ -780,7 +786,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
           // Only the first embeddable link (and not one the viewer hid for that
           // provider) becomes the inline external player — the post's primary
           // media. Every other link stays a static preview card.
-          if (idx === primaryEmbedIndex) {
+          // Beside other items the player would break the one-height rule, so it
+          // is a player only when it is the row's only item.
+          if (idx === primaryEmbedIndex && isSingleItem) {
             return (
               <PostAttachmentExternalEmbed
                 key={`embed-${idx}`}
@@ -801,7 +809,8 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               description={item.description}
               image={item.image}
               siteName={item.siteName}
-              constrainedHeight={items.length > 1 ? MEDIA_CARD_HEIGHT : undefined}
+              width={isSingleItem ? availableWidth : 280}
+              constrainedHeight={rowItemHeight}
             />
           );
         }
@@ -815,17 +824,8 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               key={`poll-${idx}`}
               pollId={pollId}
               pollData={pollData ?? undefined}
-            />
-          );
-        }
-        if (item.type === 'nested') {
-          if (!nestedPost) return null;
-          return (
-            <PostAttachmentNested
-              key={`nested-${idx}`}
-              nestedPost={nestedPost}
-              nestingDepth={nestingDepth}
-              width={availableWidth}
+              width={isSingleItem ? availableWidth : 280}
+              style={rowItemHeight !== undefined ? { height: rowItemHeight } : undefined}
             />
           );
         }
@@ -843,6 +843,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               aspectRatio={item.aspectRatio}
               hasSingleMedia={hasSingleMedia}
               availableWidth={availableWidth}
+              rowHeight={rowItemHeight}
               sensitive={sensitive}
             />
           );
@@ -869,6 +870,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
               registerHost={imageIndex !== undefined ? registerThumbHost(imageIndex) : undefined}
               hasSingleMedia={hasSingleMedia}
               availableWidth={availableWidth}
+              rowHeight={rowItemHeight}
               sensitive={sensitive}
             />
           );
@@ -876,8 +878,18 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         return null;
       })}
     </ScrollView>
+    )}
+    {showNested && nestedPost && (
+      <View style={{ paddingLeft: Math.abs(leftOffset), paddingRight: scrollerPaddingRight, marginTop: items.length > 0 ? 8 : 0 }}>
+        <PostAttachmentNested
+          nestedPost={nestedPost}
+          nestingDepth={nestingDepth}
+          width={availableWidth}
+        />
+      </View>
+    )}
     {galleryImages.length > 0 && <ZoomableMediaGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius={MEDIA_CARD_RADIUS} indicatorVariant="dots" />}
-    </>
+    </View>
   );
 }, (prevProps, nextProps) => {
   if (!areClarityDocumentsEqual(prevProps.documents, nextProps.documents)) return false;
