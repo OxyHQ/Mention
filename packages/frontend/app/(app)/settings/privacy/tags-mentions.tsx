@@ -73,7 +73,7 @@ export default function TagsMentionsScreen() {
     if (!isAuthResolved || isPrivateApiPending) {
         return (
             <ThemedView className="flex-1">
-                <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+                <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 items-center justify-center">
                     <Loading />
                 </View>
@@ -84,7 +84,7 @@ export default function TagsMentionsScreen() {
     if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
-                <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+                <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <OxyAuthPrompt
                     label={t('settings.privacy.tagsMentions.signInRequired', { defaultValue: 'Sign in to manage tags and mentions' })}
                     description={t('settings.privacy.tagsMentions.signInRequiredDesc', { defaultValue: 'Control who can tag or mention you in posts.' })}
@@ -96,7 +96,7 @@ export default function TagsMentionsScreen() {
     if (loading) {
         return (
             <ThemedView className="flex-1">
-                <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+                <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -106,7 +106,7 @@ export default function TagsMentionsScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+            <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
                 className="flex-1"

@@ -250,6 +250,7 @@
   "profile.media.podcast.searchError": "पॉडकास्ट खोजे नहीं जा सके। फिर कोशिश करें।",
   "profile.following": "फ़ॉलोइंग",
   "profile.followers": "फ़ॉलोअर्स",
+  "profile.activity": "गतिविधि",
   "profile.followedBy.one": "{{name1}} फ़ॉलो करते हैं",
   "profile.followedBy.two": "{{name1}} और {{name2}} फ़ॉलो करते हैं",
   "profile.followedBy.many_one": "{{name1}}, {{name2}} और {{count}} अन्य फ़ॉलो करते हैं",

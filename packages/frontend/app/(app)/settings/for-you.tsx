@@ -109,7 +109,7 @@ export default function ForYouTuningScreen() {
   const groups = useMemo(() => groupByCategory(), []);
 
   const header = (
-    <PageHeader title={t('feed.tuning.title', { defaultValue: 'For You' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+    <PageHeader title={t('feed.tuning.title', { defaultValue: 'For You' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
   );
 
   if (!isAuthenticated) {

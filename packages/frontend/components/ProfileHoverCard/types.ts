@@ -14,12 +14,5 @@ export interface ProfileHoverCardProps {
    */
   username?: string;
   disable?: boolean;
-  /**
-   * Renders the wrapper as `inline-flex`, for a target that sits INSIDE a text
-   * flow (a `@mention` in a post body, a name inside a sentence) rather than
-   * being its own row. Without it the wrapper is a block-level flex box and
-   * would break the line.
-   */
-  inline?: boolean;
   style?: ViewStyle;
 }

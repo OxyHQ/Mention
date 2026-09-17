@@ -174,7 +174,7 @@ interface ShellProps {
 function InterestsShell({ t, safeBack, children }: ShellProps) {
     return (
         <ThemedView className="flex-1">
-            <PageHeader title={t('settings.interests.title', { defaultValue: 'Your interests' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+            <PageHeader title={t('settings.interests.title', { defaultValue: 'Your interests' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
             {children}
         </ThemedView>
     );

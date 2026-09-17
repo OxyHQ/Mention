@@ -250,6 +250,7 @@
   "profile.media.podcast.searchError": "Couldn't search podcasts. Try again.",
   "profile.following": "Following",
   "profile.followers": "Followers",
+  "profile.activity": "Activity",
   "profile.followedBy.one": "Followed by {{name1}}",
   "profile.followedBy.two": "Followed by {{name1}} and {{name2}}",
   "profile.followedBy.many_one": "Followed by {{name1}}, {{name2}} and {{count}} other",

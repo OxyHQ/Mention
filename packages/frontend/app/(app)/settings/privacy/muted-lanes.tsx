@@ -39,7 +39,7 @@ export default function MutedLanesScreen() {
     const { isAuthenticated, user, canUsePrivateApi } = useAuth();
     const queryClient = useQueryClient();
 
-    const header = <PageHeader title={t('lanes.muted.title', { defaultValue: 'Muted lanes' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />;
+    const header = <PageHeader title={t('lanes.muted.title', { defaultValue: 'Muted lanes' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />;
 
     const mutedQueryKey = viewerQueryKeys.mutedLanes(user?.id);
     const {

@@ -27,7 +27,7 @@ export default function ThreadPreferencesScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <PageHeader title={t('settings.threadPreferences.title', { defaultValue: 'Thread preferences' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+            <PageHeader title={t('settings.threadPreferences.title', { defaultValue: 'Thread preferences' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
                 className="flex-1"

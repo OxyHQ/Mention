@@ -207,7 +207,7 @@ export default function FediverseSettingsScreen() {
   const safeBack = useSafeBack();
   const { isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
 
-  const header = <PageHeader title={t('fediverse.settings.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />;
+  const header = <PageHeader title={t('fediverse.settings.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />;
 
   return (
     <ThemedView className="flex-1">

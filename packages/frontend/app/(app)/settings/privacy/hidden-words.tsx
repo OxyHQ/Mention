@@ -36,7 +36,7 @@ export default function HiddenWordsScreen() {
     const queryClient = useQueryClient();
     const [input, setInput] = useState('');
 
-    const header = <PageHeader title={t('settings.privacy.hiddenWords')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />;
+    const header = <PageHeader title={t('settings.privacy.hiddenWords')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />;
 
     const {
         data: mutedWords = [],

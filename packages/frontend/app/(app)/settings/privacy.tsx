@@ -148,7 +148,7 @@ export default function PrivacySettingsScreen() {
     if (!isAuthResolved || isPrivateApiPending) {
         return (
             <ThemedView className="flex-1">
-                <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+                <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 items-center justify-center">
                     <Loading />
                 </View>
@@ -159,7 +159,7 @@ export default function PrivacySettingsScreen() {
     if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
-                <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+                <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <OxyAuthPrompt
                     label={t('settings.privacy.signInRequired', { defaultValue: 'Sign in to manage your privacy settings' })}
                     description={t('settings.privacy.signInRequiredDesc', { defaultValue: 'Control who can see your profile, mention you, and more.' })}
@@ -171,7 +171,7 @@ export default function PrivacySettingsScreen() {
     if (loading) {
         return (
             <ThemedView className="flex-1">
-                <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+                <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -181,7 +181,7 @@ export default function PrivacySettingsScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+            <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
                 className="flex-1"

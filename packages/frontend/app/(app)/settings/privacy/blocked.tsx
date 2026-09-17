@@ -304,7 +304,7 @@ export default function BlockedUsersScreen() {
     if (!isAuthResolved || isPrivateApiPending) {
         return (
             <ThemedView className="flex-1">
-                <PageHeader title={t('settings.privacy.blockedUsers')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+                <PageHeader title={t('settings.privacy.blockedUsers')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 items-center justify-center">
                     <Loading />
                 </View>
@@ -315,7 +315,7 @@ export default function BlockedUsersScreen() {
     if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
-                <PageHeader title={t('settings.privacy.blockedProfiles')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+                <PageHeader title={t('settings.privacy.blockedProfiles')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <OxyAuthPrompt
                     label={t('settings.privacy.blocked.signInRequired', { defaultValue: 'Sign in to manage blocked accounts' })}
                     description={t('settings.privacy.blocked.signInRequiredDesc', { defaultValue: 'You can block or unblock people once signed in.' })}
@@ -326,7 +326,7 @@ export default function BlockedUsersScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <PageHeader title={t('settings.privacy.blockedProfiles')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+            <PageHeader title={t('settings.privacy.blockedProfiles')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
                 className="flex-1"

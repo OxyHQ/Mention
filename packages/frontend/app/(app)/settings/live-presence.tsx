@@ -82,7 +82,7 @@ export default function LivePresenceScreen() {
     const selected: LiveVisibility = preference ?? 'active';
 
     const renderHeader = () => (
-        <PageHeader title={t('settings.livePresence.title', { defaultValue: 'Live presence' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+        <PageHeader title={t('settings.livePresence.title', { defaultValue: 'Live presence' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
     );
 
     if (isPrivateApiPending) {
