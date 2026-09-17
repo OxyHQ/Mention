@@ -147,6 +147,14 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
   },
 
   // ── Caller-scoped, or read-only. Safe to share the run's database. ──────────
+  importOxyCareersJobs: {
+    scope: 'caller-scoped',
+    reason:
+      'listJobsByEmployer(employerOxyUserId) IS the driving select — an import that looked at '
+      + 'any other employer could not answer "have I already published this listing". The suite '
+      + 'passes a fresh employerOxyUserId per test, so its creates and its skips both stay inside '
+      + 'an account no other file has heard of.',
+  },
   assertPostgresPopulated: {
     scope: 'caller-scoped',
     reason:
