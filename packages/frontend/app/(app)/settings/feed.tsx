@@ -13,6 +13,7 @@ import { useFeedSettings, DEFAULT_FEED_SETTINGS, type FeedSettings } from '@/hoo
 import { useTranslation } from 'react-i18next';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiRefreshLine } from '@oxy.so/bloom/icons';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 
 const PRESETS = {
@@ -170,7 +171,7 @@ export default function FeedSettingsScreen() {
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="py-2"
+        contentContainerClassName="px-screen-margin py-2"
         showsVerticalScrollIndicator={false}
       >
         {/* Presets */}
@@ -203,7 +204,7 @@ export default function FeedSettingsScreen() {
         </SettingsListGroup>
 
         {settings.diversity.enabled && (
-          <View className="px-5 py-3 gap-4">
+          <View className="py-3 gap-4">
             <View>
               <Slider
                 value={settings.diversity.sameAuthorPenalty}
@@ -247,7 +248,7 @@ export default function FeedSettingsScreen() {
 
         {/* Recency */}
         <SettingsListGroup title={t('settings.feed.recency.title')}>
-          <View className="px-5 py-3 gap-4">
+          <View className="py-3 gap-4">
             <View>
               <Slider
                 value={settings.recency.halfLifeHours}
@@ -309,7 +310,7 @@ export default function FeedSettingsScreen() {
         {/* Reset */}
         <SettingsListGroup>
           <SettingsListItem
-            icon={<RowIcon name="refresh" destructive />}
+            icon={<RowIcon icon={RiRefreshLine} destructive />}
             title={t('settings.feed.resetToDefaults')}
             onPress={resetToDefaults}
             destructive

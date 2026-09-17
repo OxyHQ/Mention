@@ -153,8 +153,8 @@ export default function ForYouTuningScreen() {
   return (
     <ThemedView className="flex-1">
       {header}
-      <ScrollView className="flex-1" contentContainerClassName="py-2" showsVerticalScrollIndicator={false}>
-        <View className="px-5 pt-2 pb-1">
+      <ScrollView className="flex-1" contentContainerClassName="px-screen-margin py-2" showsVerticalScrollIndicator={false}>
+        <View className="pt-2 pb-1">
           <Text className="text-[13px] leading-[18px] text-muted-foreground">
             {t('feed.tuning.intro', {
               defaultValue:

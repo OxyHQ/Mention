@@ -73,8 +73,8 @@ export default function ExternalMediaSettingsScreen() {
     <ThemedView className="flex-1">
       {header}
 
-      <ScrollView className="flex-1" contentContainerClassName="py-2" showsVerticalScrollIndicator={false}>
-        <View className="px-4 pb-1 pt-2">
+      <ScrollView className="flex-1" contentContainerClassName="px-screen-margin py-2" showsVerticalScrollIndicator={false}>
+        <View className="pb-1 pt-2">
           <Admonition type="info">
             {t('settings.externalMedia.banner', {
               defaultValue:

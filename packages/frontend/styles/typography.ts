@@ -1,17 +1,10 @@
 /**
  * Typography System
- * Consistent typography scales and font configurations
+ * Consistent typography scales. The font family is Bloom's default, set by
+ * BloomThemeProvider, so nothing here names one.
  */
 
 import { Platform, TextStyle } from 'react-native';
-
-/**
- * Font families
- */
-export const FONT_FAMILIES = {
-  /** Primary font - Inter Variable */
-  primary: 'Inter',
-} as const;
 
 /**
  * Font weights
@@ -90,7 +83,6 @@ export const LETTER_SPACING = {
  * Typography presets for common text styles
  */
 export interface TypographyPreset {
-  fontFamily: string;
   fontSize: number;
   fontWeight: TextStyle['fontWeight'];
   lineHeight?: number;
@@ -100,7 +92,6 @@ export interface TypographyPreset {
 export const TYPOGRAPHY: Record<string, TypographyPreset> = {
   /** Display large - for hero text */
   displayLarge: {
-    fontFamily: FONT_FAMILIES.primary,
     fontSize: FONT_SIZES['6xl'],
     fontWeight: Platform.OS === 'web' ? FONT_WEIGHTS.bold : '700',
     lineHeight: FONT_SIZES['6xl'] * LINE_HEIGHTS.tight,
@@ -108,7 +99,6 @@ export const TYPOGRAPHY: Record<string, TypographyPreset> = {
   },
   /** Display medium - for large headings */
   displayMedium: {
-    fontFamily: FONT_FAMILIES.primary,
     fontSize: FONT_SIZES['5xl'],
     fontWeight: Platform.OS === 'web' ? FONT_WEIGHTS.bold : '700',
     lineHeight: FONT_SIZES['5xl'] * LINE_HEIGHTS.tight,
@@ -116,7 +106,6 @@ export const TYPOGRAPHY: Record<string, TypographyPreset> = {
   },
   /** Heading 1 - main page headings */
   h1: {
-    fontFamily: FONT_FAMILIES.primary,
     fontSize: FONT_SIZES['3xl'],
     fontWeight: Platform.OS === 'web' ? FONT_WEIGHTS.bold : '700',
     lineHeight: FONT_SIZES['3xl'] * LINE_HEIGHTS.tight,
@@ -124,7 +113,6 @@ export const TYPOGRAPHY: Record<string, TypographyPreset> = {
   },
   /** Heading 2 - section headings */
   h2: {
-    fontFamily: FONT_FAMILIES.primary,
     fontSize: FONT_SIZES['2xl'],
     fontWeight: Platform.OS === 'web' ? FONT_WEIGHTS.bold : '700',
     lineHeight: FONT_SIZES['2xl'] * LINE_HEIGHTS.normal,
@@ -132,7 +120,6 @@ export const TYPOGRAPHY: Record<string, TypographyPreset> = {
   },
   /** Heading 3 - subsection headings */
   h3: {
-    fontFamily: FONT_FAMILIES.primary,
     fontSize: FONT_SIZES.xl,
     fontWeight: Platform.OS === 'web' ? FONT_WEIGHTS.bold : '600',
     lineHeight: FONT_SIZES.xl * LINE_HEIGHTS.normal,
@@ -140,7 +127,6 @@ export const TYPOGRAPHY: Record<string, TypographyPreset> = {
   },
   /** Body large - primary body text */
   bodyLarge: {
-    fontFamily: FONT_FAMILIES.primary,
     fontSize: FONT_SIZES.lg,
     fontWeight: FONT_WEIGHTS.regular,
     lineHeight: FONT_SIZES.lg * LINE_HEIGHTS.normal,
@@ -148,7 +134,6 @@ export const TYPOGRAPHY: Record<string, TypographyPreset> = {
   },
   /** Body medium - standard body text */
   bodyMedium: {
-    fontFamily: FONT_FAMILIES.primary,
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.regular,
     lineHeight: FONT_SIZES.md * LINE_HEIGHTS.normal,
@@ -156,7 +141,6 @@ export const TYPOGRAPHY: Record<string, TypographyPreset> = {
   },
   /** Body small - secondary text */
   bodySmall: {
-    fontFamily: FONT_FAMILIES.primary,
     fontSize: FONT_SIZES.base,
     fontWeight: FONT_WEIGHTS.regular,
     lineHeight: FONT_SIZES.base * LINE_HEIGHTS.normal,
@@ -164,7 +148,6 @@ export const TYPOGRAPHY: Record<string, TypographyPreset> = {
   },
   /** Caption - small helper text */
   caption: {
-    fontFamily: FONT_FAMILIES.primary,
     fontSize: FONT_SIZES.sm,
     fontWeight: FONT_WEIGHTS.regular,
     lineHeight: FONT_SIZES.sm * LINE_HEIGHTS.normal,
@@ -172,7 +155,6 @@ export const TYPOGRAPHY: Record<string, TypographyPreset> = {
   },
   /** Button text */
   button: {
-    fontFamily: FONT_FAMILIES.primary,
     fontSize: FONT_SIZES.md,
     fontWeight: Platform.OS === 'web' ? FONT_WEIGHTS.bold : '600',
     lineHeight: FONT_SIZES.md * LINE_HEIGHTS.tight,
@@ -180,7 +162,6 @@ export const TYPOGRAPHY: Record<string, TypographyPreset> = {
   },
   /** Link text */
   link: {
-    fontFamily: FONT_FAMILIES.primary,
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.medium,
     lineHeight: FONT_SIZES.md * LINE_HEIGHTS.normal,
@@ -202,13 +183,11 @@ export function createTypographyStyle(
   fontSize: number,
   fontWeight: TextStyle['fontWeight'] = FONT_WEIGHTS.regular,
   options?: {
-    fontFamily?: string;
     lineHeight?: number;
     letterSpacing?: number;
   }
 ): TextStyle {
   return {
-    fontFamily: options?.fontFamily ?? FONT_FAMILIES.primary,
     fontSize,
     fontWeight,
     lineHeight: options?.lineHeight ?? fontSize * LINE_HEIGHTS.normal,

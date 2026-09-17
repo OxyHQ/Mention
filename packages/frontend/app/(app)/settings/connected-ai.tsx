@@ -12,6 +12,7 @@ import { Header } from '@/components/Header';
 import { IconButton, Button } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiSparklingLine } from '@oxy.so/bloom/icons';
 import { Icon } from '@/lib/icons';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDialog } from '@/utils/alerts';
@@ -178,7 +179,7 @@ export default function ConnectedAiScreen() {
   return (
     <ThemedView className="flex-1">
       {header}
-      <ScrollView className="flex-1" contentContainerClassName="py-2" showsVerticalScrollIndicator={false}>
+      <ScrollView className="flex-1" contentContainerClassName="px-screen-margin py-2" showsVerticalScrollIndicator={false}>
         {isLoading ? (
           <View className="py-10 items-center">
             <Loading />
@@ -234,7 +235,7 @@ export default function ConnectedAiScreen() {
               return (
                 <SettingsListItem
                   key={connection.id}
-                  icon={<RowIcon name="sparkles-outline" />}
+                  icon={<RowIcon icon={RiSparklingLine} />}
                   title={connectionTitle(connection)}
                   description={description}
                   showChevron={false}

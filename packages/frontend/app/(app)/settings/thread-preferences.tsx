@@ -44,7 +44,7 @@ export default function ThreadPreferencesScreen() {
 
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="px-4 pt-4 pb-8"
+                contentContainerClassName="px-screen-margin pt-4 pb-8"
                 showsVerticalScrollIndicator={false}
             >
                 {/* Sort replies */}

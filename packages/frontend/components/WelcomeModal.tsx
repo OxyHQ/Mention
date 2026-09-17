@@ -1,7 +1,6 @@
 import React, { useEffect, useCallback, useMemo, memo, useId } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   Modal,
   Platform,
@@ -25,9 +24,12 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useRouter } from 'expo-router';
 import { CloseIcon } from '@/assets/icons/close-icon';
 import { LogoIcon } from '@/assets/logo';
+import { Button } from '@oxy.so/bloom/button';
+import { Divider } from '@oxy.so/bloom/divider';
 import { Portal } from '@oxy.so/bloom/portal';
+import { Muted } from '@oxy.so/bloom/typography';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { Z_INDEX } from '@/lib/constants';
-import { FONT_FAMILIES } from '@/styles/typography';
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText, TSpan } from 'react-native-svg';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
@@ -53,18 +55,41 @@ interface WelcomeModalProps {
 
 /**
  * GradientText Component
- * Renders multiple lines of text with a single gradient from top (80% opacity) to bottom (20% opacity)
+ * Renders multiple lines of text with a single top-to-bottom gradient between two stops.
  */
+interface GradientStop {
+  color: string;
+  opacity: number;
+}
+
+// Each theme fades the ink into its own sky: black on the day image, white on the night one.
+const TAGLINE_GRADIENT = {
+  light: { from: { color: '#000000', opacity: 0.8 }, to: { color: '#000000', opacity: 0.2 } },
+  dark: { from: { color: '#FFFFFF', opacity: 0.9 }, to: { color: '#FFFFFF', opacity: 0.35 } },
+} as const satisfies Record<string, { from: GradientStop; to: GradientStop }>;
+
+// The divider sits on the photo, not on a surface, so Bloom's separator stops
+// (neutral-200 / neutral-800) vanish into the clouds. Translucent ink of the
+// tagline's colour stays visible over any part of either image.
+const DIVIDER_INK = {
+  light: { line: 'rgba(0, 0, 0, 0.18)', label: 'rgba(0, 0, 0, 0.55)' },
+  dark: { line: 'rgba(255, 255, 255, 0.28)', label: 'rgba(255, 255, 255, 0.75)' },
+} as const;
+
 const GradientText: React.FC<{
   lines: string[];
   style?: StyleProp<ViewStyle>;
   fontSize: number;
   fontWeight?: string;
-  fontFamily?: string;
-}> = ({ lines, style, fontSize, fontWeight = '600', fontFamily = FONT_FAMILIES.primary }) => {
+  from: GradientStop;
+  to: GradientStop;
+}> = ({ lines, style, fontSize, fontWeight = '600', from, to }) => {
   const gradientId = useId();
   const lineHeight = fontSize * 1.25; // Slightly reduced gap between lines
-  const totalHeight = lines.length * lineHeight;
+  // The last baseline sits at lines * lineHeight; without room below it the
+  // SVG clips descenders ("y", "g", "p") on the final line.
+  const descender = fontSize * 0.3;
+  const totalHeight = lines.length * lineHeight + descender;
   
   // Estimate text width based on longest line
   const longestLine = lines.reduce((a, b) => (a.length > b.length ? a : b), '');
@@ -75,10 +100,10 @@ const GradientText: React.FC<{
     <View style={[{ alignItems: 'center', justifyContent: 'center', position: 'relative', marginBottom: 4 }, style]}>
       <Svg width={estimatedWidth} height={totalHeight}>
         <Defs>
-          {/* Gradient from top 10% to bottom 90%: 80% opacity to 20% opacity */}
+          {/* Gradient runs from 10% to 90% of the text block's height */}
           <SvgLinearGradient id={gradientId} x1="0%" y1="10%" x2="0%" y2="90%">
-            <Stop offset="0%" stopColor="#000000" stopOpacity="0.8" />
-            <Stop offset="100%" stopColor="#000000" stopOpacity="0.2" />
+            <Stop offset="0%" stopColor={from.color} stopOpacity={from.opacity} />
+            <Stop offset="100%" stopColor={to.color} stopOpacity={to.opacity} />
           </SvgLinearGradient>
         </Defs>
         {/* Text with gradient applied - all lines together */}
@@ -87,7 +112,6 @@ const GradientText: React.FC<{
           y={lineHeight}
           fontSize={fontSize}
           fontWeight={fontWeight}
-          fontFamily={fontFamily}
           fill={`url(#${gradientId})`}
           textAnchor="middle"
         >
@@ -113,6 +137,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
   const insets = useSafeAreaInsets();
   const { signIn } = useAuth();
   const router = useRouter();
+  const theme = useTheme();
 
   // Animation values
   const opacity = useSharedValue(0);
@@ -168,11 +193,11 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
     ],
   }), []);
 
-  // Memoize styles
-  // Load background image
   const backgroundImage: ImageSourcePropType = useMemo(
-    () => require('@/assets/images/welcome-modal-bg.jpg'),
-    []
+    () => theme.isDark
+      ? require('@/assets/images/welcome-modal-bg-dark.jpg')
+      : require('@/assets/images/welcome-modal-bg.jpg'),
+    [theme.isDark]
   );
 
   // Early return if not visible
@@ -200,7 +225,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
         <Pressable onPress={handleContentPress} style={styles.contentPressable}>
           <ImageBackground
             source={backgroundImage}
-            style={styles.modalBox}
+            style={[styles.modalBox, { backgroundColor: theme.colors.background }]}
             imageStyle={styles.modalBoxImage}
             resizeMode="cover"
           >
@@ -216,7 +241,8 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
             {/* Logo */}
             <View style={styles.logoContainer}>
               <LogoIcon
-                className="text-primary"
+                className={theme.isDark ? undefined : 'text-primary'}
+                color={theme.isDark ? '#FFFFFF' : undefined}
                 size={40}
                 style={styles.logoIcon}
               />
@@ -232,38 +258,37 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
                 ]}
                 fontSize={32}
                 fontWeight="600"
-                fontFamily={FONT_FAMILIES.primary}
+                {...(theme.isDark ? TAGLINE_GRADIENT.dark : TAGLINE_GRADIENT.light)}
               />
             </View>
 
             {/* Buttons and Links Container - positioned in middle */}
             <View style={styles.actionsContainer}>
-              {/* Create Account Button */}
-              <Pressable
-                onPress={handleCreateAccount}
-                className="bg-primary"
-                style={styles.createAccountButton}
-              >
-                <Text style={styles.createAccountButtonText}>Create account</Text>
-              </Pressable>
-
-              {/* Explore the app link */}
-              <Pressable onPress={handleExploreApp} style={styles.exploreLink}>
-                <Text className="text-primary" style={styles.exploreLinkText}>
+              {/* Bloom's AuthCard layout: the primary action, an "or" divider 20
+                  above and below, then the alternative at the same width. */}
+              <View style={styles.choices}>
+                <Button variant="primary" fullWidth onPress={handleCreateAccount}>
+                  Create account
+                </Button>
+                <View style={styles.choiceDivider}>
+                  <Divider
+                    color={theme.isDark ? DIVIDER_INK.dark.line : DIVIDER_INK.light.line}
+                    textStyle={{ color: theme.isDark ? DIVIDER_INK.dark.label : DIVIDER_INK.light.label }}
+                  >
+                    or
+                  </Divider>
+                </View>
+                <Button variant="ghost" fullWidth onPress={handleExploreApp}>
                   Explore the app
-                </Text>
-              </Pressable>
+                </Button>
+              </View>
 
               {/* Sign in prompt */}
               <View style={styles.signInContainer}>
-                <Text className="text-muted-foreground" style={styles.signInPrompt}>
-                  Already have an account?{' '}
-                </Text>
-                <Pressable onPress={handleSignIn}>
-                  <Text className="text-primary" style={styles.signInLink}>
-                    Sign in
-                  </Text>
-                </Pressable>
+                <Muted>Already have an account? </Muted>
+                <Button variant="link" onPress={handleSignIn}>
+                  Sign in
+                </Button>
               </View>
             </View>
           </ImageBackground>
@@ -314,8 +339,9 @@ const styles = StyleSheet.create({
   contentPressable: {
     width: '100%',
     height: '100%',
-    maxWidth: 800,
-    maxHeight: 600,
+    // 4:3, the proportion of the background art — shrink both sides together.
+    maxWidth: 640,
+    maxHeight: 480,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -326,9 +352,8 @@ const styles = StyleSheet.create({
     elevation: 8,
     width: '100%',
     height: '100%',
-    padding: 32,
+    padding: 24,
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
   },
   modalBoxImage: {
     opacity: 0.95,
@@ -343,8 +368,8 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 16,
-    marginBottom: 40,
+    marginTop: 8,
+    marginBottom: 16,
   },
   logoIcon: {
     // No margin needed since there's no text next to it
@@ -352,7 +377,7 @@ const styles = StyleSheet.create({
   taglineContainer: {
     alignItems: 'center',
     marginBottom: 0,
-    marginTop: 60,
+    marginTop: 24,
   },
   actionsContainer: {
     alignItems: 'center',
@@ -360,44 +385,18 @@ const styles = StyleSheet.create({
     marginTop: 'auto',
     marginBottom: 'auto',
   },
-  createAccountButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 24,
-    alignItems: 'center',
-    minHeight: 44,
-    justifyContent: 'center',
-    alignSelf: 'center',
+  choices: {
+    width: '100%',
+    maxWidth: 280,
   },
-  createAccountButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
-    fontFamily: FONT_FAMILIES.primary,
-  },
-  exploreLink: {
-    alignItems: 'center',
-    paddingVertical: 6,
-  },
-  exploreLinkText: {
-    fontSize: 14,
-    fontWeight: '500',
-    fontFamily: FONT_FAMILIES.primary,
+  choiceDivider: {
+    marginVertical: 20,
   },
   signInContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     paddingBottom: 8,
-  },
-  signInPrompt: {
-    fontSize: 14,
-    fontFamily: FONT_FAMILIES.primary,
-  },
-  signInLink: {
-    fontSize: 14,
-    fontWeight: '500',
-    fontFamily: FONT_FAMILIES.primary,
   },
 });
 
