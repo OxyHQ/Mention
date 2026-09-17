@@ -181,7 +181,12 @@ export const PodcastCard = memo(function PodcastCard({
   const handlePress = onPress ?? (showUrl ? openShow : undefined);
   // In a fixed-height row the artwork grows with the card (Threads' card is
   // mostly cover), capped so the title column keeps room for two lines.
-  const cardArtwork = height !== undefined ? Math.min(height - 20, 150) : CARD_ARTWORK;
+  // Never more than 40% of the card, so a narrow card (a quote on a phone) keeps
+  // room for the title instead of being all artwork.
+  const cardArtwork = Math.min(
+    height !== undefined ? Math.min(height - 20, 150) : CARD_ARTWORK,
+    Math.round((width ?? 320) * 0.4),
+  );
 
   if (variant === 'full') {
     return (
@@ -341,11 +346,17 @@ export const PodcastCard = memo(function PodcastCard({
           >
             {episode ? title : t('profile.media.podcastLabel')}
           </Text>
-          {provider ? <ProviderRow provider={provider} /> : null}
+          {provider ? (
+            <View style={saveButton ? { marginRight: 34 } : undefined}>
+              <ProviderRow provider={provider} />
+            </View>
+          ) : null}
         </View>
       </Pressable>
       {saveButton ? (
-        <View style={{ alignSelf: 'flex-end', padding: 10, paddingLeft: 0 }}>
+        // Floats in the corner instead of taking a column: a narrow card (a
+        // quote on a phone) cannot spare 40px of title width for it.
+        <View style={{ position: 'absolute', right: 10, bottom: 10 }}>
           {saveButton}
         </View>
       ) : null}
