@@ -20,16 +20,14 @@ import {
 } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { Button } from '@oxy.so/bloom/button';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { RiCloseCircleLine, RiCloseLine, RiGroupLine, RiSearchLine } from '@oxy.so/bloom/icons';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { customFeedsService, type MarketplaceFeed } from '@/services/customFeedsService';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
 import { cn } from '@/lib/utils';
@@ -124,7 +122,7 @@ const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
           )}
           {subscriberCount > 0 && (
             <View className="flex-row items-center gap-[3px]">
-              <Ionicons name="people-outline" size={13} color={theme.colors.textSecondary} />
+              <RiGroupLine width={13} height={13} fill={theme.colors.textSecondary} />
               <Text className="text-[13px] text-muted-foreground">
                 {formatCompactNumber(subscriberCount)}
               </Text>
@@ -318,7 +316,7 @@ export default function FeedMarketplaceScreen() {
       <View>
         {searchVisible && (
           <View className="flex-row items-center gap-2 mx-4 mt-2 mb-1 border border-border rounded-xl px-3 py-[9px] bg-muted">
-            <Ionicons name="search" size={16} color={theme.colors.textSecondary} />
+            <RiSearchLine size="sm" fill={theme.colors.textSecondary} />
             <TextInput
               value={search}
               onChangeText={handleSearchChange}
@@ -331,7 +329,7 @@ export default function FeedMarketplaceScreen() {
             />
             {search.length > 0 && (
               <TouchableOpacity onPress={() => handleSearchChange('')} hitSlop={HIT_SLOP_MD}>
-                <Ionicons name="close-circle" size={16} color={theme.colors.textSecondary} />
+                <RiCloseCircleLine size="sm" fill={theme.colors.textSecondary} />
               </TouchableOpacity>
             )}
           </View>
@@ -408,7 +406,7 @@ export default function FeedMarketplaceScreen() {
     if (loading) return null;
     return (
       <View className="pt-[60px] px-10 items-center gap-3">
-        <Ionicons name="telescope-outline" size={52} color={theme.colors.textSecondary} />
+        <RiSearchLine width={52} height={52} fill={theme.colors.textSecondary} />
         <Text className="text-lg font-bold text-center text-foreground">
           {t('marketplace.emptyTitle', { defaultValue: 'No feeds found' })}
         </Text>
@@ -442,34 +440,25 @@ export default function FeedMarketplaceScreen() {
   );
 
   return (
-    <ThemedView className="flex-1">
-      <Header
-        options={{
-          title: t('marketplace.title', { defaultValue: 'Feed Marketplace' }),
-          headerTitleStyle: { justifyContent: 'flex-start', flex: 1 },
-          leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-          rightComponents: [
-            <IconButton
-              variant="icon"
-              key="search"
-              onPress={() => {
-                setSearchVisible((v) => !v);
-                if (searchVisible) handleSearchChange('');
-              }}>
-              <Ionicons
-                name={searchVisible ? 'close' : 'search'}
-                size={22}
-                color={theme.colors.text}
-              />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder
-        disableSticky={false}
+    <View className="flex-1">
+      <PageHeader
+        title={t('marketplace.title', { defaultValue: 'Feed Marketplace' })}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
+        actions={
+          <Button
+            variant="secondary"
+            iconOnly
+            leadingIcon={searchVisible ? RiCloseLine : RiSearchLine}
+            onPress={() => {
+              setSearchVisible((v) => !v);
+              if (searchVisible) handleSearchChange('');
+            }}
+            accessibilityLabel={searchVisible
+              ? t('common.close', { defaultValue: 'Close' })
+              : t('search.title', { defaultValue: 'Search' })}
+          />
+        }
       />
 
       {loading && feeds.length === 0 ? (
@@ -518,7 +507,7 @@ export default function FeedMarketplaceScreen() {
           keyboardDismissMode="on-drag"
         />
       )}
-    </ThemedView>
+    </View>
   );
 }
 

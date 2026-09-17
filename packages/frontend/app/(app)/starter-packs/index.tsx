@@ -1,9 +1,7 @@
 import React, { useCallback, useState } from 'react';
-import { View, TouchableOpacity, Text, ScrollView, Platform } from 'react-native';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { View, ScrollView, Platform } from 'react-native';
+import { Button } from '@oxy.so/bloom/button';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -95,25 +93,16 @@ export default function StarterPacksScreen() {
         title="Starter Packs"
         description="Curated collections of accounts to follow"
       />
-      <ThemedView className="flex-1">
-        <Header options={{
-          title: t('starterPacks.title'),
-          leftComponents: [
-            <IconButton variant="icon"
-              key="back"
-              onPress={() => safeBack()}
-            >
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-          rightComponents: [
-            <TouchableOpacity key="create" onPress={() => router.push('/starter-packs/create')} className="px-3.5 py-1.5 rounded-full items-center justify-center bg-primary">
-              <Text className="font-bold text-primary-foreground">New</Text>
-            </TouchableOpacity>
-          ]
-        }}
-        hideBottomBorder={true}
-        disableSticky={true}
+      <View className="flex-1">
+        <PageHeader
+          title={t('starterPacks.title')}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+          actions={
+            <Button size="small" onPress={() => router.push('/starter-packs/create')}>
+              New
+            </Button>
+          }
         />
 
         {/* WEB: the document (body) is the scroller — the shell owns scroll, so
@@ -128,7 +117,7 @@ export default function StarterPacksScreen() {
             {content}
           </ScrollView>
         )}
-      </ThemedView>
+      </View>
     </>
   );
 }

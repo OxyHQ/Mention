@@ -168,19 +168,33 @@ jest.mock('@oxy.so/bloom/fab', () => {
   return { Fab: () => <RNView testID="fab" /> };
 });
 
-jest.mock('@/components/ui/Button', () => {
+jest.mock('@oxy.so/bloom/button', () => {
   const { TouchableOpacity: RNTouchable } =
     jest.requireActual<typeof import('react-native')>('react-native');
   return {
-    IconButton: ({ children, onPress }: { children?: React.ReactNode; onPress?: () => void }) => (
-      <RNTouchable onPress={onPress}>{children}</RNTouchable>
+    Button: ({ onPress, accessibilityLabel }: { onPress?: () => void; accessibilityLabel?: string }) => (
+      <RNTouchable onPress={onPress} accessibilityLabel={accessibilityLabel} />
     ),
   };
 });
 
-jest.mock('@/assets/icons/back-arrow-icon', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { BackArrowIcon: () => <RNView testID="back-arrow" /> };
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiAddLine: () => null,
+  RiArrowLeftLine: () => null,
+  RiCheckLine: () => null,
+  RiEditBoxLine: () => null,
+  RiGroupLine: () => null,
+  RiHashtag: () => null,
+  RiMoreFill: () => null,
+  RiPushpinFill: () => null,
+  RiPushpinLine: () => null,
+  RiShare2Line: () => null,
+  RiStarLine: () => null,
+}));
+
+jest.mock('@oxy.so/bloom/typography', () => {
+  const { Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { Text: RNText };
 });
 
 jest.mock('@/assets/icons/compose-icon', () => {

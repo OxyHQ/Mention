@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiAddLine, RiCheckboxBlankCircleLine, RiCheckboxCircleFill, RiCloseLine } from '@oxy.so/bloom/icons';
 import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
@@ -174,7 +174,7 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
           {t('starterPacks.addTo.title', { user: label, defaultValue: `Add ${label} to starter pack` })}
         </Text>
         <TouchableOpacity onPress={onClose} hitSlop={HIT_SLOP_MD} accessibilityRole="button" accessibilityLabel={t('common.close', { defaultValue: 'Close' })}>
-          <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
+          <RiCloseLine width={22} height={22} fill={theme.colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -226,9 +226,9 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
               {row.pending ? (
                 <SpinnerIcon size={18} className="text-primary" />
               ) : row.hasUser ? (
-                <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
+                <RiCheckboxCircleFill size="lg" fill={theme.colors.primary} />
               ) : (
-                <Ionicons name="ellipse-outline" size={24} color={theme.colors.textSecondary} />
+                <RiCheckboxBlankCircleLine size="lg" fill={theme.colors.textSecondary} />
               )}
             </TouchableOpacity>
           ))}
@@ -240,7 +240,7 @@ export function AddToStarterPackSheet({ targetUserId, targetLabel, onClose }: Ad
             accessibilityRole="button"
           >
             <View className="w-9 h-9 rounded-lg items-center justify-center bg-primary">
-              <Ionicons name="add" size={20} color="#fff" />
+              <RiAddLine size="md" fill="#fff" />
             </View>
             <Text className="text-primary text-[15px] font-semibold">
               {t('starterPacks.addTo.newPack', { defaultValue: 'New starter pack' })}

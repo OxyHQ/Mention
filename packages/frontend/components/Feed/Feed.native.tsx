@@ -790,7 +790,7 @@ const Feed = ((props: FeedProps) => {
             onError={handleBoundaryError}
         >
             <View
-                className={scrollEnabled === false ? "bg-background" : "flex-1 bg-background"}
+                className={scrollEnabled === false ? undefined : "flex-1"}
                 style={[{ minHeight: 0 }, scrollEnabled !== false && containerStyle]}
             >
                 {/* This list owns viewability for every video inside it: a player

@@ -2,9 +2,11 @@ import React, { useCallback, useState } from 'react';
 import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loading } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { RiAddCircleLine, RiDeleteBinLine, RiEditBoxLine, RiEyeOffLine, RiGitMergeLine, RiInformationFill, RiNodeTree } from '@oxy.so/bloom/icons';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@oxy.so/core/logger';
@@ -15,14 +17,10 @@ import {
     type Lane,
     type LaneDisplayMode,
 } from '@mention/shared-types';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { LaneIcon } from '@/assets/icons/lane-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { Icon, type IconName } from '@/lib/icons';
 import { EmptyState } from '@/components/common/EmptyState';
+import type { BloomIcon } from '@/components/settings/RowIcon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { ConfirmBottomSheet } from '@/components/common/ConfirmBottomSheet';
 import { showActionMenu } from '@/components/common/ActionMenu';
@@ -36,11 +34,16 @@ import { SEO } from '@/components/SEO';
 const lanesLogger = createLogger('Lanes');
 
 /** The glyph each showcase mode is recognised by, on this screen and nowhere else. */
-const MODE_ICON: Record<LaneDisplayMode, IconName> = {
-    mixed: 'git-merge-outline',
-    tab: 'git-branch-outline',
-    hidden: 'eye-off-outline',
+const MODE_ICON: Record<LaneDisplayMode, BloomIcon> = {
+    mixed: RiGitMergeLine,
+    tab: RiNodeTree,
+    hidden: RiEyeOffLine,
 };
+
+function ModeIcon({ mode, size, fill }: { mode: LaneDisplayMode; size: number; fill: string }) {
+    const Glyph = MODE_ICON[mode];
+    return <Glyph width={size} height={size} fill={fill} />;
+}
 
 /**
  * The author's own lanes: create, rename, decide where each one shows, delete.
@@ -65,14 +68,13 @@ export default function LanesScreen() {
     const [editingLaneId, setEditingLaneId] = useState<string | null>(null);
     const [editingName, setEditingName] = useState('');
 
-    const headerOptions = {
-        title: t('lanes.title', { defaultValue: 'Lanes' }),
-        leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-        ],
-    };
+    const header = (
+        <PageHeader
+            title={t('lanes.title', { defaultValue: 'Lanes' })}
+            onBack={() => safeBack()}
+            backLabel={t('common.back', { defaultValue: 'Back' })}
+        />
+    );
 
     const lanesQueryKey = viewerQueryKeys.ownedLanes(user?.id);
     const {
@@ -218,7 +220,7 @@ export default function LanesScreen() {
     const openLaneMenu = useCallback(
         (lane: Lane) => {
             const modeActions: ActionMenuAction[] = LANE_DISPLAY_MODES.map((mode) => ({
-                icon: <Icon name={MODE_ICON[mode]} size={22} color={mode === lane.displayMode ? colors.primary : colors.textSecondary} />,
+                icon: <ModeIcon mode={mode} size={22} fill={mode === lane.displayMode ? colors.primary : colors.textSecondary} />,
                 label: modeLabel(mode),
                 onPress: () => {
                     if (mode === lane.displayMode) return;
@@ -231,7 +233,7 @@ export default function LanesScreen() {
                 groups: [
                     [
                         {
-                            icon: <Icon name="create-outline" size={22} color={colors.textSecondary} />,
+                            icon: <RiEditBoxLine width={22} height={22} fill={colors.textSecondary} />,
                             label: t('lanes.rename', { defaultValue: 'Rename' }),
                             onPress: () => {
                                 setEditingLaneId(lane.id);
@@ -242,7 +244,7 @@ export default function LanesScreen() {
                     modeActions,
                     [
                         {
-                            icon: <Icon name="trash-outline" size={22} color={colors.error} />,
+                            icon: <RiDeleteBinLine width={22} height={22} fill={colors.error} />,
                             label: t('lanes.delete', { defaultValue: 'Delete lane' }),
                             onPress: () => handleDelete(lane),
                             color: colors.error,
@@ -256,15 +258,15 @@ export default function LanesScreen() {
 
     if (!isAuthenticated) {
         return (
-            <ThemedView className="flex-1">
-                <Header options={headerOptions} hideBottomBorder disableSticky />
+            <View className="flex-1">
+                {header}
                 <OxyAuthPrompt
                     label={t('lanes.signInRequired', { defaultValue: 'Sign in to manage your lanes' })}
                     description={t('lanes.signInRequiredDesc', {
                         defaultValue: 'Lanes let you keep separate tracks of your posts and decide which ones reach your profile.',
                     })}
                 />
-            </ThemedView>
+            </View>
         );
     }
 
@@ -278,8 +280,8 @@ export default function LanesScreen() {
                     defaultValue: 'Keep separate tracks of your posts and decide which ones reach your profile.',
                 })}
             />
-            <ThemedView className="flex-1">
-                <Header options={headerOptions} hideBottomBorder disableSticky />
+            <View className="flex-1">
+                {header}
 
                 <ScrollView
                     className="flex-1"
@@ -289,7 +291,7 @@ export default function LanesScreen() {
                 >
                     <SettingsListGroup>
                         <View className="px-4 py-3.5 flex-row items-center gap-3">
-                            <Icon name="information-circle" size={20} color={colors.primary} />
+                            <RiInformationFill size="md" fill={colors.primary} />
                             <Text className="flex-1 text-[13px] text-foreground">
                                 {t('lanes.description', {
                                     defaultValue: 'Keep separate tracks of your posts and decide which ones reach your profile.',
@@ -323,11 +325,7 @@ export default function LanesScreen() {
                                     onPress={handleAdd}
                                     activeOpacity={0.7}
                                 >
-                                    <Icon
-                                        name="add-circle"
-                                        size={26}
-                                        color={input.trim().length === 0 || atCap ? colors.textSecondary : colors.primary}
-                                    />
+                                    <RiAddCircleLine width={26} height={26} fill={input.trim().length === 0 || atCap ? colors.textSecondary : colors.primary} />
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -373,7 +371,7 @@ export default function LanesScreen() {
                             lanes.map((lane) =>
                                 lane.id === editingLaneId ? (
                                     <View key={lane.id} className="px-4 py-3 flex-row items-center gap-3">
-                                        <Icon name="create-outline" size={20} color={colors.textSecondary} />
+                                        <RiEditBoxLine size="md" fill={colors.textSecondary} />
                                         <TextInput
                                             className="flex-1 text-[15px] text-foreground"
                                             value={editingName}
@@ -399,7 +397,7 @@ export default function LanesScreen() {
                                 ) : (
                                     <SettingsListItem
                                         key={lane.id}
-                                        icon={<Icon name={MODE_ICON[lane.displayMode]} size={20} color={colors.textSecondary} />}
+                                        icon={<ModeIcon mode={lane.displayMode} size={20} fill={colors.textSecondary} />}
                                         title={lane.name}
                                         description={`${t('lanes.postCount', {
                                             count: lane.postCount ?? 0,
@@ -421,7 +419,7 @@ export default function LanesScreen() {
                         ))}
                     </View>
                 </ScrollView>
-            </ThemedView>
+            </View>
         </>
     );
 }

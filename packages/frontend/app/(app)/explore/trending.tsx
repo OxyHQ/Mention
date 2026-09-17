@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, SectionList, type SectionListData } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiLineChartLine, RiNodeTree } from '@oxy.so/bloom/icons';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -226,7 +226,7 @@ export default function ExploreTrendingScreen() {
         onPress={() => router.push('/trend-graph')}
         className="flex-row items-center gap-1 self-start"
       >
-        <Ionicons name="git-network-outline" size={14} color={theme.colors.primary} />
+        <RiNodeTree width={14} height={14} fill={theme.colors.primary} />
         <Text className="text-primary" style={{ fontSize: FONT_SIZES.sm }}>
           {t('trendGraph.openLink')}
         </Text>
@@ -269,7 +269,7 @@ export default function ExploreTrendingScreen() {
       stickySectionHeadersEnabled
       ListEmptyComponent={
         <View className="flex-1 items-center justify-center" style={{ paddingVertical: SPACING['3xl'], gap: SPACING.md }}>
-          <Ionicons name="trending-up-outline" size={48} color={theme.colors.textSecondary} />
+          <RiLineChartLine size="3xl" fill={theme.colors.textSecondary} />
           <Text className="text-muted-foreground" style={{ fontSize: FONT_SIZES.md }}>
             No trending topics available
           </Text>

@@ -2,10 +2,10 @@ import React, { useCallback } from 'react';
 import { Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
+import { RiArrowRightLine } from '@oxy.so/bloom/icons';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { ThemedText } from '@/components/ThemedText';
+import { Text } from '@oxy.so/bloom/typography';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import {
   INTERSTITIAL_CARD_GAP,
@@ -100,9 +100,9 @@ export function InterstitialShell<TItem>({
   return (
     <View ref={impressionRef} className="bg-muted border-border w-full border-b">
       <View className="flex-row items-center justify-between px-3 pb-2 pt-3">
-        <ThemedText className="text-base font-bold" numberOfLines={1}>
+        <Text className="text-base leading-6 font-bold text-foreground" numberOfLines={1}>
           {title}
-        </ThemedText>
+        </Text>
         {isDesktop && (
           <TouchableOpacity
             onPress={handleSeeMore}
@@ -111,7 +111,7 @@ export function InterstitialShell<TItem>({
             style={styles.webCursor}
             accessibilityRole="link"
             accessibilityLabel={seeMoreLabel}>
-            <ThemedText className="text-primary text-sm font-medium">{seeMoreLabel}</ThemedText>
+            <Text className="text-primary text-sm leading-6 font-medium">{seeMoreLabel}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -183,9 +183,9 @@ function SeeMoreCard({ label, onPress }: { label: string; onPress: () => void })
         accessibilityRole="button"
         accessibilityLabel={label}>
         <View className="bg-primary/10 h-9 w-9 items-center justify-center rounded-full">
-          <Ionicons name="arrow-forward" size={18} color={theme.colors.primary} />
+          <RiArrowRightLine width={18} height={18} fill={theme.colors.primary} />
         </View>
-        <ThemedText className="text-primary text-sm font-semibold">{label}</ThemedText>
+        <Text className="text-primary text-sm leading-6 font-semibold">{label}</Text>
       </PressableScale>
     </View>
   );

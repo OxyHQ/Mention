@@ -28,9 +28,8 @@ import PostDetailStats from '../Post/PostDetailStats';
 import PostLocation from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiCornerDownRightLine, RiLinkM } from '@oxy.so/bloom/icons';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { useImagePreload } from '@oxy.so/bloom/hooks';
 import { usePostLike } from '@/hooks/usePostLike';
@@ -804,7 +803,7 @@ const PostItem: React.FC<PostItemProps> = ({
         const replyRow = (
             <View className="flex-row items-center" style={{ height: POST_CONTEXT_ROW_HEIGHT }}>
                 <View className="-ml-4 mr-[3px]">
-                    <Ionicons name="return-down-forward-outline" size={13} color={theme.colors.textSecondary} />
+                    <RiCornerDownRightLine width={13} height={13} fill={theme.colors.textSecondary} />
                 </View>
                 <Text className="text-muted-foreground text-[13px] font-semibold" numberOfLines={1}>
                     {replyContextRow.label
@@ -830,11 +829,7 @@ const PostItem: React.FC<PostItemProps> = ({
     return (
         <>
             <Pressable
-                className={cn(
-                    "group",
-                    !isNested && "bg-background border-border",
-                    isNested && "border-border bg-background",
-                )}
+                className="group border-border"
                 style={[
                     !isNested && styles.postContainer,
                     !isNested && {
@@ -958,7 +953,7 @@ const PostItem: React.FC<PostItemProps> = ({
                                         onPress={openSourcesSheet}
                                         activeOpacity={0.8}
                                     >
-                                        <Ionicons name="link-outline" size={14} color={theme.colors.primary} />
+                                        <RiLinkM width={14} height={14} fill={theme.colors.primary} />
                                         <Text className="text-primary text-[13px] font-semibold">
                                             {t('post.sourcesChip', { defaultValue: 'Sources' })}
                                             {` (${sourcesList.length})`}

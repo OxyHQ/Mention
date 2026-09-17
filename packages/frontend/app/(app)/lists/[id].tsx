@@ -10,17 +10,15 @@ import {
   Pressable,
 } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { RiAlertLine, RiEditBoxLine, RiGlobalLine, RiGroupLine, RiLinkM, RiLockLine, RiNewspaperLine, RiShare2Line, RiUserAddFill } from '@oxy.so/bloom/icons';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useQuery } from '@tanstack/react-query';
 
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { Button } from '@oxy.so/bloom/button';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
@@ -150,7 +148,7 @@ export default function ListDetailScreen() {
   // `ListHeaderComponent`); on the `members` tab the same chrome renders inside
   // that tab's own <ScrollView>. Declared after the data so it can read `list`.
   const renderSubheader = useCallback(() => (
-    <View className="px-4 pt-3 pb-2 bg-background">
+    <View className="px-4 pt-3 pb-2">
       <View className="flex-row items-start gap-3">
         <Avatar
           source={list?.avatar || undefined}
@@ -210,11 +208,11 @@ export default function ListDetailScreen() {
           </Text>
         </View>
         <View className="flex-row items-center gap-1">
-          <Ionicons
-            name={list?.isPublic ? 'globe-outline' : 'lock-closed-outline'}
-            size={14}
-            color={theme.colors.textSecondary}
-          />
+          {list?.isPublic ? (
+            <RiGlobalLine width={14} height={14} fill={theme.colors.textSecondary} />
+          ) : (
+            <RiLockLine width={14} height={14} fill={theme.colors.textSecondary} />
+          )}
           <Text className="text-muted-foreground text-sm">
             {list?.isPublic ? 'Public' : 'Private'}
           </Text>
@@ -248,68 +246,55 @@ export default function ListDetailScreen() {
     </View>
   ), [renderSubheader, TABS, listId]);
 
-  const headerRightComponents = useMemo(() => [
-    <IconButton variant="icon" key="share" onPress={handleShare}>
-      <Ionicons
-        name={Platform.OS === 'web' ? 'link-outline' : 'share-outline'}
-        size={22}
-        color={theme.colors.text}
+  const headerActions = (
+    <>
+      <Button
+        variant="secondary"
+        iconOnly
+        leadingIcon={Platform.OS === 'web' ? RiLinkM : RiShare2Line}
+        onPress={handleShare}
+        accessibilityLabel={Platform.OS === 'web'
+          ? t('postActions.copyLink', { defaultValue: 'Copy link' })
+          : t('videos.share', { defaultValue: 'Share' })}
       />
-    </IconButton>,
-    ...(isOwnList
-      ? [
-          <IconButton
-            variant="icon"
-            key="edit"
-            onPress={() => router.push(`/lists/${listId}/edit`)}
-          >
-            <Ionicons name="create-outline" size={22} color={theme.colors.text} />
-          </IconButton>,
-        ]
-      : []),
-  ], [handleShare, isOwnList, listId, theme.colors.text]);
+      {isOwnList ? (
+        <Button
+          variant="secondary"
+          iconOnly
+          leadingIcon={RiEditBoxLine}
+          onPress={() => router.push(`/lists/${listId}/edit`)}
+          accessibilityLabel={t('common.edit', { defaultValue: 'Edit' })}
+        />
+      ) : null}
+    </>
+  );
 
   // Loading state
   if (loading) {
     return (
-      <ThemedView className="flex-1">
-        <Header
-          options={{
-            title: '',
-            leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                <BackArrowIcon size={20} className="text-foreground" />
-              </IconButton>,
-            ],
-          }}
-          hideBottomBorder
-          disableSticky
+      <View className="flex-1">
+        <PageHeader
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
         />
         <View className="flex-1 items-center justify-center">
           <SpinnerIcon size={28} className="text-primary" />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   // Error state
   if (error || !list) {
     return (
-      <ThemedView className="flex-1">
-        <Header
-          options={{
-            title: t('lists.detail.title'),
-            leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                <BackArrowIcon size={20} className="text-foreground" />
-              </IconButton>,
-            ],
-          }}
-          hideBottomBorder
-          disableSticky
+      <View className="flex-1">
+        <PageHeader
+          title={t('lists.detail.title')}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
         />
         <View className="flex-1 items-center justify-center gap-3">
-          <Ionicons name="alert-circle-outline" size={48} color={theme.colors.textSecondary} />
+          <RiAlertLine size="3xl" fill={theme.colors.textSecondary} />
           <Text className="text-muted-foreground text-base">
             {error || 'List not found'}
           </Text>
@@ -317,24 +302,17 @@ export default function ListDetailScreen() {
             <Text className="text-primary text-sm font-medium">Try again</Text>
           </TouchableOpacity>
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   return (
-    <ThemedView className="flex-1">
-      <Header
-        options={{
-          title: list.title || t('lists.detail.title'),
-          leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-          rightComponents: headerRightComponents,
-        }}
-        hideBottomBorder
-        disableSticky
+    <View className="flex-1">
+      <PageHeader
+        title={list.title || t('lists.detail.title')}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
+        actions={headerActions}
       />
 
       {/* Tab content.
@@ -366,7 +344,7 @@ export default function ListDetailScreen() {
               instanceId={`list-${listId}`}
             />
             <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
-              <Ionicons name="newspaper-outline" size={48} color={theme.colors.textSecondary} />
+              <RiNewspaperLine size="3xl" fill={theme.colors.textSecondary} />
               <Text className="text-muted-foreground text-base font-medium text-center">
                 {t('lists.emptyPosts', { defaultValue: 'No posts yet' })}
               </Text>
@@ -405,7 +383,7 @@ export default function ListDetailScreen() {
           }
         />
       )}
-    </ThemedView>
+    </View>
   );
 }
 
@@ -474,7 +452,7 @@ function ListMembers({
           <View
             className="w-10 h-10 rounded-full items-center justify-center bg-primary"
           >
-            <Ionicons name="person-add" size={20} color="#fff" />
+            <RiUserAddFill size="md" fill="#fff" />
           </View>
           <Text className="text-primary text-[15px] font-semibold">
             {t('lists.addPeople', { defaultValue: 'Add people' })}
@@ -484,7 +462,7 @@ function ListMembers({
 
       {memberIds.length === 0 ? (
         <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
-          <Ionicons name="people-outline" size={48} color={theme.colors.textSecondary} />
+          <RiGroupLine size="3xl" fill={theme.colors.textSecondary} />
           <Text className="text-muted-foreground text-base font-medium text-center">
             {t('lists.emptyMembers', { defaultValue: 'No members yet' })}
           </Text>

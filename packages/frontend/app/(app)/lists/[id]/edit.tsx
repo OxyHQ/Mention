@@ -2,19 +2,16 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, type TextStyle } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiAlertLine, RiCheckboxCircleFill, RiGroupLine, RiIndeterminateCircleFill, RiSearchLine } from '@oxy.so/bloom/icons';
 import { queryKeys } from '@oxy.so/services';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { listsService } from '@/services/listsService';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { logger } from '@oxy.so/core/logger';
@@ -179,55 +176,48 @@ export default function EditListMembersScreen() {
   }, [listId, members, pendingIds, setPending, t]);
 
   const header = (
-    <Header
-      options={{
-        title: t('lists.edit.title', { defaultValue: 'Edit members' }),
-        leftComponents: [
-          <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-            <BackArrowIcon size={20} className="text-foreground" />
-          </IconButton>,
-        ],
-      }}
-      hideBottomBorder
-      disableSticky
+    <PageHeader
+      title={t('lists.edit.title', { defaultValue: 'Edit members' })}
+      onBack={() => safeBack()}
+      backLabel={t('common.back', { defaultValue: 'Back' })}
     />
   );
 
   if (loading) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center">
           <SpinnerIcon size={28} className="text-primary" />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center gap-3 px-8">
-          <Ionicons name="alert-circle-outline" size={48} color={theme.colors.textSecondary} />
+          <RiAlertLine size="3xl" fill={theme.colors.textSecondary} />
           <Text className="text-muted-foreground text-base text-center">{error}</Text>
           <TouchableOpacity onPress={load}>
             <Text className="text-primary text-sm font-semibold">{t('common.retry', { defaultValue: 'Try again' })}</Text>
           </TouchableOpacity>
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1">
       {header}
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }} keyboardShouldPersistTaps="handled">
         <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
           {t('lists.edit.addMembers', { defaultValue: 'Add members' })}
         </Text>
         <View className="flex-row items-center border border-border rounded-[10px] px-2.5 mb-2.5 bg-background">
-          <Ionicons name="search" size={18} color={theme.colors.textSecondary} />
+          <RiSearchLine width={18} height={18} fill={theme.colors.textSecondary} />
           <TextInput
             value={search}
             onChangeText={runSearch}
@@ -262,7 +252,7 @@ export default function EditListMembersScreen() {
                   {busy ? (
                     <SpinnerIcon size={18} className="text-primary" />
                   ) : already ? (
-                    <Ionicons name="checkmark-circle" size={22} color={theme.colors.primary} />
+                    <RiCheckboxCircleFill width={22} height={22} fill={theme.colors.primary} />
                   ) : (
                     <Text className="text-primary font-semibold font-primary">{t('lists.create.add', { defaultValue: 'Add' })}</Text>
                   )}
@@ -280,7 +270,7 @@ export default function EditListMembersScreen() {
 
         {members.length === 0 ? (
           <View className="items-center justify-center py-10 gap-3">
-            <Ionicons name="people-outline" size={44} color={theme.colors.textSecondary} />
+            <RiGroupLine width={44} height={44} fill={theme.colors.textSecondary} />
             <Text className="text-muted-foreground text-sm text-center">
               {t('lists.emptyMembersSubtext', { defaultValue: 'Add people to curate this list' })}
             </Text>
@@ -306,7 +296,7 @@ export default function EditListMembersScreen() {
                     {busy ? (
                       <SpinnerIcon size={18} className="text-destructive" />
                     ) : (
-                      <Ionicons name="remove-circle-outline" size={24} color={theme.colors.error} />
+                      <RiIndeterminateCircleFill size="lg" fill={theme.colors.error} />
                     )}
                   </TouchableOpacity>
                 </View>
@@ -315,6 +305,6 @@ export default function EditListMembersScreen() {
           </View>
         )}
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }

@@ -267,6 +267,18 @@ jest.mock('@oxy.so/bloom/typography', () => {
 
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiArrowDownLine: () => null,
+  RiArrowRightLine: () => null,
+  RiArrowUpLine: () => null,
+  RiMoreFill: () => null,
+}));
+
+jest.mock('@oxy.so/bloom/typography', () => {
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { Text };
+});
+
 jest.mock('@oxy.so/bloom/button', () => {
   const { TouchableOpacity } =
     jest.requireActual<typeof import('react-native')>('react-native');

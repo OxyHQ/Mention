@@ -1,9 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { starterPacksService } from '@/services/starterPacksService';
@@ -81,21 +78,11 @@ export default function CreateStarterPackScreen() {
   }, [name, description, members, queryClient, user?.id]);
 
   return (
-    <ThemedView className="flex-1">
-      <Header
-        options={{
-          title: t('starterPacks.create'),
-          leftComponents: [
-            <IconButton variant="icon"
-              key="back"
-              onPress={() => safeBack()}
-            >
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder={true}
-        disableSticky={true}
+    <View className="flex-1">
+      <PageHeader
+        title={t('starterPacks.create')}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
       />
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <Text className="text-sm text-muted-foreground mb-1.5 font-primary">Name</Text>
@@ -162,7 +149,7 @@ export default function CreateStarterPackScreen() {
           <Text className="text-primary-foreground font-bold font-primary">{saving ? 'Creating...' : 'Create Starter Pack'}</Text>
         </TouchableOpacity>
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }
 

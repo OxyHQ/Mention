@@ -1,9 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
 import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
 import { router, Slot, usePathname, type Href } from 'expo-router';
@@ -12,9 +10,10 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
 import { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
 import { Fab } from '@oxy.so/bloom/fab';
+import { Button } from '@oxy.so/bloom/button';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Search } from '@/assets/icons/search-icon';
 import { SEO } from '@/components/SEO';
-import { IconButton } from '@/components/ui/Button';
 import { PanelStickyHeader, PanelChromeTopInsetProvider, PANEL_HEADER_HEIGHT, PANEL_CHROME_TOP_INSET } from '@/components/shell/PanelChrome';
 
 /**
@@ -71,8 +70,8 @@ export default function ExploreLayout() {
     [activeTab],
   );
 
-  // Translate-only: the header is an opaque `bg-background` surface that slides
-  // up behind the status bar. Fading its opacity would make the scrolled feed
+  // Translate-only: the header is an opaque surface that slides up behind the
+  // status bar. Fading its opacity would make the scrolled feed
   // visible through it (the header/tab-bar chrome must read as one continuous
   // opaque surface while rising), so there is NO opacity term here.
   const headerAnimatedStyle = useAnimatedStyle(() => ({
@@ -117,26 +116,28 @@ export default function ExploreLayout() {
           stacking contexts (RN-web otherwise renders every View as
           `position:relative; z-index:0`, which would TRAP the sticky header +
           tab bar below them). Mirrors `app/(app)/index.tsx`. No effect on native. */}
-      <SafeAreaView className="flex-1 bg-background web:z-auto" edges={['top']}>
-        <ThemedView className="flex-1 web:z-auto relative flex-col">
+      <SafeAreaView className="flex-1 web:z-auto" edges={['top']}>
+        <View className="flex-1 web:z-auto relative flex-col">
           <StatusBar style={theme.isDark ? 'light' : 'dark'} />
 
           {/* Header - animated. <PanelStickyHeader> owns the web sticky
               position/inset, opaque `bg-card` surface, top rounded corners, and
               z-index; the layout supplies the reanimated auto-hide translate.
-              NATIVE: PanelStickyHeader becomes the absolute top overlay. */}
+              NATIVE: PanelStickyHeader becomes the absolute top overlay, below
+              the SafeAreaView's top inset, so the header pads none of its own. */}
           <PanelStickyHeader level={0} style={headerAnimatedStyle}>
-            <Header
-              options={{
-                title: t('Explore'),
-                rightComponents: [
-                  <IconButton variant="icon" key="search" onPress={() => router.push('/search')}>
-                    <Search className="text-foreground" size={20} />
-                  </IconButton>,
-                ],
-              }}
-              hideBottomBorder={true}
-              disableSticky={true}
+            <PageHeader
+              title={t('Explore')}
+              safeArea={false}
+              actions={
+                <Button
+                  variant="secondary"
+                  iconOnly
+                  icon={<Search className="text-foreground" size={20} />}
+                  onPress={() => router.push('/search')}
+                  accessibilityLabel={t('Search')}
+                />
+              }
             />
           </PanelStickyHeader>
 
@@ -173,7 +174,7 @@ export default function ExploreLayout() {
             icon={<Search size={22} className="text-tertiary-foreground" />}
             accessibilityLabel={t('Search')}
           />
-        </ThemedView>
+        </View>
       </SafeAreaView>
     </>
   );

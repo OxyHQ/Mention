@@ -1,11 +1,9 @@
 import React, { useCallback, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { View, Text, ScrollView, Platform } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { Button } from '@oxy.so/bloom/button';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { listsService, type MentionList } from '@/services/listsService';
 import { entityFollowService } from '@/services/entityFollowService';
 import { subscribeToListChanges } from '@/services/listMutations';
@@ -173,25 +171,16 @@ export default function ListsScreen() {
         title={t('seo.lists.title')}
         description={t('seo.lists.description')}
       />
-      <ThemedView className="flex-1">
-        <Header options={{
-          title: t('lists.title'),
-          leftComponents: [
-            <IconButton variant="icon"
-              key="back"
-              onPress={safeBack}
-            >
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-          rightComponents: [
-            <TouchableOpacity key="create" onPress={() => router.push('/lists/create')} className="px-3.5 py-1.5 rounded-full items-center justify-center bg-primary">
-              <Text className="font-bold text-primary-foreground">{t('lists.new')}</Text>
-            </TouchableOpacity>
-          ]
-        }}
-        hideBottomBorder={true}
-        disableSticky={true}
+      <View className="flex-1">
+        <PageHeader
+          title={t('lists.title')}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+          actions={
+            <Button size="small" onPress={() => router.push('/lists/create')}>
+              {t('lists.new')}
+            </Button>
+          }
         />
 
         {/* WEB: the document (body) is the scroller — the shell owns scroll, so
@@ -206,7 +195,7 @@ export default function ListsScreen() {
             {content}
           </ScrollView>
         )}
-      </ThemedView>
+      </View>
     </>
   );
 }
