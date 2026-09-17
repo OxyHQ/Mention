@@ -41,7 +41,7 @@ type TransformOptions = {
 type HandledPostKey =
   | 'id' | 'content' | 'attachments' | 'documents' | 'user' | 'authors'
   | 'authorship' | 'engagement' | 'viewerState' | 'permissions' | 'metadata'
-  | 'lane' | 'crosspost' | 'parentPostId' | 'replyContext'
+  | 'lane' | 'crosspost' | 'parentPostId' | 'replyContext' | 'communityNote'
   | 'originalPost' | 'quotedPost' | 'boost' | 'context';
 
 type UnhandledPostKey = Exclude<keyof HydratedPost, HandledPostKey>;
@@ -91,6 +91,7 @@ export function toFeedItem(
     // post rendered straight from the API shows "Replying to @…" — the local
     // cache would be the only surface silently missing its reply context.
     replyContext: post.replyContext,
+    communityNote: post.communityNote,
     // Same rule, and the stakes are higher than the reply context above.
     // `PostItem` reads `storePost ?? post`, so the cached copy WINS — a field
     // dropped here is missing on every feed surface while the raw API response

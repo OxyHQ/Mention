@@ -14,6 +14,7 @@ Current reference documentation:
 - [Frontend rules](./frontend-rules.md)
 - [React Compiler and web virtualization](./frontend-compiler-notes.md)
 - [Moderation (CrowdSource) design detail](./moderation-crowdsource.md)
+- [Community notes and content warnings](./community-notes.md)
 - [Development](./development.md)
 - [Dependency updates](./dependencies.md)
 - [User mentions](./mentions.md)

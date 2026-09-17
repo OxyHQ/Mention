@@ -22,13 +22,15 @@ import PostContentText from '../Post/PostContentText';
 import PostLaneChip from '../Post/PostLaneChip';
 import PostCrosspostRow from '../Post/PostCrosspostRow';
 import ContentWarning from '../Post/ContentWarning';
+import { CommunityNoteCard } from '@/components/CommunityNotes/CommunityNoteCard';
+import { useCommunityNoteSheets } from '@/components/CommunityNotes/useCommunityNoteSheets';
 import PostCorrectionNotice from '../Post/PostCorrectionNotice';
 import PostActions from '../Post/PostActions';
 import PostDetailStats from '../Post/PostDetailStats';
 import PostLocation from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { RiCornerDownRightLine, RiLinkM } from '@oxy.so/bloom/icons';
+import { RiCornerDownRightLine, RiLinkM, RiTeamLine } from '@oxy.so/bloom/icons';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useImagePreload } from '@oxy.so/bloom/hooks';
@@ -582,7 +584,18 @@ const PostItem: React.FC<PostItemProps> = ({
         onOpenSources: openSourcesSheet,
     });
 
+    const noteSheets = useCommunityNoteSheets();
+    const communityNote = viewPost?.communityNote;
+    const openCommunityNoteAbout = useCallback(() => {
+        if (communityNote) noteSheets.openAbout(communityNote);
+    }, [communityNote, noteSheets]);
+
     const openMenu = useCallback(() => {
+        const communityNoteAction = noteSheets.canWrite && !isOwner && viewPost ? [{
+            icon: <RiTeamLine width={20} height={20} fill={theme.colors.textSecondary} />,
+            label: t('communityNotes.menu.add', { defaultValue: 'Add community note' }),
+            onPress: () => noteSheets.openWriteFlow(viewPost),
+        }] : [];
         showActionMenu({
             label: t('postActions.title', { defaultValue: 'Post options' }),
             groups: [
@@ -593,11 +606,12 @@ const PostItem: React.FC<PostItemProps> = ({
                 postActions.articleAction,
                 postActions.sourcesAction,
                 postActions.addToListAction,
+                communityNoteAction,
                 postActions.muteReportAction,
                 postActions.copyLinkAction,
             ],
         });
-    }, [postActions, t]);
+    }, [postActions, t, isOwner, viewPost, noteSheets, theme.colors.textSecondary]);
 
     // Memoize the structured props handed to the memoized children so they keep a
     // stable identity across re-renders. The inline object/array literals these
@@ -1010,6 +1024,14 @@ const PostItem: React.FC<PostItemProps> = ({
                         // spans exactly that width, edge to edge like a feed row.
                         containerWidth={containerWidth}
                     />
+                )}
+
+                {communityNote?.status === 'shown' && !isNested && !isContentGated && (
+                    // Below everything the author posted, above the actions: the
+                    // note is context ABOUT the post, never part of it.
+                    <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                        <CommunityNoteCard note={communityNote} onPressAbout={openCommunityNoteAbout} />
+                    </View>
                 )}
 
                 {!isNested && (

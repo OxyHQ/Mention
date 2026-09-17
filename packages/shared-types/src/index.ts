@@ -73,3 +73,6 @@ export * from './mtn';
 
 // Mention-owned job listings — the Clarity Jobs integration boundary (#952)
 export * from './job';
+
+// Community notes — rendered by Mention, owned by CrowdSource
+export * from './communityNotes';

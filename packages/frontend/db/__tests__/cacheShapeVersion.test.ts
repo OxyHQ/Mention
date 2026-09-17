@@ -30,6 +30,7 @@ const PERSISTED_POST_KEYS = [
   'authors',
   'authorship',
   'boost',
+  'communityNote',
   'content',
   'context',
   'crosspost',
@@ -50,7 +51,7 @@ const PERSISTED_POST_KEYS = [
 ] as const;
 
 /** The version that must ship with the key set above. */
-const VERSION_FOR_THESE_KEYS = 10;
+const VERSION_FOR_THESE_KEYS = 11;
 
 function makeFullyPopulatedPost(): HydratedPost {
   return {
@@ -100,6 +101,13 @@ function makeFullyPopulatedPost(): HydratedPost {
         { network: 'instagram.com', label: 'Instagram', postId: 'post-1', rendered: true },
         { network: 'threads.net', label: 'Threads', postId: 'post-2', rendered: false },
       ],
+    },
+    communityNote: {
+      id: 'note-1',
+      text: 'Context',
+      sourceUrls: ['https://example.com/source'],
+      status: 'shown',
+      createdAt: '2026-08-02T00:00:00.000Z',
     },
     originalPost: null,
     quotedPost: null,
