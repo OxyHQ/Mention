@@ -1408,6 +1408,8 @@
   "widgets.relatedPosts": "Виджет похожих постов",
   "widgets.recentlyViewed": "Виджет недавно просмотренного",
   "post.contentWarning": "Предупреждение о контенте",
+  "post.contentWarningShow": "Показать",
+  "post.contentWarningHide": "Скрыть",
   "post.boostUnavailable": "Этот пост больше недоступен",
   "compose.languages.pickerTitle": "Язык поста",
   "compose.languages.alreadyAdded": "Уже добавлен",

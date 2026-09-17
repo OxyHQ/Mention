@@ -1395,6 +1395,8 @@
   "widgets.relatedPosts": "Widget Posts similaires",
   "widgets.recentlyViewed": "Widget Vus récemment",
   "post.contentWarning": "Avertissement de contenu",
+  "post.contentWarningShow": "Afficher",
+  "post.contentWarningHide": "Masquer",
   "post.boostUnavailable": "Ce post n'est plus disponible",
   "compose.languages.pickerTitle": "Langue du post",
   "compose.languages.alreadyAdded": "Déjà ajoutée",

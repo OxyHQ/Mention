@@ -1382,6 +1382,8 @@
   "widgets.relatedPosts": "İlgili gönderiler widget'ı",
   "widgets.recentlyViewed": "Son görüntülenenler widget'ı",
   "post.contentWarning": "İçerik uyarısı",
+  "post.contentWarningShow": "Göster",
+  "post.contentWarningHide": "Gizle",
   "post.boostUnavailable": "Bu gönderi artık kullanılamıyor",
   "compose.languages.pickerTitle": "Gönderi dili",
   "compose.languages.alreadyAdded": "Zaten eklendi",

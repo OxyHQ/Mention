@@ -1382,6 +1382,8 @@
   "widgets.relatedPosts": "Widget für ähnliche Beiträge",
   "widgets.recentlyViewed": "Widget für zuletzt Angesehenes",
   "post.contentWarning": "Inhaltswarnung",
+  "post.contentWarningShow": "Anzeigen",
+  "post.contentWarningHide": "Ausblenden",
   "post.boostUnavailable": "Dieser Beitrag ist nicht mehr verfügbar",
   "compose.languages.pickerTitle": "Sprache des Beitrags",
   "compose.languages.alreadyAdded": "Bereits hinzugefügt",

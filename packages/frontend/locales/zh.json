@@ -1382,6 +1382,8 @@
   "widgets.relatedPosts": "相关帖子小组件",
   "widgets.recentlyViewed": "最近浏览小组件",
   "post.contentWarning": "内容警示",
+  "post.contentWarningShow": "显示",
+  "post.contentWarningHide": "隐藏",
   "post.boostUnavailable": "这条帖子已不再可用",
   "compose.languages.pickerTitle": "帖子语言",
   "compose.languages.alreadyAdded": "已添加",

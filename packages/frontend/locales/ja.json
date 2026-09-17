@@ -1382,6 +1382,8 @@
   "widgets.relatedPosts": "関連する投稿ウィジェット",
   "widgets.recentlyViewed": "最近見た項目のウィジェット",
   "post.contentWarning": "内容に関する警告",
+  "post.contentWarningShow": "表示",
+  "post.contentWarningHide": "非表示",
   "post.boostUnavailable": "この投稿は利用できなくなりました",
   "compose.languages.pickerTitle": "投稿の言語",
   "compose.languages.alreadyAdded": "追加済み",
