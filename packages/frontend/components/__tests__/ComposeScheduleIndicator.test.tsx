@@ -53,6 +53,7 @@ jest.mock('@oxy.so/bloom/pressable-scale', () => {
   return { PressableScale: TouchableOpacity };
 });
 jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => ({ RiChat3Fill: () => null, RiMoreFill: () => null }));
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 // The federated badge drags Bloom's dialog into the module graph and never
 // renders here: `PostHeader` only mounts it for a federated author.

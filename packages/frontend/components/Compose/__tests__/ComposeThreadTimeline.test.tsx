@@ -42,6 +42,13 @@ jest.mock('@oxy.so/bloom/theme', () => ({
   }),
 }));
 
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiAppleFill: () => null,
+  RiEditLine: () => null,
+  RiExternalLinkLine: () => null,
+  RiMic2Line: () => null,
+}));
+
 /**
  * The identity row is its own component with its own concerns (the account the
  * box publishes as, the collaborative byline) and its own coverage. These cases

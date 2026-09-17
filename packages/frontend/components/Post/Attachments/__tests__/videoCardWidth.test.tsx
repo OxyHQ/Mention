@@ -22,6 +22,8 @@ jest.mock('@oxy.so/bloom/image-aspect-ratio-cache', () => ({
   DEFAULT_ASPECT_RATIO: 1,
 }));
 
+jest.mock('@oxy.so/bloom/icons', () => ({ RiEyeOffLine: () => null }));
+
 jest.mock('@oxy.so/bloom/media-inset-border', () => ({
   MediaInsetBorder: () => null,
 }));

@@ -6,6 +6,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import Svg, { Path } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { RiAppleFill, RiEditLine, RiExternalLinkLine, RiMic2Line } from '@oxy.so/bloom/icons';
 import type { PostPodcastEpisode } from '@mention/shared-types/post';
 import { cn } from '@/lib/utils';
 import { openExternalLink } from '@/utils/openExternalLink';
@@ -103,9 +104,11 @@ const ProviderRow = ({ provider }: { provider: Provider }) => (
   <View className="flex-row items-center" style={{ gap: 4 }}>
     {provider.glyph === 'spotify' ? (
       <SpotifyGlyph size={13} color={WHITE_MUTED} />
+    ) : provider.glyph === 'apple' ? (
+      <RiAppleFill width={13} height={13} fill={WHITE_MUTED} />
     ) : (
       <Ionicons
-        name={provider.glyph === 'apple' ? 'logo-apple' : provider.glyph === 'youtube' ? 'logo-youtube' : 'radio'}
+        name={provider.glyph === 'youtube' ? 'logo-youtube' : 'radio'}
         size={13}
         color={WHITE_MUTED}
       />
@@ -140,7 +143,7 @@ const Artwork = ({ uri, size, radius }: { uri?: string; size: number; radius: nu
       style={{ width: size, height: size, borderRadius: radius, backgroundColor: 'rgba(255,255,255,0.14)' }}
       className="items-center justify-center"
     >
-      <Ionicons name="mic" size={size * 0.4} color={WHITE_MUTED} />
+      <RiMic2Line width={size * 0.4} height={size * 0.4} fill={WHITE_MUTED} />
     </View>
   );
 
@@ -204,7 +207,7 @@ export const PodcastCard = memo(function PodcastCard({
             className="rounded-xl bg-background items-center justify-center"
             style={{ width: 56, height: 56 }}
           >
-            <Ionicons name="mic-outline" size={24} color={colors.textSecondary} />
+            <RiMic2Line size="lg" fill={colors.textSecondary} />
           </View>
         )}
 
@@ -235,10 +238,10 @@ export const PodcastCard = memo(function PodcastCard({
             hitSlop={HIT_SLOP_MD}
             className="p-1"
           >
-            <Ionicons name="pencil-outline" size={16} color={colors.textSecondary} />
+            <RiEditLine size="sm" fill={colors.textSecondary} />
           </Pressable>
         ) : (
-          <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
+          <RiExternalLinkLine size="sm" fill={colors.textSecondary} />
         )}
       </Pressable>
     );

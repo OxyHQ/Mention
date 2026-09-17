@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { CloseIcon } from '@/assets/icons/close-icon';
+import { Button } from '@oxy.so/bloom/button';
+import { RiCloseLine } from '@oxy.so/bloom/icons';
 import PostSources from './PostSources';
 import type { PostSourceLink } from '@mention/shared-types';
-import { IconButton } from '@/components/ui/Button';
 import { EmptyState } from '@/components/common/EmptyState';
 
 interface PostSourcesSheetProps {
@@ -20,9 +20,14 @@ const PostSourcesSheet: React.FC<PostSourcesSheetProps> = ({ sources, onClose })
   return (
     <View className="flex-1 pb-6 bg-background">
       <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border">
-        <IconButton variant="icon" onPress={onClose} style={styles.closeButton}>
-          <CloseIcon size={20} className="text-foreground" />
-        </IconButton>
+        <Button
+          variant="secondary"
+          iconOnly
+          leadingIcon={RiCloseLine}
+          accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+          onPress={onClose}
+          style={styles.closeButton}
+        />
         <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground" style={{ pointerEvents: 'none' }}>
           {t('post.sourcesSheet.title', { defaultValue: 'Sources' })}
         </Text>

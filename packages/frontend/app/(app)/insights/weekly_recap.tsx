@@ -6,14 +6,10 @@ import {
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Loading } from '@oxy.so/bloom/loading';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { RiEyeLine, RiUserAddFill } from '@oxy.so/bloom/icons';
 import { insightsService, type AccountInsights } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
@@ -37,7 +33,6 @@ interface WeeklyRecapData {
 const WeeklyRecapScreen: React.FC = () => {
     const { t } = useTranslation();
     const theme = useTheme();
-    const insets = useSafeAreaInsets();
     const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
     const safeBack = useSafeBack();
 
@@ -206,51 +201,39 @@ const WeeklyRecapScreen: React.FC = () => {
     const summary = result?.summary ?? null;
 
     const renderHeader = () => (
-        <View style={{ paddingTop: insets.top }}>
-            <Header
-                options={{
-                    title: t('insights.weeklyRecap.title'),
-                    leftComponents: [
-                        <IconButton variant="icon"
-                            key="back"
-                            onPress={() => safeBack()}
-                        >
-                            <BackArrowIcon size={20} className="text-foreground" />
-                        </IconButton>,
-                    ],
-                }}
-                hideBottomBorder={true}
-                disableSticky={true}
-            />
-        </View>
+        <PageHeader
+            title={t('insights.weeklyRecap.title')}
+            onBack={() => safeBack()}
+            backLabel={t('common.back', { defaultValue: 'Back' })}
+        />
     );
 
     if (isPrivateApiPending || isLoading) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 {renderHeader()}
                 <View className="flex-1 items-center justify-center">
                     <Loading className="text-primary" size="large" />
                 </View>
-            </ThemedView>
+            </View>
         );
     }
 
     if (!canUsePrivateApi) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 {renderHeader()}
                 <OxyAuthPrompt
                     label={t('insights.signInRequired', { defaultValue: 'Sign in to see your insights' })}
                     description={t('insights.signInRequiredDesc', { defaultValue: 'Your posts, views, and engagement stats will appear here once you sign in.' })}
                 />
-            </ThemedView>
+            </View>
         );
     }
 
     if (!data) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 {renderHeader()}
                 <View className="flex-1 items-center justify-center p-6">
                     {/* `textTertiary` is the theme's real de-emphasised ink.
@@ -262,7 +245,7 @@ const WeeklyRecapScreen: React.FC = () => {
                         {t('insights.weeklyRecap.noDataAvailable')}
                     </Text>
                 </View>
-            </ThemedView>
+            </View>
         );
     }
 
@@ -280,7 +263,7 @@ const WeeklyRecapScreen: React.FC = () => {
             chartData: getCurrentWeekData(data.currentWeek.dailyBreakdown || [], 'interactions')
         },
         {
-            icon: <Ionicons name="eye" size={20} color={theme.colors.text} />,
+            icon: <RiEyeLine size="md" fill={theme.colors.text} />,
             title: t('insights.weeklyRecap.views'),
             current: data.currentWeek.overview.totalViews,
             previous: data.previousWeek.overview.totalViews,
@@ -296,7 +279,7 @@ const WeeklyRecapScreen: React.FC = () => {
             chartData: getCurrentWeekData(data.currentWeek.dailyBreakdown || [], 'replies')
         },
         {
-            icon: <Ionicons name="person-add" size={20} color={theme.colors.text} />,
+            icon: <RiUserAddFill size="md" fill={theme.colors.text} />,
             title: t('insights.weeklyRecap.newFollowers'),
             current: data.newFollowers,
             previous: data.previousFollowers,
@@ -306,16 +289,8 @@ const WeeklyRecapScreen: React.FC = () => {
     ];
 
     return (
-        <ThemedView className="flex-1">
-            {/* Header */}
-            <View style={{ paddingTop: insets.top }}>
-                <Header
-                    options={{
-                        title: t('insights.weeklyRecap.title'),
-                        showBackButton: true,
-                    }}
-                />
-            </View>
+        <View className="flex-1">
+            {renderHeader()}
 
             <ScrollView className="flex-1 px-4 pb-5" showsVerticalScrollIndicator={false}>
                 {/* Profile & Title Section */}
@@ -350,7 +325,7 @@ const WeeklyRecapScreen: React.FC = () => {
                 ))}
 
             </ScrollView>
-        </ThemedView>
+        </View>
     );
 };
 

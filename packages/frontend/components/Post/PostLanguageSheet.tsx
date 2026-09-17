@@ -1,8 +1,8 @@
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons';
 import { languageLabel, translateTargets, type PostLanguageOption } from '@/utils/postLanguages';
 
 interface Props {
@@ -52,7 +52,7 @@ const PostLanguageSheet: React.FC<Props> = ({ options, activeTag, onSelect }) =>
             ) : null}
           </View>
           {option.tag === activeTag ? (
-            <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
+            <RiCheckboxCircleFill size="md" fill={theme.colors.primary} />
           ) : null}
         </TouchableOpacity>
       ))}

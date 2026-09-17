@@ -2,9 +2,9 @@ import React, { useCallback } from 'react';
 import { View, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { CloseIcon } from '@/assets/icons/close-icon';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Button } from '@oxy.so/bloom/button';
+import { RiCloseLine } from '@oxy.so/bloom/icons';
 import { ProfileCard } from '@/components/ProfileCard';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import type { PostUser } from '@mention/shared-types';
@@ -67,20 +67,18 @@ const CollaboratorsList: React.FC<CollaboratorsListProps> = ({ authors, onClose,
 
   return (
     <View className="flex-1 bg-background">
-      <Header
-        options={{
-          title: title ?? t('collab.collaboratorsTitle', { defaultValue: 'Collaborators' }),
-          rightComponents: [
-            <IconButton variant="icon"
-              key="close"
-              onPress={onClose}
-            >
-              <CloseIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder={true}
-        disableSticky={true}
+      <PageHeader
+        title={title ?? t('collab.collaboratorsTitle', { defaultValue: 'Collaborators' })}
+        safeArea={false}
+        actions={
+          <Button
+            variant="secondary"
+            iconOnly
+            leadingIcon={RiCloseLine}
+            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+            onPress={onClose}
+          />
+        }
       />
 
       <FlatList

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { RiAlertLine } from '@oxy.so/bloom/icons';
 import { useTranslation } from 'react-i18next';
 
 interface Props {
@@ -27,7 +27,7 @@ const ContentWarning: React.FC<Props> = ({ text }) => {
       accessibilityLabel={`${label}: ${text}`}
       className="border-border bg-surface mb-1.5 flex-row items-center gap-1.5 self-start rounded-lg border px-2.5 py-1"
     >
-      <Ionicons name="warning-outline" size={14} color={theme.colors.textSecondary} />
+      <RiAlertLine width={14} height={14} fill={theme.colors.textSecondary} />
       <Text className="text-muted-foreground text-[13px] font-semibold flex-shrink" numberOfLines={3}>
         <Text className="text-muted-foreground">{label}</Text>
         {text ? ` · ${text}` : ''}

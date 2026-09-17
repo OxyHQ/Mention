@@ -31,7 +31,7 @@ import PostHeader from '../PostHeader';
 // cluster's `items` order is read as the array the header built, not as a
 // re-encoding of it — and none of them contributes text `collectText` would
 // then have to filter back out.
-jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
+jest.mock('@oxy.so/bloom/icons', () => ({ RiChat3Fill: 'RiChat3Fill', RiMoreFill: 'RiMoreFill' }));
 jest.mock('@/components/ui/LiveAvatar', () => ({ LiveAvatar: 'LiveAvatar' }));
 jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
 jest.mock('../../UserName', () => ({ __esModule: true, default: 'UserName' }));
