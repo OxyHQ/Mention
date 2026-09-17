@@ -43,6 +43,8 @@ interface JobCardProps {
    */
   job: PostJobContent;
   width?: number;
+  /** Fixed height, when the card shares an attachments row whose items all take one height. */
+  height?: number;
 }
 
 /**
@@ -56,7 +58,7 @@ interface JobCardProps {
  * so the handle is resolved on tap via the Oxy SDK's cached `getUserById`
  * rather than upfront for every rendered card.
  */
-const JobCard: React.FC<JobCardProps> = ({ job, width = 280 }) => {
+const JobCard: React.FC<JobCardProps> = ({ job, width = 280, height }) => {
   const { t } = useTranslation();
   const { oxyServices } = useAuth();
 
@@ -97,8 +99,8 @@ const JobCard: React.FC<JobCardProps> = ({ job, width = 280 }) => {
   return (
     <Pressable
       onPress={openJob}
-      className="w-[280px] border border-border bg-muted rounded-[14px] overflow-hidden p-3"
-      style={{ width }}
+      className="border border-border bg-muted rounded-[14px] overflow-hidden p-3"
+      style={{ width, height }}
       accessibilityRole="button"
       accessibilityLabel={job.title}
     >

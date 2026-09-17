@@ -816,7 +816,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         }
         if (item.type === 'job') {
           if (!job) return null;
-          return <JobCard key={`job-${idx}`} job={job} />;
+          return <JobCard key={`job-${idx}`} job={job} width={isSingleItem ? availableWidth : 280} height={rowItemHeight} />;
         }
         if (item.type === 'poll') {
           return (
