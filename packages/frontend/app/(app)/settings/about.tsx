@@ -1,6 +1,7 @@
+import { openExternalLink } from '@/utils/openExternalLink';
 import React from 'react';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { View, Text, ScrollView } from 'react-native';
+import { View, Text, ScrollView, Image } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
@@ -12,7 +13,7 @@ import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list
 import { RowIcon } from '@/components/settings/RowIcon';
 import { RiChat4Line, RiCodeSSlashLine, RiDeleteBinLine, RiEarthLine, RiQuestionLine, RiShieldCheckLine, RiSmartphoneLine, RiToolsFill } from '@oxy.so/bloom/icons';
 import { confirmDialog, alertDialog } from '@/utils/alerts';
-import { API_URL } from '@/config';
+import { API_URL, INSTANCE_NAME, INSTANCE_LOGO_URL, INSTANCE_ABOUT, INSTANCE_SOURCE_URL, INSTANCE_REVISION, WEB_BASE_URL } from '@/config';
 
 export default function AboutScreen() {
     const { t } = useTranslation();
@@ -72,15 +73,31 @@ export default function AboutScreen() {
                 {/* App identity */}
                 <View className="items-center py-6 mb-4">
                     <View className="w-16 h-16 rounded-2xl items-center justify-center bg-primary/10 mb-3">
-                        <LogoIcon size={32} className="text-primary" />
+                        {INSTANCE_LOGO_URL
+                          ? <Image source={{ uri: INSTANCE_LOGO_URL }} className="w-12 h-12" resizeMode="contain" accessibilityLabel={INSTANCE_NAME} />
+                          : <LogoIcon size={32} className="text-primary" />}
                     </View>
                     <Text className="text-xl font-bold text-foreground">
-                        {t('settings.aboutMention.appName')}
+                        {INSTANCE_NAME}
                     </Text>
                     <Text className="text-sm text-muted-foreground mt-1">
                         {t('settings.aboutMention.version', { version: appVersion })}
                     </Text>
                 </View>
+
+                {INSTANCE_ABOUT ? <Text className="text-center text-muted-foreground mb-4">{INSTANCE_ABOUT}</Text> : null}
+                {INSTANCE_SOURCE_URL ? (
+                    <SettingsListGroup variant="filled">
+                        <SettingsListItem icon={<RowIcon icon={RiEarthLine} />} title="Mention by Oxy"
+                            onPress={() => { void openExternalLink('https://oxy.so'); }} />
+                        <SettingsListItem icon={<RowIcon icon={RiCodeSSlashLine} />}
+                            title={t('settings.aboutMention.build')} value={INSTANCE_REVISION.slice(0, 12)}
+                            onPress={() => { void openExternalLink(INSTANCE_SOURCE_URL); }} />
+                        <SettingsListItem icon={<RowIcon icon={RiEarthLine} />} title={INSTANCE_NAME}
+                            description={WEB_BASE_URL}
+                            onPress={() => { void openExternalLink(`${WEB_BASE_URL}/.well-known/mention-instance`); }} />
+                    </SettingsListGroup>
+                ) : null}
 
                 {/* System info */}
                 <SettingsListGroup variant="filled" title={t('settings.aboutMention.systemInfo', { defaultValue: 'System information' })}>

@@ -1,10 +1,10 @@
+import { mcpDeploymentIdentity } from "@mention/shared-types/deployment";
 import { OxyServices } from "@oxy.so/core";
 import {
   introspectOxyMcpAccessToken,
   type McpAccessTokenClaims as OxyMcpAccessTokenClaims,
 } from "@oxy.so/mcp";
 import {
-  MENTION_CAPABILITY_AUDIENCE,
   MENTION_LEGACY_MCP_AUTH_CUTOFF_MS,
 } from "@mention/shared-types/mcpCapabilities";
 import type { McpHttpConfig } from "./config.js";
@@ -15,7 +15,7 @@ import {
 
 type TokenAuthConfig = Pick<
   McpHttpConfig,
-  "jwtSecret" | "legacyOauthIssuer" | "oxyApiUrl" | "publicUrl"
+  "jwtSecret" | "legacyOauthIssuer" | "oxyApiUrl" | "publicUrl" | "deploymentIdentity"
 >;
 
 export type CentralTokenIntrospector = (
@@ -54,7 +54,7 @@ export async function authenticateMcpAccessToken(
     const claims = await options.introspectCentral(token);
     return claims ? centralPrincipal(claims, options.config) : null;
   }
-  if (algorithm !== "HS256") return null;
+  if (algorithm !== "HS256" || options.config.deploymentIdentity?.allowLegacyTokens === false) return null;
 
   try {
     return verifyLegacyMcpAccessToken(token, {
@@ -73,9 +73,10 @@ function centralPrincipal(
   claims: OxyMcpAccessTokenClaims,
   config: TokenAuthConfig,
 ): AuthenticatedMcpToken | null {
+  const identity = config.deploymentIdentity ?? mcpDeploymentIdentity({ MENTION_MCP_PUBLIC_URL: config.publicUrl });
   if (
     claims.iss !== config.oxyApiUrl ||
-    claims.aud !== MENTION_CAPABILITY_AUDIENCE ||
+    claims.aud !== identity.audience ||
     claims.resource !== config.publicUrl
   ) {
     return null;

@@ -1,3 +1,4 @@
+import { publicDeploymentInfo } from '@mention/shared-types/deployment';
 import type { RequestHandler } from 'express';
 import { OxyServices } from '@oxy.so/core';
 import { createOxyRateLimit } from '@oxy.so/core/server';
@@ -73,6 +74,7 @@ export function createRuntimeApp(activity?: RequestHandler) {
   const routes = createAppRoutes({ oxy, optionalAuth });
 
   const app = createApp({
+    deployment: config.deployment ? publicDeploymentInfo(config.deployment) : undefined,
     frontendUrl: config.frontendUrl,
     federationDomain: config.federationDomain,
     isAllowedOrigin,

@@ -1,3 +1,4 @@
+import { INSTANCE_NAME, INSTANCE_LOGO_URL } from '@/config';
 import React, { useEffect, useCallback, useMemo, memo, useId } from 'react';
 import {
   View,
@@ -6,6 +7,7 @@ import {
   Platform,
   Pressable,
   ImageBackground,
+  Image,
   ImageSourcePropType,
   type StyleProp,
   type ViewStyle,
@@ -240,12 +242,15 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
 
             {/* Logo */}
             <View style={styles.logoContainer}>
-              <LogoIcon
+              {INSTANCE_LOGO_URL ? (
+                <Image source={{ uri: INSTANCE_LOGO_URL }} className="w-12 h-12" resizeMode="contain" accessibilityLabel={INSTANCE_NAME} />
+              ) : <LogoIcon
                 className={theme.isDark ? undefined : 'text-primary'}
                 color={theme.isDark ? '#FFFFFF' : undefined}
                 size={40}
                 style={styles.logoIcon}
-              />
+              />}
+              {INSTANCE_NAME !== 'Mention' ? <Muted>{INSTANCE_NAME}</Muted> : null}
             </View>
 
             {/* Tagline with single gradient for all lines */}

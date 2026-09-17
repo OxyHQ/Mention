@@ -1,3 +1,4 @@
+import type { PublicDeploymentInfo } from '@mention/shared-types/deployment';
 import { createOxySecurityHeaders, type OxyCspExtensions } from '@oxy.so/core/server';
 import compression from 'compression';
 import express, {
@@ -16,6 +17,7 @@ export interface AppMiddleware {
 }
 
 export interface CreateAppDependencies {
+  deployment?: PublicDeploymentInfo;
   frontendUrl?: string;
   federationDomain: string;
   isAllowedOrigin(origin: string): boolean;
@@ -39,8 +41,6 @@ const MENTION_CSP_EXTENSIONS: OxyCspExtensions = {
   connectSrc: [
     'blob:',
     'data:',
-    'https://api.mention.earth',
-    'wss://api.mention.earth',
     // The embedded Alia SDK reads its model catalogue and streams chat here.
     'https://api.alia.onl',
     // Live rooms are served by Syra's backend and LiveKit, not api.mention.earth.
@@ -85,6 +85,7 @@ export function createApp(deps: CreateAppDependencies): express.Express {
 
   // CORS must precede every route so failures (including 429/500) carry it.
   app.use((req, res, next) => {
+    res.vary('Origin');
     const origin = req.headers.origin;
     if (origin && deps.isAllowedOrigin(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
@@ -122,7 +123,14 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   // OPTIONAL peerDependency, so it is installed only because we declare it.
   // Dropping it from package.json uninstalls it and this call throws at boot.
   app.use(createOxySecurityHeaders({
-    csp: MENTION_CSP_EXTENSIONS,
+    csp: {
+      ...MENTION_CSP_EXTENSIONS,
+      connectSrc: [
+        ...(MENTION_CSP_EXTENSIONS.connectSrc ?? []),
+        deps.deployment?.apiBaseUrl ?? 'https://api.mention.earth',
+        (deps.deployment?.apiBaseUrl ?? 'https://api.mention.earth').replace(/^https:/, 'wss:'),
+      ],
+    },
     helmet: {
       crossOriginResourcePolicy: { policy: 'cross-origin' },
       // Match the baseline's `frame-ancestors 'none'`; helmet's SAMEORIGIN
@@ -223,6 +231,35 @@ export function createApp(deps: CreateAppDependencies): express.Express {
 
   app.get('/', routes.legacyRoot);
 
+  // This is process configuration, never a tenant selected using Host/forwarded headers.
+  if (deps.deployment) {
+    const deployment = deps.deployment;
+    app.get('/.well-known/mention-instance', (_req, res) => {
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.json(deployment);
+    });
+    app.get('/manifest.json', (_req, res) => {
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.type('application/manifest+json').json({
+        id: deployment.publicBaseUrl,
+        name: deployment.branding.name,
+        short_name: deployment.branding.name,
+        description: deployment.branding.about,
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        theme_color: deployment.branding.accentColor,
+        icons: deployment.branding.iconUrl
+          ? [{ src: deployment.branding.iconUrl, sizes: 'any', purpose: 'any' }]
+          : [],
+        share_target: {
+          action: '/compose', method: 'GET', enctype: 'application/x-www-form-urlencoded',
+          params: { title: 'text', text: 'text', url: 'url' },
+        },
+      });
+    });
+  }
+
   // Federation endpoints must stay ahead of web shell and the apex proxy.
   app.use('/.well-known', routes.webfinger);
   app.get('/.well-known/nodeinfo', (_req, res) => {
@@ -242,13 +279,19 @@ export function createApp(deps: CreateAppDependencies): express.Express {
     }
     res.json({
       version: '2.0',
-      software: { name: 'mention', version: '1.0.0' },
+      software: { name: 'mention', version: deps.deployment?.software.version ?? '1.0.0' },
       protocols: ['activitypub'],
       usage: {
         users: { total: 0 },
         localPosts: postCount,
       },
-      openRegistrations: true,
+      openRegistrations: !deps.deployment || deps.deployment.signupPolicy === 'open',
+      ...(deps.deployment ? { metadata: {
+        nodeName: deps.deployment.branding.name,
+        nodeDescription: deps.deployment.branding.about,
+        sourceUrl: deps.deployment.software.sourceUrl,
+        revision: deps.deployment.software.revision,
+      } } : {}),
     });
   });
   app.use('/ap', routes.apRateLimiter);

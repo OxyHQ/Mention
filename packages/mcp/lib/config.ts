@@ -1,3 +1,4 @@
+import { mcpDeploymentIdentity, withManagedDeploymentEnvironment, type McpDeploymentIdentity } from "@mention/shared-types/deployment";
 import { z } from "zod/v4";
 
 const DEFAULT_API_URL = "https://api.mention.earth";
@@ -25,7 +26,7 @@ const httpEnvSchema = z.object({
   OXY_SERVICE_API_KEY: z.string().trim().min(1),
   OXY_SERVICE_API_SECRET: z.string().trim().min(1),
   MENTION_LEGACY_OAUTH_ISSUER: z.string().url().default(DEFAULT_LEGACY_OAUTH_ISSUER),
-  MENTION_MCP_JWT_SECRET: z.string().trim().min(1),
+  MENTION_MCP_JWT_SECRET: z.string().trim().min(1).optional(),
 });
 
 const DEFAULT_CORS_ORIGINS = [
@@ -50,12 +51,13 @@ export interface McpHttpConfig {
   legacyOauthIssuer: string;
   jwtSecret: string;
   allowedOrigins: ReadonlySet<string>;
+  deploymentIdentity?: McpDeploymentIdentity;
 }
 
 export function loadApiClientConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): ApiClientConfig {
-  const parsed = parseEnvironment(apiClientEnvSchema, env, "MCP API client");
+  const parsed = parseEnvironment(apiClientEnvSchema, withManagedDeploymentEnvironment(env), "MCP API client");
   return {
     baseUrl: stripTrailingSlashes(parsed.MENTION_API_URL),
     requestTimeoutMs: parsed.MENTION_API_TIMEOUT_MS,
@@ -65,7 +67,11 @@ export function loadApiClientConfig(
 export function loadMcpHttpConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): McpHttpConfig {
-  const parsed = parseEnvironment(httpEnvSchema, env, "MCP HTTP server");
+  const parsed = parseEnvironment(httpEnvSchema, withManagedDeploymentEnvironment(env), "MCP HTTP server");
+  const deploymentIdentity = mcpDeploymentIdentity(env);
+  if (deploymentIdentity.allowLegacyTokens && !parsed.MENTION_MCP_JWT_SECRET) {
+    throw new Error('Invalid MCP HTTP server configuration: MENTION_MCP_JWT_SECRET is required for legacy tokens');
+  }
   const configuredOrigins = (parsed.MCP_ALLOWED_ORIGINS ?? "")
     .split(",")
     .map((origin) => origin.trim())
@@ -73,6 +79,7 @@ export function loadMcpHttpConfig(
     .map(normalizeOrigin);
 
   return {
+    deploymentIdentity,
     port: parsed.MCP_PORT,
     maxRequestBodyBytes: parsed.MCP_MAX_REQUEST_BODY_BYTES,
     maxSessions: parsed.MCP_MAX_SESSIONS,
@@ -81,7 +88,7 @@ export function loadMcpHttpConfig(
     oxyServiceApiKey: parsed.OXY_SERVICE_API_KEY,
     oxyServiceApiSecret: parsed.OXY_SERVICE_API_SECRET,
     legacyOauthIssuer: stripTrailingSlashes(parsed.MENTION_LEGACY_OAUTH_ISSUER),
-    jwtSecret: parsed.MENTION_MCP_JWT_SECRET,
+    jwtSecret: parsed.MENTION_MCP_JWT_SECRET ?? "",
     allowedOrigins: new Set([...DEFAULT_CORS_ORIGINS, ...configuredOrigins]),
   };
 }

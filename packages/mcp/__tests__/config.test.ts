@@ -58,3 +58,20 @@ describe("MCP configuration", () => {
     })).toThrow("MENTION_MCP_JWT_SECRET");
   });
 });
+
+describe('managed MCP configuration', () => {
+  test('derives API, resource and catalog audience from one deployment without a legacy secret', async () => {
+    const { default: example } = await import('../../shared-types/__tests__/fixtures/managed-deployment.json');
+    const environment = {
+      MENTION_DEPLOYMENT_CONFIG: JSON.stringify(example),
+      OXY_SERVICE_API_KEY: 'tenant-service-key', OXY_SERVICE_API_SECRET: 'tenant-service-secret',
+    };
+    const http = loadMcpHttpConfig(environment);
+    expect(loadApiClientConfig(environment).baseUrl).toBe(example.apiBaseUrl);
+    expect(http.publicUrl).toBe(example.mcpBaseUrl);
+    expect(http.deploymentIdentity?.audience).toBe(`mention-${example.tenantId}-api`);
+    expect(http.deploymentIdentity?.allowLegacyTokens).toBe(false);
+    expect(() => loadMcpHttpConfig({ ...environment, MENTION_MCP_PUBLIC_URL: 'https://mcp.mention.earth' }))
+      .toThrow('MENTION_MCP_PUBLIC_URL conflicts');
+  });
+});
