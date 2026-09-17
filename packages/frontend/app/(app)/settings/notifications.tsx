@@ -96,10 +96,12 @@ export default function NotificationSettingsScreen() {
         }
     }, [prefs, t]);
 
+    const header = <PageHeader title={t('settings.notifications.title', { defaultValue: 'Notifications' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} actions={saving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />;
+
     if (isPrivateApiPending) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.notifications.title', { defaultValue: 'Notifications' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -110,7 +112,7 @@ export default function NotificationSettingsScreen() {
     if (!canUsePrivateApi) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.notifications.title', { defaultValue: 'Notifications' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <OxyAuthPrompt
                     label={t('settings.notifications.signInRequired', { defaultValue: 'Sign in to manage notifications' })}
                     description={t('settings.notifications.signInRequiredDesc', { defaultValue: 'Choose what alerts you receive and how.' })}
@@ -122,7 +124,7 @@ export default function NotificationSettingsScreen() {
     if (loading) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.notifications.title', { defaultValue: 'Notifications' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -132,7 +134,7 @@ export default function NotificationSettingsScreen() {
 
     return (
         <View className="flex-1">
-            <PageHeader title={t('settings.notifications.title', { defaultValue: 'Notifications' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} actions={saving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />
+            {header}
 
             <ScrollView
                 className="flex-1"

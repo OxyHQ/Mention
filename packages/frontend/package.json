@@ -38,7 +38,8 @@
     "moduleNameMapper": {
       "^@oxy.so/services/ui/client$": "<rootDir>/../../node_modules/@oxy.so/services/lib/commonjs/ui/client.js",
       "^@oxy.so/core/logger$": "<rootDir>/../../node_modules/@oxy.so/core/dist/cjs/logger/index.js",
-      "^@oxy.so/contracts$": "<rootDir>/../../node_modules/@oxy.so/contracts/dist/cjs/index.js"
+      "^@oxy.so/contracts$": "<rootDir>/../../node_modules/@oxy.so/contracts/dist/cjs/index.js",
+      "^@oxy.so/bloom/icons$": "<rootDir>/test-support/bloomIcons.js"
     },
     "collectCoverageFrom": [
       "**/*.{ts,tsx}",
@@ -82,7 +83,6 @@
     "@alia.onl/sdk": "7.2.8",
     "@babel/plugin-transform-export-namespace-from": "^7.29.7",
     "@expo/vector-icons": "^15.1.1",
-    "@floating-ui/react-dom": "^2.1.9",
     "@livekit/react-native": "^2.12.0",
     "@livekit/react-native-expo-plugin": "^1.0.2",
     "@livekit/react-native-webrtc": "^144.1.2",

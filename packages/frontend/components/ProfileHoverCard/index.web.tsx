@@ -16,6 +16,7 @@ import { useProfileData } from '@/hooks/useProfileData';
 import { resolveProfileColorName } from '@/hooks/useProfileScreenColor';
 import { usePostActivity } from '@/hooks/usePostActivity';
 import { formatCompactNumber } from '@/utils/formatNumber';
+import { formatDateInput } from '@/utils/dateUtils';
 import { type ProfileHoverCardProps } from './types';
 
 /**
@@ -24,9 +25,16 @@ import { type ProfileHoverCardProps } from './types';
  * presses, touch pointers ignored) and HOW it looks (`UserHoverCard`); this file
  * only supplies the person — the profile, the follow action and the activity graph.
  */
+
+// A device with no hovering pointer can never open the card (Bloom ignores touch
+// pointers), so it gets the bare target instead of a trigger per name and mention.
+// `any-hover`, not `ontouchstart`: a touch laptop with a mouse still hovers.
+const CAN_HOVER =
+  typeof window !== 'undefined' && window.matchMedia?.('(any-hover: hover)').matches === true;
+
 export function ProfileHoverCard({ username, disable, style, children }: ProfileHoverCardProps) {
   // No handle ⇒ nothing to preview (degraded author): render the target alone.
-  if (!username || disable) {
+  if (!username || disable || !CAN_HOVER) {
     return children as React.ReactElement;
   }
   return (
@@ -42,15 +50,25 @@ function ProfileHoverCardLive({
   children,
 }: Pick<ProfileHoverCardProps, 'style' | 'children'> & { username: string }) {
   const [open, setOpen] = useState(false);
+  // The content — Bloom's floating panel with its anchor tracking and animation
+  // hooks — mounts on the first open and stays for the close animation. A closed
+  // panel renders nothing yet still runs those hooks, once per name and mention
+  // in a feed that almost never opens a card.
+  const [armed, setArmed] = useState(false);
+  const onOpenChange = useCallback((next: boolean) => {
+    setOpen(next);
+    if (next) setArmed(true);
+  }, []);
   const close = useCallback(() => setOpen(false), []);
 
   return (
-    <HoverCard open={open} onOpenChange={setOpen}>
+    <HoverCard open={open} onOpenChange={onOpenChange}>
       <HoverCardTrigger style={style}>{children}</HoverCardTrigger>
-      <HoverCardContent label={username}>
-        {/* Mounted only while open, so the profile is fetched on open, not on render. */}
-        {open ? <ProfilePreview username={username} onNavigate={close} /> : null}
-      </HoverCardContent>
+      {armed ? (
+        <HoverCardContent label={username}>
+          <ProfilePreview username={username} onNavigate={close} />
+        </HoverCardContent>
+      ) : null}
     </HoverCard>
   );
 }
@@ -125,7 +143,7 @@ function ProfilePreview({ username, onNavigate }: { username: string; onNavigate
                   card's 256px content width. */}
               <ActivityHeatmap
                 data={activity}
-                endDate={new Date().toISOString().slice(0, 10)}
+                endDate={formatDateInput(new Date())}
                 numDays={119}
                 cellSize={11}
                 gap={3}

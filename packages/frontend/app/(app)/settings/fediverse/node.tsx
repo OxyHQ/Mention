@@ -1,5 +1,4 @@
 import React, { useCallback } from 'react';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -7,23 +6,23 @@ import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
-import { Button } from '@oxy.so/bloom/button';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { RiBox3Line, RiCheckboxCircleFill, RiCloseCircleLine, RiErrorWarningFill, RiInformationFill, RiShieldCheckLine } from '@oxy.so/bloom/icons';
+import { RiBox3Line, RiCheckboxCircleFill, RiCloseCircleLine, RiErrorWarningFill, RiShieldCheckLine } from '@oxy.so/bloom/icons';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDialog } from '@/utils/alerts';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 import { getErrorMessage } from '@/utils/apiError';
 import { useMentionNode, type MentionNode } from '@/hooks/useMentionNode';
+import { EmptyState } from '@/components/common/EmptyState';
+import { IconCircle } from '@oxy.so/bloom/icon-circle';
+import { Admonition } from '@oxy.so/bloom/admonition';
 
 /** Inline notice shown when a node mutation (create vault / disconnect) fails. */
 function ActionError({ message }: { message: string }) {
-  const { colors } = useTheme();
   return (
-    <View className="flex-row gap-2.5 mt-3 p-3.5 rounded-xl" style={{ backgroundColor: colors.error + '14' }}>
-      <RiErrorWarningFill width={18} height={18} fill={colors.error} />
-      <Text className="flex-1 text-[13px] text-foreground">{message}</Text>
+    <View className="mt-3">
+      <Admonition type="error">{message}</Admonition>
     </View>
   );
 }
@@ -89,7 +88,6 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 export default function MentionNodeScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
-  const { colors } = useTheme();
   const { isAuthenticated, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
   const {
     node,
@@ -166,15 +164,16 @@ export default function MentionNodeScreen() {
       {header}
       <ScrollView className="flex-1" contentContainerClassName="px-screen-margin py-2" showsVerticalScrollIndicator={false}>
         {isError ? (
-          <View className="px-6 py-10 items-center gap-3">
-            <Ionicons name="cloud-offline-outline" size={44} color={colors.textSecondary} />
-            <Text className="text-base text-foreground text-center">
-              {t('settings.node.loadError', { defaultValue: "Couldn't load your node" })}
-            </Text>
-            <Button variant="secondary" size="small" onPress={() => refetch()}>
-              {t('common.retry', { defaultValue: 'Retry' })}
-            </Button>
-          </View>
+          <EmptyState
+            icon={{ name: 'cloud-offline-outline' }}
+            error={{
+              title: t('settings.node.loadError', { defaultValue: "Couldn't load your node" }),
+              message: t('common.tryAgain', { defaultValue: 'Try again' }),
+              onRetry: async () => {
+                await refetch();
+              },
+            }}
+          />
         ) : node && node.status !== 'revoked' ? (
           <>
             {/* Active / managed node card */}
@@ -263,11 +262,7 @@ export default function MentionNodeScreen() {
           <>
             {/* No node — explain + offer the one working action (managed vault). */}
             <View className="px-6 pt-4 pb-2 items-center gap-3">
-              <View
-                className="w-16 h-16 rounded-full items-center justify-center bg-primary/10"
-              >
-                <RiBox3Line width={32} height={32} fill={colors.primary} />
-              </View>
+              <IconCircle icon={RiBox3Line} />
               <Text className="text-xl font-bold text-foreground text-center">
                 {t('settings.node.empty.title', { defaultValue: 'Own your posts' })}
               </Text>
@@ -316,14 +311,13 @@ export default function MentionNodeScreen() {
               screen exposes only the working managed-vault action and states the
               self-host path honestly rather than presenting a form that does nothing.
             */}
-            <View className="flex-row gap-2.5 mt-3 p-3.5 rounded-xl" style={{ backgroundColor: colors.info + '14' }}>
-              <RiInformationFill width={18} height={18} fill={colors.info} />
-              <Text className="flex-1 text-[13px] text-foreground">
+            <View className="mt-3">
+              <Admonition type="info">
                 {t('settings.node.selfHostNotice', {
                   defaultValue:
                     'Prefer to run your own node? Self-hosting is registered by signing a record with your device identity key — a flow coming to the Mention mobile app. For now, a managed vault gets you the same signed copy of your posts.',
                 })}
-              </Text>
+              </Admonition>
             </View>
           </>
         )}

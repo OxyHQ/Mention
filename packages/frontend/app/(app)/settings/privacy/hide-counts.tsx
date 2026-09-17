@@ -119,10 +119,12 @@ export default function HideCountsScreen() {
         }
     };
 
+    const header = <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />;
+
     if (isPrivateApiPending) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -133,7 +135,7 @@ export default function HideCountsScreen() {
     if (!canUsePrivateApi) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <OxyAuthPrompt
                     label={t('settings.privacy.hideCounts.signInRequired', { defaultValue: 'Sign in to hide engagement counts' })}
                     description={t('settings.privacy.hideCounts.signInRequiredDesc', { defaultValue: 'Hide likes, boosts, replies, and saves on your posts.' })}
@@ -145,7 +147,7 @@ export default function HideCountsScreen() {
     if (loading) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -155,7 +157,7 @@ export default function HideCountsScreen() {
 
     return (
         <View className="flex-1">
-            <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+            {header}
 
             <ScrollView
                 className="flex-1"

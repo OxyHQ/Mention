@@ -66,10 +66,12 @@ export default function OnlineStatusScreen() {
         }
     };
 
+    const header = <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />;
+
     if (isPrivateApiPending) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -80,7 +82,7 @@ export default function OnlineStatusScreen() {
     if (!canUsePrivateApi) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <OxyAuthPrompt
                     label={t('settings.privacy.onlineStatus.signInRequired', { defaultValue: 'Sign in to manage your online status' })}
                     description={t('settings.privacy.onlineStatus.signInRequiredDesc', { defaultValue: 'Decide whether others see when you are online.' })}
@@ -92,7 +94,7 @@ export default function OnlineStatusScreen() {
     if (loading) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -102,7 +104,7 @@ export default function OnlineStatusScreen() {
 
     return (
         <View className="flex-1">
-            <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+            {header}
 
             <ScrollView
                 className="flex-1"

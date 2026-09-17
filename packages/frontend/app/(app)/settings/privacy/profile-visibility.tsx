@@ -113,10 +113,12 @@ export default function ProfileVisibilityScreen() {
         }
     };
 
+    const header = <PageHeader title={t('settings.privacy.privateProfile')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} actions={saving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />;
+
     if (!isAuthResolved || isPrivateApiPending) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.privacy.privateProfile')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <View className="flex-1 items-center justify-center">
                     <Loading />
                 </View>
@@ -127,7 +129,7 @@ export default function ProfileVisibilityScreen() {
     if (!canUsePrivateApi) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.privacy.privateProfile')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <OxyAuthPrompt
                     label={t('settings.privacy.profileVisibility.signInRequired', { defaultValue: 'Sign in to set profile visibility' })}
                     description={t('settings.privacy.profileVisibility.signInRequiredDesc', { defaultValue: 'Choose who can see your profile and posts.' })}
@@ -139,7 +141,7 @@ export default function ProfileVisibilityScreen() {
     if (loading) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.privacy.privateProfile')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -170,7 +172,7 @@ export default function ProfileVisibilityScreen() {
 
     return (
         <View className="flex-1">
-            <PageHeader title={t('settings.privacy.privateProfile')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} actions={saving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />
+            {header}
 
             <ScrollView
                 className="flex-1"

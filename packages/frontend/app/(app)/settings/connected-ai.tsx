@@ -1,11 +1,9 @@
 import React, { useCallback } from 'react';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loading } from '@oxy.so/bloom/loading';
 import { toast } from '@oxy.so/bloom/toast';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +17,8 @@ import { api } from '@/utils/api';
 import { getErrorMessage } from '@/utils/apiError';
 import { createLogger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { EmptyState } from '@/components/common/EmptyState';
+import { IconCircle } from '@oxy.so/bloom/icon-circle';
 
 const logger = createLogger('ConnectedAiSettings');
 
@@ -72,7 +72,6 @@ function bundleSummary(handles: string[] | undefined): string | undefined {
 
 export default function ConnectedAiScreen() {
   const { t } = useTranslation();
-  const { colors } = useTheme();
   const safeBack = useSafeBack();
   const { user, isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
   const queryClient = useQueryClient();
@@ -172,22 +171,19 @@ export default function ConnectedAiScreen() {
             <Loading />
           </View>
         ) : isError ? (
-          <View className="px-6 py-10 items-center gap-3">
-            <Ionicons name="cloud-offline-outline" size={44} color={colors.textSecondary} />
-            <Text className="text-base text-foreground text-center">
-              {t('mcp.connections.loadError', { defaultValue: "Couldn't load connected apps" })}
-            </Text>
-            <Button variant="secondary" size="small" onPress={() => refetch()}>
-              {t('common.retry', { defaultValue: 'Retry' })}
-            </Button>
-          </View>
+          <EmptyState
+            icon={{ name: 'cloud-offline-outline' }}
+            error={{
+              title: t('mcp.connections.loadError', { defaultValue: "Couldn't load connected apps" }),
+              message: t('common.tryAgain', { defaultValue: 'Try again' }),
+              onRetry: async () => {
+                await refetch();
+              },
+            }}
+          />
         ) : connections.length === 0 ? (
           <View className="px-6 py-10 items-center gap-3">
-            <View
-              className="w-16 h-16 rounded-full items-center justify-center bg-primary/10"
-            >
-              <RiSparklingLine width={32} height={32} fill={colors.primary} />
-            </View>
+            <IconCircle icon={RiSparklingLine} />
             <Text className="text-xl font-bold text-foreground text-center">
               {t('mcp.connections.empty.title', { defaultValue: 'No connected apps' })}
             </Text>
