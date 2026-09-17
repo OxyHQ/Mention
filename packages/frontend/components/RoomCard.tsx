@@ -6,7 +6,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiArrowRightSLine, RiBroadcastLine, RiCalendarLine } from '@oxy.so/bloom/icons';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { LIVE_INDICATOR_COLOR } from '@/styles/colors';
 
@@ -39,6 +39,7 @@ const RoomCard = memo(function RoomCard({
   const theme = useTheme();
   const live = room.status === 'live';
   const listeners = room.participants?.length ?? 0;
+  const iconSize = variant === 'compact' ? 17 : 20;
 
   return (
     <Pressable
@@ -68,11 +69,11 @@ const RoomCard = memo(function RoomCard({
               : theme.colors.backgroundSecondary,
           }}
         >
-          <Ionicons
-            name={live ? 'radio' : 'calendar-outline'}
-            size={variant === 'compact' ? 17 : 20}
-            color={live ? '#fff' : theme.colors.text}
-          />
+          {live ? (
+            <RiBroadcastLine width={iconSize} height={iconSize} fill="#fff" />
+          ) : (
+            <RiCalendarLine width={iconSize} height={iconSize} fill={theme.colors.text} />
+          )}
         </View>
         <View className="flex-1">
           <Text
@@ -90,11 +91,7 @@ const RoomCard = memo(function RoomCard({
           </Text>
         </View>
         {onPress ? (
-          <Ionicons
-            name="chevron-forward"
-            size={18}
-            color={theme.colors.textSecondary}
-          />
+          <RiArrowRightSLine width={18} height={18} fill={theme.colors.textSecondary} />
         ) : null}
       </View>
     </Pressable>

@@ -113,7 +113,17 @@ jest.mock('react-i18next', () => {
   };
 });
 
-jest.mock('@expo/vector-icons/Ionicons', () => () => null);
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiAddLine: () => null,
+  RiArrowDownSLine: () => null,
+  RiArrowUpSLine: () => null,
+  RiCheckLine: () => null,
+  RiCloseLine: () => null,
+  RiDeleteBinLine: () => null,
+  RiShapesLine: () => null,
+  RiStarFill: () => null,
+  RiUserLine: () => null,
+}));
 jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: () => null }));
 jest.mock('@oxy.so/bloom/loading', () => ({ SpinnerIcon: () => null }));
 jest.mock('@oxy.so/bloom/switch', () => ({ Switch: () => null }));
@@ -143,17 +153,7 @@ jest.mock('@oxy.so/bloom/settings-list', () => {
 });
 jest.mock('@oxy.so/bloom/item', () => ({ Item: () => null }));
 
-jest.mock('@/components/ThemedView', () => {
-  const ReactActual = jest.requireActual<typeof import('react')>('react');
-  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
-  return {
-    ThemedView: (props: { children?: React.ReactNode }) =>
-      ReactActual.createElement(View, null, props.children),
-  };
-});
-jest.mock('@/components/Header', () => ({ Header: () => null }));
-jest.mock('@/components/ui/Button', () => ({ IconButton: () => null }));
-jest.mock('@/assets/icons/back-arrow-icon', () => ({ BackArrowIcon: () => null }));
+jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 jest.mock('@/services/channelAccountService', () => ({

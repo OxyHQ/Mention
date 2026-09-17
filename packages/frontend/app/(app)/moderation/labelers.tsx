@@ -12,17 +12,14 @@ import {
   Platform,
   RefreshControl,
 } from 'react-native';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Loading } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { RiCloseCircleLine, RiSearchLine, RiShieldCheckLine, RiShieldLine } from '@oxy.so/bloom/icons';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { labelerService, type LabelDefinition } from '@/services/labelerService';
 import { cn } from '@/lib/utils';
 import { logger } from '@oxy.so/core/logger';
@@ -70,7 +67,7 @@ const LabelerCard = React.memo(({ labeler, onSubscribeToggle, subscribing }: Lab
           </Text>
           {labeler.isOfficial && (
             <View className="flex-row items-center gap-[3px] px-1.5 py-0.5 rounded-md bg-primary">
-              <Ionicons name="shield-checkmark" size={10} color="#fff" />
+              <RiShieldCheckLine width={10} height={10} fill="#fff" />
               <Text className="text-white text-[10px] font-bold">
                 {t('labelers.official', { defaultValue: 'Official' })}
               </Text>
@@ -252,7 +249,7 @@ const LabelersScreen: React.FC = () => {
   const ListEmpty = useCallback(
     () => (
       <View className="items-center pt-[60px] gap-3">
-        <Ionicons name="shield-outline" size={48} color={theme.colors.textSecondary} />
+        <RiShieldLine width={48} height={48} fill={theme.colors.textSecondary} />
         <Text className="text-[17px] font-semibold text-foreground">
           {t('labelers.emptyTitle', { defaultValue: 'No labelers found' })}
         </Text>
@@ -267,22 +264,15 @@ const LabelersScreen: React.FC = () => {
   );
 
   return (
-    <ThemedView className="flex-1">
-      <Header
-        options={{
-          title: t('labelers.title', { defaultValue: 'Content Labels' }),
-          leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder
-        disableSticky
+    <View className="flex-1">
+      <PageHeader
+        title={t('labelers.title', { defaultValue: 'Content Labels' })}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
       />
 
       <View className="flex-row items-center gap-2 mx-4 mt-2 mb-1 rounded-xl border border-border px-3 py-2.5 bg-muted">
-        <Ionicons name="search" size={16} color={theme.colors.textSecondary} />
+        <RiSearchLine width={16} height={16} fill={theme.colors.textSecondary} />
         <TextInput
           value={search}
           onChangeText={setSearch}
@@ -294,7 +284,7 @@ const LabelersScreen: React.FC = () => {
         />
         {search.length > 0 && (
           <TouchableOpacity onPress={() => setSearch('')} hitSlop={HIT_SLOP_MD}>
-            <Ionicons name="close-circle" size={16} color={theme.colors.textSecondary} />
+            <RiCloseCircleLine width={16} height={16} fill={theme.colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
@@ -339,7 +329,7 @@ const LabelersScreen: React.FC = () => {
           ItemSeparatorComponent={() => <View className="h-2" />}
         />
       )}
-    </ThemedView>
+    </View>
   );
 };
 
