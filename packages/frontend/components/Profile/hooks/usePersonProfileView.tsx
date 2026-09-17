@@ -6,22 +6,25 @@ import { useTranslation } from 'react-i18next';
 import { FollowButton as OxyFollowButton, useAuth, useFollow } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
 import type { FeedType } from '@mention/shared-types';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  RiExternalLinkLine,
+  RiMailLine,
+  RiMoreFill,
+  RiNotification3Fill,
+  RiNotification3Line,
+  RiUpload2Line,
+} from '@oxy.so/bloom/icons';
 
 import { usePostsStore } from '@/stores/postsStore';
 import { lanesService } from '@/services/lanesService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { IconButton } from '@/components/ui/Button';
 import { SEO } from '@/components/SEO';
 import { FediverseSharingBadge } from '@/components/AccountBadge';
 import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
 import { SuggestedUsers } from '@/components/suggestions/SuggestedUsers';
 import UserName from '@/components/UserName';
-import { Bell, BellActive } from '@/assets/icons/bell-icon';
-import { ShareIcon } from '@/assets/icons/share-icon';
-import { MailIcon } from '@/assets/icons/mail-icon';
-import { MoreIcon } from '@/assets/icons/more-icon';
-import { ExternalLinkIcon } from '@/assets/icons/external-link-icon';
 
 import { AccountCategoryLine } from '../AccountCategoryLine';
 import { PrivateBadge } from '../PrivateBadge';
@@ -512,8 +515,10 @@ export function usePersonProfileView({
           "Notifications" would leave a screen reader unable to tell subscribed
           from not. */}
       {!isOwnProfile && (
-        <IconButton
+        <Button
           variant="icon"
+          iconOnly
+          leadingIcon={subscribed ? RiNotification3Fill : RiNotification3Line}
           onPress={toggleSubscription}
           disabled={subLoading}
           accessibilityLabel={
@@ -527,59 +532,53 @@ export function usePersonProfileView({
                   defaultValue: 'Notify me about new posts from @{{handle}}',
                 })
           }
-        >
-          {subscribed ? (
-            <BellActive size={18} className="text-primary" />
-          ) : (
-            <Bell size={18} className="text-foreground" />
-          )}
-        </IconButton>
+        />
       )}
       {!isOwnProfile && !isFederated && (
-        <IconButton
+        <Button
           variant="icon"
+          iconOnly
+          leadingIcon={RiMailLine}
           onPress={handleDM}
           accessibilityLabel={t('profile.actions.message', {
             handle,
             defaultValue: 'Message @{{handle}}',
           })}
-        >
-          <MailIcon size={18} className="text-foreground" />
-        </IconButton>
+        />
       )}
       {isFederated && (
-        <IconButton
+        <Button
           variant="icon"
+          iconOnly
+          leadingIcon={RiExternalLinkLine}
           onPress={handleOpenOnInstance}
           accessibilityLabel={t('profile.actions.openOnInstance', {
             handle,
             defaultValue: 'Open @{{handle}} on their home instance',
           })}
-        >
-          <ExternalLinkIcon size={18} className="text-foreground" />
-        </IconButton>
+        />
       )}
-      <IconButton
+      <Button
         variant="icon"
+        iconOnly
+        leadingIcon={RiUpload2Line}
         onPress={handleShare}
         accessibilityLabel={t('profile.actions.share', {
           handle,
           defaultValue: "Share @{{handle}}'s profile",
         })}
-      >
-        <ShareIcon size={18} className="text-foreground" />
-      </IconButton>
+      />
       {!isOwnProfile && (
-        <IconButton
+        <Button
           variant="icon"
+          iconOnly
+          leadingIcon={RiMoreFill}
           onPress={handleMoreOptions}
           accessibilityLabel={t('profile.actions.more', {
             handle,
             defaultValue: 'More options for @{{handle}}',
           })}
-        >
-          <MoreIcon size={18} className="text-foreground" />
-        </IconButton>
+        />
       )}
     </>
   );

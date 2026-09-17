@@ -110,7 +110,7 @@ export function ProfileShell({
        the panel border frame (z-120) — exactly like the home header. No effect
        on native. */
     <View
-      className="flex-1 bg-background web:z-auto relative flex-col"
+      className="flex-1 web:z-auto relative flex-col"
       style={[{ overflow: 'visible' }, chrome.themedStyles.container]}
     >
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />

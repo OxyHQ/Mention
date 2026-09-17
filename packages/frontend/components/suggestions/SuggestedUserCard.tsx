@@ -1,7 +1,7 @@
 import React, { memo, useCallback } from 'react';
 import { Pressable } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
 
+import { RiCloseLine } from '@oxy.so/bloom/icons';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useUserById } from '@/hooks/useCachedUser';
 import { ProfileCard, type ProfileCardData } from '@/components/ProfileCard';
@@ -69,7 +69,7 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
             accessibilityRole="button"
             accessibilityLabel="Dismiss suggestion"
           >
-            <Ionicons name="close" size={14} color={theme.colors.textSecondary} />
+            <RiCloseLine width={14} fill={theme.colors.textSecondary} />
           </Pressable>
         )
       }

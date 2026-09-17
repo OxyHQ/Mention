@@ -45,6 +45,10 @@ jest.mock('@oxy.so/core', () => ({
     user?.username ?? null,
 }));
 jest.mock('@oxy.so/services/ui/client', () => ({ FollowButton: () => null }));
+jest.mock('@oxy.so/bloom/typography', () => {
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { Text };
+});
 jest.mock('@oxy.so/bloom/skeleton', () => ({ Box: () => null, Group: () => null }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('react-i18next', () => ({

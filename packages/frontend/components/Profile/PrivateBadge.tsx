@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, Text } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiLockLine } from '@oxy.so/bloom/icons';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import type { PrivateBadgeProps } from './types';
@@ -18,11 +18,7 @@ export const PrivateBadge = memo(function PrivateBadge({
 
   return (
     <View className="flex-row items-center self-start rounded-xl px-1.5 py-0.5 gap-1 mt-1 mb-1 bg-muted">
-      <Ionicons
-        name="lock-closed"
-        size={12}
-        color={theme.colors.textSecondary}
-      />
+      <RiLockLine size="xs" fill={theme.colors.textSecondary} />
       <Text className="text-muted-foreground text-xs font-medium">
         {isFollowersOnly
           ? t('settings.privacy.followersOnly')

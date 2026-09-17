@@ -6,9 +6,9 @@ import { FollowButton } from '@oxy.so/services/ui/client';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { mergeKnownIdentity, useKnownIdentities } from '@/stores/identityUpdates';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { Text } from '@oxy.so/bloom/typography';
 import { getNormalizedUserHandle, type AccountKind } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
-import { ThemedText } from './ThemedText';
 import UserName from './UserName';
 import { getUserPlaceholderColor } from '@/utils/userPlaceholderColor';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -201,18 +201,18 @@ export function ProfileCard({
             style={IDENTITY_STYLE}
           />
           {meta ? (
-            <ThemedText
+            <Text
               className="text-sm leading-[18px] text-muted-foreground"
               numberOfLines={1}>
               {meta}
-            </ThemedText>
+            </Text>
           ) : null}
           {resolved.description ? (
-            <ThemedText
+            <Text
               className="text-sm leading-5 text-muted-foreground"
               numberOfLines={2}>
               {resolved.description}
-            </ThemedText>
+            </Text>
           ) : null}
         </View>
       </TouchableOpacity>

@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { ActivityIndicator, Pressable } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiPauseFill, RiPlayFill } from '@oxy.so/bloom/icons';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { HIT_SLOP_SM } from '@/styles/hitSlop';
 
@@ -27,7 +27,7 @@ export const SongPreviewButton = memo(function SongPreviewButton({
 }: SongPreviewButtonProps) {
   const { colors } = useTheme();
   const dimension = size === 'sm' ? 32 : 36;
-  const iconName = isPlaying ? 'pause' : 'play';
+  const PlaybackIcon = isPlaying ? RiPauseFill : RiPlayFill;
 
   return (
     <Pressable
@@ -41,7 +41,7 @@ export const SongPreviewButton = memo(function SongPreviewButton({
       {isLoading ? (
         <ActivityIndicator size="small" color={colors.primaryForeground} />
       ) : (
-        <Ionicons name={iconName} size={16} color={colors.primaryForeground} />
+        <PlaybackIcon size="sm" fill={colors.primaryForeground} />
       )}
     </Pressable>
   );
