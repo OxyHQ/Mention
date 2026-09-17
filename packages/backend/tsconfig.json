@@ -41,7 +41,20 @@
       "@mention/shared-types/*": ["../shared-types/src/*"]
     }
   },
-  "include": ["server.ts", "scripts/**/*.ts", "src/**/*.ts", "package.json"],
+  // `src/scripts/fixtures/*.json` is listed because a `composite` project must
+  // name every file it compiles: `importOxyCareersJobs.ts` imports its data
+  // fixture, and without the pattern `tsc` stops at TS6307 rather than emitting
+  // it. Listing it is also what COPIES the JSON into `dist/` next to the
+  // compiled script, which is what the Fargate one-shot actually reads.
+  // Deliberately narrow — test fixtures are excluded from the emitting project
+  // along with the rest of `src/__tests__`.
+  "include": [
+    "server.ts",
+    "scripts/**/*.ts",
+    "src/**/*.ts",
+    "src/scripts/fixtures/*.json",
+    "package.json"
+  ],
   "exclude": [
     "dist",
     "src/__tests__",
