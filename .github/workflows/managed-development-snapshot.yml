@@ -1,0 +1,26 @@
+name: Managed development source snapshot
+
+on:
+  push:
+    branches: [feat/managed-mention-954]
+    paths: [.github/workflows/managed-development-snapshot.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Archive tracked source for local implementation and verification
+        run: git archive --format=tar.gz --output=mention-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mention-source
+          path: mention-source.tar.gz
+          retention-days: 1
+          if-no-files-found: error
