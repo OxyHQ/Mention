@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { StyleSheet } from 'react-native';
 import type { PostPodcastContent } from '@mention/shared-types/post';
 import VideoPlayer from '@/components/common/VideoPlayer';
 import { openExternalLink } from '@/utils/openExternalLink';
@@ -41,7 +42,7 @@ export function PostPodcastAttachment({ podcast, width, height }: PostPodcastAtt
           <VideoPlayer
             src={videoUrl}
             poster={podcast.episode?.posterUrl}
-            style={{ width: '100%', height: '100%' }}
+            style={styles.fill}
             contentFit="cover"
             autoPlay
             loop
@@ -52,3 +53,7 @@ export function PostPodcastAttachment({ podcast, width, height }: PostPodcastAtt
     />
   );
 }
+
+const styles = StyleSheet.create({
+  fill: { width: '100%', height: '100%' },
+});

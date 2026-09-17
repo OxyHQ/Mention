@@ -23,14 +23,7 @@ export const PodcastSaveButton = ({ podcastId }: { podcastId: string }) => {
       accessibilityRole="button"
       accessibilityState={{ selected: isSaved }}
       accessibilityLabel={label}
-      style={({ pressed }) => ({
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: pressed ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.2)',
-      })}
+      className="size-[30px] rounded-full items-center justify-center bg-white/20 active:bg-white/30"
     >
       {isSaved ? <BookmarkActive size={15} color="white" /> : <Bookmark size={15} color="white" />}
     </Pressable>
