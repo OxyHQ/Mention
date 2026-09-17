@@ -300,6 +300,13 @@ describe('viewer-scoped private cache', () => {
 
   it('keeps every job-related key viewer-scoped and distinct by its own parameters', () => {
     expect(viewerQueryKeys.jobsMine('viewer-a')).not.toEqual(viewerQueryKeys.jobsMine('viewer-b'));
+    expect(viewerQueryKeys.jobPlaces('viewer-a', 'barc')).toEqual([
+      ...viewerQueryKeys.all('viewer-a'),
+      'jobs',
+      'places',
+      'barc',
+    ]);
+    expect(viewerQueryKeys.jobPlaces('viewer-a', 'barc')).not.toEqual(viewerQueryKeys.jobPlaces('viewer-a', 'madr'));
 
     expect(viewerQueryKeys.jobDetail('viewer-a', 'job-1')).not.toEqual(
       viewerQueryKeys.jobDetail('viewer-a', 'job-2'),
