@@ -545,7 +545,7 @@ const PostDetailScreen: React.FC = () => {
                         {/* The reply composer stays reachable at the bottom of the
                             screen no matter how far down the replies are scrolled.
                             It must be the LAST flow sibling for `position: sticky`
-                            to pin it on web. `bg-background` matches the feed rows,
+                            to pin it on web. `bg-card` matches the feed rows,
                             so replies never show through it while it overlays them.
 
                             Absent on a post that takes no replies — the server
@@ -554,7 +554,7 @@ const PostDetailScreen: React.FC = () => {
                             the same call the row's action bar makes, so the two
                             surfaces cannot disagree. */}
                         {!!user && postAcceptsReplies(post) && (
-                            <PanelStickyFooter className="bg-background" style={stickyComposerStyle}>
+                            <PanelStickyFooter className="bg-card" style={stickyComposerStyle}>
                                 <FeedHeader
                                     showComposeButton
                                     onComposePress={handleOpenReply}

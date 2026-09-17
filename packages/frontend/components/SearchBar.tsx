@@ -33,7 +33,7 @@ export const SearchBar = () => {
     };
 
     return (
-        <View className="bg-background w-full mb-4 z-[1000] web:sticky web:top-0">
+        <View className="bg-card w-full mb-4 z-[1000] web:sticky web:top-0">
             <Search
                 label={t('Search Mention')}
                 value={query}

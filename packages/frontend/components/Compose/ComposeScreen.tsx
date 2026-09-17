@@ -2462,13 +2462,13 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         title={tCompose('seo.compose.title')}
         description={tCompose('seo.compose.description')}
       />
-      {/* `bg-background` is not decoration: the top inset is this view's own
+      {/* `bg-card` is not decoration: the top inset is this view's own
           padding, and without a colour it shows the window background — a WHITE
           band above the composer on Android, with the light status-bar icons
           below invisible against it. The loading state's SafeAreaView further
           down paints it too; the signed-out state's PageHeader pads and paints
           the inset itself. */}
-      <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+      <SafeAreaView className="flex-1 bg-card" edges={['top']}>
         <StatusBar style="light" />
 
         <KeyboardAvoidingView
@@ -2479,7 +2479,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           <View style={{ flex: 1 }}>
 
             {/* Header */}
-            <View className="bg-background border-border" style={styles.header}>
+            <View className="bg-card border-border" style={styles.header}>
               {presentation === 'pushed' ? (
                 <Button
                   variant="secondary"
@@ -2694,7 +2694,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                   onPress={focusPollCreator}
                                 >
                                   <View style={styles.pollAttachmentHeader}>
-                                    <View className="bg-background" style={styles.pollAttachmentBadge}>
+                                    <View className="bg-card" style={styles.pollAttachmentBadge}>
                                       <PollIcon size={16} className="text-primary" />
                                       <Text className="text-primary" style={styles.pollAttachmentBadgeText}>
                                         {t('compose.poll.title', { defaultValue: 'Poll' })}
@@ -2721,7 +2721,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                       return (
                                         <View
                                           key={`poll-opt-${optionIndex}`}
-                                          className="border-border bg-background" style={styles.pollAttachmentOption}
+                                          className="border-border bg-card" style={styles.pollAttachmentOption}
                                         >
                                           <Text className="text-muted-foreground" style={styles.pollAttachmentOptionText} numberOfLines={1}>
                                             {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: 'Option {{index}}', index: optionIndex + 1 })}
@@ -3673,7 +3673,7 @@ const ComposeScreen = ({ presentation = 'pushed' }: ComposeScreenProps) => {
 
   if (!isAuthResolved || isPrivateApiPending) {
     return (
-      <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+      <SafeAreaView className="flex-1 bg-card" edges={['top']}>
         <View className="flex-1 items-center justify-center">
           <Loading />
         </View>

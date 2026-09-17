@@ -111,7 +111,7 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
                         return (
                             <View
                                 key={`poll-opt-${index}`}
-                                className="border border-border bg-background rounded-[10px] px-3 py-2.5"
+                                className="border border-border bg-card rounded-[10px] px-3 py-2.5"
                             >
                                 <Text className="text-[13px] font-medium text-muted-foreground" numberOfLines={1}>
                                     {trimmed ||

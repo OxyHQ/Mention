@@ -198,7 +198,7 @@ const VariantEditor = memo(function VariantEditor({
                 {ownMedia ? (
                   <TouchableOpacity
                     onPress={() => onRemoveOwnMedia(itemId, media.id)}
-                    className="bg-background"
+                    className="bg-card"
                     style={styles.mediaRemove}
                     hitSlop={HIT_SLOP_SM}
                   >

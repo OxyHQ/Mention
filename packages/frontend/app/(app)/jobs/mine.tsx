@@ -189,7 +189,7 @@ export default function MyJobsScreen() {
                 : t('jobs.mine.createdAgo', { defaultValue: 'Created {{time}}', time: formatTimeAgo(job.createdAt) });
 
               return (
-                <View key={job.id} className="border border-border rounded-[14px] overflow-hidden bg-background">
+                <View key={job.id} className="border border-border rounded-[14px] overflow-hidden bg-card">
                   <Item
                     title={job.title}
                     subtitle={`${employerLabel(job.employerOxyUserId)} · ${dateLabel}`}

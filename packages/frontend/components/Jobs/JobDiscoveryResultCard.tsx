@@ -215,7 +215,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
   return (
     <Pressable
       onPress={open}
-      className="mx-4 mb-3 border border-border bg-background rounded-[14px] p-4"
+      className="mx-4 mb-3 border border-border bg-card rounded-[14px] p-4"
       accessibilityRole="button"
       accessibilityLabel={job.title}
     >

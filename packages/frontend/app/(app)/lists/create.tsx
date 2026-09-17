@@ -83,7 +83,7 @@ export default function CreateListScreen() {
           value={title}
           onChangeText={setTitle}
           placeholder={t('lists.create.titlePlaceholder')}
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-background font-primary"
+          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
           style={styles.input}
         />
 
@@ -92,7 +92,7 @@ export default function CreateListScreen() {
           value={description}
           onChangeText={setDescription}
           placeholder={t('lists.create.descriptionPlaceholder')}
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-background font-primary h-20"
+          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary h-20"
           style={styles.input}
           multiline
         />
@@ -107,7 +107,7 @@ export default function CreateListScreen() {
           value={search}
           onChangeText={doSearch}
           placeholder={t('lists.create.searchUsersPlaceholder')}
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-background font-primary"
+          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
           style={styles.input}
         />
 
