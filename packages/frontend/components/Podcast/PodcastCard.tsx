@@ -44,8 +44,8 @@ interface PodcastCardProps {
   width?: number;
   /**
    * Fixed height, when the card shares a row whose items all take one height.
-   * Only the `'video'` variant uses it — the video takes whatever the compact
-   * strip below it does not. The plain card is always its own compact height.
+   * The plain card fills it with its content centred (the artwork never grows);
+   * the `'video'` variant gives the video whatever the strip below does not.
    */
   height?: number;
   /**
@@ -310,8 +310,10 @@ export const PodcastCard = memo(function PodcastCard({
       style={[
         {
           width: width ?? 320,
-          // Always the compact card — never stretched to a taller row, so every
-          // podcast card in the feed looks the same whatever sits beside it.
+          // Takes the row's shared height like every other item; the artwork
+          // stays the compact card's 96px and centres in it, so a podcast looks
+          // the same whatever sits beside it.
+          height,
           alignSelf: 'flex-start',
           borderRadius: CARD_RADIUS,
           overflow: 'hidden',
