@@ -3,23 +3,23 @@
   "total": {
     "statements": {
       "pct": 33.38,
-      "covered": 8755,
-      "total": 26224
+      "covered": 8756,
+      "total": 26225
     },
     "branches": {
       "pct": 28.6,
-      "covered": 5479,
-      "total": 19157
+      "covered": 5481,
+      "total": 19159
     },
     "functions": {
-      "pct": 28.29,
-      "covered": 1869,
-      "total": 6606
+      "pct": 28.3,
+      "covered": 1870,
+      "total": 6607
     },
     "lines": {
       "pct": 34.04,
-      "covered": 8019,
-      "total": 23556
+      "covered": 8020,
+      "total": 23557
     }
   },
   "pins": {
@@ -1366,6 +1366,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "utils/isHostOf.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "utils/linkifyPattern.ts": {
       "statements": 91,

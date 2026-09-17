@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useMemo, type ReactNode } from 'react';
+import { isHostOf } from '@/utils/isHostOf';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -72,11 +73,6 @@ const WHITE_MUTED = 'rgba(255,255,255,0.72)';
 const WHITE_FAINT = 'rgba(255,255,255,0.56)';
 
 type Provider = { label: string; glyph: 'spotify' | 'apple' | 'youtube' | 'syra' };
-
-/** `host` is `domain` or one of its subdomains — never a lookalike like `notspotify.com`. */
-function isHostOf(host: string, domain: string): boolean {
-  return host === domain || host.endsWith(`.${domain}`);
-}
 
 /** Where the show opens, as the card names it — read off the show URL's host. */
 function providerFor(showUrl?: string): Provider | null {
