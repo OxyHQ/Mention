@@ -65,7 +65,7 @@ interface LinkSummaryProps {
 ```
 Behavior:
 - `links.length === 0` → render `null`.
-- **Collapsed row**: Bloom `Icons.ChainLink_Stroke2_Corner0_Rounded` + `prettify(links[0].url)`
+- **Collapsed row**: Bloom `Icons.RiLinkM` + `prettify(links[0].url)`
   (strip `https?://(www\.)?`, strip trailing `/`) truncated to one line with ellipsis +,
   when `links.length > 1`, a non-truncating ` and ${n} other` / ` and ${n} others` suffix
   (Mention i18n via `t('profile.links.other' | 'others', { count })`). Whole row is a
