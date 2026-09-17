@@ -65,24 +65,9 @@ jest.mock('@/utils/api', () => ({
   publicApi: { get: (...args: unknown[]) => mockPublicGet(...args) },
 }));
 
-jest.mock('@/components/Header', () => {
+jest.mock('@oxy.so/bloom/page-header', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { Header: () => <RNView testID="header" /> };
-});
-
-jest.mock('@/components/ui/Button', () => {
-  const { TouchableOpacity: RNTouchable } =
-    jest.requireActual<typeof import('react-native')>('react-native');
-  return {
-    IconButton: ({ children }: { children?: React.ReactNode }) => (
-      <RNTouchable>{children}</RNTouchable>
-    ),
-  };
-});
-
-jest.mock('@/assets/icons/back-arrow-icon', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { BackArrowIcon: () => <RNView testID="back-arrow" /> };
+  return { PageHeader: () => <RNView testID="header" /> };
 });
 
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));

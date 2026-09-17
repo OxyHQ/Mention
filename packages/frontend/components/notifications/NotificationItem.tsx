@@ -8,6 +8,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
+import { RiCheckboxCircleFill, RiCloseCircleLine } from '@oxy.so/bloom/icons';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
@@ -779,7 +780,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
 
             {isCollabInvite && collabAccepted ? (
               <View className="flex-row items-center gap-1.5 mt-1">
-                <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />
+                <RiCheckboxCircleFill width={16} height={16} fill={theme.colors.success} />
                 <Text className="text-muted-foreground text-[15px] leading-5">
                   {t('collab.youAccepted', { defaultValue: 'You accepted' })}
                 </Text>
@@ -788,7 +789,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
 
             {isCollabInvite && collabDeclined ? (
               <View className="flex-row items-center gap-1.5 mt-1">
-                <Ionicons name="close-circle" size={16} color={theme.colors.textSecondary} />
+                <RiCloseCircleLine width={16} height={16} fill={theme.colors.textSecondary} />
                 <Text className="text-muted-foreground text-[15px] leading-5">
                   {t('collab.youDeclined', { defaultValue: 'You declined' })}
                 </Text>

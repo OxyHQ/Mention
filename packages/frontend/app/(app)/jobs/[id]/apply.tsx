@@ -6,15 +6,12 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import { Chip } from '@oxy.so/bloom/chip';
 import { Loading } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
 import type { User } from '@oxy.so/core';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -128,45 +125,34 @@ export default function JobApplyScreen() {
   });
 
   const header = (
-    <Header
-      options={{
-        title: t('jobs.apply.title', { defaultValue: 'Apply' }),
-        leftComponents: [
-          <IconButton
-            key="back"
-            variant="icon"
-            onPress={() => (step === 'review' ? setStep('edit') : safeBack())}
-          >
-            <BackArrowIcon size={20} className="text-foreground" />
-          </IconButton>,
-        ],
-      }}
-      hideBottomBorder
-      disableSticky
+    <PageHeader
+      title={t('jobs.apply.title', { defaultValue: 'Apply' })}
+      onBack={() => (step === 'review' ? setStep('edit') : safeBack())}
+      backLabel={t('common.back', { defaultValue: 'Back' })}
     />
   );
 
   if (jobQuery.isLoading) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center">
           <Loading className="text-primary" size="large" />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   if (!job || job.applicationMode !== 'mention') {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center px-8">
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.apply.unavailable', { defaultValue: 'This job cannot be applied to on Mention' })}
           </Text>
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
@@ -175,20 +161,20 @@ export default function JobApplyScreen() {
   // request that will 400.
   if (job.status !== 'published') {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center px-8">
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.apply.notAccepting', { defaultValue: 'This job is not currently accepting applications' })}
           </Text>
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   if (step === 'review') {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <ScrollView contentContainerClassName="px-4 pb-16 pt-2">
           <Text className="text-foreground text-lg font-bold mb-1">
@@ -245,14 +231,14 @@ export default function JobApplyScreen() {
             </Button>
           </View>
         </ScrollView>
-      </ThemedView>
+      </View>
     );
   }
 
   const canContinue = displayName.trim().length > 0 || contactMethod.trim().length > 0;
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1">
       {header}
       <ScrollView contentContainerClassName="px-4 pb-16 pt-2" keyboardShouldPersistTaps="handled">
         <Text className="text-foreground text-lg font-bold mb-1">{job.title}</Text>
@@ -355,6 +341,6 @@ export default function JobApplyScreen() {
           </Button>
         </View>
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }

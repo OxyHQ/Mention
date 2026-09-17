@@ -7,15 +7,12 @@ import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { Item } from '@oxy.so/bloom/item';
 import { Loading } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountNode } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
 import type { MentionJobPosting, MentionJobStatus } from '@mention/shared-types';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDestructive } from '@/utils/alerts';
 import { formatTimeAgo } from '@/utils/dateUtils';
@@ -124,39 +121,32 @@ export default function MyJobsScreen() {
   }, []);
 
   const header = (
-    <Header
-      options={{
-        title: t('jobs.mine.title', { defaultValue: 'My jobs' }),
-        leftComponents: [
-          <IconButton key="back" variant="icon" onPress={safeBack}>
-            <BackArrowIcon size={20} className="text-foreground" />
-          </IconButton>,
-        ],
-        rightComponents: [
-          <Button key="create" variant="primary" size="small" onPress={() => router.push('/jobs/create')}>
-            {t('jobs.mine.create', { defaultValue: 'Create job' })}
-          </Button>,
-        ],
-      }}
-      hideBottomBorder
-      disableSticky
+    <PageHeader
+      title={t('jobs.mine.title', { defaultValue: 'My jobs' })}
+      onBack={() => safeBack()}
+      backLabel={t('common.back', { defaultValue: 'Back' })}
+      actions={
+        <Button variant="primary" size="small" onPress={() => router.push('/jobs/create')}>
+          {t('jobs.mine.create', { defaultValue: 'Create job' })}
+        </Button>
+      }
     />
   );
 
   if (!canUsePrivateApi || jobsQuery.isLoading) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center">
           <Loading className="text-primary" size="large" />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   if (jobsQuery.isError) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center gap-3 px-8">
           <Text className="text-muted-foreground text-base text-center">
@@ -166,14 +156,14 @@ export default function MyJobsScreen() {
             {t('common.tryAgain', { defaultValue: 'Try again' })}
           </Button>
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   const jobs = jobsQuery.data?.jobs ?? [];
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1">
       {header}
       <ScrollView className="flex-1" contentContainerClassName="pb-10">
         {jobs.length === 0 ? (
@@ -314,6 +304,6 @@ export default function MyJobsScreen() {
           </View>
         )}
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }
