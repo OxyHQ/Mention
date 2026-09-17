@@ -29,7 +29,7 @@ function toJobAttachmentData(job: MentionJobPosting, employerName: string): JobA
     employerOxyUserId: job.employerOxyUserId,
     status: job.status,
     canonicalUrl: job.canonicalUrl,
-    location: job.location?.raw,
+    location: job.location,
     workplaceType: job.workplaceType,
     employmentType: job.employmentType,
   };

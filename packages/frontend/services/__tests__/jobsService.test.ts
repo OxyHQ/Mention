@@ -55,6 +55,12 @@ describe('jobsService', () => {
 
     await jobsService.getMetrics('job-1');
     expect(mockAuthenticated.get).toHaveBeenCalledWith('/jobs/job-1/metrics');
+
+    await jobsService.searchPlaces({ q: 'barc', countryCode: 'ES' });
+    expect(mockAuthenticated.get).toHaveBeenCalledWith('/jobs/places/search', {
+      params: { q: 'barc', countryCode: 'ES' },
+      signal: undefined,
+    });
   });
 
   it('hits every write endpoint on the correct path, with the right body', async () => {

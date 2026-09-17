@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
 import type { MentionJobPosting, MentionJobStatus } from '@mention/shared-types';
 import { formatTimeAgo } from '@/utils/dateUtils';
+import { useJobVocabulary } from '@/utils/jobVocabulary';
 
 const WORKPLACE_LABELS: Record<string, string> = {
   onsite: 'On-site',
@@ -62,6 +63,7 @@ interface OrganizationJobRowProps {
  */
 const OrganizationJobRow = memo(function OrganizationJobRow({ job }: OrganizationJobRowProps) {
   const { t } = useTranslation();
+  const vocabulary = useJobVocabulary();
 
   const open = useCallback(() => {
     try {
@@ -74,7 +76,7 @@ const OrganizationJobRow = memo(function OrganizationJobRow({ job }: Organizatio
 
   const isPublished = job.status === 'published';
   const badges = [
-    job.location?.raw,
+    job.location ? vocabulary.formatJobLocation(job.location) : undefined,
     job.workplaceType ? WORKPLACE_LABELS[job.workplaceType] : undefined,
     job.employmentType ? EMPLOYMENT_LABELS[job.employmentType] : undefined,
   ].filter((value): value is string => Boolean(value));

@@ -17,6 +17,7 @@ import {
   MENTION_JOB_EMPLOYMENT_TYPES,
   MENTION_JOB_SALARY_INTERVALS,
   MENTION_JOB_WORKPLACE_TYPES,
+  type CurrencyCode,
   type MentionJobApplicationMode,
   type MentionJobEmploymentType,
   type MentionJobSalaryInterval,
@@ -26,6 +27,14 @@ import {
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { jobsService, getJobErrorMessage } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import JobLocationField, {
+  EMPTY_JOB_LOCATION,
+  isJobLocationIncomplete,
+  jobLocationDraftFrom,
+  jobLocationInputFrom,
+  type JobLocationDraft,
+} from '@/components/Jobs/JobLocationField';
+import JobCurrencyField from '@/components/Jobs/JobCurrencyField';
 
 const WORKPLACE_LABELS: Record<MentionJobWorkplaceType, string> = {
   onsite: 'On-site',
@@ -45,6 +54,7 @@ const EMPLOYMENT_LABELS: Record<MentionJobEmploymentType, string> = {
 const INTERVAL_LABELS: Record<MentionJobSalaryInterval, string> = {
   hour: 'Hour',
   day: 'Day',
+  week: 'Week',
   month: 'Month',
   year: 'Year',
 };
@@ -81,12 +91,12 @@ export default function EditJobScreen() {
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [locationRaw, setLocationRaw] = useState('');
+  const [location, setLocation] = useState<JobLocationDraft>(EMPTY_JOB_LOCATION);
   const [workplaceType, setWorkplaceType] = useState<MentionJobWorkplaceType | ''>('');
   const [employmentType, setEmploymentType] = useState<MentionJobEmploymentType | ''>('');
   const [salaryMin, setSalaryMin] = useState('');
   const [salaryMax, setSalaryMax] = useState('');
-  const [salaryCurrency, setSalaryCurrency] = useState('USD');
+  const [salaryCurrency, setSalaryCurrency] = useState<CurrencyCode>('USD');
   const [salaryInterval, setSalaryInterval] = useState<MentionJobSalaryInterval>('year');
   const [skillDraft, setSkillDraft] = useState('');
   const [skills, setSkills] = useState<string[]>([]);
@@ -102,7 +112,7 @@ export default function EditJobScreen() {
     if (!job || hydrated) return;
     setTitle(job.title);
     setDescription(job.description);
-    setLocationRaw(job.location?.raw ?? '');
+    setLocation(jobLocationDraftFrom(job.location));
     setWorkplaceType(job.workplaceType ?? '');
     setEmploymentType(job.employmentType ?? '');
     setSalaryMin(job.salary?.min !== undefined ? String(job.salary.min) : '');
@@ -147,7 +157,6 @@ export default function EditJobScreen() {
     const trimmedDescription = description.trim();
     if (!trimmedTitle || !trimmedDescription) return;
 
-    const trimmedLocation = locationRaw.trim();
     const hasSalary = salaryMin.trim().length > 0 || salaryMax.trim().length > 0;
     const min = salaryMin.trim() ? Number(salaryMin) : undefined;
     const max = salaryMax.trim() ? Number(salaryMax) : undefined;
@@ -161,14 +170,14 @@ export default function EditJobScreen() {
     const patch = {
       title: trimmedTitle,
       description: trimmedDescription,
-      location: trimmedLocation ? { raw: trimmedLocation } : null,
+      location: jobLocationInputFrom(location) ?? null,
       workplaceType: workplaceType || null,
       employmentType: employmentType || null,
       salary: hasSalary
         ? {
             min: Number.isFinite(min) ? min : undefined,
             max: Number.isFinite(max) ? max : undefined,
-            currency: salaryCurrency.trim() || 'USD',
+            currency: salaryCurrency,
             interval: salaryInterval,
           }
         : null,
@@ -181,7 +190,7 @@ export default function EditJobScreen() {
   }, [
     title,
     description,
-    locationRaw,
+    location,
     workplaceType,
     employmentType,
     salaryMin,
@@ -197,6 +206,7 @@ export default function EditJobScreen() {
   const canSave = Boolean(
     title.trim() &&
       description.trim() &&
+      !isJobLocationIncomplete(location) &&
       (applicationMode !== 'external' || externalApplyUrl.trim().length > 0),
   );
 
@@ -278,10 +288,8 @@ export default function EditJobScreen() {
           </TextField>
         </View>
 
-        <View className="mt-3">
-          <TextField>
-            <TextFieldInput label={t('jobs.create.location', { defaultValue: 'Location' })} value={locationRaw} onChangeText={setLocationRaw} />
-          </TextField>
+        <View className="mt-4">
+          <JobLocationField value={location} onChange={setLocation} />
         </View>
 
         <View className="mt-4">
@@ -337,17 +345,9 @@ export default function EditJobScreen() {
                 <TextFieldInput label={t('jobs.create.salaryMax', { defaultValue: 'Max' })} value={salaryMax} onChangeText={setSalaryMax} keyboardType="numeric" />
               </TextField>
             </View>
-            <View style={{ width: 90 }}>
-              <TextField>
-                <TextFieldInput
-                  label={t('jobs.create.currency', { defaultValue: 'Currency' })}
-                  value={salaryCurrency}
-                  onChangeText={(v) => setSalaryCurrency(v.toUpperCase())}
-                  autoCapitalize="characters"
-                  maxLength={3}
-                />
-              </TextField>
-            </View>
+          </View>
+          <View className="mt-2">
+            <JobCurrencyField value={salaryCurrency} onChange={setSalaryCurrency} />
           </View>
           <View className="mt-2">
             <SegmentedControl

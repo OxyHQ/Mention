@@ -94,11 +94,18 @@ describe('OrganizationJobRow', () => {
   it('renders location, workplace type and employment type badges when present', () => {
     const renderer = render(
       <OrganizationJobRow
-        job={job({ location: { raw: 'Berlin, DE' }, workplaceType: 'hybrid', employmentType: 'contract' })}
+        job={job({
+          location: { placeId: '2950159', countryCode: 'DE', region: 'Berlin', city: 'Berlin' },
+          workplaceType: 'hybrid',
+          employmentType: 'contract',
+        })}
       />,
     );
     const text = textOf(renderer);
-    expect(text).toContain('Berlin, DE');
+    // The city and its same-named region collapse into one part; the country is
+    // named where the runtime has Intl.DisplayNames and shown as its code otherwise.
+    expect(text).toMatch(/Berlin, (Germany|DE)/);
+    expect(text).not.toContain('Berlin, Berlin');
     expect(text).toContain('Hybrid');
     expect(text).toContain('Contract');
   });

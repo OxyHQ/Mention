@@ -2,10 +2,12 @@ import { authenticatedClient } from '@/utils/api';
 import { getErrorMessage, normalizeApiError } from '@/utils/apiError';
 import type { JobSearchResponse } from '@clarity.surf/sdk';
 import type {
+  CountryCode,
   CreateMentionJobRequest,
   MentionJobEmploymentType,
   MentionJobMetricEvent,
   MentionJobMetricsSummary,
+  MentionJobPlaceSearchResponse,
   MentionJobPosting,
   MentionJobStatus,
   MentionJobWorkplaceType,
@@ -46,6 +48,14 @@ export type MentionJobDiscoveryFilters = {
 /** Query params shared by `GET /jobs/mine` and `GET /jobs/organization/:id`. Same type-alias-not-interface reason as {@link MentionJobDiscoveryFilters}. */
 export type MentionJobOwnedFilters = {
   status?: MentionJobStatus;
+  limit?: number;
+};
+
+/** Query params for `GET /jobs/places/search`. Same type-alias-not-interface reason as {@link MentionJobDiscoveryFilters}. */
+export type MentionJobPlaceSearchParams = {
+  q: string;
+  countryCode?: CountryCode;
+  kind?: 'city' | 'region';
   limit?: number;
 };
 
@@ -106,6 +116,15 @@ class JobsService {
   /** `GET /jobs/:id` — canonical public job page. `idOrSlug` accepts either. */
   async get(idOrSlug: string): Promise<MentionJobResponse> {
     const res = await authenticatedClient.get<MentionJobResponse>(`${JOBS_BASE}/${idOrSlug}`);
+    return res.data;
+  }
+
+  /**
+   * `GET /jobs/places/search` — the job form's location autocomplete, proxied
+   * to Clarity's gazetteer. A job's `location.placeId` must be one of these ids.
+   */
+  async searchPlaces(params: MentionJobPlaceSearchParams, signal?: AbortSignal): Promise<MentionJobPlaceSearchResponse> {
+    const res = await authenticatedClient.get<MentionJobPlaceSearchResponse>(`${JOBS_BASE}/places/search`, { params, signal });
     return res.data;
   }
 
