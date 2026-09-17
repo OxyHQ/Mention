@@ -68,8 +68,8 @@ interface PodcastCardProps {
 const CARD_RADIUS = 16;
 const CARD_ARTWORK = 96;
 const STRIP_ARTWORK = 48;
-/** Height of the video variant's show strip: 12 padding + 48 artwork + 12 padding. */
-const STRIP_HEIGHT = 72;
+/** The video variant's show strip is at least 12 padding + 48 artwork + 12 padding (more when its text runs longer). */
+const STRIP_MIN_HEIGHT = 72;
 const WHITE_MUTED = 'rgba(255,255,255,0.72)';
 const WHITE_FAINT = 'rgba(255,255,255,0.56)';
 
@@ -259,13 +259,16 @@ export const PodcastCard = memo(function PodcastCard({
         <View
           style={
             height !== undefined
-              ? { width: '100%', height: Math.max(height - STRIP_HEIGHT, 0), backgroundColor: '#000' }
+              // The video takes whatever the strip below does not: the strip's
+              // height depends on its text, so subtracting a guessed height
+              // clipped the strip's bottom when the text ran three lines.
+              ? { width: '100%', flex: 1, minHeight: 0, backgroundColor: '#000' }
               : {
                   width: '100%',
                   aspectRatio: clampedRatio,
                   // Full width, capped height: the video is `cover`, so a card
                   // wider than the cap allows crops rather than towering.
-                  maxHeight: SINGLE_MEDIA_MAX_HEIGHT - STRIP_HEIGHT,
+                  maxHeight: SINGLE_MEDIA_MAX_HEIGHT - STRIP_MIN_HEIGHT,
                   backgroundColor: '#000',
                 }
           }
