@@ -29,7 +29,7 @@ jest.mock('../Attachments', () => ({
   PostAttachmentRoom: capture('room'),
 }));
 jest.mock('@/components/Podcast/PostPodcastAttachment', () => ({ PostPodcastAttachment: capture('podcast') }));
-jest.mock('@/components/Post/JobCard', () => ({ __esModule: true, default: () => null }));
+jest.mock('@/components/Post/JobCard', () => ({ __esModule: true, default: capture('job') }));
 jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => ({ oxyServices: {} }) }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('@oxy.so/bloom/zoomable-image-gallery', () => ({ ZoomableMediaGallery: () => null }));
@@ -108,6 +108,15 @@ describe('several items share one height', () => {
     const beside = render({ documents: [youtube], media: [image] });
     expect(beside.some((item) => item.kind === 'embed')).toBe(false);
     expect(of(beside, 'link').constrainedHeight).toBe(of(beside, 'media').rowHeight);
+  });
+});
+
+describe('a job card follows the same rules', () => {
+  it('spans the row alone, and shares the row height beside an image', () => {
+    const job = { mentionJobId: 'job-1', title: 'Engineer', status: 'published' };
+    expect(of(render({ job }), 'job').height).toBeUndefined();
+    const beside = render({ job, media: [image] });
+    expect(of(beside, 'job').height).toBe(of(beside, 'media').rowHeight);
   });
 });
 
