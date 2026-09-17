@@ -717,7 +717,10 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   const availableWidth = scrollViewWidth - scrollerPaddingLeft - scrollerPaddingRight;
 
   return (
-    <View style={style}>
+    // Measured on the wrapper, not the carousel: a post whose only attachment is
+    // a quote renders no carousel, and an unmeasured row falls back to the
+    // WINDOW width — which sized the quote card past the right edge of the feed.
+    <View style={style} onLayout={(e) => setMeasuredWidth(e.nativeEvent.layout.width)}>
     {items.length > 0 && (
     <ScrollView
       ref={scrollViewRef}
@@ -729,7 +732,6 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
       onMoveShouldSetResponderCapture={onMoveShouldSetResponderCapture}
       onStartShouldSetResponderCapture={() => true}
       onStartShouldSetResponder={() => true}
-      onLayout={(e) => setMeasuredWidth(e.nativeEvent.layout.width)}
       scrollEnabled={!isSingleItem}
       contentContainerStyle={[styles.scroller, leftOffset ? { paddingLeft: leftOffset } : null]}
     >

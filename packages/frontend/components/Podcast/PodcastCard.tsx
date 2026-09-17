@@ -11,6 +11,7 @@ import type { PostPodcastEpisode } from '@mention/shared-types/post';
 import { cn } from '@/lib/utils';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
+import { SINGLE_MEDIA_MAX_HEIGHT } from '@/utils/composeUtils';
 import { useArtworkAccent } from './useArtworkAccent';
 
 export type PodcastCardVariant = 'full' | 'card' | 'video';
@@ -44,8 +45,8 @@ interface PodcastCardProps {
   width?: number;
   /**
    * Fixed height, when the card shares a row whose items all take one height.
-   * The card centers its content in it; the video variant gives the video
-   * whatever the strip below it does not use.
+   * The plain card fills it with its content centred (the artwork never grows);
+   * the `'video'` variant gives the video whatever the strip below does not.
    */
   height?: number;
   /**
@@ -65,13 +66,10 @@ interface PodcastCardProps {
   style?: StyleProp<ViewStyle>;
 }
 
-const CARD_RADIUS = 16;
-const CARD_ARTWORK = 96;
-const STRIP_ARTWORK = 48;
-/** Height of the video variant's show strip: 12 padding + 48 artwork + 12 padding. */
-const STRIP_HEIGHT = 72;
+/** Provider glyph and fallback-mic tint — icons take a colour prop, not a class. */
 const WHITE_MUTED = 'rgba(255,255,255,0.72)';
-const WHITE_FAINT = 'rgba(255,255,255,0.56)';
+/** The video variant's show strip is at least 12 padding + 48 artwork + 12 padding (more when its text runs longer). */
+const STRIP_MIN_HEIGHT = 72;
 
 type Provider = { label: string; glyph: 'spotify' | 'apple' | 'youtube' | 'syra' };
 
@@ -100,8 +98,8 @@ const SpotifyGlyph = ({ size, color }: { size: number; color: string }) => (
   </Svg>
 );
 
-const ProviderRow = ({ provider }: { provider: Provider }) => (
-  <View className="flex-row items-center" style={{ gap: 4 }}>
+const ProviderRow = ({ provider, className }: { provider: Provider; className?: string }) => (
+  <View className={cn('flex-row items-center gap-1', className)}>
     {provider.glyph === 'spotify' ? (
       <SpotifyGlyph size={13} color={WHITE_MUTED} />
     ) : provider.glyph === 'apple' ? (
@@ -113,44 +111,39 @@ const ProviderRow = ({ provider }: { provider: Provider }) => (
         color={WHITE_MUTED}
       />
     )}
-    <Text style={{ color: WHITE_MUTED }} className="text-[13px] font-semibold" numberOfLines={1}>
+    <Text className="text-white/70 text-[13px] font-semibold" numberOfLines={1}>
       {provider.label}
     </Text>
   </View>
 );
 
-const Artwork = ({ uri, size, radius }: { uri?: string; size: number; radius: number }) =>
-  uri ? (
-    <View style={{ width: size, height: size, borderRadius: radius, overflow: 'hidden' }}>
-      <Image source={{ uri }} style={{ width: size, height: size }} contentFit="cover" transition={120} />
-      {/* Hairline so a cover the color of the card still reads as its own square. */}
-      <View
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          borderRadius: radius,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: 'rgba(255,255,255,0.18)',
-        }}
-      />
+/**
+ * Show artwork in the two sizes a card uses: `card` (96px, the plain card) and
+ * `strip` (48px, under a video). Fixed per size, never scaled with the card.
+ */
+const Artwork = ({ uri, size }: { uri?: string; size: 'card' | 'strip' }) => {
+  const box = size === 'card' ? 'size-24 rounded-[10px]' : 'size-12 rounded-lg';
+  return uri ? (
+    <View className={cn(box, 'overflow-hidden')}>
+      <Image source={{ uri }} style={styles.fill} contentFit="cover" transition={120} />
+      {/* Hairline so a cover the colour of the card still reads as its own square. */}
+      <View pointerEvents="none" className={cn(box, 'absolute inset-0 border border-white/20')} />
     </View>
   ) : (
-    <View
-      style={{ width: size, height: size, borderRadius: radius, backgroundColor: 'rgba(255,255,255,0.14)' }}
-      className="items-center justify-center"
-    >
-      <RiMic2Line width={size * 0.4} height={size * 0.4} fill={WHITE_MUTED} />
+    <View className={cn(box, 'bg-white/15 items-center justify-center')}>
+      <RiMic2Line width={size === 'card' ? 38 : 19} height={size === 'card' ? 38 : 19} fill={WHITE_MUTED} />
     </View>
   );
+};
 
 /**
  * Shared, router-agnostic podcast card. Opens the show (`showUrl`) — or runs an
  * `onPress` override — across the profile card (`variant="full"`), the compose
  * attachment and the rendered-post attachment (`"card"` / `"video"`).
+ *
+ * Styling is NativeWind; `style` carries only what is computed at runtime —
+ * the width and shared row height a parent hands down, the artwork-derived
+ * background, and a video's ratio.
  */
 export const PodcastCard = memo(function PodcastCard({
   title,
@@ -181,9 +174,6 @@ export const PodcastCard = memo(function PodcastCard({
   }, [showUrl]);
 
   const handlePress = onPress ?? (showUrl ? openShow : undefined);
-  // In a fixed-height row the artwork grows with the card (Threads' card is
-  // mostly cover), capped so the title column keeps room for two lines.
-  const cardArtwork = height !== undefined ? Math.min(height - 20, 150) : CARD_ARTWORK;
 
   if (variant === 'full') {
     return (
@@ -196,17 +186,11 @@ export const PodcastCard = memo(function PodcastCard({
         accessibilityLabel={t('profile.media.openInSyra')}
       >
         {artworkUrl ? (
-          <Image
-            source={{ uri: artworkUrl }}
-            style={{ width: 56, height: 56, borderRadius: 12 }}
-            contentFit="cover"
-            transition={120}
-          />
+          <View className="size-14 rounded-xl overflow-hidden">
+            <Image source={{ uri: artworkUrl }} style={styles.fill} contentFit="cover" transition={120} />
+          </View>
         ) : (
-          <View
-            className="rounded-xl bg-card items-center justify-center"
-            style={{ width: 56, height: 56 }}
-          >
+          <View className="size-14 rounded-xl bg-card items-center justify-center">
             <RiMic2Line size="lg" fill={colors.textSecondary} />
           </View>
         )}
@@ -255,36 +239,33 @@ export const PodcastCard = memo(function PodcastCard({
     const clampedRatio = Math.min(Math.max(ratio, 4 / 5), 16 / 9);
     return (
       <View
-        className={className}
-        style={[
-          { width: width ?? '100%', height, alignSelf: 'flex-start', borderRadius: CARD_RADIUS, overflow: 'hidden', backgroundColor: accent },
-          style,
-        ]}
+        className={cn('self-start rounded-2xl overflow-hidden', className)}
+        style={[{ width: width ?? '100%', height, backgroundColor: accent }, style]}
       >
         <View
-          style={
-            height !== undefined
-              ? { width: '100%', height: Math.max(height - STRIP_HEIGHT, 0), backgroundColor: '#000' }
-              : { width: '100%', aspectRatio: clampedRatio, backgroundColor: '#000' }
-          }
+          // In a row the video takes whatever the strip below does not: the
+          // strip's height depends on its text, so a guessed height clips it.
+          // Alone it follows its ratio, capped so the card never towers (the
+          // video is `cover`, so the cap crops).
+          className={cn('w-full bg-black', height !== undefined && 'flex-1 min-h-0')}
+          style={height !== undefined ? undefined : { aspectRatio: clampedRatio, maxHeight: SINGLE_MEDIA_MAX_HEIGHT - STRIP_MIN_HEIGHT }}
         >
           {video}
         </View>
-        <View className="flex-row items-start" style={{ padding: 12, gap: 12 }}>
+        <View className="flex-row items-start gap-3 p-3">
           <Pressable
             onPress={handlePress}
             disabled={!handlePress}
             accessibilityRole="button"
             accessibilityLabel={t('profile.media.openInSyra')}
-            className="flex-1 flex-row items-center"
-            style={{ gap: 12 }}
+            className="flex-1 flex-row items-center gap-3"
           >
-            <Artwork uri={artworkUrl} size={STRIP_ARTWORK} radius={8} />
-            <View className="flex-1 shrink" style={{ gap: 1 }}>
+            <Artwork uri={artworkUrl} size="strip" />
+            <View className="flex-1 shrink gap-px">
               <Text className="text-white text-[15px] font-bold" numberOfLines={1}>
                 {episode?.title ?? title}
               </Text>
-              <Text style={{ color: WHITE_MUTED }} className="text-[14px]" numberOfLines={1}>
+              <Text className="text-white/70 text-[14px]" numberOfLines={1}>
                 {episode ? title : author}
               </Text>
               {provider ? <ProviderRow provider={provider} /> : null}
@@ -301,49 +282,40 @@ export const PodcastCard = memo(function PodcastCard({
   // is invalid DOM that also swallows the inner press.
   return (
     <View
-      className={className}
-      style={[
-        {
-          width: width ?? 320,
-          height,
-          // Never stretch to a taller neighbour in the attachments carousel.
-          alignSelf: 'flex-start',
-          borderRadius: CARD_RADIUS,
-          overflow: 'hidden',
-          backgroundColor: accent,
-          flexDirection: 'row',
-        },
-        style,
-      ]}
+      // Takes the row's shared height like every other item; the artwork stays
+      // 96px and centres in it, so a podcast looks the same whatever sits
+      // beside it.
+      className={cn('self-start flex-row rounded-2xl overflow-hidden', className)}
+      style={[{ width: width ?? 320, height, backgroundColor: accent }, style]}
     >
       <Pressable
         onPress={handlePress}
         disabled={!handlePress}
         accessibilityRole="button"
         accessibilityLabel={t('profile.media.openInSyra')}
-        className="flex-1 flex-row items-center"
-        style={{ padding: 10, gap: 12 }}
+        className="flex-1 flex-row items-center gap-3 p-2.5"
       >
-        <Artwork uri={artworkUrl} size={cardArtwork} radius={10} />
-        <View className="flex-1 shrink justify-center" style={{ paddingVertical: 2, gap: 3 }}>
+        <Artwork uri={artworkUrl} size="card" />
+        <View className="flex-1 shrink justify-center gap-[3px] py-0.5">
           <Text className="text-white text-[15px] font-bold leading-[19px]" numberOfLines={2}>
             {episode?.title ?? title}
           </Text>
-          <Text
-            style={{ color: WHITE_FAINT }}
-            className="text-[11px] font-semibold uppercase tracking-wide"
-            numberOfLines={1}
-          >
+          <Text className="text-white/55 text-[11px] font-semibold uppercase tracking-wide" numberOfLines={1}>
             {episode ? title : t('profile.media.podcastLabel')}
           </Text>
-          {provider ? <ProviderRow provider={provider} /> : null}
+          {provider ? <ProviderRow provider={provider} className={saveButton ? 'mr-[34px]' : undefined} /> : null}
         </View>
       </Pressable>
       {saveButton ? (
-        <View style={{ alignSelf: 'flex-end', padding: 10, paddingLeft: 0 }}>
-          {saveButton}
-        </View>
+        // Floats in the corner instead of taking a column: a narrow card (a
+        // quote on a phone) cannot spare 40px of title width for it.
+        <View className="absolute right-2.5 bottom-2.5">{saveButton}</View>
       ) : null}
     </View>
   );
+});
+
+// expo-image takes no className here, so its fill is the one static StyleSheet.
+const styles = StyleSheet.create({
+  fill: { width: '100%', height: '100%' },
 });

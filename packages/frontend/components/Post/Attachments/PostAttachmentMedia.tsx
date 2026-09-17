@@ -7,7 +7,7 @@ import { RiEyeOffLine } from '@oxy.so/bloom/icons';
 import { MediaInsetBorder } from '@oxy.so/bloom/media-inset-border';
 import { LazyImage } from '@/components/ui/LazyImage';
 import VideoPlayer from '@/components/common/VideoPlayer';
-import { MEDIA_CARD_WIDTH, MEDIA_CARD_HEIGHT, MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
+import { MEDIA_CARD_WIDTH, MEDIA_CARD_HEIGHT, MEDIA_CARD_RADIUS, SINGLE_MEDIA_MAX_HEIGHT } from '@/utils/composeUtils';
 import {
   getAspectRatio,
   hasAspectRatio,
@@ -46,8 +46,6 @@ const MIN_WIDTH = 100;
 // ratio is known, since a height-less <video> there sizes itself and never
 // overflows.
 const SINGLE_MEDIA_FALLBACK_ASPECT_RATIO = MEDIA_CARD_WIDTH / MEDIA_CARD_HEIGHT;
-/** Portrait floor (4:5) — the tallest a single-media card may grow before clamping. */
-const SINGLE_MEDIA_MIN_ASPECT_RATIO = 4 / 5;
 
 /**
  * Width of a media cell that is ALONE in the row: the whole row. A lone
@@ -56,6 +54,25 @@ const SINGLE_MEDIA_MIN_ASPECT_RATIO = 4 / 5;
  */
 function singleCardWidth(availableWidth?: number): number {
   return availableWidth !== undefined && availableWidth > 0 ? availableWidth : MEDIA_CARD_WIDTH;
+}
+
+/**
+ * The box of a media cell alone in the row: as wide as the row, as tall as its
+ * ratio makes it — but never taller than {@link SINGLE_MEDIA_MAX_HEIGHT}. A
+ * square or portrait item that would pass the cap keeps its ratio by getting
+ * NARROWER, not by being cropped, so the whole image is always on screen and
+ * one post never takes over the viewport.
+ */
+export function singleMediaBox(aspectRatio: number, availableWidth?: number): { width: number; height: number } {
+  const fullWidth = singleCardWidth(availableWidth);
+  const naturalHeight = fullWidth / aspectRatio;
+  if (naturalHeight <= SINGLE_MEDIA_MAX_HEIGHT) {
+    return { width: fullWidth, height: naturalHeight };
+  }
+  return {
+    width: Math.min(fullWidth, Math.max(SINGLE_MEDIA_MAX_HEIGHT * aspectRatio, MIN_WIDTH)),
+    height: SINGLE_MEDIA_MAX_HEIGHT,
+  };
 }
 
 /**
@@ -130,15 +147,14 @@ function useMediaCardStyle(
         alignSelf: 'flex-start',
       };
     }
-    const width = singleCardWidth(availableWidth);
     if (aspectRatio === undefined) {
+      // Web: the <video> sizes itself until the ratio is known; the cap still
+      // holds. Native needs a definite box, so it takes the fallback ratio's.
       return Platform.OS === 'web'
-        ? { width }
-        : { width, aspectRatio: SINGLE_MEDIA_FALLBACK_ASPECT_RATIO };
+        ? { width: singleCardWidth(availableWidth), maxHeight: SINGLE_MEDIA_MAX_HEIGHT }
+        : singleMediaBox(SINGLE_MEDIA_FALLBACK_ASPECT_RATIO, availableWidth);
     }
-    // A portrait video is letterboxed inside a 4:5 box rather than running a
-    // full-width card off the bottom of the screen.
-    return { width, aspectRatio: Math.max(aspectRatio, SINGLE_MEDIA_MIN_ASPECT_RATIO) };
+    return singleMediaBox(aspectRatio, availableWidth);
   }, [hasSingleMedia, aspectRatio, availableWidth, rowHeight]);
   return { cardStyle, onAspectRatio };
 }
@@ -383,16 +399,18 @@ const PostAttachmentImage: React.FC<{
     });
   }, [onPress]);
 
-  // A SINGLE image spans the row, its height following the ratio down to a 4:5
-  // floor (a taller portrait is cropped to it, as every feed does). In a
+  // A SINGLE image spans the row at its own ratio, up to the height cap, past
+  // which it narrows instead (see `singleMediaBox`). In a
   // multi-item row every cell shares `rowHeight` and takes the width its ratio
   // gives at that height, capped at the row — so thumbnails line up with the
   // link, poll and podcast cards beside them.
   let computedWidth: number;
   let computedHeight: number;
   if (hasSingleMedia) {
-    computedWidth = singleCardWidth(availableWidth);
-    computedHeight = computedWidth / Math.max(aspectRatio ?? SINGLE_MEDIA_FALLBACK_ASPECT_RATIO, SINGLE_MEDIA_MIN_ASPECT_RATIO);
+    ({ width: computedWidth, height: computedHeight } = singleMediaBox(
+      aspectRatio ?? SINGLE_MEDIA_FALLBACK_ASPECT_RATIO,
+      availableWidth,
+    ));
   } else {
     const preferredWidth = aspectRatio !== undefined
       ? Math.max(rowHeight * aspectRatio, MIN_WIDTH)
