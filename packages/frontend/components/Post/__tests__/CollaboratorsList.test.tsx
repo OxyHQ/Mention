@@ -17,15 +17,15 @@ import CollaboratorsList from '../CollaboratorsList';
  */
 
 const mockHeaderTitles: (string | undefined)[] = [];
-jest.mock('@/components/Header', () => ({
-  Header: ({ options }: { options?: { title?: string } }) => {
-    mockHeaderTitles.push(options?.title);
+jest.mock('@oxy.so/bloom/page-header', () => ({
+  PageHeader: ({ title }: { title?: string }) => {
+    mockHeaderTitles.push(title);
     return null;
   },
 }));
 
-jest.mock('@/components/ui/Button', () => ({ IconButton: () => null }));
-jest.mock('@/assets/icons/close-icon', () => ({ CloseIcon: () => null }));
+jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => ({ RiCloseLine: () => null }));
 jest.mock('@/components/ProfileCard', () => ({ ProfileCard: () => null }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('@oxy.so/core', () => ({ getNormalizedUserHandle: () => 'nate' }));

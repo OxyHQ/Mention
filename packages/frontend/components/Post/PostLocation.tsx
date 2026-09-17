@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import type { GeoJSONPoint } from '@mention/shared-types';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { RiMapPinLine } from '@oxy.so/bloom/icons';
 
 interface PostLocationProps {
   location: GeoJSONPoint;
@@ -38,10 +38,10 @@ const PostLocation: React.FC<PostLocationProps> = ({
       onPress={onPress}
       activeOpacity={onPress ? 0.7 : 1}
     >
-      <Ionicons
-        name="location-outline"
-        size={14}
-        color={theme.colors.textSecondary}
+      <RiMapPinLine
+        width={14}
+        height={14}
+        fill={theme.colors.textSecondary}
         style={{ marginRight: 4 }}
       />
       <Text className="text-muted-foreground text-[13px] flex-1" numberOfLines={1}>

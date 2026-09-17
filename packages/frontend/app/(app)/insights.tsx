@@ -1,12 +1,9 @@
 import React from 'react';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
+import { View } from 'react-native';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { ThemedView } from '@/components/ThemedView';
 import { useTranslation } from 'react-i18next';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { StatusBar } from 'expo-status-bar';
 import { SEO } from '@/components/SEO';
 import { InsightsView } from '@/components/insights/InsightsView';
@@ -29,26 +26,17 @@ const InsightsScreen: React.FC = () => {
                 title={t('seo.insights.title')}
                 description={t('seo.insights.description')}
             />
-            <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-                <ThemedView className="flex-1">
-                    <StatusBar style={theme.isDark ? "light" : "dark"} />
+            <View className="flex-1">
+                <StatusBar style={theme.isDark ? "light" : "dark"} />
 
-                    <Header
-                        options={{
-                            title: t('Insights'),
-                            leftComponents: [
-                                <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                    <BackArrowIcon size={20} className="text-foreground" />
-                                </IconButton>,
-                            ],
-                        }}
-                        hideBottomBorder={true}
-                        disableSticky={true}
-                    />
+                <PageHeader
+                    title={t('Insights')}
+                    onBack={() => safeBack()}
+                    backLabel={t('common.back', { defaultValue: 'Back' })}
+                />
 
-                    <InsightsView />
-                </ThemedView>
-            </SafeAreaView>
+                <InsightsView />
+            </View>
         </>
     );
 };

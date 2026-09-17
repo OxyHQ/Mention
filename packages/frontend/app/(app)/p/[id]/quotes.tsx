@@ -2,12 +2,9 @@ import React, { useMemo } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import Feed from '@/components/Feed/Feed';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { View } from 'react-native';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { SEO } from '@/components/SEO';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
-import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { useSafeBack } from '@/hooks/useSafeBack';
 
 /**
@@ -24,30 +21,19 @@ export default function PostQuotesScreen() {
     const title = t('post.quotes.title', { defaultValue: 'Quotes' });
 
     return (
-        <SafeAreaView className="flex-1" edges={['top']}>
+        <View className="flex-1">
             <SEO
                 title={title}
                 description={t('post.quotes.description', {
                     defaultValue: 'Posts quoting this post on Mention',
                 })}
             />
-            {/* Same chrome contract as every other secondary feed screen:
-                PanelStickyHeader owns the web sticky inset and the opaque panel
-                surface, so the inner Header hands sticky ownership over. */}
-            <PanelStickyHeader level={0}>
-                <Header
-                    options={{
-                        title,
-                        leftComponents: [
-                            <IconButton key="back" variant="icon" onPress={safeBack}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    disableSticky
-                />
-            </PanelStickyHeader>
+            <PageHeader
+                title={title}
+                onBack={() => safeBack()}
+                backLabel={t('common.back', { defaultValue: 'Back' })}
+            />
             <Feed type="quotes" filters={filters} />
-        </SafeAreaView>
+        </View>
     );
 }
