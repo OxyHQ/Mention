@@ -105,11 +105,9 @@ function RightBarFooter() {
                 ))}
             </View>
             <Text className="text-muted-foreground text-[12.5px] pt-0.5">Made with ❤️ in the 🌎 by Oxy&trade;.</Text>
-            {/* No trademark claim on "Mention": the name is unregistered for this app,
-                and asserting a (TM) on it invites a dispute over a word another
-                company holds a US registration for. A copyright notice claims only
-                what The Oxy Collective demonstrably owns — the site itself. */}
-            <Text className="text-muted-foreground text-[12.5px] pt-0.5">© {new Date().getFullYear()} The Oxy Collective, Inc.</Text>
+            {/* No legal notice under the links on purpose: "Mention" carries no
+                trademark claim here, and Oxy's work is under its own licenses,
+                not an all-rights-reserved copyright line. */}
         </View>
     );
 }
