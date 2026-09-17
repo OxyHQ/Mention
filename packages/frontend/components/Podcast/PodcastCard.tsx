@@ -10,6 +10,7 @@ import type { PostPodcastEpisode } from '@mention/shared-types/post';
 import { cn } from '@/lib/utils';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
+import { SINGLE_MEDIA_MAX_HEIGHT } from '@/utils/composeUtils';
 import { useArtworkAccent } from './useArtworkAccent';
 
 export type PodcastCardVariant = 'full' | 'card' | 'video';
@@ -262,7 +263,14 @@ export const PodcastCard = memo(function PodcastCard({
           style={
             height !== undefined
               ? { width: '100%', height: Math.max(height - STRIP_HEIGHT, 0), backgroundColor: '#000' }
-              : { width: '100%', aspectRatio: clampedRatio, backgroundColor: '#000' }
+              : {
+                  width: '100%',
+                  aspectRatio: clampedRatio,
+                  // Full width, capped height: the video is `cover`, so a card
+                  // wider than the cap allows crops rather than towering.
+                  maxHeight: SINGLE_MEDIA_MAX_HEIGHT - STRIP_HEIGHT,
+                  backgroundColor: '#000',
+                }
           }
         >
           {video}
