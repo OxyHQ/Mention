@@ -2,27 +2,14 @@ import React from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import {
-    RiArrowDownLine,
-    RiLineChartLine,
-    RiListUnordered,
-    RiNodeTree,
-    RiTimeLine,
-} from '@oxy.so/bloom/icons';
-import type { BloomIcon } from '@/components/settings/RowIcon';
+import { RiListUnordered, RiNodeTree } from '@oxy.so/bloom/icons';
+import { SORT_ICONS } from '@/components/settings/threadSortIcons';
 import { RadioIndicator } from '@oxy.so/bloom/radio-indicator';
 import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
 import {
     useThreadPreferencesStore,
     SORT_OPTIONS,
-    type SortOrder,
 } from '@/hooks/useThreadPreferences';
-
-const SORT_ICONS: Record<SortOrder, BloomIcon> = {
-    top: RiLineChartLine,
-    oldest: RiTimeLine,
-    newest: RiArrowDownLine,
-};
 
 export default function ReplyPreferencesSheet() {
     const { t } = useTranslation();

@@ -1,5 +1,5 @@
 import React from 'react';
-import { TextInput, TouchableOpacity } from 'react-native';
+import { TextInput, TouchableOpacity, View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BottomSheetContext, type BottomSheetContextProps } from '@/context/BottomSheetContext';
@@ -87,15 +87,14 @@ jest.mock('@oxy.so/services/ui/client', () => ({
   OxyAuthPrompt: () => null,
 }));
 
-jest.mock('@/components/ThemedView', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { ThemedView: ({ children }: { children?: React.ReactNode }) => <RNView>{children}</RNView> };
-});
-
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
-jest.mock('@/components/ui/Button', () => ({ IconButton: () => null }));
-jest.mock('@/assets/icons/back-arrow-icon', () => ({ BackArrowIcon: () => null }));
-jest.mock('@/lib/icons', () => ({ Icon: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiAddCircleLine: () => null,
+  RiEyeOffLine: () => null,
+  RiFontSize: () => null,
+  RiHashtag: () => null,
+  RiInformationFill: () => null,
+}));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
 jest.mock('@/components/common/ConfirmBottomSheet', () => ({ ConfirmBottomSheet: () => null }));
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));

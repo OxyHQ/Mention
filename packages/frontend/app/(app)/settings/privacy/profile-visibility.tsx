@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { RiCheckboxCircleFill, RiEarthLine, RiGroupLine, RiLockLine } from '@oxy.so/bloom/icons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
-import { ThemedView } from '@/components/ThemedView';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -14,7 +14,7 @@ import {
     type UserSettingsResponse,
 } from '@/hooks/usePrivacySettings';
 import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
-import { Icon, type IconName } from '@/lib/icons';
+import type { BloomIcon } from '@/components/settings/RowIcon';
 import { logger } from '@oxy.so/core/logger';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
@@ -24,7 +24,7 @@ interface VisibilityOptionConfig {
     value: VisibilityOption;
     label: string;
     description: string;
-    icon: IconName;
+    icon: BloomIcon;
 }
 
 export default function ProfileVisibilityScreen() {
@@ -115,35 +115,35 @@ export default function ProfileVisibilityScreen() {
 
     if (!isAuthResolved || isPrivateApiPending) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.privacy.privateProfile')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 items-center justify-center">
                     <Loading />
                 </View>
-            </ThemedView>
+            </View>
         );
     }
 
     if (!canUsePrivateApi) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.privacy.privateProfile')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <OxyAuthPrompt
                     label={t('settings.privacy.profileVisibility.signInRequired', { defaultValue: 'Sign in to set profile visibility' })}
                     description={t('settings.privacy.profileVisibility.signInRequiredDesc', { defaultValue: 'Choose who can see your profile and posts.' })}
                 />
-            </ThemedView>
+            </View>
         );
     }
 
     if (loading) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.privacy.privateProfile')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
-            </ThemedView>
+            </View>
         );
     }
 
@@ -152,24 +152,24 @@ export default function ProfileVisibilityScreen() {
             value: 'public',
             label: t('settings.privacy.public'),
             description: t('settings.privacy.publicDescription'),
-            icon: 'globe',
+            icon: RiEarthLine,
         },
         {
             value: 'followers_only',
             label: t('settings.privacy.followersOnly'),
             description: t('settings.privacy.followersOnlyDescription'),
-            icon: 'people',
+            icon: RiGroupLine,
         },
         {
             value: 'private',
             label: t('settings.privacy.private'),
             description: t('settings.privacy.privateDescription'),
-            icon: 'lock-closed',
+            icon: RiLockLine,
         },
     ];
 
     return (
-        <ThemedView className="flex-1">
+        <View className="flex-1">
             <PageHeader title={t('settings.privacy.privateProfile')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} actions={saving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />
 
             <ScrollView
@@ -177,7 +177,7 @@ export default function ProfileVisibilityScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup title={t('settings.privacy.privateProfile')}>
+                <SettingsListGroup variant="filled" title={t('settings.privacy.privateProfile')}>
                     {options.map((option) => {
                         const isSelected = profileVisibility === option.value;
 
@@ -190,11 +190,7 @@ export default function ProfileVisibilityScreen() {
                                 disabled={saving}
                             >
                                 <View className="w-7 items-center justify-center">
-                                    <Icon
-                                        name={option.icon}
-                                        size={20}
-                                        color={isSelected ? colors.primary : colors.textSecondary}
-                                    />
+                                    <option.icon width={20} height={20} fill={isSelected ? colors.primary : colors.textSecondary} />
                                 </View>
                                 <View className="flex-1 ml-3">
                                     <Text className="text-[15px] font-medium text-foreground">
@@ -205,17 +201,13 @@ export default function ProfileVisibilityScreen() {
                                     </Text>
                                 </View>
                                 {isSelected && (
-                                    <Icon
-                                        name="checkmark-circle"
-                                        size={22}
-                                        color={colors.primary}
-                                    />
+                                    <RiCheckboxCircleFill width={22} height={22} fill={colors.primary} />
                                 )}
                             </Pressable>
                         );
                     })}
                 </SettingsListGroup>
             </ScrollView>
-        </ThemedView>
+        </View>
     );
 }

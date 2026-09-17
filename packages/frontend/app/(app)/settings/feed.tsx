@@ -4,7 +4,6 @@ import { View, Text, ScrollView } from 'react-native';
 import { confirmDialog } from '@/utils/alerts';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { ThemedView } from '@/components/ThemedView';
 import { Toggle } from '@/components/Toggle';
 import { Slider } from '@/components/Slider';
 import { useFeedSettings, DEFAULT_FEED_SETTINGS, type FeedSettings } from '@/hooks/useFeedSettings';
@@ -102,29 +101,29 @@ export default function FeedSettingsScreen() {
 
   if (!isAuthenticated) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         <PageHeader title={t('settings.feed.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
         <OxyAuthPrompt
           label={t('settings.feed.signInRequired', { defaultValue: 'Sign in to customize your feed' })}
           description={t('settings.feed.signInRequiredDesc', { defaultValue: 'Tune the algorithm, diversity, and recency to your taste.' })}
         />
-      </ThemedView>
+      </View>
     );
   }
 
   if (isLoading) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         <PageHeader title={t('settings.feed.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
         <View className="flex-1 justify-center items-center">
           <Loading className="text-primary" size="large" />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1">
       <PageHeader title={t('settings.feed.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} actions={isSaving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />
 
       <ScrollView
@@ -133,7 +132,7 @@ export default function FeedSettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Presets */}
-        <SettingsListGroup title={t('settings.feed.presets.title')}>
+        <SettingsListGroup variant="filled" title={t('settings.feed.presets.title')}>
           {(Object.keys(PRESETS) as (keyof typeof PRESETS)[]).map((key) => (
             <SettingsListItem
               key={key}
@@ -145,7 +144,7 @@ export default function FeedSettingsScreen() {
         </SettingsListGroup>
 
         {/* Diversity */}
-        <SettingsListGroup title={t('settings.feed.diversity.title')}>
+        <SettingsListGroup variant="filled" title={t('settings.feed.diversity.title')}>
           <SettingsListItem
             title={t('settings.feed.diversity.enabled')}
             description={t('settings.feed.diversity.enabledDesc')}
@@ -205,7 +204,7 @@ export default function FeedSettingsScreen() {
         )}
 
         {/* Recency */}
-        <SettingsListGroup title={t('settings.feed.recency.title')}>
+        <SettingsListGroup variant="filled" title={t('settings.feed.recency.title')}>
           <View className="py-3 gap-4">
             <View>
               <Slider
@@ -249,7 +248,7 @@ export default function FeedSettingsScreen() {
         </SettingsListGroup>
 
         {/* Quality */}
-        <SettingsListGroup title={t('settings.feed.quality.title')}>
+        <SettingsListGroup variant="filled" title={t('settings.feed.quality.title')}>
           <SettingsListItem
             title={t('settings.feed.quality.boostHighQuality')}
             description={t('settings.feed.quality.boostHighQualityDesc')}
@@ -266,7 +265,7 @@ export default function FeedSettingsScreen() {
         </SettingsListGroup>
 
         {/* Reset */}
-        <SettingsListGroup>
+        <SettingsListGroup variant="filled">
           <SettingsListItem
             icon={<RowIcon icon={RiRefreshLine} destructive />}
             title={t('settings.feed.resetToDefaults')}
@@ -275,6 +274,6 @@ export default function FeedSettingsScreen() {
           />
         </SettingsListGroup>
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }

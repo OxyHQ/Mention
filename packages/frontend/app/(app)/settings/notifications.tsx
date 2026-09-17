@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, ScrollView } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
-import { ThemedView } from '@/components/ThemedView';
 import { Toggle } from '@/components/Toggle';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
@@ -99,40 +98,40 @@ export default function NotificationSettingsScreen() {
 
     if (isPrivateApiPending) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.notifications.title', { defaultValue: 'Notifications' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
-            </ThemedView>
+            </View>
         );
     }
 
     if (!canUsePrivateApi) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.notifications.title', { defaultValue: 'Notifications' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <OxyAuthPrompt
                     label={t('settings.notifications.signInRequired', { defaultValue: 'Sign in to manage notifications' })}
                     description={t('settings.notifications.signInRequiredDesc', { defaultValue: 'Choose what alerts you receive and how.' })}
                 />
-            </ThemedView>
+            </View>
         );
     }
 
     if (loading) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 <PageHeader title={t('settings.notifications.title', { defaultValue: 'Notifications' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
-            </ThemedView>
+            </View>
         );
     }
 
     return (
-        <ThemedView className="flex-1">
+        <View className="flex-1">
             <PageHeader title={t('settings.notifications.title', { defaultValue: 'Notifications' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} actions={saving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />
 
             <ScrollView
@@ -140,7 +139,7 @@ export default function NotificationSettingsScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup title={t('settings.notifications.sections.general', { defaultValue: 'General' })}>
+                <SettingsListGroup variant="filled" title={t('settings.notifications.sections.general', { defaultValue: 'General' })}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiNotification3Line} />}
                         title={t('settings.notifications.push', { defaultValue: 'Push notifications' })}
@@ -161,7 +160,7 @@ export default function NotificationSettingsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup title={t('settings.notifications.sections.activity', { defaultValue: 'Activity from others' })}>
+                <SettingsListGroup variant="filled" title={t('settings.notifications.sections.activity', { defaultValue: 'Activity from others' })}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiNotification3Line} />}
                         title={t('subscription.list.title', { defaultValue: 'Activity notifications' })}
@@ -170,7 +169,7 @@ export default function NotificationSettingsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup title={t('settings.notifications.sections.types', { defaultValue: 'Notification types' })}>
+                <SettingsListGroup variant="filled" title={t('settings.notifications.sections.types', { defaultValue: 'Notification types' })}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiHeartLine} />}
                         title={t('settings.notifications.likes', { defaultValue: 'Likes' })}
@@ -227,6 +226,6 @@ export default function NotificationSettingsScreen() {
                     />
                 </SettingsListGroup>
             </ScrollView>
-        </ThemedView>
+        </View>
     );
 }

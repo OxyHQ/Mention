@@ -11,7 +11,6 @@ import {
   EXTERNAL_EMBED_SOURCES,
   externalEmbedLabels,
 } from '@mention/shared-types/externalEmbeds';
-import { ThemedView } from '@/components/ThemedView';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 
@@ -31,18 +30,18 @@ export default function ExternalMediaSettingsScreen() {
 
   if (!isAuthResolved || isPrivateApiPending) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center">
           <Loading />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   if (!canUsePrivateApi) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <OxyAuthPrompt
           label={t('settings.externalMedia.signInRequired', {
@@ -52,12 +51,12 @@ export default function ExternalMediaSettingsScreen() {
             defaultValue: 'Choose which third-party media players can load inline.',
           })}
         />
-      </ThemedView>
+      </View>
     );
   }
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1">
       {header}
 
       <ScrollView className="flex-1" contentContainerClassName="px-screen-margin py-2" showsVerticalScrollIndicator={false}>
@@ -70,7 +69,7 @@ export default function ExternalMediaSettingsScreen() {
           </Admonition>
         </View>
 
-        <SettingsListGroup title={t('settings.externalMedia.enableFor', { defaultValue: 'Enable media players for' })}>
+        <SettingsListGroup variant="filled" title={t('settings.externalMedia.enableFor', { defaultValue: 'Enable media players for' })}>
           {EXTERNAL_EMBED_SOURCES.map((source) => (
             <SettingsListItem
               key={source}
@@ -86,6 +85,6 @@ export default function ExternalMediaSettingsScreen() {
           ))}
         </SettingsListGroup>
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }

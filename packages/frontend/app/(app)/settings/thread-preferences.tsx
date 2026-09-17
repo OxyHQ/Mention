@@ -1,19 +1,20 @@
 import React from 'react';
+import { RiArrowUpSLine, RiGitMergeLine, RiHeartLine } from '@oxy.so/bloom/icons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { ThemedView } from '@/components/ThemedView';
 import { Toggle } from '@/components/Toggle';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
-import { Icon, type IconName } from '@/lib/icons';
+import type { BloomIcon } from '@/components/settings/RowIcon';
+import { SORT_ICONS } from '@/components/settings/threadSortIcons';
 import { RadioIndicator } from '@oxy.so/bloom/radio-indicator';
 import { useThreadPreferencesStore, SORT_OPTIONS, type VoteStyle } from '@/hooks/useThreadPreferences';
 
-const VOTE_STYLE_OPTIONS: { value: VoteStyle; icon: IconName; labelKey: string; defaultLabel: string }[] = [
-    { value: 'heart', icon: 'heart-outline', labelKey: 'settings.threadPreferences.voteStyleHeart', defaultLabel: 'Heart' },
-    { value: 'pill', icon: 'chevron-up-outline', labelKey: 'settings.threadPreferences.voteStylePill', defaultLabel: 'Up/down vote' },
+const VOTE_STYLE_OPTIONS: { value: VoteStyle; icon: BloomIcon; labelKey: string; defaultLabel: string }[] = [
+    { value: 'heart', icon: RiHeartLine, labelKey: 'settings.threadPreferences.voteStyleHeart', defaultLabel: 'Heart' },
+    { value: 'pill', icon: RiArrowUpSLine, labelKey: 'settings.threadPreferences.voteStylePill', defaultLabel: 'Up/down vote' },
 ];
 
 export default function ThreadPreferencesScreen() {
@@ -26,7 +27,7 @@ export default function ThreadPreferencesScreen() {
         useThreadPreferencesStore();
 
     return (
-        <ThemedView className="flex-1">
+        <View className="flex-1">
             <PageHeader title={t('settings.threadPreferences.title', { defaultValue: 'Thread preferences' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
@@ -35,32 +36,31 @@ export default function ThreadPreferencesScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 {/* Sort replies */}
-                <SettingsListGroup title={t('settings.threadPreferences.sortReplies', { defaultValue: 'Sort replies' })}>
-                    {SORT_OPTIONS.map((option) => (
-                        <Pressable
-                            key={option.value}
-                            className="px-4 py-3.5 flex-row items-center justify-between"
-                            onPress={() => setSortOrder(option.value)}
-                        >
-                            <View className="flex-row items-center gap-3">
-                                <View className="w-7 items-center justify-center">
-                                    <Icon
-                                        name={option.icon}
-                                        size={20}
-                                        color={colors.textSecondary}
-                                    />
+                <SettingsListGroup variant="filled" title={t('settings.threadPreferences.sortReplies', { defaultValue: 'Sort replies' })}>
+                    {SORT_OPTIONS.map((option) => {
+                        const SortIcon = SORT_ICONS[option.value];
+                        return (
+                            <Pressable
+                                key={option.value}
+                                className="px-4 py-3.5 flex-row items-center justify-between"
+                                onPress={() => setSortOrder(option.value)}
+                            >
+                                <View className="flex-row items-center gap-3">
+                                    <View className="w-7 items-center justify-center">
+                                        <SortIcon width={20} height={20} fill={colors.textSecondary} />
+                                    </View>
+                                    <Text className="text-[15px] font-medium text-foreground">
+                                        {t(option.labelKey, { defaultValue: option.defaultLabel })}
+                                    </Text>
                                 </View>
-                                <Text className="text-[15px] font-medium text-foreground">
-                                    {t(option.labelKey, { defaultValue: option.defaultLabel })}
-                                </Text>
-                            </View>
-                            <RadioIndicator selected={sortOrder === option.value} />
-                        </Pressable>
-                    ))}
+                                <RadioIndicator selected={sortOrder === option.value} />
+                            </Pressable>
+                        );
+                    })}
                 </SettingsListGroup>
 
                 {/* Like style */}
-                <SettingsListGroup title={t('settings.threadPreferences.likeStyle', { defaultValue: 'Like style' })}>
+                <SettingsListGroup variant="filled" title={t('settings.threadPreferences.likeStyle', { defaultValue: 'Like style' })}>
                     {VOTE_STYLE_OPTIONS.map((option) => (
                         <Pressable
                             key={option.value}
@@ -69,11 +69,7 @@ export default function ThreadPreferencesScreen() {
                         >
                             <View className="flex-row items-center gap-3">
                                 <View className="w-7 items-center justify-center">
-                                    <Icon
-                                        name={option.icon}
-                                        size={20}
-                                        color={colors.textSecondary}
-                                    />
+                                    <option.icon width={20} height={20} fill={colors.textSecondary} />
                                 </View>
                                 <Text className="text-[15px] font-medium text-foreground">
                                     {t(option.labelKey, { defaultValue: option.defaultLabel })}
@@ -85,11 +81,11 @@ export default function ThreadPreferencesScreen() {
                 </SettingsListGroup>
 
                 {/* Tree view */}
-                <SettingsListGroup title={t('settings.threadPreferences.display', { defaultValue: 'Display' })}>
+                <SettingsListGroup variant="filled" title={t('settings.threadPreferences.display', { defaultValue: 'Display' })}>
                     <View className="px-4 py-3.5 flex-row items-center justify-between">
                         <View className="flex-row items-center gap-3 flex-1 mr-3">
                             <View className="w-7 items-center justify-center">
-                                <Icon name="git-branch-outline" size={20} color={colors.textSecondary} />
+                                <RiGitMergeLine width={20} height={20} fill={colors.textSecondary} />
                             </View>
                             <View className="flex-1">
                                 <Text className="text-[15px] font-medium text-foreground">
@@ -104,6 +100,6 @@ export default function ThreadPreferencesScreen() {
                     </View>
                 </SettingsListGroup>
             </ScrollView>
-        </ThemedView>
+        </View>
     );
 }

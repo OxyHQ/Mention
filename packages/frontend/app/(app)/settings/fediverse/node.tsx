@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -6,11 +7,10 @@ import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
-import { ThemedView } from '@/components/ThemedView';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@oxy.so/bloom/button';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { RiCloseCircleLine, RiShieldCheckLine } from '@oxy.so/bloom/icons';
-import { Icon, type IconName } from '@/lib/icons';
+import { RiBox3Line, RiCheckboxCircleFill, RiCloseCircleLine, RiErrorWarningFill, RiInformationFill, RiShieldCheckLine } from '@oxy.so/bloom/icons';
+import type { BloomIcon } from '@/components/settings/RowIcon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDialog } from '@/utils/alerts';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
@@ -22,7 +22,7 @@ function ActionError({ message }: { message: string }) {
   const { colors } = useTheme();
   return (
     <View className="flex-row gap-2.5 mt-3 p-3.5 rounded-xl" style={{ backgroundColor: colors.error + '14' }}>
-      <Icon name="alert-circle" size={18} color={colors.error} />
+      <RiErrorWarningFill width={18} height={18} fill={colors.error} />
       <Text className="flex-1 text-[13px] text-foreground">{message}</Text>
     </View>
   );
@@ -32,7 +32,7 @@ function ActionError({ message }: { message: string }) {
 function useStatusVisual(status: MentionNode['status']): {
   label: string;
   color: string;
-  icon: IconName;
+  icon: BloomIcon;
 } {
   const { t } = useTranslation();
   const { colors } = useTheme();
@@ -41,32 +41,32 @@ function useStatusVisual(status: MentionNode['status']): {
       return {
         label: t('settings.node.status.active', { defaultValue: 'Active' }),
         color: colors.success,
-        icon: 'checkmark-circle',
+        icon: RiCheckboxCircleFill,
       };
     case 'unreachable':
       return {
         label: t('settings.node.status.unreachable', { defaultValue: 'Unreachable' }),
         color: colors.warning,
-        icon: 'alert-circle',
+        icon: RiErrorWarningFill,
       };
     case 'revoked':
     default:
       return {
         label: t('settings.node.status.revoked', { defaultValue: 'Revoked' }),
         color: colors.textSecondary,
-        icon: 'close-circle',
+        icon: RiCloseCircleLine,
       };
   }
 }
 
 function StatusBadge({ status }: { status: MentionNode['status'] }) {
-  const { label, color, icon } = useStatusVisual(status);
+  const { label, color, icon: StatusIcon } = useStatusVisual(status);
   return (
     <View
       className="flex-row items-center gap-1.5 px-2.5 py-1 rounded-full"
       style={{ backgroundColor: color + '20' }}
     >
-      <Icon name={icon} size={14} color={color} />
+      <StatusIcon width={14} height={14} fill={color} />
       <Text className="text-[13px] font-semibold" style={{ color }}>
         {label}
       </Text>
@@ -127,18 +127,18 @@ export default function MentionNodeScreen() {
   // Loading the SDK auth/private-API readiness, or the first node fetch.
   if (!isAuthResolved || isPrivateApiPending) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center">
           <Loading />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   if (!isAuthenticated || !canUsePrivateApi) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <OxyAuthPrompt
           label={t('settings.node.signInRequired', { defaultValue: 'Sign in to manage your node' })}
@@ -146,28 +146,28 @@ export default function MentionNodeScreen() {
             defaultValue: 'A node is your own copy of your signed posts. Sign in to create or connect one.',
           })}
         />
-      </ThemedView>
+      </View>
     );
   }
 
   if (isLoading) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center">
           <Loading className="text-primary" size="large" />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1">
       {header}
       <ScrollView className="flex-1" contentContainerClassName="px-screen-margin py-2" showsVerticalScrollIndicator={false}>
         {isError ? (
           <View className="px-6 py-10 items-center gap-3">
-            <Icon name="cloud-offline-outline" size={44} color={colors.textSecondary} />
+            <Ionicons name="cloud-offline-outline" size={44} color={colors.textSecondary} />
             <Text className="text-base text-foreground text-center">
               {t('settings.node.loadError', { defaultValue: "Couldn't load your node" })}
             </Text>
@@ -178,7 +178,7 @@ export default function MentionNodeScreen() {
         ) : node && node.status !== 'revoked' ? (
           <>
             {/* Active / managed node card */}
-            <SettingsListGroup title={t('settings.node.yourNode', { defaultValue: 'Your node' })}>
+            <SettingsListGroup variant="filled" title={t('settings.node.yourNode', { defaultValue: 'Your node' })}>
               <View className="px-5 py-4 flex-row items-center justify-between gap-3">
                 <View className="flex-1">
                   <Text className="text-[15px] font-semibold text-foreground">
@@ -229,7 +229,7 @@ export default function MentionNodeScreen() {
               ) : null}
             </SettingsListGroup>
 
-            <SettingsListGroup>
+            <SettingsListGroup variant="filled">
               <SettingsListItem
                 icon={<RowIcon icon={RiCloseCircleLine} destructive />}
                 title={t('settings.node.disconnect.action', { defaultValue: 'Disconnect' })}
@@ -266,7 +266,7 @@ export default function MentionNodeScreen() {
               <View
                 className="w-16 h-16 rounded-full items-center justify-center bg-primary/10"
               >
-                <Icon name="cube-outline" size={32} color={colors.primary} />
+                <RiBox3Line width={32} height={32} fill={colors.primary} />
               </View>
               <Text className="text-xl font-bold text-foreground text-center">
                 {t('settings.node.empty.title', { defaultValue: 'Own your posts' })}
@@ -279,7 +279,7 @@ export default function MentionNodeScreen() {
               </Text>
             </View>
 
-            <SettingsListGroup title={t('settings.node.create.title', { defaultValue: 'Recommended' })}>
+            <SettingsListGroup variant="filled" title={t('settings.node.create.title', { defaultValue: 'Recommended' })}>
               <SettingsListItem
                 icon={<RowIcon icon={RiShieldCheckLine} />}
                 title={t('settings.node.create.managedTitle', { defaultValue: 'Create a managed vault' })}
@@ -317,7 +317,7 @@ export default function MentionNodeScreen() {
               self-host path honestly rather than presenting a form that does nothing.
             */}
             <View className="flex-row gap-2.5 mt-3 p-3.5 rounded-xl" style={{ backgroundColor: colors.info + '14' }}>
-              <Icon name="information-circle" size={18} color={colors.info} />
+              <RiInformationFill width={18} height={18} fill={colors.info} />
               <Text className="flex-1 text-[13px] text-foreground">
                 {t('settings.node.selfHostNotice', {
                   defaultValue:
@@ -328,6 +328,6 @@ export default function MentionNodeScreen() {
           </>
         )}
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }

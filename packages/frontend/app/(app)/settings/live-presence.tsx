@@ -1,14 +1,14 @@
 import React from 'react';
+import { RiBroadcastLine, RiCheckboxCircleFill, RiMic2Line } from '@oxy.so/bloom/icons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loading } from '@oxy.so/bloom/loading';
-import { ThemedView } from '@/components/ThemedView';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
-import { Icon, type IconName } from '@/lib/icons';
+import type { BloomIcon } from '@/components/settings/RowIcon';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import {
     getLivePresencePreference,
@@ -23,7 +23,7 @@ interface PresenceOption {
     labelDefault: string;
     descKey: string;
     descDefault: string;
-    icon: IconName;
+    icon: BloomIcon;
 }
 
 const OPTIONS: PresenceOption[] = [
@@ -33,7 +33,7 @@ const OPTIONS: PresenceOption[] = [
         labelDefault: "When I'm in a live room",
         descKey: 'settings.livePresence.activeDesc',
         descDefault: 'Your avatar shows a live badge to others whenever you join a live room.',
-        icon: 'radio-outline',
+        icon: RiBroadcastLine,
     },
     {
         value: 'speaking',
@@ -41,7 +41,7 @@ const OPTIONS: PresenceOption[] = [
         labelDefault: "Only when I'm speaking",
         descKey: 'settings.livePresence.speakingDesc',
         descDefault: 'Your avatar shows a live badge only while you hold the mic.',
-        icon: 'mic-outline',
+        icon: RiMic2Line,
     },
 ];
 
@@ -87,47 +87,47 @@ export default function LivePresenceScreen() {
 
     if (isPrivateApiPending) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 {renderHeader()}
                 <View className="flex-1 items-center justify-center">
                     <Loading className="text-primary" size="large" />
                 </View>
-            </ThemedView>
+            </View>
         );
     }
 
     if (!canUsePrivateApi) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 {renderHeader()}
                 <OxyAuthPrompt
                     label={t('settings.livePresence.signInRequired', { defaultValue: 'Sign in to manage your live presence' })}
                     description={t('settings.livePresence.signInRequiredDesc', { defaultValue: 'Choose when others see you live in a room.' })}
                 />
-            </ThemedView>
+            </View>
         );
     }
 
     if (isLoading) {
         return (
-            <ThemedView className="flex-1">
+            <View className="flex-1">
                 {renderHeader()}
                 <View className="flex-1 items-center justify-center">
                     <Loading className="text-primary" size="large" />
                 </View>
-            </ThemedView>
+            </View>
         );
     }
 
     return (
-        <ThemedView className="flex-1">
+        <View className="flex-1">
             {renderHeader()}
             <ScrollView
                 className="flex-1"
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup
+                <SettingsListGroup variant="filled"
                     title={t('settings.livePresence.title', { defaultValue: 'Live presence' })}
                     footer={t('settings.livePresence.footer', {
                         defaultValue: 'This controls when your avatar shows a live badge across Mention.',
@@ -146,11 +146,7 @@ export default function LivePresenceScreen() {
                                 accessibilityState={{ selected: isSelected, disabled: mutation.isPending }}
                             >
                                 <View className="w-7 items-center justify-center">
-                                    <Icon
-                                        name={option.icon}
-                                        size={20}
-                                        color={isSelected ? colors.primary : colors.textSecondary}
-                                    />
+                                    <option.icon width={20} height={20} fill={isSelected ? colors.primary : colors.textSecondary} />
                                 </View>
                                 <View className="flex-1 ml-3">
                                     <Text className="text-[15px] font-medium text-foreground">
@@ -161,13 +157,13 @@ export default function LivePresenceScreen() {
                                     </Text>
                                 </View>
                                 {isSelected && (
-                                    <Icon name="checkmark-circle" size={22} color={colors.primary} />
+                                    <RiCheckboxCircleFill width={22} height={22} fill={colors.primary} />
                                 )}
                             </Pressable>
                         );
                     })}
                 </SettingsListGroup>
             </ScrollView>
-        </ThemedView>
+        </View>
     );
 }

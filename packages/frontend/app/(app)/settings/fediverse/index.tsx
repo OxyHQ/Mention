@@ -8,7 +8,6 @@ import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { ThemedView } from '@/components/ThemedView';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { RiBox3Line, RiEarthLine, RiGlobalLine, RiQuestionLine, RiShieldCheckLine } from '@oxy.so/bloom/icons';
 import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
@@ -150,7 +149,7 @@ function FediverseSharingBody() {
       contentContainerClassName="px-screen-margin py-2"
       showsVerticalScrollIndicator={false}
     >
-      <SettingsListGroup footer={t('fediverse.settings.description')}>
+      <SettingsListGroup variant="filled" footer={t('fediverse.settings.description')}>
         <SettingsListItem
           icon={<RowIcon icon={RiEarthLine} />}
           title={t('fediverse.settings.share')}
@@ -162,7 +161,7 @@ function FediverseSharingBody() {
         />
       </SettingsListGroup>
 
-      <SettingsListGroup
+      <SettingsListGroup variant="filled"
         footer={t('fediverse.settings.preferredLanguage.description', {
           defaultValue:
             'The main language your posts are written in. It becomes the primary version shown across the fediverse; leave it automatic to let it be detected per post.',
@@ -176,7 +175,7 @@ function FediverseSharingBody() {
         />
       </SettingsListGroup>
 
-      <SettingsListGroup>
+      <SettingsListGroup variant="filled">
         <SettingsListItem
           icon={<RowIcon icon={RiBox3Line} />}
           title={t('settings.node.title', { defaultValue: 'Your Mention node' })}
@@ -185,7 +184,7 @@ function FediverseSharingBody() {
         />
       </SettingsListGroup>
 
-      <SettingsListGroup>
+      <SettingsListGroup variant="filled">
         <SettingsListItem
           icon={<RowIcon icon={RiQuestionLine} />}
           title={t('fediverse.settings.whatIs')}
@@ -210,7 +209,7 @@ export default function FediverseSettingsScreen() {
   const header = <PageHeader title={t('fediverse.settings.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />;
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1">
       {header}
       {!isAuthResolved || isPrivateApiPending ? (
         <View className="flex-1 items-center justify-center">
@@ -228,6 +227,6 @@ export default function FediverseSettingsScreen() {
       ) : (
         <FediverseSharingBody />
       )}
-    </ThemedView>
+    </View>
   );
 }

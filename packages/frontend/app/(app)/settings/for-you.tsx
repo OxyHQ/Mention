@@ -11,7 +11,6 @@ import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 
-import { ThemedView } from '@/components/ThemedView';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Toggle } from '@/components/Toggle';
 import { Slider } from '@/components/Slider';
@@ -114,7 +113,7 @@ export default function ForYouTuningScreen() {
 
   if (!isAuthenticated) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <OxyAuthPrompt
           label={t('feed.tuning.signInRequired', { defaultValue: 'Sign in to tune your For You feed' })}
@@ -122,23 +121,23 @@ export default function ForYouTuningScreen() {
             defaultValue: 'Adjust which quality, engagement, and content filters shape your discovery feed.',
           })}
         />
-      </ThemedView>
+      </View>
     );
   }
 
   if (isLoading) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center">
           <Loading className="text-primary" size="large" />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1">
       {header}
       <ScrollView className="flex-1" contentContainerClassName="px-screen-margin py-2" showsVerticalScrollIndicator={false}>
         <View className="pt-2 pb-1">
@@ -151,13 +150,13 @@ export default function ForYouTuningScreen() {
         </View>
 
         {groups.map((group) => (
-          <SettingsListGroup key={group.category} title={t(`feed.tuning.categories.${group.category}`)}>
+          <SettingsListGroup variant="filled" key={group.category} title={t(`feed.tuning.categories.${group.category}`)}>
             {group.modules.map((spec) => (
               <TuningModuleRow key={spec.moduleId} spec={spec} tuning={tuning} onSave={save} />
             ))}
           </SettingsListGroup>
         ))}
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }

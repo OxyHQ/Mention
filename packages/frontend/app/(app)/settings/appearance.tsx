@@ -3,16 +3,14 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView } from 'react-native';
 import { useAppearanceStore, type PostTextExpand, type PostReadMoreAction } from '@/stores/appearanceStore';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { ThemedView } from '@/components/ThemedView';
 import { useTheme, useBloomTheme } from '@oxy.so/bloom/theme';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import { SegmentedControl, SegmentedControlItem, SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
 import { SettingsListDivider, SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
-import { Icon } from '@/lib/icons';
 import { Toggle } from '@/components/Toggle';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { RiUploadCloud2Line } from '@oxy.so/bloom/icons';
+import { RiExpandDiagonalSLine, RiFontSize, RiListUnordered, RiSmartphoneLine, RiUploadCloud2Line } from '@oxy.so/bloom/icons';
 import { useThemeControls } from '@/hooks/useAccountTheme';
 
 type ThemeMode = 'system' | 'light' | 'dark';
@@ -73,7 +71,7 @@ export default function AppearanceSettingsScreen() {
   }, [saveSettings]);
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1">
       <PageHeader title={t('settings.appearance', 'Appearance')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} actions={settingsSaving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />
 
       <ScrollView
@@ -82,7 +80,7 @@ export default function AppearanceSettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Theme source: portable account theme vs. a device-local app theme */}
-        <SettingsListGroup
+        <SettingsListGroup variant="filled"
           footer={t(
             'settings.theme.source.footer',
             'When on, your color mode and accent are saved to your Oxy account and shared across Oxy apps. When off, this device keeps its own theme.',
@@ -107,7 +105,7 @@ export default function AppearanceSettingsScreen() {
         {/* Color mode */}
         <View className="py-3 gap-3">
           <View className="flex-row items-center gap-3">
-            <Icon name="phone-portrait" size={22} color={colors.text} />
+            <RiSmartphoneLine width={22} height={22} fill={colors.text} />
             <Text className="text-[16px] text-foreground">
               {t('settings.theme', 'Color mode')}
             </Text>
@@ -134,7 +132,7 @@ export default function AppearanceSettingsScreen() {
         {/* Post text length */}
         <View className="py-3 gap-3">
           <View className="flex-row items-center gap-3">
-            <Icon name="text-outline" size={22} color={colors.text} />
+            <RiFontSize width={22} height={22} fill={colors.text} />
             <Text className="text-[16px] text-foreground">
               {t('settings.appearance.postTextLength', 'Post text length')}
             </Text>
@@ -164,7 +162,7 @@ export default function AppearanceSettingsScreen() {
         {/* Read more tap behavior */}
         <View className="py-3 gap-3">
           <View className="flex-row items-center gap-3">
-            <Icon name="expand-outline" size={22} color={colors.text} />
+            <RiExpandDiagonalSLine width={22} height={22} fill={colors.text} />
             <Text className="text-[16px] text-foreground">
               {t('settings.appearance.readMoreAction', 'On "Read more" tap')}
             </Text>
@@ -188,7 +186,7 @@ export default function AppearanceSettingsScreen() {
         {/* Profile bio collapse */}
         <View className="py-3 gap-3">
           <View className="flex-row items-center gap-3">
-            <Icon name="reader-outline" size={22} color={colors.text} />
+            <RiListUnordered width={22} height={22} fill={colors.text} />
             <Text className="text-[16px] text-foreground">
               {t('settings.appearance.collapseBio', 'Profile bios')}
             </Text>
@@ -207,6 +205,6 @@ export default function AppearanceSettingsScreen() {
           </SegmentedControl>
         </View>
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }
