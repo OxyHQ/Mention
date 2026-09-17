@@ -31,7 +31,7 @@ export const MENTION_JOB_EMPLOYMENT_TYPES = [
   'internship',
   'other',
 ] as const;
-export const MENTION_JOB_SALARY_INTERVALS = ['hour', 'day', 'month', 'year'] as const;
+export const MENTION_JOB_SALARY_INTERVALS = ['hour', 'day', 'week', 'month', 'year'] as const;
 export const MENTION_JOB_APPLICATION_MODES = ['mention', 'external'] as const;
 export const MENTION_JOB_STATUSES = ['draft', 'published', 'paused', 'closed', 'expired'] as const;
 export const MENTION_JOB_CLARITY_SYNC_STATUSES = ['pending', 'synced', 'failed'] as const;
@@ -48,7 +48,18 @@ export const mentionJobs = pgTable(
     authorOxyUserId: text().notNull(),
     title: text().notNull(),
     description: text().notNull(),
-    locationRaw: text(),
+    /**
+     * The location is STRUCTURED, never free text. `locationPlaceId` is a
+     * GeoNames id from Clarity's gazetteer and the source of truth for a
+     * physical place; `locationCountryCode` / `locationRegion` /
+     * `locationCity` are DERIVED from it server-side at write time
+     * (`services/jobPlaces.ts`). A country-only role has the country code and
+     * nothing else. Membership of `COUNTRY_CODES` is validated by the write
+     * path; the CHECKs below hold the shape only, because the ISO list is
+     * Clarity's vocabulary and moves with SDK releases (a withdrawn code
+     * must not turn into a migration that fails on existing rows).
+     */
+    locationPlaceId: text(),
     locationCountryCode: text(),
     locationRegion: text(),
     locationCity: text(),
@@ -56,7 +67,11 @@ export const mentionJobs = pgTable(
     employmentType: text({ enum: MENTION_JOB_EMPLOYMENT_TYPES }),
     salaryMin: integer(),
     salaryMax: integer(),
-    /** ISO 4217. Required together with `salaryInterval` — see the CHECK below. */
+    /**
+     * ISO 4217, from `CURRENCY_CODES` (validated on write; shape-checked here
+     * for the same reason as `locationCountryCode`). Required together with
+     * `salaryInterval` — see the CHECK below.
+     */
     salaryCurrency: text(),
     salaryInterval: text({ enum: MENTION_JOB_SALARY_INTERVALS }),
     skills: text().array().notNull().default(sql`'{}'::text[]`),
@@ -96,6 +111,32 @@ export const mentionJobs = pgTable(
       'mention_jobs_salary_complete_check',
       sql`(${t.salaryMin} is null and ${t.salaryMax} is null and ${t.salaryCurrency} is null and ${t.salaryInterval} is null)
         or (${t.salaryCurrency} is not null and ${t.salaryInterval} is not null)`
+    ),
+    check(
+      'mention_jobs_salary_currency_check',
+      sql`${t.salaryCurrency} is null or ${t.salaryCurrency} ~ '^[A-Z]{3}$'`
+    ),
+    check(
+      'mention_jobs_salary_interval_check',
+      sql`${t.salaryInterval} is null or ${t.salaryInterval} in (${sql.raw(inList(MENTION_JOB_SALARY_INTERVALS))})`
+    ),
+    check(
+      'mention_jobs_salary_amount_check',
+      sql`(${t.salaryMin} is null or ${t.salaryMin} >= 0) and (${t.salaryMax} is null or ${t.salaryMax} >= 0)`
+    ),
+    // A place always knows its country; region/city exist only as facts
+    // derived FROM a place, so neither may appear without one.
+    check(
+      'mention_jobs_location_country_code_check',
+      sql`${t.locationCountryCode} is null or ${t.locationCountryCode} ~ '^[A-Z]{2}$'`
+    ),
+    check(
+      'mention_jobs_location_place_check',
+      sql`${t.locationPlaceId} is null or (${t.locationPlaceId} ~ '^[1-9][0-9]*$' and ${t.locationCountryCode} is not null)`
+    ),
+    check(
+      'mention_jobs_location_derived_check',
+      sql`${t.locationPlaceId} is not null or (${t.locationRegion} is null and ${t.locationCity} is null)`
     ),
     check(
       'mention_jobs_salary_range_check',

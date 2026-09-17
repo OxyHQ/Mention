@@ -676,6 +676,16 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'constraint standing in the way.',
   },
   {
+    table: mentionJobs,
+    column: mentionJobs.locationPlaceId,
+    reason:
+      "A GeoNames id from Clarity's place gazetteer (`clarity.places`), the " +
+      "job's location. Another foreign service's key, like `clarityDocumentId`: " +
+      'there is no places table in this database to reference, and the country, ' +
+      'region and city derived from it at write time are stored beside it, so ' +
+      'a place GeoNames later drops leaves a readable location, not a dangling one.',
+  },
+  {
     table: mentionJobApplications,
     column: mentionJobApplications.resumeFileId,
     reason: 'An Oxy S3 file id for the uploaded resume. Oxy owns files.',

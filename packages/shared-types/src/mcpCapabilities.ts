@@ -161,6 +161,7 @@ export const MENTION_TOOL_POLICIES: Readonly<Record<string, MentionToolPolicy>> 
   "switch-account": mcpOnly(write("POST", "/mcp/bundles/active", "administer", "social.accounts.switch", account, { rollback: "supported" })),
 
   "list-my-jobs": read("/jobs/mine", "social.jobs.read", job, true),
+  "search-job-places": read("/jobs/places/search", "social.jobs.read", job, true),
   "get-job-applications": read("/jobs/{id}/applications", "social.jobs.applications.read", ["mention_account", "job", "job_application"], true),
   "create-job": write("POST", "/jobs", "create", "social.jobs.create", job, { rollback: "supported" }),
   "update-job": write("PUT", "/jobs/{id}", "administer", "social.jobs.update", job, { rollback: "supported" }),

@@ -1,30 +1,56 @@
 import { z } from "zod/v4";
 import {
+  COUNTRY_CODES,
+  CURRENCY_CODES,
   MENTION_JOB_APPLICATION_STATUSES,
   MENTION_JOB_EMPLOYMENT_TYPES,
   MENTION_JOB_SALARY_INTERVALS,
   MENTION_JOB_STATUSES,
   MENTION_JOB_WORKPLACE_TYPES,
+  formatMentionJobLocation,
+  type CountryCode,
+  type CurrencyCode,
   type MentionJobApplication,
+  type MentionJobPlaceSearchResponse,
   type MentionJobPosting,
 } from "@mention/shared-types";
 import { api, formatApiError } from "../lib/api-client.js";
 import { withAuthGuard } from "../lib/auth-guard.js";
 import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 
-const locationInputSchema = z.object({
-  raw: z.string().describe("Free-text location as the employer entered it"),
-  countryCode: z.string().optional(),
-  region: z.string().optional(),
-  city: z.string().optional(),
-});
+const countryCodeSchema = z.enum(COUNTRY_CODES as [CountryCode, ...CountryCode[]]);
+const currencyCodeSchema = z.enum(CURRENCY_CODES as [CurrencyCode, ...CurrencyCode[]]);
 
-const salaryInputSchema = z.object({
-  min: z.number().optional(),
-  max: z.number().optional(),
-  currency: z.string().describe("ISO 4217 currency code"),
-  interval: z.enum(MENTION_JOB_SALARY_INTERVALS),
-});
+/** The same closed shape the API validates: a place id OR a country, never free text. */
+const locationInputSchema = z
+  .strictObject({
+    placeId: z
+      .string()
+      .regex(/^[1-9][0-9]{0,11}$/)
+      .optional()
+      .describe("GeoNames id of a city or region, from search-job-places. Its country, region and city are filled in by Mention."),
+    countryCode: countryCodeSchema
+      .optional()
+      .describe("ISO 3166-1 alpha-2 country code, for a role open to a whole country (no city). Omit when placeId is set."),
+  })
+  .refine((location) => (location.placeId === undefined) !== (location.countryCode === undefined), {
+    message: "Provide exactly one of placeId or countryCode",
+  })
+  .describe("Exactly one of placeId or countryCode");
+
+const salaryInputSchema = z
+  .strictObject({
+    min: z.number().int().nonnegative().optional(),
+    max: z.number().int().nonnegative().optional(),
+    currency: currencyCodeSchema.describe("ISO 4217 currency code, e.g. EUR"),
+    interval: z.enum(MENTION_JOB_SALARY_INTERVALS),
+  })
+  .refine((salary) => salary.min !== undefined || salary.max !== undefined, {
+    message: "Provide at least one of min or max",
+  })
+  .refine((salary) => salary.min === undefined || salary.max === undefined || salary.min <= salary.max, {
+    message: "min cannot be greater than max",
+  });
 
 const applicationModeSchema = z.enum(["mention", "external"]);
 
@@ -34,7 +60,7 @@ const applicationModeSchema = z.enum(["mention", "external"]);
 function formatJob(job: MentionJobPosting): string {
   const id = job.id || "unknown";
   const status = job.status || "draft";
-  const location = job.location?.raw ? ` — ${job.location.raw}` : "";
+  const location = job.location ? ` — ${formatMentionJobLocation(job.location)}` : "";
   const workplace = job.workplaceType ? ` (${job.workplaceType})` : "";
   const employment = job.employmentType ? ` [${job.employmentType}]` : "";
   const salary = job.salary
@@ -61,6 +87,36 @@ function formatApplication(application: MentionJobApplication): string {
 }
 
 export function registerJobsTools(server: MentionToolRegistrar): void {
+  server.tool(
+    "search-job-places",
+    "Find the city or region for a job's location. Returns GeoNames place ids to pass as location.placeId to create-job or update-job (requires authorization).",
+    {
+      q: z.string().min(1).max(100).describe("Place name or prefix, e.g. 'Barcel'"),
+      countryCode: countryCodeSchema.optional().describe("Restrict to one ISO 3166-1 alpha-2 country"),
+      kind: z.enum(["city", "region"]).optional(),
+      limit: z.number().int().min(1).max(20).optional(),
+    },
+    withAuthGuard(async ({ q, countryCode, kind, limit }) => {
+      try {
+        const query: Record<string, string | number | boolean | undefined> = { q };
+        if (countryCode) query.countryCode = countryCode;
+        if (kind) query.kind = kind;
+        if (limit) query.limit = limit;
+        const result = (await api.get("/jobs/places/search", query)) as Partial<MentionJobPlaceSearchResponse>;
+        const places = Array.isArray(result.places) ? result.places : [];
+        if (places.length === 0) {
+          return { content: [{ type: "text" as const, text: "No places found." }] };
+        }
+        const formatted = places
+          .map((place) => `[${place.id}] ${[place.name, place.region, place.countryCode].filter(Boolean).join(", ")} (${place.kind})`)
+          .join("\n");
+        return { content: [{ type: "text" as const, text: `Places (${places.length}):\n\n${formatted}` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
   server.tool(
     "create-job",
     "Create a Mention job listing for an organization/project account you operate (requires authorization).",

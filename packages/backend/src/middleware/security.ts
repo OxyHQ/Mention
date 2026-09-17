@@ -337,6 +337,33 @@ export const jobApplicationsRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+/**
+ * `GET /jobs/places/search` — the job form's place autocomplete, proxied to
+ * Clarity with Mention's service credential (the client cannot hold it). Every
+ * request is a Clarity call billed to Mention, so it is bounded per user like
+ * every other job route, on its own store so typing in the picker never eats
+ * the job-write budget.
+ *
+ * 60/minute: the picker debounces keystrokes, so even a slow typist editing a
+ * few locations sends a fraction of that.
+ */
+const jobPlacesSearchStore = new RedisStore({
+  prefix: 'rate-limit:job-places-search:',
+  windowMs: 60 * 1000,
+});
+export const jobPlacesSearchRateLimiter = rateLimit({
+  store: jobPlacesSearchStore,
+  windowMs: 60 * 1000,
+  max: 60,
+  keyGenerator: (req: Request) => {
+    const authReq = req as AuthRequest;
+    return authReq.user?.id ? `user:${authReq.user.id}` : hashedIpKey(req);
+  },
+  message: 'Too many place searches. Please slow down.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 export const lanesRateLimiter = rateLimit({
   store: lanesStore,
   windowMs: 60 * 1000,
