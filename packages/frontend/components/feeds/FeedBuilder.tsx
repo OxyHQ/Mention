@@ -709,7 +709,7 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
     }
   }, [catalog, title, description, isPublic, mode, sourceStates, filterStates, signalStates, selectedAccounts, savedFeedId, queryClient, t, user?.id]);
 
-  const canSave = title.trim().length > 0 && !saving && Boolean(catalog);
+  const canSave = title.trim().length > 0 && Boolean(catalog);
 
   return (
     <View className="flex-1">
