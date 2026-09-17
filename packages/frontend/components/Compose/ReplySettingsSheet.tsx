@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { View, Text, Pressable, Animated, Platform } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
+import { Button } from '@oxy.so/bloom/button';
 import { RiCheckLine } from '@oxy.so/bloom/icons';
 
 export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
@@ -260,27 +261,9 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
         </View>
       </Pressable>
 
-      {/* Save button */}
-      <Pressable
-        onPress={onClose}
-        style={{
-          alignItems: 'center',
-          justifyContent: 'center',
-          paddingVertical: 10,
-          borderRadius: 999,
-          backgroundColor: theme.colors.primary,
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 15,
-            fontWeight: '600',
-            color: '#fff',
-          }}
-        >
-          {t('Save')}
-        </Text>
-      </Pressable>
+      <Button size="large" onPress={onClose}>
+        {t('Save')}
+      </Button>
     </View>
   );
 };
