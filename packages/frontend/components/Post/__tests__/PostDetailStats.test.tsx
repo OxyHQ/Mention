@@ -29,6 +29,8 @@ jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#666' } }),
 }));
 
+jest.mock('@oxy.so/bloom/icons', () => ({ RiGlobalLine: () => null, RiLockLine: () => null }));
+
 jest.mock('@oxy.so/bloom/pressable-scale', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   return { PressableScale: TouchableOpacity };

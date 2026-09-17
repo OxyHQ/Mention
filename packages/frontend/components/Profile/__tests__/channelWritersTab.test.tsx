@@ -132,22 +132,30 @@ jest.mock('@oxy.so/bloom/theme', () => ({
   }),
 }));
 
+jest.mock('@oxy.so/bloom/typography', () => {
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { Text };
+});
+
+jest.mock('@oxy.so/bloom/icons', () => ({ RiEditLine: () => null }));
+
 // Reached through ProfileCard → UserName (its copyable handle).
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
-
-// Reached through `SecondaryButton` (components/ui/Button).
-jest.mock('@oxy.so/bloom/hooks', () => ({
-  useHaptics: () => ({ trigger: jest.fn(), impact: jest.fn(), selection: jest.fn() }),
-  useInteractionState: () => ({ pressed: false, hovered: false }),
-  useInteractionStates: () => ({ pressed: false, hovered: false }),
-}));
 
 jest.mock('@oxy.so/bloom/button', () => {
   const { Text, TouchableOpacity } =
     jest.requireActual<typeof import('react-native')>('react-native');
-  const Button = ({ label, onPress }: { label?: string; onPress?: () => void }) => (
+  const Button = ({
+    label,
+    children,
+    onPress,
+  }: {
+    label?: string;
+    children?: React.ReactNode;
+    onPress?: () => void;
+  }) => (
     <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} onPress={onPress}>
-      <Text>{label}</Text>
+      <Text>{label ?? children}</Text>
     </TouchableOpacity>
   );
   return { Button, ButtonText: Text };

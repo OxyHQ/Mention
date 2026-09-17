@@ -6,6 +6,7 @@ import { FlashList } from '@shopify/flash-list';
 import { Button } from '@oxy.so/bloom/button';
 import { Chip } from '@oxy.so/bloom/chip';
 import { Loading } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Search } from '@oxy.so/bloom/search';
 import { SegmentedControl, SegmentedControlItem, SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
@@ -18,10 +19,6 @@ import {
   type MentionJobEmploymentType,
   type MentionJobWorkplaceType,
 } from '@mention/shared-types';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Error as ErrorState } from '@/components/Error';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
@@ -468,18 +465,11 @@ export default function JobsDiscoveryScreen() {
   const getItemType = useCallback((item: DiscoveryRow) => item.kind, []);
 
   return (
-    <ThemedView className="flex-1">
-      <Header
-        options={{
-          title: t('jobs.discovery.title', { defaultValue: 'Jobs' }),
-          leftComponents: [
-            <IconButton key="back" variant="icon" onPress={safeBack}>
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder
-        disableSticky
+    <View className="flex-1">
+      <PageHeader
+        title={t('jobs.discovery.title', { defaultValue: 'Jobs' })}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
       />
       <View className="flex-1 min-h-0">
         <FlashList
@@ -499,6 +489,6 @@ export default function JobsDiscoveryScreen() {
           }
         />
       </View>
-    </ThemedView>
+    </View>
   );
 }

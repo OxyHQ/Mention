@@ -93,6 +93,10 @@ jest.mock('@oxy.so/bloom/button', () => {
   };
 });
 
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiCheckboxCircleFill: () => null,
+  RiCloseCircleLine: () => null,
+}));
 jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({

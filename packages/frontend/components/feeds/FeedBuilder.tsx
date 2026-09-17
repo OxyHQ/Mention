@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, StyleSheet } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Button } from '@oxy.so/bloom/button';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { RiCheckLine, RiCloseCircleLine, RiCloseLine } from '@oxy.so/bloom/icons';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
@@ -21,10 +23,6 @@ import type {
   ModuleParamProperty,
 } from '@mention/shared-types';
 
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Toggle } from '@/components/Toggle';
 import { Slider } from '@/components/Slider';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -115,7 +113,7 @@ const ChipInput = ({
                 onPress={() => onChange(values.filter((x) => x !== v))}
                 hitSlop={HIT_SLOP_SM}
               >
-                <Ionicons name="close" size={13} color={theme.colors.textSecondary} />
+                <RiCloseLine width={13} height={13} fill={theme.colors.textSecondary} />
               </TouchableOpacity>
             </View>
           ))}
@@ -129,7 +127,7 @@ const ChipInput = ({
         placeholder={t('feeds.builder.chipPlaceholder')}
         placeholderTextColor={theme.colors.textSecondary}
         style={styles.input}
-        className="text-[15px] text-foreground bg-background border border-border rounded-xl px-3"
+        className="text-[15px] text-foreground bg-card border border-border rounded-xl px-3"
         blurOnSubmit={false}
         returnKeyType="done"
       />
@@ -195,7 +193,7 @@ const AccountPicker = ({
             onPress={() => onChange(selected.filter((s) => s.id !== u.id))}
             hitSlop={HIT_SLOP_MD}
           >
-            <Ionicons name="close-circle" size={22} color={theme.colors.textSecondary} />
+            <RiCloseCircleLine width={22} height={22} fill={theme.colors.textSecondary} />
           </TouchableOpacity>
         </View>
       ))}
@@ -206,7 +204,7 @@ const AccountPicker = ({
         placeholder={t('feeds.builder.searchAccounts')}
         placeholderTextColor={theme.colors.textSecondary}
         style={styles.input}
-        className="text-[15px] text-foreground bg-background border border-border rounded-xl px-3"
+        className="text-[15px] text-foreground bg-card border border-border rounded-xl px-3"
       />
 
       {results.map((u) => (
@@ -304,7 +302,7 @@ const ParamControl = ({
                   <Text className="text-[14px] text-foreground">
                     {t(option.labelKey, { defaultValue: option.label })}
                   </Text>
-                  {active ? <Ionicons name="checkmark" size={18} color={theme.colors.primary} /> : null}
+                  {active ? <RiCheckLine width={18} height={18} fill={theme.colors.primary} /> : null}
                 </TouchableOpacity>
               );
             })}
@@ -417,7 +415,7 @@ const SchemaParamField = ({
           }}
           placeholderTextColor={theme.colors.textSecondary}
           style={styles.input}
-          className="text-[15px] text-foreground bg-background border border-border rounded-xl px-3"
+          className="text-[15px] text-foreground bg-card border border-border rounded-xl px-3"
         />
       </View>
     );
@@ -431,7 +429,7 @@ const SchemaParamField = ({
         onChangeText={(txt) => onChange(txt)}
         placeholderTextColor={theme.colors.textSecondary}
         style={styles.input}
-        className="text-[15px] text-foreground bg-background border border-border rounded-xl px-3"
+        className="text-[15px] text-foreground bg-card border border-border rounded-xl px-3"
       />
     </View>
   );
@@ -711,38 +709,19 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
     }
   }, [catalog, title, description, isPublic, mode, sourceStates, filterStates, signalStates, selectedAccounts, savedFeedId, queryClient, t, user?.id]);
 
-  const canSave = title.trim().length > 0 && !saving && Boolean(catalog);
+  const canSave = title.trim().length > 0 && Boolean(catalog);
 
   return (
-    <ThemedView className="flex-1">
-      <Header
-        options={{
-          title: feedId ? t('feeds.builder.editTitle') : t('feeds.builder.createTitle'),
-          leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-          rightComponents: [
-            <TouchableOpacity
-              key="save"
-              onPress={handleSave}
-              disabled={!canSave}
-              className="px-4 py-[7px] rounded-[20px] bg-primary"
-              style={!canSave ? styles.disabledBtn : undefined}
-            >
-              {saving ? (
-                <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
-              ) : (
-                <Text className="text-white font-bold text-sm">
-                  {savedFeedId ? t('feeds.builder.saveChanges') : t('feeds.builder.create')}
-                </Text>
-              )}
-            </TouchableOpacity>,
-          ],
-        }}
-        hideBottomBorder
-        disableSticky
+    <View className="flex-1">
+      <PageHeader
+        title={feedId ? t('feeds.builder.editTitle') : t('feeds.builder.createTitle')}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
+        actions={
+          <Button size="small" onPress={handleSave} disabled={!canSave} loading={saving}>
+            {savedFeedId ? t('feeds.builder.saveChanges') : t('feeds.builder.create')}
+          </Button>
+        }
       />
 
       {catalogLoading || !catalog ? (
@@ -868,13 +847,13 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
           <View className="h-10" />
         </ScrollView>
       )}
-    </ThemedView>
+    </View>
   );
 }
 
 const ModeCheck = ({ active }: { active: boolean }) => {
   const theme = useTheme();
-  return active ? <Ionicons name="checkmark" size={20} color={theme.colors.primary} /> : <View className="w-5 h-5" />;
+  return active ? <RiCheckLine size="md" fill={theme.colors.primary} /> : <View className="w-5 h-5" />;
 };
 
 const styles = StyleSheet.create({
@@ -895,8 +874,5 @@ const styles = StyleSheet.create({
   divider: {
     height: StyleSheet.hairlineWidth,
     marginVertical: 12,
-  },
-  disabledBtn: {
-    opacity: 0.5,
   },
 });

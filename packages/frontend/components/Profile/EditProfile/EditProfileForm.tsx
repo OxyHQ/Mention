@@ -2,15 +2,15 @@ import React, { useMemo } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@oxy.so/bloom/avatar';
+import { Button } from '@oxy.so/bloom/button';
+import { RiPaletteLine } from '@oxy.so/bloom/icons';
 import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsListDivider } from '@oxy.so/bloom/settings-list';
 import { useBloomTheme, useTheme } from '@oxy.so/bloom/theme';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
-import { Button } from '@/components/ui/Button';
 import { ColorSwatchPicker } from '@/components/settings/ColorSwatchPicker';
 import { useProfileData } from '@/hooks/useProfileData';
 import { entitledColorNames } from '@/lib/colorEntitlement';
-import { Icon } from '@/lib/icons';
 import { useAppColorSave } from '@/hooks/useAppColorSave';
 import { BannerSection } from './BannerSection';
 import { PinnedMediaSection } from './PinnedMediaSection';
@@ -79,7 +79,7 @@ export function EditProfileForm() {
       <SettingsListDivider />
       <View className="px-5 py-4 gap-3">
         <View className="flex-row items-center gap-3">
-          <Icon name="color-palette" size={22} color={colors.text} />
+          <RiPaletteLine width={22} fill={colors.text} />
           <Text className="text-[16px] text-foreground">
             {t('settings.accentColor', 'Accent color')}
           </Text>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiPlayFill } from '@oxy.so/bloom/icons';
 import { proxyExternalUrl } from '@/utils/imageUrlCache';
 
 interface ExternalEmbedPosterProps {
@@ -57,7 +57,7 @@ export function ExternalEmbedPoster({ thumb, active, loading, onPressPlay }: Ext
           <ActivityIndicator size="large" color="white" />
         ) : (
           <View className="h-16 w-16 items-center justify-center rounded-full bg-black/60">
-            <Ionicons name="play" size={32} color="white" style={{ marginLeft: 3 }} />
+            <RiPlayFill size="2xl" fill="white" />
           </View>
         )}
       </Pressable>

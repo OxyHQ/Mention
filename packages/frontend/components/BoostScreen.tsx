@@ -1,4 +1,3 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams } from "expo-router";
 import { useSafeBack } from "@/hooks/useSafeBack";
 import React, { useState, useRef, useEffect } from "react";
@@ -14,6 +13,7 @@ import {
 import { toast } from '@oxy.so/bloom/toast';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { Avatar } from '@oxy.so/bloom/avatar';
+import { RiRepeat2Line } from '@oxy.so/bloom/icons';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import type { CreateBoostRequest } from '@mention/shared-types/feed';
 import type { FeedItem } from '@/db';
@@ -108,7 +108,7 @@ const BoostScreen: React.FC = () => {
 
     if (!originalPost) {
         return (
-            <View className="flex-1 bg-background">
+            <View className="flex-1">
                 <Text className="text-lg text-center" style={{ marginTop: 100 }}>Post not found</Text>
             </View>
         );
@@ -116,7 +116,7 @@ const BoostScreen: React.FC = () => {
 
     return (
         <KeyboardAvoidingView
-            className="flex-1 bg-background"
+            className="flex-1"
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
             {/* Header */}
@@ -145,7 +145,7 @@ const BoostScreen: React.FC = () => {
             <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
                 {/* Boost Header */}
                 <View className="flex-row items-center py-3 border-b border-border mb-4">
-                    <Ionicons name="repeat" size={20} color={theme.colors.primary} />
+                    <RiRepeat2Line width={20} height={20} fill={theme.colors.primary} />
                     <Text className="text-primary text-base font-semibold ml-2">Boost</Text>
                 </View>
 

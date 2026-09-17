@@ -1,20 +1,19 @@
 import React from 'react';
 import { View, Text, ScrollView, Linking, Platform } from 'react-native';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton, PrimaryButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Button } from '@oxy.so/bloom/button';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
-import { Icon } from '@/lib/icons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { RiShieldCheckLine, RiSparklingLine } from '@oxy.so/bloom/icons';
+import { RiShieldCheckLine, RiSparklingLine, RiVipCrownLine } from '@oxy.so/bloom/icons';
 import { STRIPE_LINK_PLUS } from '@/config';
 
 export default function SubscribeScreen() {
     const { t } = useTranslation();
     const safeBack = useSafeBack();
+    const { colors } = useTheme();
 
     const handleSubscribe = () => {
         if (STRIPE_LINK_PLUS) {
@@ -27,7 +26,7 @@ export default function SubscribeScreen() {
             {/* Hero */}
             <View className="items-center py-6 mb-4">
                 <View className="w-16 h-16 rounded-2xl items-center justify-center bg-primary/10 mb-3">
-                    <Icon name="diamond-outline" size={32} className="text-primary" />
+                    <RiVipCrownLine size="2xl" fill={colors.primary} />
                 </View>
                 <Text className="text-xl font-bold text-foreground">
                     {t('subscribe.headline')}
@@ -45,26 +44,19 @@ export default function SubscribeScreen() {
 
             {/* CTA */}
             <View className="px-4 mt-2">
-                <PrimaryButton size="large" onPress={handleSubscribe}>
+                <Button variant="primary" size="large" onPress={handleSubscribe}>
                     {t('subscribe.cta')}
-                </PrimaryButton>
+                </Button>
             </View>
         </>
     );
 
     return (
-        <ThemedView className="flex-1">
-            <Header
-                options={{
-                    title: t('subscribe.title'),
-                    leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                            <BackArrowIcon size={20} className="text-foreground" />
-                        </IconButton>,
-                    ],
-                }}
-                hideBottomBorder
-                disableSticky
+        <View className="flex-1">
+            <PageHeader
+                title={t('subscribe.title')}
+                onBack={() => safeBack()}
+                backLabel={t('common.back', { defaultValue: 'Back' })}
             />
 
             {/* WEB hands scroll to the shared panel/document (no nested scroller that
@@ -81,6 +73,6 @@ export default function SubscribeScreen() {
                     {body}
                 </ScrollView>
             )}
-        </ThemedView>
+        </View>
     );
 }

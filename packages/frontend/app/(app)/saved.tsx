@@ -20,23 +20,20 @@ import {
 import { Button } from '@oxy.so/bloom/button';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { Loading } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Search } from '@oxy.so/bloom/search';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
 import { Search as SearchIcon } from '@/assets/icons/search-icon';
 import { Bookmark } from '@/assets/icons/bookmark-icon';
 import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
-import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { Fab } from '@oxy.so/bloom/fab';
+import { RiAddLine } from '@oxy.so/bloom/icons';
 import {
     feedService,
     type SavedPostsPage,
@@ -362,30 +359,20 @@ const SavedPostsScreen: React.FC = () => {
                 title={t('seo.saved.title')}
                 description={t('seo.saved.description')}
             />
-            <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-                <ThemedView className="flex-1">
-                    <StatusBar style={theme.isDark ? 'light' : 'dark'} />
-                    <PanelStickyHeader level={0}>
-                        <Header
-                            options={{
-                                title: t('screens.saved.title'),
-                                showBackButton: false,
-                            }}
-                            disableSticky
-                        />
-                    </PanelStickyHeader>
+            <View className="flex-1">
+                <StatusBar style={theme.isDark ? 'light' : 'dark'} />
+                <PageHeader title={t('screens.saved.title')} />
 
-                    <SavedPostsList
-                        posts={posts}
-                        header={listHeader}
-                        empty={listEmpty}
-                        footer={listFooter}
-                        hasNextPage={Boolean(hasNextPage)}
-                        onEndReached={handleEndReached}
-                        onLongPress={handleLongPress}
-                        backgroundColor={theme.colors.background}
-                    />
-                </ThemedView>
+                <SavedPostsList
+                    posts={posts}
+                    header={listHeader}
+                    empty={listEmpty}
+                    footer={listFooter}
+                    hasNextPage={Boolean(hasNextPage)}
+                    onEndReached={handleEndReached}
+                    onLongPress={handleLongPress}
+                    backgroundColor={theme.colors.background}
+                />
 
                 {/* Create-folder FAB — same anchor and BottomBar clearance as the
                     create action on feeds, lists and the home feed. */}
@@ -393,11 +380,11 @@ const SavedPostsScreen: React.FC = () => {
                     <Fab
                         size={48}
                         onPress={newFolderControl.open}
-                        icon={<Ionicons name="add" size={24} color={theme.colors.tertiaryForeground} />}
+                        icon={<RiAddLine size="lg" fill={theme.colors.tertiaryForeground} />}
                         accessibilityLabel={t('saved.newFolder', 'New folder')}
                     />
                 ) : null}
-            </SafeAreaView>
+            </View>
 
             <Dialog
                 control={newFolderControl}

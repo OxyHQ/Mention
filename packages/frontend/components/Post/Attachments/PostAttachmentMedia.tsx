@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, Text, View, StyleSheet, ViewStyle, Platform } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { BlurView } from 'expo-blur';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { RiEyeOffLine } from '@oxy.so/bloom/icons';
 import { MediaInsetBorder } from '@oxy.so/bloom/media-inset-border';
 import { LazyImage } from '@/components/ui/LazyImage';
 import VideoPlayer from '@/components/common/VideoPlayer';
@@ -515,7 +515,7 @@ const SensitiveMediaCover: React.FC<{ onReveal: () => void }> = ({ onReveal }) =
         style={StyleSheet.absoluteFill}
       />
       <View className="items-center gap-1">
-        <Ionicons name="eye-off" size={24} color="#fff" />
+        <RiEyeOffLine size="lg" fill="#fff" />
         <Text className="text-white text-[15px] font-semibold">
           {t('post.sensitiveContent', { defaultValue: 'Sensitive content' })}
         </Text>

@@ -1,19 +1,18 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, Platform } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
-import { ThemedView } from '@/components/ThemedView';
-import { ThemedText } from '@/components/ThemedText';
+import { Button } from '@oxy.so/bloom/button';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Text } from '@oxy.so/bloom/typography';
 import { useLocalSearchParams, useFocusEffect, router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { useTranslation } from 'react-i18next';
 import { starterPacksService } from '@/services/starterPacksService';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth, FollowButton } from '@oxy.so/services/ui/client';
 import { useHaptics } from '@oxy.so/bloom/hooks';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
+import { RiLineChartLine } from '@oxy.so/bloom/icons';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { ProfileCard } from '@/components/ProfileCard';
 
@@ -46,6 +45,7 @@ export default function StarterPackDetailScreen() {
   const theme = useTheme();
   const { user } = useAuth();
   const safeBack = useSafeBack();
+  const { t } = useTranslation();
   const haptics = useHaptics();
   const [pack, setPack] = useState<StarterPackDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -135,22 +135,22 @@ export default function StarterPackDetailScreen() {
           </View>
         )}
 
-        <ThemedText className="text-[22px] font-bold text-center" numberOfLines={2}>
+        <Text className="text-[22px] leading-6 font-bold text-center text-foreground" numberOfLines={2}>
           {pack.name}
-        </ThemedText>
+        </Text>
 
         {pack.description && (
-          <ThemedText className="text-[15px] leading-[22px] text-center text-muted-foreground">
+          <Text className="text-[15px] leading-[22px] text-center text-muted-foreground">
             {pack.description}
-          </ThemedText>
+          </Text>
         )}
 
-        <ThemedText className="text-sm text-muted-foreground">
+        <Text className="text-sm leading-6 text-muted-foreground">
           {members.length} {members.length === 1 ? 'account' : 'accounts'}
           {pack.useCount > 0
             ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
             : ''}
-        </ThemedText>
+        </Text>
 
         {/* Follow-all: multi-mode FollowButton drops the viewer's own id,
             self-gates on private-API readiness, and records pack usage on
@@ -167,19 +167,19 @@ export default function StarterPackDetailScreen() {
         {/* Joined count — only show for popular packs (>= 50) */}
         {pack.useCount >= 50 && (
           <View className="flex-row items-center gap-1.5 mt-1">
-            <Ionicons name="trending-up" size={14} color={theme.colors.textSecondary} />
-            <ThemedText className="text-sm font-semibold text-muted-foreground">
+            <RiLineChartLine width={14} height={14} fill={theme.colors.textSecondary} />
+            <Text className="text-sm leading-6 font-semibold text-muted-foreground">
               {formatCompactNumber(pack.useCount)} joined
-            </ThemedText>
+            </Text>
           </View>
         )}
       </View>
 
       {/* Member list — rows are full-bleed, so only the section title is inset. */}
       <View className="pt-2 pb-8">
-        <ThemedText className="text-base font-bold mb-3 px-4">
+        <Text className="text-base leading-6 font-bold mb-3 px-4 text-foreground">
           Accounts in this pack
-        </ThemedText>
+        </Text>
         {/* The shared user row; its follow button renders nothing on the viewer's own row. */}
         {members.map((m) => (
           <ProfileCard
@@ -203,31 +203,18 @@ export default function StarterPackDetailScreen() {
         title={pack?.name || 'Starter Pack'}
         description={pack?.description || 'A curated collection of accounts to follow'}
       />
-      <ThemedView className="flex-1">
-        <Header
-          options={{
-            title: pack?.name || 'Starter Pack',
-            leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                <BackArrowIcon size={20} className="text-foreground" />
-              </IconButton>,
-            ],
-            rightComponents: isOwner
-              ? [
-                  <TouchableOpacity
-                    key="edit"
-                    onPress={handleEdit}
-                    accessibilityRole="button"
-                    accessibilityLabel="Edit starter pack">
-                    <ThemedText className="text-primary font-semibold">
-                      Edit
-                    </ThemedText>
-                  </TouchableOpacity>,
-                ]
-              : [],
-          }}
-          hideBottomBorder={true}
-          disableSticky={true}
+      <View className="flex-1">
+        <PageHeader
+          title={pack?.name || 'Starter Pack'}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+          actions={
+            isOwner ? (
+              <Button variant="text" onPress={handleEdit} accessibilityLabel="Edit starter pack">
+                Edit
+              </Button>
+            ) : undefined
+          }
         />
 
         {error ? (
@@ -248,7 +235,7 @@ export default function StarterPackDetailScreen() {
             <ScrollView showsVerticalScrollIndicator={false}>{packBody}</ScrollView>
           )
         ) : null}
-      </ThemedView>
+      </View>
     </>
   );
 }

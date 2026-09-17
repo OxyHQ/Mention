@@ -4,9 +4,9 @@ import { Image } from 'expo-image';
 import { toast } from '@oxy.so/bloom/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, type SharedValue } from 'react-native-reanimated';
-import { ThemedView } from '@/components/ThemedView';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useHaptics } from '@oxy.so/bloom/hooks';
+import { RiHeartFill, RiPlayFill, RiVideoLine } from '@oxy.so/bloom/icons';
 import { useTranslation } from 'react-i18next';
 import { useAuth, FollowButton } from '@oxy.so/services/ui/client';
 import { VideoView, useVideoPlayer, type VideoPlayer } from 'expo-video';
@@ -350,7 +350,7 @@ const ReelPoster = memo<{
                 onError={onPosterError}
             />
         ) : (
-            <Ionicons name="videocam-outline" size={48} color={theme.colors.textSecondary} />
+            <RiVideoLine size="3xl" fill={theme.colors.textSecondary} />
         )}
     </View>
 ));
@@ -577,13 +577,13 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
 
             {/* Double-tap heart pop — large, centered, non-interactive. */}
             <Animated.View style={[styles.heartPop, heartStyle]} pointerEvents="none">
-                <Ionicons name="heart" size={96} color={LIKE_ACTIVE_COLOR} />
+                <RiHeartFill width={96} height={96} fill={LIKE_ACTIVE_COLOR} />
             </Animated.View>
 
             {showPauseAffordance && (
                 <View style={styles.pauseAffordance} pointerEvents="none">
                     <View style={styles.pauseAffordanceInner}>
-                        <Ionicons name="play" size={44} color="white" />
+                        <RiPlayFill width={44} height={44} fill="white" />
                     </View>
                 </View>
             )}
@@ -1937,7 +1937,7 @@ export default function VideosScreen() {
                 title={t('seo.videos.title')}
                 description={t('seo.videos.description')}
             />
-            <ThemedView style={styles.container}>
+            <View style={styles.container}>
                 {isLoading && posts.length === 0 && (
                     <View style={styles.initialLoadingContainer}>
                         <SpinnerIcon size={44} className="text-primary-foreground" />
@@ -2068,7 +2068,7 @@ export default function VideosScreen() {
                         </View>
                     </View>
                 )}
-            </ThemedView>
+            </View>
         </>
     );
 }

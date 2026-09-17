@@ -1,9 +1,9 @@
 import React, { memo } from 'react';
 import { View, Text } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiEditLine } from '@oxy.so/bloom/icons';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { SecondaryButton } from '@/components/ui/Button';
+import { Button } from '@oxy.so/bloom/button';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 import { useChannelWriters } from './hooks/useChannelWriters';
@@ -57,7 +57,7 @@ export const ProfileWriters = memo(function ProfileWriters({
   if (writers.length === 0) {
     return (
       <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
-        <Ionicons name="create-outline" size={48} color={theme.colors.textSecondary} />
+        <RiEditLine size="3xl" fill={theme.colors.textSecondary} />
         <Text className="text-muted-foreground text-base font-medium">
           {t('channels.writers.empty', { defaultValue: 'No writers yet' })}
         </Text>
@@ -94,12 +94,9 @@ export const ProfileWriters = memo(function ProfileWriters({
       ))}
       {hasMore ? (
         <View className="p-4">
-          {/* The label does not change while the page is in flight: `Button` has
-              no loading state, and a second string here would be a new catalog
-              entry for a moment nobody reads. `disabled` is what says it. */}
-          <SecondaryButton onPress={loadMore} disabled={loadingMore}>
+          <Button variant="secondary" onPress={loadMore} loading={loadingMore}>
             {t('common.loadMore')}
-          </SecondaryButton>
+          </Button>
         </View>
       ) : null}
     </View>

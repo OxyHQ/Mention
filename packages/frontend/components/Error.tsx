@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ViewStyle } from 'react-native';
+import { View, Text, ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { Loading } from '@oxy.so/bloom/loading';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Button } from '@oxy.so/bloom/button';
+import { RiArrowLeftLine, RiErrorWarningFill, RiRefreshLine } from '@oxy.so/bloom/icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { flattenStyleArray } from '@/styles/shared';
 
@@ -55,7 +55,7 @@ export function Error({
 
   return (
     <View
-      className="flex-1 justify-center items-center py-8 px-6 bg-background"
+      className="flex-1 justify-center items-center py-8 px-6"
       style={flattenStyleArray([
         { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 },
         style,
@@ -66,11 +66,7 @@ export function Error({
           className="w-[72px] h-[72px] rounded-full justify-center items-center mb-3"
           style={{ backgroundColor: theme.colors.error + '15' }}
         >
-          <Ionicons
-            name="alert-circle-outline"
-            size={36}
-            color={theme.colors.error}
-          />
+          <RiErrorWarningFill width={36} height={36} fill={theme.colors.error} />
         </View>
 
         <Text
@@ -89,50 +85,26 @@ export function Error({
 
         <View className="w-full items-center gap-3">
           {onRetry && (
-            <TouchableOpacity
-              className="flex-row items-center justify-center py-2.5 px-5 rounded-[20px] min-w-[140px] gap-1.5 bg-primary"
-              style={{ opacity: isRetrying ? 0.6 : 1 }}
+            <Button
+              variant="primary"
+              leadingIcon={RiRefreshLine}
+              loading={isRetrying}
               onPress={handleRetry}
-              disabled={isRetrying}
-              activeOpacity={0.8}
+              className="min-w-[140px]"
             >
-              {isRetrying ? (
-                <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
-              ) : (
-                <>
-                  <Ionicons
-                    name="refresh"
-                    size={18}
-                    color={theme.colors.card}
-                  />
-                  <Text
-                    className="text-[15px] font-semibold"
-                    style={{ color: theme.colors.card }}
-                  >
-                    Try again
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
+              Try again
+            </Button>
           )}
 
           {!hideBackButton && (
-            <TouchableOpacity
-              className="flex-row items-center justify-center py-2.5 px-5 rounded-[20px] min-w-[140px] gap-1.5 border border-border"
+            <Button
+              variant="secondary"
+              leadingIcon={RiArrowLeftLine}
               onPress={handleGoBack}
-              activeOpacity={0.8}
+              className="min-w-[140px]"
             >
-              <Ionicons
-                name="arrow-back"
-                size={18}
-                color={theme.colors.text}
-              />
-              <Text
-                className="text-[15px] font-semibold text-foreground"
-              >
-                {router.canGoBack() ? 'Go back' : 'Go home'}
-              </Text>
-            </TouchableOpacity>
+              {router.canGoBack() ? 'Go back' : 'Go home'}
+            </Button>
           )}
         </View>
       </View>

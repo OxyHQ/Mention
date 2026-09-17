@@ -1,4 +1,5 @@
 import React, { Component, type ErrorInfo, type ReactNode } from 'react';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Error as ErrorScreen } from '@/components/Error';
 
@@ -15,13 +16,17 @@ interface AppErrorBoundaryState {
 function ErrorFallback({ onRetry }: { onRetry: () => void }) {
   const { t } = useTranslation();
 
+  // The boundary sits above the app shell's ContentPanel, so the fallback
+  // paints its own surface instead of borrowing the panel's.
   return (
-    <ErrorScreen
-      title={t('error.boundary.title')}
-      message={t('error.boundary.message')}
-      onRetry={onRetry}
-      hideBackButton
-    />
+    <View className="flex-1 bg-background">
+      <ErrorScreen
+        title={t('error.boundary.title')}
+        message={t('error.boundary.message')}
+        onRetry={onRetry}
+        hideBackButton
+      />
+    </View>
   );
 }
 

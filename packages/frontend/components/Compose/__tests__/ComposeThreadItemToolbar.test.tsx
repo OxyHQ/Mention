@@ -58,6 +58,19 @@ jest.mock('@oxy.so/bloom/pressable-scale', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   return { PressableScale: TouchableOpacity };
 });
+// Bloom's icon barrel is untranspiled ESM. Each glyph becomes a component named
+// after its export, so the cases below can still assert on WHICH picture drew.
+jest.mock('@oxy.so/bloom/icons', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  const glyph = (name: string) =>
+    Object.assign((props: object) => <View {...props} />, { displayName: name });
+  return {
+    RiBroadcastLine: glyph('RiBroadcastLine'),
+    RiGroupFill: glyph('RiGroupFill'),
+    RiGroupLine: glyph('RiGroupLine'),
+    RiMic2Line: glyph('RiMic2Line'),
+  };
+});
 
 // Cut at the component boundary, like the header and the text input below.
 // `ComposeMentionSummary` reaches `useProfileLinkMentions` -> `utils/api` ->
@@ -222,11 +235,19 @@ function renderItem(
  * the toolbar decided not to render is not an affordance the author has.
  */
 function iconNames(tree: TestRenderer.ReactTestRenderer): string[] {
-  return tree.root.findAllByType(Ionicons).map((node) => String(node.props.name));
+  return tree.root.findAll((node) => iconName(node) !== undefined).map((node) => String(iconName(node)));
 }
 
 function iconColor(tree: TestRenderer.ReactTestRenderer, name: string): unknown {
-  return tree.root.findAllByType(Ionicons).find((node) => node.props.name === name)?.props.color;
+  const icon = tree.root.findAll((node) => iconName(node) === name)[0];
+  return icon?.type === Ionicons ? icon.props.color : icon?.props.fill;
+}
+
+/** Ionicons by glyph name, Bloom icons by export name; `undefined` for anything else. */
+function iconName(node: TestRenderer.ReactTestInstance): string | undefined {
+  if (node.type === Ionicons) return String(node.props.name);
+  const name = typeof node.type === 'function' ? (node.type as React.FC).displayName : undefined;
+  return name && /^Ri[A-Z]/.test(name) ? name : undefined;
 }
 
 /** The pressable carrying an accessibility label, or `undefined` if absent. */
@@ -260,11 +281,11 @@ describe('ComposeThreadItem — the per-entry controls a continuation carries', 
     const withShow = renderItem('beast', {
       item: { ...baseItem, podcast: { syraPodcastId: 'show-2', title: 'A show' } },
     });
-    expect(iconColor(withShow, 'mic-outline')).toBe('#7c3aed');
+    expect(iconColor(withShow, 'RiMic2Line')).toBe('#7c3aed');
     act(() => withShow.unmount());
 
     const without = renderItem('beast');
-    expect(iconColor(without, 'mic-outline')).toBe('#666');
+    expect(iconColor(without, 'RiMic2Line')).toBe('#666');
     act(() => without.unmount());
   });
 
@@ -315,13 +336,13 @@ describe('ComposeThreadItem — the per-entry controls a continuation carries', 
 
       expect(tree.root.findAllByType(ScheduleIcon)).toHaveLength(0);
       expect(tree.root.findAllByType(ScheduleIconActive)).toHaveLength(0);
-      expect(iconNames(tree).filter((name) => /^language(-outline)?$/.test(name))).toEqual([]);
+      expect(iconNames(tree).filter((name) => /^(language(-outline)?|RiGlobalLine)$/.test(name))).toEqual([]);
 
       // Not vacuous: the per-entry controls next to them ARE drawn. The lane one
       // appears in BOTH modes here because this case hands the item its handler
       // — the item draws what it is given, and it is the COMPOSER that withholds
       // the handler in thread mode, which the case above pins.
-      expect(iconNames(tree)).toEqual(expect.arrayContaining(['mic-outline']));
+      expect(iconNames(tree)).toEqual(expect.arrayContaining(['RiMic2Line']));
       expect(tree.root.findAllByType(LaneIcon)).toHaveLength(1);
 
       act(() => tree.unmount());
@@ -331,7 +352,7 @@ describe('ComposeThreadItem — the per-entry controls a continuation carries', 
   it('draws no collaborators control — a batch refuses them outright', () => {
     const tree = renderItem('beast');
 
-    expect(iconNames(tree).filter((name) => /^people(-outline)?$/.test(name))).toEqual([]);
+    expect(iconNames(tree).filter((name) => /^RiGroup(Line|Fill)$/.test(name))).toEqual([]);
 
     act(() => tree.unmount());
   });

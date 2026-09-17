@@ -2,7 +2,7 @@ import React from 'react';
 import { TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
-import { ThemedText } from './ThemedText';
+import { Text } from '@oxy.so/bloom/typography';
 import { cn } from '@/lib/utils';
 
 interface FeedSubscribeButtonProps {
@@ -47,13 +47,13 @@ export const FeedSubscribeButton = React.memo(function FeedSubscribeButton({
           className={isSubscribed ? 'text-foreground' : 'text-primary-foreground'}
         />
       ) : (
-        <ThemedText
+        <Text
           className={cn(
-            'text-[13px] font-bold',
+            'text-[13px] leading-6 font-bold',
             isSubscribed ? 'text-foreground' : 'text-primary-foreground',
           )}>
           {isSubscribed ? t('feeds.subscribed') : t('feeds.subscribe')}
-        </ThemedText>
+        </Text>
       )}
     </TouchableOpacity>
   );

@@ -6,11 +6,8 @@ import { useTranslation } from 'react-i18next';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type AccountNode } from '@oxy.so/core';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { EmptyState } from '@/components/common/EmptyState';
 import { InsightsView } from '@/components/insights/InsightsView';
@@ -77,65 +74,61 @@ export default function ChannelInsightsScreen() {
     [accounts, routeHandle],
   );
 
-  const headerOptions = useMemo(
-    () => ({
-      title: t('insights.title'),
+  const header = (
+    <PageHeader
+      title={t('insights.title')}
       // Whose numbers these are. The display name comes straight off the account
       // DTO; a channel with none falls back to the handle the reader navigated
       // by, never to a raw id.
-      subtitle: channel?.account.name?.displayName?.trim() || `@${routeHandle}`,
-      leftComponents: [
-        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-          <BackArrowIcon size={20} className="text-foreground" />
-        </IconButton>,
-      ],
-    }),
-    [t, safeBack, channel, routeHandle],
+      subtitle={channel?.account.name?.displayName?.trim() || `@${routeHandle}`}
+      onBack={() => safeBack()}
+      backLabel={t('common.back', { defaultValue: 'Back' })}
+    />
   );
 
   if (!isAuthenticated) {
     return (
-      <ThemedView className="flex-1">
-        <Header options={headerOptions} hideBottomBorder disableSticky />
+      <View className="flex-1">
+        {header}
         <OxyAuthPrompt
           label={t('channels.signInRequired', { defaultValue: 'Sign in to manage your channels' })}
           description={t('channels.signInRequiredDesc', {
             defaultValue: 'A channel is an account people follow without following the people who write for it.',
           })}
         />
-      </ThemedView>
+      </View>
     );
   }
 
   if (!readsReady || accountsPending) {
     return (
-      <ThemedView className="flex-1">
-        <Header options={headerOptions} hideBottomBorder disableSticky />
+      <View className="flex-1">
+        {header}
         <View className="flex-1 items-center justify-center">
           <SpinnerIcon size={28} className="text-primary" />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   if (!channel) {
     return (
-      <ThemedView className="flex-1">
-        <Header options={headerOptions} hideBottomBorder disableSticky />
+      <View className="flex-1">
+        {header}
         <EmptyState
           title={t('channels.insights.operatorOnly', {
             defaultValue: 'Only an operator can see this channel’s insights',
           })}
           icon={{ name: 'lock-closed-outline', size: 48 }}
         />
-      </ThemedView>
+      </View>
     );
   }
 
   return (
-    <ThemedView className="flex-1">
-      <Header options={headerOptions} hideBottomBorder disableSticky />
+    <View className="flex-1">
+      {header}
       <InsightsView accountId={channel.accountId} />
-    </ThemedView>
+    </View>
   );
 }

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { cacheActors } from '@/lib/actorCache';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { ThemedText } from '@/components/ThemedText';
+import { Text } from '@oxy.so/bloom/typography';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { SuggestedUserCard } from './SuggestedUserCard';
 import type { SuggestedUserData } from './SuggestedUserCard';
@@ -109,9 +109,9 @@ export const SuggestedUsers = memo(function SuggestedUsers({
 
   return (
     <View className="pt-3">
-      <ThemedText className="text-foreground text-[15px] font-bold px-4 mb-1">
+      <Text className="text-foreground text-[15px] font-bold px-4 mb-1">
         {title || t('Suggested for you')}
-      </ThemedText>
+      </Text>
       {displayedUsers.map((suggested) => (
         <SuggestedUserCard key={suggested.id} user={suggested} onDismiss={handleDismiss} hideDismiss={hideDismiss} />
       ))}

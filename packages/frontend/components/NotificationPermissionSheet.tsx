@@ -1,7 +1,6 @@
 import React from "react";
 import { View, Text } from "react-native";
 import { useTranslation } from "react-i18next";
-import { ThemedView } from "@/components/ThemedView";
 import { NoUpdatesIllustration } from "@/assets/illustrations/NoUpdates";
 import { Button } from '@oxy.so/bloom/button';
 
@@ -14,7 +13,7 @@ export const NotificationPermissionSheet: React.FC<Props> = ({ onEnable, onLater
     const { t } = useTranslation();
 
     return (
-        <ThemedView className="px-5 pt-2 pb-4">
+        <View className="bg-background px-5 pt-2 pb-4">
             <View className="items-center justify-center mt-1.5 mb-2.5">
                 <NoUpdatesIllustration width={140} height={140} />
             </View>
@@ -32,7 +31,7 @@ export const NotificationPermissionSheet: React.FC<Props> = ({ onEnable, onLater
                     {t("permission.notifications.enable")}
                 </Button>
             </View>
-        </ThemedView>
+        </View>
     );
 };
 

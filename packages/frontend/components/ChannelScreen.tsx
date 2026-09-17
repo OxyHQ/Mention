@@ -2,7 +2,15 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { View, Share } from 'react-native';
 import { Redirect, router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { BloomColorScope } from '@oxy.so/bloom/theme';
+import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
+import { Button } from '@oxy.so/bloom/button';
+import {
+    RiMoreFill,
+    RiNotification3Fill,
+    RiNotification3Line,
+    RiSettings3Line,
+    RiUpload2Line,
+} from '@oxy.so/bloom/icons';
 import { useTranslation } from 'react-i18next';
 import { FollowButton as OxyFollowButton, useAuth, useFollow } from '@oxy.so/services/ui/client';
 import { lanesService } from '@/services/lanesService';
@@ -11,16 +19,11 @@ import { logger } from '@oxy.so/core/logger';
 import type { ProfileData } from '@/hooks/useProfileData';
 
 // Icons
-import { Bell, BellActive } from '@/assets/icons/bell-icon';
-import { Icon } from '@/lib/icons';
-import { ShareIcon } from '@/assets/icons/share-icon';
-import { MoreIcon } from '@/assets/icons/more-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 
 // Components
 import UserName from './UserName';
 import AnimatedTabBar from './common/AnimatedTabBar';
-import { IconButton } from '@/components/ui/Button';
 import { SEO } from '@/components/SEO';
 
 // Profile primitives
@@ -96,6 +99,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
 }) => {
     const { user: currentUser } = useAuth();
     const { t } = useTranslation();
+    const { colors } = useTheme();
 
     const [activeTabKey, setActiveTabKey] = useState<string>('posts');
 
@@ -263,13 +267,13 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                         onPress: () => router.push(`/c/${handle}/insights`),
                     },
                     {
-                        icon: <Icon name="settings-outline" size={22} className="text-foreground" />,
+                        icon: <RiSettings3Line width={22} height={22} fill={colors.text} />,
                         label: t('channels.settings.title', { defaultValue: 'Channel settings' }),
                         onPress: () => router.push(`/c/${handle}/settings`),
                     },
                 ]
                 : undefined,
-        [operatesThisChannel, handle, t],
+        [operatesThisChannel, handle, t, colors.text],
     );
 
     // `viewerOperatesAccount`, never `isOwnProfile: false` as this read before.
@@ -374,7 +378,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
 
     const tabBar = useMemo(
         () => (
-            <View className="flex-row items-center border-b border-border bg-background">
+            <View className="flex-row items-center border-b border-border bg-card">
                 <View className="flex-1" style={{ minWidth: 0 }}>
                     <AnimatedTabBar
                         tabs={tabDescriptors.map((descriptor) => ({
@@ -396,8 +400,16 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
         <>
             {/* The bell is a toggle rendered as two different glyphs, so its
                 label has to carry the state a sighted user reads from the icon. */}
-            <IconButton
-                variant="icon"
+            <Button
+                variant="secondary"
+                iconOnly
+                icon={
+                    subscribed ? (
+                        <RiNotification3Fill width={20} height={20} fill={colors.primary} />
+                    ) : (
+                        RiNotification3Line
+                    )
+                }
                 onPress={toggleSubscription}
                 disabled={subLoading}
                 accessibilityLabel={
@@ -411,33 +423,27 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                             defaultValue: 'Notify me about new posts from @{{handle}}',
                         })
                 }
-            >
-                {subscribed ? (
-                    <BellActive size={18} className="text-primary" />
-                ) : (
-                    <Bell size={18} className="text-foreground" />
-                )}
-            </IconButton>
-            <IconButton
-                variant="icon"
+            />
+            <Button
+                variant="secondary"
+                iconOnly
+                leadingIcon={RiUpload2Line}
                 onPress={handleShare}
                 accessibilityLabel={t('profile.actions.share', {
                     handle,
                     defaultValue: "Share @{{handle}}'s profile",
                 })}
-            >
-                <ShareIcon size={18} className="text-foreground" />
-            </IconButton>
-            <IconButton
-                variant="icon"
+            />
+            <Button
+                variant="secondary"
+                iconOnly
+                leadingIcon={RiMoreFill}
                 onPress={handleMoreOptions}
                 accessibilityLabel={t('profile.actions.more', {
                     handle,
                     defaultValue: 'More options for @{{handle}}',
                 })}
-            >
-                <MoreIcon size={18} className="text-foreground" />
-            </IconButton>
+            />
         </>
     );
 
@@ -498,7 +504,7 @@ const ChannelScreen: React.FC = () => {
             {/* `web:z-auto` so this wrapper does not become its own stacking
                 context and trap the sticky header chrome below the panel's
                 bleed-mask/border overlays (see ProfileShell's root). */}
-            <View className="flex-1 bg-background web:z-auto">
+            <View className="flex-1 web:z-auto">
                 <ChannelProfile
                     username={username}
                     handle={handle}

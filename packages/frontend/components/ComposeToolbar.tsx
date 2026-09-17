@@ -5,6 +5,7 @@ import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
+import { RiBroadcastLine, RiGroupFill, RiGroupLine, RiMic2Line } from '@oxy.so/bloom/icons';
 import { MediaIcon } from '@/assets/icons/media-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { LocationIcon } from '@/assets/icons/location-icon';
@@ -142,6 +143,8 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
         paddingLeft: contentPaddingLeft,
     }), [contentPaddingLeft]);
 
+    const CollaboratorsIcon = hasCollaborators ? RiGroupFill : RiGroupLine;
+
     return (
         <ScrollView
             horizontal
@@ -252,10 +255,9 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     disabled={disabled}
                     className="p-1"
                 >
-                    <Ionicons
-                        name="radio-outline"
-                        size={20}
-                        color={disabled ? theme.colors.textTertiary : (hasRoom ? theme.colors.primary : theme.colors.textSecondary)}
+                    <RiBroadcastLine
+                        size="md"
+                        fill={disabled ? theme.colors.textTertiary : (hasRoom ? theme.colors.primary : theme.colors.textSecondary)}
                     />
                 </PressableScale>
             )}
@@ -271,10 +273,9 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     accessibilityRole="button"
                     accessibilityLabel={t('compose.podcast.add')}
                 >
-                    <Ionicons
-                        name="mic-outline"
-                        size={20}
-                        color={disabled ? theme.colors.textTertiary : (hasPodcast ? theme.colors.primary : theme.colors.textSecondary)}
+                    <RiMic2Line
+                        size="md"
+                        fill={disabled ? theme.colors.textTertiary : (hasPodcast ? theme.colors.primary : theme.colors.textSecondary)}
                     />
                 </PressableScale>
             )}
@@ -307,10 +308,9 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                         rows with, in the two states this row uses everywhere
                         else: filled once the post names someone, outline while
                         it does not. */}
-                    <Ionicons
-                        name={hasCollaborators ? 'people' : 'people-outline'}
-                        size={20}
-                        color={disabled || !collaboratorsEnabled
+                    <CollaboratorsIcon
+                        size="md"
+                        fill={disabled || !collaboratorsEnabled
                             ? theme.colors.textTertiary
                             : hasCollaborators
                                 ? theme.colors.primary

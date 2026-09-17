@@ -28,7 +28,7 @@ jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToa
 // Host element names rather than components, so the props the header computed
 // survive into the rendered tree verbatim — the marker is found as the host
 // element the header rendered, not by a re-encoding of it.
-jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
+jest.mock('@oxy.so/bloom/icons', () => ({ RiChat3Fill: 'RiChat3Fill', RiMoreFill: 'RiMoreFill' }));
 jest.mock('@/assets/icons/draw-icon', () => ({ DrawIcon: 'DrawIcon' }));
 jest.mock('@/components/ui/LiveAvatar', () => ({ LiveAvatar: 'LiveAvatar' }));
 jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));

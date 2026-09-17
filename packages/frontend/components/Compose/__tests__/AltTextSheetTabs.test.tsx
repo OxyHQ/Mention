@@ -35,10 +35,12 @@ jest.mock('@oxy.so/bloom/theme', () => ({
   }),
 }));
 
-jest.mock('@/components/ui/Button', () => {
+jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
+jest.mock('@oxy.so/bloom/button', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { IconButton: TouchableOpacity };
+  return { Button: TouchableOpacity };
 });
+jest.mock('@oxy.so/bloom/icons', () => ({ RiCloseLine: () => null }));
 
 jest.mock('@/constants/contentLanguages', () => ({
   describeContentLanguage: (tag: string) => ({

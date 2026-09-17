@@ -3,9 +3,10 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList } from 'r
 import { Loading } from '@oxy.so/bloom/loading';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Avatar } from '@oxy.so/bloom/avatar';
+import { RiCloseCircleLine, RiCloseLine, RiSearchLine } from '@oxy.so/bloom/icons';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useTranslation } from 'react-i18next';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { logger } from '@oxy.so/core/logger';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
@@ -38,6 +39,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
   disabled,
 }) => {
   const { t } = useTranslation();
+  const { colors } = useTheme();
   const { oxyServices, user } = useAuth();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CollaboratorUser[]>([]);
@@ -122,7 +124,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
                 {displayNameOrHandle(collab.displayName, `@${collab.username}`)}
               </Text>
               <TouchableOpacity onPress={() => removeUser(collab.id)} hitSlop={HIT_SLOP_MD}>
-                <Ionicons name="close-circle" size={18} className="text-muted-foreground" />
+                <RiCloseCircleLine width={18} height={18} fill={colors.textSecondary} />
               </TouchableOpacity>
             </View>
           ))}
@@ -132,7 +134,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
       {expanded && selected.length < MAX_POST_COLLABORATORS && (
         <View className="border border-border rounded-xl bg-card overflow-hidden">
           <View className="flex-row items-center px-3 py-2 gap-2">
-            <Ionicons name="search" size={18} className="text-muted-foreground" />
+            <RiSearchLine width={18} height={18} fill={colors.textSecondary} />
             <TextInput
               className="flex-1 text-foreground text-[15px]"
               placeholder={t('collab.searchPlaceholder', { defaultValue: 'Search people to collaborate with' })}
@@ -146,7 +148,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
               accessibilityLabel={t('collab.closeSearch', { defaultValue: 'Close collaborator search' })}
               onPress={closeSearch}
             >
-              <Ionicons name="close" size={20} className="text-muted-foreground" />
+              <RiCloseLine size="md" fill={colors.textSecondary} />
             </TouchableOpacity>
           </View>
           {loading ? (

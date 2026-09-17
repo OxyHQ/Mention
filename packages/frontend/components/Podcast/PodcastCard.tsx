@@ -6,6 +6,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import Svg, { Path } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { RiAppleFill, RiEditLine, RiExternalLinkLine, RiMic2Line } from '@oxy.so/bloom/icons';
 import type { PostPodcastEpisode } from '@mention/shared-types/post';
 import { cn } from '@/lib/utils';
 import { openExternalLink } from '@/utils/openExternalLink';
@@ -101,9 +102,11 @@ const ProviderRow = ({ provider, className }: { provider: Provider; className?: 
   <View className={cn('flex-row items-center gap-1', className)}>
     {provider.glyph === 'spotify' ? (
       <SpotifyGlyph size={13} color={WHITE_MUTED} />
+    ) : provider.glyph === 'apple' ? (
+      <RiAppleFill width={13} height={13} fill={WHITE_MUTED} />
     ) : (
       <Ionicons
-        name={provider.glyph === 'apple' ? 'logo-apple' : provider.glyph === 'youtube' ? 'logo-youtube' : 'radio'}
+        name={provider.glyph === 'youtube' ? 'logo-youtube' : 'radio'}
         size={13}
         color={WHITE_MUTED}
       />
@@ -128,7 +131,7 @@ const Artwork = ({ uri, size }: { uri?: string; size: 'card' | 'strip' }) => {
     </View>
   ) : (
     <View className={cn(box, 'bg-white/15 items-center justify-center')}>
-      <Ionicons name="mic" size={size === 'card' ? 38 : 19} color={WHITE_MUTED} />
+      <RiMic2Line width={size === 'card' ? 38 : 19} height={size === 'card' ? 38 : 19} fill={WHITE_MUTED} />
     </View>
   );
 };
@@ -187,8 +190,8 @@ export const PodcastCard = memo(function PodcastCard({
             <Image source={{ uri: artworkUrl }} style={styles.fill} contentFit="cover" transition={120} />
           </View>
         ) : (
-          <View className="size-14 rounded-xl bg-background items-center justify-center">
-            <Ionicons name="mic-outline" size={24} color={colors.textSecondary} />
+          <View className="size-14 rounded-xl bg-card items-center justify-center">
+            <RiMic2Line size="lg" fill={colors.textSecondary} />
           </View>
         )}
 
@@ -219,10 +222,10 @@ export const PodcastCard = memo(function PodcastCard({
             hitSlop={HIT_SLOP_MD}
             className="p-1"
           >
-            <Ionicons name="pencil-outline" size={16} color={colors.textSecondary} />
+            <RiEditLine size="sm" fill={colors.textSecondary} />
           </Pressable>
         ) : (
-          <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
+          <RiExternalLinkLine size="sm" fill={colors.textSecondary} />
         )}
       </Pressable>
     );

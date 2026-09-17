@@ -1,22 +1,18 @@
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { ThemedText } from '@/components/ThemedText';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Text } from '@oxy.so/bloom/typography';
+import { RiArrowRightSLine, RiGroupFill, RiGroupLine } from '@oxy.so/bloom/icons';
 import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from '@/components/ProfileCard';
 import { useLocalSearchParams, router, usePathname } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, TouchableOpacity, Share, Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ThemedView } from '@/components/ThemedView';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { cacheActors } from '@/lib/actorCache';
 import { useAuth } from '@oxy.so/services/ui/client';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Error as ErrorComponent } from '@/components/Error';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
@@ -141,7 +137,6 @@ function ConnectionsContent({
   profileData,
   profileLoading,
 }: ConnectionsContentProps) {
-  const insets = useSafeAreaInsets();
   const safeBack = useSafeBack();
   const pathname = usePathname();
   const { oxyServices, user } = useAuth();
@@ -391,17 +386,17 @@ function ConnectionsContent({
       activeOpacity={0.7}
     >
       <View className="w-10 h-10 rounded-full items-center justify-center bg-primary">
-        <Ionicons name="people" size={20} color={theme.colors.card} />
+        <RiGroupFill size="md" fill={theme.colors.card} />
       </View>
       <View className="flex-1">
-        <ThemedText className="text-[15px] font-bold mb-0.5 text-foreground">
+        <Text className="text-[15px] font-bold mb-0.5 text-foreground">
           {t('settings.inviteContacts.inviteBannerTitle', { defaultValue: 'Invite friends from your contacts' })}
-        </ThemedText>
-        <ThemedText className="text-[13px] font-medium text-muted-foreground">
+        </Text>
+        <Text className="text-[13px] font-medium text-muted-foreground">
           {t('settings.inviteContacts.inviteBannerSubtitle', { defaultValue: 'Share Mention and grow your community.' })}
-        </ThemedText>
+        </Text>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+      <RiArrowRightSLine size="md" fill={theme.colors.textSecondary} />
     </TouchableOpacity>
   ), [handleInviteFriends, theme.colors.card, theme.colors.textSecondary, t]);
 
@@ -556,13 +551,13 @@ function ConnectionsContent({
         ListHeaderComponent={activeTab === 'who-may-know' ? renderInviteBanner : undefined}
         ListEmptyComponent={
           <View className="items-center py-[60px] px-8 gap-2">
-            <Ionicons name="people-outline" size={48} color={theme.colors.textSecondary} />
-            <ThemedText className="text-[17px] font-bold mt-2 text-center text-foreground">
+            <RiGroupLine size="3xl" fill={theme.colors.textSecondary} />
+            <Text className="text-[17px] font-bold mt-2 text-center text-foreground">
               {getEmptyMessage()}
-            </ThemedText>
-            <ThemedText className="text-sm leading-5 text-center text-muted-foreground">
+            </Text>
+            <Text className="text-sm leading-5 text-center text-muted-foreground">
               {getEmptySubtitle()}
-            </ThemedText>
+            </Text>
           </View>
         }
         removeClippedSubviews={false}
@@ -579,21 +574,11 @@ function ConnectionsContent({
   };
 
   return (
-    <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
-      <Header
-        options={{
-          title: getTitle(),
-          leftComponents: [
-            <IconButton variant="icon"
-              key="back"
-              onPress={() => safeBack()}
-            >
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder={true}
-        disableSticky={true}
+    <View className="flex-1">
+      <PageHeader
+        title={getTitle()}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
       />
 
       <AnimatedTabBar
@@ -605,6 +590,6 @@ function ConnectionsContent({
       />
 
       {renderContent()}
-    </ThemedView>
+    </View>
   );
 }

@@ -71,9 +71,9 @@ jest.mock('@oxy.so/core/logger', () => ({
 }));
 
 // Header/close/loading/empty-state are chrome — render nothing.
-jest.mock('@/components/Header', () => ({ Header: () => null }));
-jest.mock('@/components/ui/Button', () => ({ IconButton: () => null }));
-jest.mock('@/assets/icons/close-icon', () => ({ CloseIcon: () => null }));
+jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
+jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => ({ RiCloseLine: () => null }));
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
 

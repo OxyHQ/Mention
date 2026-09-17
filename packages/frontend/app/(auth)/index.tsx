@@ -1,11 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 
 import { LogoIcon } from '@/assets/logo';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@oxy.so/bloom/button';
 
 export default function AuthScreen() {
   const { signIn } = useAuth();
@@ -17,7 +17,7 @@ export default function AuthScreen() {
   return (
     <>
       {/* Desktop split-screen (>= md) */}
-      <View className="hidden md:flex flex-1 md:flex-row bg-background">
+      <View className="hidden md:flex flex-1 md:flex-row">
         <View className="flex-1 justify-center items-center p-12 bg-primary">
           <View className="max-w-[400px] items-start gap-4">
             <LogoIcon size={56} color="#fff" />
@@ -45,7 +45,7 @@ export default function AuthScreen() {
       </View>
 
       {/* Stacked mobile layout (< md) */}
-      <SafeAreaView className="flex md:hidden flex-1 justify-center items-center bg-background p-6">
+      <SafeAreaView className="flex md:hidden flex-1 justify-center items-center p-6">
         <View className="flex-1 justify-center items-center gap-4">
           <LogoIcon size={48} className="text-primary" />
           <Text className="text-[28px] font-bold mt-2 text-foreground">
@@ -73,9 +73,5 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   signInButton: {
     width: '100%',
-    borderRadius: 100,
-    ...Platform.select({
-      web: { cursor: 'pointer' },
-    }),
   },
 });

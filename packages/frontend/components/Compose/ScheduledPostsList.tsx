@@ -2,12 +2,19 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, FlatList } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  RiArrowRightSLine,
+  RiCalendarLine,
+  RiDeleteBinLine,
+  RiEditLine,
+  RiImageLine,
+  RiListCheck3,
+} from '@oxy.so/bloom/icons';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
-import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { isPastDue, scheduledDate } from '@/utils/postSchedule';
 import { confirmDialog } from '@/utils/alerts';
 import { formatScheduledLabel } from '@/utils/dateUtils';
@@ -184,7 +191,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
         >
           <View className="flex-1 mr-3">
             <View className="flex-row items-center gap-1.5 mb-1">
-              <CalendarIcon size={14} color={theme.colors.primary} />
+              <RiCalendarLine width={14} height={14} fill={theme.colors.primary} />
               <Text className="text-xs font-semibold" style={{ color: theme.colors.primary }}>
                 {timeLabel}
               </Text>
@@ -208,19 +215,19 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
               <View className="flex-row items-center gap-3 mt-1">
                 {mediaCount > 0 && (
                   <View className="flex-row items-center gap-1">
-                    <Ionicons name="image-outline" size={14} color={theme.colors.textSecondary} />
+                    <RiImageLine width={14} height={14} fill={theme.colors.textSecondary} />
                     <Text className="text-xs text-muted-foreground">
                       {mediaCount}
                     </Text>
                   </View>
                 )}
                 {hasPoll && (
-                  <Ionicons name="stats-chart-outline" size={14} color={theme.colors.textSecondary} />
+                  <RiListCheck3 width={14} height={14} fill={theme.colors.textSecondary} />
                 )}
               </View>
             )}
           </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+          <RiArrowRightSLine size="md" fill={theme.colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity
           className="p-1 mr-1"
@@ -231,7 +238,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
           accessibilityRole="button"
           accessibilityLabel={t('compose.scheduled.edit', { defaultValue: 'Edit scheduled post' })}
         >
-          <Ionicons name="create-outline" size={18} color={theme.colors.textSecondary} />
+          <RiEditLine width={18} height={18} fill={theme.colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity
           className="p-1"
@@ -245,7 +252,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
           {isCancelling ? (
             <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
           ) : (
-            <Ionicons name="trash-outline" size={18} color={theme.colors.textSecondary} />
+            <RiDeleteBinLine width={18} height={18} fill={theme.colors.textSecondary} />
           )}
         </TouchableOpacity>
       </View>
@@ -266,15 +273,9 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
         <Text className="text-base text-center text-muted-foreground">
           {t('compose.scheduled.loadError', { defaultValue: "We couldn't load your scheduled posts" })}
         </Text>
-        <TouchableOpacity
-          className="mt-4 px-4 py-2 rounded-full bg-primary"
-          onPress={onRetry}
-          activeOpacity={0.85}
-        >
-          <Text className="text-sm font-semibold" style={{ color: theme.colors.card }}>
-            {t('common.retry', { defaultValue: 'Retry' })}
-          </Text>
-        </TouchableOpacity>
+        <Button className="mt-4" onPress={onRetry}>
+          {t('common.retry', { defaultValue: 'Retry' })}
+        </Button>
       </View>
     );
   }
@@ -282,7 +283,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
   if (posts.length === 0) {
     return (
       <View className="flex-1 justify-center items-center py-12 px-8">
-        <CalendarIcon size={64} className="text-muted-foreground" color={theme.colors.textTertiary} />
+        <RiCalendarLine width={64} height={64} fill={theme.colors.textTertiary} />
         <Text className="mt-6 text-xl font-semibold text-foreground">
           {t('compose.scheduled.empty', { defaultValue: 'No scheduled posts' })}
         </Text>

@@ -103,6 +103,8 @@ jest.mock('@oxy.so/bloom/button', () => {
   };
 });
 
+jest.mock('@oxy.so/bloom/icons', () => ({ RiRefreshLine: () => null }));
+
 jest.mock('@oxy.so/bloom/dialog', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
@@ -132,12 +134,12 @@ jest.mock('@oxy.so/bloom/fab', () => {
   return { Fab: () => <View testID="fab" /> };
 });
 
-jest.mock('@/components/shell/PanelChrome', () => {
-  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
-  return {
-    PanelStickyHeader: ({ children }: { children?: React.ReactNode }) => <View>{children}</View>,
-  };
+jest.mock('@oxy.so/bloom/page-header', () => {
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { PageHeader: ({ title }: { title?: React.ReactNode }) => <Text>{title}</Text> };
 });
+
+jest.mock('@oxy.so/bloom/icons', () => ({ RiAddLine: () => null }));
 
 // The saved list is virtualized against `window` on web. The rows are not the
 // code under test — what the screen DERIVES from its query is, so the mock

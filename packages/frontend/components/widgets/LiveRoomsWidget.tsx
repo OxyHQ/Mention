@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiBroadcastLine, RiCustomerServiceLine, RiMoreFill } from '@oxy.so/bloom/icons';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
@@ -69,7 +69,7 @@ const RoomRow = React.memo(function RoomRow({
             {room.title}
           </Text>
           <View className="flex-row items-center gap-1 mt-px">
-            <Ionicons name="headset-outline" size={11} color={theme.colors.textSecondary} />
+            <RiCustomerServiceLine width={11} height={11} fill={theme.colors.textSecondary} />
             <Text className="text-muted-foreground text-[11px] flex-1" numberOfLines={1}>
               {listenerCount} listening  ·  {hostName}
             </Text>
@@ -83,7 +83,7 @@ const RoomRow = React.memo(function RoomRow({
         accessibilityLabel="More options"
         accessibilityRole="button"
       >
-        <Ionicons name="ellipsis-horizontal" size={16} color={theme.colors.textSecondary} />
+        <RiMoreFill size="sm" fill={theme.colors.textSecondary} />
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -149,7 +149,7 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
   return (
     <BaseWidget
       title="Live Rooms"
-      icon={<Ionicons name="radio-outline" size={16} color={theme.colors.text} />}
+      icon={<RiBroadcastLine size="sm" fill={theme.colors.text} />}
       divider={divider}
     >
       {!hasSettled ? (

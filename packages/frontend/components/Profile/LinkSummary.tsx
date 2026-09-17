@@ -1,9 +1,9 @@
 import React, { memo, useCallback, useContext } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { Item } from '@oxy.so/bloom/item';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { RiLink } from '@oxy.so/bloom/icons';
 import type { ProfileLink } from '@oxy.so/core';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { prettifyUrl } from '@/utils/prettifyUrl';
@@ -38,7 +38,7 @@ function LinkSummarySheet({ links, onPressLink, onClose }: LinkSummarySheetProps
         {links.map((link) => (
           <Item
             key={link.id}
-            leading={<Ionicons name="link-outline" size={20} color={colors.textSecondary} />}
+            leading={<RiLink size="md" fill={colors.textSecondary} />}
             title={link.title || prettifyUrl(link.url)}
             subtitle={prettifyUrl(link.url)}
             onPress={() => {
@@ -87,7 +87,7 @@ export const LinkSummary = memo(function LinkSummary({ links, onPressLink }: Lin
       accessibilityRole="button"
       accessibilityLabel={t('profile.links.title')}
     >
-      <Ionicons name="link-outline" size={16} color={colors.textSecondary} />
+      <RiLink size="sm" fill={colors.textSecondary} />
       <Text className="text-primary text-[15px] shrink" numberOfLines={1}>
         {prettifyUrl(links[0].url)}
       </Text>

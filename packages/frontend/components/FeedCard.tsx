@@ -2,7 +2,7 @@ import React, { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { router } from 'expo-router';
-import { ThemedText } from './ThemedText';
+import { Text } from '@oxy.so/bloom/typography';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
@@ -122,18 +122,18 @@ export function FeedCard({
 
                 {/* Text content */}
                 <View className="flex-1">
-                    <ThemedText
-                        className="text-sm font-semibold leading-[18px]"
+                    <Text
+                        className="text-sm font-semibold leading-[18px] text-foreground"
                         numberOfLines={1}>
                         {feed.displayName}
-                    </ThemedText>
+                    </Text>
                     {feed.creator && (
                         <ProfileHoverCard username={getNormalizedUserHandle(feed.creator) ?? undefined}>
-                            <ThemedText
+                            <Text
                                 className="text-sm text-muted-foreground leading-[18px]"
                                 numberOfLines={1}>
                                 Feed by @{feed.creator.username}
-                            </ThemedText>
+                            </Text>
                         </ProfileHoverCard>
                     )}
                 </View>
@@ -147,28 +147,28 @@ export function FeedCard({
             </View>
 
             {showDescription && feed.description ? (
-                <ThemedText
+                <Text
                     className="text-muted-foreground text-sm leading-5"
                     numberOfLines={variant === 'row' ? 2 : 3}>
                     {feed.description}
-                </ThemedText>
+                </Text>
             ) : null}
 
             {statsLine ? (
-                <ThemedText
+                <Text
                     className="text-sm text-muted-foreground leading-[18px]"
                     numberOfLines={1}>
                     {statsLine}
-                </ThemedText>
+                </Text>
             ) : null}
 
             {showLikes && feed.likeCount && feed.likeCount > 0 ? (
-                <ThemedText
+                <Text
                     className="text-sm font-semibold text-muted-foreground leading-[18px]"
                     numberOfLines={1}>
                     Pinned by {formatCompactNumber(feed.likeCount)}{' '}
                     {feed.likeCount === 1 ? 'user' : 'users'}
-                </ThemedText>
+                </Text>
             ) : null}
         </PressableScale>
     );

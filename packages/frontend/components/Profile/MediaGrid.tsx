@@ -233,7 +233,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
         <ProfileGridList
             data={mediaItems}
             renderCell={renderCell}
-            containerClassName="bg-background"
+            containerClassName="bg-card"
             initialNumToRender={INITIAL_RENDER_COUNT}
             windowSize={WINDOW_SIZE}
             ownsScroll={ownsScroll}

@@ -1,7 +1,6 @@
 import React, { memo, useCallback } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import Animated, { useDerivedValue, useAnimatedStyle, interpolate, Extrapolation } from 'react-native-reanimated';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +13,7 @@ import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Gear } from '@/assets/icons/gear-icon';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { FrostedIconButton } from '@oxy.so/bloom/frosted-icon-button';
+import { RiHand } from '@oxy.so/bloom/icons';
 import { showContentDialog } from '@/components/common/ContentDialog';
 import { EditProfileForm } from './EditProfile/EditProfileForm';
 import { usePoke } from './hooks/usePoke';
@@ -160,13 +160,7 @@ export const ProfileHeader = memo(function ProfileHeader({
                 disabled={pokeLoading}
                 active={poked}
                 accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
-                icon={
-                  <Ionicons
-                    name={poked ? 'hand-right' : 'hand-right-outline'}
-                    size={18}
-                    color={poked ? theme.colors.primaryForeground : theme.colors.text}
-                  />
-                }
+                icon={<RiHand width={18} fill={poked ? theme.colors.primaryForeground : theme.colors.text} />}
               />
             )}
             {/* Seed from the profile DTO's authoritative viewer relationship so

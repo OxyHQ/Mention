@@ -14,17 +14,15 @@ import {
 } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
-import { ThemedView } from '@/components/ThemedView';
+import { Button } from '@oxy.so/bloom/button';
+import { RiAddLine, RiArrowLeftLine, RiCheckLine, RiEditBoxLine, RiGroupLine, RiHashtag, RiMoreFill, RiPushpinFill, RiPushpinLine, RiShare2Line, RiStarLine } from '@oxy.so/bloom/icons';
 import { useLocalSearchParams, router } from 'expo-router';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { customFeedsService, type CustomFeedDetail } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { useAuth, FollowButton } from '@oxy.so/services/ui/client';
 import Feed from '@/components/Feed/Feed';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { Fab } from '@oxy.so/bloom/fab';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -88,6 +86,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
   onOpenInfo: () => void;
 }) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const safeBack = useSafeBack();
   const creatorHandle = profileHandle(feed.owner);
   // The bare handle (no `@`) the hover preview resolves; `creatorHandle` is the
@@ -96,12 +95,16 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
 
   return (
     <View
-      className="flex-row items-center px-2 bg-background"
+      className="flex-row items-center px-2"
       style={[headerStyles.bar, { borderBottomColor: theme.colors.border }]}
     >
-      <IconButton variant="icon" onPress={safeBack}>
-        <BackArrowIcon size={20} className="text-foreground" />
-      </IconButton>
+      <Button
+        variant="secondary"
+        iconOnly
+        leadingIcon={RiArrowLeftLine}
+        onPress={safeBack}
+        accessibilityLabel={t('common.back', { defaultValue: 'Back' })}
+      />
 
       <Pressable
         className="flex-1 flex-row items-center gap-2.5 py-1 px-1"
@@ -126,14 +129,14 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
                   </ProfileHoverCard>
                 ) : null}
                 <View className="flex-row items-center" style={{ gap: 2 }}>
-                  <Ionicons name="people-outline" size={12} color={theme.colors.textSecondary} />
+                  <RiGroupLine size="xs" fill={theme.colors.textSecondary} />
                   <Text className="text-sm leading-snug text-muted-foreground" numberOfLines={1}>
                     {formatCompactNumber(subscriberCount)}
                   </Text>
                 </View>
               </View>
             </View>
-            <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textSecondary} />
+            <RiMoreFill width={18} height={18} fill={theme.colors.textSecondary} />
           </>
         )}
       </Pressable>
@@ -146,13 +149,15 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
         onPress={onToggleSubscribe}
       />
 
-      <IconButton variant="icon" onPress={onTogglePin}>
-        <Ionicons
-          name={isPinned ? 'pin' : 'pin-outline'}
-          size={22}
-          color={isPinned ? theme.colors.primary : theme.colors.text}
-        />
-      </IconButton>
+      <Button
+        variant="secondary"
+        iconOnly
+        icon={isPinned
+          ? <RiPushpinFill size="md" fill={theme.colors.primary} />
+          : <RiPushpinLine size="md" fill={theme.colors.text} />}
+        onPress={onTogglePin}
+        accessibilityLabel={isPinned ? 'Unpin feed' : 'Pin feed'}
+      />
     </View>
   );
 });
@@ -211,9 +216,13 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
             </TouchableOpacity>
           ) : null}
         </View>
-        <IconButton variant="icon" onPress={onShare}>
-          <Ionicons name="share-outline" size={22} color={theme.colors.text} />
-        </IconButton>
+        <Button
+          variant="secondary"
+          iconOnly
+          leadingIcon={RiShare2Line}
+          onPress={onShare}
+          accessibilityLabel={t('videos.share', { defaultValue: 'Share' })}
+        />
       </View>
 
       {/* Description */}
@@ -245,11 +254,11 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
             <SpinnerIcon size={16} className="text-foreground" />
           ) : (
             <>
-              <Ionicons
-                name={isSubscribed ? 'checkmark' : 'add'}
-                size={18}
-                color={isSubscribed ? theme.colors.primary : theme.colors.text}
-              />
+              {isSubscribed ? (
+                <RiCheckLine width={18} height={18} fill={theme.colors.primary} />
+              ) : (
+                <RiAddLine width={18} height={18} fill={theme.colors.text} />
+              )}
               <Text className="text-[15px] font-medium text-foreground">
                 {isSubscribed ? t('feeds.subscribed') : t('feeds.subscribe')}
               </Text>
@@ -262,11 +271,11 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
           onPress={onTogglePin}
           activeOpacity={0.7}
         >
-          <Ionicons
-            name={isPinned ? 'pin' : 'pin-outline'}
-            size={18}
-            color={isPinned ? '#fff' : theme.colors.text}
-          />
+          {isPinned ? (
+            <RiPushpinFill width={18} height={18} fill="#fff" />
+          ) : (
+            <RiPushpinLine width={18} height={18} fill={theme.colors.text} />
+          )}
           <Text
             className="text-[15px] font-medium"
             style={{ color: isPinned ? '#fff' : theme.colors.text }}
@@ -287,7 +296,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
           }}
           activeOpacity={0.7}
         >
-          <Ionicons name="create-outline" size={18} color={theme.colors.text} />
+          <RiEditBoxLine width={18} height={18} fill={theme.colors.text} />
           <Text className="text-[15px] font-medium text-foreground">Edit feed</Text>
         </TouchableOpacity>
       ) : null}
@@ -321,7 +330,7 @@ const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: Feed
   if (members.length === 0) {
     return (
       <View className="p-10 items-center justify-center gap-3">
-        <Ionicons name="people-outline" size={40} color={theme.colors.textSecondary} />
+        <RiGroupLine width={40} height={40} fill={theme.colors.textSecondary} />
         <Text className="text-base font-medium text-muted-foreground">No profiles yet</Text>
       </View>
     );
@@ -372,7 +381,7 @@ const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string
   if (keywords.length === 0) {
     return (
       <View className="p-10 items-center justify-center gap-3">
-        <Ionicons name="pricetag-outline" size={40} color={theme.colors.textSecondary} />
+        <RiHashtag width={40} height={40} fill={theme.colors.textSecondary} />
         <Text className="text-base font-medium text-muted-foreground">No topics yet</Text>
       </View>
     );
@@ -383,7 +392,7 @@ const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string
       {keywords.map((keyword) => (
         <View key={keyword} style={[styles.topicRow, { borderBottomColor: theme.colors.border }]}>
           <View className="w-10 h-10 rounded-full items-center justify-center bg-muted">
-            <Ionicons name="pricetag" size={18} color={theme.colors.textSecondary} />
+            <RiHashtag width={18} height={18} fill={theme.colors.textSecondary} />
           </View>
           <Text className="text-base font-medium text-foreground">{keyword}</Text>
         </View>
@@ -561,13 +570,13 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
         onPress={() => setModalVisible(true)}
         activeOpacity={0.7}
       >
-        <Ionicons name="create-outline" size={18} color={theme.colors.text} />
+        <RiEditBoxLine width={18} height={18} fill={theme.colors.text} />
         <Text className="text-[15px] font-semibold text-foreground">Write a Review</Text>
       </TouchableOpacity>
 
       {reviews.length === 0 ? (
         <View className="p-10 items-center justify-center gap-3">
-          <Ionicons name="star-outline" size={40} color={theme.colors.textSecondary} />
+          <RiStarLine width={40} height={40} fill={theme.colors.textSecondary} />
           <Text className="text-base font-medium text-muted-foreground">No reviews yet</Text>
           <Text className="text-sm text-center text-muted-foreground">
             Be the first to leave a review
@@ -794,7 +803,7 @@ export default function CustomFeedTimelineScreen() {
   const isLoading = feedQuery.isPending && !hasError;
 
   return (
-    <ThemedView className="flex-1 relative flex-col">
+    <View className="flex-1 relative flex-col">
       {/* Compact Bluesky-style header */}
       {feed ? (
         <FeedHeaderBar
@@ -809,12 +818,16 @@ export default function CustomFeedTimelineScreen() {
         />
       ) : (
         <View
-          className="flex-row items-center px-2 bg-background"
+          className="flex-row items-center px-2"
           style={[headerStyles.bar, { borderBottomColor: theme.colors.border }]}
         >
-          <IconButton variant="icon" onPress={safeBack}>
-            <BackArrowIcon size={20} className="text-foreground" />
-          </IconButton>
+          <Button
+            variant="secondary"
+            iconOnly
+            leadingIcon={RiArrowLeftLine}
+            onPress={safeBack}
+            accessibilityLabel={t('common.back', { defaultValue: 'Back' })}
+          />
           <View className="flex-1 py-3 px-2">
             <Text className="text-[15px] font-bold text-foreground">Feed</Text>
           </View>
@@ -881,7 +894,7 @@ export default function CustomFeedTimelineScreen() {
           />
         </BottomSheet>
       )}
-    </ThemedView>
+    </View>
   );
 }
 

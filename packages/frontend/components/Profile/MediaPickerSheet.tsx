@@ -8,8 +8,8 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
+import { RiCloseCircleLine, RiDeleteBinLine, RiMic2Line, RiMusic2Line, RiSearchLine } from '@oxy.so/bloom/icons';
 import { Item } from '@oxy.so/bloom/item';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
@@ -142,7 +142,7 @@ const SongResultRow = memo(function SongResultRow({
             className="rounded-md bg-muted items-center justify-center"
             style={{ width: 40, height: 40 }}
           >
-            <Ionicons name="musical-note-outline" size={20} color={colors.textSecondary} />
+            <RiMusic2Line size="md" fill={colors.textSecondary} />
           </View>
         )
       }
@@ -196,7 +196,7 @@ const PodcastResultRow = memo(function PodcastResultRow({
             className="rounded-md bg-muted items-center justify-center"
             style={{ width: 40, height: 40 }}
           >
-            <Ionicons name="mic-outline" size={20} color={colors.textSecondary} />
+            <RiMic2Line size="md" fill={colors.textSecondary} />
           </View>
         )
       }
@@ -391,7 +391,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
 
       {/* Search input — mirrors GifPickerSheet's styled search row. */}
       <View className="flex-row items-center px-3 py-2.5 rounded-xl bg-muted gap-2.5">
-        <Ionicons name="search-outline" size={16} color={colors.textSecondary} />
+        <RiSearchLine size="sm" fill={colors.textSecondary} />
         <TextInput
           className="flex-1 text-[15px] text-foreground"
           placeholder={isSongTab ? t('profile.media.song.searchPlaceholder') : t('profile.media.podcast.searchPlaceholder')}
@@ -409,7 +409,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
             accessibilityLabel={t('profile.media.clearSearch')}
             hitSlop={HIT_SLOP_MD}
           >
-            <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+            <RiCloseCircleLine size="sm" fill={colors.textSecondary} />
           </Pressable>
         )}
       </View>
@@ -431,7 +431,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
         ) : isSongTab ? (
           songSearch.results.length === 0 ? (
             <View className="items-center justify-center py-10 gap-2">
-              <Ionicons name="search-outline" size={32} color={colors.textSecondary} />
+              <RiSearchLine size="2xl" fill={colors.textSecondary} />
               <Text className="text-muted-foreground text-[15px]">
                 {t('profile.media.song.empty')}
               </Text>
@@ -457,7 +457,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
           )
         ) : podcastSearch.results.length === 0 ? (
           <View className="items-center justify-center py-10 gap-2">
-            <Ionicons name="search-outline" size={32} color={colors.textSecondary} />
+            <RiSearchLine size="2xl" fill={colors.textSecondary} />
             <Text className="text-muted-foreground text-[15px]">
               {t('profile.media.podcast.empty')}
             </Text>
@@ -499,7 +499,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
                 className="rounded-md bg-background items-center justify-center"
                 style={{ width: 40, height: 40 }}
               >
-                <Ionicons name="musical-note-outline" size={20} color={colors.textSecondary} />
+                <RiMusic2Line size="md" fill={colors.textSecondary} />
               </View>
             )}
             <View className="flex-1 shrink">
@@ -582,7 +582,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
                 className="rounded-md bg-background items-center justify-center"
                 style={{ width: 40, height: 40 }}
               >
-                <Ionicons name="mic-outline" size={20} color={colors.textSecondary} />
+                <RiMic2Line size="md" fill={colors.textSecondary} />
               </View>
             )}
             <View className="flex-1 shrink">
@@ -625,7 +625,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
           accessibilityLabel={t('profile.media.remove')}
           className="flex-row items-center justify-center gap-2 mt-3 py-2.5"
         >
-          <Ionicons name="trash-outline" size={16} color={colors.error} />
+          <RiDeleteBinLine size="sm" fill={colors.error} />
           <Text className="text-[15px] font-semibold" style={{ color: colors.error }}>
             {t('profile.media.remove')}
           </Text>

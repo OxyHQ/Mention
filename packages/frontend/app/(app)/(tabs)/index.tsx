@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
 import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
@@ -20,11 +18,12 @@ import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
 import { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
 import { Fab } from '@oxy.so/bloom/fab';
+import { Button } from '@oxy.so/bloom/button';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Search } from '@/assets/icons/search-icon';
 import { Bell } from '@/assets/icons/bell-icon';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { SEO } from '@/components/SEO';
-import { IconButton } from '@/components/ui/Button';
 import { LogoIcon } from '@/assets/logo';
 import { MenuIcon } from '@/assets/icons/menu-icon';
 import { useDrawer } from '@/context/DrawerContext';
@@ -159,8 +158,8 @@ const HomeScreen: React.FC = () => {
         };
     }, [registerHomeRefreshHandler, unregisterHomeRefreshHandler]);
 
-    // Translate-only: the header is an opaque `bg-background` surface that slides
-    // up behind the status bar. Fading its opacity would make the scrolled feed
+    // Translate-only: the header is an opaque surface that slides up behind the
+    // status bar. Fading its opacity would make the scrolled feed
     // visible through it (the header/tab-bar chrome must read as one continuous
     // opaque surface while rising), so there is NO opacity term here.
     const headerAnimatedStyle = useAnimatedStyle(() => {
@@ -258,8 +257,8 @@ const HomeScreen: React.FC = () => {
                 context, so they paint ABOVE the bleed-mask overlay (z-30) and the
                 gutter ring never clips them. The feed below them stays at z-0,
                 still masked. No effect on native. */}
-            <SafeAreaView className="flex-1 bg-background web:z-auto" edges={["top"]}>
-                <ThemedView className="flex-1 web:z-auto relative flex-col">
+            <SafeAreaView className="flex-1 web:z-auto" edges={["top"]}>
+                <View className="flex-1 web:z-auto relative flex-col">
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
 
                     {/* Header - animated. <PanelStickyHeader> owns the web sticky
@@ -267,37 +266,40 @@ const HomeScreen: React.FC = () => {
                         rounded corners (masking the feed's top-edge bleed), and the
                         z-index. The screen still supplies the reanimated auto-hide
                         translate via `style`. NATIVE: PanelStickyHeader becomes the
-                        absolute top overlay. */}
+                        absolute top overlay, below the SafeAreaView's top inset, so
+                        the header pads none of its own. */}
                     <PanelStickyHeader level={0} style={headerAnimatedStyle}>
-                        <Header
-                            options={{
-                                titlePosition: 'center',
-                                subtitle: <LogoIcon size={28} className="text-foreground" />,
-                                leftComponents: !isScreenNotMobile ? [
-                                    <IconButton variant="icon"
-                                        key="menu"
-                                        onPress={openDrawer}
-                                    >
-                                        <MenuIcon size={22} className="text-foreground" />
-                                    </IconButton>
-                                ] : [],
-                                rightComponents: [
-                                    <IconButton variant="icon"
-                                        key="search"
+                        <PageHeader
+                            title={<LogoIcon size={28} className="text-foreground" />}
+                            titleAlign="center"
+                            safeArea={false}
+                            leading={!isScreenNotMobile ? (
+                                <Button
+                                    variant="secondary"
+                                    iconOnly
+                                    icon={<MenuIcon size={22} className="text-foreground" />}
+                                    onPress={openDrawer}
+                                    accessibilityLabel="Open menu"
+                                />
+                            ) : undefined}
+                            actions={
+                                <>
+                                    <Button
+                                        variant="secondary"
+                                        iconOnly
+                                        icon={<Search className="text-foreground" size={20} />}
                                         onPress={() => router.push('/search')}
-                                    >
-                                        <Search className="text-foreground" size={20} />
-                                    </IconButton>,
-                                    <IconButton variant="icon"
-                                        key="notifications"
+                                        accessibilityLabel={t('Search')}
+                                    />
+                                    <Button
+                                        variant="secondary"
+                                        iconOnly
+                                        icon={<Bell size={20} className="text-foreground" />}
                                         onPress={() => router.push('/notifications')}
-                                    >
-                                        <Bell size={20} className="text-foreground" />
-                                    </IconButton>
-                                ]
-                            }}
-                            hideBottomBorder={true}
-                            disableSticky={true}
+                                        accessibilityLabel={t('Notifications')}
+                                    />
+                                </>
+                            }
                         />
                     </PanelStickyHeader>
 
@@ -344,7 +346,7 @@ const HomeScreen: React.FC = () => {
                             accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
                         />
                     )}
-                </ThemedView>
+                </View>
             </SafeAreaView>
         </>
     );

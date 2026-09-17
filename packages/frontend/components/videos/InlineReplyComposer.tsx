@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, TextInput, Pressable, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiSendPlaneLine } from '@oxy.so/bloom/icons';
 import { toast } from '@oxy.so/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 
@@ -59,7 +59,7 @@ export function InlineReplyComposer({ postId, onPosted, focusNonce = 0 }: Inline
   }, [text, submitting, createReply, postId, onPosted, t]);
 
   return (
-    <View style={styles.row} className="border-t border-border bg-background">
+    <View style={styles.row} className="border-t border-border bg-card">
       <TextInput
         ref={inputRef}
         value={text}
@@ -77,10 +77,9 @@ export function InlineReplyComposer({ postId, onPosted, focusNonce = 0 }: Inline
         accessibilityRole="button"
         accessibilityLabel={t('common.send', { defaultValue: 'Send' })}
       >
-        <Ionicons
-          name="send"
-          size={20}
-          color={text.trim() && !submitting ? theme.colors.primary : theme.colors.textSecondary}
+        <RiSendPlaneLine
+          size="md"
+          fill={text.trim() && !submitting ? theme.colors.primary : theme.colors.textSecondary}
         />
       </Pressable>
     </View>

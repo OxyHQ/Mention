@@ -110,7 +110,7 @@ export function ProfileShell({
        the panel border frame (z-120) — exactly like the home header. No effect
        on native. */
     <View
-      className="flex-1 bg-background web:z-auto relative flex-col"
+      className="flex-1 web:z-auto relative flex-col"
       style={[{ overflow: 'visible' }, chrome.themedStyles.container]}
     >
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
@@ -170,7 +170,7 @@ export function ProfileShell({
                   all pin at the FIRST tier; pinning the tab bar at that same
                   inset made the two bands occupy the same vertical space and
                   OVERLAP. It lives inside the z-3 content wrapper, so `web:z-[5]`
-                  keeps it above the feed content, and the `bg-background` on
+                  keeps it above the feed content, and the `bg-card` on
                   AnimatedTabBar keeps the feed from showing through. */}
               <View className="web:sticky web:z-[5]" style={chrome.panelStickyTabsTopInset}>
                 {tabBar}

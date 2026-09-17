@@ -1,11 +1,9 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
-import { useTheme } from '@oxy.so/bloom/theme';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { View, ScrollView } from 'react-native';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost } from '@mention/shared-types';
 import PostItem from '@/components/Feed/PostItem';
-import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
 export interface PostPreviewSurfaceProps {
   post: HydratedPost;
@@ -46,26 +44,17 @@ const PostPreviewSurface: React.FC<PostPreviewSurfaceProps> = ({
   onBack,
   children,
 }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
 
   return (
     <View className="flex-1">
-      <View className="flex-row items-center gap-2 px-4 py-3 border-b border-border">
-        <TouchableOpacity
-          onPress={onBack}
-          hitSlop={HIT_SLOP_LG}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', { defaultValue: 'Back' })}
-        >
-          <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
-        </TouchableOpacity>
-        <View className="flex-1">
-          <Text className="text-base font-semibold text-foreground">{title}</Text>
-          {subtitle}
-        </View>
-      </View>
+      <PageHeader
+        title={title}
+        subtitle={subtitle}
+        onBack={onBack}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
+        safeArea={false}
+      />
 
       {notice}
 

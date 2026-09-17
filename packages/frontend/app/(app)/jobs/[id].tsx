@@ -8,15 +8,12 @@ import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { Chip } from '@oxy.so/bloom/chip';
 import { Loading } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import type { MentionJobStatus } from '@mention/shared-types';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { openExternalLink } from '@/utils/openExternalLink';
@@ -160,41 +157,34 @@ export default function JobDetailScreen() {
   }, [job, bottomSheet, t]);
 
   const header = (
-    <Header
-      options={{
-        title: t('jobs.detail.title', { defaultValue: 'Job' }),
-        leftComponents: [
-          <IconButton key="back" variant="icon" onPress={safeBack}>
-            <BackArrowIcon size={20} className="text-foreground" />
-          </IconButton>,
-        ],
-      }}
-      hideBottomBorder
-      disableSticky
+    <PageHeader
+      title={t('jobs.detail.title', { defaultValue: 'Job' })}
+      onBack={() => safeBack()}
+      backLabel={t('common.back', { defaultValue: 'Back' })}
     />
   );
 
   if (jobQuery.isLoading) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center">
           <Loading className="text-primary" size="large" />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   if (jobQuery.isError || !job) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center gap-3 px-8">
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.detail.notFound', { defaultValue: 'This job could not be found' })}
           </Text>
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
@@ -211,7 +201,7 @@ export default function JobDetailScreen() {
   ].filter((value): value is string => Boolean(value));
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1">
       {header}
       <ScrollView contentContainerClassName="px-4 pb-16 pt-2">
         {!isPublished ? (
@@ -283,6 +273,6 @@ export default function JobDetailScreen() {
           </Text>
         </TouchableOpacity>
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }

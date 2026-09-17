@@ -3,12 +3,13 @@ import {
     Platform,
     View,
     Text,
-    TouchableOpacity,
 } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Button } from '@oxy.so/bloom/button';
+import { RiAlertLine, RiEqualizerLine } from '@oxy.so/bloom/icons';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PostItem from '@/components/Feed/PostItem';
 import Feed from '@/components/Feed/Feed';
@@ -27,10 +28,6 @@ import type {
   FeedBoost as Boost,
 } from '@mention/shared-types';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { insightsService } from '@/services/insightsService';
@@ -482,33 +479,21 @@ const PostDetailScreen: React.FC = () => {
                     title={t('seo.post.notFound')}
                     description={t('seo.post.notFoundDescription')}
                 />
-                <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
-                    <Header
-                        options={{
-                            title: t('screens.post.title'),
-                            leftComponents: [
-                                <IconButton variant="icon"
-                                    key="back"
-                                    onPress={handleBack}
-                                >
-                                    <BackArrowIcon size={20} className="text-foreground" />
-                                </IconButton>,
-                            ],
-                        }}
-                        hideBottomBorder={true}
-                        disableSticky={true}
+                <View className="flex-1">
+                    <PageHeader
+                        title={t('screens.post.title')}
+                        onBack={handleBack}
+                        backLabel={t('common.back', { defaultValue: 'Back' })}
                     />
                     <View className="flex-1 items-center justify-center px-8">
-                        <Ionicons name="alert-circle-outline" size={48} color={theme.colors.error} />
+                        <RiAlertLine size="3xl" fill={theme.colors.error} />
                         <Text className="text-xl font-semibold mt-4 mb-2 text-foreground">Post Not Found</Text>
                         <Text className="text-base text-center leading-[22px] mb-6 text-muted-foreground">
                             {error || 'The post you\'re looking for doesn\'t exist or has been deleted.'}
                         </Text>
-                        <TouchableOpacity className="px-6 py-3 rounded-lg bg-primary" onPress={() => safeBack()}>
-                            <Text className="text-base font-semibold" style={{ color: theme.colors.card }}>Go Back</Text>
-                        </TouchableOpacity>
+                        <Button size="large" onPress={() => safeBack()}>Go Back</Button>
                     </View>
-                </ThemedView>
+                </View>
             </>
         );
     }
@@ -524,26 +509,20 @@ const PostDetailScreen: React.FC = () => {
                 publishedTime={post && 'metadata' in post ? post.metadata?.createdAt : undefined}
                 modifiedTime={post && 'metadata' in post ? post.metadata?.updatedAt : undefined}
             />
-            <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
-                <Header
-                    options={{
-                        title: (post && 'metadata' in post && post.metadata?.isThread) ? 'Thread' : 'Post',
-                        leftComponents: [
-                            <IconButton variant="icon"
-                                key="back"
-                                onPress={handleBack}
-                            >
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                        rightComponents: [
-                            <IconButton variant="icon" key="reply-prefs" onPress={openReplyPreferences}>
-                                <Ionicons name="options-outline" size={22} color={theme.colors.text} />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder={true}
-                    disableSticky={true}
+            <View className="flex-1">
+                <PageHeader
+                    title={(post && 'metadata' in post && post.metadata?.isThread) ? 'Thread' : 'Post'}
+                    onBack={handleBack}
+                    backLabel={t('common.back', { defaultValue: 'Back' })}
+                    actions={
+                        <Button
+                            variant="secondary"
+                            iconOnly
+                            leadingIcon={RiEqualizerLine}
+                            accessibilityLabel={t('settings.threadPreferences.title', { defaultValue: 'Thread preferences' })}
+                            onPress={openReplyPreferences}
+                        />
+                    }
                 />
 
                 {loading && !post ? (
@@ -566,7 +545,7 @@ const PostDetailScreen: React.FC = () => {
                         {/* The reply composer stays reachable at the bottom of the
                             screen no matter how far down the replies are scrolled.
                             It must be the LAST flow sibling for `position: sticky`
-                            to pin it on web. `bg-background` matches the feed rows,
+                            to pin it on web. `bg-card` matches the feed rows,
                             so replies never show through it while it overlays them.
 
                             Absent on a post that takes no replies — the server
@@ -575,7 +554,7 @@ const PostDetailScreen: React.FC = () => {
                             the same call the row's action bar makes, so the two
                             surfaces cannot disagree. */}
                         {!!user && postAcceptsReplies(post) && (
-                            <PanelStickyFooter className="bg-background" style={stickyComposerStyle}>
+                            <PanelStickyFooter className="bg-card" style={stickyComposerStyle}>
                                 <FeedHeader
                                     showComposeButton
                                     onComposePress={handleOpenReply}
@@ -585,7 +564,7 @@ const PostDetailScreen: React.FC = () => {
                         )}
                     </>
                 )}
-            </ThemedView>
+            </View>
         </>
     );
 };

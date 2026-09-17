@@ -4,13 +4,14 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 import { Loading } from '@oxy.so/bloom/loading';
+import { Button } from '@oxy.so/bloom/button';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Text } from '@oxy.so/bloom/typography';
+import { RiArrowRightSLine, RiChat3Line, RiEditBoxLine, RiHand, RiHeartLine, RiUserAddLine } from '@oxy.so/bloom/icons';
 import { NotificationItem } from '@/components/notifications/NotificationItem';
 import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
 import { createLogger } from '@oxy.so/core/logger';
@@ -34,12 +35,10 @@ import { NotificationsList } from '@/components/NotificationsList';
 import { NotificationSkeleton } from '@/components/notifications/NotificationSkeleton';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
-import { Header } from '@/components/Header';
 import { StatusBar } from 'expo-status-bar';
 import { toast } from '@oxy.so/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
 import { SEO } from '@/components/SEO';
-import { IconButton } from '@/components/ui/Button';
 import { Error } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
@@ -391,10 +390,10 @@ const NotificationsScreen: React.FC = () => {
     const renderNotification = useCallback((item: NotificationListItem) => {
         if (item.kind === 'header') {
             return (
-                <View className="bg-background px-3 pb-1 pt-3">
-                    <ThemedText className="text-muted-foreground text-[13px] font-semibold uppercase">
+                <View className="px-3 pb-1 pt-3">
+                    <Text className="text-muted-foreground text-[13px] font-semibold uppercase leading-6">
                         {item.label}
-                    </ThemedText>
+                    </Text>
                 </View>
             );
         }
@@ -422,35 +421,35 @@ const NotificationsScreen: React.FC = () => {
                 return {
                     title: t('notification.empty.mentions.title', { defaultValue: 'No mentions yet' }),
                     subtitle: t('notification.empty.mentions.subtitle', { defaultValue: 'When someone mentions you, it will appear here.' }),
-                    icon: <Ionicons name="chatbubble-ellipses-outline" size={36} color={iconColor} />,
+                    icon: <RiChat3Line width={36} height={36} fill={iconColor} />,
                     iconBg,
                 };
             case 'follows':
                 return {
                     title: t('notification.empty.follows.title', { defaultValue: 'No new followers' }),
                     subtitle: t('notification.empty.follows.subtitle', { defaultValue: 'When someone follows you, it will appear here.' }),
-                    icon: <Ionicons name="person-add-outline" size={36} color={iconColor} />,
+                    icon: <RiUserAddLine width={36} height={36} fill={iconColor} />,
                     iconBg,
                 };
             case 'likes':
                 return {
                     title: t('notification.empty.likes.title', { defaultValue: 'No likes yet' }),
                     subtitle: t('notification.empty.likes.subtitle', { defaultValue: 'When someone likes or boosts your content, it will appear here.' }),
-                    icon: <Ionicons name="heart-outline" size={36} color={iconColor} />,
+                    icon: <RiHeartLine width={36} height={36} fill={iconColor} />,
                     iconBg,
                 };
             case 'posts':
                 return {
                     title: t('notification.empty.posts.title', { defaultValue: 'No post updates' }),
                     subtitle: t('notification.empty.posts.subtitle', { defaultValue: 'When people you follow post something new, it will appear here.' }),
-                    icon: <Ionicons name="create-outline" size={36} color={iconColor} />,
+                    icon: <RiEditBoxLine width={36} height={36} fill={iconColor} />,
                     iconBg,
                 };
             case 'pokes':
                 return {
                     title: t('notification.empty.pokes.title', { defaultValue: 'No pokes yet' }),
                     subtitle: t('notification.empty.pokes.subtitle', { defaultValue: 'When someone pokes you, it will appear here. Poke your followers to get started!' }),
-                    icon: <Ionicons name="hand-right-outline" size={32} color={iconColor} />,
+                    icon: <RiHand size="2xl" fill={iconColor} />,
                     iconBg,
                 };
             default:
@@ -503,9 +502,9 @@ const NotificationsScreen: React.FC = () => {
         // `isAuthenticated` (pattern from settings/fediverse/index.tsx).
         if (!isAuthResolved || isPrivateApiPending) {
             return (
-                <ThemedView className="flex-1 justify-center items-center">
+                <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
-                </ThemedView>
+                </View>
             );
         }
 
@@ -520,9 +519,9 @@ const NotificationsScreen: React.FC = () => {
 
         if (isLoading && !refreshing) {
             return (
-                <ThemedView className="flex-1">
+                <View className="flex-1">
                     <NotificationSkeleton />
-                </ThemedView>
+                </View>
             );
         }
 
@@ -554,17 +553,17 @@ const NotificationsScreen: React.FC = () => {
                         justifyContent: 'center',
                     }}
                 >
-                    <Ionicons name="hand-right" size={18} color="#fff" />
+                    <RiHand width={18} height={18} fill="#fff" />
                 </View>
                 <View style={{ flex: 1 }}>
-                    <ThemedText style={{ fontSize: 15, fontWeight: '600' }}>
+                    <Text className="leading-6 text-foreground" style={{ fontSize: 15, fontWeight: '600' }}>
                         {t('pokes.seeAllPokes', { defaultValue: 'Poke back & discover people' })}
-                    </ThemedText>
-                    <ThemedText className="text-muted-foreground" style={{ fontSize: 13, marginTop: 1 }}>
+                    </Text>
+                    <Text className="leading-6 text-muted-foreground" style={{ fontSize: 13, marginTop: 1 }}>
                         {t('pokes.seeAllPokesSubtitle', { defaultValue: 'Suggested follows, poke history & more' })}
-                    </ThemedText>
+                    </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+                <RiArrowRightSLine size="md" fill={theme.colors.textSecondary} />
             </TouchableOpacity>
         ) : null;
 
@@ -590,60 +589,49 @@ const NotificationsScreen: React.FC = () => {
                 title={t('seo.notifications.title')}
                 description={t('seo.notifications.description')}
             />
-            <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-                <ThemedView className="flex-1">
+            <SafeAreaView className="flex-1" edges={['top']}>
+                <View className="flex-1">
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
 
                     {/* Header chrome pinned inside the rounded panel via
                         PanelStickyHeader. The notifications list is document-scroll
                         on web (window virtualizer), so the header/tab bar must pin
                         at PANEL_TOP_INSET (not top:0, where the bleed mask would clip
-                        them). `disableSticky` hands sticky ownership to
-                        PanelStickyHeader. When the tab bar is shown it stacks as
-                        level={1} below the header. */}
+                        them). When the tab bar is shown it stacks as level={1}
+                        below the header. The SafeAreaView owns the top inset, so the
+                        header pads none of its own. */}
                     <PanelStickyHeader level={0}>
-                        <Header
-                            options={{
-                                title: t('Notifications'),
-                                showBackButton: false,
-                                rightComponents: [
-                                    unreadCount > 0 ? (
-                                        <IconButton variant="icon"
-                                            key="mark-all"
+                        <PageHeader
+                            title={t('Notifications')}
+                            safeArea={false}
+                            actions={
+                                <>
+                                    {unreadCount > 0 ? (
+                                        <Button
+                                            variant="secondary"
+                                            iconOnly
+                                            icon={<DoneAllIcon size={20} color={theme.colors.primary} />}
                                             onPress={handleMarkAllAsRead}
                                             disabled={markAllAsReadMutation.isPending}
                                             accessibilityLabel={t('notification.mark_all_read')}
-                                        >
-                                            <DoneAllIcon
-                                                size={22}
-                                                color={theme.colors.primary}
-                                            />
-                                        </IconButton>
-                                    ) : null,
-                                    <IconButton variant="icon"
-                                        key="activity-subscriptions"
+                                        />
+                                    ) : null}
+                                    <Button
+                                        variant="secondary"
+                                        iconOnly
+                                        icon={<BellActive size={20} color={theme.colors.text} />}
                                         onPress={() => router.push('/settings/notifications/subscriptions')}
                                         accessibilityLabel={t('subscription.list.title', { defaultValue: 'Activity notifications' })}
-                                    >
-                                        <BellActive
-                                            size={22}
-                                            color={theme.colors.text}
-                                        />
-                                    </IconButton>,
-                                    <IconButton variant="icon"
-                                        key="notification-settings"
+                                    />
+                                    <Button
+                                        variant="secondary"
+                                        iconOnly
+                                        icon={<Gear size={20} color={theme.colors.text} />}
                                         onPress={() => router.push('/settings/notifications')}
                                         accessibilityLabel={t('notification.settings', { defaultValue: 'Notification settings' })}
-                                    >
-                                        <Gear
-                                            size={22}
-                                            color={theme.colors.text}
-                                        />
-                                    </IconButton>,
-                                ].filter(Boolean),
-                            }}
-                            hideBottomBorder={canUsePrivateApi}
-                            disableSticky
+                                    />
+                                </>
+                            }
                         />
                     </PanelStickyHeader>
 
@@ -666,7 +654,7 @@ const NotificationsScreen: React.FC = () => {
                     )}
 
                     {renderContent()}
-                </ThemedView>
+                </View>
             </SafeAreaView>
         </>
     );

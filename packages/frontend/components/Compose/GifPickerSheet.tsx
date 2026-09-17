@@ -9,10 +9,9 @@ import {
 } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { CloseIcon } from '@/assets/icons/close-icon';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Button } from '@oxy.so/bloom/button';
+import { RiCloseCircleLine, RiCloseLine, RiImageLine, RiSearchLine } from '@oxy.so/bloom/icons';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import VideoPlayer from '@/components/common/VideoPlayer';
@@ -162,21 +161,22 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
 
   return (
     <View className="flex-1 bg-background">
-      <Header
-        options={{
-          title: t('Select a GIF'),
-          rightComponents: [
-            <IconButton variant="icon" key="close" onPress={onClose}>
-              <CloseIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder={true}
-        disableSticky={true}
+      <PageHeader
+        title={t('Select a GIF')}
+        safeArea={false}
+        actions={
+          <Button
+            variant="secondary"
+            iconOnly
+            leadingIcon={RiCloseLine}
+            onPress={onClose}
+            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+          />
+        }
       />
 
       <View className="flex-row items-center px-3 py-2.5 mx-4 mt-3 mb-2 rounded-xl bg-muted gap-2.5">
-        <Ionicons name="search" size={20} color={theme.colors.textSecondary} />
+        <RiSearchLine size="md" fill={theme.colors.textSecondary} />
         <TextInput
           className="flex-1 text-[15px] text-foreground"
           placeholder={t('Search GIFs...')}
@@ -188,7 +188,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
+            <RiCloseCircleLine size="md" fill={theme.colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
@@ -202,7 +202,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         </View>
       ) : gifs.length === 0 ? (
         <View className="flex-1 justify-center items-center py-12">
-          <Ionicons name="image-outline" size={64} color={theme.colors.textSecondary} />
+          <RiImageLine width={64} height={64} fill={theme.colors.textSecondary} />
           <Text className="mt-4 text-base text-muted-foreground">
             {t('No GIFs found')}
           </Text>

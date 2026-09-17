@@ -41,6 +41,15 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
+jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiArrowRightSLine: () => null,
+  RiCalendarLine: () => null,
+  RiDeleteBinLine: () => null,
+  RiEditLine: () => null,
+  RiImageLine: () => null,
+  RiListCheck3: () => null,
+}));
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: (...args: unknown[]) => mockToast(...args) }));
 jest.mock('@/utils/alerts', () => ({ confirmDialog: (...args: unknown[]) => mockConfirm(...args) }));
 jest.mock('@oxy.so/core/logger', () => ({

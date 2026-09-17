@@ -32,6 +32,10 @@ jest.mock('@/components/ui/Spinner', () => ({ Spinner: 'Spinner' }));
 
 jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 
+jest.mock('@oxy.so/bloom/button', () => ({ Button: 'Button' }));
+
+jest.mock('@oxy.so/bloom/icons', () => ({ RiRefreshLine: 'RiRefreshLine' }));
+
 function render(props: Partial<React.ComponentProps<typeof FeedEmptyState>>) {
     let tree!: TestRenderer.ReactTestRenderer;
     act(() => {
@@ -61,6 +65,14 @@ function iconNames(tree: TestRenderer.ReactTestRenderer): string[] {
         .map((node) => String(node.props.name));
 }
 
+/** The retry affordance: a Bloom button leading with the refresh glyph. */
+function retryButtons(tree: TestRenderer.ReactTestRenderer): TestRenderer.ReactTestInstance[] {
+    return tree.root.findAll(
+        (node) => isElement(node, 'Button') && node.props.leadingIcon === 'RiRefreshLine',
+        { deep: true },
+    );
+}
+
 function textContent(tree: TestRenderer.ReactTestRenderer): string {
     return tree.root
         .findAll((node) => isElement(node, 'Text'), { deep: true })
@@ -74,12 +86,14 @@ describe('FeedEmptyState', () => {
         const tree = render({ isLoading: true, error: 'Failed to load', errorKind: 'transient' });
         expect(tree.root.findAll((node) => isElement(node, 'Spinner')).length).toBe(1);
         expect(iconNames(tree)).toEqual([]);
+        expect(retryButtons(tree)).toHaveLength(0);
     });
 
     it('reads as a calm retry — no alarm disc — for a backend hiccup', () => {
         const tree = render({ error: 'Failed to load', errorKind: 'transient' });
         // The retry affordance stays; the tinted warning disc does not.
-        expect(iconNames(tree)).toEqual(['refresh']);
+        expect(iconNames(tree)).toEqual([]);
+        expect(retryButtons(tree)).toHaveLength(1);
         expect(textContent(tree)).toContain('feed.empty.title');
     });
 
@@ -91,7 +105,7 @@ describe('FeedEmptyState', () => {
 
     it('never shows a failure while there are rows to read', () => {
         const tree = render({ error: 'Failed to load more posts', errorKind: 'transient', hasItems: true });
-        expect(iconNames(tree)).not.toContain('refresh');
+        expect(retryButtons(tree)).toHaveLength(0);
         expect(textContent(tree)).not.toContain('feed.empty.title');
     });
 });

@@ -1,6 +1,6 @@
 import React, { ReactNode } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { ThemedText } from '@/components/ThemedText';
+import { Text } from '@oxy.so/bloom/typography';
 
 type BaseWidgetProps = {
     title?: string;
@@ -22,7 +22,7 @@ export function BaseWidget({ title, icon, divider, children }: BaseWidgetProps) 
         >
             {title && (
                 <View className="flex-row justify-between items-center">
-                    <ThemedText className="text-[15px] font-bold">{title}</ThemedText>
+                    <Text className="text-[15px] leading-6 font-bold text-foreground">{title}</Text>
                     {icon && <View>{icon}</View>}
                 </View>
             )}

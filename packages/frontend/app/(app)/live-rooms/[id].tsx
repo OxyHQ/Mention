@@ -1,17 +1,26 @@
 import React, { useEffect, useState, useCallback, useContext } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Share } from 'react-native';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { toast } from '@oxy.so/bloom/toast';
-
-import { ThemedText } from '@/components/ThemedText';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Avatar } from '@oxy.so/bloom/avatar';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  RiBroadcastLine,
+  RiCalendarLine,
+  RiCheckboxCircleLine,
+  RiFlagLine,
+  RiLogoutBoxRLine,
+  RiMoreFill,
+  RiPlayFill,
+  RiShareForwardLine,
+  RiStopFill,
+  RiTimeLine,
+} from '@oxy.so/bloom/icons';
+import { Item } from '@oxy.so/bloom/item';
 import { Loading } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Text as BloomText } from '@oxy.so/bloom/typography';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SEO } from '@/components/SEO';
 
@@ -57,7 +66,7 @@ const HostInfo = ({ hostId, oxyServices }: { hostId: string; oxyServices: FileUr
       <View className="flex-row items-center">
         <Avatar size={48} source={avatarUri} shape="squircle" />
         <View className="flex-1 ml-3">
-          <ThemedText type="defaultSemiBold">{displayName}</ThemedText>
+          <BloomText className="text-foreground text-base leading-6 font-semibold">{displayName}</BloomText>
           {profile?.username && (
             <Text className="text-sm mt-0.5 text-muted-foreground">@{profile.username}</Text>
           )}
@@ -68,9 +77,9 @@ const HostInfo = ({ hostId, oxyServices }: { hostId: string; oxyServices: FileUr
 };
 
 const SectionHeading = ({ children }: { children: React.ReactNode }) => (
-  <ThemedText type="defaultSemiBold" className="mb-3">
+  <BloomText className="text-foreground text-base leading-6 font-semibold mb-3">
     {children}
-  </ThemedText>
+  </BloomText>
 );
 
 const RoomDetailScreen = () => {
@@ -200,34 +209,30 @@ const RoomDetailScreen = () => {
     };
 
     const MenuContent = () => (
-      <View className="py-2 px-4">
-        <IconButton variant="icon" onPress={handleShare} className="w-full py-3.5">
-          <View className="flex-row items-center w-full gap-3.5">
-            <Ionicons name="share-outline" size={22} color={theme.colors.text} />
-            <Text className="text-foreground text-base font-medium">
-              {t('agora.shareRoom', { defaultValue: 'Share room' })}
-            </Text>
-          </View>
-        </IconButton>
+      <View className="py-2">
+        <Item
+          role="menuitem"
+          onPress={handleShare}
+          leading={<RiShareForwardLine width={22} height={22} fill={theme.colors.text} />}
+          title={t('agora.shareRoom', { defaultValue: 'Share room' })}
+        />
         {isJoined && !isHost && (
-          <IconButton variant="icon" onPress={handleLeave} className="w-full py-3.5">
-            <View className="flex-row items-center w-full gap-3.5">
-              <Ionicons name="exit-outline" size={22} color={theme.colors.error} />
-              <Text className="text-destructive text-base font-medium">
-                {t('agora.leaveRoom', { defaultValue: 'Leave room' })}
-              </Text>
-            </View>
-          </IconButton>
+          <Item
+            role="menuitem"
+            destructive
+            onPress={handleLeave}
+            leading={<RiLogoutBoxRLine width={22} height={22} fill={theme.colors.error} />}
+            title={t('agora.leaveRoom', { defaultValue: 'Leave room' })}
+          />
         )}
         {!isHost && (
-          <IconButton variant="icon" onPress={handleReport} className="w-full py-3.5">
-            <View className="flex-row items-center w-full gap-3.5">
-              <Ionicons name="flag-outline" size={22} color={theme.colors.error} />
-              <Text className="text-destructive text-base font-medium">
-                {t('agora.reportRoom', { defaultValue: 'Report room' })}
-              </Text>
-            </View>
-          </IconButton>
+          <Item
+            role="menuitem"
+            destructive
+            onPress={handleReport}
+            leading={<RiFlagLine width={22} height={22} fill={theme.colors.error} />}
+            title={t('agora.reportRoom', { defaultValue: 'Report room' })}
+          />
         )}
       </View>
     );
@@ -253,24 +258,22 @@ const RoomDetailScreen = () => {
         title={room?.title ?? t('agora.room')}
         description={room?.description || 'Join this room'}
       />
-      <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-        <Header
-          options={{
-            title: room ? '' : t('agora.room'),
-            leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                <BackArrowIcon size={20} className="text-foreground" />
-              </IconButton>,
-            ],
-            rightComponents: room
-              ? [
-                  <IconButton variant="icon" key="more" onPress={handleMoreOptions}>
-                    <Ionicons name="ellipsis-horizontal" size={24} color={theme.colors.text} />
-                  </IconButton>,
-                ]
-              : undefined,
-          }}
-          hideBottomBorder={false}
+      <View className="flex-1">
+        <PageHeader
+          title={room ? undefined : t('agora.room')}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
+          actions={
+            room ? (
+              <Button
+                variant="secondary"
+                iconOnly
+                leadingIcon={RiMoreFill}
+                accessibilityLabel={t('common.options', { defaultValue: 'Options' })}
+                onPress={handleMoreOptions}
+              />
+            ) : undefined
+          }
         />
 
         {loading ? (
@@ -304,7 +307,7 @@ const RoomDetailScreen = () => {
                 )}
                 {isScheduled && (
                   <View className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted">
-                    <Ionicons name="calendar-outline" size={14} color={theme.colors.text} />
+                    <RiCalendarLine width={14} height={14} fill={theme.colors.text} />
                     <Text className="text-xs font-bold text-foreground">SCHEDULED</Text>
                   </View>
                 )}
@@ -317,9 +320,9 @@ const RoomDetailScreen = () => {
 
               {/* Title and description */}
               <View className="px-4 pt-4">
-                <ThemedText type="subtitle" className="mb-2">
+                <BloomText className="text-foreground text-xl font-bold mb-2">
                   {room.title}
-                </ThemedText>
+                </BloomText>
                 {room.topic && (
                   <Text className="text-base mb-2 text-muted-foreground">{room.topic}</Text>
                 )}
@@ -381,16 +384,16 @@ const RoomDetailScreen = () => {
               {room.stats && (
                 <View className="mx-4 mt-6 flex-row items-center rounded-xl border border-border bg-card p-4">
                   <View className="flex-1 items-center">
-                    <ThemedText type="defaultSemiBold" className="text-2xl">
+                    <BloomText className="text-foreground text-2xl font-semibold">
                       {room.stats.peakListeners || 0}
-                    </ThemedText>
+                    </BloomText>
                     <Text className="text-[13px] mt-1 text-muted-foreground">Peak listeners</Text>
                   </View>
                   <View className="w-px h-10 mx-4 bg-border" />
                   <View className="flex-1 items-center">
-                    <ThemedText type="defaultSemiBold" className="text-2xl">
+                    <BloomText className="text-foreground text-2xl font-semibold">
                       {room.stats.totalJoined || 0}
-                    </ThemedText>
+                    </BloomText>
                     <Text className="text-[13px] mt-1 text-muted-foreground">Total joined</Text>
                   </View>
                 </View>
@@ -398,7 +401,7 @@ const RoomDetailScreen = () => {
             </ScrollView>
 
             {/* Actions — a live host gets Join + End side by side, hence the row. */}
-            <View className="absolute bottom-0 left-0 right-0 flex-row gap-2 px-4 py-3 bg-background border-t border-border">
+            <View className="absolute bottom-0 left-0 right-0 flex-row gap-2 px-4 py-3 bg-card border-t border-border">
               {isLive && (
                 <TouchableOpacity
                   className="flex-1 flex-row items-center justify-center gap-2 py-3.5 rounded-3xl bg-primary"
@@ -406,7 +409,7 @@ const RoomDetailScreen = () => {
                   onPress={() => joinLiveRoom(id)}
                   disabled={actionLoading}
                 >
-                  <Ionicons name="radio" size={20} color={theme.colors.primaryForeground} />
+                  <RiBroadcastLine width={20} height={20} fill={theme.colors.primaryForeground} />
                   <Text className="text-base font-semibold text-primary-foreground">Join Live</Text>
                 </TouchableOpacity>
               )}
@@ -417,13 +420,13 @@ const RoomDetailScreen = () => {
                   onPress={handleStartRoom}
                   disabled={actionLoading}
                 >
-                  <Ionicons name="play" size={20} color={theme.colors.primaryForeground} />
+                  <RiPlayFill width={20} height={20} fill={theme.colors.primaryForeground} />
                   <Text className="text-base font-semibold text-primary-foreground">Start Room</Text>
                 </TouchableOpacity>
               )}
               {!isHost && isScheduled && (
                 <View className="flex-1 flex-row items-center justify-center gap-2 py-3.5 rounded-3xl bg-muted">
-                  <Ionicons name="time-outline" size={20} color={theme.colors.textSecondary} />
+                  <RiTimeLine width={20} height={20} fill={theme.colors.textSecondary} />
                   <Text className="text-base font-semibold text-muted-foreground">
                     Room not started yet
                   </Text>
@@ -439,13 +442,13 @@ const RoomDetailScreen = () => {
                   onPress={handleEndRoom}
                   disabled={actionLoading}
                 >
-                  <Ionicons name="stop" size={20} color={LIVE_INDICATOR_FOREGROUND_COLOR} />
+                  <RiStopFill width={20} height={20} fill={LIVE_INDICATOR_FOREGROUND_COLOR} />
                   <Text className="text-base font-semibold text-white">End Room</Text>
                 </TouchableOpacity>
               )}
               {isEnded && (
                 <View className="flex-1 flex-row items-center justify-center gap-2 py-3.5 rounded-3xl bg-muted">
-                  <Ionicons name="checkmark-done" size={20} color={theme.colors.textSecondary} />
+                  <RiCheckboxCircleLine width={20} height={20} fill={theme.colors.textSecondary} />
                   <Text className="text-base font-semibold text-muted-foreground">
                     This room has ended
                   </Text>
@@ -454,7 +457,7 @@ const RoomDetailScreen = () => {
             </View>
           </>
         )}
-      </SafeAreaView>
+      </View>
     </>
   );
 };

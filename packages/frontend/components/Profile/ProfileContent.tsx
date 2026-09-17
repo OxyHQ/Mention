@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, Text, StyleSheet, type LayoutChangeEvent } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons';
 import { useTranslation } from 'react-i18next';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { ProfileStats } from './ProfileStats';
@@ -64,7 +64,7 @@ export const ProfileContent = memo(function ProfileContent({
 
   return (
     <View
-      className="bg-background"
+      className="bg-card"
       style={{
         paddingHorizontal: LAYOUT.DEFAULT_PADDING,
         paddingBottom: LAYOUT.DEFAULT_PADDING,
@@ -117,7 +117,7 @@ export const ProfileContent = memo(function ProfileContent({
                 style={{ fontSize: 14, flex: 1 }}
               />
               {field.verifiedAt && (
-                <Ionicons name="checkmark-circle" size={14} color="#2ecc71" />
+                <RiCheckboxCircleFill width={14} fill="#2ecc71" />
               )}
             </View>
           ))}

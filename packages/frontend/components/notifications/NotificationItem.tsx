@@ -8,6 +8,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
+import { RiCheckboxCircleFill, RiCloseCircleLine } from '@oxy.so/bloom/icons';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
@@ -529,7 +530,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
     });
 
     bottomSheet.setBottomSheetContent(
-      <View className="bg-background p-4">
+      <View className="bg-card p-4">
         {rows.map((row, index) => (
           <NotificationActionRow
             key={row.key}
@@ -647,7 +648,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   // get the same subtle primary tint the feed uses for emphasis.
   return (
     <Pressable
-      className={cn('group w-full bg-background border-b border-border py-3', hasUnread && 'bg-primary/5')}
+      className={cn('group w-full bg-card border-b border-border py-3', hasUnread && 'bg-primary/5')}
       onPress={handlePress}
       onLongPress={handleLongPress}
       accessibilityRole="button"
@@ -779,7 +780,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
 
             {isCollabInvite && collabAccepted ? (
               <View className="flex-row items-center gap-1.5 mt-1">
-                <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />
+                <RiCheckboxCircleFill width={16} height={16} fill={theme.colors.success} />
                 <Text className="text-muted-foreground text-[15px] leading-5">
                   {t('collab.youAccepted', { defaultValue: 'You accepted' })}
                 </Text>
@@ -788,7 +789,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
 
             {isCollabInvite && collabDeclined ? (
               <View className="flex-row items-center gap-1.5 mt-1">
-                <Ionicons name="close-circle" size={16} color={theme.colors.textSecondary} />
+                <RiCloseCircleLine width={16} height={16} fill={theme.colors.textSecondary} />
                 <Text className="text-muted-foreground text-[15px] leading-5">
                   {t('collab.youDeclined', { defaultValue: 'You declined' })}
                 </Text>

@@ -9,6 +9,7 @@ import { Chip } from '@oxy.so/bloom/chip';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { Item } from '@oxy.so/bloom/item';
 import { Loading } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { SegmentedControl, SegmentedControlItem, SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
@@ -28,10 +29,6 @@ import {
   type MentionJobSalaryInterval,
   type MentionJobWorkplaceType,
 } from '@mention/shared-types';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { jobsService, getJobErrorMessage, isJobEntitlementError } from '@/services/jobsService';
@@ -282,18 +279,11 @@ export default function CreateJobScreen() {
   const publishingIntent = createMutation.variables?.publish === true;
 
   return (
-    <ThemedView className="flex-1">
-      <Header
-        options={{
-          title: t('jobs.create.title', { defaultValue: 'Create job' }),
-          leftComponents: [
-            <IconButton key="back" variant="icon" onPress={safeBack}>
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder
-        disableSticky
+    <View className="flex-1">
+      <PageHeader
+        title={t('jobs.create.title', { defaultValue: 'Create job' })}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
       />
 
       <ScrollView contentContainerClassName="px-4 pb-16 pt-2" keyboardShouldPersistTaps="handled">
@@ -301,7 +291,7 @@ export default function CreateJobScreen() {
         <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
           {t('jobs.create.employer', { defaultValue: 'Publish as' })}
         </Text>
-        <View className="border border-border rounded-[14px] overflow-hidden bg-background">
+        <View className="border border-border rounded-[14px] overflow-hidden bg-card">
           <Item
             onPress={() => setEmployerPickerOpen(true)}
             leading={
@@ -596,6 +586,6 @@ export default function CreateJobScreen() {
           </View>
         ) : null}
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }

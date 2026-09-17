@@ -21,7 +21,7 @@ import PostHeader from '../PostHeader';
  * the nested pair this test exists to forbid.
  */
 
-jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
+jest.mock('@oxy.so/bloom/icons', () => ({ RiChat3Fill: 'RiChat3Fill', RiMoreFill: 'RiMoreFill' }));
 jest.mock('@/components/ui/LiveAvatar', () => ({ LiveAvatar: 'LiveAvatar' }));
 jest.mock('@oxy.so/bloom/avatar-group', () => ({ AvatarGroup: 'AvatarGroup' }));
 jest.mock('../../UserName', () => ({ __esModule: true, default: 'UserName' }));

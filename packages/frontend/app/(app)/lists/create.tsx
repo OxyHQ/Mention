@@ -1,9 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch, Platform } from 'react-native';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
@@ -74,21 +71,11 @@ export default function CreateListScreen() {
   }, [title, description, isPublic, members]);
 
   return (
-    <ThemedView className="flex-1">
-      <Header
-        options={{
-          title: t('lists.create.title'),
-          leftComponents: [
-            <IconButton variant="icon"
-              key="back"
-              onPress={() => safeBack()}
-            >
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder={true}
-        disableSticky={true}
+    <View className="flex-1">
+      <PageHeader
+        title={t('lists.create.title')}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
       />
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <Text className="text-sm text-muted-foreground mb-1.5 font-primary">{t('lists.create.titleLabel')}</Text>
@@ -96,7 +83,7 @@ export default function CreateListScreen() {
           value={title}
           onChangeText={setTitle}
           placeholder={t('lists.create.titlePlaceholder')}
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-background font-primary"
+          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
           style={styles.input}
         />
 
@@ -105,7 +92,7 @@ export default function CreateListScreen() {
           value={description}
           onChangeText={setDescription}
           placeholder={t('lists.create.descriptionPlaceholder')}
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-background font-primary h-20"
+          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary h-20"
           style={styles.input}
           multiline
         />
@@ -120,7 +107,7 @@ export default function CreateListScreen() {
           value={search}
           onChangeText={doSearch}
           placeholder={t('lists.create.searchUsersPlaceholder')}
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-background font-primary"
+          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
           style={styles.input}
         />
 
@@ -160,7 +147,7 @@ export default function CreateListScreen() {
           <Text className="text-primary-foreground font-bold font-primary">{saving ? t('lists.create.saving') : t('lists.create.createButton')}</Text>
         </TouchableOpacity>
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }
 

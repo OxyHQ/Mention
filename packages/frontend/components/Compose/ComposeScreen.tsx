@@ -21,7 +21,6 @@ import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type AccountNode, type FileMetadata } from '@oxy.so/core';
 import { StatusBar } from 'expo-status-bar';
 import * as ExpoLocation from 'expo-location';
-import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useQueryClient } from '@tanstack/react-query';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -46,12 +45,20 @@ import { useHaptics } from '@oxy.so/bloom/hooks';
 import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
 import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { SEO } from '@/components/SEO';
-import { IconButton } from '@/components/ui/Button';
-import { Header } from '@/components/Header';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  RiAlertFill,
+  RiAlertLine,
+  RiArrowDownSLine,
+  RiArrowLeftLine,
+  RiDeleteBinLine,
+  RiEarthLine,
+  RiGlobalLine,
+  RiGroupLine,
+  RiMoreFill,
+} from '@oxy.so/bloom/icons';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { DraftsIcon } from '@/assets/icons/drafts';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { DotIcon } from '@/assets/icons/dot-icon';
-import { TrashIcon } from '@/assets/icons/trash-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
@@ -1824,6 +1831,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     () => anyoneCanInteract ? t('Anyone can interact') : t('Interaction limited'),
     [anyoneCanInteract, t],
   );
+  const InteractionIcon = anyoneCanInteract ? RiEarthLine : RiGroupLine;
+  const SensitiveIcon = isSensitive ? RiAlertFill : RiAlertLine;
 
   const [isReplySettingsOpen, setIsReplySettingsOpen] = useState(false);
 
@@ -2453,12 +2462,13 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         title={tCompose('seo.compose.title')}
         description={tCompose('seo.compose.description')}
       />
-      {/* `bg-background` is not decoration: the top inset is this view's own
+      {/* `bg-card` is not decoration: the top inset is this view's own
           padding, and without a colour it shows the window background — a WHITE
           band above the composer on Android, with the light status-bar icons
-          below invisible against it. The two SafeAreaViews further down (the
-          signed-out and loading states) already paint it. */}
-      <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+          below invisible against it. The loading state's SafeAreaView further
+          down paints it too; the signed-out state's PageHeader pads and paints
+          the inset itself. */}
+      <SafeAreaView className="flex-1 bg-card" edges={['top']}>
         <StatusBar style="light" />
 
         <KeyboardAvoidingView
@@ -2466,12 +2476,15 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           style={styles.composeArea}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
-          <ThemedView style={{ flex: 1 }}>
+          <View style={{ flex: 1 }}>
 
             {/* Header */}
-            <View className="bg-background border-border" style={styles.header}>
+            <View className="bg-card border-border" style={styles.header}>
               {presentation === 'pushed' ? (
-                <IconButton variant="icon"
+                <Button
+                  variant="secondary"
+                  iconOnly
+                  leadingIcon={RiArrowLeftLine}
                   onPress={() => {
                     const hasContent =
                       postContent.trim().length > 0 ||
@@ -2493,22 +2506,24 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   }}
                   style={styles.backBtn}
                   accessibilityLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}
-                >
-                  <BackArrowIcon size={20} className="text-foreground" />
-                </IconButton>
+                />
               ) : null}
               <Text className="text-foreground" style={[styles.headerTitle, { pointerEvents: 'none' }]}>{isEditMode ? t('Edit post') : replyToPostId ? t('Reply') : t('New post')}</Text>
               <View style={styles.headerIcons}>
-                <IconButton variant="icon"
+                <Button
+                  variant="secondary"
+                  iconOnly
+                  leadingIcon={RiMoreFill}
                   style={styles.iconBtn}
                   onPress={() => setShowModeToggle(!showModeToggle)}
                   accessibilityLabel={showModeToggle
                     ? t('compose.hideModeOptions.a11y', { defaultValue: 'Hide posting mode options' })
                     : t('compose.showModeOptions.a11y', { defaultValue: 'Show posting mode options' })}
-                >
-                  <DotIcon size={20} className="text-foreground" />
-                </IconButton>
-                <IconButton variant="icon"
+                />
+                <Button
+                  variant="secondary"
+                  iconOnly
+                  icon={<DraftsIcon size={20} color={theme.colors.text} />}
                   style={styles.iconBtn}
                   onPress={() => {
                     bottomSheet.setBottomSheetContent(
@@ -2523,16 +2538,15 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     bottomSheet.openBottomSheet(true);
                   }}
                   accessibilityLabel={t('compose.openDrafts.a11y', { defaultValue: 'Open drafts and scheduled posts' })}
-                >
-                  <DraftsIcon size={20} className="text-foreground" />
-                </IconButton>
-                <IconButton variant="icon"
+                />
+                <Button
+                  variant="secondary"
+                  iconOnly
+                  leadingIcon={RiDeleteBinLine}
                   style={styles.iconBtn}
                   onPress={() => clearAllControl.open()}
                   accessibilityLabel={t('compose.clearAll.a11y', { defaultValue: 'Clear all content' })}
-                >
-                  <TrashIcon size={20} className="text-foreground" />
-                </IconButton>
+                />
               </View>
             </View>
 
@@ -2680,7 +2694,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                   onPress={focusPollCreator}
                                 >
                                   <View style={styles.pollAttachmentHeader}>
-                                    <View className="bg-background" style={styles.pollAttachmentBadge}>
+                                    <View className="bg-card" style={styles.pollAttachmentBadge}>
                                       <PollIcon size={16} className="text-primary" />
                                       <Text className="text-primary" style={styles.pollAttachmentBadgeText}>
                                         {t('compose.poll.title', { defaultValue: 'Poll' })}
@@ -2707,7 +2721,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                                       return (
                                         <View
                                           key={`poll-opt-${optionIndex}`}
-                                          className="border-border bg-background" style={styles.pollAttachmentOption}
+                                          className="border-border bg-card" style={styles.pollAttachmentOption}
                                         >
                                           <Text className="text-muted-foreground" style={styles.pollAttachmentOptionText} numberOfLines={1}>
                                             {trimmed || t('compose.poll.optionPlaceholder', { defaultValue: 'Option {{index}}', index: optionIndex + 1 })}
@@ -3321,7 +3335,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     ? formatScheduledShort(scheduledAt)
                     : t('compose.schedule.now', { defaultValue: 'Now' })}
                 </Text>
-                <Ionicons name="chevron-down" size={12} color={theme.colors.textTertiary} />
+                <RiArrowDownSLine size="xs" fill={theme.colors.textTertiary} />
               </TouchableOpacity>
               {/* WHAT LANGUAGE everything written here is in — the same kind of
                   whole-batch decision as the two beside it, and the reason the
@@ -3338,7 +3352,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 })}
                 style={[styles.replySettingsPill, { backgroundColor: theme.colors.backgroundSecondary }]}
               >
-                <Ionicons name="language-outline" size={16} color={theme.colors.textSecondary} />
+                <RiGlobalLine size="sm" fill={theme.colors.textSecondary} />
                 <Text
                   numberOfLines={1}
                   style={[styles.replySettingsText, { color: theme.colors.textSecondary }]}
@@ -3347,7 +3361,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     ? `${describeContentLanguage(activeTag).nativeName} +${variants.variantTags.length}`
                     : describeContentLanguage(activeTag).nativeName}
                 </Text>
-                <Ionicons name="chevron-down" size={12} color={theme.colors.textTertiary} />
+                <RiArrowDownSLine size="xs" fill={theme.colors.textTertiary} />
               </TouchableOpacity>
               {!(postingMode === 'beast' && threadItems.length > 0) && (
                 <>
@@ -3356,32 +3370,23 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     activeOpacity={0.7}
                     style={[styles.replySettingsPill, { backgroundColor: theme.colors.backgroundSecondary }]}
                   >
-                    <Ionicons
-                      name={anyoneCanInteract ? 'earth-outline' : 'people-outline'}
-                      size={16}
-                      color={theme.colors.textSecondary}
-                    />
+                    <InteractionIcon size="sm" fill={theme.colors.textSecondary} />
                     <Text
                       numberOfLines={1}
                       style={[styles.replySettingsText, { color: theme.colors.textSecondary }]}
                     >
                       {interactionLabel}
                     </Text>
-                    <Ionicons
-                      name="chevron-down"
-                      size={12}
-                      color={theme.colors.textTertiary}
-                    />
+                    <RiArrowDownSLine size="xs" fill={theme.colors.textTertiary} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={handleSensitiveToggle}
                     activeOpacity={0.7}
                     style={styles.sensitiveToggle}
                   >
-                    <Ionicons
-                      name={isSensitive ? 'warning' : 'warning-outline'}
-                      size={16}
-                      color={isSensitive ? theme.colors.error : theme.colors.textSecondary}
+                    <SensitiveIcon
+                      size="sm"
+                      fill={isSensitive ? theme.colors.error : theme.colors.textSecondary}
                     />
                     <Text style={[
                       styles.bottomText,
@@ -3394,7 +3399,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                 </>
               )}
             </ScrollView>
-          </ThemedView>
+          </View>
         </KeyboardAvoidingView>
 
         {/* Floating character counter */}
@@ -3668,41 +3673,27 @@ const ComposeScreen = ({ presentation = 'pushed' }: ComposeScreenProps) => {
 
   if (!isAuthResolved || isPrivateApiPending) {
     return (
-      <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-        <ThemedView className="flex-1 items-center justify-center">
+      <SafeAreaView className="flex-1 bg-card" edges={['top']}>
+        <View className="flex-1 items-center justify-center">
           <Loading />
-        </ThemedView>
+        </View>
       </SafeAreaView>
     );
   }
 
   if (!canUsePrivateApi) {
     return (
-      <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-        <ThemedView className="flex-1">
-          <Header
-            options={{
-              title: t('New post'),
-              leftComponents: presentation === 'pushed' ? [
-                <IconButton
-                  variant="icon"
-                  key="back"
-                  onPress={() => dismiss()}
-                  accessibilityLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}
-                >
-                  <BackArrowIcon size={20} className="text-foreground" />
-                </IconButton>,
-              ] : [],
-            }}
-            hideBottomBorder
-            disableSticky
-          />
-          <OxyAuthPrompt
-            label={t('compose.signInRequired', { defaultValue: 'Sign in to post' })}
-            description={t('compose.signInRequiredDesc', { defaultValue: 'You need to be signed in to write and publish a post.' })}
-          />
-        </ThemedView>
-      </SafeAreaView>
+      <View className="flex-1">
+        <PageHeader
+          title={t('New post')}
+          onBack={presentation === 'pushed' ? () => dismiss() : undefined}
+          backLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}
+        />
+        <OxyAuthPrompt
+          label={t('compose.signInRequired', { defaultValue: 'Sign in to post' })}
+          description={t('compose.signInRequiredDesc', { defaultValue: 'You need to be signed in to write and publish a post.' })}
+        />
+      </View>
     );
   }
 

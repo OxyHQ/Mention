@@ -2,8 +2,16 @@ import React, { memo, useCallback, useState } from 'react';
 import { Pressable, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Badge } from '@oxy.so/bloom/badge';
+import {
+  RiBookmarkFill,
+  RiBookmarkLine,
+  RiCheckboxCircleFill,
+  RiFlagLine,
+  RiGlobalLine,
+  RiLoader4Line,
+  RiShareForwardLine,
+} from '@oxy.so/bloom/icons';
 import { Item } from '@oxy.so/bloom/item';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
@@ -102,6 +110,7 @@ const ExternalJobReportSheet = memo(function ExternalJobReportSheet({
   onClose,
 }: ExternalJobReportSheetProps) {
   const { t } = useTranslation();
+  const theme = useTheme();
   const [submitting, setSubmitting] = useState<JobReportReason | null>(null);
 
   const submit = useCallback(
@@ -136,7 +145,11 @@ const ExternalJobReportSheet = memo(function ExternalJobReportSheet({
           key={reason}
           title={REPORT_REASON_LABELS[reason]}
           onPress={() => void submit(reason)}
-          trailing={submitting === reason ? <Ionicons name="hourglass-outline" size={16} /> : undefined}
+          trailing={
+            submitting === reason ? (
+              <RiLoader4Line width={16} height={16} fill={theme.colors.textSecondary} />
+            ) : undefined
+          }
         />
       ))}
     </View>
@@ -202,7 +215,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
   return (
     <Pressable
       onPress={open}
-      className="mx-4 mb-3 border border-border bg-background rounded-[14px] p-4"
+      className="mx-4 mb-3 border border-border bg-card rounded-[14px] p-4"
       accessibilityRole="button"
       accessibilityLabel={job.title}
     >
@@ -225,11 +238,11 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
               : t('jobs.discovery.save', { defaultValue: 'Save job' })
           }
         >
-          <Ionicons
-            name={isSaved ? 'bookmark' : 'bookmark-outline'}
-            size={20}
-            color={isSaved ? theme.colors.primary : theme.colors.textSecondary}
-          />
+          {isSaved ? (
+            <RiBookmarkFill width={20} height={20} fill={theme.colors.primary} />
+          ) : (
+            <RiBookmarkLine width={20} height={20} fill={theme.colors.textSecondary} />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -256,11 +269,11 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
           routes. */}
       <View className="flex-row items-center justify-between mt-3 pt-3 border-t border-border">
         <View className="flex-1 flex-row items-center gap-1.5">
-          <Ionicons
-            name={appPath ? 'checkmark-circle' : 'globe-outline'}
-            size={14}
-            color={appPath ? theme.colors.primary : theme.colors.textTertiary}
-          />
+          {appPath ? (
+            <RiCheckboxCircleFill width={14} height={14} fill={theme.colors.primary} />
+          ) : (
+            <RiGlobalLine width={14} height={14} fill={theme.colors.textTertiary} />
+          )}
           <Text className="text-muted-foreground text-[12px]" numberOfLines={1}>
             {appPath
               ? t('jobs.discovery.onMention', { defaultValue: 'On Mention' })
@@ -273,7 +286,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
         </View>
         <View className="flex-row items-center gap-3">
           <TouchableOpacity onPress={share} hitSlop={HIT_SLOP_MD} accessibilityRole="button" accessibilityLabel={t('jobs.detail.share', { defaultValue: 'Share' })}>
-            <Ionicons name="share-outline" size={16} color={theme.colors.textSecondary} />
+            <RiShareForwardLine width={16} height={16} fill={theme.colors.textSecondary} />
           </TouchableOpacity>
           {!appPath ? (
             <TouchableOpacity
@@ -282,7 +295,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
               accessibilityRole="button"
               accessibilityLabel={t('jobs.discovery.report', { defaultValue: 'Report' })}
             >
-              <Ionicons name="flag-outline" size={16} color={theme.colors.textSecondary} />
+              <RiFlagLine width={16} height={16} fill={theme.colors.textSecondary} />
             </TouchableOpacity>
           ) : null}
         </View>
