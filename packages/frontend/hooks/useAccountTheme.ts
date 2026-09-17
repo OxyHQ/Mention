@@ -115,23 +115,22 @@ interface ThemeControls {
  * other Oxy apps pick it up on their next session load.
  */
 export function useThemeControls(): ThemeControls {
-  const { oxyServices, user, isAuthenticated } = useAuth();
+  const { oxyServices, user, canUsePrivateApi } = useAuth();
   const { mode, colorPreset, setMode, setColorPreset } = useBloomTheme();
-  const source = useThemeSourceStore((state) => state.source);
+  const storedSource = useThemeSourceStore((state) => state.source);
   const setSource = useThemeSourceStore((state) => state.setSource);
+  // Without a usable session there is no account theme to follow or write to, so
+  // the effective source is `app`: changes stay local and the sync toggle reads
+  // off. The stored choice is untouched and applies again once signed in.
+  const source: ThemeSource = canUsePrivateApi ? storedSource : 'app';
 
-  // Signed out there is no account to write to: the change stays local, exactly
-  // as under the `app` source. Calling through anyway rejected with
-  // AUTH_REQUIRED_OFFLINE_SESSION the moment the appearance screen set its mode.
   const persistAccountTheme = useCallback(
-    async (next: { mode: ThemeMode; colorPreset: AppColorName }) => {
-      if (!isAuthenticated) return;
-      await oxyServices.updateThemePreference({
+    (next: { mode: ThemeMode; colorPreset: AppColorName }) =>
+      oxyServices.updateThemePreference({
         mode: toPortableMode(next.mode),
         colorPreset: next.colorPreset,
-      });
-    },
-    [oxyServices, isAuthenticated],
+      }),
+    [oxyServices],
   );
 
   const changeThemeMode = useCallback(
@@ -157,7 +156,7 @@ export function useThemeControls(): ThemeControls {
   const changeThemeSource = useCallback(
     (nextSource: ThemeSource) => {
       setSource(nextSource);
-      if (nextSource !== 'account') return;
+      if (nextSource !== 'account' || !canUsePrivateApi) return;
       // An existing account theme is applied by `useAccountThemeSync` (its effect
       // re-runs on the source change). Only when none exists yet do we seed it
       // from the current app theme so enabling sync captures what the user sees.
@@ -166,7 +165,7 @@ export function useThemeControls(): ThemeControls {
         void persistAccountTheme({ mode, colorPreset });
       }
     },
-    [setSource, user?.themePreference, persistAccountTheme, mode, colorPreset],
+    [setSource, canUsePrivateApi, user?.themePreference, persistAccountTheme, mode, colorPreset],
   );
 
   return { source, changeThemeSource, changeThemeMode, changeColorPreset };

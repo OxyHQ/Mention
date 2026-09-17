@@ -144,10 +144,12 @@ export default function PrivacySettingsScreen() {
         return t('settings.privacy.public');
     };
 
+    const header = <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />;
+
     if (!isAuthResolved || isPrivateApiPending) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <View className="flex-1 items-center justify-center">
                     <Loading />
                 </View>
@@ -158,7 +160,7 @@ export default function PrivacySettingsScreen() {
     if (!canUsePrivateApi) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <OxyAuthPrompt
                     label={t('settings.privacy.signInRequired', { defaultValue: 'Sign in to manage your privacy settings' })}
                     description={t('settings.privacy.signInRequiredDesc', { defaultValue: 'Control who can see your profile, mention you, and more.' })}
@@ -170,7 +172,7 @@ export default function PrivacySettingsScreen() {
     if (loading) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -180,7 +182,7 @@ export default function PrivacySettingsScreen() {
 
     return (
         <View className="flex-1">
-            <PageHeader title={t('settings.privacy.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+            {header}
 
             <ScrollView
                 className="flex-1"

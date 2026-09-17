@@ -99,10 +99,12 @@ export default function FeedSettingsScreen() {
     }
   }, [save, t]);
 
+  const header = <PageHeader title={t('settings.feed.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} actions={isSaving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />;
+
   if (!isAuthenticated) {
     return (
       <View className="flex-1">
-        <PageHeader title={t('settings.feed.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+        {header}
         <OxyAuthPrompt
           label={t('settings.feed.signInRequired', { defaultValue: 'Sign in to customize your feed' })}
           description={t('settings.feed.signInRequiredDesc', { defaultValue: 'Tune the algorithm, diversity, and recency to your taste.' })}
@@ -114,7 +116,7 @@ export default function FeedSettingsScreen() {
   if (isLoading) {
     return (
       <View className="flex-1">
-        <PageHeader title={t('settings.feed.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+        {header}
         <View className="flex-1 justify-center items-center">
           <Loading className="text-primary" size="large" />
         </View>
@@ -124,7 +126,7 @@ export default function FeedSettingsScreen() {
 
   return (
     <View className="flex-1">
-      <PageHeader title={t('settings.feed.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} actions={isSaving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />
+      {header}
 
       <ScrollView
         className="flex-1"

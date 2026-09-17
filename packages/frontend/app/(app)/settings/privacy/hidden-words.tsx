@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RiAddCircleLine, RiEyeOffLine, RiFontSize, RiHashtag, RiInformationFill } from '@oxy.so/bloom/icons';
+import { RiAddCircleLine, RiEyeOffLine, RiFontSize, RiHashtag } from '@oxy.so/bloom/icons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -23,6 +23,8 @@ import {
 } from '@/services/muteWordsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { invalidateSafetyFilters } from '@/stores/safetyInvalidation';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { RowIcon } from '@/components/settings/RowIcon';
 
 const hiddenWordsLogger = createLogger('HiddenWords');
 
@@ -139,21 +141,18 @@ export default function HiddenWordsScreen() {
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
             >
-                <SettingsListGroup variant="filled">
-                    <View className="px-4 py-3.5 flex-row items-center gap-3">
-                        <RiInformationFill width={20} height={20} fill={colors.primary} />
-                        <Text className="flex-1 text-[13px] text-foreground">
-                            {t('settings.privacy.hiddenWordsDescription', {
-                                defaultValue:
-                                    'Posts containing these words or hashtags are hidden from your feeds. Start an entry with # to mute a hashtag.',
-                            })}
-                        </Text>
-                    </View>
-                </SettingsListGroup>
+                <View className="mb-4">
+                    <Admonition type="info">
+                        {t('settings.privacy.hiddenWordsDescription', {
+                            defaultValue:
+                                'Posts containing these words or hashtags are hidden from your feeds. Start an entry with # to mute a hashtag.',
+                        })}
+                    </Admonition>
+                </View>
 
                 <SettingsListGroup variant="filled" title={t('settings.privacy.addMutedWord', { defaultValue: 'Add a word or hashtag' })}>
                     <View className="px-4 py-3 flex-row items-center gap-3">
-                        <RiEyeOffLine width={20} height={20} fill={colors.textSecondary} />
+                        <RiEyeOffLine size="md" fill={colors.textSecondary} />
                         <TextInput
                             className="flex-1 text-[15px] text-foreground"
                             placeholder={t('settings.privacy.addWordPlaceholder', {
@@ -222,13 +221,7 @@ export default function HiddenWordsScreen() {
                             return (
                                 <SettingsListItem
                                     key={word.id}
-                                    icon={
-                                        isHashtag ? (
-                                            <RiHashtag width={20} height={20} fill={colors.textSecondary} />
-                                        ) : (
-                                            <RiFontSize width={20} height={20} fill={colors.textSecondary} />
-                                        )
-                                    }
+                                    icon={<RowIcon icon={isHashtag ? RiHashtag : RiFontSize} />}
                                     title={muteWordDisplayValue(word)}
                                     description={
                                         isHashtag

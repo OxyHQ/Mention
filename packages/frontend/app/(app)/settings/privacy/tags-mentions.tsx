@@ -69,10 +69,12 @@ export default function TagsMentionsScreen() {
         }
     };
 
+    const header = <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />;
+
     if (!isAuthResolved || isPrivateApiPending) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <View className="flex-1 items-center justify-center">
                     <Loading />
                 </View>
@@ -83,7 +85,7 @@ export default function TagsMentionsScreen() {
     if (!canUsePrivateApi) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <OxyAuthPrompt
                     label={t('settings.privacy.tagsMentions.signInRequired', { defaultValue: 'Sign in to manage tags and mentions' })}
                     description={t('settings.privacy.tagsMentions.signInRequiredDesc', { defaultValue: 'Control who can tag or mention you in posts.' })}
@@ -95,7 +97,7 @@ export default function TagsMentionsScreen() {
     if (loading) {
         return (
             <View className="flex-1">
-                <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+                {header}
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -105,7 +107,7 @@ export default function TagsMentionsScreen() {
 
     return (
         <View className="flex-1">
-            <PageHeader title={t('settings.privacy.tagsAndMentions')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
+            {header}
 
             <ScrollView
                 className="flex-1"

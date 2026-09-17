@@ -1,5 +1,5 @@
 import React from 'react';
-import { RiGitMergeLine, RiInformationFill } from '@oxy.so/bloom/icons';
+import { RiGitMergeLine } from '@oxy.so/bloom/icons';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -18,6 +18,8 @@ import { getErrorMessage } from '@/utils/apiError';
 import { lanesService } from '@/services/lanesService';
 import { noteLaneListsChanged } from '@/stores/laneInvalidation';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { Admonition } from '@oxy.so/bloom/admonition';
+import { RowIcon } from '@/components/settings/RowIcon';
 
 const mutedLanesLogger = createLogger('MutedLanes');
 
@@ -93,16 +95,13 @@ export default function MutedLanesScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup variant="filled">
-                    <View className="px-4 py-3.5 flex-row items-center gap-3">
-                        <RiInformationFill width={20} height={20} fill={colors.primary} />
-                        <Text className="flex-1 text-[13px] text-foreground">
-                            {t('lanes.muted.description', {
-                                defaultValue: 'A muted lane stops appearing in your feeds. You keep following its author, and everything else they post still reaches you.',
-                            })}
-                        </Text>
-                    </View>
-                </SettingsListGroup>
+                <View className="mb-4">
+                    <Admonition type="info">
+                        {t('lanes.muted.description', {
+                            defaultValue: 'A muted lane stops appearing in your feeds. You keep following its author, and everything else they post still reaches you.',
+                        })}
+                    </Admonition>
+                </View>
 
                 <SettingsListGroup variant="filled" title={t('lanes.muted.title', { defaultValue: 'Muted lanes' })}>
                     {isLoading ? (
@@ -139,7 +138,7 @@ export default function MutedLanesScreen() {
                             return (
                                 <SettingsListItem
                                     key={entry.lane.id}
-                                    icon={<RiGitMergeLine width={20} height={20} fill={colors.textSecondary} />}
+                                    icon={<RowIcon icon={RiGitMergeLine} />}
                                     title={entry.lane.name}
                                     description={handle ? `@${handle}` : undefined}
                                     showChevron={false}
