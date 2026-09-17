@@ -3,7 +3,6 @@ import { ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import type { CommunityNoteRating, CommunityNoteSummary, HydratedPostSummary } from '@mention/shared-types';
-import { ThemedView } from '@/components/ThemedView';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { EmptyState } from '@/components/common/EmptyState';
 import PostItem from '@/components/Feed/PostItem';
@@ -61,7 +60,7 @@ export function CommunityNotesScreen({ toRate, rated, written, handlers }: Commu
   }[tab];
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1">
       <PageHeader
         title={t('communityNotes.hub.title', { defaultValue: 'Community notes' })}
         onBack={() => safeBack()}
@@ -112,6 +111,6 @@ export function CommunityNotesScreen({ toRate, rated, written, handlers }: Commu
           ))
         )}
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }
