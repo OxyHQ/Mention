@@ -80,9 +80,13 @@ const PlaceSearchDialog = memo(function PlaceSearchDialog({
   const [debounced, setDebounced] = useState('');
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebounced(query.trim()), PLACE_SEARCH_DEBOUNCE_MS);
+    const next = query.trim();
+    // Nothing to debounce (the dialog is mounted closed, or was just cleared):
+    // scheduling a timer anyway would update state on a picker nobody opened.
+    if (next === debounced) return;
+    const timer = setTimeout(() => setDebounced(next), PLACE_SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, debounced]);
 
   const enabled = open && debounced.length >= MIN_PLACE_QUERY_LENGTH;
   const { data, isFetching, isError } = useQuery({

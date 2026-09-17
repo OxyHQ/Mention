@@ -59,13 +59,23 @@ import CodePickerDialog from '../CodePickerDialog';
 
 const BARCELONA = { id: '3128760', kind: 'city' as const, name: 'Barcelona', countryCode: 'ES' as const, region: 'Catalonia' };
 
+const mounted: ReactTestRenderer[] = [];
+
 function render(element: React.ReactElement): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = TestRenderer.create(element);
   });
+  mounted.push(renderer);
   return renderer;
 }
+
+afterEach(() => {
+  act(() => {
+    mounted.splice(0).forEach((renderer) => renderer.unmount());
+  });
+  jest.useRealTimers();
+});
 
 function items(renderer: ReactTestRenderer) {
   return renderer.root.findAll(
@@ -124,17 +134,17 @@ describe('JobLocationField', () => {
     mockUseQuery.mockReturnValue({ data: { places: [BARCELONA] }, isFetching: false, isError: false });
     const onChange = jest.fn();
     const value: JobLocationDraft = { kind: 'place', place: null };
+    jest.useFakeTimers();
     const renderer = render(<JobLocationField value={value} onChange={onChange} />);
 
     // Open the place dialog, then type enough to enable the search.
     act(() => items(renderer)[0].props.onPress());
     const search = renderer.root.find((node) => node.props.testID === 'search');
-    jest.useFakeTimers();
     act(() => search.props.onChangeText('barc'));
     act(() => {
       jest.advanceTimersByTime(400);
     });
-    jest.useRealTimers();
+    expect(mockUseQuery).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }));
 
     const result = items(renderer).find((node) => node.props.title === 'Barcelona');
     expect(result?.props.subtitle).toContain('Catalonia');
