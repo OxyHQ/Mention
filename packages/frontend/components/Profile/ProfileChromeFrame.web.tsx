@@ -162,7 +162,7 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
           bleed-mask/border overlays (see ProfileShell's root for the full
           rationale). */}
       <View
-        className="flex-1 bg-background web:z-auto relative flex-col"
+        className="flex-1 web:z-auto relative flex-col"
         style={active ? [rootOverflow, view.chrome.themedStyles.container] : rootOverflow}
       >
         {view.seo}

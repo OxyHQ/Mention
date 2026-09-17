@@ -99,7 +99,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
 
   if (variant === 'channel') {
     return (
-      <View className="flex-1 bg-background" accessibilityRole="progressbar">
+      <View className="flex-1" accessibilityRole="progressbar">
         <View style={{ paddingTop: insets.top + CHANNEL_CONTENT_OFFSET }}>
           <View className="bg-background px-4 pb-4">
             {/* Centred masthead — avatar, then name, then handle. The margins
@@ -171,7 +171,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
   }
 
   return (
-    <View className="flex-1 bg-background" accessibilityRole="progressbar">
+    <View className="flex-1" accessibilityRole="progressbar">
       {/* Full-bleed banner — absolute like the real screen so it does not push
           the content down; dampened (`blend`) so the avatar placeholder reads
           clearly over it. */}

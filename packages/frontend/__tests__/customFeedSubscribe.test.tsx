@@ -140,6 +140,8 @@ jest.mock('@oxy.so/bloom/loading', () => {
   return { SpinnerIcon: () => <RNView testID="spinner" /> };
 });
 
+jest.mock('@oxy.so/bloom/icons', () => ({ RiStarFill: () => null, RiStarLine: () => null }));
+
 jest.mock('@oxy.so/bloom/avatar', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Avatar: () => <RNView testID="avatar" /> };

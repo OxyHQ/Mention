@@ -7,9 +7,9 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useUserById } from '@/hooks/useCachedUser';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { VirtualList } from '@oxy.so/bloom/list';
-import { ThemedText } from '@/components/ThemedText';
+import { Text } from '@oxy.so/bloom/typography';
+import { RiArrowRightSLine, RiGroupFill } from '@oxy.so/bloom/icons';
 import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from '@/components/ProfileCard';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Error as ErrorDisplay } from '@/components/Error';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 import { logger } from '@oxy.so/core/logger';
@@ -134,17 +134,17 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
           activeOpacity={0.7}
         >
           <View className="bg-primary" style={styles.inviteIconContainer}>
-            <Ionicons name="people" size={18} color={theme.colors.card} />
+            <RiGroupFill width={18} fill={theme.colors.card} />
           </View>
           <View style={styles.inviteContent}>
-            <ThemedText className="text-foreground" style={styles.inviteTitle}>
+            <Text className="leading-6 text-foreground" style={styles.inviteTitle}>
               {t('settings.inviteContacts.inviteBannerTitle')}
-            </ThemedText>
-            <ThemedText className="text-muted-foreground" style={styles.inviteSubtitle}>
+            </Text>
+            <Text className="leading-6 text-muted-foreground" style={styles.inviteSubtitle}>
               {t('settings.inviteContacts.inviteBannerSubtitle')}
-            </ThemedText>
+            </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
+          <RiArrowRightSLine width={18} fill={theme.colors.textSecondary} />
         </TouchableOpacity>
       </>
     ),
@@ -155,7 +155,7 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
   // tab never swaps a centered spinner for a list and reflows.
   if (loading && recommendations.length === 0) {
     return (
-      <View className="flex-1 bg-background">
+      <View className="flex-1">
         {listHeader}
         <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />
       </View>
@@ -175,7 +175,7 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
   }
 
   return (
-    <View className="flex-1 bg-background" style={styles.container}>
+    <View className="flex-1" style={styles.container}>
       <VirtualList
         data={recommendations}
         renderItem={renderUser}
@@ -184,9 +184,9 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
         ListFooterComponent={renderFooter}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <ThemedText className="text-muted-foreground">
+            <Text className="text-base leading-6 text-muted-foreground">
               {t('No recommendations available')}
-            </ThemedText>
+            </Text>
           </View>
         }
         onEndReached={handleLoadMore}

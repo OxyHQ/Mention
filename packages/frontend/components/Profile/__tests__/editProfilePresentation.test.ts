@@ -8,7 +8,9 @@ const read = (relativePath: string) =>
 describe('Edit Profile presentation', () => {
   it('keeps the navigable route below the native camera safe area', () => {
     const route = read('app/(app)/edit-profile.tsx');
-    expect(route).toMatch(/<SafeAreaView[^>]+edges=\{\['top'\]\}/);
+    // Bloom's PageHeader pads the native safe-area top itself unless told not to.
+    expect(route).toMatch(/<PageHeader\b/);
+    expect(route).not.toMatch(/safeArea=\{false\}/);
     expect(route).toMatch(/<EditProfileForm\s*\/>/);
   });
 
