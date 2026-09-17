@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer, type VideoPlayer as ExpoVideoPlayer } from 'expo-video';
 import { MediaFlightHost, type MediaFlightHostProps } from '@oxy.so/bloom/media-flight';
 import { useEvent, useEventListener } from 'expo';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiExpandDiagonalSLine, RiPauseFill, RiPlayFill, RiVolumeMuteLine, RiVolumeUpLine } from '@oxy.so/bloom/icons';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { useVideoPlayback } from '@/context/VideoPlaybackContext';
 import { useHlsPlayback } from '@/lib/hlsPlayback';
@@ -427,6 +427,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   );
 
   const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
+  const MuteIcon = isMuted ? RiVolumeMuteLine : RiVolumeUpLine;
 
   return (
     <View ref={containerRef} style={[styles.container, style]}>
@@ -482,11 +483,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             style={styles.previewMuteButton}
           >
             <View style={styles.previewMuteButtonInner}>
-              <Ionicons
-                name={isMuted ? 'volume-mute' : 'volume-high'}
-                size={18}
-                color="white"
-              />
+              <MuteIcon width={18} height={18} fill="white" />
             </View>
           </Pressable>
         </>
@@ -505,12 +502,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
               hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
             >
               <View style={styles.playPauseCircle}>
-                <Ionicons
-                  name={isPlaying ? 'pause' : 'play'}
-                  size={32}
-                  color="white"
-                  style={!isPlaying ? styles.playIcon : undefined}
-                />
+                {isPlaying ? (
+                  <RiPauseFill size="2xl" fill="white" />
+                ) : (
+                  <RiPlayFill size="2xl" fill="white" style={styles.playIcon} />
+                )}
               </View>
             </Pressable>
 
@@ -554,11 +550,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 hitSlop={HIT_SLOP_MD}
                 style={styles.controlButton}
               >
-                <Ionicons
-                  name={isMuted ? 'volume-mute' : 'volume-high'}
-                  size={20}
-                  color="white"
-                />
+                <MuteIcon size="md" fill="white" />
               </Pressable>
 
               {/* Fullscreen button */}
@@ -567,7 +559,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 hitSlop={HIT_SLOP_MD}
                 style={styles.controlButton}
               >
-                <Ionicons name="expand" size={20} color="white" />
+                <RiExpandDiagonalSLine size="md" fill="white" />
               </Pressable>
             </View>
           </View>

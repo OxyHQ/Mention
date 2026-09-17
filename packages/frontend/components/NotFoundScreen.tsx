@@ -1,29 +1,29 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
+import { Button } from '@oxy.so/bloom/button';
+import { Text } from '@oxy.so/bloom/typography';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { ThemedView } from '@/components/ThemedView';
-import { ThemedText } from '@/components/ThemedText';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
-import { Button } from '@/components/ui/Button';
+
 export default function NotFoundScreen() {
     const safeBack = useSafeBack();
 
     return (
         <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
-            <ThemedView style={styles.container}>
+            <View style={styles.container}>
                 {/* Illustration */}
                 <View style={styles.illustrationWrap}>
                     <NoUpdatesIllustration width={200} height={200} />
                 </View>
 
                 {/* Title */}
-                <ThemedText style={styles.title}>Page Not Found</ThemedText>
+                <Text className="text-foreground" style={styles.title}>Page Not Found</Text>
 
                 {/* Message */}
-                <ThemedText className="text-muted-foreground" style={styles.message}>
+                <Text className="text-muted-foreground" style={styles.message}>
                     The page you&apos;re looking for doesn&apos;t exist or has been moved.
-                </ThemedText>
+                </Text>
 
                 {/* Buttons */}
                 <View style={styles.buttonsContainer}>
@@ -31,7 +31,7 @@ export default function NotFoundScreen() {
                         Go Back
                     </Button>
                 </View>
-            </ThemedView>
+            </View>
         </SafeAreaView>
     );
 }
@@ -69,4 +69,3 @@ const styles = StyleSheet.create({
         gap: 12,
     },
 });
-

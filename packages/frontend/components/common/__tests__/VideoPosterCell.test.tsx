@@ -2,7 +2,10 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiFilmLine } from '@oxy.so/bloom/icons';
 import VideoPosterCell from '../VideoPosterCell';
+
+jest.mock('@oxy.so/bloom/icons', () => ({ RiFilmLine: () => null }));
 
 /**
  * The metadata row is the only place in the app where a play count and a
@@ -170,7 +173,7 @@ describe('VideoPosterCell poster fallback', () => {
     });
 
     expect(renderer.root.findAllByType(Image)).toHaveLength(0);
-    expect(iconNames(renderer)).toContain('videocam-outline');
+    expect(renderer.root.findAllByType(RiFilmLine)).toHaveLength(1);
     unmount(renderer);
   });
 
@@ -193,7 +196,7 @@ describe('VideoPosterCell poster fallback', () => {
     });
 
     expect(renderer.root.findAllByType(Image)).toHaveLength(1);
-    expect(iconNames(renderer)).not.toContain('videocam-outline');
+    expect(renderer.root.findAllByType(RiFilmLine)).toHaveLength(0);
     unmount(renderer);
   });
 });

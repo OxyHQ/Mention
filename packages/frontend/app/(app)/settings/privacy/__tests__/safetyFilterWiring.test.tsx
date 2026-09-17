@@ -97,6 +97,7 @@ jest.mock('@/components/ui/Button', () => ({ IconButton: () => null }));
 jest.mock('@/assets/icons/back-arrow-icon', () => ({ BackArrowIcon: () => null }));
 jest.mock('@/lib/icons', () => ({ Icon: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
+jest.mock('@/components/common/ConfirmBottomSheet', () => ({ ConfirmBottomSheet: () => null }));
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 
 jest.mock('@oxy.so/core/logger', () => ({

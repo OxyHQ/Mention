@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Text, View, type TextStyle } from 'react-native';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiFilmLine } from '@oxy.so/bloom/icons';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { formatDuration } from '@/utils/formatDuration';
 
@@ -121,7 +122,7 @@ const VideoPosterCell = React.memo<VideoPosterCellProps>(
           />
         ) : (
           <View className="w-full h-full items-center justify-center bg-muted">
-            <Ionicons name="videocam-outline" size={placeholderIconSize} color={placeholderColor} />
+            <RiFilmLine width={placeholderIconSize} height={placeholderIconSize} fill={placeholderColor} />
           </View>
         )}
         {scrim && (
