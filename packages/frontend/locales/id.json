@@ -1382,6 +1382,8 @@
   "widgets.relatedPosts": "Widget Postingan Terkait",
   "widgets.recentlyViewed": "Widget Baru Dilihat",
   "post.contentWarning": "Peringatan konten",
+  "post.contentWarningShow": "Tampilkan",
+  "post.contentWarningHide": "Sembunyikan",
   "post.boostUnavailable": "Postingan ini sudah tidak tersedia",
   "compose.languages.pickerTitle": "Bahasa postingan",
   "compose.languages.alreadyAdded": "Sudah ditambahkan",

@@ -1382,6 +1382,8 @@
   "widgets.relatedPosts": "সম্পর্কিত পোস্ট উইজেট",
   "widgets.recentlyViewed": "সম্প্রতি দেখা উইজেট",
   "post.contentWarning": "কনটেন্ট সতর্কতা",
+  "post.contentWarningShow": "দেখান",
+  "post.contentWarningHide": "লুকান",
   "post.boostUnavailable": "এই পোস্টটি আর উপলব্ধ নেই",
   "compose.languages.pickerTitle": "পোস্টের ভাষা",
   "compose.languages.alreadyAdded": "আগেই যোগ করা হয়েছে",

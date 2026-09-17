@@ -1395,6 +1395,8 @@
   "widgets.relatedPosts": "Widget de publicacions relacionades",
   "widgets.recentlyViewed": "Widget de vistes recentment",
   "post.contentWarning": "Advertiment de contingut",
+  "post.contentWarningShow": "Mostra",
+  "post.contentWarningHide": "Amaga",
   "post.boostUnavailable": "Aquesta publicació ja no està disponible",
   "compose.languages.pickerTitle": "Idioma de la publicació",
   "compose.languages.alreadyAdded": "Ja afegit",

@@ -165,6 +165,9 @@ const PostItem: React.FC<PostItemProps> = ({
     const router = useRouter();
     const bottomSheet = useContext(BottomSheetContext);
     const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
+    // The reader's answer to this post's content warning, per mounted row.
+    const [isContentWarningOpen, setIsContentWarningOpen] = useState(false);
+    const toggleContentWarning = useCallback(() => setIsContentWarningOpen((open) => !open), []);
 
     const postId = post?.id;
     // Reactive read of the cached post (compiler-safe `useSyncExternalStore`
@@ -226,6 +229,11 @@ const PostItem: React.FC<PostItemProps> = ({
     // `metadata.spoilerText`. Rendered as a visible label above the body — media blur
     // is handled separately via `isSensitiveContent`; this never gates the body text.
     const spoilerText = typeof metadata.spoilerText === 'string' ? metadata.spoilerText.trim() : '';
+    // A content warning GATES the post: while closed, the body and every block
+    // below the header (media, links, location, sources, the quoted post) stay
+    // hidden behind the warning. Opening it is the reader's consent, so the
+    // per-item sensitive-media blur does not ask a second time.
+    const isContentGated = spoilerText.length > 0 && !isContentWarningOpen;
     // The post's public correction trail. Absent — not zeroed — on a post that
     // has never been corrected, so presence IS the whole condition for the
     // marker. In practice only a channel post carries one: a personal post keeps
@@ -930,14 +938,16 @@ const PostItem: React.FC<PostItemProps> = ({
                         onPressMenu={openMenu}
                         paddingHorizontal={HPAD}
                     >
-                        {spoilerText ? <ContentWarning text={spoilerText} /> : null}
-                        {content.text ? <PostContentText content={content} postId={viewPostId} previewChars={isDetailMain ? Infinity : undefined} overrideText={languageDisplayText} linkPreviewUrls={linkPreviewUrls} /> : null}
-                        {corrections && viewPostId ? (
+                        {spoilerText ? (
+                            <ContentWarning text={spoilerText} revealed={isContentWarningOpen} onToggle={toggleContentWarning} />
+                        ) : null}
+                        {content.text && !isContentGated ? <PostContentText content={content} postId={viewPostId} previewChars={isDetailMain ? Infinity : undefined} overrideText={languageDisplayText} linkPreviewUrls={linkPreviewUrls} /> : null}
+                        {corrections && viewPostId && !isContentGated ? (
                             <PostCorrectionNotice postId={viewPostId} count={corrections.count} />
                         ) : null}
                     </PostHeader>
 
-                    {hasBelowHeaderBlocks && (
+                    {hasBelowHeaderBlocks && !isContentGated && (
                         <View style={{ gap: SECTION_GAP }}>
                             {hasValidLocation && location && (
                                 <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
@@ -962,7 +972,7 @@ const PostItem: React.FC<PostItemProps> = ({
                                 </View>
                             )}
 
-                {boostUnavailable && (
+                {boostUnavailable && !isContentGated && (
                     <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
                         <View className="border-border rounded-2xl border px-3 py-3">
                             <Text className="text-muted-foreground text-[14px]">
@@ -972,9 +982,9 @@ const PostItem: React.FC<PostItemProps> = ({
                     </View>
                 )}
 
-                {shouldRenderMediaBlock && (
+                {shouldRenderMediaBlock && !isContentGated && (
                     <PostAttachmentsRow
-                        sensitive={isSensitiveContent}
+                        sensitive={isSensitiveContent && !spoilerText}
                         media={mediaItems}
                         attachments={attachmentDescriptors}
                         nestedPost={nestedPost ?? null}

@@ -1395,6 +1395,8 @@
   "widgets.relatedPosts": "Widget de publicações relacionadas",
   "widgets.recentlyViewed": "Widget de vistos recentemente",
   "post.contentWarning": "Aviso de conteúdo",
+  "post.contentWarningShow": "Mostrar",
+  "post.contentWarningHide": "Ocultar",
   "post.boostUnavailable": "Esta publicação já não está disponível",
   "compose.languages.pickerTitle": "Idioma da publicação",
   "compose.languages.alreadyAdded": "Já adicionado",

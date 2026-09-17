@@ -1599,6 +1599,8 @@
   "widgets.relatedPosts": "Related Posts Widget",
   "widgets.recentlyViewed": "Recently Viewed Widget",
   "post.contentWarning": "Content warning",
+  "post.contentWarningShow": "Show",
+  "post.contentWarningHide": "Hide",
   "post.boostUnavailable": "This post is no longer available",
   "compose": {
     "languages": {

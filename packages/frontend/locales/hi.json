@@ -1382,6 +1382,8 @@
   "widgets.relatedPosts": "संबंधित पोस्ट विजेट",
   "widgets.recentlyViewed": "हाल में देखी गई विजेट",
   "post.contentWarning": "सामग्री चेतावनी",
+  "post.contentWarningShow": "दिखाएं",
+  "post.contentWarningHide": "छिपाएं",
   "post.boostUnavailable": "यह पोस्ट अब उपलब्ध नहीं है",
   "compose.languages.pickerTitle": "पोस्ट की भाषा",
   "compose.languages.alreadyAdded": "पहले से जोड़ी गई",
