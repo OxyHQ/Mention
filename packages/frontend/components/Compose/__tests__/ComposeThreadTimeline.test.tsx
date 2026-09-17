@@ -97,6 +97,12 @@ jest.mock('@/components/Compose/InteractionSettingsPills', () => {
   return { __esModule: true, default: RNView };
 });
 
+// The room attachment card draws Bloom icons, which Jest cannot load untranspiled.
+jest.mock('@/components/RoomCard', () => {
+  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { __esModule: true, default: RNView };
+});
+
 const item: ThreadItem = {
   id: 'thread-1',
   text: 'A continuation',
