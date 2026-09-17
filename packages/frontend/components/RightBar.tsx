@@ -46,6 +46,9 @@ const STATIC_FOOTER_URLS = [
     { key: 'terms', url: 'https://oxy.so/company/transparency/policies/terms-of-service' },
     { key: 'cookies', url: 'https://oxy.so/company/transparency/policies/cookies' },
     { key: 'oxy', url: 'https://oxy.so/', label: 'Oxy' },
+    // CrowdSource decides Mention's moderation cases (and will own community
+    // notes), so readers can see who does. A product name, never translated.
+    { key: 'crowdsource', url: 'https://crowdsource.oxy.so/', label: 'CrowdSource' },
 ] as const;
 
 export function RightBar() {
@@ -102,10 +105,11 @@ function RightBarFooter() {
                 ))}
             </View>
             <Text className="text-muted-foreground text-[12.5px] pt-0.5">Made with ❤️ in the 🌎 by Oxy&trade;.</Text>
-            {/* Mention and Oxy are unregistered marks, so the symbol is (TM) and never (R):
-                using (R) before a registration is granted is unlawful in several
-                jurisdictions. Swap it only once a registration actually issues. */}
-            <Text className="text-muted-foreground text-[12.5px] pt-0.5">Mention&trade; is a trademark of The Oxy Collective, Inc.</Text>
+            {/* No trademark claim on "Mention": the name is unregistered for this app,
+                and asserting a (TM) on it invites a dispute over a word another
+                company holds a US registration for. A copyright notice claims only
+                what The Oxy Collective demonstrably owns — the site itself. */}
+            <Text className="text-muted-foreground text-[12.5px] pt-0.5">© {new Date().getFullYear()} The Oxy Collective, Inc.</Text>
         </View>
     );
 }
