@@ -37,7 +37,9 @@
      The numbers are the hook's, unchanged. */
   --breakpoint-shell: 500px;
 
-  --font-sans: Inter, sans-serif;
+  /* Bloom 2 registers Inter itself (FontLoader) and publishes the stack as
+     --bloom-font-sans; the literal fallback only covers the pre-bundle paint. */
+  --font-sans: var(--bloom-font-sans, Inter, sans-serif);
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -57,7 +59,7 @@
 }
 
 html, body, #root {
-  font-family: 'Inter', 'Inter-Regular', sans-serif;
+  font-family: var(--bloom-font-sans, Inter, sans-serif);
   /* Pre-hydration dark canvas. Bloom applies the real theme (the `.dark` class +
      `--background` var) at RUNTIME from BloomThemeProvider, so before the JS
      bundle runs there is no themed background and the first paint would be white.

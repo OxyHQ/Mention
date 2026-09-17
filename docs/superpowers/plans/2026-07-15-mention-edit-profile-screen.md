@@ -383,7 +383,7 @@ git commit -m "feat(frontend): add ProfileStyleSection for the new Edit Profile 
 - Create: `packages/frontend/components/Profile/EditProfile/PinnedMediaSection.tsx`
 
 **Interfaces:**
-- Consumes: `useAppearanceStore` (`mySettings.profileMedia: ProfileMedia | null`), `BottomSheetContext` from `@/context/BottomSheetContext` (`setBottomSheetContent`, `openBottomSheet`), `MediaPickerSheet` from `./MediaPickerSheet` (`components/Profile/MediaPickerSheet.tsx` — unchanged, reused as-is), `ProfileSong` from `./ProfileSong`, `PodcastCard` from `@/components/Podcast/PodcastCard`, `useTheme`, icons `MusicNote_Stroke2_Corner0_Rounded`/`PlusLarge_Stroke2_Corner0_Rounded` from `@oxy.so/bloom/icons`, `useTranslation`.
+- Consumes: `useAppearanceStore` (`mySettings.profileMedia: ProfileMedia | null`), `BottomSheetContext` from `@/context/BottomSheetContext` (`setBottomSheetContent`, `openBottomSheet`), `MediaPickerSheet` from `./MediaPickerSheet` (`components/Profile/MediaPickerSheet.tsx` — unchanged, reused as-is), `ProfileSong` from `./ProfileSong`, `PodcastCard` from `@/components/Podcast/PodcastCard`, `useTheme`, icons `RiMusic2Line`/`RiAddLine` from `@oxy.so/bloom/icons`, `useTranslation`.
 - Produces: `export const PinnedMediaSection: React.FC` — self-contained, no props.
 
 This is new UI, not a pure extraction: unlike `ProfileMedia.tsx` (which hides the "add" affordance for non-owners and, after Task 6, hides it entirely when empty), this section is **always** in edit mode — it's only ever rendered on the Edit Profile screen, which only the owner can reach.
@@ -400,7 +400,7 @@ import React, { useCallback, useContext } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { PlusLarge_Stroke2_Corner0_Rounded } from '@oxy.so/bloom/icons';
+import { RiAddLine } from '@oxy.so/bloom/icons';
 import { useAppearanceStore } from '@/store/appearanceStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { ProfileSong } from '../ProfileSong';
@@ -443,7 +443,7 @@ export const PinnedMediaSection: React.FC = () => {
             className="rounded-full bg-secondary items-center justify-center"
             style={{ width: 32, height: 32 }}
           >
-            <PlusLarge_Stroke2_Corner0_Rounded size="sm" fill={colors.primary} />
+            <RiAddLine size="sm" fill={colors.primary} />
           </View>
           <Text className="text-primary text-[15px]">{t('profile.media.add')}</Text>
         </Pressable>
@@ -744,7 +744,7 @@ Change:
           className="rounded-full bg-secondary items-center justify-center"
           style={{ width: 32, height: 32 }}
         >
-          <PlusLarge_Stroke2_Corner0_Rounded size="sm" fill={colors.primary} />
+          <RiAddLine size="sm" fill={colors.primary} />
         </View>
         <Text className="text-primary text-[15px]">{t('profile.media.add')}</Text>
       </Pressable>
@@ -762,9 +762,9 @@ to:
 
 - [ ] **Step 2: Remove now-unused imports and the `isOwnProfile`/`openPicker` wiring if dead**
 
-Run: `grep -n "isOwnProfile\|openPicker\|PlusLarge_Stroke2_Corner0_Rounded\|useTheme\|useTranslation\|BottomSheetContext" packages/frontend/components/Profile/ProfileMedia.tsx`
+Run: `grep -n "isOwnProfile\|openPicker\|RiAddLine\|useTheme\|useTranslation\|BottomSheetContext" packages/frontend/components/Profile/ProfileMedia.tsx`
 
-`isOwnProfile` is still used by the `song`/`podcast` render branches (passed to `ProfileSong`/`PodcastCard` as `isOwnProfile={isOwnProfile}` — those still show an edit affordance on the pinned-media card itself when the viewer is the owner, unchanged). `openPicker` is still used by those same branches' `onEdit={openPicker}` — do **not** remove it, editing an *existing* pinned song/podcast from the public profile card is unchanged behavior, only the *empty-state add prompt* moved. `PlusLarge_Stroke2_Corner0_Rounded` and `useTheme`'s `colors.primary` usage, however, were only used by the removed branch — if `colors` has no other use in this file after the edit, remove the `useTheme` import and call; remove the `PlusLarge_Stroke2_Corner0_Rounded` import regardless (confirm via the grep above before deleting each one — don't remove an import still referenced elsewhere in the file).
+`isOwnProfile` is still used by the `song`/`podcast` render branches (passed to `ProfileSong`/`PodcastCard` as `isOwnProfile={isOwnProfile}` — those still show an edit affordance on the pinned-media card itself when the viewer is the owner, unchanged). `openPicker` is still used by those same branches' `onEdit={openPicker}` — do **not** remove it, editing an *existing* pinned song/podcast from the public profile card is unchanged behavior, only the *empty-state add prompt* moved. `RiAddLine` and `useTheme`'s `colors.primary` usage, however, were only used by the removed branch — if `colors` has no other use in this file after the edit, remove the `useTheme` import and call; remove the `RiAddLine` import regardless (confirm via the grep above before deleting each one — don't remove an import still referenced elsewhere in the file).
 
 - [ ] **Step 3: Typecheck and lint**
 

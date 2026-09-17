@@ -120,6 +120,8 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
   "@tailwindcss/node -> lightningcss@1.32.0":
     "lightningcss is pinned to 1.30.1 so its linux-x64 gnu/musl native binaries stay on a single version through the image build.",
   "vite -> lightningcss@^1.32.0": "Same single-copy native-binary pin as @tailwindcss/node.",
+  "@alia.onl/sdk -> @oxy.so/services@^1.0.1":
+    "Services 2.0.0's only breaking change is its @oxy.so/bloom peer moving to ^2.0.0; the API the Alia SDK calls is unchanged, and the app must run one Services copy.",
 };
 
 /**
