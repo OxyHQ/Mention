@@ -2,6 +2,7 @@
  * Post-related types for Mention social network
  */
 
+import type { CommunityNoteSummary } from './communityNotes';
 import type { AccountKind, UserNameResponse } from '@oxy.so/contracts';
 import type { Document as ClarityDocument } from '@clarity.surf/sdk' with { "resolution-mode": "import" };
 export type { Document as ClarityDocument } from '@clarity.surf/sdk' with { "resolution-mode": "import" };
@@ -1409,6 +1410,11 @@ export interface HydratedPostSummary {
    * reply with no local parent. See {@link PostReplyContext}.
    */
   replyContext?: PostReplyContext;
+  /**
+   * The community note CrowdSource shows under this post, when it has one.
+   * Absent for almost every post. See `communityNotes.ts` for who owns it.
+   */
+  communityNote?: CommunityNoteSummary;
 }
 
 export interface HydratedBoostContext {

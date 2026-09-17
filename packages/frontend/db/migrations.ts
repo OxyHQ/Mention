@@ -36,11 +36,15 @@ const logger = createLogger('Schema');
  * degraded to "Unknown user" — precisely the production bug above, arriving from
  * the other direction. Dropping the cache is what stops it.
  *
+ * v11 ADDS `communityNote` (the CrowdSource note shown under a post). A v10 row
+ * merely lacks it, but `PostItem` reads `storePost ?? post`, so a cached copy
+ * would hide a note the fresh response carries until the row is evicted.
+ *
  * `db/__tests__/cacheShapeVersion.test.ts` fails when the persisted key set
  * changes without this number moving, so the rule is enforced rather than
  * remembered.
  */
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 /**
  * Create the full schema from scratch. Idempotent (IF NOT EXISTS).
