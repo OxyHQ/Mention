@@ -8,8 +8,11 @@
 import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
 import { isUniqueViolation } from '@oxy.so/db';
 import type {
+  CountryCode,
   CreateMentionJobRequest,
+  CurrencyCode,
   MentionJobListFilters,
+  MentionJobLocation,
   MentionJobListPage,
   MentionJobPosting,
   MentionJobStatus,
@@ -31,10 +34,31 @@ function canonicalUrl(slug: string): string {
   return `${base.replace(/\/$/, '')}/jobs/${slug}`;
 }
 
+/**
+ * The stored location, or none. The CHECKs on `mention_jobs` guarantee a place
+ * id always has its country and that region/city never appear without a place,
+ * so a country code is the one thing every location has.
+ */
+function locationFromRow(row: MentionJobRow): MentionJobLocation | undefined {
+  if (!row.locationCountryCode) return undefined;
+  const location: MentionJobLocation = { countryCode: row.locationCountryCode as CountryCode };
+  if (row.locationPlaceId) location.placeId = row.locationPlaceId;
+  if (row.locationRegion) location.region = row.locationRegion;
+  if (row.locationCity) location.city = row.locationCity;
+  return location;
+}
+
+/** The four location columns for a resolved location — `null` clears them all. */
+function locationColumns(location: MentionJobLocation | null | undefined) {
+  return {
+    locationPlaceId: location?.placeId ?? null,
+    locationCountryCode: location?.countryCode ?? null,
+    locationRegion: location?.region ?? null,
+    locationCity: location?.city ?? null,
+  };
+}
+
 export function toMentionJobPosting(row: MentionJobRow): MentionJobPosting {
-  const hasLocation = Boolean(
-    row.locationRaw || row.locationCountryCode || row.locationRegion || row.locationCity,
-  );
   const hasSalary = Boolean(row.salaryCurrency && row.salaryInterval);
   return {
     id: row.id,
@@ -42,21 +66,14 @@ export function toMentionJobPosting(row: MentionJobRow): MentionJobPosting {
     authorOxyUserId: row.authorOxyUserId,
     title: row.title,
     description: row.description,
-    location: hasLocation
-      ? {
-          raw: row.locationRaw ?? '',
-          countryCode: row.locationCountryCode ?? undefined,
-          region: row.locationRegion ?? undefined,
-          city: row.locationCity ?? undefined,
-        }
-      : undefined,
+    location: locationFromRow(row),
     workplaceType: row.workplaceType ?? undefined,
     employmentType: row.employmentType ?? undefined,
     salary: hasSalary
       ? {
           min: row.salaryMin ?? undefined,
           max: row.salaryMax ?? undefined,
-          currency: row.salaryCurrency as string,
+          currency: row.salaryCurrency as CurrencyCode,
           interval: row.salaryInterval as NonNullable<MentionJobPosting['salary']>['interval'],
         }
       : undefined,
@@ -86,8 +103,14 @@ function slugCandidate(title: string, attempt: number): string {
   return `${base}-${Math.random().toString(36).slice(2, 8)}${attempt}`;
 }
 
-export interface CreateJobParams extends CreateMentionJobRequest {
+/**
+ * A create request whose location has already been RESOLVED against Clarity
+ * (`services/jobPlaces.ts`) — the repository stores locations, it never
+ * accepts a client's claim about one.
+ */
+export interface CreateJobParams extends Omit<CreateMentionJobRequest, 'location'> {
   authorOxyUserId: string;
+  location?: MentionJobLocation;
 }
 
 /** Insert a new job row, retrying the slug on a unique collision. */
@@ -105,10 +128,7 @@ export async function createJob(params: CreateJobParams): Promise<MentionJobRow>
           authorOxyUserId: params.authorOxyUserId,
           title: params.title,
           description: params.description,
-          locationRaw: params.location?.raw,
-          locationCountryCode: params.location?.countryCode,
-          locationRegion: params.location?.region,
-          locationCity: params.location?.city,
+          ...locationColumns(params.location),
           workplaceType: params.workplaceType,
           employmentType: params.employmentType,
           salaryMin: params.salary?.min,
@@ -154,7 +174,8 @@ export async function getJobBySlug(slug: string): Promise<MentionJobRow | undefi
  * `location: null` are not the same request and must not collapse into one.
  */
 export interface UpdateJobParams extends Omit<UpdateMentionJobRequest, 'location' | 'workplaceType' | 'employmentType' | 'salary' | 'externalApplyUrl'> {
-  location?: UpdateMentionJobRequest['location'] | null;
+  /** Already resolved against Clarity, like {@link CreateJobParams.location}. */
+  location?: MentionJobLocation | null;
   workplaceType?: UpdateMentionJobRequest['workplaceType'] | null;
   employmentType?: UpdateMentionJobRequest['employmentType'] | null;
   salary?: UpdateMentionJobRequest['salary'] | null;
@@ -165,12 +186,7 @@ export async function updateJob(id: string, patch: UpdateJobParams): Promise<Men
   const values: Partial<typeof mentionJobs.$inferInsert> = {};
   if (patch.title !== undefined) values.title = patch.title;
   if (patch.description !== undefined) values.description = patch.description;
-  if (patch.location !== undefined) {
-    values.locationRaw = patch.location?.raw ?? null;
-    values.locationCountryCode = patch.location?.countryCode ?? null;
-    values.locationRegion = patch.location?.region ?? null;
-    values.locationCity = patch.location?.city ?? null;
-  }
+  if (patch.location !== undefined) Object.assign(values, locationColumns(patch.location));
   if (patch.workplaceType !== undefined) values.workplaceType = patch.workplaceType;
   if (patch.employmentType !== undefined) values.employmentType = patch.employmentType;
   if (patch.salary !== undefined) {

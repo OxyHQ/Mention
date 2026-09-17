@@ -23,6 +23,7 @@ import { openExternalLink } from '@/utils/openExternalLink';
 import { shareLink } from '@/utils/shareLink';
 import { formatTimeAgo } from '@/utils/dateUtils';
 import { jobApplicationsService } from '@/services/jobApplicationsService';
+import { useJobVocabulary } from '@/utils/jobVocabulary';
 
 const WORKPLACE_LABELS: Record<JobWorkplaceType, string> = {
   onsite: 'On-site',
@@ -181,6 +182,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
 }: JobDiscoveryResultCardProps) {
   const { t } = useTranslation();
   const theme = useTheme();
+  const vocabulary = useJobVocabulary();
 
   const isFirstParty = job.source.type === 'first_party';
   const appPath = isFirstParty ? mentionAppPath(job.source.canonicalUrl || job.canonicalUrl) : null;
@@ -202,7 +204,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
     });
   }, [appPath, job, t]);
 
-  const locationLabel = job.locations[0]?.raw;
+  const locationLabel = vocabulary.formatClarityJobLocation(job.locations[0]);
   const badges = [
     locationLabel,
     job.workplaceType ? WORKPLACE_LABELS[job.workplaceType] : undefined,

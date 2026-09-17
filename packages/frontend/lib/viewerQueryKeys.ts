@@ -390,6 +390,17 @@ export const viewerQueryKeys = {
     'jobs',
     'mine',
   ] as const,
+  /**
+   * `jobsService.searchPlaces({ q })` — the job form's location autocomplete.
+   * Viewer-scoped because the route is authenticated, although the gazetteer
+   * answer itself is the same for everyone.
+   */
+  jobPlaces: (viewerId: ViewerId, query: string) => [
+    ...viewerQueryKeys.all(viewerId),
+    'jobs',
+    'places',
+    query,
+  ] as const,
   /** One job by id or slug (`jobsService.get`) — the edit form and the public job page share this key. */
   jobDetail: (viewerId: ViewerId, idOrSlug: string) => [
     ...viewerQueryKeys.all(viewerId),

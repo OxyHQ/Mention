@@ -104,10 +104,16 @@ describe('JobCard', () => {
 
   it('renders location, workplace type and employment type as meta badges when present', () => {
     const renderer = render(
-      <JobCard job={job({ location: 'San Francisco, CA', workplaceType: 'remote', employmentType: 'full_time' })} />,
+      <JobCard
+        job={job({
+          location: { placeId: '5391959', countryCode: 'US', region: 'California', city: 'San Francisco' },
+          workplaceType: 'remote',
+          employmentType: 'full_time',
+        })}
+      />,
     );
     const text = textOf(renderer);
-    expect(text).toContain('San Francisco, CA');
+    expect(text).toMatch(/San Francisco, California, (United States|US)/);
     expect(text).toContain('Remote');
     expect(text).toContain('Full-time');
   });

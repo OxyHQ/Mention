@@ -8,6 +8,7 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import { createLogger } from '@oxy.so/core/logger';
 import type { PostJobContent } from '@mention/shared-types';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
+import { useJobVocabulary } from '@/utils/jobVocabulary';
 
 const logger = createLogger('JobCard');
 
@@ -61,6 +62,7 @@ interface JobCardProps {
 const JobCard: React.FC<JobCardProps> = ({ job, width = 280, height }) => {
   const { t } = useTranslation();
   const { oxyServices } = useAuth();
+  const vocabulary = useJobVocabulary();
 
   const isPublished = job.status === 'published';
   const isNegativeStatus = job.status === 'closed' || job.status === 'expired';
@@ -91,7 +93,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, width = 280, height }) => {
   }, [oxyServices, job.employerOxyUserId]);
 
   const metaBadges = [
-    job.location,
+    job.location ? vocabulary.formatJobLocation(job.location) : undefined,
     job.workplaceType ? WORKPLACE_LABELS[job.workplaceType] : undefined,
     job.employmentType ? EMPLOYMENT_LABELS[job.employmentType] : undefined,
   ].filter((value): value is string => Boolean(value));

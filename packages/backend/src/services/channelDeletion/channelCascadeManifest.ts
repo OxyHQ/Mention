@@ -1223,6 +1223,7 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ['mention_job_daily_metrics.jobId', 'the MentionJob row a metrics day belongs to; it cascades from the job'],
   ['mention_jobs.authorOxyUserId', 'who created a job row, for audit only; an organization/project operator, never a channel'],
   ['mention_jobs.clarityDocumentId', 'Clarity\'s own foreign document id, not an Oxy account at all'],
+  ['mention_jobs.locationPlaceId', 'a GeoNames place id from Clarity\'s gazetteer — a location, not an account or a post'],
   ['mention_jobs.employerOxyUserId', 'the organization/project account a job is published under — jobs are restricted to those two kinds, never a channel'],
   ['mention_node_ingest_witnesses.recordId', 'a signed-record id within a chain'],
   ['mention_repo_heads.headRecordId', 'the signed record at the head of a chain'],

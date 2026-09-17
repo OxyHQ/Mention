@@ -35,7 +35,7 @@ describe("Mention MCP capability routes", () => {
       .toEqual([]);
   });
 
-  test("keeps all 66 tool policies in the one shared registry", () => {
-    expect(Object.keys(MENTION_TOOL_POLICIES)).toHaveLength(66);
+  test("keeps all 67 tool policies in the one shared registry", () => {
+    expect(Object.keys(MENTION_TOOL_POLICIES)).toHaveLength(67);
   });
 });

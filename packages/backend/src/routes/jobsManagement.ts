@@ -1,6 +1,7 @@
 import express from 'express';
 import jobsManagementController from '../controllers/jobsManagement.controller';
-import { jobsManagementRateLimiter } from '../middleware/security';
+import jobPlacesController from '../controllers/jobPlaces.controller';
+import { jobPlacesSearchRateLimiter, jobsManagementRateLimiter } from '../middleware/security';
 import { config } from '../config';
 
 const router = express.Router();
@@ -13,6 +14,11 @@ const router = express.Router();
  * inspects.
  */
 const limiter = config.runtime.isProduction ? [jobsManagementRateLimiter] : [];
+const placesLimiter = config.runtime.isProduction ? [jobPlacesSearchRateLimiter] : [];
+
+// Two segments, so the public `GET /jobs/:id` (mounted first, on the public
+// router) can never shadow it; it lands here, behind `requireAuth`.
+router.get('/places/search', ...placesLimiter, jobPlacesController.search);
 
 router.post('/', ...limiter, jobsManagementController.create);
 router.put('/:id', ...limiter, jobsManagementController.update);

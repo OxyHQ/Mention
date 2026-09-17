@@ -23,6 +23,7 @@ import { reportService } from '@/services/reportService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
+import { useJobVocabulary } from '@/utils/jobVocabulary';
 
 const ReportModal = lazy(() => import('@/components/report/ReportModal').then((m) => ({ default: m.ReportModal })));
 
@@ -77,6 +78,7 @@ export default function JobDetailScreen() {
   const { user, oxyServices } = useAuth();
   const safeBack = useSafeBack();
   const bottomSheet = useContext(BottomSheetContext);
+  const vocabulary = useJobVocabulary();
 
   const jobQuery = useQuery({
     queryKey: viewerQueryKeys.jobDetail(user?.id, idOrSlug),
@@ -195,7 +197,7 @@ export default function JobDetailScreen() {
 
   const salaryLabel = formatSalary(job.salary);
   const badges = [
-    job.location?.raw,
+    job.location ? vocabulary.formatJobLocation(job.location) : undefined,
     job.workplaceType ? WORKPLACE_LABELS[job.workplaceType] : undefined,
     job.employmentType ? EMPLOYMENT_LABELS[job.employmentType] : undefined,
   ].filter((value): value is string => Boolean(value));

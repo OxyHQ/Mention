@@ -202,6 +202,30 @@ describe('JobDiscoveryResultCard', () => {
     expect(() => pressHandlerByLabel(renderer, 'Remove from saved')).not.toThrow();
   });
 
+  it('renders a location Clarity resolved from its structured fields, and a crawled one from its source text', () => {
+    const resolved = textOf(
+      render(
+        <JobDiscoveryResultCard
+          job={result({
+            locations: [{ raw: 'BCN office', placeId: '3128760', countryCode: 'ES', region: 'Catalonia', locality: 'Barcelona' }],
+          })}
+          isSaved={false}
+          onToggleSave={jest.fn()}
+          onReport={jest.fn()}
+        />,
+      ),
+    );
+    expect(resolved).toMatch(/Barcelona, Catalonia, (Spain|ES)/);
+    expect(resolved).not.toContain('BCN office');
+
+    const crawled = textOf(
+      render(
+        <JobDiscoveryResultCard job={result({ locations: [{ raw: 'Somewhere nice' }] })} isSaved={false} onToggleSave={jest.fn()} onReport={jest.fn()} />,
+      ),
+    );
+    expect(crawled).toContain('Somewhere nice');
+  });
+
   it('renders title, employer, location and salary for an external listing, attributed via its own domain', () => {
     const renderer = render(
       <JobDiscoveryResultCard

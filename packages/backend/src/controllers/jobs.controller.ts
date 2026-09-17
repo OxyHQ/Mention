@@ -10,6 +10,7 @@ import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import {
   MENTION_JOB_EMPLOYMENT_TYPES,
   MENTION_JOB_WORKPLACE_TYPES,
+  isCurrencyCode,
   type MentionJobPosting,
 } from '@mention/shared-types';
 import { createError } from '../utils/error';
@@ -28,7 +29,6 @@ import {
 import { assertCanManageJob, listOperatedJobEmployerIds } from '../services/jobAuthority';
 import { PublishAsAccessError } from '../services/publishAsAccount';
 import { syncJobToClarityInBackground } from '../services/clarityJobsAdapter';
-import { resolveUserSummaries } from '../services/PostHydrationService';
 
 function jobNotFound(res: Response) {
   return res.status(404).json({ error: 'Not found', message: 'Job not found' });
@@ -46,15 +46,7 @@ function jobNotFound(res: Response) {
  */
 function retryIfSyncFailed(row: MentionJobRow): void {
   if (row.claritySyncStatus !== 'failed') return;
-  void resolveUserSummaries([row.employerOxyUserId])
-    .then((summaries) => {
-      const summary = summaries.get(row.employerOxyUserId);
-      const employerName = summary?.user.name?.displayName ?? summary?.user.username ?? row.employerOxyUserId;
-      syncJobToClarityInBackground(row, employerName);
-    })
-    .catch((error) => {
-      logger.debug('[Jobs] Lazy Clarity resync failed', { jobId: row.id, error });
-    });
+  syncJobToClarityInBackground(row);
 }
 
 class JobsController {
@@ -74,7 +66,17 @@ class JobsController {
       // codeql[js/sensitive-get-query] Public job-search filter criteria, see above.
       const salaryMax = queryInt(req.query.salaryMax);
       // codeql[js/sensitive-get-query] Public job-search filter criteria, see above.
-      const salaryCurrency = queryString(req.query.salaryCurrency);
+      const salaryCurrencyInput = queryString(req.query.salaryCurrency)?.trim().toUpperCase();
+      // Clarity answers an unknown currency with `400 invalid_request`; saying
+      // so here keeps a typo from reading as "search is unavailable" (502).
+      if (salaryCurrencyInput && !isCurrencyCode(salaryCurrencyInput)) {
+        return res.status(400).json({
+          error: 'Validation error',
+          message: 'salaryCurrency must be an ISO 4217 currency code (e.g. "EUR")',
+          issues: [{ path: 'salaryCurrency', message: 'salaryCurrency must be an ISO 4217 currency code (e.g. "EUR")' }],
+        });
+      }
+      const salaryCurrency = salaryCurrencyInput && isCurrencyCode(salaryCurrencyInput) ? salaryCurrencyInput : undefined;
       // codeql[js/sensitive-get-query] Public job-search filter (employer name
       // on a listed position), not personal or account data.
       const employer = queryString(req.query.employer);

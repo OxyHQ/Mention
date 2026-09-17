@@ -14,14 +14,14 @@ describe("Mention canonical capability catalog", () => {
   test("is valid, complete and has one policy for every tool", () => {
     expect(appCapabilityCatalogSchema.parse(MENTION_CAPABILITY_CATALOG))
       .toEqual(MENTION_CAPABILITY_CATALOG);
-    expect(MENTION_CAPABILITY_CATALOG.tools).toHaveLength(66);
+    expect(MENTION_CAPABILITY_CATALOG.tools).toHaveLength(67);
     expect(MENTION_CAPABILITY_CATALOG.externalMcp).toEqual({
       resource: "https://mcp.mention.earth",
     });
     expect(MENTION_CAPABILITY_CATALOG.internalBaseUrl)
       .toBe("https://mcp.mention.earth");
-    expect(MENTION_TOOL_REGISTRY.definitions()).toHaveLength(66);
-    expect(new Set(MENTION_CAPABILITY_CATALOG.tools.map((tool) => tool.name)).size).toBe(66);
+    expect(MENTION_TOOL_REGISTRY.definitions()).toHaveLength(67);
+    expect(new Set(MENTION_CAPABILITY_CATALOG.tools.map((tool) => tool.name)).size).toBe(67);
   });
 
   test("drives MCP names, descriptions, input schemas and policy metadata", async () => {

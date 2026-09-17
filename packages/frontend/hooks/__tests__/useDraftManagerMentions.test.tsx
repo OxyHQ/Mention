@@ -100,3 +100,54 @@ describe('useDraftManager mention restoration', () => {
     expect(onDraftLoad.mock.calls[0][0].mentions).toEqual([]);
   });
 });
+
+describe('useDraftManager job attachment restoration', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    latest = null;
+    act(() => {
+      TestRenderer.create(<Probe />);
+    });
+  });
+
+  function restoreJob(location: unknown) {
+    act(() => {
+      latest!.loadDraft({
+        id: 'draft-job',
+        postContent: '',
+        mentions: [],
+        mediaIds: [],
+        pollOptions: [],
+        threadItems: [],
+        job: {
+          mentionJobId: 'job-1',
+          title: 'Engineer',
+          employerName: 'Acme',
+          employerOxyUserId: 'employer-1',
+          canonicalUrl: 'https://mention.earth/jobs/engineer',
+          status: 'published',
+          location,
+        },
+      } as Parameters<DraftManager['loadDraft']>[0]);
+    });
+    return onDraftLoad.mock.calls[0][0].job;
+  }
+
+  it('restores a structured job location', () => {
+    expect(restoreJob({ placeId: '3128760', countryCode: 'ES', region: 'Catalonia', city: 'Barcelona' }).location).toEqual({
+      placeId: '3128760',
+      countryCode: 'ES',
+      region: 'Catalonia',
+      city: 'Barcelona',
+    });
+  });
+
+  it('drops a legacy free-text location or an unknown country rather than showing it', () => {
+    expect(restoreJob('Barcelona, Spain').location).toBeUndefined();
+    jest.clearAllMocks();
+    act(() => {
+      TestRenderer.create(<Probe />);
+    });
+    expect(restoreJob({ countryCode: 'Spain', city: 'Barcelona' }).location).toBeUndefined();
+  });
+});

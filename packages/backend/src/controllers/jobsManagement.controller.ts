@@ -13,13 +13,24 @@ import {
   MENTION_JOB_EMPLOYMENT_TYPES,
   MENTION_JOB_SALARY_INTERVALS,
   MENTION_JOB_WORKPLACE_TYPES,
+  isCountryCode,
+  isCurrencyCode,
+  type CountryCode,
+  type CurrencyCode,
+  type MentionJobLocation,
+  type MentionJobLocationInput,
 } from '@mention/shared-types';
 import { createError } from '../utils/error';
 import { logger } from '../utils/logger';
-import { resolveUserSummaries } from '../services/PostHydrationService';
 import { requireEmployerAuthority } from '../services/jobAuthority';
 import { checkJobEntitlement } from '../services/jobEntitlement';
 import { syncJobToClarityInBackground } from '../services/clarityJobsAdapter';
+import {
+  JobLocationError,
+  JobPlacesUnavailableError,
+  resolveJobLocation,
+  type JobFieldIssue,
+} from '../services/jobPlaces';
 import {
   createJob,
   getJobById,
@@ -28,29 +39,55 @@ import {
   updateJob,
 } from '../db/jobs/jobRepository';
 
-const locationSchema = z.object({
-  raw: z.string().min(1),
-  countryCode: z.string().optional(),
-  region: z.string().optional(),
-  city: z.string().optional(),
-});
+/** `mention_jobs.salary_min` / `salary_max` are `integer`. */
+const MAX_SALARY_AMOUNT = 2_147_483_647;
 
-const salarySchema = z.object({
-  min: z.number().optional(),
-  max: z.number().optional(),
-  currency: z.string().min(1),
-  interval: z.enum(MENTION_JOB_SALARY_INTERVALS),
-});
+/**
+ * A location names EXACTLY ONE of a Clarity place (by GeoNames id) or a
+ * country. Strict: the old free-text keys (`raw`, `city`, `region`) are
+ * rejected rather than silently ignored, and a place's country/region/city are
+ * never accepted from the client — `resolveJobLocation` reads them from Clarity.
+ */
+export const jobLocationInputSchema = z
+  .strictObject({
+    placeId: z
+      .string()
+      .regex(/^[1-9][0-9]{0,11}$/, 'location.placeId must be a GeoNames place id from /jobs/places/search')
+      .optional(),
+    countryCode: z
+      .custom<CountryCode>(isCountryCode, 'location.countryCode must be an ISO 3166-1 alpha-2 country code (e.g. "ES")')
+      .optional(),
+  })
+  .refine((location) => (location.placeId === undefined) !== (location.countryCode === undefined), {
+    message: 'location needs exactly one of placeId (a city or region) or countryCode (a country-only role)',
+  })
+  .transform((location) => location as MentionJobLocationInput);
 
-const createJobSchema = z
+export const jobSalarySchema = z
+  .strictObject({
+    min: z.number().int('salary.min must be a whole number').nonnegative('salary.min cannot be negative').max(MAX_SALARY_AMOUNT).optional(),
+    max: z.number().int('salary.max must be a whole number').nonnegative('salary.max cannot be negative').max(MAX_SALARY_AMOUNT).optional(),
+    currency: z.custom<CurrencyCode>(isCurrencyCode, 'salary.currency must be an ISO 4217 currency code (e.g. "EUR")'),
+    interval: z.enum(MENTION_JOB_SALARY_INTERVALS, `salary.interval must be one of ${MENTION_JOB_SALARY_INTERVALS.join(', ')}`),
+  })
+  .refine((salary) => salary.min !== undefined || salary.max !== undefined, {
+    message: 'salary needs at least one of min or max',
+    path: ['min'],
+  })
+  .refine((salary) => salary.min === undefined || salary.max === undefined || salary.min <= salary.max, {
+    message: 'salary.min cannot be greater than salary.max',
+    path: ['max'],
+  });
+
+export const createJobSchema = z
   .object({
     employerOxyUserId: z.string().min(1, 'employerOxyUserId is required'),
     title: z.string().min(1, 'title is required').max(200),
     description: z.string().min(1, 'description is required'),
-    location: locationSchema.optional(),
+    location: jobLocationInputSchema.optional(),
     workplaceType: z.enum(MENTION_JOB_WORKPLACE_TYPES).optional(),
     employmentType: z.enum(MENTION_JOB_EMPLOYMENT_TYPES).optional(),
-    salary: salarySchema.optional(),
+    salary: jobSalarySchema.optional(),
     skills: z.array(z.string()).max(50).optional(),
     applicationMode: z.enum(MENTION_JOB_APPLICATION_MODES),
     externalApplyUrl: z.string().url().optional(),
@@ -61,14 +98,14 @@ const createJobSchema = z
     path: ['externalApplyUrl'],
   });
 
-const updateJobSchema = z
+export const updateJobSchema = z
   .object({
     title: z.string().min(1).max(200).optional(),
     description: z.string().min(1).optional(),
-    location: locationSchema.nullish(),
+    location: jobLocationInputSchema.nullish(),
     workplaceType: z.enum(MENTION_JOB_WORKPLACE_TYPES).nullish(),
     employmentType: z.enum(MENTION_JOB_EMPLOYMENT_TYPES).nullish(),
-    salary: salarySchema.nullish(),
+    salary: jobSalarySchema.nullish(),
     skills: z.array(z.string()).max(50).optional(),
     applicationMode: z.enum(MENTION_JOB_APPLICATION_MODES).optional(),
     externalApplyUrl: z.string().url().nullish(),
@@ -83,13 +120,47 @@ const updateJobSchema = z
     path: ['externalApplyUrl'],
   });
 
-function validationError(res: Response, message: string) {
-  return res.status(400).json({ error: 'Validation error', message });
+/**
+ * `400 { error, message, issues }`. `message` is the first problem (what a
+ * simple client shows); `issues` names every rejected field so a form can mark
+ * each one.
+ */
+function validationError(res: Response, issues: JobFieldIssue[]) {
+  return res.status(400).json({
+    error: 'Validation error',
+    message: issues[0]?.message ?? 'Invalid request body',
+    issues,
+  });
 }
 
-async function employerDisplayName(employerOxyUserId: string): Promise<string> {
-  const summary = (await resolveUserSummaries([employerOxyUserId])).get(employerOxyUserId);
-  return summary?.user.name?.displayName ?? summary?.user.username ?? employerOxyUserId;
+function zodIssues(error: z.ZodError): JobFieldIssue[] {
+  return error.issues.map((issue) => ({
+    path: issue.path.map(String).join('.') || '(body)',
+    message: issue.message,
+  }));
+}
+
+/**
+ * Resolve a request's location against Clarity, answering the response itself
+ * when that fails: `undefined` means "a response was sent, stop".
+ */
+async function resolveLocationOrRespond(
+  input: MentionJobLocationInput,
+  res: Response,
+): Promise<MentionJobLocation | undefined> {
+  try {
+    return await resolveJobLocation(input);
+  } catch (error) {
+    if (error instanceof JobLocationError) {
+      validationError(res, error.issues);
+      return undefined;
+    }
+    if (error instanceof JobPlacesUnavailableError) {
+      res.status(503).json({ error: 'Service unavailable', message: error.message });
+      return undefined;
+    }
+    throw error;
+  }
 }
 
 /**
@@ -130,7 +201,7 @@ async function transitionJobStatus(
     const job = toMentionJobPosting(row);
     // Every transition re-syncs Clarity: publish makes it discoverable, pause
     // and close both invalidate the previously-indexed representation.
-    syncJobToClarityInBackground(row, await employerDisplayName(job.employerOxyUserId));
+    syncJobToClarityInBackground(row);
     res.json({ job });
   } catch (error) {
     logger.error(`[JobsManagement] Error transitioning job to ${targetStatus}:`, error);
@@ -145,10 +216,8 @@ class JobsManagementController {
       if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
       const parsed = createJobSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return validationError(res, parsed.error.issues[0]?.message ?? 'Invalid request body');
-      }
-      const input = parsed.data;
+      if (!parsed.success) return validationError(res, zodIssues(parsed.error));
+      const { location: locationInput, ...input } = parsed.data;
 
       if (!(await requireEmployerAuthority(input.employerOxyUserId, req, res))) return;
 
@@ -159,14 +228,20 @@ class JobsManagementController {
         }
       }
 
-      const row = await createJob({ ...input, authorOxyUserId: userId });
-      const job = toMentionJobPosting(row);
-      if (job.status === 'published') {
-        syncJobToClarityInBackground(row, await employerDisplayName(job.employerOxyUserId));
+      // After the authority check: only an operator of the employer may make
+      // Mention spend a Clarity lookup.
+      let location: MentionJobLocation | undefined;
+      if (locationInput) {
+        location = await resolveLocationOrRespond(locationInput, res);
+        if (!location) return;
       }
+
+      const row = await createJob({ ...input, location, authorOxyUserId: userId });
+      const job = toMentionJobPosting(row);
+      if (job.status === 'published') syncJobToClarityInBackground(row);
       res.status(201).json({ job });
     } catch (error) {
-      if (isCheckViolation(error)) return validationError(res, 'Job failed validation');
+      if (isCheckViolation(error)) return validationError(res, [{ path: '(body)', message: 'Job failed validation' }]);
       logger.error('[JobsManagement] Error in create:', error);
       next(createError(500, 'Error creating job'));
     }
@@ -184,19 +259,23 @@ class JobsManagementController {
       if (!(await requireEmployerAuthority(existing.employerOxyUserId, req, res))) return;
 
       const parsed = updateJobSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return validationError(res, parsed.error.issues[0]?.message ?? 'Invalid request body');
+      if (!parsed.success) return validationError(res, zodIssues(parsed.error));
+      const { location: locationInput, ...patch } = parsed.data;
+
+      // `undefined` leaves the location alone, `null` clears it, a value is resolved.
+      let location: MentionJobLocation | null | undefined = locationInput === null ? null : undefined;
+      if (locationInput) {
+        location = await resolveLocationOrRespond(locationInput, res);
+        if (!location) return;
       }
 
-      const row = await updateJob(jobId, parsed.data);
+      const row = await updateJob(jobId, { ...patch, location });
       if (!row) return res.status(404).json({ error: 'Not found', message: 'Job not found' });
       const job = toMentionJobPosting(row);
-      if (job.status === 'published') {
-        syncJobToClarityInBackground(row, await employerDisplayName(job.employerOxyUserId));
-      }
+      if (job.status === 'published') syncJobToClarityInBackground(row);
       res.json({ job });
     } catch (error) {
-      if (isCheckViolation(error)) return validationError(res, 'Job failed validation');
+      if (isCheckViolation(error)) return validationError(res, [{ path: '(body)', message: 'Job failed validation' }]);
       logger.error('[JobsManagement] Error in update:', error);
       next(createError(500, 'Error updating job'));
     }

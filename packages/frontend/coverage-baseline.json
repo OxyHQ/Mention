@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 33.56,
-      "covered": 8747,
-      "total": 26058
+      "pct": 33.85,
+      "covered": 8868,
+      "total": 26196
     },
     "branches": {
-      "pct": 28.82,
-      "covered": 5466,
-      "total": 18965
+      "pct": 29.25,
+      "covered": 5579,
+      "total": 19070
     },
     "functions": {
-      "pct": 28.45,
-      "covered": 1871,
-      "total": 6576
+      "pct": 28.85,
+      "covered": 1912,
+      "total": 6626
     },
     "lines": {
-      "pct": 34.21,
-      "covered": 8006,
-      "total": 23397
+      "pct": 34.49,
+      "covered": 8115,
+      "total": 23523
     }
   },
   "pins": {
@@ -198,10 +198,10 @@
       "lines": 66
     },
     "hooks/useDraftManager.ts": {
-      "statements": 53,
-      "branches": 23,
-      "functions": 27,
-      "lines": 53
+      "statements": 57,
+      "branches": 32,
+      "functions": 32,
+      "lines": 57
     },
     "hooks/useDrafts.ts": {
       "statements": 50,
@@ -1366,6 +1366,12 @@
       "branches": 100,
       "functions": 100,
       "lines": 100
+    },
+    "utils/jobVocabulary.ts": {
+      "statements": 91,
+      "branches": 91,
+      "functions": 92,
+      "lines": 90
     },
     "utils/linkifyPattern.ts": {
       "statements": 91,

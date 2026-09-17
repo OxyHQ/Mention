@@ -24,6 +24,7 @@ import {
   MENTION_JOB_SALARY_INTERVALS,
   MENTION_JOB_WORKPLACE_TYPES,
   type CreateMentionJobRequest,
+  type CurrencyCode,
   type MentionJobApplicationMode,
   type MentionJobEmploymentType,
   type MentionJobSalaryInterval,
@@ -33,6 +34,13 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { jobsService, getJobErrorMessage, isJobEntitlementError } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import JobLocationField, {
+  EMPTY_JOB_LOCATION,
+  isJobLocationIncomplete,
+  jobLocationInputFrom,
+  type JobLocationDraft,
+} from '@/components/Jobs/JobLocationField';
+import JobCurrencyField from '@/components/Jobs/JobCurrencyField';
 
 const WORKPLACE_LABELS: Record<MentionJobWorkplaceType, string> = {
   onsite: 'On-site',
@@ -52,6 +60,7 @@ const EMPLOYMENT_LABELS: Record<MentionJobEmploymentType, string> = {
 const INTERVAL_LABELS: Record<MentionJobSalaryInterval, string> = {
   hour: 'Hour',
   day: 'Day',
+  week: 'Week',
   month: 'Month',
   year: 'Year',
 };
@@ -145,18 +154,14 @@ export default function CreateJobScreen() {
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [locationRaw, setLocationRaw] = useState('');
-  const [showLocationDetails, setShowLocationDetails] = useState(false);
-  const [countryCode, setCountryCode] = useState('');
-  const [region, setRegion] = useState('');
-  const [city, setCity] = useState('');
+  const [location, setLocation] = useState<JobLocationDraft>(EMPTY_JOB_LOCATION);
 
   const [workplaceType, setWorkplaceType] = useState<MentionJobWorkplaceType | ''>('');
   const [employmentType, setEmploymentType] = useState<MentionJobEmploymentType | ''>('');
 
   const [salaryMin, setSalaryMin] = useState('');
   const [salaryMax, setSalaryMax] = useState('');
-  const [salaryCurrency, setSalaryCurrency] = useState('USD');
+  const [salaryCurrency, setSalaryCurrency] = useState<CurrencyCode>('USD');
   const [salaryInterval, setSalaryInterval] = useState<MentionJobSalaryInterval>('year');
 
   const [skillDraft, setSkillDraft] = useState('');
@@ -183,7 +188,6 @@ export default function CreateJobScreen() {
       const trimmedDescription = description.trim();
       if (!trimmedTitle || !trimmedDescription) return null;
 
-      const trimmedLocation = locationRaw.trim();
       const hasSalary = salaryMin.trim().length > 0 || salaryMax.trim().length > 0;
       const min = salaryMin.trim() ? Number(salaryMin) : undefined;
       const max = salaryMax.trim() ? Number(salaryMax) : undefined;
@@ -192,21 +196,14 @@ export default function CreateJobScreen() {
         employerOxyUserId: employer.accountId,
         title: trimmedTitle,
         description: trimmedDescription,
-        location: trimmedLocation
-          ? {
-              raw: trimmedLocation,
-              countryCode: countryCode.trim() || undefined,
-              region: region.trim() || undefined,
-              city: city.trim() || undefined,
-            }
-          : undefined,
+        location: jobLocationInputFrom(location),
         workplaceType: workplaceType || undefined,
         employmentType: employmentType || undefined,
         salary: hasSalary
           ? {
               min: Number.isFinite(min) ? min : undefined,
               max: Number.isFinite(max) ? max : undefined,
-              currency: salaryCurrency.trim() || 'USD',
+              currency: salaryCurrency,
               interval: salaryInterval,
             }
           : undefined,
@@ -220,10 +217,7 @@ export default function CreateJobScreen() {
       employer,
       title,
       description,
-      locationRaw,
-      countryCode,
-      region,
-      city,
+      location,
       workplaceType,
       employmentType,
       salaryMin,
@@ -274,7 +268,7 @@ export default function CreateJobScreen() {
     [buildPayload, createMutation],
   );
 
-  const canSubmitBase = Boolean(employer && title.trim() && description.trim());
+  const canSubmitBase = Boolean(employer && title.trim() && description.trim() && !isJobLocationIncomplete(location));
   const canPublish = canSubmitBase && (applicationMode !== 'external' || externalApplyUrl.trim().length > 0);
   const publishingIntent = createMutation.variables?.publish === true;
 
@@ -346,44 +340,9 @@ export default function CreateJobScreen() {
           </TextField>
         </View>
 
-        {/* Location */}
-        <View className="mt-3">
-          <TextField>
-            <TextFieldInput
-              label={t('jobs.create.location', { defaultValue: 'Location' })}
-              value={locationRaw}
-              onChangeText={setLocationRaw}
-            />
-          </TextField>
-          <Button
-            variant="text"
-            size="small"
-            onPress={() => setShowLocationDetails((v) => !v)}
-            style={{ alignSelf: 'flex-start', marginTop: 4 }}
-          >
-            {showLocationDetails
-              ? t('jobs.create.hideLocationDetails', { defaultValue: 'Hide location details' })
-              : t('jobs.create.addLocationDetails', { defaultValue: 'Add country / region / city (optional)' })}
-          </Button>
-          {showLocationDetails ? (
-            <View className="flex-row gap-2 mt-2">
-              <View className="flex-1">
-                <TextField>
-                  <TextFieldInput label={t('jobs.create.countryCode', { defaultValue: 'Country' })} value={countryCode} onChangeText={setCountryCode} autoCapitalize="characters" maxLength={2} />
-                </TextField>
-              </View>
-              <View className="flex-1">
-                <TextField>
-                  <TextFieldInput label={t('jobs.create.region', { defaultValue: 'Region' })} value={region} onChangeText={setRegion} />
-                </TextField>
-              </View>
-              <View className="flex-1">
-                <TextField>
-                  <TextFieldInput label={t('jobs.create.city', { defaultValue: 'City' })} value={city} onChangeText={setCity} />
-                </TextField>
-              </View>
-            </View>
-          ) : null}
+        {/* Location — a Clarity place or a country, never free text */}
+        <View className="mt-4">
+          <JobLocationField value={location} onChange={setLocation} />
         </View>
 
         {/* Workplace type */}
@@ -453,17 +412,9 @@ export default function CreateJobScreen() {
                 />
               </TextField>
             </View>
-            <View style={{ width: 90 }}>
-              <TextField>
-                <TextFieldInput
-                  label={t('jobs.create.currency', { defaultValue: 'Currency' })}
-                  value={salaryCurrency}
-                  onChangeText={(v) => setSalaryCurrency(v.toUpperCase())}
-                  autoCapitalize="characters"
-                  maxLength={3}
-                />
-              </TextField>
-            </View>
+          </View>
+          <View className="mt-2">
+            <JobCurrencyField value={salaryCurrency} onChange={setSalaryCurrency} />
           </View>
           <View className="mt-2">
             <SegmentedControl

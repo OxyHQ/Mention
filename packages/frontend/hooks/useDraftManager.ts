@@ -4,6 +4,7 @@ import {
   type MentionData,
 } from '@/utils/mentions';
 import { logger } from '@oxy.so/core/logger';
+import { isCountryCode, type MentionJobLocation } from '@mention/shared-types';
 import {
   ComposerMediaItem,
   toComposerMediaType,
@@ -51,6 +52,21 @@ const readArray = (value: unknown): unknown[] => (Array.isArray(value) ? value :
 
 const readString = (value: unknown): string | undefined =>
   typeof value === 'string' ? value : undefined;
+
+/**
+ * A job attachment's location as a draft stored it. Drafts saved before job
+ * locations became structured held a free-text string; that is dropped rather
+ * than shown, and the card simply renders without a location.
+ */
+const readJobLocation = (value: unknown): MentionJobLocation | undefined => {
+  if (!isRecord(value) || !isCountryCode(value.countryCode)) return undefined;
+  return {
+    countryCode: value.countryCode,
+    placeId: readString(value.placeId),
+    region: readString(value.region),
+    city: readString(value.city),
+  };
+};
 
 const readNumber = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined;
@@ -321,7 +337,7 @@ export const useDraftManager = ({
         employerOxyUserId: jobEmployerOxyUserId,
         canonicalUrl: jobCanonicalUrl,
         status: jobStatus as JobAttachmentData['status'],
-        location: readString(storedJob.location),
+        location: readJobLocation(storedJob.location),
         workplaceType: readString(storedJob.workplaceType) as JobAttachmentData['workplaceType'],
         employmentType: readString(storedJob.employmentType) as JobAttachmentData['employmentType'],
       };
