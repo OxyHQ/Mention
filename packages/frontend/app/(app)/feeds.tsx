@@ -39,11 +39,6 @@ import { HIT_SLOP_MD } from '@/styles/hitSlop';
 const IS_WEB = Platform.OS === 'web';
 
 /**
- * Bloom glyph per preset id. The shared catalog carries Lucide names; the feeds
- * screen renders with Bloom's Remix icons, so this maps the small, fixed preset
- * set rather than pulling in a second icon library.
- */
-/**
  * Live trends offered on this screen.
  *
  * A handful, not the whole batch: this is a DIRECTORY, and the trending page is
@@ -55,6 +50,11 @@ const TREND_FEED_LIMIT = 5;
 /** Pin key for a trend row. Keyed on the TERM, which is what the descriptor addresses. */
 const trendKey = (trend: Trend): string => `trend:${trend.text}`;
 
+/**
+ * Bloom glyph per preset id. The shared catalog carries Lucide names; the feeds
+ * screen renders with Bloom's Remix icons, so this maps the small, fixed preset
+ * set rather than pulling in a second icon library.
+ */
 const PRESET_ICONS: Record<string, BloomIcon> = {
   for_you: RiSparklingLine,
   following: RiGroupLine,
