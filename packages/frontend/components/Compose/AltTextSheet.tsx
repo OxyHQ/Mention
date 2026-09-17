@@ -1,9 +1,10 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, TextInput, Image, ScrollView, TouchableOpacity } from 'react-native';
+import { Button } from '@oxy.so/bloom/button';
+import { RiCloseLine } from '@oxy.so/bloom/icons';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { CloseIcon } from '@/assets/icons/close-icon';
-import { IconButton } from '@/components/ui/Button';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 
 /** Matches the backend cap on `content.media[].alt`. */
@@ -78,22 +79,27 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
 
   return (
     <View className="flex-1 pb-6 bg-background">
-      <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border mb-3">
-        <IconButton variant="icon" onPress={onClose} className="mr-1.5 z-[1]">
-          <CloseIcon size={20} className="text-foreground" />
-        </IconButton>
-        <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground pointer-events-none">
-          {t('compose.altText.heading', { defaultValue: 'Alt text' })}
-        </Text>
-        <View className="w-9 h-9 ml-auto" />
-      </View>
+      <PageHeader
+        title={t('compose.altText.heading', { defaultValue: 'Alt text' })}
+        titleAlign="center"
+        safeArea={false}
+        leading={
+          <Button
+            variant="secondary"
+            iconOnly
+            leadingIcon={RiCloseLine}
+            onPress={onClose}
+            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+          />
+        }
+      />
 
       <ScrollView
         contentContainerStyle={scrollContentStyle}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text className="text-[13px] text-muted-foreground mb-3 px-4" style={helpTextStyle}>
+        <Text className="text-[13px] text-muted-foreground mt-3 mb-3 px-4" style={helpTextStyle}>
           {t('compose.altText.help', {
             defaultValue:
               'Describe this image for people who are blind or have low vision, and to add context for everyone.',
@@ -178,16 +184,9 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
         </Text>
       </ScrollView>
 
-      <TouchableOpacity
-        onPress={handleSave}
-        className="flex-row items-center justify-center py-3 rounded-full mt-2 mx-4"
-        style={{ backgroundColor: theme.colors.primary }}
-        activeOpacity={0.85}
-      >
-        <Text className="text-sm font-semibold" style={{ color: theme.colors.card }}>
-          {t('common.done', { defaultValue: 'Done' })}
-        </Text>
-      </TouchableOpacity>
+      <Button className="mt-2 mx-4" size="large" onPress={handleSave}>
+        {t('common.done', { defaultValue: 'Done' })}
+      </Button>
     </View>
   );
 };

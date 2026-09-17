@@ -7,12 +7,10 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { Avatar } from '@oxy.so/bloom/avatar';
+import { Button } from '@oxy.so/bloom/button';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { RiAlertLine, RiCheckboxCircleFill, RiErrorWarningFill, RiUserLine } from '@oxy.so/bloom/icons';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton, Button } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { Icon } from '@/lib/icons';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useProfileData } from '@/hooks/useProfileData';
 import { displayNameOrHandle } from '@/utils/displayName';
@@ -104,7 +102,7 @@ function LinkBody({ token }: { token: string }) {
   if (previewError) {
     return (
       <View className="flex-1 items-center justify-center px-6 gap-3">
-        <Icon name="alert-circle-outline" size={44} color={colors.textSecondary} />
+        <RiAlertLine width={44} height={44} fill={colors.textSecondary} />
         <Text className="text-base text-foreground text-center">{previewError}</Text>
       </View>
     );
@@ -121,7 +119,7 @@ function LinkBody({ token }: { token: string }) {
   if (done) {
     return (
       <View className="px-6 py-8 gap-4 items-center">
-        <Icon name="checkmark-circle" size={52} color={colors.success} />
+        <RiCheckboxCircleFill width={52} height={52} fill={colors.success} />
         <Text className="text-2xl font-bold text-foreground text-center">
           {t('mcp.link.successTitle', { defaultValue: 'Account linked' })}
         </Text>
@@ -150,7 +148,7 @@ function LinkBody({ token }: { token: string }) {
           <View
             className="w-[72px] h-[72px] rounded-full items-center justify-center bg-primary/10"
           >
-            <Icon name="person-outline" size={34} color={colors.primary} />
+            <RiUserLine width={34} height={34} fill={colors.primary} />
           </View>
         )}
         <Text className="text-sm font-semibold uppercase text-muted-foreground">
@@ -176,7 +174,7 @@ function LinkBody({ token }: { token: string }) {
 
       {error ? (
         <View className="flex-row items-start gap-2.5 rounded-xl p-3.5" style={{ backgroundColor: colors.error + '14' }}>
-          <Icon name="alert-circle" size={18} color={colors.error} />
+          <RiErrorWarningFill width={18} height={18} fill={colors.error} />
           <Text className="flex-1 text-[13px] text-foreground">{error}</Text>
         </View>
       ) : null}
@@ -202,34 +200,27 @@ export default function McpOAuthLinkScreen() {
   const token = firstParam(rawParams.token);
 
   const header = (
-    <Header
-      options={{
-        title: t('mcp.link.headerTitle', { defaultValue: 'Link account' }),
-        leftComponents: [
-          <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-            <BackArrowIcon size={20} className="text-foreground" />
-          </IconButton>,
-        ],
-      }}
-      hideBottomBorder
-      disableSticky
+    <PageHeader
+      title={t('mcp.link.headerTitle', { defaultValue: 'Link account' })}
+      onBack={() => safeBack()}
+      backLabel={t('common.back', { defaultValue: 'Back' })}
     />
   );
 
   if (!isAuthResolved || isPrivateApiPending) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center">
           <Loading />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   if (!canUsePrivateApi) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <OxyAuthPrompt
           label={t('mcp.link.signInRequired', { defaultValue: 'Sign in to link this account' })}
@@ -237,30 +228,30 @@ export default function McpOAuthLinkScreen() {
             defaultValue: 'Sign in to the Mention account you want to add to Claude.',
           })}
         />
-      </ThemedView>
+      </View>
     );
   }
 
   if (!token) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center px-6 gap-3">
-          <Icon name="alert-circle-outline" size={44} color={colors.textSecondary} />
+          <RiAlertLine width={44} height={44} fill={colors.textSecondary} />
           <Text className="text-base text-foreground text-center">
             {t('mcp.link.missingToken', {
               defaultValue: 'This link is missing required information. Run link-account from Claude again.',
             })}
           </Text>
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1">
       {header}
       <LinkBody token={token} />
-    </ThemedView>
+    </View>
   );
 }

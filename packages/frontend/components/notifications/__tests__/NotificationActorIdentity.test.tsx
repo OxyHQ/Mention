@@ -49,6 +49,10 @@ jest.mock('@oxy.so/bloom/avatar', () => {
   };
 });
 jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiCheckboxCircleFill: () => null,
+  RiCloseCircleLine: () => null,
+}));
 jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
 jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#666', primary: '#000', border: '#eee' } }),

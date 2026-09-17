@@ -33,7 +33,12 @@ jest.mock('@oxy.so/core', () => ({
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: {} }) }));
 jest.mock('@oxy.so/bloom/hooks', () => ({ useImagePreload: () => undefined }));
-jest.mock('@oxy.so/bloom/icons', () => ({ RiCornerDownRightLine: () => null, RiLinkM: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiChat3Fill: () => null,
+  RiCornerDownRightLine: () => null,
+  RiLinkM: () => null,
+  RiMoreFill: () => null,
+}));
 jest.mock('@oxy.so/bloom/subtle-hover', () => ({
   SubtleHover: ({ children }: { children?: React.ReactNode }) => children ?? null,
 }));

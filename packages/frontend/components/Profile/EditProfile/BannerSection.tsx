@@ -4,8 +4,8 @@ import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { RiCameraLine, RiDeleteBinLine, RiImageLine } from '@oxy.so/bloom/icons';
 import { MEDIA_VARIANT_BANNER } from '@mention/shared-types/post';
-import { Icon } from '@/lib/icons';
 import { getCachedFileDownloadUrlSync } from '@/utils/imageUrlCache';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 
@@ -59,7 +59,7 @@ export const BannerSection: React.FC = () => {
     <View className="px-5 py-4 gap-3">
       <View className="gap-1">
         <View className="flex-row items-center gap-3">
-          <Icon name="image-outline" size={22} color={colors.text} />
+          <RiImageLine width={22} fill={colors.text} />
           <Text className="text-[16px] font-semibold text-foreground">
             {t('settings.profileHeader', 'Profile header')}
           </Text>
@@ -92,7 +92,7 @@ export const BannerSection: React.FC = () => {
           />
           <View className="absolute inset-x-0 bottom-0 flex-row items-center justify-between bg-black/60 px-3 py-2">
             <View className="flex-row items-center gap-2">
-              <Icon name="camera-outline" size={17} color={colors.primaryForeground} />
+              <RiCameraLine width={17} fill={colors.primaryForeground} />
               <Text className="text-white text-sm font-semibold">
                 {t('common.edit')}
               </Text>
@@ -106,7 +106,7 @@ export const BannerSection: React.FC = () => {
               accessibilityRole="button"
               accessibilityLabel={`${t('common.remove')} ${t('settings.profileHeader')}`}
             >
-              <Icon name="trash-outline" size={17} color={colors.primaryForeground} />
+              <RiDeleteBinLine width={17} fill={colors.primaryForeground} />
             </Pressable>
           </View>
         </Pressable>
@@ -118,7 +118,7 @@ export const BannerSection: React.FC = () => {
           accessibilityLabel={t('settings.uploadHeader', 'Upload header image')}
         >
           <View className="w-11 h-11 rounded-full items-center justify-center bg-primary/10">
-            <Icon name="camera-outline" size={21} color={colors.primary} />
+            <RiCameraLine width={21} fill={colors.primary} />
           </View>
           <Text className="text-sm font-semibold text-foreground">
             {t('settings.uploadHeader', 'Upload header image')}

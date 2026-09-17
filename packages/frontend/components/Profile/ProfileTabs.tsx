@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { RiListUnordered, RiLockLine } from '@oxy.so/bloom/icons';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Spinner } from '@/components/ui/Spinner';
@@ -104,12 +105,7 @@ export const ProfileTabs = memo(function ProfileTabs({
   if (isPrivate && !isOwnProfile) {
     return (
       <View className="items-center justify-center p-8" style={{ minHeight: 200 }}>
-        <Ionicons
-          name="lock-closed"
-          size={48}
-          color={theme.colors.textSecondary}
-          style={{ marginBottom: 16 }}
-        />
+        <RiLockLine size="3xl" fill={theme.colors.textSecondary} style={{ marginBottom: 16 }} />
         <Text className="text-foreground text-lg font-semibold text-center mb-2">
           {t('profile.private.message', { defaultValue: 'This profile is private' })}
         </Text>
@@ -601,7 +597,7 @@ const ProfileLists = memo(function ProfileLists({
   if (lists.length === 0) {
     return (
       <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
-        <Ionicons name="list-outline" size={48} color={theme.colors.textSecondary} />
+        <RiListUnordered size="3xl" fill={theme.colors.textSecondary} />
         <Text className="text-muted-foreground text-base font-medium">
           {t('profile.lists.empty', { defaultValue: 'No lists yet' })}
         </Text>

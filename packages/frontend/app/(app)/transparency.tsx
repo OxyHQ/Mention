@@ -3,16 +3,13 @@ import { ScrollView, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import type {
   FederationBlockCategory,
   FederationBlockSeverity,
   FederationBlocksResponse,
   PublishedFederationBlock,
 } from '@mention/shared-types';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { Header } from '@/components/Header';
-import { ThemedView } from '@/components/ThemedView';
-import { IconButton } from '@/components/ui/Button';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { publicApi } from '@/utils/api';
 
@@ -128,18 +125,11 @@ export default function TransparencyScreen() {
   const blocks = blocksQuery.data;
 
   return (
-    <ThemedView className="flex-1">
-      <Header
-        options={{
-          title: t('transparency.title'),
-          leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder
-        disableSticky
+    <View className="flex-1">
+      <PageHeader
+        title={t('transparency.title')}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
       />
 
       <ScrollView
@@ -181,6 +171,6 @@ export default function TransparencyScreen() {
           <Paragraph>{t('transparency.list.empty')}</Paragraph>
         )}
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }

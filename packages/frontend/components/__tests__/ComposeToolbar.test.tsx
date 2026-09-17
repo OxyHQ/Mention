@@ -63,6 +63,19 @@ jest.mock('@oxy.so/bloom/pressable-scale', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   return { PressableScale: TouchableOpacity };
 });
+// Bloom's icon barrel is untranspiled ESM. Each glyph becomes a component named
+// after its export, so the cases below can still assert on WHICH picture drew.
+jest.mock('@oxy.so/bloom/icons', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  const glyph = (name: string) =>
+    Object.assign((props: object) => <View {...props} />, { displayName: name });
+  return {
+    RiBroadcastLine: glyph('RiBroadcastLine'),
+    RiGroupFill: glyph('RiGroupFill'),
+    RiGroupLine: glyph('RiGroupLine'),
+    RiMic2Line: glyph('RiMic2Line'),
+  };
+});
 
 /** Icon-font glyphs live in the Unicode Private Use Area. */
 const GLYPH = /[\uE000-\uF8FF]/g;
@@ -95,7 +108,14 @@ function render(props: Partial<React.ComponentProps<typeof ComposeToolbar>> = {}
 }
 
 function iconNames(tree: TestRenderer.ReactTestRenderer): string[] {
-  return tree.root.findAllByType(Ionicons).map((node) => String(node.props.name));
+  return tree.root.findAll((node) => iconName(node) !== undefined).map((node) => String(iconName(node)));
+}
+
+/** Ionicons by glyph name, Bloom icons by export name; `undefined` for anything else. */
+function iconName(node: TestRenderer.ReactTestInstance): string | undefined {
+  if (node.type === Ionicons) return String(node.props.name);
+  const name = typeof node.type === 'function' ? (node.type as React.FC).displayName : undefined;
+  return name && /^Ri[A-Z]/.test(name) ? name : undefined;
 }
 
 /**
@@ -133,7 +153,7 @@ describe('ComposeToolbar — the batch-level controls that were moved out', () =
 
     // Both states of the glyph the control used to draw, so putting it back
     // under any prop name fails here.
-    expect(iconNames(tree).filter((name) => /^language(-outline)?$/.test(name))).toEqual([]);
+    expect(iconNames(tree).filter((name) => /^(language(-outline)?|RiGlobalLine)$/.test(name))).toEqual([]);
     expect(a11yLabels(tree)).not.toContain('Add a language');
 
     act(() => tree.unmount());
@@ -160,7 +180,7 @@ describe('ComposeToolbar — the batch-level controls that were moved out', () =
     // Were the row rendering nothing at all — a broken import, a bailed render —
     // the absences above would pass for the wrong reason.
     expect(iconNames(tree)).toEqual(
-      expect.arrayContaining(['radio-outline', 'mic-outline', 'people-outline']),
+      expect.arrayContaining(['RiBroadcastLine', 'RiMic2Line', 'RiGroupLine']),
     );
     expect(a11yLabels(tree)).toEqual(
       expect.arrayContaining(['Invite collaborators', 'Choose a lane']),
@@ -193,7 +213,7 @@ describe('ComposeToolbar — the collaborators control', () => {
     // composer. In the icon row the words live in the a11y label alone.
     expect(textContent(tree)).toBe('');
     expect(collaboratorControl(tree).props.className).toBe('p-1');
-    expect(iconNames(tree)).toContain('people-outline');
+    expect(iconNames(tree)).toContain('RiGroupLine');
 
     act(() => tree.unmount());
   });
@@ -201,8 +221,8 @@ describe('ComposeToolbar — the collaborators control', () => {
   it('fills its glyph once the post names someone', () => {
     const tree = render({ onCollaboratorsPress: noop, hasCollaborators: true });
 
-    expect(iconNames(tree)).toContain('people');
-    expect(iconNames(tree)).not.toContain('people-outline');
+    expect(iconNames(tree)).toContain('RiGroupFill');
+    expect(iconNames(tree)).not.toContain('RiGroupLine');
 
     act(() => tree.unmount());
   });
@@ -212,7 +232,7 @@ describe('ComposeToolbar — the collaborators control', () => {
 
     // A reply, a thread, or an edit of an already-collaborative post passes no
     // handler. Neither glyph — the control has two states and both must be gone.
-    expect(iconNames(tree).filter((name) => /^people(-outline)?$/.test(name))).toEqual([]);
+    expect(iconNames(tree).filter((name) => /^RiGroup(Line|Fill)$/.test(name))).toEqual([]);
 
     act(() => tree.unmount());
   });
@@ -240,8 +260,7 @@ describe('ComposeToolbar — the collaborators control', () => {
   it('tints itself once the post actually names a collaborator', () => {
     const peopleColor = (tree: TestRenderer.ReactTestRenderer) =>
       tree.root
-        .findAllByType(Ionicons)
-        .find((node) => /^people(-outline)?$/.test(node.props.name))?.props.color;
+        .findAll((node) => /^RiGroup(Line|Fill)$/.test(iconName(node) ?? ''))[0]?.props.fill;
 
     const plain = render({ onCollaboratorsPress: noop });
     const plainColor = peopleColor(plain);

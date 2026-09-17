@@ -8,17 +8,14 @@ import {
   RefreshControl,
   Platform,
 } from 'react-native';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Loading } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { RiGroupLine, RiShieldCheckLine, RiUserLine } from '@oxy.so/bloom/icons';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { labelerService } from '@/services/labelerService';
 import { SEVERITY_COLORS, Severity, LabelActionType } from '@/components/LabelBadge';
 import { cn } from '@/lib/utils';
@@ -253,47 +250,33 @@ const LabelerDetailScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <ThemedView className="flex-1">
-        <Header
-          options={{
-            title: t('labelers.detailTitle', { defaultValue: 'Labeler' }),
-            leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                <BackArrowIcon size={20} className="text-foreground" />
-              </IconButton>,
-            ],
-          }}
-          hideBottomBorder
-          disableSticky
+      <View className="flex-1">
+        <PageHeader
+          title={t('labelers.detailTitle', { defaultValue: 'Labeler' })}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
         />
         <View className="flex-1 justify-center items-center">
           <Loading className="text-primary" size="large" />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   if (!labeler) {
     return (
-      <ThemedView className="flex-1">
-        <Header
-          options={{
-            title: t('labelers.detailTitle', { defaultValue: 'Labeler' }),
-            leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                <BackArrowIcon size={20} className="text-foreground" />
-              </IconButton>,
-            ],
-          }}
-          hideBottomBorder
-          disableSticky
+      <View className="flex-1">
+        <PageHeader
+          title={t('labelers.detailTitle', { defaultValue: 'Labeler' })}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
         />
         <View className="flex-1 justify-center items-center">
           <Text className="text-[15px] text-muted-foreground">
             {t('labelers.notFound', { defaultValue: 'Labeler not found.' })}
           </Text>
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
@@ -305,7 +288,7 @@ const LabelerDetailScreen: React.FC = () => {
           <Text className="text-xl font-bold text-foreground">{labeler.name}</Text>
           {labeler.isOfficial && (
             <View className="flex-row items-center gap-[3px] px-1.5 py-0.5 rounded-md bg-primary">
-              <Ionicons name="shield-checkmark" size={10} color="#fff" />
+              <RiShieldCheckLine width={10} height={10} fill="#fff" />
               <Text className="text-white text-[10px] font-bold">
                 {t('labelers.official', { defaultValue: 'Official' })}
               </Text>
@@ -321,7 +304,7 @@ const LabelerDetailScreen: React.FC = () => {
 
         <View className="flex-row flex-wrap gap-3">
           <View className="flex-row items-center gap-1">
-            <Ionicons name="people-outline" size={14} color={theme.colors.textSecondary} />
+            <RiGroupLine width={14} height={14} fill={theme.colors.textSecondary} />
             <Text className="text-[13px] text-muted-foreground">
               {labeler.subscriberCount}{' '}
               {t('labelers.subscribers', { defaultValue: 'subscribers' })}
@@ -330,7 +313,7 @@ const LabelerDetailScreen: React.FC = () => {
 
           {!!creatorName && (
             <View className="flex-row items-center gap-1">
-              <Ionicons name="person-outline" size={14} color={theme.colors.textSecondary} />
+              <RiUserLine width={14} height={14} fill={theme.colors.textSecondary} />
               <Text className="text-[13px] text-muted-foreground">
                 {t('labelers.by', { defaultValue: 'by' })} {creatorName}
               </Text>
@@ -439,18 +422,11 @@ const LabelerDetailScreen: React.FC = () => {
   );
 
   return (
-    <ThemedView className="flex-1">
-      <Header
-        options={{
-          title: labeler.name,
-          leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder
-        disableSticky
+    <View className="flex-1">
+      <PageHeader
+        title={labeler.name}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
       />
 
       {/* WEB hands scroll to the shared panel/document (no nested scroller that
@@ -473,7 +449,7 @@ const LabelerDetailScreen: React.FC = () => {
           {body}
         </ScrollView>
       )}
-    </ThemedView>
+    </View>
   );
 };
 

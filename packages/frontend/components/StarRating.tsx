@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiStarFill, RiStarLine } from '@oxy.so/bloom/icons';
 
 interface StarRatingProps {
   rating: number;
@@ -21,14 +21,14 @@ const StarRating = React.memo(function StarRating({
     () =>
       Array.from({ length: 5 }, (_, i) => ({
         key: i,
-        filled: interactive ? i < rating : i < Math.round(rating),
+        Star: (interactive ? i < rating : i < Math.round(rating)) ? RiStarFill : RiStarLine,
       })),
     [rating, interactive]
   );
 
   return (
     <View style={styles.row}>
-      {stars.map(({ key, filled }) =>
+      {stars.map(({ key, Star }) =>
         interactive ? (
           <TouchableOpacity
             key={key}
@@ -39,10 +39,10 @@ const StarRating = React.memo(function StarRating({
             // and rate the wrong value.
             hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
           >
-            <Ionicons name={filled ? 'star' : 'star-outline'} size={size} color={color} />
+            <Star width={size} fill={color} />
           </TouchableOpacity>
         ) : (
-          <Ionicons key={key} name={filled ? 'star' : 'star-outline'} size={size} color={color} />
+          <Star key={key} width={size} fill={color} />
         )
       )}
     </View>

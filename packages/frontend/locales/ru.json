@@ -250,6 +250,7 @@
   "profile.media.podcast.searchError": "Не удалось выполнить поиск подкастов. Попробуйте снова.",
   "profile.following": "Подписки",
   "profile.followers": "Подписчики",
+  "profile.activity": "Активность",
   "profile.followedBy.one": "В подписчиках: {{name1}}",
   "profile.followedBy.two": "В подписчиках: {{name1}} и {{name2}}",
   "profile.followedBy.many_one": "В подписчиках: {{name1}}, {{name2}} и ещё {{count}} человек",

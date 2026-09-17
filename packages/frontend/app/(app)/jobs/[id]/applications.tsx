@@ -7,16 +7,13 @@ import { FlashList } from '@shopify/flash-list';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Chip } from '@oxy.so/bloom/chip';
 import { Loading } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useAuth } from '@oxy.so/services/ui/client';
 import {
   MENTION_JOB_APPLICATION_STATUSES,
   type MentionJobApplication,
   type MentionJobApplicationStatus,
 } from '@mention/shared-types';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Error as ErrorState } from '@/components/Error';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
@@ -100,17 +97,10 @@ export default function JobApplicationsScreen() {
   }, [applicationsQuery]);
 
   const header = (
-    <Header
-      options={{
-        title: t('jobs.applications.title', { defaultValue: 'Applications' }),
-        leftComponents: [
-          <IconButton key="back" variant="icon" onPress={safeBack}>
-            <BackArrowIcon size={20} className="text-foreground" />
-          </IconButton>,
-        ],
-      }}
-      hideBottomBorder
-      disableSticky
+    <PageHeader
+      title={t('jobs.applications.title', { defaultValue: 'Applications' })}
+      onBack={() => safeBack()}
+      backLabel={t('common.back', { defaultValue: 'Back' })}
     />
   );
 
@@ -129,19 +119,19 @@ export default function JobApplicationsScreen() {
 
   if (forbidden) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center px-8">
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.applications.forbidden', { defaultValue: 'Only this job\'s operators can view applications' })}
           </Text>
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1">
       {header}
       {filterRow}
       <View className="flex-1 min-h-0">
@@ -207,6 +197,6 @@ export default function JobApplicationsScreen() {
           />
         )}
       </View>
-    </ThemedView>
+    </View>
   );
 }

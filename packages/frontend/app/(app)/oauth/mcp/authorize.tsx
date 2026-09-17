@@ -7,12 +7,18 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { Avatar } from '@oxy.so/bloom/avatar';
+import { Button } from '@oxy.so/bloom/button';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import {
+  RiAlertLine,
+  RiArrowLeftRightLine,
+  RiCheckboxCircleFill,
+  RiErrorWarningFill,
+  RiInformationFill,
+  RiSparklingFill,
+  RiUserLine,
+} from '@oxy.so/bloom/icons';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton, Button } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { Icon } from '@/lib/icons';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useProfileData } from '@/hooks/useProfileData';
 import { displayNameOrHandle } from '@/utils/displayName';
@@ -173,14 +179,14 @@ function ConsentBody({ params }: { params: Required<Pick<McpAuthorizeParams, 'cl
             <View
               className="w-14 h-14 rounded-full items-center justify-center bg-primary/10"
             >
-              <Icon name="person-outline" size={26} color={colors.primary} />
+              <RiUserLine width={26} height={26} fill={colors.primary} />
             </View>
           )}
-          <Icon name="swap-horizontal" size={22} color={colors.textSecondary} />
+          <RiArrowLeftRightLine width={22} height={22} fill={colors.textSecondary} />
           <View
             className="w-14 h-14 rounded-full items-center justify-center bg-primary/10"
           >
-            <Icon name="sparkles" size={26} color={colors.primary} />
+            <RiSparklingFill width={26} height={26} fill={colors.primary} />
           </View>
         </View>
 
@@ -218,7 +224,7 @@ function ConsentBody({ params }: { params: Required<Pick<McpAuthorizeParams, 'cl
         {scopes.length > 0 ? (
           scopes.map((scope) => (
             <View key={scope} className="flex-row items-center gap-3 px-4 py-3 border-b border-border">
-              <Icon name="checkmark-circle" size={18} color={colors.success} />
+              <RiCheckboxCircleFill width={18} height={18} fill={colors.success} />
               <Text className="flex-1 text-[15px] text-foreground">
                 {t(`mcp.scopes.${scope}`, { defaultValue: scope })}
               </Text>
@@ -226,7 +232,7 @@ function ConsentBody({ params }: { params: Required<Pick<McpAuthorizeParams, 'cl
           ))
         ) : (
           <View className="flex-row items-center gap-3 px-4 py-3">
-            <Icon name="checkmark-circle" size={18} color={colors.success} />
+            <RiCheckboxCircleFill width={18} height={18} fill={colors.success} />
             <Text className="flex-1 text-[15px] text-foreground">
               {t('mcp.authorize.defaultScope', {
                 defaultValue: 'Access your Mention account on your behalf',
@@ -237,7 +243,7 @@ function ConsentBody({ params }: { params: Required<Pick<McpAuthorizeParams, 'cl
       </View>
 
       <View className="flex-row items-start gap-2.5 rounded-xl p-3.5" style={{ backgroundColor: colors.info + '14' }}>
-        <Icon name="information-circle" size={18} color={colors.info} />
+        <RiInformationFill width={18} height={18} fill={colors.info} />
         <Text className="flex-1 text-[13px] text-foreground">
           {t('mcp.authorize.reviewNotice', {
             defaultValue:
@@ -248,7 +254,7 @@ function ConsentBody({ params }: { params: Required<Pick<McpAuthorizeParams, 'cl
 
       {error ? (
         <View className="flex-row items-start gap-2.5 rounded-xl p-3.5" style={{ backgroundColor: colors.error + '14' }}>
-          <Icon name="alert-circle" size={18} color={colors.error} />
+          <RiErrorWarningFill width={18} height={18} fill={colors.error} />
           <Text className="flex-1 text-[13px] text-foreground">{error}</Text>
         </View>
       ) : null}
@@ -295,17 +301,10 @@ export default function McpOAuthAuthorizeScreen() {
   );
 
   const header = (
-    <Header
-      options={{
-        title: t('mcp.authorize.headerTitle', { defaultValue: 'Connect app' }),
-        leftComponents: [
-          <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-            <BackArrowIcon size={20} className="text-foreground" />
-          </IconButton>,
-        ],
-      }}
-      hideBottomBorder
-      disableSticky
+    <PageHeader
+      title={t('mcp.authorize.headerTitle', { defaultValue: 'Connect app' })}
+      onBack={() => safeBack()}
+      backLabel={t('common.back', { defaultValue: 'Back' })}
     />
   );
 
@@ -313,18 +312,18 @@ export default function McpOAuthAuthorizeScreen() {
   // until auth + the private-API bearer resolve.
   if (!isAuthResolved || isPrivateApiPending) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center">
           <Loading />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   if (!canUsePrivateApi) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <OxyAuthPrompt
           label={t('mcp.authorize.signInRequired', { defaultValue: 'Sign in to continue' })}
@@ -332,32 +331,32 @@ export default function McpOAuthAuthorizeScreen() {
             defaultValue: 'Sign in to your Mention account to authorize this app.',
           })}
         />
-      </ThemedView>
+      </View>
     );
   }
 
   if (!params.client_id || !params.redirect_uri) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center px-6 gap-3">
-          <Icon name="alert-circle-outline" size={44} color={colors.textSecondary} />
+          <RiAlertLine width={44} height={44} fill={colors.textSecondary} />
           <Text className="text-base text-foreground text-center">
             {t('mcp.authorize.invalidRequest', {
               defaultValue: 'This authorization request is missing required information.',
             })}
           </Text>
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1">
       {header}
       <ConsentBody
         params={{ ...params, client_id: params.client_id, redirect_uri: params.redirect_uri }}
       />
-    </ThemedView>
+    </View>
   );
 }

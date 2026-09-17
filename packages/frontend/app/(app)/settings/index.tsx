@@ -82,13 +82,10 @@ export default function SettingsScreen() {
 
     return (
         <ThemedView className="flex-1">
-            {/* NOT wrapped in <PanelStickyHeader>: settings uses an inner
-                Animated.ScrollView (registered to LayoutScroll), NOT the
-                document-scroll model the feed screens use, and its header is
-                already `disableSticky` (non-sticky, in flow above the inner
-                scroller). Adopting PanelStickyHeader here would require changing
-                the scroll model, so it is intentionally left as-is. */}
-            <PageHeader title={t("settings.title")} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+            {/* Bloom's PageHeader pins itself (`position: sticky` on web) and fades
+                its separator in with the window scroll, so it needs no
+                PanelStickyHeader wrapper. */}
+            <PageHeader title={t("settings.title")} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <Animated.ScrollView
                 ref={assignScrollViewRef}

@@ -3,16 +3,12 @@ import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
-import { ThemedText } from '@/components/ThemedText';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Text } from '@oxy.so/bloom/typography';
 import { useTranslation } from 'react-i18next';
 import Feed from '@/components/Feed/Feed';
 import type { FeedType } from '@mention/shared-types';
 import { SEO } from '@/components/SEO';
-import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { trendingService } from '@/services/trendingService';
 import { useTrendsStore } from '@/stores/trendsStore';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
@@ -80,22 +76,22 @@ export default function TrendScreen() {
 
     const listHeader = useMemo(() => (
         <View className="px-4 pb-2">
-            <ThemedText className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1 font-primary">
+            <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
                 {categoryLabel || t('trend.trendingLabel', { defaultValue: 'Trending' })}
-            </ThemedText>
-            <ThemedText type="title" className="text-[28px] font-bold mb-1 font-primary">
+            </Text>
+            <Text className="text-[28px] leading-8 font-bold mb-1 text-foreground">
                 {heading}
-            </ThemedText>
+            </Text>
             {summary ? (
-                <ThemedText className="text-sm text-muted-foreground font-primary">
+                <Text className="text-sm text-muted-foreground">
                     {summary}
-                </ThemedText>
+                </Text>
             ) : null}
         </View>
     ), [heading, summary, categoryLabel, t]);
 
     return (
-        <SafeAreaView className="flex-1" edges={['top']}>
+        <View className="flex-1">
             <SEO
                 title={t('seo.trend.title', { topic: heading, defaultValue: '{{topic}} - Mention' })}
                 description={t('seo.trend.description', {
@@ -103,27 +99,15 @@ export default function TrendScreen() {
                     defaultValue: 'Posts about {{topic}} on Mention',
                 })}
             />
-            {/* PanelStickyHeader owns the web sticky position/inset + opaque
-                panel surface; `disableSticky` on the inner <Header> hands sticky
-                ownership to PanelStickyHeader so the header pins at PANEL_TOP_INSET
-                (inside the panel) instead of top:0 (clipped by the bleed mask). */}
-            <PanelStickyHeader level={0}>
-                <Header
-                    options={{
-                        title: heading,
-                        leftComponents: [
-                            <IconButton key="back" variant="icon" onPress={safeBack}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    disableSticky
-                />
-            </PanelStickyHeader>
+            <PageHeader
+                title={heading}
+                onBack={() => safeBack()}
+                backLabel={t('common.back', { defaultValue: 'Back' })}
+            />
             <Feed
                 type={feedType}
                 listHeaderComponent={listHeader}
             />
-        </SafeAreaView>
+        </View>
     );
 }

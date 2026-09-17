@@ -1,12 +1,17 @@
 import React, { memo, useCallback } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Button } from '@oxy.so/bloom/button';
+import {
+  RiAddLine,
+  RiArrowRightSLine,
+  RiCheckboxCircleFill,
+  RiCloseLine,
+  RiGlobalLine,
+} from '@oxy.so/bloom/icons';
 import { Item } from '@oxy.so/bloom/item';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { CheckCircleIcon } from '@/assets/icons/check-circle-icon';
-import { CloseIcon } from '@/assets/icons/close-icon';
-import { IconButton } from '@/components/ui/Button';
 import { describeContentLanguage } from '@/constants/contentLanguages';
 
 interface ComposeLanguageSheetProps {
@@ -79,27 +84,27 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
 
   return (
     <View className="flex-1 pb-6 bg-background">
-      <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border">
-        <IconButton
-          variant="icon"
-          onPress={onClose}
-          accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-          className="mr-1.5 z-[1]"
-        >
-          <CloseIcon size={20} className="text-foreground" />
-        </IconButton>
-        <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground pointer-events-none">
-          {t('compose.languages.sheetTitle', { defaultValue: 'Post languages' })}
-        </Text>
-        <View className="w-9 h-9 ml-auto" />
-      </View>
+      <PageHeader
+        title={t('compose.languages.sheetTitle', { defaultValue: 'Post languages' })}
+        titleAlign="center"
+        safeArea={false}
+        leading={
+          <Button
+            variant="secondary"
+            iconOnly
+            leadingIcon={RiCloseLine}
+            onPress={onClose}
+            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+          />
+        }
+      />
 
       <Item
         onPress={() => onEdit(primaryTag)}
         title={t('compose.languages.pickerTitle', { defaultValue: 'Post language' })}
         subtitle={describeContentLanguage(primaryTag).nativeName}
-        leading={<Ionicons name="language-outline" size={20} color={theme.colors.text} />}
-        trailing={<Ionicons name="chevron-forward" size={18} color={theme.colors.textTertiary} />}
+        leading={<RiGlobalLine size="md" fill={theme.colors.text} />}
+        trailing={<RiArrowRightSLine width={18} height={18} fill={theme.colors.textTertiary} />}
       />
 
       {variantTags.length > 0 ? tags.map((tag) => {
@@ -118,7 +123,7 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
                 : language.englishName
             }
             trailing={
-              isActive ? <CheckCircleIcon size={20} color={theme.colors.primary} /> : undefined
+              isActive ? <RiCheckboxCircleFill size="md" fill={theme.colors.primary} /> : undefined
             }
           />
         );
@@ -138,11 +143,7 @@ const ComposeLanguageSheet = memo(function ComposeLanguageSheet({
               })
         }
         leading={
-          <Ionicons
-            name="add"
-            size={20}
-            color={canAdd ? theme.colors.text : theme.colors.textTertiary}
-          />
+          <RiAddLine size="md" fill={canAdd ? theme.colors.text : theme.colors.textTertiary} />
         }
       />
     </View>

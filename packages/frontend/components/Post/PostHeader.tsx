@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { Text, View, TouchableOpacity } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 
@@ -9,6 +8,7 @@ import UserName from '../UserName';
 import { ProfileHoverCard } from '../ProfileHoverCard';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { RiChat3Fill, RiMoreFill } from '@oxy.so/bloom/icons';
 import { useTranslation } from 'react-i18next';
 import { AccountBadge } from '@/components/AccountBadge';
 import { BoostIcon } from '@/assets/icons/boost-icon';
@@ -493,7 +493,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
           )}
           {showReply && (
             <View className="flex-row items-center" style={{ gap: ROW_GAP }}>
-              <Ionicons name="chatbubble" size={12} color={theme.colors.textSecondary} />
+              <RiChat3Fill size="xs" fill={theme.colors.textSecondary} />
               <Text className="text-muted-foreground text-xs">Replied</Text>
             </View>
           )}
@@ -509,7 +509,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
           style={{ marginTop: headerTopOffset }}
           onPress={onPressMenu}
         >
-          <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textSecondary} />
+          <RiMoreFill width={18} height={18} fill={theme.colors.textSecondary} />
         </TouchableOpacity>
       ) : null}
     </View>

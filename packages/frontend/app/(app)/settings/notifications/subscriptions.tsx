@@ -201,7 +201,7 @@ export default function ActivitySubscriptionsScreen() {
   );
 
   const header = (
-    <PageHeader title={t('subscription.list.title', { defaultValue: 'Activity notifications' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+    <PageHeader title={t('subscription.list.title', { defaultValue: 'Activity notifications' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
   );
 
   const renderContent = () => {

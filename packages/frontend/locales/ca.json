@@ -250,6 +250,7 @@
   "profile.media.podcast.searchError": "No s'han pogut cercar pòdcasts. Torna-ho a provar.",
   "profile.following": "Seguint",
   "profile.followers": "Seguidors",
+  "profile.activity": "Activitat",
   "profile.followedBy.one": "Seguit per {{name1}}",
   "profile.followedBy.two": "Seguit per {{name1}} i {{name2}}",
   "profile.followedBy.many_one": "Seguit per {{name1}}, {{name2}} i {{count}} més",

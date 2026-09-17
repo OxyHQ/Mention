@@ -86,7 +86,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, tab = 'posts', 
                 stacking context and trap the sticky header chrome below the
                 panel's bleed-mask/border overlays (see ProfileShell's root for
                 the full rationale). No effect on native. */}
-            <View className="flex-1 bg-background web:z-auto">
+            <View className="flex-1 web:z-auto">
                 {view.seo}
                 <ProfileShell
                     chrome={view.chrome}

@@ -1,9 +1,9 @@
 import React, { useCallback } from 'react';
 import { GestureResponderEvent, Pressable, Text, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { RiEditBoxLine } from '@oxy.so/bloom/icons';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const NOTICE_ICON_SIZE = 13;
@@ -70,7 +70,7 @@ const PostCorrectionNotice: React.FC<Props> = ({ postId, count }) => {
       accessibilityLabel={`${countLabel}. ${actionLabel}`}
     >
       <View className="mt-1.5 flex-row items-center gap-1">
-        <Ionicons name="create-outline" size={NOTICE_ICON_SIZE} color={theme.colors.textSecondary} />
+        <RiEditBoxLine width={NOTICE_ICON_SIZE} height={NOTICE_ICON_SIZE} fill={theme.colors.textSecondary} />
         <Text className="text-muted-foreground text-[13px]" numberOfLines={1}>
           {countLabel}
         </Text>

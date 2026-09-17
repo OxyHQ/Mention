@@ -11,8 +11,8 @@ import Animated, {
 import Svg, { Circle } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 
-import { ThemedText } from '@/components/ThemedText';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@oxy.so/bloom/button';
+import { Text } from '@oxy.so/bloom/typography';
 import {
   FLASH_CHOICES,
   HOLD_TO_RECORD_MS,
@@ -379,23 +379,25 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
   if (!permission.granted) {
     return (
       <View style={[styles.root, styles.explain]}>
-        <ThemedText className="text-white text-lg text-center mb-2">
+        <Text className="text-white text-lg text-center mb-2">
           {t('camera.permissionTitle', { defaultValue: 'Let Mention use the camera' })}
-        </ThemedText>
-        <ThemedText className="text-white/70 text-center mb-6">
+        </Text>
+        <Text className="text-white/70 text-base leading-6 text-center mb-6">
           {t('camera.permissionBody', {
             defaultValue: 'Photos and videos you take here are only posted when you choose to.',
           })}
-        </ThemedText>
+        </Text>
         {/* `canAskAgain` is false once the reader has refused twice on iOS; the
             prompt would never appear, so the honest button is the one that goes
             back rather than one that silently does nothing. */}
         {permission.canAskAgain ? (
-          <Button onPress={requestPermission}>
+          <Button onPress={requestPermission} size="large">
             {t('camera.permissionAllow', { defaultValue: 'Allow camera' })}
           </Button>
         ) : (
-          <Button onPress={onClose}>{t('common.close', { defaultValue: 'Close' })}</Button>
+          <Button onPress={onClose} size="large">
+            {t('common.close', { defaultValue: 'Close' })}
+          </Button>
         )}
       </View>
     );
@@ -465,14 +467,14 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
 
       {countdown !== null ? (
         <View style={styles.countdown} pointerEvents="none">
-          <ThemedText className="text-white text-8xl font-bold">{countdown}</ThemedText>
+          <Text className="text-white text-8xl font-bold">{countdown}</Text>
         </View>
       ) : null}
 
       {recording ? (
         <View style={styles.recordingBadge} pointerEvents="none">
           <View style={styles.recordingDot} />
-          <ThemedText className="text-white text-sm">{formatRemaining(remaining)}</ThemedText>
+          <Text className="text-white text-sm">{formatRemaining(remaining)}</Text>
         </View>
       ) : null}
 
@@ -498,11 +500,9 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
                 amount: `${stop}×`,
               })}
             >
-              <ThemedText
-                className={selected ? 'text-yellow-400 text-xs' : 'text-white text-xs'}
-              >
+              <Text className={selected ? 'text-yellow-400 text-xs' : 'text-white text-xs'}>
                 {text}
-              </ThemedText>
+              </Text>
             </Pressable>
           );
         })}
@@ -602,7 +602,7 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
                   : t('camera.modePhoto', { defaultValue: 'Photo' })
               }
             >
-              <ThemedText
+              <Text
                 className={
                   option === captureMode
                     ? 'text-white text-xs font-bold'
@@ -612,7 +612,7 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
                 {option === 'video'
                   ? t('camera.modeVideo', { defaultValue: 'Video' })
                   : t('camera.modePhoto', { defaultValue: 'Photo' })}
-              </ThemedText>
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -658,7 +658,7 @@ function RoundButton({
       <Ionicons name={icon} size={20} color={active ? '#facc15' : '#fff'} />
       {badge ? (
         <View style={styles.roundBadge}>
-          <ThemedText className="text-black text-[9px] font-bold">{badge}</ThemedText>
+          <Text className="text-black text-[9px] font-bold">{badge}</Text>
         </View>
       ) : null}
     </Pressable>

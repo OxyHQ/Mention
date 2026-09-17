@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, FlatList } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxy.so/bloom/loading';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { CloseIcon } from '@/assets/icons/close-icon';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Button } from '@oxy.so/bloom/button';
+import { RiCloseLine } from '@oxy.so/bloom/icons';
 import { feedService } from '@/services/feedService';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 
@@ -24,6 +25,7 @@ interface EngagementListProps {
 
 const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }) => {
   const router = useRouter();
+  const { t } = useTranslation();
   const [users, setUsers] = useState<PostUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
@@ -95,20 +97,18 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
   if (loading) {
     return (
       <View className="flex-1 bg-background">
-        <Header
-          options={{
-            title: type === 'likes' ? 'Likes' : 'Boosts',
-            rightComponents: [
-              <IconButton variant="icon"
-                key="close"
-                onPress={onClose}
-              >
-                <CloseIcon size={20} className="text-foreground" />
-              </IconButton>,
-            ],
-          }}
-          hideBottomBorder={true}
-          disableSticky={true}
+        <PageHeader
+          title={type === 'likes' ? 'Likes' : 'Boosts'}
+          safeArea={false}
+          actions={
+            <Button
+              variant="secondary"
+              iconOnly
+              leadingIcon={RiCloseLine}
+              accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+              onPress={onClose}
+            />
+          }
         />
         {/* The rows this list is about to paint, as placeholders. */}
         <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />
@@ -118,20 +118,18 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
 
   return (
     <View className="flex-1 bg-background">
-      <Header
-        options={{
-          title: type === 'likes' ? 'Likes' : 'Boosts',
-          rightComponents: [
-            <IconButton variant="icon"
-              key="close"
-              onPress={onClose}
-            >
-              <CloseIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder={true}
-        disableSticky={true}
+      <PageHeader
+        title={type === 'likes' ? 'Likes' : 'Boosts'}
+        safeArea={false}
+        actions={
+          <Button
+            variant="secondary"
+            iconOnly
+            leadingIcon={RiCloseLine}
+            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+            onPress={onClose}
+          />
+        }
       />
 
       {users.length === 0 ? (

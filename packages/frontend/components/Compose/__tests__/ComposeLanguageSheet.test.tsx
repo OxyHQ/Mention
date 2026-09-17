@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, TouchableOpacity } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
-import { CheckCircleIcon } from '@/assets/icons/check-circle-icon';
+import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons';
 import ComposeLanguageSheet from '../ComposeLanguageSheet';
 
 /**
@@ -63,25 +63,16 @@ jest.mock('@oxy.so/bloom/item', () => {
   };
 });
 
-jest.mock('@/components/ui/Button', () => {
-  const React = jest.requireActual<typeof import('react')>('react');
-  const { TouchableOpacity: RNTouchable } =
-    jest.requireActual<typeof import('react-native')>('react-native');
-  return {
-    IconButton: ({ children, onPress }: { children: React.ReactNode; onPress?: () => void }) =>
-      React.createElement(RNTouchable, { onPress }, children),
-  };
-});
+jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
+jest.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
 
-jest.mock('@/assets/icons/close-icon', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { CloseIcon: RNView };
-});
-
-jest.mock('@expo/vector-icons/Ionicons', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { __esModule: true, default: RNView };
-});
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiAddLine: () => null,
+  RiArrowRightSLine: () => null,
+  RiCheckboxCircleFill: () => null,
+  RiCloseLine: () => null,
+  RiGlobalLine: () => null,
+}));
 
 function render(props: Partial<React.ComponentProps<typeof ComposeLanguageSheet>> = {}) {
   const handlers = {
@@ -201,7 +192,7 @@ describe('ComposeLanguageSheet', () => {
   it('marks the active language, drawing the real icon', () => {
     const { renderer } = render({ variantTags: ['es-ES'], activeTag: 'es-ES' });
 
-    const marks = renderer.root.findAllByType(CheckCircleIcon);
+    const marks = renderer.root.findAllByType(RiCheckboxCircleFill);
     expect(marks).toHaveLength(1);
     const selectedRows = renderer.root
       .findAllByType(TouchableOpacity)

@@ -1,19 +1,16 @@
 import React from 'react';
-import { ScrollView, TouchableOpacity, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Button } from '@oxy.so/bloom/button';
+import { Text } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services/ui/client';
 
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { SEO } from '@/components/SEO';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
-import { PanelStickyHeader } from '@/components/shell/PanelChrome';
-import { ThemedText } from '@/components/ThemedText';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { feedService } from '@/services/feedService';
 import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -69,37 +66,26 @@ export default function PostCorrectionsScreen() {
     const title = t('post.corrections.title', { defaultValue: 'Correction history' });
 
     return (
-        <SafeAreaView className="flex-1" edges={['top']}>
+        <View className="flex-1">
             <SEO
                 title={title}
                 description={t('post.corrections.description', {
                     defaultValue: 'Every version of this post on Mention',
                 })}
             />
-            {/* Same chrome contract as every other secondary screen:
-                PanelStickyHeader owns the web sticky inset and the opaque panel
-                surface, so the inner Header hands sticky ownership over. */}
-            <PanelStickyHeader level={0}>
-                <Header
-                    options={{
-                        title,
-                        leftComponents: [
-                            <IconButton key="back" variant="icon" onPress={safeBack}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    disableSticky
-                />
-            </PanelStickyHeader>
+            <PageHeader
+                title={title}
+                onBack={() => safeBack()}
+                backLabel={t('common.back', { defaultValue: 'Back' })}
+            />
 
             <ScrollView className="flex-1" contentContainerClassName="pb-16">
-                <ThemedText className="px-4 pb-3 pt-1 font-primary text-[13px] text-muted-foreground">
+                <Text className="px-4 pb-3 pt-1 text-[13px] text-muted-foreground">
                     {t('post.corrections.intro', {
                         defaultValue:
                             'This post has been changed since it was published. Every version it has had is listed here, oldest first.',
                     })}
-                </ThemedText>
+                </Text>
 
                 {isLoading ? (
                     <View className="items-center py-10">
@@ -110,37 +96,31 @@ export default function PostCorrectionsScreen() {
                     // corrections" over an outage would say the post was never
                     // changed, which is the opposite of what the marker promised.
                     <View className="items-center gap-3 px-4 py-10">
-                        <ThemedText className="text-center font-primary text-sm text-muted-foreground">
+                        <Text className="text-center text-sm text-muted-foreground">
                             {t('post.corrections.error', {
                                 defaultValue: "Couldn't load this post's correction history.",
                             })}
-                        </ThemedText>
-                        <TouchableOpacity
-                            accessibilityRole="button"
-                            onPress={() => void refetch()}
-                            className="rounded-full bg-primary px-4 py-2"
-                        >
-                            <ThemedText className="font-primary text-sm font-semibold text-primary-foreground">
-                                {t('post.corrections.retry', { defaultValue: 'Try again' })}
-                            </ThemedText>
-                        </TouchableOpacity>
+                        </Text>
+                        <Button onPress={() => void refetch()}>
+                            {t('post.corrections.retry', { defaultValue: 'Try again' })}
+                        </Button>
                     </View>
                 ) : corrections.length === 0 ? (
-                    <ThemedText className="px-4 py-10 text-center font-primary text-sm text-muted-foreground">
+                    <Text className="px-4 py-10 text-center text-sm text-muted-foreground">
                         {t('post.corrections.empty', {
                             defaultValue: 'This post has not been corrected.',
                         })}
-                    </ThemedText>
+                    </Text>
                 ) : (
                     <>
                         {droppedVersions > 0 ? (
-                            <ThemedText className="px-4 pb-3 font-primary text-[13px] text-muted-foreground">
+                            <Text className="px-4 pb-3 text-[13px] text-muted-foreground">
                                 {t('post.corrections.truncated', {
                                     count: droppedVersions,
                                     defaultValue:
                                         '{{count}} versions in between are no longer kept. The version numbers below skip them.',
                                 })}
-                            </ThemedText>
+                            </Text>
                         ) : null}
 
                         {corrections.map((correction) => (
@@ -190,7 +170,7 @@ export default function PostCorrectionsScreen() {
                     </>
                 )}
             </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 }
 
@@ -206,10 +186,10 @@ function Version({
 }) {
     return (
         <View className="border-border border-t px-4 py-4">
-            <ThemedText className="font-primary text-[15px] font-semibold">{title}</ThemedText>
-            <ThemedText className="font-primary text-[13px] text-muted-foreground">
+            <Text className="text-[15px] font-semibold text-foreground">{title}</Text>
+            <Text className="text-[13px] text-muted-foreground">
                 {subtitle}
-            </ThemedText>
+            </Text>
             <LinkifiedText text={text} className="text-foreground mt-2 text-[15px]" />
         </View>
     );

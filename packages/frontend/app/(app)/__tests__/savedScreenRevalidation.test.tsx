@@ -103,6 +103,8 @@ jest.mock('@oxy.so/bloom/button', () => {
   };
 });
 
+jest.mock('@oxy.so/bloom/icons', () => ({ RiRefreshLine: () => null }));
+
 jest.mock('@oxy.so/bloom/dialog', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {

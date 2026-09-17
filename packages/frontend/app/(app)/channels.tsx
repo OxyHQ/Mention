@@ -10,10 +10,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { AccountNode } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
@@ -102,16 +99,11 @@ export default function ChannelsScreen() {
   }, []);
 
   return (
-    <ThemedView className="flex-1">
-      <Header
-        options={{
-          title: t('channels.title', { defaultValue: 'Channels' }),
-          leftComponents: [
-            <IconButton key="back" variant="icon" onPress={safeBack}>
-              <BackArrowIcon size={22} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
+    <View className="flex-1">
+      <PageHeader
+        title={t('channels.title', { defaultValue: 'Channels' })}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
       />
 
       <ScrollView className="flex-1" contentContainerClassName="pb-10">
@@ -201,6 +193,6 @@ export default function ChannelsScreen() {
           })
         )}
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }

@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiCloseLine } from '@oxy.so/bloom/icons';
 // This panel owns an element-sized scroller, including on web. Use the
 // FlashList implementation explicitly instead of the document-scroll web feed.
 import Feed from '@/components/Feed/Feed.native';
@@ -44,7 +44,7 @@ export function VideoReplies({ postId, onClose, onCommentPosted }: VideoRepliesP
         </Text>
         {onClose && (
           <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common.close', { defaultValue: 'Close' })}>
-            <Ionicons name="close" size={22} color={theme.colors.text} />
+            <RiCloseLine width={22} height={22} fill={theme.colors.text} />
           </Pressable>
         )}
       </View>

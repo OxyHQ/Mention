@@ -1,9 +1,9 @@
 import React, { memo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { RiEditLine, RiMusic2Line } from '@oxy.so/bloom/icons';
 import type { ProfileSongMedia } from '@/stores/appearanceStore';
 import { useProfileSongPreview } from '@/hooks/useProfileSongPreview';
 import { SongPreviewButton } from './SongPreviewButton';
@@ -55,7 +55,7 @@ export const ProfileSong = memo(function ProfileSong({ song, isOwnProfile, onEdi
             className="rounded-md bg-muted items-center justify-center"
             style={{ width: 32, height: 32 }}
           >
-            <Ionicons name="musical-note-outline" size={16} color={colors.textSecondary} />
+            <RiMusic2Line size="sm" fill={colors.textSecondary} />
           </View>
         )}
         <Text className="text-foreground text-[15px] shrink" numberOfLines={1}>
@@ -72,7 +72,7 @@ export const ProfileSong = memo(function ProfileSong({ song, isOwnProfile, onEdi
           hitSlop={HIT_SLOP_MD}
           className="p-1"
         >
-          <Ionicons name="pencil-outline" size={16} color={colors.textSecondary} />
+          <RiEditLine size="sm" fill={colors.textSecondary} />
         </Pressable>
       )}
     </View>

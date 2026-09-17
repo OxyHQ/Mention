@@ -2,8 +2,8 @@ import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
-import { CloseIcon } from '@/assets/icons/close-icon';
-import { IconButton } from '@/components/ui/Button';
+import { Button } from '@oxy.so/bloom/button';
+import { RiCloseLine } from '@oxy.so/bloom/icons';
 
 interface MessageBottomSheetProps {
     title: string;
@@ -38,12 +38,14 @@ export const MessageBottomSheet: React.FC<MessageBottomSheetProps> = ({
         <View className="rounded-t-3xl pb-5 bg-background">
             {/* Header */}
             <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border bg-background">
-                <IconButton variant="icon"
+                <Button
+                    variant="icon"
+                    iconOnly
+                    leadingIcon={RiCloseLine}
+                    accessibilityLabel={t('common.close')}
                     onPress={onClose}
                     className="mr-1.5 z-[1]"
-                >
-                    <CloseIcon size={20} className="text-foreground" />
-                </IconButton>
+                />
                 <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground pointer-events-none">
                     {title}
                 </Text>

@@ -2,7 +2,13 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, FlatList } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import {
+  RiArrowRightSLine,
+  RiDeleteBinLine,
+  RiEyeLine,
+  RiFileCopyLine,
+  RiImageLine,
+} from '@oxy.so/bloom/icons';
 import { useTranslation } from 'react-i18next';
 import { DraftsIcon } from '@/assets/icons/drafts';
 import { useDrafts, Draft } from '@/hooks/useDrafts';
@@ -151,7 +157,7 @@ const DraftsList: React.FC<DraftsListProps> = ({ onLoadDraft, onPreviewDraft, cu
               <View className="flex-row items-center gap-3 mt-1">
                 {item.mediaIds.length > 0 && (
                   <View className="flex-row items-center gap-1">
-                    <Ionicons name="image-outline" size={14} color={theme.colors.textSecondary} />
+                    <RiImageLine width={14} height={14} fill={theme.colors.textSecondary} />
                     <Text className="text-xs text-muted-foreground">
                       {item.mediaIds.length}
                     </Text>
@@ -159,7 +165,7 @@ const DraftsList: React.FC<DraftsListProps> = ({ onLoadDraft, onPreviewDraft, cu
                 )}
                 {item.threadItems.length > 0 && (
                   <View className="flex-row items-center gap-1">
-                    <Ionicons name="layers-outline" size={14} color={theme.colors.textSecondary} />
+                    <RiFileCopyLine width={14} height={14} fill={theme.colors.textSecondary} />
                     <Text className="text-xs text-muted-foreground">
                       {item.threadItems.length + 1}
                     </Text>
@@ -168,7 +174,7 @@ const DraftsList: React.FC<DraftsListProps> = ({ onLoadDraft, onPreviewDraft, cu
               </View>
             )}
           </View>
-          <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+          <RiArrowRightSLine size="md" fill={theme.colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity
           className="p-1 mr-1"
@@ -179,7 +185,7 @@ const DraftsList: React.FC<DraftsListProps> = ({ onLoadDraft, onPreviewDraft, cu
           accessibilityRole="button"
           accessibilityLabel={t('compose.draftPreviewA11y', { defaultValue: 'Preview draft' })}
         >
-          <Ionicons name="eye-outline" size={18} color={theme.colors.textSecondary} />
+          <RiEyeLine width={18} height={18} fill={theme.colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity
           className="p-1"
@@ -194,7 +200,7 @@ const DraftsList: React.FC<DraftsListProps> = ({ onLoadDraft, onPreviewDraft, cu
           {isDeleting ? (
             <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
           ) : (
-            <Ionicons name="trash-outline" size={18} color={theme.colors.textSecondary} />
+            <RiDeleteBinLine width={18} height={18} fill={theme.colors.textSecondary} />
           )}
         </TouchableOpacity>
       </View>

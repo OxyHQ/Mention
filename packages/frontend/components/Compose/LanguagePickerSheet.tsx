@@ -1,10 +1,11 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
-import { FlatList, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, Text, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { Button } from '@oxy.so/bloom/button';
+import { RiCloseLine } from '@oxy.so/bloom/icons';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Item } from '@oxy.so/bloom/item';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { CloseIcon } from '@/assets/icons/close-icon';
-import { IconButton } from '@/components/ui/Button';
 import { CONTENT_LANGUAGES, type ContentLanguage } from '@/constants/contentLanguages';
 
 interface LanguagePickerSheetProps {
@@ -108,20 +109,20 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
 
   return (
     <View className="flex-1 pb-6 bg-background">
-      <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border">
-        <IconButton
-          variant="icon"
-          onPress={onClose}
-          accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-          className="mr-1.5 z-[1]"
-        >
-          <CloseIcon size={20} className="text-foreground" />
-        </IconButton>
-        <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground pointer-events-none">
-          {t('compose.languages.pickerTitle', { defaultValue: 'Post language' })}
-        </Text>
-        <View className="w-9 h-9 ml-auto" />
-      </View>
+      <PageHeader
+        title={t('compose.languages.pickerTitle', { defaultValue: 'Post language' })}
+        titleAlign="center"
+        safeArea={false}
+        leading={
+          <Button
+            variant="secondary"
+            iconOnly
+            leadingIcon={RiCloseLine}
+            onPress={onClose}
+            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+          />
+        }
+      />
 
       <View className="mx-4 mt-3 rounded-xl border-[1.5px] border-border bg-muted px-3 py-2.5">
         <TextInput
@@ -151,26 +152,14 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
       {onMakeMain || onRemove ? (
         <View className="mt-2 mx-4 gap-2">
           {onMakeMain ? (
-            <TouchableOpacity
-              onPress={handleMakeMain}
-              className="flex-row items-center justify-center py-3 rounded-full border border-border"
-              activeOpacity={0.85}
-            >
-              <Text className="text-sm font-semibold text-primary">
-                {t('compose.languages.makeMain', { defaultValue: 'Make main language' })}
-              </Text>
-            </TouchableOpacity>
+            <Button variant="secondary" size="large" onPress={handleMakeMain}>
+              {t('compose.languages.makeMain', { defaultValue: 'Make main language' })}
+            </Button>
           ) : null}
           {onRemove ? (
-            <TouchableOpacity
-              onPress={handleRemove}
-              className="flex-row items-center justify-center py-3 rounded-full border border-border"
-              activeOpacity={0.85}
-            >
-              <Text className="text-sm font-semibold" style={{ color: theme.colors.error }}>
-                {removeLabel ?? t('compose.languages.remove', { defaultValue: 'Remove this language' })}
-              </Text>
-            </TouchableOpacity>
+            <Button variant="destructive" size="large" onPress={handleRemove}>
+              {removeLabel ?? t('compose.languages.remove', { defaultValue: 'Remove this language' })}
+            </Button>
           ) : null}
         </View>
       ) : null}

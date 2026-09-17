@@ -26,9 +26,9 @@ jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { primary: '#0000ff', textSecondary: '#888888' } }),
 }));
 
-jest.mock('@expo/vector-icons/Ionicons', () => {
+jest.mock('@oxy.so/bloom/icons', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { __esModule: true, default: () => <View testID="icon" /> };
+  return { RiCheckboxCircleFill: () => <View testID="icon" /> };
 });
 
 /**

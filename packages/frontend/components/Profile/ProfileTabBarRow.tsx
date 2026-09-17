@@ -2,7 +2,8 @@ import React from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Icon } from '@/lib/icons';
+import { RiGitMergeLine } from '@oxy.so/bloom/icons';
+import { useTheme } from '@oxy.so/bloom/theme';
 
 export interface ProfileTabBarRowProps {
   /** The strip itself — a routed one on web, a locally-driven one on native. */
@@ -27,6 +28,7 @@ export interface ProfileTabBarRowProps {
  */
 export function ProfileTabBarRow({ children, showLanes }: ProfileTabBarRowProps) {
   const { t } = useTranslation();
+  const { colors } = useTheme();
   return (
     <View className="flex-row items-center border-b border-border bg-background">
       <View className="flex-1" style={{ minWidth: 0 }}>
@@ -40,7 +42,7 @@ export function ProfileTabBarRow({ children, showLanes }: ProfileTabBarRowProps)
           accessibilityLabel={t('lanes.title', { defaultValue: 'Lanes' })}
           className="px-3 py-2.5"
         >
-          <Icon name="git-branch-outline" size={20} className="text-muted-foreground" />
+          <RiGitMergeLine size="md" fill={colors.textSecondary} />
         </TouchableOpacity>
       ) : null}
     </View>

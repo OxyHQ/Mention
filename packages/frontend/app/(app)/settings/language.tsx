@@ -41,7 +41,7 @@ export default function LanguageSettingsScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <PageHeader title={t('Language')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+            <PageHeader title={t('Language')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
                 className="flex-1"

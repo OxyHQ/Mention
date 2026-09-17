@@ -7,7 +7,15 @@ jest.mock('expo-router', () => ({
   router: { push: (...args: unknown[]) => mockPush(...args) },
 }));
 
-jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
+jest.mock('@oxy.so/bloom/icons', () => ({
+  RiBookmarkFill: () => null,
+  RiBookmarkLine: () => null,
+  RiCheckboxCircleFill: () => null,
+  RiFlagLine: () => null,
+  RiGlobalLine: () => null,
+  RiLoader4Line: () => null,
+  RiShareForwardLine: () => null,
+}));
 
 jest.mock('@oxy.so/bloom/badge', () => ({
   Badge: ({ content }: { content: string }) => content,

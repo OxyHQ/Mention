@@ -7,9 +7,9 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { CloseIcon } from '@/assets/icons/close-icon';
+import { Button } from '@oxy.so/bloom/button';
+import { RiCloseLine } from '@oxy.so/bloom/icons';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EMOJI_CATEGORIES, MAX_RECENT_EMOJIS } from '@/utils/emojiData';
@@ -95,17 +95,18 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
 
   return (
     <View className="flex-1 min-h-[350px] bg-background">
-      <Header
-        options={{
-          title: t('compose.emoji.title', { defaultValue: 'Emojis' }),
-          rightComponents: [
-            <IconButton variant="icon" key="close" onPress={onClose}>
-              <CloseIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-        }}
-        hideBottomBorder={true}
-        disableSticky={true}
+      <PageHeader
+        title={t('compose.emoji.title', { defaultValue: 'Emojis' })}
+        safeArea={false}
+        actions={
+          <Button
+            variant="secondary"
+            iconOnly
+            leadingIcon={RiCloseLine}
+            onPress={onClose}
+            accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+          />
+        }
       />
 
       {/* Category tabs */}

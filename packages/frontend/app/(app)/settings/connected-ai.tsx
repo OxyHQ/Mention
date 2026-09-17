@@ -79,7 +79,7 @@ export default function ConnectedAiScreen() {
   const queryClient = useQueryClient();
 
   const header = (
-    <PageHeader title={t('mcp.connections.title', { defaultValue: 'Connected AI' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+    <PageHeader title={t('mcp.connections.title', { defaultValue: 'Connected AI' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
   );
 
   const {

@@ -26,7 +26,7 @@ export default function ExternalMediaSettingsScreen() {
   const title = t('settings.externalMedia.title', { defaultValue: 'External Media Preferences' });
 
   const header = (
-    <PageHeader title={title} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+    <PageHeader title={title} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
   );
 
   if (!isAuthResolved || isPrivateApiPending) {

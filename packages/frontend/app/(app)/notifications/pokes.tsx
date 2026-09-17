@@ -1,20 +1,16 @@
 import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, Platform, RefreshControl, ScrollView, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiHand } from '@oxy.so/bloom/icons';
 import { Loading } from '@oxy.so/bloom/loading';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Text } from '@oxy.so/bloom/typography';
 import { useSafeBack } from '@/hooks/useSafeBack';
 
-import { Header } from '@/components/Header';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Error as ErrorComponent } from '@/components/Error';
 import { SuggestedUsers } from '@/components/suggestions/SuggestedUsers';
@@ -132,11 +128,7 @@ export default function PokesScreen() {
                 activeOpacity={0.7}
                 accessibilityLabel={variant === 'undo' ? 'Unpoke' : 'Poke'}
             >
-                <Ionicons
-                    name={variant === 'undo' ? 'hand-right' : 'hand-right-outline'}
-                    size={18}
-                    color={filled ? '#fff' : theme.colors.text}
-                />
+                <RiHand width={18} height={18} fill={filled ? '#fff' : theme.colors.text} />
             </TouchableOpacity>
         );
     }, [theme, handlePoke, handleUnpoke, isMutating]);
@@ -169,19 +161,19 @@ export default function PokesScreen() {
         onToggle?: () => void,
     ) => (
         <View style={styles.sectionHeader}>
-            <ThemedText style={styles.sectionTitle}>
+            <Text className="text-foreground" style={styles.sectionTitle}>
                 {title}
                 {count != null && count > 0 ? (
-                    <ThemedText className="text-muted-foreground" style={styles.sectionCount}> ({count})</ThemedText>
+                    <Text className="text-muted-foreground" style={styles.sectionCount}> ({count})</Text>
                 ) : null}
-            </ThemedText>
+            </Text>
             {onToggle && (
                 <TouchableOpacity onPress={onToggle} activeOpacity={0.7}>
-                    <ThemedText style={[styles.seeAll, { color: theme.colors.primary }]}>
+                    <Text style={[styles.seeAll, { color: theme.colors.primary }]}>
                         {showAll
                             ? t('pokes.showLess', { defaultValue: 'Show less' })
                             : t('pokes.seeAll', { defaultValue: 'See all' })}
-                    </ThemedText>
+                    </Text>
                 </TouchableOpacity>
             )}
         </View>
@@ -190,19 +182,19 @@ export default function PokesScreen() {
     const renderContent = () => {
         if (!isAuthenticated) {
             return (
-                <ThemedView className="flex-1 justify-center items-center px-5">
-                    <ThemedText className="text-base text-center text-muted-foreground">
+                <View className="flex-1 justify-center items-center px-5">
+                    <Text className="text-base leading-6 text-center text-muted-foreground">
                         {t('state.no_session')}
-                    </ThemedText>
-                </ThemedView>
+                    </Text>
+                </View>
             );
         }
 
         if (isLoading && !refreshing) {
             return (
-                <ThemedView className="flex-1 justify-center items-center">
+                <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
-                </ThemedView>
+                </View>
             );
         }
 
@@ -232,7 +224,7 @@ export default function PokesScreen() {
                         // border-coloured disc.
                         customIcon={
                             <View style={[styles.emptyIcon, { backgroundColor: theme.colors.contrast50 }]}>
-                                <Ionicons name="hand-right" size={36} color={theme.colors.textSecondary} />
+                                <RiHand width={36} height={36} fill={theme.colors.textSecondary} />
                             </View>
                         }
                     />
@@ -345,21 +337,14 @@ export default function PokesScreen() {
                 title={t('pokes.seo.title', { defaultValue: 'Pokes' })}
                 description={t('pokes.seo.description', { defaultValue: 'See who poked you and poke them back' })}
             />
-            <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-                <ThemedView className="flex-1">
-                    <Header
-                        options={{
-                            title: t('pokes.title', { defaultValue: 'Pokes' }),
-                            leftComponents: [
-                                <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                    <BackArrowIcon size={20} className="text-foreground" />
-                                </IconButton>,
-                            ],
-                        }}
-                    />
-                    {renderContent()}
-                </ThemedView>
-            </SafeAreaView>
+            <View className="flex-1">
+                <PageHeader
+                    title={t('pokes.title', { defaultValue: 'Pokes' })}
+                    onBack={() => safeBack()}
+                    backLabel={t('common.back', { defaultValue: 'Back' })}
+                />
+                {renderContent()}
+            </View>
         </>
     );
 }

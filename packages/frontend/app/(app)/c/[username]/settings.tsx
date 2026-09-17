@@ -3,14 +3,25 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Avatar } from '@oxy.so/bloom/avatar';
+import {
+  RiAddLine,
+  RiArrowDownSLine,
+  RiArrowUpSLine,
+  RiCheckLine,
+  RiCloseLine,
+  RiDeleteBinLine,
+  RiShapesLine,
+  RiStarFill,
+  RiUserLine,
+} from '@oxy.so/bloom/icons';
 import { Item } from '@oxy.so/bloom/item';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Switch } from '@oxy.so/bloom/switch';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { clearedFieldsFromAccountUpdate } from '@oxy.so/services';
 import { createLogger } from '@oxy.so/core/logger';
@@ -25,10 +36,6 @@ import {
   type AccountCategoryId,
 } from '@oxy.so/contracts';
 
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { EmptyState } from '@/components/common/EmptyState';
 import { confirmDialog } from '@/utils/alerts';
@@ -113,16 +120,12 @@ export default function ChannelAccountSettingsScreen() {
     useAuth();
   const viewerId = user?.id;
 
-  const headerOptions = useMemo(
-    () => ({
-      title: t('channels.settings.title', { defaultValue: 'Channel settings' }),
-      leftComponents: [
-        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-          <BackArrowIcon size={20} className="text-foreground" />
-        </IconButton>,
-      ],
-    }),
-    [t, safeBack],
+  const header = (
+    <PageHeader
+      title={t('channels.settings.title', { defaultValue: 'Channel settings' })}
+      onBack={() => safeBack()}
+      backLabel={t('common.back', { defaultValue: 'Back' })}
+    />
   );
 
   // Waits for the cold boot to settle rather than firing while the session is
@@ -149,48 +152,48 @@ export default function ChannelAccountSettingsScreen() {
 
   if (!isAuthenticated) {
     return (
-      <ThemedView className="flex-1">
-        <Header options={headerOptions} hideBottomBorder disableSticky />
+      <View className="flex-1">
+        {header}
         <OxyAuthPrompt
           label={t('channels.signInRequired', { defaultValue: 'Sign in to manage your channels' })}
           description={t('channels.signInRequiredDesc', {
             defaultValue: 'A channel is an account people follow without following the people who write for it.',
           })}
         />
-      </ThemedView>
+      </View>
     );
   }
 
   if (!readsReady || accountsPending) {
     return (
-      <ThemedView className="flex-1">
-        <Header options={headerOptions} hideBottomBorder disableSticky />
+      <View className="flex-1">
+        {header}
         <View className="flex-1 items-center justify-center">
           <SpinnerIcon size={28} className="text-primary" />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   if (!channel) {
     return (
-      <ThemedView className="flex-1">
-        <Header options={headerOptions} hideBottomBorder disableSticky />
+      <View className="flex-1">
+        {header}
         <EmptyState
           title={t('channels.settings.operatorOnly', {
             defaultValue: 'Only an operator can manage this channel',
           })}
           icon={{ name: 'lock-closed-outline', size: 48 }}
         />
-      </ThemedView>
+      </View>
     );
   }
 
   return (
-    <ThemedView className="flex-1">
-      <Header options={headerOptions} hideBottomBorder disableSticky />
+    <View className="flex-1">
+      {header}
       <ChannelAccountSettingsForm channel={channel} />
-    </ThemedView>
+    </View>
   );
 }
 
@@ -547,11 +550,11 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
             <SettingsListItem
               key={id}
               icon={
-                <Ionicons
-                  name={index === 0 ? 'star' : 'pricetags-outline'}
-                  size={20}
-                  color={index === 0 ? colors.primary : colors.textSecondary}
-                />
+                index === 0 ? (
+                  <RiStarFill width={20} height={20} fill={colors.primary} />
+                ) : (
+                  <RiShapesLine width={20} height={20} fill={colors.textSecondary} />
+                )
               }
               title={label}
               value={
@@ -580,7 +583,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
                       defaultValue: `Remove ${label}`,
                     })}
                     className="p-1">
-                    <Ionicons name="close" size={18} color={colors.textSecondary} />
+                    <RiCloseLine width={18} height={18} fill={colors.textSecondary} />
                   </Pressable>
                 </View>
               }
@@ -589,7 +592,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
         })}
 
         <SettingsListItem
-          icon={<Ionicons name="add" size={20} color={colors.textSecondary} />}
+          icon={<RiAddLine width={20} height={20} fill={colors.textSecondary} />}
           title={t('channels.settings.addCategory', { defaultValue: 'Add a category' })}
           description={
             categories.length >= MAX_ACCOUNT_CATEGORIES
@@ -601,11 +604,11 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
           disabled={categories.length >= MAX_ACCOUNT_CATEGORIES}
           showChevron={false}
           rightElement={
-            <Ionicons
-              name={categoryPickerOpen ? 'chevron-up' : 'chevron-down'}
-              size={18}
-              color={colors.textSecondary}
-            />
+            categoryPickerOpen ? (
+              <RiArrowUpSLine width={18} height={18} fill={colors.textSecondary} />
+            ) : (
+              <RiArrowDownSLine width={18} height={18} fill={colors.textSecondary} />
+            )
           }
           onPress={
             categories.length >= MAX_ACCOUNT_CATEGORIES
@@ -633,7 +636,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
                 disabled={!selected && atCap}
                 rightElement={
                   selected ? (
-                    <Ionicons name="checkmark" size={20} color={colors.primary} />
+                    <RiCheckLine width={20} height={20} fill={colors.primary} />
                   ) : undefined
                 }
                 onPress={!selected && atCap ? undefined : () => handleToggleCategory(id)}
@@ -650,7 +653,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
             'The channel signs its own posts. With this on, the person who wrote one is named alongside it — with it off, they never leave the server at all.',
         })}>
         <SettingsListItem
-          icon={<Ionicons name="person-outline" size={20} color={colors.textSecondary} />}
+          icon={<RiUserLine width={20} height={20} fill={colors.textSecondary} />}
           title={t('channels.settings.signPosts', { defaultValue: 'Name the writer' })}
           showChevron={false}
           rightElement={
@@ -676,7 +679,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
               'Deleting a channel destroys everything it has published. There is no undo, and nothing brings a post back once it is gone.',
           })}>
           <SettingsListItem
-            icon={<Ionicons name="trash-outline" size={20} color={colors.error} />}
+            icon={<RiDeleteBinLine width={20} height={20} fill={colors.error} />}
             title={
               deleteMutation.isPending
                 ? t('channels.settings.deleting', { defaultValue: 'Deleting…' })

@@ -20,8 +20,8 @@ import Animated, {
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { CloseIcon } from '@/assets/icons/close-icon';
-import { IconButton } from '@/components/ui/Button';
+import { Button } from '@oxy.so/bloom/button';
+import { RiCloseLine } from '@oxy.so/bloom/icons';
 import { articleService } from '@/services/articleService';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { Portal } from '@oxy.so/bloom/portal';
@@ -208,9 +208,14 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
           style={styles.pressableContent}
         >
           <View style={headerStyle} className="border-b border-border">
-            <IconButton variant="icon" onPress={stableOnClose} style={styles.closeButton}>
-              <CloseIcon size={20} className="text-foreground" />
-            </IconButton>
+            <Button
+              variant="secondary"
+              iconOnly
+              leadingIcon={RiCloseLine}
+              accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
+              onPress={stableOnClose}
+              style={styles.closeButton}
+            />
             <Text style={[headerTitleStyle, { pointerEvents: 'none' }]} className="text-foreground">
               {titleText}
             </Text>

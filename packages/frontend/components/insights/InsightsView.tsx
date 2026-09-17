@@ -14,6 +14,7 @@ import { Loading } from '@oxy.so/bloom/loading';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme, type Theme } from '@oxy.so/bloom/theme';
+import { RiEyeLine } from '@oxy.so/bloom/icons';
 import { insightsService } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
@@ -397,7 +398,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
                     {t('insights.averages')}
                 </Text>
 
-                <StatRow icon={<Ionicons name="eye" size={18} color={theme.colors.text} />} label={t('insights.viewsPerPost')} value={formatCompactNumber(Math.round(engagementRatios.averages.viewsPerPost))} sub={`${engagementRatios.totals.posts} ${t('insights.posts').toLowerCase()}`} theme={theme} />
+                <StatRow icon={<RiEyeLine width={18} height={18} fill={theme.colors.text} />} label={t('insights.viewsPerPost')} value={formatCompactNumber(Math.round(engagementRatios.averages.viewsPerPost))} sub={`${engagementRatios.totals.posts} ${t('insights.posts').toLowerCase()}`} theme={theme} />
                 <StatRow icon={<AnalyticsIcon size={18} className="text-foreground" />} label={t('insights.engagementPerPost')} value={engagementRatios.averages.engagementPerPost.toFixed(1)} showDivider={false} theme={theme} />
 
                 {/* Totals */}
@@ -406,7 +407,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
                 </Text>
 
                 <StatRow icon={<ArticleIcon size={18} className="text-foreground" />} label={t('insights.posts')} value={engagementRatios.totals.posts} theme={theme} />
-                <StatRow icon={<Ionicons name="eye" size={18} color={theme.colors.text} />} label={t('insights.post.views')} value={engagementRatios.totals.views} theme={theme} />
+                <StatRow icon={<RiEyeLine width={18} height={18} fill={theme.colors.text} />} label={t('insights.post.views')} value={engagementRatios.totals.views} theme={theme} />
                 <StatRow icon={<Ionicons name="flash" size={18} color={theme.colors.text} />} label={t('insights.post.interactions')} value={engagementRatios.totals.interactions} showDivider={false} theme={theme} />
 
                 <View className="h-10" />

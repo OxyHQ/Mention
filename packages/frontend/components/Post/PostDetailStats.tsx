@@ -1,8 +1,8 @@
 import React, { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { RiGlobalLine, RiLockLine } from '@oxy.so/bloom/icons';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import type { ReplyPermission } from '@mention/shared-types';
 import { KnownLikersRow } from '@/components/Post/KnownLikersRow';
@@ -139,13 +139,13 @@ const PostDetailStats = memo<Props>(function PostDetailStats({
           {timestampLabel ? (
             <>
               <Text className="text-muted-foreground text-[14px]">{timestampLabel}</Text>
-              <Ionicons name="globe-outline" size={14} color={theme.colors.textSecondary} />
+              <RiGlobalLine width={14} height={14} fill={theme.colors.textSecondary} />
             </>
           ) : null}
           {restrictions.map((restriction) => (
             <View key={restriction} className="flex-row items-center" style={{ gap: 4 }}>
               <Text className="text-muted-foreground text-[14px]">{'\u00B7'}</Text>
-              <Ionicons name="lock-closed-outline" size={13} color={theme.colors.textSecondary} />
+              <RiLockLine width={13} height={13} fill={theme.colors.textSecondary} />
               <Text className="text-muted-foreground text-[14px]">{restriction}</Text>
             </View>
           ))}

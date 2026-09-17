@@ -1,8 +1,5 @@
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Text } from '@oxy.so/bloom/typography';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { Redirect } from 'expo-router';
@@ -10,7 +7,6 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, ScrollView } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import UserName from '@/components/UserName';
 import { RowIcon } from '@/components/settings/RowIcon';
@@ -82,7 +78,6 @@ interface AccountInfoContentProps {
 }
 
 function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentProps) {
-  const insets = useSafeAreaInsets();
   const safeBack = useSafeBack();
   const { t } = useTranslation();
   const categoryLabel = useAccountCategoryLabel();
@@ -156,45 +151,37 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
   }, [profileData?.isFederated, profileData?.actorUri, profileData?.instance, profileData?.username]);
 
   // Same back-nav header the sibling profile sub-screens (followers / following /
-  // connections) render: shared <Header>, non-sticky, no bottom border. Rendered
-  // once and reused across the loading / not-found / loaded states so all three
-  // share identical chrome.
+  // connections) render. Rendered once and reused across the loading / not-found /
+  // loaded states so all three share identical chrome.
   const header = (
-    <Header
-      options={{
-        title: t('About', { defaultValue: 'About' }),
-        leftComponents: [
-          <IconButton key="back" variant="icon" onPress={() => safeBack()}>
-            <BackArrowIcon size={20} className="text-foreground" />
-          </IconButton>,
-        ],
-      }}
-      hideBottomBorder
-      disableSticky
+    <PageHeader
+      title={t('About', { defaultValue: 'About' })}
+      onBack={() => safeBack()}
+      backLabel={t('common.back', { defaultValue: 'Back' })}
     />
   );
 
   if (profileLoading) {
     return (
-      <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center">
           <Loading className="text-primary" size="large" />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   if (!profileData) {
     return (
-      <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center px-6">
-          <ThemedText className="text-base text-muted-foreground text-center">
+          <Text className="text-base text-muted-foreground text-center">
             {t('profile.notFound.title', { defaultValue: 'Profile not found' })}
-          </ThemedText>
+          </Text>
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
@@ -216,7 +203,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
     Boolean(profileData.connectedVia);
 
   return (
-    <ThemedView className="flex-1" style={{ paddingTop: insets.top }}>
+    <View className="flex-1">
       {header}
 
       {/* Horizontal padding lives on the identity block and the Bloom settings
@@ -408,6 +395,6 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
           </SettingsListGroup>
         )}
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }

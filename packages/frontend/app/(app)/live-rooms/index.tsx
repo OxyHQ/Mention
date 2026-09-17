@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useCallback, useContext } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, RefreshControl, Platform } from 'react-native';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
+import { View, Text, ScrollView, RefreshControl, Platform } from 'react-native';
 import { router } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@oxy.so/services/ui/client';
+import { Button } from '@oxy.so/bloom/button';
+import { RiAddLine, RiBroadcastLine, RiCalendarLine } from '@oxy.so/bloom/icons';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Text as BloomText } from '@oxy.so/bloom/typography';
 
-import { ThemedText } from '@/components/ThemedText';
-import { Header } from '@/components/Header';
 import { EmptyState } from '@/components/common/EmptyState';
 import { RoomsListSkeleton } from '@/components/rooms/RoomsListSkeleton';
 import RoomCard from '@/components/RoomCard';
@@ -34,7 +34,7 @@ const SectionHeader = ({
   <View className="flex-row items-center mb-3">
     <View className="mr-3">{icon}</View>
     <View className="flex-1">
-      <ThemedText type="subtitle">{title}</ThemedText>
+      <BloomText className="text-foreground text-xl font-bold">{title}</BloomText>
       <Text className="text-[13px] mt-0.5 text-muted-foreground">{subtitle}</Text>
     </View>
   </View>
@@ -122,7 +122,7 @@ const LiveRoomsScreen = () => {
     <EmptyState
       title="No rooms available"
       subtitle="Create a room to start a live audio conversation or schedule one for later"
-      customIcon={<Ionicons name="radio-outline" size={48} color={theme.colors.textSecondary} />}
+      customIcon={<RiBroadcastLine width={48} height={48} fill={theme.colors.textSecondary} />}
       action={{
         label: t('agora.createRoom'),
         onPress: openCreateSheet,
@@ -139,7 +139,7 @@ const LiveRoomsScreen = () => {
                 className="w-9 h-9 items-center justify-center rounded-full"
                 style={{ backgroundColor: LIVE_INDICATOR_COLOR }}
               >
-                <Ionicons name="radio" size={18} color={LIVE_INDICATOR_FOREGROUND_COLOR} />
+                <RiBroadcastLine width={18} height={18} fill={LIVE_INDICATOR_FOREGROUND_COLOR} />
               </View>
             }
             title={t('agora.liveNow')}
@@ -156,7 +156,7 @@ const LiveRoomsScreen = () => {
           <SectionHeader
             icon={
               <View className="w-9 h-9 items-center justify-center rounded-full bg-primary">
-                <Ionicons name="calendar" size={18} color={theme.colors.primaryForeground} />
+                <RiCalendarLine width={18} height={18} fill={theme.colors.primaryForeground} />
               </View>
             }
             title={t('agora.upcoming')}
@@ -177,23 +177,14 @@ const LiveRoomsScreen = () => {
   return (
     <>
       <SEO title="Live Rooms" description="Join live audio conversations" />
-      <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-        <Header
-          options={{
-            title: t('agora.title'),
-            rightComponents: [
-              <TouchableOpacity
-                key="create"
-                onPress={openCreateSheet}
-                className="flex-row items-center px-3 py-1.5 rounded-full gap-1 bg-primary"
-              >
-                <Ionicons name="add" size={20} color={theme.colors.primaryForeground} />
-                <Text className="text-sm font-semibold text-primary-foreground">Create</Text>
-              </TouchableOpacity>,
-            ],
-          }}
-          hideBottomBorder={false}
-          disableSticky={false}
+      <View className="flex-1">
+        <PageHeader
+          title={t('agora.title')}
+          actions={
+            <Button variant="primary" size="small" leadingIcon={RiAddLine} onPress={openCreateSheet}>
+              Create
+            </Button>
+          }
         />
 
         {/* WEB hands scroll to the shared panel/document (no nested scroller that
@@ -216,7 +207,7 @@ const LiveRoomsScreen = () => {
             {body}
           </ScrollView>
         )}
-      </SafeAreaView>
+      </View>
     </>
   );
 };
