@@ -2,10 +2,10 @@ import React, { memo, useCallback, useMemo } from 'react';
 import { View, Pressable, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { router } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Avatar } from '@oxy.so/bloom/avatar';
+import { RiCameraLine, RiImageLine } from '@oxy.so/bloom/icons';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { ThemedText } from '@/components/ThemedText';
+import { Text } from '@oxy.so/bloom/typography';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
@@ -95,11 +95,11 @@ export const FeedHeader = memo<FeedHeaderProps>(
                     variant={MEDIA_VARIANT_AVATAR}
                 />
                 <View style={styles.textRow}>
-                    <ThemedText
-                        className="text-muted-foreground"
+                    <Text
+                        className="text-muted-foreground leading-6"
                         style={styles.promptText}>
                         {promptText || 'What\u0027s up?'}
-                    </ThemedText>
+                    </Text>
                     <View style={styles.actions}>
                         {Platform.OS !== 'web' && (
                             <TouchableOpacity
@@ -107,7 +107,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
                                 hitSlop={HIT_SLOP_MD}
                                 accessibilityLabel="Open camera"
                                 accessibilityHint="Opens device camera">
-                                <Ionicons name="camera-outline" size={22} color={iconColor} />
+                                <RiCameraLine width={22} height={22} fill={iconColor} />
                             </TouchableOpacity>
                         )}
                         <TouchableOpacity
@@ -115,7 +115,7 @@ export const FeedHeader = memo<FeedHeaderProps>(
                             hitSlop={HIT_SLOP_MD}
                             accessibilityLabel="Add image"
                             accessibilityHint="Opens image picker">
-                            <Ionicons name="image-outline" size={22} color={iconColor} />
+                            <RiImageLine width={22} height={22} fill={iconColor} />
                         </TouchableOpacity>
                     </View>
                 </View>

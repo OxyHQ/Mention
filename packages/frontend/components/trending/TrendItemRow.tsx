@@ -1,6 +1,6 @@
 import React, { memo, useId, useMemo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiArrowDownLine, RiArrowUpLine, RiMoreFill } from '@oxy.so/bloom/icons';
 import Svg, { Defs, LinearGradient, Polygon, Polyline, Stop } from 'react-native-svg';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { AvatarGroup } from '@oxy.so/bloom/avatar-group';
@@ -10,6 +10,7 @@ import { MtnConfig } from '@mention/shared-types';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { Trend } from '@/interfaces/Trend';
+import type { BloomIcon } from '@/components/settings/RowIcon';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
 
 const MS_PER_HOUR = 60 * 60 * 1000;
@@ -48,9 +49,9 @@ const TREND_FACE_SIZE = 18;
  */
 
 /** Arrow shown for a rising or falling trend; a flat trend gets no glyph. */
-const DIRECTION_ICON: Record<Trend['direction'], keyof typeof Ionicons.glyphMap | null> = {
-  up: 'trending-up',
-  down: 'trending-down',
+const DIRECTION_ICON: Record<Trend['direction'], BloomIcon | null> = {
+  up: RiArrowUpLine,
+  down: RiArrowDownLine,
   flat: null,
 };
 
@@ -251,7 +252,7 @@ export const TrendItemRow = memo(function TrendItemRow({
   const { t } = useTranslation();
   const isLarge = size === 'large';
   const series = trend.series && trend.series.length >= MIN_POLYLINE_POINTS ? trend.series : null;
-  const directionIcon = series ? null : DIRECTION_ICON[trend.direction || 'flat'];
+  const DirectionIcon = series ? null : DIRECTION_ICON[trend.direction || 'flat'];
   const badge = getTrendBadge(trend, t);
   // Faces are evidence that real accounts are behind the trend, so they only
   // appear where there is room to read them alongside everything else.
@@ -352,12 +353,12 @@ export const TrendItemRow = memo(function TrendItemRow({
           <View className="items-end">
             <Sparkline series={series} color={theme.colors.primary} />
           </View>
-        ) : directionIcon ? (
+        ) : DirectionIcon ? (
           <View className="items-end">
-            <Ionicons
-              name={directionIcon}
-              size={DIRECTION_ICON_SIZE}
-              color={theme.colors.textSecondary}
+            <DirectionIcon
+              width={DIRECTION_ICON_SIZE}
+              height={DIRECTION_ICON_SIZE}
+              fill={theme.colors.textSecondary}
             />
           </View>
         ) : null}
@@ -371,7 +372,7 @@ export const TrendItemRow = memo(function TrendItemRow({
           accessibilityLabel="More options"
           accessibilityRole="button"
         >
-          <Ionicons name="ellipsis-horizontal" size={16} color={theme.colors.textSecondary} />
+          <RiMoreFill size="sm" fill={theme.colors.textSecondary} />
         </TouchableOpacity>
       ) : null}
     </TouchableOpacity>

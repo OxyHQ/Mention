@@ -10,8 +10,9 @@ import {
   Platform,
 } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Button } from '@oxy.so/bloom/button';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { RiAddLine, RiCheckLine, RiCloseCircleLine, RiEarthLine, RiFireLine, RiGroupLine, RiHeartLine, RiLineChartLine, RiSettings3Line, RiSparklingLine, RiUserCommunityLine } from '@oxy.so/bloom/icons';
 import { useTranslation } from 'react-i18next';
 import { router, useFocusEffect } from 'expo-router';
 import { PRESET_FEEDS, type PresetFeed } from '@mention/shared-types/mtn/presetFeeds';
@@ -19,13 +20,12 @@ import { useTrendsStore } from '@/stores/trendsStore';
 import { reportTrendEvent } from '@/utils/feedTelemetry';
 import type { Trend } from '@/interfaces/Trend';
 
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
 import { Fab } from '@oxy.so/bloom/fab';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 import { SEO } from '@/components/SEO';
+import type { BloomIcon } from '@/components/settings/RowIcon';
 
 import { customFeedsService } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
@@ -39,9 +39,9 @@ import { HIT_SLOP_MD } from '@/styles/hitSlop';
 const IS_WEB = Platform.OS === 'web';
 
 /**
- * Ionicons glyph per preset id. The shared catalog carries Lucide names; the
- * feeds screen renders with Ionicons (its existing icon set), so this maps the
- * small, fixed preset set rather than pulling in a second icon library.
+ * Bloom glyph per preset id. The shared catalog carries Lucide names; the feeds
+ * screen renders with Bloom's Remix icons, so this maps the small, fixed preset
+ * set rather than pulling in a second icon library.
  */
 /**
  * Live trends offered on this screen.
@@ -55,13 +55,13 @@ const TREND_FEED_LIMIT = 5;
 /** Pin key for a trend row. Keyed on the TERM, which is what the descriptor addresses. */
 const trendKey = (trend: Trend): string => `trend:${trend.text}`;
 
-const PRESET_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  for_you: 'sparkles',
-  following: 'people',
-  trending: 'flame',
-  explore: 'compass',
-  mutuals: 'people-circle',
-  friends_popular: 'heart',
+const PRESET_ICONS: Record<string, BloomIcon> = {
+  for_you: RiSparklingLine,
+  following: RiGroupLine,
+  trending: RiFireLine,
+  explore: RiEarthLine,
+  mutuals: RiUserCommunityLine,
+  friends_popular: RiHeartLine,
 };
 
 interface FeedItem {
@@ -96,7 +96,11 @@ const PinButton = ({ pinned, onPress }: { pinned: boolean; onPress: () => void }
           : { backgroundColor: theme.colors.primary },
       ]}
     >
-      <Ionicons name={pinned ? 'checkmark' : 'add'} size={14} color={pinned ? theme.colors.text : '#fff'} />
+      {pinned ? (
+        <RiCheckLine width={14} height={14} fill={theme.colors.text} />
+      ) : (
+        <RiAddLine width={14} height={14} fill="#fff" />
+      )}
     </TouchableOpacity>
   );
 };
@@ -119,6 +123,7 @@ const PresetRow = ({
   t: (key: string) => string;
 }) => {
   const theme = useTheme();
+  const PresetIcon = PRESET_ICONS[preset.id] ?? RiSparklingLine;
   return (
     <View style={[styles.feedRow, { borderBottomColor: theme.colors.border }]}>
       <TouchableOpacity
@@ -129,7 +134,7 @@ const PresetRow = ({
         accessibilityLabel={t(preset.labelKey)}
       >
         <View className="w-9 h-9 rounded-full items-center justify-center bg-muted">
-          <Ionicons name={PRESET_ICONS[preset.id] ?? 'sparkles'} size={20} color={theme.colors.primary} />
+          <PresetIcon size="md" fill={theme.colors.primary} />
         </View>
         <View className="flex-1 gap-0.5">
           <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
@@ -184,7 +189,7 @@ const TrendFeedRow = ({
         accessibilityLabel={trend.displayName}
       >
         <View className="w-9 h-9 rounded-full items-center justify-center bg-muted">
-          <Ionicons name="trending-up" size={20} color={theme.colors.primary} />
+          <RiLineChartLine size="md" fill={theme.colors.primary} />
         </View>
         <View className="flex-1 gap-0.5">
           <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
@@ -463,7 +468,7 @@ const FeedsScreen: React.FC = () => {
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={HIT_SLOP_MD}>
-            <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
+            <RiCloseCircleLine width={18} height={18} fill={theme.colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
@@ -509,17 +514,18 @@ const FeedsScreen: React.FC = () => {
   return (
     <>
       <SEO title={t('seo.feeds.title')} description={t('seo.feeds.description')} />
-      <SafeAreaView className="flex-1 bg-background relative flex-col" edges={['top']}>
-        <Header
-          options={{
-            title: t('Feeds'),
-            rightComponents: [
-              <IconButton variant="icon" key="settings" onPress={() => router.push('/settings/feed')}>
-                <Ionicons name="settings-outline" size={22} color={theme.colors.text} />
-              </IconButton>,
-            ],
-          }}
-          hideBottomBorder
+      <View className="flex-1 relative flex-col">
+        <PageHeader
+          title={t('Feeds')}
+          actions={
+            <Button
+              variant="secondary"
+              iconOnly
+              leadingIcon={RiSettings3Line}
+              onPress={() => router.push('/settings/feed')}
+              accessibilityLabel={t('sidebar.settings', { defaultValue: 'Settings' })}
+            />
+          }
         />
 
         {/* WEB: the document (body) is the scroller — the shell owns scroll, so
@@ -548,11 +554,11 @@ const FeedsScreen: React.FC = () => {
           <Fab
             size={48}
             onPress={() => router.push('/feeds/new')}
-            icon={<Ionicons name="add" size={24} color={theme.colors.tertiaryForeground} />}
+            icon={<RiAddLine size="lg" fill={theme.colors.tertiaryForeground} />}
             accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}
           />
         ) : null}
-      </SafeAreaView>
+      </View>
     </>
   );
 };

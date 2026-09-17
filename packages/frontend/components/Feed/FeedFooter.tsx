@@ -1,7 +1,7 @@
 import React, { memo, useCallback } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiArrowRightSLine, RiLockLine } from '@oxy.so/bloom/icons';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 
@@ -37,11 +37,11 @@ export const FeedFooter = memo<FeedFooterProps>(
                     onPress={handleSignIn}
                     activeOpacity={0.7}
                 >
-                    <Ionicons name="lock-closed-outline" size={20} color={theme.colors.primary} />
+                    <RiLockLine size="md" fill={theme.colors.primary} />
                     <Text className="text-foreground text-[15px] font-medium flex-1" style={{ marginLeft: 10 }}>
                         Sign in to see more
                     </Text>
-                    <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
+                    <RiArrowRightSLine width={18} height={18} fill={theme.colors.textSecondary} />
                 </TouchableOpacity>
             );
         }

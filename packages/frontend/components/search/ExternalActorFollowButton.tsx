@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { FollowButton, useAuth } from '@oxy.so/services/ui/client';
 
-import { Button } from '@/components/ui/Button';
+import { Button } from '@oxy.so/bloom/button';
 import { feedService, type ExternalActorResolution } from '@/services/feedService';
 import { createLogger } from '@oxy.so/core/logger';
 

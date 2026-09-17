@@ -48,6 +48,7 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 }));
 jest.mock('@oxy.so/bloom/hooks', () => ({ useImagePreload: () => undefined }));
 jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
+jest.mock('@oxy.so/bloom/icons', () => ({ RiCornerDownRightLine: () => null, RiLinkM: () => null }));
 
 jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('@/assets/icons/pin-icon', () => ({ PinIcon: () => null }));

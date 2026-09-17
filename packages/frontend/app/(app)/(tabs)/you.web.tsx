@@ -1,10 +1,10 @@
 import React from 'react';
+import { View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
 import { Loading } from '@oxy.so/bloom/loading';
-import { ThemedView } from '@/components/ThemedView';
 
 /**
  * `/you` on WEB, where the bottom bar does not point here.
@@ -32,9 +32,9 @@ export default function YouTabWeb() {
   // would flash the sign-in prompt at a viewer whose session is about to return.
   if (!isAuthResolved) {
     return (
-      <ThemedView className="flex-1 justify-center items-center">
+      <View className="flex-1 justify-center items-center">
         <Loading className="text-primary" size="large" />
-      </ThemedView>
+      </View>
     );
   }
 

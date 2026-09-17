@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { RiAddLine, RiCheckboxBlankCircleLine, RiCheckboxCircleFill, RiCloseLine, RiListUnordered } from '@oxy.so/bloom/icons';
 import { router } from 'expo-router';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { toast } from '@oxy.so/bloom/toast';
@@ -119,7 +119,7 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
           {t('lists.addTo.title', { user: label, defaultValue: `Add ${label} to list` })}
         </Text>
         <TouchableOpacity onPress={onClose} hitSlop={HIT_SLOP_MD} accessibilityRole="button" accessibilityLabel={t('common.close', { defaultValue: 'Close' })}>
-          <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
+          <RiCloseLine width={22} height={22} fill={theme.colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -136,7 +136,7 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
         </View>
       ) : rows.length === 0 ? (
         <View className="items-center justify-center py-8 gap-3">
-          <Ionicons name="list-outline" size={40} color={theme.colors.textSecondary} />
+          <RiListUnordered width={40} height={40} fill={theme.colors.textSecondary} />
           <Text className="text-muted-foreground text-sm text-center">
             {t('lists.addTo.empty', { defaultValue: 'You have no lists yet' })}
           </Text>
@@ -160,7 +160,7 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
             >
               <View className="flex-row items-center gap-3 flex-1">
                 <View className="w-9 h-9 rounded-lg items-center justify-center bg-muted">
-                  <Ionicons name="list" size={18} color={theme.colors.text} />
+                  <RiListUnordered width={18} height={18} fill={theme.colors.text} />
                 </View>
                 <Text className="text-foreground text-[15px] font-medium flex-1" numberOfLines={1}>
                   {row.title}
@@ -169,9 +169,9 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
               {row.pending ? (
                 <SpinnerIcon size={18} className="text-primary" />
               ) : row.hasUser ? (
-                <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
+                <RiCheckboxCircleFill size="lg" fill={theme.colors.primary} />
               ) : (
-                <Ionicons name="ellipse-outline" size={24} color={theme.colors.textSecondary} />
+                <RiCheckboxBlankCircleLine size="lg" fill={theme.colors.textSecondary} />
               )}
             </TouchableOpacity>
           ))}
@@ -183,7 +183,7 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
             accessibilityRole="button"
           >
             <View className="w-9 h-9 rounded-lg items-center justify-center bg-primary">
-              <Ionicons name="add" size={20} color="#fff" />
+              <RiAddLine size="md" fill="#fff" />
             </View>
             <Text className="text-primary text-[15px] font-semibold">
               {t('lists.addTo.newList', { defaultValue: 'New list' })}

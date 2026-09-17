@@ -1,21 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, type TextStyle } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
 import { Item } from '@oxy.so/bloom/item';
+import { RiAddLine, RiCheckLine, RiCloseCircleLine, RiDeleteBinLine, RiGroupLine } from '@oxy.so/bloom/icons';
 import { Search } from '@oxy.so/bloom/search';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
+import { useTranslation } from 'react-i18next';
 
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { starterPacksService } from '@/services/starterPacksService';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDestructive } from '@/utils/alerts';
@@ -55,6 +53,7 @@ export default function EditStarterPackScreen() {
   const { user, oxyServices } = useAuth();
   const theme = useTheme();
   const safeBack = useSafeBack();
+  const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -229,48 +228,41 @@ export default function EditStarterPackScreen() {
   }, [packId]);
 
   const header = (
-    <Header
-      options={{
-        title: 'Edit starter pack',
-        leftComponents: [
-          <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-            <BackArrowIcon size={20} className="text-foreground" />
-          </IconButton>,
-        ],
-      }}
-      hideBottomBorder
-      disableSticky
+    <PageHeader
+      title="Edit starter pack"
+      onBack={() => safeBack()}
+      backLabel={t('common.back', { defaultValue: 'Back' })}
     />
   );
 
   if (loading) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center">
           <SpinnerIcon size={28} className="text-primary" />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <ThemedView className="flex-1">
+      <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center gap-3 px-8">
-          <Ionicons name="close-circle-outline" size={48} color={theme.colors.textSecondary} />
+          <RiCloseCircleLine size="3xl" fill={theme.colors.textSecondary} />
           <Text className="text-muted-foreground text-base text-center">{error}</Text>
           <TouchableOpacity onPress={load}>
             <Text className="text-primary text-sm font-semibold">Try again</Text>
           </TouchableOpacity>
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   return (
-    <ThemedView className="flex-1">
+    <View className="flex-1">
       {header}
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
         <Text className="text-sm text-muted-foreground mb-1.5 font-primary">Name</Text>
@@ -343,7 +335,7 @@ export default function EditStarterPackScreen() {
                           variant="secondary"
                           size="small"
                           disabled
-                  icon={<Ionicons name="checkmark" size={12} color={theme.colors.success} />}
+                          icon={<RiCheckLine size="xs" fill={theme.colors.success} />}
                           accessibilityLabel={`${u.name.displayName} added`}
                         >
                           Added
@@ -354,7 +346,7 @@ export default function EditStarterPackScreen() {
                           size="small"
                           loading={busy}
                           disabled={blockedByCap}
-                  icon={<Ionicons name="add" size={12} color={theme.colors.primaryForeground} />}
+                          icon={<RiAddLine size="xs" fill={theme.colors.primaryForeground} />}
                           onPress={() => addMember(u)}
                           accessibilityLabel={`Add ${u.name.displayName}`}
                         >
@@ -383,7 +375,7 @@ export default function EditStarterPackScreen() {
 
         {members.length === 0 ? (
           <View className="items-center justify-center py-10 gap-3">
-            <Ionicons name="people-outline" size={40} color={theme.colors.textSecondary} />
+            <RiGroupLine width={40} height={40} fill={theme.colors.textSecondary} />
             <Text className="text-muted-foreground text-sm text-center font-primary">
               Search above to add people to this starter pack
             </Text>
@@ -404,7 +396,8 @@ export default function EditStarterPackScreen() {
                         size="small"
                         loading={busy}
                         onPress={() => removeMember(m)}
-                      icon={<Ionicons name="trash-outline" size={16} color={theme.colors.error} />}
+                        iconOnly
+                        icon={<RiDeleteBinLine size="sm" fill={theme.colors.error} />}
                         accessibilityLabel={`Remove ${m.name.displayName}`}
                       />
                     }
@@ -440,6 +433,6 @@ export default function EditStarterPackScreen() {
           <Text className="text-destructive font-semibold font-primary">Delete starter pack</Text>
         </TouchableOpacity>
       </ScrollView>
-    </ThemedView>
+    </View>
   );
 }

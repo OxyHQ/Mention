@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { ThemedText } from './ThemedText';
+import { Text } from '@oxy.so/bloom/typography';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { cn } from '@/lib/utils';
@@ -86,18 +86,18 @@ export function ListCard({
                     variant={MEDIA_VARIANT_AVATAR}
                 />
                 <View className="flex-1 gap-1">
-                    <ThemedText
-                        className="text-base font-semibold leading-5"
+                    <Text
+                        className="text-base font-semibold leading-5 text-foreground"
                         numberOfLines={1}>
                         {list.name}
-                    </ThemedText>
+                    </Text>
                     {list.creator && (
                         <ProfileHoverCard username={getNormalizedUserHandle(list.creator) ?? undefined}>
-                            <ThemedText
+                            <Text
                                 className="text-muted-foreground text-sm leading-[18px]"
                                 numberOfLines={1}>
                                 {purposeLabel} by @{list.creator.username}
-                            </ThemedText>
+                            </Text>
                         </ProfileHoverCard>
                     )}
                 </View>
@@ -108,26 +108,26 @@ export function ListCard({
                 )}
             </View>
             {list.description && (
-                <ThemedText
+                <Text
                     className={cn('text-muted-foreground text-sm leading-5', !isRow && 'mt-1')}
                     numberOfLines={isRow ? 2 : 3}>
                     {list.description}
-                </ThemedText>
+                </Text>
             )}
             {(list.itemCount !== undefined || list.subscriberCount !== undefined) && (
                 <View className={cn('flex-row items-center gap-3', !isRow && 'mt-1')}>
                     {list.itemCount !== undefined && (
-                        <ThemedText className="text-muted-foreground text-sm font-semibold">
+                        <Text className="text-muted-foreground text-sm leading-6 font-semibold">
                             {list.itemCount} {list.itemCount === 1 ? 'item' : 'items'}
-                        </ThemedText>
+                        </Text>
                     )}
                     {list.subscriberCount !== undefined && (
-                        <ThemedText className="text-muted-foreground text-sm font-semibold">
+                        <Text className="text-muted-foreground text-sm leading-6 font-semibold">
                             {t('lists.subscriberCount', {
                                 count: list.subscriberCount,
                                 defaultValue: '{{count}} subscribers',
                             })}
-                        </ThemedText>
+                        </Text>
                     )}
                 </View>
             )}

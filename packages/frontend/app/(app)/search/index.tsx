@@ -7,18 +7,14 @@ import {
     type NativeSyntheticEvent,
     type TextInputSelectionChangeEventData,
 } from "react-native";
-import { SafeAreaView } from "@/lib/SafeAreaViewInterop";
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from "react-i18next";
 import { router, useLocalSearchParams } from "expo-router";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@oxy.so/services/ui/client";
 import { getNormalizedUserHandle } from "@oxy.so/core";
 import { useSafeBack } from "@/hooks/useSafeBack";
-import { ThemedView } from "@/components/ThemedView";
-import { Header } from "@/components/Header";
-import { IconButton } from "@/components/ui/Button";
-import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
+import { PageHeader } from "@oxy.so/bloom/page-header";
+import { RiArrowRightSLine, RiCloseLine, RiTimeLine, RiUserLine } from "@oxy.so/bloom/icons";
 import { useTheme } from "@oxy.so/bloom/theme";
 import {
     searchService,
@@ -989,7 +985,7 @@ export default function SearchIndex() {
                             accessibilityRole="button"
                         >
                             <View className="flex-1 flex-row items-center gap-3">
-                                <Ionicons name="time-outline" size={18} color={theme.colors.textSecondary} />
+                                <RiTimeLine width={18} height={18} fill={theme.colors.textSecondary} />
                                 <Text className="flex-1 text-base text-foreground" numberOfLines={1}>
                                     {item.term}
                                 </Text>
@@ -1000,7 +996,7 @@ export default function SearchIndex() {
                                 accessibilityRole="button"
                                 accessibilityLabel={t("search.removeRecent", "Remove from recent searches")}
                             >
-                                <Ionicons name="close" size={16} color={theme.colors.textTertiary} />
+                                <RiCloseLine size="sm" fill={theme.colors.textTertiary} />
                             </TouchableOpacity>
                         </TouchableOpacity>
                     );
@@ -1105,7 +1101,7 @@ export default function SearchIndex() {
                             onPress={() => handleGoToProfile(item.handle)}
                             accessibilityRole="button"
                         >
-                            <Ionicons name="person-outline" size={18} color={theme.colors.textSecondary} />
+                            <RiUserLine width={18} height={18} fill={theme.colors.textSecondary} />
                             <Text className="flex-1 text-base text-foreground" numberOfLines={1}>
                                 {t("search.suggestions.goToProfile", "Go to @{{handle}}", { handle: item.handle })}
                             </Text>
@@ -1200,7 +1196,7 @@ export default function SearchIndex() {
                                     </Text>
                                 </View>
                             </View>
-                            <Ionicons name="chevron-forward" size={16} color={theme.colors.textTertiary} />
+                            <RiArrowRightSLine size="sm" fill={theme.colors.textTertiary} />
                         </TouchableOpacity>
                     );
 
@@ -1265,68 +1261,60 @@ export default function SearchIndex() {
     return (
         <>
             <SEO title={t("seo.search.title")} description={t("seo.search.description")} />
-            <ThemedView className="flex-1">
-                <SafeAreaView className="flex-1" edges={["top"]}>
-                    <Header
-                        options={{
-                            title: t("search.title", "Search"),
-                            leftComponents: [
-                                <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                    <BackArrowIcon size={20} className="text-foreground" />
-                                </IconButton>,
-                            ],
-                        }}
-                        hideBottomBorder={true}
+            <View className="flex-1">
+                <PageHeader
+                    title={t("search.title", "Search")}
+                    onBack={() => safeBack()}
+                    backLabel={t("common.back", { defaultValue: "Back" })}
+                />
+
+                <View className="mx-4 my-2">
+                    <Search
+                        ref={searchInputRef}
+                        label={t("search.placeholder", "Search...")}
+                        value={query}
+                        onChangeText={handleQueryChange}
+                        onSelectionChange={handleSelectionChange}
+                        onSubmitEditing={handleSubmit}
+                        onClearText={clearSearch}
+                        autoFocus
                     />
+                </View>
 
-                    <View className="mx-4 my-2">
-                        <Search
-                            ref={searchInputRef}
-                            label={t("search.placeholder", "Search...")}
-                            value={query}
-                            onChangeText={handleQueryChange}
-                            onSelectionChange={handleSelectionChange}
-                            onSubmitEditing={handleSubmit}
-                            onClearText={clearSearch}
-                            autoFocus
-                        />
-                    </View>
+                <AnimatedTabBar
+                    tabs={tabs}
+                    activeTabId={activeTab}
+                    onTabPress={handleTabPress}
+                    scrollEnabled={true}
+                />
 
-                    <AnimatedTabBar
-                        tabs={tabs}
-                        activeTabId={activeTab}
-                        onTabPress={handleTabPress}
-                        scrollEnabled={true}
+                {/* ONE scroll container for every state — suggestions, results,
+                    loading, error and empty all render through this list as ROWS,
+                    so the container never swaps (no scroll or keyboard reset on
+                    the first keystroke) and the suggestions have no focus-bound
+                    lifecycle to get wrong. */}
+                <View className="flex-1 min-h-0">
+                    <FlashList
+                        data={rows}
+                        keyExtractor={keyExtractor}
+                        getItemType={getItemType}
+                        renderItem={renderRow}
+                        keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode="on-drag"
+                        showsVerticalScrollIndicator={false}
+                        onEndReached={handleEndReached}
+                        onEndReachedThreshold={0.5}
+                        ListHeaderComponent={renderListHeader()}
+                        ListFooterComponent={
+                            isFetchingNextPage ? (
+                                <View className="items-center justify-center py-4">
+                                    <Loading className="text-primary" size="small" />
+                                </View>
+                            ) : null
+                        }
                     />
-
-                    {/* ONE scroll container for every state — suggestions, results,
-                        loading, error and empty all render through this list as ROWS,
-                        so the container never swaps (no scroll or keyboard reset on
-                        the first keystroke) and the suggestions have no focus-bound
-                        lifecycle to get wrong. */}
-                    <View className="flex-1 min-h-0">
-                        <FlashList
-                            data={rows}
-                            keyExtractor={keyExtractor}
-                            getItemType={getItemType}
-                            renderItem={renderRow}
-                            keyboardShouldPersistTaps="handled"
-                            keyboardDismissMode="on-drag"
-                            showsVerticalScrollIndicator={false}
-                            onEndReached={handleEndReached}
-                            onEndReachedThreshold={0.5}
-                            ListHeaderComponent={renderListHeader()}
-                            ListFooterComponent={
-                                isFetchingNextPage ? (
-                                    <View className="items-center justify-center py-4">
-                                        <Loading className="text-primary" size="small" />
-                                    </View>
-                                ) : null
-                            }
-                        />
-                    </View>
-                </SafeAreaView>
-            </ThemedView>
+                </View>
+            </View>
         </>
     );
 }

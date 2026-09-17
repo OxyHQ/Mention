@@ -6,7 +6,7 @@ import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { router } from 'expo-router';
-import { ThemedText } from './ThemedText';
+import { Text } from '@oxy.so/bloom/typography';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -126,9 +126,9 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
       {/* Name and byline */}
       <View style={styles.titleRow}>
         <View style={styles.titleContainer}>
-          <ThemedText style={styles.title} numberOfLines={2}>
+          <Text style={styles.title} numberOfLines={2}>
             {pack.name}
-          </ThemedText>
+          </Text>
           {pack.creator && (
             // No preview of yourself — the byline reads "by you" and is not
             // even a link in that case.
@@ -141,14 +141,14 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
                 // itself pressable, so horizontal slop would take taps meant
                 // for opening the pack.
                 hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}>
-                <ThemedText
+                <Text
                   className="text-muted-foreground"
                   style={styles.byline}
                   numberOfLines={1}>
                   {isOwner
                     ? 'Starter pack by you'
                     : `Starter pack by @${pack.creator.username}`}
-                </ThemedText>
+                </Text>
               </TouchableOpacity>
             </ProfileHoverCard>
           )}
@@ -157,28 +157,28 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
 
       {/* Description */}
       {!noDescription && pack.description ? (
-        <ThemedText
+        <Text
           style={styles.descriptionText}
           numberOfLines={3}>
           {pack.description}
-        </ThemedText>
+        </Text>
       ) : null}
 
       {/* Stats */}
-      <ThemedText className="text-muted-foreground" style={styles.stats}>
+      <Text className="text-muted-foreground leading-6" style={styles.stats}>
         {pack.memberCount} {pack.memberCount === 1 ? 'account' : 'accounts'}
         {pack.useCount > 0
           ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
           : ''}
-      </ThemedText>
+      </Text>
 
       {/* Joined count — only shown when >= 50, matching Bluesky */}
       {pack.useCount >= 50 && (
-        <ThemedText
-          className="text-muted-foreground"
+        <Text
+          className="text-muted-foreground leading-6"
           style={styles.joinedText}>
           {formatCompactNumber(pack.useCount)} users have joined!
-        </ThemedText>
+        </Text>
       )}
     </PressableScale>
   );

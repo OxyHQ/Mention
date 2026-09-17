@@ -1,9 +1,9 @@
 import React from 'react';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 
 import { Loading } from '@oxy.so/bloom/loading';
-import { ThemedView } from '@/components/ThemedView';
 import ProfileScreen from '@/components/ProfileScreen';
 
 /**
@@ -41,9 +41,9 @@ export default function YouTab() {
   // return. Same rule as the anon CTA in `app/(app)/_layout.tsx`.
   if (!isAuthResolved) {
     return (
-      <ThemedView className="flex-1 justify-center items-center">
+      <View className="flex-1 justify-center items-center">
         <Loading className="text-primary" size="large" />
-      </ThemedView>
+      </View>
     );
   }
 

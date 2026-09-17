@@ -3,15 +3,11 @@ import { Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Text } from '@oxy.so/bloom/typography';
 
 import { useSafeBack } from '@/hooks/useSafeBack';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
-import { ThemedText } from '@/components/ThemedText';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { SEO } from '@/components/SEO';
-import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { trendingService } from '@/services/trendingService';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { buildTrendTree, type TrendTreeNode } from '@/utils/trendGraphTree';
@@ -63,21 +59,13 @@ export default function TrendGraphScreen() {
   const isEmpty = tree.stories.length === 0 && tree.ungrouped.length === 0;
 
   return (
-    <SafeAreaView className="flex-1" edges={['top']}>
+    <View className="flex-1">
       <SEO title={t('seo.trendGraph.title')} description={t('seo.trendGraph.description')} />
-      <PanelStickyHeader level={0}>
-        <Header
-          options={{
-            title: t('trendGraph.title'),
-            leftComponents: [
-              <IconButton key="back" variant="icon" onPress={safeBack}>
-                <BackArrowIcon size={20} className="text-foreground" />
-              </IconButton>,
-            ],
-          }}
-          disableSticky
-        />
-      </PanelStickyHeader>
+      <PageHeader
+        title={t('trendGraph.title')}
+        onBack={() => safeBack()}
+        backLabel={t('common.back', { defaultValue: 'Back' })}
+      />
 
       <ScrollView className="flex-1" contentContainerClassName="pb-16">
         {/*
@@ -85,9 +73,9 @@ export default function TrendGraphScreen() {
           repeating it in 28px — under an uppercase eyebrow — spent the first
           fifth of the viewport saying the same thing three times.
         */}
-        <ThemedText className="px-4 pb-3 pt-1 font-primary text-[13px] text-muted-foreground">
+        <Text className="px-4 pb-3 pt-1 font-primary text-[13px] text-muted-foreground leading-6">
           {t('trendGraph.subtitle')}
-        </ThemedText>
+        </Text>
 
         <FilterRow
           values={data?.availableLanguages ?? []}
@@ -117,24 +105,24 @@ export default function TrendGraphScreen() {
           // An unreachable graph must not render as an empty one: "no relations
           // found" over an outage would say the network has no stories.
           <View className="items-center gap-3 px-4 py-10">
-            <ThemedText className="text-center font-primary text-sm text-muted-foreground">
+            <Text className="text-center font-primary text-sm text-muted-foreground leading-6">
               {t('trendGraph.error')}
-            </ThemedText>
+            </Text>
             <TouchableOpacity
               accessibilityRole="button"
               onPress={() => void refetch()}
               className="rounded-full bg-primary px-4 py-2"
               style={styles.webCursor}
             >
-              <ThemedText className="font-primary text-sm font-semibold text-primary-foreground">
+              <Text className="font-primary text-sm font-semibold text-primary-foreground leading-6">
                 {t('trendGraph.retry')}
-              </ThemedText>
+              </Text>
             </TouchableOpacity>
           </View>
         ) : isEmpty ? (
-          <ThemedText className="px-4 py-10 text-center font-primary text-sm text-muted-foreground">
+          <Text className="px-4 py-10 text-center font-primary text-sm text-muted-foreground leading-6">
             {t('trendGraph.empty')}
-          </ThemedText>
+          </Text>
         ) : (
           <>
             {tree.stories.length > 0 ? (
@@ -155,7 +143,7 @@ export default function TrendGraphScreen() {
           </>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -163,10 +151,10 @@ export default function TrendGraphScreen() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View className="mb-2">
-      <View className="bg-background px-4 py-2">
-        <ThemedText className="font-primary text-sm font-medium text-muted-foreground">
+      <View className="px-4 py-2">
+        <Text className="font-primary text-sm font-medium text-muted-foreground leading-6">
           {title}
-        </ThemedText>
+        </Text>
       </View>
       <View className="px-4">{children}</View>
     </View>
@@ -249,12 +237,12 @@ function RelatedLine({ entry }: { entry: TrendTreeNode }) {
 
   return (
     <View className="ml-1 border-border pb-1 pl-3" style={styles.dashedTrunk}>
-      <ThemedText className="font-primary text-[12px] text-muted-foreground" numberOfLines={2}>
+      <Text className="font-primary text-[12px] text-muted-foreground leading-6" numberOfLines={2}>
         {t('trendGraph.related', {
           terms: shown.join(', '),
           count: rest,
         })}
-      </ThemedText>
+      </Text>
     </View>
   );
 }
@@ -290,17 +278,17 @@ function TermRow({
       className="flex-row items-baseline justify-between py-1.5"
       style={styles.webCursor}
     >
-      <ThemedText
-        className={`mr-3 shrink font-primary text-foreground ${emphasis ? 'text-[15px] font-bold' : 'text-[14px]'}`}
+      <Text
+        className={`mr-3 shrink font-primary text-foreground ${emphasis ? 'text-[15px] font-bold' : 'text-[14px]'} leading-6`}
         numberOfLines={1}
       >
         {label}
-      </ThemedText>
-      <ThemedText className="shrink-0 font-primary text-[12px] text-muted-foreground">
+      </Text>
+      <Text className="shrink-0 font-primary text-[12px] text-muted-foreground leading-6">
         {t('trendGraph.node.posts', { count: volume })}
         {' · '}
         {t('trendGraph.node.authors', { count: authors })}
-      </ThemedText>
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -336,11 +324,11 @@ function FilterRow({
             className={`rounded-full px-3 py-1.5 ${isActive ? 'bg-primary' : 'bg-muted'}`}
             style={styles.webCursor}
           >
-            <ThemedText
-              className={`font-primary text-[13px] font-medium ${isActive ? 'text-primary-foreground' : 'text-foreground'}`}
+            <Text
+              className={`font-primary text-[13px] font-medium ${isActive ? 'text-primary-foreground' : 'text-foreground'} leading-6`}
             >
               {value ?? allLabel}
-            </ThemedText>
+            </Text>
           </TouchableOpacity>
         );
       })}

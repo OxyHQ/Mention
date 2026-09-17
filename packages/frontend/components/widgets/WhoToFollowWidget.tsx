@@ -2,7 +2,7 @@ import React, { useMemo, useCallback } from "react";
 import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
-import { ThemedText } from "@/components/ThemedText";
+import { Text } from "@oxy.so/bloom/typography";
 import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from "@/components/ProfileCard";
 import { BaseWidget } from "./BaseWidget";
 import { useUserById } from "@/hooks/useCachedUser";
@@ -69,9 +69,9 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
           onPress={handleShowMore}
           activeOpacity={0.7}
         >
-          <ThemedText className="text-primary text-[14px] font-medium">
+          <Text className="text-primary text-[14px] leading-6 font-medium">
             {t("Show more")}
-          </ThemedText>
+          </Text>
         </TouchableOpacity>
       </View>
     </BaseWidget>

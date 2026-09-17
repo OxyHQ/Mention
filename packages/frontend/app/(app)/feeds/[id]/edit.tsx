@@ -3,13 +3,10 @@ import { View, Text } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Loading } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 
-import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { customFeedsService } from '@/services/customFeedsService';
 import { FeedBuilder } from '@/components/feeds/FeedBuilder';
@@ -38,47 +35,33 @@ export default function EditFeedScreen() {
 
   if (notReady) {
     return (
-      <ThemedView className="flex-1">
-        <Header
-          options={{
-            title: t('feeds.builder.editTitle'),
-            leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                <BackArrowIcon size={20} className="text-foreground" />
-              </IconButton>,
-            ],
-          }}
-          hideBottomBorder
-          disableSticky
+      <View className="flex-1">
+        <PageHeader
+          title={t('feeds.builder.editTitle')}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
         />
         <View className="flex-1 items-center justify-center">
           <Loading className="text-primary" size="large" />
         </View>
-      </ThemedView>
+      </View>
     );
   }
 
   if (!feed || !isOwner) {
     return (
-      <ThemedView className="flex-1">
-        <Header
-          options={{
-            title: t('feeds.builder.editTitle'),
-            leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                <BackArrowIcon size={20} className="text-foreground" />
-              </IconButton>,
-            ],
-          }}
-          hideBottomBorder
-          disableSticky
+      <View className="flex-1">
+        <PageHeader
+          title={t('feeds.builder.editTitle')}
+          onBack={() => safeBack()}
+          backLabel={t('common.back', { defaultValue: 'Back' })}
         />
         <View className="flex-1 items-center justify-center px-8">
           <Text className="text-base text-center text-muted-foreground">
             {t('feeds.builder.notAllowed', { defaultValue: "You can't edit this feed." })}
           </Text>
         </View>
-      </ThemedView>
+      </View>
     );
   }
 

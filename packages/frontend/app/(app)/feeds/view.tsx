@@ -1,17 +1,14 @@
 import React, { useMemo } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import { Loading } from '@oxy.so/bloom/loading';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import Feed from '@/components/Feed/Feed';
 import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
-import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { PRESET_FEEDS } from '@mention/shared-types/mtn/presetFeeds';
 import type { FeedType } from '@mention/shared-types/feed';
 
@@ -102,25 +99,13 @@ export default function PresetFeedViewScreen() {
     };
 
     return (
-        <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
+        <SafeAreaView className="flex-1" edges={['bottom']}>
             <SEO title={headerTitle} description={t('seo.feeds.description')} />
-            {/* PanelStickyHeader owns the web sticky position/inset + opaque panel
-                surface; `disableSticky` on the inner <Header> hands sticky
-                ownership to PanelStickyHeader so the header pins at
-                PANEL_TOP_INSET (inside the panel) instead of top:0. */}
-            <PanelStickyHeader level={0}>
-                <Header
-                    options={{
-                        title: headerTitle,
-                        leftComponents: [
-                            <IconButton key="back" variant="icon" onPress={safeBack}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    disableSticky
-                />
-            </PanelStickyHeader>
+            <PageHeader
+                title={headerTitle}
+                onBack={() => safeBack()}
+                backLabel={t('common.back', { defaultValue: 'Back' })}
+            />
             {renderBody()}
         </SafeAreaView>
     );
