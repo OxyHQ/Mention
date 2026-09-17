@@ -250,6 +250,7 @@
   "profile.media.podcast.searchError": "Podcast'ler aranamadı. Tekrar dene.",
   "profile.following": "Takip edilen",
   "profile.followers": "Takipçi",
+  "profile.activity": "Etkinlik",
   "profile.followedBy.one": "{{name1}} takip ediyor",
   "profile.followedBy.two": "{{name1}} ve {{name2}} takip ediyor",
   "profile.followedBy.many_one": "{{name1}}, {{name2}} ve {{count}} kişi daha takip ediyor",

@@ -103,7 +103,7 @@ export default function FeedSettingsScreen() {
   if (!isAuthenticated) {
     return (
       <ThemedView className="flex-1">
-        <PageHeader title={t('settings.feed.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+        <PageHeader title={t('settings.feed.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
         <OxyAuthPrompt
           label={t('settings.feed.signInRequired', { defaultValue: 'Sign in to customize your feed' })}
           description={t('settings.feed.signInRequiredDesc', { defaultValue: 'Tune the algorithm, diversity, and recency to your taste.' })}
@@ -115,7 +115,7 @@ export default function FeedSettingsScreen() {
   if (isLoading) {
     return (
       <ThemedView className="flex-1">
-        <PageHeader title={t('settings.feed.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+        <PageHeader title={t('settings.feed.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
         <View className="flex-1 justify-center items-center">
           <Loading className="text-primary" size="large" />
         </View>
@@ -125,7 +125,7 @@ export default function FeedSettingsScreen() {
 
   return (
     <ThemedView className="flex-1">
-      <PageHeader title={t('settings.feed.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} actions={isSaving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />
+      <PageHeader title={t('settings.feed.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} actions={isSaving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />
 
       <ScrollView
         className="flex-1"

@@ -250,6 +250,7 @@
   "profile.media.podcast.searchError": "无法搜索播客，请重试。",
   "profile.following": "正在关注",
   "profile.followers": "粉丝",
+  "profile.activity": "动态",
   "profile.followedBy.one": "被 {{name1}} 关注",
   "profile.followedBy.two": "被 {{name1}} 和 {{name2}} 关注",
   "profile.followedBy.many_one": "被 {{name1}}、{{name2}} 和另外 {{count}} 人关注",

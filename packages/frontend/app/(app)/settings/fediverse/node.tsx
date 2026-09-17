@@ -105,7 +105,7 @@ export default function MentionNodeScreen() {
   } = useMentionNode();
 
   const header = (
-    <PageHeader title={t('settings.node.title', { defaultValue: 'Your Mention node' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+    <PageHeader title={t('settings.node.title', { defaultValue: 'Your Mention node' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
   );
 
   const handleDisconnect = useCallback(async () => {

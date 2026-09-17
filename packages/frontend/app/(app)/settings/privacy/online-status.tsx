@@ -70,7 +70,7 @@ export default function OnlineStatusScreen() {
     if (isPrivateApiPending) {
         return (
             <ThemedView className="flex-1">
-                <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+                <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -81,7 +81,7 @@ export default function OnlineStatusScreen() {
     if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
-                <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+                <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <OxyAuthPrompt
                     label={t('settings.privacy.onlineStatus.signInRequired', { defaultValue: 'Sign in to manage your online status' })}
                     description={t('settings.privacy.onlineStatus.signInRequiredDesc', { defaultValue: 'Decide whether others see when you are online.' })}
@@ -93,7 +93,7 @@ export default function OnlineStatusScreen() {
     if (loading) {
         return (
             <ThemedView className="flex-1">
-                <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+                <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -103,7 +103,7 @@ export default function OnlineStatusScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+            <PageHeader title={t('settings.privacy.onlineStatus')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
                 className="flex-1"

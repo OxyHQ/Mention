@@ -250,6 +250,7 @@
   "profile.media.podcast.searchError": "ポッドキャストを検索できませんでした。もう一度お試しください。",
   "profile.following": "フォロー中",
   "profile.followers": "フォロワー",
+  "profile.activity": "アクティビティ",
   "profile.followedBy.one": "{{name1}}さんがフォローしています",
   "profile.followedBy.two": "{{name1}}さんと{{name2}}さんがフォローしています",
   "profile.followedBy.many_one": "{{name1}}さん、{{name2}}さん、ほか{{count}}人がフォローしています",

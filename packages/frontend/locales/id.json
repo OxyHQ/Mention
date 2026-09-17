@@ -250,6 +250,7 @@
   "profile.media.podcast.searchError": "Tidak bisa mencari podcast. Coba lagi.",
   "profile.following": "Mengikuti",
   "profile.followers": "Pengikut",
+  "profile.activity": "Aktivitas",
   "profile.followedBy.one": "Diikuti oleh {{name1}}",
   "profile.followedBy.two": "Diikuti oleh {{name1}} dan {{name2}}",
   "profile.followedBy.many_one": "Diikuti oleh {{name1}}, {{name2}} dan {{count}} lainnya",

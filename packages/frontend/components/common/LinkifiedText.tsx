@@ -63,11 +63,10 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
 
       if (entity.kind === 'mentionDisplay') {
         // One handle drives both behaviors — the profile link and the hover
-        // preview — so they can never point at different profiles. `inline`
-        // keeps the mention in the text flow instead of breaking the line.
+        // preview — so they can never point at different profiles.
         const mentionHandle = getNormalizedUserHandle({ username: entity.value }) ?? undefined;
         elements.push(
-          <ProfileHoverCard key={`m-${key++}`} username={mentionHandle} inline>
+          <ProfileHoverCard key={`m-${key++}`} username={mentionHandle}>
             <Text
               className="text-primary"
               style={linkStyle}
@@ -81,7 +80,7 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text, style, class
         // The handle already names its host, so it routes verbatim — no
         // normalization, and nothing inferred about which instance it is on.
         elements.push(
-          <ProfileHoverCard key={`f-${key++}`} username={entity.value} inline>
+          <ProfileHoverCard key={`f-${key++}`} username={entity.value}>
             <Text
               className="text-primary"
               style={linkStyle}

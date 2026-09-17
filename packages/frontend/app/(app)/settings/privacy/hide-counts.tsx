@@ -123,7 +123,7 @@ export default function HideCountsScreen() {
     if (isPrivateApiPending) {
         return (
             <ThemedView className="flex-1">
-                <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+                <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -134,7 +134,7 @@ export default function HideCountsScreen() {
     if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
-                <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+                <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <OxyAuthPrompt
                     label={t('settings.privacy.hideCounts.signInRequired', { defaultValue: 'Sign in to hide engagement counts' })}
                     description={t('settings.privacy.hideCounts.signInRequiredDesc', { defaultValue: 'Hide likes, boosts, replies, and saves on your posts.' })}
@@ -146,7 +146,7 @@ export default function HideCountsScreen() {
     if (loading) {
         return (
             <ThemedView className="flex-1">
-                <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+                <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -156,7 +156,7 @@ export default function HideCountsScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+            <PageHeader title={t('settings.privacy.hideAllCounts')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
                 className="flex-1"

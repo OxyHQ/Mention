@@ -74,7 +74,7 @@ export default function AppearanceSettingsScreen() {
 
   return (
     <ThemedView className="flex-1">
-      <PageHeader title={t('settings.appearance', 'Appearance')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} actions={settingsSaving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />
+      <PageHeader title={t('settings.appearance', 'Appearance')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} actions={settingsSaving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />
 
       <ScrollView
         className="flex-1"

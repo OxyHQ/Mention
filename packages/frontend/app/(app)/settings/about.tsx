@@ -63,7 +63,7 @@ export default function AboutScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <PageHeader title={t('settings.aboutMention.title', { defaultValue: 'About' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
+            <PageHeader title={t('settings.aboutMention.title', { defaultValue: 'About' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} />
 
             <ScrollView
                 className="flex-1"

@@ -250,6 +250,7 @@
   "profile.media.podcast.searchError": "تعذّر البحث عن البودكاست. أعد المحاولة.",
   "profile.following": "يتابع",
   "profile.followers": "المتابِعون",
+  "profile.activity": "النشاط",
   "profile.followedBy.one": "يتابعه {{name1}}",
   "profile.followedBy.two": "يتابعه {{name1}} و{{name2}}",
   "profile.followedBy.many_one": "يتابعه {{name1}} و{{name2}} وشخص آخر",
