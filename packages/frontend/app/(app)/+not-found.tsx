@@ -1,26 +1,25 @@
 import { Link } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { Text } from '@oxy.so/bloom/typography';
 
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 import { SEO } from '@/components/SEO';
 
 export default function NotFoundScreen() {
   const { t } = useTranslation();
-  
+
   return (
     <>
       <SEO
         title={t('seo.notFound.title')}
         description={t('seo.notFound.description')}
       />
-      <ThemedView style={styles.container}>
-        <ThemedText type="title">This screen does not exist.</ThemedText>
+      <View style={styles.container}>
+        <Text className="text-[32px] leading-8 font-bold text-foreground">This screen does not exist.</Text>
         <Link href="/" style={styles.link}>
-          <ThemedText type="link">Go to home screen!</ThemedText>
+          <Text className="text-base leading-[30px] text-primary">Go to home screen!</Text>
         </Link>
-      </ThemedView>
+      </View>
     </>
   );
 }

@@ -69,6 +69,7 @@ jest.mock('@/db', () => ({
   clearAllCachedData: jest.fn(),
 }));
 
+jest.mock('@oxy.so/bloom/icons', () => ({ RiFilmLine: () => null }));
 jest.mock('@/services/feedService', () => ({ feedService: {} }));
 jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
 jest.mock('@/lib/precacheActorsFromPosts', () => ({

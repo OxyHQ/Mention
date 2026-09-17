@@ -1,9 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { CloseIcon } from '@/assets/icons/close-icon';
-import { IconButton } from '@/components/ui/Button';
+import { Button } from '@oxy.so/bloom/button';
+import { RiCloseLine } from '@oxy.so/bloom/icons';
 
 interface ConfirmBottomSheetProps {
     title: string;
@@ -24,7 +23,6 @@ export const ConfirmBottomSheet: React.FC<ConfirmBottomSheetProps> = ({
     onConfirm,
     onCancel,
 }) => {
-    const theme = useTheme();
     const { t } = useTranslation();
 
     const handleConfirm = () => {
@@ -36,12 +34,14 @@ export const ConfirmBottomSheet: React.FC<ConfirmBottomSheetProps> = ({
         <View className="rounded-t-3xl pb-5 bg-background">
             {/* Header */}
             <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border bg-background">
-                <IconButton variant="icon"
+                <Button
+                    variant="icon"
+                    iconOnly
+                    leadingIcon={RiCloseLine}
+                    accessibilityLabel={t('common.close')}
                     onPress={onCancel}
                     className="mr-1.5 z-[1]"
-                >
-                    <CloseIcon size={20} className="text-foreground" />
-                </IconButton>
+                />
                 <Text className="absolute left-0 right-0 text-center text-lg font-bold text-foreground pointer-events-none">
                     {title}
                 </Text>
@@ -58,28 +58,23 @@ export const ConfirmBottomSheet: React.FC<ConfirmBottomSheetProps> = ({
 
                 {/* Buttons */}
                 <View className="flex-row gap-3">
-                    <TouchableOpacity
-                        className="flex-1 py-3.5 rounded-xl items-center justify-center min-h-[50px] border border-border bg-card"
+                    <Button
+                        variant="secondary"
+                        size="large"
+                        className="flex-1"
                         onPress={onCancel}
-                        activeOpacity={0.7}
                     >
-                        <Text className="text-base font-semibold text-foreground">
-                            {cancelText || t('common.cancel')}
-                        </Text>
-                    </TouchableOpacity>
+                        {cancelText || t('common.cancel')}
+                    </Button>
 
-                    <TouchableOpacity
-                        className="flex-1 py-3.5 rounded-xl items-center justify-center min-h-[50px]"
-                        style={{
-                            backgroundColor: destructive ? theme.colors.error : theme.colors.primary
-                        }}
+                    <Button
+                        variant={destructive ? 'destructive' : 'primary'}
+                        size="large"
+                        className="flex-1"
                         onPress={handleConfirm}
-                        activeOpacity={0.7}
                     >
-                        <Text className="text-base font-semibold text-white">
-                            {confirmText || t('common.confirm')}
-                        </Text>
-                    </TouchableOpacity>
+                        {confirmText || t('common.confirm')}
+                    </Button>
                 </View>
             </View>
         </View>

@@ -1,6 +1,7 @@
 import React, { memo, useState, ReactNode } from 'react';
-import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
-import { Loading } from '@oxy.so/bloom/loading';
+import { View, Text, ViewStyle, TextStyle } from 'react-native';
+import { Button } from '@oxy.so/bloom/button';
+import { RiRefreshLine } from '@oxy.so/bloom/icons';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { flattenStyleArray } from '@/styles/shared';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -72,7 +73,7 @@ export const EmptyState = memo<EmptyStateProps>(
                     style={flattenStyleArray([
                         containerStyle,
                     ])}
-                    className="flex-1 justify-center items-center py-8 px-6 bg-background"
+                    className="flex-1 justify-center items-center py-8 px-6"
                 >
                     <View className="items-center max-w-[320px] w-full">
                         {icon && (
@@ -110,36 +111,17 @@ export const EmptyState = memo<EmptyStateProps>(
                         </Text>
 
                         {error.onRetry && (
-                            <TouchableOpacity
+                            <Button
                                 // The retry action is a secondary moment, not the
-                                // screen's brand statement — and its label follows
-                                // the fill's own foreground rather than `card`,
-                                // which only looked right while every fill happened
-                                // to be dark.
-                                className="flex-row items-center justify-center py-2 px-4 rounded-[20px] min-w-[100px] gap-1.5 bg-secondary"
-                                style={{ opacity: isRetrying ? 0.6 : 1 }}
+                                // screen's brand statement.
+                                variant="secondary"
+                                leadingIcon={RiRefreshLine}
+                                loading={isRetrying}
                                 onPress={handleRetry}
-                                disabled={isRetrying}
-                                activeOpacity={0.8}
+                                className="min-w-[100px]"
                             >
-                                {isRetrying ? (
-                                    <Loading className="text-secondary-foreground" variant="inline" size="small" style={{ flex: undefined }} />
-                                ) : (
-                                    <>
-                                        <Ionicons
-                                            name="refresh"
-                                            size={18}
-                                            color={theme.colors.secondaryForeground}
-                                        />
-                                        <Text
-                                            className="text-[15px] font-semibold"
-                                            style={{ color: theme.colors.secondaryForeground }}
-                                        >
-                                            Try again
-                                        </Text>
-                                    </>
-                                )}
-                            </TouchableOpacity>
+                                Try again
+                            </Button>
                         )}
                     </View>
                 </View>
@@ -156,7 +138,7 @@ export const EmptyState = memo<EmptyStateProps>(
                 style={flattenStyleArray([
                     containerStyle,
                 ])}
-                className="flex-1 justify-center items-center py-8 px-6 bg-background"
+                className="flex-1 justify-center items-center py-8 px-6"
                 accessible={accessible}
                 accessibilityRole="text"
                 accessibilityLabel={accessibilityLabel || [title, subtitle].filter(Boolean).join('. ')}
@@ -195,25 +177,20 @@ export const EmptyState = memo<EmptyStateProps>(
                 )}
 
                 {action && (
-                    <TouchableOpacity
-                        className="flex-row items-center justify-center py-2 px-4 rounded-[20px] mt-4.5 gap-1.5 bg-primary"
-                        onPress={action.onPress}
-                        activeOpacity={0.8}
-                    >
-                        {action.icon && (
+                    <Button
+                        variant="primary"
+                        icon={action.icon && (
                             <Ionicons
                                 name={action.icon}
                                 size={18}
-                                color={theme.colors.card}
+                                color={theme.colors.primaryForeground}
                             />
                         )}
-                        <Text
-                            className="text-[15px] font-semibold"
-                            style={{ color: theme.colors.card }}
-                        >
-                            {action.label}
-                        </Text>
-                    </TouchableOpacity>
+                        onPress={action.onPress}
+                        className="mt-4.5"
+                    >
+                        {action.label}
+                    </Button>
                 )}
             </View>
         );
