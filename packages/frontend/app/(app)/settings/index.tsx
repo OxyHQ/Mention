@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useMemo } from "react";
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, Animated, ScrollView } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
-import { Header } from "@/components/Header";
-import { IconButton } from '@/components/ui/Button';
 import { Button } from '@oxy.so/bloom/button';
-import { BackArrowIcon } from "@/assets/icons/back-arrow-icon";
 import { useAuth, OxySignInButton } from "@oxy.so/services/ui/client";
 import { useTranslation } from "react-i18next";
 import { useLayoutScroll } from "@/context/LayoutScrollContext";
@@ -90,18 +88,7 @@ export default function SettingsScreen() {
                 already `disableSticky` (non-sticky, in flow above the inner
                 scroller). Adopting PanelStickyHeader here would require changing
                 the scroll model, so it is intentionally left as-is. */}
-            <Header
-                options={{
-                    title: t("settings.title"),
-                    leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                            <BackArrowIcon size={20} className="text-foreground" />
-                        </IconButton>,
-                    ],
-                }}
-                hideBottomBorder
-                disableSticky
-            />
+            <PageHeader title={t("settings.title")} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
 
             <Animated.ScrollView
                 ref={assignScrollViewRef}

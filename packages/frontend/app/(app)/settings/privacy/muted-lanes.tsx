@@ -1,4 +1,5 @@
 import React from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loading } from '@oxy.so/bloom/loading';
@@ -11,9 +12,6 @@ import { createLogger } from '@oxy.so/core/logger';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { MutedLane } from '@mention/shared-types';
 import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { Icon } from '@/lib/icons';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -41,14 +39,7 @@ export default function MutedLanesScreen() {
     const { isAuthenticated, user, canUsePrivateApi } = useAuth();
     const queryClient = useQueryClient();
 
-    const headerOptions = {
-        title: t('lanes.muted.title', { defaultValue: 'Muted lanes' }),
-        leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-        ],
-    };
+    const header = <PageHeader title={t('lanes.muted.title', { defaultValue: 'Muted lanes' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />;
 
     const mutedQueryKey = viewerQueryKeys.mutedLanes(user?.id);
     const {
@@ -83,7 +74,7 @@ export default function MutedLanesScreen() {
     if (!isAuthenticated) {
         return (
             <ThemedView className="flex-1">
-                <Header options={headerOptions} hideBottomBorder disableSticky />
+                {header}
                 <OxyAuthPrompt
                     label={t('lanes.muted.signInRequired', { defaultValue: 'Sign in to manage muted lanes' })}
                     description={t('lanes.muted.description', {
@@ -96,7 +87,7 @@ export default function MutedLanesScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <Header options={headerOptions} hideBottomBorder disableSticky />
+            {header}
 
             <ScrollView
                 className="flex-1"

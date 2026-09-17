@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -7,9 +8,6 @@ import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { resolveFollowPrimaryAction, useFollowTarget } from '@oxy.so/services';
 import type { TopicData } from '@oxy.so/core';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { topicService } from '@/services/topicService';
@@ -176,18 +174,7 @@ interface ShellProps {
 function InterestsShell({ t, safeBack, children }: ShellProps) {
     return (
         <ThemedView className="flex-1">
-            <Header
-                options={{
-                    title: t('settings.interests.title', { defaultValue: 'Your interests' }),
-                    leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                            <BackArrowIcon size={20} className="text-foreground" />
-                        </IconButton>,
-                    ],
-                }}
-                hideBottomBorder
-                disableSticky
-            />
+            <PageHeader title={t('settings.interests.title', { defaultValue: 'Your interests' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
             {children}
         </ThemedView>
     );

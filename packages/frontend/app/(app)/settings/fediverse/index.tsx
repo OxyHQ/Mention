@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, ScrollView } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Switch } from '@oxy.so/bloom/switch';
@@ -8,9 +9,6 @@ import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { RiBox3Line, RiEarthLine, RiGlobalLine, RiQuestionLine, RiShieldCheckLine } from '@oxy.so/bloom/icons';
 import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
@@ -209,18 +207,11 @@ export default function FediverseSettingsScreen() {
   const safeBack = useSafeBack();
   const { isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
 
-  const headerOptions = {
-    title: t('fediverse.settings.title'),
-    leftComponents: [
-      <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-        <BackArrowIcon size={20} className="text-foreground" />
-      </IconButton>,
-    ],
-  };
+  const header = <PageHeader title={t('fediverse.settings.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />;
 
   return (
     <ThemedView className="flex-1">
-      <Header options={headerOptions} hideBottomBorder disableSticky />
+      {header}
       {!isAuthResolved || isPrivateApiPending ? (
         <View className="flex-1 items-center justify-center">
           <Loading />

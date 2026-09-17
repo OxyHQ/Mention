@@ -1,9 +1,7 @@
 import React, { useState, useCallback } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView } from 'react-native';
 import { useAppearanceStore, type PostTextExpand, type PostReadMoreAction } from '@/stores/appearanceStore';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { useTheme, useBloomTheme } from '@oxy.so/bloom/theme';
@@ -76,23 +74,7 @@ export default function AppearanceSettingsScreen() {
 
   return (
     <ThemedView className="flex-1">
-      <Header
-        options={{
-          title: t('settings.appearance', 'Appearance'),
-          leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-          rightComponents: settingsSaving ? [
-            <View key="saving" className="pr-2">
-              <Loading className="text-primary" variant="inline" size="small" />
-            </View>,
-          ] : [],
-        }}
-        hideBottomBorder
-        disableSticky
-      />
+      <PageHeader title={t('settings.appearance', 'Appearance')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} actions={settingsSaving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />
 
       <ScrollView
         className="flex-1"

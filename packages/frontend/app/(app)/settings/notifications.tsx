@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, ScrollView } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { Toggle } from '@/components/Toggle';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
@@ -102,18 +100,7 @@ export default function NotificationSettingsScreen() {
     if (isPrivateApiPending) {
         return (
             <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.notifications.title', { defaultValue: 'Notifications' }),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
+                <PageHeader title={t('settings.notifications.title', { defaultValue: 'Notifications' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -124,18 +111,7 @@ export default function NotificationSettingsScreen() {
     if (!canUsePrivateApi) {
         return (
             <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.notifications.title', { defaultValue: 'Notifications' }),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
+                <PageHeader title={t('settings.notifications.title', { defaultValue: 'Notifications' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
                 <OxyAuthPrompt
                     label={t('settings.notifications.signInRequired', { defaultValue: 'Sign in to manage notifications' })}
                     description={t('settings.notifications.signInRequiredDesc', { defaultValue: 'Choose what alerts you receive and how.' })}
@@ -147,18 +123,7 @@ export default function NotificationSettingsScreen() {
     if (loading) {
         return (
             <ThemedView className="flex-1">
-                <Header
-                    options={{
-                        title: t('settings.notifications.title', { defaultValue: 'Notifications' }),
-                        leftComponents: [
-                            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                                <BackArrowIcon size={20} className="text-foreground" />
-                            </IconButton>,
-                        ],
-                    }}
-                    hideBottomBorder
-                    disableSticky
-                />
+                <PageHeader title={t('settings.notifications.title', { defaultValue: 'Notifications' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
                 <View className="flex-1 justify-center items-center">
                     <Loading className="text-primary" size="large" />
                 </View>
@@ -168,23 +133,7 @@ export default function NotificationSettingsScreen() {
 
     return (
         <ThemedView className="flex-1">
-            <Header
-                options={{
-                    title: t('settings.notifications.title', { defaultValue: 'Notifications' }),
-                    leftComponents: [
-                        <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                            <BackArrowIcon size={20} className="text-foreground" />
-                        </IconButton>,
-                    ],
-                    rightComponents: saving ? [
-                        <View key="saving" className="pr-2">
-                            <Loading className="text-primary" variant="inline" size="small" />
-                        </View>,
-                    ] : [],
-                }}
-                hideBottomBorder
-                disableSticky
-            />
+            <PageHeader title={t('settings.notifications.title', { defaultValue: 'Notifications' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} actions={saving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />
 
             <ScrollView
                 className="flex-1"

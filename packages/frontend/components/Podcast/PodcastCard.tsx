@@ -73,6 +73,11 @@ const WHITE_FAINT = 'rgba(255,255,255,0.56)';
 
 type Provider = { label: string; glyph: 'spotify' | 'apple' | 'youtube' | 'syra' };
 
+/** `host` is `domain` or one of its subdomains — never a lookalike like `notspotify.com`. */
+function isHostOf(host: string, domain: string): boolean {
+  return host === domain || host.endsWith(`.${domain}`);
+}
+
 /** Where the show opens, as the card names it — read off the show URL's host. */
 function providerFor(showUrl?: string): Provider | null {
   if (!showUrl) return null;
@@ -82,10 +87,10 @@ function providerFor(showUrl?: string): Provider | null {
   } catch {
     return null;
   }
-  if (host.endsWith('spotify.com')) return { label: 'Spotify', glyph: 'spotify' };
+  if (isHostOf(host, 'spotify.com')) return { label: 'Spotify', glyph: 'spotify' };
   if (host === 'podcasts.apple.com') return { label: 'Podcasts', glyph: 'apple' };
-  if (host.endsWith('youtube.com') || host === 'youtu.be') return { label: 'YouTube', glyph: 'youtube' };
-  if (host.endsWith('syra.fm')) return { label: 'Syra', glyph: 'syra' };
+  if (isHostOf(host, 'youtube.com') || host === 'youtu.be') return { label: 'YouTube', glyph: 'youtube' };
+  if (isHostOf(host, 'syra.fm')) return { label: 'Syra', glyph: 'syra' };
   return null;
 }
 

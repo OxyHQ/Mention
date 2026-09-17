@@ -11,6 +11,7 @@
  */
 
 import React, { useCallback, useMemo } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { FlatList, Platform, View } from 'react-native';
 import {
   useInfiniteQuery,
@@ -26,11 +27,9 @@ import { toast } from '@oxy.so/bloom/toast';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import type { PostSubscriptionItem, PostSubscriptionListResponse } from '@mention/shared-types';
 
-import { Header } from '@/components/Header';
 import { SEO } from '@/components/SEO';
 import { ThemedView } from '@/components/ThemedView';
 import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { BellActive } from '@/assets/icons/bell-icon';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { RiNotification3Line } from '@oxy.so/bloom/icons';
@@ -202,18 +201,7 @@ export default function ActivitySubscriptionsScreen() {
   );
 
   const header = (
-    <Header
-      options={{
-        title: t('subscription.list.title', { defaultValue: 'Activity notifications' }),
-        leftComponents: [
-          <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-            <BackArrowIcon size={20} className="text-foreground" />
-          </IconButton>,
-        ],
-      }}
-      hideBottomBorder
-      disableSticky
-    />
+    <PageHeader title={t('subscription.list.title', { defaultValue: 'Activity notifications' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
   );
 
   const renderContent = () => {

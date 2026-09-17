@@ -1,10 +1,8 @@
 import React, { useCallback } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView } from 'react-native';
 import { confirmDialog } from '@/utils/alerts';
 import { Loading } from '@oxy.so/bloom/loading';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { ThemedView } from '@/components/ThemedView';
 import { Toggle } from '@/components/Toggle';
@@ -105,18 +103,7 @@ export default function FeedSettingsScreen() {
   if (!isAuthenticated) {
     return (
       <ThemedView className="flex-1">
-        <Header
-          options={{
-            title: t('settings.feed.title'),
-            leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                <BackArrowIcon size={20} className="text-foreground" />
-              </IconButton>,
-            ],
-          }}
-          hideBottomBorder
-          disableSticky
-        />
+        <PageHeader title={t('settings.feed.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
         <OxyAuthPrompt
           label={t('settings.feed.signInRequired', { defaultValue: 'Sign in to customize your feed' })}
           description={t('settings.feed.signInRequiredDesc', { defaultValue: 'Tune the algorithm, diversity, and recency to your taste.' })}
@@ -128,18 +115,7 @@ export default function FeedSettingsScreen() {
   if (isLoading) {
     return (
       <ThemedView className="flex-1">
-        <Header
-          options={{
-            title: t('settings.feed.title'),
-            leftComponents: [
-              <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-                <BackArrowIcon size={20} className="text-foreground" />
-              </IconButton>,
-            ],
-          }}
-          hideBottomBorder
-          disableSticky
-        />
+        <PageHeader title={t('settings.feed.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
         <View className="flex-1 justify-center items-center">
           <Loading className="text-primary" size="large" />
         </View>
@@ -149,25 +125,7 @@ export default function FeedSettingsScreen() {
 
   return (
     <ThemedView className="flex-1">
-      <Header
-        options={{
-          title: t('settings.feed.title'),
-          leftComponents: [
-            <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-              <BackArrowIcon size={20} className="text-foreground" />
-            </IconButton>,
-          ],
-          rightComponents: [
-            isSaving ? (
-              <View key="saving" className="pr-2">
-                <Loading className="text-primary" variant="inline" size="small" />
-              </View>
-            ) : null,
-          ].filter(Boolean),
-        }}
-        hideBottomBorder
-        disableSticky
-      />
+      <PageHeader title={t('settings.feed.title')} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} actions={isSaving ? <Loading className="text-primary" variant="inline" size="small" /> : undefined} />
 
       <ScrollView
         className="flex-1"

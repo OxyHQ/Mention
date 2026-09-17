@@ -1,4 +1,5 @@
 import React from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, ScrollView } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Switch } from '@oxy.so/bloom/switch';
@@ -11,9 +12,6 @@ import {
   externalEmbedLabels,
 } from '@mention/shared-types/externalEmbeds';
 import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 
@@ -28,18 +26,7 @@ export default function ExternalMediaSettingsScreen() {
   const title = t('settings.externalMedia.title', { defaultValue: 'External Media Preferences' });
 
   const header = (
-    <Header
-      options={{
-        title,
-        leftComponents: [
-          <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-            <BackArrowIcon size={20} className="text-foreground" />
-          </IconButton>,
-        ],
-      }}
-      hideBottomBorder
-      disableSticky
-    />
+    <PageHeader title={title} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
   );
 
   if (!isAuthResolved || isPrivateApiPending) {

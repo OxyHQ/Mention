@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxy.so/bloom/loading';
@@ -6,9 +7,7 @@ import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { ThemedView } from '@/components/ThemedView';
-import { Header } from '@/components/Header';
-import { IconButton, Button } from '@/components/ui/Button';
-import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
+import { Button } from '@/components/ui/Button';
 import { RowIcon } from '@/components/settings/RowIcon';
 import { RiCloseCircleLine, RiShieldCheckLine } from '@oxy.so/bloom/icons';
 import { Icon, type IconName } from '@/lib/icons';
@@ -106,18 +105,7 @@ export default function MentionNodeScreen() {
   } = useMentionNode();
 
   const header = (
-    <Header
-      options={{
-        title: t('settings.node.title', { defaultValue: 'Your Mention node' }),
-        leftComponents: [
-          <IconButton variant="icon" key="back" onPress={() => safeBack()}>
-            <BackArrowIcon size={20} className="text-foreground" />
-          </IconButton>,
-        ],
-      }}
-      hideBottomBorder
-      disableSticky
-    />
+    <PageHeader title={t('settings.node.title', { defaultValue: 'Your Mention node' })} onBack={() => safeBack()} backLabel={t('common.back', { defaultValue: 'Back' })} border="none" sticky={false} />
   );
 
   const handleDisconnect = useCallback(async () => {
