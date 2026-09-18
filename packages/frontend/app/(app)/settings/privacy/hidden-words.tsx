@@ -150,7 +150,7 @@ export default function HiddenWordsScreen() {
                     </Admonition>
                 </View>
 
-                <SettingsListGroup variant="filled" title={t('settings.privacy.addMutedWord', { defaultValue: 'Add a word or hashtag' })}>
+                <SettingsListGroup title={t('settings.privacy.addMutedWord', { defaultValue: 'Add a word or hashtag' })}>
                     <View className="px-4 py-3 flex-row items-center gap-3">
                         <RiEyeOffLine size="md" fill={colors.textSecondary} />
                         <TextInput
@@ -183,7 +183,7 @@ export default function HiddenWordsScreen() {
                     </View>
                 </SettingsListGroup>
 
-                <SettingsListGroup variant="filled" title={t('settings.privacy.mutedWords', { defaultValue: 'Muted words and hashtags' })}>
+                <SettingsListGroup title={t('settings.privacy.mutedWords', { defaultValue: 'Muted words and hashtags' })}>
                     {isLoading ? (
                         <View className="py-10 items-center">
                             <Loading className="text-primary" size="large" style={{ flex: undefined }} />

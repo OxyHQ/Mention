@@ -33,11 +33,10 @@ export default function ThreadPreferencesScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 <ThreadSortGroup
-                    variant="filled"
                     title={t('settings.threadPreferences.sortReplies', { defaultValue: 'Sort replies' })}
                 />
 
-                <SettingsListGroup variant="filled" title={t('settings.threadPreferences.likeStyle', { defaultValue: 'Like style' })}>
+                <SettingsListGroup title={t('settings.threadPreferences.likeStyle', { defaultValue: 'Like style' })}>
                     {VOTE_STYLE_OPTIONS.map((option) => (
                         <SettingsListItem
                             key={option.value}
@@ -50,7 +49,7 @@ export default function ThreadPreferencesScreen() {
                     ))}
                 </SettingsListGroup>
 
-                <SettingsListGroup variant="filled" title={t('settings.threadPreferences.display', { defaultValue: 'Display' })}>
+                <SettingsListGroup title={t('settings.threadPreferences.display', { defaultValue: 'Display' })}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiGitMergeLine} />}
                         title={t('settings.threadPreferences.treeView', { defaultValue: 'Threaded tree view' })}

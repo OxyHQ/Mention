@@ -765,7 +765,7 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
           </View>
 
           {/* Visibility */}
-          <SettingsListGroup variant="filled" title={t('feeds.builder.visibility')} footer={t('feeds.builder.publicDescription')}>
+          <SettingsListGroup title={t('feeds.builder.visibility')} footer={t('feeds.builder.publicDescription')}>
             <SettingsListItem
               title={t('feeds.builder.public')}
               showChevron={false}
@@ -774,7 +774,7 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
           </SettingsListGroup>
 
           {/* Mode */}
-          <SettingsListGroup variant="filled" title={t('feeds.builder.mode')} footer={t('feeds.builder.modeDescription')}>
+          <SettingsListGroup title={t('feeds.builder.mode')} footer={t('feeds.builder.modeDescription')}>
             <SettingsListItem
               title={t('feeds.builder.ranked')}
               onPress={() => setMode('ranked')}

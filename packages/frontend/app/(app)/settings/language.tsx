@@ -47,7 +47,7 @@ export default function LanguageSettingsScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup variant="filled" title={t('settings.language.selectLanguage')}>
+                <SettingsListGroup title={t('settings.language.selectLanguage')}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiGlobalLine} />}
                         title={t('Language')}
@@ -56,7 +56,7 @@ export default function LanguageSettingsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup variant="filled" title={t('settings.language.autoTranslate')}>
+                <SettingsListGroup title={t('settings.language.autoTranslate')}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiGlobalLine} />}
                         title={t('settings.language.autoTranslate')}

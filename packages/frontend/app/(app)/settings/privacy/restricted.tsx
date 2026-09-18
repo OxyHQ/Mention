@@ -393,7 +393,7 @@ export default function RestrictedUsersScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup variant="filled">
+                <SettingsListGroup>
                     <View className="px-4 py-3.5 flex-row items-center gap-3">
                         <RiInformationFill width={20} height={20} fill={colors.primary} />
                         <Text className="flex-1 text-[13px] text-foreground">
@@ -402,7 +402,7 @@ export default function RestrictedUsersScreen() {
                     </View>
                 </SettingsListGroup>
 
-                <SettingsListGroup variant="filled" title={t('settings.privacy.searchUsersToRestrict')}>
+                <SettingsListGroup title={t('settings.privacy.searchUsersToRestrict')}>
                     <View className="px-4 py-3 flex-row items-center gap-3">
                         <RiSearchLine width={20} height={20} fill={colors.textSecondary} />
                         <TextInput
@@ -421,7 +421,7 @@ export default function RestrictedUsersScreen() {
                 </SettingsListGroup>
 
                 {searchQuery.length > 0 && searchResults.length > 0 && (
-                    <SettingsListGroup variant="filled">
+                    <SettingsListGroup>
                         {searchResults.map((user) => {
                             const userId = getUserId(user);
                             const handle = user.username || user.handle || '';
@@ -458,7 +458,7 @@ export default function RestrictedUsersScreen() {
                     </View>
                 )}
 
-                <SettingsListGroup variant="filled" title={t('settings.privacy.restrictedUsers')}>
+                <SettingsListGroup title={t('settings.privacy.restrictedUsers')}>
                     {loading ? (
                         <View className="py-10 items-center">
                             <Loading className="text-primary" size="large" style={{ flex: undefined }} />

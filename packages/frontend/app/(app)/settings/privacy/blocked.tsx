@@ -334,7 +334,7 @@ export default function BlockedUsersScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup variant="filled" title={t('settings.privacy.searchUsersToBlock')}>
+                <SettingsListGroup title={t('settings.privacy.searchUsersToBlock')}>
                     <View className="px-4 py-3 flex-row items-center gap-3">
                         <RiSearchLine width={20} height={20} fill={colors.textSecondary} />
                         <TextInput
@@ -353,7 +353,7 @@ export default function BlockedUsersScreen() {
                 </SettingsListGroup>
 
                 {searchQuery.length > 0 && searchResults.length > 0 && (
-                    <SettingsListGroup variant="filled">
+                    <SettingsListGroup>
                         {searchResults.map((user) => {
                             const userId = getUserId(user);
                             const handle = user.username || user.handle || '';
@@ -390,7 +390,7 @@ export default function BlockedUsersScreen() {
                     </View>
                 )}
 
-                <SettingsListGroup variant="filled" title={t('settings.privacy.blockedUsers')}>
+                <SettingsListGroup title={t('settings.privacy.blockedUsers')}>
                     {loading ? (
                         <View className="py-10 items-center">
                             <Loading className="text-primary" size="large" style={{ flex: undefined }} />

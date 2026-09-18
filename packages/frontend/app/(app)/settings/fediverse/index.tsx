@@ -149,7 +149,7 @@ function FediverseSharingBody() {
       contentContainerClassName="px-screen-margin py-2"
       showsVerticalScrollIndicator={false}
     >
-      <SettingsListGroup variant="filled" footer={t('fediverse.settings.description')}>
+      <SettingsListGroup footer={t('fediverse.settings.description')}>
         <SettingsListItem
           icon={<RowIcon icon={RiEarthLine} />}
           title={t('fediverse.settings.share')}
@@ -161,7 +161,7 @@ function FediverseSharingBody() {
         />
       </SettingsListGroup>
 
-      <SettingsListGroup variant="filled"
+      <SettingsListGroup
         footer={t('fediverse.settings.preferredLanguage.description', {
           defaultValue:
             'The main language your posts are written in. It becomes the primary version shown across the fediverse; leave it automatic to let it be detected per post.',
@@ -175,7 +175,7 @@ function FediverseSharingBody() {
         />
       </SettingsListGroup>
 
-      <SettingsListGroup variant="filled">
+      <SettingsListGroup>
         <SettingsListItem
           icon={<RowIcon icon={RiBox3Line} />}
           title={t('settings.node.title', { defaultValue: 'Your Mention node' })}
@@ -184,7 +184,7 @@ function FediverseSharingBody() {
         />
       </SettingsListGroup>
 
-      <SettingsListGroup variant="filled">
+      <SettingsListGroup>
         <SettingsListItem
           icon={<RowIcon icon={RiQuestionLine} />}
           title={t('fediverse.settings.whatIs')}

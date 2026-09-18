@@ -116,7 +116,7 @@ export default function InterestsSettingsScreen() {
                     />
                 </View>
 
-                <SettingsListGroup variant="filled"
+                <SettingsListGroup
                     title={t('settings.interests.title', { defaultValue: 'Your interests' })}
                     footer={t('settings.interests.description', {
                         defaultValue:

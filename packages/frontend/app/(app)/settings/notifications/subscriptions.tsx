@@ -151,7 +151,7 @@ export default function ActivitySubscriptionsScreen() {
 
   const listHeader = useMemo(
     () => (
-      <SettingsListGroup variant="filled">
+      <SettingsListGroup>
         <SettingsListItem
           icon={<RowIcon icon={RiNotification3Line} />}
           title={t('subscription.list.intro.title', { defaultValue: 'Activity from others' })}

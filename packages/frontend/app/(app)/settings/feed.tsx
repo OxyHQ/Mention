@@ -134,7 +134,7 @@ export default function FeedSettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Presets */}
-        <SettingsListGroup variant="filled" title={t('settings.feed.presets.title')}>
+        <SettingsListGroup title={t('settings.feed.presets.title')}>
           {(Object.keys(PRESETS) as (keyof typeof PRESETS)[]).map((key) => (
             <SettingsListItem
               key={key}
@@ -146,7 +146,7 @@ export default function FeedSettingsScreen() {
         </SettingsListGroup>
 
         {/* Diversity */}
-        <SettingsListGroup variant="filled" title={t('settings.feed.diversity.title')}>
+        <SettingsListGroup title={t('settings.feed.diversity.title')}>
           <SettingsListItem
             title={t('settings.feed.diversity.enabled')}
             description={t('settings.feed.diversity.enabledDesc')}
@@ -206,7 +206,7 @@ export default function FeedSettingsScreen() {
         )}
 
         {/* Recency */}
-        <SettingsListGroup variant="filled" title={t('settings.feed.recency.title')}>
+        <SettingsListGroup title={t('settings.feed.recency.title')}>
           <View className="py-3 gap-4">
             <View>
               <Slider
@@ -250,7 +250,7 @@ export default function FeedSettingsScreen() {
         </SettingsListGroup>
 
         {/* Quality */}
-        <SettingsListGroup variant="filled" title={t('settings.feed.quality.title')}>
+        <SettingsListGroup title={t('settings.feed.quality.title')}>
           <SettingsListItem
             title={t('settings.feed.quality.boostHighQuality')}
             description={t('settings.feed.quality.boostHighQualityDesc')}
@@ -267,7 +267,7 @@ export default function FeedSettingsScreen() {
         </SettingsListGroup>
 
         {/* Reset */}
-        <SettingsListGroup variant="filled">
+        <SettingsListGroup>
           <SettingsListItem
             icon={<RowIcon icon={RiRefreshLine} destructive />}
             title={t('settings.feed.resetToDefaults')}

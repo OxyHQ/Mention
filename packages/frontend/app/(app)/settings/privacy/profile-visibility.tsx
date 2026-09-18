@@ -179,7 +179,7 @@ export default function ProfileVisibilityScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup variant="filled" title={t('settings.privacy.privateProfile')}>
+                <SettingsListGroup title={t('settings.privacy.privateProfile')}>
                     {options.map((option) => {
                         const isSelected = profileVisibility === option.value;
 

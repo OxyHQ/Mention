@@ -195,7 +195,7 @@ export default function ConnectedAiScreen() {
             </Text>
           </View>
         ) : (
-          <SettingsListGroup variant="filled"
+          <SettingsListGroup
             footer={t('mcp.connections.footer', {
               defaultValue: 'These apps can access your Mention account on your behalf. Revoke any you no longer use.',
             })}

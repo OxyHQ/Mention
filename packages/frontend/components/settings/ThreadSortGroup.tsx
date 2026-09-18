@@ -2,11 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { RiArrowDownLine, RiLineChartLine, RiTimeLine } from '@oxy.so/bloom/icons';
 import { RadioIndicator } from '@oxy.so/bloom/radio-indicator';
-import {
-  SettingsListGroup,
-  SettingsListItem,
-  type SettingsListGroupVariant,
-} from '@oxy.so/bloom/settings-list';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon, type BloomIcon } from '@/components/settings/RowIcon';
 import { SORT_OPTIONS, useThreadPreferencesStore, type SortOrder } from '@/hooks/useThreadPreferences';
 
@@ -16,20 +12,22 @@ const SORT_ICONS: Record<SortOrder, BloomIcon> = {
   newest: RiArrowDownLine,
 };
 
-/** The reply sort-order choice, wherever it is offered (settings screen, reply sheet). */
-export function ThreadSortGroup({
-  title,
-  variant,
-}: {
-  title: string;
-  variant?: SettingsListGroupVariant;
-}) {
+/**
+ * The reply sort-order choice, wherever it is offered (settings screen, reply
+ * sheet).
+ *
+ * No `variant`: the group reads the surface it landed on (Bloom 2.12). On the
+ * thread-preferences screen that is the app's `ContentPanel`, in the reply
+ * sheet it is the sheet's own fill — the two callers that used to have to
+ * answer that question for it.
+ */
+export function ThreadSortGroup({ title }: { title: string }) {
   const { t } = useTranslation();
   const sortOrder = useThreadPreferencesStore((state) => state.sortOrder);
   const setSortOrder = useThreadPreferencesStore((state) => state.setSortOrder);
 
   return (
-    <SettingsListGroup title={title} variant={variant}>
+    <SettingsListGroup title={title}>
       {SORT_OPTIONS.map((option) => (
         <SettingsListItem
           key={option.value}
