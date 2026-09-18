@@ -185,3 +185,45 @@ could only ever disagree with it, hence there is none.
 - **The webhook route MUST stay mounted before `express.json()`** — its
   signature covers the raw request bytes, so a body parser ahead of it
   would consume them first. Guarded by a test in `appFactory.test.ts`.
+
+## Switching it on (production has never had it on)
+
+As of 2026-09-18 the Mention ECS task definition carries **no `CROWDSOURCE_*`
+variable at all**, so `CROWDSOURCE_ENABLED` takes its default of `false` in
+production. Everything under the flag is built and deployed — report intake,
+the outbox, the webhook receiver, community notes — and none of it is talking
+to anything. That is not a broken state: intake stores reports either way and
+the outbox delivers them when the flag goes on, which is what the gating is
+for. It does mean "grant a scope" is not the only step left.
+
+The order matters, because the backend REFUSES TO BOOT with
+`CROWDSOURCE_ENABLED=true` and no service key or webhook secret
+(`config/index.ts`) — deliberately, so a half-wired switch-on fails at deploy
+rather than quietly dropping what it cannot deliver.
+
+1. **In the CrowdSource console.** Needs an Oxy session with the `admin` role on
+   the Mention application; no service token can do this, by design (§13.2).
+   - Issue a credential carrying every scope the integration uses:
+     `crowdsource:reports:write`, `crowdsource:reports:read`,
+     `crowdsource:cases:read`, `crowdsource:appeals:write`,
+     `crowdsource:enforcement:write`, `crowdsource:community-notes:write`,
+     `crowdsource:community-notes:read`. **The token is shown once** and stored
+     only as a SHA-256, so nothing — including CrowdSource — can recover it
+     later. Scopes are fixed at issuance: adding one afterwards means issuing a
+     new credential and revoking the old, which is a key rotation.
+   - Register a webhook endpoint at
+     `https://api.mention.earth/webhooks/crowdsource` subscribed to
+     `case.decided`, `decision.corrected`, `appeal.decided` and
+     `community_note.status_changed`, and keep its secret.
+2. **In AWS** (`us-west-2`, account `237343248947`): store both values as SSM
+   `SecureString` parameters, `/oxy/mention/CROWDSOURCE_SERVICE_KEY` and
+   `/oxy/mention/CROWDSOURCE_WEBHOOK_SECRET`.
+3. **In the task definition** (`oxy-mention`): add those two to `secrets`, and
+   `CROWDSOURCE_ENABLED=true` with `CROWDSOURCE_ENFORCEMENT_MODE=observe` to
+   `environment`. `deploy-ecs-image.sh` mutates the existing revision rather
+   than rendering one from this repo, so this is an AWS-side edit and not a PR.
+4. **Verify** without waiting for a report:
+   `GET /api/community-notes/availability` answers `{"enabled":true}` once the
+   client builds, and the boot log carries `[CrowdSource] client ready`. Leave
+   enforcement in `observe` until the author-facing "your post was restricted"
+   surface exists — see the gaps above.
