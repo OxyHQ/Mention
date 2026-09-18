@@ -204,58 +204,68 @@ back is worse than one held locally.
 
 ## Switching it on
 
-As of 2026-09-18 the Mention ECS task definition carries **no `CROWDSOURCE_*`
-variable at all** and `/oxy/mention/` holds no CrowdSource parameter, so nothing
-is talking to anything. That is not a broken state: intake stores reports either
-way and the outbox delivers them once the deployment can, which is what the
-gating is for.
+Done for production on 2026-09-18, and recorded here because the steps are the
+ones any other Oxy app repeats — and because two of them are facts about the
+world that no code in this repository states.
 
-What is left is smaller than it used to be, because there is no credential to
-issue and nowhere to put one.
-
-1. **Bind Mention to its CrowdSource tenant.** One row, written by a one-off ECS
-   task inside the VPC — there is no console click and no secret:
+1. **Mention is bound to its CrowdSource tenant.** One row, written by a one-off
+   ECS task inside the VPC; no console click, no credential, nothing to store:
 
    ```
-   node dist/scripts/bootstrapFirstParty.js --name Mention --oxy-application-id <mention's oxy application id>
+   aws ecs run-task --cluster oxy-cluster --task-definition oxy-crowdsource \
+     --launch-type FARGATE --region us-west-2 \
+     --network-configuration '<the crowdsource service's own subnets and security group>' \
+     --overrides '{"containerOverrides":[{"name":"crowdsource","command":[
+       "bun","packages/backend/dist/scripts/bootstrapFirstParty.js",
+       "--name","Mention","--oxy-application-id","6a2f851751b784a86fd0e916"]}]}'
    ```
 
-   Idempotent: it reuses the `oxy` organization and an existing binding, and
-   refuses only when that Oxy application is already bound to a different
-   CrowdSource application. Until this row exists, Mention's token authenticates
-   nothing — proving what you are is not the same as being one of ours.
+   Oxy application `6a2f851751b784a86fd0e916` is now CrowdSource application
+   `app_61e5372b942a493c94904a7d697c942b` in organization
+   `org_d7139127ac384a1da3963564cb592549`. None of those are secrets — the
+   application id travels in every report envelope.
+
+   The task is idempotent: it reuses the `oxy` organization and an existing
+   binding, and refuses only when that Oxy application is already bound to a
+   DIFFERENT CrowdSource application, which would move a tenant's data out from
+   under the service that owns it. Until the row exists, Mention's token
+   authenticates nothing — proving what you are is not the same as being one of
+   ours.
 
    Scopes are not part of this step. A first-party service holds every scope an
    application credential may hold and no privileged one; there is nothing to
    tick.
 
-2. **Register the webhook endpoint** at
-   `https://api.mention.earth/webhooks/crowdsource`, subscribed to
+2. **The webhook endpoint is registered**, `whe_a40f9039ff49455e89db4afb4a1173bd`
+   at `https://api.mention.earth/webhooks/crowdsource`, subscribed to
    `case.decided`, `decision.corrected`, `appeal.decided` and
-   `community_note.status_changed`, and keep its secret — this is the one secret
-   the integration still has, and it signs what CrowdSource sends back rather
-   than proving who Mention is.
+   `community_note.status_changed` — exactly the four this repository handles.
+   Its secret is `/oxy/mention/CROWDSOURCE_WEBHOOK_SECRET` (SSM `SecureString`,
+   `us-west-2`), and `deploy-aws.yml` names that parameter in
+   `TASK_SECRET_OVERRIDES_JSON` so every revision carries it.
 
-3. **In AWS** (`us-west-2`, account `237343248947`): store that secret as the SSM
-   `SecureString` `/oxy/mention/CROWDSOURCE_WEBHOOK_SECRET` and add it to the
-   `oxy-mention` task definition's `secrets`. `deploy-ecs-image.sh` mutates the
-   existing revision rather than rendering one from this repo, so this is an
-   AWS-side edit and not a PR.
+   CrowdSource shows a webhook secret **once**, at registration. If it is ever
+   lost, `POST /v1/webhook-endpoints/{id}/rotate-secret` mints a new one with an
+   overlap; there is no way to read the current one back, deliberately.
 
-   Nothing else is added. There is no flag to set to `true`, and
-   `CROWDSOURCE_ENFORCEMENT_MODE` already defaults to `observe`.
-
-4. **Verify** without waiting for a report:
+3. **Verify** without waiting for a report:
    `GET /api/community-notes/availability` answers `{"enabled":true}` once the
    client builds, and the boot log carries `[CrowdSource] client ready` with the
    application id the binding resolved to. A deployment that can mint a token but
    was never bound logs `client built but the tenant did not resolve` instead,
-   which is the failure this step exists to catch.
+   which is the failure that step exists to catch.
 
-Community notes work from step 1 alone: they are a request and its answer, with
-no webhook in the path. Reports wait for step 3 — and the backlog goes out on
-the first tick after it, which on a deployment that has been taking reports for
-a while is not a small number of deliveries.
+   The binding itself can be checked from anywhere with a Mention service token:
+
+   ```
+   curl -H "Authorization: Bearer <an oxy service token for Mention>" \
+     https://api.crowdsource.oxy.so/v1/applications/me
+   ```
+
+Community notes need only step 1: they are a request and its answer, with no
+webhook in the path. Reports wait for step 2 — and the backlog goes out on the
+first tick after it, which on a deployment that has been taking reports for a
+while is not a small number of deliveries.
 
 Leave enforcement in `observe` until the author-facing "your post was restricted"
 surface exists — see the gaps above.
