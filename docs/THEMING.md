@@ -48,8 +48,9 @@ container of ours that repaints a Bloom surface has to say what it painted
 (`ContentPanel`'s `surfaceColor`), or its content is told the wrong colour.
 
 On web the same value is `var(--bloom-surface)`, but a `var(--bloom-surface)`
-class in SHARED code is right on web and silently wrong on native: only a
-`.web.tsx` fork or a stylesheet may read it. Cross-platform code uses the hook.
+class in SHARED code is right on web and silently wrong on native: only a web
+fork (`components/Feed/Feed.web.tsx`) or a stylesheet may read it.
+Cross-platform code uses the hook.
 
 `SettingsListGroup` reads the surface the same way, which is why no call site
 here passes `variant`.
