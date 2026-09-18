@@ -1,8 +1,8 @@
 import { canAttestWorkloadIdentity } from '@oxy.so/core/server';
 import { CrowdSource } from '@oxy.so/crowdsource';
 import { config, getOxyServiceCredentials } from '../../config';
-import { getRuntimeOxyClient } from '../../runtime/oxyClient';
 import { logger } from '../../utils/logger';
+import { getServiceOxyClient } from '../../utils/oxyHelpers';
 
 /**
  * The CrowdSource client, built once and only where it can authenticate.
@@ -64,9 +64,15 @@ export function getCrowdSourceClient(): CrowdSource | undefined {
   }
 
   client = new CrowdSource({
-    // Asked once per request attempt. `getServiceToken()` caches and re-mints on
-    // expiry, which is exactly the contract the SDK documents for this option.
-    oxyToken: () => getRuntimeOxyClient().getServiceToken(),
+    /**
+     * Asked once per request attempt. `getServiceToken()` caches and re-mints on
+     * expiry, which is exactly the contract the SDK documents for this option.
+     *
+     * The SERVICE client, not the per-request one: it is the instance this
+     * process configured with its own credentials, and the one that falls back
+     * to attesting the task role when there are none.
+     */
+    oxyToken: () => getServiceOxyClient().getServiceToken(),
     ...(config.crowdSource.baseUrl === undefined
       ? {}
       : { baseUrl: config.crowdSource.baseUrl }),
