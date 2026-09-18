@@ -21,9 +21,9 @@
         "@mercaria.co/sdk": "^0.1.0",
         "@oxy.so/contracts": "catalog:",
         "@oxy.so/core": "catalog:",
-        "@oxy.so/crowdsource": "1.0.0",
-        "@oxy.so/crowdsource-contracts": "1.0.0",
-        "@oxy.so/crowdsource-express": "1.0.0",
+        "@oxy.so/crowdsource": "1.1.0",
+        "@oxy.so/crowdsource-contracts": "1.1.0",
+        "@oxy.so/crowdsource-express": "1.1.0",
         "@oxy.so/db": "^1.0.0",
         "@oxy.so/federation": "^1.0.1",
         "@oxy.so/mcp": "catalog:",
@@ -897,11 +897,11 @@
 
     "@oxy.so/core": ["@oxy.so/core@1.3.1", "", { "dependencies": { "@noble/ciphers": "^1.3.0", "@noble/hashes": "^1.8.0", "@oxy.so/contracts": "^1.2.0", "@oxy.so/protocol": "^1.0.1", "@oxy.so/telemetry": "^1.1.1", "@scure/bip39": "^1.6.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.0.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "tldts": "^7.4.10", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-secure-store": "*", "express": "^4.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-I3NZjJR5DTDwt+88EyazdV18oTw0zZ92gIesp5t7WVrRckXhcxHIlb/YbkV46s1ZMUDSTm80II/+47CGxe1N1Q=="],
 
-    "@oxy.so/crowdsource": ["@oxy.so/crowdsource@1.0.0", "", { "dependencies": { "zod": "^4.4.3" }, "peerDependencies": { "@oxy.so/crowdsource-contracts": "^1.0.0" } }, "sha512-eJ0up27kDFzmKMUGhAnWeLcy4+hRi5znMFChcLa4dk9UefPgxrX0fdgEqhYJnxCd1oiEHhaDWDpLbU4XqcE/Jg=="],
+    "@oxy.so/crowdsource": ["@oxy.so/crowdsource@1.1.0", "", { "dependencies": { "zod": "^4.4.3" }, "peerDependencies": { "@oxy.so/crowdsource-contracts": "^1.1.0" } }, "sha512-SMgDffDVFqLE2G0MiLDpIlWv/WlleUBhljF4fIx9aSADnzJeL6Xw0cF1KFIRO2HiEI3BCZPOckHLrqxChmYcAw=="],
 
-    "@oxy.so/crowdsource-contracts": ["@oxy.so/crowdsource-contracts@1.0.0", "", { "dependencies": { "zod": "^4.4.3" } }, "sha512-992y+F1k6ARb1CbqVjtdGxta2qGIAvrPNfzN76fxriohRAjqpASF9ocEgqFJzDfxEyQafB+wl97xgvkTOCI56w=="],
+    "@oxy.so/crowdsource-contracts": ["@oxy.so/crowdsource-contracts@1.1.0", "", { "dependencies": { "zod": "^4.4.3" } }, "sha512-BoH0O78CI125gr1f3tC+3hnzCaO1HmJKwbrz8UHvPWXYdvm4EPmMAxzEIXtvdFpxDhgqQa6wzHuQ0EKPoH3ySw=="],
 
-    "@oxy.so/crowdsource-express": ["@oxy.so/crowdsource-express@1.0.0", "", { "peerDependencies": { "@oxy.so/crowdsource-contracts": "^1.0.0", "express": ">=4" } }, "sha512-DqE+czuhMu56f5DVaaQGZFTtci1lUmfIWRMGwZ6ZsySMwibmoDUnxvGkb48Nw716rUStJuI9D/1/5qODkM/x6w=="],
+    "@oxy.so/crowdsource-express": ["@oxy.so/crowdsource-express@1.1.0", "", { "peerDependencies": { "@oxy.so/crowdsource-contracts": "^1.1.0", "express": ">=4" } }, "sha512-j36JutvSU/5ZMfX8GVdAGsMGttCQ5PWo4sTlObPrST0vTaJim54YT3JhpF53Zy3FJPzihpPJL6o65ABFmt9owQ=="],
 
     "@oxy.so/crowdsource-testing": ["@oxy.so/crowdsource-testing@1.0.0", "", { "peerDependencies": { "@oxy.so/crowdsource-contracts": "^1.0.0" } }, "sha512-IzSNCAgn9ug7x0/v/2aBU1IGCmprp3mt5rGXP/J1H7apq5VM194GC7WwAaUzN2lCiKm0j5U795DnV2iggVPkAg=="],
 
