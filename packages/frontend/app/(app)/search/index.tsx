@@ -42,9 +42,9 @@ import { Search } from "@oxy.so/bloom/search";
 import { Search as SearchIcon } from "@/assets/icons/search-icon";
 import { SEO } from "@/components/SEO";
 import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from "@/components/ProfileCard";
-import { FeedCard, type FeedCardData } from "@/components/FeedCard";
+import { FeedCard, FeedCardSkeleton, type FeedCardData } from "@/components/FeedCard";
 import { ListCard, type ListCardData } from "@/components/ListCard";
-import { StarterPackCard, type StarterPackCardData } from "@/components/StarterPackCard";
+import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from "@/components/StarterPackCard";
 import { ExternalActorFollowButton } from "@/components/search/ExternalActorFollowButton";
 import { useExternalActorResolve } from "@/hooks/useExternalActorResolve";
 import type { ExternalActorResolution } from "@/services/feedService";
@@ -98,7 +98,7 @@ const SEARCH_STALE_TIME = 5 * 60 * 1000;
 /** How long an unused result set is retained in the React Query cache. */
 const SEARCH_GC_TIME = 30 * 60 * 1000;
 
-/** Placeholder rows painted while the people tab searches. */
+/** Placeholder rows painted while a tab that has a skeleton fetches its first page. */
 const SKELETON_ROW_COUNT = 8;
 
 /** Trending rows offered on the idle (no query) screen. */
@@ -167,14 +167,34 @@ interface SearchResultsPage {
 }
 
 /**
+ * The tab a search query key belongs to, or `undefined` for any other key.
+ *
+ * Read positionally from `viewerQueryKeys.search`, which spells the tab
+ * immediately after the `'search'` segment. Finding the segment rather than
+ * indexing a fixed offset keeps this working if the viewer-scoped prefix ever
+ * grows — and an unrecognised key returning `undefined` fails CLOSED, into a
+ * skeleton, which is the safe direction.
+ */
+function searchTabOfQueryKey(key: readonly unknown[] | undefined): string | undefined {
+    if (!key) return undefined;
+    const marker = key.indexOf('search');
+    if (marker === -1) return undefined;
+    const tab = key[marker + 1];
+    return typeof tab === 'string' ? tab : undefined;
+}
+
+/**
  * Fetch one page for a tab — the `queryFn` behind the infinite search query.
  *
  * The "all" tab fans out over every source via `searchAll`, whose `allSettled`
  * keeps the "one flaky source degrades that section, a total failure errors"
  * semantics; a single-category tab fetches only its own source. Every underlying
- * request carries the SDK's per-request timeout (5s on the linked client, 15s on
- * the public client), so a hanging source REJECTS rather than stalling the
- * screen — which is what lets React Query settle loading deterministically.
+ * request carries a 15s timeout — the same on every client now, and no longer
+ * retried (see `utils/api.ts`) — so a hanging source REJECTS once rather than
+ * stalling the screen, which is what lets React Query settle loading
+ * deterministically. Before that, a cancelled or timed-out request was re-issued
+ * up to three more times with backoff, so one slow source could hold the "all"
+ * tab for ~28s while its own abandoned attempts filled the request queue.
  */
 async function fetchSearchPage(
     tab: SearchTab,
@@ -214,7 +234,7 @@ async function fetchSearchPage(
         }
         case "users": {
             const offset = typeof pageParam === "number" ? pageParam : 0;
-            const { users, hasMore, nextOffset } = await searchService.searchUsersPage(query, offset);
+            const { users, hasMore, nextOffset } = await searchService.searchUsersPage(query, offset, signal);
             return { results: { ...EMPTY_RESULTS, users }, nextPageParam: hasMore ? nextOffset : undefined };
         }
         case "saved": {
@@ -527,6 +547,21 @@ export default function SearchIndex() {
         // Fail fast to the error state (with a manual Retry) rather than stacking
         // React Query retries on top of the transport's own bounded retry+timeout.
         retry: false,
+        // Refining a query keeps the results that are already on screen instead of
+        // blanking to a spinner on every debounce commit. The query key carries the
+        // debounced TEXT, so without this every pause of 500ms threw the list away
+        // and rebuilt it — the single biggest reason search FELT slow even when the
+        // response was quick.
+        //
+        // Gated to the same TAB deliberately. Across tabs the previous payload is
+        // the wrong shape for the new layout: switching to Hashtags while holding
+        // the Posts page would render that tab's (empty) category and flash "no
+        // results" before the real answer lands, which reads as a wrong answer
+        // rather than a slow one. A tab switch keeps its skeleton.
+        placeholderData: (previous, previousQuery) =>
+            previous !== undefined && searchTabOfQueryKey(previousQuery?.queryKey) === activeTab
+                ? previous
+                : undefined,
     });
 
     // Flatten every loaded page into ONE result set per category. Only the active
@@ -551,14 +586,20 @@ export default function SearchIndex() {
         );
     }, [searchData]);
 
-    // The full-screen loading state spans BOTH the debounce wait and the FIRST
-    // page fetch: while the box holds a query the results don't yet reflect, the
-    // query sits disabled with no data (`isPending`); the first fetch keeps
-    // `isPending`; a retry/refetch shows as `isFetching`. A next-page fetch is
-    // deliberately excluded — it keeps the existing rows on screen and shows the
-    // footer spinner instead. Every source request times out, so all settle
-    // deterministically — loading can never stick the way the old stale-guard could.
-    const loading = isPending || (isFetching && !isFetchingNextPage);
+    // The full-screen loading state means "there is nothing to show yet", NOT
+    // "a request is in flight". It spans the debounce wait and the first page
+    // fetch of a tab that has no results on screen (`isPending`, which stays
+    // true while the query sits disabled with no data).
+    //
+    // It deliberately does NOT cover a refetch that has previous results to keep
+    // (see `placeholderData` above): throwing the list away to show a spinner for
+    // an answer the viewer can already mostly see is what made a fast response
+    // feel slow. Those show `refreshing` instead, which keeps the rows.
+    // A next-page fetch is excluded for the same reason and gets the footer
+    // spinner. Every source request times out, so all settle deterministically —
+    // loading can never stick the way the old stale-guard could.
+    const loading = isPending;
+    const refreshing = !isPending && isFetching && !isFetchingNextPage;
 
     const clearDebounce = useCallback(() => {
         if (debounceTimerRef.current) {
@@ -1112,11 +1153,36 @@ export default function SearchIndex() {
                 // the spinner rather than lingering on the error card.
                 case "status":
                     if (item.state === "loading") {
-                        // The people tab paints the row it is about to show; the other
-                        // tabs mix result kinds (or show posts), so they keep the
-                        // neutral spinner.
+                        // A tab that knows the shape of the row it is about to show
+                        // paints that shape. The rest — "all" (mixed kinds), posts,
+                        // saved, hashtags and lists — have no skeleton of their own,
+                        // so they keep the neutral spinner rather than borrowing a
+                        // card that misrepresents what is coming.
+                        //
+                        // This state is now reached far less often than it used to
+                        // be: refining a query keeps the previous rows on screen
+                        // (see `placeholderData`), so a skeleton means "first
+                        // results for this tab", not "the viewer typed a letter".
                         if (activeTab === "users") {
                             return <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />;
+                        }
+                        if (activeTab === "feeds") {
+                            return (
+                                <View>
+                                    {Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
+                                        <FeedCardSkeleton key={`feed-skeleton-${index}`} />
+                                    ))}
+                                </View>
+                            );
+                        }
+                        if (activeTab === "starterPacks") {
+                            return (
+                                <View>
+                                    {Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
+                                        <StarterPackCardSkeleton key={`pack-skeleton-${index}`} />
+                                    ))}
+                                </View>
+                            );
                         }
                         return (
                             <View className="items-center justify-center py-20">
@@ -1287,6 +1353,15 @@ export default function SearchIndex() {
                     onTabPress={handleTabPress}
                     scrollEnabled={true}
                 />
+
+                {/* Refining a query keeps the previous rows on screen, so the
+                    only signal that newer ones are coming is this hairline.
+                    It sits in the layout (a fixed-height track that is empty
+                    when idle) rather than overlaying the list, so results
+                    never shift by a pixel when it appears. */}
+                <View className="h-0.5 w-full overflow-hidden" accessibilityElementsHidden>
+                    {refreshing ? <View className="h-full w-full bg-primary/60" /> : null}
+                </View>
 
                 {/* ONE scroll container for every state — suggestions, results,
                     loading, error and empty all render through this list as ROWS,
