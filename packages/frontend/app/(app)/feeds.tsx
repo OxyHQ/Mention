@@ -134,7 +134,7 @@ const PresetRow = ({
         accessibilityLabel={t(preset.labelKey)}
       >
         <View className="w-9 h-9 rounded-full items-center justify-center bg-muted">
-          <PresetIcon size="md" fill={theme.colors.primary} />
+          <PresetIcon width={20} height={20} fill={theme.colors.primary} />
         </View>
         <View className="flex-1 gap-0.5">
           <Text className="text-[15px] font-semibold text-foreground" numberOfLines={1}>
