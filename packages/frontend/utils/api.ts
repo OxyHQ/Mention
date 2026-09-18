@@ -53,7 +53,47 @@ function getHttpStatus(error: unknown): number | undefined {
   return undefined;
 }
 
-const mentionApiClient = oxyServices.createLinkedClient({ baseURL: API_URL });
+/**
+ * The Mention API client.
+ *
+ * ## `enableRetry: false` is load-bearing, not a preference
+ *
+ * The SDK builds its `AbortController` INSIDE the function `retryAsync`
+ * retries, links the caller's signal to it with `addEventListener('abort')`,
+ * and never checks `signal.aborted` first. An `abort` event fires ONCE, so on
+ * attempt 2 the caller's already-fired signal cannot abort the newly built
+ * controller — and a caller abort surfaces as an `AbortError` carrying
+ * `status: 0`, which is not 4xx, so the SDK's `defaultShouldRetry` returns
+ * true. The result is that a request the caller CANCELLED is re-issued for
+ * real, up to `maxRetries` times, with exponential backoff between attempts.
+ *
+ * With the 5s default timeout and 3 retries that is ~28s of work after the
+ * caller gave up, and the `RequestQueue` is 10 slots deep — so the zombies
+ * starve the request the viewer is actually waiting on. Typing a few words
+ * into search was leaving a dozen abandoned requests in flight.
+ *
+ * Turning retry off makes `requestFn` run once: the controller is built once,
+ * the caller's signal aborts it correctly, and nothing cancelled is ever
+ * re-sent. React Query already retries at the query layer with its own policy
+ * and — unlike this one — honours cancellation, so the retry we are dropping
+ * was the duplicate of the two.
+ *
+ * This is a workaround for a defect in `@oxy.so/core` (still present in 1.6.0,
+ * verified). The root fix belongs in the SDK — an abort domain per `request()`
+ * rather than per attempt, cancellation excluded from `shouldRetry`, and an
+ * overall deadline. Re-enable retry DELIBERATELY once that ships, with
+ * `retryOnTimeout: false` and an explicit deadline; do not simply delete this.
+ *
+ * `requestTimeout` matches `API_TIMEOUT_MS` on the axios client above. The two
+ * clients in one app disagreeing 3x (5s vs 15s) was itself a bug report: 5s
+ * sits below the p99 of several real endpoints, which turns a slow response
+ * into a client-manufactured failure.
+ */
+const mentionApiClient = oxyServices.createLinkedClient({
+  baseURL: API_URL,
+  enableRetry: false,
+  requestTimeout: API_TIMEOUT_MS,
+});
 const linkedClient: LinkedHttpClient['client'] = mentionApiClient.client;
 type LinkedRequestConfig = NonNullable<Parameters<typeof linkedClient.get>[1]>;
 type LinkedDeleteConfig = NonNullable<Parameters<typeof linkedClient.delete>[1]>;
