@@ -525,6 +525,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     await warmClarityDocumentForText(resolveVariant(post.content).text);
 
     const [hydratedPost] = await postHydrationService.hydratePosts([post], {
+      // Written or changed by this very request, so there is no community note to
+      // look up — and asking would put a CrowdSource round trip on this path.
+      includeCommunityNotes: false,
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),

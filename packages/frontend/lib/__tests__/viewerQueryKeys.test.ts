@@ -79,6 +79,11 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.federatedProfile(viewerId, 'alice@example.com'),
       viewerQueryKeys.liveUsers(viewerId),
       viewerQueryKeys.profileMediaSearch(viewerId, 'song', 'query'),
+      viewerQueryKeys.communityNotesRoot(viewerId),
+      viewerQueryKeys.communityNotesAvailability(viewerId),
+      viewerQueryKeys.communityNotesQueue(viewerId),
+      viewerQueryKeys.communityNotesWritten(viewerId),
+      viewerQueryKeys.communityNotesRated(viewerId),
     ];
   }
 

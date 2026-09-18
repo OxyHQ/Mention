@@ -154,6 +154,9 @@ export const publishScheduledPostNow = async (req: AuthRequest, res: Response) =
     }
 
     const hydratedPosts = await postHydrationService.hydratePosts([published], {
+      // Written or changed by this very request, so there is no community note to
+      // look up — and asking would put a CrowdSource round trip on this path.
+      includeCommunityNotes: false,
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
@@ -246,6 +249,9 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response) => {
     );
 
     const hydratedPosts = await postHydrationService.hydratePosts(scheduledPosts, {
+      // Not published yet: nobody has read these, so nobody has written a note
+      // about one.
+      includeCommunityNotes: false,
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),

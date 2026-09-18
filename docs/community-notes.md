@@ -39,27 +39,58 @@ Mention's side:
 - **Hub:** `/community-notes` — Rate notes / Your ratings / Your notes, all
   lists served by CrowdSource.
 
-### What CrowdSource has to provide
+### How the two sides are wired
 
-- Create a note for a post (text ≤ 500 chars, optional source URL); a note
-  cannot be edited after submission, only deleted by its writer.
-- Rate a note: `helpful` | `not_helpful` with at least one reason from
-  `COMMUNITY_NOTE_HELPFUL_REASONS` / `COMMUNITY_NOTE_NOT_HELPFUL_REASONS`;
-  final, one per rater.
-- The shown/needs-ratings decision. The copy promises "shown when people who
-  usually rate differently both find it helpful", i.e. a bridging score, not a
-  vote count — CrowdSource must not ship a simple majority under that copy.
-- The per-viewer lists for the hub (queue to rate, rated, written).
-- A batch lookup Mention's `PostHydrationService` can call to attach
-  `communityNote` to posts, cheaply enough for feed pages.
-- Notify the writer when their note starts being shown.
+CrowdSource serves `/v1/community-notes/*` and Mention reaches it through
+`@oxy.so/crowdsource`, with the SAME service key and client the moderation
+integration uses (`services/moderation/crowdSourceClient.ts`). Nothing is
+mounted and nothing is asked when `CROWDSOURCE_ENABLED` is false.
+
+| Mention | CrowdSource |
+| --- | --- |
+| `POST /api/community-notes` | `POST /v1/community-notes` |
+| `POST /api/community-notes/:id/withdraw` | `POST /v1/community-notes/{id}/withdraw` |
+| `POST /api/community-notes/:id/ratings` | `POST /v1/community-notes/{id}/ratings` |
+| `POST /api/community-notes/to-rate` | `POST /v1/community-notes/assignments` |
+| `GET /api/community-notes/mine` | `GET /v1/community-notes/principals/{id}/notes` |
+| `GET /api/community-notes/ratings` | `GET /v1/community-notes/principals/{id}/ratings` |
+| `PostHydrationService` (batch) | `GET /v1/community-notes/shown?subjects=` |
+| `POST /webhooks/crowdsource` | `community_note.status_changed` |
+
+Four decisions are worth knowing before changing any of it:
+
+- **The session names the principal.** A note's writer and a note's rater are
+  the viewer's Oxy user id, taken from the session and never from the body —
+  the same identity a report already carries (`reportedBy.oxyUserId`).
+  CrowdSource stores it to enforce the exclusions the design needs (a writer
+  never rates their own note, a post's author never rates a note about their
+  post, a writer has a daily cap) and never returns, logs or audits it.
+- **Reads fail open, writes fail loud.** A feed page whose lookup timed out is
+  a page without notes. A note the writer typed and sent reports what happened,
+  because a "submitted" sheet for a note that went nowhere is a lie.
+- **The lookup is cached per post, including the absence of a note.** Redis,
+  five minutes, dropped by the `community_note.status_changed` webhook. Without
+  the negative entry every feed page would ask CrowdSource about every post on
+  it; with it, a page of posts that have no notes costs one batched Redis read.
+  The paths that hydrate a post the same request just wrote pass
+  `includeCommunityNotes: false` — a post that did not exist a moment ago
+  cannot carry a note.
+- **Drawing the queue issues assignments.** `POST /to-rate` is a POST for that
+  reason, and its idempotency key is the rater plus the hour, so reopening the
+  hub re-reads the same queue instead of consuming a fresh batch.
+
+### Operational requirements
+
+- The Mention credential needs the `crowdsource:community-notes:write` and
+  `crowdsource:community-notes:read` scopes in the CrowdSource console.
+- `community_note.status_changed` must be in the webhook subscription, or a
+  note that starts being shown waits out the cache TTL before readers see it.
 
 ### Open questions
 
 - Eligibility: who may write and rate (account age, Oxy Trust, prior ratings).
+  CrowdSource enforces a per-writer daily cap today and nothing else.
 - Federated posts: notes on remote posts are local to Mention/CrowdSource and
   never federate.
-- Localisation of note text (CrowdSource resolves `text` per reader).
-
-The frontend in `components/CommunityNotes/` is UI-complete against mock data;
-nothing sends to CrowdSource until those endpoints exist.
+- Notifying a writer when their note starts being shown. The webhook carries
+  the event; Mention drops its cache and writes no notification yet.

@@ -2440,6 +2440,8 @@
   "communityNotes.hub.tabNotes": "Ваши примечания",
   "communityNotes.hub.statusShown": "Показывается у поста",
   "communityNotes.hub.statusNeedsRatings": "Нужно больше оценок",
+  "communityNotes.hub.statusNotShown": "Не показывается — оценившие не сочли её полезной",
+  "communityNotes.hub.statusWithdrawn": "Вы отозвали эту заметку",
   "communityNotes.card.needsRatings": "Нужно больше оценок",
   "communityNotes.card.title": "Примечание сообщества",
   "communityNotes.card.byline": "Написано людьми в Mention",

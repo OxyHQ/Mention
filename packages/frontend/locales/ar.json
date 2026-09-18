@@ -2486,6 +2486,8 @@
   "communityNotes.hub.tabNotes": "ملاحظاتك",
   "communityNotes.hub.statusShown": "تظهر على المنشور",
   "communityNotes.hub.statusNeedsRatings": "تحتاج إلى مزيد من التقييمات",
+  "communityNotes.hub.statusNotShown": "لا تظهر — لم يجدها المقيّمون مفيدة",
+  "communityNotes.hub.statusWithdrawn": "لقد سحبت هذه الملاحظة",
   "communityNotes.card.needsRatings": "يلزم تقييم من مزيد من الأشخاص",
   "communityNotes.card.title": "ملاحظة المجتمع",
   "communityNotes.card.byline": "كتبها أشخاص على Mention",

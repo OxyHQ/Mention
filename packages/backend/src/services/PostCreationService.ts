@@ -1071,6 +1071,9 @@ class PostCreationService {
           // maxDepth:1 is REQUIRED so a created boost embeds its boostOf target
           // (a boost has an intentionally empty body and renders blank otherwise).
           const [hydratedPost] = await postHydrationService.hydratePosts([post], {
+            // Written or changed by this very request, so there is no community note to
+            // look up — and asking would put a CrowdSource round trip on this path.
+            includeCommunityNotes: false,
             // This DTO is broadcast to all sockets, so hydrate as an anonymous
             // viewer. Nested quote/boost references that are not publicly
             // visible are omitted instead of leaking via a creator-specific ACL.

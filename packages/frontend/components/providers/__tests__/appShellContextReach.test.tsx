@@ -124,6 +124,15 @@ jest.mock('@/components/Channels/ChannelInfoDialog', () => ({
   ChannelInfoDialogProvider: () => null,
 }));
 jest.mock('@/components/providers/LiveFeatureProviders', () => ({ LiveFeatureHost: () => null }));
+/**
+ * Pass-through, like the siblings above: this provider resolves the
+ * community-note handlers, which reaches the API client and the Oxy session SDK
+ * — neither of which a shell-SHAPE test should be booting. What it hands down is
+ * covered by `hooks/__tests__/useCommunityNotes.test.tsx`.
+ */
+jest.mock('@/components/providers/CommunityNoteProvider', () => ({
+  CommunityNoteProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
 
 jest.mock('@oxy.so/bloom/tab-bar', () => ({
   useMinimizeState: () => ({ minimized: { value: 0 } }),

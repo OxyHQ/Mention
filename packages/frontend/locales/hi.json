@@ -2392,6 +2392,8 @@
   "communityNotes.hub.tabNotes": "आपके नोट्स",
   "communityNotes.hub.statusShown": "पोस्ट पर दिखाया जा रहा है",
   "communityNotes.hub.statusNeedsRatings": "और रेटिंग की ज़रूरत है",
+  "communityNotes.hub.statusNotShown": "नहीं दिखाई गई — मूल्यांकन करने वालों को यह उपयोगी नहीं लगी",
+  "communityNotes.hub.statusWithdrawn": "आपने यह नोट वापस ले लिया",
   "communityNotes.card.needsRatings": "और लोगों को रेट करना होगा",
   "communityNotes.card.title": "कम्युनिटी नोट",
   "communityNotes.card.byline": "Mention पर लोगों द्वारा लिखा गया",

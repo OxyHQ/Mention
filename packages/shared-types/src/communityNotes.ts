@@ -11,8 +11,19 @@
  * The DTO therefore carries no writer or rater identity, ever.
  */
 
-/** `shown`: rated helpful and displayed to everyone. `needs_ratings`: still collecting ratings. */
-export type CommunityNoteStatus = 'shown' | 'needs_ratings';
+/**
+ * Where a note stands, as CrowdSource scored it.
+ *
+ * `shown`: raters of different viewpoints found it helpful, and it is displayed
+ * under the post to everyone. `needs_ratings`: still collecting. `not_shown`:
+ * rated unhelpful. `withdrawn`: its writer took it back.
+ *
+ * Only `shown` reaches a reader — the other three exist because the writer's own
+ * list has to be able to say what became of a note. A status is a scoring
+ * outcome, never a verdict on the writer, and it can move again as ratings
+ * arrive.
+ */
+export type CommunityNoteStatus = 'shown' | 'needs_ratings' | 'not_shown' | 'withdrawn';
 
 export type CommunityNoteRating = 'helpful' | 'not_helpful';
 

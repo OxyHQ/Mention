@@ -2392,6 +2392,8 @@
   "communityNotes.hub.tabNotes": "Catatan kamu",
   "communityNotes.hub.statusShown": "Ditampilkan di postingan",
   "communityNotes.hub.statusNeedsRatings": "Perlu lebih banyak penilaian",
+  "communityNotes.hub.statusNotShown": "Tidak ditampilkan — penilai merasa kurang membantu",
+  "communityNotes.hub.statusWithdrawn": "Kamu menarik kembali catatan ini",
   "communityNotes.card.needsRatings": "Perlu lebih banyak orang untuk menilai",
   "communityNotes.card.title": "Catatan komunitas",
   "communityNotes.card.byline": "Ditulis oleh orang-orang di Mention",

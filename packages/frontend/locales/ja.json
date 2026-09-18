@@ -2392,6 +2392,8 @@
   "communityNotes.hub.tabNotes": "あなたのノート",
   "communityNotes.hub.statusShown": "投稿に表示中",
   "communityNotes.hub.statusNeedsRatings": "さらに評価が必要",
+  "communityNotes.hub.statusNotShown": "表示されません — 評価者が役に立たないと判断しました",
+  "communityNotes.hub.statusWithdrawn": "このノートを取り下げました",
   "communityNotes.card.needsRatings": "さらに評価が必要です",
   "communityNotes.card.title": "コミュニティノート",
   "communityNotes.card.byline": "Mentionのユーザーが作成",

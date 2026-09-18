@@ -2392,6 +2392,8 @@
   "communityNotes.hub.tabNotes": "Notların",
   "communityNotes.hub.statusShown": "Gönderide gösteriliyor",
   "communityNotes.hub.statusNeedsRatings": "Daha fazla değerlendirme gerekiyor",
+  "communityNotes.hub.statusNotShown": "Gösterilmiyor — değerlendirenler faydalı bulmadı",
+  "communityNotes.hub.statusWithdrawn": "Bu notu geri çektin",
   "communityNotes.card.needsRatings": "Daha fazla kişinin değerlendirmesi gerekiyor",
   "communityNotes.card.title": "Topluluk notu",
   "communityNotes.card.byline": "Mention'daki kişiler tarafından yazıldı",

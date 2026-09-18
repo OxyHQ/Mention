@@ -2,7 +2,13 @@ import React, { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import type { CommunityNoteRating, CommunityNoteSummary, HydratedPostSummary } from '@mention/shared-types';
+import type { TFunction } from 'i18next';
+import type {
+  CommunityNoteRating,
+  CommunityNoteStatus,
+  CommunityNoteSummary,
+  HydratedPostSummary,
+} from '@mention/shared-types';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { EmptyState } from '@/components/common/EmptyState';
 import PostItem from '@/components/Feed/PostItem';
@@ -17,6 +23,27 @@ export interface CommunityNoteEntry {
 }
 
 type TabId = 'rate' | 'ratings' | 'notes';
+
+/**
+ * What became of a note the viewer wrote.
+ *
+ * All four of CrowdSource's statuses are named, including the two a reader never
+ * sees. A writer whose note was rated unhelpful is told so plainly: the status
+ * is an outcome of how it was rated, not a judgement of them, and leaving them
+ * to guess from a note that simply never appears would be worse.
+ */
+function statusLabel(status: CommunityNoteStatus, t: TFunction): string {
+  switch (status) {
+    case 'shown':
+      return t('communityNotes.hub.statusShown', { defaultValue: 'Shown on the post' });
+    case 'not_shown':
+      return t('communityNotes.hub.statusNotShown', { defaultValue: 'Not shown — raters did not find it helpful' });
+    case 'withdrawn':
+      return t('communityNotes.hub.statusWithdrawn', { defaultValue: 'You took this note back' });
+    default:
+      return t('communityNotes.hub.statusNeedsRatings', { defaultValue: 'Needs more ratings' });
+  }
+}
 
 interface CommunityNotesScreenProps {
   /** Notes waiting for this reader's rating. */
@@ -100,11 +127,7 @@ export function CommunityNotesScreen({ toRate, rated, written, handlers }: Commu
                   }
                 />
                 {tab === 'notes' ? (
-                  <Text className="text-muted-foreground mt-2 text-[13px]">
-                    {note.status === 'shown'
-                      ? t('communityNotes.hub.statusShown', { defaultValue: 'Shown on the post' })
-                      : t('communityNotes.hub.statusNeedsRatings', { defaultValue: 'Needs more ratings' })}
-                  </Text>
+                  <Text className="text-muted-foreground mt-2 text-[13px]">{statusLabel(note.status, t)}</Text>
                 ) : null}
               </View>
             </View>
