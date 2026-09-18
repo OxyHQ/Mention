@@ -21,7 +21,7 @@
         "@mercaria.co/sdk": "^0.1.0",
         "@oxy.so/contracts": "catalog:",
         "@oxy.so/core": "catalog:",
-        "@oxy.so/crowdsource": "1.1.0",
+        "@oxy.so/crowdsource": "1.2.0",
         "@oxy.so/crowdsource-contracts": "1.1.0",
         "@oxy.so/crowdsource-express": "1.1.0",
         "@oxy.so/db": "^1.0.0",
@@ -235,7 +235,7 @@
     "@expo/log-box": "57.0.4",
     "@oxy.so/bloom": "catalog:",
     "@oxy.so/contracts": "catalog:",
-    "@oxy.so/core": "^1.3.1",
+    "@oxy.so/core": "^1.6.0",
     "@oxy.so/services": "^2.1.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native/babel-preset": "0.86.3",
@@ -287,7 +287,7 @@
   "catalog": {
     "@oxy.so/bloom": "^2.12.4",
     "@oxy.so/contracts": "^1.2.0",
-    "@oxy.so/core": "^1.3.1",
+    "@oxy.so/core": "^1.6.0",
     "@oxy.so/mcp": "^1.0.0",
     "@oxy.so/services": "^2.1.0",
     "@syra.fm/sdk": "^0.14.0",
@@ -895,9 +895,9 @@
 
     "@oxy.so/contracts": ["@oxy.so/contracts@1.2.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-pGbGTsSDM5YsspqfEyyHh8UbwiXQ4evHx1xrPJeHqs9/q54N7ApNoudpFeQabt1nInsakkb2DeQE6PM5VIyMFw=="],
 
-    "@oxy.so/core": ["@oxy.so/core@1.3.1", "", { "dependencies": { "@noble/ciphers": "^1.3.0", "@noble/hashes": "^1.8.0", "@oxy.so/contracts": "^1.2.0", "@oxy.so/protocol": "^1.0.1", "@oxy.so/telemetry": "^1.1.1", "@scure/bip39": "^1.6.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.0.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "tldts": "^7.4.10", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-secure-store": "*", "express": "^4.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-I3NZjJR5DTDwt+88EyazdV18oTw0zZ92gIesp5t7WVrRckXhcxHIlb/YbkV46s1ZMUDSTm80II/+47CGxe1N1Q=="],
+    "@oxy.so/core": ["@oxy.so/core@1.6.0", "", { "dependencies": { "@noble/ciphers": "^1.3.0", "@noble/hashes": "^1.8.0", "@oxy.so/contracts": "^1.2.0", "@oxy.so/protocol": "^1.0.1", "@oxy.so/telemetry": "^1.1.1", "@scure/bip39": "^1.6.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.0.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "tldts": "^7.4.10", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-secure-store": "*", "express": "^4.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-2lBOaJvwSYPBN+MLai9qs1AACC7cK9udrjELdFcWxwtst579t9yxxaWiHJCADMJXZk5EbmFAF6ApvYF/N1+d2Q=="],
 
-    "@oxy.so/crowdsource": ["@oxy.so/crowdsource@1.1.0", "", { "dependencies": { "zod": "^4.4.3" }, "peerDependencies": { "@oxy.so/crowdsource-contracts": "^1.1.0" } }, "sha512-SMgDffDVFqLE2G0MiLDpIlWv/WlleUBhljF4fIx9aSADnzJeL6Xw0cF1KFIRO2HiEI3BCZPOckHLrqxChmYcAw=="],
+    "@oxy.so/crowdsource": ["@oxy.so/crowdsource@1.2.0", "", { "dependencies": { "zod": "^4.6.5" }, "peerDependencies": { "@oxy.so/crowdsource-contracts": "^1.1.0" } }, "sha512-R6FbIAXBHuN70YggnSAKEzKHC4M7Kc9K7SChfQFFkiIH0tHWXZR4O2rg9PwlQiIGkCGLMDjPchtU571aQIO8xw=="],
 
     "@oxy.so/crowdsource-contracts": ["@oxy.so/crowdsource-contracts@1.1.0", "", { "dependencies": { "zod": "^4.4.3" } }, "sha512-BoH0O78CI125gr1f3tC+3hnzCaO1HmJKwbrz8UHvPWXYdvm4EPmMAxzEIXtvdFpxDhgqQa6wzHuQ0EKPoH3ySw=="],
 
@@ -3492,6 +3492,8 @@
     "@oxy.so/contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@oxy.so/core/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+
+    "@oxy.so/crowdsource/zod": ["zod@4.6.5", "", {}, "sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q=="],
 
     "@oxy.so/protocol/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 

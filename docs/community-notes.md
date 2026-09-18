@@ -42,9 +42,11 @@ Mention's side:
 ### How the two sides are wired
 
 CrowdSource serves `/v1/community-notes/*` and Mention reaches it through
-`@oxy.so/crowdsource`, with the SAME service key and client the moderation
-integration uses (`services/moderation/crowdSourceClient.ts`). Nothing is
-mounted and nothing is asked when `CROWDSOURCE_ENABLED` is false.
+`@oxy.so/crowdsource`, with the SAME client the moderation integration uses
+(`services/moderation/crowdSourceClient.ts`). That client holds no CrowdSource
+key: it presents Mention's Oxy service token and CrowdSource resolves the tenant
+from the Oxy application it names. Where the process cannot obtain one — a local
+checkout — there is no client, nothing is mounted and nothing is asked.
 
 | Mention | CrowdSource |
 | --- | --- |

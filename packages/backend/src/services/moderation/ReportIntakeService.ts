@@ -161,10 +161,10 @@ async function snapshotUrgency(
  * from one fact — a report can never commit as `queued` with nothing to deliver it,
  * nor as `received` with a delivery event that will try anyway.
  *
- * Intake deliberately does not read `CROWDSOURCE_ENABLED`. A report taken while the
- * integration is off still gets its delivery event, so turning the flag on delivers
- * the backlog instead of stranding it — the dispatcher is what is gated, not the
- * durable record. Nothing here is conditional on a third party's state; only on
+ * Intake deliberately does not ask whether CrowdSource is reachable. A report taken
+ * where it is not still gets its delivery event, so a deployment that becomes able
+ * to deliver sends the backlog instead of stranding it — the dispatcher is what is
+ * gated, not the durable record. Nothing here is conditional on a third party's state; only on
  * whether this application knows how to describe the object at all.
  */
 export async function createReport(input: CreateReportInput): Promise<CreateReportResult> {

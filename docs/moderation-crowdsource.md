@@ -152,8 +152,6 @@ as a report stuck in a queue. Hence: `submittedAt` is the report's own
 ## Environment
 
 ```
-CROWDSOURCE_ENABLED=false
-CROWDSOURCE_SERVICE_KEY=            # applicationId:credentialId:secret, ONE opaque value
 CROWDSOURCE_BASE_URL=               # optional; the SDK defaults to the one deployment
 CROWDSOURCE_WEBHOOK_SECRET=
 CROWDSOURCE_WEBHOOK_SECRET_PREVIOUS=   # both accepted during a rotation
@@ -162,8 +160,26 @@ CROWDSOURCE_OUTBOX_POLL_INTERVAL_MS=5000
 CROWDSOURCE_ENFORCEMENT_MODE=observe
 ```
 
-`applicationId` is read off the credential — a `CROWDSOURCE_APP_ID` variable
-could only ever disagree with it, hence there is none.
+There is no `CROWDSOURCE_ENABLED` and no `CROWDSOURCE_SERVICE_KEY`. Mention is
+one of Oxy's own services: it presents the Oxy service token its infrastructure
+already issues, and CrowdSource resolves the tenant from the Oxy application that
+token names ([oxy ADR 0026][adr-0026]). There is no key to hold, so the only
+thing a flag could still mean is "can this process authenticate" — which is a
+fact about where it runs, not something to type. `crowdSourceClient.ts` answers
+it: in ECS the task role attests, elsewhere the service api key does, and a local
+checkout can do neither.
+
+`applicationId` is absent for the reason it always was: the application is
+whatever the identity resolves to, and a variable holding it could only ever
+disagree. The client asks `GET /v1/applications/me` once and remembers.
+
+The webhook secret stays, and is the one thing here that is genuinely
+configuration: CrowdSource issues it per endpoint to sign what it sends back. It
+is not an identity, nothing authenticates with it, and it gates only the
+DELIVERY loop — a report that leaves with no way to verify the decision coming
+back is worse than one held locally.
+
+[adr-0026]: https://github.com/OxyHQ/oxy/blob/main/docs/adr/0026-first-party-services-authenticate-as-workloads.md
 
 ## Lifecycle
 
@@ -171,9 +187,9 @@ could only ever disagree with it, hence there is none.
   `engagementOutboxDispatcher`): claims are `SELECT ... FOR UPDATE SKIP
   LOCKED` over Postgres (ported from Mongo's atomic `findOneAndUpdate` over
   a disjunctive filter), so N tasks share the work and a dead task's
-  expired lease is reclaimed. No-ops when `CROWDSOURCE_ENABLED=false` — the
-  LOOP is gated, never the durable record, so reports taken while off
-  deliver when it is switched on.
+  expired lease is reclaimed. No-ops where the deployment cannot deliver —
+  the LOOP is gated, never the durable record, so reports taken while it
+  could not deliver go out once it can.
 - `moderationReconciliationJob` is leader-gated, 15-minute sweep: re-derives
   a missing delivery event with the same deterministic id, COUNTS
   dead-lettered ones (re-queueing would spin) and counts cases gone quiet.
@@ -186,44 +202,60 @@ could only ever disagree with it, hence there is none.
   signature covers the raw request bytes, so a body parser ahead of it
   would consume them first. Guarded by a test in `appFactory.test.ts`.
 
-## Switching it on (production has never had it on)
+## Switching it on
 
 As of 2026-09-18 the Mention ECS task definition carries **no `CROWDSOURCE_*`
-variable at all**, so `CROWDSOURCE_ENABLED` takes its default of `false` in
-production. Everything under the flag is built and deployed — report intake,
-the outbox, the webhook receiver, community notes — and none of it is talking
-to anything. That is not a broken state: intake stores reports either way and
-the outbox delivers them when the flag goes on, which is what the gating is
-for. It does mean "grant a scope" is not the only step left.
+variable at all** and `/oxy/mention/` holds no CrowdSource parameter, so nothing
+is talking to anything. That is not a broken state: intake stores reports either
+way and the outbox delivers them once the deployment can, which is what the
+gating is for.
 
-The order matters, because the backend REFUSES TO BOOT with
-`CROWDSOURCE_ENABLED=true` and no service key or webhook secret
-(`config/index.ts`) — deliberately, so a half-wired switch-on fails at deploy
-rather than quietly dropping what it cannot deliver.
+What is left is smaller than it used to be, because there is no credential to
+issue and nowhere to put one.
 
-1. **In the CrowdSource console.** Needs an Oxy session with the `admin` role on
-   the Mention application; no service token can do this, by design (§13.2).
-   - Issue a credential carrying every scope the integration uses:
-     `crowdsource:reports:write`, `crowdsource:reports:read`,
-     `crowdsource:cases:read`, `crowdsource:appeals:write`,
-     `crowdsource:enforcement:write`, `crowdsource:community-notes:write`,
-     `crowdsource:community-notes:read`. **The token is shown once** and stored
-     only as a SHA-256, so nothing — including CrowdSource — can recover it
-     later. Scopes are fixed at issuance: adding one afterwards means issuing a
-     new credential and revoking the old, which is a key rotation.
-   - Register a webhook endpoint at
-     `https://api.mention.earth/webhooks/crowdsource` subscribed to
-     `case.decided`, `decision.corrected`, `appeal.decided` and
-     `community_note.status_changed`, and keep its secret.
-2. **In AWS** (`us-west-2`, account `237343248947`): store both values as SSM
-   `SecureString` parameters, `/oxy/mention/CROWDSOURCE_SERVICE_KEY` and
-   `/oxy/mention/CROWDSOURCE_WEBHOOK_SECRET`.
-3. **In the task definition** (`oxy-mention`): add those two to `secrets`, and
-   `CROWDSOURCE_ENABLED=true` with `CROWDSOURCE_ENFORCEMENT_MODE=observe` to
-   `environment`. `deploy-ecs-image.sh` mutates the existing revision rather
-   than rendering one from this repo, so this is an AWS-side edit and not a PR.
+1. **Bind Mention to its CrowdSource tenant.** One row, written by a one-off ECS
+   task inside the VPC — there is no console click and no secret:
+
+   ```
+   node dist/scripts/bootstrapFirstParty.js --name Mention --oxy-application-id <mention's oxy application id>
+   ```
+
+   Idempotent: it reuses the `oxy` organization and an existing binding, and
+   refuses only when that Oxy application is already bound to a different
+   CrowdSource application. Until this row exists, Mention's token authenticates
+   nothing — proving what you are is not the same as being one of ours.
+
+   Scopes are not part of this step. A first-party service holds every scope an
+   application credential may hold and no privileged one; there is nothing to
+   tick.
+
+2. **Register the webhook endpoint** at
+   `https://api.mention.earth/webhooks/crowdsource`, subscribed to
+   `case.decided`, `decision.corrected`, `appeal.decided` and
+   `community_note.status_changed`, and keep its secret — this is the one secret
+   the integration still has, and it signs what CrowdSource sends back rather
+   than proving who Mention is.
+
+3. **In AWS** (`us-west-2`, account `237343248947`): store that secret as the SSM
+   `SecureString` `/oxy/mention/CROWDSOURCE_WEBHOOK_SECRET` and add it to the
+   `oxy-mention` task definition's `secrets`. `deploy-ecs-image.sh` mutates the
+   existing revision rather than rendering one from this repo, so this is an
+   AWS-side edit and not a PR.
+
+   Nothing else is added. There is no flag to set to `true`, and
+   `CROWDSOURCE_ENFORCEMENT_MODE` already defaults to `observe`.
+
 4. **Verify** without waiting for a report:
    `GET /api/community-notes/availability` answers `{"enabled":true}` once the
-   client builds, and the boot log carries `[CrowdSource] client ready`. Leave
-   enforcement in `observe` until the author-facing "your post was restricted"
-   surface exists — see the gaps above.
+   client builds, and the boot log carries `[CrowdSource] client ready` with the
+   application id the binding resolved to. A deployment that can mint a token but
+   was never bound logs `client built but the tenant did not resolve` instead,
+   which is the failure this step exists to catch.
+
+Community notes work from step 1 alone: they are a request and its answer, with
+no webhook in the path. Reports wait for step 3 — and the backlog goes out on
+the first tick after it, which on a deployment that has been taking reports for
+a while is not a small number of deliveries.
+
+Leave enforcement in `observe` until the author-facing "your post was restricted"
+surface exists — see the gaps above.

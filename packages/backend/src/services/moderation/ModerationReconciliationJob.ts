@@ -1,5 +1,5 @@
-import { config } from '../../config';
 import { logger } from '../../utils/logger';
+import { canDeliverToCrowdSource } from './crowdSourceClient';
 import { reconcileModerationReports } from './ModerationReconciliation';
 
 /**
@@ -23,7 +23,7 @@ export class ModerationReconciliationJob {
 
   start(): void {
     if (this.running) return;
-    if (!config.crowdSource.enabled) return;
+    if (!canDeliverToCrowdSource()) return;
     this.running = true;
     this.timer = setInterval(() => {
       void this.tick();

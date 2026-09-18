@@ -56,8 +56,6 @@ const PREVIOUS_SECRET = 'previous-webhook-secret-16-chars';
 const EVENT_PREFIX = 'evt-webhook-suite-';
 
 vi.hoisted(() => {
-  vi.stubEnv('CROWDSOURCE_ENABLED', 'true');
-  vi.stubEnv('CROWDSOURCE_SERVICE_KEY', 'app_mention:csk_test:secret-value');
   vi.stubEnv('CROWDSOURCE_WEBHOOK_SECRET', 'test-webhook-secret-at-least-16-chars');
   vi.stubEnv('CROWDSOURCE_WEBHOOK_SECRET_PREVIOUS', 'previous-webhook-secret-16-chars');
 });
@@ -382,7 +380,6 @@ describe('CrowdSource webhook receiver — unconfigured', () => {
      * touches no database: it reads one string and returns.
      */
     vi.resetModules();
-    vi.stubEnv('CROWDSOURCE_ENABLED', 'false');
     vi.stubEnv('CROWDSOURCE_WEBHOOK_SECRET', '');
     vi.stubEnv('CROWDSOURCE_WEBHOOK_SECRET_PREVIOUS', '');
     const routes = await import('../../../routes/crowdSourceWebhook.routes');

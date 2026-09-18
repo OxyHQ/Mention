@@ -188,6 +188,11 @@ describe('CrowdSource client wrapper', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    // Nothing about this process should look like a deployment unless a test
+    // says so: the two env vars below are exactly what decides it.
+    vi.stubEnv('OXY_SERVICE_API_KEY', '');
+    vi.stubEnv('OXY_SERVICE_API_SECRET', '');
+    vi.stubEnv('AWS_CONTAINER_CREDENTIALS_RELATIVE_URI', '');
   });
 
   afterEach(() => {
@@ -195,52 +200,99 @@ describe('CrowdSource client wrapper', () => {
     vi.restoreAllMocks();
   });
 
-  it('is absent when the integration is switched off', async () => {
-    vi.stubEnv('CROWDSOURCE_ENABLED', 'false');
+  async function load() {
+    // Per call, not per test: `config` reads the environment once at import, so
+    // a second load inside one test must get a fresh module graph or it reads
+    // the first load's environment.
+    vi.resetModules();
     vi.doUnmock('../../../services/moderation/crowdSourceClient');
-    const { getCrowdSourceClient } = await import(
-      '../../../services/moderation/crowdSourceClient'
-    );
+    const module = await import('../../../services/moderation/crowdSourceClient');
+    module.resetCrowdSourceClient();
+    return module;
+  }
+
+  it('is absent where this process cannot prove it is Mention', async () => {
+    const { getCrowdSourceClient } = await load();
 
     /**
-     * `undefined`, not a throw. A local checkout and every deployment before rollout run
-     * this way, and a report filed there must still be stored — the delivery worker is
-     * what notices there is nowhere to send it.
+     * `undefined`, not a throw. A local checkout runs this way, and a report
+     * filed there must still be stored — the delivery worker is what notices
+     * there is nowhere to send it.
+     *
+     * This replaced a `CROWDSOURCE_ENABLED` check, and it is a stronger
+     * statement: a flag says what somebody typed, this says what the process
+     * can actually do.
      */
+    expect(getCrowdSourceClient()).toBeUndefined();
+    // Cached, so the reason is logged once rather than once per delivery attempt
+    // per report — which would bury the cause it exists to reveal.
     expect(getCrowdSourceClient()).toBeUndefined();
   });
 
-  it('reads its own applicationId off the service key', async () => {
-    vi.stubEnv('CROWDSOURCE_ENABLED', 'true');
-    vi.stubEnv('CROWDSOURCE_SERVICE_KEY', 'app_mention:csk_test:secret-value');
-    vi.stubEnv('CROWDSOURCE_WEBHOOK_SECRET', 'a-webhook-secret-16-chars');
-    vi.doUnmock('../../../services/moderation/crowdSourceClient');
-    const { getCrowdSourceClient, resetCrowdSourceClient } = await import(
-      '../../../services/moderation/crowdSourceClient'
-    );
-    resetCrowdSourceClient();
+  it('builds on a task role alone, with no key of any kind', async () => {
+    // The whole point of the change: ECS sets this and nothing else does, so a
+    // deployment carrying NO secret still authenticates.
+    vi.stubEnv('AWS_CONTAINER_CREDENTIALS_RELATIVE_URI', '/v2/credentials/abc');
+    const { getCrowdSourceClient } = await load();
 
     const client = getCrowdSourceClient();
 
-    // There is no applicationId option anywhere; it comes from the credential.
-    expect(client?.applicationId).toBe('app_mention');
+    expect(client).toBeDefined();
     // Built once and kept for the process.
     expect(getCrowdSourceClient()).toBe(client);
   });
 
-  it('stays absent when the service key is malformed', async () => {
-    vi.stubEnv('CROWDSOURCE_ENABLED', 'true');
-    vi.stubEnv('CROWDSOURCE_SERVICE_KEY', 'this-is-not-three-parts');
-    vi.stubEnv('CROWDSOURCE_WEBHOOK_SECRET', 'a-webhook-secret-16-chars');
-    vi.doUnmock('../../../services/moderation/crowdSourceClient');
-    const { getCrowdSourceClient, resetCrowdSourceClient } = await import(
-      '../../../services/moderation/crowdSourceClient'
-    );
-    resetCrowdSourceClient();
+  it('builds on an Oxy service api key where there is no task role', async () => {
+    vi.stubEnv('OXY_SERVICE_API_KEY', 'mention-service-key');
+    vi.stubEnv('OXY_SERVICE_API_SECRET', 'mention-service-secret');
+    const { getCrowdSourceClient } = await load();
 
-    expect(getCrowdSourceClient()).toBeUndefined();
-    // Cached as failed, so the error is logged once rather than once per delivery
-    // attempt per report — which would bury the cause it exists to reveal.
-    expect(getCrowdSourceClient()).toBeUndefined();
+    expect(getCrowdSourceClient()).toBeDefined();
+  });
+
+  it('presents an Oxy token and never a CrowdSource service key', async () => {
+    vi.stubEnv('AWS_CONTAINER_CREDENTIALS_RELATIVE_URI', '/v2/credentials/abc');
+    // A key in the environment must not change what is presented. Mention holds
+    // no CrowdSource credential; if one ever appeared it would be a leftover,
+    // and using it would silently move the tenant back to a secret somebody has
+    // to rotate.
+    vi.stubEnv('CROWDSOURCE_SERVICE_KEY', 'app_mention:csk_test:secret-value');
+    const constructed: Array<Record<string, unknown>> = [];
+    vi.doMock('@oxy.so/crowdsource', () => ({
+      CrowdSource: class {
+        applicationId = Promise.resolve('app_from_the_binding');
+        constructor(options: Record<string, unknown>) {
+          constructed.push(options);
+        }
+      },
+    }));
+    const { getCrowdSourceClient } = await load();
+
+    getCrowdSourceClient();
+
+    expect(constructed).toHaveLength(1);
+    expect(typeof constructed[0]?.oxyToken).toBe('function');
+    expect(constructed[0]).not.toHaveProperty('serviceKey');
+    vi.doUnmock('@oxy.so/crowdsource');
+  });
+
+  it('holds reports until a decision could come back, and lets notes through anyway', async () => {
+    vi.stubEnv('AWS_CONTAINER_CREDENTIALS_RELATIVE_URI', '/v2/credentials/abc');
+    vi.stubEnv('CROWDSOURCE_WEBHOOK_SECRET', '');
+    const withoutSecret = await load();
+
+    /**
+     * A report delivered with no way to verify the decision coming back is
+     * worse than one held locally: the case is judged and the outcome arrives
+     * at an endpoint that refuses it. Community notes have no webhook in the
+     * path, so the client is still there for them.
+     */
+    expect(withoutSecret.canDeliverToCrowdSource()).toBe(false);
+    expect(withoutSecret.getCrowdSourceClient()).toBeDefined();
+
+    vi.stubEnv('CROWDSOURCE_WEBHOOK_SECRET', 'a-webhook-secret-16-chars');
+    const withSecret = await load();
+
+    expect(withSecret.canDeliverToCrowdSource()).toBe(true);
   });
 });

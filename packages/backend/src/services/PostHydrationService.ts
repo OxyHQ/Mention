@@ -254,8 +254,8 @@ interface HydrationOptions {
    * caller here is rendering posts TO a reader. It costs one batched Redis read
    * per hydration — the lookup is cached per post, including a negative entry for
    * the overwhelming majority that have no note — and one CrowdSource call per 50
-   * posts whose entries have expired. With `CROWDSOURCE_ENABLED=false` it costs
-   * nothing at all: there is no client, so nothing is asked.
+   * posts whose entries have expired. Where Mention cannot authenticate to
+   * CrowdSource it costs nothing at all: there is no client, so nothing is asked.
    *
    * Pass `false` from the paths that hydrate a post the SAME request just wrote
    * or edited. A post that did not exist a moment ago cannot carry a note, and

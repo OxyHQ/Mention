@@ -74,7 +74,7 @@ export function startSchedulers(): void {
     logger.warn("Failed to start follower snapshot job", error);
   }
 
-  // CrowdSource reconciliation (leader-gated, env-gated on CROWDSOURCE_ENABLED):
+  // CrowdSource reconciliation (leader-gated, and gated on being able to deliver):
   // finds reports whose durable delivery event is missing or dead-lettered. The
   // outbox DISPATCHER runs on every task (lease-claimed in Postgres); this sweep
   // scans the whole table, so one task is enough.
