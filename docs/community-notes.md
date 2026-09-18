@@ -81,10 +81,15 @@ Four decisions are worth knowing before changing any of it:
 
 ### Operational requirements
 
-- The Mention credential needs the `crowdsource:community-notes:write` and
-  `crowdsource:community-notes:read` scopes in the CrowdSource console.
-- `community_note.status_changed` must be in the webhook subscription, or a
-  note that starts being shown waits out the cache TTL before readers see it.
+Notes ride on the SAME credential, client and webhook endpoint as moderation,
+so they need the whole integration switched on — which production has never
+had. The sequence is in
+[`moderation-crowdsource.md`](./moderation-crowdsource.md#switching-it-on-production-has-never-had-it-on).
+What notes add to it is two lines: the credential needs
+`crowdsource:community-notes:write` and `crowdsource:community-notes:read`, and
+the webhook subscription needs `community_note.status_changed` — without that
+event a note that starts being shown waits out the five-minute cache before
+readers see it.
 
 ### Open questions
 
