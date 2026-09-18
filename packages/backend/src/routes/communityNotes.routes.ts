@@ -135,10 +135,16 @@ const SUBJECT_REFUSALS: Record<NoteSubjectRefusal, { status: number; message: st
 };
 
 /**
- * `GET /api/community-notes/availability` — whether the flows may be offered.
+ * `GET /api/community-notes/availability` — whether the flows can serve anything.
  *
- * The app asks before it shows "Add community note" in a post's menu, because a
- * menu entry that opens a form no one will receive is worse than no entry.
+ * The app does NOT ask yet: `PostItem` offers "Add community note" on every post
+ * the reader does not own, and a deployment that cannot reach CrowdSource answers
+ * the write with 503 rather than hiding the entry. That is the honest state of
+ * things, and it is written here because the opposite was claimed for a while.
+ *
+ * The endpoint exists because it is the only way to learn the answer without
+ * writing something: it is what a deploy check reads, and what the menu should
+ * eventually read before offering a form no one will receive.
  */
 router.get('/availability', (_req: AuthRequest, res: Response) => {
   res.json({ enabled: communityNotesEnabled() });

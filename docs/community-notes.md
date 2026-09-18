@@ -35,7 +35,11 @@ Mention's side:
   warning.
 - **Write:** "Add community note" (post menu) and Helpful / Not helpful are
   forwarded to CrowdSource; the sheets only collect what the reader chose
-  (`useCommunityNoteSheets` takes the `submitNote` / `rateNote` handlers).
+  (`useCommunityNoteSheets` takes the `submitNote` / `rateNote` handlers). The
+  menu entry is offered on every post the reader does not own and is NOT gated on
+  `GET /api/community-notes/availability` — a deployment that cannot reach
+  CrowdSource answers the write with 503 instead of hiding the entry. Gating it
+  is the obvious improvement; until somebody makes it, this is what happens.
 - **Hub:** `/community-notes` — Rate notes / Your ratings / Your notes, all
   lists served by CrowdSource.
 
