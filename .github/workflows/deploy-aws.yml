@@ -226,10 +226,18 @@ jobs:
           # 502 shell. `config/index.ts` refuses to boot without it in production
           # rather than start into that state, which means a missing parameter
           # surfaces as a failed rollout the circuit breaker reverts.
+          #
+          # CROWDSOURCE_WEBHOOK_SECRET: the signing secret CrowdSource issues per
+          # endpoint, and the ONLY secret the moderation integration still has —
+          # Mention holds no CrowdSource credential, it presents its Oxy service
+          # token. Without this the webhook route is not mounted, and the outbox
+          # deliberately holds reports rather than send ones whose decisions
+          # could never be verified on the way back.
           TASK_SECRET_OVERRIDES_JSON: >-
             {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_MCP_JWT_SECRET",
              "DATABASE_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/DATABASE_URL",
-             "MENTION_SHELL_ACCESS_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_SHELL_ACCESS_KEY"}
+             "MENTION_SHELL_ACCESS_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_SHELL_ACCESS_KEY",
+             "CROWDSOURCE_WEBHOOK_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/CROWDSOURCE_WEBHOOK_SECRET"}
           # Provider credentials never enter this task. Mention selects its
           # reviewed profile by exact opaque primary key; Oxy resolves and signs
           # concrete Kaana routes. Slugs, display names and row order are not

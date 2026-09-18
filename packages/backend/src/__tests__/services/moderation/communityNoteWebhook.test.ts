@@ -20,8 +20,6 @@ const WEBHOOK_SECRET = 'test-webhook-secret-at-least-16-chars';
 const EVENT_PREFIX = 'evt-note-webhook-';
 
 vi.hoisted(() => {
-  vi.stubEnv('CROWDSOURCE_ENABLED', 'true');
-  vi.stubEnv('CROWDSOURCE_SERVICE_KEY', 'app_mention:csk_test:secret-value');
   vi.stubEnv('CROWDSOURCE_WEBHOOK_SECRET', 'test-webhook-secret-at-least-16-chars');
 });
 

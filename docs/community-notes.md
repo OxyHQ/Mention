@@ -35,16 +35,22 @@ Mention's side:
   warning.
 - **Write:** "Add community note" (post menu) and Helpful / Not helpful are
   forwarded to CrowdSource; the sheets only collect what the reader chose
-  (`useCommunityNoteSheets` takes the `submitNote` / `rateNote` handlers).
+  (`useCommunityNoteSheets` takes the `submitNote` / `rateNote` handlers). The
+  menu entry is offered on every post the reader does not own and is NOT gated on
+  `GET /api/community-notes/availability` — a deployment that cannot reach
+  CrowdSource answers the write with 503 instead of hiding the entry. Gating it
+  is the obvious improvement; until somebody makes it, this is what happens.
 - **Hub:** `/community-notes` — Rate notes / Your ratings / Your notes, all
   lists served by CrowdSource.
 
 ### How the two sides are wired
 
 CrowdSource serves `/v1/community-notes/*` and Mention reaches it through
-`@oxy.so/crowdsource`, with the SAME service key and client the moderation
-integration uses (`services/moderation/crowdSourceClient.ts`). Nothing is
-mounted and nothing is asked when `CROWDSOURCE_ENABLED` is false.
+`@oxy.so/crowdsource`, with the SAME client the moderation integration uses
+(`services/moderation/crowdSourceClient.ts`). That client holds no CrowdSource
+key: it presents Mention's Oxy service token and CrowdSource resolves the tenant
+from the Oxy application it names. Where the process cannot obtain one — a local
+checkout — there is no client, nothing is mounted and nothing is asked.
 
 | Mention | CrowdSource |
 | --- | --- |
