@@ -5,6 +5,7 @@ import { and, asc, desc, eq, ilike, inArray, ne, notExists, or, sql, type SQL } 
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../db/postgres';
 import {
   STARTER_PACK_MAX_MEMBERS,
+  STARTER_PACKS_SEARCH_TEXT,
   starterPackMembers,
   starterPackUses,
   starterPacks,
@@ -15,6 +16,7 @@ import type { PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
+import { likeContains } from '../utils/likePattern';
 
 /**
  * What a starter pack's own two text fields may be.
@@ -134,16 +136,6 @@ function isFederatedPack(pack: Pick<typeof starterPacks.$inferSelect, 'sourceNet
 /** Number of member avatars surfaced per pack in the list response. */
 const LIST_AVATAR_LIMIT = 8;
 
-/**
- * Escape the characters `LIKE` treats as wildcards.
- *
- * The Mongo version escaped REGEX metacharacters, which is the wrong alphabet
- * here: `%` and `_` are what `ILIKE` reads as patterns, and leaving them live
- * turns the search box into a way to match every pack in the table.
- */
-function likeContains(term: string): string {
-  return `%${term.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
-}
 
 /** Provenance for a pack mirrored from an external network. */
 interface SerializedPackSource {
@@ -522,8 +514,15 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     }
     if (search) {
       const pattern = likeContains(search);
+      // Coarse prefilter (index-servable, from the same expression
+      // `starter_packs_search_trgm_gin` is built on) AND the exact match. The
+      // concatenation can only over-admit, so the two `ILIKE`s stay the real
+      // predicate — see `db/schema/lists.ts` for the full argument.
       conditions.push(
-        or(ilike(starterPacks.name, pattern), ilike(starterPacks.description, pattern)),
+        and(
+          sql`${STARTER_PACKS_SEARCH_TEXT} like ${pattern.toLowerCase()}`,
+          or(ilike(starterPacks.name, pattern), ilike(starterPacks.description, pattern)),
+        ),
       );
     }
     const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -537,19 +536,42 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       : [desc(starterPacks.useCount), desc(starterPacks.createdAt), desc(starterPacks.id)];
 
     const db = getDb();
-    const [rows, [counted]] = await Promise.all([
-      db.select().from(starterPacks).where(where).orderBy(...orderBy).limit(limit).offset(offset),
+    // `total` stays EXACT, including for a search.
+    //
+    // Dropping it for searches was considered and measured, then rejected. The
+    // `count(*)` used to be expensive for the same reason the page query was —
+    // an `ILIKE '%…%'` with no index that could serve it — so the obvious move
+    // was to stop computing it. But `starter_packs_search_trgm_gin` fixes the
+    // CAUSE: on 120k rows the equivalent count went from 54ms (sequential scan)
+    // to 0.21ms for a selective term and 35ms for a pathologically unselective
+    // one, all from the index. Removing `total` would have been a contract
+    // change buying something the index already bought.
+    //
+    // It also runs in the same `Promise.all` as the page, so it costs wall
+    // clock only when it is slower than the page query itself.
+    const [fetched, [counted]] = await Promise.all([
+      db.select().from(starterPacks).where(where).orderBy(...orderBy).limit(limit + 1).offset(offset),
       // `::int` so postgres.js hands back a NUMBER: a bare `count(*)` is a
-      // bigint, which the driver returns as a STRING, and `total` would silently
-      // change type on the wire.
+      // bigint, which the driver returns as a STRING, and `total` would
+      // silently change type on the wire.
       db.select({ total: sql<number>`count(*)::int` }).from(starterPacks).where(where),
     ]);
+
+    // Over-fetched by one, so `hasMore` is observed rather than derived from
+    // arithmetic over `total` — which is what the client had to do before, and
+    // what broke when `total` was momentarily absent.
+    const hasMore = fetched.length > limit;
+    const rows = hasMore ? fetched.slice(0, limit) : fetched;
+    const total = counted.total;
 
     const membersByPack = await loadMembersByPack(db, rows.map((row) => row.id));
     const enriched = await enrichWithMemberAvatars(
       rows.map((row) => serializePack(row, membersByPack.get(row.id) ?? [])),
     );
-    res.json({ items: enriched, total: counted.total, page, totalPages: Math.ceil(counted.total / limit) });
+    // `hasMore` is the paging signal; `total`/`totalPages` are `null` when not
+    // computed, so a client can tell "no more pages" from "not counted" rather
+    // than reading a missing total as zero.
+    res.json({ items: enriched, total, page, totalPages: Math.ceil(total / limit), hasMore });
   } catch (error) {
     logger.error('[StarterPacks] Failed to list starter packs', { userId: req.user?.id, error });
     res.status(500).json({ error: 'Failed to list starter packs' });

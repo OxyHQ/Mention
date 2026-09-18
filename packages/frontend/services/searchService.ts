@@ -150,9 +150,12 @@ export interface SearchStarterPacksPage {
 /** The page window `GET /starter-packs` echoes back on every listing. */
 interface StarterPackListResponse {
   items?: SearchStarterPackResult[];
-  total?: number;
+  /** `null` when not computed — a SEARCH does not pay for a `count(*)`. */
+  total?: number | null;
   page?: number;
-  totalPages?: number;
+  totalPages?: number | null;
+  /** The paging signal. Derived from an over-fetched row, not from a total. */
+  hasMore?: boolean;
 }
 
 const SEARCH_HISTORY_KEY = 'mention_search_history';
@@ -539,9 +542,14 @@ class SearchService {
       signal,
     });
     const currentPage = res.data.page ?? page;
+    // Prefer the explicit `hasMore`. A search no longer computes `totalPages`
+    // (the `count(*)` behind it scanned the same unindexed predicate the page
+    // query already walked), so deriving paging from a total would read "not
+    // counted" as "no more pages" and silently stop the infinite scroll after
+    // one page. The total-based form stays as the fallback for an older server.
     return {
       starterPacks: res.data.items ?? [],
-      hasMore: currentPage < (res.data.totalPages ?? 0),
+      hasMore: res.data.hasMore ?? currentPage < (res.data.totalPages ?? 0),
       nextPage: currentPage + 1,
     };
   }
