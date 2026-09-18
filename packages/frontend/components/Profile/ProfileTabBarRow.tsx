@@ -3,6 +3,7 @@ import { TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { RiGitMergeLine } from '@oxy.so/bloom/icons';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { useTheme } from '@oxy.so/bloom/theme';
 
 export interface ProfileTabBarRowProps {
@@ -29,8 +30,11 @@ export interface ProfileTabBarRowProps {
 export function ProfileTabBarRow({ children, showLanes }: ProfileTabBarRowProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  // Opaque in the column's own colour: the row pins over the scrolling profile
+  // feed, so it matches the surface rather than naming one.
+  const surfaceFill = useSurfaceFill();
   return (
-    <View className="flex-row items-center border-b border-border bg-card">
+    <View className="flex-row items-center border-b border-border" style={{ backgroundColor: surfaceFill }}>
       <View className="flex-1" style={{ minWidth: 0 }}>
         {children}
       </View>

@@ -6,6 +6,7 @@ import { WidgetManager } from './widgets/WidgetManager';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { VideoReplies } from './videos/VideoReplies';
 import { ContentPanel } from '@oxy.so/bloom/content-panel';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail } from '@/context/VideosRailContext';
 import { asViewStyle, asTextStyle, type WebViewStyle } from '@/types/webStyles';
@@ -53,6 +54,7 @@ const STATIC_FOOTER_URLS = [
 
 export function RightBar() {
     const isRightBarVisible = useIsRightBarVisible();
+    const { colors } = useTheme();
     // The /videos screen is the sole writer of `active` — true ONLY while that
     // route is mounted. Reading it here keeps the rail swap reactive and exact
     // (no pathname string-matching), so the immersive rail mounts/unmounts in
@@ -64,10 +66,15 @@ export function RightBar() {
     if (videosRailActive) {
         return (
             <View style={styles.videosRepliesContainer}>
+                {/* `surfaceClassName` repaints the surface, which is a utility
+                    Bloom cannot resolve to a colour — so without `surfaceColor`
+                    the panel publishes its rung alone and the composer pinned
+                    inside it cannot match what it is on. */}
                 {activePost && (
                     <ContentPanel
                         framed={false}
                         surfaceClassName="bg-card rounded-radius-28 border border-border overflow-hidden"
+                        surfaceColor={colors.card}
                     >
                         <VideoReplies
                             postId={activePost.id}

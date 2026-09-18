@@ -170,8 +170,8 @@ export function ProfileShell({
                   all pin at the FIRST tier; pinning the tab bar at that same
                   inset made the two bands occupy the same vertical space and
                   OVERLAP. It lives inside the z-3 content wrapper, so `web:z-[5]`
-                  keeps it above the feed content, and the `bg-card` on
-                  AnimatedTabBar keeps the feed from showing through. */}
+                  keeps it above the feed content, and AnimatedTabBar's opaque
+                  surface fill keeps the feed from showing through. */}
               <View className="web:sticky web:z-[5]" style={chrome.panelStickyTabsTopInset}>
                 {tabBar}
               </View>

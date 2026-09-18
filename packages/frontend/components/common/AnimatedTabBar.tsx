@@ -1,6 +1,7 @@
 import React, { useRef, useLayoutEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ScrollView, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, useAnimatedScrollHandler } from 'react-native-reanimated';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { cn } from '@/lib/utils';
 
 interface Tab {
@@ -49,6 +50,11 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
     const animatedScrollRef = useRef<Animated.ScrollView>(null);
     const [layoutReady, setLayoutReady] = useState(false);
     const containerWidthRef = useRef(0);
+    // The strip is chrome: it pins above a scrolling feed and has to be opaque
+    // in whatever its container painted. It lands on the shell's ContentPanel on
+    // home and explore and on the profile column elsewhere, so it asks rather
+    // than naming `card`.
+    const surfaceFill = useSurfaceFill();
 
     // Track scroll offset for indicator adjustment
     const scrollHandler = useAnimatedScrollHandler({
@@ -167,8 +173,8 @@ const AnimatedTabBar: React.FC<AnimatedTabBarProps> = ({
 
     return (
         <View
-            className="relative border-b border-border bg-card"
-            style={style}
+            className="relative border-b border-border"
+            style={[{ backgroundColor: surfaceFill }, style]}
             onLayout={(e) => { containerWidthRef.current = e.nativeEvent.layout.width; }}
         >
             {scrollEnabled ? (
