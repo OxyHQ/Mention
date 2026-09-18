@@ -5,12 +5,7 @@ import { CrowdSourceApiError, CrowdSourceError } from '@oxy.so/crowdsource';
 import {
   COMMUNITY_NOTE_HELPFUL_REASONS,
   COMMUNITY_NOTE_NOT_HELPFUL_REASONS,
-  PostVisibility,
-  type CommunityNoteSummary,
-  type HydratedPost,
 } from '@mention/shared-types';
-import { loadPostRecords } from '../db/posts/postRepository';
-import { postHydrationService } from '../services/PostHydrationService';
 import {
   CommunityNotesUnavailableError,
   communityNotesEnabled,
@@ -21,9 +16,12 @@ import {
   withdrawCommunityNote,
   writeCommunityNote,
   type CommunityNoteRatingInput,
-  type CommunityNoteWithSubject,
 } from '../services/communityNotes/CommunityNotesService';
-import { getOwnerId, normalizeAuthorship } from '../utils/postAuthorship';
+import {
+  resolveNoteSubject,
+  withSubjectPosts,
+  type NoteSubjectRefusal,
+} from '../services/communityNotes/communityNoteSubjects';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 import { requestLanguageCandidates } from '../utils/viewerLanguage';
@@ -126,35 +124,15 @@ function fail(res: Response, operation: string, error: unknown): Response {
   return res.status(502).json({ message: 'Community notes are unavailable' });
 }
 
-/**
- * The posts a list of notes is about, hydrated for this viewer.
- *
- * ONE load and ONE hydration for the whole list — the hub renders a real post
- * row under each note, and a per-note hydration would be a page of feed requests
- * pretending to be one. A note whose post this viewer cannot see (deleted,
- * blocked, restricted) is dropped with it: the note is context ABOUT that post
- * and means nothing without it.
- */
-async function withPosts(
-  req: AuthRequest,
-  viewerId: string,
-  entries: CommunityNoteWithSubject[],
-): Promise<{ post: HydratedPost; note: CommunityNoteSummary }[]> {
-  if (entries.length === 0) return [];
-  const postIds = [...new Set(entries.map((entry) => entry.postId))];
-  const posts = await loadPostRecords(postIds);
-  const hydrated = await postHydrationService.hydratePosts(posts, {
-    viewerId,
-    oxyClient: createScopedOxyClient(req),
-    maxDepth: 1,
-    includeLinkMetadata: true,
-  });
-  const byId = new Map(hydrated.map((post) => [post.id, post]));
-  return entries.flatMap((entry) => {
-    const post = byId.get(entry.postId);
-    return post ? [{ post, note: entry.note }] : [];
-  });
-}
+/** What a refused subject means to the caller. */
+const SUBJECT_REFUSALS: Record<NoteSubjectRefusal, { status: number; message: string }> = {
+  not_found: { status: 404, message: 'Post not found' },
+  not_public: { status: 403, message: 'Only a public post can take community notes' },
+  // Not the caller's doing and not fixable by them: a legacy federated post with
+  // no Oxy author link cannot have its author kept out of the raters.
+  no_author: { status: 409, message: 'This post cannot take community notes' },
+  own_post: { status: 403, message: 'You cannot write a note on your own post' },
+};
 
 /**
  * `GET /api/community-notes/availability` — whether the flows may be offered.
@@ -178,56 +156,16 @@ router.post('/', async (req: AuthRequest, res: Response) => {
   const { postId, text, sourceUrls, language } = parsed.data;
 
   try {
-    const [post] = await loadPostRecords([postId]);
-    if (!post) return res.status(404).json({ message: 'Post not found' });
-
-    /**
-     * A note may only be written about a post that is PUBLISHED and PUBLIC.
-     *
-     * Not a policy preference — it follows from what a note is. CrowdSource
-     * shows a note to every reader of its subject and draws raters from the
-     * whole application, so a note on a followers-only post would be judged by
-     * people who cannot read what they are judging, and then shown beside it.
-     * A draft or a scheduled post has no readers at all.
-     */
-    if (post.status !== 'published' || post.visibility !== PostVisibility.PUBLIC) {
-      return res.status(403).json({ message: 'Only a public post can take community notes' });
-    }
-
-    /**
-     * And it must be a post this viewer can actually see.
-     *
-     * `loadPostRecords` applies no ACL, so without this the route would accept a
-     * post id from anyone who could guess one — including a reader the author
-     * has blocked, who would be annotating a post they are not allowed to read.
-     * Hydration is the codebase's one answer to "may this viewer see it", and
-     * this is a write path, so asking it here costs nothing that matters.
-     */
-    const [visible] = await postHydrationService.hydratePosts([post], {
-      viewerId,
-      oxyClient: createScopedOxyClient(req),
-      maxDepth: 0,
-      includeLinkMetadata: false,
-      includeCommunityNotes: false,
-    });
-    if (!visible) return res.status(404).json({ message: 'Post not found' });
-
-    const authorId = getOwnerId(normalizeAuthorship(post.authorship));
-    if (!authorId) {
-      // A post with no resolvable Oxy author (a legacy federated orphan) cannot
-      // be annotated: CrowdSource could not keep its author out of the raters.
-      return res.status(409).json({ message: 'This post cannot take community notes' });
-    }
-    if (authorId === viewerId) {
-      // Context is written by READERS. An author annotating their own post is
-      // writing the post, and they can edit it.
-      return res.status(403).json({ message: 'You cannot write a note on your own post' });
+    const subject = await resolveNoteSubject(viewerId, postId, createScopedOxyClient(req));
+    if (!subject.ok) {
+      const refusal = SUBJECT_REFUSALS[subject.refusal];
+      return res.status(refusal.status).json({ message: refusal.message });
     }
 
     const note = await writeCommunityNote({
       viewerId,
       postId,
-      postAuthorId: authorId,
+      postAuthorId: subject.authorPrincipalId,
       language: language ?? requestLanguageCandidates(req)[0] ?? 'en',
       text,
       sourceUrls,
@@ -290,7 +228,7 @@ router.post('/to-rate', async (req: AuthRequest, res: Response) => {
       requestLanguageCandidates(req),
       assignmentWindowKey(viewerId, new Date()),
     );
-    const entries = await withPosts(req, viewerId, drawn);
+    const entries = await withSubjectPosts(viewerId, createScopedOxyClient(req), drawn);
     const expiryByNote = new Map(drawn.map((entry) => [entry.note.id, entry.expiresAt]));
     return res.json({
       entries: entries.map((entry) => ({ ...entry, expiresAt: expiryByNote.get(entry.note.id) })),
@@ -306,7 +244,7 @@ router.get('/mine', async (req: AuthRequest, res: Response) => {
   if (!viewerId) return res.status(401).json({ message: 'Unauthorized' });
 
   try {
-    const entries = await withPosts(req, viewerId, await communityNotesWrittenBy(viewerId));
+    const entries = await withSubjectPosts(viewerId, createScopedOxyClient(req), await communityNotesWrittenBy(viewerId));
     return res.json({ entries });
   } catch (error: unknown) {
     return fail(res, 'written', error);
@@ -319,7 +257,7 @@ router.get('/ratings', async (req: AuthRequest, res: Response) => {
   if (!viewerId) return res.status(401).json({ message: 'Unauthorized' });
 
   try {
-    const entries = await withPosts(req, viewerId, await communityNotesRatedBy(viewerId));
+    const entries = await withSubjectPosts(viewerId, createScopedOxyClient(req), await communityNotesRatedBy(viewerId));
     return res.json({ entries });
   } catch (error: unknown) {
     return fail(res, 'rated', error);
