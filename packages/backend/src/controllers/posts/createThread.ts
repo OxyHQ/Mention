@@ -698,6 +698,9 @@ export const createThread = async (req: AuthRequest, res: Response) => {
     );
 
     const createdPosts = await postHydrationService.hydratePosts(createdPostObjects, {
+      // Written or changed by this very request, so there is no community note to
+      // look up — and asking would put a CrowdSource round trip on this path.
+      includeCommunityNotes: false,
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),

@@ -176,6 +176,21 @@ const DEFINITIONS = {
     labelNames: ['action', 'mode', 'result'],
   },
   /**
+   * Community-note lookups and writes that CrowdSource refused or never
+   * answered. `operation` is one of this module's own six calls and `code` is
+   * the SDK's closed error vocabulary plus `transport`, so the series count is
+   * fixed by the code rather than by traffic.
+   *
+   * There is deliberately no success counter: a note is attached on the ordinary
+   * hydration path, which is already measured, and a per-post counter there
+   * would be one increment per row of every feed page served.
+   */
+  crowdsource_community_notes_failure_total: {
+    kind: 'counter',
+    help: 'Community-note calls to CrowdSource that failed, by operation and code',
+    labelNames: ['operation', 'code'],
+  },
+  /**
    * Database instrumentation (`db/queryMetrics.ts`).
    *
    * `table` is validated against the drizzle schema's own table names before it

@@ -2392,6 +2392,8 @@
   "communityNotes.hub.tabNotes": "你的笔记",
   "communityNotes.hub.statusShown": "已在帖子上显示",
   "communityNotes.hub.statusNeedsRatings": "需要更多评分",
+  "communityNotes.hub.statusNotShown": "未展示——评分者认为没有帮助",
+  "communityNotes.hub.statusWithdrawn": "你已撤回这条笔记",
   "communityNotes.card.needsRatings": "需要更多人评分",
   "communityNotes.card.title": "社区笔记",
   "communityNotes.card.byline": "由 Mention 上的用户撰写",

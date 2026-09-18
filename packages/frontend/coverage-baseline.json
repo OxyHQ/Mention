@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 34,
-      "covered": 8905,
-      "total": 26185
+      "pct": 34.41,
+      "covered": 9079,
+      "total": 26382
     },
     "branches": {
-      "pct": 29.37,
-      "covered": 5607,
-      "total": 19089
+      "pct": 29.68,
+      "covered": 5701,
+      "total": 19202
     },
     "functions": {
-      "pct": 29.08,
-      "covered": 1921,
-      "total": 6604
+      "pct": 29.79,
+      "covered": 1994,
+      "total": 6692
     },
     "lines": {
-      "pct": 34.67,
-      "covered": 8148,
-      "total": 23497
+      "pct": 35.12,
+      "covered": 8315,
+      "total": 23674
     }
   },
   "pins": {
@@ -42,6 +42,12 @@
       "lines": 100
     },
     "components/providers/AuthRouter.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/providers/CommunityNoteProvider.tsx": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
@@ -178,6 +184,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "hooks/useCommunityNotes.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useComposeValidation.ts": {
       "statements": 0,
@@ -890,6 +902,12 @@
     "services/channelWritersService.ts": {
       "statements": 100,
       "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "services/communityNotesService.ts": {
+      "statements": 100,
+      "branches": 83,
       "functions": 100,
       "lines": 100
     },

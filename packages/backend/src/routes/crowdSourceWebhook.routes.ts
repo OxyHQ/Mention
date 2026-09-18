@@ -3,6 +3,7 @@ import { crowdsourceWebhooks } from '@oxy.so/crowdsource-express';
 import { config } from '../config';
 import { recordDecisionEvent, recordIgnoredEvent } from '../services/moderation/ModerationInboundService';
 import { moderationProcessedEventStore } from '../services/moderation/moderationEventStore';
+import { invalidateShownNote } from '../services/communityNotes/CommunityNotesService';
 import { logger } from '../utils/logger';
 import { metrics } from '../utils/metrics';
 
@@ -116,6 +117,29 @@ export function createCrowdSourceWebhookRoutes(): Router {
             caseId: event.data.caseId,
             decision: event.data.decision,
           });
+        },
+        /**
+         * A community note started or stopped being shown.
+         *
+         * Nothing is recorded and nothing is enforced: a note is not a decision,
+         * it removes nothing and penalises nobody, and Mention stores no part of
+         * it. The ONLY thing this deployment holds is a short-lived cache of
+         * "the note shown under this post", and that is exactly what has just
+         * become wrong — so the entry is dropped and the next reader asks
+         * CrowdSource again.
+         *
+         * Handled inline rather than queued, unlike a decision: a Redis delete
+         * is a single fast write with nothing to plan and nothing to reverse,
+         * which is the case §10.8's "queue it" advice explicitly does not cover.
+         * It is also idempotent, so a redelivery costs a second delete of a key
+         * that is already gone.
+         *
+         * `authorPrincipalId` rides along on the event and is deliberately not
+         * read: Mention has no use for who wrote a note, and a writer is
+         * anonymous to everyone but the application that named them.
+         */
+        'community_note.status_changed': async (event) => {
+          await invalidateShownNote(event.data.externalSubjectId);
         },
       },
       /**

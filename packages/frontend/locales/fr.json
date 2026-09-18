@@ -2419,6 +2419,8 @@
   "communityNotes.hub.tabNotes": "Tes notes",
   "communityNotes.hub.statusShown": "Affichée sur le post",
   "communityNotes.hub.statusNeedsRatings": "Besoin de plus d'évaluations",
+  "communityNotes.hub.statusNotShown": "Non affichée — les évaluateurs ne l'ont pas trouvée utile",
+  "communityNotes.hub.statusWithdrawn": "Vous avez retiré cette note",
   "communityNotes.card.needsRatings": "D'autres personnes doivent l'évaluer",
   "communityNotes.card.title": "Note de la communauté",
   "communityNotes.card.byline": "Rédigée par des personnes sur Mention",
