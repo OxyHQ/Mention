@@ -103,7 +103,7 @@ export default function MutedLanesScreen() {
                     </Admonition>
                 </View>
 
-                <SettingsListGroup variant="filled" title={t('lanes.muted.title', { defaultValue: 'Muted lanes' })}>
+                <SettingsListGroup title={t('lanes.muted.title', { defaultValue: 'Muted lanes' })}>
                     {isLoading ? (
                         <View className="py-10 items-center">
                             <Loading className="text-primary" size="large" style={{ flex: undefined }} />

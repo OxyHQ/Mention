@@ -69,7 +69,7 @@ export default function ExternalMediaSettingsScreen() {
           </Admonition>
         </View>
 
-        <SettingsListGroup variant="filled" title={t('settings.externalMedia.enableFor', { defaultValue: 'Enable media players for' })}>
+        <SettingsListGroup title={t('settings.externalMedia.enableFor', { defaultValue: 'Enable media players for' })}>
           {EXTERNAL_EMBED_SOURCES.map((source) => (
             <SettingsListItem
               key={source}

@@ -289,7 +289,7 @@ export default function LanesScreen() {
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    <SettingsListGroup variant="filled">
+                    <SettingsListGroup>
                         <View className="px-4 py-3.5 flex-row items-center gap-3">
                             <RiInformationFill size="md" fill={colors.primary} />
                             <Text className="flex-1 text-[13px] text-foreground">
@@ -300,7 +300,7 @@ export default function LanesScreen() {
                         </View>
                     </SettingsListGroup>
 
-                    <SettingsListGroup variant="filled" title={t('lanes.addLane', { defaultValue: 'New lane' })}>
+                    <SettingsListGroup title={t('lanes.addLane', { defaultValue: 'New lane' })}>
                         <View className="px-4 py-3 flex-row items-center gap-3">
                             <LaneIcon size={20} color={colors.textSecondary} />
                             <TextInput
@@ -341,7 +341,7 @@ export default function LanesScreen() {
                         ) : null}
                     </SettingsListGroup>
 
-                    <SettingsListGroup variant="filled" title={t('lanes.yourLanes', { defaultValue: 'Your lanes' })}>
+                    <SettingsListGroup title={t('lanes.yourLanes', { defaultValue: 'Your lanes' })}>
                         {isLoading ? (
                             <View className="py-10 items-center">
                                 <Loading className="text-primary" size="large" style={{ flex: undefined }} />

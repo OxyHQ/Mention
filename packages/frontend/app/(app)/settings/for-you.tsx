@@ -150,7 +150,7 @@ export default function ForYouTuningScreen() {
         </View>
 
         {groups.map((group) => (
-          <SettingsListGroup variant="filled" key={group.category} title={t(`feed.tuning.categories.${group.category}`)}>
+          <SettingsListGroup key={group.category} title={t(`feed.tuning.categories.${group.category}`)}>
             {group.modules.map((spec) => (
               <TuningModuleRow key={spec.moduleId} spec={spec} tuning={tuning} onSave={save} />
             ))}

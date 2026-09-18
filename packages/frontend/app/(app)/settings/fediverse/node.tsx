@@ -177,7 +177,7 @@ export default function MentionNodeScreen() {
         ) : node && node.status !== 'revoked' ? (
           <>
             {/* Active / managed node card */}
-            <SettingsListGroup variant="filled" title={t('settings.node.yourNode', { defaultValue: 'Your node' })}>
+            <SettingsListGroup title={t('settings.node.yourNode', { defaultValue: 'Your node' })}>
               <View className="px-5 py-4 flex-row items-center justify-between gap-3">
                 <View className="flex-1">
                   <Text className="text-[15px] font-semibold text-foreground">
@@ -228,7 +228,7 @@ export default function MentionNodeScreen() {
               ) : null}
             </SettingsListGroup>
 
-            <SettingsListGroup variant="filled">
+            <SettingsListGroup>
               <SettingsListItem
                 icon={<RowIcon icon={RiCloseCircleLine} destructive />}
                 title={t('settings.node.disconnect.action', { defaultValue: 'Disconnect' })}
@@ -274,7 +274,7 @@ export default function MentionNodeScreen() {
               </Text>
             </View>
 
-            <SettingsListGroup variant="filled" title={t('settings.node.create.title', { defaultValue: 'Recommended' })}>
+            <SettingsListGroup title={t('settings.node.create.title', { defaultValue: 'Recommended' })}>
               <SettingsListItem
                 icon={<RowIcon icon={RiShieldCheckLine} />}
                 title={t('settings.node.create.managedTitle', { defaultValue: 'Create a managed vault' })}

@@ -9,6 +9,7 @@ import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCheckboxCircleFill, RiCloseCircleLine } from '@oxy.so/bloom/icons';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
@@ -329,6 +330,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   const router = useRouter();
   const { t } = useTranslation();
   const theme = useTheme();
+  const surfaceFill = useSurfaceFill();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const bottomSheet = useContext(BottomSheetContext);
@@ -646,9 +648,14 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   // group-hover wash matches the feed) with the horizontal padding living INSIDE
   // via the px-3 wrapper — exactly how PostHeader insets its content. Unread rows
   // get the same subtle primary tint the feed uses for emphasis.
+  //
+  // A read row is opaque in the colour of the column it sits in; an unread one
+  // replaces that with the tint (`tailwind-merge` dropped `bg-card` for exactly
+  // the same reason when both were classes), so the two stay exclusive.
   return (
     <Pressable
-      className={cn('group w-full bg-card border-b border-border py-3', hasUnread && 'bg-primary/5')}
+      className={cn('group w-full border-b border-border py-3', hasUnread && 'bg-primary/5')}
+      style={hasUnread ? undefined : { backgroundColor: surfaceFill }}
       onPress={handlePress}
       onLongPress={handleLongPress}
       accessibilityRole="button"

@@ -2,6 +2,7 @@ import React from 'react';
 import { Animated, ImageBackground, Platform, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@oxy.so/bloom/avatar';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import UserName from '@/components/UserName';
 import { PANEL_HEADER_HEIGHT } from '@/components/shell/PanelChrome';
@@ -59,12 +60,16 @@ export function ProfileChromeLayers({
   profileData,
 }: ProfileChromeLayersProps) {
   const { t } = useTranslation();
+  // Every fade and band below resolves to ONE colour: whatever the column this
+  // profile sits in painted. Naming `card` was right only while that column was
+  // the shell's ContentPanel.
+  const surfaceFill = useSurfaceFill();
 
   return (
     <>
       {/* Banner. NATIVE: `absolute left-0 right-0 top:0` (height 170,
           zIndex 1) over the NON-scrolling root — the content scrolls OVER
-          it, and the `bg-card` overlay fades it out over the first
+          it, and the surface-fill overlay fades it out over the first
           120px via `headerBackgroundOpacity`. WEB: there is no inner
           ScrollView (the DOCUMENT scrolls), so an `absolute` banner would
           scroll away. Instead it is `web:sticky` + `panelStickyTopInset`
@@ -90,8 +95,9 @@ export function ProfileChromeLayers({
               style={{ height: BANNER_HEIGHT, transform: [{ scale: chrome.bannerScale }] }}
             />
             <Animated.View
-              className="absolute left-0 right-0 top-0 overflow-hidden bg-card"
+              className="absolute left-0 right-0 top-0 overflow-hidden"
               style={{
+                backgroundColor: surfaceFill,
                 height: BANNER_HEIGHT,
                 zIndex: 1,
                 pointerEvents: 'none',
@@ -105,8 +111,10 @@ export function ProfileChromeLayers({
             style={[webStickyChrome.banner, chrome.panelStickyTopInset, { height: BANNER_HEIGHT }]}
           >
             <Animated.View
-              className="bg-card"
-              style={[StyleSheet.absoluteFill, { opacity: chrome.headerBackgroundOpacity }]}
+              style={[
+                StyleSheet.absoluteFill,
+                { backgroundColor: surfaceFill, opacity: chrome.headerBackgroundOpacity },
+              ]}
             />
           </View>
         ))}
@@ -115,10 +123,10 @@ export function ProfileChromeLayers({
           pinned in contact with the tab bar, the action cluster +
           compact-name overlay are 0-flow-height anchors with NO background
           of their own — so the scrolling feed (z-3) would show THROUGH the
-          header band while the opaque tabs (`bg-card`) sit right
+          header band while the opaque tabs sit right
           below, reading as an incoherent transparent-header / opaque-tabs
           split. This sticky surface fills the 48px header band with the SAME
-          `bg-card` token the tab bar uses, so header + tabs read as
+          published surface fill the tab bar uses, so header + tabs read as
           ONE cohesive opaque bar. Its opacity is driven by the SAME
           `headerBackgroundOpacity` as the banner fade: 0 when expanded (the
           banner shows through — restored parallax preserved) → 1 once
@@ -141,8 +149,10 @@ export function ProfileChromeLayers({
           style={[chrome.panelStickyTopInset, { height: PANEL_HEADER_HEIGHT }]}
         >
           <Animated.View
-            className="bg-card"
-            style={[StyleSheet.absoluteFill, { opacity: chrome.headerBackgroundOpacity }]}
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: surfaceFill, opacity: chrome.headerBackgroundOpacity },
+            ]}
           />
         </View>
       )}

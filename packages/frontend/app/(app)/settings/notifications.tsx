@@ -141,7 +141,7 @@ export default function NotificationSettingsScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup variant="filled" title={t('settings.notifications.sections.general', { defaultValue: 'General' })}>
+                <SettingsListGroup title={t('settings.notifications.sections.general', { defaultValue: 'General' })}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiNotification3Line} />}
                         title={t('settings.notifications.push', { defaultValue: 'Push notifications' })}
@@ -162,7 +162,7 @@ export default function NotificationSettingsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup variant="filled" title={t('settings.notifications.sections.activity', { defaultValue: 'Activity from others' })}>
+                <SettingsListGroup title={t('settings.notifications.sections.activity', { defaultValue: 'Activity from others' })}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiNotification3Line} />}
                         title={t('subscription.list.title', { defaultValue: 'Activity notifications' })}
@@ -171,7 +171,7 @@ export default function NotificationSettingsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup variant="filled" title={t('settings.notifications.sections.types', { defaultValue: 'Notification types' })}>
+                <SettingsListGroup title={t('settings.notifications.sections.types', { defaultValue: 'Notification types' })}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiHeartLine} />}
                         title={t('settings.notifications.likes', { defaultValue: 'Likes' })}

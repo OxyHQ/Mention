@@ -121,7 +121,7 @@ export default function ExploreLayout() {
           <StatusBar style={theme.isDark ? 'light' : 'dark'} />
 
           {/* Header - animated. <PanelStickyHeader> owns the web sticky
-              position/inset, opaque `bg-card` surface, top rounded corners, and
+              position/inset, opaque panel surface, top rounded corners, and
               z-index; the layout supplies the reanimated auto-hide translate.
               NATIVE: PanelStickyHeader becomes the absolute top overlay, below
               the SafeAreaView's top inset, so the header pads none of its own. */}
@@ -142,7 +142,7 @@ export default function ExploreLayout() {
           </PanelStickyHeader>
 
           {/* Tab Navigation. WEB: <PanelStickyHeader level={1}> pins it directly
-              below the level-0 header with the same opaque `bg-card` surface + top
+              below the level-0 header with the same opaque panel surface + top
               rounded corners; zIndex 100 keeps it one below the header. NATIVE:
               `tabBarAnimatedStyle` makes it an absolute overlay pinned below the
               header. Tapping a tab navigates (router.push) and the active tab is

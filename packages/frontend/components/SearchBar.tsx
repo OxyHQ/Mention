@@ -3,6 +3,7 @@ import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { View } from 'react-native'
 import { Search } from '@oxy.so/bloom/search'
+import { useSurfaceFill } from '@oxy.so/bloom/styles'
 
 /**
  * Right-rail search box — the same Bloom `Search` field the search screen uses, so
@@ -23,6 +24,11 @@ export const SearchBar = () => {
     const router = useRouter();
     const { t } = useTranslation();
     const [query, setQuery] = useState('');
+    // The sticky bar has to be opaque in the RAIL's colour, and the rail is not
+    // the centre panel — it sits on the shell background. `bg-card` named the
+    // panel's colour from outside the panel; this asks the surface it is
+    // actually on.
+    const surfaceFill = useSurfaceFill();
 
     // Same declarative `{pathname, params}` navigation the `/search/<query>` deep
     // link uses (`app/(app)/search/[query].tsx`) — expo-router owns the encoding.
@@ -33,7 +39,7 @@ export const SearchBar = () => {
     };
 
     return (
-        <View className="bg-card w-full mb-4 z-[1000] web:sticky web:top-0">
+        <View className="w-full mb-4 z-[1000] web:sticky web:top-0" style={{ backgroundColor: surfaceFill }}>
             <Search
                 label={t('Search Mention')}
                 value={query}

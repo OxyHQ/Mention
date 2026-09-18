@@ -26,7 +26,7 @@ export default function AccessibilitySettingsScreen() {
             >
                 {/* Interaction */}
                 {Platform.OS !== 'web' ? (
-                    <SettingsListGroup variant="filled" title={t('settings.accessibility.interaction', { defaultValue: 'Interaction' })}>
+                    <SettingsListGroup title={t('settings.accessibility.interaction', { defaultValue: 'Interaction' })}>
                         <SettingsListItem
                             icon={<RowIcon icon={RiHand} />}
                             title={t('settings.accessibility.hapticFeedback', { defaultValue: 'Haptic feedback' })}
@@ -43,7 +43,7 @@ export default function AccessibilitySettingsScreen() {
                 ) : null}
 
                 {/* Media */}
-                <SettingsListGroup variant="filled" title={t('settings.accessibility.media', { defaultValue: 'Media' })}>
+                <SettingsListGroup title={t('settings.accessibility.media', { defaultValue: 'Media' })}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiFontSize} />}
                         title={t('settings.accessibility.requireAltText', { defaultValue: 'Require alt text' })}
