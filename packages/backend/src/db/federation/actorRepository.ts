@@ -37,7 +37,7 @@
  * assembly stays one flat object literal instead of fifteen conditional spreads.
  */
 
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import {
   federatedActorFields,
@@ -877,7 +877,23 @@ export async function findStaleActorsForRefresh(
     .where(
       and(
         or(
-          sql`${federatedActors.lastFetchedAt} < ${staleThreshold}`,
+          /**
+           * `lt`, not a raw `sql` template, because the BIND is the whole
+           * problem. A raw template has no column behind its parameters, so
+           * drizzle has nothing to apply the column's encoder to and hands the
+           * `Date` straight to `postgres.js`, which wants a string and throws
+           * `The "string" argument must be of type string ... Received an
+           * instance of Date`. The comparison never runs, so this job has failed
+           * on every tick since the Postgres port (2026-08-02) and no federated
+           * profile has been refreshed by it since.
+           *
+           * The sibling `sql<Date>` gate (`__tests__/db/bareSqlDate.test.ts`)
+           * covers the READ direction of the same trap — an annotation over a
+           * raw expression that never converts anything. This is the write
+           * direction, and the fix is the same shape: let the typed helper carry
+           * the column, so the encoder comes from what runs.
+           */
+          lt(federatedActors.lastFetchedAt, staleThreshold),
           isNull(federatedActors.lastFetchedAt),
         ),
         or(...reachable),
