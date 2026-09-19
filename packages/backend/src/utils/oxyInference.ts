@@ -4,7 +4,8 @@ import {
   type OxyResponsesRequest,
 } from '@oxy.so/core';
 import type { InferenceMessage } from '@oxy.so/contracts';
-import { config, getOxyServiceCredentials } from '../config';
+import { config } from '../config';
+import { canAuthenticateAsService } from '../runtime/serviceIdentity';
 import { getServiceOxyClient } from './oxyHelpers';
 import { logger } from './logger';
 
@@ -37,9 +38,12 @@ function client(): OxyInferenceClient {
  * request. Mention never selects by a mutable slug, display name or ordering.
  */
 export function isInferenceEnabled(): boolean {
-  const credentials = getOxyServiceCredentials();
-  const hasServiceIdentity = Boolean(credentials.apiKey && credentials.apiSecret);
-  return Boolean(config.inference.routingProfileId && hasServiceIdentity);
+  // "Has an identity", not "has a key pair": in ECS the task role proves what
+  // this process is and there is no pair to have (oxy ADR 0026). Asking for the
+  // pair here would switch inference off on a deployment that authenticates
+  // perfectly well, and the symptom would be a feature quietly missing rather
+  // than an error naming a credential.
+  return Boolean(config.inference.routingProfileId && canAuthenticateAsService());
 }
 
 function textFromResponse(response: OxyInferenceResponse): string {

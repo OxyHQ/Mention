@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import {
   config,
   getGifMediaProxySecret,
-  getOxyServiceCredentials,
+  getMentionSigningValues,
 } from '../../config';
 import { logger } from '../../utils/logger';
 
@@ -53,9 +53,28 @@ function getAllowedKlipyDomains(): string[] {
  * Resolve the HMAC signing key (memoized).
  *
  *  1. explicit `GIF_MEDIA_PROXY_SECRET` when provided, else
- *  2. a dedicated subkey DERIVED from the always-present `OXY_SERVICE_API_SECRET`
- *     via HMAC-KDF — so prod needs no extra provisioned secret and we never sign
- *     with the raw service secret.
+ *  2. a dedicated subkey DERIVED from `MENTION_PRIVATE_KEY` via HMAC-KDF — so a
+ *     deployment needs no extra provisioned secret and nothing here ever signs
+ *     with the raw key it was derived from.
+ *
+ * ## Why the parent key changed
+ *
+ * It used to hang off `OXY_SERVICE_API_SECRET`, described as "the always-present
+ * one". It is not present any more: Mention authenticates to Oxy by attesting
+ * its task role, and the pair is being removed from the deployment (oxy ADR
+ * 0026). Leaving the derivation where it was would have taken GIF tile signing
+ * down with the credential — silently, because the failure mode here is a
+ * suppressed tile, not an error a reader sees.
+ *
+ * `MENTION_PRIVATE_KEY` is the federation signing key: it is provisioned for
+ * every deployment that federates, it is never going to be removed by an
+ * identity migration, and it is already a secret this process holds. The label
+ * below is what keeps this subkey from being usable as, or derivable from,
+ * anything that key signs.
+ *
+ * Moving the parent invalidates URLs signed by the previous one. They are
+ * short-lived tile links regenerated on the next render, and a stale one is
+ * suppressed rather than mis-served.
  *
  * Returns null only when neither is set (a misconfigured environment); callers
  * then suppress the not-yet-imported tile rather than leak a Klipy URL.
@@ -70,14 +89,14 @@ function resolveSigningKey(): Buffer | null {
     return cachedKey;
   }
 
-  const serviceSecret = getOxyServiceCredentials().apiSecret;
-  if (serviceSecret && serviceSecret.length > 0) {
-    cachedKey = createHmac('sha256', serviceSecret).update(GIF_MEDIA_KEY_LABEL).digest();
+  const federationKey = getMentionSigningValues().privateKey;
+  if (federationKey && federationKey.length > 0) {
+    cachedKey = createHmac('sha256', federationKey).update(GIF_MEDIA_KEY_LABEL).digest();
     return cachedKey;
   }
 
   logger.error(
-    '[GifMediaProxy] No signing key available (set GIF_MEDIA_PROXY_SECRET or OXY_SERVICE_API_SECRET); not-yet-imported GIF tiles will be suppressed',
+    '[GifMediaProxy] No signing key available (set GIF_MEDIA_PROXY_SECRET or MENTION_PRIVATE_KEY); not-yet-imported GIF tiles will be suppressed',
   );
   cachedKey = null;
   return cachedKey;

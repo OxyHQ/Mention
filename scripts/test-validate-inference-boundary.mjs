@@ -230,6 +230,36 @@ await runCase('an additional task env var alongside the routing profile', {
     '',
   ].join('\n'),
 }, null);
+// The list outgrew one line. A folded block is the same value written the other
+// way YAML offers, and the gate must read the VALUE — it once read the rest of
+// the line, found `>-`, and reported that a retired credential had stopped being
+// removed while the workflow removed it exactly as before.
+await runCase('the removals written as a folded block', {
+  '.github/workflows/deploy-aws.yml': [
+    'env:',
+    '  TASK_ENV_OVERRIDES_JSON: >-',
+    '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
+    '  TASK_SECRET_REMOVALS: >-',
+    '    ALIA_API_KEY',
+    '    OXY_SERVICE_TOKEN',
+    '    OXY_SERVICE_API_KEY',
+    '    OXY_SERVICE_API_SECRET',
+    '',
+  ].join('\n'),
+}, null);
+// And the negative in the same shape: a folded block that DROPPED one still
+// fails, or the case above would only prove the gate stopped reading.
+await runCase('a folded block missing a retired credential', {
+  '.github/workflows/deploy-aws.yml': [
+    'env:',
+    '  TASK_ENV_OVERRIDES_JSON: >-',
+    '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
+    '  TASK_SECRET_REMOVALS: >-',
+    '    ALIA_API_KEY',
+    '    OXY_SERVICE_API_KEY',
+    '',
+  ].join('\n'),
+}, 'must re-assert removal of OXY_SERVICE_TOKEN');
 await runCase('lost retirement assertion', {
   '.github/workflows/deploy-aws.yml': [
     'env:',

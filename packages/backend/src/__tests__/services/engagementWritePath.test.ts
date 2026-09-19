@@ -279,6 +279,52 @@ describe('the transaction boundary', () => {
     ).toHaveLength(viewers.length);
   });
 
+  it('answers the loser of a SAVE race idempotently, staged rather than raced', async () => {
+    /**
+     * The save path's own version of the race below, and the reason it is STAGED:
+     * the bookmark insert is `ON CONFLICT DO NOTHING`, so a loser gets no row
+     * back and must answer `changed: false` rather than count a second save.
+     * Nothing else reaches that branch — the five-savers test above reaches it
+     * only when five commands genuinely overlap, which is a property of the
+     * machine rather than of the code.
+     *
+     * Measured on 2026-09-19: on a runner where they serialised,
+     * `PostEngagementCommandService` fell to lines 95.12 / functions 94.73 and
+     * the per-file coverage floor failed a PR that had not touched the file.
+     * With this test the same serialised run reaches 98.78 / 100, which is the
+     * floor — so the branch is covered by staging rather than by luck.
+     *
+     * A transaction holds an uncommitted bookmark for this pair. The command
+     * reads no bookmark, blocks on the uncommitted unique key, and when the
+     * holder commits its own insert returns nothing.
+     */
+    const postId = await seedPost();
+    let releaseWinner = (): void => undefined;
+    const winnerCommitted = new Promise<void>((resolve) => {
+      releaseWinner = resolve;
+    });
+    const winner = db.transaction(async (tx) => {
+      await tx.insert(bookmarks).values({ userId: 'save-race', postId, folder: null });
+      await winnerCommitted;
+    });
+    // Let the insert above take the key before the command reads.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const racing = savePostCommand({ userId: 'save-race', postId });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    releaseWinner();
+    await winner;
+    const result = await racing;
+
+    expect(result.changed).toBe(false);
+    expect(
+      await db.select().from(bookmarks).where(eq(bookmarks.postId, postId)),
+    ).toHaveLength(1);
+    // The counter belongs to the winner's save alone: a loser that incremented
+    // it would be the bug this branch exists to prevent.
+    expect((await postRow(postId))?.statsSavesCount).toBe(0);
+  });
+
   it('restarts and observes the winner when it loses the relationship race', async () => {
     /**
      * The relationship-race retry, staged DETERMINISTICALLY rather than left to
