@@ -129,6 +129,29 @@ export function verifiedBoost(post: RankablePost, authorVerified: Map<string, bo
 }
 
 /**
+ * `trustTierBoost` — a small lift by the author's Oxy standing.
+ *
+ * Neutral (1.0) whenever the tier map is absent, the author is not in it, or the
+ * tier is one this scorer does not weight. Absence is COMMON and means nothing
+ * bad: Oxy withholds sanctioned (`restricted`) accounts from the identity batch
+ * entirely, so the tiers Mention can observe run `new` → `verified` and an
+ * unresolved author is an unresolved author, not a suspect one.
+ */
+export function trustTierBoost(post: RankablePost, authorTrustTiers: Map<string, string> | undefined): number {
+  if (!authorTrustTiers) {
+    return 1.0;
+  }
+  const authorId = post?.oxyUserId ? String(post.oxyUserId) : '';
+  const tier = authorId ? authorTrustTiers.get(authorId) : undefined;
+  if (!tier) {
+    return 1.0;
+  }
+  const weights: Record<string, number> = R.optInSignals.trustTierBoost;
+  const boost = weights[tier];
+  return typeof boost === 'number' && Number.isFinite(boost) ? boost : 1.0;
+}
+
+/**
  * `dwellTime` — favor posts that hold attention. Reads the post's average
  * impression dwell (ms) from the request-scoped dwell map. Neutral (1.0) when
  * there is no dwell data or the average is below `thresholdMs`; otherwise a
@@ -361,6 +384,9 @@ export const OPT_IN_SIGNALS: readonly OptInScorer[] = [
   // Curation signal — appended at the END for the same reason: an existing feed's
   // opt-in product is untouched unless it explicitly enables this signal.
   { id: 'starterPackBoost', score: (post, ctx) => starterPackBoost(post, ctx.authorStarterPackScores) },
+  // Standing signal — appended at the END for the same reason as the two above:
+  // an existing feed's opt-in product is byte-identical unless it enables this.
+  { id: 'trustTierBoost', score: (post, ctx) => trustTierBoost(post, ctx.authorTrustTiers) },
 ];
 
 /**

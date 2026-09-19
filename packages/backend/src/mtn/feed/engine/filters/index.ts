@@ -8,7 +8,9 @@
 import { PostType, MtnConfig } from '@mention/shared-types';
 import type { ForYouFeedTuning, PostContent } from '@mention/shared-types';
 import { scanTextEntities } from '@mention/shared-types/textEntities';
-import { isSensitivePost } from '../../feedSafety';
+import { hasFederatedContentWarning, isSensitivePost } from '../../feedSafety';
+import { isFallbackUserSummary } from '../../../../services/PostHydrationService';
+import type { CachedUserSummary } from '../../../../services/userSummaryCache';
 import { detectLowEffort } from '../../../../services/contentClassification/lowEffort';
 import { detectBotShape } from '../../../../services/contentClassification/botSignals';
 import { readTrustedScores } from '../../../../services/contentClassification/trustedScores';
@@ -196,21 +198,52 @@ function matchesAnyWord(post: CandidatePost, words: string[]): boolean {
 }
 
 /**
- * Author verification flag, when the candidate carries a resolved author. Absent
- * on lean candidates (author identity is Oxy user data hydrated later) → returns
- * `undefined`. See the Phase-4 note on {@link verifiedOnlyFilter}.
+ * The resolved account behind a candidate, from the batch the engine ran for this
+ * request, or `undefined` when there is none to be had.
+ *
+ * Three different absences collapse to that one `undefined`, deliberately: the
+ * batch was never run, the batch could not be run, or Oxy had nothing for this
+ * id. Every author filter below must treat all three the same way — as unknown,
+ * never as a failing answer — because two of them are outages and the third is an
+ * account that may be perfectly fine. See `mtn/feed/authorQuality`.
  */
-function authorVerified(post: CandidatePost): boolean | undefined {
+function authorSummary(post: CandidatePost, ctx: FeedEngineContext): CachedUserSummary | undefined {
+  const authorId = post.oxyUserId;
+  if (!authorId) return undefined;
+  const summary = ctx.authorSummaries?.get(authorId);
+  // The degraded 'Unknown user' placeholder is blank in every field, so reading
+  // it as an account would say "no picture, not verified, no followers" about an
+  // account nobody could resolve. Ask first, everywhere.
+  return summary && !isFallbackUserSummary(summary.user) ? summary : undefined;
+}
+
+/**
+ * Author verification flag — from the resolved account first, falling back to a
+ * candidate that happens to carry one. `undefined` when neither answers.
+ */
+function authorVerified(post: CandidatePost, ctx: FeedEngineContext): boolean | undefined {
+  const resolved = authorSummary(post, ctx)?.user.verified;
+  if (typeof resolved === 'boolean') return resolved;
   const user = field<{ verified?: boolean }>(post, 'user');
   const author = field<{ verified?: boolean }>(post, 'author');
   return user?.verified ?? author?.verified;
 }
 
-/** Author follower count, when resolved on the candidate. Absent on lean candidates. */
-function authorFollowerCount(post: CandidatePost): number | undefined {
+/** Author follower count, from the resolved account first. Absent when unknown. */
+function authorFollowerCount(post: CandidatePost, ctx: FeedEngineContext): number | undefined {
+  const resolved = authorSummary(post, ctx)?.followerCount;
+  if (typeof resolved === 'number') return resolved;
   const user = field<{ _count?: { followers?: number }; followersCount?: number }>(post, 'user');
   const author = field<{ followerCount?: number; followersCount?: number }>(post, 'author');
   return user?._count?.followers ?? user?.followersCount ?? author?.followerCount ?? author?.followersCount;
+}
+
+/** Account age in milliseconds, from the resolved account. Absent when unknown. */
+function authorAccountAgeMs(post: CandidatePost, ctx: FeedEngineContext): number | undefined {
+  const createdAt = authorSummary(post, ctx)?.accountCreatedAt;
+  if (typeof createdAt !== 'string' || createdAt.length === 0) return undefined;
+  const created = new Date(createdAt).getTime();
+  return Number.isFinite(created) ? Date.now() - created : undefined;
 }
 
 /**
@@ -221,6 +254,42 @@ export const safetyFilter: FilterModule = {
   id: 'safety',
   kind: 'filter',
   keep: (post) => !isSensitivePost(post),
+};
+
+/**
+ * `noContentWarning`: do not RECOMMEND a post its author asked to be shown behind
+ * a warning — unless the reader already follows that author.
+ *
+ * The rule is about recommendation, not safety, which is why it is a separate
+ * module instead of a widening of {@link isSensitivePost}. That predicate
+ * deliberately excludes content warnings (see `feedSafety.ts`): a CW says HOW to
+ * present a post, not that it is NSFW, and every Mention client renders the
+ * spoiler correctly. Widening it would have hidden CW'd posts from Following,
+ * search, notifications and unfurls all at once — four surfaces that were right
+ * already.
+ *
+ * THE FOLLOWED-AUTHOR EXEMPTION LIVES IN THE PREDICATE, not in which feeds list
+ * this module. That placement is the load-bearing part: it makes the rule a no-op
+ * on the Following feed BY CONSTRUCTION — every author there is followed — rather
+ * than by every present and future definition remembering not to opt in. The same
+ * property makes the module safe to put on hashtag, topic, trend and lane feeds,
+ * where there is no notion of a trusted lane to scope it by.
+ *
+ * `followingIdSet` is the viewer's Oxy ∪ federated follow union, resolved once per
+ * request by `loadViewerFeedContext` and set-ified by the engine. Absent for an
+ * anonymous reader, who follows nobody and therefore gets the rule in full.
+ */
+export const noContentWarningFilter: FilterModule = {
+  id: 'noContentWarning',
+  kind: 'filter',
+  userComposable: true,
+  keep: (post, ctx, params) => {
+    const tuning = gateTuning(ctx, params, 'noContentWarning');
+    if (tuning?.enabled === false) return true;
+    if (!hasFederatedContentWarning(post)) return true;
+    const authorId = post.oxyUserId;
+    return !!authorId && ctx.followingIdSet?.has(authorId) === true;
+  },
 };
 
 /**
@@ -464,7 +533,7 @@ export const maxLengthFilter: FilterModule = {
 
 /**
  * `minLength`: drop posts whose text is shorter than `params.minLength`
- * characters. As a For You gate module (`params.forYouGate`) the viewer may
+ * characters. As a preset gate module (`params.viewerGateTuning`) the viewer may
  * disable the floor or override the threshold via `feedTuning.forYou.minLength`.
  */
 export const minLengthFilter: FilterModule = {
@@ -640,78 +709,128 @@ export const excludeSensitiveFilter: FilterModule = {
 };
 
 /**
+ * `authorHasAvatar`: keep only posts by accounts that set a picture.
+ *
+ * NOT in either default gate profile, and that is the whole point of how it
+ * ships. A missing avatar is a decent signal about a LOCAL account and a bad one
+ * about a federated actor, whose picture only reaches Mention through a
+ * background download that can be skipped, throttled or fail. Turning this on
+ * before that coverage is measured would not filter low-effort accounts, it would
+ * filter the fediverse. So it exists, it is composable, it can be named in
+ * `FOR_YOU_DISCOVERY_GATE` to be measured in shadow — and until somebody reads
+ * that measurement, it decides nothing.
+ *
+ * There is no reader-facing toggle yet, deliberately: a settings switch for a
+ * rule that decides nothing is a control that does nothing, and it arrives in the
+ * same change that puts this into a gate profile.
+ *
+ * `params.applyToFederated` (default `false`) is the switch for the half that is
+ * in doubt. Federated-ness is read off the ACCOUNT, not the post: a local boost
+ * of a remote post is still authored remotely.
+ *
+ * "No avatar" means null, undefined, empty or whitespace. Nothing cleverer:
+ * `PostUser.avatar` is documented as a bare Oxy file id OR an absolute URL, so
+ * any non-blank string is a real picture and there is no shape to match. The
+ * empty string is not hypothetical — Oxy records it as a state reaching the
+ * column from its own Mongo backfill.
+ */
+export const authorHasAvatarFilter: FilterModule = {
+  id: 'authorHasAvatar',
+  kind: 'filter',
+  userComposable: true,
+  needsAuthor: true,
+  keep: (post, ctx, params) => {
+    const summary = authorSummary(post, ctx);
+    if (!summary) return true; // unknown author — never a verdict
+    const federated = summary.user.isFederated === true || summary.user.federation !== undefined;
+    if (federated && params.applyToFederated !== true) return true;
+    const avatar = summary.user.avatar;
+    return typeof avatar === 'string' && avatar.trim().length > 0;
+  },
+};
+
+/**
  * `verifiedOnly`: keep only posts by verified authors.
  *
- * PHASE-4-BLOCKED: author verification is Oxy user data resolved during
- * hydration, NOT on the lean candidate; the engine applies `keep()` PRE-hydration
- * only. So when no author is resolved on the candidate this cannot filter and
- * passes through (it enforces once a resolved author carries `verified`, e.g. a
- * future post-hydration filter hook). It is NOT a silent no-op — the intent is
- * declared and the predicate is correct for any candidate that does carry an
- * author.
+ * These four author filters were no-ops for as long as the engine had no way to
+ * ask who wrote a candidate — they read `post.user`, which is hydration's output
+ * and does not exist at `keep()` time — so each declared an intent it could not
+ * carry out. `needsAuthor` is what changed: the engine now resolves the pool's
+ * accounts in one batch before the second gate pass, and these read that.
+ *
+ * NEUTRAL when the author is unknown, in all three of its senses (see
+ * {@link authorSummary}). That is not leniency, it is the only safe reading: two
+ * of the three absences are an identity outage, and a custom feed that empties
+ * itself whenever Oxy hiccups is worse than one whose floor occasionally lets a
+ * post through.
  */
 export const verifiedOnlyFilter: FilterModule = {
   id: 'verifiedOnly',
   kind: 'filter',
   userComposable: true,
-  keep: (post) => {
-    const verified = authorVerified(post);
+  needsAuthor: true,
+  keep: (post, ctx) => {
+    const verified = authorVerified(post, ctx);
     return verified === undefined ? true : verified === true;
   },
 };
 
 /**
  * `verifiedFollowsOnly`: keep only posts by verified accounts the viewer follows.
- * The follow check is exact (viewer follow graph is available); the verification
- * check is PHASE-4-BLOCKED like {@link verifiedOnlyFilter} and applies only when
- * a resolved author carries `verified`.
+ * The follow check is exact — the viewer's graph is always on the context — and
+ * the verification half is neutral on an unknown author, like
+ * {@link verifiedOnlyFilter}.
  */
 export const verifiedFollowsOnlyFilter: FilterModule = {
   id: 'verifiedFollowsOnly',
   kind: 'filter',
   userComposable: true,
+  needsAuthor: true,
   keep: (post, ctx) => {
-    const following = ctx.followingIds ?? [];
-    if (!post.oxyUserId || !following.includes(post.oxyUserId)) return false;
-    const verified = authorVerified(post);
+    if (!post.oxyUserId) return false;
+    const follows = ctx.followingIdSet
+      ? ctx.followingIdSet.has(post.oxyUserId)
+      : (ctx.followingIds ?? []).includes(post.oxyUserId);
+    if (!follows) return false;
+    const verified = authorVerified(post, ctx);
     return verified === undefined ? true : verified === true;
   },
 };
 
 /**
  * `minFollowers`: keep only posts by authors with at least `params.minFollowers`
- * followers. PHASE-4-BLOCKED: follower count is Oxy user data not on the lean
- * candidate; passes through when absent (enforces on a resolved author).
+ * followers, read from the resolved account. Neutral on an unknown author.
  */
 export const minFollowersFilter: FilterModule = {
   id: 'minFollowers',
   kind: 'filter',
   userComposable: true,
-  keep: (post, _ctx, params) => {
+  needsAuthor: true,
+  keep: (post, ctx, params) => {
     const min = typeof params.minFollowers === 'number' ? params.minFollowers : undefined;
     if (min === undefined) return true;
-    const followers = authorFollowerCount(post);
+    const followers = authorFollowerCount(post, ctx);
     return followers === undefined ? true : followers >= min;
   },
 };
 
 /**
  * `minAccountAge`: keep only posts by accounts older than `params.minAgeDays`.
- * PHASE-4-BLOCKED: author account creation date is Oxy user data not on the lean
- * candidate; passes through when absent (enforces on a resolved author).
+ *
+ * The creation date rides on the cached account summary ({@link CachedUserSummary}),
+ * which Oxy has always sent and Mention used to drop during hydration. Neutral on
+ * an unknown author.
  */
 export const minAccountAgeFilter: FilterModule = {
   id: 'minAccountAge',
   kind: 'filter',
   userComposable: true,
-  keep: (post, _ctx, params) => {
+  needsAuthor: true,
+  keep: (post, ctx, params) => {
     const minAgeDays = typeof params.minAgeDays === 'number' ? params.minAgeDays : undefined;
     if (minAgeDays === undefined) return true;
-    const author = field<{ createdAt?: string | Date }>(post, 'author') ?? field<{ createdAt?: string | Date }>(post, 'user');
-    const createdAt = author?.createdAt;
-    if (!createdAt) return true;
-    const ageMs = Date.now() - new Date(createdAt).getTime();
-    return Number.isFinite(ageMs) && ageMs >= minAgeDays * 24 * 60 * 60 * 1000;
+    const ageMs = authorAccountAgeMs(post, ctx);
+    return ageMs === undefined ? true : ageMs >= minAgeDays * 24 * 60 * 60 * 1000;
   },
 };
 
@@ -727,19 +846,19 @@ export const minAccountAgeFilter: FilterModule = {
 const DISCOVERY_GATE = MtnConfig.feed.discoveryGate;
 
 /**
- * The per-viewer For You override for a discovery-gate module, or `undefined`
- * when this filter is NOT running as the For You gate. The scoping is the opaque
- * `params.forYouGate` marker that `resolveDiscoveryGate` stamps on the static For
- * You gate refs (and ONLY those) — so the SAME filter reused in a custom feed
- * never picks up a viewer's For You tuning, keeping the definition static while
- * personalization flows through `ctx` (`ctx.feedTuning.forYou`).
+ * The reader's override for a gate module, or `undefined` when this filter is not
+ * running as part of a preset's gate. The scoping is the opaque
+ * `params.viewerGateTuning` marker that the gate builders in `definitions/presets`
+ * stamp on their refs, and ONLY those — so the SAME filter reused in a custom feed
+ * never picks up the reader's gate settings, keeping the stored definition static
+ * while personalization flows through `ctx` (`ctx.feedTuning.forYou`).
  */
 function gateTuning<K extends keyof ForYouFeedTuning>(
   ctx: FeedEngineContext,
   params: Record<string, unknown>,
   id: K,
 ): ForYouFeedTuning[K] | undefined {
-  return params.forYouGate === true ? ctx.feedTuning?.forYou?.[id] : undefined;
+  return params.viewerGateTuning === true ? ctx.feedTuning?.forYou?.[id] : undefined;
 }
 
 /** Whether the candidate carries any media OR a poll (either rescues a low-text post). */
@@ -1017,6 +1136,8 @@ export const noBotsFilter: FilterModule = {
 
 export const filterModules: FilterModule[] = [
   safetyFilter,
+  noContentWarningFilter,
+  authorHasAvatarFilter,
   lowEffortGateFilter,
   nativeEngagementFilter,
   minQualityFilter,

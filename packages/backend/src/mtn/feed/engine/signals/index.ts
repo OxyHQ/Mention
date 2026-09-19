@@ -57,6 +57,7 @@ const SIGNAL_WEIGHT_KEYS: Record<string, string> = {
   // Opt-in — curation signal. A bounded lift for authors OTHER people curated into
   // starter packs that were actually used (see `services/starterPackCuration.ts`).
   starterPackBoost: 'starterPackBoost',
+  trustTierBoost: 'trustTierBoost',
 };
 
 export const signalModules: SignalModule[] = Object.entries(SIGNAL_WEIGHT_KEYS).map(

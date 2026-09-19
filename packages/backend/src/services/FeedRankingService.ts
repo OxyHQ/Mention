@@ -21,6 +21,7 @@ import {
 import { engagementScore } from './ranking/signals/engagement';
 import { authorityScore } from './ranking/signals/authority';
 import { getStoryIndex, storyOf } from './trending/storyIndex';
+import type { CachedUserSummary } from './userSummaryCache';
 import {
   coldStartBoost,
   conversationalBoost,
@@ -35,6 +36,7 @@ import {
   socialProofBoost,
   starterPackBoost,
   verifiedBoost,
+  trustTierBoost,
 } from './ranking/signals/optIn';
 
 /**
@@ -78,14 +80,19 @@ export class FeedRankingService {
    * costs NO extra query here. Authors whose value is unavailable are simply absent
    * from the relevant map and fall back to a neutral multiplier.
    */
-  private async resolveAuthorSummaries(posts: RankablePost[]): Promise<{
+  private async resolveAuthorSummaries(
+    posts: RankablePost[],
+    prefetched?: ReadonlyMap<string, CachedUserSummary>,
+  ): Promise<{
     followerCounts: Map<string, number>;
     verified: Map<string, boolean>;
     starterPackScores: Map<string, number>;
+    trustTiers: Map<string, string>;
   }> {
     const followerCounts = new Map<string, number>();
     const verified = new Map<string, boolean>();
     const starterPackScores = new Map<string, number>();
+    const trustTiers = new Map<string, string>();
 
     const authorIds = Array.from(
       new Set(
@@ -95,14 +102,22 @@ export class FeedRankingService {
       ),
     );
     if (authorIds.length === 0) {
-      return { followerCounts, verified, starterPackScores };
+      return { followerCounts, verified, starterPackScores, trustTiers };
     }
 
     try {
       // Lazy import to avoid any module-load ordering coupling between the
       // ranking and hydration services.
       const { resolveUserSummaries } = await import('./PostHydrationService.js');
-      const resolved = await resolveUserSummaries(authorIds);
+      // The engine resolves this same author set one step earlier when the feed's
+      // gate asks about accounts, and hands the map down. Only the ids it did not
+      // cover are fetched — a PARTIAL map is therefore fine, which is what keeps
+      // this correct if the engine's own resolution degraded.
+      const missing = prefetched ? authorIds.filter((id) => !prefetched.has(id)) : authorIds;
+      const fetched = missing.length > 0 ? await resolveUserSummaries(missing) : new Map<string, CachedUserSummary>();
+      const resolved = prefetched
+        ? new Map<string, CachedUserSummary>([...prefetched, ...fetched])
+        : fetched;
       for (const [authorId, value] of resolved) {
         if (typeof value.followerCount === 'number') {
           followerCounts.set(authorId, value.followerCount);
@@ -113,12 +128,15 @@ export class FeedRankingService {
         if (typeof value.starterPackScore === 'number') {
           starterPackScores.set(authorId, value.starterPackScore);
         }
+        if (typeof value.reputationTier === 'string' && value.reputationTier.length > 0) {
+          trustTiers.set(authorId, value.reputationTier);
+        }
       }
     } catch (error) {
       logger.warn('Failed to resolve author summaries for ranking signals:', error);
     }
 
-    return { followerCounts, verified, starterPackScores };
+    return { followerCounts, verified, starterPackScores, trustTiers };
   }
 
   /**
@@ -141,6 +159,8 @@ export class FeedRankingService {
     authorVerified: Map<string, boolean>;
     /** Starter-pack curation scores already resolved alongside the follower counts. */
     authorStarterPackScores: Map<string, number>;
+    /** Account standing tiers already resolved alongside the follower counts. */
+    authorTrustTiers: Map<string, string>;
     /** The viewer's seen post ids (for `penalizeSeen`). */
     seenPostIds?: string[];
     /** The viewer's following ids (for `socialProof`'s network set). */
@@ -154,6 +174,7 @@ export class FeedRankingService {
       enabledSignals,
       authorVerified,
       authorStarterPackScores,
+      authorTrustTiers,
       seenPostIds,
       followingIds,
       mutualIds,
@@ -172,6 +193,10 @@ export class FeedRankingService {
 
     if (enabledSignals.has('starterPackBoost')) {
       optIn.authorStarterPackScores = authorStarterPackScores;
+    }
+
+    if (enabledSignals.has('trustTierBoost')) {
+      optIn.authorTrustTiers = authorTrustTiers;
     }
 
     if (enabledSignals.has('penalizeSeen') && seenPostIds && seenPostIds.length > 0) {
@@ -249,6 +274,11 @@ export class FeedRankingService {
   /** `verifiedBoost` — small lift for verified authors. */
   public calculateVerifiedBoost(post: RankablePost, authorVerified: Map<string, boolean> | undefined): number {
     return verifiedBoost(post, authorVerified);
+  }
+
+  /** `trustTierBoost` — small lift by the author's Oxy account standing. */
+  public calculateTrustTierBoost(post: RankablePost, authorTrustTiers: Map<string, string> | undefined): number {
+    return trustTierBoost(post, authorTrustTiers);
   }
 
   /** `dwellTime` — favor high-dwell posts. */
@@ -457,6 +487,13 @@ export class FeedRankingService {
        * Empty/absent ⇒ neutral. Only consumed when that signal is enabled.
        */
       viewerBaseLanguages?: string[];
+      /**
+       * Author identities the FeedEngine already resolved for its author-aware
+       * gate. Supplying them means one resolution per request instead of two; ids
+       * it does not cover are still fetched here, so a degraded or partial map is
+       * safe to pass.
+       */
+      authorSummaries?: ReadonlyMap<string, CachedUserSummary>;
     } = {}
   ): Promise<T[]> {
     const rankingStartTime = Date.now();
@@ -504,13 +541,15 @@ export class FeedRankingService {
       followerCounts: resolvedFollowerCounts,
       verified: authorVerified,
       starterPackScores: authorStarterPackScores,
+      trustTiers: authorTrustTiers,
     } = context.authorFollowerCounts
       ? {
           followerCounts: context.authorFollowerCounts,
           verified: new Map<string, boolean>(),
           starterPackScores: new Map<string, number>(),
+          trustTiers: new Map<string, string>(),
         }
-      : await this.resolveAuthorSummaries(posts);
+      : await this.resolveAuthorSummaries(posts, context.authorSummaries);
     const authorFollowerCounts = resolvedFollowerCounts;
 
     // Resolve the OPT-IN (Phase 2b) signal context ONCE for this request. Every
@@ -523,6 +562,7 @@ export class FeedRankingService {
       enabledSignals: context.enabledSignals,
       authorVerified,
       authorStarterPackScores,
+      authorTrustTiers,
       seenPostIds: context.seenPostIds,
       followingIds: followingIds ?? [],
       mutualIds: context.mutualIds,

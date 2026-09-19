@@ -427,6 +427,28 @@ export const MtnConfig = {
        *     real audience up to a `max`/`min` (=1.5×) edge per pack.
        *  5. NEVER PENALIZES. An uncurated author scores 0 ⇒ multiplier exactly 1.0.
        */
+      /**
+       * `trustTierBoost` — a small lift by Oxy account standing.
+       *
+       * A LIFT ONLY: every tier is at or above 1.0, and an account whose tier
+       * Mention never resolved scores exactly 1.0. That is not timidity, it is
+       * what the data supports. `restricted` — the one tier that would justify a
+       * penalty — never reaches Mention at all: Oxy's discoverability predicate
+       * drops those accounts before the user serializer runs, so an absent tier
+       * means "not resolved", never "badly behaved". A penalty keyed on absence
+       * would therefore fall on cold caches and identity outages, not on bad
+       * accounts.
+       *
+       * `new` sits at 1.0 rather than below it for the same reason the cold-start
+       * signal exists: every good account is new once, and a feed that quietly
+       * ranks newcomers down is a feed nobody can enter.
+       */
+      trustTierBoost: {
+        new: 1.0,
+        trusted: 1.05,
+        high_trust: 1.12,
+        verified: 1.15,
+      },
       starterPackBoost: {
         /** Ceiling on the multiplier — the MOST curation can ever be worth. */
         maxBoost: 1.35,
