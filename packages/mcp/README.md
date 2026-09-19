@@ -222,8 +222,8 @@ the protected-resource metadata and must be removed after that deadline.
 | `MENTION_API_TIMEOUT_MS` | `10000` | Per-attempt Mention API timeout; GET retries once |
 | `MENTION_MCP_PUBLIC_URL` | `https://mcp.mention.earth` | Exact protected resource |
 | `OXY_API_URL` | `https://api.oxy.so` | Central OAuth issuer and introspection API |
-| `OXY_SERVICE_API_KEY` | (required) | Mention service credential id (`catalogs:write`, `capabilities:read`, `capability-audit:write`) |
-| `OXY_SERVICE_API_SECRET` | (required) | Rotating Mention service credential secret |
+| `OXY_SERVICE_API_KEY` | (optional) | Mention service credential id. A deployed task attests its ECS role instead and carries neither ([oxy ADR 0026][adr-0026]); set both where nothing can attest, such as a laptop. |
+| `OXY_SERVICE_API_SECRET` | (optional) | The secret half. Both or neither — half a pair builds a client whose every call fails at the token. |
 | `MENTION_LEGACY_OAUTH_ISSUER` | `https://api.mention.earth` | Legacy verification only, until the fixed cutoff |
 | `MCP_PORT` | `3100` | HTTP listen port |
 | `MENTION_MCP_JWT_SECRET` | (required during transition) | Legacy HS256 verification only |
@@ -236,7 +236,7 @@ the protected-resource metadata and must be removed after that deadline.
 | Variable | Purpose |
 |----------|---------|
 | `OXY_API_URL` | Central introspection API |
-| `OXY_SERVICE_API_KEY` / `OXY_SERVICE_API_SECRET` | Live service authentication to Oxy |
+| `OXY_SERVICE_API_KEY` / `OXY_SERVICE_API_SECRET` | Live service authentication to Oxy, where the process cannot attest its task role |
 | `MENTION_MCP_JWT_SECRET` | Legacy verification only, until the fixed cutoff |
 | `MCP_LINK_TOKEN_TTL_SECONDS` | Legacy link token lifetime (default 900; no new link tokens issued) |
 | `MCP_MAX_BUNDLE_MEMBERS` | Legacy bundle limit retained until cutoff |
@@ -300,3 +300,5 @@ capability audience; the manifest supplies the public MCP resource and API targe
 Register that application, resource and OAuth redirects with Oxy before use.
 Managed tenants cannot use the transitional Mention-issued HS256 tokens and do
 not require a legacy JWT secret. Oxy service credentials remain mandatory.
+
+[adr-0026]: https://github.com/OxyHQ/oxy/blob/main/docs/adr/0026-first-party-services-authenticate-as-workloads.md

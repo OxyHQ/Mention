@@ -4,7 +4,7 @@ import {
   policyDecisionSchema,
   type CapabilityTicketClaims,
 } from "@oxy.so/contracts";
-import { OxyServices } from "@oxy.so/core";
+import { oxyServiceClient } from "./oxy-service-client.js";
 import { z } from "zod/v4";
 import type { McpHttpConfig } from "./config.js";
 
@@ -33,8 +33,7 @@ export function createMentionCapabilityAuthority(
     "oxyApiUrl" | "oxyServiceApiKey" | "oxyServiceApiSecret"
   >,
 ): MentionCapabilityAuthority {
-  const oxy = new OxyServices({ baseURL: config.oxyApiUrl });
-  oxy.configureServiceAuth(config.oxyServiceApiKey, config.oxyServiceApiSecret);
+  const oxy = oxyServiceClient(config);
 
   const request = async (path: string, body: Record<string, unknown>): Promise<unknown> => {
     for (let attempt = 0; attempt < 2; attempt += 1) {

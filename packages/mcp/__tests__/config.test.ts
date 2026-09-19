@@ -50,12 +50,27 @@ describe("MCP configuration", () => {
     ).toThrow("expected an HTTP(S) origin without a path");
   });
 
-  test("requires central service credentials and the transitional legacy secret", () => {
-    expect(() => loadMcpHttpConfig({})).toThrow("OXY_SERVICE_API_KEY");
-    expect(() => loadMcpHttpConfig({
+  test("requires the transitional legacy secret, and no longer a service credential", () => {
+    /**
+     * The pair used to be required. A deployed task proves what it is by
+     * attesting its ECS task role and gets the same service token with no
+     * secret anywhere (oxy ADR 0026), so requiring it would make a task that
+     * authenticates perfectly well refuse to boot — which is the whole point of
+     * removing the two variables from the task definition.
+     */
+    expect(() => loadMcpHttpConfig({})).toThrow("MENTION_MCP_JWT_SECRET");
+    const withoutCredential = loadMcpHttpConfig({ MENTION_MCP_JWT_SECRET: "test-secret" });
+    expect(withoutCredential.oxyServiceApiKey).toBeUndefined();
+    expect(withoutCredential.oxyServiceApiSecret).toBeUndefined();
+
+    // And where a pair IS given — a laptop, which can attest nothing — it is
+    // still read and still used.
+    const withCredential = loadMcpHttpConfig({
+      MENTION_MCP_JWT_SECRET: "test-secret",
       OXY_SERVICE_API_KEY: "service-key",
       OXY_SERVICE_API_SECRET: "service-secret",
-    })).toThrow("MENTION_MCP_JWT_SECRET");
+    });
+    expect(withCredential.oxyServiceApiKey).toBe("service-key");
   });
 });
 
