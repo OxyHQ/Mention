@@ -394,19 +394,6 @@ class SearchService {
     }
   }
 
-  // Search feeds — the compact "All" overview (returns every public match in one
-  // shot; the paginated tab uses `searchFeedsPage`).
-  async searchFeeds(
-    query: string,
-    signal?: AbortSignal,
-  ): Promise<SearchFeedResult[]> {
-    const res = await publicClient.get<{ items?: SearchFeedResult[] }>("/feeds", {
-      params: { publicOnly: true, search: query },
-      signal,
-    });
-    return res.data.items || [];
-  }
-
   // Paginated feeds search — `GET /feeds` offset-paginates once `limit` is
   // supplied (`{ items, pagination: { offset, limit, hasMore } }`) on a stable
   // `{ updatedAt desc, _id desc }` sort, so offset paging never repeats a row.
@@ -426,23 +413,6 @@ class SearchService {
       hasMore: pagination?.hasMore ?? false,
       nextOffset: (pagination?.offset ?? offset) + (pagination?.limit ?? SEARCH_PAGE_LIMIT),
     };
-  }
-
-  // Search lists — the compact "All" overview (returns every accessible match in
-  // one shot; the paginated tab uses `searchListsPage`).
-  async searchLists(
-    query: string,
-    signal?: AbortSignal,
-  ): Promise<SearchListResult[]> {
-    try {
-      const res = await authenticatedClient.get<{ items?: SearchListResult[] }>("/lists", {
-        params: { search: query },
-        signal,
-      });
-      return res.data.items || [];
-    } catch (error) {
-      return emptyIfSignedOut<SearchListResult>(error, "lists");
-    }
   }
 
   // Paginated lists search — `GET /lists` filters by `search` (name/description)
@@ -475,20 +445,6 @@ class SearchService {
     }
   }
 
-  // Search hashtags — `GET /hashtags/search` answers with each matching tag and
-  // the number of posts carrying it, so the result row can show a real count.
-  // Compact "All" overview; the paginated tab uses `searchHashtagsPage`.
-  async searchHashtags(
-    query: string,
-    signal?: AbortSignal,
-  ): Promise<SearchHashtagResult[]> {
-    const res = await authenticatedClient.get<{ hashtags?: SearchHashtagResult[] }>("/hashtags/search", {
-      params: { query, limit: SEARCH_OVERVIEW_HASHTAG_LIMIT },
-      signal,
-    });
-    return res.data.hashtags ?? [];
-  }
-
   // Paginated hashtag search — `GET /hashtags/search` offset-paginates
   // (`{ hashtags, pagination: { offset, limit, hasMore } }`) on a stable
   // `{ count desc, tag asc }` sort, so offset paging never repeats a row. Drives
@@ -508,25 +464,6 @@ class SearchService {
       hasMore: pagination?.hasMore ?? false,
       nextOffset: (pagination?.offset ?? offset) + (pagination?.limit ?? SEARCH_PAGE_LIMIT),
     };
-  }
-
-  // Search starter packs — the compact "All" overview (the paginated tab uses
-  // `searchStarterPacksPage`).
-  //
-  // Deliberately on the PUBLIC client, unlike `starterPacksService.list`: the
-  // route reads `req.user?.id` optionally and answers anonymous callers, so a
-  // signed-out viewer gets real results here exactly as they do for feeds and
-  // hashtags. Routing it through the authenticated client would 401 them into a
-  // silently empty section instead.
-  async searchStarterPacks(
-    query: string,
-    signal?: AbortSignal,
-  ): Promise<SearchStarterPackResult[]> {
-    const res = await publicClient.get<StarterPackListResponse>("/starter-packs", {
-      params: { search: query, limit: SEARCH_PAGE_LIMIT },
-      signal,
-    });
-    return res.data.items ?? [];
   }
 
   // Paginated starter-pack search — `GET /starter-packs` page-paginates
