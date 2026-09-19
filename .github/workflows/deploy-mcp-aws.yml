@@ -129,6 +129,13 @@ jobs:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-mcp.sh
           POST_DEPLOY_TASK_COMMAND_JSON: '["bun","packages/mcp/dist/register-capability-catalog.js"]'
+          # OXY_SERVICE_API_KEY/SECRET: the MCP task proves what it is by attesting its
+          # ECS task role and gets the same Oxy service token with no secret (oxy ADR
+          # 0026). Naming them here is what actually takes them off the definition —
+          # a revision is rendered from the RUNNING one, so deleting a line removes
+          # nothing. The post-deploy catalog registration runs in the cluster and
+          # attests the same way.
+          TASK_SECRET_REMOVALS: OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET
           TASK_SECRET_OVERRIDES_JSON: >-
             {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention-mcp/MENTION_MCP_JWT_SECRET","OXY_SERVICE_API_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/OXY_SERVICE_API_SECRET"}
         # Session stickiness must be declared in oxy-infra. The deploy role has
