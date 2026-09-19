@@ -25,7 +25,19 @@ function evaluateConfig(overrides: ConfigOverrides): Endpoints {
     process.stdout.write(JSON.stringify({ api: client.API_URL, socket: client.API_URL_SOCKET,
       web: client.WEB_BASE_URL, redirect: client.OXY_AUTH_REDIRECT_URI, widget }));
   `;
-  const result = execFileSync('bun', ['--eval', program], {
+  // `--env-file=/dev/null` is load-bearing, not tidiness. A curated `env` is not
+  // enough, because Bun AUTO-LOADS `.env`, `.env.local` and friends from the
+  // child's working directory — which is this package, where a developer's
+  // `.env.local` sets `EXPO_PUBLIC_API_URL_SOCKET=wss://api.mention.earth`. The
+  // child then read that instead of deriving the socket from the tenant's
+  // `EXPO_PUBLIC_API_URL`, and this suite failed on developer machines while
+  // staying green in CI, which has no such file. Worse than a flake: the
+  // failure claimed a tenant's realtime traffic was going to the public
+  // instance, which is precisely the defect these cases exist to catch, so the
+  // one honest-looking outcome was the false one. Pointing `--env-file` at an
+  // empty file replaces Bun's default set with nothing, leaving `overrides` the
+  // only source of configuration — which is what "per-deployment" has to mean.
+  const result = execFileSync('bun', ['--env-file=/dev/null', '--eval', program], {
     env: { PATH: process.env.PATH, HOME: process.env.HOME, ...overrides }, encoding: 'utf8',
   });
   return JSON.parse(result) as Endpoints;
