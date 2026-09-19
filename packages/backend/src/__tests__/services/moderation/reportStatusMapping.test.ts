@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DECISION_OUTCOMES, DECISION_STATUSES } from '@oxy.so/crowdsource-contracts';
+import { DECISION_OUTCOMES, DECISION_STATUSES } from '@crowdsource.you/contracts';
 
 import { REPORT_STATUSES } from '../../../db/schema/moderation';
 import {

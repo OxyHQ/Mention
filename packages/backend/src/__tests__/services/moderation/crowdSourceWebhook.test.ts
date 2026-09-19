@@ -6,7 +6,7 @@ import {
   caseDecidedEventFixture,
   signWebhookDelivery,
   type SignWebhookInput,
-} from '@oxy.so/crowdsource-testing';
+} from '@crowdsource.you/core/testing';
 
 /**
  * The webhook receiver, against genuinely signed deliveries.
@@ -224,7 +224,7 @@ describe('CrowdSource webhook receiver', () => {
     /**
      * The REASON, not just the status.
      *
-     * `WEBHOOK_REJECTIONS` in `@oxy.so/crowdsource-express` holds eleven tokens and
+     * `WEBHOOK_REJECTIONS` in `@crowdsource.you/core/express` holds eleven tokens and
      * every one of them answers 401, so `toBe(401)` alone is satisfied by a
      * `missing_event_id` just as well as by a signature that failed to verify —
      * which means it survives deleting the signature comparison entirely. Naming
@@ -279,7 +279,7 @@ describe('CrowdSource webhook receiver', () => {
     /**
      * What every other test in this file CANNOT see.
      *
-     * `configuredSecrets` in `@oxy.so/crowdsource-express` is
+     * `configuredSecrets` in `@crowdsource.you/core/express` is
      * `options.secret ?? process.env[WEBHOOK_SECRET_ENV_VAR]`, and every test here
      * runs with that variable set. So deleting the `secret` / `previousSecret`
      * pass-through in `crowdSourceWebhook.routes.ts` leaves all of them green — the

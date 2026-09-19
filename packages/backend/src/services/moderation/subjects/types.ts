@@ -3,7 +3,7 @@
  *
  * §5 opens by naming the mistake to avoid: designing moderation around `post`,
  * `comment`, `room` or `product`. CrowdSource's side of that is already solved —
- * the Case Envelope knows nothing about any of them, and `@oxy.so/crowdsource`
+ * the Case Envelope knows nothing about any of them, and `@crowdsource.you/core`
  * composes one from a description of the material. What is left for an
  * application is a translation problem, and this file is the whole of it:
  *
@@ -31,8 +31,8 @@
  *    what happens to the report. Those belong to callers that are shared.
  */
 
-import type { CaseUrgency } from '@oxy.so/crowdsource-contracts';
-import type { ContextInput, ReportSubjectInput, ResourceInput } from '@oxy.so/crowdsource';
+import type { CaseUrgency } from '@crowdsource.you/contracts';
+import type { ContextInput, ReportSubjectInput, ResourceInput } from '@crowdsource.you/core';
 
 /**
  * The SDK's resource description, unchanged.

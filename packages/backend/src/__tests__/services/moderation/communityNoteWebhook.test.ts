@@ -2,7 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { like } from 'drizzle-orm';
-import { signWebhookDelivery } from '@oxy.so/crowdsource-testing';
+import { signWebhookDelivery } from '@crowdsource.you/core/testing';
 
 /**
  * `community_note.status_changed`, delivered for real.

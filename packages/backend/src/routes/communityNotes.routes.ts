@@ -1,7 +1,7 @@
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { type OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { CrowdSourceApiError, CrowdSourceError } from '@oxy.so/crowdsource';
+import { CrowdSourceApiError, CrowdSourceError } from '@crowdsource.you/core';
 import {
   COMMUNITY_NOTE_HELPFUL_REASONS,
   COMMUNITY_NOTE_NOT_HELPFUL_REASONS,

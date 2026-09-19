@@ -1,5 +1,5 @@
-import { CrowdSourceApiError, CrowdSourceError } from '@oxy.so/crowdsource';
-import type { CommunityNote, CommunityNoteStatus } from '@oxy.so/crowdsource-contracts';
+import { CrowdSourceApiError, CrowdSourceError } from '@crowdsource.you/core';
+import type { CommunityNote, CommunityNoteStatus } from '@crowdsource.you/contracts';
 import type {
   CommunityNoteHelpfulReason,
   CommunityNoteNotHelpfulReason,
