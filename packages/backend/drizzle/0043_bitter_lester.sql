@@ -1,0 +1,1 @@
+ALTER TABLE "user_settings" ADD COLUMN "tuning_no_content_warning_enabled" boolean;

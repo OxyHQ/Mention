@@ -3,6 +3,7 @@ import { MtnConfig } from '@mention/shared-types';
 import type { PostStats } from '@mention/shared-types';
 import {
   runFeedQualityEval,
+  evaluateGate,
   buildClassifyInput,
   percentiles,
   assembleCandidates,
@@ -59,10 +60,10 @@ function gateModule(filter: FilterModule, params: Record<string, unknown>): Eval
 }
 
 const GATE_MODULES: EvalGateModule[] = [
-  gateModule(minLengthFilter, { minLength: GATE.minTextLength, forYouGate: true }),
-  gateModule(lowEffortGateFilter, { forYouGate: true }),
-  gateModule(nativeEngagementFilter, { forYouGate: true }),
-  gateModule(minQualityFilter, { forYouGate: true }),
+  gateModule(minLengthFilter, { minLength: GATE.minTextLength, viewerGateTuning: true }),
+  gateModule(lowEffortGateFilter, { viewerGateTuning: true }),
+  gateModule(nativeEngagementFilter, { viewerGateTuning: true }),
+  gateModule(minQualityFilter, { viewerGateTuning: true }),
 ];
 
 /** Deterministic ranking stub: score by native engagement (pure, no DB/Oxy). */
@@ -407,5 +408,29 @@ describe('resolveLabeledPosts', () => {
     expect(resolved).toHaveLength(1);
     expect(resolved[0].label).toBe('good');
     expect(resolved[0].actor?.acct).toBe(actor.acct);
+  });
+});
+
+describe('per-module gate attribution', () => {
+  it('counts EVERY rejecting module, not only the first', () => {
+    const rejectAll = (id: string): EvalGateModule => ({ id, params: {}, keep: () => false });
+
+    const result = evaluateGate(
+      {} as never,
+      {} as never,
+      [rejectAll('first'), rejectAll('second')],
+    );
+
+    // The engine short-circuits and only needs a label; an evaluation cannot, or
+    // the second module's numbers would depend on list order rather than on what
+    // the module does.
+    expect(result.passed).toBe(false);
+    expect(result.reason).toBe('first');
+    expect(result.rejectedBy).toEqual(['first', 'second']);
+  });
+
+  it('reports an empty rejection list for a candidate that passes', () => {
+    const keepAll: EvalGateModule = { id: 'keeps', params: {}, keep: () => true };
+    expect(evaluateGate({} as never, {} as never, [keepAll])).toEqual({ passed: true, rejectedBy: [] });
   });
 });

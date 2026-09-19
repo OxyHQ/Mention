@@ -41,19 +41,29 @@ export function describeRegistrationFailure(error: unknown): string {
 
 const OXY_API_URL = (process.env.OXY_API_URL ?? "https://api.oxy.so").replace(/\/$/, "");
 
-function requiredEnvironment(name: "OXY_SERVICE_API_KEY" | "OXY_SERVICE_API_SECRET"): string {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`${name} is required to register Mention's capability catalog`);
-  return value;
+/**
+ * The service credential, if this process was given one.
+ *
+ * It runs as a post-deploy task inside the cluster, where the task role attests
+ * and no secret is needed (oxy ADR 0026) — so demanding the pair would make the
+ * catalog registration the one thing that still required it, and the deploy
+ * would fail after a successful rollout with a message about a variable nobody
+ * intends to set again.
+ */
+function serviceCredentialPair(): { apiKey: string; apiSecret: string } | null {
+  const apiKey = process.env.OXY_SERVICE_API_KEY?.trim();
+  const apiSecret = process.env.OXY_SERVICE_API_SECRET?.trim();
+  if (!apiKey || !apiSecret) return null;
+  return { apiKey, apiSecret };
 }
 
 async function main(): Promise<void> {
   const catalog = appCapabilityCatalogSchema.parse(MENTION_CAPABILITY_CATALOG);
   const oxy = new OxyServices({ baseURL: OXY_API_URL });
-  oxy.configureServiceAuth(
-    requiredEnvironment("OXY_SERVICE_API_KEY"),
-    requiredEnvironment("OXY_SERVICE_API_SECRET"),
-  );
+  const credential = serviceCredentialPair();
+  // Only when there is one: with none, `getServiceToken()` attests the task
+  // role, which is how this runs in the cluster.
+  if (credential) oxy.configureServiceAuth(credential.apiKey, credential.apiSecret);
   const serviceToken = await oxy.getServiceToken();
   const response = await fetch(`${OXY_API_URL}/capabilities/catalogs/register`, {
     method: "POST",

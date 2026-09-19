@@ -175,7 +175,7 @@ export function createApp(deps: CreateAppDependencies): express.Express {
    * A CrowdSource webhook signature covers the bytes that arrived, and once a JSON
    * parser has consumed the stream those bytes no longer exist. The `verify` hook
    * below keeps a UTF-8 STRING copy for ActivityPub HTTP signatures, which is not
-   * what `@oxy.so/crowdsource-express` accepts — it looks for a Buffer, finds a
+   * what `@crowdsource.you/core/express` accepts — it looks for a Buffer, finds a
    * parsed `req.body` instead, and REFUSES rather than verifying a signature over a
    * re-serialisation. So mounting this after the parser does not silently verify the
    * wrong bytes; it fails every delivery, loudly. Mounted here anyway, because a

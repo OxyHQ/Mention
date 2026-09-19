@@ -20,7 +20,7 @@ import { resolveTuning, updateTuning } from '@/utils/forYouTuning';
 type TuningCategory = ForYouTuningModuleSpec['category'];
 
 /** Category display order for the tuning groups. */
-const CATEGORY_ORDER: readonly TuningCategory[] = ['quality', 'engagement', 'content'];
+const CATEGORY_ORDER: readonly TuningCategory[] = ['safety', 'quality', 'engagement', 'content'];
 
 interface TuningCategoryGroup {
   category: TuningCategory;
@@ -53,7 +53,11 @@ function TuningModuleRow({
 }) {
   const { t } = useTranslation();
   const { enabled, threshold } = resolveTuning(tuning, spec);
-  const stepIsFractional = spec.step < 1;
+  // A toggle-only module has no threshold, so it renders the switch and nothing
+  // else. Reading `spec.step` unconditionally is what the discriminated union in
+  // `FOR_YOU_TUNING_MODULES` exists to prevent.
+  const range = spec.control === 'number-range' ? spec : undefined;
+  const stepIsFractional = range !== undefined && range.step < 1;
 
   return (
     <>
@@ -68,7 +72,7 @@ function TuningModuleRow({
           />
         }
       />
-      {enabled ? (
+      {enabled && range !== undefined && threshold !== undefined ? (
         <View className="px-5 pb-3">
           <Slider
             value={threshold}
@@ -80,9 +84,9 @@ function TuningModuleRow({
                 }),
               )
             }
-            minimumValue={spec.min}
-            maximumValue={spec.max}
-            step={spec.step}
+            minimumValue={range.min}
+            maximumValue={range.max}
+            step={range.step}
             label={t('feed.tuning.threshold', { defaultValue: 'Threshold' })}
             formatValue={(value) => (stepIsFractional ? value.toFixed(2) : String(Math.round(value)))}
           />

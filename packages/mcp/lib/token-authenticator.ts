@@ -1,5 +1,5 @@
 import { mcpDeploymentIdentity } from "@mention/shared-types/deployment";
-import { OxyServices } from "@oxy.so/core";
+import { oxyServiceClient } from "./oxy-service-client.js";
 import {
   introspectOxyMcpAccessToken,
   type McpAccessTokenClaims as OxyMcpAccessTokenClaims,
@@ -28,11 +28,7 @@ export function createCentralTokenIntrospector(
     "oxyApiUrl" | "oxyServiceApiKey" | "oxyServiceApiSecret"
   >,
 ): CentralTokenIntrospector {
-  const oxy = new OxyServices({ baseURL: config.oxyApiUrl });
-  oxy.configureServiceAuth(
-    config.oxyServiceApiKey,
-    config.oxyServiceApiSecret,
-  );
+  const oxy = oxyServiceClient(config);
   return (token) =>
     introspectOxyMcpAccessToken(token, {
       endpoint: `${config.oxyApiUrl}/auth/mcp/oauth/introspect`,

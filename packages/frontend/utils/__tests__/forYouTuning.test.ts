@@ -16,7 +16,13 @@ describe('For You tuning', () => {
     '%s reads back exactly what was written, under its own threshold key',
     (_moduleId, spec) => {
       const written = updateTuning({}, spec, { enabled: !spec.defaultEnabled, threshold: 7 });
-      expect(resolveTuning(written, spec)).toEqual({ enabled: !spec.defaultEnabled, threshold: 7 });
+      // A toggle-only module stores no threshold, so it reads back none however
+      // insistently one is offered — which is the property that keeps a stray
+      // number from being persisted under a key its entry does not have.
+      expect(resolveTuning(written, spec)).toEqual({
+        enabled: !spec.defaultEnabled,
+        threshold: spec.control === 'number-range' ? 7 : undefined,
+      });
     },
   );
 
