@@ -21,7 +21,7 @@ describe('home compose FAB', () => {
   const source = readFileSync(resolve(__dirname, '../app/(app)/(tabs)/index.tsx'), 'utf8');
 
   it('uses the same responsive Bloom contract as Inbox', () => {
-    expect(bloomManifest.version).toBe('3.0.1');
+    expect(bloomManifest.version).toBe('3.1.0');
     expect(inboxFabContract.minimizeBehavior).toBe('collapse');
     expect(source).toContain("label={Platform.OS === 'web'");
     expect(source).toContain('minimizeBehavior="collapse"');
