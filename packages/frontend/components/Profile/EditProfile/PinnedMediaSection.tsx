@@ -2,7 +2,7 @@ import React, { useCallback, useContext } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { RiAddLine } from '@oxy.so/bloom/icons';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { ProfileSong } from '../ProfileSong';

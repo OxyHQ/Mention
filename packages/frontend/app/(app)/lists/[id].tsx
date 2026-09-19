@@ -10,7 +10,15 @@ import {
   Pressable,
 } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
-import { RiAlertLine, RiEditBoxLine, RiGlobalLine, RiGroupLine, RiLinkM, RiLockLine, RiNewspaperLine, RiShare2Line, RiUserAddFill } from '@oxy.so/bloom/icons';
+import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
+import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
+import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
+import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
+import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
+import { RiNewspaperLine } from '@oxy.so/bloom/icons/RiNewspaperLine';
+import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
+import { RiUserAddFill } from '@oxy.so/bloom/icons/RiUserAddFill';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import * as Clipboard from 'expo-clipboard';

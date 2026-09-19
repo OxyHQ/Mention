@@ -30,7 +30,8 @@ import type { PostSubscriptionItem, PostSubscriptionListResponse } from '@mentio
 import { SEO } from '@/components/SEO';
 import { Button } from '@oxy.so/bloom/button';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { RiNotification3Fill, RiNotification3Line } from '@oxy.so/bloom/icons';
+import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
+import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Error as ErrorComponent } from '@/components/Error';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';

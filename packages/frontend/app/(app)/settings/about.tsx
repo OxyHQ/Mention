@@ -11,7 +11,14 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { RiChat4Line, RiCodeSSlashLine, RiDeleteBinLine, RiEarthLine, RiQuestionLine, RiShieldCheckLine, RiSmartphoneLine, RiToolsFill } from '@oxy.so/bloom/icons';
+import { RiChat4Line } from '@oxy.so/bloom/icons/RiChat4Line';
+import { RiCodeSSlashLine } from '@oxy.so/bloom/icons/RiCodeSSlashLine';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
+import { RiQuestionLine } from '@oxy.so/bloom/icons/RiQuestionLine';
+import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
+import { RiSmartphoneLine } from '@oxy.so/bloom/icons/RiSmartphoneLine';
+import { RiToolsFill } from '@oxy.so/bloom/icons/RiToolsFill';
 import { confirmDialog, alertDialog } from '@/utils/alerts';
 import { API_URL, INSTANCE_NAME, INSTANCE_LOGO_URL, INSTANCE_ABOUT, INSTANCE_SOURCE_URL, INSTANCE_REVISION, WEB_BASE_URL } from '@/config';
 

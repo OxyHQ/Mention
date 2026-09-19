@@ -14,7 +14,7 @@ import { Loading } from '@oxy.so/bloom/loading';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme, type Theme } from '@oxy.so/bloom/theme';
-import { RiEyeLine } from '@oxy.so/bloom/icons';
+import { RiEyeLine } from '@oxy.so/bloom/icons/RiEyeLine';
 import { insightsService } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';

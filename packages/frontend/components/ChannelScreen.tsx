@@ -5,13 +5,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
-import {
-    RiMoreFill,
-    RiNotification3Fill,
-    RiNotification3Line,
-    RiSettings3Line,
-    RiUpload2Line,
-} from '@oxy.so/bloom/icons';
+import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
+import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
+import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
+import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
+import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 import { useTranslation } from 'react-i18next';
 import { FollowButton as OxyFollowButton, useAuth, useFollow } from '@oxy.so/services/ui/client';
 import { lanesService } from '@/services/lanesService';

@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
-import { RiCloseLine } from '@oxy.so/bloom/icons';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Item } from '@oxy.so/bloom/item';
 import { Loading } from '@oxy.so/bloom/loading';

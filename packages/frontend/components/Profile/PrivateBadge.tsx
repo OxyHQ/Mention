@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, Text } from 'react-native';
-import { RiLockLine } from '@oxy.so/bloom/icons';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import type { PrivateBadgeProps } from './types';

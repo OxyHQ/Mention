@@ -3,7 +3,9 @@ import { View, Text, ScrollView, RefreshControl, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
-import { RiAddLine, RiBroadcastLine, RiCalendarLine } from '@oxy.so/bloom/icons';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
+import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
 

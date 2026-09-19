@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTheme } from '@oxy.so/bloom/theme';
-import type { BloomIconComponent } from '@oxy.so/bloom/icons';
+import type { BloomIconComponent } from '@oxy.so/bloom';
 
 /**
  * Any icon component a Bloom part can be handed — width, height, fill.

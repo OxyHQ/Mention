@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
-import { RiCloseLine } from '@oxy.so/bloom/icons';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 
 interface MessageBottomSheetProps {
     title: string;

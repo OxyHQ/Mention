@@ -4,17 +4,15 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import {
-  RiAddLine,
-  RiArrowDownSLine,
-  RiArrowUpSLine,
-  RiCheckLine,
-  RiCloseLine,
-  RiDeleteBinLine,
-  RiShapesLine,
-  RiStarFill,
-  RiUserLine,
-} from '@oxy.so/bloom/icons';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
+import { RiArrowUpSLine } from '@oxy.so/bloom/icons/RiArrowUpSLine';
+import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiShapesLine } from '@oxy.so/bloom/icons/RiShapesLine';
+import { RiStarFill } from '@oxy.so/bloom/icons/RiStarFill';
+import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
 import { Item } from '@oxy.so/bloom/item';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Switch } from '@oxy.so/bloom/switch';

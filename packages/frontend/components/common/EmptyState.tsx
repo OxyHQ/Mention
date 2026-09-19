@@ -1,7 +1,7 @@
 import React, { memo, useState, ReactNode } from 'react';
 import { View, Text, ViewStyle, TextStyle } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
-import { RiRefreshLine } from '@oxy.so/bloom/icons';
+import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { flattenStyleArray } from '@/styles/shared';
 import Ionicons from '@expo/vector-icons/Ionicons';

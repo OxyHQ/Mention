@@ -4,7 +4,7 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
-import { RiCloseLine } from '@oxy.so/bloom/icons';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import type { HydratedPost } from '@mention/shared-types';
 import type { Draft } from '@/hooks/useDrafts';

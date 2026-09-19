@@ -46,17 +46,15 @@ import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTe
 import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { SEO } from '@/components/SEO';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  RiAlertFill,
-  RiAlertLine,
-  RiArrowDownSLine,
-  RiArrowLeftLine,
-  RiDeleteBinLine,
-  RiEarthLine,
-  RiGlobalLine,
-  RiGroupLine,
-  RiMoreFill,
-} from '@oxy.so/bloom/icons';
+import { RiAlertFill } from '@oxy.so/bloom/icons/RiAlertFill';
+import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
+import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
+import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
+import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
+import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
+import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { DraftsIcon } from '@/assets/icons/drafts';
 import { PollIcon } from '@/assets/icons/poll-icon';

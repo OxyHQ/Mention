@@ -10,7 +10,11 @@ import { SegmentedControl, SegmentedControlItem, SegmentedControlItemText } from
 import { SettingsListDivider, SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Toggle } from '@/components/Toggle';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { RiExpandDiagonalSLine, RiFontSize, RiListUnordered, RiSmartphoneLine, RiUploadCloud2Line } from '@oxy.so/bloom/icons';
+import { RiExpandDiagonalSLine } from '@oxy.so/bloom/icons/RiExpandDiagonalSLine';
+import { RiFontSize } from '@oxy.so/bloom/icons/RiFontSize';
+import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';
+import { RiSmartphoneLine } from '@oxy.so/bloom/icons/RiSmartphoneLine';
+import { RiUploadCloud2Line } from '@oxy.so/bloom/icons/RiUploadCloud2Line';
 import { useThemeControls } from '@/hooks/useAccountTheme';
 
 type ThemeMode = 'system' | 'light' | 'dark';

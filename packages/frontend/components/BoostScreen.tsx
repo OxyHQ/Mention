@@ -13,7 +13,7 @@ import {
 import { toast } from '@oxy.so/bloom/toast';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import { RiRepeat2Line } from '@oxy.so/bloom/icons';
+import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import type { CreateBoostRequest } from '@mention/shared-types/feed';
 import type { FeedItem } from '@/db';

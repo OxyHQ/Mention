@@ -3,7 +3,9 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList } from 'r
 import { Loading } from '@oxy.so/bloom/loading';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import { RiCloseCircleLine, RiCloseLine, RiSearchLine } from '@oxy.so/bloom/icons';
+import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useTranslation } from 'react-i18next';

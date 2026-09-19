@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, TextInput, Pressable, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { RiSendPlaneLine } from '@oxy.so/bloom/icons';
+import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { toast } from '@oxy.so/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';

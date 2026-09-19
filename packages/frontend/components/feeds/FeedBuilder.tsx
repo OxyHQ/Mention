@@ -3,7 +3,9 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, StyleShe
 import { Loading } from '@oxy.so/bloom/loading';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { RiCheckLine, RiCloseCircleLine, RiCloseLine } from '@oxy.so/bloom/icons';
+import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
+import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';

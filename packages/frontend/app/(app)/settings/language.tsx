@@ -7,7 +7,7 @@ import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { getNativeLanguageName } from '@oxy.so/core';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { RiGlobalLine } from '@oxy.so/bloom/icons';
+import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
 import { Toggle } from '@/components/Toggle';
 import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
 

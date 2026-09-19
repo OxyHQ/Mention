@@ -14,7 +14,10 @@ import {
 } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { RiCloseCircleLine, RiSearchLine, RiShieldCheckLine, RiShieldLine } from '@oxy.so/bloom/icons';
+import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
+import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
+import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
+import { RiShieldLine } from '@oxy.so/bloom/icons/RiShieldLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';

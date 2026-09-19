@@ -5,18 +5,16 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@oxy.so/bloom/toast';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  RiBroadcastLine,
-  RiCalendarLine,
-  RiCheckboxCircleLine,
-  RiFlagLine,
-  RiLogoutBoxRLine,
-  RiMoreFill,
-  RiPlayFill,
-  RiShareForwardLine,
-  RiStopFill,
-  RiTimeLine,
-} from '@oxy.so/bloom/icons';
+import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
+import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
+import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
+import { RiFlagLine } from '@oxy.so/bloom/icons/RiFlagLine';
+import { RiLogoutBoxRLine } from '@oxy.so/bloom/icons/RiLogoutBoxRLine';
+import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
+import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
+import { RiShareForwardLine } from '@oxy.so/bloom/icons/RiShareForwardLine';
+import { RiStopFill } from '@oxy.so/bloom/icons/RiStopFill';
+import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { Item } from '@oxy.so/bloom/item';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';

@@ -1,6 +1,8 @@
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Text } from '@oxy.so/bloom/typography';
-import { RiArrowRightSLine, RiGroupFill, RiGroupLine } from '@oxy.so/bloom/icons';
+import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
+import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
+import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from '@/components/ProfileCard';
 import { useLocalSearchParams, router, usePathname } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';

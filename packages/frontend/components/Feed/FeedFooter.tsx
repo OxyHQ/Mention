@@ -1,7 +1,8 @@
 import React, { memo, useCallback } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
-import { RiArrowRightSLine, RiLockLine } from '@oxy.so/bloom/icons';
+import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 

@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, Text } from 'react-native';
-import { RiEditLine } from '@oxy.so/bloom/icons';
+import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';

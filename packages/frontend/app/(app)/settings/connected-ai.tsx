@@ -9,7 +9,7 @@ import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { RiSparklingLine } from '@oxy.so/bloom/icons';
+import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDialog } from '@/utils/alerts';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';

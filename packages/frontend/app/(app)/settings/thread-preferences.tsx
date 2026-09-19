@@ -1,5 +1,7 @@
 import React from 'react';
-import { RiArrowUpSLine, RiGitMergeLine, RiHeartLine } from '@oxy.so/bloom/icons';
+import { RiArrowUpSLine } from '@oxy.so/bloom/icons/RiArrowUpSLine';
+import { RiGitMergeLine } from '@oxy.so/bloom/icons/RiGitMergeLine';
+import { RiHeartLine } from '@oxy.so/bloom/icons/RiHeartLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, ScrollView } from 'react-native';
 import { useSafeBack } from '@/hooks/useSafeBack';

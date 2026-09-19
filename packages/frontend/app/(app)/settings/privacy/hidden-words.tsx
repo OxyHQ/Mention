@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { RiAddCircleLine, RiEyeOffLine, RiFontSize, RiHashtag } from '@oxy.so/bloom/icons';
+import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
+import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
+import { RiFontSize } from '@oxy.so/bloom/icons/RiFontSize';
+import { RiHashtag } from '@oxy.so/bloom/icons/RiHashtag';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';

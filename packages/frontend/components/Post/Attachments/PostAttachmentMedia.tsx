@@ -3,7 +3,7 @@ import { Image, Pressable, Text, View, StyleSheet, ViewStyle, Platform } from 'r
 import { BlurView } from 'expo-blur';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { RiEyeOffLine } from '@oxy.so/bloom/icons';
+import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { MediaInsetBorder } from '@oxy.so/bloom/media-inset-border';
 import { LazyImage } from '@/components/ui/LazyImage';
 import VideoPlayer from '@/components/common/VideoPlayer';

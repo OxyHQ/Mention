@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Item } from '@oxy.so/bloom/item';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { RiLink } from '@oxy.so/bloom/icons';
+import { RiLink } from '@oxy.so/bloom/icons/RiLink';
 import type { ProfileLink } from '@oxy.so/core';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { prettifyUrl } from '@/utils/prettifyUrl';

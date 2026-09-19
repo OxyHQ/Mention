@@ -1,6 +1,8 @@
 import React, { memo, useId, useMemo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { RiArrowDownLine, RiArrowUpLine, RiMoreFill } from '@oxy.so/bloom/icons';
+import { RiArrowDownLine } from '@oxy.so/bloom/icons/RiArrowDownLine';
+import { RiArrowUpLine } from '@oxy.so/bloom/icons/RiArrowUpLine';
+import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import Svg, { Defs, LinearGradient, Polygon, Polyline, Stop } from 'react-native-svg';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { AvatarGroup } from '@oxy.so/bloom/avatar-group';

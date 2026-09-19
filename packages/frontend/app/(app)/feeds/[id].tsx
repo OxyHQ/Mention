@@ -15,7 +15,17 @@ import {
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Button } from '@oxy.so/bloom/button';
-import { RiAddLine, RiArrowLeftLine, RiCheckLine, RiEditBoxLine, RiGroupLine, RiHashtag, RiMoreFill, RiPushpinFill, RiPushpinLine, RiShare2Line, RiStarLine } from '@oxy.so/bloom/icons';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
+import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
+import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
+import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
+import { RiHashtag } from '@oxy.so/bloom/icons/RiHashtag';
+import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
+import { RiPushpinFill } from '@oxy.so/bloom/icons/RiPushpinFill';
+import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
+import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
+import { RiStarLine } from '@oxy.so/bloom/icons/RiStarLine';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useSafeBack } from '@/hooks/useSafeBack';

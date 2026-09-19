@@ -8,7 +8,11 @@ import { authenticatedClient } from '@/utils/api';
 import { Toggle } from '@/components/Toggle';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { RiBookmarkLine, RiChat4Line, RiEyeOffLine, RiHeartLine, RiRepeatLine } from '@oxy.so/bloom/icons';
+import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
+import { RiChat4Line } from '@oxy.so/bloom/icons/RiChat4Line';
+import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
+import { RiHeartLine } from '@oxy.so/bloom/icons/RiHeartLine';
+import { RiRepeatLine } from '@oxy.so/bloom/icons/RiRepeatLine';
 import {
     createPrivacySettingsCacheLease,
     updatePrivacySettingsCache,

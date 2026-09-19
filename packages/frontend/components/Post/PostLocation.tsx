@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native';
 import type { GeoJSONPoint } from '@mention/shared-types';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { RiMapPinLine } from '@oxy.so/bloom/icons';
+import { RiMapPinLine } from '@oxy.so/bloom/icons/RiMapPinLine';
 
 interface PostLocationProps {
   location: GeoJSONPoint;

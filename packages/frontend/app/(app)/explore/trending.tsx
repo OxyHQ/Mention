@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, SectionList, type SectionListData } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
-import { RiLineChartLine, RiNodeTree } from '@oxy.so/bloom/icons';
+import { RiLineChartLine } from '@oxy.so/bloom/icons/RiLineChartLine';
+import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';

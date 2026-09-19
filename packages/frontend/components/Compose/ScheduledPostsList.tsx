@@ -3,14 +3,12 @@ import { View, Text, TouchableOpacity, FlatList } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  RiArrowRightSLine,
-  RiCalendarLine,
-  RiDeleteBinLine,
-  RiEditLine,
-  RiImageLine,
-  RiListCheck3,
-} from '@oxy.so/bloom/icons';
+import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
+import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
+import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
+import { RiListCheck3 } from '@oxy.so/bloom/icons/RiListCheck3';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { getNormalizedUserHandle } from '@oxy.so/core';

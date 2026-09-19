@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
-import { RiPlayFill } from '@oxy.so/bloom/icons';
+import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { proxyExternalUrl } from '@/utils/imageUrlCache';
 
 interface ExternalEmbedPosterProps {

@@ -7,7 +7,11 @@ import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { RiBox3Line, RiCheckboxCircleFill, RiCloseCircleLine, RiErrorWarningFill, RiShieldCheckLine } from '@oxy.so/bloom/icons';
+import { RiBox3Line } from '@oxy.so/bloom/icons/RiBox3Line';
+import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
+import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
+import { RiErrorWarningFill } from '@oxy.so/bloom/icons/RiErrorWarningFill';
+import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDialog } from '@/utils/alerts';

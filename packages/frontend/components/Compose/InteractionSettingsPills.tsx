@@ -1,6 +1,9 @@
 import React, { memo, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { RiAlertFill, RiAlertLine, RiEarthLine, RiGroupLine } from '@oxy.so/bloom/icons';
+import { RiAlertFill } from '@oxy.so/bloom/icons/RiAlertFill';
+import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
+import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
+import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 

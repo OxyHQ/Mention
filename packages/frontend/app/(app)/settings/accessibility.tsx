@@ -7,7 +7,8 @@ import { useTranslation } from 'react-i18next';
 import { useHapticsStore } from '@/stores/hapticsStore';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { RiFontSize, RiHand } from '@oxy.so/bloom/icons';
+import { RiFontSize } from '@oxy.so/bloom/icons/RiFontSize';
+import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 
 export default function AccessibilitySettingsScreen() {
     const { t } = useTranslation();

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { RiStarFill, RiStarLine } from '@oxy.so/bloom/icons';
+import { RiStarFill } from '@oxy.so/bloom/icons/RiStarFill';
+import { RiStarLine } from '@oxy.so/bloom/icons/RiStarLine';
 
 interface StarRatingProps {
   rating: number;

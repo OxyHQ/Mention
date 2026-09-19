@@ -7,14 +7,12 @@ import { FollowButton as OxyFollowButton, useAuth, useFollow } from '@oxy.so/ser
 import { logger } from '@oxy.so/core/logger';
 import type { FeedType } from '@mention/shared-types';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  RiExternalLinkLine,
-  RiMailLine,
-  RiMoreFill,
-  RiNotification3Fill,
-  RiNotification3Line,
-  RiUpload2Line,
-} from '@oxy.so/bloom/icons';
+import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
+import { RiMailLine } from '@oxy.so/bloom/icons/RiMailLine';
+import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
+import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
+import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
+import { RiUpload2Line } from '@oxy.so/bloom/icons/RiUpload2Line';
 
 import { usePostsStore } from '@/stores/postsStore';
 import { lanesService } from '@/services/lanesService';

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
-import { RiEditLine } from '@oxy.so/bloom/icons';
+import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { PostUser } from '@mention/shared-types';

@@ -1,7 +1,9 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { RiEyeOffLine, RiTeamLine, RiThumbUpLine } from '@oxy.so/bloom/icons';
+import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
+import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
+import { RiThumbUpLine } from '@oxy.so/bloom/icons/RiThumbUpLine';
 import type { CommunityNoteRating, CommunityNoteSummary } from '@mention/shared-types';
 import { NoteSheetHeader } from './NoteSheetHeader';
 import { NoteTipList } from './NoteTipList';

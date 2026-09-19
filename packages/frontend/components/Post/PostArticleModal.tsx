@@ -21,7 +21,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
-import { RiCloseLine } from '@oxy.so/bloom/icons';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { articleService } from '@/services/articleService';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { Portal } from '@oxy.so/bloom/portal';

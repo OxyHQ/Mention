@@ -3,7 +3,7 @@ import { View, StyleSheet, Platform, RefreshControl, ScrollView, TouchableOpacit
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { RiHand } from '@oxy.so/bloom/icons';
+import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { Loading } from '@oxy.so/bloom/loading';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';

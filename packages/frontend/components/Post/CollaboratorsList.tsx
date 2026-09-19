@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';
-import { RiCloseLine } from '@oxy.so/bloom/icons';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { ProfileCard } from '@/components/ProfileCard';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import type { PostUser } from '@mention/shared-types';

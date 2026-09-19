@@ -1,7 +1,8 @@
 import React, { useMemo, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
-import { RiAddLine, RiCloseLine } from '@oxy.so/bloom/icons';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';

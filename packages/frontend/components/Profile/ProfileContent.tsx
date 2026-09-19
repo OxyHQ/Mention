@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, Text, StyleSheet, type LayoutChangeEvent } from 'react-native';
-import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons';
+import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { useTranslation } from 'react-i18next';
 import { LinkifiedText } from '@/components/common/LinkifiedText';

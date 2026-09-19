@@ -1,5 +1,7 @@
 import React from 'react';
-import { RiBroadcastLine, RiCheckboxCircleFill, RiMic2Line } from '@oxy.so/bloom/icons';
+import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
+import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
+import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';

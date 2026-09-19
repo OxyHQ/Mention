@@ -6,7 +6,9 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { RiArrowRightSLine, RiBroadcastLine, RiCalendarLine } from '@oxy.so/bloom/icons';
+import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
+import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
+import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { LIVE_INDICATOR_COLOR } from '@/styles/colors';
 

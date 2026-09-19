@@ -3,7 +3,9 @@ import { View, Text, ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
-import { RiArrowLeftLine, RiErrorWarningFill, RiRefreshLine } from '@oxy.so/bloom/icons';
+import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
+import { RiErrorWarningFill } from '@oxy.so/bloom/icons/RiErrorWarningFill';
+import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { flattenStyleArray } from '@/styles/shared';
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { RiGitMergeLine } from '@oxy.so/bloom/icons';
+import { RiGitMergeLine } from '@oxy.so/bloom/icons/RiGitMergeLine';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { useTheme } from '@oxy.so/bloom/theme';
 

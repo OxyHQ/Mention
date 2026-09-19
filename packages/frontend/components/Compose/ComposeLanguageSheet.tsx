@@ -2,13 +2,11 @@ import React, { memo, useCallback } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  RiAddLine,
-  RiArrowRightSLine,
-  RiCheckboxCircleFill,
-  RiCloseLine,
-  RiGlobalLine,
-} from '@oxy.so/bloom/icons';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
+import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
 import { Item } from '@oxy.so/bloom/item';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTheme } from '@oxy.so/bloom/theme';
