@@ -169,6 +169,9 @@ jest.mock('@oxy.so/bloom/settings-list', () => {
   };
 });
 
+// Bloom's icon barrel is untranspiled ESM; the row icon's drawing is not under test.
+jest.mock('@oxy.so/bloom/icons', () => ({ RiNotification3Line: () => null }));
+
 const mockList = jest.fn<Promise<PostSubscriptionListResponse>, [string?, number?]>();
 const mockUnsubscribe = jest.fn();
 const mockSubscribe = jest.fn();

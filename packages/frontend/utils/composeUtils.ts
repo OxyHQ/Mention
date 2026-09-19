@@ -4,6 +4,11 @@
 
 export const MEDIA_CARD_WIDTH = 280;
 export const MEDIA_CARD_HEIGHT = 180;
+/**
+ * Tallest a post attachment that is ALONE in its row may be. It still spans the
+ * full width; past this height it narrows (media) or crops (a podcast video).
+ */
+export const SINGLE_MEDIA_MAX_HEIGHT = 420;
 /** Corner radius of post media cards (thumbnail + zoomed gallery image). */
 export const MEDIA_CARD_RADIUS = 15;
 export const POLL_ATTACHMENT_KEY = "poll";

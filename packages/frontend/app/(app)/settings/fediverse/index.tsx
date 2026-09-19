@@ -12,6 +12,7 @@ import { Header } from '@/components/Header';
 import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiBox3Line, RiEarthLine, RiGlobalLine, RiQuestionLine, RiShieldCheckLine } from '@oxy.so/bloom/icons';
 import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
 import LanguagePickerSheet from '@/components/Compose/LanguagePickerSheet';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
@@ -148,12 +149,12 @@ function FediverseSharingBody() {
   return (
     <ScrollView
       className="flex-1"
-      contentContainerClassName="py-2"
+      contentContainerClassName="px-screen-margin py-2"
       showsVerticalScrollIndicator={false}
     >
       <SettingsListGroup footer={t('fediverse.settings.description')}>
         <SettingsListItem
-          icon={<RowIcon name="globe-outline" />}
+          icon={<RowIcon icon={RiEarthLine} />}
           title={t('fediverse.settings.share')}
           description={federatedHandle}
           showChevron={false}
@@ -170,7 +171,7 @@ function FediverseSharingBody() {
         })}
       >
         <SettingsListItem
-          icon={<RowIcon name="language-outline" />}
+          icon={<RowIcon icon={RiGlobalLine} />}
           title={t('fediverse.settings.preferredLanguage.title', { defaultValue: 'Preferred language' })}
           description={preferredLabel}
           onPress={openPreferredLanguagePicker}
@@ -179,7 +180,7 @@ function FediverseSharingBody() {
 
       <SettingsListGroup>
         <SettingsListItem
-          icon={<RowIcon name="cube-outline" />}
+          icon={<RowIcon icon={RiBox3Line} />}
           title={t('settings.node.title', { defaultValue: 'Your Mention node' })}
           description={t('settings.node.description', { defaultValue: 'Your own copy of your signed posts' })}
           onPress={() => router.push('/settings/fediverse/node')}
@@ -188,12 +189,12 @@ function FediverseSharingBody() {
 
       <SettingsListGroup>
         <SettingsListItem
-          icon={<RowIcon name="help-circle-outline" />}
+          icon={<RowIcon icon={RiQuestionLine} />}
           title={t('fediverse.settings.whatIs')}
           onPress={openInfoSheet}
         />
         <SettingsListItem
-          icon={<RowIcon name="shield-checkmark-outline" />}
+          icon={<RowIcon icon={RiShieldCheckLine} />}
           title={t('transparency.title')}
           description={t('transparency.list.title')}
           onPress={() => router.push('/transparency')}

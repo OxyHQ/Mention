@@ -46,6 +46,7 @@ const STATIC_FOOTER_URLS = [
     { key: 'terms', url: 'https://oxy.so/company/transparency/policies/terms-of-service' },
     { key: 'cookies', url: 'https://oxy.so/company/transparency/policies/cookies' },
     { key: 'oxy', url: 'https://oxy.so/', label: 'Oxy' },
+    { key: 'crowdsource', url: 'https://crowdsource.oxy.so/', label: 'CrowdSource' },
 ] as const;
 
 export function RightBar() {
@@ -105,7 +106,6 @@ function RightBarFooter() {
             {/* Mention and Oxy are unregistered marks, so the symbol is (TM) and never (R):
                 using (R) before a registration is granted is unlawful in several
                 jurisdictions. Swap it only once a registration actually issues. */}
-            <Text className="text-muted-foreground text-[12.5px] pt-0.5">Mention&trade; is a trademark of The Oxy Collective, Inc.</Text>
         </View>
     );
 }

@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import UserName from '@/components/UserName';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiAtLine, RiDatabase2Line, RiEarthLine, RiHashtag, RiLinkM, RiMapPinLine } from '@oxy.so/bloom/icons';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { CalendarMonthIcon } from '@/assets/icons/calendar-month-icon';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
@@ -223,7 +224,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
           so both align to the same 16px gutter as the profile header, and the
           settings cards are never double-inset. Vertical rhythm mirrors the
           settings screens (the app's other SettingsListGroup surface). */}
-      <ScrollView className="flex-1" contentContainerClassName="pb-6">
+      <ScrollView className="flex-1" contentContainerClassName="px-screen-margin pb-6">
         {/* Identity header — a classic CENTERED profile header: the avatar
             centered on top, then the display name, then the muted @handle, all
             horizontally centered (via `items-center` + UserName's `align="center"`).
@@ -268,7 +269,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
             {categories.map((category, index) => (
               <SettingsListItem
                 key={category.id}
-                icon={<RowIcon name="pricetags" />}
+                icon={<RowIcon icon={RiHashtag} />}
                 title={category.label}
                 value={
                   index === 0
@@ -293,7 +294,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
 
             {profileData.primaryLocation && (
               <SettingsListItem
-                icon={<RowIcon name="location" />}
+                icon={<RowIcon icon={RiMapPinLine} />}
                 title={t('Account based in', { defaultValue: 'Account based in' })}
                 value={profileData.primaryLocation}
               />
@@ -301,7 +302,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
 
             {websiteUrl && (
               <SettingsListItem
-                icon={<RowIcon name="link" />}
+                icon={<RowIcon icon={RiLinkM} />}
                 title={t('Website', { defaultValue: 'Website' })}
                 value={website?.replace(/^https?:\/\//i, '')}
                 onPress={() => openExternalLink(websiteUrl)}
@@ -310,7 +311,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
 
             {hasUsernameChanges && (
               <SettingsListItem
-                icon={<RowIcon name="at" />}
+                icon={<RowIcon icon={RiAtLine} />}
                 title={t('Username changes', { defaultValue: 'Username changes' })}
                 value={String(profileData.usernameChangeCount)}
               />
@@ -318,7 +319,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
 
             {profileData.connectedVia && (
               <SettingsListItem
-                icon={<RowIcon name="globe" />}
+                icon={<RowIcon icon={RiEarthLine} />}
                 title={t('Connected via', { defaultValue: 'Connected via' })}
                 value={profileData.connectedVia}
               />
@@ -363,7 +364,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
           >
             <SettingsListItem
               icon={federationInfo.network === 'atproto'
-                ? <RowIcon name="planet" />
+                ? <RowIcon icon={RiEarthLine} />
                 : <FediverseIcon size={20} className="text-muted-foreground" />}
               title={t('fediverse.about.network', { defaultValue: 'Network' })}
               value={federationInfo.network === 'atproto'
@@ -373,7 +374,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
 
             {federationInfo.instance && (
               <SettingsListItem
-                icon={<RowIcon name="server" />}
+                icon={<RowIcon icon={RiDatabase2Line} />}
                 title={t('fediverse.about.homeServer', { defaultValue: 'Home server' })}
                 value={federationInfo.instance}
               />
@@ -381,7 +382,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
 
             {federationInfo.handle && (
               <SettingsListItem
-                icon={<RowIcon name="at" />}
+                icon={<RowIcon icon={RiAtLine} />}
                 title={t('fediverse.about.handle', { defaultValue: 'Handle' })}
                 value={`@${federationInfo.handle}`}
               />

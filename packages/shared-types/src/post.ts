@@ -2,6 +2,7 @@
  * Post-related types for Mention social network
  */
 
+import type { CommunityNoteSummary } from './communityNotes';
 import type { AccountKind, UserNameResponse } from '@oxy.so/contracts';
 import type { Document as ClarityDocument } from '@clarity.surf/sdk' with { "resolution-mode": "import" };
 export type { Document as ClarityDocument } from '@clarity.surf/sdk' with { "resolution-mode": "import" };
@@ -216,6 +217,28 @@ export interface PostPodcastContent {
   author?: string;
   artworkUrl?: string;
   showUrl: string;
+  /**
+   * The specific episode the post is about, when it names one. Its presence
+   * switches the card to the episode layout (episode title over the show name),
+   * and a `videoUrl` switches it to the video layout.
+   */
+  episode?: PostPodcastEpisode;
+  /**
+   * Background of the card, as a CSS color. Absent → the client derives one from
+   * the artwork.
+   */
+  accentColor?: string;
+}
+
+/** One episode of a {@link PostPodcastContent} show. */
+export interface PostPodcastEpisode {
+  title: string;
+  /** Video rendition of the episode, when the show publishes one. */
+  videoUrl?: string;
+  posterUrl?: string;
+  width?: number;
+  height?: number;
+  durationSec?: number;
 }
 
 /**
@@ -1372,6 +1395,11 @@ export interface HydratedPostSummary {
    * reply with no local parent. See {@link PostReplyContext}.
    */
   replyContext?: PostReplyContext;
+  /**
+   * The community note CrowdSource shows under this post, when it has one.
+   * Absent for almost every post. See `communityNotes.ts` for who owns it.
+   */
+  communityNote?: CommunityNoteSummary;
 }
 
 export interface HydratedBoostContext {

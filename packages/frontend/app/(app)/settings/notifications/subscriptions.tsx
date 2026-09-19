@@ -33,6 +33,7 @@ import { IconButton } from '@/components/ui/Button';
 import { BackArrowIcon } from '@/assets/icons/back-arrow-icon';
 import { BellActive } from '@/assets/icons/bell-icon';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiNotification3Line } from '@oxy.so/bloom/icons';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Error as ErrorComponent } from '@/components/Error';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
@@ -154,7 +155,7 @@ export default function ActivitySubscriptionsScreen() {
     () => (
       <SettingsListGroup>
         <SettingsListItem
-          icon={<RowIcon name="notifications" />}
+          icon={<RowIcon icon={RiNotification3Line} />}
           title={t('subscription.list.intro.title', { defaultValue: 'Activity from others' })}
           description={t('subscription.list.intro.description', {
             defaultValue: 'Get notified when these accounts post.',

@@ -11,6 +11,7 @@ import { authenticatedClient } from '@/utils/api';
 import { Toggle } from '@/components/Toggle';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiCheckboxBlankCircleLine } from '@oxy.so/bloom/icons';
 import { logger } from '@oxy.so/core/logger';
 import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
@@ -152,12 +153,12 @@ export default function OnlineStatusScreen() {
 
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="py-2"
+                contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
                 <SettingsListGroup>
                     <SettingsListItem
-                        icon={<RowIcon name="ellipse" />}
+                        icon={<RowIcon icon={RiCheckboxBlankCircleLine} />}
                         title={t('settings.privacy.showOnlineStatus')}
                         description={t('settings.privacy.showOnlineStatusDesc')}
                         showChevron={false}

@@ -145,7 +145,7 @@ export default function HiddenWordsScreen() {
 
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="py-2"
+                contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
             >

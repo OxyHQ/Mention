@@ -16,6 +16,8 @@ interface PostAttachmentLinkProps {
    * the sole attachment, keeping the card's intrinsic sizing.
    */
   constrainedHeight?: number;
+  /** Card width; 280 when absent. A link alone in the row passes the row width. */
+  width?: number;
   style?: ViewStyle;
 }
 
@@ -30,6 +32,7 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
   image,
   siteName,
   constrainedHeight,
+  width = 280,
   style,
 }) => {
   return (
@@ -40,9 +43,8 @@ const PostAttachmentLink: React.FC<PostAttachmentLinkProps> = ({
       image={image}
       siteName={siteName}
       onPress={() => openExternalLink(url)}
-      className="w-[280px]"
       coverFill={constrainedHeight !== undefined}
-      style={[constrainedHeight !== undefined ? { height: constrainedHeight } : null, webGrabCursorStyle, style]}
+      style={[{ width }, constrainedHeight !== undefined ? { height: constrainedHeight } : null, webGrabCursorStyle, style]}
     />
   );
 };

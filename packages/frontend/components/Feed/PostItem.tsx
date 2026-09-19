@@ -22,6 +22,9 @@ import PostContentText from '../Post/PostContentText';
 import PostLaneChip from '../Post/PostLaneChip';
 import PostCrosspostRow from '../Post/PostCrosspostRow';
 import ContentWarning from '../Post/ContentWarning';
+import { CommunityNoteCard } from '@/components/CommunityNotes/CommunityNoteCard';
+import { useCommunityNoteSheets } from '@/components/CommunityNotes/useCommunityNoteSheets';
+import { RiTeamLine } from '@oxy.so/bloom/icons';
 import PostCorrectionNotice from '../Post/PostCorrectionNotice';
 import PostActions from '../Post/PostActions';
 import PostDetailStats from '../Post/PostDetailStats';
@@ -166,6 +169,8 @@ const PostItem: React.FC<PostItemProps> = ({
     const router = useRouter();
     const bottomSheet = useContext(BottomSheetContext);
     const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
+    const [isContentWarningOpen, setIsContentWarningOpen] = useState(false);
+    const toggleContentWarning = useCallback(() => setIsContentWarningOpen((open) => !open), []);
 
     const postId = post?.id;
     // Reactive read of the cached post (compiler-safe `useSyncExternalStore`
@@ -227,6 +232,7 @@ const PostItem: React.FC<PostItemProps> = ({
     // `metadata.spoilerText`. Rendered as a visible label above the body — media blur
     // is handled separately via `isSensitiveContent`; this never gates the body text.
     const spoilerText = typeof metadata.spoilerText === 'string' ? metadata.spoilerText.trim() : '';
+    const isContentGated = spoilerText.length > 0 && !isContentWarningOpen;
     // The post's public correction trail. Absent — not zeroed — on a post that
     // has never been corrected, so presence IS the whole condition for the
     // marker. In practice only a channel post carries one: a personal post keeps
@@ -572,7 +578,18 @@ const PostItem: React.FC<PostItemProps> = ({
         onOpenSources: openSourcesSheet,
     });
 
+    const noteSheets = useCommunityNoteSheets();
+    const communityNote = viewPost?.communityNote;
+    const openCommunityNoteAbout = useCallback(() => {
+        if (communityNote) noteSheets.openAbout(communityNote);
+    }, [communityNote, noteSheets]);
+
     const openMenu = useCallback(() => {
+        const communityNoteAction = !isOwner && viewPost ? [{
+            icon: <RiTeamLine width={20} height={20} fill={theme.colors.textSecondary} />,
+            label: t('communityNotes.menu.add', { defaultValue: 'Add community note' }),
+            onPress: () => noteSheets.openWriteFlow(viewPost),
+        }] : [];
         showActionMenu({
             label: t('postActions.title', { defaultValue: 'Post options' }),
             groups: [
@@ -583,11 +600,12 @@ const PostItem: React.FC<PostItemProps> = ({
                 postActions.articleAction,
                 postActions.sourcesAction,
                 postActions.addToListAction,
+                communityNoteAction,
                 postActions.muteReportAction,
                 postActions.copyLinkAction,
             ],
         });
-    }, [postActions, t]);
+    }, [postActions, t, isOwner, viewPost, noteSheets, theme.colors.textSecondary]);
 
     // Memoize the structured props handed to the memoized children so they keep a
     // stable identity across re-renders. The inline object/array literals these
@@ -930,16 +948,18 @@ const PostItem: React.FC<PostItemProps> = ({
                         onPressCollaborators={isCollab ? openCollaboratorsList : undefined}
                         onPressAuthor={goToAuthor}
                         onPressMenu={openMenu}
-                        paddingHorizontal={isNested ? 0 : HPAD}
+                        paddingHorizontal={HPAD}
                     >
-                        {spoilerText ? <ContentWarning text={spoilerText} /> : null}
-                        {content.text ? <PostContentText content={content} postId={viewPostId} previewChars={isDetailMain ? Infinity : undefined} overrideText={languageDisplayText} linkPreviewUrls={linkPreviewUrls} /> : null}
-                        {corrections && viewPostId ? (
+                        {spoilerText ? (
+                            <ContentWarning text={spoilerText} revealed={isContentWarningOpen} onToggle={toggleContentWarning} />
+                        ) : null}
+                        {content.text && !isContentGated ? <PostContentText content={content} postId={viewPostId} previewChars={isDetailMain ? Infinity : undefined} overrideText={languageDisplayText} linkPreviewUrls={linkPreviewUrls} /> : null}
+                        {corrections && viewPostId && !isContentGated ? (
                             <PostCorrectionNotice postId={viewPostId} count={corrections.count} />
                         ) : null}
                     </PostHeader>
 
-                    {hasBelowHeaderBlocks && (
+                    {hasBelowHeaderBlocks && !isContentGated && (
                         <View style={{ gap: SECTION_GAP }}>
                             {hasValidLocation && location && (
                                 <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
@@ -964,7 +984,7 @@ const PostItem: React.FC<PostItemProps> = ({
                                 </View>
                             )}
 
-                {boostUnavailable && (
+                {boostUnavailable && !isContentGated && (
                     <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
                         <View className="border-border rounded-2xl border px-3 py-3">
                             <Text className="text-muted-foreground text-[14px]">
@@ -974,9 +994,9 @@ const PostItem: React.FC<PostItemProps> = ({
                     </View>
                 )}
 
-                {shouldRenderMediaBlock && (
+                {shouldRenderMediaBlock && !isContentGated && (
                     <PostAttachmentsRow
-                        sensitive={isSensitiveContent}
+                        sensitive={isSensitiveContent && !spoilerText}
                         media={mediaItems}
                         attachments={attachmentDescriptors}
                         nestedPost={nestedPost ?? null}
@@ -999,8 +1019,14 @@ const PostItem: React.FC<PostItemProps> = ({
                         // Only a quote card hands a width down, and it measures the
                         // card OUTSIDE its own inset — take that off before the row
                         // sizes anything against it.
-                        containerWidth={containerWidth !== undefined ? containerWidth - NESTED_CARD_PADDING * 2 : undefined}
+                        containerWidth={containerWidth}
                     />
+                )}
+
+                {communityNote?.status === 'shown' && !isNested && !isContentGated && (
+                    <View style={{ paddingLeft: AVATAR_OFFSET, paddingRight: HPAD }}>
+                        <CommunityNoteCard note={communityNote} onPressAbout={openCommunityNoteAbout} />
+                    </View>
                 )}
 
                 {!isNested && (
@@ -1077,7 +1103,8 @@ const styles = StyleSheet.create({
     nestedPostContainer: {
         borderWidth: StyleSheet.hairlineWidth,
         borderRadius: 16,
-        padding: NESTED_CARD_PADDING,
+        paddingVertical: NESTED_CARD_PADDING,
+        overflow: 'hidden',
         // No top margin: the nested card's spacing from the outer header/content is
         // owned by the parent content column's flex `gap` (see PostItem render).
     },

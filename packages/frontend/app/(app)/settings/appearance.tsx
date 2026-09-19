@@ -14,6 +14,7 @@ import { SettingsListDivider, SettingsListGroup, SettingsListItem } from '@oxy.s
 import { Icon } from '@/lib/icons';
 import { Toggle } from '@/components/Toggle';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiUploadCloud2Line } from '@oxy.so/bloom/icons';
 import { useThemeControls } from '@/hooks/useAccountTheme';
 
 type ThemeMode = 'system' | 'light' | 'dark';
@@ -95,7 +96,7 @@ export default function AppearanceSettingsScreen() {
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="py-4"
+        contentContainerClassName="px-screen-margin py-4"
         showsVerticalScrollIndicator={false}
       >
         {/* Theme source: portable account theme vs. a device-local app theme */}
@@ -106,7 +107,7 @@ export default function AppearanceSettingsScreen() {
           )}
         >
           <SettingsListItem
-            icon={<RowIcon name="cloud-outline" />}
+            icon={<RowIcon icon={RiUploadCloud2Line} />}
             title={t('settings.theme.source.useAccount', 'Sync theme with account')}
             description={t('settings.theme.source.useAccountDesc', 'Use your Oxy account theme on this device')}
             showChevron={false}
@@ -122,7 +123,7 @@ export default function AppearanceSettingsScreen() {
         <SettingsListDivider />
 
         {/* Color mode */}
-        <View className="px-5 py-3 gap-3">
+        <View className="py-3 gap-3">
           <View className="flex-row items-center gap-3">
             <Icon name="phone-portrait" size={22} color={colors.text} />
             <Text className="text-[16px] text-foreground">
@@ -149,7 +150,7 @@ export default function AppearanceSettingsScreen() {
         <SettingsListDivider />
 
         {/* Post text length */}
-        <View className="px-5 py-3 gap-3">
+        <View className="py-3 gap-3">
           <View className="flex-row items-center gap-3">
             <Icon name="text-outline" size={22} color={colors.text} />
             <Text className="text-[16px] text-foreground">
@@ -179,7 +180,7 @@ export default function AppearanceSettingsScreen() {
         <SettingsListDivider />
 
         {/* Read more tap behavior */}
-        <View className="px-5 py-3 gap-3">
+        <View className="py-3 gap-3">
           <View className="flex-row items-center gap-3">
             <Icon name="expand-outline" size={22} color={colors.text} />
             <Text className="text-[16px] text-foreground">
@@ -203,7 +204,7 @@ export default function AppearanceSettingsScreen() {
         <SettingsListDivider />
 
         {/* Profile bio collapse */}
-        <View className="px-5 py-3 gap-3">
+        <View className="py-3 gap-3">
           <View className="flex-row items-center gap-3">
             <Icon name="reader-outline" size={22} color={colors.text} />
             <Text className="text-[16px] text-foreground">

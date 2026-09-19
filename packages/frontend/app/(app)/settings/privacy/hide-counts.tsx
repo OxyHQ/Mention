@@ -11,6 +11,7 @@ import { authenticatedClient } from '@/utils/api';
 import { Toggle } from '@/components/Toggle';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiBookmarkLine, RiChat4Line, RiEyeOffLine, RiHeartLine, RiRepeatLine } from '@oxy.so/bloom/icons';
 import {
     createPrivacySettingsCacheLease,
     updatePrivacySettingsCache,
@@ -205,12 +206,12 @@ export default function HideCountsScreen() {
 
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="py-2"
+                contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
                 <SettingsListGroup>
                     <SettingsListItem
-                        icon={<RowIcon name="eye-off-outline" />}
+                        icon={<RowIcon icon={RiEyeOffLine} />}
                         title={t('settings.privacy.hideAllCounts')}
                         description={t('settings.privacy.hideAllCountsDesc')}
                         showChevron={false}
@@ -225,7 +226,7 @@ export default function HideCountsScreen() {
 
                 <SettingsListGroup title={t('settings.privacy.individualSettings')}>
                     <SettingsListItem
-                        icon={<RowIcon name="heart-outline" />}
+                        icon={<RowIcon icon={RiHeartLine} />}
                         title={t('settings.privacy.hideLikeCounts')}
                         description={t('settings.privacy.hideLikeCountsDesc')}
                         showChevron={false}
@@ -240,7 +241,7 @@ export default function HideCountsScreen() {
                         }
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="repeat-outline" />}
+                        icon={<RowIcon icon={RiRepeatLine} />}
                         title={t('settings.privacy.hideShareCounts')}
                         description={t('settings.privacy.hideShareCountsDesc')}
                         showChevron={false}
@@ -255,7 +256,7 @@ export default function HideCountsScreen() {
                         }
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="chatbubble-outline" />}
+                        icon={<RowIcon icon={RiChat4Line} />}
                         title={t('settings.privacy.hideReplyCounts')}
                         description={t('settings.privacy.hideReplyCountsDesc')}
                         showChevron={false}
@@ -270,7 +271,7 @@ export default function HideCountsScreen() {
                         }
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="bookmark-outline" />}
+                        icon={<RowIcon icon={RiBookmarkLine} />}
                         title={t('settings.privacy.hideSaveCounts')}
                         description={t('settings.privacy.hideSaveCountsDesc')}
                         showChevron={false}

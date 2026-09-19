@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Icon } from '@/lib/icons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiShieldCheckLine, RiSparklingLine } from '@oxy.so/bloom/icons';
 import { STRIPE_LINK_PLUS } from '@/config';
 
 export default function SubscribeScreen() {
@@ -38,8 +39,8 @@ export default function SubscribeScreen() {
 
             {/* Features */}
             <SettingsListGroup title={t('subscribe.featuresTitle')}>
-                <SettingsListItem icon={<RowIcon name="sparkles" />} title={t('subscribe.aiFeatures')} showChevron={false} />
-                <SettingsListItem icon={<RowIcon name="shield-checkmark" />} title={t('subscribe.verifiedBadge')} showChevron={false} />
+                <SettingsListItem icon={<RowIcon icon={RiSparklingLine} />} title={t('subscribe.aiFeatures')} showChevron={false} />
+                <SettingsListItem icon={<RowIcon icon={RiShieldCheckLine} />} title={t('subscribe.verifiedBadge')} showChevron={false} />
             </SettingsListGroup>
 
             {/* CTA */}
@@ -74,7 +75,7 @@ export default function SubscribeScreen() {
             ) : (
                 <ScrollView
                     className="flex-1"
-                    contentContainerClassName="px-4 pt-4 pb-8"
+                    contentContainerClassName="px-screen-margin pt-4 pb-8"
                     showsVerticalScrollIndicator={false}
                 >
                     {body}

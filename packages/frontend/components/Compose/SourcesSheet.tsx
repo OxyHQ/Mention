@@ -127,7 +127,6 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                   <TextInput
                     className="rounded-[10px] border-[1.5px] bg-muted px-3 py-2.5 text-sm text-foreground"
                     style={{
-                      fontFamily: 'Inter',
                       borderColor: isUrlInvalid ? (theme.colors.error || '#ff4d4f') : theme.colors.border,
                     }}
                     placeholder={t('compose.sources.urlPlaceholder', { defaultValue: 'https://example.com/article' })}

@@ -99,11 +99,11 @@ export default function InterestsSettingsScreen() {
         <InterestsShell t={t} safeBack={safeBack}>
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="py-2"
+                contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
             >
-                <View className="px-4 pb-2">
+                <View className="pb-2">
                     <TextInput
                         value={query}
                         onChangeText={setQuery}

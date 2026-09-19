@@ -13,6 +13,7 @@ import { authenticatedClient } from '@/utils/api';
 import { toast } from '@oxy.so/bloom/toast';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
+import { RiAtLine, RiChat4Line, RiChatSmile2Line, RiHeartLine, RiMailLine, RiNotification3Line, RiRepeatLine, RiUserAddLine } from '@oxy.so/bloom/icons';
 import { logger } from '@oxy.so/core/logger';
 import type { UserSettingsResponse } from '@/hooks/usePrivacySettings';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
@@ -187,12 +188,12 @@ export default function NotificationSettingsScreen() {
 
             <ScrollView
                 className="flex-1"
-                contentContainerClassName="py-2"
+                contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
                 <SettingsListGroup title={t('settings.notifications.sections.general', { defaultValue: 'General' })}>
                     <SettingsListItem
-                        icon={<RowIcon name="notifications" />}
+                        icon={<RowIcon icon={RiNotification3Line} />}
                         title={t('settings.notifications.push', { defaultValue: 'Push notifications' })}
                         description={t('settings.notifications.pushDesc', { defaultValue: 'Receive push notifications on your device' })}
                         showChevron={false}
@@ -201,7 +202,7 @@ export default function NotificationSettingsScreen() {
                         }
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="mail" />}
+                        icon={<RowIcon icon={RiMailLine} />}
                         title={t('settings.notifications.email', { defaultValue: 'Email notifications' })}
                         description={t('settings.notifications.emailDesc', { defaultValue: 'Receive email summaries of your notifications' })}
                         showChevron={false}
@@ -213,7 +214,7 @@ export default function NotificationSettingsScreen() {
 
                 <SettingsListGroup title={t('settings.notifications.sections.activity', { defaultValue: 'Activity from others' })}>
                     <SettingsListItem
-                        icon={<RowIcon name="notifications" />}
+                        icon={<RowIcon icon={RiNotification3Line} />}
                         title={t('subscription.list.title', { defaultValue: 'Activity notifications' })}
                         description={t('subscription.list.entryDesc', { defaultValue: "Accounts that notify you when they post" })}
                         onPress={() => router.push('/settings/notifications/subscriptions')}
@@ -222,7 +223,7 @@ export default function NotificationSettingsScreen() {
 
                 <SettingsListGroup title={t('settings.notifications.sections.types', { defaultValue: 'Notification types' })}>
                     <SettingsListItem
-                        icon={<RowIcon name="heart" />}
+                        icon={<RowIcon icon={RiHeartLine} />}
                         title={t('settings.notifications.likes', { defaultValue: 'Likes' })}
                         description={t('settings.notifications.likesDesc', { defaultValue: 'When someone likes your post' })}
                         showChevron={false}
@@ -231,7 +232,7 @@ export default function NotificationSettingsScreen() {
                         }
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="repeat" />}
+                        icon={<RowIcon icon={RiRepeatLine} />}
                         title={t('settings.notifications.boosts', { defaultValue: 'Boosts' })}
                         description={t('settings.notifications.boostsDesc', { defaultValue: 'When someone boosts your post' })}
                         showChevron={false}
@@ -240,7 +241,7 @@ export default function NotificationSettingsScreen() {
                         }
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="person-add" />}
+                        icon={<RowIcon icon={RiUserAddLine} />}
                         title={t('settings.notifications.follows', { defaultValue: 'New followers' })}
                         description={t('settings.notifications.followsDesc', { defaultValue: 'When someone follows you' })}
                         showChevron={false}
@@ -249,7 +250,7 @@ export default function NotificationSettingsScreen() {
                         }
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="at" />}
+                        icon={<RowIcon icon={RiAtLine} />}
                         title={t('settings.notifications.mentions', { defaultValue: 'Mentions' })}
                         description={t('settings.notifications.mentionsDesc', { defaultValue: 'When someone mentions you in a post' })}
                         showChevron={false}
@@ -258,7 +259,7 @@ export default function NotificationSettingsScreen() {
                         }
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="chatbubble" />}
+                        icon={<RowIcon icon={RiChat4Line} />}
                         title={t('settings.notifications.replies', { defaultValue: 'Replies' })}
                         description={t('settings.notifications.repliesDesc', { defaultValue: 'When someone replies to your post' })}
                         showChevron={false}
@@ -267,7 +268,7 @@ export default function NotificationSettingsScreen() {
                         }
                     />
                     <SettingsListItem
-                        icon={<RowIcon name="chatbox-ellipses" />}
+                        icon={<RowIcon icon={RiChatSmile2Line} />}
                         title={t('settings.notifications.quotes', { defaultValue: 'Quote posts' })}
                         description={t('settings.notifications.quotesDesc', { defaultValue: 'When someone quotes your post' })}
                         showChevron={false}
