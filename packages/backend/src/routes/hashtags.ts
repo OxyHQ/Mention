@@ -5,6 +5,7 @@ import { getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
+import { getTrendingHashtags, type TrendingHashtagRow } from '../services/trendingHashtagsCache';
 import { resolveVariant } from "../services/postVariants";
 import { logger } from "../utils/logger";
 import { queryInt, queryString } from "../utils/queryParams";
@@ -27,7 +28,13 @@ const LEGACY_HASHTAG_SEARCH_LIMIT = 5;
 const HASHTAG_QUERY_MAX_LENGTH = 64;
 
 /** Trending hashtags per page — also the cap, so `?limit` can only narrow it. */
-const TRENDING_HASHTAG_LIMIT = 10;
+/**
+ * Trending rows returned, and the hard ceiling `?limit` can only narrow.
+ *
+ * Exported because it is HALF OF THE CACHE KEY: a test isolating cases by
+ * `limit` would find them all collapsing to this one value.
+ */
+export const TRENDING_HASHTAG_LIMIT = 10;
 
 /** Trailing window for trending counts when `?days` is absent. */
 const DEFAULT_TRENDING_WINDOW_DAYS = 7;
@@ -147,6 +154,17 @@ router.get("/", async (req: Request, res: Response) => {
     const days = Number.parseInt(rawDays, 10);
     const since = Number.isNaN(days) ? undefined : new Date(Date.now() - days * MS_PER_DAY);
 
+    // CACHED, stale-while-revalidate. Everything below is the `compute` this
+    // endpoint used to run on every request: three full `unnest` + `GROUP BY`
+    // aggregates over every public tagged post in the window — ~454ms measured
+    // on 400k posts, all of it a sequential scan. The answer depends only on
+    // `limit` and `days`, never on the viewer, so one entry serves everyone;
+    // `services/trendingHashtagsCache.ts` carries the safety argument and why a
+    // cache rather than the denormalized table that was planned.
+    const hashtags = await getTrendingHashtags(
+      limit,
+      Number.isNaN(days) ? undefined : days,
+      async (): Promise<TrendingHashtagRow[]> => {
     // Primary window aggregation (overall within optional `days`)
     const windowRows = await getDb()
       .select({
@@ -243,7 +261,20 @@ router.get("/", async (req: Request, res: Response) => {
       agg = fallbackArr.map((x) => ({ ...x, direction: (x.count > 0 ? 'up' : 'flat') as 'up' | 'flat' }));
     }
 
-    res.json({ hashtags: agg });
+        // `created_at` is serialized HERE, not left as a `Date`.
+        //
+        // The value round-trips through JSON in Redis, so a cached entry would
+        // come back as a string while a freshly computed one stayed a `Date` —
+        // and `res.json` renders both identically, so the wire format would be
+        // right either way and the TYPE would silently differ for anything
+        // reading it in-process. Converting on the way in makes the two paths
+        // produce the same thing. (`db/schema/CONVENTIONS.md` records the same
+        // trap one layer down, where `db.execute` bypasses drizzle's mappers.)
+        return agg.map((row) => ({ ...row, created_at: row.created_at.toISOString() }));
+      },
+    );
+
+    res.json({ hashtags });
   } catch (error) {
     logger.error('[Hashtags] Error fetching hashtags:', { error, query: req.query });
     res.status(500).json({ message: "Error fetching hashtags from posts", error });
