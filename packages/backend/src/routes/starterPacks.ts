@@ -1,22 +1,21 @@
 import express, { Response } from 'express';
 import { z } from 'zod';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { and, asc, desc, eq, ilike, inArray, ne, notExists, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, notExists, sql, type SQL } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../db/postgres';
 import {
   STARTER_PACK_MAX_MEMBERS,
-  STARTER_PACKS_SEARCH_TEXT,
   starterPackMembers,
   starterPackUses,
   starterPacks,
 } from '../db/schema/lists';
+import { starterPackSearchPredicate } from '../utils/searchPredicates';
 import { resolveUserSummaries, isFallbackUserSummary } from '../services/PostHydrationService';
 import { invalidate as invalidateUserSummaries } from '../services/userSummaryCache';
 import type { PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
 import { endorsementSignalService } from '../services/EndorsementSignalService';
-import { likeContains } from '../utils/likePattern';
 
 /**
  * What a starter pack's own two text fields may be.
@@ -513,17 +512,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       );
     }
     if (search) {
-      const pattern = likeContains(search);
-      // Coarse prefilter (index-servable, from the same expression
-      // `starter_packs_search_trgm_gin` is built on) AND the exact match. The
-      // concatenation can only over-admit, so the two `ILIKE`s stay the real
-      // predicate — see `db/schema/lists.ts` for the full argument.
-      conditions.push(
-        and(
-          sql`${STARTER_PACKS_SEARCH_TEXT} like ${pattern.toLowerCase()}`,
-          or(ilike(starterPacks.name, pattern), ilike(starterPacks.description, pattern)),
-        ),
-      );
+      // One definition, shared with `GET /search/overview` — see
+      // `db/search/searchPredicates.ts`.
+      conditions.push(starterPackSearchPredicate(search));
     }
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 

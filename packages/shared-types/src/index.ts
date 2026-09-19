@@ -67,3 +67,6 @@ export * from './mcpCapabilities';
 
 // MTN Protocol types
 export * from './mtn';
+
+// The one-request search fan-out contract (`GET /search/overview`)
+export * from './search';
