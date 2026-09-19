@@ -99,12 +99,60 @@ viewer's blocked, restricted, following and follower sets live for any caller
 that does not thread a pre-resolved `viewerGraph` — which the feed path does
 and post detail, notifications, profile and search do not.
 
-**No baseline numbers are recorded here yet.** The instrumentation exists; a
-number belongs in this document only once someone has read it off a real
-deployment, and one written from a code trace would be a guess wearing a
-measurement's clothes. `OXY_REQUEST_METRICS_ENABLED=false` takes the Oxy half
+**Measured, because that reads like waste and mostly is not.** Threading
+`viewerGraph` into search's hydration was implemented and reverted: the Oxy call
+count was IDENTICAL before and after, because `buildViewerContext` already
+resolves each of the four exactly once per request, so moving the resolution
+moved it without removing it. `__tests__/routes/searchOxyCallBudget.test.ts`
+pins those counts and is what the reversal left behind. The duplication that IS
+real is ACROSS requests — the search screen's "All" tab issues `/search` and
+`/posts/saved` separately and each pays the four for the same answers — and only
+a combined endpoint resolving the context once can collapse that. One genuine
+per-request waste survives and is pinned at its current value: with an
+`exclude-following` muted word, `getUserFollowing` is called twice.
+
+**No PRODUCTION baseline numbers are recorded here yet.** The instrumentation
+exists; a number belongs in this document only once someone has read it off a
+real deployment, and one written from a code trace would be a guess wearing a
+measurement's clothes.
+
+The search figures in the section below are the one exception, and they are
+labelled as what they are: `EXPLAIN ANALYZE` against a seeded local database of
+stated size. That is a real measurement of a QUERY PLAN, which is what changes
+when an index is added — but it is not a request p95, it does not include the
+network, Oxy, Clarity or hydration, and the data is synthetic. Do not read them
+as a service-level baseline; read them as before/after evidence that a specific
+plan changed. `OXY_REQUEST_METRICS_ENABLED=false` takes the Oxy half
 out of the path entirely (no wrapper, no async context), the same posture as
 `DB_QUERY_METRICS_ENABLED`.
+
+### Search: what the plans do now, measured
+
+Before/after `EXPLAIN ANALYZE` on seeded local databases, single backend, sizes
+stated. Query-plan evidence, not request latency — see the caveat above.
+
+| Query | Before | After | Data |
+|---|---|---|---|
+| Oxy people search, rare term | 191.97 ms (seq scan, 200k rows filtered) | **0.026 ms** | 200k users |
+| Oxy people search, common term | 71.57 ms (3 parallel workers) | **18.84 ms** | 200k users |
+| Oxy people search, 2-char term | seq scan, guaranteed | **19.90 ms** | 200k users |
+| `GET /lists?search=`, selective | 59.87 ms (seq scan, 120k filtered) | **0.19 ms** | 120k lists |
+| `GET /lists?search=`, unselective | 56.98 ms | 31.36 ms | 120k lists |
+| The `count(*)` beside it | 54.07 ms | **0.21 ms** | 120k lists |
+| `GET /hashtags/` trending window | 325.79 ms | cached | 400k posts |
+| `GET /hashtags/` direction maps (×2) | 63.94 ms each | cached | 400k posts |
+| `GET /hashtags/search` | 32.16 ms (already index-served) | unchanged | 400k posts |
+
+The rare-term row is the one that matters: a sequential scan costs the same
+whether it finds nothing or everything, so the old plan charged full price for
+the most common outcome of a real search.
+
+Two of these settled arguments rather than just recording wins. The
+`count(*)` row is why `total` was KEPT on the list and pack endpoints after
+being removed — the count was expensive because the index was missing, so
+fixing the index fixed the count. And the hashtag-search row is why the planned
+`hashtag_stats` table became a cache: search was already fast, and only the
+trending aggregate was not.
 
 **Nothing scrapes it.** There is no Prometheus, Grafana, or CloudWatch
 metrics pipeline for Mention in `oxy-infra/terraform-uswest2` (checked
