@@ -244,6 +244,66 @@ function emptyIfSignedOut<T>(error: unknown, source: string): T[] {
   throw error;
 }
 
+/**
+ * A cancellation, as opposed to a failure.
+ *
+ * React Query aborts the previous query's signal on every new one, so a
+ * cancelled search must NOT fall through to a fallback lookup or an error
+ * state — the caller no longer wants the answer. The SDK surfaces both a
+ * caller abort and a timeout as an `AbortError` with `status: 0`, so the name
+ * is what distinguishes them from a real HTTP failure.
+ */
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === 'AbortError' || error.name === 'CanceledError')
+  );
+}
+
+/**
+ * People search, cancellable.
+ *
+ * `oxyServices.searchProfiles()` accepts no `AbortSignal` (its signature is
+ * `(query, pagination)`), which made People the ONE search lane that could not
+ * be cancelled: every keystroke started a profile search that ran to
+ * completion and had its result thrown away, while holding one of the SDK
+ * request queue's ten slots. Since people search is also the slowest lane —
+ * Oxy's `/profiles/search` has no trigram index on `users`, so it is a
+ * sequential scan — those zombies were the ones starving the live request.
+ *
+ * So this calls the same endpoint through the public `httpService` seam, which
+ * DOES take a signal. It deliberately mirrors the SDK method rather than
+ * improving on it: same path, same query params, and the same `cache: true` /
+ * 2-minute TTL, because a people search repeated inside two minutes is the
+ * common case and that cache is the one piece of the SDK path worth keeping.
+ *
+ * `retry: false` is belt-and-braces — the client-wide `enableRetry: false` in
+ * `utils/api.ts` covers the Mention client, and this one is the Oxy instance.
+ * Delete this helper and pass the signal to `searchProfiles` directly once the
+ * SDK accepts one (see the note in `utils/api.ts`).
+ *
+ * The OTHER `searchProfiles` call sites (starter packs, lists, privacy
+ * screens) are one-shot and not typed into, so they stay on the SDK method.
+ */
+async function searchProfilesCancellable(
+  query: string,
+  pagination: { limit: number; offset?: number },
+  signal?: AbortSignal,
+): Promise<{ data: SearchUserResult[]; pagination?: { total?: number; limit?: number; offset?: number; hasMore?: boolean } }> {
+  const params: Record<string, unknown> = { query, limit: pagination.limit };
+  if (pagination.offset !== undefined) params.offset = pagination.offset;
+
+  const response = await oxyServices.httpService.get<{
+    data?: SearchUserResult[];
+    pagination?: { total?: number; limit?: number; offset?: number; hasMore?: boolean };
+  }>('/profiles/search', { params, signal, retry: false, cache: true, cacheTTL: 2 * 60 * 1000 });
+
+  if (!response || !Array.isArray(response.data)) {
+    throw new Error('Unexpected search response format');
+  }
+  return { data: response.data, pagination: response.pagination };
+}
+
 class SearchService {
   // Search posts - query is passed raw to backend which parses operators
   async searchPosts(
@@ -288,12 +348,12 @@ class SearchService {
   }
 
   // Search users via Oxy services
-  async searchUsers(query: string): Promise<SearchUserResult[]> {
+  async searchUsers(query: string, signal?: AbortSignal): Promise<SearchUserResult[]> {
     try {
-      // Use OxyServices searchProfiles method
-      const { data } = await oxyServices.searchProfiles(query, { limit: 20 });
+      const { data } = await searchProfilesCancellable(query, { limit: 20 }, signal);
       return Array.isArray(data) ? data : [];
     } catch (error) {
+      if (isAbortError(error)) throw error;
       logger.warn("Profile search failed, falling back to exact username lookup", { error });
 
       // Fallback: an exact username match still gives the viewer something useful.
@@ -307,18 +367,20 @@ class SearchService {
   // (`{ limit, offset }` → `{ data, pagination: { offset, limit, hasMore } }`) on
   // a stable native-first sort, so offset paging never repeats a row. Drives the
   // infinite People tab.
-  async searchUsersPage(query: string, offset = 0): Promise<SearchUsersPage> {
+  async searchUsersPage(query: string, offset = 0, signal?: AbortSignal): Promise<SearchUsersPage> {
     try {
-      const { data, pagination } = await oxyServices.searchProfiles(query, {
-        limit: SEARCH_PAGE_LIMIT,
-        offset,
-      });
+      const { data, pagination } = await searchProfilesCancellable(
+        query,
+        { limit: SEARCH_PAGE_LIMIT, offset },
+        signal,
+      );
       return {
         users: Array.isArray(data) ? data : [],
         hasMore: pagination?.hasMore ?? false,
         nextOffset: (pagination?.offset ?? offset) + (pagination?.limit ?? SEARCH_PAGE_LIMIT),
       };
     } catch (error) {
+      if (isAbortError(error)) throw error;
       // The exact-username fallback only makes sense for the FIRST page — a deeper
       // page has no single match to fall back to, so its failure is real.
       if (offset > 0) throw error;
@@ -548,7 +610,7 @@ class SearchService {
     signal?: AbortSignal,
   ): Promise<SearchResults> {
     const [users, feeds, hashtags, starterPacks, posts, lists, saved] = await Promise.allSettled([
-      this.searchUsers(query),
+      this.searchUsers(query, signal),
       this.searchFeeds(query, signal),
       this.searchHashtags(query, signal),
       this.searchStarterPacks(query, signal),
