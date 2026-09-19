@@ -16,6 +16,7 @@ import { and, asc, desc, eq, gte, lt, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
 import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
+import { likeContains } from '@oxy.so/utils/sql';
 
 /** Upper bound on the raw query we turn into a regex. */
 export const HASHTAG_QUERY_MAX_LENGTH = 64;
@@ -68,13 +69,11 @@ export const UNNESTED_TAG = sql<string>`lower(tag.value)`;
  * without a second count query.
  */
 export async function searchHashtagsWithCounts(rawQuery: string, offset: number, limit: number): Promise<HashtagSearchPage> {
-  const needle = rawQuery
-    .trim()
-    .toLowerCase()
-    .slice(0, HASHTAG_QUERY_MAX_LENGTH)
-    .replace(/[\\%_]/g, (char) => `\\${char}`);
-
-  const pattern = `%${needle}%`;
+  // Lower-cased and length-capped BEFORE escaping, because the cap counts the
+  // caller's characters and the escape adds its own — capping after would let a
+  // term of backslashes produce a pattern twice the intended length.
+  const needle = rawQuery.trim().toLowerCase().slice(0, HASHTAG_QUERY_MAX_LENGTH);
+  const pattern = likeContains(needle);
   const rows = await getDb()
     .select({ tag: UNNESTED_TAG, count: sql<number>`count(*)::int` })
     .from(posts)
