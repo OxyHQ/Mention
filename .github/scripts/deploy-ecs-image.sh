@@ -40,6 +40,7 @@ TASK_ENV_OVERRIDES_JSON="${TASK_ENV_OVERRIDES_JSON:-}"
 # `unable to pull secrets`. Strip the secret here first, ship a deploy, then
 # delete the parameter.
 TASK_SECRET_REMOVALS="${TASK_SECRET_REMOVALS:-}"
+TASK_ENV_REMOVALS="${TASK_ENV_REMOVALS:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
@@ -250,6 +251,24 @@ if ! jq -e '
   echo "::error::TASK_ENV_OVERRIDES_JSON must map environment variable names to non-empty string values."
   exit 1
 fi
+# Environment carries forward exactly like secrets do: every revision is rendered
+# from the RUNNING task definition, so a variable nobody names again stays there
+# for ever. Deleting one from a workflow file does nothing at all; naming it here
+# is how a variable actually leaves production.
+for removal_name in $TASK_ENV_REMOVALS; do
+  if ! [[ "$removal_name" =~ ^[A-Z][A-Z0-9_]{0,127}$ ]]; then
+    echo "::error::TASK_ENV_REMOVALS must be space-separated environment variable names; got '$removal_name'."
+    exit 1
+  fi
+  # Refused rather than resolved, for the reason the secrets side gives: the
+  # render filters by name and then concatenates the overrides, so a name in both
+  # lists would be dropped and immediately re-added, and the outcome would depend
+  # on the order of two operations nobody is reading.
+  if jq -e --arg name "$removal_name" 'has($name)' <<<"$TASK_ENV_OVERRIDES_JSON" >/dev/null; then
+    echo "::error::$removal_name is in both TASK_ENV_OVERRIDES_JSON and TASK_ENV_REMOVALS. Remove it from one."
+    exit 1
+  fi
+done
 
 service_json="$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP")"
 if [[ "$(jq '.failures | length' <<<"$service_json")" != "0" ||
@@ -578,6 +597,7 @@ task_env_overrides="$(jq -c '
 # The removals ride the SAME filter as the overrides — both are "drop any secret
 # with this name" — and only the overrides are concatenated back afterwards.
 task_secret_removals="$(jq -cRn '[inputs | select(length > 0)]' <<<"$(printf '%s\n' $TASK_SECRET_REMOVALS)")"
+task_env_removals="$(jq -cRn '[inputs | select(length > 0)]' <<<"$(printf '%s\n' $TASK_ENV_REMOVALS)")"
 
 aws ecs describe-task-definition \
   --task-definition "$current_task_definition" \
@@ -598,6 +618,7 @@ jq \
   --argjson taskSecretOverrides "$task_secret_overrides" \
   --argjson taskSecretRemovals "$task_secret_removals" \
   --argjson taskEnvOverrides "$task_env_overrides" \
+  --argjson taskEnvRemovals "$task_env_removals" \
   '
     del(
       .taskDefinitionArn,
@@ -609,7 +630,7 @@ jq \
       .registeredBy
     )
     | (($taskSecretOverrides | map(.name)) + $taskSecretRemovals) as $taskSecretNames
-    | ($taskEnvOverrides | map(.name)) as $taskEnvNames
+    | (($taskEnvOverrides | map(.name)) + $taskEnvRemovals) as $taskEnvNames
     | .containerDefinitions |= map(
         if .name == $name then
           .image = $image
@@ -622,11 +643,6 @@ jq \
                     valueFrom: $internalMetricsSecretArn
                   }]
               )
-              | .environment = (
-                  (.environment // [])
-                  | map(select(.name != "INTERNAL_METRICS_ENABLED"))
-                  + [{name: "INTERNAL_METRICS_ENABLED", value: "true"}]
-                )
             else .
             end
           | .secrets = (

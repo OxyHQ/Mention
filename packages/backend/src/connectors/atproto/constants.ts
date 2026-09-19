@@ -10,10 +10,13 @@ import { config } from '../../config';
  */
 
 /**
- * Master gate for the atproto connector. OFF by default — the connector is only
- * instantiated and registered when `ATPROTO_ENABLED === 'true'`, mirroring the
- * `FEDERATION_ENABLED` gate for ActivityPub but defaulting closed because the
- * read/discovery path is still being rolled out.
+ * Master gate for the atproto connector: the connector is only instantiated and
+ * registered when this is true, mirroring the `FEDERATION_ENABLED` gate for
+ * ActivityPub — and, like it, ON by default now that the read/discovery path is
+ * rolled out. Set `ATPROTO_ENABLED=false` to close it.
+ *
+ * `ATPROTO_BRIDGE_ENABLED` is a different question and stays closed by default:
+ * this one reads, that one writes.
  */
 export const ATPROTO_ENABLED = config.atproto.enabled;
 

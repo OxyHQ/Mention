@@ -193,7 +193,7 @@ contains only enabled connectors and fans out with `Promise.allSettled`, so one
 network cannot abort another or the native post write.
 
 - ActivityPub is enabled unless `FEDERATION_ENABLED=false`.
-- AT Protocol discovery/read support is optional through `ATPROTO_ENABLED`.
+- AT Protocol discovery/read support is enabled unless `ATPROTO_ENABLED=false`.
 - The AT Protocol bridge remains independently gated by
   `ATPROTO_BRIDGE_ENABLED`.
 

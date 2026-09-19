@@ -187,8 +187,8 @@ The SSRF guard for every media route above (`/media/proxy`, `/media/poster`,
 `@oxy.so/core/server` — never a local copy in `utils/mediaResolver.ts`.
 `GET /media/poster` needs a `video/*` upstream content type; pointing it at
 an HLS playlist URL 415s. The S3 activity cache is gated on
-`FEDERATION_MEDIA_CACHE_WRITE_ENABLED`; unset means the proxy still works,
-it just never writes to S3.
+`FEDERATION_MEDIA_CACHE_WRITE_ENABLED`, which is ON by default; setting it to
+`false` leaves the proxy working, it just never writes to S3.
 
 **A bad or missing federation service credential fails signed fetch
 silently (0 posts imported)**, and the outbox-sync cooldown makes that
