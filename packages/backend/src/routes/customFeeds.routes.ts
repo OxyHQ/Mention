@@ -46,9 +46,9 @@ import type { CachedUserSummary } from '../services/userSummaryCache';
 import { FEED_CATEGORIES, type PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
-import { resolvePageLimit, resolvePageOffset } from '../utils/pageLimits';
+import { resolvePageLimit, resolvePageOffset } from '@oxy.so/utils/paging';
 import { customFeedSearchPredicate } from '../utils/searchPredicates';
-import { likeContains } from '../utils/likePattern';
+import { likeContains } from '@oxy.so/utils/sql';
 
 const router = Router();
 

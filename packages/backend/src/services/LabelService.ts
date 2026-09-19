@@ -28,7 +28,7 @@ import {
 } from '../db/schema/moderation';
 import { userSettings, userSettingsLabelActions } from '../db/schema/userProfile';
 import { logger } from '../utils/logger';
-import { likeContains } from '../utils/likePattern';
+import { likeContains } from '@oxy.so/utils/sql';
 
 export type LabelSeverity = (typeof LABEL_SEVERITIES)[number];
 export type LabelDefaultAction = (typeof LABEL_ACTIONS)[number];
