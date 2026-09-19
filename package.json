@@ -85,11 +85,11 @@
   "overrides": {
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo-secure-store": "57.0.3",
-    "expo-file-system": "57.0.6",
-    "expo-modules-core": "57.0.15",
-    "expo-constants": "57.0.17",
-    "expo-asset": "57.0.16",
-    "expo-font": "57.0.3",
+    "expo-file-system": "57.0.7",
+    "expo-modules-core": "57.0.18",
+    "expo-constants": "57.0.19",
+    "expo-asset": "57.0.18",
+    "expo-font": "57.0.4",
     "expo-linking": "57.0.9",
     "@expo/log-box": "57.0.4",
     "react-native-svg": "15.15.4",
@@ -138,8 +138,5 @@
   "patchedDependencies": {
     "expo-router@57.0.18": "patches/expo-router@57.0.18.patch",
     "expo-video@57.0.3": "patches/expo-video@57.0.3.patch"
-  },
-  "dependencies": {
-    "@oxy.so/core": "^1.7.0"
   }
 }
