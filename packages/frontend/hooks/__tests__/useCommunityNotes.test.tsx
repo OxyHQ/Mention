@@ -89,6 +89,31 @@ async function settle() {
   });
 }
 
+/**
+ * The handlers, once the availability query has actually produced them.
+ *
+ * `settle()` waits ONE macrotask, which is enough on an idle machine and not
+ * always enough on a loaded CI runner. Every call site used to reach for
+ * `latestHandlers?.submitNote?.(…)`, and optional chaining turns "the handler
+ * was not there yet" into a silent no-op that RESOLVES — so a test asserting a
+ * rejection reported `Received promise resolved instead of rejected`, which
+ * names neither the handler nor the timing. Measured: that is exactly how this
+ * file failed in CI on 2026-09-19 while passing locally.
+ *
+ * So: settle until they appear, and fail naming what never appeared.
+ */
+async function readyHandlers(): Promise<Required<Pick<Handlers, 'submitNote' | 'rateNote'>>> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (typeof latestHandlers?.submitNote === 'function' && typeof latestHandlers?.rateNote === 'function') {
+      return latestHandlers as Required<Pick<Handlers, 'submitNote' | 'rateNote'>>;
+    }
+    await settle();
+  }
+  throw new Error(
+    'The community-note handlers never appeared. The availability query is what produces them, so this is that query not resolving — not a handler that is missing by design.',
+  );
+}
+
 function availability(enabled: boolean) {
   mockGet.mockImplementation(async (path: string) => {
     if (path === '/community-notes/availability') return { data: { enabled } };
@@ -151,11 +176,11 @@ describe('the write handlers', () => {
 
   it('sends a note, trimmed, with the one source the form collects', async () => {
     renderProbe(HandlersProbe);
-    await settle();
+    const handlers = await readyHandlers();
     mockPost.mockResolvedValue({ data: { note: { id: 'n1' } } });
 
     await act(async () => {
-      await latestHandlers?.submitNote?.('p1', { text: '  context  ', sourceUrl: ' https://example.org/s ' });
+      await handlers.submitNote('p1', { text: '  context  ', sourceUrl: ' https://example.org/s ' });
     });
 
     expect(mockPost).toHaveBeenCalledWith('/community-notes', {
@@ -167,11 +192,11 @@ describe('the write handlers', () => {
 
   it('sends a note with no source as a note with no sources, not an empty one', async () => {
     renderProbe(HandlersProbe);
-    await settle();
+    const handlers = await readyHandlers();
     mockPost.mockResolvedValue({ data: { note: { id: 'n1' } } });
 
     await act(async () => {
-      await latestHandlers?.submitNote?.('p1', { text: 'context', sourceUrl: '   ' });
+      await handlers.submitNote('p1', { text: 'context', sourceUrl: '   ' });
     });
 
     expect(mockPost.mock.calls[0]?.[1]).toMatchObject({ sourceUrls: [] });
@@ -179,11 +204,11 @@ describe('the write handlers', () => {
 
   it('sends a rating with its reasons', async () => {
     renderProbe(HandlersProbe);
-    await settle();
+    const handlers = await readyHandlers();
     mockPost.mockResolvedValue({ data: {} });
 
     await act(async () => {
-      await latestHandlers?.rateNote?.('n1', 'helpful', ['relevant']);
+      await handlers.rateNote('n1', 'helpful', ['relevant']);
     });
 
     expect(mockPost).toHaveBeenCalledWith('/community-notes/n1/ratings', {
@@ -194,12 +219,12 @@ describe('the write handlers', () => {
 
   it('lets a refused write reach the caller, so the sheet does not claim success', async () => {
     renderProbe(HandlersProbe);
-    await settle();
+    const handlers = await readyHandlers();
     mockPost.mockRejectedValue(new Error('refused'));
 
     await expect(
       act(async () => {
-        await latestHandlers?.submitNote?.('p1', { text: 'context', sourceUrl: '' });
+        await handlers.submitNote('p1', { text: 'context', sourceUrl: '' });
       }),
     ).rejects.toThrow('refused');
   });
