@@ -225,8 +225,32 @@ if (existsSync(workflowPath)) {
   if (/secrets\.ALIA_API_KEY/.test(workflow)) {
     failures.push('.github/workflows/deploy-aws.yml: still reads the retired ALIA_API_KEY GitHub secret');
   }
-  const removals = workflow.match(/^\s*TASK_SECRET_REMOVALS:\s*(.+?)\s*$/m)?.[1]
-    ?.split(/\s+/) ?? [];
+  /**
+   * Read the VALUE, not the line.
+   *
+   * `TASK_SECRET_REMOVALS` is a space-separated list that outgrew one line, and
+   * YAML has two ways to write the same string. Matching the rest of the line
+   * found nothing the moment the list became a folded block — so the gate
+   * reported that a retired credential had stopped being removed, while the
+   * workflow removed it exactly as before. A gate that fails on formatting
+   * teaches people to reformat, which is the opposite of what this one is for.
+   */
+  const removalsLine = workflow.match(/^\s*TASK_SECRET_REMOVALS:\s*(.*)$/m);
+  const folded = removalsLine?.[1]?.trim().startsWith('>')
+    ? workflow
+        .slice(workflow.indexOf(removalsLine[0]) + removalsLine[0].length)
+        .split('\n')
+        // A folded block ends at the first line indented no further than the key.
+        .slice(1)
+        .reduce((lines, line) => {
+          if (lines.done || (line.trim() !== '' && !/^\s{2,}\S/.test(line))) {
+            return { ...lines, done: true };
+          }
+          return { ...lines, values: [...lines.values, line.trim()] };
+        }, { values: [], done: false }).values
+        .join(' ')
+    : (removalsLine?.[1] ?? '');
+  const removals = folded.split(/\s+/).filter(Boolean);
   for (const retiredSecret of ['ALIA_API_KEY', 'OXY_SERVICE_TOKEN']) {
     if (!removals.includes(retiredSecret)) {
       failures.push(`.github/workflows/deploy-aws.yml: must re-assert removal of ${retiredSecret} from every ECS task revision`);
