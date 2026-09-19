@@ -35,10 +35,18 @@ import { resolveUserSummaries } from '../../services/PostHydrationService';
  *
  * Never throws either way, so a caller does not have to defend against it twice.
  */
-export async function resolveAuthorQuality(
-  authorIds: ReadonlyArray<string | null | undefined>,
+export async function resolveAuthorQuality<T>(
+  items: Iterable<T>,
+  authorIdOf: (item: T) => string | null | undefined,
 ): Promise<Map<string, CachedUserSummary> | undefined> {
-  const ids = [...new Set(authorIds.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+  // Takes an iterable and a selector rather than an id array so a caller can hand
+  // over `map.values()` directly. `resolveUserSummaries` dedupes internally, so
+  // there is nothing to collect into a Set here.
+  const ids: string[] = [];
+  for (const item of items) {
+    const id = authorIdOf(item);
+    if (typeof id === 'string' && id.length > 0) ids.push(id);
+  }
   if (ids.length === 0) return new Map();
   try {
     return await resolveUserSummaries(ids);

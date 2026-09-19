@@ -77,8 +77,7 @@ const EMPTY_RESPONSE: SlicedFeedResponse = {
  * `asOf` is unconditional here (inherited, else now), so a minted cursor is always
  * stamped.
  */
-function buildPopularCursor(page: readonly CandidatePost[], incomingCursor?: string): string | undefined {
-  const last = page[page.length - 1];
+function buildPopularCursor(last: CandidatePost | undefined, incomingCursor?: string): string | undefined {
   if (!last) return undefined;
 
   const ranked = toRankedCandidate(last);
@@ -130,6 +129,38 @@ function buildMutedLanePredicate(
   };
 }
 
+/**
+ * The viewer's follow ids as a set, or `undefined` when there are none to build
+ * one from.
+ *
+ * A function rather than an inline ternary at each construction site: the filters
+ * that ask "does the viewer follow this author" run per CANDIDATE, so a context
+ * that forgets the set silently downgrades them to a linear scan — or, for the
+ * filters that have no array fallback, to "follows nobody".
+ */
+function followingSet(followingIds: string[] | undefined): ReadonlySet<string> | undefined {
+  return followingIds ? new Set(followingIds) : undefined;
+}
+
+/** A gate filter paired with its module id, so a rejection can name its cause. */
+type GateKeep = { id: string; keep: (post: CandidatePost) => boolean };
+
+/**
+ * The id of the FIRST filter to reject, or `undefined` when none do.
+ *
+ * First rather than all: the engine only needs a label for the `reason` metric,
+ * and short-circuiting means a passing candidate runs no more predicates than it
+ * has to. The offline harness deliberately diverges and collects EVERY rejecting
+ * module — see `evaluateGate` in `scripts/evalFeedQuality` — because per-module
+ * precision cannot be read off a first-match label.
+ */
+function firstRejection(keeps: readonly GateKeep[], post: CandidatePost): string | undefined {
+  for (const { id, keep } of keeps) {
+    if (!keep(post)) return id;
+  }
+  return undefined;
+}
+
 export class FeedEngine {
   constructor(private readonly registry: FeedModuleRegistry = feedModuleRegistry) {}
 
@@ -175,15 +206,21 @@ export class FeedEngine {
       // "does the viewer follow this author" are evaluated per CANDIDATE, and the
       // follow list of an account that follows thousands would otherwise be
       // scanned linearly once per candidate in a 150-post pool.
-      followingIdSet: context.followingIds ? new Set(context.followingIds) : undefined,
+      followingIdSet: followingSet(context.followingIds),
     };
+
+    // Resolved ONCE per request. `getDiscoveryGateRolloutMode()` is not a cached
+    // read — it re-parses the whole environment through zod on every call — and
+    // both the pool gate and the popular fallback need the answer, so a
+    // never-blank request was paying for it twice.
+    const measureOnly = this.gateIsMeasureOnly(ctx);
 
     // Anonymous popular fallback (For You / Videos / Media): no viewer signals,
     // so we serve the engagement-sorted popular source directly. Note this
     // returns the page in `items` with an EMPTY `slices` — see
     // `runPopularFallback`, because it makes a working feed look empty.
     if (definition.mode === 'ranked' && exec.popularFallback && !ctx.currentUserId) {
-      return this.runPopularFallback(definition, exec.popularFallback, ctx, exec, cursor, limit);
+      return this.runPopularFallback(definition, exec.popularFallback, ctx, exec, cursor, limit, measureOnly);
     }
 
     // A cursor MINTED BY the fallback keeps the session in the fallback, for the
@@ -207,7 +244,7 @@ export class FeedEngine {
     // The door is one-way per CURSOR CHAIN, never per viewer: a refresh sends no
     // cursor and starts ranked at page one again.
     if (definition.mode === 'ranked' && exec.popularFallback && parsedScoreCursor?.fromPopularFallback) {
-      return this.runPopularFallback(definition, exec.popularFallback, ctx, exec, cursor, limit);
+      return this.runPopularFallback(definition, exec.popularFallback, ctx, exec, cursor, limit, measureOnly);
     }
 
     // Seen-post de-prioritization for ranked personalized/discovery feeds.
@@ -222,7 +259,7 @@ export class FeedEngine {
       ctx.seenPostIds = seenPostIds;
     }
 
-    const pool = await this.gatherPool(definition, ctx, exec, limit);
+    const pool = await this.gatherPool(definition, ctx, exec, limit, measureOnly);
 
     // Phase 7: record the federated share of the merged candidate pool for this
     // feed (a gauge keyed by the base feed type). Emitted from the served `run`
@@ -237,7 +274,7 @@ export class FeedEngine {
     }
 
     return definition.mode === 'ranked'
-      ? this.finalizeRanked(definition, ctx, exec, pool, cursor, limit, parsedScoreCursor)
+      ? this.finalizeRanked(definition, ctx, exec, pool, cursor, limit, parsedScoreCursor, measureOnly)
       : this.finalizeChronological(ctx, exec, pool, cursor, limit);
   }
 
@@ -254,10 +291,10 @@ export class FeedEngine {
       cursor: undefined,
       pageLimit: 1,
       seenPostIds: undefined,
-      followingIdSet: context.followingIds ? new Set(context.followingIds) : undefined,
+      followingIdSet: followingSet(context.followingIds),
     };
 
-    const pool = await this.gatherPool(definition, ctx, exec, 1);
+    const pool = await this.gatherPool(definition, ctx, exec, 1, this.gateIsMeasureOnly(ctx));
     if (pool.length === 0) return undefined;
 
     let newest = pool[0];
@@ -338,11 +375,23 @@ export class FeedEngine {
     return ctx.viewerPrivacy;
   }
 
+  /**
+   * Whether the gate only MEASURES for this request: shadow measures everyone,
+   * experiment enforces just the stable `gate-on` cohort (anonymous viewers stay
+   * control), and enforce filters every discovery request.
+   */
+  private gateIsMeasureOnly(ctx: FeedEngineContext): boolean {
+    const rolloutMode = getDiscoveryGateRolloutMode();
+    return rolloutMode === 'shadow'
+      || (rolloutMode === 'experiment' && ctx.discoveryGateBucket !== 'gate-on');
+  }
+
   private async gatherPool(
     definition: FeedDefinition,
     ctx: FeedEngineContext,
     exec: FeedExecution,
     limit: number,
+    measureOnly: boolean,
   ): Promise<CandidatePost[]> {
     const cap = this.sourceCap(definition.mode, exec, limit);
 
@@ -379,26 +428,21 @@ export class FeedEngine {
     const mutedLaneKeep = buildMutedLanePredicate(ctx);
     if (mutedLaneKeep) poolKeeps.push(mutedLaneKeep);
     const gateKeeps = this.resolveGateKeeps(definition.discoveryFilters ?? [], ctx);
-    const discoveryKeeps = gateKeeps.all;
+    const hasGate = gateKeeps.authorFree.length + gateKeeps.authorAware.length > 0;
 
-    // One rollout authority: shadow measures everyone, experiment enforces only
-    // the stable gate-on cohort (anonymous viewers remain control), and enforce
-    // filters every discovery request.
-    const rolloutMode = getDiscoveryGateRolloutMode();
-    const measureOnly = rolloutMode === 'shadow'
-      || (rolloutMode === 'experiment' && ctx.discoveryGateBucket !== 'gate-on');
     const maxPool = exec.maxPool;
 
     const merged = new Map<string, CandidatePost>();
-    // The gated candidates' source module, kept for the SECOND gate pass below —
-    // by then the merge has flattened every lane into one map and the `source`
-    // metric label would otherwise be unrecoverable.
-    const gatedSourceById = new Map<string, string>();
+    // Collected ONLY when a second pass is going to run. Each entry keeps the
+    // source module, which the merge would otherwise flatten away before the
+    // `reason`/`source` metric labels are recorded.
+    const needsAuthorPass = gateKeeps.authorAware.length > 0;
+    const gated: Array<{ post: CandidatePost; source: string }> = [];
     let gatedCount = 0;
     for (let i = 0; i < sourceResults.length; i += 1) {
       const sourceModule = enabledSources[i].module;
       const isTrusted = this.registry.getSource(sourceModule)?.trusted === true;
-      const applyGate = !isTrusted && discoveryKeeps.length > 0;
+      const applyGate = !isTrusted && hasGate;
       for (const post of sourceResults[i]) {
         if (maxPool !== undefined && merged.size >= maxPool) break;
         const id = post?.id;
@@ -406,16 +450,7 @@ export class FeedEngine {
         if (poolKeeps.some((keep) => !keep(post))) continue;
 
         if (applyGate) {
-          // Attribute a rejection to the FIRST gate filter that rejects, so the
-          // `reason` label pinpoints why (short-circuits like the engine's own
-          // `.every`). A passing candidate hits none of this.
-          let rejectedBy: string | undefined;
-          for (const { id: filterId, keep } of gateKeeps.authorFree) {
-            if (!keep(post)) {
-              rejectedBy = filterId;
-              break;
-            }
-          }
+          const rejectedBy = firstRejection(gateKeeps.authorFree, post);
           if (rejectedBy) {
             gatedCount += 1;
             recordDiscoveryGated(rejectedBy, sourceModule, measureOnly);
@@ -425,7 +460,7 @@ export class FeedEngine {
           // Mark every non-trusted candidate that survives (in measure-only mode,
           // that is all of them) so ranking's discovery-scoped signals read the lane.
           post._discovery = true;
-          gatedSourceById.set(id, sourceModule);
+          if (needsAuthorPass) gated.push({ post, source: sourceModule });
         }
 
         merged.set(id, post);
@@ -450,10 +485,8 @@ export class FeedEngine {
     //
     // Nothing may be dropped after the page window is chosen (see
     // `finalizeRanked`), and this is comfortably before it.
-    if (gateKeeps.authorAware.length > 0 && gatedSourceById.size > 0) {
-      const summaries = await resolveAuthorQuality(
-        [...merged.values()].map((post) => post.oxyUserId),
-      );
+    if (gated.length > 0) {
+      const summaries = await resolveAuthorQuality(merged.values(), (post) => post.oxyUserId);
       if (summaries === undefined) {
         // The batch could not be resolved. Leave `authorSummaries` UNSET rather
         // than empty — see `resolveAuthorQuality` — and skip the pass entirely, so
@@ -463,20 +496,12 @@ export class FeedEngine {
         recordAuthorGateNeutral('no_map', definition.id);
       } else {
         ctx.authorSummaries = summaries;
-        for (const [id, sourceModule] of gatedSourceById) {
-          const post = merged.get(id);
-          if (!post) continue;
-          let rejectedBy: string | undefined;
-          for (const { id: filterId, keep } of gateKeeps.authorAware) {
-            if (!keep(post)) {
-              rejectedBy = filterId;
-              break;
-            }
-          }
+        for (const { post, source } of gated) {
+          const rejectedBy = firstRejection(gateKeeps.authorAware, post);
           if (!rejectedBy) continue;
           gatedCount += 1;
-          recordDiscoveryGated(rejectedBy, sourceModule, measureOnly);
-          if (!measureOnly) merged.delete(id);
+          recordDiscoveryGated(rejectedBy, source, measureOnly);
+          if (!measureOnly) merged.delete(post.id);
         }
       }
     }
@@ -536,32 +561,26 @@ export class FeedEngine {
    *
    * The split is what lets the engine skip the author batch entirely for a
    * definition whose gate asks nothing about accounts, which is every definition
-   * that does not opt in. `all` keeps the undivided list for the one question that
-   * does not care either way: whether this lane has a gate at all, which is what
-   * decides `_discovery` stamping.
+   * that does not opt in. Evaluating `authorFree` first is not merely the cheaper
+   * order — it is the only one the author-aware half can run in, since its input
+   * is resolved between the two.
    */
   private resolveGateKeeps(
     refs: ModuleRef[],
     ctx: FeedEngineContext,
-  ): {
-    all: Array<{ id: string; keep: (post: CandidatePost) => boolean }>;
-    authorFree: Array<{ id: string; keep: (post: CandidatePost) => boolean }>;
-    authorAware: Array<{ id: string; keep: (post: CandidatePost) => boolean }>;
-  } {
-    const all: Array<{ id: string; keep: (post: CandidatePost) => boolean }> = [];
-    const authorFree: typeof all = [];
-    const authorAware: typeof all = [];
+  ): { authorFree: GateKeep[]; authorAware: GateKeep[] } {
+    const authorFree: GateKeep[] = [];
+    const authorAware: GateKeep[] = [];
     for (const ref of refs) {
       if (!ref.enabled) continue;
       const filter: FilterModule | undefined = this.registry.getFilter(ref.module);
       const keep = filter?.keep;
       if (!keep) continue;
       const params = ref.params ?? {};
-      const entry = { id: ref.module, keep: (post: CandidatePost) => keep(post, ctx, params) };
-      all.push(entry);
-      (filter?.needsAuthor === true ? authorAware : authorFree).push(entry);
+      const entry: GateKeep = { id: ref.module, keep: (post) => keep(post, ctx, params) };
+      (filter.needsAuthor === true ? authorAware : authorFree).push(entry);
     }
-    return { all, authorFree, authorAware };
+    return { authorFree, authorAware };
   }
 
   private sourceCap(mode: FeedDefinition['mode'], exec: FeedExecution, limit: number): number {
@@ -585,6 +604,7 @@ export class FeedEngine {
     cursor: string | undefined,
     limit: number,
     parsedCursor: ReturnType<typeof ScoreCursor.parse>,
+    measureOnly: boolean,
   ): Promise<SlicedFeedResponse> {
     if (exec.ordered) {
       return this.finalizeOrdered(ctx, exec, pool, limit);
@@ -671,7 +691,7 @@ export class FeedEngine {
     // Never-blank: an authenticated ranked personalized feed that exhausts its
     // unseen pool falls back to popular discovery instead of returning blank.
     if (deduped.length === 0 && exec.neverBlank && exec.popularFallback && ctx.currentUserId) {
-      return this.runPopularFallback(definition, exec.popularFallback, ctx, exec, cursor, limit);
+      return this.runPopularFallback(definition, exec.popularFallback, ctx, exec, cursor, limit, measureOnly);
     }
 
     const { slices: rawSlices } = await threadSlicingService.sliceFeed(deduped, {
@@ -924,6 +944,7 @@ export class FeedEngine {
     exec: FeedExecution,
     cursor: string | undefined,
     limit: number,
+    measureOnly: boolean,
   ): Promise<SlicedFeedResponse> {
     const source = this.registry.getSource(popularSourceId);
     if (!source) {
@@ -936,10 +957,8 @@ export class FeedEngine {
     // same gate the ranked path does. It cannot reuse `gatherPool`: this is the one
     // path that deliberately bypasses it (single source, no merge, no ranking).
     const gateKeeps = this.resolveGateKeeps(definition.discoveryFilters ?? [], ctx);
-    const rolloutMode = getDiscoveryGateRolloutMode();
-    const measureOnly = rolloutMode === 'shadow'
-      || (rolloutMode === 'experiment' && ctx.discoveryGateBucket !== 'gate-on');
-    const gateActive = gateKeeps.all.length > 0 && !measureOnly;
+    const gateAll = [...gateKeeps.authorFree, ...gateKeeps.authorAware];
+    const gateActive = gateAll.length > 0 && !measureOnly;
 
     // SCAN TO FILL, rather than filter inside a fixed `limit`-wide window.
     // Dropping candidates from a window sized exactly to the page is how a feed
@@ -959,7 +978,7 @@ export class FeedEngine {
     // The gate's author-aware half needs the authors of the fetched window. One
     // batch, and fail-soft: an empty map leaves every author-aware filter neutral.
     if (gateKeeps.authorAware.length > 0 && candidates.length > 0) {
-      ctx.authorSummaries = await resolveAuthorQuality(candidates.map((post) => post.oxyUserId));
+      ctx.authorSummaries = await resolveAuthorQuality(candidates, (post) => post.oxyUserId);
     }
 
     const page: CandidatePost[] = [];
@@ -968,13 +987,7 @@ export class FeedEngine {
       if (page.length >= limit) break;
       scanned += 1;
       if (mutedLaneKeep && !mutedLaneKeep(post)) continue;
-      let rejectedBy: string | undefined;
-      for (const { id: filterId, keep } of gateKeeps.all) {
-        if (!keep(post)) {
-          rejectedBy = filterId;
-          break;
-        }
-      }
+      const rejectedBy = firstRejection(gateAll, post);
       if (rejectedBy) {
         recordDiscoveryGated(rejectedBy, popularSourceId, measureOnly);
         if (!measureOnly) continue;
@@ -994,14 +1007,15 @@ export class FeedEngine {
     // what survived it — they describe how far this request consumed the SOURCE,
     // and a dropped post must not be mistaken for reaching the end of it.
     //
-    // Two ways there is more. The scan stopped early because the page filled, so
-    // candidates remain; or the scan consumed everything it was given and the
-    // SOURCE still had more to give, which is what an exhausted overfetch means.
-    // Without the second, a gate that rejects heavily would fill a short page,
-    // reach the end of the fetched window, and report the end of the FEED — which
-    // it is not, and which no cursor could then get past.
-    const hasMore = candidates.length > scanned || candidates.length >= fetch;
-    const nextCursor = hasMore ? buildPopularCursor(candidates.slice(0, scanned), cursor) : undefined;
+    // `gather` never returns more than `fetch`, so a short window means the source
+    // ran out. Anything else means there is more to come — either the scan stopped
+    // early because the page filled, or it consumed a full window. Without the
+    // second case a gate that rejects heavily would fill a short page, reach the
+    // end of the fetched window, and report the end of the FEED, which no cursor
+    // could then get past.
+    const sourceExhausted = candidates.length < fetch;
+    const hasMore = !sourceExhausted || scanned < candidates.length;
+    const nextCursor = hasMore ? buildPopularCursor(candidates[scanned - 1], cursor) : undefined;
 
     const hydrated = await postHydrationService.hydratePosts(page, {
       // The authenticated never-blank path reaches here too, and hydrating it as

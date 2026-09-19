@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { FeedDescriptor } from '@mention/shared-types';
 import { resolveDefinition } from '../mtn/feed/definitions/resolveDefinition';
-import { discoveryGateModuleIdsForTest } from '../config';
+import { discoveryGateModuleIds } from '../config';
 
 /**
  * Group D — the new preset definitions (Trending, Mutuals, Popular with Friends)
@@ -73,7 +73,7 @@ describe('gate composition across presets', () => {
       ...(await gateOf('for_you')),
       ...(await gateOf('trending')),
     ]);
-    const nameable = new Set(discoveryGateModuleIdsForTest);
+    const nameable = new Set(discoveryGateModuleIds);
     for (const id of built) expect(nameable.has(id)).toBe(true);
   });
 });

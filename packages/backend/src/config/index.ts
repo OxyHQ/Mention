@@ -207,7 +207,7 @@ const phase2bSignalIds = [
  * missing here makes the process refuse to boot when the env var names it.
  * `presetDefinitions.test.ts` asserts this list covers both profiles.
  */
-const discoveryGateModuleIds = [
+export const discoveryGateModuleIds = [
   'minLength',
   'lowEffortGate',
   'nativeEngagement',
@@ -218,13 +218,6 @@ const discoveryGateModuleIds = [
   'authorHasAvatar',
 ] as const;
 
-/**
- * The same list, exported for the one test that has to compare it against what
- * the presets actually build. Exported rather than duplicated in the spec,
- * because a copy of a list whose whole purpose is agreeing with another list is
- * a third thing to keep in sync.
- */
-export const discoveryGateModuleIdsForTest: readonly string[] = discoveryGateModuleIds;
 
 const claudeRedirects = [
   'https://claude.ai/api/mcp/auth_callback',

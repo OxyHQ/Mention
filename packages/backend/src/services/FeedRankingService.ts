@@ -112,12 +112,15 @@ export class FeedRankingService {
       // The engine resolves this same author set one step earlier when the feed's
       // gate asks about accounts, and hands the map down. Only the ids it did not
       // cover are fetched — a PARTIAL map is therefore fine, which is what keeps
-      // this correct if the engine's own resolution degraded.
-      const missing = prefetched ? authorIds.filter((id) => !prefetched.has(id)) : authorIds;
-      const fetched = missing.length > 0 ? await resolveUserSummaries(missing) : new Map<string, CachedUserSummary>();
-      const resolved = prefetched
-        ? new Map<string, CachedUserSummary>([...prefetched, ...fetched])
-        : fetched;
+      // this correct if the engine's own resolution degraded. In the common case
+      // it covered everything, and nothing is fetched at all.
+      const resolved = new Map<string, CachedUserSummary>(prefetched ?? []);
+      const missing = authorIds.filter((id) => !resolved.has(id));
+      if (missing.length > 0) {
+        for (const [authorId, value] of await resolveUserSummaries(missing)) {
+          resolved.set(authorId, value);
+        }
+      }
       for (const [authorId, value] of resolved) {
         if (typeof value.followerCount === 'number') {
           followerCounts.set(authorId, value.followerCount);

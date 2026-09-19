@@ -129,7 +129,6 @@ function buildPresetRankingSignals(): ModuleRef[] {
 const DISCOVERY_GATE_MODULE_IDS = [
   'minLength', 'lowEffortGate', 'nativeEngagement', 'minQuality', 'noContentWarning',
 ] as const;
-const DISCOVERY_GATE_ALLOWED_IDS = new Set<string>(DISCOVERY_GATE_MODULE_IDS);
 
 /**
  * The RECOMMENDATION-HYGIENE subset, for Trending / Videos / Media.
@@ -181,7 +180,7 @@ function discoveryGateModule(id: string): ModuleRef {
  * or enforces the resolved gate (see `FeedEngine.gatherPool`).
  */
 export function resolveDiscoveryGate(): ModuleRef[] {
-  return resolveGateProfile(DISCOVERY_GATE_MODULE_IDS, DISCOVERY_GATE_ALLOWED_IDS);
+  return resolveGateProfile(DISCOVERY_GATE_MODULE_IDS);
 }
 
 /**
@@ -194,14 +193,18 @@ export function resolveDiscoveryGate(): ModuleRef[] {
  * var would be a second thing to remember during an incident.
  */
 export function resolveRecommendationGate(): ModuleRef[] {
-  return resolveGateProfile(
-    RECOMMENDATION_GATE_MODULE_IDS,
-    new Set<string>(RECOMMENDATION_GATE_MODULE_IDS),
-  );
+  return resolveGateProfile(RECOMMENDATION_GATE_MODULE_IDS);
 }
 
-/** The shared body of both gate profiles: config master switch, then env selection. */
-function resolveGateProfile(defaults: readonly string[], allowed: ReadonlySet<string>): ModuleRef[] {
+/**
+ * The shared body of both gate profiles: config master switch, then env selection.
+ *
+ * A profile is its own allowlist — an explicit `FOR_YOU_DISCOVERY_GATE` list is
+ * intersected with the modules this profile may run, so naming a For You module
+ * does not switch it on for Trending.
+ */
+function resolveGateProfile(profile: readonly string[]): ModuleRef[] {
+  const allowed = new Set<string>(profile);
   if (MtnConfig.feed.discoveryGate.enabled !== true) {
     return [];
   }
@@ -210,7 +213,7 @@ function resolveGateProfile(defaults: readonly string[], allowed: ReadonlySet<st
     return [];
   }
   if (!raw || raw === 'default' || raw === 'on' || raw === 'true') {
-    return defaults.map(discoveryGateModule);
+    return profile.map(discoveryGateModule);
   }
   return raw
     .split(',')
@@ -533,7 +536,7 @@ export function authorDefinition(authorId: string, filter: AuthorFeedFilter): Fe
  * no-op anyway.
  */
 function contentWarningFilterRef(): ModuleRef {
-  return enabled('noContentWarning', { viewerGateTuning: true });
+  return discoveryGateModule('noContentWarning');
 }
 
 /** Hashtag feed — posts carrying a hashtag (chronological). */
