@@ -203,16 +203,54 @@ for (const workflowName of workflowNames) {
             `${workflowName}: Oxy owns the Mention service credential in SSM; a deploy must not overwrite it from GitHub secrets`,
           );
         }
-        if (
-          workflowName === "deploy-mcp-aws.yml" &&
-          (
-            !source.includes("parameter/oxy/mention/OXY_SERVICE_API_KEY") ||
-            !source.includes("parameter/oxy/mention/OXY_SERVICE_API_SECRET")
-          )
-        ) {
-          failures.push(
-            `${workflowName}: backend and MCP must consume the same app-owned Mention service credential`,
+        // The inverse of the rule that used to stand here, which required the MCP
+        // workflow to inject `parameter/oxy/mention/OXY_SERVICE_API_KEY` and
+        // `..._SECRET` so that backend and MCP consumed the SAME app-owned
+        // credential. Both now authenticate by attesting their ECS task role
+        // (oxy ADR 0026) and the backend stopped injecting the pair on
+        // 2026-09-18, so what that rule enforced is a credential nothing reads.
+        //
+        // It is replaced rather than deleted because the declaration is the only
+        // thing that removes the pair: a revision is rendered from the RUNNING
+        // task definition, so a `TASK_SECRET_REMOVALS` entry deleted here would
+        // let the pair ride every future revision forward, silently. And an
+        // override reinstated alongside it is not merely redundant —
+        // `deploy-ecs-image.sh` refuses a name that appears in both lists, so it
+        // fails every MCP deploy before the rollout. Which is what happened: the
+        // two rules could not both be satisfied, and this gate was the one
+        // asking for the entry that broke the deploy.
+        if (workflowName === "deploy-mcp-aws.yml") {
+          // Read the two declarations as the deploy script reads them: the JSON
+          // object that follows `TASK_SECRET_OVERRIDES_JSON`, and the
+          // space-separated names on the `TASK_SECRET_REMOVALS` line. Matching
+          // the whole file for a name would find it in either list, in a comment,
+          // or in the other workflow, and pass on the wrong evidence.
+          const overridesDeclaration = source.slice(
+            source.indexOf("TASK_SECRET_OVERRIDES_JSON"),
           );
+          const overriddenNames = new Set(
+            [...overridesDeclaration.matchAll(/"([A-Z][A-Z0-9_]*)"\s*:/g)].map(
+              (match) => match[1],
+            ),
+          );
+          const removalLine = source
+            .split("\n")
+            .find((line) => line.includes("TASK_SECRET_REMOVALS:"));
+          const removedNames = new Set(
+            (removalLine ?? "").split("TASK_SECRET_REMOVALS:")[1]?.trim().split(/\s+/) ?? [],
+          );
+          for (const name of ["OXY_SERVICE_API_KEY", "OXY_SERVICE_API_SECRET"]) {
+            if (overriddenNames.has(name)) {
+              failures.push(
+                `${workflowName}: ${name} must not be injected as a task secret; the MCP task attests its ECS role (oxy ADR 0026), and a name in both TASK_SECRET_OVERRIDES_JSON and TASK_SECRET_REMOVALS fails the deploy outright`,
+              );
+            }
+            if (!removedNames.has(name)) {
+              failures.push(
+                `${workflowName}: ${name} must stay in TASK_SECRET_REMOVALS; the next revision is rendered from the RUNNING one, so dropping the line leaves the credential on the task definition forever`,
+              );
+            }
+          }
         }
         if (
           workflowName === "deploy-aws.yml" &&

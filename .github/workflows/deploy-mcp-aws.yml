@@ -135,9 +135,22 @@ jobs:
           # a revision is rendered from the RUNNING one, so deleting a line removes
           # nothing. The post-deploy catalog registration runs in the cluster and
           # attests the same way.
+          #
+          # They are named ONCE, and in this list only. They used to be named here
+          # AND in TASK_SECRET_OVERRIDES_JSON below, which `deploy-ecs-image.sh`
+          # refuses outright rather than resolving — the render filters by name and
+          # then concatenates the overrides, so the outcome would depend on the order
+          # of two operations in a render of SECRETS. Every MCP deploy since has died
+          # on `OXY_SERVICE_API_KEY is in both TASK_SECRET_OVERRIDES_JSON and
+          # TASK_SECRET_REMOVALS`, before the rollout, which is why `mention-mcp` is
+          # still serving an image that predates the code tolerating their absence.
           TASK_SECRET_REMOVALS: OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET
+          # The JWT signing secret only. The Oxy service credential is not injected
+          # here any more: the backend stopped injecting it on 2026-09-18 for the same
+          # reason, and `/oxy/mention/OXY_SERVICE_API_KEY` outlives both of them only
+          # until this removal has run once.
           TASK_SECRET_OVERRIDES_JSON: >-
-            {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention-mcp/MENTION_MCP_JWT_SECRET","OXY_SERVICE_API_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/OXY_SERVICE_API_SECRET"}
+            {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention-mcp/MENTION_MCP_JWT_SECRET"}
         # Session stickiness must be declared in oxy-infra. The deploy role has
         # no ELB mutation permissions, so this workflow cannot safely enable it.
         run: bash .github/scripts/deploy-ecs-image.sh
