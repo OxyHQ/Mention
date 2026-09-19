@@ -320,8 +320,16 @@ export default defineConfig({
         // The labels feature. Pinned for the same reason as the moderation files
         // above: its failure mode is a viewer's hide/warn/blur silently ceasing
         // to apply, which no request ever reports as an error.
+        //
+        // `statements` LOWERED 96.15 -> 96.07, and like `ModerationDecisionWorker`
+        // above this is a DENOMINATOR change, not a regression. Nothing here
+        // stopped being covered: the file's private `likeContains` moved to the
+        // shared `utils/likePattern`, deleting one statement that the tests DID
+        // reach, so the one statement they never reach now weighs more. 50/52 was
+        // 96.15%, the same single miss as 49/51 is 96.07%. The escaping itself did
+        // not lose coverage — it gained a dedicated suite at its new home.
         'src/services/LabelService.ts': {
-          statements: 96.15,
+          statements: 96.07,
           branches: 78.33,
           functions: 100,
           lines: 100,
