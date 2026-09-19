@@ -10,6 +10,7 @@ import notificationsRouter from './routes/notifications';
 import listsRoutes from './routes/lists';
 import hashtagsRoutes from './routes/hashtags';
 import searchRoutes from './routes/search';
+import searchOverviewRoutes from './routes/searchOverview';
 import feedRoutes from './routes/feed.routes';
 import pollsRoutes from './routes/polls';
 import jobsRoutes from './routes/jobs';
@@ -123,6 +124,16 @@ export function createAppRoutes({
   const mcpEffectIdempotency = createMcpEffectIdempotency();
   publicApi.use(mcpEffectIdempotency);
   publicApi.use('/hashtags', hashtagsRoutes);
+  // `/search/overview` on the PUBLIC api, one mount before the authenticated
+  // `/search` below. This router declares only `/overview`, so `GET /search`
+  // falls straight through to the authenticated one — the same
+  // two-mounts-one-prefix arrangement `/posts`, `/statistics` and `/channels`
+  // already use, and the comment on the `/channels` pair states the rule.
+  //
+  // Public because the overview's lanes answer everyone: a signed-out viewer
+  // gets real hashtag, feed, pack and public-list results instead of a 401,
+  // and the lanes that need identity report their own status.
+  publicApi.use('/search', optionalAuth, searchOverviewRoutes);
   publicApi.use('/feed', optionalAuth, feedRoutes);
   publicApi.use('/posts', optionalAuth, publicPostsRouter);
   publicApi.use('/profile/design', profileDesignRoutes);

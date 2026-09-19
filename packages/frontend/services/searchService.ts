@@ -7,6 +7,7 @@ import { viewerStorageKey, type ViewerId } from "@/lib/viewerQueryKeys";
 import type { User } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
 import type { StarterPackSummary } from './starterPacksService';
+import type { SearchOverviewResponse } from '@mention/shared-types';
 
 const logger = createLogger('SearchService');
 
@@ -393,19 +394,6 @@ class SearchService {
     }
   }
 
-  // Search feeds — the compact "All" overview (returns every public match in one
-  // shot; the paginated tab uses `searchFeedsPage`).
-  async searchFeeds(
-    query: string,
-    signal?: AbortSignal,
-  ): Promise<SearchFeedResult[]> {
-    const res = await publicClient.get<{ items?: SearchFeedResult[] }>("/feeds", {
-      params: { publicOnly: true, search: query },
-      signal,
-    });
-    return res.data.items || [];
-  }
-
   // Paginated feeds search — `GET /feeds` offset-paginates once `limit` is
   // supplied (`{ items, pagination: { offset, limit, hasMore } }`) on a stable
   // `{ updatedAt desc, _id desc }` sort, so offset paging never repeats a row.
@@ -425,23 +413,6 @@ class SearchService {
       hasMore: pagination?.hasMore ?? false,
       nextOffset: (pagination?.offset ?? offset) + (pagination?.limit ?? SEARCH_PAGE_LIMIT),
     };
-  }
-
-  // Search lists — the compact "All" overview (returns every accessible match in
-  // one shot; the paginated tab uses `searchListsPage`).
-  async searchLists(
-    query: string,
-    signal?: AbortSignal,
-  ): Promise<SearchListResult[]> {
-    try {
-      const res = await authenticatedClient.get<{ items?: SearchListResult[] }>("/lists", {
-        params: { search: query },
-        signal,
-      });
-      return res.data.items || [];
-    } catch (error) {
-      return emptyIfSignedOut<SearchListResult>(error, "lists");
-    }
   }
 
   // Paginated lists search — `GET /lists` filters by `search` (name/description)
@@ -474,20 +445,6 @@ class SearchService {
     }
   }
 
-  // Search hashtags — `GET /hashtags/search` answers with each matching tag and
-  // the number of posts carrying it, so the result row can show a real count.
-  // Compact "All" overview; the paginated tab uses `searchHashtagsPage`.
-  async searchHashtags(
-    query: string,
-    signal?: AbortSignal,
-  ): Promise<SearchHashtagResult[]> {
-    const res = await authenticatedClient.get<{ hashtags?: SearchHashtagResult[] }>("/hashtags/search", {
-      params: { query, limit: SEARCH_OVERVIEW_HASHTAG_LIMIT },
-      signal,
-    });
-    return res.data.hashtags ?? [];
-  }
-
   // Paginated hashtag search — `GET /hashtags/search` offset-paginates
   // (`{ hashtags, pagination: { offset, limit, hasMore } }`) on a stable
   // `{ count desc, tag asc }` sort, so offset paging never repeats a row. Drives
@@ -507,25 +464,6 @@ class SearchService {
       hasMore: pagination?.hasMore ?? false,
       nextOffset: (pagination?.offset ?? offset) + (pagination?.limit ?? SEARCH_PAGE_LIMIT),
     };
-  }
-
-  // Search starter packs — the compact "All" overview (the paginated tab uses
-  // `searchStarterPacksPage`).
-  //
-  // Deliberately on the PUBLIC client, unlike `starterPacksService.list`: the
-  // route reads `req.user?.id` optionally and answers anonymous callers, so a
-  // signed-out viewer gets real results here exactly as they do for feeds and
-  // hashtags. Routing it through the authenticated client would 401 them into a
-  // silently empty section instead.
-  async searchStarterPacks(
-    query: string,
-    signal?: AbortSignal,
-  ): Promise<SearchStarterPackResult[]> {
-    const res = await publicClient.get<StarterPackListResponse>("/starter-packs", {
-      params: { search: query, limit: SEARCH_PAGE_LIMIT },
-      signal,
-    });
-    return res.data.items ?? [];
   }
 
   // Paginated starter-pack search — `GET /starter-packs` page-paginates
@@ -597,17 +535,69 @@ class SearchService {
     }
   }
 
+  /**
+   * The overview's four server-assembled lanes, in ONE request.
+   *
+   * `GET /search/overview` replaces four of the seven this screen used to fire —
+   * hashtags, lists, public feeds and starter packs — and does the fan-out
+   * server-side, where the lanes share one viewer-context resolution and one
+   * owner-profile batch instead of resolving their own.
+   *
+   * It is on the PUBLIC api, so unlike `/search` and `/lists` it answers a
+   * signed-out viewer with real results rather than a 401. `canUsePrivateApi`
+   * therefore does not gate it.
+   *
+   * A lane that failed server-side arrives as `error` / `timeout` rather than as
+   * an empty array, which is the distinction this client used to destroy: its
+   * `allSettled` collapsed a rejected source into an empty section, so an outage
+   * rendered as a confident "no results". Those are logged and surfaced as an
+   * empty section for now — the section-level UI to say "this part is
+   * unavailable" is a separate change — but the information reaches the client,
+   * which it previously could not.
+   */
+  private async searchOverview(
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<Pick<SearchResults, 'feeds' | 'hashtags' | 'lists' | 'starterPacks'>> {
+    const res = await publicClient.get<SearchOverviewResponse>("/search/overview", {
+      params: { q: query },
+      signal,
+    });
+    const lanes = res.data?.lanes;
+    if (!lanes) throw new Error("Unexpected search overview response");
+
+    const laneItems = <T>(name: keyof SearchOverviewResponse['lanes']): T[] => {
+      const lane = lanes[name];
+      if (!lane) return [];
+      if (lane.status === 'error' || lane.status === 'timeout') {
+        logger.warn("A search lane did not complete", { lane: name, status: lane.status });
+        return [];
+      }
+      return (lane.items ?? []) as T[];
+    };
+
+    return {
+      feeds: laneItems<SearchFeedResult>('feeds'),
+      hashtags: laneItems<SearchHashtagResult>('hashtags'),
+      lists: laneItems<SearchListResult>('lists'),
+      starterPacks: laneItems<SearchStarterPackResult>('starterPacks'),
+    };
+  }
+
   // Search all - shows users above posts in "all" tab.
   //
-  // The PUBLIC sources (users via Oxy, feeds via the public client, hashtags on
-  // the public router) run for every viewer. The AUTH-GATED sources (posts,
-  // lists, saved — all behind the authenticated API) only fire once the private
-  // API is ready: during the SSO cold-boot the viewer can be authenticated while
-  // the private API is still pending, and firing then would 401 (console noise,
-  // not a result). Those sections stay empty until the search query refetches on
-  // `canUsePrivateApi` flipping true (it is part of the search query key), then
-  // fill in. A signed-out viewer keeps them empty for good — a quiet "nothing
-  // here", never a 401 storm.
+  // FOUR requests now, not seven: the overview above carries hashtags, lists,
+  // feeds and starter packs together, leaving people (Oxy's own endpoint) and
+  // the two post-bearing sources on their own.
+  //
+  // The AUTH-GATED sources (posts, saved — both behind the authenticated API)
+  // only fire once the private API is ready: during the SSO cold-boot the viewer
+  // can be authenticated while the private API is still pending, and firing then
+  // would 401 (console noise, not a result). Those sections stay empty until the
+  // search query refetches on `canUsePrivateApi` flipping true (it is part of the
+  // search query key), then fill in. A signed-out viewer keeps them empty for
+  // good — a quiet "nothing here", never a 401 storm. `lists` is no longer among
+  // them: the overview serves it publicly.
   //
   // One flaky source must not blank the whole screen, so sources settle
   // independently: a partial failure degrades to that section being empty, and
@@ -617,25 +607,20 @@ class SearchService {
     canUsePrivateApi: boolean,
     signal?: AbortSignal,
   ): Promise<SearchResults> {
-    const [users, feeds, hashtags, starterPacks, posts, lists, saved] = await Promise.allSettled([
+    const [users, overview, posts, saved] = await Promise.allSettled([
       this.searchUsers(query, signal),
-      this.searchFeeds(query, signal),
-      this.searchHashtags(query, signal),
-      this.searchStarterPacks(query, signal),
+      this.searchOverview(query, signal),
       canUsePrivateApi ? this.searchPosts(query, signal) : Promise.resolve<SearchPostResult[]>([]),
-      canUsePrivateApi ? this.searchLists(query, signal) : Promise.resolve<SearchListResult[]>([]),
       canUsePrivateApi ? this.searchSaved(query, signal) : Promise.resolve<SearchPostResult[]>([]),
     ]);
 
     // The gated sources short-circuit to a resolved empty page when the private
     // API isn't ready, so exclude them from the total-failure count — otherwise a
     // signed-out viewer with healthy public sources could never surface a real
-    // error, and a fulfilled no-op would mask one. Starter packs are PUBLIC, so
-    // they count in both shapes: leaving a real source out of this list would let
-    // its failure hide behind the others.
+    // error, and a fulfilled no-op would mask one.
     const activeSources = canUsePrivateApi
-      ? [users, feeds, hashtags, starterPacks, posts, lists, saved]
-      : [users, feeds, hashtags, starterPacks];
+      ? [users, overview, posts, saved]
+      : [users, overview];
     const rejections = activeSources.filter(
       (result): result is PromiseRejectedResult => result.status === 'rejected',
     );
@@ -650,14 +635,18 @@ class SearchService {
     const valueOf = <T>(result: PromiseSettledResult<T[]>): T[] =>
       result.status === 'fulfilled' ? result.value : [];
 
+    const lanes = overview.status === 'fulfilled'
+      ? overview.value
+      : { feeds: [], hashtags: [], lists: [], starterPacks: [] };
+
     return {
       posts: valueOf(posts),
       users: valueOf(users),
-      feeds: valueOf(feeds),
-      lists: valueOf(lists),
-      hashtags: valueOf(hashtags),
+      feeds: lanes.feeds,
+      lists: lanes.lists,
+      hashtags: lanes.hashtags,
       saved: valueOf(saved),
-      starterPacks: valueOf(starterPacks),
+      starterPacks: lanes.starterPacks,
     };
   }
 
