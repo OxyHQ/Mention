@@ -474,7 +474,7 @@ const environmentSchema = z
      *
      * What remains are the things that genuinely are configuration.
      * `CROWDSOURCE_BASE_URL` points at a local backend;
-     * `@oxy.so/crowdsource-express` verifies inbound signatures with
+     * `@crowdsource.you/core/express` verifies inbound signatures with
      * `CROWDSOURCE_WEBHOOK_SECRET` and `CROWDSOURCE_WEBHOOK_SECRET_PREVIOUS` —
      * a signing secret CrowdSource issues per endpoint, not an identity, which
      * is why that one stays.
