@@ -572,14 +572,42 @@ describe('GET /lists — pagination on a total order', () => {
     expect(res.body.pagination).toEqual({ offset: 0, limit: 2, hasMore: true });
   });
 
-  it('returns every accessible list, unpaginated, when no limit is given', async () => {
+  it('applies the DEFAULT page size when no limit is given, never "everything"', async () => {
+    // This used to return every accessible list, and echo back `limit: <result
+    // length>` — so the response size was decided by how much data the table
+    // happened to hold. The search screen's overview called `/lists` with no
+    // limit, and so did the lists screen and the add-to-list sheet, which is
+    // how one keystroke turned into an unbounded query plus member hydration
+    // for every row it returned.
     await seedTied();
 
     const res = await request(app).get('/lists').query({ mine: 'true' }).expect(200);
 
+    // Fewer rows than a page, so the page still holds all of them...
     expect(res.body.items).toHaveLength(4);
     expect(res.body.total).toBe(4);
-    expect(res.body.pagination).toEqual({ offset: 0, limit: 4, hasMore: false });
+    // ...but the echoed limit is the page SIZE, not the result length.
+    expect(res.body.pagination).toEqual({ offset: 0, limit: 20, hasMore: false });
+  });
+
+  it('truncates at the default page size rather than returning the whole table', async () => {
+    // The assertion the case above cannot make, because its fixture is smaller
+    // than a page: with MORE rows than the default, an absent `limit` must cap
+    // and report `hasMore`. Remove the cap and this returns 25 rows and
+    // `hasMore: false`, which is the bug it exists to catch.
+    for (let index = 0; index < 25; index += 1) {
+      await seedList({
+        title: `Bulk ${index} ${run}`,
+        isPublic: false,
+        ownerOxyUserId: VIEWER_ID,
+      });
+    }
+
+    const res = await request(app).get('/lists').query({ mine: 'true' }).expect(200);
+
+    expect(res.body.items).toHaveLength(20);
+    expect(res.body.total).toBe(25);
+    expect(res.body.pagination).toEqual({ offset: 0, limit: 20, hasMore: true });
   });
 
   it('drives the whole set from hasMore, with every non-terminal page full', async () => {

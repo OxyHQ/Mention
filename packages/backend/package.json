@@ -28,7 +28,7 @@
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "catalog:",
     "@oxy.so/mcp": "catalog:",
-    "@oxy.so/crowdsource": "1.1.0",
+    "@oxy.so/crowdsource": "1.2.0",
     "@oxy.so/crowdsource-contracts": "1.1.0",
     "@oxy.so/crowdsource-express": "1.1.0",
     "@oxy.so/db": "^1.0.0",

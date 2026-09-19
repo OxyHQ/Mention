@@ -54,6 +54,10 @@ jest.mock('@oxy.so/bloom/icons', () => ({
   RiCloseCircleLine: () => null,
 }));
 jest.mock('@oxy.so/bloom/subtle-hover', () => ({ SubtleHover: () => null }));
+// The row paints the surface it landed on. Bloom's `styles` subpath ships
+// untranspiled ESM, so it is stubbed here like every other Bloom subpath in
+// this file; the colour only has to be a colour.
+jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => '#ffffff' }));
 jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { textSecondary: '#666', primary: '#000', border: '#eee' } }),
 }));

@@ -1,17 +1,18 @@
 import React, { createContext, useContext } from 'react';
 import { Platform, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { type AnimatedStyle } from 'react-native-reanimated';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { cn } from '@/lib/utils';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 
 /**
  * Centralized panel insets + sticky chrome for the desktop-web rounded center
- * panel (the `bg-card` card that floats inside the 8px gutter in
+ * panel (the card that floats inside the 8px gutter in
  * `app/(app)/_layout.tsx`).
  *
  * THE PROBLEM THIS SOLVES — before this module, every screen hand-wrote its own
  * `web:sticky web:top-2` / `web:sticky web:top-[56px]` sticky offsets plus the
- * `web:bg-card` + `web:rounded-t-[28px]` corner-masking and the z-index it must
+ * opaque surface + `web:rounded-t-[28px]` corner-masking and the z-index it must
  * sit at. Those magic insets (8px gutter, 56px = gutter + header height) were
  * duplicated across home, explore, profile and the secondary pages, so a change
  * to the gutter or header height meant touching every screen. This component
@@ -22,7 +23,7 @@ import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
  * z-100/101 < panel border frame z-120. Chrome must pin at `PANEL_TOP_INSET`
  * (NOT top:0) because the bleed mask paints a 40px gutter ring over the top
  * `PANEL_TOP_INSET` px of the viewport — a header at top:0 would be clipped by
- * that ring. The opaque `bg-card` surface + `rounded-t-[28px]` corners on the
+ * that ring. The opaque surface fill + `rounded-t-[28px]` corners on the
  * chrome ALSO mask the feed's top-edge bleed in the panel's rounded corners.
  *
  * NATIVE: pass-through. `PanelStickyHeader` becomes the screen's
@@ -147,7 +148,11 @@ interface PanelStickyHeaderProps {
     level?: ChromeLevel;
     /** z-index override (web). Defaults to the chrome layer (101). */
     zIndex?: number;
-    /** Paint the opaque panel surface (`bg-card`) so the feed never shows through. Default true. */
+    /**
+     * Paint the panel's own surface — the colour `ContentPanel` publishes, read
+     * through `useSurfaceFill()` rather than named — so the feed never shows
+     * through. Default true.
+     */
     opaque?: boolean;
     /** Mask the panel's top rounded corners (`rounded-t-[28px]`). Default true. */
     rounded?: boolean;
@@ -207,6 +212,7 @@ export function PanelStickyHeader({
     // corners instead of leaving a stray gutter band — the same `framed` signal
     // drives the layout frame in `app/(app)/_layout.tsx`.
     const framed = useIsScreenNotMobile();
+    const surfaceFill = useSurfaceFill();
     return (
         <Animated.View
             pointerEvents={pointerEventsNone ? 'none' : 'auto'}
@@ -214,14 +220,13 @@ export function PanelStickyHeader({
                 'left-0 right-0',
                 IS_WEB && 'web:sticky',
                 IS_WEB && STICKY_TOP_CLASS[framed ? 'framed' : 'bleed'][level],
-                IS_WEB && opaque && 'web:bg-card',
                 IS_WEB && rounded && framed && 'web:rounded-t-[28px]',
                 IS_WEB && pointerEventsNone && 'web:pointer-events-none',
                 className,
             )}
             style={[
                 Platform.select({
-                    web: { zIndex },
+                    web: { zIndex, backgroundColor: opaque ? surfaceFill : undefined },
                     default: {
                         // Native: the inner ScrollView owns the scroll, so the
                         // header is an absolute overlay at the top; a stacked

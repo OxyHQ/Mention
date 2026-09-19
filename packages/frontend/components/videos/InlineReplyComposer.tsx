@@ -3,6 +3,7 @@ import { View, TextInput, Pressable, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiSendPlaneLine } from '@oxy.so/bloom/icons';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { toast } from '@oxy.so/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 
@@ -28,6 +29,11 @@ interface InlineReplyComposerProps {
 export function InlineReplyComposer({ postId, onPosted, focusNonce = 0 }: InlineReplyComposerProps) {
   const { t } = useTranslation();
   const theme = useTheme();
+  // This composer is pinned under a scrolling reply list on TWO different
+  // surfaces — the right rail's panel and the video-replies bottom sheet — so
+  // the colour it has to be opaque in is not the same one in both. `bg-card`
+  // was the rail's answer given in the sheet too.
+  const surfaceFill = useSurfaceFill();
   const createReply = usePostsStore((s) => s.createReply);
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -59,7 +65,7 @@ export function InlineReplyComposer({ postId, onPosted, focusNonce = 0 }: Inline
   }, [text, submitting, createReply, postId, onPosted, t]);
 
   return (
-    <View style={styles.row} className="border-t border-border bg-card">
+    <View style={[styles.row, { backgroundColor: surfaceFill }]} className="border-t border-border">
       <TextInput
         ref={inputRef}
         value={text}

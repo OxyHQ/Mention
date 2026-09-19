@@ -114,7 +114,7 @@ export default function TagsMentionsScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup variant="filled">
+                <SettingsListGroup>
                     <SettingsListItem
                         icon={<RowIcon icon={RiHashtag} />}
                         title={t('settings.privacy.allowTags')}

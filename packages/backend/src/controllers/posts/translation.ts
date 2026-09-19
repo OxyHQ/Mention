@@ -66,6 +66,10 @@ export const translatePost = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     const visiblePosts = await postHydrationService.hydratePosts([post], {
+      // Hydrated to answer "may this reader see the post at all", not to render
+      // it — the response is the translation. A note lookup would be a
+      // CrowdSource round trip for a field nothing here reads.
+      includeCommunityNotes: false,
       viewerId: req.user?.id,
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),

@@ -115,6 +115,32 @@ export const viewerQueryKeys = {
     ...viewerQueryKeys.postsRoot(viewerId),
     'scheduled',
   ] as const,
+  /**
+   * Community notes, always viewer-scoped: every list here is "yours" — the
+   * queue CrowdSource assigned to you, the notes you wrote, the ones you rated.
+   * None of them may be shared across viewers, and the anonymous key is never
+   * used because all four require a session.
+   */
+  communityNotesRoot: (viewerId: ViewerId) => [
+    ...viewerQueryKeys.all(viewerId),
+    'community-notes',
+  ] as const,
+  communityNotesAvailability: (viewerId: ViewerId) => [
+    ...viewerQueryKeys.communityNotesRoot(viewerId),
+    'availability',
+  ] as const,
+  communityNotesQueue: (viewerId: ViewerId) => [
+    ...viewerQueryKeys.communityNotesRoot(viewerId),
+    'to-rate',
+  ] as const,
+  communityNotesWritten: (viewerId: ViewerId) => [
+    ...viewerQueryKeys.communityNotesRoot(viewerId),
+    'written',
+  ] as const,
+  communityNotesRated: (viewerId: ViewerId) => [
+    ...viewerQueryKeys.communityNotesRoot(viewerId),
+    'rated',
+  ] as const,
   feedsRoot: (viewerId: ViewerId) => [
     ...viewerQueryKeys.all(viewerId),
     'feeds',

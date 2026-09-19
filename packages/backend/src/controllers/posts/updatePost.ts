@@ -620,6 +620,9 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // display name and break the profile-identity contract). If hydration fails
     // for this just-saved, owner-scoped post, treat it as a server-side error.
     const hydrated = await postHydrationService.hydratePosts([edited], {
+      // Written or changed by this very request, so there is no community note to
+      // look up — and asking would put a CrowdSource round trip on this path.
+      includeCommunityNotes: false,
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),

@@ -273,6 +273,9 @@ class PostCollaborationService {
       const io = getRuntimeSocketServer();
       if (!io) return;
       const [hydratedPost] = await postHydrationService.hydratePosts([post], {
+        // Written or changed by this very request, so there is no community note to
+        // look up — and asking would put a CrowdSource round trip on this path.
+        includeCommunityNotes: false,
         viewerId: undefined,
         oxyClient: getServiceOxyClient(),
         maxDepth: 1,

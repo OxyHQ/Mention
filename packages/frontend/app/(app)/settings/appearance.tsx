@@ -80,7 +80,7 @@ export default function AppearanceSettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Theme source: portable account theme vs. a device-local app theme */}
-        <SettingsListGroup variant="filled"
+        <SettingsListGroup
           footer={t(
             'settings.theme.source.footer',
             'When on, your color mode and accent are saved to your Oxy account and shared across Oxy apps. When off, this device keeps its own theme.',

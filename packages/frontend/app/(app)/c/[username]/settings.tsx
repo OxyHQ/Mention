@@ -529,7 +529,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
           The order is the model: element 0 is the primary and there is no
           separate field recording it, so the list is shown in its stored order
           and "Make primary" moves a row to the front. */}
-      <SettingsListGroup variant="filled"
+      <SettingsListGroup
         title={t('channels.settings.categories', { defaultValue: 'Categories' })}
         footer={t('channels.settings.categoriesFooter', {
           max: MAX_ACCOUNT_CATEGORIES,
@@ -624,7 +624,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
           account that already carries it, but must never be newly added, and
           Oxy refuses that write anyway. */}
       {categoryPickerOpen && (
-        <SettingsListGroup variant="filled">
+        <SettingsListGroup>
           {SELECTABLE_ACCOUNT_CATEGORY_IDS.map((id) => {
             const selected = categories.includes(id);
             const atCap = categories.length >= MAX_ACCOUNT_CATEGORIES;
@@ -646,7 +646,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
         </SettingsListGroup>
       )}
 
-      <SettingsListGroup variant="filled"
+      <SettingsListGroup
         title={t('channels.settings.byline', { defaultValue: 'Byline' })}
         footer={t('channels.settings.signPostsFooter', {
           defaultValue:
@@ -672,7 +672,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
           channel and ending it are different rights, and offering a row the
           server would refuse is worse than not offering it. */}
       {canDelete && (
-        <SettingsListGroup variant="filled"
+        <SettingsListGroup
           title={t('channels.settings.dangerZone', { defaultValue: 'Delete' })}
           footer={t('channels.settings.deleteFooter', {
             defaultValue:

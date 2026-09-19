@@ -122,6 +122,8 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
   "vite -> lightningcss@^1.32.0": "Same single-copy native-binary pin as @tailwindcss/node.",
   "@alia.onl/sdk -> @oxy.so/services@^1.0.1":
     "Services 2.0.0's only breaking change is its @oxy.so/bloom peer moving to ^2.0.0; the API the Alia SDK calls is unchanged, and the app must run one Services copy.",
+  "@oxy.so/services -> @oxy.so/contracts@1.2.0":
+    "Contracts must be 1.3.0 or newer: @oxy.so/core 1.6.0 imports MAX_INFERENCE_AUDIO_BYTES, which the published 1.2.0 does not export, and a tree that resolves 1.2.0 dies at module load rather than at install. 1.3.0 is additive over it — the same exports plus identityProof, identityRecovery and links — so Services sees everything its pin asked for. Services pins an exact version and has not been republished; drop this entry when it is.",
 };
 
 /**

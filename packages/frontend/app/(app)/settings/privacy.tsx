@@ -189,7 +189,7 @@ export default function PrivacySettingsScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup variant="filled">
+                <SettingsListGroup>
                     <SettingsListItem
                         icon={<RowIcon icon={RiLockLine} />}
                         title={t('settings.privacy.privateProfile')}
@@ -211,7 +211,7 @@ export default function PrivacySettingsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup variant="filled">
+                <SettingsListGroup>
                     <SettingsListItem
                         icon={<RowIcon icon={RiGroupLine} />}
                         title={t('settings.privacy.restrictedProfiles')}
@@ -226,7 +226,7 @@ export default function PrivacySettingsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup variant="filled">
+                <SettingsListGroup>
                     <SettingsListItem
                         icon={<RowIcon icon={RiEyeOffLine} />}
                         title={t('settings.privacy.hiddenWords')}
@@ -253,7 +253,7 @@ export default function PrivacySettingsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup variant="filled" title={t('settings.privacy.content')}>
+                <SettingsListGroup title={t('settings.privacy.content')}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiAlertLine} />}
                         title={t('settings.privacy.showSensitiveContent')}
@@ -268,7 +268,7 @@ export default function PrivacySettingsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup variant="filled">
+                <SettingsListGroup>
                     {FILTER_TOGGLES.map(({ icon, titleKey, descKey, titleDefault, descDefault, filterKey }) => (
                         <SettingsListItem
                             key={filterKey}

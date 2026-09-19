@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { View, Share } from 'react-native';
 import { Redirect, router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
 import {
@@ -100,6 +101,9 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
     const { user: currentUser } = useAuth();
     const { t } = useTranslation();
     const { colors } = useTheme();
+    // The tab row pins over the scrolling channel feed, so it paints the colour
+    // of the column it is in rather than naming `card`.
+    const surfaceFill = useSurfaceFill();
 
     const [activeTabKey, setActiveTabKey] = useState<string>('posts');
 
@@ -378,7 +382,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
 
     const tabBar = useMemo(
         () => (
-            <View className="flex-row items-center border-b border-border bg-card">
+            <View className="flex-row items-center border-b border-border" style={{ backgroundColor: surfaceFill }}>
                 <View className="flex-1" style={{ minWidth: 0 }}>
                     <AnimatedTabBar
                         tabs={tabDescriptors.map((descriptor) => ({
@@ -393,7 +397,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                 </View>
             </View>
         ),
-        [activeDescriptor?.key, onTabPress, tabDescriptors, username],
+        [activeDescriptor?.key, onTabPress, surfaceFill, tabDescriptors, username],
     );
 
     const headerActions = (

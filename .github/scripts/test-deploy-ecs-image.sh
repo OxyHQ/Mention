@@ -27,6 +27,7 @@ export DEPLOY_TEST_TASK_EXIT_CODE=0
 export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN=false
 export DEPLOY_TEST_EXPECT_TASK_ENV=false
 export DEPLOY_TEST_EXPECT_SECRET_REMOVED=
+export DEPLOY_TEST_EXPECT_ENV_REMOVED=
 export DEPLOY_TEST_SERVICE_DESIRED_COUNT=1
 export DEPLOY_TEST_ROLLOUT_SCENARIO=healthy
 # The `lastStatus` a mocked one-shot reports. `RUNNING` never resolves, which is
@@ -128,6 +129,10 @@ aws() {
           "name": "deploy-test",
           "image": "example.invalid/deploy-test:old",
           "essential": true,
+          "environment": [
+            { "name": "DOOMED_TASK_ENV", "value": "true" },
+            { "name": "KEPT_TASK_ENV", "value": "keep-me" }
+          ],
           "secrets": [
             {
               "name": "DOOMED_TASK_SECRET",
@@ -210,6 +215,29 @@ aws() {
           printf 'secret-removed\n' >>"$DEPLOY_TEST_LOG"
         else
           printf 'secret-removed:MISMATCH\n' >>"$DEPLOY_TEST_LOG"
+        fi
+      fi
+      if [[ "$DEPLOY_TEST_EXPECT_ENV_REMOVED" != "" ]]; then
+        local previous_argument=""
+        local input_json=""
+        local argument
+        for argument in "$@"; do
+          if [[ "$previous_argument" == "--cli-input-json" ]]; then
+            input_json="${argument#file://}"
+            break
+          fi
+          previous_argument="$argument"
+        done
+        # Two verdicts for the reason the secrets assertion gives: absence alone
+        # also passes against a render that dropped every variable, so the
+        # survivor is asserted in the same breath.
+        if jq -e --arg name "$DEPLOY_TEST_EXPECT_ENV_REMOVED" '
+          [.containerDefinitions[] | select(.name == "deploy-test") | .environment[] | .name]
+          | (index($name) | not) and (index("KEPT_TASK_ENV") != null)
+        ' "$input_json" >/dev/null; then
+          printf 'env-removed\n' >>"$DEPLOY_TEST_LOG"
+        else
+          printf 'env-removed:MISMATCH\n' >>"$DEPLOY_TEST_LOG"
         fi
       fi
       if [[ "$DEPLOY_TEST_EXPECT_TASK_SECRET_ARN" == "true" ]]; then
@@ -776,6 +804,30 @@ TASK_SECRET_REMOVALS=EXTRA_TASK_SECRET \
   run_release secret-conflict false false false 0
 grep -q 'in both TASK_SECRET_OVERRIDES_JSON and TASK_SECRET_REMOVALS' \
   "$test_directory/secret-conflict/output.log" || {
+  echo "The conflicting-name refusal must name BOTH lists, or it is indistinguishable from any other failure." >&2
+  exit 1
+}
+
+# A variable NAMED in TASK_ENV_REMOVALS must leave the registered definition,
+# and the one beside it must stay. This is the only way a variable ever leaves
+# production: the render derives from the RUNNING definition, so deleting the
+# line from a workflow file leaves the variable exactly where it was.
+DEPLOY_TEST_EXPECT_ENV_REMOVED=DOOMED_TASK_ENV \
+  TASK_ENV_REMOVALS=DOOMED_TASK_ENV \
+  run_release env-removal true false false 0
+grep -qx 'env-removed' "$test_directory/env-removal/aws.log" || {
+  echo "TASK_ENV_REMOVALS did not remove the variable from the registered definition." >&2
+  grep -n 'env-removed' "$test_directory/env-removal/aws.log" >&2 || true
+  exit 1
+}
+
+# Same refusal as the secrets side: a name in both lists would be filtered out
+# and immediately re-added by the concatenation.
+TASK_ENV_REMOVALS=EXTRA_TASK_ENV \
+  TASK_ENV_OVERRIDES_JSON='{"EXTRA_TASK_ENV":"value"}' \
+  run_release env-conflict false false false 0
+grep -q 'in both TASK_ENV_OVERRIDES_JSON and TASK_ENV_REMOVALS' \
+  "$test_directory/env-conflict/output.log" || {
   echo "The conflicting-name refusal must name BOTH lists, or it is indistinguishable from any other failure." >&2
   exit 1
 }

@@ -23,6 +23,7 @@ import type { PostRecordFederation } from '../db/posts/postRecord';
 import type { FederatedActorRecord } from '../db/federation/actorRecord';
 import { findActorsByUris } from '../db/federation/actorRepository';
 import { disclosesWriters, loadSigningChannelIds } from './channelWriterDisclosure';
+import { loadShownNotes } from './communityNotes/CommunityNotesService';
 import { ACTOR_DOMAIN, FEDERATION_DOMAIN } from '../connectors/activitypub/constants';
 import { deriveBridgyActorUri } from '../connectors/activitypub/bridgy';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
@@ -245,6 +246,27 @@ interface HydrationOptions {
    * number, wasted on every feed request that does not.
    */
   includeQuoteCounts?: boolean;
+  /**
+   * Attach the community note CrowdSource shows under each post, when there is
+   * one.
+   *
+   * ON by default, because a note is part of what a reader sees and nearly every
+   * caller here is rendering posts TO a reader. It costs one batched Redis read
+   * per hydration — the lookup is cached per post, including a negative entry for
+   * the overwhelming majority that have no note — and one CrowdSource call per 50
+   * posts whose entries have expired. Where Mention cannot authenticate to
+   * CrowdSource it costs nothing at all: there is no client, so nothing is asked.
+   *
+   * Pass `false` from the paths that hydrate a post the SAME request just wrote
+   * or edited. A post that did not exist a moment ago cannot carry a note, and
+   * asking about it would put a CrowdSource round trip on the posting path, where
+   * the answer is known in advance.
+   *
+   * Only the posts the caller asked for are looked up. A boost original or a
+   * quoted post pulled into the graph is not: the note belongs under the post
+   * being read, and the app does not render one inside a nested row.
+   */
+  includeCommunityNotes?: boolean;
   /**
    * Accounts this viewer OPERATES — today, the channels they are an active member
    * of, as resolved by `listOperatedChannelIds`.
@@ -1104,7 +1126,35 @@ export class PostHydrationService {
       }
     }
 
+    // After the ACL, not before: a note is attached to the posts this viewer
+    // actually receives, so a post dropped by `attachNestedContext` never costs
+    // a lookup and a note never travels attached to a post that did not survive.
+    await this.attachCommunityNotes(hydratedResults, options);
+
     return hydratedResults;
+  }
+
+  /**
+   * Attach each post's shown community note, when CrowdSource has one.
+   *
+   * Fail-open by construction: {@link loadShownNotes} answers with whatever it
+   * could resolve and never rejects, so a CrowdSource outage renders the page
+   * exactly as it rendered before notes existed. The note is set on the hydrated
+   * post rather than on the shared summary, because one summary can also be the
+   * quoted or boosted original inside another post in the same batch, and a note
+   * belongs under the post being READ.
+   */
+  private async attachCommunityNotes(
+    posts: HydratedPost[],
+    options: HydrationOptions,
+  ): Promise<void> {
+    if (options.includeCommunityNotes === false || posts.length === 0) return;
+    const notes = await loadShownNotes(posts.map((post) => post.id));
+    if (notes.size === 0) return;
+    for (const post of posts) {
+      const note = notes.get(post.id);
+      if (note) post.communityNote = note;
+    }
   }
 
   /**

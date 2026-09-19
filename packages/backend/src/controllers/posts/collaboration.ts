@@ -20,6 +20,9 @@ export const acceptCollabInvite = async (req: AuthRequest, res: Response) => {
 
     const post = await postCollaborationService.accept(String(req.params.id), userId);
     const [hydratedPost] = await postHydrationService.hydratePosts([post], {
+      // Written or changed by this very request, so there is no community note to
+      // look up — and asking would put a CrowdSource round trip on this path.
+      includeCommunityNotes: false,
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
@@ -48,6 +51,9 @@ export const declineCollabInvite = async (req: AuthRequest, res: Response) => {
     // state. For a private/followers-only post the decliner loses view access, so
     // hydration yields no post and the client simply drops the actionable UI.
     const [hydratedPost] = await postHydrationService.hydratePosts([post], {
+      // Written or changed by this very request, so there is no community note to
+      // look up — and asking would put a CrowdSource round trip on this path.
+      includeCommunityNotes: false,
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),
@@ -71,6 +77,9 @@ export const stopCollabSharing = async (req: AuthRequest, res: Response) => {
 
     const post = await postCollaborationService.stopSharing(String(req.params.id), userId);
     const [hydratedPost] = await postHydrationService.hydratePosts([post], {
+      // Written or changed by this very request, so there is no community note to
+      // look up — and asking would put a CrowdSource round trip on this path.
+      includeCommunityNotes: false,
       viewerId: userId,
       oxyClient: createScopedOxyClient(req),
       requestLanguages: requestLanguageCandidates(req),

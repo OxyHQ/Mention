@@ -4,6 +4,7 @@ import { applyDecisionOutboxEvent } from './ModerationDecisionWorker';
 import { deliverReportOutboxEvent } from './ModerationDeliveryWorker';
 import type { ModerationOutboxEvent } from '../../db/moderation/moderationOutboxRepository';
 import { dispatchModerationOutbox } from './ModerationOutboxService';
+import { canDeliverToCrowdSource } from './crowdSourceClient';
 
 /**
  * The loop that drains the moderation outbox.
@@ -18,10 +19,11 @@ import { dispatchModerationOutbox } from './ModerationOutboxService';
  * has its lease expire and its event reclaimed, which a single leader would not give
  * us.
  *
- * `CROWDSOURCE_ENABLED` gates the LOOP, never the durable record. Reports taken while
- * the integration is off keep their outbox rows and deliver when it is switched on;
- * running the loop instead would count attempts against a deployment that has nowhere
- * to send anything and dead-letter the backlog it was supposed to preserve.
+ * Whether the integration can deliver gates the LOOP, never the durable record.
+ * Reports taken where it cannot — a local checkout, or a deployment whose webhook
+ * secret is not set yet — keep their outbox rows and deliver once it can; running
+ * the loop instead would count attempts against a deployment that has nowhere to
+ * send anything and dead-letter the backlog it was supposed to preserve.
  */
 
 /** Route an event to the worker that owns its kind. */
@@ -46,8 +48,10 @@ export class ModerationOutboxDispatcher {
 
   start(): void {
     if (this.running) return;
-    if (!config.crowdSource.enabled) {
-      logger.info('[CrowdSource] outbox dispatcher not started: CROWDSOURCE_ENABLED=false');
+    if (!canDeliverToCrowdSource()) {
+      logger.info(
+        '[CrowdSource] outbox dispatcher not started: this deployment cannot deliver reports',
+      );
       return;
     }
     this.running = true;

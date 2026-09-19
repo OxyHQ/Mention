@@ -7,6 +7,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useRouter } from 'expo-router';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@oxy.so/core/logger';
 import { useFeedState } from '@/hooks/useFeedState';
@@ -215,6 +216,11 @@ function EmbeddedWebFeed(props: FeedProps) {
     } = merged;
     const theme = useTheme();
     const router = useRouter();
+    // The column is chrome, not a card: it has to be opaque in whatever the
+    // container around it painted (the shell's ContentPanel today) so rows never
+    // show through the sticky header above them. `bg-card` was only ever right
+    // for as long as that container's fill stayed `card`.
+    const surfaceFill = useSurfaceFill();
     const { feedRows, feedState, handleRetry } = useWebFeed(merged);
 
     const header = listHeaderComponent ?? (
@@ -222,7 +228,7 @@ function EmbeddedWebFeed(props: FeedProps) {
     );
 
     return (
-        <View className="bg-card" style={[{ minHeight: 0 }, merged.style]}>
+        <View style={[{ minHeight: 0, backgroundColor: surfaceFill }, merged.style]}>
             {header}
             {listStickyHeaderComponent}
             {listLeadingComponent}
@@ -290,6 +296,9 @@ function VirtualizedWebFeed(props: FeedProps) {
     const { t } = useTranslation();
     const theme = useTheme();
     const router = useRouter();
+    // Same reason as EmbeddedWebFeed: the column matches the surface it landed
+    // on rather than naming a colour.
+    const surfaceFill = useSurfaceFill();
 
     const {
         feedRows,
@@ -517,7 +526,7 @@ function VirtualizedWebFeed(props: FeedProps) {
             retryLabel={t("error.boundary.retry")}
             onError={handleBoundaryError}
         >
-            <View className="bg-card" style={merged.style}>
+            <View style={[{ backgroundColor: surfaceFill }, merged.style]}>
                 {header}
                 {listStickyHeaderComponent}
                 {listLeadingComponent}

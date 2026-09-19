@@ -137,7 +137,7 @@ const bootServer = async () => {
   engagementOutboxDispatcher.start();
   // Same reasoning for moderation: a report and its delivery event committed
   // together, and the lease-based claim means every task can drain the queue.
-  // No-ops when CROWDSOURCE_ENABLED=false, leaving the durable rows for later.
+  // No-ops where this deployment cannot deliver, leaving the durable rows for later.
   moderationOutboxDispatcher.start();
 
   // Singleton jobs start only after the schema is ready. Leader election fails

@@ -24,6 +24,7 @@ import PostCrosspostRow from '../Post/PostCrosspostRow';
 import ContentWarning from '../Post/ContentWarning';
 import { CommunityNoteCard } from '@/components/CommunityNotes/CommunityNoteCard';
 import { useCommunityNoteSheets } from '@/components/CommunityNotes/useCommunityNoteSheets';
+import { useCommunityNoteHandlerContext } from '@/context/CommunityNoteHandlersContext';
 import PostCorrectionNotice from '../Post/PostCorrectionNotice';
 import PostActions from '../Post/PostActions';
 import PostDetailStats from '../Post/PostDetailStats';
@@ -584,7 +585,12 @@ const PostItem: React.FC<PostItemProps> = ({
         onOpenSources: openSourcesSheet,
     });
 
-    const noteSheets = useCommunityNoteSheets();
+    // Read from context, never fetched here: the handlers decide whether the
+    // flows are offered at all (with CrowdSource off there are none, so the menu
+    // entry and the rating buttons do not appear), and the answer is one the app
+    // resolves once rather than once per row.
+    const noteHandlers = useCommunityNoteHandlerContext();
+    const noteSheets = useCommunityNoteSheets(noteHandlers);
     const communityNote = viewPost?.communityNote;
     const openCommunityNoteAbout = useCallback(() => {
         if (communityNote) noteSheets.openAbout(communityNote);

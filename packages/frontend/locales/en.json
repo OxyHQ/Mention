@@ -2720,6 +2720,8 @@
   "communityNotes.hub.tabNotes": "Your notes",
   "communityNotes.hub.statusShown": "Shown on the post",
   "communityNotes.hub.statusNeedsRatings": "Needs more ratings",
+  "communityNotes.hub.statusNotShown": "Not shown — raters did not find it helpful",
+  "communityNotes.hub.statusWithdrawn": "You took this note back",
   "communityNotes.card.needsRatings": "More people need to rate",
   "communityNotes.card.title": "Community note",
   "communityNotes.card.byline": "Written by people on Mention",

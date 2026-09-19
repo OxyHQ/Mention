@@ -2392,6 +2392,8 @@
   "communityNotes.hub.tabNotes": "Deine Notes",
   "communityNotes.hub.statusShown": "Wird beim Beitrag angezeigt",
   "communityNotes.hub.statusNeedsRatings": "Braucht mehr Bewertungen",
+  "communityNotes.hub.statusNotShown": "Wird nicht angezeigt – Bewertende fanden sie nicht hilfreich",
+  "communityNotes.hub.statusWithdrawn": "Du hast diese Notiz zurückgezogen",
   "communityNotes.card.needsRatings": "Mehr Leute müssen bewerten",
   "communityNotes.card.title": "Community Note",
   "communityNotes.card.byline": "Von Menschen auf Mention geschrieben",

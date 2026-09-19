@@ -37,6 +37,7 @@ import lanesRoutes, { publicLanesRouter } from './routes/lanes.routes';
 import channelWritersRoutes from './routes/channelWriters.routes';
 import channelDeletionRoutes from './routes/channelDeletion.routes';
 import reportsRoutes from './routes/reports.routes';
+import communityNotesRoutes from './routes/communityNotes.routes';
 import { createCrowdSourceWebhookRoutes } from './routes/crowdSourceWebhook.routes';
 import trendingRoutes from './routes/trending.routes';
 import topicsRoutes from './routes/topics.routes';
@@ -177,6 +178,10 @@ export function createAppRoutes({
   // same way).
   authenticatedApi.use('/channels', channelDeletionRoutes);
   authenticatedApi.use('/reports', reportsRoutes);
+  // Writing and rating a note are acts of a person, and CrowdSource is told who
+  // by an id it has to be able to trust — so the session, not the body, names
+  // the principal. That is the whole reason this is not a public mount.
+  authenticatedApi.use('/community-notes', communityNotesRoutes);
   authenticatedApi.use('/pokes', pokesRoutes);
   authenticatedApi.use('/entity-follows', entityFollowRoutes);
   authenticatedApi.use('/mcp/connections', mcpConnectionsRoutes);

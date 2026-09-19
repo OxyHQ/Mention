@@ -164,7 +164,7 @@ export default function HideCountsScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup variant="filled">
+                <SettingsListGroup>
                     <SettingsListItem
                         icon={<RowIcon icon={RiEyeOffLine} />}
                         title={t('settings.privacy.hideAllCounts')}
@@ -179,7 +179,7 @@ export default function HideCountsScreen() {
                     />
                 </SettingsListGroup>
 
-                <SettingsListGroup variant="filled" title={t('settings.privacy.individualSettings')}>
+                <SettingsListGroup title={t('settings.privacy.individualSettings')}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiHeartLine} />}
                         title={t('settings.privacy.hideLikeCounts')}

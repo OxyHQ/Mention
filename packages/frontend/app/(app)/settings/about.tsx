@@ -100,7 +100,7 @@ export default function AboutScreen() {
                 ) : null}
 
                 {/* System info */}
-                <SettingsListGroup variant="filled" title={t('settings.aboutMention.systemInfo', { defaultValue: 'System information' })}>
+                <SettingsListGroup title={t('settings.aboutMention.systemInfo', { defaultValue: 'System information' })}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiToolsFill} />}
                         title={t('settings.aboutMention.build')}
@@ -134,7 +134,7 @@ export default function AboutScreen() {
                 </SettingsListGroup>
 
                 {/* Moderation policy, stated publicly */}
-                <SettingsListGroup variant="filled">
+                <SettingsListGroup>
                     <SettingsListItem
                         icon={<RowIcon icon={RiShieldCheckLine} />}
                         title={t('transparency.title')}
@@ -144,7 +144,7 @@ export default function AboutScreen() {
                 </SettingsListGroup>
 
                 {/* Support */}
-                <SettingsListGroup variant="filled" title={t('settings.sections.supportFeedback')}>
+                <SettingsListGroup title={t('settings.sections.supportFeedback')}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiQuestionLine} />}
                         title={t('settings.supportFeedback.helpSupport')}
@@ -172,7 +172,7 @@ export default function AboutScreen() {
                 </SettingsListGroup>
 
                 {/* Debug */}
-                <SettingsListGroup variant="filled" title={t('settings.debug', { defaultValue: 'Debug' })}>
+                <SettingsListGroup title={t('settings.debug', { defaultValue: 'Debug' })}>
                     <SettingsListItem
                         icon={<RowIcon icon={RiDeleteBinLine} destructive />}
                         title={t('settings.data.clearCache')}

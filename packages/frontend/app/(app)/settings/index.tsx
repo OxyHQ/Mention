@@ -144,7 +144,7 @@ export default function SettingsScreen() {
                 )}
 
                 {isAuthenticated && (
-                    <SettingsListGroup variant="filled">
+                    <SettingsListGroup>
                         <SettingsListItem
                             icon={<RowIcon icon={RiEyeOffLine} />}
                             title={t('settings.privacy.title')}
@@ -167,7 +167,7 @@ export default function SettingsScreen() {
                 )}
 
                 {isAuthenticated && (
-                    <SettingsListGroup variant="filled">
+                    <SettingsListGroup>
                         <SettingsListItem
                             icon={<RowIcon icon={RiNotification3Line} />}
                             title={t('settings.preferences.notifications')}
@@ -195,7 +195,7 @@ export default function SettingsScreen() {
                     </SettingsListGroup>
                 )}
 
-                <SettingsListGroup variant="filled">
+                <SettingsListGroup>
                     <SettingsListItem
                         icon={<RowIcon icon={RiPaletteLine} />}
                         title={t('settings.preferences.appearance')}
@@ -229,7 +229,7 @@ export default function SettingsScreen() {
                 </SettingsListGroup>
 
                 {isAuthenticated && (
-                    <SettingsListGroup variant="filled">
+                    <SettingsListGroup>
                         <SettingsListItem
                             icon={<RowIcon icon={RiHeartLine} />}
                             title={t('settings.preferences.interests', { defaultValue: 'Your interests' })}
@@ -239,7 +239,7 @@ export default function SettingsScreen() {
                     </SettingsListGroup>
                 )}
 
-                <SettingsListGroup variant="filled">
+                <SettingsListGroup>
                     <SettingsListItem
                         icon={<RowIcon icon={RiQuestionLine} />}
                         title={t('settings.supportFeedback.helpSupport')}
@@ -255,7 +255,7 @@ export default function SettingsScreen() {
                 </SettingsListGroup>
 
                 {isAuthenticated && (
-                    <SettingsListGroup variant="filled">
+                    <SettingsListGroup>
                         <SettingsListItem
                             icon={<RowIcon icon={RiLogoutBoxRLine} destructive />}
                             title={t("settings.signOut")}

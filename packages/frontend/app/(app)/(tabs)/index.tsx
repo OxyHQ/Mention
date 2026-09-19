@@ -262,7 +262,7 @@ const HomeScreen: React.FC = () => {
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
 
                     {/* Header - animated. <PanelStickyHeader> owns the web sticky
-                        position/inset, the opaque `bg-card` surface, the top
+                        position/inset, the opaque panel surface, the top
                         rounded corners (masking the feed's top-edge bleed), and the
                         z-index. The screen still supplies the reanimated auto-hide
                         translate via `style`. NATIVE: PanelStickyHeader becomes the
@@ -305,7 +305,7 @@ const HomeScreen: React.FC = () => {
 
                     {/* Tab Navigation. WEB: <PanelStickyHeader level={1}> pins it
                         directly below the level-0 header (at PANEL_TOP_INSET +
-                        PANEL_HEADER_HEIGHT) with the same opaque `bg-card` surface
+                        PANEL_HEADER_HEIGHT) with the same opaque panel surface
                         and top rounded corners, so the feed is never exposed in the
                         auto-hide gap and the rounded corners keep masking the feed's
                         top-edge bleed when the tab bar rises to the panel top.

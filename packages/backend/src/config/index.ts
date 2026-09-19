@@ -365,7 +365,13 @@ const environmentSchema = z
     FEDERATION_BLOCKED_DOMAINS: commaSeparatedDomains(),
     CROSSPOST_RECHECK_INTERVAL_MS: integerFromEnv(60_000, { minimum: 1_000, maximum: 86_400_000 }),
     CROSSPOST_RECHECK_BATCH_SIZE: integerFromEnv(100, { minimum: 1, maximum: 1_000 }),
-    FEDERATION_MEDIA_CACHE_WRITE_ENABLED: booleanFromEnv(false),
+    /**
+     * ON by default. It was closed while Oxy had no service-token upload or
+     * delete route, which is no longer true — `oxyMediaStore.ts` uses one — and
+     * production has carried it as `true` since. A default nothing runs is not a
+     * default.
+     */
+    FEDERATION_MEDIA_CACHE_WRITE_ENABLED: booleanFromEnv(true),
 
     MENTION_MCP_PUBLIC_URL: z.preprocess(
       emptyAsUndefined,
@@ -379,7 +385,13 @@ const environmentSchema = z
     MCP_OAUTH_REDIRECT_URIS_CHATGPT: separatedUrls(chatGptRedirects),
     MENTION_MCP_JWT_SECRET: optionalString(32),
 
-    ATPROTO_ENABLED: booleanFromEnv(false),
+    /**
+     * ON by default. The read/discovery path it gates has been rolled out and
+     * production has carried `ATPROTO_ENABLED=true` since then, so `false` was
+     * a default no deployment used and one more line in every task definition.
+     * `ATPROTO_BRIDGE_ENABLED` below stays closed: that one WRITES.
+     */
+    ATPROTO_ENABLED: booleanFromEnv(true),
     ATPROTO_APPVIEW: z.preprocess(emptyAsUndefined, host.default('public.api.bsky.app')),
     ATPROTO_PLC_DIRECTORY: z.preprocess(emptyAsUndefined, host.default('plc.directory')),
     ATPROTO_BRIDGE_ENABLED: booleanFromEnv(false),
@@ -429,17 +441,25 @@ const environmentSchema = z
     /**
      * CrowdSource participatory moderation (§14.6).
      *
-     * The names come from the packages, not from §14.6's table, and the difference
-     * is deliberate. `@oxy.so/crowdsource` reads `CROWDSOURCE_SERVICE_KEY` (the
-     * applicationId, credentialId and secret as ONE opaque value) and
-     * `CROWDSOURCE_BASE_URL`; `@oxy.so/crowdsource-express` reads
-     * `CROWDSOURCE_WEBHOOK_SECRET` and `CROWDSOURCE_WEBHOOK_SECRET_PREVIOUS`.
-     * §14.6's `CROWDSOURCE_APP_ID` is absent on purpose: the applicationId comes
-     * off the credential and there is no surface anywhere that can carry one, so a
-     * variable holding it could only ever disagree with the credential.
+     * There is no `CROWDSOURCE_ENABLED` and no `CROWDSOURCE_SERVICE_KEY`, and
+     * neither is coming back. Mention is one of Oxy's own services: it presents
+     * the Oxy service token its infrastructure already issues and CrowdSource
+     * resolves the tenant from the application that token names (oxy ADR 0026).
+     * There is no key to hold, so there is nothing for a flag to mean beyond
+     * "can this process authenticate" — which is a fact about where it runs, not
+     * a variable somebody sets. `crowdSourceClient.ts` decides it.
+     *
+     * §14.6's `CROWDSOURCE_APP_ID` is absent for the same reason it always was:
+     * the application is whatever the identity resolves to, and a variable
+     * holding it could only ever disagree.
+     *
+     * What remains are the things that genuinely are configuration.
+     * `CROWDSOURCE_BASE_URL` points at a local backend;
+     * `@oxy.so/crowdsource-express` verifies inbound signatures with
+     * `CROWDSOURCE_WEBHOOK_SECRET` and `CROWDSOURCE_WEBHOOK_SECRET_PREVIOUS` —
+     * a signing secret CrowdSource issues per endpoint, not an identity, which
+     * is why that one stays.
      */
-    CROWDSOURCE_ENABLED: booleanFromEnv(false),
-    CROWDSOURCE_SERVICE_KEY: optionalString(),
     CROWDSOURCE_BASE_URL: optionalHttpOrigin,
     CROWDSOURCE_WEBHOOK_SECRET: optionalString(16),
     CROWDSOURCE_WEBHOOK_SECRET_PREVIOUS: optionalString(16),
@@ -457,7 +477,16 @@ const environmentSchema = z
       z.enum(['observe', 'manual', 'automatic']).default('observe'),
     ),
 
-    INTERNAL_METRICS_ENABLED: booleanFromEnv(false),
+    /**
+     * There is no `INTERNAL_METRICS_ENABLED`, and it is not coming back.
+     *
+     * The route already answers 404 without a token — deliberately, so the
+     * surface is hidden rather than advertised — so a flag beside the token
+     * could only ever say "on" while the thing stayed off, or "off" while a
+     * token sat there doing nothing. The deploy script made that plain: it set
+     * the flag to `true` exactly when it wired the token, which is a condition
+     * the code can read for itself.
+     */
     INTERNAL_METRICS_TOKEN: optionalString(32),
     METRICS_ALLOWED_IPS: exactIpList,
   })
@@ -473,13 +502,6 @@ const environmentSchema = z
         message: 'must match REDIS_URL when both aliases are supplied',
       });
     }
-    if (environment.INTERNAL_METRICS_ENABLED && !environment.INTERNAL_METRICS_TOKEN) {
-      context.addIssue({
-        code: 'custom',
-        path: ['INTERNAL_METRICS_TOKEN'],
-        message: 'is required when INTERNAL_METRICS_ENABLED=true',
-      });
-    }
     const hasOxyKey = Boolean(environment.OXY_SERVICE_API_KEY);
     const hasOxySecret = Boolean(environment.OXY_SERVICE_API_SECRET);
     if (hasOxyKey !== hasOxySecret) {
@@ -488,29 +510,6 @@ const environmentSchema = z
         path: [hasOxyKey ? 'OXY_SERVICE_API_SECRET' : 'OXY_SERVICE_API_KEY'],
         message: 'OXY_SERVICE_API_KEY and OXY_SERVICE_API_SECRET must be configured together',
       });
-    }
-    /**
-     * A half-configured integration is worse than a disabled one: reports would be
-     * delivered and decisions would never arrive, or the reverse, and either way the
-     * gap is invisible until somebody wonders why a case never came back. Both
-     * directions are required together.
-     */
-    if (environment.CROWDSOURCE_ENABLED) {
-      if (!environment.CROWDSOURCE_SERVICE_KEY) {
-        context.addIssue({
-          code: 'custom',
-          path: ['CROWDSOURCE_SERVICE_KEY'],
-          message: 'is required when CROWDSOURCE_ENABLED=true',
-        });
-      }
-      if (!environment.CROWDSOURCE_WEBHOOK_SECRET) {
-        context.addIssue({
-          code: 'custom',
-          path: ['CROWDSOURCE_WEBHOOK_SECRET'],
-          message:
-            'is required when CROWDSOURCE_ENABLED=true — without it no decision can ever be verified, so reports would leave and nothing would come back',
-        });
-      }
     }
     const hasFirebaseCredential = Boolean(environment.FIREBASE_SERVICE_ACCOUNT_BASE64);
     const hasFirebaseProject = Boolean(environment.FIREBASE_PROJECT_ID);
@@ -876,7 +875,8 @@ export const config = {
     mentionOxyClientId: environment.MENTION_OXY_CLIENT_ID,
   },
   internalMetrics: {
-    enabled: environment.INTERNAL_METRICS_ENABLED,
+    /** Holding the token IS being enabled; see the schema for why. */
+    enabled: Boolean(environment.INTERNAL_METRICS_TOKEN),
     token: environment.INTERNAL_METRICS_TOKEN,
     allowedIps: environment.METRICS_ALLOWED_IPS,
   },
@@ -975,8 +975,6 @@ export const config = {
     enabled: environment.POST_CLASSIFICATION_ENABLED,
   },
   crowdSource: {
-    enabled: environment.CROWDSOURCE_ENABLED,
-    serviceKey: environment.CROWDSOURCE_SERVICE_KEY,
     baseUrl: environment.CROWDSOURCE_BASE_URL,
     webhookSecret: environment.CROWDSOURCE_WEBHOOK_SECRET,
     webhookPreviousSecret: environment.CROWDSOURCE_WEBHOOK_SECRET_PREVIOUS,

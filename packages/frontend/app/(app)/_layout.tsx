@@ -31,8 +31,8 @@ const IS_WEB = Platform.OS === 'web';
 /**
  * Profile routes own the screen-level color scope; every other route renders with
  * the app-wide theme. Safety net: ignore any stale screenColor when the pathname
- * is outside the profile subtree (`/@username[/sub]`) so per-profile colors never
- * leak into other pages.
+ * is outside the profile subtree (`/@username[/sub]`, `/c/<handle>[/sub]`) so
+ * per-profile colors never leak into other pages.
  */
 function isProfileRoute(pathname: string | null | undefined): boolean {
   if (!pathname) return false;
@@ -40,7 +40,15 @@ function isProfileRoute(pathname: string | null | undefined): boolean {
   // no handle in it (see `(tabs)/you.tsx`). Without it here the one profile a
   // reader looks at most would be the only one rendering outside its own colour
   // scope.
-  return pathname.startsWith('/@') || pathname === '/you';
+  //
+  // `/c/` is the same screen for a channel (`ChannelScreen` resolves its preset
+  // through the same `useProfileAccount` -> `useProfileScreenColor`, which
+  // publishes it here). It scopes its own subtree either way; what this adds is
+  // the PANEL. Chrome reads the surface the panel painted (`useSurfaceFill`), so
+  // a channel whose column was tinted from inside its own scope, on a panel
+  // painted outside it, would otherwise paint the app-wide card against the
+  // channel's tinted children.
+  return pathname.startsWith('/@') || pathname.startsWith('/c/') || pathname === '/you';
 }
 
 /**

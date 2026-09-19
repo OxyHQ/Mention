@@ -27,6 +27,34 @@ components. Prefer Bloom components and semantic NativeWind utilities such as
 `bg-background`, `bg-card`, `text-foreground` and
 `text-muted-foreground` when they fit the component.
 
+## Chrome that matches its surface
+
+`bg-card` is a palette token: the colour a CARD paints. It is the wrong answer
+for chrome whose only job is to be opaque in the colour of whatever it is
+sitting on — the feed column, a sticky tab bar or header, a pinned reply
+composer, the profile banner fade. Those ask instead:
+
+```tsx
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
+
+const surfaceFill = useSurfaceFill();
+<View style={{ backgroundColor: surfaceFill }} />
+```
+
+The shell's `ContentPanel` publishes `colors.card`, a bottom sheet publishes
+`colors.background`, and anything unwrapped gets the page — so one component
+lands correctly on all three instead of naming the one it was written for. Any
+container of ours that repaints a Bloom surface has to say what it painted
+(`ContentPanel`'s `surfaceColor`), or its content is told the wrong colour.
+
+On web the same value is `var(--bloom-surface)`, but a `var(--bloom-surface)`
+class in SHARED code is right on web and silently wrong on native: only a web
+fork (`components/Feed/Feed.web.tsx`) or a stylesheet may read it.
+Cross-platform code uses the hook.
+
+`SettingsListGroup` reads the surface the same way, which is why no call site
+here passes `variant`.
+
 ## Design tokens
 
 `packages/frontend/global.css` imports the canonical token sheet:

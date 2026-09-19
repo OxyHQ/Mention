@@ -2392,6 +2392,8 @@
   "communityNotes.hub.tabNotes": "আপনার নোট",
   "communityNotes.hub.statusShown": "পোস্টে দেখানো হচ্ছে",
   "communityNotes.hub.statusNeedsRatings": "আরও রেটিং প্রয়োজন",
+  "communityNotes.hub.statusNotShown": "দেখানো হচ্ছে না — মূল্যায়নকারীরা এটি সহায়ক মনে করেননি",
+  "communityNotes.hub.statusWithdrawn": "আপনি এই নোটটি ফিরিয়ে নিয়েছেন",
   "communityNotes.card.needsRatings": "আরও লোকের রেটিং প্রয়োজন",
   "communityNotes.card.title": "কমিউনিটি নোট",
   "communityNotes.card.byline": "Mention-এর লোকেরা লিখেছেন",

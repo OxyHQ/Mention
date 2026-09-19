@@ -111,7 +111,7 @@ export default function OnlineStatusScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup variant="filled">
+                <SettingsListGroup>
                     <SettingsListItem
                         icon={<RowIcon icon={RiCheckboxBlankCircleLine} />}
                         title={t('settings.privacy.showOnlineStatus')}

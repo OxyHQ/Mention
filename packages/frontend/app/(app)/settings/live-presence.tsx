@@ -127,7 +127,7 @@ export default function LivePresenceScreen() {
                 contentContainerClassName="px-screen-margin py-2"
                 showsVerticalScrollIndicator={false}
             >
-                <SettingsListGroup variant="filled"
+                <SettingsListGroup
                     title={t('settings.livePresence.title', { defaultValue: 'Live presence' })}
                     footer={t('settings.livePresence.footer', {
                         defaultValue: 'This controls when your avatar shows a live badge across Mention.',

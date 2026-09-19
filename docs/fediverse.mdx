@@ -274,8 +274,10 @@ modules.
 
 ## Optional AT Protocol connector
 
-AT Protocol handle resolution and read/discovery are independently gated by
-`ATPROTO_ENABLED`. A separate bridge gate controls repository exposure. These
+AT Protocol handle resolution and read/discovery are on unless
+`ATPROTO_ENABLED=false`, the same shape as `FEDERATION_ENABLED`. A separate
+bridge gate controls repository exposure, and that one is closed by default:
+this side reads, the bridge writes. These
 features do not change the ActivityPub routes or the native PostgreSQL
 authority.
 

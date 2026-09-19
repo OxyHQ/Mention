@@ -19,7 +19,7 @@ import {
     RiHeartFill,
     RiRepeat2Line,
     RiShare2Line,
-    type Props as BloomIconProps,
+    type BloomIconComponent,
 } from '@oxy.so/bloom/icons';
 import { insightsService } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
@@ -33,7 +33,7 @@ interface PostInsightsSheetProps {
 }
 
 interface StatRowProps {
-    icon: React.ComponentType<BloomIconProps>;
+    icon: BloomIconComponent;
     iconColor: string;
     label: string;
     value: number;

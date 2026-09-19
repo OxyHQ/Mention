@@ -5,6 +5,7 @@ import { VideoPlaybackProvider } from '@/context/VideoPlaybackContext';
 import { DrawerProvider } from '@/context/DrawerContext';
 import { BottomBarVisibilityProvider } from '@/context/BottomBarVisibilityContext';
 import { TabPagerProvider } from '@/context/TabPagerContext';
+import { CommunityNoteProvider } from './CommunityNoteProvider';
 
 /**
  * App-shell contexts owned by Mention. Everything Bloom owns — theme, haptics,
@@ -28,7 +29,11 @@ export const AppShellProviders = memo(function AppShellProviders({ children }: {
             <TabPagerProvider>
               {/* shared bottom-bar auto-hide signal, pinned visible on /videos */}
               <BottomBarVisibilityProvider>
-                {children}
+                {/* One answer for the whole shell to "can a note be written
+                    here", so a feed page's rows read it instead of each asking. */}
+                <CommunityNoteProvider>
+                  {children}
+                </CommunityNoteProvider>
               </BottomBarVisibilityProvider>
             </TabPagerProvider>
           </DrawerProvider>
