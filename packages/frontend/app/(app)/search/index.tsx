@@ -14,7 +14,10 @@ import { useAuth } from "@oxy.so/services/ui/client";
 import { getNormalizedUserHandle } from "@oxy.so/core";
 import { useSafeBack } from "@/hooks/useSafeBack";
 import { PageHeader } from "@oxy.so/bloom/page-header";
-import { RiArrowRightSLine, RiCloseLine, RiTimeLine, RiUserLine } from "@oxy.so/bloom/icons";
+import { RiArrowRightSLine } from "@oxy.so/bloom/icons/RiArrowRightSLine";
+import { RiCloseLine } from "@oxy.so/bloom/icons/RiCloseLine";
+import { RiTimeLine } from "@oxy.so/bloom/icons/RiTimeLine";
+import { RiUserLine } from "@oxy.so/bloom/icons/RiUserLine";
 import { useTheme } from "@oxy.so/bloom/theme";
 import {
     searchService,

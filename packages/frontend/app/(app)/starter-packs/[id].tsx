@@ -12,7 +12,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth, FollowButton } from '@oxy.so/services/ui/client';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
-import { RiLineChartLine } from '@oxy.so/bloom/icons';
+import { RiLineChartLine } from '@oxy.so/bloom/icons/RiLineChartLine';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { ProfileCard } from '@/components/ProfileCard';
 

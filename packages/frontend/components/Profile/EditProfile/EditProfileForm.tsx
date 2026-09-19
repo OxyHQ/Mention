@@ -3,7 +3,7 @@ import { ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
-import { RiPaletteLine } from '@oxy.so/bloom/icons';
+import { RiPaletteLine } from '@oxy.so/bloom/icons/RiPaletteLine';
 import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsListDivider } from '@oxy.so/bloom/settings-list';
 import { useBloomTheme, useTheme } from '@oxy.so/bloom/theme';

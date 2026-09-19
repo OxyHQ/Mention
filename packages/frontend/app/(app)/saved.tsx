@@ -33,7 +33,7 @@ import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
 import AnimatedTabBar from '@/components/common/AnimatedTabBar';
 import { Fab } from '@oxy.so/bloom/fab';
-import { RiAddLine } from '@oxy.so/bloom/icons';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import {
     feedService,
     type SavedPostsPage,

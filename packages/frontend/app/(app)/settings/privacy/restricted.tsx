@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { RiAddCircleLine, RiInformationFill, RiSearchLine } from '@oxy.so/bloom/icons';
+import { RiAddCircleLine } from '@oxy.so/bloom/icons/RiAddCircleLine';
+import { RiInformationFill } from '@oxy.so/bloom/icons/RiInformationFill';
+import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';

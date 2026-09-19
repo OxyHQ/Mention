@@ -39,7 +39,8 @@
       "^@oxy.so/services/ui/client$": "<rootDir>/../../node_modules/@oxy.so/services/lib/commonjs/ui/client.js",
       "^@oxy.so/core/logger$": "<rootDir>/../../node_modules/@oxy.so/core/dist/cjs/logger/index.js",
       "^@oxy.so/contracts$": "<rootDir>/../../node_modules/@oxy.so/contracts/dist/cjs/index.js",
-      "^@oxy.so/bloom/icons$": "<rootDir>/test-support/bloomIcons.js"
+      "^@oxy.so/bloom/icons$": "<rootDir>/test-support/bloomIcons.js",
+      "^@oxy.so/bloom/icons/(.*)$": "<rootDir>/test-support/bloomIcons.js"
     },
     "collectCoverageFrom": [
       "**/*.{ts,tsx}",

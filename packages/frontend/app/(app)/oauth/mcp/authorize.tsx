@@ -9,15 +9,13 @@ import { getNormalizedUserHandle } from '@oxy.so/core';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import {
-  RiAlertLine,
-  RiArrowLeftRightLine,
-  RiCheckboxCircleFill,
-  RiErrorWarningFill,
-  RiInformationFill,
-  RiSparklingFill,
-  RiUserLine,
-} from '@oxy.so/bloom/icons';
+import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
+import { RiArrowLeftRightLine } from '@oxy.so/bloom/icons/RiArrowLeftRightLine';
+import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
+import { RiErrorWarningFill } from '@oxy.so/bloom/icons/RiErrorWarningFill';
+import { RiInformationFill } from '@oxy.so/bloom/icons/RiInformationFill';
+import { RiSparklingFill } from '@oxy.so/bloom/icons/RiSparklingFill';
+import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useProfileData } from '@/hooks/useProfileData';

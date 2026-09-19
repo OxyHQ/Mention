@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons';
+import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { languageLabel, translateTargets, type PostLanguageOption } from '@/utils/postLanguages';
 
 interface Props {

@@ -3,7 +3,7 @@ import { Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
-import { RiArrowRightLine } from '@oxy.so/bloom/icons';
+import { RiArrowRightLine } from '@oxy.so/bloom/icons/RiArrowRightLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';

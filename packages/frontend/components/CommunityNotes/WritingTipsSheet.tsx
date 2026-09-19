@@ -2,7 +2,10 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
-import { RiEditLine, RiEyeOffLine, RiFileTextLine, RiLinkM } from '@oxy.so/bloom/icons';
+import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
+import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
+import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
+import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
 import { NoteSheetHeader } from './NoteSheetHeader';
 import { NoteTipList } from './NoteTipList';
 

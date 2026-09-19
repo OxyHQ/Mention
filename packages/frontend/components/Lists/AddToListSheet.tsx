@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
-import { RiAddLine, RiCheckboxBlankCircleLine, RiCheckboxCircleFill, RiCloseLine, RiListUnordered } from '@oxy.so/bloom/icons';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiCheckboxBlankCircleLine } from '@oxy.so/bloom/icons/RiCheckboxBlankCircleLine';
+import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';
 import { router } from 'expo-router';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { toast } from '@oxy.so/bloom/toast';

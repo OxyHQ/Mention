@@ -3,7 +3,7 @@ import { GestureResponderEvent, Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { RiEditBoxLine } from '@oxy.so/bloom/icons';
+import { RiEditBoxLine } from '@oxy.so/bloom/icons/RiEditBoxLine';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const NOTICE_ICON_SIZE = 13;

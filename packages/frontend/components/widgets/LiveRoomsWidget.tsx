@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { RiBroadcastLine, RiCustomerServiceLine, RiMoreFill } from '@oxy.so/bloom/icons';
+import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
+import { RiCustomerServiceLine } from '@oxy.so/bloom/icons/RiCustomerServiceLine';
+import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';

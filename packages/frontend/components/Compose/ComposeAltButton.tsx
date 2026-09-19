@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, TouchableOpacity } from 'react-native';
-import { RiCheckLine } from '@oxy.so/bloom/icons';
+import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { cn } from '@/lib/utils';
 import { HIT_SLOP_SM } from '@/styles/hitSlop';
 

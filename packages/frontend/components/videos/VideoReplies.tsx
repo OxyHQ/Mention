@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { RiCloseLine } from '@oxy.so/bloom/icons';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 // This panel owns an element-sized scroller, including on web. Use the
 // FlashList implementation explicitly instead of the document-scroll web feed.
 import Feed from '@/components/Feed/Feed.native';

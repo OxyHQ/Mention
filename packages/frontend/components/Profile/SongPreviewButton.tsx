@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { ActivityIndicator, Pressable } from 'react-native';
-import { RiPauseFill, RiPlayFill } from '@oxy.so/bloom/icons';
+import { RiPauseFill } from '@oxy.so/bloom/icons/RiPauseFill';
+import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { HIT_SLOP_SM } from '@/styles/hitSlop';
 

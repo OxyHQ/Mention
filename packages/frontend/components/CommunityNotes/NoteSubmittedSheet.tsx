@@ -2,7 +2,9 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
-import { RiSettings3Line, RiTeamLine, RiThumbUpLine } from '@oxy.so/bloom/icons';
+import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
+import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
+import { RiThumbUpLine } from '@oxy.so/bloom/icons/RiThumbUpLine';
 import { NoteTipList } from './NoteTipList';
 
 interface NoteSubmittedSheetProps {

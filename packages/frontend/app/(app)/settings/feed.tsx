@@ -10,7 +10,7 @@ import { useFeedSettings, DEFAULT_FEED_SETTINGS, type FeedSettings } from '@/hoo
 import { useTranslation } from 'react-i18next';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { RiRefreshLine } from '@oxy.so/bloom/icons';
+import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 
 const PRESETS = {

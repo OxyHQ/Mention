@@ -2,13 +2,11 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, FlatList } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
-import {
-  RiArrowRightSLine,
-  RiDeleteBinLine,
-  RiEyeLine,
-  RiFileCopyLine,
-  RiImageLine,
-} from '@oxy.so/bloom/icons';
+import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiEyeLine } from '@oxy.so/bloom/icons/RiEyeLine';
+import { RiFileCopyLine } from '@oxy.so/bloom/icons/RiFileCopyLine';
+import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
 import { useTranslation } from 'react-i18next';
 import { DraftsIcon } from '@/assets/icons/drafts';
 import { useDrafts, Draft } from '@/hooks/useDrafts';

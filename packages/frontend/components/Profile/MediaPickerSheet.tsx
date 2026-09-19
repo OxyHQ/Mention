@@ -9,7 +9,11 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
-import { RiCloseCircleLine, RiDeleteBinLine, RiMic2Line, RiMusic2Line, RiSearchLine } from '@oxy.so/bloom/icons';
+import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
+import { RiMusic2Line } from '@oxy.so/bloom/icons/RiMusic2Line';
+import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { Item } from '@oxy.so/bloom/item';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';

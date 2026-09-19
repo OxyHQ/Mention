@@ -21,7 +21,11 @@ describe('home compose FAB', () => {
   const source = readFileSync(resolve(__dirname, '../app/(app)/(tabs)/index.tsx'), 'utf8');
 
   it('uses the same responsive Bloom contract as Inbox', () => {
-    expect(bloomManifest.version).toBe('3.1.0');
+    // Pinned EXACTLY, and it moves with the catalog on purpose: the assertions
+    // below read a compiled Bloom artifact and a call site, and both are only
+    // meaningful against the version that is actually installed. An upgrade that
+    // forgets this line is an upgrade nobody checked the FAB against.
+    expect(bloomManifest.version).toBe('3.2.1');
     expect(inboxFabContract.minimizeBehavior).toBe('collapse');
     expect(source).toContain("label={Platform.OS === 'web'");
     expect(source).toContain('minimizeBehavior="collapse"');

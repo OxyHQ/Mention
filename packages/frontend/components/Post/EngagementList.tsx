@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';
-import { RiCloseLine } from '@oxy.so/bloom/icons';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { feedService } from '@/services/feedService';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 

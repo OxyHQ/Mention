@@ -10,7 +10,10 @@ import {
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
-import { RiCloseCircleLine, RiCloseLine, RiImageLine, RiSearchLine } from '@oxy.so/bloom/icons';
+import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
+import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';

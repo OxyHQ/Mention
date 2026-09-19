@@ -1,7 +1,10 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
-import { RiCalendarLine, RiDeleteBinLine, RiEditLine, RiSendPlaneLine } from '@oxy.so/bloom/icons';
+import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
+import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
+import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost } from '@mention/shared-types';

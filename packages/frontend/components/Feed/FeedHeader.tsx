@@ -3,7 +3,8 @@ import { View, Pressable, StyleSheet, Platform, TouchableOpacity } from 'react-n
 import { useAuth } from '@oxy.so/services/ui/client';
 import { router } from 'expo-router';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import { RiCameraLine, RiImageLine } from '@oxy.so/bloom/icons';
+import { RiCameraLine } from '@oxy.so/bloom/icons/RiCameraLine';
+import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Text } from '@oxy.so/bloom/typography';
 import { useTheme } from '@oxy.so/bloom/theme';

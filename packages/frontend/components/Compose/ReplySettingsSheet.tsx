@@ -3,7 +3,7 @@ import { View, Text, Pressable, Animated, Platform } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
-import { RiCheckLine } from '@oxy.so/bloom/icons';
+import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 
 export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
 

@@ -12,7 +12,17 @@ import {
 import { Loading } from '@oxy.so/bloom/loading';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { RiAddLine, RiCheckLine, RiCloseCircleLine, RiEarthLine, RiFireLine, RiGroupLine, RiHeartLine, RiLineChartLine, RiSettings3Line, RiSparklingLine, RiUserCommunityLine } from '@oxy.so/bloom/icons';
+import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
+import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
+import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
+import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
+import { RiFireLine } from '@oxy.so/bloom/icons/RiFireLine';
+import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
+import { RiHeartLine } from '@oxy.so/bloom/icons/RiHeartLine';
+import { RiLineChartLine } from '@oxy.so/bloom/icons/RiLineChartLine';
+import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
+import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
+import { RiUserCommunityLine } from '@oxy.so/bloom/icons/RiUserCommunityLine';
 import { useTranslation } from 'react-i18next';
 import { router, useFocusEffect } from 'expo-router';
 import { PRESET_FEEDS, type PresetFeed } from '@mention/shared-types/mtn/presetFeeds';

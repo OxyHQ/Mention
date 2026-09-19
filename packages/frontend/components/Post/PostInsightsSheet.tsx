@@ -11,16 +11,14 @@ import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';
-import {
-    RiChat3Fill,
-    RiCloseLine,
-    RiDoubleQuotesL,
-    RiGroupFill,
-    RiHeartFill,
-    RiRepeat2Line,
-    RiShare2Line,
-    type BloomIconComponent,
-} from '@oxy.so/bloom/icons';
+import { RiChat3Fill } from '@oxy.so/bloom/icons/RiChat3Fill';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
+import { RiDoubleQuotesL } from '@oxy.so/bloom/icons/RiDoubleQuotesL';
+import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
+import { RiHeartFill } from '@oxy.so/bloom/icons/RiHeartFill';
+import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
+import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
+import type { BloomIconComponent } from '@oxy.so/bloom';
 import { insightsService } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/common/EmptyState';

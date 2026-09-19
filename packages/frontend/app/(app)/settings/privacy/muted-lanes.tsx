@@ -1,5 +1,5 @@
 import React from 'react';
-import { RiGitMergeLine } from '@oxy.so/bloom/icons';
+import { RiGitMergeLine } from '@oxy.so/bloom/icons/RiGitMergeLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';

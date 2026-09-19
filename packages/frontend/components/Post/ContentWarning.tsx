@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { RiAlertLine } from '@oxy.so/bloom/icons';
+import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { useTranslation } from 'react-i18next';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 

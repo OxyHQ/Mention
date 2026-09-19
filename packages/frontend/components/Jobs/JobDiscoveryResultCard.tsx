@@ -3,15 +3,13 @@ import { Pressable, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
-import {
-  RiBookmarkFill,
-  RiBookmarkLine,
-  RiCheckboxCircleFill,
-  RiFlagLine,
-  RiGlobalLine,
-  RiLoader4Line,
-  RiShareForwardLine,
-} from '@oxy.so/bloom/icons';
+import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
+import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
+import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
+import { RiFlagLine } from '@oxy.so/bloom/icons/RiFlagLine';
+import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
+import { RiLoader4Line } from '@oxy.so/bloom/icons/RiLoader4Line';
+import { RiShareForwardLine } from '@oxy.so/bloom/icons/RiShareForwardLine';
 import { Item } from '@oxy.so/bloom/item';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';

@@ -13,7 +13,7 @@ import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { Gear } from '@/assets/icons/gear-icon';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { FrostedIconButton } from '@oxy.so/bloom/frosted-icon-button';
-import { RiHand } from '@oxy.so/bloom/icons';
+import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { showContentDialog } from '@/components/common/ContentDialog';
 import { EditProfileForm } from './EditProfile/EditProfileForm';
 import { usePoke } from './hooks/usePoke';

@@ -7,7 +7,8 @@ import {
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';
-import { RiAlertLine, RiEqualizerLine } from '@oxy.so/bloom/icons';
+import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
+import { RiEqualizerLine } from '@oxy.so/bloom/icons/RiEqualizerLine';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

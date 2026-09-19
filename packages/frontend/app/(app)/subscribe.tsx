@@ -7,7 +7,9 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { useTranslation } from 'react-i18next';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';
-import { RiShieldCheckLine, RiSparklingLine, RiVipCrownLine } from '@oxy.so/bloom/icons';
+import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
+import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
+import { RiVipCrownLine } from '@oxy.so/bloom/icons/RiVipCrownLine';
 import { STRIPE_LINK_PLUS } from '@/config';
 
 export default function SubscribeScreen() {

@@ -1,7 +1,8 @@
 import React from 'react';
 import { ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { RiListUnordered, RiNodeTree } from '@oxy.so/bloom/icons';
+import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';
+import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
 import { RadioIndicator } from '@oxy.so/bloom/radio-indicator';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon } from '@/components/settings/RowIcon';

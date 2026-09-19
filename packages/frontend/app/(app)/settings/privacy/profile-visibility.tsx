@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { RiCheckboxCircleFill, RiEarthLine, RiGroupLine, RiLockLine } from '@oxy.so/bloom/icons';
+import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
+import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
+import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';

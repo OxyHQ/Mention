@@ -9,7 +9,18 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { authenticatedClient } from '@/utils/api';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon, type BloomIcon } from '@/components/settings/RowIcon';
-import { RiAlertLine, RiAtLine, RiCheckboxBlankCircleLine, RiCloseCircleLine, RiEarthLine, RiEyeOffLine, RiGitMergeLine, RiGroupLine, RiHeartLine, RiLockLine, RiRefreshLine, RiSparklingLine } from '@oxy.so/bloom/icons';
+import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
+import { RiAtLine } from '@oxy.so/bloom/icons/RiAtLine';
+import { RiCheckboxBlankCircleLine } from '@oxy.so/bloom/icons/RiCheckboxBlankCircleLine';
+import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
+import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
+import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
+import { RiGitMergeLine } from '@oxy.so/bloom/icons/RiGitMergeLine';
+import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
+import { RiHeartLine } from '@oxy.so/bloom/icons/RiHeartLine';
+import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
+import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
+import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { logger } from '@oxy.so/core/logger';
 import {
     type RecommendationFilters,

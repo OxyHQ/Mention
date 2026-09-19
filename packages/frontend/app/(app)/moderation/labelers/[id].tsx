@@ -10,7 +10,9 @@ import {
 } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { RiGroupLine, RiShieldCheckLine, RiUserLine } from '@oxy.so/bloom/icons';
+import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
+import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
+import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';

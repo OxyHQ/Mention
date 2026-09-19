@@ -1,6 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { RiArrowDownLine, RiLineChartLine, RiTimeLine } from '@oxy.so/bloom/icons';
+import { RiArrowDownLine } from '@oxy.so/bloom/icons/RiArrowDownLine';
+import { RiLineChartLine } from '@oxy.so/bloom/icons/RiLineChartLine';
+import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { RadioIndicator } from '@oxy.so/bloom/radio-indicator';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { RowIcon, type BloomIcon } from '@/components/settings/RowIcon';
