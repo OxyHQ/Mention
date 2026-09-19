@@ -91,12 +91,36 @@ the Stage-A slug-only `postClassification.topics`, then neutral (`[]`).
 
 ## Discovery-quality rollout
 
-For You and Explore apply the same discovery-only gate; followed, affinity and
-list lanes remain trusted. `DISCOVERY_GATE_ROLLOUT` is the single runtime
-authority: `shadow` (the default) measures without filtering, `experiment`
-enforces for the stable authenticated `gate-on` cohort while keeping `gate-off`
-and anonymous traffic as control, and `enforce` filters everyone. Module
-selection remains controlled by `FOR_YOU_DISCOVERY_GATE`.
+Two gate PROFILES, one runtime switch. For You and Explore apply the full
+discovery gate (`minLength`, `lowEffortGate`, `nativeEngagement`, `minQuality`,
+`noContentWarning`); Trending, Videos and Media apply recommendation HYGIENE only
+(`noContentWarning`) — an engagement floor on the feed that IS the
+high-engagement tail, or a length floor on a feed of videos, would not make them
+cleaner, it would make them a different feed. Followed, affinity and list lanes
+remain trusted on both profiles. The popular fallback — the anonymous page and
+the never-blank page — runs its definition's gate too, SCANNING to fill rather
+than filtering a window already cut to the page, so a rejection backfills instead
+of shortening it; `hasMore` and the cursor describe how far the scan consumed the
+SOURCE, which is what keeps a run of rejected posts from reading as the end of
+the feed.
+
+`DISCOVERY_GATE_ROLLOUT` is the single runtime authority: `shadow` (the default)
+measures without filtering, `experiment` enforces for the stable authenticated
+`gate-on` cohort while keeping `gate-off` and anonymous traffic as control, and
+`enforce` filters everyone. Module selection remains controlled by
+`FOR_YOU_DISCOVERY_GATE`, whose allowlist lives in `config/index.ts` and has to
+cover BOTH profiles — naming a module it lacks stops the process booting, and
+`presetDefinitions.test.ts` asserts the two lists agree.
+
+A gate filter may declare `needsAuthor`. The engine then runs it in a SECOND pass
+over the merged pool, after resolving that pool's authors in one batch — the same
+`resolveUserSummaries` ranking uses, handed on to `rankPosts` so a request pays
+for one resolution rather than two. Not knowing is never a verdict: a batch that
+could not be resolved leaves `ctx.authorSummaries` UNSET, which is deliberately
+distinct from an empty map (a real answer), counts
+`feed_author_gate_neutral_total{reason="no_map"}`, and makes every author-aware
+rule abstain. An identity outage costs the gate its opinion, not the reader their
+feed.
 
 The structural branch rejects decoration with no letters or numbers and no
 media/poll. It does not impose a language-biased minimum prose length: brief
@@ -127,6 +151,18 @@ them. Three modules, no fourth copy of any predicate:
   WIDER gate (sensitive OR a federated CW) for surfaces that cannot render
   a warning at all — an unfurl, a plain-text notification preview; feeds
   keep the narrower `isSensitivePost` because their client shows a spoiler.
+- **`noContentWarning`** (`engine/filters`) is a RECOMMENDATION rule rather
+  than a safety one, which is why it is a separate filter module and NOT a
+  widening of `isSensitivePost`: a CW says how to PRESENT a post, not that it
+  is NSFW, and widening that predicate would hide CW'd posts from Following,
+  search, notifications and unfurls all at once. Mention does not RECOMMEND a
+  post its author asked to be shown behind a warning — and never hides one
+  from a reader who chose its author. **The followed-author exemption lives
+  inside the predicate**, not in which feeds list the module: that is what
+  makes the rule a no-op on Following BY CONSTRUCTION rather than by every
+  definition remembering not to opt in, and what lets it sit safely on the
+  hashtag / topic / trend / lane feeds, which have no trusted lane to scope it
+  by. The reader's own toggle is `feedTuning.forYou.noContentWarning`.
 - **`services/safety/muteWordMatcher.ts`** — the pure compile/match for
   muted words, honouring `targets` (`content`/`tag`) and `actorTarget`
   (`all`/`exclude-following`).
@@ -156,7 +192,16 @@ feeds.
   quality/spam/toxicity (provenance-gated), engagement weights, diversity
   penalties (`sameAuthorPenalty`, `sameTopicPenalty`).
 - Author-diversity rerank (`diversifyByAuthor`) runs BEFORE page
-  truncation; only the page window is hydrated.
+  truncation; only the page window is hydrated. `capDiscoveryShare` then bounds
+  the share of the page that may come from discovery lanes, guaranteeing a floor
+  for trusted content. Both DEFER rather than drop, and both run INSIDE the
+  already-selected window: a served page has to stay a prefix of the score order,
+  or the next page's `score < cursor` filter skips what they moved.
+- `trustTierBoost` (opt-in) lifts by the author's Oxy standing
+  (`new` → `verified`, read from the cached account summary). Lift-only, and
+  neutral for an unresolved author — `restricted` accounts never reach Mention at
+  all, so absence means "not resolved", never "badly behaved", and a penalty keyed
+  on it would fall on cold caches rather than bad accounts.
 - Never-blank fallback: when the unseen pool is exhausted (seen-set 1000
   cap / 30-min TTL), ForYou falls back to `fetchPopular`.
 - Surface-aware engagement: likes/saves/boosts from the Videos feed dampen

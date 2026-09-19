@@ -73,6 +73,12 @@ const PHASE2B_ALLOWED_SIGNAL_IDS = new Set<string>([
   'starterPackBoost',
   // OPTIONAL signals — enable-able via `FOR_YOU_PHASE2B_SIGNALS` for A/B + tuning,
   // but deliberately NOT in the default set.
+  //
+  // `trustTierBoost` is optional for now because it is brand new and nothing has
+  // measured it yet, not because it is risky: it is a lift-only multiplier over a
+  // four-value range and it cannot push anything down. It goes default-on once the
+  // A/B says what it does to engagement per impression.
+  'trustTierBoost',
   'mediaBoost',
   'positivity',
   'conversational',
@@ -115,25 +121,50 @@ function buildPresetRankingSignals(): ModuleRef[] {
  *                         `feedTuning.forYou.minQuality`), so it changes nothing
  *                         unless a viewer sets a threshold in For You settings.
  * Each reads its thresholds from `MtnConfig.feed.discoveryGate`; the opaque
- * `forYouGate` marker param lets these modules layer the viewer's
+ * `viewerGateTuning` marker param lets these modules layer the viewer's
  * `feedTuning.forYou` overrides ON TOP of the config defaults (Phase 4B) while the
  * definition stays STATIC — a custom feed reusing the same module never carries
  * the marker, so it never reads For You tuning.
  */
-const DISCOVERY_GATE_MODULE_IDS = ['minLength', 'lowEffortGate', 'nativeEngagement', 'minQuality'] as const;
+const DISCOVERY_GATE_MODULE_IDS = [
+  'minLength', 'lowEffortGate', 'nativeEngagement', 'minQuality', 'noContentWarning',
+] as const;
 const DISCOVERY_GATE_ALLOWED_IDS = new Set<string>(DISCOVERY_GATE_MODULE_IDS);
 
 /**
+ * The RECOMMENDATION-HYGIENE subset, for Trending / Videos / Media.
+ *
+ * Those three are single-source and narrow by construction: Trending IS the
+ * high-engagement tail, Videos IS every video. Imposing For You's engagement
+ * floor, length floor and quality floor on them would not make them cleaner, it
+ * would make them something else — a trending list that hides what is trending.
+ * What DOES belong on them is the part that is about recommending rather than
+ * ranking: Mention should not put a post behind a content warning in front of a
+ * reader who never asked for its author.
+ */
+const RECOMMENDATION_GATE_MODULE_IDS = ['noContentWarning'] as const;
+
+/**
  * Build a single gate ModuleRef. Every gate ref carries the opaque
- * `forYouGate: true` marker so its filter module reads per-viewer
- * `feedTuning.forYou` overrides (see `gateTuning` in `engine/filters`);
- * `minLength` additionally injects its threshold from config.
+ * `viewerGateTuning: true` marker so its filter module reads the reader's
+ * per-viewer `feedTuning.forYou` overrides (see `gateTuning` in
+ * `engine/filters`); `minLength` additionally injects its threshold from config.
+ *
+ * The marker used to be called `forYouGate`, which had stopped being true well
+ * before this change: `exploreDefinition` calls `resolveDiscoveryGate()`
+ * unmodified, so Discover has always read the same per-viewer tuning. The name
+ * now says what the flag does — "this ref honors the reader's gate settings" —
+ * which is what every gated surface needs it to mean. It is stamped by this
+ * builder and never persisted, so the rename touches no stored definition, no
+ * migration and no wire contract; `ForYouFeedTuning`, the `tuning*` columns and
+ * `GET/PUT /feed/tuning` deliberately keep their names, because those ARE the
+ * wire contract.
  */
 function discoveryGateModule(id: string): ModuleRef {
   if (id === 'minLength') {
-    return enabled('minLength', { minLength: MtnConfig.feed.discoveryGate.minTextLength, forYouGate: true });
+    return enabled('minLength', { minLength: MtnConfig.feed.discoveryGate.minTextLength, viewerGateTuning: true });
   }
-  return enabled(id, { forYouGate: true });
+  return enabled(id, { viewerGateTuning: true });
 }
 
 /**
@@ -150,6 +181,27 @@ function discoveryGateModule(id: string): ModuleRef {
  * or enforces the resolved gate (see `FeedEngine.gatherPool`).
  */
 export function resolveDiscoveryGate(): ModuleRef[] {
+  return resolveGateProfile(DISCOVERY_GATE_MODULE_IDS, DISCOVERY_GATE_ALLOWED_IDS);
+}
+
+/**
+ * The Trending / Videos / Media gate — {@link RECOMMENDATION_GATE_MODULE_IDS},
+ * resolved through the SAME env switch as the full gate.
+ *
+ * Sharing one switch is the point: `FOR_YOU_DISCOVERY_GATE=off` still turns off
+ * every gate everywhere, and an explicit comma-separated subset still works on
+ * both profiles, each intersected with what it is allowed to run. A second env
+ * var would be a second thing to remember during an incident.
+ */
+export function resolveRecommendationGate(): ModuleRef[] {
+  return resolveGateProfile(
+    RECOMMENDATION_GATE_MODULE_IDS,
+    new Set<string>(RECOMMENDATION_GATE_MODULE_IDS),
+  );
+}
+
+/** The shared body of both gate profiles: config master switch, then env selection. */
+function resolveGateProfile(defaults: readonly string[], allowed: ReadonlySet<string>): ModuleRef[] {
   if (MtnConfig.feed.discoveryGate.enabled !== true) {
     return [];
   }
@@ -158,12 +210,12 @@ export function resolveDiscoveryGate(): ModuleRef[] {
     return [];
   }
   if (!raw || raw === 'default' || raw === 'on' || raw === 'true') {
-    return DISCOVERY_GATE_MODULE_IDS.map(discoveryGateModule);
+    return defaults.map(discoveryGateModule);
   }
   return raw
     .split(',')
     .map((part) => part.trim())
-    .filter((id) => id.length > 0 && DISCOVERY_GATE_ALLOWED_IDS.has(id))
+    .filter((id) => id.length > 0 && allowed.has(id))
     .map(discoveryGateModule);
 }
 
@@ -300,6 +352,15 @@ export const videosDefinition: FeedDefinition = {
   // score cursor depends on and could drop landscape videos from every page.
   signals: [...buildPresetRankingSignals(), enabled('portraitBoost')],
   filters: [enabled('safety')],
+  // KNOWN SECOND EFFECT, taken deliberately. `FeedEngine.gatherPool` stamps
+  // `_discovery` on non-trusted candidates only when a gate exists, and
+  // `languageMismatchPenalty` — in this preset's default Phase-2b signal set —
+  // fires only on `_discovery`. So giving Videos a gate also switches on an
+  // off-language downrank across its pool. That is the right outcome rather than
+  // an accident to route around: the reels screen is a recommendation surface and
+  // a video in a language the reader does not read is the case that penalty was
+  // written for. Asserted in `presetsPhase2b.test.ts` so it stays a decision.
+  discoveryFilters: resolveRecommendationGate(),
   execution: {
     seenPosts: true,
     popularFallback: 'popularVideos',
@@ -323,6 +384,7 @@ export const mediaDefinition: FeedDefinition = {
   sources: [enabled('media')],
   signals: ALL_RANKING_SIGNALS,
   filters: [enabled('safety')],
+  discoveryFilters: resolveRecommendationGate(),
   execution: {
     seenPosts: true,
     popularFallback: 'popularMedia',
@@ -344,6 +406,7 @@ export const trendingDefinition: FeedDefinition = {
   sources: [enabled('popular')],
   signals: [enabled('engagement'), enabled('recency')],
   filters: [enabled('safety')],
+  discoveryFilters: resolveRecommendationGate(),
   execution: {
     threadGrouping: true,
     replyContext: false,
@@ -455,6 +518,24 @@ export function authorDefinition(authorId: string, filter: AuthorFeedFilter): Fe
   };
 }
 
+/**
+ * The content-warning rule as an ALWAYS-ON filter, for the chronological
+ * destinations (hashtag / trend / topic / lane).
+ *
+ * These have no trusted-lane notion to scope a gate by — a single source, no
+ * ranking, no `discoveryFilters`. What scopes the rule is the predicate's own
+ * followed-author exemption, which is why it can be listed flatly here. The
+ * marker rides along so the reader's own toggle still governs it, exactly as on
+ * the ranked surfaces: one setting, every surface it is stated to cover.
+ *
+ * Following, author, list and saved feeds deliberately do NOT carry it. The
+ * reader chose those destinations outright, and on Following the rule would be a
+ * no-op anyway.
+ */
+function contentWarningFilterRef(): ModuleRef {
+  return enabled('noContentWarning', { viewerGateTuning: true });
+}
+
 /** Hashtag feed — posts carrying a hashtag (chronological). */
 export function hashtagDefinition(tag: string): FeedDefinition {
   const normalized = tag.toLowerCase();
@@ -464,7 +545,7 @@ export function hashtagDefinition(tag: string): FeedDefinition {
     mode: 'chronological',
     sources: [enabled('keywords', { hashtags: [normalized] })],
     signals: [],
-    filters: [enabled('safety')],
+    filters: [enabled('safety'), contentWarningFilterRef()],
     execution: { threadGrouping: true, replyContext: false, hydrateMaxDepth: 0 },
   };
 }
@@ -490,7 +571,7 @@ export function trendDefinition(term: string): FeedDefinition {
     mode: 'chronological',
     sources: [enabled('trendTerms', { term: normalized })],
     signals: [],
-    filters: [enabled('safety')],
+    filters: [enabled('safety'), contentWarningFilterRef()],
     execution: { threadGrouping: true, replyContext: false, hydrateMaxDepth: 0 },
   };
 }
@@ -503,7 +584,7 @@ export function topicDefinition(slug: string): FeedDefinition {
     mode: 'chronological',
     sources: [enabled('topic', { slug })],
     signals: [],
-    filters: [enabled('safety')],
+    filters: [enabled('safety'), contentWarningFilterRef()],
     execution: { threadGrouping: true, replyContext: false, hydrateMaxDepth: 0 },
   };
 }
@@ -526,7 +607,7 @@ export function laneDefinition(laneId: string): FeedDefinition {
     mode: 'chronological',
     sources: [enabled('lane', { laneId })],
     signals: [],
-    filters: [enabled('safety')],
+    filters: [enabled('safety'), contentWarningFilterRef()],
     execution: { threadGrouping: true, replyContext: false, hydrateMaxDepth: 0 },
   };
 }

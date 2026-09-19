@@ -69,7 +69,15 @@ describe('lane definition resolution', () => {
     expect(definition?.sources).toEqual([
       { module: 'lane', enabled: true, params: { laneId: LANE_ID } },
     ]);
-    expect(definition?.filters).toEqual([{ module: 'safety', enabled: true }]);
+    // `safety` (sensitive/NSFW) plus the recommendation-hygiene content-warning
+    // rule. A lane tab is a destination the reader navigated to, but the posts in
+    // it are still chosen by a publisher rather than by the reader's own graph —
+    // so a CW'd post from an author they do not follow stays behind the rule. The
+    // marker rides along so the reader's own toggle governs it.
+    expect(definition?.filters).toEqual([
+      { module: 'safety', enabled: true },
+      { module: 'noContentWarning', enabled: true, params: { viewerGateTuning: true } },
+    ]);
   });
 
   it('hydrates at depth 0 — a lane holds original posts, never boosts', () => {

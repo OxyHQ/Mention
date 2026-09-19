@@ -200,12 +200,28 @@ const phase2bSignalIds = [
   'reciprocityBoost',
 ] as const;
 
+/**
+ * Every gate module `FOR_YOU_DISCOVERY_GATE` may name. It is the SECOND of two
+ * lists that have to agree — `definitions/presets.ts` owns which modules each
+ * gate profile actually runs — and it is the one that fails LOUDLY: a module
+ * missing here makes the process refuse to boot when the env var names it.
+ * `presetDefinitions.test.ts` asserts this list covers both profiles.
+ */
 const discoveryGateModuleIds = [
   'minLength',
   'lowEffortGate',
   'nativeEngagement',
   'minQuality',
+  'noContentWarning',
 ] as const;
+
+/**
+ * The same list, exported for the one test that has to compare it against what
+ * the presets actually build. Exported rather than duplicated in the spec,
+ * because a copy of a list whose whole purpose is agreeing with another list is
+ * a third thing to keep in sync.
+ */
+export const discoveryGateModuleIdsForTest: readonly string[] = discoveryGateModuleIds;
 
 const claudeRedirects = [
   'https://claude.ai/api/mcp/auth_callback',

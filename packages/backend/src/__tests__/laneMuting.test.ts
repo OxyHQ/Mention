@@ -208,10 +208,13 @@ describe('runPopularFallback — muted lanes', () => {
       { limit: 2 },
     );
 
-    // Both posts of the served window were muted, so the page is empty — but the
-    // source had more, and a cursor must still be minted or the reader's feed
-    // dead-ends at the first muted run of posts.
-    expect(response.items).toEqual([]);
+    // The fallback SCANS to fill rather than filtering a window sized to the page:
+    // the two muted posts are walked past and the clean one backfills, where the
+    // fixed-window form would have served an empty page and called it a page. The
+    // original point of this test is unchanged and is the second assertion — the
+    // watermark describes how far the SOURCE was consumed, so a reader whose feed
+    // begins with a muted run does not dead-end at it.
+    expect(response.items.map((item) => item.id)).toEqual([oid(3)]);
     expect(response.hasMore).toBe(true);
     expect(response.nextCursor).toBeDefined();
   });

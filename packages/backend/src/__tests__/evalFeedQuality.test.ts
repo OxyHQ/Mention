@@ -59,10 +59,10 @@ function gateModule(filter: FilterModule, params: Record<string, unknown>): Eval
 }
 
 const GATE_MODULES: EvalGateModule[] = [
-  gateModule(minLengthFilter, { minLength: GATE.minTextLength, forYouGate: true }),
-  gateModule(lowEffortGateFilter, { forYouGate: true }),
-  gateModule(nativeEngagementFilter, { forYouGate: true }),
-  gateModule(minQualityFilter, { forYouGate: true }),
+  gateModule(minLengthFilter, { minLength: GATE.minTextLength, viewerGateTuning: true }),
+  gateModule(lowEffortGateFilter, { viewerGateTuning: true }),
+  gateModule(nativeEngagementFilter, { viewerGateTuning: true }),
+  gateModule(minQualityFilter, { viewerGateTuning: true }),
 ];
 
 /** Deterministic ranking stub: score by native engagement (pure, no DB/Oxy). */

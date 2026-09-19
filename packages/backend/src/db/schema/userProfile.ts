@@ -340,6 +340,13 @@ export const userSettings = pgTable(
     tuningMinNativeEngagement: doublePrecision(),
     tuningMinQualityEnabled: boolean(),
     tuningMinQuality: doublePrecision(),
+    /**
+     * A TOGGLE with no threshold beside it, unlike the four pairs above — there
+     * is no dial between a post being behind a content warning and not being.
+     * Nullable and undefaulted for the same reason they are: null is "the reader
+     * never touched this", which resolves to the config default.
+     */
+    tuningNoContentWarningEnabled: boolean(),
 
     // ── notificationPreferences ──
     notifyPushEnabled: boolean().notNull().default(true),

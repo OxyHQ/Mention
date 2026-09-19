@@ -8,7 +8,7 @@
 import { PostType, MtnConfig } from '@mention/shared-types';
 import type { ForYouFeedTuning, PostContent } from '@mention/shared-types';
 import { scanTextEntities } from '@mention/shared-types/textEntities';
-import { isSensitivePost } from '../../feedSafety';
+import { hasFederatedContentWarning, isSensitivePost } from '../../feedSafety';
 import { detectLowEffort } from '../../../../services/contentClassification/lowEffort';
 import { detectBotShape } from '../../../../services/contentClassification/botSignals';
 import { readTrustedScores } from '../../../../services/contentClassification/trustedScores';
@@ -221,6 +221,42 @@ export const safetyFilter: FilterModule = {
   id: 'safety',
   kind: 'filter',
   keep: (post) => !isSensitivePost(post),
+};
+
+/**
+ * `noContentWarning`: do not RECOMMEND a post its author asked to be shown behind
+ * a warning — unless the reader already follows that author.
+ *
+ * The rule is about recommendation, not safety, which is why it is a separate
+ * module instead of a widening of {@link isSensitivePost}. That predicate
+ * deliberately excludes content warnings (see `feedSafety.ts`): a CW says HOW to
+ * present a post, not that it is NSFW, and every Mention client renders the
+ * spoiler correctly. Widening it would have hidden CW'd posts from Following,
+ * search, notifications and unfurls all at once — four surfaces that were right
+ * already.
+ *
+ * THE FOLLOWED-AUTHOR EXEMPTION LIVES IN THE PREDICATE, not in which feeds list
+ * this module. That placement is the load-bearing part: it makes the rule a no-op
+ * on the Following feed BY CONSTRUCTION — every author there is followed — rather
+ * than by every present and future definition remembering not to opt in. The same
+ * property makes the module safe to put on hashtag, topic, trend and lane feeds,
+ * where there is no notion of a trusted lane to scope it by.
+ *
+ * `followingIdSet` is the viewer's Oxy ∪ federated follow union, resolved once per
+ * request by `loadViewerFeedContext` and set-ified by the engine. Absent for an
+ * anonymous reader, who follows nobody and therefore gets the rule in full.
+ */
+export const noContentWarningFilter: FilterModule = {
+  id: 'noContentWarning',
+  kind: 'filter',
+  userComposable: true,
+  keep: (post, ctx, params) => {
+    const tuning = gateTuning(ctx, params, 'noContentWarning');
+    if (tuning?.enabled === false) return true;
+    if (!hasFederatedContentWarning(post)) return true;
+    const authorId = post.oxyUserId;
+    return !!authorId && ctx.followingIdSet?.has(authorId) === true;
+  },
 };
 
 /**
@@ -464,7 +500,7 @@ export const maxLengthFilter: FilterModule = {
 
 /**
  * `minLength`: drop posts whose text is shorter than `params.minLength`
- * characters. As a For You gate module (`params.forYouGate`) the viewer may
+ * characters. As a preset gate module (`params.viewerGateTuning`) the viewer may
  * disable the floor or override the threshold via `feedTuning.forYou.minLength`.
  */
 export const minLengthFilter: FilterModule = {
@@ -727,19 +763,19 @@ export const minAccountAgeFilter: FilterModule = {
 const DISCOVERY_GATE = MtnConfig.feed.discoveryGate;
 
 /**
- * The per-viewer For You override for a discovery-gate module, or `undefined`
- * when this filter is NOT running as the For You gate. The scoping is the opaque
- * `params.forYouGate` marker that `resolveDiscoveryGate` stamps on the static For
- * You gate refs (and ONLY those) — so the SAME filter reused in a custom feed
- * never picks up a viewer's For You tuning, keeping the definition static while
- * personalization flows through `ctx` (`ctx.feedTuning.forYou`).
+ * The reader's override for a gate module, or `undefined` when this filter is not
+ * running as part of a preset's gate. The scoping is the opaque
+ * `params.viewerGateTuning` marker that the gate builders in `definitions/presets`
+ * stamp on their refs, and ONLY those — so the SAME filter reused in a custom feed
+ * never picks up the reader's gate settings, keeping the stored definition static
+ * while personalization flows through `ctx` (`ctx.feedTuning.forYou`).
  */
 function gateTuning<K extends keyof ForYouFeedTuning>(
   ctx: FeedEngineContext,
   params: Record<string, unknown>,
   id: K,
 ): ForYouFeedTuning[K] | undefined {
-  return params.forYouGate === true ? ctx.feedTuning?.forYou?.[id] : undefined;
+  return params.viewerGateTuning === true ? ctx.feedTuning?.forYou?.[id] : undefined;
 }
 
 /** Whether the candidate carries any media OR a poll (either rescues a low-text post). */
@@ -1017,6 +1053,7 @@ export const noBotsFilter: FilterModule = {
 
 export const filterModules: FilterModule[] = [
   safetyFilter,
+  noContentWarningFilter,
   lowEffortGateFilter,
   nativeEngagementFilter,
   minQualityFilter,

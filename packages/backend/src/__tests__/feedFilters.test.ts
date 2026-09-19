@@ -37,6 +37,58 @@ describe('safety filter', () => {
   });
 });
 
+describe('noContentWarning filter', () => {
+  const cw = filter('noContentWarning');
+  const GATE = { viewerGateTuning: true } as const;
+  const warned = (authorId = 'author-1') =>
+    post({ oxyUserId: authorId, federation: { spoilerText: 'spoilers' } });
+
+  it('drops a content-warned post from an author the viewer does not follow', () => {
+    const ctx: FeedEngineContext = { followingIdSet: new Set(['someone-else']) };
+    expect(cw.keep(warned(), ctx, GATE)).toBe(false);
+  });
+
+  it('keeps it when the viewer follows the author — they chose this account', () => {
+    const ctx: FeedEngineContext = { followingIdSet: new Set(['author-1']) };
+    expect(cw.keep(warned('author-1'), ctx, GATE)).toBe(true);
+  });
+
+  it('is a NO-OP on a Following feed, by construction', () => {
+    // Every author on that feed is followed, so the exemption fires for all of
+    // them. This is the whole reason the exemption lives in the predicate rather
+    // than in which definitions list the module: no present or future definition
+    // has to remember not to opt in.
+    const authors = ['a', 'b', 'c'];
+    const ctx: FeedEngineContext = { followingIdSet: new Set(authors) };
+    expect(authors.every((id) => cw.keep(warned(id), ctx, GATE))).toBe(true);
+  });
+
+  it('applies in full to an anonymous reader, who follows nobody', () => {
+    expect(cw.keep(warned(), {}, GATE)).toBe(false);
+  });
+
+  it('ignores a blank or whitespace-only spoiler — that is not a warning', () => {
+    const ctx: FeedEngineContext = {};
+    expect(cw.keep(post({ federation: { spoilerText: '' } }), ctx, GATE)).toBe(true);
+    expect(cw.keep(post({ federation: { spoilerText: '   ' } }), ctx, GATE)).toBe(true);
+    expect(cw.keep(post({ federation: {} }), ctx, GATE)).toBe(true);
+  });
+
+  it('leaves a post with no warning alone whoever wrote it', () => {
+    expect(cw.keep(post({ oxyUserId: 'stranger' }), {}, GATE)).toBe(true);
+  });
+
+  it('honors the reader turning it off', () => {
+    const ctx: FeedEngineContext = { feedTuning: { forYou: { noContentWarning: { enabled: false } } } };
+    expect(cw.keep(warned(), ctx, GATE)).toBe(true);
+  });
+
+  it('does NOT read the reader\u2019s setting without the marker — a custom feed is static', () => {
+    const ctx: FeedEngineContext = { feedTuning: { forYou: { noContentWarning: { enabled: false } } } };
+    expect(cw.keep(warned(), ctx, {})).toBe(false);
+  });
+});
+
 describe('languagePreference filter', () => {
   const lang = filter('languagePreference');
 

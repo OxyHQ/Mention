@@ -414,10 +414,22 @@ function toCachedUser(userId: string, userData: OxyUser): CachedUserSummary {
   // the VIEWER's languages without a second Oxy round trip; omitted when the
   // account declares none, which keeps the language signal neutral.
   const languages = getUserLanguages(userData);
+  // Two RANKING-side account facts Oxy has always sent and this serializer used to
+  // drop on the floor, because it names its fields one by one. Neither belongs on
+  // `PostUser` — same reasoning as `followerCount` and `languages`: they describe
+  // the ACCOUNT for ranking, not the author of a post for a renderer.
+  const accountCreatedAt = typeof userData.createdAt === 'string' && userData.createdAt.length > 0
+    ? userData.createdAt
+    : undefined;
+  const reputationTier = typeof (userData as { reputationTier?: unknown }).reputationTier === 'string'
+    ? (userData as { reputationTier?: string }).reputationTier
+    : undefined;
   return {
     user,
     followerCount: typeof followerCount === 'number' ? followerCount : undefined,
     languages: languages.length > 0 ? languages : undefined,
+    accountCreatedAt,
+    reputationTier,
   };
 }
 
