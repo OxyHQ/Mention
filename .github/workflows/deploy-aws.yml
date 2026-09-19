@@ -255,17 +255,29 @@ jobs:
           # A standing absence assertion: every revision is derived from the
           # live one, so merely stopping the GitHub-to-SSM sync would otherwise
           # keep injecting this retired provider credential forever.
-          # OXY_SERVICE_API_KEY/SECRET: Mention authenticates to Oxy by attesting
-          # its ECS task role (oxy ADR 0026, binding written 2026-09-18), so the
-          # pair is a secret nothing reads any more. Removing it here is what
-          # actually takes it off the task definition — a render derives from the
-          # RUNNING one, so the parameters can stay in SSM until mention-mcp,
-          # which reads the same two, has moved too.
+          #
+          # OXY_SERVICE_API_KEY/SECRET are DELIBERATELY ABSENT from this list,
+          # and putting them back would take production down again. Mention can
+          # attest its ECS task role (oxy ADR 0026) and does mint a real service
+          # token that way — but the two mint paths do not grant the same
+          # AUTHORITY. A credential that named a privileged scope keeps it; an
+          # attestation never receives one, because `workloadIdentity.service.ts`
+          # filters `isPrivilegedScope` out on purpose ("an attestation says WHAT
+          # is calling, never what it may do"). Mention's credential names three:
+          # `federation:write`, `signals:write` and `catalogs:write`.
+          #
+          # Measured, not reasoned: the pair came off at revision 384 (06:04Z) and
+          # from 06:22Z the federation worker failed every ~6 minutes with
+          # `Missing required scope: federation:write` — 313 of them, plus
+          # `signals:write`, against ZERO in the preceding 36 hours. Revision 389
+          # put the pair back and they stopped.
+          #
+          # The pair leaves for good when the BINDING can carry those scopes the
+          # way a credential does (oxy, in flight). Until that ships and this
+          # role is re-bound, Mention keeps its key pair.
           TASK_SECRET_REMOVALS: >-
             ALIA_API_KEY
             OXY_SERVICE_TOKEN
-            OXY_SERVICE_API_KEY
-            OXY_SERVICE_API_SECRET
           # Variables that now say what the code already decides, and would
           # otherwise ride every future revision forward: the render derives from
           # the RUNNING task definition, so deleting a line here removes nothing.
