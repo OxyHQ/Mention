@@ -19,7 +19,7 @@ import { endorsementSignalService } from '../services/EndorsementSignalService';
 import { canViewList } from '../services/listAccess';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
-import { resolvePageLimit, resolvePageOffset } from '../utils/pageLimits';
+import { resolvePageLimit, resolvePageOffset } from '@oxy.so/utils/paging';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { feedIPRateLimiter, feedRateLimiter } from '../middleware/security';
 

@@ -40,7 +40,7 @@ import { qualified } from '@oxy.so/db';
 
 import { ACCOUNT_LISTS_SEARCH_TEXT, accountLists, starterPacks, STARTER_PACKS_SEARCH_TEXT } from '../db/schema/lists';
 import { customFeeds } from '../db/schema/feeds';
-import { likeContains } from './likePattern';
+import { likeContains } from '@oxy.so/utils/sql';
 
 /**
  * `keywords` is `text[]`, so "any element matches" is an EXISTS over `unnest`.

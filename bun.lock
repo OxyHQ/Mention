@@ -28,6 +28,7 @@
         "@oxy.so/federation": "^1.0.1",
         "@oxy.so/mcp": "catalog:",
         "@oxy.so/protocol": "^1.0.1",
+        "@oxy.so/utils": "^1.0.1",
         "@socket.io/redis-adapter": "^8.3.0",
         "@syra.fm/sdk": "catalog:",
         "bullmq": "^6.3.4",
@@ -918,6 +919,7 @@
     "@oxy.so/services": ["@oxy.so/services@2.1.0", "", { "dependencies": { "@expo/config-plugins": "57.0.9", "@oxy.so/contracts": "1.2.0", "@simplewebauthn/browser": "^13.3.0", "color": "^4.2.3" }, "peerDependencies": { "@expo/vector-icons": "^15.0.3", "@oxy.so/bloom": "^2.1.0", "@oxy.so/core": "^1.0.1", "@react-native-async-storage/async-storage": "^2.0.0", "@react-native-community/netinfo": ">=11.4.1", "@tanstack/query-async-storage-persister": "^5.101", "@tanstack/query-sync-storage-persister": "^5.101", "@tanstack/react-query": "^5.101", "@tanstack/react-query-persist-client": "^5.101", "@types/react": "*", "@types/react-native": "*", "expo": ">=56.0.0", "expo-constants": ">=56.0.0", "expo-document-picker": ">=56.0.0", "expo-file-system": ">=56.0.0", "expo-haptics": ">=56.0.0", "expo-image": ">=2.0.0", "expo-image-manipulator": ">=56.0.0", "expo-image-picker": ">=56.0.0", "expo-linear-gradient": ">=56.0.0", "expo-modules-core": "*", "expo-notifications": ">=56.0.0", "expo-web-browser": ">=56.0.0", "nativewind": ">=5.0.0", "react": ">=18.0.0", "react-native": ">=0.85.0", "react-native-css": "^3.0.6", "react-native-gesture-handler": ">=2.31.1", "react-native-keyboard-controller": ">=1.21.0", "react-native-qrcode-svg": "^6.3.0", "react-native-reanimated": ">=4.3.0", "react-native-safe-area-context": ">=5.7.0", "react-native-svg": ">=15.15.0", "zustand": "^5.0.0" }, "optionalPeers": ["@tanstack/query-sync-storage-persister", "@types/react", "@types/react-native", "expo", "expo-constants", "expo-document-picker", "expo-haptics", "expo-image-manipulator", "expo-image-picker", "expo-linear-gradient", "expo-modules-core", "expo-notifications", "expo-web-browser", "nativewind", "react-native-css", "react-native-keyboard-controller"] }, "sha512-JqSsU+xUD0wmM+tk8MY72hT9oRaRRWWMojUdKlGLxPcVBJKTlIF0f4UNrTKdMOQoHau1awHT9SdsoX1f6z6Kuw=="],
 
     "@oxy.so/telemetry": ["@oxy.so/telemetry@1.1.1", "", {}, "sha512-/TI4bIvJb5kfi7veH6mU4ZFYrkiXSG7S43qJYh4nCFH+tytvS10liX1N+xHfoPDq+oYdztIb+d65JDAtYXKcnw=="],
+    "@oxy.so/utils": ["@oxy.so/utils@1.0.1", "", {}, "sha512-7bZTyXBd5z99D9zsm3k1BSHSODsUxnTZOZd9sPBuip59E71v08hYAwCHqqQIpitwLeFxDpgwADfyaP3s82gRUA=="],
 
     "@paralleldrive/cuid2": ["@paralleldrive/cuid2@2.3.1", "", { "dependencies": { "@noble/hashes": "^1.1.5" } }, "sha512-XO7cAxhnTZl0Yggq6jOgjiOHhbgcO4NqFqwSmQpjK3b6TEE6Uj/jfSk6wzYyemh3+I0sHirKSetjQwn5cZktFw=="],
 
