@@ -1,3 +1,5 @@
+import { config } from './config';
+import { createDeploymentAdmission } from './middleware/deployment-admission';
 import express, { type RequestHandler } from 'express';
 import type { OxyServices } from '@oxy.so/core';
 import postsRouter, { publicPostsRouter } from './routes/posts';
@@ -114,6 +116,9 @@ export function createAppRoutes({
   publicApi.use(mentionCapabilityRateLimiter);
   publicApi.use(createOptionalMentionCapabilityAuth());
   publicApi.use(createOptionalMcpAuth());
+  if (config.deployment) {
+    publicApi.use(optionalAuth, createDeploymentAdmission(config.deployment, true));
+  }
   publicApi.use(createMentionCapabilityEffectIdempotency());
   const mcpEffectIdempotency = createMcpEffectIdempotency();
   publicApi.use(mcpEffectIdempotency);
@@ -144,6 +149,7 @@ export function createAppRoutes({
   publicApi.use('/statistics', optionalAuth, publicStatisticsRouter);
 
   const authenticatedApi = express.Router();
+  if (config.deployment) authenticatedApi.use(createDeploymentAdmission(config.deployment, false));
   authenticatedApi.use('/posts/intent-media', intentMediaRoutes);
   authenticatedApi.use('/posts', postsRouter);
   authenticatedApi.use('/lists', listsRoutes);

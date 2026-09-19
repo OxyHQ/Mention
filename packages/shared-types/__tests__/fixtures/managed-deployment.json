@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "tenantId": "11111111-1111-4111-8111-111111111111",
+  "mode": "public_federated",
+  "publicBaseUrl": "https://social.alpha.example",
+  "apiBaseUrl": "https://api.alpha.example",
+  "mcpBaseUrl": "https://mcp.alpha.example",
+  "shellBaseUrl": "https://shell.alpha.example",
+  "region": "eu-west-1",
+  "adminOxyAccountIds": ["admin-alpha"],
+  "signup": { "policy": "invite", "allowedOxyAccountIds": ["member-alpha"] },
+  "branding": {
+    "name": "Alpha Community",
+    "about": "A public community with invited participants.",
+    "logoUrl": "https://social.alpha.example/logo.png",
+    "iconUrl": "https://social.alpha.example/icon.png",
+    "accentColor": "#236047",
+    "termsUrl": "https://social.alpha.example/terms",
+    "contactUrl": "https://social.alpha.example/contact"
+  },
+  "release": {
+    "version": "2.0.0",
+    "revision": "1111111111111111111111111111111111111111",
+    "sourceUrl": "https://source.alpha.example/mention/1111111111111111111111111111111111111111",
+    "channel": "stable"
+  }
+}

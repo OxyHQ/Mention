@@ -1,3 +1,4 @@
+import { readManagedDeployment, withManagedDeploymentEnvironment, mcpDeploymentIdentity } from '@mention/shared-types/deployment';
 import * as z from 'zod';
 
 export const MENTION_INFERENCE_ROUTING_PROFILE_ID =
@@ -541,9 +542,16 @@ type EnvironmentSource = Readonly<Record<string, string | undefined>>;
 
 /** Parse an explicit source; exported so configuration validation is unit-testable. */
 export function parseRuntimeEnvironment(source: EnvironmentSource): RuntimeEnvironment {
-  const parsed = environmentSchema.safeParse(source);
+  const parsed = environmentSchema.safeParse(withManagedDeploymentEnvironment(source));
   if (!parsed.success) {
     throw new Error(`Invalid Mention runtime configuration:\n${z.prettifyError(parsed.error)}`);
+  }
+  if (readManagedDeployment(source)) {
+    const requiredKeys = ['DATABASE_URL', 'REDIS_URL', 'OXY_SERVICE_API_KEY',
+      'OXY_SERVICE_API_SECRET', 'MENTION_OXY_CLIENT_ID', 'MENTION_SHELL_ACCESS_KEY'] as const;
+    for (const key of requiredKeys) {
+      if (!parsed.data[key]) throw new Error(`${key} is required for a dedicated Managed Mention data plane`);
+    }
   }
   return parsed.data;
 }
@@ -779,6 +787,8 @@ export function getMentionNodeConfig(
 }
 
 export const config = {
+  deployment: readManagedDeployment(process.env),
+  deploymentMcp: mcpDeploymentIdentity(process.env),
   runtime: {
     nodeEnv: environment.NODE_ENV,
     port: environment.PORT,

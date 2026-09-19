@@ -9,7 +9,6 @@ import {
   verifyCapabilityTicket,
 } from '@oxy.so/core/server';
 import { z } from 'zod';
-import { MENTION_CAPABILITY_AUDIENCE } from '@mention/shared-types/mcpCapabilities';
 import { config } from '../config';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 
@@ -55,7 +54,7 @@ export async function verifyMentionCapabilityTicket(
 ): Promise<CapabilityTicketClaims> {
   await loadPublicKeys();
   const options = {
-    audience: MENTION_CAPABILITY_AUDIENCE,
+    audience: config.deploymentMcp.audience,
     issuer: config.oxyApiUrl,
     resolvePublicKey: (keyId: string) => cachedKeys.get(keyId),
   };

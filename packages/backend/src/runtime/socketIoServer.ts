@@ -1,3 +1,5 @@
+import { canParticipateInDeployment } from '@mention/shared-types/deployment';
+import type { AuthenticatedPresenceSocket } from '../services/SocketPresenceLifecycle';
 import type http from 'http';
 import { Namespace, Server as SocketIOServer } from 'socket.io';
 import { PUBLIC_REALTIME_NAMESPACE } from '@mention/shared-types';
@@ -109,6 +111,17 @@ export function createSocketNamespaces(io: SocketIOServer, oxy: SocketAuthProvid
   authTargets.forEach((namespaceOrServer) => {
     if (namespaceOrServer && typeof namespaceOrServer.use === "function") {
       namespaceOrServer.use(oxySocketAuth);
+      const deployment = config.deployment;
+      if (deployment) {
+        namespaceOrServer.use((socket, next) => {
+          const accountId = (socket as AuthenticatedPresenceSocket).user?.id;
+          if (!accountId || !canParticipateInDeployment(deployment, accountId)) {
+            next(new Error('deployment_membership_required'));
+            return;
+          }
+          next();
+        });
+      }
     }
   });
 

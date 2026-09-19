@@ -1,6 +1,6 @@
 import type { LogLevel } from '@oxy.so/core/logger';
 
-// Base URLs (prod first → env → fallback)
+// Explicit deployment configuration takes precedence in every build mode.
 export const IS_DEVELOPMENT = process.env.NODE_ENV === 'development';
 
 // Mirrors `LogLevel` from @oxy.so/core/logger — the levels the shared logger
@@ -22,13 +22,10 @@ export const LOG_LEVEL: LogLevel | undefined =
 export const LOG_DEBUG_FILTER: string = process.env.EXPO_PUBLIC_LOG_DEBUG ?? '';
 
 export const API_URL =
-  process.env.NODE_ENV === 'production'
-    ? 'https://api.mention.earth'
-    : (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4110');
+  process.env.EXPO_PUBLIC_API_URL ??
+  (process.env.NODE_ENV === 'production' ? 'https://api.mention.earth' : 'http://localhost:4110');
 export const API_URL_SOCKET =
-  process.env.NODE_ENV === "production"
-    ? "wss://api.mention.earth"
-    : (process.env.EXPO_PUBLIC_API_URL_SOCKET ?? "ws://localhost:4110");
+  process.env.EXPO_PUBLIC_API_URL_SOCKET ?? API_URL.replace(/^http/, 'ws');
 
 // Syra live-rooms backend. Mention's rooms feature is powered by Syra, so room
 // HTTP + realtime traffic targets Syra (NOT api.mention.earth). The Oxy bearer
@@ -63,7 +60,8 @@ export const OXY_CLIENT_ID =
 
 /** Registered OAuth redirect surface for this web origin (exact match). */
 export const OXY_AUTH_REDIRECT_URI =
-  process.env.EXPO_PUBLIC_OXY_AUTH_REDIRECT_URI ?? 'https://mention.earth';
+  process.env.EXPO_PUBLIC_OXY_AUTH_REDIRECT_URI ??
+  process.env.EXPO_PUBLIC_WEB_BASE_URL ?? 'https://mention.earth';
 
 // Public web origin used to build shareable deep links (posts, trends, rooms).
 export const WEB_BASE_URL =
@@ -75,3 +73,11 @@ export const STRIPE_LINK_FILE = process.env.EXPO_PUBLIC_STRIPE_LINK_FILE || '';
 
 // KLIPY API
 export const KLIPY_APP_KEY = process.env.EXPO_PUBLIC_KLIPY_APP_KEY || '';
+
+// Non-secret, build-time branding generated from the server deployment manifest.
+export const INSTANCE_NAME = process.env.EXPO_PUBLIC_INSTANCE_NAME || 'Mention';
+export const INSTANCE_LOGO_URL = process.env.EXPO_PUBLIC_INSTANCE_LOGO_URL || '';
+export const INSTANCE_ABOUT = process.env.EXPO_PUBLIC_INSTANCE_ABOUT || '';
+export const INSTANCE_ACCENT_COLOR = process.env.EXPO_PUBLIC_INSTANCE_ACCENT_COLOR || '';
+export const INSTANCE_SOURCE_URL = process.env.EXPO_PUBLIC_INSTANCE_SOURCE_URL || '';
+export const INSTANCE_REVISION = process.env.EXPO_PUBLIC_INSTANCE_REVISION || '';

@@ -1,3 +1,4 @@
+import { config } from '../config';
 import type { CapabilityTicketClaims } from '@oxy.so/contracts';
 import {
   CapabilityTicketError,
@@ -91,7 +92,7 @@ function accountResourceMatches(
   claims: CapabilityTicketClaims,
   resourceTypes: readonly string[],
 ): boolean {
-  return claims.resource.appId === 'mention'
+  return claims.resource.appId === config.deploymentMcp.appId
     && claims.resource.resourceType === 'mention_account'
     && claims.resource.resourceId === claims.resource.effectiveAccountId
     && resourceTypes.includes(claims.resource.resourceType);

@@ -290,3 +290,13 @@ From repo root: `bun run dev:mcp:http`
   boundary and at the corresponding Mention route.
 - Legacy bundles and HS256 verification are disabled at the source-controlled
   cutoff; the protected metadata never advertises that authorization server.
+
+## Dedicated Managed Mention deployments
+
+The backend and MCP server accept the same server-only `MENTION_DEPLOYMENT_CONFIG`
+JSON document. See [the application contract](../../docs/managed-mention.md).
+The configured tenant UUID determines a separate central Oxy application ID and
+capability audience; the manifest supplies the public MCP resource and API target.
+Register that application, resource and OAuth redirects with Oxy before use.
+Managed tenants cannot use the transitional Mention-issued HS256 tokens and do
+not require a legacy JWT secret. Oxy service credentials remain mandatory.

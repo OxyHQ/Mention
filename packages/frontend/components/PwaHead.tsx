@@ -1,3 +1,4 @@
+import { INSTANCE_NAME, INSTANCE_ACCENT_COLOR } from '@/config';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
@@ -26,8 +27,9 @@ const MANIFEST_HREF = '/manifest.json';
 
 const PWA_META_TAGS: readonly { name: string; content: string }[] = [
   { name: 'apple-mobile-web-app-capable', content: 'yes' },
-  { name: 'apple-mobile-web-app-title', content: 'Mention' },
+  { name: 'apple-mobile-web-app-title', content: INSTANCE_NAME },
   { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
+  ...(INSTANCE_ACCENT_COLOR ? [{ name: 'theme-color', content: INSTANCE_ACCENT_COLOR }] : []),
 ];
 
 export function PwaHead(): null {
