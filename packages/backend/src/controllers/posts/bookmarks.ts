@@ -29,6 +29,7 @@ import {
   updateBookmarkFolderForViewer,
 } from '../../services/BookmarkFolderService';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './postPageBounds';
+import { escapeLikePattern } from '@oxy.so/utils/sql';
 
 // Save post
 export const savePost = async (req: AuthRequest, res: Response) => {
@@ -167,7 +168,7 @@ export const getSavedPosts = async (req: AuthRequest, res: Response) => {
       // in. `ILIKE` with the term escaped for its own wildcards (`%`, `_`,
       // backslash), which is the direct analogue of Mongo's escaped `$regex`:
       // without it a saved search for `100%` would match every saved post.
-      const escaped = trimmedQuery.replace(/[\\%_]/g, (char) => `\\${char}`);
+      const escaped = escapeLikePattern(trimmedQuery);
       conditions.push(
         exists(
           getDb()

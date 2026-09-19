@@ -139,6 +139,25 @@ beforeEach(() => {
   });
 
   mockPublicGet.mockImplementation((url: string) => {
+    if (url === '/search/overview') {
+      const lane = (items: unknown[]) => ({ status: 'ok', items, hasMore: false, tookMs: 1 });
+      return Promise.resolve({
+        data: {
+          query: 'oxy',
+          lanes: {
+            profiles: { ...lane([]), status: 'skipped' },
+            posts: { ...lane([]), status: 'unavailable' },
+            saved: { ...lane([]), status: 'unavailable' },
+            hashtags: lane([{ tag: 'oxy', count: 3 }]),
+            lists: lane([{ id: 'l1', title: 'List One' }]),
+            feeds: lane([{ id: 'f1', title: 'Feed One' }]),
+            starterPacks: lane([{ id: 'p1', name: 'Pack One' }]),
+          },
+          degraded: true,
+          servedFromCache: false,
+        },
+      });
+    }
     if (url === '/feeds') return Promise.resolve({ data: { items: [{ id: 'f1', title: 'Feed One' }] } });
     return Promise.reject(new Error(`unexpected public GET ${url}`));
   });
@@ -191,22 +210,24 @@ describe('searchService.searchAll auth gating', () => {
   it('runs only the public sources when the private API is NOT ready', async () => {
     const result = await searchService.searchAll('oxy', false);
 
-    // Public sources always run.
+    // Public sources always run. `/search/overview` is on the PUBLIC api, so
+    // unlike the endpoints it replaces it answers before the session lands.
     expect(mockOxyHttpGet).toHaveBeenCalledWith('/profiles/search', expect.anything());
-    expect(mockPublicGet).toHaveBeenCalledWith('/feeds', expect.anything());
-    expect(mockAuthGet).toHaveBeenCalledWith('/hashtags/search', expect.anything());
+    expect(mockPublicGet).toHaveBeenCalledWith('/search/overview', expect.anything());
 
     // Auth-gated sources must NEVER fire before the private API is ready.
     expect(mockAuthGet).not.toHaveBeenCalledWith('/search', expect.anything());
-    expect(mockAuthGet).not.toHaveBeenCalledWith('/lists', expect.anything());
     expect(mockGetSavedPosts).not.toHaveBeenCalled();
 
-    // Public sections populate; the gated sections stay quietly empty.
+    // Public sections populate; the gated sections stay quietly empty. `lists`
+    // is now among the public ones — the overview serves it without a session,
+    // where `GET /lists` needed one.
     expect(result.users).toHaveLength(1);
     expect(result.feeds).toHaveLength(1);
     expect(result.hashtags).toHaveLength(1);
+    expect(result.lists).toHaveLength(1);
+    expect(result.starterPacks).toHaveLength(1);
     expect(result.posts).toEqual([]);
-    expect(result.lists).toEqual([]);
     expect(result.saved).toEqual([]);
   });
 
@@ -214,11 +235,9 @@ describe('searchService.searchAll auth gating', () => {
     const result = await searchService.searchAll('oxy', true);
 
     expect(mockAuthGet).toHaveBeenCalledWith('/search', expect.anything());
-    expect(mockAuthGet).toHaveBeenCalledWith('/lists', expect.anything());
-    expect(mockAuthGet).toHaveBeenCalledWith('/hashtags/search', expect.anything());
     expect(mockGetSavedPosts).toHaveBeenCalled();
     expect(mockOxyHttpGet).toHaveBeenCalledWith('/profiles/search', expect.anything());
-    expect(mockPublicGet).toHaveBeenCalledWith('/feeds', expect.anything());
+    expect(mockPublicGet).toHaveBeenCalledWith('/search/overview', expect.anything());
 
     expect(result.posts).toHaveLength(1);
     expect(result.lists).toHaveLength(1);
@@ -226,6 +245,7 @@ describe('searchService.searchAll auth gating', () => {
     expect(result.users).toHaveLength(1);
     expect(result.feeds).toHaveLength(1);
     expect(result.hashtags).toHaveLength(1);
+    expect(result.starterPacks).toHaveLength(1);
   });
 
   it('still surfaces a total failure of the public sources when signed out', async () => {

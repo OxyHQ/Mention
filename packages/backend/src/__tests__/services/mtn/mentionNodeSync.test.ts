@@ -62,7 +62,13 @@ vi.mock('@oxy.so/protocol', async () => {
     signMessage: (...a: unknown[]) => mockSignMessage(...a),
   };
 });
-vi.mock('@oxy.so/core/server', () => ({ safeFetch: vi.fn() }));
+// Partial: `serviceIdentity` reads `canAttestWorkloadIdentity` from the same
+// module, and a mock that replaced the whole thing would make an unrelated
+// suite decide whether this process has an identity.
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  safeFetch: vi.fn(),
+}));
 vi.mock('../../../services/mtn/MentionRecordService', () => ({
   verifyAndStoreRecord: (...a: unknown[]) => mockVerifyAndStore(...a),
 }));

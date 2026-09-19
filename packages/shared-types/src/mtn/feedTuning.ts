@@ -33,6 +33,12 @@ export interface ForYouFeedTuning {
    * a viewer opts in by setting a `minQuality` threshold in [0, 1].
    */
   minQuality?: { enabled?: boolean; minQuality?: number };
+  /**
+   * Whether recommendation surfaces withhold posts carrying a content warning
+   * from authors the reader does not follow. A TOGGLE, with no threshold — there
+   * is no dial between "warned" and "not warned".
+   */
+  noContentWarning?: { enabled?: boolean };
 }
 
 /** The root feed-tuning subdocument. Only For You is tunable today. */
@@ -50,31 +56,49 @@ export type ForYouTuningControl = 'boolean' | 'number-range';
  * `moduleId` matches both the gate {@link ForYouFeedTuning} key and the registered
  * filter-module id, so a settings screen can key its controls off the catalog.
  */
-export interface ForYouTuningModuleSpec {
+interface ForYouTuningModuleSpecBase {
   /** Gate module id (also the `ForYouFeedTuning` key). */
   moduleId: keyof ForYouFeedTuning;
-  /** Numeric threshold param key on this module's tuning entry. */
-  paramKey: string;
-  /** Inclusive bounds + granularity for the threshold control. */
-  min: number;
-  max: number;
-  step: number;
   /**
    * Whether the module is ON by default in the For You gate. `minQuality` is
    * opt-in (default OFF / neutral); the rest ship on (in shadow mode).
    */
   defaultEnabled: boolean;
   /** Category grouping for the settings UI. */
-  category: 'quality' | 'engagement' | 'content';
+  category: 'quality' | 'engagement' | 'content' | 'safety';
   /** i18n label key base — the UI resolves `${labelKey}` and `${labelKey}` + status. */
   labelKey: string;
   descriptionKey: string;
 }
 
+/**
+ * The declarative spec for one tunable For You gate module, discriminated by the
+ * CONTROL its setting needs.
+ *
+ * {@link ForYouTuningControl} was declared from the start and went unused for as
+ * long as every gate module happened to have a numeric threshold. It stops being
+ * decorative here: a module can be a pure toggle, and the discriminant is what
+ * keeps `paramKey`/`min`/`max`/`step` from being four fields a toggle has to
+ * invent values for — values the validator would then enforce and the settings
+ * screen would then render a meaningless slider from.
+ */
+export type ForYouTuningModuleSpec =
+  | (ForYouTuningModuleSpecBase & {
+    control: 'number-range';
+    /** Numeric threshold param key on this module's tuning entry. */
+    paramKey: string;
+    /** Inclusive bounds + granularity for the threshold control. */
+    min: number;
+    max: number;
+    step: number;
+  })
+  | (ForYouTuningModuleSpecBase & { control: 'boolean' });
+
 /** The four tunable For You discovery-gate modules and their bounds. */
 export const FOR_YOU_TUNING_MODULES: readonly ForYouTuningModuleSpec[] = [
   {
     moduleId: 'minLength',
+    control: 'number-range',
     paramKey: 'minLength',
     min: 0,
     max: 500,
@@ -86,6 +110,7 @@ export const FOR_YOU_TUNING_MODULES: readonly ForYouTuningModuleSpec[] = [
   },
   {
     moduleId: 'lowEffortGate',
+    control: 'number-range',
     paramKey: 'minMeaningfulTextLength',
     min: 0,
     max: 200,
@@ -97,6 +122,7 @@ export const FOR_YOU_TUNING_MODULES: readonly ForYouTuningModuleSpec[] = [
   },
   {
     moduleId: 'nativeEngagement',
+    control: 'number-range',
     paramKey: 'minNativeEngagement',
     min: 0,
     max: 50,
@@ -108,6 +134,7 @@ export const FOR_YOU_TUNING_MODULES: readonly ForYouTuningModuleSpec[] = [
   },
   {
     moduleId: 'minQuality',
+    control: 'number-range',
     paramKey: 'minQuality',
     min: 0,
     max: 1,
@@ -116,6 +143,14 @@ export const FOR_YOU_TUNING_MODULES: readonly ForYouTuningModuleSpec[] = [
     category: 'quality',
     labelKey: 'feed.tuning.minQuality.label',
     descriptionKey: 'feed.tuning.minQuality.description',
+  },
+  {
+    moduleId: 'noContentWarning',
+    control: 'boolean',
+    defaultEnabled: true,
+    category: 'safety',
+    labelKey: 'feed.tuning.noContentWarning.label',
+    descriptionKey: 'feed.tuning.noContentWarning.description',
   },
 ];
 
@@ -164,6 +199,13 @@ export function validateForYouTuning(input: unknown): ForYouTuningValidation {
         }
         entry.enabled = raw;
         continue;
+      }
+      // A toggle-only module has no threshold, so anything past `enabled` is an
+      // unknown param — rejected here rather than dropped, for the same reason the
+      // unknown-module and unknown-param branches reject: a payload that is quietly
+      // half-applied is worse than one that is refused.
+      if (spec.control === 'boolean') {
+        return { valid: false, error: `Unknown param "${key}" for tuning module "${moduleId}"` };
       }
       if (key === spec.paramKey) {
         if (typeof raw !== 'number' || !Number.isFinite(raw)) {

@@ -1,3 +1,4 @@
+import { readManagedDeployment, withManagedDeploymentEnvironment, mcpDeploymentIdentity } from '@mention/shared-types/deployment';
 import * as z from 'zod';
 
 export const MENTION_INFERENCE_ROUTING_PROFILE_ID =
@@ -199,12 +200,31 @@ const phase2bSignalIds = [
   'reciprocityBoost',
 ] as const;
 
+/**
+ * Every gate module `FOR_YOU_DISCOVERY_GATE` may name. It is the SECOND of two
+ * lists that have to agree — `definitions/presets.ts` owns which modules each
+ * gate profile actually runs — and it is the one that fails LOUDLY: a module
+ * missing here makes the process refuse to boot when the env var names it.
+ * `presetDefinitions.test.ts` asserts this list covers both profiles.
+ */
 const discoveryGateModuleIds = [
   'minLength',
   'lowEffortGate',
   'nativeEngagement',
   'minQuality',
+  'noContentWarning',
+  // Nameable so it can be MEASURED in shadow before anyone decides whether it
+  // should decide anything. Not in either default profile — see the module.
+  'authorHasAvatar',
 ] as const;
+
+/**
+ * The same list, exported for the one test that has to compare it against what
+ * the presets actually build. Exported rather than duplicated in the spec,
+ * because a copy of a list whose whole purpose is agreeing with another list is
+ * a third thing to keep in sync.
+ */
+export const discoveryGateModuleIdsForTest: readonly string[] = discoveryGateModuleIds;
 
 const claudeRedirects = [
   'https://claude.ai/api/mcp/auth_callback',
@@ -454,7 +474,7 @@ const environmentSchema = z
      *
      * What remains are the things that genuinely are configuration.
      * `CROWDSOURCE_BASE_URL` points at a local backend;
-     * `@oxy.so/crowdsource-express` verifies inbound signatures with
+     * `@crowdsource.you/core/express` verifies inbound signatures with
      * `CROWDSOURCE_WEBHOOK_SECRET` and `CROWDSOURCE_WEBHOOK_SECRET_PREVIOUS` —
      * a signing secret CrowdSource issues per endpoint, not an identity, which
      * is why that one stays.
@@ -541,9 +561,16 @@ type EnvironmentSource = Readonly<Record<string, string | undefined>>;
 
 /** Parse an explicit source; exported so configuration validation is unit-testable. */
 export function parseRuntimeEnvironment(source: EnvironmentSource): RuntimeEnvironment {
-  const parsed = environmentSchema.safeParse(source);
+  const parsed = environmentSchema.safeParse(withManagedDeploymentEnvironment(source));
   if (!parsed.success) {
     throw new Error(`Invalid Mention runtime configuration:\n${z.prettifyError(parsed.error)}`);
+  }
+  if (readManagedDeployment(source)) {
+    const requiredKeys = ['DATABASE_URL', 'REDIS_URL', 'OXY_SERVICE_API_KEY',
+      'OXY_SERVICE_API_SECRET', 'MENTION_OXY_CLIENT_ID', 'MENTION_SHELL_ACCESS_KEY'] as const;
+    for (const key of requiredKeys) {
+      if (!parsed.data[key]) throw new Error(`${key} is required for a dedicated Managed Mention data plane`);
+    }
   }
   return parsed.data;
 }
@@ -779,6 +806,8 @@ export function getMentionNodeConfig(
 }
 
 export const config = {
+  deployment: readManagedDeployment(process.env),
+  deploymentMcp: mcpDeploymentIdentity(process.env),
   runtime: {
     nodeEnv: environment.NODE_ENV,
     port: environment.PORT,

@@ -1,3 +1,4 @@
+import { mcpDeploymentIdentity, withManagedDeploymentEnvironment, type McpDeploymentIdentity } from "@mention/shared-types/deployment";
 import { z } from "zod/v4";
 
 const DEFAULT_API_URL = "https://api.mention.earth";
@@ -22,10 +23,20 @@ const httpEnvSchema = z.object({
   MCP_ALLOWED_ORIGINS: z.string().optional(),
   MENTION_MCP_PUBLIC_URL: z.string().url().default(DEFAULT_MCP_PUBLIC_URL),
   OXY_API_URL: z.string().url().default(DEFAULT_OXY_API_URL),
-  OXY_SERVICE_API_KEY: z.string().trim().min(1),
-  OXY_SERVICE_API_SECRET: z.string().trim().min(1),
+  /**
+   * Optional, and both-or-neither.
+   *
+   * A deployed MCP task proves what it is by attesting its ECS task role and
+   * receives the same Oxy service token with no secret anywhere (oxy ADR 0026),
+   * so requiring the pair would make a task that authenticates perfectly well
+   * refuse to boot. Where there is no attestation — a laptop — the pair is still
+   * how this process gets a token, and half a pair is a typo rather than a
+   * configuration: it would build a client whose every call fails at the token.
+   */
+  OXY_SERVICE_API_KEY: z.string().trim().min(1).optional(),
+  OXY_SERVICE_API_SECRET: z.string().trim().min(1).optional(),
   MENTION_LEGACY_OAUTH_ISSUER: z.string().url().default(DEFAULT_LEGACY_OAUTH_ISSUER),
-  MENTION_MCP_JWT_SECRET: z.string().trim().min(1),
+  MENTION_MCP_JWT_SECRET: z.string().trim().min(1).optional(),
 });
 
 const DEFAULT_CORS_ORIGINS = [
@@ -45,17 +56,20 @@ export interface McpHttpConfig {
   maxSessions: number;
   publicUrl: string;
   oxyApiUrl: string;
-  oxyServiceApiKey: string;
-  oxyServiceApiSecret: string;
+  /** Absent on a deployment: the task role attests instead. See the schema. */
+  oxyServiceApiKey?: string;
+  /** Absent on a deployment: the task role attests instead. See the schema. */
+  oxyServiceApiSecret?: string;
   legacyOauthIssuer: string;
   jwtSecret: string;
   allowedOrigins: ReadonlySet<string>;
+  deploymentIdentity?: McpDeploymentIdentity;
 }
 
 export function loadApiClientConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): ApiClientConfig {
-  const parsed = parseEnvironment(apiClientEnvSchema, env, "MCP API client");
+  const parsed = parseEnvironment(apiClientEnvSchema, withManagedDeploymentEnvironment(env), "MCP API client");
   return {
     baseUrl: stripTrailingSlashes(parsed.MENTION_API_URL),
     requestTimeoutMs: parsed.MENTION_API_TIMEOUT_MS,
@@ -65,7 +79,11 @@ export function loadApiClientConfig(
 export function loadMcpHttpConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): McpHttpConfig {
-  const parsed = parseEnvironment(httpEnvSchema, env, "MCP HTTP server");
+  const parsed = parseEnvironment(httpEnvSchema, withManagedDeploymentEnvironment(env), "MCP HTTP server");
+  const deploymentIdentity = mcpDeploymentIdentity(env);
+  if (deploymentIdentity.allowLegacyTokens && !parsed.MENTION_MCP_JWT_SECRET) {
+    throw new Error('Invalid MCP HTTP server configuration: MENTION_MCP_JWT_SECRET is required for legacy tokens');
+  }
   const configuredOrigins = (parsed.MCP_ALLOWED_ORIGINS ?? "")
     .split(",")
     .map((origin) => origin.trim())
@@ -73,15 +91,20 @@ export function loadMcpHttpConfig(
     .map(normalizeOrigin);
 
   return {
+    deploymentIdentity,
     port: parsed.MCP_PORT,
     maxRequestBodyBytes: parsed.MCP_MAX_REQUEST_BODY_BYTES,
     maxSessions: parsed.MCP_MAX_SESSIONS,
     publicUrl: stripTrailingSlashes(parsed.MENTION_MCP_PUBLIC_URL),
     oxyApiUrl: stripTrailingSlashes(parsed.OXY_API_URL),
-    oxyServiceApiKey: parsed.OXY_SERVICE_API_KEY,
-    oxyServiceApiSecret: parsed.OXY_SERVICE_API_SECRET,
+    ...(parsed.OXY_SERVICE_API_KEY === undefined
+      ? {}
+      : { oxyServiceApiKey: parsed.OXY_SERVICE_API_KEY }),
+    ...(parsed.OXY_SERVICE_API_SECRET === undefined
+      ? {}
+      : { oxyServiceApiSecret: parsed.OXY_SERVICE_API_SECRET }),
     legacyOauthIssuer: stripTrailingSlashes(parsed.MENTION_LEGACY_OAUTH_ISSUER),
-    jwtSecret: parsed.MENTION_MCP_JWT_SECRET,
+    jwtSecret: parsed.MENTION_MCP_JWT_SECRET ?? "",
     allowedOrigins: new Set([...DEFAULT_CORS_ORIGINS, ...configuredOrigins]),
   };
 }

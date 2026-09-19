@@ -40,8 +40,10 @@ import { createCache } from '../utils/cache';
  *    {@link CachedUserSummary}).
  *  - `v5` — the cached Oxy user now carries `kind` (the account
  *    classification), which the reply gate reads off `user.kind`.
+ *  - `v7` — adds `accountCreatedAt` and `reputationTier` (ranking-side, see
+ *    {@link CachedUserSummary}).
  */
-const USER_SUMMARY_PREFIX = 'usersummary:v6:';
+const USER_SUMMARY_PREFIX = 'usersummary:v7:';
 
 /**
  * TTL for a cached summary. Display name / avatar / verification change rarely;
@@ -85,6 +87,28 @@ export interface CachedUserSummary {
    * Absent ⇒ uncurated (or unresolvable) ⇒ the signal is exactly neutral.
    */
   starterPackScore?: number;
+  /**
+   * When the Oxy account was created, as the ISO string Oxy sends. Read by the
+   * `minAccountAge` filter, which until this field existed was a documented
+   * no-op: it looked for a `createdAt` on the lean candidate, where no author
+   * has ever been.
+   *
+   * Oxy has always sent it — `UserService.formatUserResponse` emits it and the
+   * response contract passes unknown keys through — so nothing had to change
+   * there. It was dropped here, by a serializer that names its fields one by one.
+   */
+  accountCreatedAt?: string;
+  /**
+   * The account's Oxy standing (`new` | `trusted` | `high_trust` | `verified`),
+   * for the `trustTierBoost` ranking signal.
+   *
+   * `restricted` is not in that range and never will be: Oxy's
+   * `discoverableUserPredicate()` drops those rows before the serializer runs, so
+   * an account low enough to be sanctioned does not arrive with a low tier — it
+   * does not arrive at all, and resolves here as the degraded placeholder.
+   * A signal reading this must therefore not treat absence as bad standing.
+   */
+  reputationTier?: string;
 }
 
 /** Hash-free key: Oxy user ids are already short and bounded, so embed them directly. */

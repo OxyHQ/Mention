@@ -46,8 +46,9 @@ import type { CachedUserSummary } from '../services/userSummaryCache';
 import { FEED_CATEGORIES, type PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
-import { resolvePageLimit, resolvePageOffset } from '../utils/pageLimits';
-import { likeContains } from '../utils/likePattern';
+import { resolvePageLimit, resolvePageOffset } from '@oxy.so/utils/paging';
+import { customFeedSearchPredicate } from '../utils/searchPredicates';
+import { likeContains } from '@oxy.so/utils/sql';
 
 const router = Router();
 
@@ -280,22 +281,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     // Add search functionality. Mongo wrapped this in `$and` alongside the
     // mine-or-public `$or`; `and(...)` of the two disjunctions is the same thing.
     if (search && typeof search === 'string' && search.trim()) {
-      const pattern = likeContains(search.trim());
-      // Coarse prefilter (index-servable, through the same IMMUTABLE wrapper
-      // `custom_feeds_search_trgm_gin` is built on) AND the exact match —
-      // including the per-element keyword test, which is the reason the wrapper
-      // exists at all. The concatenation can only over-admit, so the exact
-      // clauses stay the real predicate.
-      conditions.push(
-        and(
-          sql`custom_feeds_search_text(${customFeeds.title}, ${customFeeds.description}, ${customFeeds.keywords}) like ${pattern.toLowerCase()}`,
-          or(
-            ilike(customFeeds.title, pattern),
-            ilike(customFeeds.description, pattern),
-            arrayElementMatches(qualified(customFeeds.keywords), pattern),
-          ),
-        ),
-      );
+      // One definition, shared with `GET /search/overview` — see
+      // `db/search/searchPredicates.ts`.
+      conditions.push(customFeedSearchPredicate(search.trim()));
     }
 
     const where = and(...conditions);
@@ -459,6 +447,21 @@ router.get('/marketplace', async (req: AuthRequest, res: Response) => {
     }
 
     if (search && typeof search === 'string' && search.trim()) {
+      // DELIBERATELY NOT `customFeedSearchPredicate`, and this is the one place
+      // in the search work where sharing would have introduced a bug.
+      //
+      // The marketplace searches `tags` as well as title, description and
+      // keywords. `custom_feeds_search_trgm_gin` is built on
+      // `custom_feeds_search_text(title, description, keywords)` — no `tags` —
+      // so adding that prefilter here would UNDER-admit: a feed matching only
+      // on a tag has nothing matching in the indexed expression and would be
+      // excluded from a result set it belongs in. A prefilter is only sound
+      // when it is a strict SUPERSET of the exact match, and this one is not.
+      //
+      // So this stays a sequential scan until either `tags` joins the indexed
+      // expression (a migration, and it widens every other feed search with it)
+      // or the marketplace stops searching tags (a product decision). Do not
+      // "unify" the two predicates without doing one of those first.
       const pattern = likeContains(search.trim());
       conditions.push(
         or(

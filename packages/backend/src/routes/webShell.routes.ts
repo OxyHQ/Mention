@@ -78,7 +78,7 @@ const OG_FETCH_TIMEOUT_MS = 2500;
 const OXY_API_URL = config.oxyApiUrl;
 /** Backend origin that serves the canonical ActivityPub actor. */
 const API_ORIGIN = config.web.apiOrigin;
-const AP_ACTOR_BASE = `${API_ORIGIN}/ap/users/`;
+const AP_ACTOR_BASE = `${config.deployment?.publicBaseUrl ?? API_ORIGIN}/ap/users/`;
 /** Oxy file/media CDN origin — canonical avatars/media are served from here (see CSP `cloud.oxy.so`). */
 const OXY_MEDIA_CDN_ORIGIN = config.web.oxyMediaCdnOrigin;
 

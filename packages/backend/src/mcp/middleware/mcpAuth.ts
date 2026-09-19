@@ -1,7 +1,5 @@
 import {
-  MENTION_CAPABILITY_AUDIENCE,
   MENTION_LEGACY_MCP_AUTH_CUTOFF_MS,
-  MENTION_MCP_RESOURCE,
   mentionCapabilityRequirementsForRequest,
 } from '@mention/shared-types/mcpCapabilities';
 import type { OxyServices } from '@oxy.so/core';
@@ -44,7 +42,7 @@ type McpAuthOutcome =
   | { status: 'invalid' }
   | { status: 'revoked' };
 
-/** Whether the request carries a bearer that claims either MCP token audience. */
+/** Classify the MCP family before auth routing, including foreign-tenant tokens. */
 export function bearerLooksLikeMcpToken(req: Request): boolean {
   const token = extractBearerToken(req.headers);
   return token ? tokenKind(token) !== null : false;
@@ -55,7 +53,13 @@ function tokenKind(token: string): 'central' | 'legacy' | null {
     const decoded = jwt.decode(token, { json: true });
     if (!decoded || typeof decoded !== 'object') return null;
     const audiences = Array.isArray(decoded.aud) ? decoded.aud : [decoded.aud];
-    if (audiences.includes(MENTION_CAPABILITY_AUDIENCE)) return 'central';
+    // A foreign tenant's MCP token must be rejected here, never retried as an
+    // ordinary Oxy session. Decoded claims only select the verifier; they do not
+    // authorize anything (the live introspection below verifies exact binding).
+    if (audiences.includes(config.deploymentMcp.audience)
+      || audiences.some((audience) => typeof audience === 'string'
+        && /^mention(?:-[a-f0-9-]{36})?-api$/.test(audience))
+      || (typeof decoded.resource === 'string' && typeof decoded.account_id === 'string')) return 'central';
     if (audiences.includes(MCP_TOKEN_AUDIENCE)) return 'legacy';
     return null;
   } catch {
@@ -82,8 +86,8 @@ async function resolveCentralMcpUser(token: string): Promise<McpAuthOutcome> {
     if (!claims) return { status: 'revoked' };
     if (
       claims.iss !== oxyApiUrl
-      || claims.aud !== MENTION_CAPABILITY_AUDIENCE
-      || claims.resource !== MENTION_MCP_RESOURCE
+      || claims.aud !== config.deploymentMcp.audience
+      || claims.resource !== config.mcp.resourceUrl
     ) {
       return { status: 'invalid' };
     }
@@ -113,7 +117,7 @@ async function resolveCentralMcpUser(token: string): Promise<McpAuthOutcome> {
 }
 
 async function resolveLegacyMcpUser(token: string): Promise<McpAuthOutcome> {
-  if (Date.now() >= MENTION_LEGACY_MCP_AUTH_CUTOFF_MS) {
+  if (!config.deploymentMcp.allowLegacyTokens || Date.now() >= MENTION_LEGACY_MCP_AUTH_CUTOFF_MS) {
     return { status: 'revoked' };
   }
 

@@ -150,7 +150,7 @@ describe('noBots filter', () => {
 
 // ─── For You gate tuning (feedTuning.forYou) ─────────────────────────────────
 
-const GATE_PARAMS = { forYouGate: true } as const;
+const GATE_PARAMS = { viewerGateTuning: true } as const;
 
 function tuning(forYou: FeedTuning['forYou']): FeedEngineContext {
   return { feedTuning: { forYou } };
@@ -192,9 +192,9 @@ describe('For You gate reads EFFECTIVE per-viewer params', () => {
     expect(minQualityFilter.keep!(lowQ, tuning({ minQuality: { enabled: false, minQuality: 0.5 } }), GATE_PARAMS)).toBe(true);
   });
 
-  it('For You tuning does NOT leak into a CUSTOM feed (no forYouGate marker)', () => {
+  it('For You tuning does NOT leak into a CUSTOM feed (no viewerGateTuning marker)', () => {
     const lowQ = post({ postClassification: classified(0.2) });
-    // Custom-feed usage: author sets minQuality param, NO forYouGate marker. A
+    // Custom-feed usage: author sets minQuality param, NO viewerGateTuning marker. A
     // viewer's feedTuning that disables minQuality must be ignored here.
     const ctx = tuning({ minQuality: { enabled: false } });
     expect(minQualityFilter.keep!(lowQ, ctx, { minQuality: 0.5 })).toBe(false);

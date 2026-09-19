@@ -30,6 +30,7 @@ import { metrics } from '../../utils/metrics';
 
 export const FEED_METRICS = {
   discoveryGated: 'feed_discovery_gated_total',
+  authorGateNeutral: 'feed_author_gate_neutral_total',
   federatedShare: 'feed_federated_share',
   impression: 'feed_impression_total',
   interactionSignal: 'feed_interaction_signal_total',
@@ -64,6 +65,29 @@ export function recordDiscoveryGated(reason: string, source: string, measureOnly
     shadow: measureOnly ? 'true' : 'false',
   });
 }
+
+/**
+ * Count a candidate an author-aware gate filter let through because it could not
+ * judge it (see {@link FEED_METRICS}).
+ *
+ * This exists because failing open is INVISIBLE otherwise. A rule that keeps
+ * every candidate because Oxy is unreachable, and a rule that keeps every
+ * candidate because they all pass, produce the same silence on
+ * `feed_discovery_gated_total` — and the first is an outage. Read as a ratio
+ * against that counter, this says whether the rule is actually running.
+ */
+export function recordAuthorGateNeutral(reason: AuthorGateNeutralReason, source: string): void {
+  metrics.incrementCounter(FEED_METRICS.authorGateNeutral, 1, { reason, source });
+}
+
+/**
+ * Why an author-aware gate abstained. `no_map` is the whole batch — the identity
+ * service could not be reached at all, so every author-aware rule stands down for
+ * that request. Per-author reasons (an id nobody resolved, a degraded placeholder)
+ * belong to the filters that read the map and will be added when one does; a union
+ * member nothing emits is a metric that reads as permanently zero.
+ */
+export type AuthorGateNeutralReason = 'no_map';
 
 /** Record the federated share (0..1) of a feed's merged candidate pool. */
 export function recordFederatedShare(descriptor: string, share: number): void {

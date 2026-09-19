@@ -7,7 +7,7 @@ import type { ForYouFeedTuning, ForYouTuningModuleSpec } from '@mention/shared-t
  * `minQuality` is opt-in / neutral by default, so it starts at a sensible
  * quality floor the viewer can adjust once they enable it.
  */
-export const FOR_YOU_TUNING_DEFAULT_THRESHOLDS: Record<ForYouTuningModuleSpec['moduleId'], number> = {
+export const FOR_YOU_TUNING_DEFAULT_THRESHOLDS: Partial<Record<ForYouTuningModuleSpec['moduleId'], number>> = {
   minLength: 3,
   lowEffortGate: 12,
   nativeEngagement: 1,
@@ -17,7 +17,8 @@ export const FOR_YOU_TUNING_DEFAULT_THRESHOLDS: Record<ForYouTuningModuleSpec['m
 /** A module's effective on/off + threshold, resolved from stored tuning + defaults. */
 export interface ResolvedTuning {
   enabled: boolean;
-  threshold: number;
+  /** Absent for a toggle-only module, which has no threshold to resolve. */
+  threshold: number | undefined;
 }
 
 /**
@@ -45,6 +46,10 @@ export function resolveTuning(tuning: ForYouFeedTuning, spec: ForYouTuningModule
       const entry = tuning.minQuality;
       return { enabled: entry?.enabled ?? spec.defaultEnabled, threshold: entry?.minQuality ?? fallback };
     }
+    case 'noContentWarning': {
+      const entry = tuning.noContentWarning;
+      return { enabled: entry?.enabled ?? spec.defaultEnabled, threshold: undefined };
+    }
   }
 }
 
@@ -67,5 +72,7 @@ export function updateTuning(
       return { ...tuning, nativeEngagement: { enabled: next.enabled, minNativeEngagement: next.threshold } };
     case 'minQuality':
       return { ...tuning, minQuality: { enabled: next.enabled, minQuality: next.threshold } };
+    case 'noContentWarning':
+      return { ...tuning, noContentWarning: { enabled: next.enabled } };
   }
 }

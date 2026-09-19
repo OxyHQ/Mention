@@ -101,6 +101,25 @@ const canonicalSearchPost: HydratedPost = {
   },
 };
 
+/** A minimal, well-formed overview body: every lane present with a status. */
+function overviewBody(): unknown {
+  const lane = { status: 'ok', items: [], hasMore: false, tookMs: 1 };
+  return {
+    query: 'mention',
+    lanes: {
+      profiles: { ...lane, status: 'skipped' },
+      posts: { ...lane, status: 'unavailable' },
+      saved: { ...lane, status: 'unavailable' },
+      hashtags: lane,
+      lists: lane,
+      feeds: lane,
+      starterPacks: lane,
+    },
+    degraded: true,
+    servedFromCache: false,
+  };
+}
+
 describe('search AbortSignal propagation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -127,7 +146,12 @@ describe('search AbortSignal propagation', () => {
       }
       return Promise.reject(new Error(`unexpected GET ${url}`));
     });
-    mockPublicGet.mockResolvedValue({ data: { items: [] } });
+    mockPublicGet.mockImplementation((url: string) => {
+      if (url === '/search/overview') {
+        return Promise.resolve({ data: overviewBody() });
+      }
+      return Promise.resolve({ data: { items: [] } });
+    });
     mockSearchProfiles.mockResolvedValue({
       data: [],
       pagination: { offset: 0, limit: 20, hasMore: false },
@@ -151,13 +175,46 @@ describe('search AbortSignal propagation', () => {
       '/search',
       expect.objectContaining({ signal }),
     );
-    expect(mockAuthGet).toHaveBeenCalledWith(
-      '/lists',
+    expect(mockPublicGet).toHaveBeenCalledWith(
+      '/search/overview',
       expect.objectContaining({ signal }),
     );
     expect(mockGetSavedPosts).toHaveBeenCalledWith(
       expect.objectContaining({ signal }),
     );
+  });
+
+  it('issues FOUR requests for the overview, not seven', async () => {
+    const signal = new AbortController().signal;
+
+    await searchService.searchAll('mention', true, signal);
+
+    // Hashtags, lists, feeds and starter packs are now ONE server-side lane
+    // fan-out, so none of their endpoints is called from here any more. What
+    // remains is people (Oxy's own), posts and saved.
+    const publicUrls = mockPublicGet.mock.calls.map(([url]) => url);
+    const authUrls = mockAuthGet.mock.calls.map(([url]) => url);
+    expect(publicUrls).toEqual(['/search/overview']);
+    expect(authUrls).toEqual(['/search']);
+    expect(authUrls).not.toContain('/lists');
+    expect(authUrls).not.toContain('/hashtags/search');
+    expect(publicUrls).not.toContain('/feeds');
+    expect(publicUrls).not.toContain('/starter-packs');
+  });
+
+  it('reports a failed lane as empty rather than inventing results', async () => {
+    const body = overviewBody() as { lanes: Record<string, { status: string; items: unknown[] }> };
+    body.lanes.feeds = { status: 'error', items: [], hasMore: false, tookMs: 5 } as never;
+    mockPublicGet.mockImplementation((url: string) =>
+      Promise.resolve({ data: url === '/search/overview' ? body : { items: [] } }),
+    );
+
+    const results = await searchService.searchAll('mention', true);
+
+    // The lane's failure reaches the client as a STATUS now — previously
+    // `allSettled` collapsed a rejection into an empty section and the client
+    // could not tell the two apart at all.
+    expect(results.feeds).toEqual([]);
   });
 
   // People was the ONE lane that could not be cancelled: `searchProfiles` takes

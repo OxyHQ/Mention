@@ -76,3 +76,6 @@ export * from './job';
 
 // Community notes — rendered by Mention, owned by CrowdSource
 export * from './communityNotes';
+
+// The one-request search fan-out contract (`GET /search/overview`)
+export * from './search';

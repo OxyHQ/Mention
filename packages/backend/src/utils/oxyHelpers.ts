@@ -6,6 +6,7 @@ import {
   getOxyServiceCredentials,
 } from '../config';
 import { logger } from './logger';
+import { canAuthenticateAsService } from '../runtime/serviceIdentity';
 import { instrumentOxyEgress } from './oxyMetrics';
 
 const OXY_BASE_URL = config.oxyApiUrl;
@@ -81,8 +82,22 @@ const serviceClient: OxyServices = (() => {
   const { apiKey, apiSecret } = getOxyServiceCredentials();
   if (apiKey && apiSecret) {
     client.configureServiceAuth(apiKey, apiSecret);
+  } else if (canAuthenticateAsService()) {
+    /**
+     * Not a warning, and not "unauthenticated".
+     *
+     * With no key pair the SDK attests this process's task role instead and
+     * mints the same service token (oxy ADR 0026). The old line said the client
+     * would be unauthenticated, which was true when the only identity was a
+     * secret and became false the day the deployment stopped carrying one — and
+     * a warning that says a working deployment is broken is how somebody ends up
+     * putting the credential back.
+     */
+    logger.info('[oxyHelpers] no service key pair; the Oxy client attests this task role instead');
   } else {
-    logger.warn('[oxyHelpers] OXY_SERVICE_API_KEY/SECRET is not set; service client will be unauthenticated');
+    logger.warn(
+      '[oxyHelpers] no Oxy service identity: neither a key pair nor an attestable task role. Calls needing one will fail.',
+    );
   }
   // The first `OxyServices` this process builds, and the only install point
   // needed: `instrumentOxyEgress` patches the shared `HttpService` PROTOTYPE, so

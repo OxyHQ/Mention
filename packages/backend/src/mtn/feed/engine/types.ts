@@ -13,6 +13,7 @@ import type { HydratedPost, SlicedFeedResponse } from '@mention/shared-types';
 import type { FeedContext } from '../FeedAPI';
 import type { PostRecord } from '../../../db/posts/postRecord';
 import type { OxyClient } from '../../../utils/privacyHelpers';
+import type { CachedUserSummary } from '../../../services/userSummaryCache';
 
 /**
  * A candidate post as returned by a source, before hydration.
@@ -124,6 +125,29 @@ export interface FeedEngineContext extends FeedContext {
    * the experiment because they have no stable account id to bucket.
    */
   discoveryGateBucket?: DiscoveryGateBucket;
+  /**
+   * Author identity for the MERGED candidate pool, resolved ONCE per request by
+   * {@link FeedEngine.gatherPool} — one batched Redis read plus a single bulk Oxy
+   * fetch for the misses — and only when the running definition actually contains
+   * a filter that declares {@link FilterModule.needsAuthor}. Handed on to
+   * `rankPosts`, which would otherwise resolve the SAME set one step later, so a
+   * ranked request still pays for exactly one resolution.
+   *
+   * ABSENT NEVER MEANS "no author". An absent map (resolution skipped, or failed)
+   * and an absent entry (an id Oxy could not resolve) are both UNKNOWN, and every
+   * reader must treat unknown as NEUTRAL — the same contract `readTrustedScores`
+   * gives the classification gates. A filter that rejects on absence would empty
+   * every feed the moment Oxy is unreachable.
+   */
+  authorSummaries?: ReadonlyMap<string, CachedUserSummary>;
+  /**
+   * {@link FeedContext.followingIds} as a set, built once per request by the
+   * engine. Filters that ask "does the viewer follow this author" run per
+   * CANDIDATE, and a linear scan of a follow list that can run to thousands, once
+   * per candidate in a pool of 150, is the kind of cost that only shows up on the
+   * accounts that follow the most people.
+   */
+  followingIdSet?: ReadonlySet<string>;
 }
 
 export interface SourceModule {
@@ -177,6 +201,17 @@ export interface FilterModule {
    * pushed down to SQL when it is not. A filter that should narrow the QUERY
    * belongs in the source's own predicate, where it is visibly wired up.
    */
+  /**
+   * Whether `keep()` reads {@link FeedEngineContext.authorSummaries}.
+   *
+   * The engine runs author-aware filters in a SECOND pass over the already-merged
+   * pool, after resolving its authors in one batch, and skips that resolution
+   * entirely when no enabled filter declares this. It stays a plain flag rather
+   * than a second module KIND because `keep()` itself does not change: the author
+   * arrives on the context like every other per-request fact, so the registry, the
+   * builder catalog and the offline eval harness all keep the shape they have.
+   */
+  needsAuthor?: boolean;
   /** Optional in-memory predicate applied to the merged candidate pool. */
   keep?(post: CandidatePost, ctx: FeedEngineContext, params: Record<string, unknown>): boolean;
 }

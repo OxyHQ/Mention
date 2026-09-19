@@ -187,6 +187,7 @@ const FEED_TUNING_COLUMNS: readonly WritableColumn[] = [
   'tuningMinNativeEngagement',
   'tuningMinQualityEnabled',
   'tuningMinQuality',
+  'tuningNoContentWarningEnabled',
 ];
 
 /** Every profile-media column cleared — one media item REPLACES the other. */
@@ -249,6 +250,7 @@ function expandObjectPath(path: string, value: unknown): Partial<SettingsInsert>
       tuningMinNativeEngagement: tuning.nativeEngagement?.minNativeEngagement ?? null,
       tuningMinQualityEnabled: tuning.minQuality?.enabled ?? null,
       tuningMinQuality: tuning.minQuality?.minQuality ?? null,
+      tuningNoContentWarningEnabled: tuning.noContentWarning?.enabled ?? null,
     };
   }
 
@@ -342,6 +344,9 @@ function assembleRecord(row: SettingsRow, labelActions: LabelAction[]): UserSett
         ...(row.tuningMinQualityEnabled == null ? {} : { enabled: row.tuningMinQualityEnabled }),
         ...(row.tuningMinQuality == null ? {} : { minQuality: row.tuningMinQuality }),
       },
+    }),
+    ...(row.tuningNoContentWarningEnabled == null ? {} : {
+      noContentWarning: { enabled: row.tuningNoContentWarningEnabled },
     }),
   };
 

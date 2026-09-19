@@ -59,6 +59,7 @@ as metric labels.
 | `/statistics` | Mixed | Public activity and authenticated insights |
 | `/lists` | Authenticated | Account lists |
 | `/notifications` | Authenticated | Notifications and push tokens |
+| `/search/overview` | Optional viewer | One-request multi-lane search overview |
 | `/search` | Authenticated | Published, visible post search |
 | `/labelers` | Authenticated | Moderation labelers |
 | `/polls` | Authenticated | Poll operations |
@@ -145,10 +146,50 @@ changing their payloads.
 
 ## Search and statistics
 
-`GET /search` searches only published, visible posts. It uses PostgreSQL
-full-text search — a generated `tsvector` column queried with
-`websearch_to_tsquery('english', …)` — a minimal projection, a bounded
-execution time, and an opaque, versioned cursor over `(createdAt, id)`.
+### `GET /search/overview`
+
+One request for the search screen's whole overview, replacing four of the seven
+the client used to fire. Mounted on the PUBLIC api with `optionalAuth`, one
+mount before the authenticated `/search`: this router declares only
+`/overview`, so `GET /search` falls straight through to the authenticated one
+(the same two-mounts-one-prefix arrangement `/posts`, `/statistics` and
+`/channels` use). Being public is deliberate — a signed-out viewer gets real
+results instead of a 401.
+
+The response contract is `SearchOverviewResponse` in
+`@mention/shared-types/search`. Two things about it are load-bearing:
+
+**Every lane key is always present, with an explicit `status`** — `ok`,
+`timeout`, `error`, `skipped` or `unavailable`. An absent key and an empty array
+are indistinguishable on the wire, so a client that only received arrays could
+not tell "nothing matched" from "this lane fell over", and rendered a confident
+"no results" for an outage. `timeout` and `error` are separate because a
+timeout is worth retrying and an error usually is not.
+
+**`skipped` is not degraded; `unavailable` is.** `skipped` means the lane was
+deliberately not run for this request (`profiles` is Oxy's own endpoint).
+`unavailable` means the client still has to fetch it separately — `posts` and
+`saved` today, because both need post hydration with the viewer's privacy
+context. The `degraded` flag counts the second and not the first, or it would
+be true on every search and carry no information.
+
+Lanes run concurrently under two bounds: a Postgres `statement_timeout`, which
+is what actually stops the query, and a wall-clock race for the parts that are
+not Postgres. `utils/withStatementTimeout.ts` records why a race alone bounds
+nothing that matters — the promise is abandoned while Postgres keeps executing
+and keeps its pooled connection.
+
+The viewer-independent lanes (hashtags, public feeds, starter packs) share one
+stale-while-revalidate cache entry. `lists` is computed per request because it
+mixes public rows with the viewer's own, and a shared entry would show one
+viewer another's private list.
+
+### `GET /search`
+
+Searches only published, visible posts. It uses PostgreSQL full-text search — a
+generated `tsvector` column queried with `websearch_to_tsquery('english', …)` —
+a minimal projection, a bounded execution time, and an opaque, versioned cursor
+over `(createdAt, id)`.
 
 Authenticated statistics routes:
 

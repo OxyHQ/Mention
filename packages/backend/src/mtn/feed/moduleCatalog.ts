@@ -95,6 +95,7 @@ export const MODULE_PARAMS_SCHEMAS: Record<string, ModuleParamsSchema> = {
   sentimentFilter: schema({ sentiments: stringArray(10) }),
   minFollowers: schema({ minFollowers: { type: 'number' } }),
   minAccountAge: schema({ minAgeDays: { type: 'number' } }),
+  authorHasAvatar: schema({ applyToFederated: { type: 'boolean' } }),
 };
 
 /** A raw UI param descriptor (labelKey is derived per-module in {@link toEntry}). */
@@ -340,6 +341,16 @@ const MODULE_METADATA: Record<string, ModuleMeta> = {
   // ── Filters: safety ───────────────────────────────────────────────────────
   onlySensitive: { category: 'safety', label: 'Sensitive only', description: 'Keep only sensitive posts.' },
   excludeSensitive: { category: 'safety', label: 'Exclude sensitive', description: 'Drop sensitive posts.' },
+  authorHasAvatar: {
+    category: 'authors',
+    label: 'Author has a picture',
+    description: 'Drop posts by accounts with no profile picture.',
+  },
+  noContentWarning: {
+    category: 'safety',
+    label: 'No content warnings',
+    description: 'Drop posts behind a content warning, unless you follow the author.',
+  },
 };
 
 /** Signals surfaced in the builder — all share the `ranking` category. */
@@ -365,6 +376,10 @@ const SIGNAL_LABELS: Record<string, { label: string; description: string }> = {
   noveltyBoost: { label: 'Novelty', description: 'Explore topics you have not seen recently.' },
   localBoost: { label: 'Local boost', description: 'A modest lift for local (non-federated) posts.' },
   languageMismatchPenalty: { label: 'Off-language penalty', description: 'Downrank discovery posts not in your languages.' },
+  trustTierBoost: {
+    label: 'Account standing',
+    description: 'A small lift for accounts with more standing on Oxy. Never a penalty.',
+  },
   starterPackBoost: {
     label: 'Starter-pack curation',
     description: 'Lift accounts other people curated into starter packs that were actually used.',

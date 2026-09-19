@@ -1,16 +1,16 @@
 import express, { Response } from 'express';
 import { z } from 'zod';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { config } from '../config';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../db/postgres';
 import {
-  ACCOUNT_LISTS_SEARCH_TEXT,
   ACCOUNT_LIST_MAX_MEMBERS,
   ACCOUNT_LIST_MAX_MEMBER_ID_LENGTH,
   accountListMembers,
   accountLists,
 } from '../db/schema/lists';
+import { accountListSearchPredicate } from '../utils/searchPredicates';
 import { posts } from '../db/schema/posts';
 import { findPostRecords } from '../db/posts/postRepository';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../mtn/feed/CursorBuilder';
@@ -19,10 +19,9 @@ import { endorsementSignalService } from '../services/EndorsementSignalService';
 import { canViewList } from '../services/listAccess';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
-import { resolvePageLimit, resolvePageOffset } from '../utils/pageLimits';
+import { resolvePageLimit, resolvePageOffset } from '@oxy.so/utils/paging';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { feedIPRateLimiter, feedRateLimiter } from '../middleware/security';
-import { likeContains } from '../utils/likePattern';
 
 const router = express.Router();
 
@@ -338,22 +337,12 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     // raw query can't be read as a wildcard and match everything.
     const search = queryString(req.query.search)?.trim();
     if (search) {
-      const pattern = likeContains(search);
-      // Coarse, INDEX-SERVABLE prefilter AND the exact match.
-      //
-      // The prefilter is written against the very expression
-      // `account_lists_search_trgm_gin` is built on (imported, never restated),
-      // so Postgres can answer it from the GIN index instead of scanning. A
-      // substring of either column is a substring of the concatenation, so it
-      // can only ever admit MORE rows than the real answer — the two exact
-      // `ILIKE`s below remain the predicate the result depends on, and the same
-      // escaped, bound pattern goes to both so nothing can widen one only.
-      conditions.push(
-        and(
-          sql`${ACCOUNT_LISTS_SEARCH_TEXT} like ${pattern.toLowerCase()}`,
-          or(ilike(accountLists.title, pattern), ilike(accountLists.description, pattern)),
-        ) as SQL,
-      );
+      // Coarse index-servable prefilter AND the exact match, from the one
+      // definition in `db/search/searchPredicates.ts` — shared with
+      // `GET /search/overview`, because a predicate written twice is two places
+      // for the prefilter (the index) or the recheck (the correctness) to go
+      // missing from one of them.
+      conditions.push(accountListSearchPredicate(search));
     }
     const where = and(...conditions);
 

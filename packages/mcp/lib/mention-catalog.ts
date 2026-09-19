@@ -1,3 +1,4 @@
+import { mcpDeploymentIdentity } from "@mention/shared-types/deployment";
 import type { AppCapabilityCatalog } from "@oxy.so/contracts";
 import { registerAccountTools } from "../tools/accounts.js";
 import { registerFeedTools } from "../tools/feed.js";
@@ -17,7 +18,7 @@ import { MENTION_TOOL_POLICIES } from "./tool-policies.js";
 import { MentionToolRegistry } from "./tool-registry.js";
 
 function buildRegistry(): MentionToolRegistry {
-  const registry = new MentionToolRegistry(MENTION_TOOL_POLICIES);
+  const registry = new MentionToolRegistry(MENTION_TOOL_POLICIES, mcpDeploymentIdentity(process.env));
   registerPostsTools(registry);
   registerFeedTools(registry);
   registerInteractionsTools(registry);
