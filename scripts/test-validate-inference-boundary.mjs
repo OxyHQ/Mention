@@ -242,6 +242,35 @@ await runCase('the removals written as a folded block', {
     '  TASK_SECRET_REMOVALS: >-',
     '    ALIA_API_KEY',
     '    OXY_SERVICE_TOKEN',
+    '',
+  ].join('\n'),
+}, null);
+// Removing the Oxy service credential costs Mention every privileged scope its
+// credential names — measured as 313 `Missing required scope: federation:write`
+// in the nine hours the pair was off. The gate refuses it...
+await runCase('the Oxy credential named in the removals', {
+  '.github/workflows/deploy-aws.yml': [
+    'env:',
+    '  TASK_ENV_OVERRIDES_JSON: >-',
+    '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
+    '  TASK_SECRET_REMOVALS: >-',
+    '    ALIA_API_KEY',
+    '    OXY_SERVICE_TOKEN',
+    '    OXY_SERVICE_API_KEY',
+    '',
+  ].join('\n'),
+}, 'costs Mention every privileged scope');
+// ...and disarms itself once the binding carries those scopes, so the gate has a
+// way out that is not "delete the gate".
+await runCase('the removal once the binding carries the scopes', {
+  '.github/workflows/deploy-aws.yml': [
+    'env:',
+    '  TASK_ENV_OVERRIDES_JSON: >-',
+    '    {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd"}',
+    '  # workload-scopes-bound: 2026-09-19',
+    '  TASK_SECRET_REMOVALS: >-',
+    '    ALIA_API_KEY',
+    '    OXY_SERVICE_TOKEN',
     '    OXY_SERVICE_API_KEY',
     '    OXY_SERVICE_API_SECRET',
     '',

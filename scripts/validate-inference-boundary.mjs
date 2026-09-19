@@ -256,6 +256,32 @@ if (existsSync(workflowPath)) {
       failures.push(`.github/workflows/deploy-aws.yml: must re-assert removal of ${retiredSecret} from every ECS task revision`);
     }
   }
+  /**
+   * The Oxy service credential is NOT a retired secret, and this gate exists
+   * because for nine hours it was treated as one.
+   *
+   * Mention can attest its ECS task role and mint a real service token without
+   * the pair — that much was verified before the pair came off. What was not
+   * verified is that the token carries the same AUTHORITY: the workload mint
+   * drops every privileged scope by design, and Mention's credential names
+   * `federation:write`, `signals:write` and `catalogs:write`. The pair came off
+   * at task revision 384 and the federation worker failed every ~6 minutes from
+   * then until revision 389 put it back — 313 `Missing required scope:
+   * federation:write` against zero in the preceding 36 hours.
+   *
+   * So this refuses the removal rather than the credential, and it disarms
+   * itself the honest way: name the date the role's BINDING was given those
+   * scopes. A gate that can only ever be deleted teaches people to delete it.
+   */
+  const scopesBound = workflow.match(/workload-scopes-bound:\s*(\d{4}-\d{2}-\d{2})/);
+  for (const credentialPart of ['OXY_SERVICE_API_KEY', 'OXY_SERVICE_API_SECRET']) {
+    if (removals.includes(credentialPart) && !scopesBound) {
+      failures.push(
+        `.github/workflows/deploy-aws.yml: removing ${credentialPart} costs Mention every privileged scope its credential names. ` +
+          'Bind those scopes to the task role first, then record it here as `# workload-scopes-bound: YYYY-MM-DD`.'
+      );
+    }
+  }
   if (/\bOXY_INFERENCE_ROUTING_PROFILE\b/.test(workflow)) {
     failures.push('.github/workflows/deploy-aws.yml: still injects the retired mutable routing-profile selector');
   }
