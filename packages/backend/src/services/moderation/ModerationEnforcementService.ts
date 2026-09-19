@@ -1,5 +1,5 @@
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
-import type { Decision } from '@oxy.so/crowdsource-contracts';
+import type { Decision } from '@crowdsource.you/contracts';
 import type {
   ModerationEnforcementAction,
   ModerationEnforcementMode,

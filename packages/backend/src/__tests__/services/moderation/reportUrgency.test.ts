@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq, like } from 'drizzle-orm';
-import { CaseUrgencySchema } from '@oxy.so/crowdsource-contracts';
+import { CaseUrgencySchema } from '@crowdsource.you/contracts';
 
 /**
  * §5.1 `urgency` — the distribution facts that decide QUEUE ORDER.

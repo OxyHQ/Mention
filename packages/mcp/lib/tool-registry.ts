@@ -1,3 +1,4 @@
+import { mcpDeploymentIdentity, type McpDeploymentIdentity } from "@mention/shared-types/deployment";
 import {
   appCapabilityCatalogSchema,
   type AppCapabilityCatalog,
@@ -8,10 +9,6 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod/v4";
 import { toJSONSchema } from "zod/v4-mini";
-import {
-  MENTION_CAPABILITY_AUDIENCE,
-  MENTION_MCP_RESOURCE,
-} from "@mention/shared-types/mcpCapabilities";
 import { requestContext } from "./context.js";
 
 export type MentionToolPolicy = Pick<
@@ -62,7 +59,10 @@ export class MentionToolRegistry implements MentionToolRegistrar {
   readonly #definitions: MentionToolDefinition[] = [];
   readonly #names = new Set<string>();
 
-  constructor(private readonly policies: Readonly<Record<string, MentionToolPolicy>>) {}
+  constructor(
+    private readonly policies: Readonly<Record<string, MentionToolPolicy>>,
+    private readonly deployment: McpDeploymentIdentity = mcpDeploymentIdentity({}),
+  ) {}
 
   tool<Shape extends MentionToolShape>(
     name: string,
@@ -113,7 +113,7 @@ export class MentionToolRegistry implements MentionToolRegistrar {
             idempotentHint: definition.policy.idempotency !== "none",
           },
           _meta: {
-            "oxy/appId": "mention",
+            "oxy/appId": this.deployment.appId,
             "oxy/toolVersion": "1.0.0",
             "oxy/requiredCapabilities": definition.policy.requiredCapabilities,
             "oxy/resourceTypes": definition.policy.resourceTypes,
@@ -204,11 +204,11 @@ export class MentionToolRegistry implements MentionToolRegistrar {
 
     return appCapabilityCatalogSchema.parse({
       schemaVersion: "1",
-      appId: "mention",
+      appId: this.deployment.appId,
       version: "1.3.0",
-      audience: MENTION_CAPABILITY_AUDIENCE,
-      internalBaseUrl: MENTION_MCP_RESOURCE,
-      externalMcp: { resource: MENTION_MCP_RESOURCE },
+      audience: this.deployment.audience,
+      internalBaseUrl: this.deployment.resource,
+      externalMcp: { resource: this.deployment.resource },
       accountResourceType: "mention_account",
       tools,
       events: [],

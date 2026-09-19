@@ -2,7 +2,7 @@ import express, { type NextFunction, type Response } from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OxyAuthRequest } from '@oxy.so/core/server';
-import { CrowdSourceApiError } from '@oxy.so/crowdsource';
+import { CrowdSourceApiError } from '@crowdsource.you/core';
 
 /**
  * `/community-notes`, as the app meets it.

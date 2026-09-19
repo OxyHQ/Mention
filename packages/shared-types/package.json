@@ -108,6 +108,11 @@
       "types": "./dist/mtn/*.d.ts",
       "import": "./dist/mtn/*.js",
       "require": "./dist/mtn/*.js"
+    },
+    "./deployment": {
+      "types": "./dist/deployment.d.ts",
+      "import": "./dist/deployment.js",
+      "require": "./dist/deployment.js"
     }
   },
   "scripts": {

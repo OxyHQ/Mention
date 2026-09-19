@@ -98,3 +98,38 @@ describe("Mention MCP token authority", () => {
     });
   });
 });
+
+describe('managed MCP cross-tenant replay protection', () => {
+  test('rejects a live foreign token even when its owner has an account on both instances', async () => {
+    const { mcpDeploymentIdentity } = await import('@mention/shared-types/deployment');
+    const { default: example } = await import('../../shared-types/__tests__/fixtures/managed-deployment.json');
+    const identity = mcpDeploymentIdentity({ MENTION_DEPLOYMENT_CONFIG: JSON.stringify(example) });
+    const tenantConfig = { ...config, publicUrl: identity.resource, deploymentIdentity: identity };
+    const tenantClaims = { ...centralClaims, aud: identity.audience, resource: identity.resource };
+    const token = unsignedRoutingToken('EdDSA');
+    await expect(authenticateMcpAccessToken(token, {
+      config: tenantConfig, introspectCentral: async () => tenantClaims,
+    })).resolves.toMatchObject({ authMode: 'central', accountId: 'account-1' });
+    for (const wrongClaims of [
+      centralClaims,
+      { ...tenantClaims, aud: 'mention-22222222-2222-4222-8222-222222222222-api' },
+      { ...tenantClaims, resource: 'https://mcp.beta.example' },
+      { ...tenantClaims, iss: 'https://attacker.example' },
+    ]) {
+      await expect(authenticateMcpAccessToken(token, {
+        config: tenantConfig, introspectCentral: async () => wrongClaims,
+      })).resolves.toBeNull();
+    }
+    await expect(authenticateMcpAccessToken(token, {
+      config: tenantConfig, introspectCentral: async () => null,
+    })).resolves.toBeNull();
+    const legacy = jwt.sign({ client_id: 'legacy-client', scope: 'mcp:read' }, config.jwtSecret, {
+      algorithm: 'HS256', subject: 'owner-1', jwtid: 'legacy-id',
+      issuer: config.legacyOauthIssuer, audience: identity.resource, expiresIn: '5m',
+    });
+    await expect(authenticateMcpAccessToken(legacy, {
+      config: tenantConfig, introspectCentral: async () => tenantClaims,
+      nowMs: Date.parse('2026-09-02T00:00:00.000Z'),
+    })).resolves.toBeNull();
+  });
+});

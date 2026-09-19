@@ -141,6 +141,28 @@ export const customFeeds = pgTable(
     index('custom_feeds_marketplace_idx')
       .on(t.category, t.subscriberCount.desc())
       .where(sql`${t.isPublic}`),
+    /**
+     * `GET /feeds?search=` matches `title`, `description` AND any element of
+     * `keywords` by substring, so it was a sequential scan of `custom_feeds`
+     * with a per-element `ILIKE` on top — on an endpoint the home tab also
+     * calls on mount.
+     *
+     * TRIGRAM over all three, through `custom_feeds_search_text` — a thin
+     * IMMUTABLE SQL wrapper the migration defines. The wrapper is NOT
+     * ceremony: `keywords` is `text[]` and folding it in needs
+     * `array_to_string`, which Postgres classifies STABLE, and a STABLE
+     * function cannot appear in an index expression. This is the same measured
+     * constraint `posts_hashtags_search_text` exists for (see
+     * `drizzle/0038_cold_songbird.sql`); `account_lists` and `starter_packs`
+     * index plain `text` columns and so need no function.
+     *
+     * The query adds this as a coarse prefilter and keeps its own exact
+     * clauses as the recheck, so concatenation can only over-admit.
+     */
+    index('custom_feeds_search_trgm_gin').using(
+      'gin',
+      sql`custom_feeds_search_text(${t.title}, ${t.description}, ${t.keywords}) gin_trgm_ops`
+    ),
   ]
 );
 

@@ -1,10 +1,17 @@
 import express, { Request, Response } from "express";
-import { and, asc, desc, eq, gte, lt, max, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, max, sql } from 'drizzle-orm';
 import { HASHTAG_TOKEN_SOURCE } from "@mention/shared-types/hashtags";
 import { getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
+import { getTrendingHashtags, type TrendingHashtagRow } from '../services/trendingHashtagsCache';
+import {
+  countTagsInWindow,
+  searchHashtagsWithCounts,
+  taggedPublicPosts,
+  UNNESTED_TAG,
+} from '../services/search/hashtagSearch';
 import { resolveVariant } from "../services/postVariants";
 import { logger } from "../utils/logger";
 import { queryInt, queryString } from "../utils/queryParams";
@@ -23,111 +30,18 @@ const HASHTAG_SEARCH_MAX_LIMIT = 50;
  */
 const LEGACY_HASHTAG_SEARCH_LIMIT = 5;
 
-/** Upper bound on the raw query we turn into a regex. */
-const HASHTAG_QUERY_MAX_LENGTH = 64;
-
-/** Trending hashtags per page — also the cap, so `?limit` can only narrow it. */
-const TRENDING_HASHTAG_LIMIT = 10;
+/**
+ * Trending rows returned, and the hard ceiling `?limit` can only narrow.
+ *
+ * Exported because it is HALF OF THE CACHE KEY: a test isolating cases by
+ * `limit` would find them all collapsing to this one value.
+ */
+export const TRENDING_HASHTAG_LIMIT = 10;
 
 /** Trailing window for trending counts when `?days` is absent. */
 const DEFAULT_TRENDING_WINDOW_DAYS = 7;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-export interface HashtagSearchResult {
-  tag: string;
-  count: number;
-}
-
-/** One page of hashtag matches plus whether a further page exists. */
-interface HashtagSearchPage {
-  results: HashtagSearchResult[];
-  hasMore: boolean;
-}
-
-/** The public posts a hashtag aggregation ranges over: public, with tags. */
-function taggedPublicPosts(extra?: SQL): SQL {
-  return and(
-    eq(posts.visibility, 'public'),
-    // A cross-post carries its tags on both source objects, and counting both
-    // gives the tag twice the volume one publication earned — the same argument
-    // the bilingual-variant note below makes, one axis over. `trendDetection`
-    // measures its term space the same way.
-    notCollapsedCrosspostSql(),
-    // `cardinality > 0` covers BOTH shapes Mongo needed two clauses for
-    // (`$exists: true` and `$ne: []`); a NULL array is excluded by the
-    // comparison being NULL, which is the same answer.
-    sql`coalesce(cardinality(${posts.hashtags}), 0) > 0`,
-    ...(extra ? [extra] : []),
-  ) as SQL;
-}
-
-/**
- * `unnest(hashtags)` — the analogue of Mongo's `$unwind`, as a lateral join so
- * every tag of every matching post becomes its own row before grouping.
- */
-const UNNESTED_TAG = sql<string>`lower(tag.value)`;
-
-/**
- * One page of matching public hashtags with the number of posts carrying each.
- *
- * The needle is a bound PARAMETER inside a `LIKE` pattern with the pattern's own
- * metacharacters escaped, not a regex: a raw user string interpreted as a pattern
- * was the injection / catastrophic-backtracking risk the Mongo version escaped
- * for, and `LIKE` has only three of them.
- *
- * Paging is a stable keyset: the `{ count desc, tag asc }` sort is fully
- * deterministic (the tag breaks count ties), so `OFFSET` never shuffles rows
- * between pages. One extra row is over-fetched purely to detect `hasMore`
- * without a second count query.
- */
-async function searchHashtagsWithCounts(rawQuery: string, offset: number, limit: number): Promise<HashtagSearchPage> {
-  const needle = rawQuery
-    .trim()
-    .toLowerCase()
-    .slice(0, HASHTAG_QUERY_MAX_LENGTH)
-    .replace(/[\\%_]/g, (char) => `\\${char}`);
-
-  const pattern = `%${needle}%`;
-  const rows = await getDb()
-    .select({ tag: UNNESTED_TAG, count: sql<number>`count(*)::int` })
-    .from(posts)
-    .innerJoin(sql`lateral unnest(${posts.hashtags}) as tag(value)`, sql`true`)
-    .where(and(
-      taggedPublicPosts(),
-      // Redundant with the exact per-element check below on purpose: this one
-      // is what lets Postgres use `posts_hashtags_trgm_gin` (a trigram index
-      // over the CONCATENATED tags) to narrow candidate POSTS cheaply, instead
-      // of unnesting and pattern-matching every tagged post's every tag. It can
-      // only ever admit MORE rows than the real answer (a match spanning a
-      // boundary between two tags), never fewer, so the exact check right
-      // after it is what the result actually depends on — see the index's own
-      // comment in `db/schema/posts.ts`.
-      sql`array_to_string(${posts.hashtags}, ' ') ilike ${pattern}`,
-      sql`lower(tag.value) like ${pattern}`,
-    ))
-    .groupBy(UNNESTED_TAG)
-    .orderBy(desc(sql`count(*)`), asc(UNNESTED_TAG))
-    .offset(offset)
-    .limit(limit + 1);
-
-  const hasMore = rows.length > limit;
-  return { results: hasMore ? rows.slice(0, limit) : rows, hasMore };
-}
-
-/** Per-tag post counts within one time window, keyed by lowercase tag. */
-async function countTagsInWindow(from: Date, until?: Date): Promise<Map<string, number>> {
-  const bounds = until
-    ? and(gte(posts.createdAt, from), lt(posts.createdAt, until)) as SQL
-    : gte(posts.createdAt, from);
-  const rows = await getDb()
-    .select({ tag: UNNESTED_TAG, count: sql<number>`count(*)::int` })
-    .from(posts)
-    .innerJoin(sql`lateral unnest(${posts.hashtags}) as tag(value)`, sql`true`)
-    .where(taggedPublicPosts(bounds))
-    .groupBy(UNNESTED_TAG);
-  return new Map(rows.map((row) => [row.tag, row.count]));
-}
 
 function parseSearchQuery(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
@@ -147,6 +61,17 @@ router.get("/", async (req: Request, res: Response) => {
     const days = Number.parseInt(rawDays, 10);
     const since = Number.isNaN(days) ? undefined : new Date(Date.now() - days * MS_PER_DAY);
 
+    // CACHED, stale-while-revalidate. Everything below is the `compute` this
+    // endpoint used to run on every request: three full `unnest` + `GROUP BY`
+    // aggregates over every public tagged post in the window — ~454ms measured
+    // on 400k posts, all of it a sequential scan. The answer depends only on
+    // `limit` and `days`, never on the viewer, so one entry serves everyone;
+    // `services/trendingHashtagsCache.ts` carries the safety argument and why a
+    // cache rather than the denormalized table that was planned.
+    const hashtags = await getTrendingHashtags(
+      limit,
+      Number.isNaN(days) ? undefined : days,
+      async (): Promise<TrendingHashtagRow[]> => {
     // Primary window aggregation (overall within optional `days`)
     const windowRows = await getDb()
       .select({
@@ -243,7 +168,20 @@ router.get("/", async (req: Request, res: Response) => {
       agg = fallbackArr.map((x) => ({ ...x, direction: (x.count > 0 ? 'up' : 'flat') as 'up' | 'flat' }));
     }
 
-    res.json({ hashtags: agg });
+        // `created_at` is serialized HERE, not left as a `Date`.
+        //
+        // The value round-trips through JSON in Redis, so a cached entry would
+        // come back as a string while a freshly computed one stayed a `Date` —
+        // and `res.json` renders both identically, so the wire format would be
+        // right either way and the TYPE would silently differ for anything
+        // reading it in-process. Converting on the way in makes the two paths
+        // produce the same thing. (`db/schema/CONVENTIONS.md` records the same
+        // trap one layer down, where `db.execute` bypasses drizzle's mappers.)
+        return agg.map((row) => ({ ...row, created_at: row.created_at.toISOString() }));
+      },
+    );
+
+    res.json({ hashtags });
   } catch (error) {
     logger.error('[Hashtags] Error fetching hashtags:', { error, query: req.query });
     res.status(500).json({ message: "Error fetching hashtags from posts", error });

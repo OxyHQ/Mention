@@ -81,7 +81,7 @@
  */
 
 import { canonicalFederationHost } from '@oxy.so/federation';
-import { getOxyServiceCredentials } from '../config';
+import { canAuthenticateAsService } from '../runtime/serviceIdentity';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 import { getBlockedDomainPolicy } from '../connectors/activitypub/federationBlockPolicy';
@@ -835,12 +835,11 @@ export function totalsOf(report: PlatformPurgeReport): Record<string, number> {
  * spend five domains discovering a configuration problem it could state up front.
  */
 function assertServiceCredentialConfigured(): void {
-  const { apiKey, apiSecret } = getOxyServiceCredentials();
-  if (apiKey && apiSecret) return;
+  if (canAuthenticateAsService()) return;
   throw new Error(
-    `[${SCRIPT_NAME}] no Oxy service credential is configured `
-    + '(OXY_SERVICE_API_KEY + OXY_SERVICE_API_SECRET). '
-    + 'The purge endpoint resolves whose data may be deleted from that credential.',
+    `[${SCRIPT_NAME}] this process cannot authenticate as Mention: it can neither `
+    + 'attest its task role nor read an OXY_SERVICE_API_KEY + OXY_SERVICE_API_SECRET pair. '
+    + 'The purge endpoint resolves whose data may be deleted from that identity.',
   );
 }
 

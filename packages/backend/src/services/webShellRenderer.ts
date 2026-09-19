@@ -121,7 +121,7 @@ export function buildOgMetaHtml(og: OgData): string {
 
   let html =
     `<meta property="og:type" content="${type}">` +
-    `<meta property="og:site_name" content="Mention">` +
+    `<meta property="og:site_name" content="${escapeHtml(config.deployment?.branding.name ?? 'Mention')}">` +
     `<meta property="og:url" content="${url}">` +
     `<meta property="og:title" content="${title}">` +
     `<meta property="og:description" content="${description}">` +

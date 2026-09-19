@@ -1696,15 +1696,16 @@
   "feed": {
     "tuning": {
       "title": "For You",
-      "entryDescription": "Tune the quality, engagement, and content filters on your For You feed",
-      "intro": "These filters shape only your For You discovery feed. Accounts you follow are never filtered.",
+      "entryDescription": "Tune the safety, quality, engagement, and content filters on your recommendations",
+      "intro": "These filters shape what Mention recommends to you. Accounts you follow are never filtered.",
       "threshold": "Threshold",
       "signInRequired": "Sign in to tune your For You feed",
       "signInRequiredDesc": "Adjust which quality, engagement, and content filters shape your discovery feed.",
       "categories": {
         "quality": "Quality",
         "engagement": "Engagement",
-        "content": "Content"
+        "content": "Content",
+        "safety": "Safety"
       },
       "minLength": {
         "label": "Minimum length",
@@ -1721,6 +1722,10 @@
       "minQuality": {
         "label": "Minimum quality",
         "description": "Hide discovery posts whose classified quality is below your threshold. Off by default."
+      },
+      "noContentWarning": {
+        "label": "No content warnings",
+        "description": "Keep posts behind a content warning out of your recommendations, unless you follow the author."
       }
     },
     "interstitial": {

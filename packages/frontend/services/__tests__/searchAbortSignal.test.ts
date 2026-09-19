@@ -7,6 +7,7 @@ const mockPublicGet = jest.fn();
 const mockSearchProfiles = jest.fn();
 const mockGetProfileByUsername = jest.fn();
 const mockGetSavedPosts = jest.fn();
+const mockOxyHttpGet = jest.fn();
 
 jest.mock('@/utils/api', () => ({
   authenticatedClient: {
@@ -23,6 +24,13 @@ jest.mock('@/lib/oxyServices', () => ({
     searchProfiles: (...args: unknown[]) => mockSearchProfiles(...args),
     getProfileByUsername: (...args: unknown[]) =>
       mockGetProfileByUsername(...args),
+    // People search goes through the raw `httpService` seam rather than
+    // `searchProfiles`, because that SDK method takes no `AbortSignal`. The mock
+    // has to carry it or the people lane silently falls into its
+    // exact-username fallback and the signal assertion below passes vacuously.
+    httpService: {
+      get: (...args: unknown[]) => mockOxyHttpGet(...args),
+    },
   },
 }));
 
@@ -93,6 +101,25 @@ const canonicalSearchPost: HydratedPost = {
   },
 };
 
+/** A minimal, well-formed overview body: every lane present with a status. */
+function overviewBody(): unknown {
+  const lane = { status: 'ok', items: [], hasMore: false, tookMs: 1 };
+  return {
+    query: 'mention',
+    lanes: {
+      profiles: { ...lane, status: 'skipped' },
+      posts: { ...lane, status: 'unavailable' },
+      saved: { ...lane, status: 'unavailable' },
+      hashtags: lane,
+      lists: lane,
+      feeds: lane,
+      starterPacks: lane,
+    },
+    degraded: true,
+    servedFromCache: false,
+  };
+}
+
 describe('search AbortSignal propagation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -119,10 +146,19 @@ describe('search AbortSignal propagation', () => {
       }
       return Promise.reject(new Error(`unexpected GET ${url}`));
     });
-    mockPublicGet.mockResolvedValue({ data: { items: [] } });
+    mockPublicGet.mockImplementation((url: string) => {
+      if (url === '/search/overview') {
+        return Promise.resolve({ data: overviewBody() });
+      }
+      return Promise.resolve({ data: { items: [] } });
+    });
     mockSearchProfiles.mockResolvedValue({
       data: [],
       pagination: { offset: 0, limit: 20, hasMore: false },
+    });
+    mockOxyHttpGet.mockResolvedValue({
+      data: [],
+      pagination: { total: 0, offset: 0, limit: 20, hasMore: false },
     });
     mockGetSavedPosts.mockResolvedValue({
       success: true,
@@ -139,13 +175,89 @@ describe('search AbortSignal propagation', () => {
       '/search',
       expect.objectContaining({ signal }),
     );
-    expect(mockAuthGet).toHaveBeenCalledWith(
-      '/lists',
+    expect(mockPublicGet).toHaveBeenCalledWith(
+      '/search/overview',
       expect.objectContaining({ signal }),
     );
     expect(mockGetSavedPosts).toHaveBeenCalledWith(
       expect.objectContaining({ signal }),
     );
+  });
+
+  it('issues FOUR requests for the overview, not seven', async () => {
+    const signal = new AbortController().signal;
+
+    await searchService.searchAll('mention', true, signal);
+
+    // Hashtags, lists, feeds and starter packs are now ONE server-side lane
+    // fan-out, so none of their endpoints is called from here any more. What
+    // remains is people (Oxy's own), posts and saved.
+    const publicUrls = mockPublicGet.mock.calls.map(([url]) => url);
+    const authUrls = mockAuthGet.mock.calls.map(([url]) => url);
+    expect(publicUrls).toEqual(['/search/overview']);
+    expect(authUrls).toEqual(['/search']);
+    expect(authUrls).not.toContain('/lists');
+    expect(authUrls).not.toContain('/hashtags/search');
+    expect(publicUrls).not.toContain('/feeds');
+    expect(publicUrls).not.toContain('/starter-packs');
+  });
+
+  it('reports a failed lane as empty rather than inventing results', async () => {
+    const body = overviewBody() as { lanes: Record<string, { status: string; items: unknown[] }> };
+    body.lanes.feeds = { status: 'error', items: [], hasMore: false, tookMs: 5 } as never;
+    mockPublicGet.mockImplementation((url: string) =>
+      Promise.resolve({ data: url === '/search/overview' ? body : { items: [] } }),
+    );
+
+    const results = await searchService.searchAll('mention', true);
+
+    // The lane's failure reaches the client as a STATUS now — previously
+    // `allSettled` collapsed a rejection into an empty section and the client
+    // could not tell the two apart at all.
+    expect(results.feeds).toEqual([]);
+  });
+
+  // People was the ONE lane that could not be cancelled: `searchProfiles` takes
+  // no signal, so every keystroke started a profile search that ran to
+  // completion and had its result discarded while holding a request-queue slot.
+  // Since it is also the slowest lane (Oxy's `/profiles/search` has no trigram
+  // index on `users`), those were the requests starving the live one.
+  it('passes the query-owned signal to the people lane, which could not be cancelled', async () => {
+    const signal = new AbortController().signal;
+
+    await searchService.searchAll('mention', true, signal);
+
+    expect(mockOxyHttpGet).toHaveBeenCalledWith(
+      '/profiles/search',
+      expect.objectContaining({
+        params: expect.objectContaining({ query: 'mention' }),
+        signal,
+      }),
+    );
+    // `searchProfiles` is the un-cancellable path. Nothing in search may use it.
+    expect(mockSearchProfiles).not.toHaveBeenCalled();
+  });
+
+  // The SDK retries anything whose status is not 4xx, and an AbortError carries
+  // `status: 0`. A cancellation is an instruction, not a transient failure, so
+  // it must never reach a fallback lookup or a retry.
+  it('propagates a cancellation instead of falling back to an exact-username lookup', async () => {
+    const abortError = new Error('The operation was aborted');
+    abortError.name = 'AbortError';
+    mockOxyHttpGet.mockRejectedValueOnce(abortError);
+
+    await expect(searchService.searchUsers('mention')).rejects.toThrow(abortError);
+    expect(mockGetProfileByUsername).not.toHaveBeenCalled();
+  });
+
+  it('still falls back to an exact-username lookup on a REAL people-search failure', async () => {
+    mockOxyHttpGet.mockRejectedValueOnce(new Error('upstream exploded'));
+    mockGetProfileByUsername.mockResolvedValueOnce({ id: 'u1', username: 'mention' });
+
+    await expect(searchService.searchUsers('mention')).resolves.toEqual([
+      { id: 'u1', username: 'mention' },
+    ]);
+    expect(mockGetProfileByUsername).toHaveBeenCalledWith('mention');
   });
 
   it('passes the signal through paginated private searches', async () => {
@@ -171,6 +283,20 @@ describe('search AbortSignal propagation', () => {
     );
     expect(mockGetSavedPosts).toHaveBeenCalledWith(
       expect.objectContaining({ page: 2, signal }),
+    );
+  });
+
+  it('passes the signal through the paginated people tab', async () => {
+    const signal = new AbortController().signal;
+
+    await searchService.searchUsersPage('mention', 20, signal);
+
+    expect(mockOxyHttpGet).toHaveBeenCalledWith(
+      '/profiles/search',
+      expect.objectContaining({
+        params: expect.objectContaining({ query: 'mention', offset: 20 }),
+        signal,
+      }),
     );
   });
 

@@ -157,12 +157,16 @@ describe('resolveDiscoveryGate', () => {
     delete process.env.FOR_YOU_DISCOVERY_GATE;
     // Phase 4B adds `minQuality` — NEUTRAL by default (opt-in via feedTuning), so
     // it changes nothing unless a viewer sets a threshold in For You settings.
-    expect(ids(resolveDiscoveryGate())).toEqual(['minLength', 'lowEffortGate', 'nativeEngagement', 'minQuality']);
+    // `noContentWarning` is the recommendation-hygiene rule, ON by default and
+    // scoped by its own followed-author exemption rather than by this list.
+    expect(ids(resolveDiscoveryGate())).toEqual([
+      'minLength', 'lowEffortGate', 'nativeEngagement', 'minQuality', 'noContentWarning',
+    ]);
   });
 
-  it('stamps the `forYouGate` marker on every gate ref', () => {
+  it('stamps the `viewerGateTuning` marker on every gate ref', () => {
     delete process.env.FOR_YOU_DISCOVERY_GATE;
-    expect(resolveDiscoveryGate().every((r) => r.params?.forYouGate === true)).toBe(true);
+    expect(resolveDiscoveryGate().every((r) => r.params?.viewerGateTuning === true)).toBe(true);
   });
 
   it('is empty when explicitly off', () => {

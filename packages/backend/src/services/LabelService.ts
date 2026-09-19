@@ -28,6 +28,7 @@ import {
 } from '../db/schema/moderation';
 import { userSettings, userSettingsLabelActions } from '../db/schema/userProfile';
 import { logger } from '../utils/logger';
+import { likeContains } from '@oxy.so/utils/sql';
 
 export type LabelSeverity = (typeof LABEL_SEVERITIES)[number];
 export type LabelDefaultAction = (typeof LABEL_ACTIONS)[number];
@@ -94,18 +95,6 @@ export interface LabelActionPreference {
 
 /** Search results are bounded; a labeler directory is not a paginated surface. */
 const LABELER_LIST_LIMIT = 200;
-
-/**
- * Escape the characters `LIKE` treats as wildcards.
- *
- * The Mongo version built `new RegExp(escapeRegex(term), 'i')`, which is an
- * UNANCHORED substring match — hence the surrounding `%`. Escaping the regex
- * metacharacters here instead of the LIKE ones would leave `%` and `_` live and
- * turn a user's search string into a wildcard.
- */
-function likeContains(term: string): string {
-  return `%${term.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
-}
 
 /** Drop a key entirely when the column held NULL, matching Mongoose's `undefined`. */
 function optional<T>(value: T | null): { present: false } | { present: true; value: T } {

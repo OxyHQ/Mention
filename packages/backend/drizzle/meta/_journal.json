@@ -295,6 +295,20 @@
       "when": 1789630282103,
       "tag": "0041_job_structured_location",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1789790148271,
+      "tag": "0042_natural_sister_grimm",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1789804781423,
+      "tag": "0043_bitter_lester",
+      "breakpoints": true
     }
   ]
 }

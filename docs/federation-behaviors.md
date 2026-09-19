@@ -159,7 +159,7 @@ nested variant playlists rewrite recursively because fetching one re-enters
 the proxy). Pass-through is not an option: real playlists (Bluesky's) use
 RELATIVE URIs, which a client resolves against `/media/proxy?url=…` and
 never finds. Each emitted URI carries an HMAC (`utils/hlsSignature.ts`, key
-derived from `OXY_SERVICE_API_SECRET`) — that signature is the ONLY thing
+derived from `MENTION_PRIVATE_KEY`) — that signature is the ONLY thing
 that lets `application/octet-stream` through the content-type gate, which is
 how object-store segments (e.g. `video.cdn.bsky.app`) play without turning
 the proxy into a general binary relay. Playlists are excluded from

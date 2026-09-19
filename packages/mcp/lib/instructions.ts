@@ -1,10 +1,14 @@
+import { readManagedDeployment } from '@mention/shared-types/deployment';
+
+const deployment = readManagedDeployment(process.env);
+
 /**
  * Server instructions sent to MCP clients (Claude Web, ChatGPT, etc.).
  */
 export const SERVER_INSTRUCTIONS = `# Mention MCP Server
 
 ## What is Mention?
-Mention (mention.earth) is a social platform. Connect at **https://mcp.mention.earth** from Claude or other MCP clients.
+Mention (${deployment?.publicBaseUrl ?? 'mention.earth'}) is a social platform. Connect at **${deployment?.mcpBaseUrl ?? 'https://mcp.mention.earth'}** from Claude or other MCP clients.
 
 ## Public vs authorized access
 All MCP connections require OAuth authorization in Claude (Settings → Connectors). After connecting, you can read public feeds and profiles and perform account actions (post, like, boost, follow, personalized feeds, search, lists, starter packs, notifications).

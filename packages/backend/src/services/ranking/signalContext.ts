@@ -101,6 +101,8 @@ export interface OptInSignalContext {
    * the map is uncurated ⇒ the signal is exactly neutral.
    */
   authorStarterPackScores?: Map<string, number>;
+  /** Oxy authorId → account standing tier, for `trustTierBoost`. */
+  authorTrustTiers?: Map<string, string>;
 }
 
 /**
@@ -227,6 +229,8 @@ export interface SignalContext {
   dwellAverages?: Map<string, number>;
   viewerRecentTopics?: Set<string>;
   authorStarterPackScores?: Map<string, number>;
+  /** Oxy authorId → account standing tier, for `trustTierBoost`. */
+  authorTrustTiers?: Map<string, string>;
 }
 
 /**
@@ -284,5 +288,6 @@ export function buildSignalContext(
     dwellAverages: context.dwellAverages,
     viewerRecentTopics: context.viewerRecentTopics,
     authorStarterPackScores: context.authorStarterPackScores,
+    authorTrustTiers: context.authorTrustTiers,
   };
 }

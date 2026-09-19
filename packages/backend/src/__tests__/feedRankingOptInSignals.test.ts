@@ -192,6 +192,39 @@ describe('verifiedBoost scorer', () => {
   });
 });
 
+describe('trustTierBoost scorer', () => {
+  const tiers = (tier: string) => new Map([['a1', tier]]);
+  const post = () => makePost({ oxyUserId: 'a1' });
+
+  it('is neutral (1.0) when the tier map is absent or the author is not in it', () => {
+    expect(service.calculateTrustTierBoost(post(), undefined)).toBe(1.0);
+    expect(service.calculateTrustTierBoost(post(), new Map())).toBe(1.0);
+  });
+
+  it('is neutral for a tier it does not weight, including anything unexpected', () => {
+    // `restricted` is the notable one: Oxy never sends it (those accounts are
+    // dropped from the identity batch outright), so if it ever appeared here it
+    // would be a surprise, and a surprise must not move the score.
+    expect(service.calculateTrustTierBoost(post(), tiers('restricted'))).toBe(1.0);
+    expect(service.calculateTrustTierBoost(post(), tiers('not-a-tier'))).toBe(1.0);
+  });
+
+  it('never penalizes — every weighted tier is at or above neutral', () => {
+    for (const tier of ['new', 'trusted', 'high_trust', 'verified']) {
+      expect(service.calculateTrustTierBoost(post(), tiers(tier))).toBeGreaterThanOrEqual(1.0);
+    }
+  });
+
+  it('lifts more for more standing, and a new account exactly not at all', () => {
+    const at = (tier: string) => service.calculateTrustTierBoost(post(), tiers(tier));
+    expect(at('new')).toBe(1.0);
+    expect(at('trusted')).toBeGreaterThan(at('new'));
+    expect(at('high_trust')).toBeGreaterThan(at('trusted'));
+    expect(at('verified')).toBeGreaterThan(at('high_trust'));
+    expect(at('verified')).toBe(R.trustTierBoost.verified);
+  });
+});
+
 describe('dwellTime scorer', () => {
   it('is neutral (1.0) when there is no dwell data', () => {
     expect(service.calculateDwellTimeBoost(makePost({ id: 'p1' }), undefined)).toBe(1.0);

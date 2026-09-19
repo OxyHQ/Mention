@@ -449,3 +449,67 @@ describe('createApp', () => {
     expect(connectSources).not.toContain('https:');
   });
 });
+
+describe('managed instance discovery and branding', () => {
+  it('publishes only this process deployment and uses its own API in CSP', async () => {
+    const { createApp } = await import('../app');
+    const { managedMentionDeploymentSchema, publicDeploymentInfo } = await import('@mention/shared-types/deployment');
+    const { default: example } = await import('../../../shared-types/__tests__/fixtures/managed-deployment.json');
+    const deployment = managedMentionDeploymentSchema.parse(example);
+    const dependencies = createDependencies();
+    dependencies.deployment = publicDeploymentInfo(deployment);
+    dependencies.federationDomain = 'social.alpha.example';
+    dependencies.frontendUrl = deployment.publicBaseUrl;
+    const app = createApp(dependencies);
+    const discovery = await request(app).get('/.well-known/mention-instance')
+      .set('Host', 'api.beta.example').set('X-Forwarded-Host', 'social.beta.example')
+      .set('X-Tenant-Id', '22222222-2222-4222-8222-222222222222').expect(200);
+    expect(discovery.body).toEqual(publicDeploymentInfo(deployment));
+    expect(discovery.text).not.toContain('admin-alpha');
+    expect(discovery.text).not.toContain('member-alpha');
+    expect(discovery.text).not.toContain(deployment.shellBaseUrl);
+    expect(discovery.headers.vary).toContain('Origin');
+    expect(discovery.headers['content-security-policy']).toContain(deployment.apiBaseUrl);
+    expect(discovery.headers['content-security-policy']).toContain('wss://api.alpha.example');
+    expect(discovery.headers['content-security-policy']).not.toContain('api.beta.example');
+
+    const manifest = await request(app).get('/manifest.json').expect(200);
+    expect(manifest.headers['content-type']).toContain('application/manifest+json');
+    expect(manifest.body.name).toBe(deployment.branding.name);
+    expect(manifest.body.theme_color).toBe(deployment.branding.accentColor);
+    expect(manifest.body.icons[0].src).toBe(deployment.branding.iconUrl);
+    expect(manifest.body.share_target.action).toBe('/compose');
+    const nodeinfo = await request(app).get('/nodeinfo/2.0').expect(200);
+    expect(nodeinfo.body.openRegistrations).toBe(false);
+    expect(nodeinfo.body.software.version).toBe(deployment.release.version);
+    expect(nodeinfo.body.metadata.sourceUrl).toBe(deployment.release.sourceUrl);
+    const pointer = await request(app).get('/.well-known/nodeinfo').expect(200);
+    expect(pointer.body.links[0].href).toBe('https://social.alpha.example/nodeinfo/2.0');
+  });
+
+  /**
+   * `iconUrl` is OPTIONAL on the branding schema, so a real deployment can omit
+   * it — and the manifest has to stay valid when it does. `icons: []` is the
+   * honest answer: a manifest with no icons installs with the browser's own
+   * fallback, whereas an entry whose `src` is `undefined` serialises to a
+   * malformed icon that a user agent rejects, taking the whole manifest with it.
+   */
+  it('serves an installable manifest for a deployment that ships no icon', async () => {
+    const { createApp } = await import('../app');
+    const { managedMentionDeploymentSchema, publicDeploymentInfo } = await import('@mention/shared-types/deployment');
+    const { default: example } = await import('../../../shared-types/__tests__/fixtures/managed-deployment.json');
+    const { iconUrl: _omitted, ...brandingWithoutIcon } = example.branding;
+    const deployment = managedMentionDeploymentSchema.parse({ ...example, branding: brandingWithoutIcon });
+    expect(deployment.branding.iconUrl).toBeUndefined();
+
+    const dependencies = createDependencies();
+    dependencies.deployment = publicDeploymentInfo(deployment);
+    dependencies.frontendUrl = deployment.publicBaseUrl;
+
+    const manifest = await request(createApp(dependencies)).get('/manifest.json').expect(200);
+    expect(manifest.headers['content-type']).toContain('application/manifest+json');
+    expect(manifest.body.icons).toEqual([]);
+    expect(manifest.body.name).toBe(deployment.branding.name);
+    expect(manifest.body.theme_color).toBe(deployment.branding.accentColor);
+  });
+});

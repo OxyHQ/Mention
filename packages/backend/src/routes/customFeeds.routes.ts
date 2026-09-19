@@ -46,6 +46,9 @@ import type { CachedUserSummary } from '../services/userSummaryCache';
 import { FEED_CATEGORIES, type PostUser } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
+import { resolvePageLimit, resolvePageOffset } from '@oxy.so/utils/paging';
+import { customFeedSearchPredicate } from '../utils/searchPredicates';
+import { likeContains } from '@oxy.so/utils/sql';
 
 const router = Router();
 
@@ -66,17 +69,6 @@ const DETAIL_MEMBER_PROFILES = 50;
  */
 type UserProfile = PostUser;
 
-/**
- * Escape the characters `LIKE` treats as wildcards.
- *
- * The Mongo version built `new RegExp(escapeRegex(term), 'i')`, which is an
- * UNANCHORED substring match — hence the surrounding `%`. Escaping the REGEX
- * metacharacters here instead of the LIKE ones would leave `%` and `_` live and
- * turn a user's search box into a way to match every feed in the table.
- */
-function likeContains(term: string): string {
-  return `%${term.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
-}
 
 /**
  * A case-insensitive substring match against ANY element of a `text[]` column.
@@ -289,38 +281,36 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     // Add search functionality. Mongo wrapped this in `$and` alongside the
     // mine-or-public `$or`; `and(...)` of the two disjunctions is the same thing.
     if (search && typeof search === 'string' && search.trim()) {
-      const pattern = likeContains(search.trim());
-      conditions.push(
-        or(
-          ilike(customFeeds.title, pattern),
-          ilike(customFeeds.description, pattern),
-          arrayElementMatches(qualified(customFeeds.keywords), pattern),
-        ),
-      );
+      // One definition, shared with `GET /search/overview` — see
+      // `db/search/searchPredicates.ts`.
+      conditions.push(customFeedSearchPredicate(search.trim()));
     }
 
     const where = and(...conditions);
 
-    // Opt-in pagination: with `?limit` present, page the results (offset/limit,
-    // over-fetching one row to detect `hasMore`); without it, keep the historical
-    // "return every accessible feed" behaviour the feeds screen / profile tabs
-    // rely on. `id` breaks `updatedAt` ties so offsets never shuffle rows.
-    const rawLimit = queryInt(req.query.limit);
-    const offset = Math.max(0, queryInt(req.query.offset) ?? 0);
-    const listQuery = getDb()
+    // ALWAYS paginated. An absent `?limit` is a page size, never "every
+    // accessible feed" — which is what it used to mean, and what made this
+    // endpoint unbounded: the search screen calls it with no limit for the
+    // overview, and the home tab asks for every public feed on mount. Both then
+    // paid for relations, like counts, owner profiles and member avatars on
+    // every row the table happened to hold.
+    //
+    // `id` breaks `updatedAt` ties, so the offset order is a strict total order
+    // and a page can never shuffle or skip a row. One row is over-fetched to
+    // detect `hasMore` without a second COUNT.
+    const pageLimit = resolvePageLimit(req.query.limit, {
+      fallback: DEFAULT_FEED_PAGE_SIZE,
+      max: MAX_FEED_PAGE_SIZE,
+    });
+    const offset = resolvePageOffset(req.query.offset);
+    const fetched = await getDb()
       .select()
       .from(customFeeds)
       .where(where)
-      .orderBy(desc(customFeeds.updatedAt), desc(customFeeds.id));
-    let pageLimit: number | undefined;
-    if (rawLimit !== undefined) {
-      pageLimit = Math.min(Math.max(1, rawLimit), MAX_FEED_PAGE_SIZE);
-    }
-    const fetched =
-      pageLimit === undefined
-        ? await listQuery
-        : await listQuery.limit(pageLimit + 1).offset(offset);
-    const hasMore = pageLimit !== undefined && fetched.length > pageLimit;
+      .orderBy(desc(customFeeds.updatedAt), desc(customFeeds.id))
+      .limit(pageLimit + 1)
+      .offset(offset);
+    const hasMore = fetched.length > pageLimit;
     const items = hasMore ? fetched.slice(0, pageLimit) : fetched;
 
     const feedIds = items.map((item) => item.id);
@@ -457,6 +447,21 @@ router.get('/marketplace', async (req: AuthRequest, res: Response) => {
     }
 
     if (search && typeof search === 'string' && search.trim()) {
+      // DELIBERATELY NOT `customFeedSearchPredicate`, and this is the one place
+      // in the search work where sharing would have introduced a bug.
+      //
+      // The marketplace searches `tags` as well as title, description and
+      // keywords. `custom_feeds_search_trgm_gin` is built on
+      // `custom_feeds_search_text(title, description, keywords)` — no `tags` —
+      // so adding that prefilter here would UNDER-admit: a feed matching only
+      // on a tag has nothing matching in the indexed expression and would be
+      // excluded from a result set it belongs in. A prefilter is only sound
+      // when it is a strict SUPERSET of the exact match, and this one is not.
+      //
+      // So this stays a sequential scan until either `tags` joins the indexed
+      // expression (a migration, and it widens every other feed search with it)
+      // or the marketplace stops searching tags (a product decision). Do not
+      // "unify" the two predicates without doing one of those first.
       const pattern = likeContains(search.trim());
       conditions.push(
         or(

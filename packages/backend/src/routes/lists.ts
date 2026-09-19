@@ -1,7 +1,7 @@
 import express, { Response } from 'express';
 import { z } from 'zod';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { config } from '../config';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../db/postgres';
 import {
@@ -10,6 +10,7 @@ import {
   accountListMembers,
   accountLists,
 } from '../db/schema/lists';
+import { accountListSearchPredicate } from '../utils/searchPredicates';
 import { posts } from '../db/schema/posts';
 import { findPostRecords } from '../db/posts/postRepository';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy } from '../mtn/feed/CursorBuilder';
@@ -18,6 +19,7 @@ import { endorsementSignalService } from '../services/EndorsementSignalService';
 import { canViewList } from '../services/listAccess';
 import { logger } from '../utils/logger';
 import { queryInt, queryString } from '../utils/queryParams';
+import { resolvePageLimit, resolvePageOffset } from '@oxy.so/utils/paging';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { feedIPRateLimiter, feedRateLimiter } from '../middleware/security';
 
@@ -40,7 +42,12 @@ const timelineRateLimiters = config.runtime.isProduction
 const DEFAULT_TIMELINE_PAGE_SIZE = 20;
 const MAX_TIMELINE_PAGE_SIZE = 100;
 
-/** Hard cap on the `GET /lists` page size — `?limit` can only narrow it. */
+/**
+ * `GET /lists` page bounds. `?limit` narrows within them and can never escape
+ * them: an ABSENT limit is `DEFAULT_LIST_PAGE_SIZE`, not "every accessible
+ * list", which is what it used to mean.
+ */
+const DEFAULT_LIST_PAGE_SIZE = 20;
 const MAX_LIST_PAGE_SIZE = 100;
 
 /**
@@ -84,16 +91,6 @@ const updateListSchema = z.object({
   memberOxyUserIds: z.unknown().optional(),
 });
 
-/**
- * Escape the characters `LIKE` treats as wildcards.
- *
- * The Mongo version escaped REGEX metacharacters, which is the wrong alphabet
- * here: `%` and `_` are what `ILIKE` reads as patterns, and leaving them live
- * turns the search box into a way to match every list the viewer can see.
- */
-function likeContains(term: string): string {
-  return `%${term.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
-}
 
 /**
  * Fire-and-forget endorsement re-sync for a list whose membership changed.
@@ -340,53 +337,66 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     // raw query can't be read as a wildcard and match everything.
     const search = queryString(req.query.search)?.trim();
     if (search) {
-      const pattern = likeContains(search);
-      conditions.push(
-        or(ilike(accountLists.title, pattern), ilike(accountLists.description, pattern)) as SQL,
-      );
+      // Coarse index-servable prefilter AND the exact match, from the one
+      // definition in `db/search/searchPredicates.ts` — shared with
+      // `GET /search/overview`, because a predicate written twice is two places
+      // for the prefilter (the index) or the recheck (the correctness) to go
+      // missing from one of them.
+      conditions.push(accountListSearchPredicate(search));
     }
     const where = and(...conditions);
 
-    // Opt-in pagination: `?limit` present ⇒ page (offset/limit, over-fetching one
-    // row to detect `hasMore`); absent ⇒ the historical "return every accessible
-    // list" the lists screen / add-to-list sheet depend on. `id` breaks
-    // `updated_at` ties so the order is TOTAL and offsets never shuffle rows
-    // between pages.
-    const rawLimit = queryInt(req.query.limit);
-    const offset = Math.max(0, queryInt(req.query.offset) ?? 0);
-    const pageLimit =
-      rawLimit === undefined ? undefined : Math.min(Math.max(1, rawLimit), MAX_LIST_PAGE_SIZE);
+    // ALWAYS paginated. An absent `?limit` is a page size, never "every
+    // accessible list" — which is what it used to mean, and what let the search
+    // screen's overview pull the whole table and then load members for all of
+    // it. `id` breaks `updated_at` ties so the order is TOTAL and offsets never
+    // shuffle rows between pages; one row is over-fetched to detect `hasMore`.
+    const pageLimit = resolvePageLimit(req.query.limit, {
+      fallback: DEFAULT_LIST_PAGE_SIZE,
+      max: MAX_LIST_PAGE_SIZE,
+    });
+    const offset = resolvePageOffset(req.query.offset);
 
     const db = getDb();
-    const baseQuery = db
-      .select()
-      .from(accountLists)
-      .where(where)
-      .orderBy(desc(accountLists.updatedAt), desc(accountLists.id));
-    const fetched =
-      pageLimit === undefined ? await baseQuery : await baseQuery.limit(pageLimit + 1).offset(offset);
+    // `total` stays EXACT, including for a search — but it no longer runs
+    // SERIALLY after the page query.
+    //
+    // Dropping it for searches was considered and measured, then rejected. The
+    // count used to be expensive for the same reason the page query was: an
+    // `ILIKE '%…%'` with no index that could serve it. But
+    // `account_lists_search_trgm_gin` fixes the CAUSE — measured on 120k rows,
+    // the same count went from 54ms (sequential scan) to 0.21ms for a selective
+    // term — so removing `total` would have been a contract change buying
+    // something the index already bought.
+    //
+    // It now shares a round trip with the page, so it adds wall clock only if
+    // it is slower than the page query itself. Serially, its cost was added to
+    // every request that asked for a page.
+    //
+    // `::int` so postgres.js hands back a NUMBER: a bare `count(*)` is a
+    // bigint, which the driver returns as a STRING, and `total` would silently
+    // change type on the wire.
+    const [fetched, [counted]] = await Promise.all([
+      db
+        .select()
+        .from(accountLists)
+        .where(where)
+        .orderBy(desc(accountLists.updatedAt), desc(accountLists.id))
+        .limit(pageLimit + 1)
+        .offset(offset),
+      db.select({ total: sql<number>`count(*)::int` }).from(accountLists).where(where),
+    ]);
+    const total = counted.total;
 
-    const hasMore = pageLimit !== undefined && fetched.length > pageLimit;
+    const hasMore = fetched.length > pageLimit;
     const page = hasMore ? fetched.slice(0, pageLimit) : fetched;
     const membersByList = await loadMembersByList(db, page.map((row) => row.id));
     const serialized = page.map((row) => serializeList(row, membersByList.get(row.id) ?? []));
 
-    let total = serialized.length;
-    if (pageLimit !== undefined) {
-      // `::int` so postgres.js hands back a NUMBER: a bare `count(*)` is a
-      // bigint, which the driver returns as a STRING, and `total` would silently
-      // change type on the wire.
-      const [counted] = await db
-        .select({ total: sql<number>`count(*)::int` })
-        .from(accountLists)
-        .where(where);
-      total = counted.total;
-    }
-
     res.json({
       items: serialized,
       total,
-      pagination: { offset, limit: pageLimit ?? serialized.length, hasMore },
+      pagination: { offset, limit: pageLimit, hasMore },
     });
   } catch (error) {
     logger.error('[Lists] Failed to list lists', { userId: req.user?.id, error });

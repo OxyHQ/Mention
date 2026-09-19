@@ -1,116 +1,48 @@
-import { canAttestWorkloadIdentity } from '@oxy.so/core/server';
-import { CrowdSource } from '@oxy.so/crowdsource';
-import { config, getOxyServiceCredentials } from '../../config';
+import {
+  crowdSourceForOxyService,
+  resetCrowdSourceForOxyService,
+  type CrowdSource,
+} from '@crowdsource.you/core';
+
+import { config } from '../../config';
 import { logger } from '../../utils/logger';
-import { getServiceOxyClient } from '../../utils/oxyHelpers';
 
 /**
- * The CrowdSource client, built once and only where it can authenticate.
+ * Mention's CrowdSource client, which is now three lines of application policy
+ * around a library call.
  *
- * There is deliberately almost nothing here. The SDK already owns the base URL,
- * the timeouts, the bounded per-attempt retries, the idempotency key and the
- * error classification, and a wrapper that re-implemented any of them would be a
- * second answer to a question that has one.
+ * Everything this file used to hold — build once, present the Oxy service token,
+ * decide whether this process can authenticate at all, resolve the tenant at
+ * boot so an unbound application is visible before the first report — moved into
+ * `@crowdsource.you/core`. It had to: Homiio and Allo each carried their own
+ * copy of the same hundred lines, Homiio's being this one with the name swapped,
+ * and none of those decisions were ever Mention's to make.
  *
- * ## Mention holds no CrowdSource key
- *
- * It presents the Oxy service token it already has — the same one the media
- * store, the capability authority and the inference client use — and CrowdSource
- * resolves the tenant from the Oxy application that token names (oxy ADR 0026,
- * and `oxyApplicationAuth.ts` on the CrowdSource side). Nothing is issued by
- * hand, stored in a parameter store or rotated by a person.
- *
- * `applicationId` therefore appears nowhere, as before, but for a new reason:
- * the token names an OXY application, so the client asks CrowdSource which
- * tenant that is, once, and remembers the answer.
+ * What is left below is the part that genuinely IS Mention's.
  */
 
-let client: CrowdSource | null = null;
-let unavailable: string | null = null;
-
-/**
- * Whether this process can prove it is Mention to Oxy.
- *
- * Two ways, and a deployment has one of them without anybody configuring it: in
- * ECS the task role attests (there is no secret), and elsewhere a service api
- * key does. A local checkout has neither, which is the honest answer to "is the
- * integration on here" — and the reason this replaced `CROWDSOURCE_ENABLED`. A
- * flag says what somebody typed; this says what the process can actually do.
- */
-function canAuthenticateAsMention(): boolean {
-  if (canAttestWorkloadIdentity()) return true;
-  const { apiKey, apiSecret } = getOxyServiceCredentials();
-  return Boolean(apiKey && apiSecret);
-}
-
-/**
- * The client, or `undefined` where Mention cannot authenticate.
- *
- * `undefined` rather than a throw: that is the normal state of a local checkout,
- * and a report filed there must still be stored. The delivery worker is what
- * notices there is nowhere to send it — the durable row is never gated.
- *
- * The reason is logged once. Once, because the alternative is a line per
- * delivery attempt per report, which buries the cause it is meant to reveal.
- */
+/** The client, or `undefined` where this deployment cannot authenticate. */
 export function getCrowdSourceClient(): CrowdSource | undefined {
-  if (client) return client;
-  if (unavailable !== null) return undefined;
-
-  if (!canAuthenticateAsMention()) {
-    unavailable = 'this process cannot obtain an Oxy service token';
-    logger.info('[CrowdSource] client not built', { reason: unavailable });
-    return undefined;
-  }
-
-  client = new CrowdSource({
-    /**
-     * Asked once per request attempt. `getServiceToken()` caches and re-mints on
-     * expiry, which is exactly the contract the SDK documents for this option.
-     *
-     * The SERVICE client, not the per-request one: it is the instance this
-     * process configured with its own credentials, and the one that falls back
-     * to attesting the task role when there are none.
-     */
-    oxyToken: () => getServiceOxyClient().getServiceToken(),
+  return crowdSourceForOxyService({
     ...(config.crowdSource.baseUrl === undefined
       ? {}
       : { baseUrl: config.crowdSource.baseUrl }),
+    logger: {
+      info: (message, context) => logger.info(message, context),
+      error: (message, context) => logger.error(message, context),
+    },
   });
-
-  /**
-   * Resolve the tenant once, in the background, so a missing BINDING is visible
-   * at boot rather than on the first report.
-   *
-   * A token this deployment can mint for an Oxy application nobody bound to a
-   * CrowdSource tenant authenticates nothing, and that failure is otherwise
-   * indistinguishable from "no reports yet". Nothing waits on this: the client
-   * is usable, the SDK resolves the same promise for its own calls, and a
-   * rejection here is the log line, not a broken boot.
-   */
-  void Promise.resolve(client.applicationId).then(
-    (applicationId) => {
-      logger.info('[CrowdSource] client ready', { applicationId });
-    },
-    (error: unknown) => {
-      logger.error('[CrowdSource] client built but the tenant did not resolve', {
-        reason: error instanceof Error ? error.message : String(error),
-      });
-    },
-  );
-
-  return client;
 }
 
 /**
  * Whether reports may LEAVE this deployment.
  *
- * Stricter than having a client, on purpose. A report that is delivered with no
- * way to receive the decision is worse than one held locally: the case is
- * judged, the outcome is signed to an endpoint nothing verifies, and the gap is
- * invisible until somebody wonders why nothing ever came back. So the webhook
- * secret — the one thing here that is genuinely configuration — gates the
- * delivery loop.
+ * Stricter than having a client, on purpose, and this one IS Mention's call. A
+ * report delivered with no way to receive the decision is worse than one held
+ * locally: the case is judged, the outcome is signed to an endpoint nothing
+ * verifies, and the gap is invisible until somebody wonders why nothing ever
+ * came back. So the webhook secret — the one thing here that is genuinely
+ * configuration — gates the delivery loop.
  *
  * It does not gate the client. Community notes are a request and its answer,
  * with no webhook in the path, and holding them for a secret they never use
@@ -122,6 +54,5 @@ export function canDeliverToCrowdSource(): boolean {
 
 /** Test hook. Production builds the client once and keeps it for the process. */
 export function resetCrowdSourceClient(): void {
-  client = null;
-  unavailable = null;
+  resetCrowdSourceForOxyService();
 }

@@ -51,6 +51,11 @@ const DEFINITIONS = {
     help: 'Feed discovery candidates rejected by the discovery gate',
     labelNames: ['reason', 'source', 'shadow'],
   },
+  feed_author_gate_neutral_total: {
+    kind: 'counter',
+    help: 'Feed candidates an author-aware gate filter could not judge, and therefore kept',
+    labelNames: ['reason', 'source'],
+  },
   feed_federated_share: {
     kind: 'gauge',
     help: 'Federated share of a feed candidate pool',

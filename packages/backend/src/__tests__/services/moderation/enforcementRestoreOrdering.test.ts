@@ -26,7 +26,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { decisionFixture } from '@oxy.so/crowdsource-testing';
+import { decisionFixture } from '@crowdsource.you/core/testing';
 
 import { closePostgres, connectPostgres, type Database } from '../../../db/postgres';
 import { moderationEnforcements } from '../../../db/schema/moderation';

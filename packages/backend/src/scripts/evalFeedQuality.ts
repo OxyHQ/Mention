@@ -119,6 +119,8 @@ export interface EvalScoredRow {
   score: number;
   gated: boolean;
   gateReason?: string;
+  /** EVERY gate module that rejects this candidate, not just the first. */
+  gateRejectedBy: string[];
   quality: number | null;
   languages: string[];
   topReason: string;
@@ -142,8 +144,15 @@ export interface EvalReport {
     precision: number | null;
     /** rejectedJunk / labeledJunk; null when there is no labeled junk. */
     recall: number | null;
-    /** reason (rejecting filter id) → count, over ALL candidates. */
+    /** reason (FIRST rejecting filter id) → count, over ALL candidates. */
     reasons: Record<string, number>;
+    /**
+     * Per-module attribution, counting EVERY module that rejects a candidate
+     * rather than only the one that got there first. This is what answers "is
+     * this particular rule worth enforcing" — the aggregate precision above
+     * cannot, because it describes the gate as a whole.
+     */
+    byModule: Record<string, { rejected: number; rejectedJunk: number; rejectedGood: number }>;
   };
   quality: {
     all: Percentiles;
@@ -244,18 +253,31 @@ export function withClassification(
   };
 }
 
-/** Evaluate the gate modules in order; the first rejecting module is the reason. */
+/**
+ * Evaluate the gate modules. `reason` is the FIRST rejecting module, matching what
+ * the engine records; `rejectedBy` is EVERY one of them.
+ *
+ * The engine short-circuits, and it should — it only needs a label. An evaluation
+ * cannot, because short-circuiting makes per-module precision unanswerable: a post
+ * that `lowEffortGate` rejects first hides the fact that `authorHasAvatar` would
+ * have rejected it too, so the second module's numbers depend on the order of the
+ * list rather than on what it does. Deciding whether a rule is worth enforcing is
+ * the whole reason this harness exists.
+ */
 export function evaluateGate(
   post: CandidatePost,
   ctx: FeedEngineContext,
   gateModules: EvalGateModule[],
-): { passed: boolean; reason?: string } {
+): { passed: boolean; reason?: string; rejectedBy: string[] } {
+  const rejectedBy: string[] = [];
   for (const module of gateModules) {
     if (!module.keep(post, ctx, module.params)) {
-      return { passed: false, reason: module.id };
+      rejectedBy.push(module.id);
     }
   }
-  return { passed: true };
+  return rejectedBy.length === 0
+    ? { passed: true, rejectedBy }
+    : { passed: false, reason: rejectedBy[0], rejectedBy };
 }
 
 /** Nearest-rank p10/p50/p90 over a numeric sample (empty ⇒ all zeros). */
@@ -331,6 +353,7 @@ export async function runFeedQualityEval(deps: FeedQualityEvalDeps): Promise<Eva
       score,
       gated: !gateResult.passed,
       gateReason: gateResult.reason,
+      gateRejectedBy: gateResult.rejectedBy,
       quality: trusted ? trusted.quality : null,
       languages: signals.languages,
       topReason: explanation.topReason,
@@ -367,8 +390,16 @@ function buildReport(
   const rejectedGood = goodRows.filter((r) => r.gated).length;
   const totalRejected = rejectedJunk + rejectedGood;
   const reasons: Record<string, number> = {};
+  const byModule: Record<string, { rejected: number; rejectedJunk: number; rejectedGood: number }> = {};
   for (const r of rows) {
     if (r.gated && r.gateReason) reasons[r.gateReason] = (reasons[r.gateReason] ?? 0) + 1;
+    for (const moduleId of r.gateRejectedBy) {
+      const entry = byModule[moduleId] ?? { rejected: 0, rejectedJunk: 0, rejectedGood: 0 };
+      entry.rejected += 1;
+      if (r.label === 'junk') entry.rejectedJunk += 1;
+      if (r.label === 'good') entry.rejectedGood += 1;
+      byModule[moduleId] = entry;
+    }
   }
 
   // Trusted-quality distributions.
@@ -403,6 +434,7 @@ function buildReport(
       precision: totalRejected > 0 ? rejectedJunk / totalRejected : null,
       recall: junkRows.length > 0 ? rejectedJunk / junkRows.length : null,
       reasons,
+      byModule,
     },
     quality: {
       all: percentiles(trustedAllQ),
@@ -573,6 +605,25 @@ export function formatReportLines(report: EvalReport): string[] {
     .map(([reason, count]) => `${reason}=${count}`)
     .join(', ');
   lines.push(`    reasons: ${reasonLine || '(none)'}`);
+  // Per MODULE, counting every rejection rather than only the first — this is the
+  // table you read to decide whether one particular rule earns being enforced.
+  // `good` is the column that matters: a rule rejecting labeled-good posts is a
+  // rule taking real content away.
+  const byModule = Object.entries(report.gate.byModule).sort((a, b) => b[1].rejected - a[1].rejected);
+  lines.push('    per module (rejected / junk / good):');
+  if (byModule.length === 0) {
+    lines.push('      (none)');
+  } else {
+    for (const [moduleId, counts] of byModule) {
+      const precision = counts.rejectedJunk + counts.rejectedGood > 0
+        ? fmtPct(counts.rejectedJunk / (counts.rejectedJunk + counts.rejectedGood))
+        : 'n/a';
+      lines.push(
+        `      ${moduleId.padEnd(20)} ${String(counts.rejected).padStart(5)} `
+        + `${String(counts.rejectedJunk).padStart(5)} ${String(counts.rejectedGood).padStart(5)}   precision=${precision}`,
+      );
+    }
+  }
   lines.push('');
   lines.push(`  TRUSTED QUALITY (p10/p50/p90, n=${report.quality.trustedCount}):`);
   lines.push(`    all : ${fmt(report.quality.all.p10)}/${fmt(report.quality.all.p50)}/${fmt(report.quality.all.p90)} (n=${report.quality.all.n})`);

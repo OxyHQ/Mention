@@ -7,6 +7,7 @@ import { viewerStorageKey, type ViewerId } from "@/lib/viewerQueryKeys";
 import type { User } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
 import type { StarterPackSummary } from './starterPacksService';
+import type { SearchOverviewResponse } from '@mention/shared-types';
 
 const logger = createLogger('SearchService');
 
@@ -150,9 +151,12 @@ export interface SearchStarterPacksPage {
 /** The page window `GET /starter-packs` echoes back on every listing. */
 interface StarterPackListResponse {
   items?: SearchStarterPackResult[];
-  total?: number;
+  /** `null` when not computed — a SEARCH does not pay for a `count(*)`. */
+  total?: number | null;
   page?: number;
-  totalPages?: number;
+  totalPages?: number | null;
+  /** The paging signal. Derived from an over-fetched row, not from a total. */
+  hasMore?: boolean;
 }
 
 const SEARCH_HISTORY_KEY = 'mention_search_history';
@@ -244,6 +248,66 @@ function emptyIfSignedOut<T>(error: unknown, source: string): T[] {
   throw error;
 }
 
+/**
+ * A cancellation, as opposed to a failure.
+ *
+ * React Query aborts the previous query's signal on every new one, so a
+ * cancelled search must NOT fall through to a fallback lookup or an error
+ * state — the caller no longer wants the answer. The SDK surfaces both a
+ * caller abort and a timeout as an `AbortError` with `status: 0`, so the name
+ * is what distinguishes them from a real HTTP failure.
+ */
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === 'AbortError' || error.name === 'CanceledError')
+  );
+}
+
+/**
+ * People search, cancellable.
+ *
+ * `oxyServices.searchProfiles()` accepts no `AbortSignal` (its signature is
+ * `(query, pagination)`), which made People the ONE search lane that could not
+ * be cancelled: every keystroke started a profile search that ran to
+ * completion and had its result thrown away, while holding one of the SDK
+ * request queue's ten slots. Since people search is also the slowest lane —
+ * Oxy's `/profiles/search` has no trigram index on `users`, so it is a
+ * sequential scan — those zombies were the ones starving the live request.
+ *
+ * So this calls the same endpoint through the public `httpService` seam, which
+ * DOES take a signal. It deliberately mirrors the SDK method rather than
+ * improving on it: same path, same query params, and the same `cache: true` /
+ * 2-minute TTL, because a people search repeated inside two minutes is the
+ * common case and that cache is the one piece of the SDK path worth keeping.
+ *
+ * `retry: false` is belt-and-braces — the client-wide `enableRetry: false` in
+ * `utils/api.ts` covers the Mention client, and this one is the Oxy instance.
+ * Delete this helper and pass the signal to `searchProfiles` directly once the
+ * SDK accepts one (see the note in `utils/api.ts`).
+ *
+ * The OTHER `searchProfiles` call sites (starter packs, lists, privacy
+ * screens) are one-shot and not typed into, so they stay on the SDK method.
+ */
+async function searchProfilesCancellable(
+  query: string,
+  pagination: { limit: number; offset?: number },
+  signal?: AbortSignal,
+): Promise<{ data: SearchUserResult[]; pagination?: { total?: number; limit?: number; offset?: number; hasMore?: boolean } }> {
+  const params: Record<string, unknown> = { query, limit: pagination.limit };
+  if (pagination.offset !== undefined) params.offset = pagination.offset;
+
+  const response = await oxyServices.httpService.get<{
+    data?: SearchUserResult[];
+    pagination?: { total?: number; limit?: number; offset?: number; hasMore?: boolean };
+  }>('/profiles/search', { params, signal, retry: false, cache: true, cacheTTL: 2 * 60 * 1000 });
+
+  if (!response || !Array.isArray(response.data)) {
+    throw new Error('Unexpected search response format');
+  }
+  return { data: response.data, pagination: response.pagination };
+}
+
 class SearchService {
   // Search posts - query is passed raw to backend which parses operators
   async searchPosts(
@@ -288,12 +352,12 @@ class SearchService {
   }
 
   // Search users via Oxy services
-  async searchUsers(query: string): Promise<SearchUserResult[]> {
+  async searchUsers(query: string, signal?: AbortSignal): Promise<SearchUserResult[]> {
     try {
-      // Use OxyServices searchProfiles method
-      const { data } = await oxyServices.searchProfiles(query, { limit: 20 });
+      const { data } = await searchProfilesCancellable(query, { limit: 20 }, signal);
       return Array.isArray(data) ? data : [];
     } catch (error) {
+      if (isAbortError(error)) throw error;
       logger.warn("Profile search failed, falling back to exact username lookup", { error });
 
       // Fallback: an exact username match still gives the viewer something useful.
@@ -307,18 +371,20 @@ class SearchService {
   // (`{ limit, offset }` → `{ data, pagination: { offset, limit, hasMore } }`) on
   // a stable native-first sort, so offset paging never repeats a row. Drives the
   // infinite People tab.
-  async searchUsersPage(query: string, offset = 0): Promise<SearchUsersPage> {
+  async searchUsersPage(query: string, offset = 0, signal?: AbortSignal): Promise<SearchUsersPage> {
     try {
-      const { data, pagination } = await oxyServices.searchProfiles(query, {
-        limit: SEARCH_PAGE_LIMIT,
-        offset,
-      });
+      const { data, pagination } = await searchProfilesCancellable(
+        query,
+        { limit: SEARCH_PAGE_LIMIT, offset },
+        signal,
+      );
       return {
         users: Array.isArray(data) ? data : [],
         hasMore: pagination?.hasMore ?? false,
         nextOffset: (pagination?.offset ?? offset) + (pagination?.limit ?? SEARCH_PAGE_LIMIT),
       };
     } catch (error) {
+      if (isAbortError(error)) throw error;
       // The exact-username fallback only makes sense for the FIRST page — a deeper
       // page has no single match to fall back to, so its failure is real.
       if (offset > 0) throw error;
@@ -326,19 +392,6 @@ class SearchService {
       const exactMatch = await oxyServices.getProfileByUsername(query);
       return { users: exactMatch ? [exactMatch] : [], hasMore: false, nextOffset: SEARCH_PAGE_LIMIT };
     }
-  }
-
-  // Search feeds — the compact "All" overview (returns every public match in one
-  // shot; the paginated tab uses `searchFeedsPage`).
-  async searchFeeds(
-    query: string,
-    signal?: AbortSignal,
-  ): Promise<SearchFeedResult[]> {
-    const res = await publicClient.get<{ items?: SearchFeedResult[] }>("/feeds", {
-      params: { publicOnly: true, search: query },
-      signal,
-    });
-    return res.data.items || [];
   }
 
   // Paginated feeds search — `GET /feeds` offset-paginates once `limit` is
@@ -360,23 +413,6 @@ class SearchService {
       hasMore: pagination?.hasMore ?? false,
       nextOffset: (pagination?.offset ?? offset) + (pagination?.limit ?? SEARCH_PAGE_LIMIT),
     };
-  }
-
-  // Search lists — the compact "All" overview (returns every accessible match in
-  // one shot; the paginated tab uses `searchListsPage`).
-  async searchLists(
-    query: string,
-    signal?: AbortSignal,
-  ): Promise<SearchListResult[]> {
-    try {
-      const res = await authenticatedClient.get<{ items?: SearchListResult[] }>("/lists", {
-        params: { search: query },
-        signal,
-      });
-      return res.data.items || [];
-    } catch (error) {
-      return emptyIfSignedOut<SearchListResult>(error, "lists");
-    }
   }
 
   // Paginated lists search — `GET /lists` filters by `search` (name/description)
@@ -409,20 +445,6 @@ class SearchService {
     }
   }
 
-  // Search hashtags — `GET /hashtags/search` answers with each matching tag and
-  // the number of posts carrying it, so the result row can show a real count.
-  // Compact "All" overview; the paginated tab uses `searchHashtagsPage`.
-  async searchHashtags(
-    query: string,
-    signal?: AbortSignal,
-  ): Promise<SearchHashtagResult[]> {
-    const res = await authenticatedClient.get<{ hashtags?: SearchHashtagResult[] }>("/hashtags/search", {
-      params: { query, limit: SEARCH_OVERVIEW_HASHTAG_LIMIT },
-      signal,
-    });
-    return res.data.hashtags ?? [];
-  }
-
   // Paginated hashtag search — `GET /hashtags/search` offset-paginates
   // (`{ hashtags, pagination: { offset, limit, hasMore } }`) on a stable
   // `{ count desc, tag asc }` sort, so offset paging never repeats a row. Drives
@@ -444,25 +466,6 @@ class SearchService {
     };
   }
 
-  // Search starter packs — the compact "All" overview (the paginated tab uses
-  // `searchStarterPacksPage`).
-  //
-  // Deliberately on the PUBLIC client, unlike `starterPacksService.list`: the
-  // route reads `req.user?.id` optionally and answers anonymous callers, so a
-  // signed-out viewer gets real results here exactly as they do for feeds and
-  // hashtags. Routing it through the authenticated client would 401 them into a
-  // silently empty section instead.
-  async searchStarterPacks(
-    query: string,
-    signal?: AbortSignal,
-  ): Promise<SearchStarterPackResult[]> {
-    const res = await publicClient.get<StarterPackListResponse>("/starter-packs", {
-      params: { search: query, limit: SEARCH_PAGE_LIMIT },
-      signal,
-    });
-    return res.data.items ?? [];
-  }
-
   // Paginated starter-pack search — `GET /starter-packs` page-paginates
   // (`{ page, limit }` → `{ items, total, page, totalPages }`) on a stable,
   // TOTAL sort (`useCount desc, createdAt desc, _id desc`), so page paging never
@@ -477,9 +480,14 @@ class SearchService {
       signal,
     });
     const currentPage = res.data.page ?? page;
+    // Prefer the explicit `hasMore`. A search no longer computes `totalPages`
+    // (the `count(*)` behind it scanned the same unindexed predicate the page
+    // query already walked), so deriving paging from a total would read "not
+    // counted" as "no more pages" and silently stop the infinite scroll after
+    // one page. The total-based form stays as the fallback for an older server.
     return {
       starterPacks: res.data.items ?? [],
-      hasMore: currentPage < (res.data.totalPages ?? 0),
+      hasMore: res.data.hasMore ?? currentPage < (res.data.totalPages ?? 0),
       nextPage: currentPage + 1,
     };
   }
@@ -527,17 +535,69 @@ class SearchService {
     }
   }
 
+  /**
+   * The overview's four server-assembled lanes, in ONE request.
+   *
+   * `GET /search/overview` replaces four of the seven this screen used to fire —
+   * hashtags, lists, public feeds and starter packs — and does the fan-out
+   * server-side, where the lanes share one viewer-context resolution and one
+   * owner-profile batch instead of resolving their own.
+   *
+   * It is on the PUBLIC api, so unlike `/search` and `/lists` it answers a
+   * signed-out viewer with real results rather than a 401. `canUsePrivateApi`
+   * therefore does not gate it.
+   *
+   * A lane that failed server-side arrives as `error` / `timeout` rather than as
+   * an empty array, which is the distinction this client used to destroy: its
+   * `allSettled` collapsed a rejected source into an empty section, so an outage
+   * rendered as a confident "no results". Those are logged and surfaced as an
+   * empty section for now — the section-level UI to say "this part is
+   * unavailable" is a separate change — but the information reaches the client,
+   * which it previously could not.
+   */
+  private async searchOverview(
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<Pick<SearchResults, 'feeds' | 'hashtags' | 'lists' | 'starterPacks'>> {
+    const res = await publicClient.get<SearchOverviewResponse>("/search/overview", {
+      params: { q: query },
+      signal,
+    });
+    const lanes = res.data?.lanes;
+    if (!lanes) throw new Error("Unexpected search overview response");
+
+    const laneItems = <T>(name: keyof SearchOverviewResponse['lanes']): T[] => {
+      const lane = lanes[name];
+      if (!lane) return [];
+      if (lane.status === 'error' || lane.status === 'timeout') {
+        logger.warn("A search lane did not complete", { lane: name, status: lane.status });
+        return [];
+      }
+      return (lane.items ?? []) as T[];
+    };
+
+    return {
+      feeds: laneItems<SearchFeedResult>('feeds'),
+      hashtags: laneItems<SearchHashtagResult>('hashtags'),
+      lists: laneItems<SearchListResult>('lists'),
+      starterPacks: laneItems<SearchStarterPackResult>('starterPacks'),
+    };
+  }
+
   // Search all - shows users above posts in "all" tab.
   //
-  // The PUBLIC sources (users via Oxy, feeds via the public client, hashtags on
-  // the public router) run for every viewer. The AUTH-GATED sources (posts,
-  // lists, saved — all behind the authenticated API) only fire once the private
-  // API is ready: during the SSO cold-boot the viewer can be authenticated while
-  // the private API is still pending, and firing then would 401 (console noise,
-  // not a result). Those sections stay empty until the search query refetches on
-  // `canUsePrivateApi` flipping true (it is part of the search query key), then
-  // fill in. A signed-out viewer keeps them empty for good — a quiet "nothing
-  // here", never a 401 storm.
+  // FOUR requests now, not seven: the overview above carries hashtags, lists,
+  // feeds and starter packs together, leaving people (Oxy's own endpoint) and
+  // the two post-bearing sources on their own.
+  //
+  // The AUTH-GATED sources (posts, saved — both behind the authenticated API)
+  // only fire once the private API is ready: during the SSO cold-boot the viewer
+  // can be authenticated while the private API is still pending, and firing then
+  // would 401 (console noise, not a result). Those sections stay empty until the
+  // search query refetches on `canUsePrivateApi` flipping true (it is part of the
+  // search query key), then fill in. A signed-out viewer keeps them empty for
+  // good — a quiet "nothing here", never a 401 storm. `lists` is no longer among
+  // them: the overview serves it publicly.
   //
   // One flaky source must not blank the whole screen, so sources settle
   // independently: a partial failure degrades to that section being empty, and
@@ -547,25 +607,20 @@ class SearchService {
     canUsePrivateApi: boolean,
     signal?: AbortSignal,
   ): Promise<SearchResults> {
-    const [users, feeds, hashtags, starterPacks, posts, lists, saved] = await Promise.allSettled([
-      this.searchUsers(query),
-      this.searchFeeds(query, signal),
-      this.searchHashtags(query, signal),
-      this.searchStarterPacks(query, signal),
+    const [users, overview, posts, saved] = await Promise.allSettled([
+      this.searchUsers(query, signal),
+      this.searchOverview(query, signal),
       canUsePrivateApi ? this.searchPosts(query, signal) : Promise.resolve<SearchPostResult[]>([]),
-      canUsePrivateApi ? this.searchLists(query, signal) : Promise.resolve<SearchListResult[]>([]),
       canUsePrivateApi ? this.searchSaved(query, signal) : Promise.resolve<SearchPostResult[]>([]),
     ]);
 
     // The gated sources short-circuit to a resolved empty page when the private
     // API isn't ready, so exclude them from the total-failure count — otherwise a
     // signed-out viewer with healthy public sources could never surface a real
-    // error, and a fulfilled no-op would mask one. Starter packs are PUBLIC, so
-    // they count in both shapes: leaving a real source out of this list would let
-    // its failure hide behind the others.
+    // error, and a fulfilled no-op would mask one.
     const activeSources = canUsePrivateApi
-      ? [users, feeds, hashtags, starterPacks, posts, lists, saved]
-      : [users, feeds, hashtags, starterPacks];
+      ? [users, overview, posts, saved]
+      : [users, overview];
     const rejections = activeSources.filter(
       (result): result is PromiseRejectedResult => result.status === 'rejected',
     );
@@ -580,14 +635,18 @@ class SearchService {
     const valueOf = <T>(result: PromiseSettledResult<T[]>): T[] =>
       result.status === 'fulfilled' ? result.value : [];
 
+    const lanes = overview.status === 'fulfilled'
+      ? overview.value
+      : { feeds: [], hashtags: [], lists: [], starterPacks: [] };
+
     return {
       posts: valueOf(posts),
       users: valueOf(users),
-      feeds: valueOf(feeds),
-      lists: valueOf(lists),
-      hashtags: valueOf(hashtags),
+      feeds: lanes.feeds,
+      lists: lanes.lists,
+      hashtags: lanes.hashtags,
       saved: valueOf(saved),
-      starterPacks: valueOf(starterPacks),
+      starterPacks: lanes.starterPacks,
     };
   }
 

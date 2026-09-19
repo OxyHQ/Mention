@@ -41,6 +41,31 @@ export const ACCOUNT_LIST_MAX_MEMBERS = 500;
 export const ACCOUNT_LIST_MAX_MEMBER_ID_LENGTH = 128;
 
 /** `account_lists` — a user-curated set of accounts, followable as a subscription. */
+/**
+ * The text `GET /lists?search=` searches, as ONE expression.
+ *
+ * Shared verbatim between `account_lists_search_trgm_gin` and the coarse
+ * prefilter in `routes/lists.ts`, so the index and the query cannot drift. An
+ * index and a predicate that merely LOOK alike drift silently: the index stops
+ * being used and the query goes back to scanning, with nothing to notice but
+ * latency.
+ *
+ * `sql.raw` with snake_case names, following `postContent.ts`'s
+ * `SEARCH_VECTOR_EXPRESSION`: an index expression is built before the table
+ * object exists, so there are no columns to interpolate. `lower`, `coalesce`
+ * and `||` are all IMMUTABLE, which is what makes it legal in an index — unlike
+ * `array_to_string`, which is only STABLE and is why `posts_hashtags_trgm_gin`
+ * needs a wrapper function and these do not.
+ */
+export const ACCOUNT_LISTS_SEARCH_TEXT = sql.raw(
+  "lower(coalesce(title, '') || ' ' || coalesce(description, ''))"
+);
+
+/** As {@link ACCOUNT_LISTS_SEARCH_TEXT}, for `starter_packs` (`name`, not `title`). */
+export const STARTER_PACKS_SEARCH_TEXT = sql.raw(
+  "lower(coalesce(name, '') || ' ' || coalesce(description, ''))"
+);
+
 export const accountLists = pgTable(
   'account_lists',
   {
@@ -65,6 +90,27 @@ export const accountLists = pgTable(
     index('account_lists_public_chrono_idx')
       .on(t.createdAt.desc())
       .where(sql`${t.isPublic}`),
+    /**
+     * `GET /lists?search=` is `title ILIKE '%term%' OR description ILIKE
+     * '%term%'` — a SUBSTRING match, which no b-tree can serve, so this
+     * listing was a sequential scan of `account_lists` (and, with a `?limit`
+     * present, a second one for the `count(*)`).
+     *
+     * TRIGRAM over the CONCATENATION of the two columns, following the idiom
+     * `posts_hashtags_trgm_gin` established: the query adds this as a coarse
+     * prefilter and keeps its own two exact `ILIKE`s as the recheck. A
+     * substring of either column is a substring of the concatenation, so the
+     * prefilter can only over-admit (a match spanning the title/description
+     * boundary), never under-admit — the exact clauses stay the predicate the
+     * answer depends on.
+     *
+     * One index rather than two, for the same reason as there: one bitmap scan
+     * and one set of write-time maintenance instead of a `BitmapOr` over two.
+     */
+    index('account_lists_search_trgm_gin').using(
+      'gin',
+      sql`${ACCOUNT_LISTS_SEARCH_TEXT} gin_trgm_ops`
+    ),
   ]
 );
 
@@ -136,6 +182,11 @@ export const starterPacks = pgTable(
       .where(sql`${t.sourceUri} is not null`),
     index('starter_packs_owner_chrono_idx').on(t.ownerOxyUserId, t.createdAt.desc()),
     index('starter_packs_use_count_idx').on(t.useCount.desc(), t.createdAt.desc()),
+    /** As `account_lists_search_trgm_gin`, for `GET /starter-packs?search=`. */
+    index('starter_packs_search_trgm_gin').using(
+      'gin',
+      sql`${STARTER_PACKS_SEARCH_TEXT} gin_trgm_ops`
+    ),
   ]
 );
 
