@@ -10,7 +10,7 @@
       "packages/*"
     ],
     "catalog": {
-      "@oxy.so/bloom": "^2.12.4",
+      "@oxy.so/bloom": "^3.0.1",
       "@oxy.so/contracts": "^1.3.0",
       "@oxy.so/core": "^1.6.1",
       "@oxy.so/mcp": "^1.0.0",
@@ -138,5 +138,8 @@
   "patchedDependencies": {
     "expo-router@57.0.18": "patches/expo-router@57.0.18.patch",
     "expo-video@57.0.3": "patches/expo-video@57.0.3.patch"
+  },
+  "dependencies": {
+    "@oxy.so/core": "^1.6.1"
   }
 }

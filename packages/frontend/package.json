@@ -103,7 +103,7 @@
     "babel-plugin-module-resolver": "^5.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "expo": "~57.0.19",
+    "expo": "~57.0.24",
     "expo-asset": "~57.0.16",
     "expo-audio": "~57.0.4",
     "expo-blur": "~57.0.2",
