@@ -11,6 +11,27 @@ const workflowNames = (await readdir(workflowsDirectory))
   .filter((name) => /\.ya?ml$/i.test(name))
   .sort();
 
+/** A JSON array of names, or nothing at all — a malformed value is the YAML gate's business, not this one's. */
+function parseJsonNames(value) {
+  const parsed = parseJsonValue(value);
+  return Array.isArray(parsed) ? parsed.filter((name) => typeof name === "string") : [];
+}
+
+/** A JSON object of name → SSM ARN, or nothing at all. */
+function parseJsonObject(value) {
+  const parsed = parseJsonValue(value);
+  return parsed != null && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+}
+
+function parseJsonValue(value) {
+  if (typeof value !== "string" || value.trim() === "") return undefined;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+}
+
 const failures = [];
 for (const workflowName of workflowNames) {
   const source = await readFile(resolve(workflowsDirectory, workflowName), "utf8");
@@ -25,6 +46,44 @@ for (const workflowName of workflowNames) {
 
   if (document.errors.length === 0) {
     const workflow = document.toJS();
+    /**
+     * A secret may not be REMOVED and OVERRIDDEN in the same deploy step.
+     *
+     * `deploy-ecs-image.sh` already refuses this, and refuses it for a good
+     * reason — the render filters the running revision's secrets by name and
+     * THEN concatenates the overrides, so a name in both lists has an outcome
+     * that depends on the order of two operations on secrets, which is not a
+     * thing to leave to reading order. But it refuses at DEPLOY time, after the
+     * image is built and pushed, which means the contradiction is invisible
+     * until production stops moving.
+     *
+     * It did. `deploy-mcp-aws.yml` named the Oxy pair in both lists, and every
+     * `mention-mcp` deploy died before its rollout for a day — long enough that
+     * the service was still serving an image from before the code that the
+     * failed deploys were carrying. Nothing in CI said a word, because both
+     * declarations are individually valid YAML and individually correct.
+     *
+     * So the same rule runs here, where it costs a pull request a red check
+     * instead of costing production a day.
+     */
+    for (const [jobName, job] of Object.entries(workflow?.jobs || {})) {
+      for (const step of job?.steps || []) {
+        const env = step?.env;
+        if (env == null) continue;
+        const removals = [
+          ...String(env.TASK_SECRET_REMOVALS ?? "").split(/\s+/),
+          ...parseJsonNames(env.TASK_SECRET_REMOVALS_JSON),
+        ].filter(Boolean);
+        const overridden = Object.keys(parseJsonObject(env.TASK_SECRET_OVERRIDES_JSON));
+        const both = removals.filter((name) => overridden.includes(name));
+        for (const name of both) {
+          failures.push(
+            `${workflowName}: ${jobName} declares ${name} in both TASK_SECRET_OVERRIDES_JSON and the removals — ` +
+              "`deploy-ecs-image.sh` refuses that at deploy time, so it fails every release rather than one review",
+          );
+        }
+      }
+    }
     if (source.includes("configure-aws-credentials")) {
       for (const [jobName, job] of Object.entries(workflow?.jobs || {})) {
         if (job?.environment != null) {

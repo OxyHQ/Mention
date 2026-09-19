@@ -129,13 +129,33 @@ jobs:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-mcp.sh
           POST_DEPLOY_TASK_COMMAND_JSON: '["bun","packages/mcp/dist/register-capability-catalog.js"]'
-          # OXY_SERVICE_API_KEY/SECRET: the MCP task proves what it is by attesting its
-          # ECS task role and gets the same Oxy service token with no secret (oxy ADR
-          # 0026). Naming them here is what actually takes them off the definition —
-          # a revision is rendered from the RUNNING one, so deleting a line removes
-          # nothing. The post-deploy catalog registration runs in the cluster and
-          # attests the same way.
-          TASK_SECRET_REMOVALS: OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET
+          # OXY_SERVICE_API_KEY/SECRET are NOT removed here, and naming them was
+          # doing two kinds of damage at once.
+          #
+          # The first is that it never ran. The same two names are in
+          # TASK_SECRET_OVERRIDES_JSON below, and `deploy-ecs-image.sh` refuses a
+          # name declared in both lists rather than resolving it — the render
+          # filters by name and then concatenates the overrides, so the outcome
+          # would depend on the order of two operations on SECRETS. Every MCP
+          # deploy has died on `OXY_SERVICE_API_KEY is in both
+          # TASK_SECRET_OVERRIDES_JSON and TASK_SECRET_REMOVALS`, before the
+          # rollout, which is why this service is still serving an image that
+          # predates the code tolerating the pair's absence.
+          #
+          # The second is what would have happened if it HAD run. The MCP task can
+          # attest its ECS task role (oxy ADR 0026) and does mint a real service
+          # token that way — but not the same authority: the workload mint drops
+          # every privileged scope on purpose, and Mention's credential names
+          # `catalogs:write`, which is exactly what
+          # `POST /capabilities/catalogs/register` requires. That call is
+          # POST_DEPLOY_TASK_COMMAND_JSON above. The removal would have broken the
+          # deploy's own last step.
+          #
+          # Not theoretical: the backend's pair came off at task revision 384 and
+          # its federation worker failed every ~6 minutes with `Missing required
+          # scope: federation:write` until revision 389 put it back. The pair
+          # leaves both services when the BINDING can carry those scopes (oxy, in
+          # flight) and these roles have been re-bound.
           TASK_SECRET_OVERRIDES_JSON: >-
             {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention-mcp/MENTION_MCP_JWT_SECRET","OXY_SERVICE_API_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/OXY_SERVICE_API_SECRET"}
         # Session stickiness must be declared in oxy-infra. The deploy role has
