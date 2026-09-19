@@ -48,6 +48,7 @@ import type { BaselineContentClassifier, ClassifyInput } from '../services/Basel
 import type { FeedRankingService } from '../services/FeedRankingService';
 import type { CandidatePost, FeedEngineContext, DiscoveryGateBucket } from '../mtn/feed/engine/types';
 import { originForFederation } from '../mtn/feed/feedMetrics';
+import type { CachedUserSummary } from '../services/userSummaryCache';
 import type {
   FeedQualityLabel,
   LabeledActor,
@@ -87,6 +88,18 @@ export interface EvalContext {
   viewerBaseLanguages?: string[];
   feedTuning?: FeedTuning;
   followingIds?: string[];
+  /**
+   * Author identities for the candidate set, resolved by `main()` exactly as the
+   * engine resolves them per request.
+   *
+   * Without it the AUTHOR-AWARE gate filters cannot decide anything — they are
+   * written to treat an unknown author as neutral — so every one of them would
+   * report `rejected = 0` here, and the per-module table below would read that
+   * as "this rule rejects nothing" rather than "this harness never asked it".
+   * The rules whose rollout is supposed to be decided from that table are
+   * precisely the author-aware ones.
+   */
+  authorSummaries?: ReadonlyMap<string, CachedUserSummary>;
   /** Opt-in ranking signal ids to enable (the For You Phase-2b/4 set). */
   enabledSignals?: Set<string>;
 }
@@ -302,18 +315,38 @@ function ratio(numerator: number, denominator: number): number {
  * {@link EvalReport}. PURE: every dependency is injected, so this runs identically
  * with real models/services or in-memory mocks (the unit test).
  */
+/**
+ * Resolve the candidate set's authors, the same batch the engine resolves per
+ * request, so the author-aware gate filters can actually decide something here.
+ *
+ * DYNAMIC import, matching how this script reaches Postgres below. A static one
+ * pulls `PostHydrationService` — and with it the database — into the one-shot's
+ * import graph before `main()` has connected, which is what
+ * `oneShotPoolCoverage` exists to catch.
+ */
+async function resolveAuthorSummariesForEval(
+  candidates: EvalCandidate[],
+): Promise<ReadonlyMap<string, CachedUserSummary> | undefined> {
+  const { resolveAuthorQuality } = await import('../mtn/feed/authorQuality.js');
+  return resolveAuthorQuality(candidates, (candidate) => candidate.post.oxyUserId);
+}
+
 export async function runFeedQualityEval(deps: FeedQualityEvalDeps): Promise<EvalReport> {
   const { candidates, classifier, ranking, gateModules, context, viewerId, topK } = deps;
 
+  // The gate context has to be the one PRODUCTION builds, field for field. Each
+  // time this has drifted it has done so silently: a filter reading a field the
+  // harness forgot does not fail, it goes neutral, and its measurement then says
+  // the rule is harmless. `viewerBaseLanguages` was the first (the harness was
+  // measuring a reader whose languages were unknown); `followingIdSet` and
+  // `authorSummaries` are the two the author-aware filters read.
   const gateCtx: FeedEngineContext = {
     currentUserId: viewerId,
     followingIds: context.followingIds ?? [],
+    followingIdSet: new Set(context.followingIds ?? []),
+    authorSummaries: context.authorSummaries,
     userBehavior: context.userBehavior,
     feedTuning: context.feedTuning,
-    // BOTH fields, because the gate context has to be the one production builds:
-    // `viewerBaseLanguages` is what the discovery predicate and ranking read, and
-    // setting only the locale field left the harness measuring a reader whose
-    // languages were unknown.
     viewerBaseLanguages: context.viewerBaseLanguages,
   };
 
@@ -863,6 +896,7 @@ async function main(): Promise<void> {
         viewerBaseLanguages,
         feedTuning: viewerContext?.feedTuning,
         followingIds: viewerContext?.followingIds,
+        authorSummaries: await resolveAuthorSummariesForEval(candidates),
         enabledSignals,
       },
       viewerId: args.viewerId,

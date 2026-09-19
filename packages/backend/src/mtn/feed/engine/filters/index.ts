@@ -198,6 +198,28 @@ function matchesAnyWord(post: CandidatePost, words: string[]): boolean {
 }
 
 /**
+ * Whether the viewer follows a candidate's author.
+ *
+ * Two representations of one fact reach this context: the engine builds
+ * `followingIdSet` on every request, and `followingIds` is the list it comes
+ * from. Reading the set matters because these predicates run per CANDIDATE, and
+ * the readers with the longest follow lists are exactly the ones who would pay
+ * for a linear scan.
+ *
+ * The array fallback is here, once, rather than in each filter — a context
+ * assembled by hand (a test, the offline eval harness) legitimately carries only
+ * the list, and three filters each deciding what to do about that is how they
+ * came to disagree.
+ */
+function viewerFollows(post: CandidatePost, ctx: FeedEngineContext): boolean {
+  const authorId = post.oxyUserId;
+  if (!authorId) return false;
+  return ctx.followingIdSet
+    ? ctx.followingIdSet.has(authorId)
+    : (ctx.followingIds ?? []).includes(authorId);
+}
+
+/**
  * The resolved account behind a candidate, from the batch the engine ran for this
  * request, or `undefined` when there is none to be had.
  *
@@ -287,8 +309,7 @@ export const noContentWarningFilter: FilterModule = {
     const tuning = gateTuning(ctx, params, 'noContentWarning');
     if (tuning?.enabled === false) return true;
     if (!hasFederatedContentWarning(post)) return true;
-    const authorId = post.oxyUserId;
-    return !!authorId && ctx.followingIdSet?.has(authorId) === true;
+    return viewerFollows(post, ctx);
   },
 };
 
@@ -401,10 +422,7 @@ export const excludeFollowingFilter: FilterModule = {
   id: 'excludeFollowing',
   kind: 'filter',
   userComposable: true,
-  keep: (post, ctx) => {
-    const following = ctx.followingIds ?? [];
-    return !post.oxyUserId || !following.includes(post.oxyUserId);
-  },
+  keep: (post, ctx) => !viewerFollows(post, ctx),
 };
 
 /** `hasImage`: keep only posts carrying an image. */
@@ -787,11 +805,7 @@ export const verifiedFollowsOnlyFilter: FilterModule = {
   userComposable: true,
   needsAuthor: true,
   keep: (post, ctx) => {
-    if (!post.oxyUserId) return false;
-    const follows = ctx.followingIdSet
-      ? ctx.followingIdSet.has(post.oxyUserId)
-      : (ctx.followingIds ?? []).includes(post.oxyUserId);
-    if (!follows) return false;
+    if (!viewerFollows(post, ctx)) return false;
     const verified = authorVerified(post, ctx);
     return verified === undefined ? true : verified === true;
   },
