@@ -23,9 +23,9 @@ configured therefore publishes nothing, which is what the old
 `OXY_ECOSYSTEM_ACTIVITY_ENABLED=false` was there to ask for.
 
 `AWS_REGION` supplies the process location. Publication authenticates with the
-Oxy service token — from `OXY_SERVICE_API_KEY`/`OXY_SERVICE_API_SECRET` where
-they are still configured, and from the task role's attestation where they are
-not. Producer configuration is validated before listening. Each process registers a fresh instance, refreshes its lease,
+Oxy service token, which Mention's deployment obtains by attesting its ECS task
+role — there is no key pair on it any more. A checkout that sets
+`OXY_SERVICE_API_KEY`/`OXY_SERVICE_API_SECRET` still uses them. Producer configuration is validated before listening. Each process registers a fresh instance, refreshes its lease,
 and removes it during graceful shutdown. Crashed instances disappear when their
 lease expires. Oxy broadcasts authoritative snapshots over Socket.IO.
 

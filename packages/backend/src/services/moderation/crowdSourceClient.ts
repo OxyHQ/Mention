@@ -1,6 +1,6 @@
-import { canAttestWorkloadIdentity } from '@oxy.so/core/server';
 import { CrowdSource } from '@oxy.so/crowdsource';
-import { config, getOxyServiceCredentials } from '../../config';
+import { config } from '../../config';
+import { canAuthenticateAsService } from '../../runtime/serviceIdentity';
 import { logger } from '../../utils/logger';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 
@@ -29,21 +29,6 @@ let client: CrowdSource | null = null;
 let unavailable: string | null = null;
 
 /**
- * Whether this process can prove it is Mention to Oxy.
- *
- * Two ways, and a deployment has one of them without anybody configuring it: in
- * ECS the task role attests (there is no secret), and elsewhere a service api
- * key does. A local checkout has neither, which is the honest answer to "is the
- * integration on here" — and the reason this replaced `CROWDSOURCE_ENABLED`. A
- * flag says what somebody typed; this says what the process can actually do.
- */
-function canAuthenticateAsMention(): boolean {
-  if (canAttestWorkloadIdentity()) return true;
-  const { apiKey, apiSecret } = getOxyServiceCredentials();
-  return Boolean(apiKey && apiSecret);
-}
-
-/**
  * The client, or `undefined` where Mention cannot authenticate.
  *
  * `undefined` rather than a throw: that is the normal state of a local checkout,
@@ -57,7 +42,7 @@ export function getCrowdSourceClient(): CrowdSource | undefined {
   if (client) return client;
   if (unavailable !== null) return undefined;
 
-  if (!canAuthenticateAsMention()) {
+  if (!canAuthenticateAsService()) {
     unavailable = 'this process cannot obtain an Oxy service token';
     logger.info('[CrowdSource] client not built', { reason: unavailable });
     return undefined;

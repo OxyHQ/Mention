@@ -14,14 +14,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  */
 
 /**
- * The playlist-component signature derives its key from the Oxy service secret,
+ * The playlist-component signature derives its key from `MENTION_PRIVATE_KEY`,
  * which config reads at import time — so it has to be in place before any module
- * under test loads. `vi.hoisted` is the only hook that runs that early. The two
- * credentials must be set together or config rejects them.
+ * under test loads. `vi.hoisted` is the only hook that runs that early. The
+ * signing trio must be set together or config rejects it.
  */
 vi.hoisted(() => {
-  process.env.OXY_SERVICE_API_KEY = 'test-service-key';
-  process.env.OXY_SERVICE_API_SECRET = 'test-service-secret';
+  process.env.MENTION_DID = 'did:web:mention.test';
+  process.env.MENTION_PRIVATE_KEY = 'test-federation-private-key';
+  process.env.MENTION_PUBLIC_KEY = 'test-federation-public-key';
 });
 
 /** In-process no-op rate limiter store (rate limiting is not under test). */

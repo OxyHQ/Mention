@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { getOxyServiceCredentials } from '../config';
+import { getMentionSigningValues } from '../config';
 import { logger } from './logger';
 
 /**
@@ -32,24 +32,31 @@ export const HLS_SIGNATURE_PARAM = 'hls';
 const HLS_SIGNATURE_KEY_LABEL = 'mention:hls-media-proxy:v1';
 
 /**
- * Resolve the HMAC signing key (memoized), derived from the always-present Oxy
- * service secret so no additional secret has to be provisioned. Returns null
- * only when that secret is absent (an unconfigured environment), in which case
- * playlists are still rewritten and still play wherever the upstream labels its
- * segments honestly — only the octet-stream allowance is unavailable.
+ * Resolve the HMAC signing key (memoized), derived from `MENTION_PRIVATE_KEY` so
+ * no additional secret has to be provisioned. Returns null only when that key is
+ * absent (an unconfigured environment), in which case playlists are still
+ * rewritten and still play wherever the upstream labels its segments honestly —
+ * only the octet-stream allowance is unavailable.
+ *
+ * It used to derive from `OXY_SERVICE_API_SECRET`, called "always-present" back
+ * when it was. It is not: Mention authenticates to Oxy by attesting its task
+ * role, and the pair is being removed from the deployment (oxy ADR 0026). The
+ * federation signing key is provisioned wherever Mention federates and is not
+ * something an identity migration takes away. Same reasoning, and the same
+ * change, as `gifMediaProxy.ts`.
  */
 let cachedKey: Buffer | null | undefined;
 function resolveSigningKey(): Buffer | null {
   if (cachedKey !== undefined) return cachedKey;
 
-  const serviceSecret = getOxyServiceCredentials().apiSecret;
-  if (serviceSecret && serviceSecret.length > 0) {
-    cachedKey = createHmac('sha256', serviceSecret).update(HLS_SIGNATURE_KEY_LABEL).digest();
+  const federationKey = getMentionSigningValues().privateKey;
+  if (federationKey && federationKey.length > 0) {
+    cachedKey = createHmac('sha256', federationKey).update(HLS_SIGNATURE_KEY_LABEL).digest();
     return cachedKey;
   }
 
   logger.error(
-    '[HlsSignature] No signing key available (set OXY_SERVICE_API_SECRET); HLS segments served as application/octet-stream will be rejected',
+    '[HlsSignature] No signing key available (set MENTION_PRIVATE_KEY); HLS segments served as application/octet-stream will be rejected',
   );
   cachedKey = null;
   return cachedKey;

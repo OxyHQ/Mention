@@ -255,7 +255,17 @@ jobs:
           # A standing absence assertion: every revision is derived from the
           # live one, so merely stopping the GitHub-to-SSM sync would otherwise
           # keep injecting this retired provider credential forever.
-          TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN
+          # OXY_SERVICE_API_KEY/SECRET: Mention authenticates to Oxy by attesting
+          # its ECS task role (oxy ADR 0026, binding written 2026-09-18), so the
+          # pair is a secret nothing reads any more. Removing it here is what
+          # actually takes it off the task definition — a render derives from the
+          # RUNNING one, so the parameters can stay in SSM until mention-mcp,
+          # which reads the same two, has moved too.
+          TASK_SECRET_REMOVALS: >-
+            ALIA_API_KEY
+            OXY_SERVICE_TOKEN
+            OXY_SERVICE_API_KEY
+            OXY_SERVICE_API_SECRET
           # Variables that now say what the code already decides, and would
           # otherwise ride every future revision forward: the render derives from
           # the RUNNING task definition, so deleting a line here removes nothing.
