@@ -2,7 +2,21 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
 type Endpoints = { api: string; socket: string; web: string; redirect: string; widget: { apiBaseUrl: string; webBaseUrl: string } };
-function evaluateConfig(overrides: Record<string, string>): Endpoints {
+
+/**
+ * The child gets PATH, HOME and the overrides under test — NOTHING else. That
+ * is the point: `config.ts` has to resolve from what a deployment sets, not
+ * from whatever this developer's shell happens to be carrying.
+ *
+ * `NODE_ENV` is named in the signature rather than left to the index signature
+ * because Expo declares it REQUIRED on `ProcessEnv` (`expo/types/metro-require.d.ts`),
+ * so a bag typed only as `Record<string, string>` cannot satisfy `execFileSync`'s
+ * `env`. Every case below already passes it, and the union keeps a typo like
+ * `'prod'` from reaching the child as a silently unrecognised mode.
+ */
+type ConfigOverrides = Record<string, string> & { NODE_ENV: 'development' | 'production' | 'test' };
+
+function evaluateConfig(overrides: ConfigOverrides): Endpoints {
   const root = path.resolve(__dirname, '..');
   const program = `
     import * as client from ${JSON.stringify(path.join(root, 'config.ts'))};

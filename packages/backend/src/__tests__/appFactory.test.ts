@@ -486,4 +486,30 @@ describe('managed instance discovery and branding', () => {
     const pointer = await request(app).get('/.well-known/nodeinfo').expect(200);
     expect(pointer.body.links[0].href).toBe('https://social.alpha.example/nodeinfo/2.0');
   });
+
+  /**
+   * `iconUrl` is OPTIONAL on the branding schema, so a real deployment can omit
+   * it — and the manifest has to stay valid when it does. `icons: []` is the
+   * honest answer: a manifest with no icons installs with the browser's own
+   * fallback, whereas an entry whose `src` is `undefined` serialises to a
+   * malformed icon that a user agent rejects, taking the whole manifest with it.
+   */
+  it('serves an installable manifest for a deployment that ships no icon', async () => {
+    const { createApp } = await import('../app');
+    const { managedMentionDeploymentSchema, publicDeploymentInfo } = await import('@mention/shared-types/deployment');
+    const { default: example } = await import('../../../shared-types/__tests__/fixtures/managed-deployment.json');
+    const { iconUrl: _omitted, ...brandingWithoutIcon } = example.branding;
+    const deployment = managedMentionDeploymentSchema.parse({ ...example, branding: brandingWithoutIcon });
+    expect(deployment.branding.iconUrl).toBeUndefined();
+
+    const dependencies = createDependencies();
+    dependencies.deployment = publicDeploymentInfo(deployment);
+    dependencies.frontendUrl = deployment.publicBaseUrl;
+
+    const manifest = await request(createApp(dependencies)).get('/manifest.json').expect(200);
+    expect(manifest.headers['content-type']).toContain('application/manifest+json');
+    expect(manifest.body.icons).toEqual([]);
+    expect(manifest.body.name).toBe(deployment.branding.name);
+    expect(manifest.body.theme_color).toBe(deployment.branding.accentColor);
+  });
 });

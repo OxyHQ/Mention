@@ -37,7 +37,12 @@ export interface CreateAppDependencies {
  * hosts, the Oxy API/CDN origins, inline styles and `data:` images/fonts, so
  * nothing it provides is restated here — only what is specific to Mention.
  */
-const MENTION_CSP_EXTENSIONS: OxyCspExtensions = {
+// `satisfies`, not an annotation: the type check against `OxyCspExtensions` is
+// the same, but the inferred type keeps `connectSrc` a DEFINITE array. Under an
+// annotation every key is optional, so spreading it below needs a `?? []` whose
+// empty side this literal can never take — an unreachable branch that only
+// exists to satisfy the declared type, and that coverage then reports forever.
+const MENTION_CSP_EXTENSIONS = {
   connectSrc: [
     'blob:',
     'data:',
@@ -66,7 +71,7 @@ const MENTION_CSP_EXTENSIONS: OxyCspExtensions = {
     'https://bandcamp.com',
   ],
   workerSrc: ['blob:'],
-};
+} satisfies OxyCspExtensions;
 
 /**
  * Build the HTTP application only.
@@ -126,7 +131,7 @@ export function createApp(deps: CreateAppDependencies): express.Express {
     csp: {
       ...MENTION_CSP_EXTENSIONS,
       connectSrc: [
-        ...(MENTION_CSP_EXTENSIONS.connectSrc ?? []),
+        ...MENTION_CSP_EXTENSIONS.connectSrc,
         deps.deployment?.apiBaseUrl ?? 'https://api.mention.earth',
         (deps.deployment?.apiBaseUrl ?? 'https://api.mention.earth').replace(/^https:/, 'wss:'),
       ],
