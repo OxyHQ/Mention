@@ -256,6 +256,29 @@ jobs:
           # live one, so merely stopping the GitHub-to-SSM sync would otherwise
           # keep injecting this retired provider credential forever.
           TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN
+          # Variables that now say what the code already decides, and would
+          # otherwise ride every future revision forward: the render derives from
+          # the RUNNING task definition, so deleting a line here removes nothing.
+          #
+          # ATPROTO_ENABLED and FEDERATION_MEDIA_CACHE_WRITE_ENABLED are on by
+          # default; INTERNAL_METRICS_ENABLED is gone entirely (holding the token
+          # is being enabled, and this deploy is what wires the token);
+          # OXY_ECOSYSTEM_ACTIVITY_ENABLED is gone too (a deployed process knows
+          # it is deployed); POST_CLASSIFICATION_ENABLED was set to the code's own
+          # default, which is a line that can only ever drift; and
+          # MENTION_FRONTEND_ORIGIN was set to the value the schema already
+          # defaults to.
+          #
+          # A standing list, not a one-off: it is re-applied on every deploy, so a
+          # variable somebody re-adds by hand to the live definition does not
+          # quietly survive.
+          TASK_ENV_REMOVALS: >-
+            ATPROTO_ENABLED
+            FEDERATION_MEDIA_CACHE_WRITE_ENABLED
+            INTERNAL_METRICS_ENABLED
+            OXY_ECOSYSTEM_ACTIVITY_ENABLED
+            POST_CLASSIFICATION_ENABLED
+            MENTION_FRONTEND_ORIGIN
           # DELIBERATELY UNSET, and it must stay that way — this is the variable
           # that used to run `reconcile-engagement-projections.js` after every
           # rollout. `deploy-ecs-image.sh` still supports it; nothing here needs

@@ -88,14 +88,12 @@ export const MEDIA_CACHE_EVICTION_INTERVAL_MS = 60 * SECONDS_PER_MINUTE * MS_PER
  *
  * The proxy read-path hooks (cache lookup, serve-from-Oxy when already cached,
  * access bump, pending upsert) are always safe and active. The WORKER (which
- * uploads bytes to Oxy) and the EVICTION job (which deletes Oxy objects) require
- * a backend service-client capability that does NOT yet exist upstream: the Oxy
- * `/assets/upload` and `DELETE /assets/:id` routes are gated by `authMiddleware`
- * (session-user tokens only) and reject service tokens, and the SDK's
- * `uploadRawFile`/`deleteFile` do not attach the service token. See the upstream
- * report. Until oxy-api/oxy-core expose a service-token upload+delete path, this
- * stays `false` so no half-working write traffic is generated. Flip to `true`
- * (and wire the real upload/delete calls in oxyMediaStore.ts) once upstream lands.
+ * uploads bytes to Oxy) and the EVICTION job (which deletes Oxy objects) need a
+ * service-token upload and delete path on Oxy. That did not exist when this flag
+ * was written, which is why it defaulted closed; it exists now and
+ * `oxyMediaStore.ts` uses it, so the default is open and production has been
+ * running that way. Set `FEDERATION_MEDIA_CACHE_WRITE_ENABLED=false` to close
+ * the write side again.
  */
 export const MEDIA_CACHE_WRITE_ENABLED =
   config.federation.mediaCacheWriteEnabled;

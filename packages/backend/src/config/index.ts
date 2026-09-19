@@ -364,7 +364,13 @@ const environmentSchema = z
     FEDERATION_BLOCKED_DOMAINS: commaSeparatedDomains(),
     CROSSPOST_RECHECK_INTERVAL_MS: integerFromEnv(60_000, { minimum: 1_000, maximum: 86_400_000 }),
     CROSSPOST_RECHECK_BATCH_SIZE: integerFromEnv(100, { minimum: 1, maximum: 1_000 }),
-    FEDERATION_MEDIA_CACHE_WRITE_ENABLED: booleanFromEnv(false),
+    /**
+     * ON by default. It was closed while Oxy had no service-token upload or
+     * delete route, which is no longer true — `oxyMediaStore.ts` uses one — and
+     * production has carried it as `true` since. A default nothing runs is not a
+     * default.
+     */
+    FEDERATION_MEDIA_CACHE_WRITE_ENABLED: booleanFromEnv(true),
 
     MENTION_MCP_PUBLIC_URL: z.preprocess(
       emptyAsUndefined,
@@ -378,7 +384,13 @@ const environmentSchema = z
     MCP_OAUTH_REDIRECT_URIS_CHATGPT: separatedUrls(chatGptRedirects),
     MENTION_MCP_JWT_SECRET: optionalString(32),
 
-    ATPROTO_ENABLED: booleanFromEnv(false),
+    /**
+     * ON by default. The read/discovery path it gates has been rolled out and
+     * production has carried `ATPROTO_ENABLED=true` since then, so `false` was
+     * a default no deployment used and one more line in every task definition.
+     * `ATPROTO_BRIDGE_ENABLED` below stays closed: that one WRITES.
+     */
+    ATPROTO_ENABLED: booleanFromEnv(true),
     ATPROTO_APPVIEW: z.preprocess(emptyAsUndefined, host.default('public.api.bsky.app')),
     ATPROTO_PLC_DIRECTORY: z.preprocess(emptyAsUndefined, host.default('plc.directory')),
     ATPROTO_BRIDGE_ENABLED: booleanFromEnv(false),
@@ -464,7 +476,16 @@ const environmentSchema = z
       z.enum(['observe', 'manual', 'automatic']).default('observe'),
     ),
 
-    INTERNAL_METRICS_ENABLED: booleanFromEnv(false),
+    /**
+     * There is no `INTERNAL_METRICS_ENABLED`, and it is not coming back.
+     *
+     * The route already answers 404 without a token — deliberately, so the
+     * surface is hidden rather than advertised — so a flag beside the token
+     * could only ever say "on" while the thing stayed off, or "off" while a
+     * token sat there doing nothing. The deploy script made that plain: it set
+     * the flag to `true` exactly when it wired the token, which is a condition
+     * the code can read for itself.
+     */
     INTERNAL_METRICS_TOKEN: optionalString(32),
     METRICS_ALLOWED_IPS: exactIpList,
   })
@@ -478,13 +499,6 @@ const environmentSchema = z
         code: 'custom',
         path: ['REDIS_URI'],
         message: 'must match REDIS_URL when both aliases are supplied',
-      });
-    }
-    if (environment.INTERNAL_METRICS_ENABLED && !environment.INTERNAL_METRICS_TOKEN) {
-      context.addIssue({
-        code: 'custom',
-        path: ['INTERNAL_METRICS_TOKEN'],
-        message: 'is required when INTERNAL_METRICS_ENABLED=true',
       });
     }
     const hasOxyKey = Boolean(environment.OXY_SERVICE_API_KEY);
@@ -851,7 +865,8 @@ export const config = {
     mentionOxyClientId: environment.MENTION_OXY_CLIENT_ID,
   },
   internalMetrics: {
-    enabled: environment.INTERNAL_METRICS_ENABLED,
+    /** Holding the token IS being enabled; see the schema for why. */
+    enabled: Boolean(environment.INTERNAL_METRICS_TOKEN),
     token: environment.INTERNAL_METRICS_TOKEN,
     allowedIps: environment.METRICS_ALLOWED_IPS,
   },

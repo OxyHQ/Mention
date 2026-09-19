@@ -257,9 +257,9 @@ both constraints above (no followers; viewer-scoped clients only) still hold.
 ## Remaining workstreams
 
 - **W7 — Retained metrics.** `/internal/metrics` IS enabled in production
-  (`deploy-ecs-image.sh:625-629` injects `INTERNAL_METRICS_ENABLED=true` when the
-  token secret resolves; the `false` in `config/index.ts:424` is only the local
-  default). Nothing scrapes it, so no p95 survives the process. CloudWatch EMF
+  (`deploy-ecs-image.sh` injects the metrics token when the
+  token secret resolves, and holding the token IS being enabled — there is no
+  flag beside it any more). Nothing scrapes it, so no p95 survives the process. CloudWatch EMF
   from the existing ECS tasks is the lowest-new-infrastructure option. Numbers
   go into `PERFORMANCE_BUDGETS.md` only after they are read off a deployment.
 - **W8 — The two GLOBAL `io.emit('feed:updated')` per public post.** W4 detached
