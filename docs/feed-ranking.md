@@ -112,6 +112,18 @@ measures without filtering, `experiment` enforces for the stable authenticated
 cover BOTH profiles — naming a module it lacks stops the process booting, and
 `presetDefinitions.test.ts` asserts the two lists agree.
 
+**The shadow measurement does not currently go anywhere durable, so plan for
+that before scheduling a decision.** `feed_discovery_gated_total` lives in the
+in-process Prometheus registry (`utils/metrics.ts`), which is exposed only by the
+IP-restricted `GET /internal/metrics`. `utils/cloudwatchEmf.ts` ships three
+per-request metrics and nothing from that registry, and the cluster runs no
+scraper — verified against the account on 2026-09-19, where
+`DISCOVERY_GATE_ROLLOUT` is set in neither SSM nor the `oxy-mention` task
+definition, so production has been on the `shadow` default since the gate shipped
+in July. The counters therefore reset on every deploy and no history exists. A
+rollout that says "watch the counters for a week" needs them scraped somewhere
+first, or the week produces nothing to read.
+
 A gate filter may declare `needsAuthor`. The engine then runs it in a SECOND pass
 over the merged pool, after resolving that pool's authors in one batch — the same
 `resolveUserSummaries` ranking uses, handed on to `rankPosts` so a request pays

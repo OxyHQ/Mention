@@ -213,6 +213,9 @@ const discoveryGateModuleIds = [
   'nativeEngagement',
   'minQuality',
   'noContentWarning',
+  // Nameable so it can be MEASURED in shadow before anyone decides whether it
+  // should decide anything. Not in either default profile — see the module.
+  'authorHasAvatar',
 ] as const;
 
 /**
