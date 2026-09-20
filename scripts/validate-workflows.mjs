@@ -262,15 +262,31 @@ for (const workflowName of workflowNames) {
             `${workflowName}: Oxy owns the Mention service credential in SSM; a deploy must not overwrite it from GitHub secrets`,
           );
         }
+        /**
+         * Neither deploy may inject the Oxy service credential — the inverse of
+         * the rule that stood here, and true for the same reason the old one was.
+         *
+         * That rule required the MCP workflow to name
+         * `parameter/oxy/mention/OXY_SERVICE_API_KEY`, so that backend and MCP
+         * spoke to Oxy as the SAME application rather than drifting onto two
+         * identities. They still do: both attest their own ECS task role (oxy
+         * ADR 0026) and both roles are bound to application Mention, with
+         * `oxy-mention-task` and `oxy-mention-mcp-task` each carrying the same
+         * nine scopes. The shared identity survived; the shared SECRET is what
+         * went.
+         *
+         * Stated as an absence because that is the failure mode now. A revision
+         * is rendered from the RUNNING one, so re-adding the injection here does
+         * not merely duplicate a parameter — it puts the pair back on every
+         * future revision of a service that has stopped reading it, silently,
+         * and the only sign is an SSM parameter nobody can delete.
+         */
         if (
-          workflowName === "deploy-mcp-aws.yml" &&
-          (
-            !source.includes("parameter/oxy/mention/OXY_SERVICE_API_KEY") ||
-            !source.includes("parameter/oxy/mention/OXY_SERVICE_API_SECRET")
-          )
+          source.includes("parameter/oxy/mention/OXY_SERVICE_API_KEY") ||
+          source.includes("parameter/oxy/mention/OXY_SERVICE_API_SECRET")
         ) {
           failures.push(
-            `${workflowName}: backend and MCP must consume the same app-owned Mention service credential`,
+            `${workflowName}: neither deploy may inject the Oxy service credential — both services attest their own task role, and a render carries an injected secret onto every later revision`,
           );
         }
         if (
