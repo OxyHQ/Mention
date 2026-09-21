@@ -34,7 +34,14 @@ export function ProfileTabBarRow({ children, showLanes }: ProfileTabBarRowProps)
   // feed, so it matches the surface rather than naming one.
   const surfaceFill = useSurfaceFill();
   return (
-    <View className="flex-row items-center border-b border-border" style={{ backgroundColor: surfaceFill }}>
+    <View
+      // The profile header owns the first sticky tier (top: 0). Tabs are the
+      // second tier, so they remain available below the 56px header while the
+      // document scrolls. z-40 keeps the opaque strip above ContentPanel's
+      // bleed mask (z-30) without competing with its border frame (z-120).
+      className="flex-row items-center border-b border-border web:sticky web:top-14 web:z-40"
+      style={{ backgroundColor: surfaceFill }}
+    >
       <View className="flex-1" style={{ minWidth: 0 }}>
         {children}
       </View>

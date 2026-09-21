@@ -2,6 +2,7 @@ import React, { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 import { router, usePathname, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { BloomColorScope } from '@oxy.so/bloom/theme';
 import { RouterTabs, type RouterTabItem } from '@oxy.so/bloom/tabs/expo-router';
 
 import { EmptyState } from '@/components/common/EmptyState';
@@ -152,19 +153,23 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
     </ProfileTabBarRow>
   );
 
-  return <View className="flex-1 web:z-auto">
-    {view.seo}
-    {chromeState === 'skeleton' ? <ProfileSkeleton variant="person" /> : null}
-    {chromeState === 'notFound' ? <EmptyState
-      customIcon={<NoUpdatesIllustration width={200} height={200} />}
-      title={t('profile.notFound.title', { defaultValue: 'Profile not found' })}
-      action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: safeBack }} /> : null}
-    {drawing ? <ProfilePageHeader profileData={drawing} actions={view.headerActions}
-      revealOffset={view.chrome.contentHeight + PROFILE_BANNER_HEIGHT} /> : null}
-    {drawing ? <ProfileBanner uri={view.bannerUri} /> : null}
-    {drawing ? view.summary : null}
-    {drawing ? tabBar : null}
-    {/* Keep the navigator at one tree position across profile-tab and sibling routes. */}
-    {children}
-  </View>;
+  return (
+    <BloomColorScope colorPreset={active ? view.colorName : undefined} asChild>
+      <View className="flex-1 web:z-auto">
+        {view.seo}
+        {chromeState === 'skeleton' ? <ProfileSkeleton variant="person" /> : null}
+        {chromeState === 'notFound' ? <EmptyState
+          customIcon={<NoUpdatesIllustration width={200} height={200} />}
+          title={t('profile.notFound.title', { defaultValue: 'Profile not found' })}
+          action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: safeBack }} /> : null}
+        {drawing ? <ProfilePageHeader profileData={drawing} actions={view.headerActions}
+          revealOffset={view.chrome.contentHeight + PROFILE_BANNER_HEIGHT} /> : null}
+        {drawing ? <ProfileBanner uri={view.bannerUri} /> : null}
+        {drawing ? view.summary : null}
+        {drawing ? tabBar : null}
+        {/* Keep the navigator at one tree position across profile-tab and sibling routes. */}
+        {children}
+      </View>
+    </BloomColorScope>
+  );
 }
