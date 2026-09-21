@@ -68,7 +68,7 @@ function mockTranslate(key: string, vars?: Record<string, string>): string {
   return value.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => vars[name] ?? '');
 }
 
-jest.mock('@oxy.so/bloom/chart-cards', () => ({ Sparkline: () => null }));
+jest.mock('@oxy.so/bloom/chart-cards/sparkline', () => ({ Sparkline: () => null }));
 
 jest.mock('@oxy.so/bloom/media-header', () => {
   const { TouchableOpacity: RNTouchable, Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
