@@ -23,7 +23,7 @@ import WelcomeModalGate from '@/components/WelcomeModalGate';
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
 import { useScreenColor } from '@/context/ScreenColorContext';
-import { APP_COLOR_PRESETS, type AppColorName } from '@oxy.so/bloom/theme';
+import { APP_COLOR_PRESETS, BloomColorScope, type AppColorName } from '@oxy.so/bloom/theme';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -125,6 +125,7 @@ export default function AppLayout() {
       {/* Ungated on purpose: the public socket is what makes trending realtime
           for signed-out visitors, who cannot connect to the two above at all. */}
       <PublicRealtimeBridge />
+      <BloomColorScope colorPreset={activeScreenColor} asChild>
       <AppShell
         variant="feed"
         scroll={IS_WEB ? 'document' : 'fixed'}
@@ -152,6 +153,7 @@ export default function AppLayout() {
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none" ref={registerPanelSurface} />
         {centerContent}
       </AppShell>
+      </BloomColorScope>
       <RegisterPush />
       <WelcomeModalGate appIsReady={true} />
       {Platform.OS === 'web' && <KeyboardShortcutsHost />}
