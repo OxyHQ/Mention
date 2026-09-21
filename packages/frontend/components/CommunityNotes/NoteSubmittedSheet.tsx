@@ -45,10 +45,10 @@ export function NoteSubmittedSheet({ onDone, onManageNotes }: NoteSubmittedSheet
         ]}
       />
       <View className="gap-2">
-        <Button variant="primary" size="large" onPress={onDone}>
+        <Button appearance="solid" tone="accent" size="large" onPress={onDone}>
           {t('communityNotes.submitted.done', { defaultValue: 'Done' })}
         </Button>
-        <Button variant="outline" size="large" onPress={onManageNotes}>
+        <Button appearance="outline" tone="neutral" size="large" onPress={onManageNotes}>
           {t('communityNotes.submitted.manage', { defaultValue: 'Manage notes' })}
         </Button>
       </View>

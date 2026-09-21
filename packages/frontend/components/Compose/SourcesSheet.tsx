@@ -59,7 +59,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
         safeArea={false}
         leading={
           <Button
-            variant="secondary"
+            appearance="subtle" tone="neutral"
             iconOnly
             leadingIcon={RiCloseLine}
             onPress={onClose}
@@ -161,7 +161,7 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
       {sources.length > 0 && (
         <Button
           className="mt-3 mx-4"
-          variant="secondary"
+          appearance="subtle" tone="neutral"
           size="large"
           leadingIcon={RiAddLine}
           onPress={onAdd}

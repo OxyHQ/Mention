@@ -76,7 +76,7 @@ export function WriteNoteSheet({ post, onSubmit, onClose }: WriteNoteSheetProps)
         </View>
       </ScrollView>
       <View className="border-border gap-2 border-t px-4 pb-6 pt-3">
-        <Button variant="primary" size="large" disabled={!canSubmit} onPress={() => onSubmit({ text: text.trim(), sourceUrl: sourceUrl.trim() })}>
+        <Button appearance="solid" tone="accent" size="large" disabled={!canSubmit} onPress={() => onSubmit({ text: text.trim(), sourceUrl: sourceUrl.trim() })}>
           {t('communityNotes.write.submit', { defaultValue: 'Submit' })}
         </Button>
         <Text className="text-muted-foreground text-center text-[12px]">

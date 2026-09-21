@@ -1,10 +1,5 @@
-import {
-  PostVisibility,
-  type HydratedPost,
-  type MediaItem,
-  type PollData,
-  type PostUser,
-} from '@mention/shared-types';
+import type { HydratedPost, MediaItem, PollData, PostUser } from '@mention/shared-types';
+import { PostVisibility } from '@mention/shared-types/post';
 import type { Draft } from '@/hooks/useDrafts';
 
 /**

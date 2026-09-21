@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import { FollowButton, useAuth } from '@oxy.so/services/ui/client';
 
-import { Button } from '@oxy.so/bloom/button';
+import { FollowButton as BloomFollowButton } from '@oxy.so/bloom/media-header';
 import { feedService, type ExternalActorResolution } from '@/services/feedService';
 import { createLogger } from '@oxy.so/core/logger';
 
@@ -94,18 +94,16 @@ export function ExternalActorFollowButton({ actor }: ExternalActorFollowButtonPr
   }
 
   return (
-    <Button
-      variant={following ? 'secondary' : 'primary'}
+    <BloomFollowButton
+      following={following}
       size="small"
-      onPress={() => void followExternalActor()}
-      disabled={following || submitting}>
-      {requested
+      onFollowChange={() => void followExternalActor()}
+      loading={submitting}
+      disabled={following || submitting}
+      label={t('search.external.follow', { defaultValue: 'Follow' })}
+      followingLabel={requested
         ? t('search.external.requested', { defaultValue: 'Requested' })
-        : following
-          ? t('search.external.following', { defaultValue: 'Following' })
-          : submitting
-            ? t('search.external.followingPending', { defaultValue: 'Following…' })
-            : t('search.external.follow', { defaultValue: 'Follow' })}
-    </Button>
+        : t('search.external.following', { defaultValue: 'Following' })}
+    />
   );
 }

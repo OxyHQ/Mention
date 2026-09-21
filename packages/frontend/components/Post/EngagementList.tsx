@@ -102,7 +102,7 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
           safeArea={false}
           actions={
             <Button
-              variant="secondary"
+              appearance="subtle" tone="neutral"
               iconOnly
               leadingIcon={RiCloseLine}
               accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
@@ -123,7 +123,7 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
         safeArea={false}
         actions={
           <Button
-            variant="secondary"
+            appearance="subtle" tone="neutral"
             iconOnly
             leadingIcon={RiCloseLine}
             accessibilityLabel={t('common.close', { defaultValue: 'Close' })}

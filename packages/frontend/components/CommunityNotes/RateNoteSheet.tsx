@@ -3,11 +3,11 @@ import { Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import { Checkbox } from '@oxy.so/bloom/checkbox';
+import type { CommunityNoteRating } from '@mention/shared-types';
 import {
   COMMUNITY_NOTE_HELPFUL_REASONS,
   COMMUNITY_NOTE_NOT_HELPFUL_REASONS,
-  type CommunityNoteRating,
-} from '@mention/shared-types';
+} from '@mention/shared-types/communityNotes';
 import { NoteSheetHeader } from './NoteSheetHeader';
 
 interface RateNoteSheetProps {
@@ -56,7 +56,7 @@ export function RateNoteSheet({ rating, onSubmit, onClose }: RateNoteSheetProps)
             );
           })}
         </View>
-        <Button variant="primary" size="large" disabled={selected.length === 0} onPress={() => onSubmit(selected)}>
+        <Button appearance="solid" tone="accent" size="large" disabled={selected.length === 0} onPress={() => onSubmit(selected)}>
           {t('communityNotes.rate.submit', { defaultValue: 'Rate' })}
         </Button>
         <Text className="text-muted-foreground text-center text-[13px]">

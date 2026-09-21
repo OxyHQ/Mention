@@ -450,7 +450,7 @@ export default function FeedMarketplaceScreen() {
         backLabel={t('common.back', { defaultValue: 'Back' })}
         actions={
           <Button
-            variant="secondary"
+            appearance="subtle" tone="neutral"
             iconOnly
             leadingIcon={searchVisible ? RiCloseLine : RiSearchLine}
             onPress={() => {

@@ -2404,7 +2404,10 @@
   "common": {
     "add": "Add",
     "loading": "Loading…",
-    "view": "View"
+    "view": "View",
+    "actions": "Действия",
+    "manage": "Управление",
+    "open": "Открыть"
   },
   "compose": {
     "job": {
@@ -2488,5 +2491,23 @@
   "communityNotes.rate.reason.opinion_or_biased": "Мнение или предвзятые формулировки",
   "communityNotes.rate.reason.hard_to_understand": "Трудно понять",
   "communityNotes.rate.reason.not_needed": "Посту не нужно примечание",
-  "communityNotes.rate.reason.other": "Другое"
+  "communityNotes.rate.reason.other": "Другое",
+  "settings": {
+    "accessibility": {
+      "nativeHaptics": "Доступно в мобильном приложении."
+    },
+    "account": {
+      "loadFailed": "Не удалось загрузить ваш аккаунт",
+      "oxyDescription": "Управляйте общей учётной записью Oxy, профилем и безопасностью."
+    },
+    "preferences": {
+      "title": "Настройки"
+    },
+    "profile": {
+      "name": "Имя",
+      "photo": "Фото профиля",
+      "username": "Имя пользователя"
+    },
+    "saveFailed": "Не удалось сохранить настройки. Попробуйте ещё раз."
+  }
 }

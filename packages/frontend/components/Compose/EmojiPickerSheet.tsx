@@ -100,7 +100,7 @@ const EmojiPickerSheet: React.FC<EmojiPickerSheetProps> = ({ onClose, onSelectEm
         safeArea={false}
         actions={
           <Button
-            variant="secondary"
+            appearance="subtle" tone="neutral"
             iconOnly
             leadingIcon={RiCloseLine}
             onPress={onClose}

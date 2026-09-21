@@ -4,27 +4,26 @@ import { ExperimentalStack, Slot, usePathname } from "expo-router";
 
 import { useAuth } from '@oxy.so/services/ui/client';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
-import { ContentPanel } from '@oxy.so/bloom/content-panel';
-import { useBottomEdgeInset } from '@oxy.so/bloom/layout';
+import { AppShell } from '@oxy.so/bloom/app-shell';
 import { registerPanelSurface } from '@/components/shell/panelSurface';
 
+import { MentionHomeHeader } from '@/components/navigation/MentionHomeHeader';
 import { BottomBar } from "@/components/BottomBar";
-import { DrawerOverlay } from "@/components/DrawerOverlay";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import RegisterPush from '@/components/RegisterPushToken';
 import { RealtimePostsBridge } from '@/components/RealtimePostsBridge';
 import { RealtimeNotificationsBridge } from '@/components/RealtimeNotificationsBridge';
 import { PublicRealtimeBridge } from '@/components/PublicRealtimeBridge';
 import { RightBar } from "@/components/RightBar";
-import { SideBar } from "@/components/SideBar";
+import { useMentionSidebar } from "@/components/navigation/useMentionSidebar";
+import { useDrawer } from "@/context/DrawerContext";
 import { SignInBanner } from "@/components/SignInBanner";
 import WelcomeModalGate from '@/components/WelcomeModalGate';
 
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
-import { useIsScreenNotMobile } from "@/hooks/useOptimizedMediaQuery";
 import { useScreenColor } from '@/context/ScreenColorContext';
-import { APP_COLOR_PRESETS, BloomColorScope, useTheme, type AppColorName } from '@oxy.so/bloom/theme';
+import { APP_COLOR_PRESETS, type AppColorName } from '@oxy.so/bloom/theme';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -52,16 +51,6 @@ function isProfileRoute(pathname: string | null | undefined): boolean {
 }
 
 /**
- * Leaf host for the mobile BottomBar. Owns the high-frequency `keyboardVisible`
- * read so a keyboard toggle re-renders only this tiny node — not the whole shell
- * (the feed no longer re-renders when the keyboard opens/closes).
- */
-function BottomBarHost() {
-  const keyboardVisible = useKeyboardVisibility();
-  return keyboardVisible ? null : <BottomBar />;
-}
-
-/**
  * Leaf host for the web keyboard-shortcuts help modal. Owns `showHelpModal` so its
  * high-frequency toggle stays isolated from the visual shell.
  */
@@ -73,32 +62,16 @@ function KeyboardShortcutsHost() {
 }
 
 export default function AppLayout() {
-  const isScreenNotMobile = useIsScreenNotMobile();
+  const sidebar = useMentionSidebar();
+  const keyboardVisible = useKeyboardVisibility();
+  const drawer = useDrawer();
   const { isAuthenticated, isAuthResolved } = useAuth();
   const { screenColor } = useScreenColor();
   const pathname = usePathname();
-  const bottomEdgeInset = useBottomEdgeInset();
   const onProfileRoute = isProfileRoute(pathname);
-
-  // Unscoped app theme: this runs OUTSIDE the `<BloomColorScope>` below, so
-  // `theme.colors.background` is the app-wide background. Passed to the panel as
-  // `maskColor` so the sticky gutter bleed-mask matches the outer gutter band —
-  // without it the panel reads the SCOPED background and a faint corner seam shows
-  // on profile routes.
-  const theme = useTheme();
 
   const activeScreenColor: AppColorName | undefined =
     onProfileRoute && screenColor && APP_COLOR_PRESETS[screenColor] ? screenColor : undefined;
-
-  // Mobile-web: the BottomBar is fixed and takes no document-scroll space. Bloom's
-  // bottom-edge registry is the authority for whether it exists and exactly how
-  // much space it occupies, including the safe area. It returns zero when the bar
-  // is absent (desktop, signed out, or keyboard open), so this shell must not
-  // duplicate those conditions or add its own clearance.
-  const mobileWebBottomInset =
-    IS_WEB && pathname !== '/videos'
-      ? bottomEdgeInset
-      : 0;
 
   // Same center content on both platforms; only the host differs. WEB uses <Slot/>
   // so the route flows in document scroll (the BODY is the scroller) and sticky
@@ -152,41 +125,34 @@ export default function AppLayout() {
       {/* Ungated on purpose: the public socket is what makes trending realtime
           for signed-out visitors, who cannot connect to the two above at all. */}
       <PublicRealtimeBridge />
-      {/* ── visual shell (was MainLayout): SideBar + gutter/ContentPanel + RightBar ── */}
-      {/* Every width decision below is a CLASS, not a measured boolean. The
-          shell used to read `isScreenNotMobile` for its direction, its cap and
-          its gutter — pure styling, which `useOptimizedMediaQuery`'s own docs
-          send to NativeWind — so dragging a window re-rendered this subtree on
-          every frame to pick between two strings. The hook stays for what it is
-          actually for: the mount gates below. */}
-      <View className="flex-1 w-full flex-col shell:flex-row shell:justify-center bg-background">
-        <SideBar />
-        <View className="flex-1 justify-between flex-col shell:flex-row shell:max-w-[950px] shell:shrink bg-background">
-          {/* Desktop-web gutter: the `bg-background` band around the floating panel
-              (`p-2 pl-0` so the panel meets the rail flush). Gated to the same
-              >=500px breakpoint as the sidebar; full-bleed once the sidebar hides. */}
-          <View className="flex-1 shell:flex-[2.2] bg-background web:shell:p-2 web:shell:pl-0">
-            <BloomColorScope colorPreset={activeScreenColor} asChild>
-              <ContentPanel
-                framedFrom={500}
-                maskColor={theme.colors.background}
-                contentStyle={{ paddingBottom: mobileWebBottomInset }}
-              >
-                {/* Registers the panel's content box so anything aiming at a
-                    route that has not mounted yet has something real to
-                    measure — see `registerPanelSurface`. A plain wrapper: it
-                    adds no style, so it cannot change the layout it reports. */}
-                <View style={StyleSheet.absoluteFill} pointerEvents="box-none" ref={registerPanelSurface} />
-                {centerContent}
-              </ContentPanel>
-            </BloomColorScope>
-          </View>
-          <RightBar />
-        </View>
-      </View>
+      <AppShell
+        variant="feed"
+        scroll={IS_WEB ? 'document' : 'fixed'}
+        panel
+        panelColorPreset={activeScreenColor}
+        drawer="reveal"
+        drawerOpen={drawer.isOpen}
+        onDrawerOpenChange={open => open ? drawer.open() : drawer.close()}
+        sidebar={sidebar}
+        header={pathname === '/' ? <MentionHomeHeader /> : null}
+        contentWidth={620}
+        navigationAlign="content"
+        navigationGap={0}
+        asideGap={0}
+        gutter={8}
+        navFrom={500}
+        navExpandedFrom={1300}
+        asideFrom={990}
+        asideWidth={350}
+        asideCollapse="hidden"
+        aside={<RightBar />}
+        bottomBar={isAuthenticated && !keyboardVisible ? <BottomBar /> : undefined}
+        reserveBottomBarSpace={pathname !== '/videos' && pathname !== '/camera'}
+      >
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none" ref={registerPanelSurface} />
+        {centerContent}
+      </AppShell>
       <RegisterPush />
-      {isAuthenticated && !isScreenNotMobile && <BottomBarHost />}
-      {!isScreenNotMobile && <DrawerOverlay />}
       <WelcomeModalGate appIsReady={true} />
       {Platform.OS === 'web' && <KeyboardShortcutsHost />}
     </>

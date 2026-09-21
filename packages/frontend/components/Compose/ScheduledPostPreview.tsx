@@ -151,7 +151,7 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
       <View className="flex-row items-center gap-2 px-4 py-3">
         <Button
           className="flex-1"
-          variant="secondary"
+          appearance="subtle" tone="neutral"
           size="large"
           leadingIcon={RiEditLine}
           onPress={onEdit}
@@ -162,7 +162,7 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
         </Button>
         <Button
           className="flex-1"
-          variant="destructive"
+          appearance="solid" tone="danger"
           size="large"
           leadingIcon={RiDeleteBinLine}
           onPress={handleCancel}

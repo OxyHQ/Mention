@@ -1,5 +1,7 @@
+import { Button } from '@oxy.so/bloom/button';
 import React, { useCallback, useEffect, useMemo } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
@@ -98,15 +100,9 @@ export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
           );
         })}
       </View>
-      <TouchableOpacity
-        style={styles.webCursor}
-        onPress={handleMorePress}
-        activeOpacity={0.7}
-      >
-        <Text className="text-primary text-[14px] font-medium">
+      <Button appearance="plain" size="small" onPress={handleMorePress} style={{ alignSelf: 'flex-start' }}>
           Show more
-        </Text>
-      </TouchableOpacity>
+        </Button>
     </View>
   );
 
@@ -125,7 +121,3 @@ export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
     </BaseWidget>
   );
 }
-
-const styles = StyleSheet.create({
-  webCursor: Platform.select({ web: { cursor: 'pointer' }, default: {} }),
-});

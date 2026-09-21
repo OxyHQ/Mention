@@ -259,7 +259,7 @@ function ConsentBody({ params }: { params: Required<Pick<McpAuthorizeParams, 'cl
 
       <View className="gap-3">
         <Button
-          variant="primary"
+          appearance="solid" tone="accent"
           onPress={handleAllow}
           disabled={submitting !== null}
         >
@@ -268,7 +268,7 @@ function ConsentBody({ params }: { params: Required<Pick<McpAuthorizeParams, 'cl
             : t('mcp.authorize.allow', { defaultValue: 'Allow' })}
         </Button>
         <Button
-          variant="secondary"
+          appearance="subtle" tone="neutral"
           onPress={handleDeny}
           disabled={submitting !== null}
         >

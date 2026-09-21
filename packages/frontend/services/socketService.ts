@@ -5,7 +5,7 @@ import type {
   PostEngagementCountsPayload,
   PostEngagementEvent,
 } from '@mention/shared-types';
-import { POST_ENGAGEMENT_EVENTS, SOCKET_FEED_TYPES } from '@mention/shared-types';
+import { POST_ENGAGEMENT_EVENTS, SOCKET_FEED_TYPES } from '@mention/shared-types/realtime';
 import { AppState, type AppStateStatus } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { usePostsStore } from '../stores/postsStore';

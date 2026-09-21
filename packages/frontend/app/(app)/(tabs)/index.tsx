@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Platform, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
@@ -12,25 +10,12 @@ import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { PRESET_FEEDS } from '@mention/shared-types/mtn/presetFeeds';
 import { parseFeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
 import type { FeedType } from '@mention/shared-types/feed';
-import AnimatedTabBar from '@/components/common/AnimatedTabBar';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
-import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
-import { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
-import { Fab } from '@oxy.so/bloom/fab';
-import { Button } from '@oxy.so/bloom/button';
-import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Search } from '@/assets/icons/search-icon';
-import { Bell } from '@/assets/icons/bell-icon';
-import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { SEO } from '@/components/SEO';
-import { LogoIcon } from '@/assets/logo';
-import { MenuIcon } from '@/assets/icons/menu-icon';
-import { useDrawer } from '@/context/DrawerContext';
-import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
-import { PanelStickyHeader, PanelChromeTopInsetProvider, PANEL_HEADER_HEIGHT, PANEL_CHROME_TOP_INSET } from '@/components/shell/PanelChrome';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 type HomeTab = string;
@@ -53,20 +38,9 @@ const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
     const { isAuthResolved, canUsePrivateApi, user } = useAuth();
     const theme = useTheme();
-    const insets = useSafeAreaInsets();
-    const { open: openDrawer } = useDrawer();
-    const isScreenNotMobile = useIsScreenNotMobile();
     const { registerHomeRefreshHandler, unregisterHomeRefreshHandler } = useHomeRefresh();
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
     const [refreshKey, setRefreshKey] = useState(0);
-    const headerHeight = PANEL_HEADER_HEIGHT;
-
-    // Shared bottom-bar auto-hide signal (0 = visible, 1 = hidden). The header
-    // derives its motion from this one value so it stays in lock-step with the
-    // bottom bar — no per-screen duplicate scroll listener.
-    const bottomBarHidden = useBottomBarHidden();
-    const headerTranslateY = useDerivedValue(() => bottomBarHidden.value * -(headerHeight + insets.top));
-
     // The home tabs ARE the viewer's server-persisted pinned feeds (server order),
     // so pinning in the feeds screen updates the tab bar cross-device. Anonymous
     // viewers get the read-only default (For You).
@@ -158,41 +132,6 @@ const HomeScreen: React.FC = () => {
         };
     }, [registerHomeRefreshHandler, unregisterHomeRefreshHandler]);
 
-    // Translate-only: the header is an opaque surface that slides up behind the
-    // status bar. Fading its opacity would make the scrolled feed
-    // visible through it (the header/tab-bar chrome must read as one continuous
-    // opaque surface while rising), so there is NO opacity term here.
-    const headerAnimatedStyle = useAnimatedStyle(() => {
-        return {
-            transform: [{ translateY: headerTranslateY.value }],
-        };
-    });
-
-    // Tab-bar motion.
-    // WEB: the header is `position: sticky` in normal flow and the tab bar sits
-    // just below it (`top: 48`); as the header auto-hides (translates up), slide
-    // the tab bar up in lock-step so it rises to the panel top instead of leaving
-    // a gap.
-    // NATIVE: the tab bar is an ABSOLUTE overlay pinned directly below the header
-    // (`top: headerHeight`). It rises WITH the header but its travel is clamped at
-    // the panel top (`-headerHeight`) so it stays visible once the header is fully
-    // gone — reproducing the old `max(0, ...)` spacer behaviour WITHOUT an in-flow
-    // spacer, so the feed (which carries a fixed top inset and scrolls behind the
-    // chrome) never reflows as the chrome hides.
-    const tabBarAnimatedStyle = useAnimatedStyle(() => {
-        if (Platform.OS === 'web') {
-            return { transform: [{ translateY: headerTranslateY.value }] };
-        }
-        const translate = Math.max(headerTranslateY.value, -headerHeight);
-        return {
-            position: 'absolute' as const,
-            top: headerHeight,
-            left: 0,
-            right: 0,
-            transform: [{ translateY: translate }],
-        };
-    });
-
     const handleTabPress = (tabId: HomeTab) => {
         if (tabId === activeTab) {
             setRefreshKey(prev => prev + 1);
@@ -249,105 +188,15 @@ const HomeScreen: React.FC = () => {
                 title={t('seo.home.title')}
                 description={t('seo.home.description')}
             />
-            {/* WEB: `web:z-auto` stops these screen wrappers from being their own
-                stacking contexts (RN-web otherwise renders every View as
-                `position:relative; z-index:0`, which would TRAP the sticky header
-                + tab bar below them). With `z-index:auto` the header (z-101) and
-                tab bar (z-100) compete directly in the rounded panel's stacking
-                context, so they paint ABOVE the bleed-mask overlay (z-30) and the
-                gutter ring never clips them. The feed below them stays at z-0,
-                still masked. No effect on native. */}
-            <SafeAreaView className="flex-1 web:z-auto" edges={["top"]}>
-                <View className="flex-1 web:z-auto relative flex-col">
-                    <StatusBar style={theme.isDark ? "light" : "dark"} />
-
-                    {/* Header - animated. <PanelStickyHeader> owns the web sticky
-                        position/inset, the opaque panel surface, the top
-                        rounded corners (masking the feed's top-edge bleed), and the
-                        z-index. The screen still supplies the reanimated auto-hide
-                        translate via `style`. NATIVE: PanelStickyHeader becomes the
-                        absolute top overlay, below the SafeAreaView's top inset, so
-                        the header pads none of its own. */}
-                    <PanelStickyHeader level={0} style={headerAnimatedStyle}>
-                        <PageHeader
-                            title={<LogoIcon size={28} className="text-foreground" />}
-                            titleAlign="center"
-                            safeArea={false}
-                            leading={!isScreenNotMobile ? (
-                                <Button
-                                    variant="secondary"
-                                    iconOnly
-                                    icon={<MenuIcon size={22} className="text-foreground" />}
-                                    onPress={openDrawer}
-                                    accessibilityLabel="Open menu"
-                                />
-                            ) : undefined}
-                            actions={
-                                <>
-                                    <Button
-                                        variant="secondary"
-                                        iconOnly
-                                        icon={<Search className="text-foreground" size={20} />}
-                                        onPress={() => router.push('/search')}
-                                        accessibilityLabel={t('Search')}
-                                    />
-                                    <Button
-                                        variant="secondary"
-                                        iconOnly
-                                        icon={<Bell size={20} className="text-foreground" />}
-                                        onPress={() => router.push('/notifications')}
-                                        accessibilityLabel={t('Notifications')}
-                                    />
-                                </>
-                            }
-                        />
-                    </PanelStickyHeader>
-
-                    {/* Tab Navigation. WEB: <PanelStickyHeader level={1}> pins it
-                        directly below the level-0 header (at PANEL_TOP_INSET +
-                        PANEL_HEADER_HEIGHT) with the same opaque panel surface
-                        and top rounded corners, so the feed is never exposed in the
-                        auto-hide gap and the rounded corners keep masking the feed's
-                        top-edge bleed when the tab bar rises to the panel top.
-                        NATIVE: `tabBarAnimatedStyle` makes it an absolute overlay
-                        pinned below the header; both translate from the same
-                        `hidden`, in lock-step. zIndex 100 keeps it one below the
-                        header (101). */}
-                    <PanelStickyHeader level={1} zIndex={100} style={tabBarAnimatedStyle}>
-                        <AnimatedTabBar
-                            tabs={homeTabs.map((tab) => ({ id: tab.key, label: tab.label }))}
-                            activeTabId={activeTab}
-                            onTabPress={handleTabPress}
-                            scrollEnabled={homeTabs.length > 3}
-                        />
-                    </PanelStickyHeader>
-
-                    {/* Content. On native the feed scrolls BEHIND the absolute
-                        header + tab-bar overlay; PanelChromeTopInsetProvider hands it
-                        the fixed top inset (header + tab-bar height) it reserves as
-                        constant scrollable padding so hiding the chrome never
-                        reflows the list. Web ignores the inset (sticky chrome in
-                        normal flow). */}
-                    <PanelChromeTopInsetProvider value={PANEL_CHROME_TOP_INSET}>
-                        {renderContent()}
-                    </PanelChromeTopInsetProvider>
-
-                    {/* Compose FAB. It clears the BottomBar on every platform: Bloom's Fab
-                        reads the bottom edge's occupancy, which the bar publishes. */}
-                    {canUsePrivateApi && (
-                        <Fab
-                            size={48}
-                            label={Platform.OS === 'web'
-                                ? t('compose.newPost', { defaultValue: 'New post' })
-                                : undefined}
-                            minimizeBehavior="collapse"
-                            onPress={() => router.push('/compose')}
-                            icon={<ComposeIcon size={22} className="text-tertiary-foreground" />}
-                            accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
-                        />
-                    )}
-                </View>
-            </SafeAreaView>
+            <View className="flex-1">
+                <StatusBar style={theme.isDark ? "light" : "dark"} />
+                <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline" style={{ height: 38 }}>
+                    {homeTabs.map(tab => <TabsTrigger key={tab.key} value={tab.key} label={tab.label}
+                        style={{ height: 38, minWidth: 76, paddingLeft: 12, paddingRight: 12, paddingTop: 0, paddingBottom: 0 }}
+                        textStyle={{ fontSize: 15, lineHeight: 18, fontWeight: activeTab === tab.key ? '700' : '500' }} />)}
+                </Tabs>
+                {renderContent()}
+            </View>
         </>
     );
 };

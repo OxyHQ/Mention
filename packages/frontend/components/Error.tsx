@@ -88,7 +88,7 @@ export function Error({
         <View className="w-full items-center gap-3">
           {onRetry && (
             <Button
-              variant="primary"
+              appearance="solid" tone="accent"
               leadingIcon={RiRefreshLine}
               loading={isRetrying}
               onPress={handleRetry}
@@ -100,7 +100,7 @@ export function Error({
 
           {!hideBackButton && (
             <Button
-              variant="secondary"
+              appearance="subtle" tone="neutral"
               leadingIcon={RiArrowLeftLine}
               onPress={handleGoBack}
               className="min-w-[140px]"

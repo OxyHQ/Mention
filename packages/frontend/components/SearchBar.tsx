@@ -39,11 +39,11 @@ export const SearchBar = () => {
     };
 
     return (
-        <View className="w-full mb-4 z-[1000] web:sticky web:top-0" style={{ backgroundColor: surfaceFill }}>
+        <View className="w-full mb-4 z-10 web:sticky web:top-0" style={{ backgroundColor: surfaceFill }}>
             <Search
                 label={t('Search Mention')}
                 value={query}
-                onChangeText={setQuery}
+                onValueChange={setQuery}
                 onClearText={() => setQuery('')}
                 onSubmitEditing={handleSubmit}
             />

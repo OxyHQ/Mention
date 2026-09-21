@@ -83,7 +83,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
             safeArea={false}
             actions={
                 <Button
-                    variant="secondary"
+                    appearance="subtle" tone="neutral"
                     iconOnly
                     leadingIcon={RiCloseLine}
                     accessibilityLabel={t('common.close', { defaultValue: 'Close' })}

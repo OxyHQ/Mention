@@ -21,7 +21,7 @@ const PostSourcesSheet: React.FC<PostSourcesSheetProps> = ({ sources, onClose })
     <View className="flex-1 pb-6 bg-background">
       <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border">
         <Button
-          variant="secondary"
+          appearance="subtle" tone="neutral"
           iconOnly
           leadingIcon={RiCloseLine}
           accessibilityLabel={t('common.close', { defaultValue: 'Close' })}

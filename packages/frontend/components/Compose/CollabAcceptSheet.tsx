@@ -51,10 +51,10 @@ const CollabAcceptSheet: React.FC<CollabAcceptSheetProps> = ({
         <Button onPress={onAccept} disabled={loading}>
           {t('collab.accept', { defaultValue: 'Accept' })}
         </Button>
-        <Button variant="secondary" onPress={onDecline} disabled={loading}>
+        <Button appearance="subtle" tone="neutral" onPress={onDecline} disabled={loading}>
           {t('collab.decline', { defaultValue: 'Decline' })}
         </Button>
-        <Button variant="ghost" onPress={onClose} disabled={loading}>
+        <Button appearance="plain" tone="neutral" onPress={onClose} disabled={loading}>
           {t('common.cancel', { defaultValue: 'Cancel' })}
         </Button>
       </View>

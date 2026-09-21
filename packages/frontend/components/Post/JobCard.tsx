@@ -1,3 +1,4 @@
+import type { Href } from 'expo-router';
 import React, { useCallback } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
@@ -74,7 +75,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, width = 280, height }) => {
     // route if the URL is somehow unparseable.
     try {
       const path = new URL(job.canonicalUrl).pathname;
-      router.push(path || `/jobs/${job.mentionJobId}`);
+      router.push((path || `/jobs/${job.mentionJobId}`) as Href);
     } catch {
       router.push(`/jobs/${job.mentionJobId}`);
     }

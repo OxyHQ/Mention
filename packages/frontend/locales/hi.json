@@ -2356,7 +2356,10 @@
   "common": {
     "add": "Add",
     "loading": "Loading…",
-    "view": "View"
+    "view": "View",
+    "actions": "कार्रवाइयाँ",
+    "manage": "प्रबंधित करें",
+    "open": "खोलें"
   },
   "compose": {
     "job": {
@@ -2440,5 +2443,23 @@
   "communityNotes.rate.reason.opinion_or_biased": "राय या पक्षपाती भाषा",
   "communityNotes.rate.reason.hard_to_understand": "समझने में मुश्किल",
   "communityNotes.rate.reason.not_needed": "पोस्ट को नोट की ज़रूरत नहीं है",
-  "communityNotes.rate.reason.other": "कुछ और"
+  "communityNotes.rate.reason.other": "कुछ और",
+  "settings": {
+    "accessibility": {
+      "nativeHaptics": "मोबाइल ऐप में उपलब्ध है।"
+    },
+    "account": {
+      "loadFailed": "आपका खाता लोड नहीं हो सका",
+      "oxyDescription": "अपनी साझा Oxy पहचान, प्रोफ़ाइल और सुरक्षा प्रबंधित करें।"
+    },
+    "preferences": {
+      "title": "प्राथमिकताएँ"
+    },
+    "profile": {
+      "name": "नाम",
+      "photo": "प्रोफ़ाइल फ़ोटो",
+      "username": "उपयोगकर्ता नाम"
+    },
+    "saveFailed": "सेटिंग्स सहेजी नहीं जा सकीं। कृपया फिर से प्रयास करें।"
+  }
 }

@@ -3,13 +3,7 @@
  * Separated from _layout.tsx for better testability and maintainability
  */
 
-import i18n, {
-  changeLanguage,
-  init as i18nInit,
-  use as i18nUse,
-  type Resource,
-  type ResourceKey,
-} from 'i18next';
+import { createInstance, type Resource, type ResourceKey, type i18n as I18nInstance } from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 import enUS from '@/locales/en.json';
@@ -44,6 +38,11 @@ const TRANSLATION_LOADERS: Record<string, () => Promise<ResourceKey>> = {
   'tr-TR': async () => (await import('@/locales/tr.json')).default,
 };
 
+// One explicit live instance is shared by initialization, React's provider and
+// consumers that read the active language outside React.
+export const appI18n: I18nInstance = createInstance();
+const i18n: I18nInstance = appI18n;
+
 const baseResources: Resource = { 'en-US': { translation: enUS } };
 
 /**
@@ -70,6 +69,8 @@ async function loadTranslation(language: string): Promise<ResourceKey | null> {
  * language whose bundle has never been loaded.
  */
 export async function setLanguage(language: string): Promise<void> {
+  // Provider locale synchronization can run before the root initialization effect.
+  if (!i18n.isInitialized) await initializeI18n();
   if (!i18n.hasResourceBundle(language, 'translation')) {
     const translation = await loadTranslation(language);
     if (translation) {
@@ -77,7 +78,7 @@ export async function setLanguage(language: string): Promise<void> {
     }
   }
 
-  await changeLanguage(language);
+  await i18n.changeLanguage(language);
 }
 
 /**
@@ -96,7 +97,14 @@ export async function loadSavedLanguage(): Promise<string> {
 /**
  * Initializes i18n with the saved language preference
  */
-export async function initializeI18n(): Promise<void> {
+let initializationPromise: Promise<void> | undefined;
+
+export function initializeI18n(): Promise<void> {
+  initializationPromise ??= performInitialization();
+  return initializationPromise;
+}
+
+async function performInitialization(): Promise<void> {
   try {
     const initialLanguage = await loadSavedLanguage();
 
@@ -114,8 +122,8 @@ export async function initializeI18n(): Promise<void> {
       : baseResources;
 
     // Initialize i18n with the saved language
-    i18nUse(initReactI18next);
-    await i18nInit({
+    i18n.use(initReactI18next);
+    await i18n.init({
       resources,
       lng: initialLanguage,
       fallbackLng: DEFAULT_LANGUAGE,
@@ -126,8 +134,8 @@ export async function initializeI18n(): Promise<void> {
     // Fallback to default initialization
     if (!i18n.isInitialized) {
       try {
-        i18nUse(initReactI18next);
-        await i18nInit({
+        i18n.use(initReactI18next);
+        await i18n.init({
           resources: baseResources,
           lng: DEFAULT_LANGUAGE,
           fallbackLng: DEFAULT_LANGUAGE,

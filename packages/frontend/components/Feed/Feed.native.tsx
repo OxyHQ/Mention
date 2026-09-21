@@ -39,7 +39,6 @@ import {
     getFeedScrollOffset,
     setFeedScrollOffset,
 } from '@/stores/feedScrollStore';
-import { usePanelChromeTopInset } from '@/components/shell/PanelChrome';
 import { resolveFeedDescriptor, useFeedImpressionTracker } from '@/utils/feedTelemetry';
 import { classifyFeedFailure, logFeedFailure } from '@/utils/feedRetry';
 import { VideoViewabilityProvider, VideoViewabilityScope } from '@/context/VideoPlaybackContext';
@@ -323,8 +322,7 @@ const Feed = ((props: FeedProps) => {
     // the overlay chrome only translates and never reflows the list. Native +
     // scroll-owning feeds only: embedded feeds (scrollEnabled === false) own no
     // scrolling, and on web the chrome is sticky in normal flow (no inset needed).
-    const chromeTopInset = usePanelChromeTopInset();
-    const topInset = Platform.OS === 'web' || scrollEnabled === false ? 0 : chromeTopInset;
+    const topInset = 0;
 
     // Determine if we should use scoped (local) feed state
     const useScoped = !!(filters && Object.keys(filters).length) && !showOnlySaved;

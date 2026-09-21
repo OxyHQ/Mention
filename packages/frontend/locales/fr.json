@@ -2383,7 +2383,10 @@
   "common": {
     "add": "Add",
     "loading": "Loading…",
-    "view": "View"
+    "view": "View",
+    "actions": "Actions",
+    "manage": "Gérer",
+    "open": "Ouvrir"
   },
   "compose": {
     "job": {
@@ -2467,5 +2470,23 @@
   "communityNotes.rate.reason.opinion_or_biased": "Opinion ou langage partial",
   "communityNotes.rate.reason.hard_to_understand": "Difficile à comprendre",
   "communityNotes.rate.reason.not_needed": "Le post n'a pas besoin de note",
-  "communityNotes.rate.reason.other": "Autre chose"
+  "communityNotes.rate.reason.other": "Autre chose",
+  "settings": {
+    "accessibility": {
+      "nativeHaptics": "Disponible dans l’application mobile."
+    },
+    "account": {
+      "loadFailed": "Impossible de charger votre compte",
+      "oxyDescription": "Gérez votre identité Oxy partagée, votre profil et votre sécurité."
+    },
+    "preferences": {
+      "title": "Préférences"
+    },
+    "profile": {
+      "name": "Nom",
+      "photo": "Photo de profil",
+      "username": "Nom d’utilisateur"
+    },
+    "saveFailed": "Impossible d’enregistrer les paramètres. Réessayez."
+  }
 }

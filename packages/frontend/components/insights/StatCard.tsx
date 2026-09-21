@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { Card } from '@oxy.so/bloom/card';
 import MiniChart from '@/components/MiniChart';
 
 interface StatCardProps {
@@ -38,7 +39,7 @@ const StatCard: React.FC<StatCardProps> = ({
     ];
 
     return (
-        <View className="bg-card border border-border rounded-[15px] p-4 mb-3 overflow-hidden">
+        <Card className="p-4 mb-3 overflow-hidden">
             <View className="mb-3">
                 <View className="flex-row items-center">
                     <View style={{ marginRight: 8 }}>{icon}</View>
@@ -72,7 +73,7 @@ const StatCard: React.FC<StatCardProps> = ({
                     </View>
                 )}
             </View>
-        </View>
+        </Card>
     );
 };
 

@@ -209,7 +209,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
         >
           <View style={headerStyle} className="border-b border-border">
             <Button
-              variant="secondary"
+              appearance="subtle" tone="neutral"
               iconOnly
               leadingIcon={RiCloseLine}
               accessibilityLabel={t('common.close', { defaultValue: 'Close' })}

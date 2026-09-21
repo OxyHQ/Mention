@@ -34,15 +34,17 @@ jest.mock('@oxy.so/bloom/button', () => {
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
 jest.mock('@/components/Feed/PostItem', () => ({ __esModule: true, default: () => null }));
-jest.mock('@/components/common/AnimatedTabBar', () => {
-  const RN = jest.requireActual<typeof import('react-native')>('react-native');
+jest.mock('@oxy.so/bloom/tabs', () => {
   const R = jest.requireActual<typeof import('react')>('react');
+  const RN = jest.requireActual<typeof import('react-native')>('react-native');
+  const Context = R.createContext<(mockValue: string) => void>(() => {});
   return {
-    __esModule: true,
-    default: ({ tabs, onTabPress }: { tabs: { id: string; label: string }[]; onTabPress: (id: string) => void }) =>
-      R.createElement(RN.View, null, tabs.map((tab) =>
-        R.createElement(RN.Pressable, { key: tab.id, testID: `tab-${tab.id}`, onPress: () => onTabPress(tab.id) }, R.createElement(RN.Text, null, tab.label)),
-      )),
+    Tabs: ({ children, onValueChange }: { children: React.ReactNode; onValueChange: (mockValue: string) => void }) =>
+      R.createElement(Context.Provider, { value: onValueChange }, children),
+    TabsTrigger: ({ value, label }: { value: string; label: string }) => {
+      const change = R.useContext(Context);
+      return R.createElement(RN.Pressable, { testID: `tab-${value}`, onPress: () => change(value) }, R.createElement(RN.Text, null, label));
+    },
   };
 });
 jest.mock('@/components/common/EmptyState', () => {

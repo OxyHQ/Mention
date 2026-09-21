@@ -3,7 +3,7 @@ import { View, Share } from 'react-native';
 import { Redirect, router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
-import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiNotification3Fill } from '@oxy.so/bloom/icons/RiNotification3Fill';
@@ -22,7 +22,7 @@ import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 
 // Components
 import UserName from './UserName';
-import AnimatedTabBar from './common/AnimatedTabBar';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { SEO } from '@/components/SEO';
 
 // Profile primitives
@@ -196,8 +196,6 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
         profileId: profileData?.id,
         currentTab: activeProfileTab,
         currentLaneId: activeLaneId,
-        headerActionCount: 3,
-        hasBannerBand: false,
     });
 
     const onTabPress = useCallback(
@@ -382,16 +380,10 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
         () => (
             <View className="flex-row items-center border-b border-border" style={{ backgroundColor: surfaceFill }}>
                 <View className="flex-1" style={{ minWidth: 0 }}>
-                    <AnimatedTabBar
-                        tabs={tabDescriptors.map((descriptor) => ({
+                    <Tabs value={activeDescriptor?.key ?? 'posts'} onValueChange={(id) => onTabPress(profileTabIndex(tabDescriptors, id))} variant="underline">{(tabDescriptors.map((descriptor) => ({
                             id: descriptor.key,
                             label: descriptor.label,
-                        }))}
-                        activeTabId={activeDescriptor?.key ?? 'posts'}
-                        onTabPress={(id) => onTabPress(profileTabIndex(tabDescriptors, id))}
-                        scrollEnabled
-                        instanceId={username || 'default'}
-                    />
+                        }))).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
                 </View>
             </View>
         ),
@@ -403,7 +395,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
             {/* The bell is a toggle rendered as two different glyphs, so its
                 label has to carry the state a sighted user reads from the icon. */}
             <Button
-                variant="secondary"
+                appearance="subtle" tone="neutral"
                 iconOnly
                 icon={
                     subscribed ? (
@@ -427,7 +419,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                 }
             />
             <Button
-                variant="secondary"
+                appearance="subtle" tone="neutral"
                 iconOnly
                 leadingIcon={RiUpload2Line}
                 onPress={handleShare}
@@ -437,7 +429,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                 })}
             />
             <Button
-                variant="secondary"
+                appearance="subtle" tone="neutral"
                 iconOnly
                 leadingIcon={RiMoreFill}
                 onPress={handleMoreOptions}
@@ -491,7 +483,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
 
 const ChannelScreen: React.FC = () => {
     const account = useProfileAccount(useRoutedProfileUsername());
-    const { username, handle, profileData, loading, colorName } = account;
+    const { username, handle, profileData, loading } = account;
     const canonicalHref = useProfileCanonicalHref({ routedFamily: 'channel', account });
 
     // A `/c/<handle>` that names a person is a URL nobody should keep. The rule
@@ -502,7 +494,7 @@ const ChannelScreen: React.FC = () => {
     }
 
     return (
-        <BloomColorScope colorPreset={colorName} asChild>
+        <>
             {/* `web:z-auto` so this wrapper does not become its own stacking
                 context and trap the sticky header chrome below the panel's
                 bleed-mask/border overlays (see ProfileShell's root). */}
@@ -514,7 +506,7 @@ const ChannelScreen: React.FC = () => {
                     loading={loading}
                 />
             </View>
-        </BloomColorScope>
+        </>
     );
 };
 

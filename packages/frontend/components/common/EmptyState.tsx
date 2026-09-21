@@ -114,7 +114,7 @@ export const EmptyState = memo<EmptyStateProps>(
                             <Button
                                 // The retry action is a secondary moment, not the
                                 // screen's brand statement.
-                                variant="secondary"
+                                appearance="subtle" tone="neutral"
                                 leadingIcon={RiRefreshLine}
                                 loading={isRetrying}
                                 onPress={handleRetry}
@@ -178,7 +178,7 @@ export const EmptyState = memo<EmptyStateProps>(
 
                 {action && (
                     <Button
-                        variant="primary"
+                        appearance="solid" tone="accent"
                         icon={action.icon && (
                             <Ionicons
                                 name={action.icon}

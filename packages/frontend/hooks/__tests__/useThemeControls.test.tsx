@@ -1,5 +1,6 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
+import { logger } from '@oxy.so/core/logger';
 import { useAccountThemeSync, useThemeControls } from '../useAccountTheme';
 
 /**
@@ -8,6 +9,8 @@ import { useAccountThemeSync, useThemeControls } from '../useAccountTheme';
  * AUTH_REQUIRED_OFFLINE_SESSION on the appearance screen; the effective source is
  * `app` instead, while a signed-in viewer on the `account` source still syncs.
  */
+
+jest.mock('@oxy.so/core/logger', () => ({ logger: { error: jest.fn() } }));
 
 const mockUpdateThemePreference = jest.fn();
 const mockSetMode = jest.fn();
@@ -107,6 +110,16 @@ describe('useThemeControls', () => {
     mount();
     await act(() => controls.changeThemeMode('dark'));
     expect(mockUpdateThemePreference).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed first-time account seed without an unhandled rejection', async () => {
+    const error = new Error('network unavailable');
+    mockAuth = { canUsePrivateApi: true, user: { username: 'ada' } };
+    mockUpdateThemePreference.mockRejectedValueOnce(error);
+    mount();
+    await act(async () => { controls.changeThemeSource('account'); });
+    expect(mockSetSource).toHaveBeenCalledWith('account');
+    expect(logger.error).toHaveBeenCalledWith('Failed to seed account theme preference', error);
   });
 
   it('seeds the account theme when sync is enabled and none exists yet', () => {

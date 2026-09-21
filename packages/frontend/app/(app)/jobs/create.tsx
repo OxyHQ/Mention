@@ -1,3 +1,4 @@
+import type { Href } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
@@ -17,19 +18,21 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import type { AccountNode } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
+import type {
+  CreateMentionJobRequest,
+  CurrencyCode,
+  MentionJobApplicationMode,
+  MentionJobEmploymentType,
+  MentionJobSalaryInterval,
+  MentionJobWorkplaceType,
+} from '@mention/shared-types';
 import {
   MENTION_JOB_APPLICATION_MODES,
   MENTION_JOB_ELIGIBLE_EMPLOYER_KINDS,
   MENTION_JOB_EMPLOYMENT_TYPES,
   MENTION_JOB_SALARY_INTERVALS,
   MENTION_JOB_WORKPLACE_TYPES,
-  type CreateMentionJobRequest,
-  type CurrencyCode,
-  type MentionJobApplicationMode,
-  type MentionJobEmploymentType,
-  type MentionJobSalaryInterval,
-  type MentionJobWorkplaceType,
-} from '@mention/shared-types';
+} from '@mention/shared-types/job';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { jobsService, getJobErrorMessage, isJobEntitlementError } from '@/services/jobsService';
@@ -237,7 +240,7 @@ export default function CreateJobScreen() {
       if (job.status === 'published') {
         toast.success(t('jobs.create.published', { defaultValue: 'Job published' }));
         try {
-          router.replace(new URL(job.canonicalUrl).pathname || `/jobs/${job.id}`);
+          router.replace((new URL(job.canonicalUrl).pathname || `/jobs/${job.id}`) as Href);
           return;
         } catch {
           router.replace(`/jobs/${job.id}`);
@@ -450,7 +453,7 @@ export default function CreateJobScreen() {
                 />
               </TextField>
             </View>
-            <Button variant="secondary" size="medium" onPress={addSkill} disabled={!skillDraft.trim()}>
+            <Button appearance="subtle" tone="neutral" size="medium" onPress={addSkill} disabled={!skillDraft.trim()}>
               {t('common.add', { defaultValue: 'Add' })}
             </Button>
           </View>
@@ -511,7 +514,7 @@ export default function CreateJobScreen() {
         {/* Submit */}
         <View className="flex-row gap-3 mt-6">
           <Button
-            variant="secondary"
+            appearance="subtle" tone="neutral"
             size="large"
             style={{ flex: 1 }}
             loading={createMutation.isPending && !publishingIntent}
@@ -521,7 +524,7 @@ export default function CreateJobScreen() {
             {t('jobs.create.saveDraft', { defaultValue: 'Save draft' })}
           </Button>
           <Button
-            variant="primary"
+            appearance="solid" tone="accent"
             size="large"
             style={{ flex: 1 }}
             loading={createMutation.isPending && publishingIntent}

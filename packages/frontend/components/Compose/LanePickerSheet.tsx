@@ -119,7 +119,7 @@ const LanePickerSheet = memo(function LanePickerSheet({
         safeArea={false}
         leading={
           <Button
-            variant="secondary"
+            appearance="subtle" tone="neutral"
             iconOnly
             leadingIcon={RiCloseLine}
             onPress={onClose}
@@ -175,7 +175,7 @@ const LanePickerSheet = memo(function LanePickerSheet({
           than pointed somewhere that would edit the wrong publisher's lanes. */}
       {publishAs ? null : (
         <View className="mt-2 mx-4">
-          <Button variant="secondary" size="large" onPress={handleManage}>
+          <Button appearance="subtle" tone="neutral" size="large" onPress={handleManage}>
             {t('lanes.picker.manage', { defaultValue: 'Manage lanes' })}
           </Button>
         </View>

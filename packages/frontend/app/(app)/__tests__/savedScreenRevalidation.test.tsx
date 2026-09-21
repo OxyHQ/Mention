@@ -124,9 +124,18 @@ jest.mock('@oxy.so/bloom/text-field', () => {
   return { TextField: Passthrough, TextFieldInput: () => <View testID="text-input" /> };
 });
 
-jest.mock('@/components/common/AnimatedTabBar', () => {
-  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { __esModule: true, default: () => <View testID="folder-tabs" /> };
+jest.mock('@oxy.so/bloom/tabs', () => {
+  const R = jest.requireActual<typeof import('react')>('react');
+  const RN = jest.requireActual<typeof import('react-native')>('react-native');
+  const Context = R.createContext<(mockValue: string) => void>(() => {});
+  return {
+    Tabs: ({ children, onValueChange }: { children: React.ReactNode; onValueChange: (mockValue: string) => void }) =>
+      R.createElement(Context.Provider, { value: onValueChange }, children),
+    TabsTrigger: ({ value, label }: { value: string; label: string }) => {
+      const change = R.useContext(Context);
+      return R.createElement(RN.Pressable, { testID: `tab-${value}`, onPress: () => change(value) }, R.createElement(RN.Text, null, label));
+    },
+  };
 });
 
 jest.mock('@oxy.so/bloom/fab', () => {

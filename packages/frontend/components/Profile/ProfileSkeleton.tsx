@@ -2,7 +2,6 @@ import React, { memo } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
-import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { CHANNEL_AVATAR_SIZE } from './ChannelHeader';
@@ -23,7 +22,7 @@ import { LAYOUT } from './types';
  *    action row (button + icon) on the right;
  *  - display-name + handle bars, a 2-line bio, the meta row and the stats row
  *    (mirroring ProfileContent → ProfileMeta / ProfileStats);
- *  - the tab bar (matching AnimatedTabBar's border + `py-2.5` cells); and
+ *  - the tab bar (matching the Bloom Tabs strip's border + `py-2.5` cells); and
  *  - a few post-row placeholders matching the feed's POST_ITEM_SPACING.
  *
  * All blocks use Bloom's shimmer primitives (theme-aware `contrast50` fill +
@@ -99,13 +98,12 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
   const theme = useTheme();
   // Mirrors the loaded profile: the same opaque blocks, in the same colour as
   // the column they land in (see ProfileContent / ProfileTabBarRow).
-  const surfaceFill = useSurfaceFill();
 
   if (variant === 'channel') {
     return (
       <View className="flex-1" accessibilityRole="progressbar">
         <View style={{ paddingTop: insets.top + CHANNEL_CONTENT_OFFSET }}>
-          <View className="px-4 pb-4" style={{ backgroundColor: surfaceFill }}>
+          <View className="px-4 pb-4">
             {/* Centred masthead — avatar, then name, then handle. The margins
                 are `ChannelHeader`'s own: the name Text carries `marginTop: 12,
                 marginBottom: 4` and the handle sits straight under it, so the
@@ -155,7 +153,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
             </View>
           </View>
 
-          <View className="border-b border-border flex-row" style={{ backgroundColor: surfaceFill }}>
+          <View className="border-b border-border flex-row">
             {CHANNEL_TAB_CHIP_WIDTHS.map((width, index) => (
               <View key={index} className="items-center py-2.5 px-3 min-w-[60px]">
                 <Skeleton.Box width={width} height={14} borderRadius={6} />
@@ -190,7 +188,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
           this transparent top gutter. */}
       <View style={{ marginTop: LAYOUT.HEADER_HEIGHT_NARROWED, paddingTop: LAYOUT.HEADER_HEIGHT_EXPANDED - insets.top }}>
         {/* Profile info block — mirrors ProfileContent's padding + background. */}
-        <View className="px-4 pb-4" style={{ backgroundColor: surfaceFill }}>
+        <View className="px-4 pb-4">
           {/* Header row: avatar overlapping the banner + action placeholders.
               `marginTop: -45` matches ProfileHeader so the avatar lands
               at the identical Y. */}
@@ -233,9 +231,9 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
           </View>
         </View>
 
-        {/* Tab bar — matches AnimatedTabBar (bottom border, `py-2.5 px-3`
+        {/* Tab bar — matches the Bloom Tabs strip (bottom border, `py-2.5 px-3`
             min-60 cells) with an active-indicator hint under the first tab. */}
-        <View className="border-b border-border flex-row" style={{ backgroundColor: surfaceFill }}>
+        <View className="border-b border-border flex-row">
           {TAB_CHIP_WIDTHS.map((width, index) => (
             <View key={index} className="items-center py-2.5 px-3 min-w-[60px]">
               <Skeleton.Box width={width} height={14} borderRadius={6} />

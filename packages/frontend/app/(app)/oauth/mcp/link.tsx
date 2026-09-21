@@ -183,7 +183,7 @@ function LinkBody({ token }: { token: string }) {
       ) : null}
 
       <View className="gap-3">
-        <Button variant="primary" onPress={handleLink} disabled={submitting}>
+        <Button appearance="solid" tone="accent" onPress={handleLink} disabled={submitting}>
           {submitting
             ? t('mcp.link.linking', { defaultValue: 'Linking…' })
             : t('mcp.link.confirm', { defaultValue: 'Link to Claude' })}

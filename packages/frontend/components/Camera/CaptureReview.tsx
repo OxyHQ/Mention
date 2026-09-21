@@ -99,7 +99,7 @@ export function CaptureReview({
             <Loading className="text-white" size="small" />
           </View>
         ) : null}
-        <Button onPress={onAddText} disabled={busy} variant="secondary" size="large">
+        <Button onPress={onAddText} disabled={busy} appearance="subtle" tone="neutral" size="large">
           {t('camera.addText', { defaultValue: 'Add text' })}
         </Button>
         <Button onPress={onPublish} disabled={busy} size="large">

@@ -12,18 +12,20 @@ import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
+import type {
+  CurrencyCode,
+  MentionJobApplicationMode,
+  MentionJobEmploymentType,
+  MentionJobSalaryInterval,
+  MentionJobWorkplaceType,
+  UpdateMentionJobRequest,
+} from '@mention/shared-types';
 import {
   MENTION_JOB_APPLICATION_MODES,
   MENTION_JOB_EMPLOYMENT_TYPES,
   MENTION_JOB_SALARY_INTERVALS,
   MENTION_JOB_WORKPLACE_TYPES,
-  type CurrencyCode,
-  type MentionJobApplicationMode,
-  type MentionJobEmploymentType,
-  type MentionJobSalaryInterval,
-  type MentionJobWorkplaceType,
-  type UpdateMentionJobRequest,
-} from '@mention/shared-types';
+} from '@mention/shared-types/job';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { jobsService, getJobErrorMessage } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
@@ -237,7 +239,7 @@ export default function EditJobScreen() {
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.edit.loadFailed', { defaultValue: 'Could not load this job' })}
           </Text>
-          <Button variant="secondary" size="small" onPress={() => jobQuery.refetch()}>
+          <Button appearance="subtle" tone="neutral" size="small" onPress={() => jobQuery.refetch()}>
             {t('common.tryAgain', { defaultValue: 'Try again' })}
           </Button>
         </View>
@@ -382,7 +384,7 @@ export default function EditJobScreen() {
                 />
               </TextField>
             </View>
-            <Button variant="secondary" size="medium" onPress={addSkill} disabled={!skillDraft.trim()}>
+            <Button appearance="subtle" tone="neutral" size="medium" onPress={addSkill} disabled={!skillDraft.trim()}>
               {t('common.add', { defaultValue: 'Add' })}
             </Button>
           </View>
@@ -435,7 +437,7 @@ export default function EditJobScreen() {
 
         <View className="mt-6">
           <Button
-            variant="primary"
+            appearance="solid" tone="accent"
             size="large"
             loading={updateMutation.isPending}
             disabled={!canSave || updateMutation.isPending}

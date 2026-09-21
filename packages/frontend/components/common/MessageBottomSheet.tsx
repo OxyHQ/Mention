@@ -39,7 +39,7 @@ export const MessageBottomSheet: React.FC<MessageBottomSheetProps> = ({
             {/* Header */}
             <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border bg-background">
                 <Button
-                    variant="icon"
+                    appearance="subtle" tone="neutral"
                     iconOnly
                     leadingIcon={RiCloseLine}
                     accessibilityLabel={t('common.close')}

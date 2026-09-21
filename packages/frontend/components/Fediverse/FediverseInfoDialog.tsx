@@ -261,10 +261,10 @@ function FediverseInfoSteps({
           These are Bloom Buttons as they come — a variant and a layout class,
           no wrapper element. */}
       <View className="flex-row items-center gap-3">
-        <Button variant="ghost" size="large" className="shrink" onPress={onSecondary}>
+        <Button appearance="plain" tone="neutral" size="large" className="shrink" onPress={onSecondary}>
           {secondaryLabel}
         </Button>
-        <Button variant="primary" size="large" className="flex-1" onPress={onPrimary}>
+        <Button appearance="solid" tone="accent" size="large" className="flex-1" onPress={onPrimary}>
           {primaryLabel}
         </Button>
       </View>

@@ -41,7 +41,7 @@ import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import StarRating from '@/components/StarRating';
 import { toast } from '@oxy.so/bloom/toast';
-import AnimatedTabBar from '@/components/common/AnimatedTabBar';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { BottomSheet, type BottomSheetRef } from '@oxy.so/bloom/bottom-sheet';
 import { useTranslation } from 'react-i18next';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
@@ -109,7 +109,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
       style={[headerStyles.bar, { borderBottomColor: theme.colors.border }]}
     >
       <Button
-        variant="secondary"
+        appearance="subtle" tone="neutral"
         iconOnly
         leadingIcon={RiArrowLeftLine}
         onPress={safeBack}
@@ -160,7 +160,7 @@ const FeedHeaderBar = React.memo(function FeedHeaderBar({
       />
 
       <Button
-        variant="secondary"
+        appearance="subtle" tone="neutral"
         iconOnly
         icon={isPinned
           ? <RiPushpinFill size="md" fill={theme.colors.primary} />
@@ -227,7 +227,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
           ) : null}
         </View>
         <Button
-          variant="secondary"
+          appearance="subtle" tone="neutral"
           iconOnly
           leadingIcon={RiShare2Line}
           onPress={onShare}
@@ -794,12 +794,7 @@ export default function CustomFeedTimelineScreen() {
   const keywords: string[] = feed?.keywords ?? [];
 
   const tabBar = useMemo(() => (
-    <AnimatedTabBar
-      tabs={TABS}
-      activeTabId={activeTab}
-      onTabPress={handleTabPress}
-      instanceId={`feed-detail-${feedId}`}
-    />
+    <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">{(TABS).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
   ), [TABS, activeTab, handleTabPress, feedId]);
 
   const listHeader = useMemo(() => {
@@ -832,7 +827,7 @@ export default function CustomFeedTimelineScreen() {
           style={[headerStyles.bar, { borderBottomColor: theme.colors.border }]}
         >
           <Button
-            variant="secondary"
+            appearance="subtle" tone="neutral"
             iconOnly
             leadingIcon={RiArrowLeftLine}
             onPress={safeBack}
@@ -876,9 +871,9 @@ export default function CustomFeedTimelineScreen() {
               bottom edge's occupancy, which the bar publishes. */}
       {!isLoading && !hasError && (
         <Fab
-          size={48}
+          size="md" placement="bottom-right"
           onPress={() => router.push('/compose')}
-          icon={<ComposeIcon size={22} className="text-tertiary-foreground" />}
+          icon={<ComposeIcon size={26} className="text-tertiary-foreground" />}
           accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
         />
       )}

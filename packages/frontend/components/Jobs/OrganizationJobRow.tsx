@@ -1,3 +1,4 @@
+import type { Href } from 'expo-router';
 import React, { memo, useCallback } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
@@ -68,7 +69,7 @@ const OrganizationJobRow = memo(function OrganizationJobRow({ job }: Organizatio
   const open = useCallback(() => {
     try {
       const path = new URL(job.canonicalUrl).pathname;
-      router.push(path || `/jobs/${job.id}`);
+      router.push((path || `/jobs/${job.id}`) as Href);
     } catch {
       router.push(`/jobs/${job.id}`);
     }

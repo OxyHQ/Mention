@@ -40,13 +40,12 @@ describe('the page table', () => {
     ]);
   });
 
-  it('draws five of them in the bar — the camera is swipe-only', () => {
+  it('draws four destinations; camera is swipe-only and compose is an action', () => {
     // This is the fact the two index spaces exist for, so it is stated rather
     // than left implicit in an arithmetic assertion further down.
     expect(BAR_TABS.map((tab) => tab.name)).toEqual([
       'index',
       'videos',
-      'write',
       'notifications',
       'you',
     ]);
@@ -74,7 +73,7 @@ describe('names resolve to positions', () => {
 
   it('in bar space', () => {
     expect(barIndexByName('index')).toBe(0);
-    expect(barIndexByName('you')).toBe(4);
+    expect(barIndexByName('you')).toBe(3);
   });
 
   it('and answer -1 for a name that is neither', () => {
@@ -125,7 +124,7 @@ describe('barIndexForPathname is what Bloom is handed', () => {
     // `/notifications` is page 4 and bar item 3. Handing Bloom the page index
     // would park the capsule over the profile.
     expect(pageIndexForPathname('/notifications')).toBe(4);
-    expect(barIndexForPathname('/notifications')).toBe(3);
+    expect(barIndexForPathname('/notifications')).toBe(2);
   });
 
   it('answers -1 on a route pushed over the pages', () => {
@@ -158,7 +157,7 @@ describe('converting between the two index spaces', () => {
     // an off-by-one in either direction is a tap landing on the neighbour.
     for (let bar = 0; bar < BAR_TABS.length; bar += 1) {
       expect(pageToBar(barToPage(bar))).toBe(bar);
-      expect(barToPage(bar)).toBe(bar + 1);
+      expect(PAGES[barToPage(bar)]?.name).toBe(BAR_TABS[bar]?.name);
     }
   });
 
@@ -180,16 +179,14 @@ describe('converting between the two index spaces', () => {
     // Bloom copies `activeProgress` into its geometry raw and unclamped, so an
     // out-of-range value is a real place — one item-width outside the pill —
     // not an absence. Hiding the bar over such a page is a separate decision.
-    expect(BAR_POSITION_BY_PAGE).toEqual([0, 0, 1, 2, 3, 4]);
+    expect(BAR_POSITION_BY_PAGE).toEqual([0, 0, 1, 1, 2, 3]);
     expect(WITH_A_HIDDEN_PAGE[0]).toBe(WITH_A_HIDDEN_PAGE[1]);
   });
 
   it('interpolates a fractional page position into bar units', () => {
-    // 2.4 means 40% of the way from page 2 to page 3 — Videos towards the
-    // composer — which the bar has to draw as 40% from item 1 to item 2. The
-    // highlight tracks that continuously, which is the whole reason the pager
-    // writes a fraction rather than an index.
-    expect(barPositionForPage(BAR_POSITION_BY_PAGE, 2.4)).toBeCloseTo(1.4);
+    // The composer is an action now: the highlight stays on Videos while
+    // the separate chrome progress fades navigation out.
+    expect(barPositionForPage(BAR_POSITION_BY_PAGE, 2.4)).toBeCloseTo(1);
     expect(barPositionForPage(WITH_A_HIDDEN_PAGE, 2.5)).toBeCloseTo(1.5);
   });
 
@@ -206,7 +203,7 @@ describe('converting between the two index spaces', () => {
     // `overdrag` is off on the pager, but a position can still arrive at exactly
     // the bounds, and beyond them there is no page to interpolate towards.
     expect(barPositionForPage(BAR_POSITION_BY_PAGE, -3)).toBe(0);
-    expect(barPositionForPage(BAR_POSITION_BY_PAGE, 99)).toBe(4);
+    expect(barPositionForPage(BAR_POSITION_BY_PAGE, 99)).toBe(3);
     expect(barPositionForPage([], 2)).toBe(0);
   });
 
@@ -225,7 +222,7 @@ describe('converting between the two index spaces', () => {
     // `CHROME_HIDDEN_BY_PAGE` is the second quantity through the same
     // interpolation, which is why the bar travels WITH the finger rather than
     // popping when the page commits.
-    expect(CHROME_HIDDEN_BY_PAGE).toEqual([1, 0, 0, 0, 0, 0]);
+    expect(CHROME_HIDDEN_BY_PAGE).toEqual([1, 0, 0, 1, 0, 0]);
     expect(barPositionForPage(CHROME_HIDDEN_BY_PAGE, 1)).toBe(0);
     expect(barPositionForPage(CHROME_HIDDEN_BY_PAGE, 0.25)).toBeCloseTo(0.75);
     expect(barPositionForPage(CHROME_HIDDEN_BY_PAGE, 0)).toBe(1);
@@ -259,7 +256,7 @@ describe('tabHref, per platform', () => {
     const web = loadFor('web');
     const you = web.PAGES[web.pageIndexByName('you')]!;
     expect(web.tabHref(you, 'ana')).toBe('/@ana');
-    expect(web.barIndexForPathname('/@ana', 'ana')).toBe(4);
+    expect(web.barIndexForPathname('/@ana', 'ana')).toBe(3);
   });
 
   it('keeps web on /you when nobody is signed in', () => {

@@ -24,6 +24,7 @@ import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
 import { SuggestedUsers } from '@/components/suggestions/SuggestedUsers';
 import UserName from '@/components/UserName';
 
+import { PROFILE_BANNER_HEIGHT } from '../ProfilePageHeader';
 import { AccountCategoryLine } from '../AccountCategoryLine';
 import { PrivateBadge } from '../PrivateBadge';
 import { ProfileContent } from '../ProfileContent';
@@ -290,21 +291,10 @@ export function usePersonProfileView({
 
   // Number of action icons in the top-right cluster; sizes the scrolled name
   // overlay so a long display name truncates instead of sliding under them.
-  const headerActionCount = useMemo(() => {
-    let count = 1; // share is always present
-    if (!isOwnProfile) count += 2; // subscribe + more
-    // DM is local-only — remote (federated) actors have no Mention inbox.
-    if (!isOwnProfile && !isFederated) count += 1;
-    if (isFederated) count += 1; // open-on-instance
-    return count;
-  }, [isOwnProfile, isFederated]);
-
   const chrome = useProfileChrome({
     profileId: profileData?.id,
     currentTab: activeProfileTab,
     currentLaneId: activeLaneId,
-    headerActionCount,
-    hasBannerBand: true,
   });
 
   // Clear cached feed data for private profiles
@@ -327,7 +317,7 @@ export function usePersonProfileView({
       const descriptor = tabDescriptors[index];
       if (!descriptor) return;
       if (descriptor.key === activeDescriptor?.key) {
-        chrome.scrollToContent(chrome.contentHeight);
+        chrome.scrollToContent(chrome.contentHeight + PROFILE_BANNER_HEIGHT);
         return;
       }
       onSelectTab(descriptor, profileTabHref(handle, descriptor));
@@ -514,7 +504,7 @@ export function usePersonProfileView({
           from not. */}
       {!isOwnProfile && (
         <Button
-          variant="icon"
+          appearance="subtle" tone="neutral"
           iconOnly
           leadingIcon={subscribed ? RiNotification3Fill : RiNotification3Line}
           onPress={toggleSubscription}
@@ -534,7 +524,7 @@ export function usePersonProfileView({
       )}
       {!isOwnProfile && !isFederated && (
         <Button
-          variant="icon"
+          appearance="subtle" tone="neutral"
           iconOnly
           leadingIcon={RiMailLine}
           onPress={handleDM}
@@ -546,7 +536,7 @@ export function usePersonProfileView({
       )}
       {isFederated && (
         <Button
-          variant="icon"
+          appearance="subtle" tone="neutral"
           iconOnly
           leadingIcon={RiExternalLinkLine}
           onPress={handleOpenOnInstance}
@@ -557,7 +547,7 @@ export function usePersonProfileView({
         />
       )}
       <Button
-        variant="icon"
+        appearance="subtle" tone="neutral"
         iconOnly
         leadingIcon={RiUpload2Line}
         onPress={handleShare}
@@ -568,7 +558,7 @@ export function usePersonProfileView({
       />
       {!isOwnProfile && (
         <Button
-          variant="icon"
+          appearance="subtle" tone="neutral"
           iconOnly
           leadingIcon={RiMoreFill}
           onPress={handleMoreOptions}

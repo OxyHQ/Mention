@@ -3,7 +3,6 @@ import {
     View,
     TouchableOpacity,
 } from 'react-native';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
@@ -39,7 +38,7 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { NotificationsList } from '@/components/NotificationsList';
 import { NotificationSkeleton } from '@/components/notifications/NotificationSkeleton';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import AnimatedTabBar from '@/components/common/AnimatedTabBar';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { StatusBar } from 'expo-status-bar';
 import { toast } from '@oxy.so/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
@@ -49,7 +48,6 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
 import { DoneAllIcon } from '@/assets/icons/done-all-icon';
 import { Gear } from '@/assets/icons/gear-icon';
-import { PanelStickyHeader } from '@/components/shell/PanelChrome';
 import { prewarmUsersByIds } from '@/utils/userEnrichment';
 
 const notificationLogger = createLogger('Notifications');
@@ -594,26 +592,19 @@ const NotificationsScreen: React.FC = () => {
                 title={t('seo.notifications.title')}
                 description={t('seo.notifications.description')}
             />
-            <SafeAreaView className="flex-1" edges={['top']}>
+            <View className="flex-1 web:z-auto">
                 <View className="flex-1">
                     <StatusBar style={theme.isDark ? "light" : "dark"} />
 
-                    {/* Header chrome pinned inside the rounded panel via
-                        PanelStickyHeader. The notifications list is document-scroll
-                        on web (window virtualizer), so the header/tab bar must pin
-                        at PANEL_TOP_INSET (not top:0, where the bleed mask would clip
-                        them). When the tab bar is shown it stacks as level={1}
-                        below the header. The SafeAreaView owns the top inset, so the
-                        header pads none of its own. */}
-                    <PanelStickyHeader level={0}>
+                    <>
                         <PageHeader
                             title={t('Notifications')}
-                            safeArea={false}
+                            presentation="floating"
                             actions={
                                 <>
                                     {unreadCount > 0 ? (
                                         <Button
-                                            variant="secondary"
+                                            appearance="subtle" tone="neutral"
                                             iconOnly
                                             icon={<DoneAllIcon size={20} color={theme.colors.primary} />}
                                             onPress={handleMarkAllAsRead}
@@ -622,14 +613,14 @@ const NotificationsScreen: React.FC = () => {
                                         />
                                     ) : null}
                                     <Button
-                                        variant="secondary"
+                                        appearance="subtle" tone="neutral"
                                         iconOnly
                                         icon={<BellActive size={20} color={theme.colors.text} />}
                                         onPress={() => router.push('/settings/notifications/subscriptions')}
                                         accessibilityLabel={t('subscription.list.title', { defaultValue: 'Activity notifications' })}
                                     />
                                     <Button
-                                        variant="secondary"
+                                        appearance="subtle" tone="neutral"
                                         iconOnly
                                         icon={<Gear size={20} color={theme.colors.text} />}
                                         onPress={() => router.push('/settings/notifications')}
@@ -638,29 +629,24 @@ const NotificationsScreen: React.FC = () => {
                                 </>
                             }
                         />
-                    </PanelStickyHeader>
+                    </>
 
                     {canUsePrivateApi && (
-                        <PanelStickyHeader level={1} zIndex={100}>
-                            <AnimatedTabBar
-                                tabs={[
+                        <>
+                            <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">{([
                                     { id: 'all', label: t('notifications.tabs.all'), count: unreadCount },
                                     { id: 'mentions', label: t('notifications.tabs.mentions'), count: tabUnreadCounts.mentions },
                                     { id: 'follows', label: t('notifications.tabs.follows'), count: tabUnreadCounts.follows },
                                     { id: 'likes', label: t('notifications.tabs.likes'), count: tabUnreadCounts.likes },
                                     { id: 'posts', label: t('notifications.tabs.posts'), count: tabUnreadCounts.posts },
                                     { id: 'pokes', label: t('notifications.tabs.pokes', { defaultValue: 'Pokes' }), count: tabUnreadCounts.pokes },
-                                ]}
-                                activeTabId={activeTab}
-                                onTabPress={handleTabPress}
-                                scrollEnabled={true}
-                            />
-                        </PanelStickyHeader>
+                                ]).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
+                        </>
                     )}
 
                     {renderContent()}
                 </View>
-            </SafeAreaView>
+            </View>
         </>
     );
 };

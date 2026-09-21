@@ -15,7 +15,7 @@ export function NoteSheetHeader({ title, onClose }: NoteSheetHeaderProps) {
   return (
     <View className="min-h-[52px] flex-row items-center px-3 py-2">
       <Button
-        variant="icon"
+        appearance="subtle" tone="neutral"
         iconOnly
         leadingIcon={RiCloseLine}
         accessibilityLabel={t('common.close', { defaultValue: 'Close' })}

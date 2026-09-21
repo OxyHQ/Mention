@@ -264,7 +264,7 @@ const RoomDetailScreen = () => {
           actions={
             room ? (
               <Button
-                variant="secondary"
+                appearance="subtle" tone="neutral"
                 iconOnly
                 leadingIcon={RiMoreFill}
                 accessibilityLabel={t('common.options', { defaultValue: 'Options' })}

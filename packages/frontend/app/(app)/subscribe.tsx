@@ -46,7 +46,7 @@ export default function SubscribeScreen() {
 
             {/* CTA */}
             <View className="px-4 mt-2">
-                <Button variant="primary" size="large" onPress={handleSubscribe}>
+                <Button appearance="solid" tone="accent" size="large" onPress={handleSubscribe}>
                     {t('subscribe.cta')}
                 </Button>
             </View>

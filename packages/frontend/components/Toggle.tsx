@@ -34,6 +34,7 @@ export const Toggle: React.FC<ToggleProps> = ({
         </Text>
       )}
       <Switch
+        accessibilityLabel={label}
         value={value}
         onValueChange={handleValueChange}
         disabled={disabled}

@@ -39,7 +39,7 @@ import {
 } from "@/utils/searchSuggestions";
 import { Loading } from "@oxy.so/bloom/loading";
 import { FlashList } from "@shopify/flash-list";
-import AnimatedTabBar from "@/components/common/AnimatedTabBar";
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import PostItem from "@/components/Feed/PostItem";
 import { Search } from "@oxy.so/bloom/search";
 import { Search as SearchIcon } from "@/assets/icons/search-icon";
@@ -1350,12 +1350,7 @@ export default function SearchIndex() {
                     />
                 </View>
 
-                <AnimatedTabBar
-                    tabs={tabs}
-                    activeTabId={activeTab}
-                    onTabPress={handleTabPress}
-                    scrollEnabled={true}
-                />
+                <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">{(tabs).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
 
                 {/* Refining a query keeps the previous rows on screen, so the
                     only signal that newer ones are coming is this hairline.

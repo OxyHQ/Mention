@@ -529,7 +529,7 @@ const FeedsScreen: React.FC = () => {
           title={t('Feeds')}
           actions={
             <Button
-              variant="secondary"
+              appearance="subtle" tone="neutral"
               iconOnly
               leadingIcon={RiSettings3Line}
               onPress={() => router.push('/settings/feed')}
@@ -562,7 +562,7 @@ const FeedsScreen: React.FC = () => {
               bottom edge's occupancy, which the bar publishes. */}
         {canEdit ? (
           <Fab
-            size={48}
+            size="md" placement="bottom-right"
             onPress={() => router.push('/feeds/new')}
             icon={<RiAddLine size="lg" fill={theme.colors.tertiaryForeground} />}
             accessibilityLabel={t('feeds.create.title', { defaultValue: 'Create feed' })}

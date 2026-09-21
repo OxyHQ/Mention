@@ -32,7 +32,7 @@ import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 
 import Feed from '@/components/Feed/Feed';
-import AnimatedTabBar from '@/components/common/AnimatedTabBar';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { listsService } from '@/services/listsService';
 import { subscribeToListChanges } from '@/services/listMutations';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -245,19 +245,14 @@ export default function ListDetailScreen() {
   const postsTabHeader = useMemo(() => (
     <View>
       {renderSubheader()}
-      <AnimatedTabBar
-        tabs={TABS}
-        activeTabId="posts"
-        onTabPress={setActiveTab}
-        instanceId={`list-${listId}`}
-      />
+      <Tabs value={"posts"} onValueChange={setActiveTab} variant="underline">{(TABS).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
     </View>
   ), [renderSubheader, TABS, listId]);
 
   const headerActions = (
     <>
       <Button
-        variant="secondary"
+        appearance="subtle" tone="neutral"
         iconOnly
         leadingIcon={Platform.OS === 'web' ? RiLinkM : RiShare2Line}
         onPress={handleShare}
@@ -267,7 +262,7 @@ export default function ListDetailScreen() {
       />
       {isOwnList ? (
         <Button
-          variant="secondary"
+          appearance="subtle" tone="neutral"
           iconOnly
           leadingIcon={RiEditBoxLine}
           onPress={() => router.push(`/lists/${listId}/edit`)}
@@ -345,12 +340,7 @@ export default function ListDetailScreen() {
             }
           >
             {renderSubheader()}
-            <AnimatedTabBar
-              tabs={TABS}
-              activeTabId={activeTab}
-              onTabPress={setActiveTab}
-              instanceId={`list-${listId}`}
-            />
+            <Tabs value={activeTab} onValueChange={setActiveTab} variant="underline">{(TABS).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
             <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
               <RiNewspaperLine size="3xl" fill={theme.colors.textSecondary} />
               <Text className="text-muted-foreground text-base font-medium text-center">
@@ -381,12 +371,7 @@ export default function ListDetailScreen() {
           header={
             <View>
               {renderSubheader()}
-              <AnimatedTabBar
-                tabs={TABS}
-                activeTabId={activeTab}
-                onTabPress={setActiveTab}
-                instanceId={`list-${listId}`}
-              />
+              <Tabs value={activeTab} onValueChange={setActiveTab} variant="underline">{(TABS).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
             </View>
           }
         />

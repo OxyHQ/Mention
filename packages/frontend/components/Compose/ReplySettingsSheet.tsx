@@ -1,13 +1,14 @@
-import React, { useRef, useEffect, useCallback } from 'react';
-import { View, Text, Pressable, Animated, Platform } from 'react-native';
-import { useTheme } from '@oxy.so/bloom/theme';
+import React, { useCallback } from 'react';
+import { View } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
-import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
+import { RadioGroup } from '@oxy.so/bloom/radio';
+import { CheckboxCard } from '@oxy.so/bloom/checkbox';
+import { Switch } from '@oxy.so/bloom/switch';
+import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 
 export type ReplyPermission = 'anyone' | 'followers' | 'following' | 'mentioned' | 'nobody';
-
-type Adjacent = 'leading' | 'trailing' | 'both';
 
 type GranularPermission = 'followers' | 'following' | 'mentioned';
 
@@ -25,42 +26,13 @@ interface ReplySettingsSheetProps {
   onQuotesDisabledChange: (disabled: boolean) => void;
 }
 
-function getPanelRounding(adjacent?: Adjacent) {
-  const leading = adjacent === 'leading' || adjacent === 'both';
-  const trailing = adjacent === 'trailing' || adjacent === 'both';
-  return {
-    borderTopLeftRadius: leading ? 6 : 16,
-    borderTopRightRadius: leading ? 6 : 16,
-    borderBottomLeftRadius: trailing ? 6 : 16,
-    borderBottomRightRadius: trailing ? 6 : 16,
-  };
-}
-
-const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
-  onClose,
-  replyPermission,
-  onReplyPermissionChange,
-  quotesDisabled,
-  onQuotesDisabledChange,
-}) => {
-  const theme = useTheme();
+export default function ReplySettingsSheet({ onClose, replyPermission, onReplyPermissionChange,
+  quotesDisabled, onQuotesDisabledChange,
+}: ReplySettingsSheetProps) {
   const { t } = useTranslation();
-
   const isAnyone = replyPermission.includes('anyone');
   const isNobody = replyPermission.includes('nobody');
   const isGranular = !isAnyone && !isNobody;
-
-  // The engine's real subtle-primary surface, NOT `theme.colors.primary + '12'`:
-  // that token is an `rgb(...)` string, so the hex-alpha suffix produced a
-  // malformed colour react-native-web read back as fully opaque primary — a
-  // saturated panel under `theme.colors.text`, i.e. the selected reply option
-  // was the hardest one to read. `primarySubtle` is a container tone the colour
-  // engine derives to sit under foreground text in both light and dark.
-  const panelActiveBg = theme.colors.primarySubtle;
-  const panelInactiveBg = theme.colors.backgroundTertiary;
-  const mutedTextColor = theme.colors.textSecondary;
-  const indicatorBorderColor = theme.colors.border;
-
   const handleRadioPress = useCallback((value: 'anyone' | 'nobody') => {
     onReplyPermissionChange([value]);
   }, [onReplyPermissionChange]);
@@ -87,304 +59,30 @@ const ReplySettingsSheet: React.FC<ReplySettingsSheetProps> = ({
   }, [replyPermission, onReplyPermissionChange]);
 
   return (
-    <View style={{ paddingBottom: 16, paddingHorizontal: 16, gap: 12, backgroundColor: theme.colors.background }}>
-      {/* Title */}
-      <Text
-        style={{
-          fontSize: 22,
-          fontWeight: '700',
-          color: theme.colors.text,
-        }}
-      >
-        {t('Post interaction settings')}
-      </Text>
-
-      {/* Who can reply section */}
-      <View style={{ gap: 6 }}>
-        <Text
-          style={{
-            fontSize: 15,
-            fontWeight: '500',
-            color: theme.colors.text,
-          }}
-        >
-          {t('Who can reply')}
-        </Text>
-
-        {/* Anyone / Nobody radio row */}
-        <View style={{ flexDirection: 'row', gap: 6 }}>
-          <Pressable
-            onPress={() => handleRadioPress('anyone')}
-            style={{ flex: 1 }}
-          >
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                minHeight: 44,
-                ...getPanelRounding(),
-                backgroundColor: isAnyone ? panelActiveBg : panelInactiveBg,
-              }}
-            >
-              <RadioIndicator
-                selected={isAnyone}
-                primaryColor={theme.colors.primary}
-                borderColor={indicatorBorderColor}
-                inactiveBg={panelInactiveBg}
-              />
-              <Text
-                style={{
-                  fontSize: 15,
-                  fontWeight: isAnyone ? '500' : '400',
-                  color: isAnyone ? theme.colors.text : mutedTextColor,
-                }}
-              >
-                {t('Anyone')}
-              </Text>
-            </View>
-          </Pressable>
-
-          <Pressable
-            onPress={() => handleRadioPress('nobody')}
-            style={{ flex: 1 }}
-          >
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                minHeight: 44,
-                ...getPanelRounding(),
-                backgroundColor: isNobody ? panelActiveBg : panelInactiveBg,
-              }}
-            >
-              <RadioIndicator
-                selected={isNobody}
-                primaryColor={theme.colors.primary}
-                borderColor={indicatorBorderColor}
-                inactiveBg={panelInactiveBg}
-              />
-              <Text
-                style={{
-                  fontSize: 15,
-                  fontWeight: isNobody ? '500' : '400',
-                  color: isNobody ? theme.colors.text : mutedTextColor,
-                }}
-              >
-                {t('Nobody')}
-              </Text>
-            </View>
-          </Pressable>
-        </View>
-
-        {/* Granular checkboxes - connected panel group */}
-        <View style={{ gap: 4 }}>
-          {GRANULAR_OPTIONS.map((option, index, arr) => {
-            const isSelected = isGranular && replyPermission.includes(option.value);
-            const adjacent: Adjacent =
-              index === 0 ? 'trailing' : index === arr.length - 1 ? 'leading' : 'both';
-
-            return (
-              <Pressable
-                key={option.value}
-                onPress={() => handleCheckboxToggle(option.value)}
-              >
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8,
-                    paddingHorizontal: 12,
-                    paddingVertical: 10,
-                    minHeight: 44,
-                    ...getPanelRounding(adjacent),
-                    backgroundColor: isSelected ? panelActiveBg : panelInactiveBg,
-                  }}
-                >
-                  <CheckboxIndicator
-                    selected={isSelected}
-                    primaryColor={theme.colors.primary}
-                    borderColor={indicatorBorderColor}
-                    inactiveBg={panelInactiveBg}
-                  />
-                  <Text
-                    style={{
-                      fontSize: 15,
-                      flex: 1,
-                      fontWeight: isSelected ? '500' : '400',
-                      color: isSelected ? theme.colors.text : mutedTextColor,
-                    }}
-                  >
-                    {t(option.labelKey)}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* Allow quote posts toggle */}
-      <Pressable onPress={() => onQuotesDisabledChange(!quotesDisabled)}>
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-            paddingHorizontal: 12,
-            paddingVertical: 10,
-            minHeight: 44,
-            ...getPanelRounding(),
-            backgroundColor: !quotesDisabled ? panelActiveBg : panelInactiveBg,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 15,
-              flex: 1,
-              fontWeight: !quotesDisabled ? '500' : '400',
-              color: !quotesDisabled ? theme.colors.text : mutedTextColor,
-            }}
-          >
-            {t('Allow quote posts')}
-          </Text>
-          <ToggleSwitch
-            value={!quotesDisabled}
-            primaryColor={theme.colors.primary}
-            mutedColor={theme.colors.border}
-          />
-        </View>
-      </Pressable>
-
-      <Button size="large" onPress={onClose}>
-        {t('Save')}
-      </Button>
-    </View>
-  );
-};
-
-function RadioIndicator({
-  selected,
-  primaryColor,
-  borderColor,
-  inactiveBg,
-}: {
-  selected: boolean;
-  primaryColor: string;
-  borderColor: string;
-  inactiveBg: string;
-}) {
-  return (
-    <View
-      style={{
-        width: 22,
-        height: 22,
-        borderRadius: 11,
-        borderWidth: 1,
-        borderColor: selected ? primaryColor : borderColor,
-        backgroundColor: selected ? primaryColor : inactiveBg,
-        justifyContent: 'center',
-        alignItems: 'center',
-        margin: -1,
-      }}
-    >
-      {selected && (
-        <View
-          style={{
-            width: 10,
-            height: 10,
-            borderRadius: 5,
-            backgroundColor: '#fff',
-          }}
-        />
-      )}
-    </View>
-  );
-}
-
-function CheckboxIndicator({
-  selected,
-  primaryColor,
-  borderColor,
-  inactiveBg,
-}: {
-  selected: boolean;
-  primaryColor: string;
-  borderColor: string;
-  inactiveBg: string;
-}) {
-  return (
-    <View
-      style={{
-        width: 22,
-        height: 22,
-        borderRadius: 6,
-        borderWidth: 1,
-        borderColor: selected ? primaryColor : borderColor,
-        backgroundColor: selected ? primaryColor : inactiveBg,
-        justifyContent: 'center',
-        alignItems: 'center',
-      }}
-    >
-      {selected && (
-        <RiCheckLine width={13} height={13} fill="#fff" />
-      )}
-    </View>
-  );
-}
-
-function ToggleSwitch({
-  value,
-  primaryColor,
-  mutedColor,
-}: {
-  value: boolean;
-  primaryColor: string;
-  mutedColor: string;
-}) {
-  const switchAnim = useRef(new Animated.Value(value ? 1 : 0)).current;
-
-  useEffect(() => {
-    Animated.timing(switchAnim, {
-      toValue: value ? 1 : 0,
-      duration: 200,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start();
-  }, [value, switchAnim]);
-
-  return (
-    <View
-      style={{
-        width: 44,
-        height: 26,
-        borderRadius: 13,
-        padding: 2,
-        backgroundColor: value ? primaryColor : mutedColor,
-      }}
-    >
-      <Animated.View
-        style={{
-          width: 22,
-          height: 22,
-          borderRadius: 11,
-          backgroundColor: '#fff',
-          transform: [
-            {
-              translateX: switchAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, 18],
-              }),
-            },
-          ],
-        }}
+    <View className="px-4 pb-4 gap-3">
+      <Text variant="title-2-bold">{t('Post interaction settings')}</Text>
+      <RadioGroup
+        label={t('Who can reply')}
+        value={isAnyone ? 'anyone' : isNobody ? 'nobody' : undefined}
+        onValueChange={handleRadioPress}
+        variant="card"
+        options={[{ value: 'anyone', label: t('Anyone') }, { value: 'nobody', label: t('Nobody') }]}
       />
+      <View className="gap-1">
+        {GRANULAR_OPTIONS.map(option => <CheckboxCard
+          key={option.value}
+          title={t(option.labelKey)}
+          checked={isGranular && replyPermission.includes(option.value)}
+          onCheckedChange={() => handleCheckboxToggle(option.value)}
+        />)}
+      </View>
+      <SettingsListGroup>
+        <SettingsListItem title={t('Allow quote posts')} rightElement={
+          <Switch checked={!quotesDisabled} onCheckedChange={allowed => onQuotesDisabledChange(!allowed)}
+            accessibilityLabel={t('Allow quote posts')} />
+        } />
+      </SettingsListGroup>
+      <Button size="large" onPress={onClose}>{t('Save')}</Button>
     </View>
   );
 }
-
-export default ReplySettingsSheet;

@@ -9,11 +9,8 @@ import { Chip } from '@oxy.so/bloom/chip';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useAuth } from '@oxy.so/services/ui/client';
-import {
-  MENTION_JOB_APPLICATION_STATUSES,
-  type MentionJobApplication,
-  type MentionJobApplicationStatus,
-} from '@mention/shared-types';
+import type { MentionJobApplication, MentionJobApplicationStatus } from '@mention/shared-types';
+import { MENTION_JOB_APPLICATION_STATUSES } from '@mention/shared-types/job';
 import { Error as ErrorState } from '@/components/Error';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { BottomSheetContext } from '@/context/BottomSheetContext';

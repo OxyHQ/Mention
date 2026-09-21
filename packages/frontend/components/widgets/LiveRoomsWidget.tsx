@@ -1,5 +1,7 @@
+import { Button } from '@oxy.so/bloom/button';
+import { Text } from '@oxy.so/bloom/typography';
 import React, { useCallback, useEffect, useMemo } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiCustomerServiceLine } from '@oxy.so/bloom/icons/RiCustomerServiceLine';
@@ -182,15 +184,9 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
               />
             ))}
           </View>
-          <TouchableOpacity
-            className="web:cursor-pointer"
-            onPress={handleShowMore}
-            activeOpacity={0.7}
-          >
-            <Text className="text-primary text-[14px] font-medium">
-              Show more
-            </Text>
-          </TouchableOpacity>
+          <Button appearance="plain" size="small" onPress={handleShowMore} style={{ alignSelf: 'flex-start' }}>
+            {t('Show more')}
+          </Button>
         </View>
       )}
     </BaseWidget>

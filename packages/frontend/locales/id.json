@@ -2356,7 +2356,10 @@
   "common": {
     "add": "Add",
     "loading": "Loading…",
-    "view": "View"
+    "view": "View",
+    "actions": "Tindakan",
+    "manage": "Kelola",
+    "open": "Buka"
   },
   "compose": {
     "job": {
@@ -2440,5 +2443,23 @@
   "communityNotes.rate.reason.opinion_or_biased": "Opini atau bahasa yang memihak",
   "communityNotes.rate.reason.hard_to_understand": "Sulit dipahami",
   "communityNotes.rate.reason.not_needed": "Postingan ini tidak perlu catatan",
-  "communityNotes.rate.reason.other": "Hal lain"
+  "communityNotes.rate.reason.other": "Hal lain",
+  "settings": {
+    "accessibility": {
+      "nativeHaptics": "Tersedia di aplikasi seluler."
+    },
+    "account": {
+      "loadFailed": "Tidak dapat memuat akun Anda",
+      "oxyDescription": "Kelola identitas Oxy bersama, profil, dan keamanan Anda."
+    },
+    "preferences": {
+      "title": "Preferensi"
+    },
+    "profile": {
+      "name": "Nama",
+      "photo": "Foto profil",
+      "username": "Nama pengguna"
+    },
+    "saveFailed": "Tidak dapat menyimpan pengaturan. Silakan coba lagi."
+  }
 }

@@ -2480,7 +2480,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             <View className="bg-card border-border" style={styles.header}>
               {presentation === 'pushed' ? (
                 <Button
-                  variant="secondary"
+                  appearance="subtle" tone="neutral"
                   iconOnly
                   leadingIcon={RiArrowLeftLine}
                   onPress={() => {
@@ -2509,7 +2509,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               <Text className="text-foreground" style={[styles.headerTitle, { pointerEvents: 'none' }]}>{isEditMode ? t('Edit post') : replyToPostId ? t('Reply') : t('New post')}</Text>
               <View style={styles.headerIcons}>
                 <Button
-                  variant="secondary"
+                  appearance="subtle" tone="neutral"
                   iconOnly
                   leadingIcon={RiMoreFill}
                   style={styles.iconBtn}
@@ -2519,7 +2519,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                     : t('compose.showModeOptions.a11y', { defaultValue: 'Show posting mode options' })}
                 />
                 <Button
-                  variant="secondary"
+                  appearance="subtle" tone="neutral"
                   iconOnly
                   icon={<DraftsIcon size={20} color={theme.colors.text} />}
                   style={styles.iconBtn}
@@ -2538,7 +2538,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   accessibilityLabel={t('compose.openDrafts.a11y', { defaultValue: 'Open drafts and scheduled posts' })}
                 />
                 <Button
-                  variant="secondary"
+                  appearance="subtle" tone="neutral"
                   iconOnly
                   leadingIcon={RiDeleteBinLine}
                   style={styles.iconBtn}

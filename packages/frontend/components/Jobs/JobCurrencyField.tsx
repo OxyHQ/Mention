@@ -2,7 +2,8 @@ import React, { memo, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Item } from '@oxy.so/bloom/item';
-import { CURRENCY_CODES, type CurrencyCode } from '@mention/shared-types';
+import type { CurrencyCode } from '@mention/shared-types';
+import { CURRENCY_CODES } from '@mention/shared-types/job';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
 import CodePickerDialog from './CodePickerDialog';
 

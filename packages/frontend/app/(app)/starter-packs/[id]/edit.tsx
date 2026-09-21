@@ -336,7 +336,7 @@ export default function EditStarterPackScreen() {
                     trailing={
                       already ? (
                         <Button
-                          variant="secondary"
+                          appearance="subtle" tone="neutral"
                           size="small"
                           disabled
                           icon={<RiCheckLine size="xs" fill={theme.colors.success} />}
@@ -346,7 +346,7 @@ export default function EditStarterPackScreen() {
                         </Button>
                       ) : (
                         <Button
-                          variant="primary"
+                          appearance="solid" tone="accent"
                           size="small"
                           loading={busy}
                           disabled={blockedByCap}
@@ -396,7 +396,7 @@ export default function EditStarterPackScreen() {
                     subtitle={`@${m.username}`}
                     trailing={
                       <Button
-                        variant="ghost"
+                        appearance="plain" tone="neutral"
                         size="small"
                         loading={busy}
                         onPress={() => removeMember(m)}

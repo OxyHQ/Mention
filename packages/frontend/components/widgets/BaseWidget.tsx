@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
 import { View, StyleSheet } from 'react-native';
+import { Card } from '@oxy.so/bloom/card';
 import { Text } from '@oxy.so/bloom/typography';
 
 type BaseWidgetProps = {
@@ -16,9 +17,10 @@ export function BaseWidget({ title, icon, divider, children }: BaseWidgetProps) 
         // height, so a rail whose widgets have all hidden themselves would still
         // reserve the spacing between them. Owning the margin here lets the
         // column collapse to nothing when every widget renders null.
-        <View
+        <Card
+            appearance="plain"
             className={`gap-2 mb-4${divider ? ' pb-4 border-border' : ''}`}
-            style={[styles.base, divider && styles.divider]}
+            style={[{ borderRadius: 0 }, divider && styles.divider]}
         >
             {title && (
                 <View className="flex-row justify-between items-center">
@@ -27,14 +29,11 @@ export function BaseWidget({ title, icon, divider, children }: BaseWidgetProps) 
                 </View>
             )}
             <View>{children}</View>
-        </View>
+        </Card>
     );
 }
 
 const styles = StyleSheet.create({
-    base: {
-        pointerEvents: 'auto',
-    },
     divider: {
         borderBottomWidth: StyleSheet.hairlineWidth,
     },

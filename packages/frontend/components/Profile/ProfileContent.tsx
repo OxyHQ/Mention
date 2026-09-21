@@ -1,7 +1,6 @@
 import React, { memo } from 'react';
 import { View, Text, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
-import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { useTranslation } from 'react-i18next';
 import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { ProfileStats } from './ProfileStats';
@@ -50,7 +49,6 @@ export const ProfileContent = memo(function ProfileContent({
   const { t } = useTranslation();
   // The block is opaque so the banner does not show through it as it scrolls
   // past — in the colour of the column, whichever that is.
-  const surfaceFill = useSurfaceFill();
   const design = profileData.design;
   const collapseLongBio =
     useAppearanceStore((s) => s.mySettings?.appearance?.collapseLongBio) ?? true;
@@ -69,7 +67,6 @@ export const ProfileContent = memo(function ProfileContent({
   return (
     <View
       style={{
-        backgroundColor: surfaceFill,
         paddingHorizontal: LAYOUT.DEFAULT_PADDING,
         paddingBottom: LAYOUT.DEFAULT_PADDING,
       }}

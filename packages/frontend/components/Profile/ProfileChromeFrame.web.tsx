@@ -2,16 +2,13 @@ import React, { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 import { router, usePathname, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { BloomColorScope } from '@oxy.so/bloom/theme';
 import { RouterTabs, type RouterTabItem } from '@oxy.so/bloom/tabs/expo-router';
 
-import { Fab } from '@oxy.so/bloom/fab';
 import { EmptyState } from '@/components/common/EmptyState';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
-import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 
-import { ProfileChromeLayers } from './ProfileChromeLayers';
+import { ProfilePageHeader, ProfileBanner, PROFILE_BANNER_HEIGHT } from './ProfilePageHeader';
 import { ProfileSkeleton } from './ProfileSkeleton';
 import { ProfileTabBarRow } from './ProfileTabBarRow';
 import { usePersonProfileView } from './hooks/usePersonProfileView';
@@ -150,103 +147,24 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
         // Re-tapping the tab you are on conventionally means "back to the top",
         // and here that is the top of the CONTENT rather than of the document —
         // the same place the stats row jumps to, so the two agree.
-        onReselect={() => view.chrome.scrollToContent(view.chrome.contentHeight)}
+        onReselect={() => view.chrome.scrollToContent(view.chrome.contentHeight + PROFILE_BANNER_HEIGHT)}
       />
     </ProfileTabBarRow>
   );
 
-  return (
-    <BloomColorScope colorPreset={active ? view.colorName : undefined} asChild>
-      {/* `web:z-auto` so this profile wrapper does not become its own stacking
-          context and trap the sticky header chrome below the panel's
-          bleed-mask/border overlays (see ProfileShell's root for the full
-          rationale). */}
-      <View
-        className="flex-1 web:z-auto relative flex-col"
-        style={active ? [rootOverflow, view.chrome.themedStyles.container] : rootOverflow}
-      >
-        {view.seo}
-
-        {chromeState === 'skeleton' ? <ProfileSkeleton variant="person" /> : null}
-
-        {chromeState === 'notFound' ? (
-          <EmptyState
-            customIcon={<NoUpdatesIllustration width={200} height={200} />}
-            title={t('profile.notFound.title', { defaultValue: 'Profile not found' })}
-            subtitle={t('profile.notFound.message', {
-              defaultValue:
-                "This profile couldn't be loaded. The user may not exist or their server may be unavailable.",
-            })}
-            action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: safeBack }}
-          />
-        ) : null}
-
-        {drawing ? (
-          <ProfileChromeLayers
-            chrome={view.chrome}
-            banner={{ uri: view.bannerUri }}
-            headerActions={view.headerActions}
-            profileData={drawing}
-          />
-        ) : null}
-
-        {/* The one flow column: summary, sticky strip and the routed child, in
-            that order. They share a parent on purpose — `position: sticky` is
-            scoped to its own flow parent, so a strip in a box that ended above
-            the content would unstick the instant the reader scrolled past it.
-            The banner/header offsets ride here rather than on each piece, which
-            is where `ProfileShell` puts them too.
-
-            When no tab is showing this is a bare `flex-1` box, so the sibling
-            screen inside it gets the same room it had when the layout rendered
-            nothing but a `<Slot/>`. */}
-        <View
-          className={drawing ? undefined : 'flex-1'}
-          style={
-            drawing
-              ? [
-                  contentLayer,
-                  view.chrome.themedStyles.scrollView,
-                  view.chrome.themedStyles.contentContainer,
-                ]
-              : undefined
-          }
-        >
-          {drawing ? view.summary : null}
-
-          {/* Tabs — sticky in the SECOND tier, pinned flush BELOW the header
-              chrome band (`panelStickyTabsTopInset`); the chrome layers all pin
-              at the FIRST tier, and pinning the strip at that same inset made
-              the two bands occupy the same vertical space and OVERLAP. */}
-          {drawing ? (
-            <View className="web:sticky web:z-[5]" style={view.chrome.panelStickyTabsTopInset}>
-              {tabBar}
-            </View>
-          ) : null}
-
-          {children}
-        </View>
-
-        {/* Clears the BottomBar on every platform — Bloom's Fab reads the
-              bottom edge's occupancy, which the bar publishes. */}
-        {drawing ? (
-          <Fab
-            size={48}
-            onPress={() => router.push('/compose')}
-            icon={<ComposeIcon size={20} className="text-primary-foreground" />}
-            accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
-          />
-        ) : null}
-      </View>
-    </BloomColorScope>
-  );
+  return <View className="flex-1 web:z-auto">
+    {view.seo}
+    {chromeState === 'skeleton' ? <ProfileSkeleton variant="person" /> : null}
+    {chromeState === 'notFound' ? <EmptyState
+      customIcon={<NoUpdatesIllustration width={200} height={200} />}
+      title={t('profile.notFound.title', { defaultValue: 'Profile not found' })}
+      action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: safeBack }} /> : null}
+    {drawing ? <ProfilePageHeader profileData={drawing} actions={view.headerActions}
+      revealOffset={view.chrome.contentHeight + PROFILE_BANNER_HEIGHT} /> : null}
+    {drawing ? <ProfileBanner uri={view.bannerUri} /> : null}
+    {drawing ? view.summary : null}
+    {drawing ? tabBar : null}
+    {/* Keep the navigator at one tree position across profile-tab and sibling routes. */}
+    {children}
+  </View>;
 }
-
-const rootOverflow = { overflow: 'visible' } as const;
-
-/**
- * Keeps the flow column above the banner (`z-1`) and below the header band
- * (`z-100`), exactly as `ProfileShell` does — the layers and the content are
- * siblings in both compositions, so they need the same tier.
- */
-const contentLayer = { zIndex: 3 } as const;

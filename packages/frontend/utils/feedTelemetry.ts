@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react';
-import {
-    FEED_INTERACTION_BATCH_LIMIT,
-    type FeedType,
-    type FeedInteractionEventName,
-    type FeedInteractionInput,
-    type FeedInterstitialEventInput,
-    type TrendEventInput,
+import type {
+  FeedType,
+  FeedInteractionEventName,
+  FeedInteractionInput,
+  FeedInterstitialEventInput,
+  TrendEventInput,
 } from '@mention/shared-types';
+import { FEED_INTERACTION_BATCH_LIMIT } from '@mention/shared-types/feed';
 import { feedService } from '@/services/feedService';
 import { trendingService } from '@/services/trendingService';
 import { applyServerViewCounts } from '@/stores/postsStore';

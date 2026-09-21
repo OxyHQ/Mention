@@ -85,7 +85,7 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
         safeArea={false}
         leading={
           <Button
-            variant="secondary"
+            appearance="subtle" tone="neutral"
             iconOnly
             leadingIcon={RiCloseLine}
             onPress={onClose}
