@@ -1,8 +1,9 @@
 import React, { useMemo, type ReactNode } from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { FollowButton } from '@oxy.so/services/ui/client';
+import { ContactRow } from '@oxy.so/bloom/chat-people';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { mergeKnownIdentity, useKnownIdentities } from '@/stores/identityUpdates';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
@@ -108,6 +109,8 @@ interface ProfileCardProps {
   accessory?: ReactNode;
   /** Bottom hairline. Off for the last row inside an already-bordered container. */
   showDivider?: boolean;
+  size?: 'small' | 'medium';
+  horizontalInset?: number;
 }
 
 export function ProfileCard({
@@ -119,6 +122,8 @@ export function ProfileCard({
   meta,
   accessory,
   showDivider = true,
+  size = 'medium',
+  horizontalInset = 12,
 }: ProfileCardProps) {
   const router = useRouter();
   const { t } = useTranslation();
@@ -157,7 +162,7 @@ export function ProfileCard({
 
   // Resolved from the row's own record, so a channel row opens `/c/` instead of
   // bouncing through the `/@` redirect.
-  const href = profileHrefForUser(profile);
+  const href = profileHrefForUser(resolved);
 
   const handlePress = () => {
     if (onPress) {
@@ -170,23 +175,26 @@ export function ProfileCard({
   return (
     <View
       className={cn(
-        'w-full flex-row items-center gap-3 px-3 py-3',
+        'w-full flex-row items-center gap-3',
         showDivider && 'border-b border-border',
-      )}>
-      <TouchableOpacity
-        className="flex-1 flex-row items-start gap-3"
-        onPress={handlePress}
-        disabled={!canPress}
-        activeOpacity={0.7}
-        accessibilityRole="button">
-        <Avatar
+      )}
+      style={{ paddingLeft: horizontalInset, paddingRight: horizontalInset }}>
+      <ContactRow
+        id={resolved.id}
+        name={nameLabel || handle}
+        subtitle={handle || undefined}
+        size={size}
+        horizontalInset={0}
+        style={{ flex: 1 }}
+        onPress={canPress ? handlePress : undefined}
+        avatarSlot={<Avatar
           source={resolved.avatar || undefined}
-          size={40}
+          size={size === 'small' ? 36 : 44}
           variant={MEDIA_VARIANT_AVATAR}
           verified={resolved.verified}
           placeholderColor={getUserPlaceholderColor(resolved)}
-        />
-        <View className="flex-1 gap-0.5">
+        />}
+        identitySlot={<View className="flex-1 gap-0.5">
           {/* Identity line via the shared UserName: the name + verified /
               federated / agent / automated markers and the muted @handle line,
               consistent with every other user surface. */}
@@ -214,8 +222,8 @@ export function ProfileCard({
               {resolved.description}
             </Text>
           ) : null}
-        </View>
-      </TouchableOpacity>
+        </View>}
+      />
       {showFollowButton && (
         <FollowButton
           userId={resolved.id}
@@ -230,6 +238,8 @@ export function ProfileCard({
 }
 
 interface ProfileCardSkeletonProps {
+  size?: 'small' | 'medium';
+  horizontalInset?: number;
   /** Reserve the follow-button pill, matching the row this stands in for. */
   showFollowButton?: boolean;
   showDivider?: boolean;
@@ -237,7 +247,7 @@ interface ProfileCardSkeletonProps {
 
 /**
  * The loading placeholder for {@link ProfileCard}. It mirrors the row's geometry
- * exactly (same padding, hairline, 40px avatar, two text lines, follow pill), so
+ * exactly (same padding, hairline, avatar size, two text lines, follow pill), so
  * a list never shifts when the real rows land.
  *
  * Bloom's skeleton primitives take `style` (not `className`), so the shimmer
@@ -246,14 +256,17 @@ interface ProfileCardSkeletonProps {
 export function ProfileCardSkeleton({
   showFollowButton = false,
   showDivider = true,
+  size = 'medium',
+  horizontalInset = 12,
 }: ProfileCardSkeletonProps) {
   return (
     <View
       className={cn(
-        'w-full flex-row items-center gap-3 px-3 py-3',
+        'w-full flex-row items-center gap-3 py-2',
         showDivider && 'border-b border-border',
-      )}>
-      <Skeleton.Circle size={40} />
+      )}
+      style={{ paddingLeft: horizontalInset, paddingRight: horizontalInset }}>
+      <Skeleton.Circle size={size === 'small' ? 36 : 44} />
       <Skeleton.Col style={{ flex: 1, gap: 6 }}>
         <Skeleton.Text style={{ width: 140, fontSize: 16, lineHeight: 20 }} />
         <Skeleton.Text style={{ width: 100, fontSize: 14, lineHeight: 18 }} />
@@ -273,12 +286,16 @@ export function ProfileCardSkeletonList({
   count,
   showFollowButton = false,
   showDivider = true,
+  size,
+  horizontalInset,
 }: ProfileCardSkeletonListProps) {
   return (
     <View className="w-full">
       {Array.from({ length: count }, (_, index) => (
         <ProfileCardSkeleton
           key={index}
+          size={size}
+          horizontalInset={horizontalInset}
           showFollowButton={showFollowButton}
           // The last row's hairline would double the container's own border.
           showDivider={showDivider && index < count - 1}

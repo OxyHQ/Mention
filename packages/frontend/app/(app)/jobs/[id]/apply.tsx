@@ -217,11 +217,11 @@ export default function JobApplyScreen() {
           </View>
 
           <View className="flex-row gap-3 mt-6">
-            <Button variant="secondary" size="large" style={{ flex: 1 }} onPress={() => setStep('edit')} disabled={submitMutation.isPending}>
+            <Button appearance="subtle" tone="neutral" size="large" style={{ flex: 1 }} onPress={() => setStep('edit')} disabled={submitMutation.isPending}>
               {t('jobs.apply.backToEdit', { defaultValue: 'Edit' })}
             </Button>
             <Button
-              variant="primary"
+              appearance="solid" tone="accent"
               size="large"
               style={{ flex: 1 }}
               loading={submitMutation.isPending}
@@ -302,7 +302,7 @@ export default function JobApplyScreen() {
                 />
               </TextField>
             </View>
-            <Button variant="secondary" size="medium" onPress={addPortfolioLink} disabled={!portfolioLinkDraft.trim()}>
+            <Button appearance="subtle" tone="neutral" size="medium" onPress={addPortfolioLink} disabled={!portfolioLinkDraft.trim()}>
               {t('common.add', { defaultValue: 'Add' })}
             </Button>
           </View>
@@ -324,19 +324,19 @@ export default function JobApplyScreen() {
           {resumeFileName ? (
             <View className="flex-row items-center justify-between border border-border rounded-[14px] px-4 py-3">
               <Text className="text-foreground text-[14px] flex-1" numberOfLines={1}>{resumeFileName}</Text>
-              <Button variant="ghost" size="small" onPress={removeResume}>
+              <Button appearance="plain" tone="neutral" size="small" onPress={removeResume}>
                 {t('common.remove', { defaultValue: 'Remove' })}
               </Button>
             </View>
           ) : (
-            <Button variant="secondary" size="medium" onPress={openResumePicker} style={{ alignSelf: 'flex-start' }}>
+            <Button appearance="subtle" tone="neutral" size="medium" onPress={openResumePicker} style={{ alignSelf: 'flex-start' }}>
               {t('jobs.apply.attachResume', { defaultValue: 'Attach a resume' })}
             </Button>
           )}
         </View>
 
         <View className="mt-6">
-          <Button variant="primary" size="large" disabled={!canContinue} onPress={() => setStep('review')}>
+          <Button appearance="solid" tone="accent" size="large" disabled={!canContinue} onPress={() => setStep('review')}>
             {t('jobs.apply.review', { defaultValue: 'Review and submit' })}
           </Button>
         </View>

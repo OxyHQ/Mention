@@ -35,7 +35,7 @@ export const ConfirmBottomSheet: React.FC<ConfirmBottomSheetProps> = ({
             {/* Header */}
             <View className="flex-row items-center px-4 py-2 min-h-[48px] border-b border-border bg-background">
                 <Button
-                    variant="icon"
+                    appearance="subtle" tone="neutral"
                     iconOnly
                     leadingIcon={RiCloseLine}
                     accessibilityLabel={t('common.close')}
@@ -59,7 +59,7 @@ export const ConfirmBottomSheet: React.FC<ConfirmBottomSheetProps> = ({
                 {/* Buttons */}
                 <View className="flex-row gap-3">
                     <Button
-                        variant="secondary"
+                        appearance="subtle" tone="neutral"
                         size="large"
                         className="flex-1"
                         onPress={onCancel}
@@ -68,7 +68,7 @@ export const ConfirmBottomSheet: React.FC<ConfirmBottomSheetProps> = ({
                     </Button>
 
                     <Button
-                        variant={destructive ? 'destructive' : 'primary'}
+                        appearance="solid" tone={destructive ? 'danger' : 'accent'}
                         size="large"
                         className="flex-1"
                         onPress={handleConfirm}

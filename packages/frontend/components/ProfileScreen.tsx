@@ -1,9 +1,8 @@
 import React, { useCallback, useState } from 'react';
 import { View } from 'react-native';
 import { Redirect, router, type Href } from 'expo-router';
-import { BloomColorScope } from '@oxy.so/bloom/theme';
 
-import AnimatedTabBar from './common/AnimatedTabBar';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import {
     ProfileShell,
     ProfileTabBarRow,
@@ -67,21 +66,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, tab = 'posts', 
 
     const tabBar = (
         <ProfileTabBarRow showLanes={view.isOwnProfile}>
-            <AnimatedTabBar
-                tabs={view.tabDescriptors.map((descriptor) => ({
+            <Tabs value={view.activeDescriptor?.key ?? 'posts'} onValueChange={view.selectTab} variant="underline">{(view.tabDescriptors.map((descriptor) => ({
                     id: descriptor.key,
                     label: descriptor.label,
-                }))}
-                activeTabId={view.activeDescriptor?.key ?? 'posts'}
-                onTabPress={view.selectTab}
-                scrollEnabled
-                instanceId={view.username || 'default'}
-            />
+                }))).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
         </ProfileTabBarRow>
     );
 
     return (
-        <BloomColorScope colorPreset={view.colorName} asChild>
+        <>
             {/* `web:z-auto` so this profile wrapper does not become its own
                 stacking context and trap the sticky header chrome below the
                 panel's bleed-mask/border overlays (see ProfileShell's root for
@@ -99,7 +92,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, tab = 'posts', 
                     tabs={view.tabs}
                 />
             </View>
-        </BloomColorScope>
+        </>
     );
 };
 

@@ -1,3 +1,7 @@
+jest.mock('@oxy.so/bloom/settings-modal', () => {
+  const { View } = jest.requireActual('react-native');
+  return { SettingsCard: View, SettingsSection: View, SettingsRow: View };
+});
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -50,6 +54,14 @@ function mockTranslate(key: string, vars?: Record<string, string> & { defaultVal
   return value.replace(/\{\{(\w+)\}\}/g, (_m, name: string) => String(vars[name] ?? ''));
 }
 
+jest.mock('@oxy.so/bloom/chat-people', () => {
+  const { View, TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
+  const ReactActual = jest.requireActual<typeof import('react')>('react');
+  return {
+    ContactRow: ({ avatarSlot, identitySlot, onPress }: { avatarSlot: React.ReactNode; identitySlot: React.ReactNode; onPress?: () => void }) =>
+      onPress ? ReactActual.createElement(TouchableOpacity, { onPress }, avatarSlot, identitySlot) : ReactActual.createElement(View, null, avatarSlot, identitySlot),
+  };
+});
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: mockTranslate }),
 }));
@@ -63,7 +75,7 @@ jest.mock('expo-router', () => ({
   Link: () => null,
 }));
 
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
+jest.mock('@/context/MentionSettingsContext', () => ({ useSettingsBack: () => jest.fn() }));
 
 const mockAuth = {
   user: { id: 'viewer-1' },
@@ -191,7 +203,7 @@ jest.mock('@/services/subscriptionService', () => ({
   },
 }));
 
-import ActivitySubscriptionsScreen from '../subscriptions';
+import ActivitySubscriptionsScreen from '@/components/settings/pages/notifications/subscriptions';
 import { useSubscription } from '@/components/Profile/hooks/useSubscription';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

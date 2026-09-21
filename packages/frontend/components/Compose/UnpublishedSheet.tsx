@@ -167,7 +167,7 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
         safeArea={false}
         actions={
           <Button
-            variant="secondary"
+            appearance="subtle" tone="neutral"
             iconOnly
             leadingIcon={RiCloseLine}
             onPress={onClose}

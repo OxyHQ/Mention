@@ -1,9 +1,7 @@
 import React, { memo } from 'react';
-import { TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
-import { SpinnerIcon } from '@oxy.so/bloom/loading';
+import { FollowButton } from '@oxy.so/bloom/media-header';
 import { useFollowEntity } from '@/hooks/useFollowEntity';
 import type { EntityFollowType } from '@/services/entityFollowService';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 
 interface EntityFollowButtonProps {
@@ -20,84 +18,21 @@ interface EntityFollowButtonProps {
 }
 
 export const EntityFollowButton = memo(function EntityFollowButton({
-  entityType,
-  entityId,
-  label,
-  followingLabel,
-  size = 'md',
+  entityType, entityId, label, followingLabel, size = 'md',
 }: EntityFollowButtonProps) {
   const { isFollowing, isLoading, toggle } = useFollowEntity(entityType, entityId);
-  const theme = useTheme();
   const { t } = useTranslation();
-
-  const text = isFollowing
-    ? (followingLabel || t('common.following', { defaultValue: 'Following' }))
-    : (label || t('common.follow', { defaultValue: 'Follow' }));
-
   return (
-    <TouchableOpacity
-      onPress={toggle}
+    <FollowButton
+      following={isFollowing}
+      onFollowChange={() => { void toggle(); }}
       disabled={isLoading}
-      activeOpacity={0.8}
-      style={[
-        styles.button,
-        size === 'sm' && styles.buttonSmall,
-        {
-          backgroundColor: isFollowing ? theme.colors.background : theme.colors.primary,
-          borderColor: isFollowing ? theme.colors.border : theme.colors.primary,
-        },
-      ]}
-    >
-      {isLoading ? (
-        <SpinnerIcon size={16} className={isFollowing ? "text-foreground" : "text-primary-foreground"} />
-      ) : (
-        <Text
-          style={[
-            styles.text,
-            size === 'sm' && styles.textSmall,
-            { color: isFollowing ? theme.colors.text : '#fff' },
-          ]}
-        >
-          {text}
-        </Text>
-      )}
-    </TouchableOpacity>
+      loading={isLoading}
+      size={size === 'sm' ? 'small' : 'medium'}
+      label={label || t('common.follow', { defaultValue: 'Follow' })}
+      followingLabel={followingLabel || t('common.following', { defaultValue: 'Following' })}
+    />
   );
-});
-
-const styles = StyleSheet.create({
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderRadius: 35,
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    minWidth: 80,
-    ...Platform.select({
-      web: {},
-      default: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 2,
-      },
-    }),
-  },
-  buttonSmall: {
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    minWidth: 60,
-  },
-  text: {
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  textSmall: {
-    fontSize: 12,
-  },
 });
 
 export default EntityFollowButton;

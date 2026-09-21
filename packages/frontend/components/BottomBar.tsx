@@ -1,295 +1,72 @@
+import React, { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
-import { Home, HomeActive } from '@/assets/icons/home-icon';
-import { Video, VideoActive } from '@/assets/icons/video-icon';
-import { ComposeIcon, ComposeIIconActive } from '@/assets/icons/compose-icon';
-import { Bell, BellActive } from '@/assets/icons/bell-icon';
-import { usePathname } from 'expo-router';
-import React, { useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import { BottomBar as BloomBottomBar } from '@oxy.so/bloom/bottom-bar';
+import { Fab } from '@oxy.so/bloom/fab';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-
+import { RiHome5Line } from '@oxy.so/bloom/icons/RiHome5Line';
+import { RiVideoLine } from '@oxy.so/bloom/icons/RiVideoLine';
+import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
+import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useHaptics } from '@oxy.so/bloom/hooks';
-import {
-    TabBar,
-    TabBarButton,
-    type TabBarItem,
-    type TabBarTheme,
-} from '@oxy.so/bloom/tab-bar';
+import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useHomeRefresh } from '@/context/HomeRefreshContext';
 import { useTabPager } from '@/context/TabPagerContext';
-import {
-    BAR_TABS,
-    CHROME_HIDDEN_BY_PAGE,
-    barToPage,
-    type BarTabName,
-} from '@/components/navigation/tabs';
+import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
+import { BAR_TABS, CHROME_HIDDEN_BY_PAGE, barToPage, pageIndexByName, type BarTabName } from '@/components/navigation/tabs';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { UnreadBadge } from '@/components/notifications/UnreadBadge';
-import { useTranslation } from 'react-i18next';
 
-/**
- * Forced black-and-white palette for the fullscreen Reels (/videos) screen, where
- * the bar floats over video regardless of the app theme. Everywhere else the bar
- * resolves all five colors from the Bloom theme on its own.
- *
- * NEUTRAL, not tinted: the surface sits over arbitrary footage, so any hue fights
- * whatever colour happens to be on frame. Black is the only surface that reads the
- * same over all of them — the convention every fullscreen video feed converges on.
- *
- * `glassTint` is what the web surface paints under its `backdrop-filter` and what
- * iOS layers over liquid glass, so a blur has already dissolved the frame behind
- * it: 0.72 is dark enough that a white glyph clears 9:1 contrast even over a blown-
- * out white frame, while still letting the blurred colour through so the pill reads
- * as glass rather than a slab punched into the video. `solidFallback` is the fill
- * used on Android and pre-iOS-26, where there is NO blur — sharp detail (a face,
- * burned-in captions) would otherwise read straight through the glyphs, so it has
- * to be near-opaque; 0.92 leaves just enough frame to keep it floating.
- *
- * `activeTint`/`inactiveTint` drive the LABELS only — Bloom interpolates between
- * them in its own mapper. The glyphs cannot follow them (see `activeGlyphClass`
- * below), so the className tints there are the deliberate twins of these values.
- * Inactive is 60% white rather than a heavier value so the selected tab is
- * unmistakable at a glance; it still clears 4.5:1 against the surface. `highlight`
- * is a touch stronger than Bloom's own scrim because a white scrim separates least
- * from the surface exactly when a bright frame lifts it toward mid-grey, and the
- * sliding pill is the bar's primary selection cue.
- */
-const VIDEOS_DARK_TAB_BAR_THEME: Partial<TabBarTheme> = {
-    activeTint: '#FFFFFF',
-    inactiveTint: 'rgba(255, 255, 255, 0.6)',
-    highlight: 'rgba(255, 255, 255, 0.2)',
-    glassTint: 'rgba(0, 0, 0, 0.72)',
-    solidFallback: 'rgba(0, 0, 0, 0.92)',
-};
+function NotificationGlyph({ count, label, ...iconProps }: React.ComponentProps<typeof RiNotification3Line> & { count: number; label: string }) {
+  return <View><RiNotification3Line {...iconProps} /><UnreadBadge count={count} accessibilityLabel={label} /></View>;
+}
 
-/** Rendered size (px) of the tab glyphs; Bloom centers each one in its own glyph box. */
-const ICON_SIZE = 22;
-
-/**
- * The two tabs this file has to recognise, BY NAME.
- *
- * They were index constants, compared against Bloom's item index, against a
- * route-derived index and against each other — three spellings of a number that
- * are only interchangeable while the bar draws every root page. Bloom hands its
- * callbacks a BAR index, so the honest comparison is "which tab is that", and
- * `BAR_TABS` is what answers it.
- *
- * Re-tapping Home refreshes the feed instead of navigating, and the profile tab
- * is the only one that long-presses.
- */
-const barTabName = (barIndex: number): string | undefined => BAR_TABS[barIndex]?.name;
-
-/**
- * How far the bar slides down as it fades out for a page that draws no item in
- * it. Comfortably past its own height plus the deepest home indicator, so the
- * pill is gone rather than clipped — it is fading at the same time, and a
- * constant is honest here where a measured height would be one more thing to
- * keep in step.
- */
-const CHROME_SLIDE_PX = 160;
-
+/** Mention owns destinations and pager state; Bloom owns all navigation chrome. */
 export const BottomBar = () => {
-    const pathname = usePathname();
-    const { showBottomSheet, user } = useAuth();
-    const haptic = useHaptics();
-    const { triggerHomeRefresh } = useHomeRefresh();
-    const { t } = useTranslation();
-    const unreadCount = useUnreadCount();
-    const { progress, chromeProgress, activeIndex, activePage, selectTab } = useTabPager();
-
-    // The Reels (/videos) screen floats this bar over video content, so it renders
-    // against a forced black-and-white surface regardless of the app theme.
-    const isVideosScreen = pathname === '/videos';
-
-    // The glyphs need their own copy of that decision because the theme cannot
-    // reach them: Bloom tints a glyph by CLONING it with a `fill` prop, and
-    // Mention's icons paint `currentColor` sourced from their className instead
-    // (react-native-svg's `color` prop on native, the CSS cascade on web — see
-    // `assets/icons/IconSvg.*`). `activeTint`/`inactiveTint` are therefore a silent
-    // no-op on this icon set and the className is the only channel that works, so
-    // these two are hand-matched to the theme's two tints above. Off /videos they
-    // collapse to the app tokens, leaving every other screen's bar exactly as it
-    // was and still following Bloom's light/dark theme.
-    const activeGlyphClass = isVideosScreen ? 'text-white' : 'text-foreground';
-    const inactiveGlyphClass = isVideosScreen ? 'text-white/60' : 'text-muted-foreground';
-
-    const unreadLabel = t('notification.badge', {
-        count: unreadCount,
-        defaultValue: '{{count}} unread notifications',
-    });
-
-    // Built FROM the tab table rather than beside it. The bar's order is the
-    // pager's order — it decides which two tabs are neighbours under a swipe and
-    // where the highlight sits — so a list written out separately here could
-    // drift from the navigator's by a single reordered literal, and the symptom
-    // would be a tap landing on the wrong screen.
-    //
-    // Keyed by the tab NAME and typed so every name in the table must have an
-    // entry: `icon` is required by `TabBarItem`, so a tab added to the table with
-    // no glyph here is a type error rather than a bar rendering `undefined`.
-    const glyphs = useMemo<Record<BarTabName, Pick<TabBarItem, 'icon' | 'activeIcon'>>>(() => ({
-        index: {
-            icon: <Home size={ICON_SIZE} className={inactiveGlyphClass} />,
-            activeIcon: <HomeActive size={ICON_SIZE} className={activeGlyphClass} />,
-        },
-        videos: {
-            icon: <Video size={ICON_SIZE} className={inactiveGlyphClass} />,
-            activeIcon: <VideoActive size={ICON_SIZE} className={activeGlyphClass} />,
-        },
-        write: {
-            icon: <ComposeIcon size={ICON_SIZE} className={inactiveGlyphClass} />,
-            activeIcon: <ComposeIIconActive size={ICON_SIZE} className={activeGlyphClass} />,
-        },
-        notifications: {
-            // The unread badge is composed INTO both glyphs rather than living in a
-            // slot of its own: Bloom has no badge slot, and the bar renders `icon`
-            // and `activeIcon` as two stacked crossfade layers, so both must carry
-            // it or it would blink mid-crossfade. The two copies are pixel-identical
-            // and fully opaque, so the stack is invisible.
-            //
-            // The badge itself is NOT part of the forced-dark treatment: only the
-            // two bell glyphs take `inactiveGlyphClass`/`activeGlyphClass`. It stays
-            // `bg-primary` on every screen because it is an alert, not chrome — the
-            // brand colour is what makes it read as one against a black bar.
-            //
-            // HEADROOM: the badge is `-top-1` (-4px) inside a glyph box sitting 7px
-            // below `itemBox`'s `overflow: 'hidden'` edge — 3px of clearance. If it
-            // ever renders flat-topped, that clip is why. The real fix is a
-            // Bloom-side badge slot rendered outside the crossfade, not a nudge here.
-            icon: (
-                <View>
-                    <Bell size={ICON_SIZE} className={inactiveGlyphClass} />
-                    <UnreadBadge count={unreadCount} accessibilityLabel={unreadLabel} />
-                </View>
-            ),
-            activeIcon: (
-                <View>
-                    <BellActive size={ICON_SIZE} className={activeGlyphClass} />
-                    <UnreadBadge count={unreadCount} accessibilityLabel={unreadLabel} />
-                </View>
-            ),
-        },
-        you: {
-            // No `activeIcon`: the avatar looks the same whether or not the tab is
-            // focused, exactly as before — the sliding highlight carries the state.
-            // It is also the one glyph the /videos treatment does not touch: an
-            // <Avatar> is photographic content with no tint to force, so it renders
-            // identically on every screen.
-            icon: <Avatar size={ICON_SIZE + 4} source={user?.avatar} variant={MEDIA_VARIANT_AVATAR} />,
-        },
-    }), [activeGlyphClass, inactiveGlyphClass, unreadCount, unreadLabel, user?.avatar]);
-
-    const items = useMemo<TabBarItem[]>(
-        () =>
-            BAR_TABS.map((tab) => ({
-                name: tab.name,
-                label: t(tab.bar.labelKey),
-                ...glyphs[tab.name],
-            })),
-        [glyphs, t],
-    );
-
-    // One line of navigation, plus the single tab that means something else when
-    // it is already selected. Everything the old five-arm switch encoded —
-    // which URL each tab is, popping whatever is pushed over the tabs, moving
-    // the highlight — belongs to `selectTab` now, so the bar cannot disagree
-    // with the navigator about any of it.
-    //
-    // The signed-out profile tab no longer opens the sign-in sheet from here:
-    // `(tabs)/you.tsx` renders the prompt itself, which is the same thing for a
-    // tap and the right thing for a deep link, a swipe, or a restored session
-    // that turns out to be gone.
-    const handleIndexChange = useCallback((barIndex: number) => {
-        haptic('light');
-        // Re-tapping Home while the feed is already open refreshes it rather
-        // than navigating.
-        if (barTabName(barIndex) === 'index' && barTabName(activeIndex) === 'index') {
-            triggerHomeRefresh();
-            return;
-        }
-        // Bloom counts its own items, so this is a BAR index; `selectTab` moves
-        // the navigator, so it takes a PAGE index. They are the same number only
-        // while every page draws a bar item.
-        selectTab(barToPage(barIndex));
-    }, [haptic, activeIndex, triggerHomeRefresh, selectTab]);
-
-    const handleIndexLongPress = useCallback((barIndex: number) => {
-        // Only the avatar tab has a long-press action (the account switcher).
-        if (barTabName(barIndex) !== 'you') return;
-        haptic('heavy');
-        showBottomSheet?.('ManageAccount');
-    }, [haptic, showBottomSheet]);
-
-    // THE BAR STEPS ASIDE FOR A PAGE THAT DRAWS NO ITEM IN IT.
-    //
-    // `chromeProgress` is 0 on a page the bar draws, 1 on one it does not, and
-    // fractional under the finger — written by the pager on the same frames that
-    // move the highlight, so the bar travels WITH the camera rather than popping
-    // when the page commits.
-    //
-    // A separate value from `progress`, and a separate node from Bloom's bar:
-    // Bloom owns where the capsule sits inside the pill and this owns whether the
-    // pill is on screen at all. Folding the second into the first would mean
-    // sending Bloom a position outside its own range, which it does not clamp.
-    // The SETTLED answer to the same question, for hit-testing. It has to come
-    // from React rather than from the shared value: `pointerEvents` is a prop,
-    // and a worklet cannot set one.
-    const hidesForPage = activePage >= 0 && CHROME_HIDDEN_BY_PAGE[activePage] === 1;
-
-    const chromeStyle = useAnimatedStyle(() => ({
-        opacity: 1 - chromeProgress.value,
-        transform: [{ translateY: chromeProgress.value * CHROME_SLIDE_PX }],
-    }), [chromeProgress]);
-
-    // POSITIONING: Bloom's bar pins itself with `position: absolute` against this
-    // wrapper. On NATIVE the wrapper is a zero-height flex item at the end of the
-    // shell column, so the bar lands on the window's bottom edge. On WEB the app
-    // uses a DOCUMENT-scroll model (the window is the scroller), where `absolute`
-    // would resolve against the tall document and scroll out of view — so the
-    // wrapper pins to the viewport with `web:fixed web:inset-x-0 web:bottom-0` and
-    // the bar's own `absolute` resolves against that instead. The classes carry the
-    // `web:` prefix, so the wrapper is inert on native.
-    return (
-        <Animated.View
-            className="web:fixed web:inset-x-0 web:bottom-0 web:z-[1000]"
-            style={chromeStyle}
-            // A bar that is fading out is not a target, and on the frames where it
-            // is still faintly visible a thumb reaching for the camera's shutter
-            // would otherwise land on it.
-            pointerEvents={hidesForPage ? 'none' : 'auto'}
-        >
-            {/* Bloom paints a progressive blur across the bottom 118px of the window
-                (a device inset makes it taller) behind the pill. Everywhere else that band is
-                what dissolves scrolling content behind the bar, so it stays on. On
-                /videos it is turned OFF: the band covered the Reels controls and
-                smeared `scrubberHitArea`, the 3px progress line pinned at `bottom: 0`,
-                and that screen already has its own 180px gradient overlay for
-                legibility — two stacked bottom treatments over full-bleed video. There
-                is no consumer-side fix for the smear, on either platform: the bar host
-                is the LAST sibling of the shell, so no `zIndex` on a shell descendant
-                can paint above it. Do not fight this with z-index; `blur` is the
-                control. */}
-            <TabBar
-                // TWO PROPS, TWO QUESTIONS, ONE WRITER EACH. `activeIndex` says
-                // whether there is a selection at all — it is -1 on every pushed
-                // route this bar renders over, and Bloom fades the capsule out
-                // where it stands. `activeProgress` says where the capsule IS,
-                // every frame, on the UI thread: the pager writes it under the
-                // finger, and off-native it is sprung on touch-up so the pill
-                // arrives before the screen does. See `docs/tab-bar.mdx`.
-                activeIndex={activeIndex}
-                activeProgress={progress}
-                onIndexChange={handleIndexChange}
-                onIndexLongPress={handleIndexLongPress}
-                theme={isVideosScreen ? VIDEOS_DARK_TAB_BAR_THEME : undefined}
-                blur={!isVideosScreen}
-            >
-                {items.map((item, index) => (
-                    <TabBarButton key={item.name} item={item} index={index} />
-                ))}
-            </TabBar>
-        </Animated.View>
-    );
+  const { showBottomSheet, user } = useAuth();
+  const { t } = useTranslation();
+  const haptic = useHaptics();
+  const { triggerHomeRefresh } = useHomeRefresh();
+  const unreadCount = useUnreadCount();
+  const minimizeProgress = useBottomBarHidden();
+  const { progress, chromeProgress, activeIndex, activePage, selectTab } = useTabPager();
+  const glyphs = useMemo<Record<BarTabName, React.ReactNode>>(() => ({
+    index: <RiHome5Line />,
+    videos: <RiVideoLine />,
+    notifications: <NotificationGlyph count={unreadCount} label={t('notification.badge', { count: unreadCount, defaultValue: '{{count}} unread notifications' })} />,
+    you: <Avatar size={26} source={user?.avatar} variant={MEDIA_VARIANT_AVATAR} />,
+  }), [unreadCount, t, user?.avatar]);
+  const items = useMemo(() => BAR_TABS.map(tab => ({ name: tab.name, label: t(tab.bar.labelKey), icon: glyphs[tab.name] })), [glyphs, t]);
+  const onValueChange = useCallback((value: string) => {
+    haptic('light');
+    if (value === 'index' && BAR_TABS[activeIndex]?.name === 'index') {
+      triggerHomeRefresh();
+      return;
+    }
+    const index = BAR_TABS.findIndex(tab => tab.name === value);
+    if (index >= 0) selectTab(barToPage(index));
+  }, [activeIndex, haptic, selectTab, triggerHomeRefresh]);
+  const onValueLongPress = useCallback((value: string) => {
+    if (value !== 'you') return;
+    haptic('heavy');
+    showBottomSheet?.('ManageAccount');
+  }, [haptic, showBottomSheet]);
+  const chromeStyle = useAnimatedStyle(() => ({
+    opacity: 1 - chromeProgress.value,
+    transform: [{ translateY: chromeProgress.value * 160 }],
+  }), [chromeProgress]);
+  const hidden = activePage >= 0 && CHROME_HIDDEN_BY_PAGE[activePage] === 1;
+  return <Animated.View style={chromeStyle} pointerEvents={hidden ? 'none' : 'auto'}>
+    <BloomBottomBar
+      items={items}
+      value={BAR_TABS[activeIndex]?.name ?? ''}
+      activeProgress={progress}
+      onValueChange={onValueChange}
+      onValueLongPress={onValueLongPress}
+      minimizeProgress={minimizeProgress}
+      action={<Fab icon={<RiQuillPenLine />} accessibilityLabel={t('sidebar.compose')} onPress={() => selectTab(pageIndexByName('write'))} />}
+    />
+  </Animated.View>;
 };

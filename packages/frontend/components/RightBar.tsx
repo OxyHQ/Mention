@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Platform, Text, StyleSheet } from "react-native";
+import { View, Platform, Text } from "react-native";
 import { useTranslation } from 'react-i18next';
 import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
@@ -9,36 +9,12 @@ import { ContentPanel } from '@oxy.so/bloom/content-panel';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail } from '@/context/VideosRailContext';
-import { asViewStyle, asTextStyle, type WebViewStyle } from '@/types/webStyles';
+import { asTextStyle } from '@/types/webStyles';
 
 // `cursor` is a web-only CSS property absent from RN's `TextStyle` — author it
 // through the shared extended TextStyle and bridge at the consumption point
 // rather than using an `as any` cast (same pattern as SideBar/SearchBar).
 const LINK_STYLE = Platform.OS === 'web' ? asTextStyle({ cursor: 'pointer' }) : undefined;
-
-// `position: 'sticky'` is a valid react-native-web value absent from RN's native
-// `ViewStyle['position']` union — author the web container style through the
-// shared extended ViewStyle (same pattern as SideBar) rather than an `as any` cast.
-const RIGHTBAR_STICKY_TOP = 50;
-const RIGHTBAR_STICKY_BOTTOM = 20;
-
-const webStickyContainer: WebViewStyle = {
-    position: 'sticky',
-    // `alignSelf: flex-start` keeps this column from being stretched to the tall
-    // shell row's height (default flex stretch), so the sticky box has room to
-    // pin while only the center feed scrolls.
-    alignSelf: 'flex-start',
-    top: RIGHTBAR_STICKY_TOP,
-    bottom: RIGHTBAR_STICKY_BOTTOM,
-};
-
-// The videos replies column needs an explicit height equal to the sticky slot
-// (viewport height minus the same top/bottom offsets above) so `VideoReplies` —
-// which is `flex: 1` with no intrinsic height — fills the sticky window and
-// scrolls its own content instead of collapsing to zero height.
-const videosRailStickyHeight: WebViewStyle = {
-    height: `calc(100vh - ${RIGHTBAR_STICKY_TOP + RIGHTBAR_STICKY_BOTTOM}px)`,
-};
 
 // Static footer links that don't depend on translations — URLs never change
 const STATIC_FOOTER_URLS = [
@@ -65,7 +41,7 @@ export function RightBar() {
 
     if (videosRailActive) {
         return (
-            <View style={styles.videosRepliesContainer}>
+            <View className="flex-1 min-h-0 web:h-[calc(100dvh-16px)]">
                 {/* `surfaceClassName` repaints the surface, which is a utility
                     Bloom cannot resolve to a colour — so without `surfaceColor`
                     the panel publishes its rung alone and the composer pinned
@@ -88,7 +64,7 @@ export function RightBar() {
 
     return (
         // No column `gap` — each child owns its own bottom margin, see `BaseWidget`.
-        <View className="flex-col px-4 pt-4" style={styles.container}>
+        <View className="flex-col px-[14px] pt-4">
             <SearchBar />
             <WidgetManager screenId="home" />
             {Platform.OS === 'web' && <RightBarFooter />}
@@ -131,21 +107,4 @@ const FooterLink = React.memo(function FooterLink({ label, url }: { label: strin
             {label}
         </Text>
     );
-});
-
-const styles = StyleSheet.create({
-    container: {
-        width: 350,
-        ...(Platform.OS === 'web' ? asViewStyle(webStickyContainer) : null),
-    },
-    // The /videos right bar shows ONLY the replies panel, at the SAME 350px
-    // width the widgets use on every other screen (`styles.container`, above).
-    // On web it's sticky + full-height (the sticky-slot height) so the embedded
-    // `VideoReplies` fills it and scrolls its own content.
-    videosRepliesContainer: {
-        width: 350,
-        ...(Platform.OS === 'web'
-            ? asViewStyle({ ...webStickyContainer, ...videosRailStickyHeight })
-            : null),
-    },
 });

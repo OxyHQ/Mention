@@ -94,7 +94,7 @@ export const ProfileWriters = memo(function ProfileWriters({
       ))}
       {hasMore ? (
         <View className="p-4">
-          <Button variant="secondary" onPress={loadMore} loading={loadingMore}>
+          <Button appearance="subtle" tone="neutral" onPress={loadMore} loading={loadingMore}>
             {t('common.loadMore')}
           </Button>
         </View>

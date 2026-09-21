@@ -19,7 +19,7 @@ export { useChannelWriters } from './hooks/useChannelWriters';
 // Components
 export { ProfileSkeleton } from './ProfileSkeleton';
 export { ProfileShell } from './ProfileShell';
-export { ProfileChromeLayers } from './ProfileChromeLayers';
+export { ProfilePageHeader, ProfileBanner } from './ProfilePageHeader';
 export { ProfileTabBarRow } from './ProfileTabBarRow';
 export { ProfileHeader } from './ProfileHeader';
 export { ChannelHeader, ChannelActions } from './ChannelHeader';

@@ -148,7 +148,7 @@ const JobApplicationDetailSheet = ({ jobId, application, onStatusChanged }: JobA
 
       {application.resumeFileId ? (
         <View className="mb-3">
-          <Button variant="secondary" size="small" onPress={openResume} style={{ alignSelf: 'flex-start' }}>
+          <Button appearance="subtle" tone="neutral" size="small" onPress={openResume} style={{ alignSelf: 'flex-start' }}>
             {t('jobs.applications.viewResume', { defaultValue: 'View resume' })}
           </Button>
         </View>
@@ -215,7 +215,7 @@ const JobApplicationDetailSheet = ({ jobId, application, onStatusChanged }: JobA
           />
         </TextField>
         <Button
-          variant="secondary"
+          appearance="subtle" tone="neutral"
           size="small"
           style={{ alignSelf: 'flex-end', marginTop: 8 }}
           loading={addNoteMutation.isPending}

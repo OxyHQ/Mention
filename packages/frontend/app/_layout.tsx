@@ -15,6 +15,7 @@ import AppSplashScreen from '@/components/AppSplashScreen';
 import { NotificationPermissionGate } from '@/components/NotificationPermissionGate';
 import { PwaHead } from '@/components/PwaHead';
 import { AppProviders } from '@/components/providers/AppProviders';
+import { MentionSettingsProvider } from '@/components/settings/MentionSettingsProvider';
 import { AuthRouter } from '@/components/providers/AuthRouter';
 import { PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
 import { MediaFlightLayer } from '@oxy.so/bloom/media-flight';
@@ -173,8 +174,6 @@ export default function RootLayout() {
           under it: on web `useScrollRestoration()` throws outside its provider, so
           a scrollable mounted beside it (a right rail, an overlay) crashes. */}
       <BloomProvider
-        // TEMPORARY: colour-policy preview. Remove with `components/dev/` and
-        // the `.bloom-local` symlink once the colour system lands upstream.
         imageResolver={resolveImageSource}
         haptics={!hapticsDisabled}
         defaultMode="system"
@@ -195,7 +194,9 @@ export default function RootLayout() {
                 />
               )}
               <PortalProvider>
-                <AuthRouter />
+                <MentionSettingsProvider>
+                  <AuthRouter />
+                </MentionSettingsProvider>
                 <PortalOutlet />
                 {/* The shared media surface that carries a playing video across a
                     route change. Renders null whenever nothing is in flight, so it

@@ -780,7 +780,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
                 <Button className="flex-1" onPress={openAcceptSheet} disabled={actionLoading}>
                   {t('collab.accept', { defaultValue: 'Accept' })}
                 </Button>
-                <Button variant="secondary" className="flex-1" onPress={runDecline} disabled={actionLoading}>
+                <Button appearance="subtle" tone="neutral" className="flex-1" onPress={runDecline} disabled={actionLoading}>
                   {t('collab.decline', { defaultValue: 'Decline' })}
                 </Button>
               </View>

@@ -33,7 +33,7 @@ export default function AuthScreen() {
               {t('Log into Mention')}
             </Text>
             <Button
-              variant="primary"
+              appearance="solid" tone="accent"
               size="large"
               style={styles.signInButton}
               onPress={() => signIn().catch(() => {})}
@@ -57,7 +57,7 @@ export default function AuthScreen() {
         </View>
         <View className="w-full max-w-[320px] pb-8">
           <Button
-            variant="primary"
+            appearance="solid" tone="accent"
             size="large"
             style={styles.signInButton}
             onPress={() => signIn().catch(() => {})}

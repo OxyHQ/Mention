@@ -132,6 +132,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
 
     return (
       <TouchableOpacity
+        className="bg-surface"
         style={[
           styles.gifItem,
           { borderColor: isSelected ? theme.colors.primary : theme.colors.border },
@@ -169,7 +170,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         safeArea={false}
         actions={
           <Button
-            variant="secondary"
+            appearance="subtle" tone="neutral"
             iconOnly
             leadingIcon={RiCloseLine}
             onPress={onClose}
@@ -235,7 +236,6 @@ const styles = StyleSheet.create({
     flex: 1,
     aspectRatio: 1,
     overflow: 'hidden',
-    backgroundColor: '#f0f0f0',
     borderWidth: 1,
     borderStyle: 'solid',
   },

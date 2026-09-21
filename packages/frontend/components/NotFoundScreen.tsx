@@ -27,7 +27,7 @@ export default function NotFoundScreen() {
 
                 {/* Buttons */}
                 <View style={styles.buttonsContainer}>
-                    <Button variant="primary" onPress={safeBack}>
+                    <Button appearance="solid" tone="accent" onPress={safeBack}>
                         Go Back
                     </Button>
                 </View>

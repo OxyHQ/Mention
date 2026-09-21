@@ -1,8 +1,8 @@
+import { Button } from '@oxy.so/bloom/button';
 import React, { useMemo, useCallback } from "react";
-import { Platform, StyleSheet, TouchableOpacity, View } from "react-native";
+import { View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
-import { Text } from "@oxy.so/bloom/typography";
 import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from "@/components/ProfileCard";
 import { BaseWidget } from "./BaseWidget";
 import { useUserById } from "@/hooks/useCachedUser";
@@ -35,8 +35,8 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
     return (
       <BaseWidget title={t("Who to follow")} divider={divider}>
         {/* Same inset as the real rows below, so nothing shifts when they land. */}
-        <View className="-mx-3">
-          <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />
+        <View>
+          <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton size="small" horizontalInset={0} showDivider={false} />
         </View>
       </BaseWidget>
     );
@@ -52,27 +52,19 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
   return (
     <BaseWidget title={t("Who to follow")} divider={divider}>
       <View className="gap-2">
-        {/* The rows are the same full-width ProfileCard used across the app; the
-            negative inset lets them bleed to the widget's edges (the widget's own
-            horizontal padding would otherwise double up with the row's). */}
-        <View className="-mx-3">
-          {displayedUsers.map((user, index) => (
+        {/* Compact Bloom rows align directly with the widget heading. */}
+        <View>
+          {displayedUsers.map((user) => (
             <FollowRowComponent
               key={user.id}
               profileData={user}
-              showBorder={index < displayedUsers.length - 1}
+              showBorder={false}
             />
           ))}
         </View>
-        <TouchableOpacity
-          style={styles.webCursor}
-          onPress={handleShowMore}
-          activeOpacity={0.7}
-        >
-          <Text className="text-primary text-[14px] leading-6 font-medium">
-            {t("Show more")}
-          </Text>
-        </TouchableOpacity>
+        <Button appearance="plain" size="small" onPress={handleShowMore} style={{ alignSelf: 'flex-start' }}>
+          {t("Show more")}
+        </Button>
       </View>
     </BaseWidget>
   );
@@ -97,11 +89,7 @@ const FollowRowComponent = React.memo(({ profileData, showBorder = true }: { pro
     federation: profileData.federation,
   };
 
-  return <ProfileCard profile={profile} showFollowButton showDivider={showBorder} />;
+  return <ProfileCard profile={profile} showFollowButton showDivider={showBorder} size="small" horizontalInset={0} />;
 });
 
 FollowRowComponent.displayName = 'FollowRowComponent';
-
-const styles = StyleSheet.create({
-  webCursor: Platform.select({ web: { cursor: 'pointer' }, default: {} }),
-});

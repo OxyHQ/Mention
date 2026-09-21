@@ -56,7 +56,7 @@ export function RateNoteSheet({ rating, onSubmit, onClose }: RateNoteSheetProps)
             );
           })}
         </View>
-        <Button variant="primary" size="large" disabled={selected.length === 0} onPress={() => onSubmit(selected)}>
+        <Button appearance="solid" tone="accent" size="large" disabled={selected.length === 0} onPress={() => onSubmit(selected)}>
           {t('communityNotes.rate.submit', { defaultValue: 'Rate' })}
         </Button>
         <Text className="text-muted-foreground text-center text-[13px]">

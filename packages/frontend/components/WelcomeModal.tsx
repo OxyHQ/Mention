@@ -272,7 +272,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
               {/* Bloom's AuthCard layout: the primary action, an "or" divider 20
                   above and below, then the alternative at the same width. */}
               <View style={styles.choices}>
-                <Button variant="primary" fullWidth onPress={handleCreateAccount}>
+                <Button appearance="solid" tone="accent" fullWidth onPress={handleCreateAccount}>
                   Create account
                 </Button>
                 <View style={styles.choiceDivider}>
@@ -283,7 +283,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({
                     or
                   </Divider>
                 </View>
-                <Button variant="ghost" fullWidth onPress={handleExploreApp}>
+                <Button appearance="plain" tone="neutral" fullWidth onPress={handleExploreApp}>
                   Explore the app
                 </Button>
               </View>

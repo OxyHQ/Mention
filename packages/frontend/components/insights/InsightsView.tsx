@@ -22,7 +22,7 @@ import { usePostsStore } from '@/stores/postsStore';
 import PostItem from '@/components/Feed/PostItem';
 import type { HydratedPost } from '@mention/shared-types';
 import MiniChart from '@/components/MiniChart';
-import AnimatedTabBar from '@/components/common/AnimatedTabBar';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { EmptyState } from '@/components/common/EmptyState';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { asViewStyle, asTextStyle } from '@/types/webStyles';
@@ -426,14 +426,10 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
     return (
         <>
             <View style={[styles.stickyTabBar, { borderBottomColor: theme.colors.border }]}>
-                <AnimatedTabBar
-                    tabs={[
+                <Tabs value={activeTab} onValueChange={(tabId) => setActiveTab(tabId as 'overview' | 'engagement')} variant="underline">{([
                         { id: 'overview', label: t('insights.tabs.overview') },
                         { id: 'engagement', label: t('insights.tabs.engagement') }
-                    ]}
-                    activeTabId={activeTab}
-                    onTabPress={(tabId) => setActiveTab(tabId as 'overview' | 'engagement')}
-                />
+                    ]).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
             </View>
 
             {isPrivateApiPending || isLoading ? (

@@ -31,7 +31,7 @@ import { Search as SearchIcon } from '@/assets/icons/search-icon';
 import { Bookmark } from '@/assets/icons/bookmark-icon';
 import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
-import AnimatedTabBar from '@/components/common/AnimatedTabBar';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { Fab } from '@oxy.so/bloom/fab';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import {
@@ -271,13 +271,7 @@ const SavedPostsScreen: React.FC = () => {
                 tab bar every other sectioned screen uses (search, notifications,
                 lists). Creating a folder is an action, not a section, so it lives
                 in the FAB — same place as "create" on every other screen. */}
-            <AnimatedTabBar
-                tabs={folderTabs}
-                activeTabId={selectedFolder === null ? ALL_FOLDERS_TAB_ID : folderTabId(selectedFolder)}
-                onTabPress={handleFolderTabPress}
-                scrollEnabled
-                instanceId="saved-folders"
-            />
+            <Tabs value={selectedFolder === null ? ALL_FOLDERS_TAB_ID : folderTabId(selectedFolder)} onValueChange={handleFolderTabPress} variant="underline">{(folderTabs).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
         </View>
     ), [
         folderTabs,
@@ -378,7 +372,7 @@ const SavedPostsScreen: React.FC = () => {
                     create action on feeds, lists and the home feed. */}
                 {canUsePrivateApi ? (
                     <Fab
-                        size={48}
+                        size="md" placement="bottom-right"
                         onPress={newFolderControl.open}
                         icon={<RiAddLine size="lg" fill={theme.colors.tertiaryForeground} />}
                         accessibilityLabel={t('saved.newFolder', 'New folder')}
@@ -405,11 +399,11 @@ const SavedPostsScreen: React.FC = () => {
                     </TextField>
 
                     <View className="flex-row justify-end gap-2">
-                        <Button variant="secondary" size="large" onPress={closeNewFolder}>
+                        <Button appearance="subtle" tone="neutral" size="large" onPress={closeNewFolder}>
                             {t('common.cancel', 'Cancel')}
                         </Button>
                         <Button
-                            variant="primary"
+                            appearance="solid" tone="accent"
                             size="large"
                             disabled={!newFolderName.trim()}
                             onPress={handleCreateFolder}

@@ -9,7 +9,7 @@ import type {
   CommunityNoteSummary,
   HydratedPostSummary,
 } from '@mention/shared-types';
-import AnimatedTabBar from '@/components/common/AnimatedTabBar';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { EmptyState } from '@/components/common/EmptyState';
 import PostItem from '@/components/Feed/PostItem';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -93,16 +93,11 @@ export function CommunityNotesScreen({ toRate, rated, written, handlers }: Commu
         onBack={() => safeBack()}
         backLabel={t('common.back', { defaultValue: 'Back' })}
       />
-      <AnimatedTabBar
-        instanceId="community-notes"
-        activeTabId={tab}
-        onTabPress={(id) => setTab(id as TabId)}
-        tabs={[
+      <Tabs value={tab} onValueChange={(id) => setTab(id as TabId)} variant="underline">{([
           { id: 'rate', label: t('communityNotes.hub.tabRate', { defaultValue: 'Rate notes' }) },
           { id: 'ratings', label: t('communityNotes.hub.tabRatings', { defaultValue: 'Your ratings' }) },
           { id: 'notes', label: t('communityNotes.hub.tabNotes', { defaultValue: 'Your notes' }) },
-        ]}
-      />
+        ]).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
       <ScrollView className="flex-1" contentContainerClassName="gap-6 pb-10 pt-4">
         <Text className="text-foreground px-4 text-[15px] leading-5">{intro}</Text>
         {entries.length === 0 ? (

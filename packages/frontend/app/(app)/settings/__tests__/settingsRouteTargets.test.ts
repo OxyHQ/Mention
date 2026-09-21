@@ -19,7 +19,7 @@ import { join, relative, resolve } from 'node:path';
  */
 
 const appRoot = resolve(__dirname, '../../..');
-const settingsRoot = resolve(__dirname, '..');
+const settingsRoot = resolve(__dirname, '../../../../components/settings/pages');
 
 /** Vacuity floors — a broken walk must not read as "nothing is wrong". */
 const MINIMUM_SETTINGS_FILES = 15;

@@ -250,12 +250,12 @@ export default function JobDetailScreen() {
 
         <View className="flex-row gap-3 mt-6">
           {job.applicationMode === 'external' ? (
-            <Button variant="primary" size="large" style={{ flex: 1 }} onPress={applyExternally} disabled={!job.externalApplyUrl}>
+            <Button appearance="solid" tone="accent" size="large" style={{ flex: 1 }} onPress={applyExternally} disabled={!job.externalApplyUrl}>
               {t('jobs.detail.apply', { defaultValue: 'Apply' })}
             </Button>
           ) : (
             <Button
-              variant="primary"
+              appearance="solid" tone="accent"
               size="large"
               style={{ flex: 1 }}
               disabled={!isPublished}
@@ -264,7 +264,7 @@ export default function JobDetailScreen() {
               {t('jobs.detail.applyOnMention', { defaultValue: 'Apply on Mention' })}
             </Button>
           )}
-          <Button variant="secondary" size="large" onPress={share}>
+          <Button appearance="subtle" tone="neutral" size="large" onPress={share}>
             {t('jobs.detail.share', { defaultValue: 'Share' })}
           </Button>
         </View>

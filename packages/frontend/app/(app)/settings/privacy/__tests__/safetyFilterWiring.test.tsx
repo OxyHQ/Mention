@@ -2,9 +2,8 @@ import React from 'react';
 import { TextInput, TouchableOpacity, View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BottomSheetContext, type BottomSheetContextProps } from '@/context/BottomSheetContext';
 import { muteWordsService, type SerializedMuteWord } from '@/services/muteWordsService';
-import HiddenWordsScreen from '../hidden-words';
+import HiddenWordsScreen from '@/components/settings/pages/privacy/hidden-words';
 
 /**
  * The muted-words screen must REPORT every change it lands, and only the ones it
@@ -24,6 +23,8 @@ import HiddenWordsScreen from '../hidden-words';
  */
 
 const mockInvalidate = jest.fn();
+const mockConfirm = jest.fn();
+jest.mock('@oxy.so/bloom/surfaces', () => ({ confirm: (...args: unknown[]) => mockConfirm(...args) }));
 
 jest.mock('@/stores/safetyInvalidation', () => ({
   invalidateSafetyFilters: (...args: unknown[]) => mockInvalidate(...args),
@@ -72,14 +73,17 @@ jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 // provider — which this file replaces with its own.
 jest.mock('@oxy.so/bloom/bottom-sheet', () => ({ BottomSheet: () => null }));
 
-jest.mock('@oxy.so/bloom/settings-list', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return {
-    SettingsListGroup: ({ children }: { children?: React.ReactNode }) => <RNView>{children}</RNView>,
-    SettingsListItem: ({ rightElement }: { rightElement?: React.ReactNode }) => (
-      <RNView>{rightElement}</RNView>
-    ),
-  };
+jest.mock('@oxy.so/bloom/settings-modal', () => {
+  const { View } = jest.requireActual('react-native');
+  return { SettingsCard: View, SettingsSection: View, SettingsRow: View };
+});
+jest.mock('@oxy.so/bloom/button', () => {
+  const { TouchableOpacity } = jest.requireActual('react-native');
+  return { Button: TouchableOpacity };
+});
+jest.mock('@oxy.so/bloom/text-field', () => {
+  const { TextInput } = jest.requireActual('react-native');
+  return { TextFieldInput: ({ onValueChange, ...props }: { onValueChange: (value: string) => void }) => <TextInput {...props} onChangeText={onValueChange} /> };
 });
 
 jest.mock('@oxy.so/services/ui/client', () => ({
@@ -91,7 +95,7 @@ jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@oxy.so/bloom/admonition', () => ({ Admonition: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
 jest.mock('@/components/common/ConfirmBottomSheet', () => ({ ConfirmBottomSheet: () => null }));
-jest.mock('@/hooks/useSafeBack', () => ({ useSafeBack: () => jest.fn() }));
+jest.mock('@/context/MentionSettingsContext', () => ({ useSettingsBack: () => jest.fn() }));
 
 jest.mock('@oxy.so/core/logger', () => ({
   ...jest.requireActual('@oxy.so/core/logger'),
@@ -108,17 +112,6 @@ const STORED_WORD: SerializedMuteWord = {
   targets: ['content', 'tag'],
   actorTarget: 'all',
   createdAt: '2026-01-01T00:00:00.000Z',
-};
-
-/** The node the screen hands the bottom sheet, so the confirm can be invoked. */
-let sheetContent: React.ReactElement | null = null;
-
-const bottomSheet: BottomSheetContextProps = {
-  openBottomSheet: jest.fn(),
-  setBottomSheetContent: (content) => {
-    sheetContent = content as React.ReactElement;
-  },
-  bottomSheetRef: { current: null },
 };
 
 async function flush(): Promise<void> {
@@ -145,9 +138,7 @@ async function openScreen(): Promise<TestRenderer.ReactTestRenderer> {
   await act(async () => {
     renderer = TestRenderer.create(
       <QueryClientProvider client={client}>
-        <BottomSheetContext.Provider value={bottomSheet}>
-          <HiddenWordsScreen />
-        </BottomSheetContext.Provider>
+        <HiddenWordsScreen />
       </QueryClientProvider>,
     );
   });
@@ -174,7 +165,7 @@ describe('the muted-words screen reports every change it lands', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    sheetContent = null;
+    mockConfirm.mockResolvedValue(true);
     listMock.mockResolvedValue([]);
   });
 
@@ -203,20 +194,27 @@ describe('the muted-words screen reports every change it lands', () => {
   it('reports an unmuted word once the server has removed it', async () => {
     listMock.mockResolvedValue([STORED_WORD]);
     removeMock.mockResolvedValue(undefined);
+    mockConfirm.mockResolvedValue(true);
 
     const screen = await openScreen();
     pressByLabel(screen, 'settings.privacy.removeMutedWord');
-    // Removal is behind a confirmation sheet; take the same path the viewer does.
-    const confirm = sheetContent?.props as { onConfirm?: () => void } | undefined;
-    if (!confirm?.onConfirm) throw new Error('Remove did not open a confirmation sheet');
-    await act(async () => {
-      confirm.onConfirm?.();
-    });
+    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true }));
     await flush();
 
     expect(removeMock).toHaveBeenCalledWith(STORED_WORD.id);
     expect(mockInvalidate).toHaveBeenCalledTimes(1);
 
+    act(() => screen.unmount());
+  });
+
+  it('does not mutate when the shared confirmation is cancelled', async () => {
+    listMock.mockResolvedValue([STORED_WORD]);
+    mockConfirm.mockResolvedValue(false);
+    const screen = await openScreen();
+    pressByLabel(screen, 'settings.privacy.removeMutedWord');
+    await flush();
+    expect(removeMock).not.toHaveBeenCalled();
+    expect(mockInvalidate).not.toHaveBeenCalled();
     act(() => screen.unmount());
   });
 

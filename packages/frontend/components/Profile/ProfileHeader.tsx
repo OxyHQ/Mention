@@ -1,19 +1,19 @@
 import React, { memo, useCallback } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { useDerivedValue, useAnimatedStyle, interpolate, Extrapolation } from 'react-native-reanimated';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { useLiveUsers } from '@/hooks/useLiveUsers';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
-import { Gear } from '@/assets/icons/gear-icon';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
+import { Button } from '@oxy.so/bloom/button';
 import { FrostedIconButton } from '@oxy.so/bloom/frosted-icon-button';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
+import { RiLineChartLine } from '@oxy.so/bloom/icons/RiLineChartLine';
+import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { showContentDialog } from '@/components/common/ContentDialog';
 import { EditProfileForm } from './EditProfile/EditProfileForm';
 import { usePoke } from './hooks/usePoke';
@@ -41,8 +41,6 @@ const PROFILE_AVATAR_COLLAPSE_TRANSLATE_Y = 16;
 // memo'd, so fresh inline handlers/icon elements each render would defeat the memo.
 const goInsights = () => router.push('/insights');
 const goSettings = () => router.push('/settings');
-const ANALYTICS_ICON = <AnalyticsIcon size={20} className="text-foreground" />;
-const SETTINGS_ICON = <Gear size={20} className="text-foreground" />;
 
 export const ProfileHeader = memo(function ProfileHeader({
   username,
@@ -55,7 +53,6 @@ export const ProfileHeader = memo(function ProfileHeader({
   isFollowing: initialIsFollowing,
   FollowButtonComponent,
 }: ProfileHeaderProps) {
-  const theme = useTheme();
   const { t } = useTranslation();
   const canPoke = !isFederated;
   const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || Boolean(isFederated));
@@ -130,25 +127,20 @@ export const ProfileHeader = memo(function ProfileHeader({
       <View className="flex-row items-center">
         {isOwnProfile && currentUsername === username ? (
           <View className="flex-row items-center gap-3">
-            <TouchableOpacity
-              className="border border-border bg-background rounded-full px-6 py-2"
-              onPress={openEditProfile}
-              accessibilityRole="button"
-              accessibilityLabel={t('profile.editProfile')}
-            >
-              <Text className="text-foreground text-sm font-semibold">{t('profile.editProfile')}</Text>
-            </TouchableOpacity>
+            <Button appearance="subtle" tone="neutral" onPress={openEditProfile}>
+              {t('profile.editProfile')}
+            </Button>
             <FrostedIconButton
               size="md"
               onPress={goInsights}
               accessibilityLabel="Analytics"
-              icon={ANALYTICS_ICON}
+              icon={RiLineChartLine}
             />
             <FrostedIconButton
               size="md"
               onPress={goSettings}
               accessibilityLabel="Settings"
-              icon={SETTINGS_ICON}
+              icon={RiSettings3Line}
             />
           </View>
         ) : profileId ? (
@@ -158,9 +150,9 @@ export const ProfileHeader = memo(function ProfileHeader({
                 size="md"
                 onPress={togglePoke}
                 disabled={pokeLoading}
-                active={poked}
+                checked={poked}
                 accessibilityLabel={poked ? 'Unpoke' : 'Poke'}
-                icon={<RiHand width={18} fill={poked ? theme.colors.primaryForeground : theme.colors.text} />}
+                icon={RiHand}
               />
             )}
             {/* Seed from the profile DTO's authoritative viewer relationship so

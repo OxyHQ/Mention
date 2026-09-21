@@ -183,7 +183,7 @@ const LiveRoomsScreen = () => {
         <PageHeader
           title={t('agora.title')}
           actions={
-            <Button variant="primary" size="small" leadingIcon={RiAddLine} onPress={openCreateSheet}>
+            <Button appearance="solid" tone="accent" size="small" leadingIcon={RiAddLine} onPress={openCreateSheet}>
               Create
             </Button>
           }

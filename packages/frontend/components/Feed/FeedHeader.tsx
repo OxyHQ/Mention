@@ -1,157 +1,43 @@
-import React, { memo, useCallback, useMemo } from 'react';
-import { View, Pressable, StyleSheet, Platform, TouchableOpacity } from 'react-native';
+import React, { memo, useCallback } from 'react';
+import { View, Platform } from 'react-native';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { router } from 'expo-router';
 import { Avatar } from '@oxy.so/bloom/avatar';
+import { Button } from '@oxy.so/bloom/button';
+import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { RiCameraLine } from '@oxy.so/bloom/icons/RiCameraLine';
 import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Text } from '@oxy.so/bloom/typography';
-import { useTheme } from '@oxy.so/bloom/theme';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface FeedHeaderProps {
-    showComposeButton?: boolean;
-    onComposePress?: () => void;
-    hideHeader?: boolean;
-    promptText?: string;
+  showComposeButton?: boolean;
+  onComposePress?: () => void;
+  hideHeader?: boolean;
+  promptText?: string;
 }
 
-/** Height (px) of the prompt row: the avatar and the placeholder/action line beside it. */
-const PROMPT_ROW_HEIGHT = 32;
-/** Padding (px) inside the pill, above and below the prompt row. */
-const PROMPT_VERTICAL_PADDING = 12;
-/** Margin (px) around the pill, on every side. */
-const PROMPT_MARGIN = 12;
+/** 56px composer plus its 12px outer margins; reply footers reserve this height. */
+export const FEED_COMPOSER_PROMPT_HEIGHT = 80;
 
-/**
- * Total laid-out height (px) of the prompt, its outer margin included. Screens that
- * pin the prompt as a footer OVER their scrollable content (the post detail screen,
- * where it is the reply composer) reserve this much scrollable bottom padding so the
- * last row is never permanently hidden behind it.
- */
-export const FEED_COMPOSER_PROMPT_HEIGHT =
-    PROMPT_ROW_HEIGHT + PROMPT_VERTICAL_PADDING * 2 + PROMPT_MARGIN * 2;
-
-/**
- * Composer prompt matching Bluesky's ComposerPrompt layout:
- * [Avatar 40px] ["What's up?" text] [Camera icon (native)] [Image icon]
- *
- * Sits flush at the top of the feed list. Only renders for authenticated users.
- */
-export const FeedHeader = memo<FeedHeaderProps>(
-    ({ showComposeButton, onComposePress, hideHeader, promptText }) => {
-        const { user } = useAuth();
-        const theme = useTheme();
-
-        const handlePress = useCallback(() => {
-            if (onComposePress) {
-                onComposePress();
-            } else {
-                router.push('/compose');
-            }
-        }, [onComposePress]);
-
-        // The button finally does what its accessibility hint has always
-        // promised. It NAVIGATES rather than pushing: the camera is a page of
-        // the tab pager, one to the left of this feed, so pushing `/camera` would
-        // stack a copy of it over the tabs instead of sliding to the page that is
-        // already there.
-        const handleCameraPress = useCallback(() => {
-            router.navigate('/camera');
-        }, []);
-
-        const handleImagePress = useCallback(() => {
-            router.push('/compose');
-        }, []);
-
-        const iconColor = theme.colors.textSecondary;
-        const primaryColor = theme.colors.primary;
-
-        const dynamicStyle = useMemo(() => ({
-            backgroundColor: theme.colors.card,
-            shadowColor: primaryColor,
-            shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: theme.isDark ? 0.2 : 0.08,
-            shadowRadius: 6,
-            elevation: 2,
-        }), [primaryColor, theme.isDark, theme.colors.card]);
-
-        if (!showComposeButton || hideHeader || !user) return null;
-
-        return (
-            <Pressable
-                onPress={handlePress}
-                style={({ pressed }) => [
-                    styles.container,
-                    dynamicStyle,
-                    pressed && styles.pressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Compose new post"
-                accessibilityHint="Opens the post composer">
-                <Avatar
-                    source={user.avatar || undefined}
-                    size={32}
-                    variant={MEDIA_VARIANT_AVATAR}
-                />
-                <View style={styles.textRow}>
-                    <Text
-                        className="text-muted-foreground leading-6"
-                        style={styles.promptText}>
-                        {promptText || 'What\u0027s up?'}
-                    </Text>
-                    <View style={styles.actions}>
-                        {Platform.OS !== 'web' && (
-                            <TouchableOpacity
-                                onPress={handleCameraPress}
-                                hitSlop={HIT_SLOP_MD}
-                                accessibilityLabel="Open camera"
-                                accessibilityHint="Opens device camera">
-                                <RiCameraLine width={22} height={22} fill={iconColor} />
-                            </TouchableOpacity>
-                        )}
-                        <TouchableOpacity
-                            onPress={handleImagePress}
-                            hitSlop={HIT_SLOP_MD}
-                            accessibilityLabel="Add image"
-                            accessibilityHint="Opens image picker">
-                            <RiImageLine width={22} height={22} fill={iconColor} />
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Pressable>
-        );
-    }
-);
-
-FeedHeader.displayName = 'FeedHeader';
-
-const styles = StyleSheet.create({
-    container: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        paddingHorizontal: 12,
-        paddingVertical: PROMPT_VERTICAL_PADDING,
-        borderRadius: 9999,
-        margin: PROMPT_MARGIN,
-    },
-    pressed: {
-        opacity: 0.7,
-    },
-    textRow: {
-        flex: 1,
-        marginLeft: 12,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        height: PROMPT_ROW_HEIGHT,
-    },
-    promptText: {
-        fontSize: 16,
-    },
-    actions: {
-        flexDirection: 'row',
-        gap: 16,
-    },
+/** Social template composer, with Mention's real account and camera destinations. */
+export const FeedHeader = memo<FeedHeaderProps>(({ showComposeButton, onComposePress, hideHeader, promptText }) => {
+  const { user } = useAuth();
+  const compose = useCallback(() => {
+    if (onComposePress) onComposePress();
+    else router.push('/compose');
+  }, [onComposePress]);
+  if (!showComposeButton || hideHeader || !user) return null;
+  return <View className="m-3 min-h-14 flex-row items-center gap-3 rounded-full bg-surface px-3 py-3">
+    <PressableScale onPress={compose} accessibilityRole="button" accessibilityLabel="Create a post"
+      className="min-w-0 flex-1 flex-row items-center gap-3">
+      <Avatar source={user.avatar || undefined} size={32} variant={MEDIA_VARIANT_AVATAR} />
+      <Text className="flex-1 text-base leading-5 text-muted-foreground">{promptText || "What's up?"}</Text>
+    </PressableScale>
+    {Platform.OS !== 'web' && <Button appearance="plain" tone="neutral" size="xs" iconOnly icon={RiCameraLine}
+      accessibilityLabel="Open camera" onPress={() => router.navigate('/camera')} />}
+    <Button appearance="plain" tone="neutral" size="xs" iconOnly icon={RiImageLine}
+      accessibilityLabel="Add image" onPress={() => router.push('/compose')} />
+  </View>;
 });
+FeedHeader.displayName = 'FeedHeader';

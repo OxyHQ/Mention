@@ -1,5 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { Text } from '@oxy.so/bloom/typography';
+import { Button } from '@oxy.so/bloom/button';
 import { logger } from '@oxy.so/core/logger';
 
 interface Props {
@@ -14,10 +16,8 @@ interface State {
 function PostErrorFallback({ onRetry }: { onRetry: () => void }) {
   return (
     <View className="border-border" style={styles.container}>
-      <Text style={styles.text}>This post could not be displayed.</Text>
-      <TouchableOpacity onPress={onRetry} style={styles.retryButton}>
-        <Text style={styles.retryText}>Tap to retry</Text>
-      </TouchableOpacity>
+      <Text className="text-muted-foreground text-sm">This post could not be displayed.</Text>
+      <Button appearance="plain" size="small" onPress={onRetry}>Tap to retry</Button>
     </View>
   );
 }
@@ -56,18 +56,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 60,
     borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  text: {
-    fontSize: 14,
-    color: '#999',
-  },
-  retryButton: {
-    marginTop: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  retryText: {
-    fontSize: 13,
-    color: '#007AFF',
   },
 });

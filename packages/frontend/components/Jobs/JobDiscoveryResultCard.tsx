@@ -1,3 +1,4 @@
+import type { Href } from 'expo-router';
 import React, { memo, useCallback, useState } from 'react';
 import { Pressable, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
@@ -187,7 +188,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
 
   const open = useCallback(() => {
     if (appPath) {
-      router.push(appPath);
+      router.push(appPath as Href);
       return;
     }
     void openExternalLink(job.source.applyUrl || job.applyUrl || job.source.canonicalUrl || job.canonicalUrl);

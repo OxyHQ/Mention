@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from 'react';
+import { logger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { User } from '@oxy.so/core';
 import {
@@ -162,7 +163,9 @@ export function useThemeControls(): ThemeControls {
       // from the current app theme so enabling sync captures what the user sees.
       const pref = user?.themePreference;
       if (!pref || !isAppColorName(pref.colorPreset)) {
-        void persistAccountTheme({ mode, colorPreset });
+        void persistAccountTheme({ mode, colorPreset }).catch((error) => {
+          logger.error('Failed to seed account theme preference', error);
+        });
       }
     },
     [setSource, canUsePrivateApi, user?.themePreference, persistAccountTheme, mode, colorPreset],

@@ -158,14 +158,36 @@ jest.mock('@/components/Feed/Feed', () => {
   return { __esModule: true, default: () => <RNView testID="feed" /> };
 });
 
-jest.mock('@/components/common/AnimatedTabBar', () => {
-  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { __esModule: true, default: () => <RNView testID="tab-bar" /> };
+jest.mock('@oxy.so/bloom/tabs', () => {
+  const R = jest.requireActual<typeof import('react')>('react');
+  const RN = jest.requireActual<typeof import('react-native')>('react-native');
+  const Context = R.createContext<(mockValue: string) => void>(() => {});
+  return {
+    Tabs: ({ children, onValueChange }: { children: React.ReactNode; onValueChange: (mockValue: string) => void }) =>
+      R.createElement(Context.Provider, { value: onValueChange }, children),
+    TabsTrigger: ({ value, label }: { value: string; label: string }) => {
+      const change = R.useContext(Context);
+      return R.createElement(RN.Pressable, { testID: `tab-${value}`, onPress: () => change(value) }, R.createElement(RN.Text, null, label));
+    },
+  };
 });
 
 jest.mock('@oxy.so/bloom/fab', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Fab: () => <RNView testID="fab" /> };
+});
+
+jest.mock('@oxy.so/bloom/media-header', () => {
+  const { TouchableOpacity: RNTouchable, Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    FollowButton: ({ following, onFollowChange, label, followingLabel, disabled }: {
+      following: boolean; onFollowChange: (following: boolean) => void;
+      label: string; followingLabel: string; disabled?: boolean;
+    }) => <RNTouchable accessibilityRole="button" accessibilityState={{ selected: following }}
+      disabled={disabled} onPress={() => onFollowChange(!following)}>
+      <RNText>{following ? followingLabel : label}</RNText>
+    </RNTouchable>,
+  };
 });
 
 jest.mock('@oxy.so/bloom/button', () => {

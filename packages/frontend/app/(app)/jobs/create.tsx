@@ -1,3 +1,4 @@
+import type { Href } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
@@ -237,7 +238,7 @@ export default function CreateJobScreen() {
       if (job.status === 'published') {
         toast.success(t('jobs.create.published', { defaultValue: 'Job published' }));
         try {
-          router.replace(new URL(job.canonicalUrl).pathname || `/jobs/${job.id}`);
+          router.replace((new URL(job.canonicalUrl).pathname || `/jobs/${job.id}`) as Href);
           return;
         } catch {
           router.replace(`/jobs/${job.id}`);
@@ -450,7 +451,7 @@ export default function CreateJobScreen() {
                 />
               </TextField>
             </View>
-            <Button variant="secondary" size="medium" onPress={addSkill} disabled={!skillDraft.trim()}>
+            <Button appearance="subtle" tone="neutral" size="medium" onPress={addSkill} disabled={!skillDraft.trim()}>
               {t('common.add', { defaultValue: 'Add' })}
             </Button>
           </View>
@@ -511,7 +512,7 @@ export default function CreateJobScreen() {
         {/* Submit */}
         <View className="flex-row gap-3 mt-6">
           <Button
-            variant="secondary"
+            appearance="subtle" tone="neutral"
             size="large"
             style={{ flex: 1 }}
             loading={createMutation.isPending && !publishingIntent}
@@ -521,7 +522,7 @@ export default function CreateJobScreen() {
             {t('jobs.create.saveDraft', { defaultValue: 'Save draft' })}
           </Button>
           <Button
-            variant="primary"
+            appearance="solid" tone="accent"
             size="large"
             style={{ flex: 1 }}
             loading={createMutation.isPending && publishingIntent}

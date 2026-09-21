@@ -237,7 +237,7 @@ export default function EditJobScreen() {
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.edit.loadFailed', { defaultValue: 'Could not load this job' })}
           </Text>
-          <Button variant="secondary" size="small" onPress={() => jobQuery.refetch()}>
+          <Button appearance="subtle" tone="neutral" size="small" onPress={() => jobQuery.refetch()}>
             {t('common.tryAgain', { defaultValue: 'Try again' })}
           </Button>
         </View>
@@ -382,7 +382,7 @@ export default function EditJobScreen() {
                 />
               </TextField>
             </View>
-            <Button variant="secondary" size="medium" onPress={addSkill} disabled={!skillDraft.trim()}>
+            <Button appearance="subtle" tone="neutral" size="medium" onPress={addSkill} disabled={!skillDraft.trim()}>
               {t('common.add', { defaultValue: 'Add' })}
             </Button>
           </View>
@@ -435,7 +435,7 @@ export default function EditJobScreen() {
 
         <View className="mt-6">
           <Button
-            variant="primary"
+            appearance="solid" tone="accent"
             size="large"
             loading={updateMutation.isPending}
             disabled={!canSave || updateMutation.isPending}

@@ -82,7 +82,8 @@ const PAGE_TABLE = [
   { name: 'camera', href: '/camera', preload: false },
   { name: 'index', href: '/', preload: true, bar: { labelKey: 'bottomBar.home' } },
   { name: 'videos', href: '/videos', preload: true, bar: { labelKey: 'bottomBar.videos' } },
-  { name: 'write', href: '/write', preload: false, bar: { labelKey: 'bottomBar.compose' } },
+  // Compose is the BottomBar action, not a second navigation destination.
+  { name: 'write', href: '/write', preload: false },
   {
     name: 'notifications',
     href: '/notifications',

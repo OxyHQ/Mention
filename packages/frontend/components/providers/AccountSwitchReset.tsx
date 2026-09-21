@@ -9,7 +9,7 @@ import React, {
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getUserLanguages } from '@oxy.so/core';
-import i18n from 'i18next';
+import { appI18n as i18n } from '@/lib/i18n';
 import { useBloomTheme } from '@oxy.so/bloom/theme';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { usePostsStore } from '@/stores/postsStore';

@@ -28,8 +28,3 @@ export function useIsScreenNotMobile(): boolean {
 export function useIsRightBarVisible(): boolean {
   return useWindowDimensions().width >= 990;
 }
-
-/** >= 1300px: wide enough to expand the sidebar from icons to labelled rows. */
-export function useIsSideBarExpanded(): boolean {
-  return useWindowDimensions().width >= 1300;
-}

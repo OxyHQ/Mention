@@ -523,7 +523,7 @@ const PostDetailScreen: React.FC = () => {
                     backLabel={t('common.back', { defaultValue: 'Back' })}
                     actions={
                         <Button
-                            variant="secondary"
+                            appearance="subtle" tone="neutral"
                             iconOnly
                             leadingIcon={RiEqualizerLine}
                             accessibilityLabel={t('settings.threadPreferences.title', { defaultValue: 'Thread preferences' })}

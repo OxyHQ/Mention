@@ -68,6 +68,29 @@ function mockTranslate(key: string, vars?: Record<string, string>): string {
   return value.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => vars[name] ?? '');
 }
 
+jest.mock('@oxy.so/bloom/chart-cards', () => ({ Sparkline: () => null }));
+
+jest.mock('@oxy.so/bloom/media-header', () => {
+  const { TouchableOpacity: RNTouchable, Text: RNText } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    FollowButton: ({ following, onFollowChange, label, followingLabel, disabled, loading = false }: {
+      following: boolean; onFollowChange: (following: boolean) => void;
+      label: string; followingLabel: string; disabled?: boolean; loading?: boolean;
+    }) => <RNTouchable accessibilityRole="button" accessibilityState={{ selected: following, busy: loading }}
+      disabled={disabled} onPress={() => onFollowChange(!following)}>
+      <RNText>{following ? followingLabel : label}</RNText>
+    </RNTouchable>,
+  };
+});
+
+jest.mock('@oxy.so/bloom/chat-people', () => {
+  const { View, TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
+  const ReactActual = jest.requireActual<typeof import('react')>('react');
+  return {
+    ContactRow: ({ avatarSlot, identitySlot, onPress }: { avatarSlot: React.ReactNode; identitySlot: React.ReactNode; onPress?: () => void }) =>
+      onPress ? ReactActual.createElement(TouchableOpacity, { onPress, accessibilityRole: "button" }, avatarSlot, identitySlot) : ReactActual.createElement(View, null, avatarSlot, identitySlot),
+  };
+});
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: mockTranslate }),
 }));

@@ -1,38 +1,16 @@
 import React, { memo } from 'react';
-import { View, Text, Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text } from 'react-native';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
-import { PanelStickyFooter } from '@/components/shell/PanelChrome';
 
-/**
- * Banner shown to signed-out users at the bottom of the middle column.
- *
- * Web: pinned to the bottom of the rounded center panel via
- * <PanelStickyFooter> (which owns the `position: sticky`, the
- * PANEL_BOTTOM_INSET gutter offset, the matching `rounded-b-[28px]` bottom
- * corners, and the z-index above the bleed mask). The banner's opaque
- * `bg-primary` surface + the footer's rounded bottom corners mask the feed's
- * bottom-edge bleed. The center column reserves bottom space (see
- * `app/(app)/_layout.tsx`) so the pinned banner never permanently hides the
- * last post.
- *
- * Native: <PanelStickyFooter> renders a bottom-anchored absolute overlay so the
- * banner floats over scrollable screen content without shifting layout.
- */
-const IS_WEB = Platform.OS === 'web';
-
+/** Inline social-template invitation; the shell owns any fixed edge surfaces. */
 export const SignInBanner = memo(function SignInBanner() {
-  const insets = useSafeAreaInsets();
   const { signIn } = useAuth();
   const { t } = useTranslation();
 
   return (
-    <PanelStickyFooter
-      className="bg-primary"
-      style={{ paddingBottom: IS_WEB ? 0 : insets.bottom }}
-    >
+    <View className="bg-primary">
       <View className="flex-row items-center justify-center px-4 py-3 gap-4 w-full">
         <View className="flex-1">
           <Text className="text-primary-foreground text-base font-bold">
@@ -51,6 +29,6 @@ export const SignInBanner = memo(function SignInBanner() {
           {t('Sign In')}
         </Button>
       </View>
-    </PanelStickyFooter>
+    </View>
   );
 });

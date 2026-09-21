@@ -1,3 +1,4 @@
+import type { Href } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
@@ -110,7 +111,7 @@ export default function MyJobsScreen() {
   const openJob = useCallback((job: MentionJobPosting) => {
     try {
       const path = new URL(job.canonicalUrl).pathname;
-      router.push(path || `/jobs/${job.id}`);
+      router.push((path || `/jobs/${job.id}`) as Href);
     } catch {
       router.push(`/jobs/${job.id}`);
     }
@@ -126,7 +127,7 @@ export default function MyJobsScreen() {
       onBack={() => safeBack()}
       backLabel={t('common.back', { defaultValue: 'Back' })}
       actions={
-        <Button variant="primary" size="small" onPress={() => router.push('/jobs/create')}>
+        <Button appearance="solid" tone="accent" size="small" onPress={() => router.push('/jobs/create')}>
           {t('jobs.mine.create', { defaultValue: 'Create job' })}
         </Button>
       }
@@ -152,7 +153,7 @@ export default function MyJobsScreen() {
           <Text className="text-muted-foreground text-base text-center">
             {t('jobs.mine.loadFailed', { defaultValue: 'Could not load your jobs' })}
           </Text>
-          <Button variant="secondary" size="small" onPress={() => jobsQuery.refetch()}>
+          <Button appearance="subtle" tone="neutral" size="small" onPress={() => jobsQuery.refetch()}>
             {t('common.tryAgain', { defaultValue: 'Try again' })}
           </Button>
         </View>
@@ -176,7 +177,7 @@ export default function MyJobsScreen() {
                 defaultValue: 'Create a job listing for an organization or project account you operate.',
               })}
             </Text>
-            <Button variant="primary" size="medium" onPress={() => router.push('/jobs/create')}>
+            <Button appearance="solid" tone="accent" size="medium" onPress={() => router.push('/jobs/create')}>
               {t('jobs.mine.create', { defaultValue: 'Create job' })}
             </Button>
           </View>
@@ -203,11 +204,11 @@ export default function MyJobsScreen() {
                     <View className="flex-row flex-wrap gap-2 justify-end">
                       {job.status === 'draft' && (
                         <>
-                          <Button variant="secondary" size="small" onPress={() => editJob(job)}>
+                          <Button appearance="subtle" tone="neutral" size="small" onPress={() => editJob(job)}>
                             {t('common.edit', { defaultValue: 'Edit' })}
                           </Button>
                           <Button
-                            variant="primary"
+                            appearance="solid" tone="accent"
                             size="small"
                             loading={busy}
                             onPress={() => runAction(job.id, 'publish')}
@@ -215,7 +216,7 @@ export default function MyJobsScreen() {
                             {t('jobs.mine.publish', { defaultValue: 'Publish' })}
                           </Button>
                           <Button
-                            variant="ghost"
+                            appearance="plain" tone="neutral"
                             size="small"
                             loading={busy}
                             onPress={() => discardDraft(job)}
@@ -226,14 +227,14 @@ export default function MyJobsScreen() {
                       )}
                       {job.status === 'published' && (
                         <>
-                          <Button variant="secondary" size="small" onPress={() => openJob(job)}>
+                          <Button appearance="subtle" tone="neutral" size="small" onPress={() => openJob(job)}>
                             {t('common.view', { defaultValue: 'View' })}
                           </Button>
-                          <Button variant="secondary" size="small" onPress={() => editJob(job)}>
+                          <Button appearance="subtle" tone="neutral" size="small" onPress={() => editJob(job)}>
                             {t('common.edit', { defaultValue: 'Edit' })}
                           </Button>
                           <Button
-                            variant="secondary"
+                            appearance="subtle" tone="neutral"
                             size="small"
                             loading={busy}
                             onPress={() => runAction(job.id, 'pause')}
@@ -241,7 +242,7 @@ export default function MyJobsScreen() {
                             {t('jobs.mine.pause', { defaultValue: 'Pause' })}
                           </Button>
                           <Button
-                            variant="ghost"
+                            appearance="plain" tone="neutral"
                             size="small"
                             loading={busy}
                             onPress={() => runAction(job.id, 'close')}
@@ -252,11 +253,11 @@ export default function MyJobsScreen() {
                       )}
                       {job.status === 'paused' && (
                         <>
-                          <Button variant="secondary" size="small" onPress={() => editJob(job)}>
+                          <Button appearance="subtle" tone="neutral" size="small" onPress={() => editJob(job)}>
                             {t('common.edit', { defaultValue: 'Edit' })}
                           </Button>
                           <Button
-                            variant="primary"
+                            appearance="solid" tone="accent"
                             size="small"
                             loading={busy}
                             onPress={() => runAction(job.id, 'publish')}
@@ -264,7 +265,7 @@ export default function MyJobsScreen() {
                             {t('jobs.mine.publish', { defaultValue: 'Publish' })}
                           </Button>
                           <Button
-                            variant="ghost"
+                            appearance="plain" tone="neutral"
                             size="small"
                             loading={busy}
                             onPress={() => runAction(job.id, 'close')}
@@ -275,7 +276,7 @@ export default function MyJobsScreen() {
                       )}
                       {(job.status === 'closed' || job.status === 'expired') && (
                         <Button
-                          variant="secondary"
+                          appearance="subtle" tone="neutral"
                           size="small"
                           loading={busy}
                           onPress={() => runAction(job.id, 'duplicate')}
@@ -289,7 +290,7 @@ export default function MyJobsScreen() {
                           to, and Mention never sees them. */}
                       {job.applicationMode === 'mention' && (
                         <Button
-                          variant="secondary"
+                          appearance="subtle" tone="neutral"
                           size="small"
                           onPress={() => router.push(`/jobs/${job.id}/applications`)}
                         >

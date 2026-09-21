@@ -24,10 +24,10 @@ export const NotificationPermissionSheet: React.FC<Props> = ({ onEnable, onLater
                 {t("permission.notifications.subtitle")}
             </Text>
             <View className="mt-3.5 gap-2.5">
-                <Button variant="secondary" size="large" onPress={onLater}>
+                <Button appearance="subtle" tone="neutral" size="large" onPress={onLater}>
                     {t("permission.notifications.later")}
                 </Button>
-                <Button variant="primary" size="large" onPress={onEnable}>
+                <Button appearance="solid" tone="accent" size="large" onPress={onEnable}>
                     {t("permission.notifications.enable")}
                 </Button>
             </View>

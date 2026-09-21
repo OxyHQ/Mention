@@ -12,7 +12,7 @@ import { View, TouchableOpacity, Share, Platform } from 'react-native';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { BloomColorScope, useTheme } from '@oxy.so/bloom/theme';
-import AnimatedTabBar from '@/components/common/AnimatedTabBar';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { cacheActors } from '@/lib/actorCache';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Error as ErrorComponent } from '@/components/Error';
@@ -583,13 +583,7 @@ function ConnectionsContent({
         backLabel={t('common.back', { defaultValue: 'Back' })}
       />
 
-      <AnimatedTabBar
-        tabs={tabs}
-        activeTabId={activeTab}
-        onTabPress={handleTabPress}
-        scrollEnabled={true}
-        instanceId={`connections-${cleanUsername}`}
-      />
+      <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">{(tabs).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
 
       {renderContent()}
     </View>

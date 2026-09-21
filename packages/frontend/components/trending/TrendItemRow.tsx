@@ -1,9 +1,9 @@
-import React, { memo, useId, useMemo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RiArrowDownLine } from '@oxy.so/bloom/icons/RiArrowDownLine';
 import { RiArrowUpLine } from '@oxy.so/bloom/icons/RiArrowUpLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
-import Svg, { Defs, LinearGradient, Polygon, Polyline, Stop } from 'react-native-svg';
+import { Sparkline } from '@oxy.so/bloom/chart-cards';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { AvatarGroup } from '@oxy.so/bloom/avatar-group';
 import { useTranslation } from 'react-i18next';
@@ -59,104 +59,8 @@ const DIRECTION_ICON: Record<Trend['direction'], BloomIcon | null> = {
 
 const DIRECTION_ICON_SIZE = 16;
 
-const SPARKLINE_WIDTH = 50;
-const SPARKLINE_HEIGHT = 24;
-const SPARKLINE_BASELINE_Y = SPARKLINE_HEIGHT;
-/**
- * Vertical breathing room, in SVG units, kept above the highest point and below
- * the lowest. The stroke is 2 wide with round caps, so without it an extreme
- * point is shaved by the viewBox edge.
- */
-const SPARKLINE_VERTICAL_INSET = 4;
-const SPARKLINE_STROKE_WIDTH = 2;
-const SPARKLINE_AREA_TOP_OPACITY = 0.28;
-const SPARKLINE_AREA_BOTTOM_OPACITY = 0;
-/**
- * Two points make a line — a STRUCTURAL requirement of `Polyline`, not a
- * coverage policy. How much history is enough to be worth drawing is decided by
- * the server, which simply omits `series` below its floor; this guard only keeps
- * the component total if a single point ever reaches it.
- */
+// Two points form a line; the server owns the minimum history policy.
 const MIN_POLYLINE_POINTS = 2;
-
-/**
- * Map a series to `viewBox` coordinates: x spreads the points evenly across the
- * full width, y scales the value range into the inset band, inverted so a larger
- * volume sits higher.
- *
- * A CONSTANT series (max === min) has no range to scale into and would otherwise
- * divide by zero. It is drawn at the vertical middle — the one placement that
- * does not imply the volume was high or low, only that it did not move. This is
- * a common shape, not an edge case: `volume` is a trailing 24-hour post count, so
- * on a quiet instance a trend genuinely holds the same number for hours.
- */
-function toSparklinePoints(series: readonly number[]): readonly (readonly [number, number])[] {
-  const max = Math.max(...series);
-  const min = Math.min(...series);
-  const span = max - min;
-  const usableHeight = SPARKLINE_HEIGHT - SPARKLINE_VERTICAL_INSET * 2;
-
-  return series.map((value, index) => {
-    const x = (index / (series.length - 1)) * SPARKLINE_WIDTH;
-    const fraction = span === 0 ? 0.5 : (value - min) / span;
-    return [x, SPARKLINE_HEIGHT - SPARKLINE_VERTICAL_INSET - fraction * usableHeight] as const;
-  });
-}
-
-function toPolylinePoints(points: readonly (readonly [number, number])[]): string {
-  return points.map(([x, y]) => `${x},${y}`).join(' ');
-}
-
-/**
- * Close the line into a fillable area: follow it, drop to the baseline under the
- * last point, then run back along the baseline to the first.
- */
-function toAreaPoints(points: readonly (readonly [number, number])[]): string {
-  const first = points[0];
-  const last = points[points.length - 1];
-  return [
-    ...points.map(([x, y]) => `${x},${y}`),
-    `${last[0]},${SPARKLINE_BASELINE_Y}`,
-    `${first[0]},${SPARKLINE_BASELINE_Y}`,
-  ].join(' ');
-}
-
-const Sparkline = memo(function Sparkline({
-  series,
-  color,
-}: {
-  series: number[];
-  color: string;
-}) {
-  const gradientId = useId();
-  const points = useMemo(() => toSparklinePoints(series), [series]);
-  const linePoints = useMemo(() => toPolylinePoints(points), [points]);
-  const areaPoints = useMemo(() => toAreaPoints(points), [points]);
-
-  return (
-    <Svg
-      width={SPARKLINE_WIDTH}
-      height={SPARKLINE_HEIGHT}
-      viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
-    >
-      <Defs>
-        <LinearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={color} stopOpacity={SPARKLINE_AREA_TOP_OPACITY} />
-          <Stop offset="1" stopColor={color} stopOpacity={SPARKLINE_AREA_BOTTOM_OPACITY} />
-        </LinearGradient>
-      </Defs>
-      <Polygon points={areaPoints} fill={`url(#${gradientId})`} stroke="none" />
-      <Polyline
-        points={linePoints}
-        fill="none"
-        stroke={color}
-        strokeWidth={SPARKLINE_STROKE_WIDTH}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-});
 
 /**
  * The line above the name: what KIND of thing this is, and how big it is.
@@ -353,7 +257,7 @@ export const TrendItemRow = memo(function TrendItemRow({
         </View>
         {series ? (
           <View className="items-end">
-            <Sparkline series={series} color={theme.colors.primary} />
+            <Sparkline data={series} width={50} height={24} shape="sharp" color={theme.colors.primary} />
           </View>
         ) : DirectionIcon ? (
           <View className="items-end">

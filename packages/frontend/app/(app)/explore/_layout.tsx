@@ -1,20 +1,14 @@
 import React, { useCallback, useMemo } from 'react';
-import { Platform, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { StatusBar } from 'expo-status-bar';
 import { router, Slot, usePathname, type Href } from 'expo-router';
-import AnimatedTabBar from '@/components/common/AnimatedTabBar';
+import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
-import { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
-import { Fab } from '@oxy.so/bloom/fab';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Search } from '@/assets/icons/search-icon';
 import { SEO } from '@/components/SEO';
-import { PanelStickyHeader, PanelChromeTopInsetProvider, PANEL_HEADER_HEIGHT, PANEL_CHROME_TOP_INSET } from '@/components/shell/PanelChrome';
 
 /**
  * Explore is a routed top-tab cluster: each tab is its own URL under `/explore`
@@ -49,17 +43,8 @@ function tabFromPathname(pathname: string | null): ExploreTab {
 export default function ExploreLayout() {
   const { t } = useTranslation();
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const activeTab = tabFromPathname(pathname);
-  const headerHeight = PANEL_HEADER_HEIGHT;
-
-  // Shared auto-hide signal (0 = visible, 1 = hidden) — the same value the bottom
-  // bar and FAB read, so the header stays in lock-step with the bar instead of
-  // running a duplicate scroll listener here.
-  const hidden = useBottomBarHidden();
-  const headerTranslateY = useDerivedValue(() => hidden.value * -(headerHeight + insets.top));
-
   const handleTabPress = useCallback(
     (id: string) => {
       const route = TAB_ROUTES[id as ExploreTab];
@@ -69,34 +54,6 @@ export default function ExploreLayout() {
     },
     [activeTab],
   );
-
-  // Translate-only: the header is an opaque surface that slides up behind the
-  // status bar. Fading its opacity would make the scrolled feed
-  // visible through it (the header/tab-bar chrome must read as one continuous
-  // opaque surface while rising), so there is NO opacity term here.
-  const headerAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: headerTranslateY.value }],
-  }));
-
-  // Tab-bar motion (mirrors `app/(app)/index.tsx`).
-  // WEB: sticky in normal flow; slide up in lock-step with the header so it rises
-  // to the panel top. NATIVE: an ABSOLUTE overlay pinned directly below the header
-  // that rises with it but clamps at the panel top (`-headerHeight`) so it stays
-  // visible — no in-flow spacer, so the feed (fixed top inset, scrolls behind the
-  // chrome) never reflows as the chrome hides.
-  const tabBarAnimatedStyle = useAnimatedStyle(() => {
-    if (Platform.OS === 'web') {
-      return { transform: [{ translateY: headerTranslateY.value }] };
-    }
-    const translate = Math.max(headerTranslateY.value, -headerHeight);
-    return {
-      position: 'absolute' as const,
-      top: headerHeight,
-      left: 0,
-      right: 0,
-      transform: [{ translateY: translate }],
-    };
-  });
 
   const tabs = useMemo(
     () => [
@@ -109,73 +66,14 @@ export default function ExploreLayout() {
     [t],
   );
 
-  return (
-    <>
-      <SEO title={t('seo.explore.title')} description={t('seo.explore.description')} />
-      {/* WEB: `web:z-auto` stops these screen wrappers from being their own
-          stacking contexts (RN-web otherwise renders every View as
-          `position:relative; z-index:0`, which would TRAP the sticky header +
-          tab bar below them). Mirrors `app/(app)/index.tsx`. No effect on native. */}
-      <SafeAreaView className="flex-1 web:z-auto" edges={['top']}>
-        <View className="flex-1 web:z-auto relative flex-col">
-          <StatusBar style={theme.isDark ? 'light' : 'dark'} />
-
-          {/* Header - animated. <PanelStickyHeader> owns the web sticky
-              position/inset, opaque panel surface, top rounded corners, and
-              z-index; the layout supplies the reanimated auto-hide translate.
-              NATIVE: PanelStickyHeader becomes the absolute top overlay, below
-              the SafeAreaView's top inset, so the header pads none of its own. */}
-          <PanelStickyHeader level={0} style={headerAnimatedStyle}>
-            <PageHeader
-              title={t('Explore')}
-              safeArea={false}
-              actions={
-                <Button
-                  variant="secondary"
-                  iconOnly
-                  icon={<Search className="text-foreground" size={20} />}
-                  onPress={() => router.push('/search')}
-                  accessibilityLabel={t('Search')}
-                />
-              }
-            />
-          </PanelStickyHeader>
-
-          {/* Tab Navigation. WEB: <PanelStickyHeader level={1}> pins it directly
-              below the level-0 header with the same opaque panel surface + top
-              rounded corners; zIndex 100 keeps it one below the header. NATIVE:
-              `tabBarAnimatedStyle` makes it an absolute overlay pinned below the
-              header. Tapping a tab navigates (router.push) and the active tab is
-              derived from the route. Mirrors `app/(app)/index.tsx`. */}
-          <PanelStickyHeader level={1} zIndex={100} style={tabBarAnimatedStyle}>
-            <AnimatedTabBar
-              tabs={tabs}
-              activeTabId={activeTab}
-              onTabPress={handleTabPress}
-              scrollEnabled={true}
-              instanceId="explore"
-            />
-          </PanelStickyHeader>
-
-          {/* Active tab content — the matched child route (its own <Feed/>) flows
-              here. On native the feed scrolls BEHIND the absolute header + tab-bar
-              overlay; PanelChromeTopInsetProvider hands it the fixed top inset
-              (header + tab-bar height) it reserves as constant scrollable padding
-              so hiding the chrome never reflows the list. Web ignores the inset
-              (sticky chrome in normal flow). */}
-          <PanelChromeTopInsetProvider value={PANEL_CHROME_TOP_INSET}>
-            <Slot />
-          </PanelChromeTopInsetProvider>
-
-          {/* Bloom owns both the BottomBar clearance and its minimized position. */}
-          <Fab
-            size={48}
-            onPress={() => router.push('/search')}
-            icon={<Search size={22} className="text-tertiary-foreground" />}
-            accessibilityLabel={t('Search')}
-          />
-        </View>
-      </SafeAreaView>
-    </>
-  );
+  return <View className="flex-1 web:z-auto">
+    <SEO title={t('seo.explore.title')} description={t('seo.explore.description')} />
+    <StatusBar style={theme.isDark ? 'light' : 'dark'} />
+    <PageHeader title={t('Explore')} presentation="floating" actions={
+      <Button appearance="subtle" tone="neutral" iconOnly icon={<Search size={20} />}
+        onPress={() => router.push('/search')} accessibilityLabel={t('Search')} />
+    } />
+    <Tabs value={activeTab} onValueChange={handleTabPress} variant="underline">{(tabs).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
+    <Slot />
+  </View>;
 }

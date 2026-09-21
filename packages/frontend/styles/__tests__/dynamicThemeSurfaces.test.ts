@@ -20,8 +20,8 @@ describe('dynamic theme surfaces', () => {
     expect(file).toContain("from '@oxy.so/bloom/button'");
     expect(file).toContain('text-foreground');
     expect(file).toContain('text-muted-foreground');
-    expect(file).toContain('variant="primary"');
-    expect(file).toContain('variant="secondary"');
+    expect(file).toContain('appearance="solid" tone="accent"');
+    expect(file).toContain('appearance="subtle" tone="neutral"');
     expect(file).not.toContain('@/styles/colors');
     expect(file).not.toMatch(/#[0-9a-f]{3,8}\b/i);
 

@@ -5,7 +5,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { authenticatedClient } from '@/utils/api';
 import { Storage } from '@/utils/storage';
 import { getDevicePushToken } from '@/utils/notifications';
-import i18next from 'i18next';
+import { appI18n as i18next } from '@/lib/i18n';
 import { logger } from '@oxy.so/core/logger';
 
 export const RegisterPushToken: React.FC = () => {
