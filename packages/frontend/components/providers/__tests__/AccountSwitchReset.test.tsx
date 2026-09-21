@@ -37,6 +37,9 @@ const mockResetRecommendationFilters = jest.fn();
 const mockResetPrivacySettingsCache = jest.fn();
 const mockChildRender = jest.fn();
 
+// Account-switch behavior reads locale state; initialization/storage are tested separately.
+jest.mock('@/lib/i18n', () => ({ appI18n: { language: 'en-US' } }));
+
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: jest.fn(),
 }));

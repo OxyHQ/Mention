@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { FeedType } from '@mention/shared-types';

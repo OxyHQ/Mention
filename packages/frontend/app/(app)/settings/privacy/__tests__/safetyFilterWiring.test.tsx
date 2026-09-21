@@ -1,5 +1,5 @@
 import React from 'react';
-import { TextInput, TouchableOpacity, View } from 'react-native';
+import { TextInput, TouchableOpacity } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { muteWordsService, type SerializedMuteWord } from '@/services/muteWordsService';

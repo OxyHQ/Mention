@@ -1,12 +1,19 @@
-jest.mock('@oxy.so/bloom/settings-modal', () => {
-  const { View } = jest.requireActual('react-native');
-  return { SettingsCard: View, SettingsSection: View, SettingsRow: View };
-});
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { PostSubscriptionListResponse } from '@mention/shared-types';
 import enMessages from '@/locales/en.json';
+import ActivitySubscriptionsScreen from '@/components/settings/pages/notifications/subscriptions';
+import { useSubscription } from '@/components/Profile/hooks/useSubscription';
+jest.mock('@oxy.so/bloom/settings-modal', () => {
+  const { View } = jest.requireActual('react-native');
+  return { SettingsCard: View, SettingsSection: View, SettingsRow: View };
+});
+
+
+
+
+
 
 /**
  * Render tests for the activity-subscriptions screen — the three behaviours that
@@ -203,8 +210,8 @@ jest.mock('@/services/subscriptionService', () => ({
   },
 }));
 
-import ActivitySubscriptionsScreen from '@/components/settings/pages/notifications/subscriptions';
-import { useSubscription } from '@/components/Profile/hooks/useSubscription';
+
+
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
