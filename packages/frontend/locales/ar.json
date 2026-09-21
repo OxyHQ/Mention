@@ -2450,7 +2450,10 @@
   "common": {
     "add": "Add",
     "loading": "Loading…",
-    "view": "View"
+    "view": "View",
+    "actions": "الإجراءات",
+    "manage": "إدارة",
+    "open": "فتح"
   },
   "compose": {
     "job": {
@@ -2534,5 +2537,23 @@
   "communityNotes.rate.reason.opinion_or_biased": "رأي أو لغة متحيزة",
   "communityNotes.rate.reason.hard_to_understand": "صعبة الفهم",
   "communityNotes.rate.reason.not_needed": "المنشور لا يحتاج إلى ملاحظة",
-  "communityNotes.rate.reason.other": "سبب آخر"
+  "communityNotes.rate.reason.other": "سبب آخر",
+  "settings": {
+    "accessibility": {
+      "nativeHaptics": "متاح في تطبيق الهاتف."
+    },
+    "account": {
+      "loadFailed": "تعذر تحميل حسابك",
+      "oxyDescription": "أدر هويتك المشتركة في Oxy وملفك الشخصي وأمانك."
+    },
+    "preferences": {
+      "title": "التفضيلات"
+    },
+    "profile": {
+      "name": "الاسم",
+      "photo": "صورة الملف الشخصي",
+      "username": "اسم المستخدم"
+    },
+    "saveFailed": "تعذر حفظ الإعدادات. يرجى المحاولة مرة أخرى."
+  }
 }

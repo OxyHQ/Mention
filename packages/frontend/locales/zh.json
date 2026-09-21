@@ -2356,7 +2356,10 @@
   "common": {
     "add": "Add",
     "loading": "Loading…",
-    "view": "View"
+    "view": "View",
+    "actions": "操作",
+    "manage": "管理",
+    "open": "打开"
   },
   "compose": {
     "job": {
@@ -2440,5 +2443,23 @@
   "communityNotes.rate.reason.opinion_or_biased": "观点性或带有偏见的语言",
   "communityNotes.rate.reason.hard_to_understand": "难以理解",
   "communityNotes.rate.reason.not_needed": "帖子不需要笔记",
-  "communityNotes.rate.reason.other": "其他原因"
+  "communityNotes.rate.reason.other": "其他原因",
+  "settings": {
+    "accessibility": {
+      "nativeHaptics": "可在移动应用中使用。"
+    },
+    "account": {
+      "loadFailed": "无法加载你的账户",
+      "oxyDescription": "管理你的共享 Oxy 身份、个人资料和安全设置。"
+    },
+    "preferences": {
+      "title": "偏好设置"
+    },
+    "profile": {
+      "name": "姓名",
+      "photo": "头像",
+      "username": "用户名"
+    },
+    "saveFailed": "无法保存设置。请重试。"
+  }
 }

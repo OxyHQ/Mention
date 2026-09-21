@@ -2380,7 +2380,10 @@
   "common": {
     "add": "Add",
     "loading": "Loading…",
-    "view": "View"
+    "view": "View",
+    "actions": "Ações",
+    "manage": "Gerenciar",
+    "open": "Abrir"
   },
   "compose": {
     "job": {
@@ -2464,5 +2467,23 @@
   "communityNotes.rate.reason.opinion_or_biased": "Opinião ou linguagem tendenciosa",
   "communityNotes.rate.reason.hard_to_understand": "Difícil de compreender",
   "communityNotes.rate.reason.not_needed": "A publicação não precisa de nota",
-  "communityNotes.rate.reason.other": "Outro motivo"
+  "communityNotes.rate.reason.other": "Outro motivo",
+  "settings": {
+    "accessibility": {
+      "nativeHaptics": "Disponível no aplicativo móvel."
+    },
+    "account": {
+      "loadFailed": "Não foi possível carregar sua conta",
+      "oxyDescription": "Gerencie sua identidade compartilhada do Oxy, seu perfil e sua segurança."
+    },
+    "preferences": {
+      "title": "Preferências"
+    },
+    "profile": {
+      "name": "Nome",
+      "photo": "Foto do perfil",
+      "username": "Nome de usuário"
+    },
+    "saveFailed": "Não foi possível salvar as configurações. Tente novamente."
+  }
 }

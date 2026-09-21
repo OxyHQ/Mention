@@ -2356,7 +2356,10 @@
   "common": {
     "add": "Add",
     "loading": "Loading…",
-    "view": "View"
+    "view": "View",
+    "actions": "কার্যক্রম",
+    "manage": "পরিচালনা করুন",
+    "open": "খুলুন"
   },
   "compose": {
     "job": {
@@ -2440,5 +2443,23 @@
   "communityNotes.rate.reason.opinion_or_biased": "মতামত বা পক্ষপাতদুষ্ট ভাষা",
   "communityNotes.rate.reason.hard_to_understand": "বোঝা কঠিন",
   "communityNotes.rate.reason.not_needed": "পোস্টটির কোনো নোটের প্রয়োজন নেই",
-  "communityNotes.rate.reason.other": "অন্য কিছু"
+  "communityNotes.rate.reason.other": "অন্য কিছু",
+  "settings": {
+    "accessibility": {
+      "nativeHaptics": "মোবাইল অ্যাপে উপলব্ধ।"
+    },
+    "account": {
+      "loadFailed": "আপনার অ্যাকাউন্ট লোড করা যায়নি",
+      "oxyDescription": "আপনার শেয়ার করা Oxy পরিচয়, প্রোফাইল ও নিরাপত্তা পরিচালনা করুন।"
+    },
+    "preferences": {
+      "title": "পছন্দসমূহ"
+    },
+    "profile": {
+      "name": "নাম",
+      "photo": "প্রোফাইলের ছবি",
+      "username": "ব্যবহারকারীর নাম"
+    },
+    "saveFailed": "সেটিংস সংরক্ষণ করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।"
+  }
 }

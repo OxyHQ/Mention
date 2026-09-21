@@ -2356,7 +2356,10 @@
   "common": {
     "add": "Add",
     "loading": "Loading…",
-    "view": "View"
+    "view": "View",
+    "actions": "İşlemler",
+    "manage": "Yönet",
+    "open": "Aç"
   },
   "compose": {
     "job": {
@@ -2440,5 +2443,23 @@
   "communityNotes.rate.reason.opinion_or_biased": "Kişisel görüş veya taraflı dil",
   "communityNotes.rate.reason.hard_to_understand": "Anlaşılması zor",
   "communityNotes.rate.reason.not_needed": "Gönderinin nota ihtiyacı yok",
-  "communityNotes.rate.reason.other": "Başka bir şey"
+  "communityNotes.rate.reason.other": "Başka bir şey",
+  "settings": {
+    "accessibility": {
+      "nativeHaptics": "Mobil uygulamada kullanılabilir."
+    },
+    "account": {
+      "loadFailed": "Hesabınız yüklenemedi",
+      "oxyDescription": "Paylaşılan Oxy kimliğinizi, profilinizi ve güvenliğinizi yönetin."
+    },
+    "preferences": {
+      "title": "Tercihler"
+    },
+    "profile": {
+      "name": "Ad",
+      "photo": "Profil fotoğrafı",
+      "username": "Kullanıcı adı"
+    },
+    "saveFailed": "Ayarlar kaydedilemedi. Lütfen tekrar deneyin."
+  }
 }

@@ -777,7 +777,10 @@
     "close": "Close",
     "add": "Add",
     "loading": "Loading…",
-    "view": "View"
+    "view": "View",
+    "actions": "Actions",
+    "manage": "Manage",
+    "open": "Open"
   },
   "insights": {
     "posts": "Posts",
@@ -2074,7 +2077,23 @@
       "chipUnfollow": "Unfollow {{topic}}",
       "chipOffHere": "Show {{topic}} in Mention again",
       "description": "Topics you follow shape your feed, and come with you to every Oxy app."
-    }
+    },
+    "accessibility": {
+      "nativeHaptics": "Available in the mobile app."
+    },
+    "account": {
+      "loadFailed": "Could not load your account",
+      "oxyDescription": "Manage your shared Oxy identity, profile and security."
+    },
+    "preferences": {
+      "title": "Preferences"
+    },
+    "profile": {
+      "name": "Name",
+      "photo": "Profile photo",
+      "username": "Username"
+    },
+    "saveFailed": "Could not save settings. Please try again."
   },
   "Account based in": "Account based in",
   "Account details": "Account details",

@@ -21,6 +21,7 @@ import { liveRoomRuntimeController } from '@/context/LiveRoomContext';
 import { claimViewerCache } from '@/db';
 import { AccountSwitchReset } from '../AccountSwitchReset';
 
+const mockLocale: { language: string | undefined } = { language: 'en-US' };
 let mockUser: { id: string } | null = { id: 'viewer-a' };
 let mockIsAuthResolved = true;
 let mockPersistedViewerId: string | null = 'viewer-a';
@@ -38,7 +39,11 @@ const mockResetPrivacySettingsCache = jest.fn();
 const mockChildRender = jest.fn();
 
 // Account-switch behavior reads locale state; initialization/storage are tested separately.
-jest.mock('@/lib/i18n', () => ({ appI18n: { language: 'en-US' } }));
+jest.mock('@/lib/i18n', () => ({
+  get appI18n() {
+    return mockLocale;
+  },
+}));
 
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: jest.fn(),
@@ -195,6 +200,7 @@ describe('AccountSwitchReset identity boundary', () => {
   });
 
   beforeEach(() => {
+    mockLocale.language = 'en-US';
     mockUser = { id: 'viewer-a' };
     mockIsAuthResolved = true;
     mockPersistedViewerId = 'viewer-a';
@@ -489,5 +495,16 @@ describe('AccountSwitchReset identity boundary', () => {
     act(() => {
       renderer!.unmount();
     });
+  });
+
+  it('keeps the identity boundary usable before an interface locale is available', () => {
+    mockLocale.language = undefined;
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(renderBoundary());
+    });
+    expect(mockSetReaderLanguages).toHaveBeenCalledWith(['']);
+    expect(mockChildRender).toHaveBeenLastCalledWith('viewer-a');
+    act(() => renderer!.unmount());
   });
 });

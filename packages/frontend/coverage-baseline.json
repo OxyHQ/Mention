@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 34.41,
-      "covered": 9079,
-      "total": 26382
+      "pct": 35.48,
+      "covered": 9298,
+      "total": 26204
     },
     "branches": {
-      "pct": 29.68,
-      "covered": 5701,
-      "total": 19202
+      "pct": 30.56,
+      "covered": 5814,
+      "total": 19021
     },
     "functions": {
-      "pct": 29.79,
-      "covered": 1994,
-      "total": 6692
+      "pct": 30.69,
+      "covered": 2043,
+      "total": 6656
     },
     "lines": {
-      "pct": 35.12,
-      "covered": 8315,
-      "total": 23674
+      "pct": 36.23,
+      "covered": 8509,
+      "total": 23483
     }
   },
   "pins": {
@@ -726,10 +726,10 @@
       "lines": 100
     },
     "lib/i18n.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 41,
+      "branches": 43,
+      "functions": 26,
+      "lines": 39
     },
     "lib/keyedAsyncQueue.ts": {
       "statements": 84,
@@ -1056,10 +1056,10 @@
       "lines": 100
     },
     "services/searchService.ts": {
-      "statements": 67,
-      "branches": 48,
-      "functions": 70,
-      "lines": 69
+      "statements": 72,
+      "branches": 55,
+      "functions": 74,
+      "lines": 75
     },
     "services/socketService.ts": {
       "statements": 47,
