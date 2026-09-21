@@ -20,6 +20,9 @@ export function ProfilePageHeader({ profileData, actions, revealOffset }: {
     titleRevealOffset={revealOffset}
     scrollY={scrollPosition}
     presentation="floating"
+    // ContentPanel's bleed mask sits at z-30. Keep profile chrome above that
+    // mask while leaving Bloom's border frame (z-120) as the outermost edge.
+    style={{ zIndex: 40 }}
     onBack={safeBack}
     actions={actions}
   />;

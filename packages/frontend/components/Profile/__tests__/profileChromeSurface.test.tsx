@@ -76,6 +76,14 @@ describe('profile tab row surface', () => {
     expect(props.style?.backgroundColor).toBe(PUBLISHED_FILL);
   });
 
+  it('keeps the tab strip in the second sticky tier below the profile header', () => {
+    const props = rowProps(renderRow(false));
+
+    expect(props.className).toContain('web:sticky');
+    expect(props.className).toContain('web:top-14');
+    expect(props.className).toContain('web:z-40');
+  });
+
   it('names no colour of its own', () => {
     const props = rowProps(renderRow(false));
 
