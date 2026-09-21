@@ -3,15 +3,15 @@
  *
  * Assertions supplied by the agent that built the surfaces; the reasons are
  * theirs, the reachability is verified here. All of them run signed-out: the
- * suggestion rows are client state, and the tabs the screen queries on submit
- * (starter packs, hashtags, feeds) are public endpoints. Only the
- * posts/users/lists tabs need a session, and nothing below depends on them.
+ * suggestion rows are client state, and the overview requested on submit
+ * is a public endpoint. Authenticated result sources are outside this flow.
  *
  * The suggestion rows are list content, not an overlay, dropdown or portal, so
  * nothing here waits on an animation or a z-index.
  */
 
 import { expect, test } from '../fixtures';
+import { API_ORIGIN } from '../environment';
 
 /**
  * Several characters on purpose. A one-character query passes whether or not
@@ -74,6 +74,7 @@ test('suggestions survive typing and blur', async ({ page, candidate }) => {
 });
 
 test('submitting carries the full typed query', async ({ page, candidate }) => {
+  await page.clock.install();
   await page.goto('/search');
 
   const input = page.getByPlaceholder(SCREEN_SEARCH_BOX, { exact: true });
@@ -84,18 +85,25 @@ test('submitting carries the full typed query', async ({ page, candidate }) => {
   const submittedTerms: string[] = [];
   page.on('request', (request) => {
     const url = new URL(request.url());
-    if (url.origin !== 'https://api.mention.earth') return;
-    const term = url.searchParams.get('search') ?? url.searchParams.get('query');
+    if (url.origin !== API_ORIGIN || url.pathname !== '/search/overview') return;
+    const term = url.searchParams.get('q');
     if (term !== null) submittedTerms.push(term);
   });
 
   await input.click();
+  // Freeze the typing debounce after the route is ready. A missing Enter
+  // handler must fail this test rather than pass when the debounce eventually
+  // sends the same query. Network I/O and Playwright's assertion clock stay real.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1_000));
   // No per-character delay, and Enter on the final character: the keystroke and
   // the submit can then land in one batch, which is the interleave the
   // stale-closure fix defends against and the one jest can model but not
   // reproduce.
   await page.keyboard.type(QUERY, { delay: 0 });
+  expect(submittedTerms).toEqual([]);
   await page.keyboard.press('Enter');
+  // Flush immediate query notifications without reaching the typing debounce.
+  await page.clock.runFor(1);
 
   await expect
     .poll(() => submittedTerms.length, {
