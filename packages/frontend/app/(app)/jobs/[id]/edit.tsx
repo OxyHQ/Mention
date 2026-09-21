@@ -12,18 +12,20 @@ import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
+import type {
+  CurrencyCode,
+  MentionJobApplicationMode,
+  MentionJobEmploymentType,
+  MentionJobSalaryInterval,
+  MentionJobWorkplaceType,
+  UpdateMentionJobRequest,
+} from '@mention/shared-types';
 import {
   MENTION_JOB_APPLICATION_MODES,
   MENTION_JOB_EMPLOYMENT_TYPES,
   MENTION_JOB_SALARY_INTERVALS,
   MENTION_JOB_WORKPLACE_TYPES,
-  type CurrencyCode,
-  type MentionJobApplicationMode,
-  type MentionJobEmploymentType,
-  type MentionJobSalaryInterval,
-  type MentionJobWorkplaceType,
-  type UpdateMentionJobRequest,
-} from '@mention/shared-types';
+} from '@mention/shared-types/job';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { jobsService, getJobErrorMessage } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';

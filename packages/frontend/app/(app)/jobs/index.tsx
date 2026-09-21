@@ -13,12 +13,11 @@ import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import type { JobSearchResult } from '@clarity.surf/sdk';
+import type { MentionJobEmploymentType, MentionJobWorkplaceType } from '@mention/shared-types';
 import {
   MENTION_JOB_EMPLOYMENT_TYPES,
   MENTION_JOB_WORKPLACE_TYPES,
-  type MentionJobEmploymentType,
-  type MentionJobWorkplaceType,
-} from '@mention/shared-types';
+} from '@mention/shared-types/job';
 import { Error as ErrorState } from '@/components/Error';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { BottomSheetContext } from '@/context/BottomSheetContext';

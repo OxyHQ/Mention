@@ -4,7 +4,8 @@ import {
   type MentionData,
 } from '@/utils/mentions';
 import { logger } from '@oxy.so/core/logger';
-import { isCountryCode, type MentionJobLocation } from '@mention/shared-types';
+import type { MentionJobLocation } from '@mention/shared-types';
+import { isCountryCode } from '@mention/shared-types/job';
 import {
   ComposerMediaItem,
   toComposerMediaType,

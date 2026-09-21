@@ -10,11 +10,8 @@ import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
-import {
-  MENTION_JOB_APPLICATION_STATUSES,
-  type MentionJobApplication,
-  type MentionJobApplicationStatus,
-} from '@mention/shared-types';
+import type { MentionJobApplication, MentionJobApplicationStatus } from '@mention/shared-types';
+import { MENTION_JOB_APPLICATION_STATUSES } from '@mention/shared-types/job';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { formatTimeAgo } from '@/utils/dateUtils';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';

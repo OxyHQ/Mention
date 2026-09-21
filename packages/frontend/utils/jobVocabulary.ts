@@ -1,14 +1,12 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { JobLocation } from '@clarity.surf/sdk';
+import type { CountryCode, CurrencyCode, MentionJobLocation } from '@mention/shared-types';
 import {
   formatMentionJobLocation,
   isCountryCode,
   mentionJobLocationParts,
-  type CountryCode,
-  type CurrencyCode,
-  type MentionJobLocation,
-} from '@mention/shared-types';
+} from '@mention/shared-types/job';
 
 /**
  * Display names for Clarity's closed job vocabularies (ISO 3166-1 countries,

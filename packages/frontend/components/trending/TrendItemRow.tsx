@@ -3,12 +3,12 @@ import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native
 import { RiArrowDownLine } from '@oxy.so/bloom/icons/RiArrowDownLine';
 import { RiArrowUpLine } from '@oxy.so/bloom/icons/RiArrowUpLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
-import { Sparkline } from '@oxy.so/bloom/chart-cards';
+import { Sparkline } from '@oxy.so/bloom/chart-cards/sparkline';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { AvatarGroup } from '@oxy.so/bloom/avatar-group';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { MtnConfig } from '@mention/shared-types';
+import { MtnConfig } from '@mention/shared-types/mtn/config';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import type { Trend } from '@/interfaces/Trend';

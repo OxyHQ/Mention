@@ -8,13 +8,13 @@ import { Item } from '@oxy.so/bloom/item';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Search } from '@oxy.so/bloom/search';
 import { SegmentedControl, SegmentedControlItem, SegmentedControlItemText } from '@oxy.so/bloom/segmented-control';
-import {
-  COUNTRY_CODES,
-  type CountryCode,
-  type MentionJobLocation,
-  type MentionJobLocationInput,
-  type MentionJobPlace,
+import type {
+  CountryCode,
+  MentionJobLocation,
+  MentionJobLocationInput,
+  MentionJobPlace,
 } from '@mention/shared-types';
+import { COUNTRY_CODES } from '@mention/shared-types/job';
 import { jobsService } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { useJobVocabulary } from '@/utils/jobVocabulary';

@@ -16,13 +16,12 @@ import { RiNodeTree } from '@oxy.so/bloom/icons/RiNodeTree';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@oxy.so/core/logger';
+import type { Lane, LaneDisplayMode } from '@mention/shared-types';
 import {
-    LANE_DISPLAY_MODES,
-    MAX_LANES_PER_OWNER,
-    MAX_LANE_NAME_LENGTH,
-    type Lane,
-    type LaneDisplayMode,
-} from '@mention/shared-types';
+  LANE_DISPLAY_MODES,
+  MAX_LANES_PER_OWNER,
+  MAX_LANE_NAME_LENGTH,
+} from '@mention/shared-types/lane';
 import { LaneIcon } from '@/assets/icons/lane-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { EmptyState } from '@/components/common/EmptyState';

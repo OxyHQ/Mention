@@ -113,6 +113,26 @@
       "types": "./dist/deployment.d.ts",
       "import": "./dist/deployment.js",
       "require": "./dist/deployment.js"
+    },
+    "./job": {
+      "types": "./dist/job.d.ts",
+      "import": "./dist/job.js",
+      "require": "./dist/job.js"
+    },
+    "./lane": {
+      "types": "./dist/lane.d.ts",
+      "import": "./dist/lane.js",
+      "require": "./dist/lane.js"
+    },
+    "./communityNotes": {
+      "types": "./dist/communityNotes.d.ts",
+      "import": "./dist/communityNotes.js",
+      "require": "./dist/communityNotes.js"
+    },
+    "./realtime": {
+      "types": "./dist/realtime.d.ts",
+      "import": "./dist/realtime.js",
+      "require": "./dist/realtime.js"
     }
   },
   "scripts": {
