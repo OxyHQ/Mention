@@ -66,7 +66,7 @@ export function Error({
       <View className="items-center max-w-[320px] w-full">
         <View
           className="w-[72px] h-[72px] rounded-full justify-center items-center mb-3"
-          style={{ backgroundColor: theme.colors.error + '15' }}
+          style={{ backgroundColor: theme.colors.errorSubtle }}
         >
           <RiErrorWarningFill width={36} height={36} fill={theme.colors.error} />
         </View>

@@ -19,6 +19,12 @@
 @source "./hooks/**/*.{js,jsx,ts,tsx}";
 @source "../../node_modules/@oxy.so/services/lib/**/*.{js,jsx}";
 @source "../../node_modules/@oxy.so/bloom/lib/**/*.{js,jsx}";
+/* The live-rooms UI (RoomCard, the room sheets) ships NativeWind classNames from
+   the Syra SDK, so Tailwind has to scan that package too or those utilities are
+   never generated. Measured on 2026-09-22 by building this file with
+   `@tailwindcss/postcss`: without this line `rounded-[4px]` and `border-surface`
+   — the two classes only Syra ships — are ABSENT from the output. */
+@source "../../node_modules/@syra.fm/sdk/lib/**/*.{js,jsx}";
 
 /* Colour utilities (`bg-card`, `bg-primary`, `text-muted-foreground`, …) come
    from Bloom's imported theme.css — the single source of truth — so they are
