@@ -25,7 +25,7 @@ type ProfileGridRow<T extends ProfileGridEntry> =
     }
     | {
         kind: 'auxiliary';
-        key: 'sticky-header' | 'empty';
+        key: 'content-header' | 'sticky-header' | 'empty';
         element: React.ReactElement;
     };
 
@@ -45,6 +45,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
     windowSize,
     ownsScroll = false,
     listHeaderComponent,
+    listContentHeaderComponent,
     listStickyHeaderComponent,
     emptyComponent,
     contentContainerStyle,
@@ -73,6 +74,13 @@ export function ProfileGridList<T extends ProfileGridEntry>({
 
     const rows = useMemo<ProfileGridRow<T>[]>(() => {
         const next: ProfileGridRow<T>[] = [];
+        if (listContentHeaderComponent) {
+            next.push({
+                kind: 'auxiliary',
+                key: 'content-header',
+                element: listContentHeaderComponent,
+            });
+        }
         if (listStickyHeaderComponent) {
             next.push({
                 kind: 'auxiliary',
@@ -96,7 +104,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
             });
         }
         return next;
-    }, [data, emptyComponent, listStickyHeaderComponent]);
+    }, [data, emptyComponent, listContentHeaderComponent, listStickyHeaderComponent]);
 
     const renderVirtualizedRow = useCallback(
         ({ item }: { item: ProfileGridRow<T> }) => {
@@ -161,9 +169,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
                         { paddingBottom: 100 },
                     ]}
                     ListHeaderComponent={listHeaderComponent}
-                    stickyHeaderIndices={
-                        listStickyHeaderComponent ? [listHeaderComponent ? 1 : 0] : undefined
-                    }
+                    stickyHeaderIndices={listStickyHeaderComponent ? [listContentHeaderComponent ? 1 : 0] : undefined}
                     stickyHeaderConfig={{ offset: headerDockInset }}
                     showsVerticalScrollIndicator={false}
                     onScroll={onScroll}

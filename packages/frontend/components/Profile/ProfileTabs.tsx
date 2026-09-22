@@ -42,6 +42,7 @@ interface ProfileTabsRuntimeProps extends ProfileTabsProps {
    * composition without pinning the entire profile summary.
    */
   listHeaderComponent?: React.ReactElement | null;
+  listContentHeaderComponent?: React.ReactElement | null;
   listStickyHeaderComponent?: React.ReactElement | null;
   listOwnsScroll?: boolean;
   listContentContainerStyle?: React.ComponentProps<typeof View>['style'];
@@ -62,6 +63,7 @@ export const ProfileTabs = memo(function ProfileTabs({
   isOwnProfile,
   actorUri,
   listHeaderComponent,
+  listContentHeaderComponent,
   listStickyHeaderComponent,
   listOwnsScroll = false,
   listContentContainerStyle,
@@ -172,6 +174,7 @@ export const ProfileTabs = memo(function ProfileTabs({
         isOwnProfile={isOwnProfile}
         ownsScroll={listOwnsScroll}
         listHeaderComponent={listHeaderComponent}
+        listContentHeaderComponent={listContentHeaderComponent}
         listStickyHeaderComponent={listStickyHeaderComponent}
         contentContainerStyle={listContentContainerStyle}
         onScroll={listOnScroll}
@@ -189,6 +192,7 @@ export const ProfileTabs = memo(function ProfileTabs({
         isOwnProfile={isOwnProfile}
         ownsScroll={listOwnsScroll}
         listHeaderComponent={listHeaderComponent}
+        listContentHeaderComponent={listContentHeaderComponent}
         listStickyHeaderComponent={listStickyHeaderComponent}
         contentContainerStyle={listContentContainerStyle}
         onScroll={listOnScroll}
@@ -225,7 +229,7 @@ export const ProfileTabs = memo(function ProfileTabs({
         filters={laneFilters}
         hideHeader
         scrollEnabled
-        listHeaderComponent={listHeaderComponent}
+        listContentHeaderComponent={listContentHeaderComponent}
         listStickyHeaderComponent={listStickyHeaderComponent}
         listLeadingComponent={pinnedPostElement}
         contentContainerStyle={[

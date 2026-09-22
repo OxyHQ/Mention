@@ -136,7 +136,7 @@ function ProfileShellBody({
         {stickyTabs}
         <ProfileTabs {...tabs} />
       </> : nativeListOwnsScroll ? <View className="min-h-0 flex-1">
-        <ProfileTabs {...tabs} listOwnsScroll listHeaderComponent={listHeader}
+        <ProfileTabs {...tabs} listOwnsScroll listContentHeaderComponent={listHeader}
           listStickyHeaderComponent={stickyTabs}
           listOnScroll={nativeGridOwnsScroll ? chrome.onScroll : undefined}
           listScrollRef={nativeGridOwnsScroll ? chrome.assignScrollRef : undefined} />
@@ -150,9 +150,9 @@ function ProfileShellBody({
           onScroll={chrome.onScroll}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
-          // The summary is the list header at index 0; the tab section is the
-          // first data row at index 1.
-          stickyHeaderIndices={tabBar ? [listHeader ? 1 : 0] : undefined}
+        // The tabs are the first data row; FlashList keeps ListHeaderComponent
+        // outside the data index space.
+        stickyHeaderIndices={tabBar ? [0] : undefined}
           stickyHeaderConfig={{ offset: headerInset }}
         />}
       {!IS_WEB ? <ProfilePageHeader profileData={profileData} actions={headerActions}
