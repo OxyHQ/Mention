@@ -1,12 +1,15 @@
-import React from 'react';
-import { Animated, Platform, StatusBar, View } from 'react-native';
+import React, { useState } from 'react';
+import { Platform, StatusBar, View } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
+import { HeaderDockProvider, StickySection, useHeaderDockInset } from '@oxy.so/bloom/layout';
+import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { EmptyState } from '@/components/common/EmptyState';
 import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import type { ProfileData } from '@/hooks/useProfileData';
-import { ProfilePageHeader, ProfileBanner, PROFILE_BANNER_HEIGHT } from './ProfilePageHeader';
+import { ProfilePageHeader, ProfileBanner } from './ProfilePageHeader';
 import { ProfileSkeleton } from './ProfileSkeleton';
 import { ProfileTabs } from './ProfileTabs';
 import { shouldFeedOwnProfileScroll, shouldGridOwnProfileScroll } from './types';
@@ -48,7 +51,12 @@ export interface ProfileShellProps {
 }
 
 /** Preserves native list ownership and web document flow without a second chrome layer. */
-export function ProfileShell({
+export function ProfileShell(props: ProfileShellProps) {
+  const { scrollPosition } = useLayoutScroll();
+  return <HeaderDockProvider scrollY={scrollPosition}><ProfileShellBody {...props} /></HeaderDockProvider>;
+}
+
+function ProfileShellBody({
   chrome,
   loading,
   profileData,
@@ -62,6 +70,8 @@ export function ProfileShell({
   const theme = useTheme();
   const { t } = useTranslation();
   const safeBack = useSafeBack();
+  const headerInset = useHeaderDockInset();
+  const [summaryHeight, setSummaryHeight] = useState<number>();
 
   const nativeFeedOwnsScroll = shouldFeedOwnProfileScroll({
     tab: tabs.tab,
@@ -77,7 +87,15 @@ export function ProfileShell({
   });
   const nativeListOwnsScroll = nativeFeedOwnsScroll || nativeGridOwnsScroll;
 
-  const listHeader = <View>{banner ? <ProfileBanner uri={banner.uri} /> : null}{summary}</View>;
+  const listHeader = (
+    <View onLayout={IS_WEB ? undefined : event => setSummaryHeight(event.nativeEvent.layout.height)}>
+      {banner ? <ProfileBanner uri={banner.uri} /> : null}
+      {summary}
+    </View>
+  );
+  const stickyTabs = tabBar ? (
+    <StickySection testID="profile-sticky-tabs" offset={summaryHeight}>{tabBar}</StickySection>
+  ) : null;
   return <View className="flex-1 web:z-auto">
     <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
     {loading ? <ProfileSkeleton variant={skeletonVariant} /> : !profileData ? (
@@ -87,22 +105,28 @@ export function ProfileShell({
         action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: safeBack }} />
     ) : <>
       <ProfilePageHeader profileData={profileData} actions={headerActions}
-        revealOffset={chrome.contentHeight + (banner ? PROFILE_BANNER_HEIGHT : 0)} />
+        overMedia={Boolean(banner)} />
       {IS_WEB ? <>
         {listHeader}
-        {tabBar}
+        {stickyTabs}
         <ProfileTabs {...tabs} />
       </> : nativeListOwnsScroll ? <View className="min-h-0 flex-1">
         <ProfileTabs {...tabs} listOwnsScroll listHeaderComponent={listHeader}
-          listStickyHeaderComponent={tabBar}
+          listStickyHeaderComponent={stickyTabs}
           listOnScroll={nativeGridOwnsScroll ? chrome.onScroll : undefined}
           listScrollRef={nativeGridOwnsScroll ? chrome.assignScrollRef : undefined} />
-      </View> : <Animated.ScrollView ref={chrome.assignScrollRef} onScroll={chrome.onScroll}
-        scrollEventThrottle={16} showsVerticalScrollIndicator={false} stickyHeaderIndices={[1]}>
-        {listHeader}
-        {tabBar}
-        <ProfileTabs {...tabs} />
-      </Animated.ScrollView>}
+      </View> : <FlashList
+        ref={chrome.assignScrollRef}
+        data={['tabs', 'content'] as const}
+        keyExtractor={item => item}
+        renderItem={({ item }) => item === 'tabs' ? stickyTabs : <ProfileTabs {...tabs} />}
+        ListHeaderComponent={listHeader}
+        onScroll={chrome.onScroll}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={tabBar ? [0] : undefined}
+        stickyHeaderConfig={{ offset: headerInset }}
+      />}
     </>}
   </View>;
 }

@@ -7,6 +7,7 @@ import {
 } from '../ProfileGridList';
 
 const mockFlashListRender = jest.fn();
+jest.mock('@oxy.so/bloom/layout', () => ({ useHeaderDockInset: () => 73 }));
 
 jest.mock('@shopify/flash-list', () => {
   const ReactModule = jest.requireActual<typeof React>('react');
@@ -57,6 +58,7 @@ describe('ProfileGridList scroll ownership', () => {
       data: { kind: string }[];
       numColumns: number;
       stickyHeaderIndices?: number[];
+      stickyHeaderConfig?: { offset: number };
       overrideItemLayout: (
         layout: { span?: number },
         item: { kind: string },
@@ -69,6 +71,7 @@ describe('ProfileGridList scroll ownership', () => {
     );
     expect(props.numColumns).toBe(3);
     expect(props.stickyHeaderIndices).toEqual([0]);
+    expect(props.stickyHeaderConfig?.offset).toBe(73);
     expect(props.drawDistance).toBeGreaterThan(0);
 
     const stickyLayout: { span?: number } = {};

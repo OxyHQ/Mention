@@ -134,7 +134,7 @@ export function useMentionSidebar(): SidebarProps {
 
     const pathname = usePathname();
     return {
-        surface: 'plain', size: 'md', style: { justifyContent: 'center' }, showSearch: false, showThemeToggle: false,
+        surface: 'plain', size: 'md', contentAlignment: 'center', showSearch: false, showThemeToggle: false,
         logo: { icon: <LogoIcon size={28} className="text-foreground" />, accessibilityLabel: 'Mention', onPress: () => handleNavPress('/') },
         selected: pathname,
         items: sideBarData.map(({ title, icon, iconActive, route, onPress }) => ({

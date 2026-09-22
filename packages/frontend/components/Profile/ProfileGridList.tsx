@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Dimensions, FlatList, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import { useHeaderDockInset } from '@oxy.so/bloom/layout';
 import type {
     ProfileGridEntry,
     ProfileGridListProps,
@@ -51,6 +52,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
     scrollRef,
     onEndReached,
 }: ProfileGridListProps<T>) {
+    const headerDockInset = useHeaderDockInset();
     const [containerWidth, setContainerWidth] = useState<number>(Dimensions.get('window').width);
     const itemSize = useMemo(() => {
         const totalGap = GAP * (NUM_COLUMNS - 1) + H_PADDING * 2;
@@ -161,6 +163,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
                     stickyHeaderIndices={
                         listStickyHeaderComponent ? [0] : undefined
                     }
+                    stickyHeaderConfig={{ offset: headerDockInset }}
                     showsVerticalScrollIndicator={false}
                     onScroll={onScroll}
                     scrollEventThrottle={16}
