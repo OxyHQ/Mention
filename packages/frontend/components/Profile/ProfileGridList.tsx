@@ -161,7 +161,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
                     ]}
                     ListHeaderComponent={listHeaderComponent}
                     stickyHeaderIndices={
-                        listStickyHeaderComponent ? [0] : undefined
+                        listStickyHeaderComponent ? [listHeaderComponent ? 1 : 0] : undefined
                     }
                     stickyHeaderConfig={{ offset: headerDockInset }}
                     showsVerticalScrollIndicator={false}

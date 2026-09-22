@@ -149,7 +149,9 @@ function ProfileShellBody({
         onScroll={chrome.onScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={tabBar ? [0] : undefined}
+        // The summary is the list header at index 0; the tab section is the
+        // first data row at index 1.
+        stickyHeaderIndices={tabBar ? [listHeader ? 1 : 0] : undefined}
         stickyHeaderConfig={{ offset: headerInset }}
       />}
     </>}

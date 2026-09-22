@@ -806,7 +806,10 @@ const Feed = ((props: FeedProps) => {
                         ListHeaderComponent={headerComponent}
                         ListEmptyComponent={renderedEmptyComponent}
                         ListFooterComponent={renderedFooterComponent}
-                        stickyHeaderIndices={listStickyHeaderComponent ? [0] : undefined}
+                        // `ListHeaderComponent` occupies index 0. The Bloom
+                        // sticky section is the first data row, so it is index
+                        // 1 whenever a list header is present.
+                        stickyHeaderIndices={listStickyHeaderComponent ? [listHeaderComponent ? 1 : 0] : undefined}
                         stickyHeaderConfig={{ offset: headerDockInset }}
                         scrollEnabled={scrollEnabled}
                         {...(scrollEnabled === false ? { renderScrollComponent: NonScrollingScrollComponent } : {})}

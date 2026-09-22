@@ -70,7 +70,7 @@ describe('ProfileGridList scroll ownership', () => {
       expect.objectContaining({ kind: 'auxiliary' }),
     );
     expect(props.numColumns).toBe(3);
-    expect(props.stickyHeaderIndices).toEqual([0]);
+    expect(props.stickyHeaderIndices).toEqual([1]);
     expect(props.stickyHeaderConfig?.offset).toBe(73);
     expect(props.drawDistance).toBeGreaterThan(0);
 
