@@ -18,7 +18,7 @@ import { LAYOUT } from './types';
  *    applies (ProfileScreen's scrollView + contentContainer), so every element
  *    below lands at its identical final Y;
  *  - the avatar (90px, 3px background ring) overlapping the banner by 45px — the
- *    exact `marginTop: -45` hero overlap the shell uses — with a placeholder
+ *    exact 45px hero lift the shell uses — with a placeholder
  *    action row (button + icon) on the right;
  *  - display-name + handle bars, a 2-line bio, the meta row and the stats row
  *    (mirroring ProfileContent → ProfileMeta / ProfileStats);

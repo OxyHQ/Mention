@@ -93,9 +93,15 @@ function ProfileShellBody({
       style={{ overflow: 'visible' }}
     >
       {banner ? <ProfileBanner uri={banner.uri} /> : null}
-      {/* The hero owns the overlap. Keeping this at the list-header boundary
-          makes web and native virtualized headers use the same geometry. */}
-      <View style={banner ? { marginTop: -45 } : undefined}>{summary}</View>
+      {/* The hero owns the overlap. Transforming the whole summary at this
+          boundary works inside native virtualized cells as well as document
+          flow on web; the negative bottom margin keeps the following tabs at
+          the same measured position on both platforms. */}
+      <View
+        style={banner ? { marginBottom: -45, transform: [{ translateY: -45 }] } : undefined}
+      >
+        {summary}
+      </View>
     </View>
   );
   const stickyTabs = tabBar ? (
