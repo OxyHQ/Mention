@@ -18,7 +18,7 @@ import { LAYOUT } from './types';
  *    applies (ProfileScreen's scrollView + contentContainer), so every element
  *    below lands at its identical final Y;
  *  - the avatar (90px, 3px background ring) overlapping the banner by 45px — the
- *    exact `marginTop: -45` ProfileHeader uses — with a placeholder
+ *    exact `marginTop: -45` hero overlap the shell uses — with a placeholder
  *    action row (button + icon) on the right;
  *  - display-name + handle bars, a 2-line bio, the meta row and the stats row
  *    (mirroring ProfileContent → ProfileMeta / ProfileStats);
@@ -34,7 +34,7 @@ import { LAYOUT } from './types';
 // banner rendered in ProfileScreen).
 const BANNER_HEIGHT = LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED;
 // Header avatar footprint + the negative pull that overlaps it onto the banner
-// (mirrors ProfileHeader: a 90px avatar with `marginTop: -45`).
+// (mirrors ProfileShell's hero overlap: a 90px avatar with a 45px lift).
 const AVATAR_SIZE = 90;
 const AVATAR_RING = 3;
 const HEADER_OVERLAP = 45;
@@ -190,7 +190,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
         {/* Profile info block — mirrors ProfileContent's padding + background. */}
         <View className="px-4 pb-4">
           {/* Header row: avatar overlapping the banner + action placeholders.
-              `marginTop: -45` matches ProfileHeader so the avatar lands
+              the shell's 45px hero lift matches the loaded profile so the avatar lands
               at the identical Y. */}
           <View className="flex-row justify-between items-end mb-2.5" style={{ marginTop: -HEADER_OVERLAP }}>
             <Skeleton.Circle

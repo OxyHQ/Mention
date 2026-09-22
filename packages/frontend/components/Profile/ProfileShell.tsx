@@ -88,9 +88,14 @@ function ProfileShellBody({
   const nativeListOwnsScroll = nativeFeedOwnsScroll || nativeGridOwnsScroll;
 
   const listHeader = (
-    <View onLayout={IS_WEB ? undefined : event => setSummaryHeight(event.nativeEvent.layout.height)}>
+    <View
+      onLayout={IS_WEB ? undefined : event => setSummaryHeight(event.nativeEvent.layout.height)}
+      style={{ overflow: 'visible' }}
+    >
       {banner ? <ProfileBanner uri={banner.uri} /> : null}
-      {summary}
+      {/* The hero owns the overlap. Keeping this at the list-header boundary
+          makes web and native virtualized headers use the same geometry. */}
+      <View style={banner ? { marginTop: -45 } : undefined}>{summary}</View>
     </View>
   );
   const stickyTabs = tabBar ? (

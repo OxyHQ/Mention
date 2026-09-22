@@ -72,7 +72,7 @@ test('non-feed tabs have one list owner and measure docking from its header', ()
   const tree = renderShell(props);
   expect(tree.root.findAllByType(ScrollView)).toHaveLength(0);
   expect(mockDock.mock.calls.at(-1)?.[0].scrollY).toBe(mockScrollPosition);
-  expect(mockHeader.mock.calls.at(-1)?.[0]).toMatchObject({ placement: 'overlap', titleReveal: 'onDock' });
+  expect(mockHeader.mock.calls.at(-1)?.[0]).toMatchObject({ placement: 'overlay', titleReveal: 'onDock' });
   expect(mockList.mock.calls.at(-1)?.[0]).toMatchObject({ stickyHeaderIndices: [0], stickyHeaderConfig: { offset: 84 }, onScroll: props.chrome.onScroll });
   expect(mockSticky.mock.calls.at(-1)?.[0].offset).toBeUndefined();
   const header = tree.root.findAllByType(View).find(node => typeof node.props.onLayout === 'function');
