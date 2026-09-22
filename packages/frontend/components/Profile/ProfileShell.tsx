@@ -121,7 +121,7 @@ function ProfileShellBody({
   // profile row appears to overlap the feed underneath). Web already paints
   // the document surface through AppShell; native needs this route boundary to
   // publish the same Bloom surface explicitly.
-  return <View className="flex-1 web:z-auto" style={{ backgroundColor: theme.colors?.background }}>
+  return <View className="flex-1 web:z-auto bg-background" style={{ backgroundColor: theme.colors?.background }}>
     <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
     {loading ? <ProfileSkeleton variant={skeletonVariant} /> : !profileData ? (
       <EmptyState customIcon={<NoUpdatesIllustration width={200} height={200} />}
