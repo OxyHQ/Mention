@@ -11,6 +11,7 @@ import {
     type ViewStyle,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import { useHeaderDockInset } from '@oxy.so/bloom/layout';
 import Animated, {
     runOnJS,
     useAnimatedScrollHandler,
@@ -304,6 +305,7 @@ const Feed = ((props: FeedProps) => {
 
     const { t } = useTranslation();
     const theme = useTheme();
+    const headerDockInset = useHeaderDockInset();
     const router = useRouter();
     // With the (app) center now a Stack, multiple feed screens can be mounted at
     // once (e.g. the home feed stays mounted behind a pushed profile). Only the
@@ -805,6 +807,7 @@ const Feed = ((props: FeedProps) => {
                         ListEmptyComponent={renderedEmptyComponent}
                         ListFooterComponent={renderedFooterComponent}
                         stickyHeaderIndices={listStickyHeaderComponent ? [0] : undefined}
+                        stickyHeaderConfig={{ offset: headerDockInset }}
                         scrollEnabled={scrollEnabled}
                         {...(scrollEnabled === false ? { renderScrollComponent: NonScrollingScrollComponent } : {})}
                         refreshControl={refreshControl}

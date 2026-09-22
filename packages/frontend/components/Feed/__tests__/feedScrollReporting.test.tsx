@@ -113,6 +113,7 @@ jest.mock('@oxy.so/bloom/error-boundary', () => ({
     ErrorBoundary: ({ children }: { children?: React.ReactNode }) => children ?? null,
 }));
 jest.mock('@oxy.so/bloom/scroll', () => ({ useScrollRestoration: () => undefined }));
+jest.mock('@oxy.so/bloom/layout', () => ({ useHeaderDockInset: () => 0 }));
 
 jest.mock('expo-router', () => ({
     useRouter: () => ({ push: jest.fn() }),

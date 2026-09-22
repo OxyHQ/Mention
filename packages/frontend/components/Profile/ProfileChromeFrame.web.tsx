@@ -3,6 +3,8 @@ import { View } from 'react-native';
 import { router, usePathname, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
+import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
+import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { RouterTabs, type RouterTabItem } from '@oxy.so/bloom/tabs/expo-router';
 
 import { EmptyState } from '@/components/common/EmptyState';
@@ -82,6 +84,7 @@ type ChromeState = 'off' | 'skeleton' | 'notFound' | 'ready';
  *    nothing would fail.
  */
 export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps) {
+  const { scrollPosition } = useLayoutScroll();
   const { t } = useTranslation();
   const safeBack = useSafeBack();
   const pathname = usePathname();
@@ -154,22 +157,23 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
   );
 
   return (
-    <BloomColorScope colorPreset={active ? view.colorName : undefined} asChild>
-      <View className="flex-1 web:z-auto">
-        {view.seo}
-        {chromeState === 'skeleton' ? <ProfileSkeleton variant="person" /> : null}
-        {chromeState === 'notFound' ? <EmptyState
-          customIcon={<NoUpdatesIllustration width={200} height={200} />}
-          title={t('profile.notFound.title', { defaultValue: 'Profile not found' })}
-          action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: safeBack }} /> : null}
-        {drawing ? <ProfilePageHeader profileData={drawing} actions={view.headerActions}
-          revealOffset={view.chrome.contentHeight + PROFILE_BANNER_HEIGHT} /> : null}
-        {drawing ? <ProfileBanner uri={view.bannerUri} /> : null}
-        {drawing ? view.summary : null}
-        {drawing ? tabBar : null}
-        {/* Keep the navigator at one tree position across profile-tab and sibling routes. */}
-        {children}
-      </View>
-    </BloomColorScope>
+    <HeaderDockProvider scrollY={scrollPosition}>
+      <BloomColorScope colorPreset={active ? view.colorName : undefined} asChild>
+        <View className="flex-1 web:z-auto">
+          {view.seo}
+          {chromeState === 'skeleton' ? <ProfileSkeleton variant="person" /> : null}
+          {chromeState === 'notFound' ? <EmptyState
+            customIcon={<NoUpdatesIllustration width={200} height={200} />}
+            title={t('profile.notFound.title', { defaultValue: 'Profile not found' })}
+            action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: safeBack }} /> : null}
+          {drawing ? <ProfilePageHeader profileData={drawing} actions={view.headerActions} /> : null}
+          {drawing ? <ProfileBanner uri={view.bannerUri} /> : null}
+          {drawing ? view.summary : null}
+          {drawing ? <StickySection testID="profile-sticky-tabs">{tabBar}</StickySection> : null}
+          {/* Keep the navigator at one tree position across profile-tab and sibling routes. */}
+          {children}
+        </View>
+      </BloomColorScope>
+    </HeaderDockProvider>
   );
 }
