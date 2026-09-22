@@ -87,7 +87,7 @@ test.each(['posts', 'media'] as const)('%s retains its own virtualized scroll ow
   expect(mockList).not.toHaveBeenCalled();
   const tabs = mockTabs.mock.calls.at(-1)?.[0];
   expect(tabs.listOwnsScroll).toBe(true);
-  expect(tabs.listHeaderComponent).toBeTruthy();
+  expect(tabs.listContentHeaderComponent).toBeTruthy();
   expect(tabs.listStickyHeaderComponent).toBeTruthy();
   expect(tabs.listOnScroll).toBe(tab === 'media' ? props.chrome.onScroll : undefined);
   expect(tabs.listScrollRef).toBe(tab === 'media' ? props.chrome.assignScrollRef : undefined);
