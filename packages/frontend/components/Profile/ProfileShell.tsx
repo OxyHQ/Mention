@@ -129,9 +129,9 @@ function ProfileShellBody({
         subtitle={t('profile.notFound.message', { defaultValue: "This profile couldn't be loaded." })}
         action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: safeBack }} />
     ) : <>
-      <ProfilePageHeader profileData={profileData} actions={headerActions}
-        overMedia={Boolean(banner)} />
       {IS_WEB ? <>
+        <ProfilePageHeader profileData={profileData} actions={headerActions}
+          overMedia={Boolean(banner)} />
         {listHeader}
         {stickyTabs}
         <ProfileTabs {...tabs} />
@@ -141,19 +141,21 @@ function ProfileShellBody({
           listOnScroll={nativeGridOwnsScroll ? chrome.onScroll : undefined}
           listScrollRef={nativeGridOwnsScroll ? chrome.assignScrollRef : undefined} />
       </View> : <FlashList
-        ref={chrome.assignScrollRef}
-        data={['tabs', 'content'] as const}
-        keyExtractor={item => item}
-        renderItem={({ item }) => item === 'tabs' ? stickyTabs : <ProfileTabs {...tabs} />}
-        ListHeaderComponent={listHeader}
-        onScroll={chrome.onScroll}
-        scrollEventThrottle={16}
-        showsVerticalScrollIndicator={false}
-        // The summary is the list header at index 0; the tab section is the
-        // first data row at index 1.
-        stickyHeaderIndices={tabBar ? [listHeader ? 1 : 0] : undefined}
-        stickyHeaderConfig={{ offset: headerInset }}
-      />}
+          ref={chrome.assignScrollRef}
+          data={['tabs', 'content'] as const}
+          keyExtractor={item => item}
+          renderItem={({ item }) => item === 'tabs' ? stickyTabs : <ProfileTabs {...tabs} />}
+          ListHeaderComponent={listHeader}
+          onScroll={chrome.onScroll}
+          scrollEventThrottle={16}
+          showsVerticalScrollIndicator={false}
+          // The summary is the list header at index 0; the tab section is the
+          // first data row at index 1.
+          stickyHeaderIndices={tabBar ? [listHeader ? 1 : 0] : undefined}
+          stickyHeaderConfig={{ offset: headerInset }}
+        />}
+      {!IS_WEB ? <ProfilePageHeader profileData={profileData} actions={headerActions}
+        overMedia={Boolean(banner)} /> : null}
     </>}
   </View>;
 }
