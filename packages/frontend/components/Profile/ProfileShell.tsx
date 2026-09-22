@@ -95,10 +95,9 @@ function ProfileShellBody({
       {banner ? <ProfileBanner uri={banner.uri} /> : null}
       {/* The hero owns the overlap. Transforming the whole summary at this
           boundary works inside native virtualized cells as well as document
-          flow on web; the negative bottom margin keeps the following tabs at
-          the same measured position on both platforms. */}
+          flow on web; its layout height stays intact for the tab list. */}
       <View
-        style={banner ? { marginBottom: -45, transform: [{ translateY: -45 }] } : undefined}
+        style={banner ? { transform: [{ translateY: -45 }] } : undefined}
       >
         {summary}
       </View>
@@ -107,7 +106,13 @@ function ProfileShellBody({
   const stickyTabs = tabBar ? (
     <StickySection testID="profile-sticky-tabs" offset={summaryHeight}>{tabBar}</StickySection>
   ) : null;
-  return <View className="flex-1 web:z-auto">
+  // Native pushed routes are rendered above the tab navigator by the stack. The
+  // route surface must be opaque, otherwise the mounted tab pager remains
+  // visible through the profile while its list is laying out (and every
+  // profile row appears to overlap the feed underneath). Web already paints
+  // the document surface through AppShell; native needs this route boundary to
+  // publish the same Bloom surface explicitly.
+  return <View className="flex-1 web:z-auto" style={{ backgroundColor: theme.colors?.background }}>
     <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
     {loading ? <ProfileSkeleton variant={skeletonVariant} /> : !profileData ? (
       <EmptyState customIcon={<NoUpdatesIllustration width={200} height={200} />}
