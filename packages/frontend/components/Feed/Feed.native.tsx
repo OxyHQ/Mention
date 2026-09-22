@@ -715,7 +715,14 @@ const Feed = ((props: FeedProps) => {
     const headerComponent = useMemo(
         () => (
             <VideoViewabilityScope viewabilityKey={FEED_HEADER_VIEWABILITY_KEY}>
-                <View onLayout={handleHeaderLayout}>
+                <View
+                    onLayout={handleHeaderLayout}
+                    // FlashList may stretch its header wrapper to the viewport
+                    // when it is the first child of a flex list. The header is
+                    // document content; its height must be its measured content
+                    // height so the following sticky row starts immediately.
+                    style={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
+                >
                     {listHeaderComponent ?? <FeedHeader showComposeButton={showComposeButton} onComposePress={onComposePress} hideHeader={hideHeader} />}
                 </View>
             </VideoViewabilityScope>
@@ -804,6 +811,7 @@ const Feed = ((props: FeedProps) => {
                         getItemType={getItemType}
                         extraData={dataHash}
                         ListHeaderComponent={headerComponent}
+                        ListHeaderComponentStyle={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
                         ListEmptyComponent={renderedEmptyComponent}
                         ListFooterComponent={renderedFooterComponent}
                         // `ListHeaderComponent` occupies index 0. The Bloom

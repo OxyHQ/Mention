@@ -90,7 +90,7 @@ function ProfileShellBody({
   const listHeader = (
     <View
       onLayout={IS_WEB ? undefined : event => setSummaryHeight(event.nativeEvent.layout.height)}
-      style={{ overflow: 'visible' }}
+      style={{ overflow: 'visible', flexGrow: 0, flexShrink: 0 }}
     >
       {banner ? <ProfileBanner uri={banner.uri} /> : null}
       {/* The hero owns the overlap. Transforming the whole summary at this
@@ -146,6 +146,7 @@ function ProfileShellBody({
           keyExtractor={item => item}
           renderItem={({ item }) => item === 'tabs' ? stickyTabs : <ProfileTabs {...tabs} />}
           ListHeaderComponent={listHeader}
+          ListHeaderComponentStyle={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
           onScroll={chrome.onScroll}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}

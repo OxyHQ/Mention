@@ -154,6 +154,7 @@ export function ProfileGridList<T extends ProfileGridEntry>({
                     getItemType={getItemType}
                     overrideItemLayout={overrideItemLayout}
                     numColumns={NUM_COLUMNS}
+                    ListHeaderComponentStyle={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
                     contentContainerStyle={[
                         { paddingHorizontal: H_PADDING },
                         contentContainerStyle,
