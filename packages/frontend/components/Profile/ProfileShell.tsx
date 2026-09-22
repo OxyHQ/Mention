@@ -104,7 +104,16 @@ function ProfileShellBody({
     </View>
   );
   const stickyTabs = tabBar ? (
-    <StickySection testID="profile-sticky-tabs" offset={summaryHeight}>{tabBar}</StickySection>
+    <StickySection
+      testID="profile-sticky-tabs"
+      // Web measures the section's document position. Native virtualized lists
+      // already place the row after the summary; their offset is only the
+      // overlay header inset. Passing the summary height here makes FlashList
+      // reserve that height a second time and creates the large native gap.
+      offset={IS_WEB ? summaryHeight : headerInset}
+    >
+      {tabBar}
+    </StickySection>
   ) : null;
   // Native pushed routes are rendered above the tab navigator by the stack. The
   // route surface must be opaque, otherwise the mounted tab pager remains
