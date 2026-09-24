@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { LinkifiedText } from '../common/LinkifiedText';
-import { useRouter } from 'expo-router';
+import { router } from 'expo-router';
 import type { PostContent } from '@mention/shared-types';
 import { useAppearanceStore } from '@/stores/appearanceStore';
 import { useExpandableText } from '@/hooks/useExpandableText';
@@ -32,8 +32,10 @@ const TRAILING_URL_RE = /\s*(https?:\/\/[^\s]+|www\.[^\s]+)\s*$/;
 const PREVIEW_CHARS = { default: 280, more: 600, muchMore: 1200, all: Infinity } as const;
 
 const PostContentText: React.FC<Props> = ({ content, postId, previewChars, overrideText, linkPreviewUrls }) => {
-  const router = useRouter();
-  const { t } = useTranslation();
+  // No `useRouter()` / `useTranslation()` here: this renders on every row, and
+  // both are only needed for a truncated body's suffix — the imperative router
+  // navigates on press, and the one translated label is its own component
+  // (#1103).
   const postTextExpand = useAppearanceStore((s) => s.mySettings?.appearance?.postTextExpand) ?? 'default';
   const postReadMoreAction = useAppearanceStore((s) => s.mySettings?.appearance?.postReadMoreAction) ?? 'openPost';
   const effectivePreviewChars = previewChars ?? PREVIEW_CHARS[postTextExpand];
@@ -61,7 +63,7 @@ const PostContentText: React.FC<Props> = ({ content, postId, previewChars, overr
   const suffix = isTruncated && postId ? (
     postReadMoreAction === 'expandInline' ? (
       <Text className="text-primary" onPress={toggle}>
-        {isExpanded ? ` ${t('common.showLess', 'Show less')}` : ' Read more'}
+        {isExpanded ? <ShowLessLabel /> : ' Read more'}
       </Text>
     ) : (
       <Text className="text-primary" onPress={() => router.push(`/p/${postId}`)}>
@@ -80,6 +82,11 @@ const PostContentText: React.FC<Props> = ({ content, postId, previewChars, overr
     />
   );
 };
+
+function ShowLessLabel() {
+  const { t } = useTranslation();
+  return <>{` ${t('common.showLess', 'Show less')}`}</>;
+}
 
 export default PostContentText;
 

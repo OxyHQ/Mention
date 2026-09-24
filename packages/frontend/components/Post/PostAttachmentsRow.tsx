@@ -19,10 +19,10 @@ import { useRouter } from 'expo-router';
 import JobCard from '@/components/Post/JobCard';
 import { PostPodcastAttachment } from '@/components/Podcast/PostPodcastAttachment';
 import { MEDIA_CARD_RADIUS } from '@/utils/composeUtils';
+import { LazyZoomableGallery } from '@/components/common/LazyZoomableGallery';
 import { getCachedFileDownloadUrlSync, videoPosterUrl } from '@/utils/imageUrlCache';
 import { readMediaAspectRatio } from '@/utils/mediaTypes';
 import {
-  ZoomableMediaGallery,
   type ZoomableMediaGalleryHandle,
   type GalleryImage,
   type MeasureThumb,
@@ -890,7 +890,9 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         />
       </View>
     )}
-    {galleryImages.length > 0 && <ZoomableMediaGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius={MEDIA_CARD_RADIUS} indicatorVariant="dots" />}
+    {/* Mounted on the first tap, not with the row: the viewer is ~100 hook
+        slots a fling would otherwise pay per image row (#1103). */}
+    {galleryImages.length > 0 && <LazyZoomableGallery ref={galleryRef} measureThumb={measureThumb} cornerRadius={MEDIA_CARD_RADIUS} indicatorVariant="dots" />}
     </View>
   );
 }, (prevProps, nextProps) => {
