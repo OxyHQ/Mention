@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback } from 'react';
 import { RefreshControl, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import type { FlashListProps, FlashListRef } from '@shopify/flash-list';
@@ -8,6 +8,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Loading } from '@oxy.so/bloom/loading';
+import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import type { NotificationListItem } from '@/utils/groupNotifications';
 
@@ -63,39 +64,16 @@ export function NotificationsList({
     isFetchingMore,
 }: NotificationsListProps) {
     const theme = useTheme();
-    const listRef = useRef<FlashListRef<NotificationListItem> | null>(null);
-    const unregisterScrollableRef = useRef<(() => void) | null>(null);
-    const { scrollPosition, scrollEventThrottle, registerScrollable } = useLayoutScroll();
-
-    const clearScrollableRegistration = useCallback(() => {
-        if (unregisterScrollableRef.current) {
-            unregisterScrollableRef.current();
-            unregisterScrollableRef.current = null;
-        }
-    }, []);
-
-    const assignListRef = useCallback((node: FlashListRef<NotificationListItem> | null) => {
-        listRef.current = node;
-        clearScrollableRegistration();
-        if (node) {
-            unregisterScrollableRef.current = registerScrollable(node);
-        }
-    }, [clearScrollableRegistration, registerScrollable]);
-
-    useEffect(() => {
-        if (listRef.current && !unregisterScrollableRef.current) {
-            unregisterScrollableRef.current = registerScrollable(listRef.current);
-        }
-    }, [registerScrollable]);
-
-    useEffect(() => () => {
-        clearScrollableRegistration();
-    }, [clearScrollableRegistration]);
+    const { scrollPosition, scrollEventThrottle } = useLayoutScroll();
+    // The notifications tab stays mounted behind the others; it owns the scroll
+    // slot only while it is in front.
+    const assignListRef = useFocusedScrollable<FlashListRef<NotificationListItem>>({ initialOffset: 0 });
 
     /**
-     * This list's scroll exists for ONE reason: the auto-hiding chrome, which
-     * integrates its position from `scrollPosition` in a UI-thread worklet. So
-     * the offset never needs to reach the JS thread at all, and as a JS callback
+     * This list's offset has two readers: the auto-hiding chrome, which
+     * integrates it from `scrollPosition` in a UI-thread worklet, and the
+     * reselect "already at the top?" check, which reads the shared value on
+     * demand. Neither needs it pushed to the JS thread, and as a JS callback
      * it could only arrive when the JS thread was free — which, on the tab whose
      * rows carry avatars and text, is exactly when it is not.
      */

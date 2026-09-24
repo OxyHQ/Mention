@@ -48,11 +48,15 @@ jest.mock('@/db/feedQueries', () => ({
 // deliver a scroll the way the ScrollView would. Everything else on the context
 // is inert here — this hook's job under test is pagination, not the header
 // animation the shared `scrollY` also drives.
+// Focus ownership of the scroller is `useFocusedScrollable`'s own concern.
+jest.mock('@/hooks/useFocusedScrollable', () => ({
+  useFocusedScrollable: () => () => {},
+}));
+
 jest.mock('@/context/LayoutScrollContext', () => ({
   useLayoutScroll: () => ({
     scrollY: { addListener: () => 'listener-1', removeListener: () => {} },
     createAnimatedScrollHandler: (listener: (event: unknown) => void) => listener,
-    registerScrollable: () => () => {},
     scrollToOffset: () => {},
     setScrollY: () => {},
   }),

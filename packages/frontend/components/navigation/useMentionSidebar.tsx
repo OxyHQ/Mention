@@ -12,6 +12,7 @@ import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { LogoIcon } from '@/assets/logo';
 import { useMentionSettings } from '@/context/MentionSettingsContext';
 import { useDrawer } from '@/context/DrawerContext';
+import { useNavigateOrReselect } from '@/hooks/useNavigateOrReselect';
 import { Home, HomeActive } from '@/assets/icons/home-icon';
 import { Bookmark, BookmarkActive } from '@/assets/icons/bookmark-icon';
 import { Gear, GearActive } from '@/assets/icons/gear-icon';
@@ -42,10 +43,13 @@ export function useMentionSidebar(): SidebarProps {
     const unreadCount = useUnreadCount();
     const { close } = useDrawer();
     const settings = useMentionSettings();
+    const navigateOrReselect = useNavigateOrReselect();
+    // The row for the page already open is not a destination: it takes the
+    // reader back to the top, then reloads.
     const handleNavPress = useCallback((route: Href) => {
         close();
-        router.navigate(route);
-    }, [close, router]);
+        navigateOrReselect(route);
+    }, [close, navigateOrReselect]);
     const handleComposePress = useCallback(() => {
         close();
         router.push('/compose');

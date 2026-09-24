@@ -7,6 +7,7 @@ import {
   type ScrollableRefTarget,
   type ScrollEvent,
 } from '@/context/LayoutScrollContext';
+import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
 import { usePostsStore } from '@/stores/postsStore';
 import { getFeedMeta } from '@/db/feedQueries';
 import type { FeedType } from '@mention/shared-types';
@@ -46,16 +47,15 @@ export function useProfileScroll({ profileId, currentTab, currentLaneId }: UsePr
   const {
     scrollY,
     createAnimatedScrollHandler,
-    registerScrollable,
     scrollToOffset,
     setScrollY,
   } = useLayoutScroll();
+  const claimScroll = useFocusedScrollable<ScrollableRef>();
 
   // The active scroller: the profile ScrollView on non-feed tabs, the grid's
   // FlashList on virtualized ones.
   const scrollRef = useRef<ScrollableRef | null>(null);
   const loadingMoreRef = useRef(false);
-  const unregisterRef = useRef<(() => void) | null>(null);
   const lastScrollCheckRef = useRef(0);
 
   // Store method refs for performance (avoid subscription on every scroll)
@@ -85,14 +85,6 @@ export function useProfileScroll({ profileId, currentTab, currentLaneId }: UsePr
     };
   }, []);
 
-  // Clear registration on unmount
-  const clearRegistration = useCallback(() => {
-    if (unregisterRef.current) {
-      unregisterRef.current();
-      unregisterRef.current = null;
-    }
-  }, []);
-
   // Track which profile we last registered for, so we only reset scroll on profile change
   const lastProfileRef = useRef<string | undefined>(undefined);
 
@@ -100,17 +92,15 @@ export function useProfileScroll({ profileId, currentTab, currentLaneId }: UsePr
   const assignScrollRef = useCallback((node: ScrollableRefTarget | null) => {
     const scroller = node && 'getNode' in node ? node.getNode() : node;
     scrollRef.current = scroller;
-    clearRegistration();
-    if (scroller && registerScrollable) {
-      // Only reset scroll position when navigating to a different profile,
-      // not when switching tabs within the same profile
-      if (lastProfileRef.current !== profileId) {
-        setScrollY(0);
-        lastProfileRef.current = profileId;
-      }
-      unregisterRef.current = registerScrollable(scroller);
+    // Claim first, so the owner being replaced keeps the offset it had.
+    claimScroll(scroller);
+    // Only reset scroll position when navigating to a different profile,
+    // not when switching tabs within the same profile
+    if (scroller && lastProfileRef.current !== profileId) {
+      setScrollY(0);
+      lastProfileRef.current = profileId;
     }
-  }, [clearRegistration, registerScrollable, setScrollY, profileId]);
+  }, [claimScroll, setScrollY, profileId]);
 
   // Shared near-bottom load-more trigger. It closes over the profile and the tab
   // rather than reading them from refs mirrored during render: that write is
@@ -216,13 +206,6 @@ export function useProfileScroll({ profileId, currentTab, currentLaneId }: UsePr
   const scrollToContent = useCallback((offset: number) => {
     scrollToOffset(offset);
   }, [scrollToOffset]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      clearRegistration();
-    };
-  }, [clearRegistration]);
 
   return {
     scrollY,

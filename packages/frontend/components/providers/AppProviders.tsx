@@ -19,7 +19,7 @@ import AppSplashScreen from '@/components/AppSplashScreen';
 import { AccountSwitchReset } from '@/components/providers/AccountSwitchReset';
 import { AppShellProviders } from '@/components/providers/AppShellProviders';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
-import { HomeRefreshProvider } from '@/context/HomeRefreshContext';
+import { ScreenReselectProvider } from '@/context/ScreenReselectContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
 import { OXY_CLIENT_ID, OXY_AUTH_REDIRECT_URI } from '@/config';
 import { ConfirmPromptProvider } from '@/components/common/ConfirmPrompt';
@@ -153,7 +153,7 @@ export const AppProviders = memo(function AppProviders({
                           onError={handleBoundaryError}
                         >
                           <LiveRoomControllerProvider>
-                            <HomeRefreshProvider>
+                            <ScreenReselectProvider>
                               {children}
                               <StatusBar style="auto" />
                               {/*
@@ -170,7 +170,7 @@ export const AppProviders = memo(function AppProviders({
                               <ContentDialogHost />
                               <FediverseInfoDialogProvider />
                               <ChannelInfoDialogProvider />
-                            </HomeRefreshProvider>
+                            </ScreenReselectProvider>
                             <LiveFeatureHost />
                             {/*
                              * The one live-presence poll. Inside

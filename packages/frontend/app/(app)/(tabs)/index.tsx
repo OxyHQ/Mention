@@ -12,7 +12,7 @@ import { parseFeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
 import type { FeedType } from '@mention/shared-types/feed';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { useHomeRefresh } from '@/context/HomeRefreshContext';
+import { useReselect, useReselectReloadKey } from '@/context/ScreenReselectContext';
 import { SEO } from '@/components/SEO';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
@@ -38,9 +38,9 @@ const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
     const { isAuthResolved, canUsePrivateApi, user } = useAuth();
     const theme = useTheme();
-    const { registerHomeRefreshHandler, unregisterHomeRefreshHandler } = useHomeRefresh();
+    const reselect = useReselect();
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
-    const [refreshKey, setRefreshKey] = useState(0);
+    const refreshKey = useReselectReloadKey();
     // The home tabs ARE the viewer's server-persisted pinned feeds (server order),
     // so pinning in the feeds screen updates the tab bar cross-device. Anonymous
     // viewers get the read-only default (For You).
@@ -122,19 +122,9 @@ const HomeScreen: React.FC = () => {
         }
     }, [isAuthResolved, homeTabs, activeTab]);
 
-    useEffect(() => {
-        const handleRefresh = () => {
-            setRefreshKey(prev => prev + 1);
-        };
-        registerHomeRefreshHandler(handleRefresh);
-        return () => {
-            unregisterHomeRefreshHandler();
-        };
-    }, [registerHomeRefreshHandler, unregisterHomeRefreshHandler]);
-
     const handleTabPress = (tabId: HomeTab) => {
         if (tabId === activeTab) {
-            setRefreshKey(prev => prev + 1);
+            reselect();
         } else {
             setActiveTab(tabId);
         }

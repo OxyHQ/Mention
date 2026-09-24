@@ -67,13 +67,23 @@ type LayoutScrollContextValue = {
      */
     setScrollY: (value: number) => void;
     /**
-     * Register the component that should respond to global wheel/scroll gestures (web only).
+     * Make `ref` the native scroll owner (inert on web, where the document owns
+     * scrolling). The shared offset follows the owner: a scroller that owned the
+     * slot before comes back at the offset it left, and one that never did at
+     * `initialOffset` when the caller knows it (otherwise the value is left as
+     * it is).
      */
-    registerScrollable: (ref: ScrollableRef | null) => () => void;
+    registerScrollable: (ref: ScrollableRef | null, initialOffset?: number) => () => void;
     /**
      * Scroll the registered scrollable back to the top.
      */
     scrollToTop: () => void;
+    /**
+     * Where the active scroller is right now, or `null` when nothing that could
+     * be scrolled is registered (a native screen whose list is not a registered
+     * owner). The web document is always there.
+     */
+    getScrollOffset: () => number | null;
     /**
      * Scroll the registered native owner (or the web document) to an offset.
      */
@@ -181,23 +191,34 @@ export function LayoutScrollProvider({
         [handleScroll, scrollY]
     );
 
-    const registerScrollable = useCallback((ref: ScrollableRef | null) => {
+    // Every native scroller writes the ONE shared offset while it scrolls, so
+    // the value is the owner's position only until the owner changes. Park the
+    // outgoing owner's offset here and hand it back when that scroller returns
+    // — otherwise a tab brought forward inherits where the last one stopped.
+    const parkedOffsets = useRef(new WeakMap<ScrollableRef, number>());
+
+    const registerScrollable = useCallback((ref: ScrollableRef | null, initialOffset?: number) => {
         // WEB: the document scrolls, so there is no inner scrollable to register
         // for wheel forwarding. Keep the same signature (consumers call it and
         // store the returned cleanup) but make it inert on web.
         if (IS_WEB) {
             return () => {};
         }
+        const outgoing = scrollableRef.current;
+        if (outgoing) parkedOffsets.current.set(outgoing, scrollPosition.value);
         const id = ++registrationCounter.current;
         activeRegistrationId.current = id;
         scrollableRef.current = ref;
+        const offset = ref ? parkedOffsets.current.get(ref) ?? initialOffset : undefined;
+        if (offset !== undefined) setScrollY(offset);
         return () => {
             if (activeRegistrationId.current === id) {
+                if (ref) parkedOffsets.current.set(ref, scrollPosition.value);
                 scrollableRef.current = null;
                 activeRegistrationId.current = null;
             }
         };
-    }, []);
+    }, [scrollPosition, setScrollY]);
 
     const scrollToOffset = useCallback((offset: number, animated = true) => {
         const boundedOffset = Math.max(0, offset);
@@ -224,6 +245,16 @@ export function LayoutScrollProvider({
         scrollToOffset(0);
     }, [scrollToOffset]);
 
+    // Native scrollers write the shared value from their scroll worklets, so it
+    // is the offset of whichever list owns the slot; it only means something
+    // while one does.
+    const getScrollOffset = useCallback((): number | null => {
+        if (IS_WEB) {
+            return typeof window === 'undefined' ? 0 : window.scrollY || window.pageYOffset || 0;
+        }
+        return scrollableRef.current ? scrollPosition.value : null;
+    }, [scrollPosition]);
+
     const value = useMemo<LayoutScrollContextValue>(() => ({
         scrollY,
         scrollPosition,
@@ -234,7 +265,8 @@ export function LayoutScrollProvider({
         registerScrollable,
         scrollToTop,
         scrollToOffset,
-    }), [createAnimatedScrollHandler, handleScroll, registerScrollable, scrollEventThrottle, scrollToOffset, scrollToTop, scrollY, scrollPosition, setScrollY]);
+        getScrollOffset,
+    }), [createAnimatedScrollHandler, getScrollOffset, handleScroll, registerScrollable, scrollEventThrottle, scrollToOffset, scrollToTop, scrollY, scrollPosition, setScrollY]);
 
     return (
         <LayoutScrollContext.Provider value={value}>

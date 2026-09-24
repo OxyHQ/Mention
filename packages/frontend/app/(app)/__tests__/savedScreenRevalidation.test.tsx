@@ -59,6 +59,11 @@ jest.mock('expo-router', () => ({
   Link: () => null,
 }));
 
+// Reselect is the shell's (covered on its own); this suite is about the data.
+jest.mock('@/context/ScreenReselectContext', () => ({
+  useReselect: () => () => {},
+  useScreenReselect: () => {},
+}));
 jest.mock('expo-router/head', () => ({ __esModule: true, default: () => null }));
 jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 

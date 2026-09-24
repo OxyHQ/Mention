@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { useRouter, useLocalSearchParams, useIsFocused } from 'expo-router';
+import { useReselect, useScreenReselect } from '@/context/ScreenReselectContext';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
@@ -1379,7 +1380,16 @@ export default function VideosScreen() {
         }
     }, []);
 
-    // Initial load + tab switch. Target first (own try/catch), then the ranked
+    // Reselecting the tab away from the first slide goes back to it; on the
+    // first slide it rebuilds the reel (`reloadNonce` re-runs the load below).
+    const [reloadNonce, setReloadNonce] = useState(0);
+    useScreenReselect({
+        isAtTop: () => currentVisibleIndex === 0,
+        scrollToTop: scrollReelToTop,
+        refresh: () => setReloadNonce(nonce => nonce + 1),
+    });
+
+    // Initial load + tab switch + reload. Target first (own try/catch), then the ranked
     // chain. `viewerId` rebuilds the reel when the session resolves on cold boot
     // (the feed and per-post flags are viewer-dependent). `activeFeed` rebuilds it
     // on a tab switch — this effect already resets the accumulated state, so the
@@ -1418,7 +1428,7 @@ export default function VideosScreen() {
         return () => {
             isMounted = false;
         };
-    }, [targetPostId, viewerId, activeFeed, fetchPostById, fetchVideosUntilProgress, scrollReelToTop]);
+    }, [targetPostId, viewerId, activeFeed, reloadNonce, fetchPostById, fetchVideosUntilProgress, scrollReelToTop]);
 
     const handleLoadMore = useCallback(async () => {
         if (loadingMore || !hasMore || !nextCursor) return;
@@ -1585,9 +1595,11 @@ export default function VideosScreen() {
         };
     }, []);
 
+    const reselect = useReselect();
     const handleSelectFeed = useCallback((tab: VideoFeedTab) => {
-        setActiveFeed((prevTab) => (prevTab === tab ? prevTab : tab));
-    }, []);
+        if (tab === activeFeed) reselect();
+        else setActiveFeed(tab);
+    }, [activeFeed, reselect]);
 
     // Web: ↑/↓ arrow keys page the reel. Ignored while typing into an input /
     // textarea / contenteditable so the composer and search are unaffected.

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect } from 'react';
-import { View, Text, ScrollView, Platform } from 'react-native';
+import { View, Text, Platform } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
@@ -15,6 +15,8 @@ import { ListCard as ListCardComponent, type ListCardData } from '@/components/L
 import { EmptyState } from '@/components/common/EmptyState';
 import { List } from '@/assets/icons/list-icon';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { FocusedScrollView } from '@/components/common/FocusedScrollView';
+import { useScreenReselect } from '@/context/ScreenReselectContext';
 
 const FOLLOWED_LIST_PAGE_SIZE = 50;
 
@@ -86,6 +88,7 @@ export default function ListsScreen() {
       return resolved.filter((l): l is MentionList => l !== null);
     },
   });
+  useScreenReselect({ refresh: () => queryClient.invalidateQueries({ queryKey: viewerQueryKeys.listsRoot(viewerId) }) });
 
   // Refresh both collections when a list is created/renamed/deleted anywhere
   // (membership/metadata changes broadcast through notifyListChanged).
@@ -191,9 +194,9 @@ export default function ListsScreen() {
         {IS_WEB ? (
           <View className="px-3 pt-2.5">{content}</View>
         ) : (
-          <ScrollView showsVerticalScrollIndicator={false} className="px-3 pt-2.5">
+          <FocusedScrollView showsVerticalScrollIndicator={false} className="px-3 pt-2.5">
             {content}
-          </ScrollView>
+          </FocusedScrollView>
         )}
       </View>
     </>

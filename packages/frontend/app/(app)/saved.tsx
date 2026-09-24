@@ -40,6 +40,7 @@ import {
 } from '@/services/feedService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { logger } from '@oxy.so/core/logger';
+import { useReselect, useScreenReselect } from '@/context/ScreenReselectContext';
 import SavedPostsList, {
     type SavedPost,
 } from '@/components/saved/SavedPostsList';
@@ -131,11 +132,12 @@ const SavedPostsScreen: React.FC = () => {
         [folders, t],
     );
 
+    const reselect = useReselect();
     const handleFolderTabPress = useCallback((tabId: string) => {
-        setSelectedFolder(
-            tabId === ALL_FOLDERS_TAB_ID ? null : tabId.slice(FOLDER_TAB_PREFIX.length),
-        );
-    }, []);
+        const folder = tabId === ALL_FOLDERS_TAB_ID ? null : tabId.slice(FOLDER_TAB_PREFIX.length);
+        if (folder === selectedFolder) reselect();
+        else setSelectedFolder(folder);
+    }, [reselect, selectedFolder]);
 
     const savedPostsQuery = useInfiniteQuery({
         queryKey: viewerQueryKeys.savedPosts(
@@ -170,6 +172,7 @@ const SavedPostsScreen: React.FC = () => {
         isPending: savedPostsPending,
         refetch: refetchSavedPosts,
     } = savedPostsQuery;
+    useScreenReselect({ refresh: refetchSavedPosts });
 
     const posts = useMemo(
         () => flattenSavedPages(savedPostsData?.pages),

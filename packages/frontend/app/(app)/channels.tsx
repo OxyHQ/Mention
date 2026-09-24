@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +15,8 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { cn } from '@/lib/utils';
+import { FocusedScrollView } from '@/components/common/FocusedScrollView';
+import { useScreenReselect } from '@/context/ScreenReselectContext';
 
 /**
  * The channels you operate, and the one place to create another.
@@ -47,11 +49,12 @@ export default function ChannelsScreen() {
   const [handle, setHandle] = useState('');
   const [title, setTitle] = useState('');
 
-  const { data: accounts = [], isLoading } = useQuery<AccountNode[]>({
+  const { data: accounts = [], isLoading, refetch } = useQuery<AccountNode[]>({
     queryKey: viewerQueryKeys.operatedAccounts(user?.id),
     queryFn: () => oxyServices.listAccounts(),
     enabled: canUsePrivateApi,
   });
+  useScreenReselect({ refresh: refetch });
 
   const channels = useMemo(
     () => accounts.filter((account) => account.kind === 'channel'),
@@ -106,7 +109,7 @@ export default function ChannelsScreen() {
         backLabel={t('common.back', { defaultValue: 'Back' })}
       />
 
-      <ScrollView className="flex-1" contentContainerClassName="pb-10">
+      <FocusedScrollView className="flex-1" contentContainerClassName="pb-10">
         <View className="px-4 pt-4 pb-2">
           <Text className="text-foreground text-lg font-bold">
             {t('channels.createTitle', { defaultValue: 'Create a channel' })}
@@ -192,7 +195,7 @@ export default function ChannelsScreen() {
             );
           })
         )}
-      </ScrollView>
+      </FocusedScrollView>
     </View>
   );
 }

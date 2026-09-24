@@ -4,7 +4,7 @@ import { BottomBar } from '../../BottomBar';
 import { BAR_TABS, pageIndexByName } from '../tabs';
 
 const mockSelectTab = jest.fn();
-const mockRefresh = jest.fn();
+const mockReselect = jest.fn();
 const mockAccount = jest.fn();
 const mockProgress = { value: 1.25 };
 const mockMinimize = { value: 0.4 };
@@ -20,7 +20,7 @@ jest.mock('react-native-reanimated', () => {
   const RN = jest.requireActual<typeof import('react-native')>('react-native');
   return { __esModule: true, default: { View: RN.View }, useAnimatedStyle: (fn: () => unknown) => fn() };
 });
-jest.mock('@/context/HomeRefreshContext', () => ({ useHomeRefresh: () => ({ triggerHomeRefresh: mockRefresh }) }));
+jest.mock('@/context/ScreenReselectContext', () => ({ useReselect: () => mockReselect }));
 jest.mock('@/context/BottomBarVisibilityContext', () => ({ useBottomBarHidden: () => mockMinimize }));
 jest.mock('@/context/TabPagerContext', () => ({ useTabPager: () => ({ progress: mockProgress, chromeProgress: { value: 0 }, activeIndex: mockActiveIndex, activePage: 1, selectTab: mockSelectTab }) }));
 jest.mock('@/hooks/useUnreadCount', () => ({ useUnreadCount: () => 2 }));
@@ -36,16 +36,23 @@ it('preserves pager motion and destinations while compose is the action', async 
   expect(mockBarProps.items.some((item: { name: string }) => item.name === 'write')).toBe(false);
   act(() => mockBarProps.onValueChange('notifications'));
   expect(mockSelectTab).toHaveBeenLastCalledWith(pageIndexByName('notifications'));
+  expect(mockReselect).not.toHaveBeenCalled();
   act(() => mockBarProps.action.props.onPress());
   expect(mockSelectTab).toHaveBeenLastCalledWith(pageIndexByName('write'));
   await act(async () => renderer.unmount());
 });
-it('retaps Home to refresh and reserves long press for account switching', async () => {
+it.each(BAR_TABS.map((tab, index) => [tab.name, index] as const))('retaps the active %s tab to reselect it instead of navigating', async (_name, index) => {
+  mockActiveIndex = index;
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => { renderer = TestRenderer.create(<BottomBar />); });
-  act(() => mockBarProps.onValueChange('index'));
-  expect(mockRefresh).toHaveBeenCalledTimes(1);
+  act(() => mockBarProps.onValueChange(BAR_TABS[index].name));
+  expect(mockReselect).toHaveBeenCalledTimes(1);
   expect(mockSelectTab).not.toHaveBeenCalled();
+  await act(async () => renderer.unmount());
+});
+it('reserves long press for account switching', async () => {
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => { renderer = TestRenderer.create(<BottomBar />); });
   act(() => mockBarProps.onValueLongPress('index'));
   expect(mockAccount).not.toHaveBeenCalled();
   act(() => mockBarProps.onValueLongPress('you'));

@@ -29,6 +29,7 @@ import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
 import { Button } from '@oxy.so/bloom/button';
+import { useScreenReselect } from '@/context/ScreenReselectContext';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -98,6 +99,15 @@ export const ProfileTabs = memo(function ProfileTabs({
       ...(canLoadPinnedPost ? [refetchPinnedPost()] : []),
     ]);
   }, [canLoadPinnedPost, onProfileRefresh, refetchPinnedPost]);
+  // Reselecting the profile at its top reloads the whole surface: the account,
+  // the pinned post and the tab's feed.
+  const [feedReloadKey, setFeedReloadKey] = React.useState(0);
+  useScreenReselect({
+    refresh: () => {
+      setFeedReloadKey(key => key + 1);
+      return refreshProfileSurface();
+    },
+  });
 
   // Don't render feed content without a valid profile identifier
   if (!profileId && !actorUri) {
@@ -237,6 +247,7 @@ export const ProfileTabs = memo(function ProfileTabs({
           { paddingBottom: 100 },
         ]}
         onRefresh={refreshProfileSurface}
+        reloadKey={feedReloadKey}
       />
     );
   }
@@ -257,6 +268,7 @@ export const ProfileTabs = memo(function ProfileTabs({
         scrollEnabled={IS_WEB ? undefined : false}
         contentContainerStyle={{ paddingBottom: 100 }}
         onRefresh={refreshProfileSurface}
+        reloadKey={feedReloadKey}
       />
     </View>
   );
