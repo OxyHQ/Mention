@@ -328,11 +328,6 @@ export function getKnownIdentity(userId: string | undefined): IdentityUpdate | u
   return userId ? knownIdentities.get(userId) : undefined;
 }
 
-/** Every recorded identity. Stable by reference until one is written or a field of one retires. */
-export function getKnownIdentities(): ReadonlyMap<string, IdentityUpdate> {
-  return knownIdentities;
-}
-
 /**
  * Correct one actor with an already-read entry. PURE — a function of its two
  * arguments and nothing else, so a render may call it inside a `useMemo` without

@@ -164,6 +164,63 @@ describe('useKnownIdentitySet', () => {
     expect(text('dup')).toBe('edited,edited,edited');
   });
 
+  it('hands a row with no actors the shared empty map and never wakes it', () => {
+    mount(
+      <>
+        {feed()}
+        <Memo name="none" actors={[undefined]} />
+      </>,
+    );
+    act(() => {
+      recordIdentityChange({ id: 'A', avatar: 'edited' });
+    });
+    expect(renders.none).toBe(1);
+    expect(seen.none[0].size).toBe(0);
+  });
+
+  it('skips an actor without an id when reconciling', () => {
+    recordIdentityChange({ id: 'A', avatar: 'edited' });
+    mount(<Row name="a" actors={['A']} />);
+    act(() => {
+      reconcileKnownIdentities([
+        { id: '', avatar: 'edited' },
+        { id: 'unrecorded', avatar: 'edited' },
+      ]);
+    });
+    expect(renders.a).toBe(1);
+    expect(text('a')).toBe('edited');
+  });
+
+  it('keeps the fields an agreeing actor could not answer for', () => {
+    recordIdentityChange({
+      id: 'A',
+      username: 'a',
+      avatar: 'edited',
+      bio: 'bio',
+      name: { displayName: 'A' },
+      accountCategories: ['news'],
+    });
+    recordIdentityChange({ id: 'B', avatar: 'b-edited', accountCategories: ['news'] });
+    mount(<Row name="ab" actors={['A', 'B']} />);
+
+    act(() => {
+      reconcileKnownIdentities([
+        { id: 'A', accountCategories: ['news'] },
+        { id: 'B', avatar: 'b-edited' },
+      ]);
+    });
+    const identities = seen.ab[seen.ab.length - 1];
+    expect(identities.get('A')).toEqual({
+      id: 'A',
+      username: 'a',
+      avatar: 'edited',
+      bio: 'bio',
+      name: { displayName: 'A' },
+    });
+    expect(identities.get('B')).toEqual({ id: 'B', accountCategories: ['news'] });
+    expect(text('ab')).toBe('edited,server');
+  });
+
   it('propagates retirement to the rows that show the retired identity only', () => {
     recordIdentityChange({ id: 'A', avatar: 'edited' });
     recordIdentityChange({ id: 'B', avatar: 'b-edited' });
