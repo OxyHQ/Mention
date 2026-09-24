@@ -202,12 +202,89 @@ Absolute numbers here belong to one machine and one network; they are
 meaningful against another run of the same harness on the same setup, and
 nowhere else.
 
+## Native feed row cost (Jest harness, issue #1103)
+
+`packages/frontend/components/Feed/__perf__/rowCost.perf.tsx`, run with
+`bun run --cwd packages/frontend test:perf` and in CI on every frontend change.
+It mounts REAL feed rows — `renderFeedRow`, the function both Feed
+implementations call — under the real Bloom provider, i18n and React Query.
+Only native modules and the network boundary are replaced
+(`test-support/perfSetup.ts`); every request a row makes is recorded.
+
+Two kinds of number come out of it, and only one of them gates:
+
+- **Structural, gated** (`__perf__/budgets.json`): element instances and host
+  primitives per row kind, requests and React Query observers per row, renders
+  per mount, re-renders of UNRELATED mounted rows for an unrelated store write /
+  a like on another post / a view-count update, and translation requests during
+  a 200-post fling (must be zero). These are exact and deterministic. Lower a
+  ceiling when an optimization lands; raising one is a decision the PR states.
+- **Timing, recorded not gated**: JS ms per row mount and per recycle, median of
+  7 runs. Jest on a dev React build, on a machine that may be running other
+  work — relative evidence between two runs on the same machine, never device
+  frame time.
+
+Baseline — `main` at a1705141f, before any #1103 change
+(`__perf__/results/baseline-main.json`) — against the current tree
+(`__perf__/results/latest.json`), node 24, jest-expo ios:
+
+| Row | components | host nodes | requests | Query observers | mount ms (main → now) | recycle ms (main → now) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| text | 188 | 50 | 0 | 1 | 4.6 → 4.6 | 2.2 → 2.6 |
+| textAvatar | 185 | 49 | 1 | 1 | 4.4 → 5.2 | 3.6 → 3.0 |
+| image | 212 | 57 | 1 | 1 | 5.2 → 5.4 | 2.5 → 2.9 |
+| multiImage | 263 | 72 | 1 | 1 | 5.8 → 5.9 | 3.9 → 3.1 |
+| video | 230 | 62 | 1 | 1 | 5.2 → 5.2 | 3.1 → 2.6 |
+| linkPreview | 210 | 57 | 1 | 1 | 4.1 → 4.4 | 2.2 → 2.4 |
+| quote (2 posts) | 264 | 74 | 2 | 2 | 5.6 → 5.5 | 3.8 → 3.6 |
+| repost | 207 | 55 | 1 | 1 | 4.6 → 5.4 | 2.8 → 4.1 |
+| poll | 213 | 61 | 1 | 1 | 3.9 → 4.8 | 2.1 → 2.1 |
+| communityNote | 218 | 61 | 1 | 1 | 4.5 → 4.6 | 2.1 → 2.2 |
+
+| Isolation (10 mixed rows mounted) | main | now |
+| --- | ---: | ---: |
+| row renders on an unrelated posts-store write | **10** | **0** |
+| other-row renders when post A is liked | 0 | 0 |
+| other-row renders on a view-count update | 0 | 0 |
+
+The one request per row is the author avatar prefetch; the one Query observer
+per row is live presence (`useLiveUsers`, one observer per avatar). A 200-post
+fling makes 198 requests, all avatar prefetches, and **zero** translation
+requests.
+
+The first change it measured (#1109, the row engagement hooks' whole-store
+subscription) moves the isolation table and not the mount timings — which is
+the honest reading: that fix removes RE-renders, not mount work. The mount
+timings are within run-to-run noise of each other here; the component counts
+are the number later changes have to move.
+
+What this harness cannot see: device frame drops, native RSS, blank-cell
+incidence and time-to-visible. Those need a release build on hardware and are
+listed below as still uninstrumented.
+
+### How to profile a feed regression
+
+1. `bun run --cwd packages/frontend test:perf` — compare
+   `__perf__/results/latest.json` with the committed copy. A structural number
+   that moved is the regression; the budget gate names it.
+2. For a component count that grew, mount the row kind alone
+   (`FEED_PERF_RUNS=1`, `it.only`) and diff `renderer.root.findAll` by type
+   against `main` — the new wrapper or hook-owning component is in the diff.
+3. For a re-render that appeared, the isolation case prints which trigger woke
+   unrelated rows; look for a selector-less store read (the
+   `validate:feed-hot-path` gate catches the zustand form) or a Context whose
+   value changed identity.
+4. Timings: only compare two runs on the same idle machine; for frame time,
+   use a release build on a device with the React Native profiler.
+
 ## What has no instrumentation at all
 
-Feed scroll memory behavior after a large number of posts, image/media
-loading regressions, and cold-start / first-usable-screen timing on native
-(iOS/Android) have no measurement of any kind in this repository today —
-not "uncollected," genuinely absent. Web LCP is covered by the real-user web
+Native frame timing during a fling (dropped frames, time-to-visible, blank
+cells), native memory (RSS) after a long scroll, and cold-start /
+first-usable-screen timing on native (iOS/Android) have no measurement in this
+repository today — they need a release build on hardware. The row's JS
+structure, re-render isolation and per-row network side effects ARE measured,
+by the Jest harness above. Web LCP is covered by the real-user web
 vitals above; native cold start is not.
 
 ## Recommended next step, not taken in this pass
