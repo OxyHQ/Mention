@@ -10,7 +10,7 @@
       "packages/*"
     ],
     "catalog": {
-      "@oxy.so/bloom": "^4.5.0",
+      "@oxy.so/bloom": "^4.16.1",
       "@oxy.so/contracts": "^1.3.0",
       "@oxy.so/core": "^1.7.3",
       "@oxy.so/mcp": "^1.0.0",
