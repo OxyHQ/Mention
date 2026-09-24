@@ -47,6 +47,8 @@
     "collectCoverageFrom": [
       "**/*.{ts,tsx}",
       "!**/__tests__/**",
+      "!**/__perf__/**",
+      "!test-support/perf*",
       "!**/*.test.{ts,tsx}",
       "!**/*.d.ts",
       "!android/**",
