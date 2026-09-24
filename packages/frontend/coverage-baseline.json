@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 35.48,
-      "covered": 9298,
-      "total": 26204
+      "pct": 35.77,
+      "covered": 9398,
+      "total": 26271
     },
     "branches": {
-      "pct": 30.56,
-      "covered": 5814,
-      "total": 19021
+      "pct": 30.77,
+      "covered": 5861,
+      "total": 19043
     },
     "functions": {
-      "pct": 30.69,
-      "covered": 2043,
-      "total": 6656
+      "pct": 30.99,
+      "covered": 2068,
+      "total": 6673
     },
     "lines": {
-      "pct": 36.23,
-      "covered": 8509,
-      "total": 23483
+      "pct": 36.52,
+      "covered": 8596,
+      "total": 23537
     }
   },
   "pins": {
@@ -64,6 +64,12 @@
       "branches": 100,
       "functions": 0,
       "lines": 0
+    },
+    "components/providers/LivePresencePoller.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "components/providers/constants.ts": {
       "statements": 16,
@@ -328,12 +334,6 @@
       "branches": 66,
       "functions": 100,
       "lines": 93
-    },
-    "hooks/useLiveUsers.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
     },
     "hooks/useLocationManager.ts": {
       "statements": 0,
@@ -1150,6 +1150,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "stores/livePresenceStore.ts": {
+      "statements": 100,
+      "branches": 88,
+      "functions": 100,
+      "lines": 100
     },
     "stores/liveRoomsStore.ts": {
       "statements": 65,

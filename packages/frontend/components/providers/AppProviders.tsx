@@ -28,6 +28,7 @@ import { ContentDialogHost } from '@/components/common/ContentDialog';
 import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInfoDialog';
 import { ChannelInfoDialogProvider } from '@/components/Channels/ChannelInfoDialog';
 import { LiveFeatureHost } from '@/components/providers/LiveFeatureProviders';
+import { LivePresencePoller } from '@/components/providers/LivePresencePoller';
 import { LiveRoomControllerProvider } from '@/context/LiveRoomContext';
 import i18n, { setLanguage } from '@/lib/i18n';
 import { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES } from '@/lib/constants';
@@ -163,6 +164,12 @@ export const AppProviders = memo(function AppProviders({
                               <ChannelInfoDialogProvider />
                             </HomeRefreshProvider>
                             <LiveFeatureHost />
+                            {/*
+                             * The one live-presence poll. Inside
+                             * AccountSwitchReset so it is viewer-scoped and
+                             * torn down with the previous identity.
+                             */}
+                            <LivePresencePoller />
                           </LiveRoomControllerProvider>
                         </AppErrorBoundary>
                       </MenuProvider>

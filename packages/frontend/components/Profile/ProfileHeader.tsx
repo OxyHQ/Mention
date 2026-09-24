@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import { LiveAvatar } from '@/components/ui/LiveAvatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
-import { useLiveUsers } from '@/hooks/useLiveUsers';
+import { useLiveUser } from '@/stores/livePresenceStore';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { Button } from '@oxy.so/bloom/button';
@@ -76,8 +76,7 @@ export const ProfileHeader = memo(function ProfileHeader({
   // live-badged one (tap joins the room). The collapse-on-scroll shrink is
   // preserved by wrapping it in an animated view that mirrors ZoomableAvatar's
   // transform, so live and non-live headers behave identically while scrolling.
-  const { isLive } = useLiveUsers();
-  const isProfileLive = isLive(profileId);
+  const { isLive: isProfileLive } = useLiveUser(profileId);
   const liveAvatarCollapseStyle = useAnimatedStyle(() => ({
     transform: [
       { scale: interpolate(avatarCollapseProgress.value, [0, 1], [1, PROFILE_AVATAR_COLLAPSE_MIN_SCALE], Extrapolation.CLAMP) },

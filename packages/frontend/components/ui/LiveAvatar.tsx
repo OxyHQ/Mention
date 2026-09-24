@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avatar, type AvatarProps } from '@oxy.so/bloom/avatar';
-import { useLiveUsers } from '@/hooks/useLiveUsers';
+import { useLiveUser } from '@/stores/livePresenceStore';
 import { router } from 'expo-router';
 
 export interface LiveAvatarProps extends AvatarProps {
@@ -15,18 +15,19 @@ export interface LiveAvatarProps extends AvatarProps {
 }
 
 /**
- * Bloom `Avatar` + Syra live presence. Reads the shared {@link useLiveUsers}
- * query (one poll for the whole app) and, for a live `userId`, overlays Bloom's
+ * Bloom `Avatar` + Syra live presence. Reads this user's key of the shared
+ * live-presence store ({@link useLiveUser}; one poll for the whole app, and a
+ * change for another user does not re-render this avatar) and, for a live
+ * `userId`, overlays Bloom's
  * live badge and routes taps to `joinLiveRoom(roomId)`; otherwise it forwards
  * `onPress` untouched so non-live avatars keep their default behavior. An
  * explicit `live` prop still wins over the derived state.
  */
 export function LiveAvatar({ userId, onPress, live, liveLabel, ...rest }: LiveAvatarProps) {
   const { t } = useTranslation();
-  const { isLive, roomIdFor } = useLiveUsers();
+  const { isLive, roomId } = useLiveUser(userId);
 
-  const userIsLive = live ?? isLive(userId);
-  const roomId = roomIdFor(userId);
+  const userIsLive = live ?? isLive;
 
   const handlePress = useCallback(() => {
     if (userIsLive && roomId) {

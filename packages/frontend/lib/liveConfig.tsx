@@ -108,8 +108,8 @@ const getPinnedPodcast: NonNullable<LiveConfig['getPinnedPodcast']> = async () =
 
 export const liveConfig: LiveConfig = {
   // Live-presence just changed for the local user (they started/stopped a room
-  // or stream). Invalidate the shared `['live-users']` query (see
-  // hooks/useLiveUsers.ts) so every avatar's LIVE badge updates instantly
+  // or stream). Invalidate the shared `['live-users']` query (polled once by
+  // components/providers/LivePresencePoller.tsx) so every avatar's LIVE badge updates instantly
   // instead of waiting for the 60s background poll.
   onRoomChanged: () => {
     queryClient.invalidateQueries({
