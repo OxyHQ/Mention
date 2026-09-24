@@ -195,9 +195,15 @@ const PostItem: React.FC<PostItemProps> = ({
         repostedBy?.id,
         ...(viewPost?.authors?.map((entry) => entry.id) ?? []),
     ]);
+    // Read into locals first: the React Compiler memoizes on the values a memo
+    // actually reads, and `viewPost?.user` inside the callback reads as
+    // `viewPost` — a mismatch with these deps that made it skip this whole
+    // component, the hottest one in the app (#1103).
+    const viewUser = viewPost?.user;
+    const viewAuthors = viewPost?.authors;
     const author = useMemo(
-        () => (viewPost?.user ? mergeKnownIdentity(viewPost.user, knownIdentities.get(viewPost.user.id)) : undefined),
-        [viewPost?.user, knownIdentities],
+        () => (viewUser ? mergeKnownIdentity(viewUser, knownIdentities.get(viewUser.id)) : undefined),
+        [viewUser, knownIdentities],
     );
     const reposter = useMemo(
         () => (repostedBy ? mergeKnownIdentity(repostedBy, knownIdentities.get(repostedBy.id)) : undefined),
@@ -207,10 +213,10 @@ const PostItem: React.FC<PostItemProps> = ({
     // the avatar cluster that replaces the solo avatar.
     const bylineAuthors = useMemo(
         () =>
-            viewPost?.authors?.map((entry) =>
+            viewAuthors?.map((entry) =>
                 mergeKnownIdentity(entry, knownIdentities.get(entry.id)),
             ),
-        [viewPost?.authors, knownIdentities],
+        [viewAuthors, knownIdentities],
     );
 
     const viewerState =

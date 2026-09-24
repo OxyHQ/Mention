@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, View, type PressableProps } from 'react-native';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -90,7 +90,10 @@ const PostActions: React.FC<Props> = ({
 }) => {
   const theme = useTheme();
   const haptic = useHaptics();
-  const hasBeenToggled = useRef(false);
+  // State, not a ref: reading `ref.current` during render made the React
+  // Compiler skip this whole component — which every row mounts (#1103). It
+  // flips once, on the first like, in the same batch as the like itself.
+  const [hasBeenToggled, setHasBeenToggled] = useState(false);
   const voteStyle = useVoteStyle();
 
   const replies = engagement?.replies ?? 0;
@@ -130,7 +133,7 @@ const PostActions: React.FC<Props> = ({
           isLiked={!!isLiked}
           isDownvoted={!!isDownvoted}
           onUpvote={() => {
-            hasBeenToggled.current = true;
+            setHasBeenToggled(true);
             onLike();
           }}
           onDownvote={onDownvote}
@@ -139,7 +142,7 @@ const PostActions: React.FC<Props> = ({
         <PressableScale
           style={styles.iconButton}
           onPress={() => {
-            hasBeenToggled.current = true;
+            setHasBeenToggled(true);
             haptic('light');
             onLike();
           }}
@@ -149,12 +152,12 @@ const PostActions: React.FC<Props> = ({
           <View className="flex-row items-center gap-1">
             <AnimatedLikeIcon
               isLiked={!!isLiked}
-              hasBeenToggled={hasBeenToggled.current}
+              hasBeenToggled={hasBeenToggled}
             />
             <CountWheel
               likeCount={likes}
               isLiked={!!isLiked}
-              hasBeenToggled={hasBeenToggled.current}
+              hasBeenToggled={hasBeenToggled}
             />
           </View>
         </PressableScale>

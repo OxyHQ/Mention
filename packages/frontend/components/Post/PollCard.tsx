@@ -1,10 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@oxy.so/services/ui/client';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
-import { pollService, PollContractError, type PollDetail, type PollDetailOption } from '@/services/pollService';
+import { pollService, PollContractError, type PollDetailOption } from '@/services/pollService';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
+import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 const logger = createLogger('PollCard');
 
@@ -13,29 +16,39 @@ interface PollCardProps {
   width?: number;
 }
 
+/** Whether a poll's end time has passed. Outside the component: it reads the clock. */
+function hasEnded(endsAt: string | undefined): boolean {
+  if (!endsAt) return false;
+  const time = new Date(endsAt).getTime();
+  return Number.isFinite(time) && time < Date.now();
+}
+
+/**
+ * The poll attached to a post, read through React Query rather than fetched on
+ * mount: a feed row is mounted, recycled and re-mounted many times, and a
+ * per-mount fetch made every one of those a request for the same poll
+ * (#1103). One cached answer per viewer and poll; a vote writes its own
+ * response into that entry.
+ */
 const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
-  const [poll, setPoll] = useState<PollDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const queryKey = viewerQueryKeys.poll(user?.id, pollId);
+  const { data: poll, isLoading: loading, isError } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      try {
+        return (await pollService.getPoll(pollId)).data;
+      } catch (err) {
+        logger.error('Failed to load poll', err);
+        throw err;
+      }
+    },
+    staleTime: 60_000,
+    retry: false,
+  });
   const [voting, setVoting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadPoll = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await pollService.getPoll(pollId);
-      setPoll(res.data);
-      setError(null);
-    } catch (err) {
-      logger.error('Failed to load poll', err);
-      setError('Failed to load poll');
-    } finally {
-      setLoading(false);
-    }
-  }, [pollId]);
-
-  useEffect(() => {
-    void loadPoll();
-  }, [loadPoll]);
+  const error = isError ? 'Failed to load poll' : null;
 
   // `voteCount` is unconditional and always a number — see `PollDetailOption`
   // in `@mention/shared-types`. It used to be an array of voter ids for a
@@ -54,12 +67,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
     return poll.viewerSelectedOptionIds.length > 0;
   }, [poll]);
 
-  const ended = useMemo(() => {
-    if (!poll?.endsAt) return false;
-    try {
-      return new Date(poll.endsAt).getTime() < Date.now();
-    } catch { return false; }
-  }, [poll?.endsAt]);
+  const ended = hasEnded(poll?.endsAt);
 
   const handleVote = async (optionId: string) => {
     if (voting || ended) return;
@@ -70,7 +78,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
       // canonical post-vote state, so a second GET right behind it only ever
       // reread what this response already carried.
       const { data } = await pollService.vote(pollId, optionId);
-      setPoll(data);
+      queryClient.setQueryData(queryKey, data);
     } catch (err) {
       logger.error('Failed to record vote', err);
       const message = err instanceof PollContractError

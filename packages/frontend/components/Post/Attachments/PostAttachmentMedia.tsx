@@ -341,9 +341,16 @@ const PostAttachmentImage: React.FC<{
 }> = ({ src, alt, aspectRatio: dtoAspectRatio, width, height, onPress, registerHost, hasSingleMedia, availableWidth, rowHeight = MEDIA_CARD_HEIGHT }) => {
   const theme = useTheme();
   const wrapperRef = useRef<View | null>(null);
-  const initialRatio = readMediaAspectRatio({ aspectRatio: dtoAspectRatio, width, height })
-    ?? getAspectRatio(src);
-  const [aspectRatio, setAspectRatio] = useState<number | undefined>(initialRatio);
+  // The ratio is DERIVED while it is knowable synchronously — from the record,
+  // else from the shared cache — and only a ratio that has to be measured goes
+  // through state. Setting state from an effect for the synchronous cases made
+  // the React Compiler skip this component, which every image row mounts
+  // (#1103). The measured value is stamped with its `src`, so a recycled row
+  // never shows the previous image's shape.
+  const recordRatio = readMediaAspectRatio({ aspectRatio: dtoAspectRatio, width, height });
+  const cachedRatio = recordRatio === undefined ? getAspectRatio(src) : undefined;
+  const [measured, setMeasured] = useState<{ src: string; ratio: number } | null>(null);
+  const aspectRatio = recordRatio ?? cachedRatio ?? (measured?.src === src ? measured.ratio : undefined);
 
   // Callback ref: keep the local ref (for open-press measurement) AND mirror the
   // host into the parent's index registry (for the close fly-back). Registers on
@@ -354,38 +361,29 @@ const PostAttachmentImage: React.FC<{
   }, [registerHost]);
 
   useEffect(() => {
-    if (dtoAspectRatio !== undefined || (width !== undefined && height !== undefined)) {
-      const ratio = readMediaAspectRatio({ aspectRatio: dtoAspectRatio, width, height });
-      if (ratio !== undefined) {
-        setAspectRatio(ratio);
-        setAspectRatioInCache(src, ratio);
-      }
+    if (recordRatio !== undefined) {
+      // Persist to the shared cache so the gallery reuses it on open.
+      setAspectRatioInCache(src, recordRatio);
       return;
     }
-    if (hasAspectRatio(src)) {
-      setAspectRatio(getAspectRatio(src));
-      return;
-    }
+    if (hasAspectRatio(src)) return;
     let cancelled = false;
     Image.getSize(
       src,
-      (width, height) => {
-        if (cancelled) return;
-        if (width > 0 && height > 0) {
-          const ratio = width / height;
-          setAspectRatio(ratio);
-          // Persist to the shared cache so the gallery reuses it on open.
-          setAspectRatioInCache(src, ratio);
-        }
+      (naturalWidth, naturalHeight) => {
+        if (cancelled || naturalWidth <= 0 || naturalHeight <= 0) return;
+        const ratio = naturalWidth / naturalHeight;
+        setMeasured({ src, ratio });
+        setAspectRatioInCache(src, ratio);
       },
       () => {
         if (cancelled) return;
-        setAspectRatio(DEFAULT_ASPECT_RATIO);
+        setMeasured({ src, ratio: DEFAULT_ASPECT_RATIO });
         setAspectRatioInCache(src, DEFAULT_ASPECT_RATIO);
       }
     );
     return () => { cancelled = true; };
-  }, [src, dtoAspectRatio, width, height]);
+  }, [src, recordRatio]);
 
   const handlePress = useCallback(() => {
     if (!onPress) return;

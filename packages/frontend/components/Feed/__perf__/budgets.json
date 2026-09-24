@@ -25,16 +25,16 @@
     "communityNote": 218
   },
   "hooksPerRow": {
-    "text": 342,
-    "textAvatar": 342,
-    "image": 408,
-    "multiImage": 489,
-    "video": 464,
-    "linkPreview": 395,
-    "quote": 586,
-    "repost": 361,
-    "poll": 376,
-    "communityNote": 386
+    "text": 291,
+    "textAvatar": 291,
+    "image": 349,
+    "multiImage": 406,
+    "video": 402,
+    "linkPreview": 344,
+    "quote": 484,
+    "repost": 310,
+    "poll": 325,
+    "communityNote": 335
   },
   "contextReadsPerRow": {
     "text": 39,
@@ -61,16 +61,16 @@
     "communityNote": 1
   },
   "queryObserversPerRow": {
-    "text": 1,
-    "textAvatar": 1,
-    "image": 1,
-    "multiImage": 1,
-    "video": 1,
-    "linkPreview": 1,
-    "quote": 2,
-    "repost": 1,
-    "poll": 1,
-    "communityNote": 1
+    "text": 0,
+    "textAvatar": 0,
+    "image": 0,
+    "multiImage": 0,
+    "video": 0,
+    "linkPreview": 0,
+    "quote": 0,
+    "repost": 0,
+    "poll": 0,
+    "communityNote": 0
   },
   "maxRendersPerMount": 2,
   "isolation": {

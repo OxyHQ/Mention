@@ -95,6 +95,16 @@ export const viewerQueryKeys = {
     'detail',
     postId,
   ] as const,
+  /**
+   * A poll as THIS viewer sees it: the tallies are public, but
+   * `viewerSelectedOptionIds` is the caller's own vote. One cached answer per
+   * poll, so a feed that recycles the same poll row does not refetch it.
+   */
+  poll: (viewerId: ViewerId, pollId: string) => [
+    ...viewerQueryKeys.postsRoot(viewerId),
+    'poll',
+    pollId,
+  ] as const,
   pinnedPost: (viewerId: ViewerId, profileId: string) => [
     ...viewerQueryKeys.postsRoot(viewerId),
     'pinned',

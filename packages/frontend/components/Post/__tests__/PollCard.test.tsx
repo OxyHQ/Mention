@@ -1,6 +1,7 @@
 import React from 'react';
 import TestRenderer, { type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { Text } from 'react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import PollCard from '../PollCard';
 import type { PollDetail } from '@/services/pollService';
@@ -37,6 +38,7 @@ jest.mock('@oxy.so/core/logger', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: 'Loading' }));
+jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => ({ user: { id: 'viewer-1' } }) }));
 
 function poll(overrides: Partial<PollDetail> = {}): PollDetail {
   return {
@@ -57,10 +59,14 @@ function poll(overrides: Partial<PollDetail> = {}): PollDetail {
   };
 }
 
-async function render(element: React.ReactElement): Promise<ReactTestRenderer> {
+async function render(element: React.ReactElement, client = new QueryClient()): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await TestRenderer.act(async () => {
-    renderer = TestRenderer.create(element);
+    renderer = TestRenderer.create(<QueryClientProvider client={client}>{element}</QueryClientProvider>);
+  });
+  // The poll arrives through React Query; let its fetch resolve and commit.
+  await TestRenderer.act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
   return renderer;
 }
@@ -177,5 +183,18 @@ describe('PollCard — casting a vote', () => {
     expect(mockToastError).toHaveBeenCalledTimes(1);
     // The card is still showing the poll, not stuck or blanked by the failure.
     expect(textOf(renderer)).toContain('0 votes');
+  });
+});
+
+describe('PollCard — a recycled or remounted row', () => {
+  it('reads the same poll from the cache instead of fetching it again', async () => {
+    mockGetPoll.mockResolvedValue({ success: true, data: poll() });
+    const client = new QueryClient();
+    const first = await render(<PollCard pollId="poll-1" />, client);
+    TestRenderer.act(() => first.unmount());
+    const second = await render(<PollCard pollId="poll-1" />, client);
+
+    expect(mockGetPoll).toHaveBeenCalledTimes(1);
+    expect(textOf(second)).toContain('0 votes');
   });
 });
