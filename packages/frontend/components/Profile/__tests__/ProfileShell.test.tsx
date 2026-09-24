@@ -72,12 +72,12 @@ test('non-feed tabs have one list owner and measure docking from its header', ()
   const tree = renderShell(props);
   expect(tree.root.findAllByType(ScrollView)).toHaveLength(0);
   expect(mockDock.mock.calls.at(-1)?.[0].scrollY).toBe(mockScrollPosition);
-  expect(mockHeader.mock.calls.at(-1)?.[0]).toMatchObject({ placement: 'overlap', titleReveal: 'onDock' });
+  expect(mockHeader.mock.calls.at(-1)?.[0]).toMatchObject({ placement: 'overlay', titleReveal: 'onDock' });
   expect(mockList.mock.calls.at(-1)?.[0]).toMatchObject({ stickyHeaderIndices: [0], stickyHeaderConfig: { offset: 84 }, onScroll: props.chrome.onScroll });
-  expect(mockSticky.mock.calls.at(-1)?.[0].offset).toBeUndefined();
+  expect(mockSticky.mock.calls.at(-1)?.[0].offset).toBe(84);
   const header = tree.root.findAllByType(View).find(node => typeof node.props.onLayout === 'function');
   act(() => { header!.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 357 } } }); });
-  expect(mockSticky.mock.calls.at(-1)?.[0].offset).toBe(357);
+  expect(mockSticky.mock.calls.at(-1)?.[0].offset).toBe(84);
   act(() => tree.unmount());
 });
 
@@ -87,7 +87,7 @@ test.each(['posts', 'media'] as const)('%s retains its own virtualized scroll ow
   expect(mockList).not.toHaveBeenCalled();
   const tabs = mockTabs.mock.calls.at(-1)?.[0];
   expect(tabs.listOwnsScroll).toBe(true);
-  expect(tabs.listHeaderComponent).toBeTruthy();
+  expect(tabs.listContentHeaderComponent).toBeTruthy();
   expect(tabs.listStickyHeaderComponent).toBeTruthy();
   expect(tabs.listOnScroll).toBe(tab === 'media' ? props.chrome.onScroll : undefined);
   expect(tabs.listScrollRef).toBe(tab === 'media' ? props.chrome.assignScrollRef : undefined);

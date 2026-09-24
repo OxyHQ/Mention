@@ -69,6 +69,8 @@ interface FeedProps {
     style?: React.ComponentProps<typeof View>['style'];
     contentContainerStyle?: React.ComponentProps<typeof View>['style'];
     listHeaderComponent?: React.ReactElement | null;
+    /** A normal virtualized row rendered before the sticky row. */
+    listContentHeaderComponent?: React.ReactElement | null;
     /**
      * A data-row header that sticks independently from `listHeaderComponent`.
      * Kept separate so callers can scroll a large summary away while pinning
@@ -157,7 +159,7 @@ const IMPRESSION_VIEWABILITY_CONFIG = {
 
 interface AuxiliaryFeedRow {
     kind: 'auxiliary';
-    key: 'sticky-header' | 'leading';
+    key: 'content-header' | 'sticky-header' | 'leading';
     element: React.ReactElement;
 }
 
@@ -296,6 +298,7 @@ const Feed = ((props: FeedProps) => {
         style,
         contentContainerStyle,
         listHeaderComponent,
+        listContentHeaderComponent,
         listStickyHeaderComponent,
         listLeadingComponent,
         threaded,
@@ -397,6 +400,13 @@ const Feed = ((props: FeedProps) => {
 
     const listRows = useMemo<NativeFeedRow[]>(() => {
         const auxiliaryRows: AuxiliaryFeedRow[] = [];
+        if (listContentHeaderComponent) {
+            auxiliaryRows.push({
+                kind: 'auxiliary',
+                key: 'content-header',
+                element: listContentHeaderComponent,
+            });
+        }
         if (listStickyHeaderComponent) {
             auxiliaryRows.push({
                 kind: 'auxiliary',
@@ -414,7 +424,7 @@ const Feed = ((props: FeedProps) => {
         return auxiliaryRows.length > 0
             ? [...auxiliaryRows, ...feedRows]
             : feedRows;
-    }, [feedRows, listLeadingComponent, listStickyHeaderComponent]);
+    }, [feedRows, listContentHeaderComponent, listLeadingComponent, listStickyHeaderComponent]);
 
     // Bloom intentionally delegates native restoration to the navigator, but a
     // route/tab swap can genuinely unmount a feed. Restore the last feed-scoped
@@ -715,7 +725,14 @@ const Feed = ((props: FeedProps) => {
     const headerComponent = useMemo(
         () => (
             <VideoViewabilityScope viewabilityKey={FEED_HEADER_VIEWABILITY_KEY}>
-                <View onLayout={handleHeaderLayout}>
+                <View
+                    onLayout={handleHeaderLayout}
+                    // FlashList may stretch its header wrapper to the viewport
+                    // when it is the first child of a flex list. The header is
+                    // document content; its height must be its measured content
+                    // height so the following sticky row starts immediately.
+                    style={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
+                >
                     {listHeaderComponent ?? <FeedHeader showComposeButton={showComposeButton} onComposePress={onComposePress} hideHeader={hideHeader} />}
                 </View>
             </VideoViewabilityScope>
@@ -804,9 +821,12 @@ const Feed = ((props: FeedProps) => {
                         getItemType={getItemType}
                         extraData={dataHash}
                         ListHeaderComponent={headerComponent}
+                        ListHeaderComponentStyle={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
                         ListEmptyComponent={renderedEmptyComponent}
                         ListFooterComponent={renderedFooterComponent}
-                        stickyHeaderIndices={listStickyHeaderComponent ? [0] : undefined}
+                        // The Bloom sticky section is the first data row. FlashList
+                        // keeps ListHeaderComponent outside the data index space.
+                    stickyHeaderIndices={listStickyHeaderComponent ? [listContentHeaderComponent ? 1 : 0] : undefined}
                         stickyHeaderConfig={{ offset: headerDockInset }}
                         scrollEnabled={scrollEnabled}
                         {...(scrollEnabled === false ? { renderScrollComponent: NonScrollingScrollComponent } : {})}
@@ -860,6 +880,7 @@ const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps): boolean => {
         prevProps.threaded !== nextProps.threaded ||
         prevProps.threadPostId !== nextProps.threadPostId ||
         prevProps.listHeaderComponent !== nextProps.listHeaderComponent ||
+        prevProps.listContentHeaderComponent !== nextProps.listContentHeaderComponent ||
         prevProps.listStickyHeaderComponent !== nextProps.listStickyHeaderComponent ||
         prevProps.listLeadingComponent !== nextProps.listLeadingComponent
     ) {
