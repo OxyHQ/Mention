@@ -9,6 +9,7 @@ import {
     type PostInteractions,
 } from '../postInteractions';
 import { PostInteractionsBinder } from '../PostInteractionsBinder';
+import { BottomSheetContext } from '@/context/BottomSheetContext';
 
 /**
  * The feed row's one command controller (#1103). What it must keep from the
@@ -71,8 +72,9 @@ jest.mock('@/utils/alerts', () => ({ confirmDialog: jest.fn() }));
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn() }));
 jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
 jest.mock('@oxy.so/bloom/bottom-sheet', () => ({ BottomSheet: 'BottomSheet' }));
+const mockNoteSheets = { canWrite: false, canRate: false, openAbout: jest.fn(), openWriteFlow: jest.fn() };
 jest.mock('@/components/CommunityNotes/useCommunityNoteSheets', () => ({
-    createCommunityNoteSheets: () => ({ canWrite: false, canRate: false, openAbout: jest.fn(), openWriteFlow: jest.fn() }),
+    createCommunityNoteSheets: () => mockNoteSheets,
 }));
 
 function post(id: string, viewerState: Partial<HydratedPost['viewerState']> = {}): HydratedPost {
@@ -220,5 +222,60 @@ describe('menu', () => {
             </PostInteractionsProvider>
         ));
         expect(mockShowActionMenu).not.toHaveBeenCalled();
+    });
+});
+
+describe('bound sheet commands', () => {
+    const sheet = { setBottomSheetContent: jest.fn(), openBottomSheet: jest.fn() };
+    const bound = () =>
+        capture((probe) => (
+            <PostInteractionsProvider>
+                <BottomSheetContext.Provider value={sheet as never}>
+                    <PostInteractionsBinder />
+                    {probe}
+                </BottomSheetContext.Provider>
+            </PostInteractionsProvider>
+        ));
+
+    beforeEach(() => {
+        mockNoteSheets.canWrite = false;
+    });
+
+    it('opens sources in the one sheet, and ignores an empty list', () => {
+        const commands = bound();
+        commands.openSources([]);
+        expect(sheet.setBottomSheetContent).not.toHaveBeenCalled();
+        commands.openSources([{ url: 'https://example.test' }]);
+        expect(sheet.setBottomSheetContent).toHaveBeenCalledTimes(1);
+        expect(sheet.openBottomSheet).toHaveBeenLastCalledWith(true);
+    });
+
+    it('opens insights in the one sheet', () => {
+        bound().openInsights('p1');
+        expect(sheet.setBottomSheetContent).toHaveBeenCalledTimes(1);
+        expect(sheet.openBottomSheet).toHaveBeenLastCalledWith(true);
+    });
+
+    it("routes a note's about sheet to the app's community-note flows", () => {
+        const note = { id: 'n1', text: 'context', sourceUrls: [], status: 'shown', createdAt: '2026-09-01' } as never;
+        bound().openCommunityNoteAbout(note);
+        expect(mockNoteSheets.openAbout).toHaveBeenCalledWith(note);
+    });
+
+    it('offers "Add community note" to a non-owner only when a writer is configured', () => {
+        mockNoteSheets.canWrite = true;
+        const commands = bound();
+        commands.openMenu({ post: post('n'), isPostDetail: false, onOpenArticle: jest.fn() });
+        const groups = (mockShowActionMenu.mock.calls[0][0] as { groups: { label: string; onPress: () => void }[][] }).groups.flat();
+        const add = groups.find((action) => action.label === 'Add community note');
+        expect(add).toBeDefined();
+        add?.onPress();
+        expect(mockNoteSheets.openWriteFlow).toHaveBeenCalled();
+
+        mockShowActionMenu.mockClear();
+        mockStore.posts.set('own', post('own', { isOwner: true }));
+        commands.openMenu({ post: post('own'), isPostDetail: false, onOpenArticle: jest.fn() });
+        const ownerLabels = (mockShowActionMenu.mock.calls[0][0] as { groups: { label: string }[][] }).groups.flat().map((a) => a.label);
+        expect(ownerLabels).not.toContain('Add community note');
     });
 });

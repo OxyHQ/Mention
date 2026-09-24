@@ -2,27 +2,45 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 35.77,
-      "covered": 9398,
-      "total": 26271
+      "pct": 36.7,
+      "covered": 9678,
+      "total": 26369
     },
     "branches": {
-      "pct": 30.77,
-      "covered": 5861,
-      "total": 19043
+      "pct": 31.4,
+      "covered": 5995,
+      "total": 19087
     },
     "functions": {
-      "pct": 30.99,
-      "covered": 2068,
-      "total": 6673
+      "pct": 31.7,
+      "covered": 2131,
+      "total": 6721
     },
     "lines": {
-      "pct": 36.52,
-      "covered": 8596,
-      "total": 23537
+      "pct": 37.51,
+      "covered": 8856,
+      "total": 23609
     }
   },
   "pins": {
+    "components/Feed/PostInteractionsBinder.tsx": {
+      "statements": 82,
+      "branches": 83,
+      "functions": 53,
+      "lines": 88
+    },
+    "components/Feed/postInteractions.tsx": {
+      "statements": 97,
+      "branches": 77,
+      "functions": 100,
+      "lines": 97
+    },
+    "components/Feed/postMenuActions.tsx": {
+      "statements": 85,
+      "branches": 81,
+      "functions": 56,
+      "lines": 93
+    },
     "components/providers/AccountSwitchReset.tsx": {
       "statements": 98,
       "branches": 94,
@@ -407,19 +425,7 @@
       "functions": 0,
       "lines": 0
     },
-    "hooks/usePostActions.tsx": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
     "hooks/usePostActivity.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/usePostBoost.ts": {
       "statements": 0,
       "branches": 0,
       "functions": 0,
@@ -427,7 +433,7 @@
     },
     "hooks/usePostLanguage.ts": {
       "statements": 100,
-      "branches": 90,
+      "branches": 91,
       "functions": 100,
       "lines": 100
     },
@@ -437,25 +443,7 @@
       "functions": 100,
       "lines": 100
     },
-    "hooks/usePostLike.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/usePostSave.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
-    },
     "hooks/usePostShare.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
-    },
-    "hooks/usePostVote.ts": {
       "statements": 0,
       "branches": 0,
       "functions": 0,
@@ -558,10 +546,10 @@
       "lines": 0
     },
     "hooks/useSafeBack.ts": {
-      "statements": 0,
+      "statements": 40,
       "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "functions": 50,
+      "lines": 40
     },
     "hooks/useScheduleManager.ts": {
       "statements": 85,
@@ -1134,8 +1122,8 @@
       "lines": 0
     },
     "stores/identityUpdates.ts": {
-      "statements": 94,
-      "branches": 93,
+      "statements": 99,
+      "branches": 98,
       "functions": 100,
       "lines": 100
     },

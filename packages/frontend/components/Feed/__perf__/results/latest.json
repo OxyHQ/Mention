@@ -7,114 +7,114 @@
   },
   "kinds": {
     "text": {
-      "mountMsPerRow": 5.25,
-      "recycleMsPerRow": 2.25,
+      "mountMsPerRow": 4.75,
+      "recycleMsPerRow": 2.375,
       "hostNodesPerRow": 50.125,
       "componentsPerRow": 188,
-      "hooksPerRow": 427,
-      "contextReadsPerRow": 48,
+      "hooksPerRow": 342,
+      "contextReadsPerRow": 39,
       "rendersPerMount": 1,
       "requestsPerRow": 0,
-      "queryObserversPerRow": 1
+      "queryObserversPerRow": 0
     },
     "textAvatar": {
-      "mountMsPerRow": 4.625,
-      "recycleMsPerRow": 2.75,
+      "mountMsPerRow": 5,
+      "recycleMsPerRow": 3.125,
       "hostNodesPerRow": 49.125,
       "componentsPerRow": 185,
-      "hooksPerRow": 427,
-      "contextReadsPerRow": 48,
+      "hooksPerRow": 342,
+      "contextReadsPerRow": 39,
       "rendersPerMount": 1,
       "requestsPerRow": 1,
-      "queryObserversPerRow": 1
+      "queryObserversPerRow": 0
     },
     "image": {
-      "mountMsPerRow": 4.25,
+      "mountMsPerRow": 3.875,
       "recycleMsPerRow": 2.375,
       "hostNodesPerRow": 57.125,
       "componentsPerRow": 212,
-      "hooksPerRow": 493,
-      "contextReadsPerRow": 50,
+      "hooksPerRow": 408,
+      "contextReadsPerRow": 41,
       "rendersPerMount": 1,
       "requestsPerRow": 1,
-      "queryObserversPerRow": 1
+      "queryObserversPerRow": 0
     },
     "multiImage": {
-      "mountMsPerRow": 4.625,
+      "mountMsPerRow": 5.25,
       "recycleMsPerRow": 3.875,
       "hostNodesPerRow": 72.125,
       "componentsPerRow": 263,
-      "hooksPerRow": 574,
-      "contextReadsPerRow": 56,
+      "hooksPerRow": 489,
+      "contextReadsPerRow": 47,
       "rendersPerMount": 1,
       "requestsPerRow": 1,
-      "queryObserversPerRow": 1
+      "queryObserversPerRow": 0
     },
     "video": {
-      "mountMsPerRow": 4.25,
-      "recycleMsPerRow": 2.375,
+      "mountMsPerRow": 5.125,
+      "recycleMsPerRow": 2.625,
       "hostNodesPerRow": 62.125,
       "componentsPerRow": 230,
-      "hooksPerRow": 549,
-      "contextReadsPerRow": 51,
+      "hooksPerRow": 464,
+      "contextReadsPerRow": 42,
       "rendersPerMount": 1,
       "requestsPerRow": 1,
-      "queryObserversPerRow": 1
+      "queryObserversPerRow": 0
     },
     "linkPreview": {
-      "mountMsPerRow": 4.625,
-      "recycleMsPerRow": 2.375,
+      "mountMsPerRow": 4,
+      "recycleMsPerRow": 3.25,
       "hostNodesPerRow": 57.125,
       "componentsPerRow": 210,
-      "hooksPerRow": 480,
-      "contextReadsPerRow": 53,
+      "hooksPerRow": 395,
+      "contextReadsPerRow": 44,
       "rendersPerMount": 1,
       "requestsPerRow": 1,
-      "queryObserversPerRow": 1
+      "queryObserversPerRow": 0
     },
     "quote": {
-      "mountMsPerRow": 5.125,
-      "recycleMsPerRow": 3.5,
+      "mountMsPerRow": 4.625,
+      "recycleMsPerRow": 3.75,
       "hostNodesPerRow": 74.125,
       "componentsPerRow": 264,
-      "hooksPerRow": 756,
-      "contextReadsPerRow": 73,
+      "hooksPerRow": 586,
+      "contextReadsPerRow": 55,
       "rendersPerMount": 1,
       "requestsPerRow": 2,
-      "queryObserversPerRow": 2
+      "queryObserversPerRow": 0
     },
     "repost": {
       "mountMsPerRow": 4.375,
-      "recycleMsPerRow": 2.375,
+      "recycleMsPerRow": 2.25,
       "hostNodesPerRow": 55.125,
       "componentsPerRow": 207,
-      "hooksPerRow": 446,
-      "contextReadsPerRow": 51,
+      "hooksPerRow": 361,
+      "contextReadsPerRow": 42,
       "rendersPerMount": 1,
       "requestsPerRow": 1,
-      "queryObserversPerRow": 1
+      "queryObserversPerRow": 0
     },
     "poll": {
-      "mountMsPerRow": 16,
-      "recycleMsPerRow": 11.125,
+      "mountMsPerRow": 5,
+      "recycleMsPerRow": 2.25,
       "hostNodesPerRow": 61.125,
       "componentsPerRow": 213,
-      "hooksPerRow": 461,
-      "contextReadsPerRow": 48,
+      "hooksPerRow": 376,
+      "contextReadsPerRow": 39,
       "rendersPerMount": 1,
       "requestsPerRow": 1,
-      "queryObserversPerRow": 1
+      "queryObserversPerRow": 0
     },
     "communityNote": {
-      "mountMsPerRow": 15.875,
-      "recycleMsPerRow": 9.375,
+      "mountMsPerRow": 4.125,
+      "recycleMsPerRow": 2.25,
       "hostNodesPerRow": 61.125,
       "componentsPerRow": 218,
-      "hooksPerRow": 471,
-      "contextReadsPerRow": 50,
+      "hooksPerRow": 386,
+      "contextReadsPerRow": 41,
       "rendersPerMount": 1,
       "requestsPerRow": 1,
-      "queryObserversPerRow": 1
+      "queryObserversPerRow": 0
     }
   },
   "isolation": {
@@ -127,10 +127,10 @@
   "fling": {
     "postsVisited": 200,
     "window": 12,
-    "msTotal": 601,
+    "msTotal": 757,
     "requests": 198,
     "translationRequests": 0,
-    "maxQueryObservers": 14,
+    "maxQueryObservers": 0,
     "req PREFETCH /avatars/:asset": 198
   }
 }

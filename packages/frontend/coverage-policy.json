@@ -70,6 +70,15 @@
         "utils/**/*.ts",
         "utils/**/*.tsx"
       ]
+    },
+    {
+      "id": "post-interactions",
+      "why": "A feed row's commands: engagement writes, the ⋯ menu and what each viewer may do to a post. Components by location, logic by content (#1103 moved them out of hooks/).",
+      "include": [
+        "components/Feed/postInteractions.tsx",
+        "components/Feed/PostInteractionsBinder.tsx",
+        "components/Feed/postMenuActions.tsx"
+      ]
     }
   ],
   "globalExcludes": [
@@ -97,11 +106,9 @@
       "lib/actorCache.ts"
     ],
     "composer and post mutations": [
-      "hooks/usePostSave.ts",
-      "hooks/usePostLike.ts",
-      "hooks/usePostBoost.ts",
-      "hooks/usePostVote.ts",
-      "hooks/usePostActions.tsx",
+      "components/Feed/postInteractions.tsx",
+      "components/Feed/PostInteractionsBinder.tsx",
+      "components/Feed/postMenuActions.tsx",
       "stores/postsStore.ts",
       "utils/postBuilder.ts"
     ],
@@ -149,26 +156,6 @@
     "clearing the bar is reported as a failure until it is deleted."
   ],
   "belowBarExemptions": {
-    "hooks/usePostLike.ts": {
-      "since": "2026-08-15",
-      "measured": "0%",
-      "reason": "No direct test, so nothing loads the file. hooks/__tests__/usePostSave.test.tsx holds its covered sibling at 100% and is the shape to copy."
-    },
-    "hooks/usePostBoost.ts": {
-      "since": "2026-08-15",
-      "measured": "0%",
-      "reason": "No direct test, so nothing loads the file. Its two covered siblings are usePostSave (100%) and usePostLanguage (87%); stores/__tests__/engagementInvalidationWiring.test.ts asserts the invalidation wiring separately, not this hook."
-    },
-    "hooks/usePostVote.ts": {
-      "since": "2026-08-15",
-      "measured": "0%",
-      "reason": "No direct test, so nothing loads the file. AGENTS.md names it as one of the two call sites that write invalidation through the store rather than through the engagement hooks, so a regression here is invisible to the hook-level tests."
-    },
-    "hooks/usePostActions.tsx": {
-      "since": "2026-08-15",
-      "measured": "0%",
-      "reason": "No direct test, so nothing loads the file. It carries the channel-post and edit-window branch that decides which actions a post offers (isChannelPost, around line 184), which is the part worth asserting first."
-    },
     "stores/postsStore.ts": {
       "since": "2026-08-15",
       "measured": "47.85% statements / 29.93% branches",
@@ -281,11 +268,11 @@
     "one defensible line at a time, and a bound cannot tell growth from shrinkage."
   ],
   "expectedCounts": {
-    "domainFiles": 254,
-    "pins": 251,
+    "domainFiles": 252,
+    "pins": 249,
     "unenforceable": 3,
-    "belowBarExemptions": 15,
-    "criticalPaths": 34,
+    "belowBarExemptions": 11,
+    "criticalPaths": 32,
     "allowedBaselineDecreases": 0,
     "snapshotAssertions": 0
   }
