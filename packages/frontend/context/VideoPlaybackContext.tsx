@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -92,6 +93,44 @@ function getForegroundServerSnapshot(): boolean {
   return true;
 }
 
+/**
+ * A value with keyed readers, outside React state.
+ *
+ * Both high-frequency inputs — the audible slot and a list's viewable set — change
+ * on scroll, and a Context carrying either wakes EVERY mounted player (FlashList
+ * render-ahead keeps far more mounted than are on screen). Measured with twenty
+ * memoized players: one row scrolling into view re-rendered all twenty-one, and a
+ * scroll step rendered each of them twice (#1103 §13). Instead each player reads
+ * its OWN slice through `useSyncExternalStore` — "am I active", "what is my rank"
+ * — and React skips the re-render when that slice did not change.
+ */
+interface Store<T> {
+  get: () => T;
+  set: (next: T) => void;
+  subscribe: (onStoreChange: () => void) => () => void;
+}
+
+function createStore<T>(initial: T): Store<T> {
+  let current = initial;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => current,
+    set: (next) => {
+      if (Object.is(next, current)) return;
+      current = next;
+      for (const listener of listeners) listener();
+    },
+    subscribe: (onStoreChange) => {
+      listeners.add(onStoreChange);
+      return () => {
+        listeners.delete(onStoreChange);
+      };
+    },
+  };
+}
+
+const subscribeNothing = (): (() => void) => () => {};
+
 interface PlayerRegistration {
   /** Silent players (GIF mode) never compete for the single audible slot. */
   silent: boolean;
@@ -127,8 +166,11 @@ interface PlayerRegistration {
 }
 
 interface VideoPlaybackContextValue {
-  /** The single player allowed to be audible, or `null` when nothing qualifies. */
-  activeId: string | null;
+  /**
+   * The single player allowed to be audible, or `null` when nothing qualifies.
+   * A store, not a value: a new winner wakes only the old and the new one.
+   */
+  active: Store<string | null>;
   foreground: boolean;
   publish: (id: string, registration: PlayerRegistration) => void;
   unpublish: (id: string) => void;
@@ -142,7 +184,8 @@ VideoPlaybackContext.displayName = 'VideoPlaybackContext';
  * What the nearest viewability owner says about the players below it.
  *
  * - `keys` — a list publishing everything currently on screen as `key → index in
- *   on-screen order`. A player matches by its own `viewabilityKey`.
+ *   on-screen order`. A player matches by its own `viewabilityKey`, and reads only
+ *   its own rank from the store, so a row entering view wakes that row alone.
  * - `scope` — one already-resolved answer for a whole subtree, used where the
  *   list renders players it cannot address by key (its `ListHeaderComponent`, a
  *   non-post row such as a profile's pinned post).
@@ -150,11 +193,23 @@ VideoPlaybackContext.displayName = 'VideoPlaybackContext';
  * `null` means no owner at all, which is the only case that resolves to visible.
  */
 type ViewabilitySource =
-  | { kind: 'keys'; order: ReadonlyMap<string, number> }
+  | { kind: 'keys'; order: Store<ReadonlyMap<string, number>> }
   | { kind: 'scope'; visible: boolean; order: number };
 
 const VideoViewabilityContext = createContext<ViewabilitySource | null>(null);
 VideoViewabilityContext.displayName = 'VideoViewabilityContext';
+
+/**
+ * The rank `key` holds in the nearest KEY source, subscribed to that one key: the
+ * caller re-renders only when its own rank changes, not whenever the set does.
+ * `undefined` = not on screen, or no key source to be on screen in.
+ */
+function useKeyRank(source: ViewabilitySource | null, key: string | undefined): number | undefined {
+  const order = source?.kind === 'keys' ? source.order : null;
+  const read = (): number | undefined =>
+    order === null || key === undefined ? undefined : order.get().get(key);
+  return useSyncExternalStore(order === null ? subscribeNothing : order.subscribe, read, read);
+}
 
 /**
  * Native visibility + the audible-slot ordering for one player, resolved from
@@ -163,16 +218,15 @@ VideoViewabilityContext.displayName = 'VideoViewabilityContext';
  */
 function resolveNativeVisibility(
   source: ViewabilitySource | null,
-  viewabilityKey: string | undefined,
+  keyRank: number | undefined,
 ): { visible: boolean; order: number } {
   if (source === null) return { visible: true, order: 0 };
   if (source.kind === 'scope') return { visible: source.visible, order: source.order };
-  const rank = viewabilityKey === undefined ? undefined : source.order.get(viewabilityKey);
-  return { visible: rank !== undefined, order: rank ?? 0 };
+  return { visible: keyRank !== undefined, order: keyRank ?? 0 };
 }
 
 export function VideoPlaybackProvider({ children }: { children: React.ReactNode }): React.ReactElement {
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [active] = useState(() => createStore<string | null>(null));
   const foreground = useSyncExternalStore(
     subscribeForeground,
     getForegroundSnapshot,
@@ -181,7 +235,7 @@ export function VideoPlaybackProvider({ children }: { children: React.ReactNode 
 
   // Mounted players and the viewer's manual override live outside React state on
   // purpose: registrations churn while scrolling and must not re-render the tree.
-  // Only the resulting `activeId` does.
+  // Only the resulting winner does, and only for the players it concerns.
   const playersRef = useRef<Map<string, PlayerRegistration>>(new Map());
   const manualIdRef = useRef<string | null>(null);
 
@@ -205,7 +259,7 @@ export function VideoPlaybackProvider({ children }: { children: React.ReactNode 
       }
     }
     if (sessionId !== null) {
-      setActiveId(sessionId);
+      active.set(sessionId);
       return;
     }
 
@@ -216,7 +270,7 @@ export function VideoPlaybackProvider({ children }: { children: React.ReactNode 
     if (manualId !== null) {
       const manual = players.get(manualId);
       if (manual && manual.eligible && !manual.silent) {
-        setActiveId(manualId);
+        active.set(manualId);
         return;
       }
       manualIdRef.current = null;
@@ -245,8 +299,8 @@ export function VideoPlaybackProvider({ children }: { children: React.ReactNode 
     }
     // No visible audible candidate — e.g. the viewer scrolled past the last
     // video — so NOTHING plays until one reports itself visible again.
-    setActiveId(bestId);
-  }, []);
+    active.set(bestId);
+  }, [active]);
 
   const publish = useCallback(
     (id: string, registration: PlayerRegistration) => {
@@ -273,8 +327,8 @@ export function VideoPlaybackProvider({ children }: { children: React.ReactNode 
   );
 
   const value = useMemo<VideoPlaybackContextValue>(
-    () => ({ activeId, foreground, publish, unpublish, claimActive }),
-    [activeId, foreground, publish, unpublish, claimActive],
+    () => ({ active, foreground, publish, unpublish, claimActive }),
+    [active, foreground, publish, unpublish, claimActive],
   );
 
   return (
@@ -282,6 +336,16 @@ export function VideoPlaybackProvider({ children }: { children: React.ReactNode 
       {children}
     </VideoPlaybackContext.Provider>
   );
+}
+
+function rankKeys(keys: ReadonlySet<string>): ReadonlyMap<string, number> {
+  const order = new Map<string, number>();
+  let index = 0;
+  for (const key of keys) {
+    order.set(key, index);
+    index += 1;
+  }
+  return order;
 }
 
 /** Mounted by a list that owns viewability for the players inside it (native feeds). */
@@ -294,15 +358,20 @@ export function VideoViewabilityProvider({
 }): React.ReactElement {
   // A `Set` keeps insertion order, so the publisher's order (top of the list
   // first) becomes the index a player is ranked by for the audible slot.
-  const source = useMemo<ViewabilitySource>(() => {
-    const order = new Map<string, number>();
-    let index = 0;
-    for (const key of viewableKeys) {
-      order.set(key, index);
-      index += 1;
-    }
-    return { kind: 'keys', order };
-  }, [viewableKeys]);
+  const ranks = useMemo(() => rankKeys(viewableKeys), [viewableKeys]);
+
+  // The Context value is created ONCE and never changes: a new viewable set is
+  // pushed through the store instead, so it reaches only the players whose own
+  // rank moved. Seeded from the first set so the first render already resolves.
+  const [source] = useState<ViewabilitySource & { kind: 'keys' }>(() => ({
+    kind: 'keys',
+    order: createStore(ranks),
+  }));
+  // Layout, not passive: the new set must land in the same commit that produced
+  // it, or a scrolled-away player would keep its slot for a frame.
+  useLayoutEffect(() => {
+    source.order.set(ranks);
+  }, [source, ranks]);
 
   return (
     <VideoViewabilityContext.Provider value={source}>
@@ -331,10 +400,13 @@ export function VideoViewabilityScope({
   children: React.ReactNode;
 }): React.ReactElement {
   const source = useContext(VideoViewabilityContext);
-  const scope = useMemo<ViewabilitySource>(() => {
-    const rank = source?.kind === 'keys' ? source.order.get(viewabilityKey) : undefined;
-    return { kind: 'scope', visible: rank !== undefined, order: rank ?? 0 };
-  }, [source, viewabilityKey]);
+  // Subscribed to this scope's OWN key: rows moving below the header do not
+  // re-render the header's players, only the header's own rank does.
+  const rank = useKeyRank(source, viewabilityKey);
+  const scope = useMemo<ViewabilitySource>(
+    () => ({ kind: 'scope', visible: rank !== undefined, order: rank ?? 0 }),
+    [rank],
+  );
 
   return (
     <VideoViewabilityContext.Provider value={scope}>
@@ -394,9 +466,13 @@ export function useVideoPlayback({
   if (!authority) {
     throw new Error('useVideoPlayback must be used inside a <VideoPlaybackProvider>');
   }
-  const { activeId, foreground, publish, unpublish, claimActive: claimActiveById } = authority;
+  const { active, foreground, publish, unpublish, claimActive: claimActiveById } = authority;
+  // This player's own slice of the election, so a new winner wakes two players.
+  const readIsActive = (): boolean => active.get() === id;
+  const isActive = useSyncExternalStore(active.subscribe, readIsActive, readIsActive);
 
   const viewabilitySource = useContext(VideoViewabilityContext);
+  const keyRank = useKeyRank(viewabilitySource, viewabilityKey);
   const screenFocused = useIsFocused();
 
   const [webVisibility, setWebVisibility] = useState<WebVisibility>(UNOBSERVED);
@@ -410,7 +486,7 @@ export function useVideoPlayback({
 
   // Visibility resolution: web → strictly the player's own observer; native →
   // the nearest viewability owner (see `resolveNativeVisibility`).
-  const native = resolveNativeVisibility(viewabilitySource, viewabilityKey);
+  const native = resolveNativeVisibility(viewabilitySource, keyRank);
   const visible = IS_WEB ? webVisibility.isIntersecting : native.visible;
   const order = IS_WEB ? webVisibility.y : native.order;
   // A session owner is eligible whatever the layout reports about it: the screen
@@ -433,7 +509,7 @@ export function useVideoPlayback({
   const claimActive = useCallback(() => claimActiveById(id), [claimActiveById, id]);
 
   const shouldPlay =
-    eligible && (foreground || ownsSession) && (silent || activeId === id);
+    eligible && (foreground || ownsSession) && (silent || isActive);
 
   return { shouldPlay, claimActive, reportVisibility };
 }
