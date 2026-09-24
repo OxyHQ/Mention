@@ -124,6 +124,7 @@ jest.mock('@/components/Channels/ChannelInfoDialog', () => ({
   ChannelInfoDialogProvider: () => null,
 }));
 jest.mock('@/components/providers/LiveFeatureProviders', () => ({ LiveFeatureHost: () => null }));
+jest.mock('@/components/providers/LivePresencePoller', () => ({ LivePresencePoller: () => null }));
 /**
  * Pass-through, like the siblings above: this provider resolves the
  * community-note handlers, which reaches the API client and the Oxy session SDK

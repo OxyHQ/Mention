@@ -19,6 +19,7 @@ import { searchService } from '@/services/searchService';
 import { socketService } from '@/services/socketService';
 import { liveRoomRuntimeController } from '@/context/LiveRoomContext';
 import { claimViewerCache } from '@/db';
+import { getLiveRoomId, setLivePresence } from '@/stores/livePresenceStore';
 import { AccountSwitchReset } from '../AccountSwitchReset';
 
 const mockLocale: { language: string | undefined } = { language: 'en-US' };
@@ -291,6 +292,9 @@ describe('AccountSwitchReset identity boundary', () => {
     act(() => {
       renderer = TestRenderer.create(renderBoundary());
     });
+    // Viewer A's live-presence snapshot.
+    setLivePresence([{ userId: 'live-host', roomId: 'room-a' }]);
+    expect(getLiveRoomId('live-host')).toBe('room-a');
 
     mockUser = { id: 'viewer-b' };
     act(() => {
@@ -299,6 +303,7 @@ describe('AccountSwitchReset identity boundary', () => {
 
     expect(mockQueryClientClear).toHaveBeenCalledTimes(1);
     expect(mockResetPosts).toHaveBeenCalledTimes(1);
+    expect(getLiveRoomId('live-host')).toBeUndefined();
     expect(mockSetFeedViewerRequestScope).toHaveBeenLastCalledWith('viewer-b');
     expect(mockDisconnectSocket).toHaveBeenCalledTimes(1);
 

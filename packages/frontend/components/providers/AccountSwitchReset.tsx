@@ -17,6 +17,7 @@ import { usePrivacyStore } from '@/stores/privacyStore';
 import { useEntityFollowStore } from '@/stores/entityFollowStore';
 import { useExternalEmbedsStore } from '@/stores/externalEmbedsStore';
 import { useLiveRoomsStore } from '@/stores/liveRoomsStore';
+import { resetLivePresence } from '@/stores/livePresenceStore';
 import { useTrendsStore } from '@/stores/trendsStore';
 import { clearAllFeedMemoryCaches } from '@/stores/feedScrollStore';
 import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
@@ -116,6 +117,7 @@ export function AccountSwitchReset({
       .getState()
       .resetViewerState(previousViewerId ?? undefined);
     useLiveRoomsStore.getState().resetViewerState();
+    resetLivePresence();
     useTrendsStore.getState().resetViewerState();
     clearAllFeedMemoryCaches();
     // The previous viewer's engagements say nothing about the next viewer's
