@@ -30,11 +30,18 @@ jest.mock('@oxy.so/bloom/loading', () => ({ Loading: 'Loading' }));
 
 jest.mock('@/components/ui/Spinner', () => ({ Spinner: 'Spinner' }));
 
-jest.mock('@expo/vector-icons/Ionicons', () => 'Ionicons');
+// Bloom draws the block now; keep it as a host element so the assertions below
+// read the DECISION (which glyph, which copy, whether a retry is offered)
+// rather than Bloom's internal layout.
+jest.mock('@oxy.so/bloom/empty-state', () => ({ EmptyState: 'BloomEmptyState' }));
 
 jest.mock('@oxy.so/bloom/button', () => ({ Button: 'Button' }));
 
-jest.mock('@oxy.so/bloom/icons', () => ({ RiRefreshLine: 'RiRefreshLine' }));
+// NOT mocked: `package.json` maps the barrel AND every `@oxy.so/bloom/icons/Ri*`
+// subpath to the same `test-support/bloomIcons.js`, so a `jest.mock` of the
+// barrel replaces the module the per-glyph imports resolve to as well — every
+// glyph the factory does not list silently becomes `undefined`. The shared
+// stand-in already names each one through `displayName`.
 
 function render(props: Partial<React.ComponentProps<typeof FeedEmptyState>>) {
     let tree!: TestRenderer.ReactTestRenderer;
@@ -58,25 +65,35 @@ function isElement(node: TestRenderer.ReactTestInstance, name: string): boolean 
     return String(node.type) === name;
 }
 
-/** Every icon name the tree renders, whatever nests it. */
-function iconNames(tree: TestRenderer.ReactTestRenderer): string[] {
-    return tree.root
-        .findAll((node) => isElement(node, 'Ionicons'), { deep: true })
-        .map((node) => String(node.props.name));
+/** Every empty-state block the tree renders. */
+function blocks(tree: TestRenderer.ReactTestRenderer): TestRenderer.ReactTestInstance[] {
+    return tree.root.findAll((node) => isElement(node, 'BloomEmptyState'), { deep: true });
 }
 
-/** The retry affordance: a Bloom button leading with the refresh glyph. */
+/**
+ * Every glyph the tree draws, by name. `@oxy.so/bloom/icons/Ri*` is mapped to
+ * `test-support/bloomIcons.js`, whose stand-ins carry the glyph's own name as
+ * `displayName` — so this still names the DECISION, as the Ionicons `name` prop
+ * it replaces did.
+ */
+function iconNames(tree: TestRenderer.ReactTestRenderer): string[] {
+    return blocks(tree)
+        .map((node) => node.props.icon)
+        .filter(Boolean)
+        .map((icon: { displayName?: string; name?: string }) => String(icon.displayName ?? icon.name));
+}
+
+/** The retry affordance: the block's action, leading with the refresh glyph. */
 function retryButtons(tree: TestRenderer.ReactTestRenderer): TestRenderer.ReactTestInstance[] {
-    return tree.root.findAll(
-        (node) => isElement(node, 'Button') && node.props.leadingIcon === 'RiRefreshLine',
-        { deep: true },
-    );
+    return blocks(tree).filter((node) => {
+        const action = node.props.action as { icon?: { displayName?: string } } | undefined;
+        return action?.icon?.displayName === 'RiRefreshLine';
+    });
 }
 
 function textContent(tree: TestRenderer.ReactTestRenderer): string {
-    return tree.root
-        .findAll((node) => isElement(node, 'Text'), { deep: true })
-        .flatMap((node) => (Array.isArray(node.props.children) ? node.props.children : [node.props.children]))
+    return blocks(tree)
+        .flatMap((node) => [node.props.title, node.props.description])
         .filter((child): child is string => typeof child === 'string')
         .join(' | ');
 }
@@ -99,7 +116,9 @@ describe('FeedEmptyState', () => {
 
     it('keeps the connection icon and copy for a device with no network', () => {
         const tree = render({ error: 'Failed to load', errorKind: 'offline' });
-        expect(iconNames(tree)).toContain('cloud-offline-outline');
+        // `cloud-offline-outline` was the Ionicons name; Bloom ships no cloud-off
+        // glyph, so the connection failure draws the alert triangle.
+        expect(iconNames(tree)).toContain('RiAlertLine');
         expect(textContent(tree)).toContain('No connection. Check your network and try again.');
     });
 

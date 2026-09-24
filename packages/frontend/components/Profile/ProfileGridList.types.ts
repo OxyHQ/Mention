@@ -18,6 +18,7 @@ export interface ProfileGridListProps<T extends ProfileGridEntry> {
     windowSize?: number;
     ownsScroll?: boolean;
     listHeaderComponent?: React.ReactElement | null;
+    listContentHeaderComponent?: React.ReactElement | null;
     listStickyHeaderComponent?: React.ReactElement | null;
     emptyComponent?: React.ReactElement | null;
     contentContainerStyle?: React.ComponentProps<typeof View>['style'];

@@ -66,9 +66,9 @@ dependencies {
   //
   // A HARD project dependency, not a guarded one: the following widget cannot work
   // without it, and a `findProject` guard would only turn a missing dependency into a
-  // compile error further from its cause. `oxyhq-services` is the gradle project name
+  // compile error further from its cause. `oxy-so-services` is the gradle project name
   // expo-modules-autolinking gives `@oxy.so/services`, which Mention always has.
-  implementation project(':oxyhq-services')
+  implementation project(':oxy-so-services')
 
   // The widgets' arithmetic — series normalisation, the row and chip counts, the
   // response parsing — is written to be pure, so it is tested on a plain JVM
