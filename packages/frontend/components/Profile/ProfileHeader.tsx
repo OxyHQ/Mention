@@ -95,7 +95,7 @@ export const ProfileHeader = memo(function ProfileHeader({
   }, [t]);
 
   return (
-    <View className="flex-row justify-between items-end mb-2.5" style={{ marginTop: -45 }}>
+    <View className="flex-row justify-between items-end mb-2.5">
       <View className="relative">
         {isProfileLive ? (
           <Animated.View

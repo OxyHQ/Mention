@@ -42,6 +42,7 @@ interface FeedProps {
     style?: React.ComponentProps<typeof View>['style'];
     contentContainerStyle?: React.ComponentProps<typeof View>['style'];
     listHeaderComponent?: React.ReactElement | null;
+    listContentHeaderComponent?: React.ReactElement | null;
     listStickyHeaderComponent?: React.ReactElement | null;
     listLeadingComponent?: React.ReactElement | null;
     threaded?: boolean;
