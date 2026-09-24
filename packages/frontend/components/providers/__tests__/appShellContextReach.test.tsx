@@ -7,6 +7,7 @@ import { AppProviders } from '../AppProviders';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useVideoPlayback } from '@/context/VideoPlaybackContext';
 import { useDrawer } from '@/context/DrawerContext';
+import { usePostInteractions, type PostInteractions } from '@/components/Feed/postInteractions';
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
 
@@ -116,6 +117,11 @@ jest.mock('@/context/LiveRoomContext', () => ({
 
 jest.mock('@/components/common/ConfirmPrompt', () => ({ ConfirmPromptProvider: () => null }));
 jest.mock('@/components/common/ActionMenu', () => ({ ActionMenuHost: () => null }));
+// The binder resolves the session SDK and the menu's services; the controller it
+// binds INTO is the real one, and that is what the reach case below pins.
+jest.mock('@/components/Feed/PostInteractionsBinder', () => ({ PostInteractionsBinder: () => null }));
+jest.mock('@/hooks/usePostShare', () => ({ sharePost: jest.fn() }));
+jest.mock('@/stores/postsStore', () => ({ usePostsStore: { getState: () => ({}) } }));
 jest.mock('@/components/common/ContentDialog', () => ({ ContentDialogHost: () => null }));
 jest.mock('@/components/Fediverse/FediverseInfoDialog', () => ({
   FediverseInfoDialogProvider: () => null,
@@ -223,5 +229,42 @@ describe('app-shell contexts reach hoisted content', () => {
     );
 
     expect(sheetSawOpen).toBe(true);
+  });
+
+  it('gives a post rendered in a sheet the app post-interaction controller', () => {
+    // Feed rows issue every command through one controller (#1103). The sheet
+    // renders its content at the BottomSheetProvider's depth, so a post shown
+    // in a sheet only reaches the controller if its provider sits above that —
+    // below it, the row would silently get the unbound fallback.
+    let fromTree: PostInteractions | undefined;
+    let fromSheet: PostInteractions | undefined;
+    let outsideApp: PostInteractions | undefined;
+
+    const TreeProbe = () => {
+      fromTree = usePostInteractions();
+      return null;
+    };
+    const SheetProbe = () => {
+      fromSheet = usePostInteractions();
+      return null;
+    };
+    const OutsideProbe = () => {
+      outsideApp = usePostInteractions();
+      return null;
+    };
+
+    renderApp(
+      <>
+        <TreeProbe />
+        <SheetPusher content={<SheetProbe />} />
+      </>,
+    );
+    act(() => {
+      TestRenderer.create(<OutsideProbe />);
+    });
+
+    expect(fromSheet).toBeDefined();
+    expect(fromSheet).toBe(fromTree);
+    expect(fromSheet).not.toBe(outsideApp);
   });
 });

@@ -1,7 +1,7 @@
-import React, { lazy, Suspense, useCallback, useContext } from 'react';
+import React, { lazy, Suspense, useContext, useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import type { CommunityNoteRating, CommunityNoteSummary, HydratedPostSummary } from '@mention/shared-types';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import { BottomSheetContext, type BottomSheetContextProps } from '@/context/BottomSheetContext';
 import { openExternalLink } from '@/utils/openExternalLink';
 import type { CommunityNoteDraft } from './WriteNoteSheet';
 
@@ -26,6 +26,19 @@ export interface CommunityNoteWriteHandlers {
   rateNote?: (noteId: string, rating: CommunityNoteRating, reasons: string[]) => Promise<void>;
 }
 
+export interface CommunityNoteSheets {
+  openWriteFlow: (post: HydratedPostSummary) => void;
+  openRateReasons: (
+    note: CommunityNoteSummary,
+    rating: CommunityNoteRating,
+    onRated?: (rating: CommunityNoteRating) => void,
+  ) => void;
+  openAbout: (note: CommunityNoteSummary) => void;
+  openManageNotes: () => void;
+  canWrite: boolean;
+  canRate: boolean;
+}
+
 /**
  * The community-note flows, as bottom sheets swapped in place in the app's one
  * sheet:
@@ -36,83 +49,79 @@ export interface CommunityNoteWriteHandlers {
  *
  * Writes are the caller's (`handlers`): CrowdSource owns notes, and the sheets
  * only collect what the reader chose.
+ *
+ * A plain factory, not a hook: feed rows reach it through the shared
+ * `usePostInteractions()` controller, built once for the app, so a row pays for
+ * none of these closures (issue #1103). Screens that own the flows directly use
+ * the `useCommunityNoteSheets` wrapper below.
  */
-export function useCommunityNoteSheets(handlers: CommunityNoteWriteHandlers = {}) {
-  const bottomSheet = useContext(BottomSheetContext);
-  const router = useRouter();
+export function createCommunityNoteSheets({
+  bottomSheet,
+  router,
+  handlers = {},
+}: {
+  bottomSheet: BottomSheetContextProps;
+  router: ReturnType<typeof useRouter>;
+  handlers?: CommunityNoteWriteHandlers;
+}): CommunityNoteSheets {
   const { submitNote, rateNote } = handlers;
 
-  const close = useCallback(() => bottomSheet.openBottomSheet(false), [bottomSheet]);
+  const close = () => bottomSheet.openBottomSheet(false);
 
-  const show = useCallback(
-    (content: React.ReactNode, scrollable = false) => {
-      bottomSheet.setBottomSheetContent(<Suspense fallback={null}>{content}</Suspense>, { scrollable });
-      bottomSheet.openBottomSheet(true);
-    },
-    [bottomSheet],
-  );
+  const show = (content: React.ReactNode, scrollable = false) => {
+    bottomSheet.setBottomSheetContent(<Suspense fallback={null}>{content}</Suspense>, { scrollable });
+    bottomSheet.openBottomSheet(true);
+  };
 
-  const openManageNotes = useCallback(() => {
+  const openManageNotes = () => {
     close();
     router.push(COMMUNITY_NOTES_ROUTE);
-  }, [close, router]);
+  };
 
-  const openWriteForm = useCallback(
-    (post: HydratedPostSummary) => {
-      show(
-        <WriteNoteSheet
-          post={post}
-          onClose={close}
-          onSubmit={async (draft) => {
-            await submitNote?.(post.id, draft);
-            show(<NoteSubmittedSheet onDone={close} onManageNotes={openManageNotes} />);
-          }}
-        />,
-        true,
-      );
-    },
-    [show, close, submitNote, openManageNotes],
-  );
+  const openWriteForm = (post: HydratedPostSummary) => {
+    show(
+      <WriteNoteSheet
+        post={post}
+        onClose={close}
+        onSubmit={async (draft) => {
+          await submitNote?.(post.id, draft);
+          show(<NoteSubmittedSheet onDone={close} onManageNotes={openManageNotes} />);
+        }}
+      />,
+      true,
+    );
+  };
 
-  const openWriteFlow = useCallback(
-    (post: HydratedPostSummary) => {
-      show(
-        <WritingTipsSheet
-          onClose={close}
-          onContinue={() => openWriteForm(post)}
-          onLearnMore={() => openExternalLink(COMMUNITY_NOTES_HELP_URL)}
-        />,
-      );
-    },
-    [show, close, openWriteForm],
-  );
+  const openWriteFlow = (post: HydratedPostSummary) => {
+    show(
+      <WritingTipsSheet
+        onClose={close}
+        onContinue={() => openWriteForm(post)}
+        onLearnMore={() => openExternalLink(COMMUNITY_NOTES_HELP_URL)}
+      />,
+    );
+  };
 
-  const openRateReasons = useCallback(
-    (note: CommunityNoteSummary, rating: CommunityNoteRating, onRated?: (rating: CommunityNoteRating) => void) => {
-      show(
-        <RateNoteSheet
-          rating={rating}
-          onClose={close}
-          onSubmit={async (reasons) => {
-            await rateNote?.(note.id, rating, reasons);
-            onRated?.(rating);
-            close();
-          }}
-        />,
-      );
-    },
-    [show, close, rateNote],
-  );
+  const openRateReasons: CommunityNoteSheets['openRateReasons'] = (note, rating, onRated) => {
+    show(
+      <RateNoteSheet
+        rating={rating}
+        onClose={close}
+        onSubmit={async (reasons) => {
+          await rateNote?.(note.id, rating, reasons);
+          onRated?.(rating);
+          close();
+        }}
+      />,
+    );
+  };
 
-  const openAbout = useCallback(
-    (note: CommunityNoteSummary) => {
-      show(
-        <AboutNoteSheet note={note} onClose={close} onRate={rateNote ? (rating) => openRateReasons(note, rating) : undefined} />,
-        true,
-      );
-    },
-    [show, close, openRateReasons, rateNote],
-  );
+  const openAbout = (note: CommunityNoteSummary) => {
+    show(
+      <AboutNoteSheet note={note} onClose={close} onRate={rateNote ? (rating) => openRateReasons(note, rating) : undefined} />,
+      true,
+    );
+  };
 
   // A flow is offered only when something can receive what it collects: a
   // "submitted" sheet for a note that went nowhere would lie to the writer.
@@ -124,4 +133,15 @@ export function useCommunityNoteSheets(handlers: CommunityNoteWriteHandlers = {}
     canWrite: Boolean(submitNote),
     canRate: Boolean(rateNote),
   };
+}
+
+/** The flows for a screen that owns them (the notes hub). */
+export function useCommunityNoteSheets(handlers: CommunityNoteWriteHandlers = {}): CommunityNoteSheets {
+  const bottomSheet = useContext(BottomSheetContext);
+  const router = useRouter();
+  const { submitNote, rateNote } = handlers;
+  return useMemo(
+    () => createCommunityNoteSheets({ bottomSheet, router, handlers: { submitNote, rateNote } }),
+    [bottomSheet, router, submitNote, rateNote],
+  );
 }

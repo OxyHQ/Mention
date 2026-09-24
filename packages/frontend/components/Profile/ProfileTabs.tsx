@@ -76,7 +76,7 @@ export const ProfileTabs = memo(function ProfileTabs({
   const { user } = useAuth();
 
   // Pinned post lives in React Query so pin/unpin can invalidate it
-  // (see usePostActions) and the post re-sorts without a profile remount.
+  // (see components/Feed/postMenuActions) and the post re-sorts without a profile remount.
   // Only the posts tab renders the pinned post (see below), so the query is
   // gated to `tab === 'posts'` — otherwise every profile tab fired this fetch.
   // Pin/unpin still invalidates correctly because pinning happens from the

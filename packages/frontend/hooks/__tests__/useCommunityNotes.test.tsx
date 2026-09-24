@@ -240,8 +240,12 @@ describe('the hub', () => {
     });
 
     renderProbe(HubProbe);
-    await settle();
-    await settle();
+    // Same reason as `readyHandlers`: two fixed macrotasks were enough on an
+    // idle machine and not on a loaded CI runner (failed there 2026-09-24).
+    // Settle until the hub has drawn, bounded, then assert what it drew.
+    for (let attempt = 0; attempt < 20 && !(latestHub?.toRate?.length && latestHub?.written?.length); attempt += 1) {
+      await settle();
+    }
 
     expect(mockPost.mock.calls.filter(([path]) => path === '/community-notes/to-rate')).toHaveLength(1);
     expect(latestHub?.toRate).toHaveLength(1);

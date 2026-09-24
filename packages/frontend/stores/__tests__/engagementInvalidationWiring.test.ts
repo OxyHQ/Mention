@@ -7,9 +7,9 @@ import { usePostsStore } from '../postsStore';
  * This is the join between the two halves of the fix and the one place a
  * regression would be silent: the read side keeps working perfectly, the write
  * side simply stops speaking, and every surface goes back to needing a reload.
- * `postsStore` is the single write authority — the three engagement hooks,
- * `usePostVote` and the videos screen all funnel through it — so asserting it
- * here covers all five call sites at once.
+ * `postsStore` is the single write authority — the feed row's commands
+ * (`components/Feed/postInteractions.tsx`) and the videos screen both funnel
+ * through it — so asserting it here covers every call site at once.
  */
 
 const mockPosts = new Map<string, FeedItem>();

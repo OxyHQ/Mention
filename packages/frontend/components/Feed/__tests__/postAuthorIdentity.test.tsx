@@ -55,12 +55,12 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 jest.mock('@/stores/postsStore', () => ({ usePostSelector: () => null }));
-jest.mock('@/hooks/usePostLike', () => ({ usePostLike: () => ({}) }));
-jest.mock('@/hooks/usePostVote', () => ({ usePostVote: () => ({}) }));
-jest.mock('@/hooks/usePostSave', () => ({ usePostSave: () => ({}) }));
-jest.mock('@/hooks/usePostBoost', () => ({ usePostBoost: () => ({}) }));
-jest.mock('@/hooks/usePostShare', () => ({ usePostShare: () => ({}) }));
-jest.mock('@/hooks/usePostActions', () => ({ usePostActions: () => ({}) }));
+// The row's commands come from the app's one controller; these tests are about
+// what the row RENDERS, so the commands are inert.
+jest.mock('../postInteractions', () => {
+  const commands = new Proxy({}, { get: () => () => undefined });
+  return { usePostInteractions: () => commands };
+});
 jest.mock('@/hooks/usePostLanguage', () => ({
   usePostLanguage: () => ({
     options: [],

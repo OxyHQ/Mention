@@ -9,13 +9,16 @@ virtualization findings specifically: `docs/frontend-compiler-notes.md`.
 React Query (the saved screen) and the feed store (every `<Feed>` surface,
 warm-starting a remount from `stores/feedScrollStore` instead of refetching
 page 1) cannot see each other. `stores/engagementInvalidation.ts` is the
-single authority; **do not invalidate from the hooks** — `usePostVote` and
-`app/(app)/videos.tsx` write through the store directly, bypassing
-`usePostSave`/`usePostLike`/`usePostBoost`. There is no query key for
+single authority; **do not invalidate from the callers** — the feed row's
+commands (`components/Feed/postInteractions.tsx`) and `app/(app)/videos.tsx`
+both write through the store directly. There is no query key for
 likes/boosts lists, so `invalidateQueries` there is a no-op. Client-wide
 `refetchOnMount` must stay at the library default.
 
 ## Rules
+
+- **A feed row mounts no controllers.** Every command a row can issue — like, downvote, save, boost, share, the ⋯ menu, sources, insights, community notes — comes from the one app-lifetime controller, `usePostInteractions()` (`components/Feed/postInteractions.tsx`, services bound once by `PostInteractionsBinder` in `AppProviders`). Commands resolve the post from the store when PRESSED; the menu is built then, not per row. Adding a per-row hook for an action the reader might take is the regression #1103 removed; the row-cost harness (`bun run --cwd packages/frontend test:perf`) counts hook slots per row and gates them.
+- **No whole-store subscriptions in row code.** A zustand hook called without a selector re-renders every mounted row on any write to that store. Gate: `validate:feed-hot-path`.
 
 - **Import runtime values from `@mention/shared-types` public subpaths; reserve its root for types.** The CommonJS root also exports MTN protocol schemas, pulling a second, CommonJS Zod runtime beside the ESM runtime already used by the frontend. Use `/job`, `/lane`, `/realtime`, `/communityNotes`, `/post`, `/feed`, or `/mtn/config` as appropriate. Gate: `sharedTypesEntryIsolation.test.ts`; verify the production bundle after changing entry boundaries.
 - **React Query keys and effect deps MUST include `isAuthenticated` / `user?.id`** — SSO restore takes 5–25 s, and keying on `oxyServices` or `[]` fetches once while anonymous and never recovers. Gate private endpoints on `useAuth().canUsePrivateApi`, not just `isAuthenticated` (`usePrivacyControls`'s infinite-401 pattern). Jest does not reproduce this; verify in a real foregrounded tab.

@@ -24,56 +24,60 @@ interface SharePost {
     user?: SharePostUser;
 }
 
-export function usePostShare(post: SharePost | null | undefined) {
-    const sharePost = useCallback(async () => {
-        if (!post) return;
+/**
+ * Share a post through the platform sheet (native) or Web Share / clipboard.
+ * A plain function so a feed row can call it on press without mounting a hook.
+ */
+export async function sharePost(post: SharePost | null | undefined): Promise<void> {
+    if (!post) return;
 
-        try {
-            const postUrl = `https://mention.earth/p/${post.id ?? ''}`;
-            const content = typeof post.content === 'string' ? { text: post.content } : (post.content ?? {});
-            const contentText = content.text ?? post.text ?? '';
-            const user: SharePostUser = post.user ?? {};
-            const id = String(user.id ?? user._id ?? '');
-            const name = user.name?.displayName || 'Someone';
+    try {
+        const postUrl = `https://mention.earth/p/${post.id ?? ''}`;
+        const content = typeof post.content === 'string' ? { text: post.content } : (post.content ?? {});
+        const contentText = content.text ?? post.text ?? '';
+        const user: SharePostUser = post.user ?? {};
+        const id = String(user.id ?? user._id ?? '');
+        const name = user.name?.displayName || 'Someone';
 
-            let handle = getNormalizedUserHandle(user) || '';
-            if (!handle && id) {
-                try {
-                    const cached = queryClient.getQueryData<User>(queryKeys.users.detail(id));
-                    handle = cached?.username || '';
-                } catch (lookupError) {
-                    logger.debug('User lookup failed during share', { error: lookupError });
-                }
+        let handle = getNormalizedUserHandle(user) || '';
+        if (!handle && id) {
+            try {
+                const cached = queryClient.getQueryData<User>(queryKeys.users.detail(id));
+                handle = cached?.username || '';
+            } catch (lookupError) {
+                logger.debug('User lookup failed during share', { error: lookupError });
             }
-            
-            const shareMessage = contentText
-                ? `${name}${handle ? ` (@${handle})` : ''}: ${contentText}`
-                : `${name}${handle ? ` (@${handle})` : ''} shared a post`;
-
-            if (Platform.OS === 'web') {
-                if (navigator.share) {
-                    await navigator.share({
-                        title: `${name} on Mention`,
-                        text: shareMessage,
-                        url: postUrl
-                    });
-                } else {
-                    await navigator.clipboard.writeText(`${shareMessage}\n\n${postUrl}`);
-                    const { alertDialog } = await import('@/utils/alerts');
-                    await alertDialog({ title: 'Link copied', message: 'Post link has been copied to clipboard' });
-                }
-            } else {
-                await Share.share({
-                    message: `${shareMessage}\n\n${postUrl}`,
-                    url: postUrl,
-                    title: `${name} on Mention`
-                });
-            }
-        } catch (error) {
-            logger.error('Error sharing post', error);
-            toast('Failed to share post', { type: 'error' });
         }
-    }, [post]);
+        
+        const shareMessage = contentText
+            ? `${name}${handle ? ` (@${handle})` : ''}: ${contentText}`
+            : `${name}${handle ? ` (@${handle})` : ''} shared a post`;
 
-    return sharePost;
+        if (Platform.OS === 'web') {
+            if (navigator.share) {
+                await navigator.share({
+                    title: `${name} on Mention`,
+                    text: shareMessage,
+                    url: postUrl
+                });
+            } else {
+                await navigator.clipboard.writeText(`${shareMessage}\n\n${postUrl}`);
+                const { alertDialog } = await import('@/utils/alerts');
+                await alertDialog({ title: 'Link copied', message: 'Post link has been copied to clipboard' });
+            }
+        } else {
+            await Share.share({
+                message: `${shareMessage}\n\n${postUrl}`,
+                url: postUrl,
+                title: `${name} on Mention`
+            });
+        }
+    } catch (error) {
+        logger.error('Error sharing post', error);
+        toast('Failed to share post', { type: 'error' });
+    }
+}
+
+export function usePostShare(post: SharePost | null | undefined) {
+    return useCallback(() => sharePost(post), [post]);
 }

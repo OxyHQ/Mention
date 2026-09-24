@@ -30,6 +30,8 @@ import { ChannelInfoDialogProvider } from '@/components/Channels/ChannelInfoDial
 import { LiveFeatureHost } from '@/components/providers/LiveFeatureProviders';
 import { LivePresencePoller } from '@/components/providers/LivePresencePoller';
 import { LiveRoomControllerProvider } from '@/context/LiveRoomContext';
+import { PostInteractionsProvider } from '@/components/Feed/postInteractions';
+import { PostInteractionsBinder } from '@/components/Feed/PostInteractionsBinder';
 import i18n, { setLanguage } from '@/lib/i18n';
 import { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES } from '@/lib/constants';
 import { handleLanguageError } from '@/components/providers/handleLanguageError';
@@ -140,6 +142,11 @@ export const AppProviders = memo(function AppProviders({
                  */}
                 <LayoutScrollProvider>
                   <AppShellProviders>
+                    {/* The feed rows' one command controller (#1103). ABOVE the
+                        sheet provider, so a post rendered inside a sheet still
+                        reaches it; its services are bound from inside the sheet
+                        by <PostInteractionsBinder />. */}
+                    <PostInteractionsProvider>
                     <BottomSheetProvider>
                       <MenuProvider>
                         <AppErrorBoundary
@@ -159,6 +166,7 @@ export const AppProviders = memo(function AppProviders({
                                */}
                               <ConfirmPromptProvider />
                               <ActionMenuHost />
+                              <PostInteractionsBinder />
                               <ContentDialogHost />
                               <FediverseInfoDialogProvider />
                               <ChannelInfoDialogProvider />
@@ -174,6 +182,7 @@ export const AppProviders = memo(function AppProviders({
                         </AppErrorBoundary>
                       </MenuProvider>
                     </BottomSheetProvider>
+                    </PostInteractionsProvider>
                   </AppShellProviders>
                 </LayoutScrollProvider>
               </I18nextProvider>

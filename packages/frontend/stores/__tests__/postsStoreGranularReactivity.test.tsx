@@ -11,10 +11,7 @@ import {
   useUserFeedSelector,
   useViewCountSelector,
 } from '../postsStore';
-import { usePostLike } from '@/hooks/usePostLike';
-import { usePostVote } from '@/hooks/usePostVote';
-import { usePostSave } from '@/hooks/usePostSave';
-import { usePostBoost } from '@/hooks/usePostBoost';
+import { usePostInteractions } from '@/components/Feed/postInteractions';
 
 const mockPosts = new Map<string, FeedItem>();
 const mockFeedIds = new Map<string, string[]>();
@@ -150,6 +147,8 @@ jest.mock('@/services/feedService', () => ({
     unsaveItem: (...args: unknown[]) => mockFeedService.unsaveItem(...args),
   },
 }));
+// The row controller's share command reaches the Oxy SDK; nothing here shares.
+jest.mock('@/hooks/usePostShare', () => ({ sharePost: jest.fn() }));
 jest.mock('@/services/echoGuard', () => ({ markLocalAction: jest.fn() }));
 // List-membership invalidation is a separate authority with its own test
 // (`engagementInvalidationWiring`); it reaches React Query, which does not load
@@ -874,20 +873,16 @@ describe('postsStore server-authoritative counts', () => {
     });
   });
 
-  describe('row action hooks (#1103)', () => {
+  describe('row commands (#1103)', () => {
     /**
-     * Mirrors what a feed row mounts: its own keyed post read plus the four
-     * engagement hooks. The hooks must select their actions, not the store —
-     * a bare usePostsStore() would re-render this probe on every feedUI /
-     * isLoading / error write anywhere in the app.
+     * Mirrors what a feed row mounts: its own keyed post read plus the app's
+     * one command controller. Neither may subscribe to the store as a whole —
+     * that would re-render this probe on every feedUI / isLoading / error write
+     * anywhere in the app.
      */
     function RowProbe({ postId, onRender }: { postId: string; onRender: () => void }) {
-      const post = usePostSelector(postId);
-      const liked = post?.viewerState.isLiked ?? false;
-      usePostLike(postId, liked);
-      usePostVote(postId, liked, post?.viewerState.isDownvoted ?? false);
-      usePostSave(postId, post?.viewerState.isSaved ?? false);
-      usePostBoost(postId, post?.viewerState.isBoosted ?? false);
+      usePostSelector(postId);
+      usePostInteractions();
       onRender();
       return null;
     }
