@@ -24,6 +24,30 @@
     "poll": 213,
     "communityNote": 218
   },
+  "hooksPerRow": {
+    "text": 498,
+    "textAvatar": 498,
+    "image": 665,
+    "multiImage": 746,
+    "video": 620,
+    "linkPreview": 551,
+    "quote": 866,
+    "repost": 517,
+    "poll": 532,
+    "communityNote": 542
+  },
+  "contextReadsPerRow": {
+    "text": 52,
+    "textAvatar": 52,
+    "image": 54,
+    "multiImage": 60,
+    "video": 55,
+    "linkPreview": 57,
+    "quote": 80,
+    "repost": 55,
+    "poll": 52,
+    "communityNote": 54
+  },
   "requestsPerRow": {
     "text": 0,
     "textAvatar": 1,

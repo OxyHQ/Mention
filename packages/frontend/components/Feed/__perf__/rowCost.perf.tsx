@@ -29,6 +29,8 @@ import type { HydratedPost } from '@mention/shared-types';
  *     does on every fling;
  *   - hostNodes: host primitives the row commits (each one is an interop
  *     component under the NativeWind class-name polyfill);
+ *   - hooks / context reads: hook slots and context subscriptions the row's
+ *     components hold — the controllers and store subscriptions a row mounts;
  *   - components: every element instance (composite + host) the row mounts —
  *     a deterministic proxy for the JS work a mount does, unlike the ms, which
  *     move with whatever else the machine is running;
@@ -146,6 +148,46 @@ function countHostNodes(node: ReactTestRendererJSON | ReactTestRendererJSON[] | 
   return count;
 }
 
+interface FiberLike {
+  tag: number;
+  return: FiberLike | null;
+  stateNode: { current?: FiberLike } | null;
+  child: FiberLike | null;
+  sibling: FiberLike | null;
+  memoizedState: { next?: unknown } | null;
+  dependencies?: { firstContext?: { next?: unknown } | null } | null;
+}
+
+// React's function-component-shaped fiber tags: Function, ForwardRef, Memo, SimpleMemo.
+const HOOK_FIBER_TAGS = new Set([0, 11, 14, 15]);
+
+/**
+ * Hook slots and context reads committed under the tree — the per-row work the
+ * element count cannot see (a row can hold a dozen store subscriptions in one
+ * component). Read off React's fibers: test-renderer instances expose them, and
+ * the shape has been stable across React 18 and 19.
+ */
+function countHooksAndContexts(renderer: TestRenderer.ReactTestRenderer): { hooks: number; contexts: number } {
+  // A test instance may hold either half of a fiber pair; the HostRoot's
+  // `current` is the committed tree.
+  let top = (renderer.root as unknown as { _fiber: FiberLike })._fiber;
+  while (top.return) top = top.return;
+  const root = top.stateNode?.current ?? top;
+  let hooks = 0;
+  let contexts = 0;
+  const stack: FiberLike[] = [root];
+  while (stack.length > 0) {
+    const fiber = stack.pop()!;
+    if (HOOK_FIBER_TAGS.has(fiber.tag)) {
+      for (let hook = fiber.memoizedState; hook; hook = (hook.next as typeof hook) ?? null) hooks += 1;
+      for (let dep = fiber.dependencies?.firstContext; dep; dep = (dep.next as typeof dep) ?? null) contexts += 1;
+    }
+    if (fiber.child) stack.push(fiber.child);
+    if (fiber.sibling && fiber !== root) stack.push(fiber.sibling);
+  }
+  return { hooks, contexts };
+}
+
 function observerCount(queryClient: QueryClient): number {
   return queryClient
     .getQueryCache()
@@ -171,6 +213,8 @@ interface KindResult {
   recycleMsPerRow: number;
   hostNodesPerRow: number;
   componentsPerRow: number;
+  hooksPerRow: number;
+  contextReadsPerRow: number;
   rendersPerMount: number;
   requestsPerRow: number;
   queryObserversPerRow: number;
@@ -197,12 +241,14 @@ const results: {
 let harness!: ReturnType<typeof mountHarness>;
 /** Instances the empty harness itself holds (providers), subtracted per case. */
 let emptyComponents = 0;
+let emptyHooks = { hooks: 0, contexts: 0 };
 
 beforeAll(async () => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   await initializeI18n();
   harness = mountHarness();
   emptyComponents = harness.renderer.root.findAll(() => true, { deep: true }).length;
+  emptyHooks = countHooksAndContexts(harness.renderer);
 });
 
 // A row that throws is caught by PostErrorBoundary and renders a fallback —
@@ -238,6 +284,8 @@ describe('feed row cost', () => {
     const recycleMs: number[] = [];
     let hostNodes = 0;
     let components = 0;
+    let hooks = 0;
+    let contexts = 0;
     let rendersPerMount = 0;
     let observers = 0;
     takeRequests();
@@ -259,6 +307,9 @@ describe('feed row cost', () => {
       if (run === 1) {
         hostNodes = countHostNodes(renderer.toJSON()) / BATCH;
         components = (renderer.root.findAll(() => true, { deep: true }).length - emptyComponents) / BATCH;
+        const counted = countHooksAndContexts(renderer);
+        hooks = (counted.hooks - emptyHooks.hooks) / BATCH;
+        contexts = (counted.contexts - emptyHooks.contexts) / BATCH;
         rendersPerMount = [...renders.values()].reduce((a, b) => a + b, 0) / BATCH;
         observers = observerCount(queryClient) / BATCH;
       }
@@ -282,6 +333,8 @@ describe('feed row cost', () => {
       recycleMsPerRow: round(median(recycleMs)),
       hostNodesPerRow: round(hostNodes),
       componentsPerRow: round(components),
+      hooksPerRow: round(hooks),
+      contextReadsPerRow: round(contexts),
       rendersPerMount: round(rendersPerMount),
       requestsPerRow: round(requests / (RUNS * BATCH * 2)),
       queryObserversPerRow: round(observers),
@@ -386,6 +439,10 @@ describe('feed row cost', () => {
       }
       const nodeCeiling = budgets.hostNodesPerRow[kind];
       if (measured.hostNodesPerRow > nodeCeiling) over.push(`${kind}.hostNodesPerRow ${measured.hostNodesPerRow} > ${nodeCeiling}`);
+      const hookCeiling = budgets.hooksPerRow[kind];
+      if (measured.hooksPerRow > hookCeiling) over.push(`${kind}.hooksPerRow ${measured.hooksPerRow} > ${hookCeiling}`);
+      const contextCeiling = budgets.contextReadsPerRow[kind];
+      if (measured.contextReadsPerRow > contextCeiling) over.push(`${kind}.contextReadsPerRow ${measured.contextReadsPerRow} > ${contextCeiling}`);
       const componentCeiling = budgets.componentsPerRow[kind];
       if (measured.componentsPerRow > componentCeiling) over.push(`${kind}.componentsPerRow ${measured.componentsPerRow} > ${componentCeiling}`);
       if (measured.requestsPerRow > budgets.requestsPerRow[kind]) over.push(`${kind}.requestsPerRow ${measured.requestsPerRow} > ${budgets.requestsPerRow[kind]}`);
