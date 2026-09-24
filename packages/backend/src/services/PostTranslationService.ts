@@ -4,9 +4,8 @@ import {
   type StoredPostContent,
   type PostContentVariant,
 } from '@mention/shared-types';
-import { asc, eq, inArray } from 'drizzle-orm';
-import { getDb } from '../db/postgres';
-import { postContentVariants } from '../db/schema/postContent';
+import { createHash } from 'node:crypto';
+import { storeMachineVariant } from '../db/posts/postRepository';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { inferenceChat } from '../utils/oxyInference';
@@ -16,7 +15,7 @@ import { resolveVariant } from './postVariants';
  * Machine translation of a post — the SAME array as the author's own language
  * variants (`content.variants`, `source: 'machine'`), so a reader's language
  * ladder finds an AI rendition exactly the way it finds an authored one, and an
- * author variant always wins over a machine one for the same language.
+ * author variant always wins over a machine one for the same exact locale.
  *
  * A machine variant NEVER overrides media (a machine does not choose images) and
  * never declares the post's language: it is derived content, so it stays out of
@@ -67,6 +66,58 @@ export class TranslationRequestError extends Error {
   }
 }
 
+/**
+ * The post was edited while it was being translated — twice in a row, so the
+ * service already retried once against the new source. Nothing was cached; the
+ * client may simply ask again.
+ */
+export class TranslationSourceChangedError extends TranslationRequestError {
+  readonly code = 'TRANSLATION_SOURCE_CHANGED';
+
+  constructor() {
+    super('The post changed while it was being translated. Please try again.', 409);
+    this.name = 'TranslationSourceChangedError';
+  }
+}
+
+/**
+ * A fingerprint of everything a machine translation is made FROM: the primary
+ * rendition's body, the ids and alt text of the media it shows, and its article
+ * title/body/excerpt — exactly the fields {@link PostTranslationService} sends
+ * to the model. Media dimensions, the primary's tag, poll/location and the
+ * machine cache itself are deliberately excluded: changing them does not make a
+ * translation wrong.
+ */
+export function translationSourceFingerprint(content: StoredPostContent): string {
+  const primary = resolveVariant(content);
+  const source = {
+    text: primary.text,
+    media: (primary.media ?? []).map((item) => [item.id, item.alt ?? null]),
+    article: [primary.article?.title ?? null, primary.article?.body ?? null, primary.article?.excerpt ?? null],
+  };
+  return createHash('sha256').update(JSON.stringify(source)).digest('hex');
+}
+
+/**
+ * Answer a translate request from the renditions a post already stores, when
+ * one does: an AUTHOR variant for the exact tag always (never machine-translate
+ * over words the author wrote), a cached machine one unless `force`.
+ */
+function answerFromStored(
+  content: StoredPostContent,
+  tag: string,
+  force: boolean,
+): TranslatedPost | null {
+  const existing = Array.isArray(content.variants) ? content.variants : [];
+  const authored = existing.find((variant) => variant.source === 'author' && variant.tag === tag);
+  if (authored) return { text: authored.text, tag, cached: true };
+  if (!force) {
+    const cached = existing.find((variant) => variant.source === 'machine' && variant.tag === tag);
+    if (cached) return { text: cached.text, tag, cached: true };
+  }
+  return null;
+}
+
 export interface TranslatedPost {
   /** The translated (or already-known) body for the requested language. */
   text: string;
@@ -95,7 +146,7 @@ function translationTokenBudget(sourceLength: number): number {
   );
 }
 
-class PostTranslationService {
+export class PostTranslationService {
   /**
    * Translate a standalone piece of text — the composer's AI pre-fill, which has
    * no post to attach to. Nothing is persisted: what the author approves in the
@@ -131,6 +182,24 @@ class PostTranslationService {
    * The source is the post's PRIMARY rendition (body, the alt text of its media,
    * and its article when it has one), so the machine variant localizes everything
    * the primary shows — not just the body.
+   *
+   * The cache key is the canonical EXACT tag: `es-MX` and `es-ES` are separate
+   * renditions, and a base-only request (`es`) is cached as `es` — no region is
+   * invented for it.
+   *
+   * Three races are closed here rather than left to the database to reject:
+   *  - concurrent requests for the same post and tag in this process share ONE
+   *    in-flight translation (one inference call, one answer);
+   *  - requests that still overlap (another process) converge in
+   *    {@link storeMachineVariant}: whichever persists second is handed the row
+   *    the first stored, so every caller gets the same persisted result and the
+   *    uniqueness race never surfaces as a 500;
+   *  - the translation is bound to a fingerprint of the source it translated
+   *    ({@link translationSourceFingerprint}). If the author edited the post
+   *    while the model was working, the stale result is discarded and the NEW
+   *    source is translated once; if it changes again during that retry, the
+   *    request fails with {@link TranslationSourceChangedError} rather than
+   *    caching a translation of a body that no longer exists.
    */
   async translatePost(
     postId: string,
@@ -140,31 +209,36 @@ class PostTranslationService {
   ): Promise<TranslatedPost> {
     const { tag, languageName } = this.resolveTarget(rawTag);
 
-    const existing = Array.isArray(content.variants) ? content.variants : [];
+    const answered = answerFromStored(content, tag, options.force === true);
+    if (answered) return answered;
 
-    // An author variant for this language always wins — never machine-translate
-    // over words the author wrote themselves.
-    const authored = existing.find(
-      (variant) => variant.source === 'author' && variant.tag === tag,
-    );
-    if (authored) {
-      return { text: authored.text, tag, cached: true };
-    }
+    const key = `${postId}\u0000${tag}`;
+    const pending = this.inFlight.get(key);
+    if (pending) return pending;
 
-    if (options.force !== true) {
-      const cached = existing.find(
-        (variant) => variant.source === 'machine' && variant.tag === tag,
-      );
-      if (cached) {
-        return { text: cached.text, tag, cached: true };
-      }
-    }
+    const task = this.translateAndStore(postId, content, tag, languageName, options, true)
+      .finally(() => this.inFlight.delete(key));
+    this.inFlight.set(key, task);
+    return task;
+  }
 
+  /** Per-process single-flight for {@link translatePost}, keyed by post + exact tag. */
+  private readonly inFlight = new Map<string, Promise<TranslatedPost>>();
+
+  private async translateAndStore(
+    postId: string,
+    content: StoredPostContent,
+    tag: string,
+    languageName: string,
+    options: { force?: boolean; delegatedUserId?: string },
+    retryOnEdit: boolean,
+  ): Promise<TranslatedPost> {
     const primary = resolveVariant(content);
     const sourceText = primary.text.trim();
     if (sourceText.length === 0) {
       throw new TranslationRequestError('Post has no text content to translate', 404);
     }
+    const fingerprint = translationSourceFingerprint(content);
 
     const body = await this.translateBody(sourceText, languageName, options.delegatedUserId);
     const localized = await this.translateLocalizableFields(
@@ -174,7 +248,7 @@ class PostTranslationService {
       options.delegatedUserId,
     );
 
-    const variant: PostContentVariant = {
+    const variant: PostContentVariant & { tag: string } = {
       tag,
       source: 'machine',
       text: body,
@@ -183,9 +257,29 @@ class PostTranslationService {
       ...(localized.article ? { article: localized.article } : {}),
     };
 
-    await this.upsertMachineVariant(postId, tag, variant);
+    const outcome = await storeMachineVariant(postId, variant, {
+      force: options.force === true,
+      sourceMatches: (current) => translationSourceFingerprint(current) === fingerprint,
+    });
 
-    return { text: body, tag, cached: false };
+    switch (outcome.kind) {
+      case 'stored':
+        return { text: outcome.variant.text, tag, cached: false };
+      case 'existing':
+        return { text: outcome.variant.text, tag, cached: true };
+      case 'missing':
+        throw new TranslationRequestError('Post not found', 404);
+      case 'stale': {
+        if (!retryOnEdit) throw new TranslationSourceChangedError();
+        logger.info('PostTranslationService: post edited during translation; translating the new source', {
+          postId,
+          tag,
+        });
+        const answered = answerFromStored(outcome.content, tag, options.force === true);
+        if (answered) return answered;
+        return this.translateAndStore(postId, outcome.content, tag, languageName, options, false);
+      }
+    }
   }
 
   /**
@@ -318,71 +412,6 @@ class PostTranslationService {
     }
 
     return parseKeyedTranslation(answer, fields);
-  }
-
-  /**
-   * Replace this language's machine variant with the fresh one.
-   *
-   * ONE transaction: the delete and the insert are the two halves of a REPLACE,
-   * and `post_content_variants` carries a dense `UNIQUE (post_id, position)`, so
-   * a reader that observed the gap between them would see a post with a hole in
-   * its rendition list. The Mongo version needed two round trips only because a
-   * `$pull` and a `$push` cannot name the same array in one update.
-   *
-   * A machine variant is APPENDED after the author's own — `variants[0]` stays
-   * the primary — and it never touches the body, the hashtags or the
-   * classification.
-   */
-  private async upsertMachineVariant(
-    postId: string,
-    tag: string,
-    variant: PostContentVariant,
-  ): Promise<void> {
-    await getDb().transaction(async (tx) => {
-      const existing = await tx
-        .select({
-          id: postContentVariants.id,
-          position: postContentVariants.position,
-          tag: postContentVariants.tag,
-          source: postContentVariants.source,
-        })
-        .from(postContentVariants)
-        .where(eq(postContentVariants.postId, postId))
-        .orderBy(asc(postContentVariants.position));
-
-      const survivors = existing.filter(
-        (row) => !(row.tag === tag && row.source === 'machine'),
-      );
-      const stale = existing.filter((row) => row.tag === tag && row.source === 'machine');
-      if (stale.length > 0) {
-        await tx
-          .delete(postContentVariants)
-          .where(inArray(postContentVariants.id, stale.map((row) => row.id)));
-      }
-
-      // Renumber whatever survived so `position` stays dense before the append —
-      // otherwise removing a middle variant leaves a hole the new row cannot
-      // occupy without colliding with the tail.
-      for (const [index, row] of survivors.entries()) {
-        if (row.position === index) continue;
-        await tx
-          .update(postContentVariants)
-          .set({ position: index })
-          .where(eq(postContentVariants.id, row.id));
-      }
-
-      await tx.insert(postContentVariants).values({
-        postId,
-        position: survivors.length,
-        tag: variant.tag ?? null,
-        source: variant.source,
-        body: variant.text,
-        articleTitle: variant.article?.title ?? null,
-        articleBody: variant.article?.body ?? null,
-        articleExcerpt: variant.article?.excerpt ?? null,
-        variantCreatedAt: variant.createdAt ? new Date(variant.createdAt) : null,
-      });
-    });
   }
 }
 
