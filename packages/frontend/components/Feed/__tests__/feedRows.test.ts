@@ -17,6 +17,8 @@ import {
     type FeedRow,
     type InterstitialFeedRow,
     type PostFeedRow,
+    boundFeedRows,
+    canLoadMoreFeed,
 } from '../feedRows';
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
@@ -342,5 +344,25 @@ describe('feedRowType', () => {
         for (const cardType of cardTypes) {
             expect(postTypes.has(cardType)).toBe(false);
         }
+    });
+});
+
+describe('embedded preview bound (#1103)', () => {
+    // An embedded Feed is not virtualized, so its row count IS its mounted-row
+    // count; `previewLimit` caps it and stops paging.
+    it('caps the rows at the preview limit and leaves unbounded feeds untouched', () => {
+        const rows = Array.from({ length: 25 }, (_, i) => i);
+        expect(boundFeedRows(rows, 10)).toHaveLength(10);
+        expect(boundFeedRows(rows, 10)[9]).toBe(9);
+        expect(boundFeedRows(rows, undefined)).toBe(rows);
+        expect(boundFeedRows(rows, 40)).toBe(rows);
+        expect(boundFeedRows(rows, 0)).toEqual([]);
+    });
+
+    it('never pages a bounded preview', () => {
+        expect(canLoadMoreFeed({ previewLimit: 10, hasMore: true, isLoading: false })).toBe(false);
+        expect(canLoadMoreFeed({ hasMore: true, isLoading: false })).toBe(true);
+        expect(canLoadMoreFeed({ hasMore: true, isLoading: true })).toBe(false);
+        expect(canLoadMoreFeed({ hasMore: false, isLoading: false })).toBe(false);
     });
 });

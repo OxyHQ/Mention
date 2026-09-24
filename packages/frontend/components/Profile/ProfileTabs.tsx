@@ -245,6 +245,10 @@ export const ProfileTabs = memo(function ProfileTabs({
     <View>
       {/* Pinned post - only show on posts tab */}
       {pinnedPostElement}
+      {/* bounded-feed: on native this non-scrolling path is reached only by a
+          private profile the viewer does not own (every other feed tab lets the
+          Feed own the scroll — `shouldFeedOwnProfileScroll`), and that feed is
+          empty by construction. */}
       <Feed
         type={tab as FeedType}
         userId={laneId ? undefined : profileId}

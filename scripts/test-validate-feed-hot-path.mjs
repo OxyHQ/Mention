@@ -77,6 +77,56 @@ const cases = [
     pass: true,
   },
   {
+    name: "a non-scrolling Feed with no bound fails",
+    files: {
+      "hooks/usePostLike.ts": clean,
+      "components/feeds/Builder.tsx": "<ScrollView>\n  <Feed\n    type=\"custom\"\n    scrollEnabled={false}\n  />\n</ScrollView>\n",
+    },
+    pass: false,
+    expect: "components/feeds/Builder.tsx:2",
+  },
+  {
+    name: "a conditional false counts as non-scrolling",
+    files: {
+      "hooks/usePostLike.ts": clean,
+      "components/Profile/Tabs.tsx": "<Feed type=\"posts\" scrollEnabled={IS_WEB ? undefined : false} />\n",
+    },
+    pass: false,
+    expect: "unbounded embedded Feed",
+  },
+  {
+    name: "previewLimit bounds it",
+    files: {
+      "hooks/usePostLike.ts": clean,
+      "components/feeds/Builder.tsx": "<Feed type=\"custom\" scrollEnabled={false} previewLimit={10} />\n",
+    },
+    pass: true,
+  },
+  {
+    name: "a bounded-feed comment justifies it",
+    files: {
+      "hooks/usePostLike.ts": clean,
+      "components/Profile/Tabs.tsx": "{/* bounded-feed: private, empty */}\n<Feed type=\"posts\" scrollEnabled={false} />\n",
+    },
+    pass: true,
+  },
+  {
+    name: "prose about <Feed> in a comment is not an element",
+    files: {
+      "hooks/usePostLike.ts": clean,
+      "app/(app)/lists.tsx": "{/* the <Feed> (no `scrollEnabled={false}`) owns scroll */}\n<Feed type=\"x\" />\n",
+    },
+    pass: true,
+  },
+  {
+    name: "a scrolling Feed needs nothing",
+    files: {
+      "hooks/usePostLike.ts": clean,
+      "app/(app)/explore.tsx": "<Feed type=\"explore\" scrollEnabled />\n<Feed type=\"media\" />\n",
+    },
+    pass: true,
+  },
+  {
     name: "vacuity floor fires on a tiny tree",
     files: { "hooks/usePostLike.ts": clean },
     realFloors: true,
