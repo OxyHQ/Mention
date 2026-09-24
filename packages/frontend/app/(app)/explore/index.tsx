@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import Feed from '@/components/Feed/Feed';
+import { useReselectReloadKey } from '@/context/ScreenReselectContext';
 import { TrendsWidget } from '@/components/widgets/TrendsWidget';
 
 /**
@@ -9,5 +10,6 @@ import { TrendsWidget } from '@/components/widgets/TrendsWidget';
  */
 export default function ExploreAllScreen() {
   const trendsHeader = useMemo(() => <TrendsWidget variant="inline" />, []);
-  return <Feed type="explore" listHeaderComponent={trendsHeader} />;
+  const reloadKey = useReselectReloadKey();
+  return <Feed type="explore" listHeaderComponent={trendsHeader} reloadKey={reloadKey} />;
 }

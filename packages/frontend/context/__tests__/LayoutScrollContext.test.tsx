@@ -61,3 +61,67 @@ describe('LayoutScrollContext imperative scrolling', () => {
     });
   });
 });
+
+describe('LayoutScrollContext scroll ownership', () => {
+  function mount() {
+    let api!: LayoutScrollApi;
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <LayoutScrollProvider>
+          <Capture onValue={(value) => { api = value; }} />
+        </LayoutScrollProvider>,
+      );
+    });
+    return { api: () => api, renderer };
+  }
+
+  it('has no offset to report while nothing owns the scroll', () => {
+    const { api, renderer } = mount();
+    expect(api().getScrollOffset()).toBeNull();
+    let release: (() => void) | undefined;
+    act(() => { release = api().registerScrollable({ scrollToOffset: jest.fn() }, 0); });
+    expect(api().getScrollOffset()).toBe(0);
+    act(() => { release?.(); });
+    expect(api().getScrollOffset()).toBeNull();
+    act(() => renderer.unmount());
+  });
+
+  it('hands each scroller back the offset it left, not the last one to scroll', () => {
+    const { api, renderer } = mount();
+    const home = { scrollToOffset: jest.fn() };
+    const notifications = { scrollToOffset: jest.fn() };
+
+    let releaseHome: (() => void) | undefined;
+    act(() => { releaseHome = api().registerScrollable(home, 0); });
+    act(() => { api().setScrollY(900); });
+
+    // Home goes behind; notifications comes forward at its own top.
+    let releaseNotifications: (() => void) | undefined;
+    act(() => {
+      releaseHome?.();
+      releaseNotifications = api().registerScrollable(notifications, 0);
+    });
+    expect(api().getScrollOffset()).toBe(0);
+
+    // And back: home is where the reader left it.
+    act(() => {
+      releaseNotifications?.();
+      releaseHome = api().registerScrollable(home, 0);
+    });
+    expect(api().getScrollOffset()).toBe(900);
+
+    act(() => {
+      releaseHome?.();
+      renderer.unmount();
+    });
+  });
+
+  it('leaves the offset alone for a scroller that does not know where it starts', () => {
+    const { api, renderer } = mount();
+    act(() => { api().setScrollY(300); });
+    act(() => { api().registerScrollable({ scrollTo: jest.fn() }); });
+    expect(api().getScrollOffset()).toBe(300);
+    act(() => renderer.unmount());
+  });
+});

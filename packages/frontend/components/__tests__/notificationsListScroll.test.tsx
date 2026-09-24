@@ -34,6 +34,8 @@ jest.mock('@/context/LayoutScrollContext', () => ({
     }),
 }));
 
+jest.mock('expo-router', () => ({ useIsFocused: () => true }));
+
 jest.mock('@shopify/flash-list', () => {
     const React_ = require('react') as typeof import('react');
     const { View } = require('react-native') as typeof import('react-native');

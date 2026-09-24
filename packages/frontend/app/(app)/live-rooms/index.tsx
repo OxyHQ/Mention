@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useContext } from 'react';
-import { View, Text, ScrollView, RefreshControl, Platform } from 'react-native';
+import { View, Text, RefreshControl, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Button } from '@oxy.so/bloom/button';
@@ -23,6 +23,8 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { useTranslation } from 'react-i18next';
 import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
+import { FocusedScrollView } from '@/components/common/FocusedScrollView';
+import { useScreenReselect } from '@/context/ScreenReselectContext';
 
 const SectionHeader = ({
   icon,
@@ -84,6 +86,7 @@ const LiveRoomsScreen = () => {
     setRefreshing(true);
     loadRooms();
   }, [loadRooms]);
+  useScreenReselect({ refresh: onRefresh });
 
   const openCreateSheet = useCallback(() => {
     bottomSheet.setBottomSheetContent(
@@ -195,7 +198,7 @@ const LiveRoomsScreen = () => {
         {Platform.OS === 'web' ? (
           <View className="pb-6">{body}</View>
         ) : (
-          <ScrollView
+          <FocusedScrollView
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
@@ -207,7 +210,7 @@ const LiveRoomsScreen = () => {
             contentContainerClassName="pb-6"
           >
             {body}
-          </ScrollView>
+          </FocusedScrollView>
         )}
       </View>
     </>

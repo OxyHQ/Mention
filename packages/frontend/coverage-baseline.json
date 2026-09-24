@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 36.7,
-      "covered": 9678,
-      "total": 26369
+      "pct": 37,
+      "covered": 9790,
+      "total": 26454
     },
     "branches": {
-      "pct": 31.4,
-      "covered": 5995,
-      "total": 19087
+      "pct": 31.61,
+      "covered": 6048,
+      "total": 19128
     },
     "functions": {
-      "pct": 31.7,
-      "covered": 2131,
-      "total": 6721
+      "pct": 32.06,
+      "covered": 2164,
+      "total": 6748
     },
     "lines": {
-      "pct": 37.51,
-      "covered": 8856,
-      "total": 23609
+      "pct": 37.79,
+      "covered": 8946,
+      "total": 23669
     }
   },
   "pins": {
@@ -293,6 +293,12 @@
       "functions": 60,
       "lines": 69
     },
+    "hooks/useFocusedScrollable.ts": {
+      "statements": 100,
+      "branches": 91,
+      "functions": 100,
+      "lines": 100
+    },
     "hooks/useFollowEntity.ts": {
       "statements": 0,
       "branches": 0,
@@ -388,6 +394,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "hooks/useNavigateOrReselect.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useOptimizedMediaQuery.ts": {
       "statements": 0,

@@ -12,7 +12,7 @@ import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { useHomeRefresh } from '@/context/HomeRefreshContext';
+import { useReselect } from '@/context/ScreenReselectContext';
 import { useTabPager } from '@/context/TabPagerContext';
 import { useBottomBarHidden } from '@/context/BottomBarVisibilityContext';
 import { BAR_TABS, CHROME_HIDDEN_BY_PAGE, barToPage, pageIndexByName, type BarTabName } from '@/components/navigation/tabs';
@@ -28,7 +28,7 @@ export const BottomBar = () => {
   const { showBottomSheet, user } = useAuth();
   const { t } = useTranslation();
   const haptic = useHaptics();
-  const { triggerHomeRefresh } = useHomeRefresh();
+  const reselect = useReselect();
   const unreadCount = useUnreadCount();
   const minimizeProgress = useBottomBarHidden();
   const { progress, chromeProgress, activeIndex, activePage, selectTab } = useTabPager();
@@ -41,13 +41,15 @@ export const BottomBar = () => {
   const items = useMemo(() => BAR_TABS.map(tab => ({ name: tab.name, label: t(tab.bar.labelKey), icon: glyphs[tab.name] })), [glyphs, t]);
   const onValueChange = useCallback((value: string) => {
     haptic('light');
-    if (value === 'index' && BAR_TABS[activeIndex]?.name === 'index') {
-      triggerHomeRefresh();
+    // The tab already in front is not a destination; pressing it again means
+    // "back to the top", then "reload" (`ScreenReselectContext`).
+    if (BAR_TABS[activeIndex]?.name === value) {
+      reselect();
       return;
     }
     const index = BAR_TABS.findIndex(tab => tab.name === value);
     if (index >= 0) selectTab(barToPage(index));
-  }, [activeIndex, haptic, selectTab, triggerHomeRefresh]);
+  }, [activeIndex, haptic, reselect, selectTab]);
   const onValueLongPress = useCallback((value: string) => {
     if (value !== 'you') return;
     haptic('heavy');

@@ -17,6 +17,7 @@ import type { Trend } from '@/interfaces/Trend';
 import { SPACING } from '@/styles/spacing';
 import { FONT_SIZES } from '@/styles/typography';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
+import { useScreenReselect } from '@/context/ScreenReselectContext';
 
 /**
  * Explore › Trending (route `/explore/trending`).
@@ -162,6 +163,7 @@ export default function ExploreTrendingScreen() {
     void fetchTrends();
     void historyQuery.refetch();
   }, [fetchTrends, historyQuery]);
+  useScreenReselect({ refresh: handleRefresh });
 
   const handleLoadMore = useCallback(() => {
     if (historyQuery.hasNextPage && !historyQuery.isFetchingNextPage) {

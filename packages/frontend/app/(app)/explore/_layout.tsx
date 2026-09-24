@@ -9,6 +9,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Search } from '@/assets/icons/search-icon';
 import { SEO } from '@/components/SEO';
+import { useReselect } from '@/context/ScreenReselectContext';
 
 /**
  * Explore is a routed top-tab cluster: each tab is its own URL under `/explore`
@@ -45,14 +46,17 @@ export default function ExploreLayout() {
   const theme = useTheme();
   const pathname = usePathname();
   const activeTab = tabFromPathname(pathname);
+  const reselect = useReselect();
   const handleTabPress = useCallback(
     (id: string) => {
-      const route = TAB_ROUTES[id as ExploreTab];
-      if (route && id !== activeTab) {
-        router.push(route);
+      if (id === activeTab) {
+        reselect();
+        return;
       }
+      const route = TAB_ROUTES[id as ExploreTab];
+      if (route) router.push(route);
     },
-    [activeTab],
+    [activeTab, reselect],
   );
 
   const tabs = useMemo(

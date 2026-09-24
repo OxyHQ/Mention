@@ -22,6 +22,7 @@ import type { FeedType } from '@mention/shared-types';
 import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { flattenStyleArray } from '@/styles/shared';
 import { useRouter, useIsFocused } from 'expo-router';
@@ -328,10 +329,9 @@ const Feed = ((props: FeedProps) => {
     // background feed could move the shared value or steal wheel targeting.
     const isFocused = useIsFocused();
     const flatListRef = useRef<FlashListRef<NativeFeedRow> | null>(null);
-    const unregisterScrollableRef = useRef<(() => void) | null>(null);
     // The Bloom restoration hook is registered after feed identity is resolved.
     const [refreshing, setRefreshing] = useState(false);
-    const { scrollPosition, scrollEventThrottle, registerScrollable } = useLayoutScroll();
+    const { scrollPosition, scrollEventThrottle } = useLayoutScroll();
 
     // Fixed top inset for a feed that scrolls BEHIND an auto-hiding header + tab
     // bar overlay (home, explore). Reserved as constant scrollable top padding so
@@ -592,42 +592,17 @@ const Feed = ((props: FeedProps) => {
         return `${count}-${firstKey}-${midKey}-${lastKey}`;
     }, [listRows]);
 
-    // Register scrollable with LayoutScrollContext
-    const clearScrollableRegistration = useCallback(() => {
-        if (unregisterScrollableRef.current) {
-            unregisterScrollableRef.current();
-            unregisterScrollableRef.current = null;
-        }
-    }, []);
-
+    // Only the focused, scroll-owning feed is the registered scrollable; a
+    // background feed never moves the shared scrollY. A list claims the slot at
+    // the top it mounted at.
+    const claimScroll = useFocusedScrollable<FlashListRef<NativeFeedRow>>({
+        enabled: scrollEnabled !== false,
+        initialOffset: 0,
+    });
     const assignListRef = useCallback((node: FlashListRef<NativeFeedRow> | null) => {
         flatListRef.current = node;
-        clearScrollableRegistration();
-        // Only the focused, scroll-owning feed registers as the active scrollable.
-        if (scrollEnabled === false || !isFocused) return;
-        if (node) {
-            unregisterScrollableRef.current = registerScrollable(node);
-        }
-    }, [clearScrollableRegistration, registerScrollable, scrollEnabled, isFocused]);
-
-    // Reconcile the registration with focus + scroll ownership. On focus (with a
-    // mounted list and scrolling enabled) register this feed as the active
-    // scrollable; on blur clear it so a background feed never moves the shared
-    // scrollY. `registerScrollable` returns a counter-guarded cleanup, so the
-    // unmount effect below remains correct.
-    useEffect(() => {
-        if (scrollEnabled === false || !isFocused) {
-            clearScrollableRegistration();
-            return;
-        }
-        if (flatListRef.current && !unregisterScrollableRef.current) {
-            unregisterScrollableRef.current = registerScrollable(flatListRef.current);
-        }
-    }, [clearScrollableRegistration, registerScrollable, scrollEnabled, isFocused]);
-
-    useEffect(() => () => {
-        clearScrollableRegistration();
-    }, [clearScrollableRegistration]);
+        claimScroll(node);
+    }, [claimScroll]);
 
     /**
      * The bookkeeping a scroll owes the JS thread: where to reopen this feed, and

@@ -37,7 +37,7 @@ import {
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { NotificationsList } from '@/components/NotificationsList';
 import { NotificationSkeleton } from '@/components/notifications/NotificationSkeleton';
-import { useLayoutScroll } from '@/context/LayoutScrollContext';
+import { useReselect, useScreenReselect } from '@/context/ScreenReselectContext';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { StatusBar } from 'expo-status-bar';
 import { toast } from '@oxy.so/bloom/toast';
@@ -101,9 +101,7 @@ const NotificationsScreen: React.FC = () => {
     const { t } = useTranslation();
     const theme = useTheme();
     const [activeTab, setActiveTab] = useState<NotificationTab>('all');
-    // `scrollToTop` is platform-aware: web scrolls the document, native scrolls
-    // the registered FlashList (the NotificationsList registers itself).
-    const { scrollToTop } = useLayoutScroll();
+    const reselect = useReselect();
 
     // The realtime socket is mounted app-wide via <RealtimeNotificationsBridge/>
     // (a module singleton). This screen must NOT also call
@@ -251,6 +249,7 @@ const NotificationsScreen: React.FC = () => {
         await refetch();
         setRefreshing(false);
     }, [refetch]);
+    useScreenReselect({ refresh: handleRefresh });
 
     const handleMarkAsRead = useCallback((ids: string[]) => {
         markAsReadMutation.mutate(ids);
@@ -281,14 +280,11 @@ const NotificationsScreen: React.FC = () => {
     const handleTabPress = useCallback((tabId: string) => {
         const tab = tabId as NotificationTab;
         if (tab === activeTab) {
-            refetch();
-            // Platform-aware: web scrolls the document, native scrolls the
-            // registered list back to the top.
-            scrollToTop();
+            reselect();
         } else {
             setActiveTab(tab);
         }
-    }, [activeTab, refetch, scrollToTop]);
+    }, [activeTab, reselect]);
 
     const validatedNotifications = useMemo(
         () => validateNotifications(allNotifications),

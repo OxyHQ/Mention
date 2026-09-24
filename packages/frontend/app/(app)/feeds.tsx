@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   RefreshControl,
   TextInput,
   Platform,
@@ -45,6 +44,8 @@ import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
+import { FocusedScrollView } from '@/components/common/FocusedScrollView';
+import { useScreenReselect } from '@/context/ScreenReselectContext';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -315,6 +316,7 @@ const FeedsScreen: React.FC = () => {
     setRefreshing(true);
     loadFeeds();
   }, [loadFeeds]);
+  useScreenReselect({ refresh: onRefresh });
 
   // Presets available to this viewer: hide viewer-relative (requiresAuth) presets
   // for anonymous viewers.
@@ -547,7 +549,7 @@ const FeedsScreen: React.FC = () => {
         {IS_WEB ? (
           <View className="px-4">{content}</View>
         ) : (
-          <ScrollView
+          <FocusedScrollView
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
@@ -555,7 +557,7 @@ const FeedsScreen: React.FC = () => {
             contentContainerStyle={styles.scrollContent}
           >
             {content}
-          </ScrollView>
+          </FocusedScrollView>
         )}
 
         {/* Clears the BottomBar on every platform — Bloom's Fab reads the
