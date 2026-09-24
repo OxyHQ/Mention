@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   MAX_AUTHOR_VARIANTS,
   canonicalizeLanguageTag,
@@ -323,6 +324,24 @@ export function resolveVariant(content: StoredPostContent, requestedTag?: string
     // the localized title/body/excerpt merge over the shared article.
     article: chosen.article ? { ...content.article, ...chosen.article } : content.article,
   };
+}
+
+/**
+ * A fingerprint of everything a machine translation is made FROM: the primary
+ * rendition's body, the ids and alt text of the media it shows, and its article
+ * title/body/excerpt — exactly the fields `PostTranslationService` sends
+ * to the model. Media dimensions, the primary's tag, poll/location and the
+ * machine cache itself are deliberately excluded: changing them does not make a
+ * translation wrong.
+ */
+export function translationSourceFingerprint(content: StoredPostContent): string {
+  const primary = resolveVariant(content);
+  const source = {
+    text: primary.text,
+    media: (primary.media ?? []).map((item) => [item.id, item.alt ?? null]),
+    article: [primary.article?.title ?? null, primary.article?.body ?? null, primary.article?.excerpt ?? null],
+  };
+  return createHash('sha256').update(JSON.stringify(source)).digest('hex');
 }
 
 /**

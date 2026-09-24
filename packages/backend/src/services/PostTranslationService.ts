@@ -4,12 +4,12 @@ import {
   type StoredPostContent,
   type PostContentVariant,
 } from '@mention/shared-types';
-import { createHash } from 'node:crypto';
-import { storeMachineVariant } from '../db/posts/postRepository';
+import { loadPostRecord, storeMachineVariant } from '../db/posts/postRepository';
+import { createRedisLock, type DistributedLock } from '../utils/redisLock';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { inferenceChat } from '../utils/oxyInference';
-import { resolveVariant } from './postVariants';
+import { resolveVariant, translationSourceFingerprint } from './postVariants';
 
 /**
  * Machine translation of a post — the SAME array as the author's own language
@@ -28,6 +28,17 @@ import { resolveVariant } from './postVariants';
  */
 
 const MAX_TEXT_LENGTH = config.posts.maxTextLength;
+
+/**
+ * How long one task may hold a post+locale translation lock. A translation is at
+ * most two sequential inference calls (the body, then ALT and article), each
+ * bounded by `config.inference.timeoutMs`, plus the persist. The margin keeps a
+ * slow but live holder from losing the key mid-translation, and a dead holder
+ * frees it within this window.
+ */
+const TRANSLATION_LOCK_TTL_MS = 2 * config.inference.timeoutMs + 10_000;
+/** How often a task waiting on another task's translation retries the lock. */
+const TRANSLATION_LOCK_POLL_MS = 250;
 
 /**
  * The output budget for a translation, derived from the source length. The
@@ -78,24 +89,6 @@ export class TranslationSourceChangedError extends TranslationRequestError {
     super('The post changed while it was being translated. Please try again.', 409);
     this.name = 'TranslationSourceChangedError';
   }
-}
-
-/**
- * A fingerprint of everything a machine translation is made FROM: the primary
- * rendition's body, the ids and alt text of the media it shows, and its article
- * title/body/excerpt — exactly the fields {@link PostTranslationService} sends
- * to the model. Media dimensions, the primary's tag, poll/location and the
- * machine cache itself are deliberately excluded: changing them does not make a
- * translation wrong.
- */
-export function translationSourceFingerprint(content: StoredPostContent): string {
-  const primary = resolveVariant(content);
-  const source = {
-    text: primary.text,
-    media: (primary.media ?? []).map((item) => [item.id, item.alt ?? null]),
-    article: [primary.article?.title ?? null, primary.article?.body ?? null, primary.article?.excerpt ?? null],
-  };
-  return createHash('sha256').update(JSON.stringify(source)).digest('hex');
 }
 
 /**
@@ -188,12 +181,15 @@ export class PostTranslationService {
    * invented for it.
    *
    * Three races are closed here rather than left to the database to reject:
-   *  - concurrent requests for the same post and tag in this process share ONE
-   *    in-flight translation (one inference call, one answer);
-   *  - requests that still overlap (another process) converge in
-   *    {@link storeMachineVariant}: whichever persists second is handed the row
-   *    the first stored, so every caller gets the same persisted result and the
-   *    uniqueness race never surfaces as a 500;
+   *  - concurrent requests for the same post and tag share ONE translation: in
+   *    this process through an in-flight map, across backend tasks through a
+   *    short-lived Redis lock ({@link translateUnderLock}). A task that finds the
+   *    lock held waits for it and then serves the variant the holder stored. If
+   *    Redis is unavailable, the request proceeds unguarded, and
+   *    {@link storeMachineVariant} still converges overlapping writers:
+   *    whichever persists second is handed the row the first stored, so every
+   *    caller gets the same persisted result and the uniqueness race never
+   *    surfaces as a 500;
    *  - the translation is bound to a fingerprint of the source it translated
    *    ({@link translationSourceFingerprint}). If the author edited the post
    *    while the model was working, the stale result is discarded and the NEW
@@ -216,7 +212,7 @@ export class PostTranslationService {
     const pending = this.inFlight.get(key);
     if (pending) return pending;
 
-    const task = this.translateAndStore(postId, content, tag, languageName, options, true)
+    const task = this.translateUnderLock(postId, content, tag, languageName, options)
       .finally(() => this.inFlight.delete(key));
     this.inFlight.set(key, task);
     return task;
@@ -224,6 +220,76 @@ export class PostTranslationService {
 
   /** Per-process single-flight for {@link translatePost}, keyed by post + exact tag. */
   private readonly inFlight = new Map<string, Promise<TranslatedPost>>();
+
+  private readonly lock: DistributedLock;
+  private readonly lockTtlMs: number;
+  private readonly lockPollMs: number;
+
+  constructor(options: { lock?: DistributedLock; lockTtlMs?: number; lockPollMs?: number } = {}) {
+    this.lock = options.lock ?? createRedisLock();
+    this.lockTtlMs = options.lockTtlMs ?? TRANSLATION_LOCK_TTL_MS;
+    this.lockPollMs = options.lockPollMs ?? TRANSLATION_LOCK_POLL_MS;
+  }
+
+  /**
+   * The cross-task layer of the single-flight: hold `mention:translation:<post>:<tag>`
+   * in Redis for the duration of the inference.
+   *
+   * - Acquired: re-read the post first, because another task may have stored this
+   *   tag between our read and our acquire. Serve that if so, translate if not,
+   *   and release the lock in `finally` with a compare-and-delete.
+   * - Held: poll until it can be acquired. By then the holder has either stored
+   *   its result, which the re-read serves with no inference, or died. If it died,
+   *   the TTL freed the key and this task translates. A forcing request that
+   *   waited accepts the holder's fresh result instead of paying again.
+   * - Redis unavailable: translate unguarded. {@link storeMachineVariant} still
+   *   converges overlapping writers on one row.
+   *
+   * Waiting is bounded by twice the TTL. After that, the task proceeds unguarded
+   * rather than holding the request open.
+   */
+  private async translateUnderLock(
+    postId: string,
+    content: StoredPostContent,
+    tag: string,
+    languageName: string,
+    options: { force?: boolean; delegatedUserId?: string },
+  ): Promise<TranslatedPost> {
+    const key = `mention:translation:${postId}:${tag}`;
+    const deadline = Date.now() + 2 * this.lockTtlMs;
+    let waited = false;
+
+    for (;;) {
+      const attempt = await this.lock.tryAcquire(key, this.lockTtlMs);
+
+      if (attempt.status === 'unavailable') {
+        logger.warn('PostTranslationService: translation lock unavailable; translating unguarded', { postId, tag });
+        return this.translateAndStore(postId, content, tag, languageName, options, true);
+      }
+
+      if (attempt.status === 'acquired') {
+        try {
+          const latest = await loadPostRecord(postId);
+          if (!latest) throw new TranslationRequestError('Post not found', 404);
+          const answered = answerFromStored(latest.content, tag, options.force === true && !waited);
+          if (answered) return answered;
+          return await this.translateAndStore(postId, latest.content, tag, languageName, options, true);
+        } finally {
+          await attempt.release();
+        }
+      }
+
+      waited = true;
+      if (Date.now() >= deadline) {
+        logger.warn('PostTranslationService: translation lock still held after waiting; translating unguarded', {
+          postId,
+          tag,
+        });
+        return this.translateAndStore(postId, content, tag, languageName, options, true);
+      }
+      await new Promise((resolve) => setTimeout(resolve, this.lockPollMs));
+    }
+  }
 
   private async translateAndStore(
     postId: string,
