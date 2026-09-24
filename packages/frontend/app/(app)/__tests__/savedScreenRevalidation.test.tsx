@@ -206,6 +206,9 @@ jest.mock('@/services/feedService', () => ({
 // `stores/__tests__/engagementInvalidationWiring.test.ts`.
 const mockPostsStore = {
   cachePosts: jest.fn(),
+  // The row's save command reads the post as the store holds it at press time;
+  // these posts were never cached, so it falls back to the row's own copy.
+  getPostFromDb: () => null,
   savePost: jest.fn(async ({ postId }: { postId: string }) => {
     mockServerSaved = [postId, ...mockServerSaved];
     invalidateEngagementLists('save');
@@ -217,12 +220,21 @@ const mockPostsStore = {
 };
 
 jest.mock('@/stores/postsStore', () => ({
-  usePostsStore: (selector?: (state: typeof mockPostsStore) => unknown) =>
-    selector ? selector(mockPostsStore) : mockPostsStore,
+  usePostsStore: Object.assign(
+    (selector?: (state: typeof mockPostsStore) => unknown) =>
+      selector ? selector(mockPostsStore) : mockPostsStore,
+    { getState: () => mockPostsStore },
+  ),
 }));
+jest.mock('@/hooks/usePostShare', () => ({ sharePost: jest.fn() }));
 
 import SavedPostsScreen from '../saved';
-import { usePostSave } from '@/hooks/usePostSave';
+import { usePostInteractions } from '@/components/Feed/postInteractions';
+
+/** The minimum of a post the save command reads: its id and the viewer's flag. */
+function rowPost(id: string, isSaved: boolean): HydratedPost {
+  return { id, viewerState: { isSaved } } as HydratedPost;
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -284,14 +296,15 @@ function closeScreen(renderer: TestRenderer.ReactTestRenderer): void {
 }
 
 /**
- * Save a post from a feed row — the real `usePostSave`, mounted on its own as
- * `PostItem` mounts it, with the saved screen nowhere in the tree.
+ * Save a post from a feed row — the real save command a `PostItem` issues
+ * (`usePostInteractions().toggleSave`), with the saved screen nowhere in the tree.
  */
 async function savePostFromFeed(client: QueryClient, postId: string): Promise<void> {
   let toggleSave: (() => Promise<void>) | undefined;
 
   function FeedRow() {
-    toggleSave = usePostSave(postId, false, 'for_you');
+    const interactions = usePostInteractions();
+    toggleSave = () => interactions.toggleSave(rowPost(postId, false), 'for_you');
     return null;
   }
 
@@ -369,7 +382,8 @@ describe('saved screen revalidation after a save', () => {
 
     let toggleSave: (() => Promise<void>) | undefined;
     function FeedRow() {
-      toggleSave = usePostSave('post-a', true);
+      const interactions = usePostInteractions();
+      toggleSave = () => interactions.toggleSave(rowPost('post-a', true));
       return null;
     }
     let feedRenderer!: TestRenderer.ReactTestRenderer;

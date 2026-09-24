@@ -1,19 +1,17 @@
-import React, { useMemo, useContext, lazy, Suspense } from 'react';
-import { useRouter } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query';
+import React, { lazy, Suspense } from 'react';
+import type { useRouter } from 'expo-router';
+import type { QueryClient } from '@tanstack/react-query';
+import type { TFunction } from 'i18next';
 import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
-import { useSafeBack } from '@/hooks/useSafeBack';
-import { useAuth } from '@oxy.so/services/ui/client';
 import { createLogger } from '@oxy.so/core/logger';
-import { useTheme } from '@oxy.so/bloom/theme';
-import { useTranslation } from 'react-i18next';
+import type { useTheme } from '@oxy.so/bloom/theme';
 import { usePostsStore } from '@/stores/postsStore';
 import { feedService } from '@/services/feedService';
 import { confirmDialog } from '@/utils/alerts';
 import { Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { toast } from '@oxy.so/bloom/toast';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
+import type { BottomSheetContextProps } from '@/context/BottomSheetContext';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { HydratedPost } from '@mention/shared-types';
 import type { FeedItem } from '@/db';
@@ -38,8 +36,17 @@ import { List as ListIcon } from '@/assets/icons/list-icon';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
- * The five sheets below are LAZY, and the reason is not this file — it is that
- * `PostItem` imports this hook statically, once per feed row.
+ * The post overflow menu, built when the reader PRESSES "⋯" — never per row.
+ *
+ * This used to be `usePostActions`, a hook every mounted `PostItem` called: it
+ * resolved theme, auth, i18n, router, safe-back, the bottom sheet, the query
+ * client and three store selectors, then built nine action arrays of JSX icons,
+ * for every row on screen, though almost no row's menu is ever opened. Now the
+ * row holds one stable command (`usePostInteractions().openMenu`) and this runs
+ * once per press, against the post as the store holds it at that moment — so a
+ * menu can no longer act on a stale captured copy either.
+ *
+ * The five sheets below are LAZY because the feed chunk imports this module.
  *
  * Every one of them is only ever mounted from an `onPress`, into
  * `bottomSheet.setBottomSheetContent`. Imported statically they were pulled into
@@ -63,16 +70,26 @@ const AddToListSheet = lazy(() =>
 );
 const LanePickerSheet = lazy(() => import('@/components/Compose/LanePickerSheet'));
 
-const logger = createLogger('usePostActions');
+const logger = createLogger('postMenuActions');
 
-interface UsePostActionsParams {
+/** App-lifetime services the menu needs, bound once by `PostInteractionsBinder`. */
+export interface PostMenuDeps {
+    theme: ReturnType<typeof useTheme>;
+    t: TFunction;
+    viewerId: string | undefined;
+    router: ReturnType<typeof useRouter>;
+    safeBack: () => void;
+    bottomSheet: BottomSheetContextProps;
+    queryClient: QueryClient;
+}
+
+export interface PostMenuParams {
     viewPost: HydratedPost;
     isOwner: boolean;
     /**
      * True only for the FOCUSED post on `/p/<id>` — the one surface where deleting
      * the post must also leave the screen. Passed in rather than read off the
-     * route: every mounted row calls this hook, and a route subscription here
-     * rebuilds all nine action arrays for every row on every navigation.
+     * route: the row knows which variant it is rendering.
      */
     isPostDetail: boolean;
     canViewInsights: boolean;
@@ -85,7 +102,7 @@ interface UsePostActionsParams {
     onOpenSources: () => void;
 }
 
-interface PostActionsResult {
+export interface PostMenuActions {
     insightsAction: ActionMenuAction[];
     saveActionGroup: ActionMenuAction[];
     addToListAction: ActionMenuAction[];
@@ -97,7 +114,7 @@ interface PostActionsResult {
     copyLinkAction: ActionMenuAction[];
 }
 
-export function usePostActions({
+export function buildPostMenuActions({
     viewPost,
     isOwner,
     isPostDetail,
@@ -109,19 +126,9 @@ export function usePostActions({
     onSave,
     onOpenArticle,
     onOpenSources,
-}: UsePostActionsParams): PostActionsResult {
-    const theme = useTheme();
-    const { user } = useAuth();
-    const { t } = useTranslation();
-    const router = useRouter();
-    const safeBack = useSafeBack();
-    const bottomSheet = useContext(BottomSheetContext);
-    const queryClient = useQueryClient();
-    const removePostEverywhere = usePostsStore((s) => s.removePostEverywhere);
-    const reinsertPost = usePostsStore((s) => s.reinsertPost);
-    const updatePostEverywhere = usePostsStore((s) => s.updatePostEverywhere);
-
-    return useMemo(() => {
+}: PostMenuParams, { theme, t, viewerId, router, safeBack, bottomSheet, queryClient }: PostMenuDeps): PostMenuActions {
+    const { removePostEverywhere, reinsertPost, updatePostEverywhere } = usePostsStore.getState();
+    {
         const postId = viewPost?.id;
         const postUrl = `https://mention.earth/p/${postId}`;
         const isPinned = Boolean(viewPost?.metadata?.isPinned);
@@ -155,7 +162,7 @@ export function usePostActions({
                 // deleted pinned post clears from the author's profile too.
                 if (authorId) {
                     queryClient.invalidateQueries({
-                        queryKey: viewerQueryKeys.pinnedPost(user?.id, authorId),
+                        queryKey: viewerQueryKeys.pinnedPost(viewerId, authorId),
                     });
                 }
             } catch (e) {
@@ -240,7 +247,7 @@ export function usePostActions({
                         const authorId = viewPost?.user?.id;
                         if (authorId) {
                             queryClient.invalidateQueries({
-                                queryKey: viewerQueryKeys.pinnedPost(user?.id, authorId),
+                                queryKey: viewerQueryKeys.pinnedPost(viewerId, authorId),
                             });
                         }
                     } catch {
@@ -579,5 +586,5 @@ export function usePostActions({
             muteReportAction,
             copyLinkAction,
         };
-    }, [viewPost, isOwner, isPostDetail, canViewInsights, canStopSharing, isSaved, hasArticle, hasSources, onSave, onOpenArticle, onOpenSources, theme, t, bottomSheet, router, safeBack, removePostEverywhere, reinsertPost, updatePostEverywhere, queryClient]);
+    }
 }

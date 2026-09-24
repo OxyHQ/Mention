@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useContext, useState, lazy, Suspense, Fragment } from 'react';
+import React, { useCallback, useMemo, useState, lazy, Suspense, Fragment } from 'react';
 import { StyleSheet, View, Pressable, TouchableOpacity, Text, GestureResponderEvent } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import type {
@@ -23,31 +23,21 @@ import PostLaneChip from '../Post/PostLaneChip';
 import PostCrosspostRow from '../Post/PostCrosspostRow';
 import ContentWarning from '../Post/ContentWarning';
 import { CommunityNoteCard } from '@/components/CommunityNotes/CommunityNoteCard';
-import { useCommunityNoteSheets } from '@/components/CommunityNotes/useCommunityNoteSheets';
-import { useCommunityNoteHandlerContext } from '@/context/CommunityNoteHandlersContext';
 import PostCorrectionNotice from '../Post/PostCorrectionNotice';
 import PostActions from '../Post/PostActions';
 import PostDetailStats from '../Post/PostDetailStats';
 import PostLocation from '../Post/PostLocation';
 import PostAttachmentsRow from '../Post/PostAttachmentsRow';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { RiCornerDownRightLine } from '@oxy.so/bloom/icons/RiCornerDownRightLine';
 import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
-import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { useImagePreload } from '@oxy.so/bloom/hooks';
-import { usePostLike } from '@/hooks/usePostLike';
-import { usePostVote } from '@/hooks/usePostVote';
-import { usePostSave } from '@/hooks/usePostSave';
-import { usePostBoost } from '@/hooks/usePostBoost';
-import { usePostShare } from '@/hooks/usePostShare';
-import { usePostActions } from '@/hooks/usePostActions';
+import { usePostInteractions } from './postInteractions';
 import { PinIcon } from '@/assets/icons/pin-icon';
 import { BoostIcon } from '@/assets/icons/boost-icon';
 import { usePostLanguage } from '@/hooks/usePostLanguage';
 import { usePostLanguagePicker } from '@/hooks/usePostLanguagePicker';
-import { showActionMenu } from '@/components/common/ActionMenu';
 import { showContentDialog } from '@/components/common/ContentDialog';
 import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } from '@/components/Compose/composeLayout';
 import { POST_ITEM_SPACING } from '@/styles/shared';
@@ -63,9 +53,7 @@ import { postAcceptsReplies, reportableReplyPermission } from '@/utils/postRepli
 import { resolveReplyContextRow } from '@/utils/replyContextRow';
 
 // Lazy load modals/sheets only when the user opens them.
-const PostSourcesSheet = lazy(() => import('@/components/Post/PostSourcesSheet'));
 const PostArticleModal = lazy(() => import('@/components/Post/PostArticleModal'));
-const PostInsightsSheet = lazy(() => import('@/components/Post/PostInsightsSheet'));
 const EngagementList = lazy(() => import('@/components/Post/EngagementList'));
 const CollaboratorsList = lazy(() => import('@/components/Post/CollaboratorsList'));
 
@@ -168,7 +156,10 @@ const PostItem: React.FC<PostItemProps> = ({
     const theme = useTheme();
     const { t } = useTranslation();
     const router = useRouter();
-    const bottomSheet = useContext(BottomSheetContext);
+    // Every command this row can issue — engagement, share, the ⋯ menu, sources,
+    // insights, community notes — from ONE app-lifetime controller. Nothing is
+    // instantiated per row; each command resolves the post when pressed.
+    const interactions = usePostInteractions();
     const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
     // The reader's answer to this post's content warning, per mounted row.
     const [isContentWarningOpen, setIsContentWarningOpen] = useState(false);
@@ -226,7 +217,6 @@ const PostItem: React.FC<PostItemProps> = ({
         viewPost?.viewerState ?? { isOwner: false, isCollaborator: false, isLiked: false, isDownvoted: false, isBoosted: false, isSaved: false };
 
     const metadata = viewPost?.metadata ?? {};
-    const permissions = viewPost?.permissions ?? {};
     const content: PostContent = viewPost?.content ?? EMPTY_CONTENT;
     const attachmentsBundle: PostAttachmentBundle = viewPost?.attachments ?? {};
     // Module-level EMPTY fallback: a fresh `[]` each render would give the
@@ -250,7 +240,6 @@ const PostItem: React.FC<PostItemProps> = ({
     const corrections = metadata.corrections;
 
     const isOwner = viewerState.isOwner ?? false;
-    const canViewInsights = permissions.canViewInsights ?? isOwner;
     const isLiked = viewerState.isLiked ?? false;
     const isDownvoted = viewerState.isDownvoted ?? false;
     const isBoosted = viewerState.isBoosted ?? false;
@@ -436,11 +425,21 @@ const PostItem: React.FC<PostItemProps> = ({
     // backend can attribute a like/save/boost to the surface it happened on
     // (e.g. a like in the Videos feed = interest in the video, not the author).
     // Undefined outside a feed (post detail / nested) → normal, unattributed write.
-    const handleLike = usePostLike(viewPostId, isLiked, feedDescriptor);
-    const { toggleDownvote: handleDownvote } = usePostVote(viewPostId, isLiked, isDownvoted);
-    const handleSave = usePostSave(viewPostId, isSaved, feedDescriptor);
-    const handleBoost = usePostBoost(viewPostId, isBoosted, feedDescriptor);
-    const handleShare = usePostShare(viewPost);
+    const handleLike = useCallback(() => {
+        if (viewPost) void interactions.toggleLike(viewPost, feedDescriptor);
+    }, [interactions, viewPost, feedDescriptor]);
+    const handleDownvote = useCallback(() => {
+        if (viewPost) void interactions.toggleDownvote(viewPost);
+    }, [interactions, viewPost]);
+    const handleSave = useCallback(() => {
+        if (viewPost) void interactions.toggleSave(viewPost, feedDescriptor);
+    }, [interactions, viewPost, feedDescriptor]);
+    const handleBoost = useCallback(() => {
+        if (viewPost) void interactions.toggleBoost(viewPost, feedDescriptor);
+    }, [interactions, viewPost, feedDescriptor]);
+    const handleShare = useCallback(() => {
+        if (viewPost) interactions.share(viewPost);
+    }, [interactions, viewPost]);
 
     const handleReply = useCallback(() => {
         if (onReply) {
@@ -470,25 +469,9 @@ const PostItem: React.FC<PostItemProps> = ({
     } = usePostLanguage(content, viewPostId, metadata.language);
     const openLanguagePicker = usePostLanguagePicker(languageOptions, activeLanguageTag, selectLanguage);
 
-    const closeSourcesSheet = useCallback(() => {
-        bottomSheet.setBottomSheetContent(null);
-        bottomSheet.openBottomSheet(false);
-    }, [bottomSheet]);
-
-    const sourcesSheetElement = useMemo(
-        () => (
-            <Suspense fallback={null}>
-                <PostSourcesSheet sources={sourcesList} onClose={closeSourcesSheet} />
-            </Suspense>
-        ),
-        [sourcesList, closeSourcesSheet],
-    );
-
     const openSourcesSheet = useCallback(() => {
-        if (!hasSources) return;
-        bottomSheet.setBottomSheetContent(sourcesSheetElement);
-        bottomSheet.openBottomSheet(true);
-    }, [hasSources, bottomSheet, sourcesSheetElement]);
+        interactions.openSources(sourcesList);
+    }, [interactions, sourcesList]);
 
     const openArticleSheet = useCallback(() => {
         if (hasArticle) {
@@ -501,16 +484,8 @@ const PostItem: React.FC<PostItemProps> = ({
     }, []);
 
     const handleInsightsPress = useCallback(() => {
-        bottomSheet.setBottomSheetContent(
-            <Suspense fallback={null}>
-                <PostInsightsSheet
-                    postId={viewPostId || null}
-                    onClose={() => bottomSheet.openBottomSheet(false)}
-                />
-            </Suspense>
-        );
-        bottomSheet.openBottomSheet(true);
-    }, [bottomSheet, viewPostId]);
+        if (viewPostId) interactions.openInsights(viewPostId);
+    }, [interactions, viewPostId]);
 
     // Detail-only: open the likes/boosts engagement list. No-op outside the
     // focused post-detail variant (the feed action row doesn't expose it). Same
@@ -577,53 +552,24 @@ const PostItem: React.FC<PostItemProps> = ({
         });
     }, [roomId, router]);
 
-    const postActions = usePostActions({
-        viewPost,
-        isOwner,
-        isPostDetail: isDetailMain,
-        canViewInsights,
-        canStopSharing: permissions.canStopSharing ?? false,
-        isSaved,
-        hasArticle,
-        hasSources,
-        onSave: handleSave,
-        onOpenArticle: openArticleSheet,
-        onOpenSources: openSourcesSheet,
-    });
+    // The ⋯ menu is built when it is OPENED, against the post as the store holds
+    // it then — the row keeps only this command (issue #1103). Community notes
+    // are the same: whether the flows are offered is the app's answer, resolved
+    // once by the controller, not per row.
+    const openMenu = useCallback(() => {
+        if (!viewPost) return;
+        interactions.openMenu({
+            post: viewPost,
+            isPostDetail: isDetailMain,
+            source: feedDescriptor,
+            onOpenArticle: openArticleSheet,
+        });
+    }, [interactions, viewPost, isDetailMain, feedDescriptor, openArticleSheet]);
 
-    // Read from context, never fetched here: the handlers decide whether the
-    // flows are offered at all (with CrowdSource off there are none, so the menu
-    // entry and the rating buttons do not appear), and the answer is one the app
-    // resolves once rather than once per row.
-    const noteHandlers = useCommunityNoteHandlerContext();
-    const noteSheets = useCommunityNoteSheets(noteHandlers);
     const communityNote = viewPost?.communityNote;
     const openCommunityNoteAbout = useCallback(() => {
-        if (communityNote) noteSheets.openAbout(communityNote);
-    }, [communityNote, noteSheets]);
-
-    const openMenu = useCallback(() => {
-        const communityNoteAction = noteSheets.canWrite && !isOwner && viewPost ? [{
-            icon: <RiTeamLine width={20} height={20} fill={theme.colors.textSecondary} />,
-            label: t('communityNotes.menu.add', { defaultValue: 'Add community note' }),
-            onPress: () => noteSheets.openWriteFlow(viewPost),
-        }] : [];
-        showActionMenu({
-            label: t('postActions.title', { defaultValue: 'Post options' }),
-            groups: [
-                postActions.insightsAction,
-                postActions.saveActionGroup,
-                postActions.stopSharingAction,
-                postActions.deleteAction,
-                postActions.articleAction,
-                postActions.sourcesAction,
-                postActions.addToListAction,
-                communityNoteAction,
-                postActions.muteReportAction,
-                postActions.copyLinkAction,
-            ],
-        });
-    }, [postActions, t, isOwner, viewPost, noteSheets, theme.colors.textSecondary]);
+        if (communityNote) interactions.openCommunityNoteAbout(communityNote);
+    }, [communityNote, interactions]);
 
     // Memoize the structured props handed to the memoized children so they keep a
     // stable identity across re-renders. The inline object/array literals these

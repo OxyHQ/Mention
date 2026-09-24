@@ -67,14 +67,12 @@ jest.mock('../../ProfileHoverCard', () => ({
 }));
 
 jest.mock('@/hooks/usePostLanguagePicker', () => ({ usePostLanguagePicker: () => () => undefined }));
-jest.mock('@/hooks/usePostLike', () => ({ usePostLike: () => () => undefined }));
-jest.mock('@/hooks/usePostVote', () => ({
-  usePostVote: () => ({ toggleDownvote: () => undefined }),
-}));
-jest.mock('@/hooks/usePostSave', () => ({ usePostSave: () => () => undefined }));
-jest.mock('@/hooks/usePostBoost', () => ({ usePostBoost: () => () => undefined }));
-jest.mock('@/hooks/usePostShare', () => ({ usePostShare: () => () => undefined }));
-jest.mock('@/hooks/usePostActions', () => ({ usePostActions: () => ({}) }));
+// The row's commands come from the app's one controller; these tests are about
+// what the row RENDERS, so the commands are inert.
+jest.mock('../postInteractions', () => {
+  const commands = new Proxy({}, { get: () => () => undefined });
+  return { usePostInteractions: () => commands };
+});
 jest.mock('@/hooks/usePostLanguage', () => ({
   usePostLanguage: () => ({
     options: [],

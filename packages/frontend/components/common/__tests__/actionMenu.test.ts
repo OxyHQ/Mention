@@ -93,7 +93,9 @@ describe('action menu wiring', () => {
       // delete) — the same surface as the two below, so it goes through the same
       // host rather than hand-rolling a third one.
       join('app', '(app)', 'lanes.tsx'),
-      join('components', 'Feed', 'PostItem.tsx'),
+      // The post ⋯ menu. Built by the app's one post-interaction controller
+      // when a row's menu is PRESSED, not by each row (#1103).
+      join('components', 'Feed', 'PostInteractionsBinder.tsx'),
       // The profile overflow menu. It lives in a hook rather than on a screen
       // because BOTH profile screens open the same menu — a person's and a
       // channel's — and what differs between them is data rather than structure:
