@@ -82,6 +82,9 @@ function cleanParams(params: Record<string, unknown>): Record<string, unknown> {
   return out;
 }
 
+/** Rows the builder's live preview shows (it is embedded, so every row is mounted). */
+const FEED_PREVIEW_ROWS = 10;
+
 // A comma / enter driven string-array editor (keywords, hashtags, domains, …).
 const ChipInput = ({
   label,
@@ -834,10 +837,14 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
           <Text className="text-[15px] font-bold text-foreground mt-4 mb-2">{t('feeds.builder.preview')}</Text>
           {savedFeedId ? (
             <View className="rounded-2xl overflow-hidden border border-border">
+              {/* Non-scrolling inside the builder's ScrollView, so it is not
+                  virtualized: bounded to a preview's worth of rows and never
+                  pages (#1103). The full feed is one tap away once saved. */}
               <Feed
                 type="custom"
                 filters={{ customFeedId: savedFeedId }}
                 scrollEnabled={false}
+                previewLimit={FEED_PREVIEW_ROWS}
                 reloadKey={previewKey}
                 hideHeader
               />

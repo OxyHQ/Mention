@@ -47,6 +47,8 @@ import {
     type FeedItem,
     type FeedRow,
     buildFeedRows,
+    boundFeedRows,
+    canLoadMoreFeed,
     renderFeedRow,
     feedRowKey,
     feedRowType,
@@ -83,6 +85,14 @@ interface FeedProps {
     threadPostId?: string;
     /** Extra data owned by the screen chrome that shares this pull gesture. */
     onRefresh?: () => Promise<void>;
+    /**
+     * An EMBEDDED preview (`scrollEnabled={false}` inside a parent scroller):
+     * render at most this many rows and never page. An embedded feed is not
+     * virtualized — every row it holds is mounted — so without a bound it grows
+     * with every page the parent's scroll pulls in (#1103). Every non-scrolling
+     * Feed must be bounded; `validate:feed-hot-path` checks it.
+     */
+    previewLimit?: number;
 }
 
 const DEFAULT_FEED_PROPS = {
@@ -294,6 +304,7 @@ const Feed = ((props: FeedProps) => {
         scrollEnabled,
         showOnlySaved,
         filters,
+        previewLimit,
         reloadKey,
         style,
         contentContainerStyle,
@@ -373,7 +384,7 @@ const Feed = ((props: FeedProps) => {
     // Handle load more - debounced in hook
     // For unauthenticated users, show sign-in prompt instead of loading more
     const handleLoadMore = useCallback(() => {
-        if (!feedState.hasMore || feedState.isLoading) return;
+        if (!canLoadMoreFeed({ previewLimit, hasMore: feedState.hasMore, isLoading: feedState.isLoading })) return;
 
         // If user is not authenticated, show sign-in prompt instead of loading more
         if (!isAuthenticated) {
@@ -382,11 +393,11 @@ const Feed = ((props: FeedProps) => {
         }
 
         feedLoadMore();
-    }, [feedState.hasMore, feedState.isLoading, feedLoadMore, isAuthenticated, signIn]);
+    }, [previewLimit, feedState.hasMore, feedState.isLoading, feedLoadMore, isAuthenticated, signIn]);
 
     // Transform slices (or items) into FeedRows with thread state, and splice in
     // the server's recommendation cards.
-    const feedRows = useDeepCompareMemo((): FeedRow[] => buildFeedRows({
+    const allFeedRows = useDeepCompareMemo((): FeedRow[] => buildFeedRows({
         slices: feedState.slices,
         items: feedState.items,
         interstitials: feedState.interstitials,
@@ -397,6 +408,10 @@ const Feed = ((props: FeedProps) => {
         threaded,
         threadPostId,
     }), [feedState.slices, feedState.items, feedState.interstitials, type, showOnlySaved, currentUser?.id, blockedSet, threaded, threadPostId]);
+    const feedRows = useMemo(
+        () => boundFeedRows(allFeedRows, previewLimit),
+        [allFeedRows, previewLimit],
+    );
 
     const listRows = useMemo<NativeFeedRow[]>(() => {
         const auxiliaryRows: AuxiliaryFeedRow[] = [];
@@ -780,12 +795,12 @@ const Feed = ((props: FeedProps) => {
         () => (
             <FeedFooter
                 showOnlySaved={showOnlySaved}
-                hasMore={feedState.hasMore}
+                hasMore={previewLimit === undefined && feedState.hasMore}
                 isLoadingMore={isLoadingMore}
                 hasItems={feedRows.length > 0}
             />
         ),
-        [showOnlySaved, feedState.hasMore, isLoadingMore, feedRows.length]
+        [showOnlySaved, previewLimit, feedState.hasMore, isLoadingMore, feedRows.length]
     );
     const hasAuxiliaryRows = listRows.length > feedRows.length;
     const renderedEmptyComponent = hasAuxiliaryRows ? null : emptyStateComponent;
@@ -877,6 +892,7 @@ const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps): boolean => {
         prevProps.userId !== nextProps.userId ||
         prevProps.showOnlySaved !== nextProps.showOnlySaved ||
         prevProps.scrollEnabled !== nextProps.scrollEnabled ||
+        prevProps.previewLimit !== nextProps.previewLimit ||
         prevProps.threaded !== nextProps.threaded ||
         prevProps.threadPostId !== nextProps.threadPostId ||
         prevProps.listHeaderComponent !== nextProps.listHeaderComponent ||

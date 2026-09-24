@@ -23,6 +23,7 @@ import {
     buildFeedRows,
     renderFeedRow,
     feedRowKey,
+    boundFeedRows,
 } from './feedRows';
 import { useScrollMarginOrigin } from './useScrollMarginOrigin';
 
@@ -49,6 +50,12 @@ interface FeedProps {
     threadPostId?: string;
     /** Extra data owned by the screen chrome that shares this refresh action. */
     onRefresh?: () => Promise<void>;
+    /**
+     * An EMBEDDED preview (`scrollEnabled={false}` inside a parent scroller):
+     * render at most this many rows. See the native Feed; `validate:feed-hot-path`
+     * requires every non-scrolling Feed to be bounded (#1103).
+     */
+    previewLimit?: number;
 }
 
 const DEFAULT_FEED_PROPS = {
@@ -220,7 +227,8 @@ function EmbeddedWebFeed(props: FeedProps) {
     // container around it painted (the shell's ContentPanel today) so rows never
     // show through the sticky header above them. `bg-card` was only ever right
     // for as long as that container's fill stayed `card`.
-    const { feedRows, feedState, handleRetry } = useWebFeed(merged);
+    const { feedRows: allFeedRows, feedState, handleRetry } = useWebFeed(merged);
+    const feedRows = boundFeedRows(allFeedRows, merged.previewLimit);
 
     const header = listHeaderComponent ?? (
         <FeedHeader showComposeButton={showComposeButton} onComposePress={onComposePress} hideHeader={hideHeader} />
@@ -617,6 +625,7 @@ const arePropsEqual = (prevProps: FeedProps, nextProps: FeedProps): boolean => {
         prevProps.userId !== nextProps.userId ||
         prevProps.showOnlySaved !== nextProps.showOnlySaved ||
         prevProps.scrollEnabled !== nextProps.scrollEnabled ||
+        prevProps.previewLimit !== nextProps.previewLimit ||
         prevProps.threaded !== nextProps.threaded ||
         prevProps.threadPostId !== nextProps.threadPostId ||
         prevProps.listHeaderComponent !== nextProps.listHeaderComponent ||
