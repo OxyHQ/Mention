@@ -7,7 +7,10 @@ import { logger } from '@oxy.so/core/logger';
  *   engagement attribution; attached to the BOOST write, ignored on unboost.
  */
 export function usePostBoost(postId: string | undefined, isBoosted: boolean, source?: string) {
-    const { boostPost, unboostPost } = usePostsStore();
+    // Select each action: a bare usePostsStore() subscribes this row to the
+    // whole store and re-renders it on every unrelated posts-store write.
+    const boostPost = usePostsStore((s) => s.boostPost);
+    const unboostPost = usePostsStore((s) => s.unboostPost);
     const pendingRef = useRef(false);
 
     const toggleBoost = useCallback(async () => {

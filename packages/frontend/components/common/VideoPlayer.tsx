@@ -118,7 +118,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   flightHostId,
 }) => {
   const isPreviewMode = onPress !== undefined && !gif;
-  const { isMuted, toggleMuted } = useVideoMuteStore();
+  const isMuted = useVideoMuteStore((s) => s.isMuted);
+  const toggleMuted = useVideoMuteStore((s) => s.toggleMuted);
 
   // The app-wide playback authority decides whether this player may play at all
   // (visible + screen focused + app foregrounded) and whether it owns the single

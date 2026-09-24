@@ -29,7 +29,7 @@ interface ProfileMediaFeedArgs {
 export function useProfileMediaFeed({ userId, isPrivate, isOwnProfile, filter = 'media' }: ProfileMediaFeedArgs) {
     const { user } = useAuth();
     const viewerId = user?.id;
-    const { fetchUserFeed } = usePostsStore();
+    const fetchUserFeed = usePostsStore((s) => s.fetchUserFeed);
     const primaryFeed = useUserFeedSelector(userId || '', filter);
     const postsFeed = useUserFeedSelector(userId || '', 'posts');
 

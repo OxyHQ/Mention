@@ -8,7 +8,10 @@ import { logger } from '@oxy.so/core/logger';
  *   attribution; an unlike carries no interest signal and ignores it.
  */
 export function usePostLike(postId: string | undefined, isLiked: boolean, source?: string) {
-    const { likePost, unlikePost } = usePostsStore();
+    // Select each action: a bare usePostsStore() subscribes this row to the
+    // whole store and re-renders it on every unrelated posts-store write.
+    const likePost = usePostsStore((s) => s.likePost);
+    const unlikePost = usePostsStore((s) => s.unlikePost);
     const pendingRef = useRef(false);
 
     const toggleLike = useCallback(async () => {

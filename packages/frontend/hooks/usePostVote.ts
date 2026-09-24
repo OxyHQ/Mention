@@ -7,7 +7,11 @@ export function usePostVote(
     isLiked: boolean,
     isDownvoted: boolean,
 ) {
-    const { likePost, unlikePost, downvotePost } = usePostsStore();
+    // Select each action: a bare usePostsStore() subscribes this row to the
+    // whole store and re-renders it on every unrelated posts-store write.
+    const likePost = usePostsStore((s) => s.likePost);
+    const unlikePost = usePostsStore((s) => s.unlikePost);
+    const downvotePost = usePostsStore((s) => s.downvotePost);
     const upvotePendingRef = useRef(false);
     const downvotePendingRef = useRef(false);
 
