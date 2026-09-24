@@ -140,6 +140,16 @@ Authenticated commands and viewer data:
 | POST / DELETE | `/posts/:id/save` | Save or unsave |
 | POST | `/posts/:id/translate` | Translate a post |
 
+`POST /posts/:id/translate` is the only published-post path that calls
+inference. It caches the result on the post as a `source: 'machine'` variant
+under the canonical exact BCP-47 tag (`es-MX` and `es-ES` are separate
+entries; a base-only `es` stays `es`), and hydration serves that cached
+rendition to later readers of the same locale without calling the model.
+Concurrent requests for the same post and tag share one translation. If the
+author edits the post while it is being translated, the stale result is
+dropped and the new source is translated once. A second edit during that retry
+returns `409 { code: 'TRANSLATION_SOURCE_CHANGED' }`, and nothing is cached.
+
 Collaboration invite actions and threadgate/postgate operations also live under
 `/posts/:id`. Consult the exported shared types and route validators before
 changing their payloads.

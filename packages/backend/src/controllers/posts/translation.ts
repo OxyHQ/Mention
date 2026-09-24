@@ -12,7 +12,11 @@ import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { createScopedOxyClient, createUserScopedOxyServices } from '../../utils/oxyHelpers';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
-import { postTranslationService, TranslationRequestError } from '../../services/PostTranslationService';
+import {
+  postTranslationService,
+  TranslationRequestError,
+  TranslationSourceChangedError,
+} from '../../services/PostTranslationService';
 import { MAX_TEXT_LENGTH } from './composeInput';
 
 /**
@@ -21,6 +25,11 @@ import { MAX_TEXT_LENGTH } from './composeInput';
  * typed status so a rate limit or data-plane outage is not reported as our 500.
  */
 const respondTranslationError = (res: Response, error: unknown, context: string): void => {
+  if (error instanceof TranslationSourceChangedError) {
+    // Typed so a client can tell "ask again" from a refusal.
+    res.status(error.status).json({ message: error.message, code: error.code });
+    return;
+  }
   if (error instanceof TranslationRequestError) {
     res.status(error.status).json({ message: error.message });
     return;

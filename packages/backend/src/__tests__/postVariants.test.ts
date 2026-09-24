@@ -172,18 +172,79 @@ describe('resolveViewerTag — the resolution ladder', () => {
   });
 });
 
-describe('author variants beat machine variants', () => {
-  it('serves the author rendition for the same base language, even when a machine variant matches the region exactly', () => {
-    const post = content({
-      variants: [
-        variant({ tag: 'es-ES' }),
-        variant({ tag: 'es-MX', source: 'machine', text: 'traducción automática' }),
-      ],
-    });
+describe('the per-tag precedence: exact locale first, author before machine within it', () => {
+  // An English-primary post, so every Spanish rendition below is a choice the
+  // ladder made rather than the primary it fell back to.
+  const english = variant({ tag: 'en-US' });
+  const pick = (variants: PostContentVariant[], candidates: string[]): string =>
+    resolveVariant(content({ variants }), resolveViewerTag(candidates, content({ variants }))).text;
 
-    expect(resolveViewerTag(['es-MX'], post)).toBe('es-ES');
-    expect(resolveVariant(post, 'es-MX').text).toBe('body-es-ES');
+  it('prefers an exact locale over a same-base regional fallback', () => {
+    const variants = [english, variant({ tag: 'es-ES' }), variant({ tag: 'es-MX' })];
+    expect(pick(variants, ['es-MX'])).toBe('body-es-MX');
+    expect(pick(variants, ['es-ES'])).toBe('body-es-ES');
   });
+
+  it('serves the exact AUTHOR rendition over an exact machine one', () => {
+    // Storage cannot hold both for one tag (`post_content_variants_post_id_tag_key`),
+    // but the resolver must not depend on that to keep the author's words first.
+    const variants = [
+      english,
+      variant({ tag: 'es-MX', source: 'machine', text: 'machine es-MX' }),
+      variant({ tag: 'es-MX', text: 'author es-MX' }),
+    ];
+    expect(pick(variants, ['es-MX'])).toBe('author es-MX');
+  });
+
+  it('serves a cached exact machine locale over a different-region author rendition', () => {
+    const variants = [
+      english,
+      variant({ tag: 'es-ES', text: 'coche' }),
+      variant({ tag: 'es-MX', source: 'machine', text: 'carro' }),
+    ];
+    expect(resolveViewerTag(['es-MX'], content({ variants }))).toBe('es-MX');
+    expect(pick(variants, ['es-MX'])).toBe('carro');
+  });
+
+  it('falls back to a same-base author rendition, then a same-base machine one', () => {
+    expect(pick([english, variant({ tag: 'es-ES', text: 'author es-ES' })], ['es-MX'])).toBe('author es-ES');
+    expect(pick(
+      [
+        english,
+        variant({ tag: 'es-AR', source: 'machine', text: 'machine es-AR' }),
+        variant({ tag: 'es-ES', text: 'author es-ES' }),
+      ],
+      ['es-MX'],
+    )).toBe('author es-ES');
+    expect(pick([english, variant({ tag: 'es-ES', source: 'machine', text: 'machine es-ES' })], ['es-MX']))
+      .toBe('machine es-ES');
+  });
+
+  it('keeps es-MX and es-ES as separate renditions with their own text', () => {
+    const variants = [
+      english,
+      variant({ tag: 'es-ES', source: 'machine', text: 'Me he comprado un coche' }),
+      variant({ tag: 'es-MX', source: 'machine', text: 'Me compré un carro' }),
+    ];
+    expect(pick(variants, ['es-ES'])).toBe('Me he comprado un coche');
+    expect(pick(variants, ['es-MX'])).toBe('Me compré un carro');
+  });
+
+  it('falls back to the primary when nothing exact or same-base exists', () => {
+    expect(pick([english, variant({ tag: 'es-MX', source: 'machine' })], ['pt-BR'])).toBe('body-en-US');
+  });
+
+  it('does not invent a region for a base-only preference', () => {
+    const variants = [english, variant({ tag: 'es', source: 'machine', text: 'base es' }), variant({ tag: 'es-ES' })];
+    // `es` matches the `es` rendition exactly…
+    expect(resolveViewerTag(['es'], content({ variants }))).toBe('es');
+    expect(pick(variants, ['es'])).toBe('base es');
+    // …and with none, any `es-*` is a fallback — it does not become `es-ES`.
+    expect(resolveViewerTag(['es'], content({ variants: [english, variant({ tag: 'es-MX' })] }))).toBe('es-MX');
+  });
+});
+
+describe('author variants beat machine variants', () => {
 
   it('serves a machine variant when the author wrote nothing in that language', () => {
     const post = content({
