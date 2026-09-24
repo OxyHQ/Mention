@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useState, type ReactNode } from 'react';
 import type { ViewStyle } from 'react-native';
 import { EmptyState as BloomEmptyState } from '@oxy.so/bloom/empty-state';
-import type { BloomIconComponent } from '@oxy.so/bloom/icons';
+import type { BloomIconComponent } from '@oxy.so/bloom';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiBarChartHorizontalLine } from '@oxy.so/bloom/icons/RiBarChartHorizontalLine';
