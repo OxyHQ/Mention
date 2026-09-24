@@ -52,10 +52,10 @@ describe('usePostSave', () => {
     toggleSave = undefined;
     mockSavePost.mockResolvedValue(undefined);
     mockUnsavePost.mockResolvedValue(undefined);
-    mockUsePostsStore.mockReturnValue({
-      savePost: mockSavePost,
-      unsavePost: mockUnsavePost,
-    });
+    const state = { savePost: mockSavePost, unsavePost: mockUnsavePost };
+    mockUsePostsStore.mockImplementation((selector: (s: typeof state) => unknown) =>
+      selector(state),
+    );
   });
 
   it('saves with the originating feed as attribution', async () => {

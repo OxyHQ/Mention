@@ -180,7 +180,16 @@ export interface AccountBadgeProps extends IdentityBadgeVisualProps {
  *     believe the fact we established ourselves (we federated it) over the one
  *     we did not.
  */
-export function AccountBadge({
+export function AccountBadge(props: AccountBadgeProps) {
+  // Most accounts draw no marker at all, and this sits in every post header
+  // (twice). Deciding that BEFORE any hook keeps the common case at zero hook
+  // slots — `useTranslation` alone is a dozen, plus an i18n listener, per
+  // instance (#1103).
+  if (!props.isFederated && props.kind !== 'channel') return null;
+  return <AccountBadgeMarker {...props} />;
+}
+
+function AccountBadgeMarker({
   kind,
   isFederated,
   network = 'activitypub',

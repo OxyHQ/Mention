@@ -22,6 +22,7 @@
     "build:preview": "eas build --platform android --profile preview",
     "test": "node ../../node_modules/jest/bin/jest.js --watchAll=false --runInBand",
     "test:coverage": "node ../../node_modules/jest/bin/jest.js --watchAll=false --runInBand --coverage",
+    "test:perf": "node --max-old-space-size=6144 ../../node_modules/jest/bin/jest.js -c jest.perf.config.js --runInBand",
     "coverage:check": "node ./scripts/coverage-policy.mjs",
     "coverage:record": "node ./scripts/coverage-policy.mjs --record",
     "coverage:policy-selftest": "node ./scripts/test-coverage-policy.mjs",
@@ -46,6 +47,8 @@
     "collectCoverageFrom": [
       "**/*.{ts,tsx}",
       "!**/__tests__/**",
+      "!**/__perf__/**",
+      "!test-support/perf*",
       "!**/*.test.{ts,tsx}",
       "!**/*.d.ts",
       "!android/**",

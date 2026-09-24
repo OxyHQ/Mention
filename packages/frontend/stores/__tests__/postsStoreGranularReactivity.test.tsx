@@ -11,6 +11,10 @@ import {
   useUserFeedSelector,
   useViewCountSelector,
 } from '../postsStore';
+import { usePostLike } from '@/hooks/usePostLike';
+import { usePostVote } from '@/hooks/usePostVote';
+import { usePostSave } from '@/hooks/usePostSave';
+import { usePostBoost } from '@/hooks/usePostBoost';
 
 const mockPosts = new Map<string, FeedItem>();
 const mockFeedIds = new Map<string, string[]>();
@@ -867,6 +871,75 @@ describe('postsStore server-authoritative counts', () => {
 
       expect(mockPosts.get('no-server-count')?.engagement.saves).toBe(6);
       expect(mockPosts.get('no-server-count')?.viewerState.isSaved).toBe(true);
+    });
+  });
+
+  describe('row action hooks (#1103)', () => {
+    /**
+     * Mirrors what a feed row mounts: its own keyed post read plus the four
+     * engagement hooks. The hooks must select their actions, not the store —
+     * a bare usePostsStore() would re-render this probe on every feedUI /
+     * isLoading / error write anywhere in the app.
+     */
+    function RowProbe({ postId, onRender }: { postId: string; onRender: () => void }) {
+      const post = usePostSelector(postId);
+      const liked = post?.viewerState.isLiked ?? false;
+      usePostLike(postId, liked);
+      usePostVote(postId, liked, post?.viewerState.isDownvoted ?? false);
+      usePostSave(postId, post?.viewerState.isSaved ?? false);
+      usePostBoost(postId, post?.viewerState.isBoosted ?? false);
+      onRender();
+      return null;
+    }
+
+    it('does not re-render on unrelated posts-store state', () => {
+      act(() => {
+        usePostsStore.getState().addPostsToFeed([makePost('hook-a')], 'posts');
+      });
+      const renders = jest.fn();
+      let renderer!: TestRenderer.ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(<RowProbe postId="hook-a" onRender={renders} />);
+      });
+      const before = renders.mock.calls.length;
+
+      act(() => {
+        usePostsStore.setState({ isLoading: true, error: 'x', lastRefresh: Date.now() + 1 });
+        usePostsStore.setState((state) => ({
+          feedUI: { ...state.feedUI, following: { isLoading: true, error: null, lastUpdated: 1 } },
+        }));
+      });
+
+      expect(renders).toHaveBeenCalledTimes(before);
+      act(() => renderer.unmount());
+    });
+
+    it('saving post A does not re-render the row for post B', async () => {
+      act(() => {
+        usePostsStore.getState().addPostsToFeed([makePost('hook-save-a'), makePost('hook-save-b')], 'posts');
+      });
+      mockFeedService.saveItem.mockResolvedValue({ success: true, data: { message: 'ok' } });
+      const rendersA = jest.fn();
+      const rendersB = jest.fn();
+      let renderer!: TestRenderer.ReactTestRenderer;
+      act(() => {
+        renderer = TestRenderer.create(
+          <>
+            <RowProbe postId="hook-save-a" onRender={rendersA} />
+            <RowProbe postId="hook-save-b" onRender={rendersB} />
+          </>
+        );
+      });
+      const beforeA = rendersA.mock.calls.length;
+      const beforeB = rendersB.mock.calls.length;
+
+      await act(async () => {
+        await usePostsStore.getState().savePost({ postId: 'hook-save-a' });
+      });
+
+      expect(rendersA.mock.calls.length).toBeGreaterThan(beforeA);
+      expect(rendersB).toHaveBeenCalledTimes(beforeB);
+      act(() => renderer.unmount());
     });
   });
 });

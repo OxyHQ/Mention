@@ -1,0 +1,136 @@
+{
+  "meta": {
+    "runtime": "node v24.21.0, jest-expo (ios), React dev build",
+    "runs": 7,
+    "batch": 8,
+    "note": "ms are relative Jest timings on the recording machine, not device frame times"
+  },
+  "kinds": {
+    "text": {
+      "mountMsPerRow": 5.625,
+      "recycleMsPerRow": 2.5,
+      "hostNodesPerRow": 50.125,
+      "componentsPerRow": 188,
+      "hooksPerRow": 478,
+      "contextReadsPerRow": 52,
+      "rendersPerMount": 1,
+      "requestsPerRow": 0,
+      "queryObserversPerRow": 1
+    },
+    "textAvatar": {
+      "mountMsPerRow": 5,
+      "recycleMsPerRow": 2.75,
+      "hostNodesPerRow": 49.125,
+      "componentsPerRow": 185,
+      "hooksPerRow": 478,
+      "contextReadsPerRow": 52,
+      "rendersPerMount": 1,
+      "requestsPerRow": 1,
+      "queryObserversPerRow": 1
+    },
+    "image": {
+      "mountMsPerRow": 5.75,
+      "recycleMsPerRow": 3.25,
+      "hostNodesPerRow": 57.125,
+      "componentsPerRow": 212,
+      "hooksPerRow": 645,
+      "contextReadsPerRow": 54,
+      "rendersPerMount": 1,
+      "requestsPerRow": 1,
+      "queryObserversPerRow": 1
+    },
+    "multiImage": {
+      "mountMsPerRow": 5.375,
+      "recycleMsPerRow": 3.5,
+      "hostNodesPerRow": 72.125,
+      "componentsPerRow": 263,
+      "hooksPerRow": 726,
+      "contextReadsPerRow": 60,
+      "rendersPerMount": 1,
+      "requestsPerRow": 1,
+      "queryObserversPerRow": 1
+    },
+    "video": {
+      "mountMsPerRow": 5.375,
+      "recycleMsPerRow": 3.25,
+      "hostNodesPerRow": 62.125,
+      "componentsPerRow": 230,
+      "hooksPerRow": 600,
+      "contextReadsPerRow": 55,
+      "rendersPerMount": 1,
+      "requestsPerRow": 1,
+      "queryObserversPerRow": 1
+    },
+    "linkPreview": {
+      "mountMsPerRow": 4.25,
+      "recycleMsPerRow": 2.375,
+      "hostNodesPerRow": 57.125,
+      "componentsPerRow": 210,
+      "hooksPerRow": 531,
+      "contextReadsPerRow": 57,
+      "rendersPerMount": 1,
+      "requestsPerRow": 1,
+      "queryObserversPerRow": 1
+    },
+    "quote": {
+      "mountMsPerRow": 5.25,
+      "recycleMsPerRow": 3,
+      "hostNodesPerRow": 74.125,
+      "componentsPerRow": 264,
+      "hooksPerRow": 826,
+      "contextReadsPerRow": 80,
+      "rendersPerMount": 1,
+      "requestsPerRow": 2,
+      "queryObserversPerRow": 2
+    },
+    "repost": {
+      "mountMsPerRow": 4.875,
+      "recycleMsPerRow": 3.625,
+      "hostNodesPerRow": 55.125,
+      "componentsPerRow": 207,
+      "hooksPerRow": 497,
+      "contextReadsPerRow": 55,
+      "rendersPerMount": 1,
+      "requestsPerRow": 1,
+      "queryObserversPerRow": 1
+    },
+    "poll": {
+      "mountMsPerRow": 4.75,
+      "recycleMsPerRow": 2.25,
+      "hostNodesPerRow": 61.125,
+      "componentsPerRow": 213,
+      "hooksPerRow": 512,
+      "contextReadsPerRow": 52,
+      "rendersPerMount": 1,
+      "requestsPerRow": 1,
+      "queryObserversPerRow": 1
+    },
+    "communityNote": {
+      "mountMsPerRow": 5,
+      "recycleMsPerRow": 2.375,
+      "hostNodesPerRow": 61.125,
+      "componentsPerRow": 218,
+      "hooksPerRow": 522,
+      "contextReadsPerRow": 54,
+      "rendersPerMount": 1,
+      "requestsPerRow": 1,
+      "queryObserversPerRow": 1
+    }
+  },
+  "isolation": {
+    "rowsMounted": 10,
+    "rendersOnUnrelatedStoreWrite": 10,
+    "targetRendersOnLike": 2,
+    "otherRowRendersOnLike": 0,
+    "otherRowRendersOnViewCount": 0
+  },
+  "fling": {
+    "postsVisited": 200,
+    "window": 12,
+    "msTotal": 810,
+    "requests": 198,
+    "translationRequests": 0,
+    "maxQueryObservers": 14,
+    "req PREFETCH /avatars/:asset": 198
+  }
+}

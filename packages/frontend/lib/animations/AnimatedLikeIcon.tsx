@@ -20,15 +20,32 @@ const ringTiming = {
   easing: easeOut,
 };
 
-export function AnimatedLikeIcon({
-  isLiked,
-  big,
-  hasBeenToggled,
-}: {
+interface LikeIconProps {
   isLiked: boolean;
   big?: boolean;
   hasBeenToggled: boolean;
-}) {
+}
+
+/**
+ * The action bar's heart. Until the reader toggles THIS row's like, nothing can
+ * animate, so the row draws the static glyph and mounts none of the burst's
+ * machinery — five shared values, three animated styles and an effect, ~30 hook
+ * slots on every row of a fling (#1103). The first toggle swaps in the animated
+ * heart, which then plays exactly as before.
+ */
+export function AnimatedLikeIcon(props: LikeIconProps) {
+  if (!props.hasBeenToggled) {
+    return props.isLiked ? <LikedHeart big={props.big} /> : <HeartIcon className="text-muted-foreground" size={props.big ? 22 : 18} />;
+  }
+  return <AnimatedHeart {...props} />;
+}
+
+function LikedHeart({ big }: { big?: boolean }) {
+  const theme = useTheme();
+  return <HeartIconActive color={theme.colors.error} size={big ? 22 : 18} />;
+}
+
+function AnimatedHeart({ isLiked, big, hasBeenToggled }: LikeIconProps) {
   const theme = useTheme();
   const size = big ? 22 : 18;
   const likeColor = theme.colors.error;

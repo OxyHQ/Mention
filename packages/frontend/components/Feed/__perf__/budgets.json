@@ -1,0 +1,85 @@
+{
+  "$comment": "Structural budgets for the feed row-cost harness (issue #1103). Exact counts, not timings: they are deterministic, so they can gate CI. Lower a ceiling when an optimization lands; raising one is a decision to write down in the PR.",
+  "hostNodesPerRow": {
+    "text": 51,
+    "textAvatar": 50,
+    "image": 58,
+    "multiImage": 73,
+    "video": 63,
+    "linkPreview": 58,
+    "quote": 75,
+    "repost": 56,
+    "poll": 62,
+    "communityNote": 62
+  },
+  "componentsPerRow": {
+    "text": 188,
+    "textAvatar": 185,
+    "image": 212,
+    "multiImage": 263,
+    "video": 230,
+    "linkPreview": 210,
+    "quote": 264,
+    "repost": 207,
+    "poll": 213,
+    "communityNote": 218
+  },
+  "hooksPerRow": {
+    "text": 427,
+    "textAvatar": 427,
+    "image": 493,
+    "multiImage": 574,
+    "video": 549,
+    "linkPreview": 480,
+    "quote": 756,
+    "repost": 446,
+    "poll": 461,
+    "communityNote": 471
+  },
+  "contextReadsPerRow": {
+    "text": 48,
+    "textAvatar": 48,
+    "image": 50,
+    "multiImage": 56,
+    "video": 51,
+    "linkPreview": 53,
+    "quote": 73,
+    "repost": 51,
+    "poll": 48,
+    "communityNote": 50
+  },
+  "requestsPerRow": {
+    "text": 0,
+    "textAvatar": 1,
+    "image": 1,
+    "multiImage": 1,
+    "video": 1,
+    "linkPreview": 1,
+    "quote": 2,
+    "repost": 1,
+    "poll": 1,
+    "communityNote": 1
+  },
+  "queryObserversPerRow": {
+    "text": 1,
+    "textAvatar": 1,
+    "image": 1,
+    "multiImage": 1,
+    "video": 1,
+    "linkPreview": 1,
+    "quote": 2,
+    "repost": 1,
+    "poll": 1,
+    "communityNote": 1
+  },
+  "maxRendersPerMount": 2,
+  "isolation": {
+    "rendersOnUnrelatedStoreWrite": 0,
+    "otherRowRendersOnLike": 0,
+    "otherRowRendersOnViewCount": 0
+  },
+  "fling": {
+    "translationRequests": 0,
+    "maxRequestsPerPostVisited": 1
+  }
+}

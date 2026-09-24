@@ -1050,7 +1050,16 @@ export default function VideosScreen() {
     const params = useLocalSearchParams<{ postId?: string; mediaIndex?: string }>();
     const { oxyServices, user, canUsePrivateApi, isAuthResolved, isAuthenticated } = useAuth();
     const viewerId = user?.id;
-    const { likePost, unlikePost, boostPost, unboostPost, savePost, unsavePost, getPostById, cachePosts } = usePostsStore();
+    // Per-action selectors: a bare usePostsStore() re-renders the whole reel
+    // screen on every unrelated posts-store write.
+    const likePost = usePostsStore((s) => s.likePost);
+    const unlikePost = usePostsStore((s) => s.unlikePost);
+    const boostPost = usePostsStore((s) => s.boostPost);
+    const unboostPost = usePostsStore((s) => s.unboostPost);
+    const savePost = usePostsStore((s) => s.savePost);
+    const unsavePost = usePostsStore((s) => s.unsavePost);
+    const getPostById = usePostsStore((s) => s.getPostById);
+    const cachePosts = usePostsStore((s) => s.cachePosts);
     // Desktop (>=990) gate. Actions + follow now overlay the video on every
     // breakpoint (matching mobile); `isDesktop` only decides how the comment
     // button behaves — a no-op on desktop (replies are already open in the
@@ -1111,7 +1120,8 @@ export default function VideosScreen() {
     const [activeFeed, setActiveFeed] = useState<VideoFeedTab>('videos');
     const activeFeedRef = useRef<VideoFeedTab>(activeFeed);
     activeFeedRef.current = activeFeed;
-    const { isMuted: globalMuted, loadMutedState } = useVideoMuteStore();
+    const globalMuted = useVideoMuteStore((s) => s.isMuted);
+    const loadMutedState = useVideoMuteStore((s) => s.loadMutedState);
 
     // If the viewer signs out while on Following, fall back to For You. Gated on
     // `isAuthResolved` so the undetermined cold-boot window (where the session is

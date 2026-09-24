@@ -7,7 +7,10 @@ import { logger } from '@oxy.so/core/logger';
  *   engagement attribution; attached to the SAVE write, ignored on unsave.
  */
 export function usePostSave(postId: string | undefined, isSaved: boolean, source?: string) {
-    const { savePost, unsavePost } = usePostsStore();
+    // Select each action: a bare usePostsStore() subscribes this row to the
+    // whole store and re-renders it on every unrelated posts-store write.
+    const savePost = usePostsStore((s) => s.savePost);
+    const unsavePost = usePostsStore((s) => s.unsavePost);
     const pendingRef = useRef(false);
 
     const toggleSave = useCallback(async () => {
