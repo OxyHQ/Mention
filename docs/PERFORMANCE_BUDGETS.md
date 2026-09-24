@@ -226,43 +226,96 @@ Two kinds of number come out of it, and only one of them gates:
   work — relative evidence between two runs on the same machine, never device
   frame time.
 
-Baseline — `main` at a1705141f, before any #1103 change
-(`__perf__/results/baseline-main.json`) — against the current tree
-(`__perf__/results/latest.json`), node 24, jest-expo ios:
+Since #1115 the harness compiles rows with the React Compiler, as the app
+ships them (`jest.perf.config.js` sets `supportsReactCompiler` on the Babel
+caller; jest-expo's own caller does not). Numbers before that PR are for the
+hand-written hooks; the last column is compiled output.
 
-| Row | components | hook slots (main → now) | context reads | host nodes | requests | Query observers | mount ms (main → now) | recycle ms (main → now) |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| text | 188 | 478 → 498 | 52 | 50 | 0 | 1 | 5.6 → 5.0 | 2.5 → 2.6 |
-| textAvatar | 185 | 478 → 498 | 52 | 49 | 1 | 1 | 5.0 → 5.1 | 2.8 → 3.0 |
-| image | 212 | 645 → 665 | 54 | 57 | 1 | 1 | 5.8 → 6.1 | 3.2 → 3.6 |
-| multiImage | 263 | 726 → 746 | 60 | 72 | 1 | 1 | 5.4 → 5.2 | 3.5 → 3.5 |
-| video | 230 | 600 → 620 | 55 | 62 | 1 | 1 | 5.4 → 6.1 | 3.2 → 3.4 |
-| linkPreview | 210 | 531 → 551 | 57 | 57 | 1 | 1 | 4.2 → 4.9 | 2.4 → 3.0 |
-| quote (2 posts) | 264 | 826 → 866 | 80 | 74 | 2 | 2 | 5.2 → 6.0 | 3.0 → 3.1 |
-| repost | 207 | 497 → 517 | 55 | 55 | 1 | 1 | 4.9 → 5.0 | 3.6 → 3.9 |
-| poll | 213 | 512 → 532 | 52 | 61 | 1 | 1 | 4.8 → 4.8 | 2.2 → 2.2 |
-| communityNote | 218 | 522 → 542 | 54 | 61 | 1 | 1 | 5.0 → 4.8 | 2.4 → 2.5 |
+### Hook slots per row across #1103
 
-| Isolation (10 mixed rows mounted) | main | now |
+Baseline is `main` at a1705141f, before any #1103 change
+(`__perf__/results/baseline-main.json`); the current numbers are in
+`__perf__/results/latest.json`. node 24, jest-expo ios.
+
+| Row | baseline | #1109 selectors | #1114 lazy machinery | #1112 one controller | #1115 compiled | change |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| text | 478 | 498 | 427 | 342 | **291** | −39% |
+| image | 645 | 665 | 493 | 408 | **349** | −46% |
+| multiImage | 726 | 746 | 574 | 489 | **406** | −44% |
+| video | 600 | 620 | 549 | 464 | **402** | −33% |
+| linkPreview | 531 | 551 | 480 | 395 | **344** | −35% |
+| quote (2 posts) | 826 | 866 | 756 | 586 | **484** | −41% |
+| repost | 497 | 517 | 446 | 361 | **310** | −38% |
+| poll | 512 | 532 | 461 | 376 | **325** | −37% |
+| communityNote | 522 | 542 | 471 | 386 | **335** | −36% |
+
+Context reads per text row went 52 → 39. Element instances and host nodes did
+not move: the work removed was hook state, subscriptions and controllers, not
+views. What each step did:
+
+- **#1109** removed the whole-store subscription in the four engagement hooks.
+  It adds 20 slots (nine per-action selectors where there were four
+  selector-less reads) and takes unrelated-write re-renders from 10/10 rows to 0.
+- **#1114** mounts the zoom gallery (~100 slots on an image row) on first tap,
+  the like burst animation on first like, and drops `useTranslation` from
+  `AccountBadge` (which renders nothing for most accounts) and `PostContentText`.
+- **#1112** replaces every per-row controller (engagement hooks, overflow-menu
+  builder, community-note flows, share, sources/insights wiring) with one
+  app-lifetime `usePostInteractions()` controller whose menu is built on press.
+- **#1115** removes the reasons the React Compiler was skipping `PostItem`,
+  `PostActions`, `PostAttachmentMedia`, `VideoPlayer` and `PollCard`. They were
+  skipped on `main` too.
+
+| Isolation (10 mixed rows mounted) | baseline | now |
 | --- | ---: | ---: |
 | row renders on an unrelated posts-store write | **10** | **0** |
 | other-row renders when post A is liked | 0 | 0 |
 | other-row renders on a view-count update | 0 | 0 |
 
-The one request per row is the author avatar prefetch; the one Query observer
-per row is live presence (`useLiveUsers`, one observer per avatar). A 200-post
-fling makes 198 requests, all avatar prefetches, and **zero** translation
-requests.
+The one request per row is the author avatar prefetch. A 200-post fling makes
+198 requests, all avatar prefetches, and **zero** translation requests. Before
+#1106 the frontend could auto-translate a row on mount; now only an explicit
+Translate calls the endpoint.
 
-The first change it measured (#1109, the row engagement hooks' whole-store
-subscription) moves the isolation table and not the mount timings — which is
-the honest reading: that fix removes RE-renders, not mount work. It even ADDS
-20 hook slots per row (nine per-action selectors where there were four
-selector-less reads); a row that re-rendered on every store write was the
-worse trade by far, and the shared interaction controller that follows removes
-the per-row engagement hooks altogether. The mount timings are within
-run-to-run noise of each other; hook slots and element counts are the numbers
-later changes have to move.
+Measured outside the row harness, in each PR's own test:
+
+| What | before | after | PR |
+| --- | ---: | ---: | --- |
+| live-presence Query observers, 50 avatars mounted | 51 | 1 | #1108 |
+| avatars re-rendered when one user goes live | 51 | 1 | #1108 |
+| video players re-rendered when one more row becomes visible (21 mounted) | 21 | 1 | #1116 |
+| video player renders per scroll step (21 mounted) | 42 | 6 | #1116 |
+| video players re-rendered when the active player changes | 21 | 2 | #1116 |
+| identity edit for user A: rows re-rendered that do not show A | all | 0 | #1107 |
+| poll fetches when a poll row remounts or recycles | 1 per mount | 0 (cached per viewer) | #1115 |
+| inference calls for N concurrent translate requests (same post and locale, across instances) | N | 1 | #1110, #1113 |
+
+`LinkifiedText` parsing (§11) was measured and **not** optimized, because it is
+not material: `scanLinkifyEntities` takes 0.3 µs for a plain 96-character body,
+0.5 µs for 1,164 characters and 6.7 µs for 21 entities (Bun/JSC, 20k
+iterations). Even at 10× on Hermes that is well under 0.1 ms, against
+millisecond row mounts. The cost of an entity-heavy body is the elements it
+creates, and those are counted above.
+
+### FlashList tuning (Phase 6): not changed, deliberately
+
+`FEED_DRAW_DISTANCE = 1000` and `maxItemsInRecyclePool={20}` stay as they are.
+#1103's rule is to re-tune them only against measured blank or late rows during
+a deterministic fling, and that measurement needs a release build on a device.
+The harness cannot see blank cells or time-to-visible. The procedure, once a
+device run exists:
+
+1. Release build on the reference Android device, with the seeded feed (the
+   harness fixtures as a mock-server response).
+2. Fling top→bottom at fixed velocity (adb `input swipe` scripted, 5 runs).
+3. Record blank-cell frames and JS long frames (Perf Monitor / systrace) at
+   drawDistance 1000, 750, 500, 250.
+4. Keep the smallest value with zero blank frames; then vary the recycle pool
+   (20, 12, 8) against RSS after 500 posts.
+
+The harness's per-row numbers are the reason to expect a lower drawDistance to
+hold: rows now build with ~40% fewer hook slots and none of the per-row
+controllers. That is an expectation to test, not a result.
 
 What this harness cannot see: device frame drops, native RSS, blank-cell
 incidence and time-to-visible. Those need a release build on hardware and are
@@ -292,6 +345,11 @@ repository today — they need a release build on hardware. The row's JS
 structure, re-render isolation and per-row network side effects ARE measured,
 by the Jest harness above. Web LCP is covered by the real-user web
 vitals above; native cold start is not.
+
+For #1103 specifically, these acceptance items are still waiting for that
+device run: fixed-fling dropped/janky frames against baseline, long-scroll
+RSS staying bounded, time-to-visible under a re-tuned drawDistance, and a
+release-build baseline of the "~40 ms per row" dev-build figure.
 
 ## Recommended next step, not taken in this pass
 
