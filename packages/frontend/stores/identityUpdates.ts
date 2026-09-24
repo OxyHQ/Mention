@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import type { PostUser } from '@mention/shared-types';
 // Type-only, and it has to stay that way: this module is in `PostItem`'s graph
 // (see below), so a runtime edge from here reaches every screen that renders a
@@ -65,7 +65,7 @@ import type { AccountCategoryId } from '@oxy.so/contracts';
  *     cache, so the edit is written through there and every incoming actor is
  *     corrected there, wherever the surface that fetched it lives.
  *   * The post rows themselves — `components/Feed/PostItem.tsx` resolves its
- *     actors through {@link useKnownIdentities}, so a feed row, a post detail, a
+ *     actors through {@link useKnownIdentitySet}, so a feed row, a post detail, a
  *     quote card and a boosted original all correct themselves wherever their
  *     copy of the post came from (SQLite, the memory-mode slice, or a response
  *     that has not landed yet).
@@ -152,13 +152,11 @@ type IdentityHolder = {
 /**
  * Recorded identities, keyed by Oxy user id.
  *
- * COPY-ON-WRITE, and that is what lets a render subscribe to the whole map
- * instead of one id at a time. A row shows several actors — its author, whoever
- * reposted it, each collaborator on the byline — and a hook cannot be called per
- * element of an array, so the snapshot has to be the map itself; mutating one in
- * place would hand `useSyncExternalStore` an unchanged reference after a write
- * and nothing would repaint. Replacing it means the reference changes exactly
- * when the contents do.
+ * COPY-ON-WRITE: a write replaces the map rather than mutating it, and an entry
+ * object is replaced (never mutated) whenever its fields change. So an entry's
+ * REFERENCE changes exactly when its contents do, which is what
+ * {@link useKnownIdentitySet} compares per id to decide whether a row's own
+ * actors changed.
  *
  * Nothing is recorded in the overwhelming majority of sessions, so this stays
  * the one shared {@link EMPTY} instance and no subscriber ever re-renders.
@@ -169,10 +167,35 @@ let knownIdentities: ReadonlyMap<string, IdentityUpdate> = EMPTY;
 
 type IdentityListener = () => void;
 
+/** Woken by every change, whichever identity it touched. */
 const listeners = new Set<IdentityListener>();
 
-function notify(): void {
-  for (const listener of listeners) {
+/**
+ * Woken only by a change to one of the ids they registered under. This is what
+ * keeps one profile edit from waking every mounted post row: a row listens for
+ * its own actors and nothing else.
+ */
+const keyedListeners = new Map<string, Set<IdentityListener>>();
+
+/**
+ * Wake the global listeners, and the keyed listeners of `changedIds` — or every
+ * keyed listener when `changedIds` is `'all'` (a reset). A listener registered
+ * under several of the changed ids is called once.
+ */
+function notify(changedIds: Iterable<string> | 'all'): void {
+  const woken = new Set<IdentityListener>(listeners);
+  if (changedIds === 'all') {
+    for (const set of keyedListeners.values()) {
+      for (const listener of set) woken.add(listener);
+    }
+  } else {
+    for (const id of changedIds) {
+      const set = keyedListeners.get(id);
+      if (!set) continue;
+      for (const listener of set) woken.add(listener);
+    }
+  }
+  for (const listener of woken) {
     listener();
   }
 }
@@ -298,8 +321,8 @@ function unconfirmedFields(
  * The identity recorded for a user, or `undefined` when nothing has been.
  *
  * The returned object is stable by reference until the next write for that user
- * or until one of its fields retires, which is what lets {@link useKnownIdentities}
- * hand the map to `useSyncExternalStore` directly.
+ * or until one of its fields retires, which is what lets {@link useKnownIdentitySet}
+ * compare a row's entries by reference.
  */
 export function getKnownIdentity(userId: string | undefined): IdentityUpdate | undefined {
   return userId ? knownIdentities.get(userId) : undefined;
@@ -314,7 +337,7 @@ export function getKnownIdentities(): ReadonlyMap<string, IdentityUpdate> {
  * Correct one actor with an already-read entry. PURE — a function of its two
  * arguments and nothing else, so a render may call it inside a `useMemo` without
  * reading module state from a memoized position (the React Compiler rule in
- * `~/AGENTS.md`); {@link useKnownIdentities} does the reading, through the store's
+ * `~/AGENTS.md`); {@link useKnownIdentitySet} does the reading, through the store's
  * own subscription.
  *
  * Returns the SAME reference when there is nothing recorded — the common case by
@@ -338,26 +361,92 @@ export function applyKnownIdentity<T extends IdentityHolder>(actor: T): T {
 }
 
 /**
- * Reactive read of every recorded identity.
+ * Separator for the id-list key. A newline never appears in an Oxy user id, so
+ * joining on it is unambiguous.
+ */
+const ID_KEY_SEPARATOR = '\n';
+
+/**
+ * One row's view of the overlay: a keyed subscription plus a snapshot that is
+ * stable by reference until one of ITS ids is written or retires.
+ *
+ * Built by a plain factory (not inside a hook body) so the closure's cache is
+ * ordinary module-level JavaScript — the React Compiler never sees a ref or a
+ * mutated state value, and `useSyncExternalStore` gets the referentially stable
+ * snapshot it requires.
+ */
+function createIdentitySelection(key: string): {
+  subscribe: (listener: IdentityListener) => () => void;
+  getSnapshot: () => ReadonlyMap<string, IdentityUpdate>;
+} {
+  const ids = key === '' ? [] : key.split(ID_KEY_SEPARATOR);
+  // Every id starts unrecorded, and so does the shared empty snapshot — so a row
+  // whose actors nobody has edited returns `EMPTY` and never allocates.
+  let lastEntries: (IdentityUpdate | undefined)[] = ids.map(() => undefined);
+  let lastSnapshot: ReadonlyMap<string, IdentityUpdate> = EMPTY;
+
+  return {
+    subscribe(listener) {
+      for (const id of ids) {
+        let set = keyedListeners.get(id);
+        if (!set) {
+          set = new Set();
+          keyedListeners.set(id, set);
+        }
+        set.add(listener);
+      }
+      return () => {
+        for (const id of ids) {
+          const set = keyedListeners.get(id);
+          if (!set) continue;
+          set.delete(listener);
+          if (set.size === 0) keyedListeners.delete(id);
+        }
+      };
+    },
+    getSnapshot() {
+      if (knownIdentities.size === 0 && lastSnapshot === EMPTY) return EMPTY;
+      const entries = ids.map((id) => knownIdentities.get(id));
+      if (entries.every((entry, index) => entry === lastEntries[index])) return lastSnapshot;
+      const next = new Map<string, IdentityUpdate>();
+      entries.forEach((entry, index) => {
+        if (entry) next.set(ids[index], entry);
+      });
+      lastEntries = entries;
+      lastSnapshot = next.size === 0 ? EMPTY : next;
+      return lastSnapshot;
+    },
+  };
+}
+
+/**
+ * Reactive read of the recorded identities of `ids` — and ONLY those.
+ *
+ * A row shows several actors (its author, whoever reposted it, each collaborator
+ * on the byline, every actor of a grouped notification), and a hook cannot be
+ * called per element of an array, so this takes the whole list at once: ONE
+ * `useSyncExternalStore` whose subscription is keyed by the list, however long
+ * it is. A change to identity A wakes the rows that listed A and no other row,
+ * and the returned map is the same reference until one of the listed entries is
+ * written or retires — so a memo keyed on it re-runs exactly then.
+ *
+ * `undefined` and duplicate ids are ignored, so a caller can pass optional
+ * actors straight through. The returned map holds an entry only for a listed id
+ * that has one; read it with `.get(id)` and hand the result to
+ * {@link mergeKnownIdentity}.
  *
  * `useSyncExternalStore` rather than a `useMemo` over the map, for the reason
  * `usePostSelector` uses it over the SQLite cache: the map is external mutable
  * state, and the React Compiler freezes the first value read from one inside a
  * memoized position. Feeding the returned map to {@link mergeKnownIdentity}
  * inside a `useMemo` is fine — it is then an ARGUMENT, and the merge is pure.
- *
- * The whole map rather than one id, because a row shows several actors and a
- * hook cannot be called per element of an array. It costs nothing while nothing
- * is recorded (one shared empty instance, so no subscriber re-renders), and a
- * profile edit is rare enough that repainting the mounted rows once is the right
- * trade against a subscription per actor per row.
  */
-export function useKnownIdentities(): ReadonlyMap<string, IdentityUpdate> {
-  return useSyncExternalStore(
-    subscribeToIdentityUpdates,
-    getKnownIdentities,
-    getKnownIdentities,
-  );
+export function useKnownIdentitySet(
+  ids: readonly (string | undefined | null)[],
+): ReadonlyMap<string, IdentityUpdate> {
+  const key = [...new Set(ids.filter((id): id is string => Boolean(id)))].join(ID_KEY_SEPARATOR);
+  const selection = useMemo(() => createIdentitySelection(key), [key]);
+  return useSyncExternalStore(selection.subscribe, selection.getSnapshot, selection.getSnapshot);
 }
 
 /**
@@ -390,6 +479,7 @@ export function useKnownIdentities(): ReadonlyMap<string, IdentityUpdate> {
 export function reconcileKnownIdentities(actors: readonly IdentityHolder[]): void {
   if (knownIdentities.size === 0) return;
   let next: Map<string, IdentityUpdate> | null = null;
+  const changed = new Set<string>();
   for (const actor of actors) {
     const id = actor.id;
     if (!id) continue;
@@ -398,19 +488,20 @@ export function reconcileKnownIdentities(actors: readonly IdentityHolder[]): voi
     const remaining = unconfirmedFields(entry, actor);
     if (!remaining) continue;
     next ??= new Map(knownIdentities);
+    changed.add(id);
     if (Object.keys(remaining).length === 0) next.delete(id);
     else next.set(id, { id, ...remaining });
   }
   if (!next) return;
   knownIdentities = next.size === 0 ? EMPTY : next;
-  notify();
+  notify(changed);
 }
 
 /**
- * Subscribe to identity changes. Returns an unsubscribe function.
+ * Subscribe to EVERY identity change. Returns an unsubscribe function.
  *
- * Exported for {@link useKnownIdentities}; a component should use the hook rather
- * than subscribing by hand.
+ * A component should use {@link useKnownIdentitySet} instead, which listens only
+ * for the ids it renders.
  */
 export function subscribeToIdentityUpdates(listener: IdentityListener): () => void {
   listeners.add(listener);
@@ -445,7 +536,7 @@ export function recordIdentityChange(update: IdentityUpdate): IdentityUpdate | n
   const next = new Map(knownIdentities);
   next.set(update.id, stored);
   knownIdentities = next;
-  notify();
+  notify([update.id]);
   return stored;
 }
 
@@ -462,5 +553,5 @@ export function recordIdentityChange(update: IdentityUpdate): IdentityUpdate | n
  */
 export function resetIdentityUpdates(): void {
   knownIdentities = EMPTY;
-  notify();
+  notify('all');
 }
