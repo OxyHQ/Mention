@@ -103,6 +103,20 @@ function resolveDomElement(ref: View | null): Element | null {
 const CONTROLS_HIDE_DELAY = 3000;
 const TIME_UPDATE_INTERVAL = 0.25;
 
+/**
+ * Writes settings onto a native player. A function rather than inline
+ * assignments in the effects below: the React Compiler treats a hook's return
+ * value as immutable, and assigning its properties in place made it skip this
+ * whole component — mounted by every video row (#1103). The player IS a
+ * mutable native object; this is where that is said once.
+ */
+function configurePlayer(
+  target: ExpoVideoPlayer,
+  settings: Partial<Pick<ExpoVideoPlayer, 'loop' | 'muted' | 'timeUpdateEventInterval'>>,
+): void {
+  Object.assign(target, settings);
+}
+
 const VideoPlayer: React.FC<VideoPlayerProps> = ({
   src,
   style,
@@ -218,8 +232,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // borrowed one is configured from this effect instead. Idempotent property
   // writes, so running it for both is simpler than branching and cannot drift.
   useEffect(() => {
-    player.loop = gif ? true : loop;
-    player.timeUpdateEventInterval = TIME_UPDATE_INTERVAL;
+    configurePlayer(player, { loop: gif ? true : loop, timeUpdateEventInterval: TIME_UPDATE_INTERVAL });
   }, [player, gif, loop]);
 
   const scheduleHideControls = useCallback(() => {
@@ -233,7 +246,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   // Sync mute state from global store (GIFs stay force-muted regardless).
   useEffect(() => {
-    player.muted = gif ? true : isMuted;
+    configurePlayer(player, { muted: gif ? true : isMuted });
   }, [isMuted, player, gif]);
 
   // Player events. `useEvent` / `useEventListener` (from expo) own the
