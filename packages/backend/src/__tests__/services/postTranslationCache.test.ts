@@ -80,8 +80,45 @@ import { PostHydrationService } from '../../services/PostHydrationService';
 import {
   PostTranslationService,
   TranslationSourceChangedError,
-  translationSourceFingerprint,
 } from '../../services/PostTranslationService';
+import { translationSourceFingerprint } from '../../services/postVariants';
+import { createRedisLock } from '../../utils/redisLock';
+
+/**
+ * One Redis shared by every service instance in a test — the subset of node-redis
+ * `createRedisLock` uses (SET NX PX, the compare-and-delete EVAL, `isReady`).
+ * Two `PostTranslationService`s over it are two backend tasks: no in-process
+ * state in common, one lock namespace.
+ */
+class FakeRedis {
+  isReady = true;
+  readonly store = new Map<string, { value: string; expireAt: number }>();
+
+  private live(key: string): string | undefined {
+    const entry = this.store.get(key);
+    if (!entry) return undefined;
+    if (Date.now() >= entry.expireAt) {
+      this.store.delete(key);
+      return undefined;
+    }
+    return entry.value;
+  }
+
+  async set(key: string, value: string, options: { condition: 'NX'; expiration: { value: number } }) {
+    if (options.condition === 'NX' && this.live(key) !== undefined) return null;
+    this.store.set(key, { value, expireAt: Date.now() + options.expiration.value });
+    return 'OK';
+  }
+
+  async eval(_script: string, options: { keys: string[]; arguments: string[] }) {
+    const [key] = options.keys;
+    if (key !== undefined && this.live(key) === options.arguments[0]) {
+      this.store.delete(key);
+      return 1;
+    }
+    return 0;
+  }
+}
 
 const scope = postScope('translation-cache');
 const AUTHOR_ID = scope.user('author');
@@ -158,6 +195,10 @@ async function machineRows(postId: string) {
 describe('machine translation cache', () => {
   let hydration: PostHydrationService;
   let translation: PostTranslationService;
+  let redis: FakeRedis;
+  /** A service instance standing for one backend task, over the shared fake Redis. */
+  const task = (): PostTranslationService =>
+    new PostTranslationService({ lock: createRedisLock(() => redis), lockPollMs: 5 });
 
   /** Hydrate a FRESH read of the post for a reader whose request carries `languages`. */
   async function hydrate(postId: string, languages: string[]) {
@@ -192,7 +233,8 @@ describe('machine translation cache', () => {
       { id: AUTHOR_ID, username: 'author', name: { displayName: 'Author' }, badges: [], verified: false },
     ]);
     hydration = new PostHydrationService();
-    translation = new PostTranslationService();
+    redis = new FakeRedis();
+    translation = task();
   });
 
   afterEach(async () => {
@@ -320,26 +362,70 @@ describe('machine translation cache', () => {
       expect((await machineRows(post.id)).filter((row) => row.source === 'machine')).toHaveLength(1);
     });
 
-    it('converges on the first stored row when two PROCESSES race — never a 500', async () => {
-      const post = await seed(englishPost());
-      // Two service instances have no in-process single-flight in common: this is
-      // the cross-task race, and only the database can settle it.
-      const other = new PostTranslationService();
+    /** Number each body translation, so two inference calls cannot look like one. */
+    function numberedInference(): void {
       let call = 0;
-      inferenceChat.mockImplementation(async (messages: ChatMessage[]) => {
+      inferenceChat.mockImplementation(async (messages: ChatMessage[], options?: { feature?: string }) => {
+        if (options?.feature !== 'post-translation') return fakeTranslate(messages);
         call += 1;
+        // Yield long enough that the other task reaches the lock while this one holds it.
+        await new Promise((resolve) => setTimeout(resolve, 30));
         return `${fakeTranslate(messages)} #${call}`;
       });
+    }
+
+    it('pays for ONE inference across two backend tasks sharing Redis', async () => {
+      const post = await seed(englishPost());
+      // Two service instances have no in-process single-flight in common: the
+      // Redis lock is the only thing between them.
+      const other = task();
+      numberedInference();
 
       const [first, second] = await Promise.all([
         translation.translatePost(post.id, post.content, 'es-MX'),
         other.translatePost(post.id, post.content, 'es-MX'),
       ]);
 
+      expect(bodyCalls()).toBe(1);
+      const machine = (await machineRows(post.id)).filter((row) => row.source === 'machine');
+      expect(machine.map((row) => row.body)).toEqual(['[Spanish (Mexico)] I bought a car #1']);
+      expect(first.text).toBe(machine[0]?.body);
+      expect(second.text).toBe(machine[0]?.body);
+      // Released with the compare-and-delete: nothing left holding the key.
+      expect(redis.store.size).toBe(0);
+    });
+
+    it('proceeds without the lock when Redis is unavailable, and still converges on one row', async () => {
+      const post = await seed(englishPost());
+      redis.isReady = false;
+      const other = task();
+      numberedInference();
+
+      const [first, second] = await Promise.all([
+        translation.translatePost(post.id, post.content, 'es-MX'),
+        other.translatePost(post.id, post.content, 'es-MX'),
+      ]);
+
+      // Unguarded, both tasks pay — but neither fails, and they agree.
+      expect(bodyCalls()).toBe(2);
       const machine = (await machineRows(post.id)).filter((row) => row.source === 'machine');
       expect(machine).toHaveLength(1);
       expect(first.text).toBe(machine[0]?.body);
       expect(second.text).toBe(machine[0]?.body);
+    });
+
+    it('lets a waiter proceed once a dead holder’s lock expires', async () => {
+      const post = await seed(englishPost());
+      // A task that took the lock and died: nobody will release it or store anything.
+      redis.store.set(`mention:translation:${post.id}:es-MX`, {
+        value: 'dead-task',
+        expireAt: Date.now() + 60,
+      });
+
+      const result = await translation.translatePost(post.id, post.content, 'es-MX');
+
+      expect(result).toEqual({ text: '[Spanish (Mexico)] I bought a car', tag: 'es-MX', cached: false });
+      expect(bodyCalls()).toBe(1);
     });
   });
 

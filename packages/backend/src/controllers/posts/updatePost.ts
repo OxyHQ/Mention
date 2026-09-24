@@ -36,6 +36,7 @@ import {
   authorVariants,
   buildPrimaryVariant,
   stripSpamHashtagBlocks,
+  translationSourceFingerprint,
   validateAuthorVariants,
 } from '../../services/postVariants';
 import { isChannelAccount } from '../../services/publishAsAccount';
@@ -384,6 +385,10 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       content.sources = sanitized.length ? sanitized : undefined;
     }
 
+    // The stored `content.article` carries only title and excerpt; the body lives
+    // in `articles`, so a body edit is tracked here for the translation check
+    // below rather than read off the content graph.
+    let articleBodyChanged = false;
     if (req.body.article !== undefined) {
       const sanitizedArticle = sanitizeArticle(req.body.article);
       const existingArticleId = content.article?.articleId;
@@ -394,6 +399,9 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         // `updateArticle` re-anchors `post_id` as well as writing the body, so
         // the two branches differ only in whether a row already exists.
         let articleId: string;
+        if (sanitizedArticle.body !== undefined && (existing?.body ?? undefined) !== (sanitizedArticle.body || undefined)) {
+          articleBodyChanged = true;
+        }
         if (existing) {
           articleId = existing.id;
           await updateArticle(articleId, post.id, {
@@ -486,6 +494,16 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
           message: 'This post published while you were editing it. Reload it to edit within the 30-minute window.',
         });
       }
+    }
+
+    // A machine translation describes the exact source it was made from — the
+    // primary body, the ALT text of the media it shows, and the article. The
+    // body branch above already drops them; an edit that only touches ALT text
+    // or the article must drop them too, or a reader would be served a
+    // translation of the post as it used to be. Their `post_variant_alt_texts`
+    // rows go with them: `replacePostContent` rewrites the whole graph.
+    if (articleBodyChanged || translationSourceFingerprint(content) !== translationSourceFingerprint(post.content)) {
+      content.variants = authorVariants(content);
     }
 
     await updatePostRecord(post.id, patch);
