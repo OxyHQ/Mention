@@ -425,8 +425,6 @@
   "settings.sections.preferences": "偏好设置",
   "Select your preferred language": "选择你偏好的语言",
   "settings.language.selectLanguage": "选择语言",
-  "settings.language.autoTranslate": "自动翻译帖子",
-  "settings.language.autoTranslateDesc": "自动翻译以其他语言撰写的帖子",
   "settings.preferences.appearance": "外观",
   "settings.preferences.appearanceDesc": "自定义主题、文字和显示设置",
   "settings.theme.source.useAccount": "与账号同步主题",

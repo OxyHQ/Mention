@@ -425,8 +425,6 @@
   "settings.sections.preferences": "Präferenzen",
   "Select your preferred language": "Wähle deine bevorzugte Sprache",
   "settings.language.selectLanguage": "Sprache auswählen",
-  "settings.language.autoTranslate": "Beiträge automatisch übersetzen",
-  "settings.language.autoTranslateDesc": "Beiträge in einer anderen Sprache automatisch übersetzen",
   "settings.preferences.appearance": "Darstellung",
   "settings.preferences.appearanceDesc": "Design, Text und Anzeigeeinstellungen anpassen",
   "settings.theme.source.useAccount": "Design mit Konto synchronisieren",

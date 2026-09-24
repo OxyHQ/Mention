@@ -122,7 +122,7 @@ describe('findOptionForLanguage', () => {
 });
 
 describe('shouldOfferTranslation', () => {
-  const autoTranslate = (content: PostContent, readerLanguage: string, postLanguage?: string) =>
+  const offers = (content: PostContent, readerLanguage: string, postLanguage?: string) =>
     shouldOfferTranslation({
       content,
       postLanguage,
@@ -130,35 +130,35 @@ describe('shouldOfferTranslation', () => {
       options: buildPostLanguageOptions(content, postLanguage),
     });
 
-  it('does NOT fire when the author already wrote this post in the reader’s language', () => {
+  it('offers nothing when the author already wrote this post in the reader’s language', () => {
     // The server served English (no Accept-Language on a cold request), but the
     // author wrote a Spanish rendition. Machine-translating it would replace the
     // author's own words with a robot's.
     const servedInEnglish: PostContent = { ...bilingual, text: 'Hello world', textLang: 'en-US' };
-    expect(autoTranslate(servedInEnglish, 'es-MX')).toBe(false);
+    expect(offers(servedInEnglish, 'es-MX')).toBe(false);
   });
 
-  it('does NOT fire when the body on screen is already the reader’s language', () => {
-    expect(autoTranslate(bilingual, 'es-MX')).toBe(false);
+  it('offers nothing when the body on screen is already the reader’s language', () => {
+    expect(offers(bilingual, 'es-MX')).toBe(false);
   });
 
   it('compares on the base subtag: an es-MX reader and an es-ES post are the same language', () => {
-    expect(autoTranslate({ text: 'Hola', textLang: 'es-ES' }, 'es-MX')).toBe(false);
+    expect(offers({ text: 'Hola', textLang: 'es-ES' }, 'es-MX')).toBe(false);
   });
 
-  it('fires for a foreign post the author never wrote in the reader’s language', () => {
-    expect(autoTranslate(englishWithMachineItalian, 'es-ES')).toBe(true);
+  it('offers a translation for a foreign post the author never wrote in the reader’s language', () => {
+    expect(offers(englishWithMachineItalian, 'es-ES')).toBe(true);
   });
 
-  it('fires when the only rendition in the reader’s language is a MACHINE one — showing it is the point', () => {
-    expect(autoTranslate(englishWithMachineItalian, 'it-IT')).toBe(true);
+  it('offers a translation when the only rendition in the reader’s language is a MACHINE one — showing it is the point', () => {
+    expect(offers(englishWithMachineItalian, 'it-IT')).toBe(true);
   });
 
-  it('never fires on an empty body', () => {
-    expect(autoTranslate({ text: '   ', textLang: 'en-US' }, 'es-ES')).toBe(false);
+  it('offers nothing on an empty body', () => {
+    expect(offers({ text: '   ', textLang: 'en-US' }, 'es-ES')).toBe(false);
   });
 
-  it('does NOT fire when the served language is any of the reader’s SEVERAL languages, not just their first', () => {
+  it('offers nothing when the served language is any of the reader’s SEVERAL languages, not just their first', () => {
     // The post is served in Spanish; the reader's account lists English first
     // and Spanish second. They already understand it — offering to translate a
     // post into a language they read fluently would be noise, not help.
@@ -172,7 +172,7 @@ describe('shouldOfferTranslation', () => {
     ).toBe(false);
   });
 
-  it('fires only when NONE of the reader’s several languages match', () => {
+  it('offers a translation only when NONE of the reader’s several languages match', () => {
     expect(
       shouldOfferTranslation({
         content: englishWithMachineItalian,
@@ -182,7 +182,7 @@ describe('shouldOfferTranslation', () => {
     ).toBe(true);
   });
 
-  it('never fires with no reader language at all', () => {
+  it('offers nothing with no reader language at all', () => {
     expect(
       shouldOfferTranslation({
         content: englishWithMachineItalian,

@@ -114,7 +114,7 @@ export function findOptionForLanguages(
 
 /**
  * The tag to translate this post into for a reader who asked for it (the
- * translate icon, or auto-translate): an existing rendition in one of their
+ * translate icon or the language picker): an existing rendition in one of their
  * languages when the post already has one, otherwise their single
  * most-preferred language, as a fresh translate target.
  */
@@ -128,13 +128,12 @@ export function resolveTranslateTarget(
 /**
  * Whether translating this post would give the reader anything.
  *
- * ONE predicate with two consumers: it decides whether the action bar shows the
- * translate icon at all, and — for a reader who has auto-translate on — whether
- * the translation fires by itself. Both must answer the same question, because
- * an icon that translates a post into a language the reader already understands
- * does nothing, and auto-translating such a post replaces the author's own
- * words with a robot's. The comparison is on the BASE subtag throughout: an
- * `es-MX` reader and an `es-ES` post speak the same language.
+ * It decides whether the action bar shows the translate icon at all: an icon
+ * that translates a post into a language the reader already understands does
+ * nothing, and on a post the author also wrote in the reader's language it would
+ * replace the author's own words with a robot's. The comparison is on the BASE
+ * subtag throughout: an `es-MX` reader and an `es-ES` post speak the same
+ * language.
  *
  * `readerLanguages` is the reader's WHOLE list, most-preferred first — not just
  * the app's display language. A reader whose account lists `[en, es]` reads

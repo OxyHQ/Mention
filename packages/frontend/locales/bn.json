@@ -425,8 +425,6 @@
   "settings.sections.preferences": "পছন্দ",
   "Select your preferred language": "আপনার পছন্দের ভাষা বেছে নিন",
   "settings.language.selectLanguage": "ভাষা বেছে নিন",
-  "settings.language.autoTranslate": "পোস্ট স্বয়ংক্রিয়ভাবে অনুবাদ করুন",
-  "settings.language.autoTranslateDesc": "অন্য ভাষায় লেখা পোস্ট স্বয়ংক্রিয়ভাবে অনুবাদ করুন",
   "settings.preferences.appearance": "চেহারা",
   "settings.preferences.appearanceDesc": "থিম, লেখা ও প্রদর্শনের সেটিংস কাস্টমাইজ করুন",
   "settings.theme.source.useAccount": "অ্যাকাউন্টের সাথে থিম সিঙ্ক করুন",

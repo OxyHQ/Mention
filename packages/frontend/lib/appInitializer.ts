@@ -4,6 +4,7 @@
  */
 
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
 
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
@@ -54,6 +55,21 @@ async function loadVideoMuteState(): Promise<void> {
 }
 
 /**
+ * Keys a retired feature persisted and nothing reads any more. The
+ * "Auto-translate posts" preference was removed: hydration picks a post's
+ * rendition, and only an explicit reader action translates.
+ */
+export const OBSOLETE_STORAGE_KEYS = ['auto-translate-preference'] as const;
+
+async function removeObsoleteStorage(): Promise<void> {
+  try {
+    await AsyncStorage.multiRemove([...OBSOLETE_STORAGE_KEYS]);
+  } catch (error) {
+    logger.warn('Failed to remove obsolete storage keys', { error });
+  }
+}
+
+/**
  * Main app initialization function
  * Coordinates all initialization steps
  */
@@ -91,6 +107,7 @@ export class AppInitializer {
       const results = await Promise.allSettled([
         setupNotificationsIfNeeded().then(() => logger.debug('Notifications done')),
         loadVideoMuteState().then(() => logger.debug('VideoMute done')),
+        removeObsoleteStorage(),
       ]);
 
       logger.debug('All tasks settled', { statuses: results.map(r => r.status) });
