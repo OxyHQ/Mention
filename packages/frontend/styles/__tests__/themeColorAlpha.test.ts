@@ -16,12 +16,25 @@ import * as path from 'node:path';
  * invisible control. Nothing errors, tsc is happy, and a jest assertion that the
  * label rendered still passes, which is precisely why this needs a source gate.
  *
- * The ONE family this does not apply to is `STATUS_COLORS` (`error`, `success`,
- * `warning`, `info`), which Bloom keeps as plain `#rrggbb` literals — there the
- * suffix really does yield a valid 8-digit hex and the alpha applies. Local
- * hard-coded hex palettes (e.g. `SEVERITY_COLORS` in `LabelBadge`) are correct
- * for the same reason, so this scanner keys on `colors.<role>` rather than on
- * "a template literal followed by two hex digits".
+ * This USED to exempt the status family (`error`, `success`, `warning`, `info`)
+ * on the grounds that Bloom kept those four as plain `#rrggbb` literals, where
+ * the suffix really does yield a valid 8-digit hex. **That stopped being true in
+ * Bloom 4.** `src/theme/build-theme.ts` now resolves them through the same tonal
+ * pipeline as every other role — "the status family is themed per mode and
+ * legible, from the same pipeline as everything else — not four frozen hexes" —
+ * and `STATUS_COLORS` survives only as a separate constant that
+ * `theme.colors.error` is no longer built from. Measured on Bloom 4.5.0 via
+ * `getPresetVars('blue', mode)`: `--error` is `rgb(191 31 39)` in light and
+ * `rgb(209 45 50)` in dark. So the exemption was certifying four real defects,
+ * and it is gone.
+ *
+ * Local hard-coded hex palettes (e.g. `SEVERITY_COLORS` in `LabelBadge`) ARE
+ * still legitimate, which is why this scanner keys on `colors.<role>` rather
+ * than on "a template literal followed by two hex digits".
+ *
+ * For the status family the fix is the token pair Bloom generates for exactly
+ * this purpose: `colors.errorSubtle` as the tinted surface and
+ * `colors.errorSubtleForeground` as the member legible on it.
  *
  * The fix is the NativeWind opacity class (`bg-primary/10`, `border-primary/25`),
  * which composites through the CSS pipeline instead of string-appending.
@@ -38,9 +51,6 @@ const SKIPPED_DIRECTORIES = new Set([
   'ios',
   'dist',
 ]);
-
-/** Roles Bloom keeps as plain hex, where a hex-alpha suffix is legitimate. */
-const STATUS_ROLES = new Set(['error', 'success', 'warning', 'info']);
 
 /**
  * `colors.<role>` — via any receiver (`theme.colors.x`, a destructured
@@ -82,8 +92,6 @@ export function findTokenAlphaOffenders(source: string): string[] {
   for (const line of withoutComments(source).split('\n')) {
     TOKEN_ALPHA_PATTERN.lastIndex = 0;
     for (const match of line.matchAll(TOKEN_ALPHA_PATTERN)) {
-      const role = match[1] ?? match[2];
-      if (role !== undefined && STATUS_ROLES.has(role)) continue;
       offenders.push(line.trim().slice(0, REPORT_EXCERPT_LENGTH));
     }
   }
@@ -109,10 +117,17 @@ describe('Bloom theme colour tokens are never hex-alpha composited', () => {
     expect(findTokenAlphaOffenders('color: `${theme.colors.border}33`')).toHaveLength(1);
   });
 
-  it('leaves STATUS_COLORS and local hex palettes alone', () => {
-    expect(findTokenAlphaOffenders("backgroundColor: theme.colors.error + '15'")).toEqual([]);
-    expect(findTokenAlphaOffenders('backgroundColor: `${theme.colors.info}14`')).toEqual([]);
-    // `SEVERITY_COLORS` and friends are real `#rrggbb` literals.
+  it('flags the status family too, which Bloom 4 moved onto the tonal engine', () => {
+    // These two were ASSERTED TO BE CLEAN here until Bloom 4 rebuilt `error`,
+    // `success`, `warning` and `info` from the same engine as every other role.
+    // Keeping the old expectation would re-certify the defect.
+    expect(findTokenAlphaOffenders("backgroundColor: theme.colors.error + '15'")).toHaveLength(1);
+    expect(findTokenAlphaOffenders('backgroundColor: `${theme.colors.info}14`')).toHaveLength(1);
+  });
+
+  it('leaves local hex palettes alone', () => {
+    // `SEVERITY_COLORS` and friends are real `#rrggbb` literals, and a bare
+    // local is not a `colors.<role>` read.
     expect(findTokenAlphaOffenders('backgroundColor: `${color}12`')).toEqual([]);
   });
 

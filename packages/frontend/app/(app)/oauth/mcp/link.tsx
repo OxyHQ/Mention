@@ -176,7 +176,7 @@ function LinkBody({ token }: { token: string }) {
       </View>
 
       {error ? (
-        <View className="flex-row items-start gap-2.5 rounded-xl p-3.5" style={{ backgroundColor: colors.error + '14' }}>
+        <View className="flex-row items-start gap-2.5 rounded-xl p-3.5" style={{ backgroundColor: colors.errorSubtle }}>
           <RiErrorWarningFill width={18} height={18} fill={colors.error} />
           <Text className="flex-1 text-[13px] text-foreground">{error}</Text>
         </View>
