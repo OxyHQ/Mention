@@ -25,28 +25,28 @@
     "communityNote": 218
   },
   "hooksPerRow": {
-    "text": 498,
-    "textAvatar": 498,
-    "image": 665,
-    "multiImage": 746,
-    "video": 620,
-    "linkPreview": 551,
-    "quote": 866,
-    "repost": 517,
-    "poll": 532,
-    "communityNote": 542
+    "text": 427,
+    "textAvatar": 427,
+    "image": 493,
+    "multiImage": 574,
+    "video": 549,
+    "linkPreview": 480,
+    "quote": 756,
+    "repost": 446,
+    "poll": 461,
+    "communityNote": 471
   },
   "contextReadsPerRow": {
-    "text": 52,
-    "textAvatar": 52,
-    "image": 54,
-    "multiImage": 60,
-    "video": 55,
-    "linkPreview": 57,
-    "quote": 80,
-    "repost": 55,
-    "poll": 52,
-    "communityNote": 54
+    "text": 48,
+    "textAvatar": 48,
+    "image": 50,
+    "multiImage": 56,
+    "video": 51,
+    "linkPreview": 53,
+    "quote": 73,
+    "repost": 51,
+    "poll": 48,
+    "communityNote": 50
   },
   "requestsPerRow": {
     "text": 0,
