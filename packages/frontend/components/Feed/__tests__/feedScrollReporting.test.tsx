@@ -153,6 +153,8 @@ jest.mock('../feedRows', () => ({
     feedRowKey: (row: { key?: string }) => row.key ?? 'row',
     feedRowType: () => 'post',
     feedRowStyles: { container: {}, list: {}, listEmbedded: {}, listContent: {} },
+    boundFeedRows: <T,>(rows: T[]) => rows,
+    canLoadMoreFeed: () => false,
 }));
 
 jest.mock('../FeedHeader', () => ({ FeedHeader: () => null }));
