@@ -426,8 +426,6 @@
   "settings.sections.preferences": "Preferências",
   "Select your preferred language": "Escolhe o teu idioma preferido",
   "settings.language.selectLanguage": "Escolher idioma",
-  "settings.language.autoTranslate": "Traduzir publicações automaticamente",
-  "settings.language.autoTranslateDesc": "Traduz automaticamente as publicações escritas noutro idioma",
   "settings.preferences.appearance": "Aspeto",
   "settings.preferences.appearanceDesc": "Personaliza o tema, o texto e as definições de apresentação",
   "settings.theme.source.useAccount": "Sincronizar tema com a conta",

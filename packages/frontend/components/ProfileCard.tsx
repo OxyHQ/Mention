@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { FollowButton } from '@oxy.so/services/ui/client';
 import { ContactRow } from '@oxy.so/bloom/chat-people';
 import { Avatar } from '@oxy.so/bloom/avatar';
-import { mergeKnownIdentity, useKnownIdentities } from '@/stores/identityUpdates';
+import { mergeKnownIdentity, useKnownIdentitySet } from '@/stores/identityUpdates';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Text } from '@oxy.so/bloom/typography';
 import { getNormalizedUserHandle, type AccountKind } from '@oxy.so/core';
@@ -135,7 +135,7 @@ export function ProfileCard({
   // engagement and collaborator lists, pokes and subscriptions all draw — so
   // resolving it here is what makes an edit reach all of them without each of
   // them having to remember to.
-  const knownIdentities = useKnownIdentities();
+  const knownIdentities = useKnownIdentitySet([profile.id]);
   const resolved = useMemo(
     () => mergeKnownIdentity(profile, knownIdentities.get(profile.id)),
     [profile, knownIdentities],

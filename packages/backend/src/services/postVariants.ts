@@ -42,8 +42,15 @@ import { normalizePostHashtags } from '../utils/textProcessing';
  * exact tag → any variant sharing the base subtag → next step. So a reader on
  * `es-MX` sees an `es-ES` post in Spanish; never English when Spanish exists.
  *
- * Author variants always beat machine variants of the same base language: a
- * machine translation must never displace words the author actually wrote.
+ * Within a locale, the author beats the machine: a machine translation never
+ * displaces words the author wrote in THAT locale. Across regions the exact
+ * locale wins — a cached `es-MX` translation is served to an `es-MX` reader ahead
+ * of the author's `es-ES`, which remains the fallback when no `es-MX` exists (see
+ * {@link selectVariantForTag}).
+ *
+ * Hydration only ever SELECTS among stored renditions; it never calls inference
+ * to make a missing one. `POST /posts/:id/translate` is the one path that does,
+ * and it caches its result here as a `source: 'machine'` variant.
  */
 
 /** One localized rendition, with THE RULE already applied. */
@@ -229,10 +236,21 @@ export function toStoredContent(
 }
 
 /**
- * The best variant for one requested tag: an AUTHOR variant beats a machine one
- * even when the machine variant is the closer regional match — a translation must
- * never displace the author's own words for the same language. An untagged variant
- * matches nothing (it is only ever reachable as the primary).
+ * The best variant for one requested tag. The EXACT locale comes first, and
+ * within it the author beats the machine; only then does a same-base rendition
+ * serve as the fallback, again author before machine:
+ *
+ *   1. author, exact tag          (`es-MX` for an `es-MX` reader)
+ *   2. machine, exact tag         (a cached `es-MX` translation)
+ *   3. author, same base          (the author's `es-ES`)
+ *   4. machine, same base         (a cached `es-ES` translation)
+ *
+ * Exact beats same-base because a regional rendition is not interchangeable with
+ * another region's: `es-MX` may say "carro" where `es-ES` says "coche", and a
+ * reader who asked for Mexican Spanish (and for whom one was translated) should
+ * get it. A base-only request (`es`) matches an `es` rendition exactly and
+ * otherwise falls back to any `es-*` — it never implies a particular region.
+ * An untagged variant matches nothing (it is only ever reachable as the primary).
  */
 function selectVariantForTag(
   variants: PostContentVariant[],
@@ -244,8 +262,8 @@ function selectVariantForTag(
 
   const byPrecedence: Array<(variant: PostContentVariant) => boolean> = [
     (variant) => variant.source === 'author' && variant.tag === canonical,
-    (variant) => variant.source === 'author' && base !== null && toBaseLanguage(variant.tag) === base,
     (variant) => variant.source === 'machine' && variant.tag === canonical,
+    (variant) => variant.source === 'author' && base !== null && toBaseLanguage(variant.tag) === base,
     (variant) => variant.source === 'machine' && base !== null && toBaseLanguage(variant.tag) === base,
   ];
 

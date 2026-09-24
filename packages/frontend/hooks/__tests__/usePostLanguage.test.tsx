@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { PostContent } from '@mention/shared-types';
@@ -14,14 +16,15 @@ import { usePostLanguage, type PostLanguageState } from '../usePostLanguage';
  *    memory.
  * 2. Any OTHER language is a translate call. The client does not know, and must
  *    not try to guess, whether the server will answer it from a cache or a model.
- * 3. Auto-translate must never machine-translate a post the author WROTE in the
- *    reader's language. Same language, different region (`es-MX` reader, `es-ES`
- *    post) is the same language.
+ * 3. NOTHING TRANSLATES ON ITS OWN. Mounting, rendering, recycling, render-ahead
+ *    and viewability make zero translate requests. The server's hydration already
+ *    chose the body on screen; a missing language is only ever manufactured
+ *    after an explicit reader action (the icon or the picker).
  * 4. Nothing here asks who the reader is. Translation is not premium — the hook
  *    takes no viewer, no entitlement, and no upsell route.
- * 5. `canTranslate` is the ONE predicate behind both the icon's presence and
- *    auto-translate, so the icon is absent exactly where translating would do
- *    nothing — and stays present once translated, or there would be no way back.
+ * 5. `canTranslate` decides the icon's presence, so the icon is absent exactly
+ *    where translating would do nothing — and stays present once translated, or
+ *    there would be no way back.
  */
 
 const mockApiPost = jest.fn();
@@ -57,13 +60,6 @@ let mockAccountLanguages: string[] = [];
 jest.mock('@/stores/trendsStore', () => ({
   useTrendsStore: (selector: (state: { readerLanguages: string[] }) => unknown) =>
     selector({ readerLanguages: [...mockAccountLanguages, mockReaderLanguage].filter(Boolean) }),
-}));
-
-/** The auto-translate preference. Flipped per test. */
-let mockAutoTranslateEnabled = false;
-jest.mock('@/stores/autoTranslateStore', () => ({
-  useAutoTranslateStore: <T,>(selector: (state: { enabled: boolean }) => T): T =>
-    selector({ enabled: mockAutoTranslateEnabled }),
 }));
 
 /** The author wrote this post in Spanish (primary) and in English. */
@@ -119,8 +115,15 @@ beforeEach(() => {
   mockToast.mockReset();
   mockReaderLanguage = 'en-US';
   mockAccountLanguages = [];
-  mockAutoTranslateEnabled = false;
 });
+
+/** Let any queued microtask or promise continuation run before asserting. */
+async function flush() {
+  await act(async () => {
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
 
 /**
  * WHAT A RECYCLED ROW COSTS, AND WHAT IT MUST NOT SHOW.
@@ -196,25 +199,36 @@ describe('a row recycled onto another post', () => {
     });
   });
 
-  it('offers auto-translate to the post it landed on, not once per instance', async () => {
-    mockAutoTranslateEnabled = true;
-    mockReaderLanguage = 'it';
-    mockApiPost.mockResolvedValue({ data: { translatedText: 'Ciao mondo', tag: 'it' } });
+  it('never shows the previous post’s MACHINE translation, even one that lands after the recycle', async () => {
+    mockReaderLanguage = 'it-IT';
+    let resolveTranslate!: (value: unknown) => void;
+    mockApiPost.mockReturnValue(new Promise((resolve) => { resolveTranslate = resolve; }));
 
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => {
       renderer = TestRenderer.create(<Probe content={englishOnly} postId="post-1" />);
     });
-    const afterFirst = mockApiPost.mock.calls.length;
-    expect(afterFirst).toBeGreaterThan(0);
+    await act(async () => {
+      state.toggleReaderTranslation();
+    });
+    expect(state.isTranslating).toBe(true);
 
+    // Recycled onto another post while post-1's translation is still in flight.
     await act(async () => {
       renderer.update(<Probe content={englishOnly} postId="post-2" />);
     });
+    await act(async () => {
+      resolveTranslate({ data: { translatedText: 'Ciao mondo', tag: 'it-IT' } });
+    });
+    await flush();
 
-    // The guard is stamped with the post, so the second one gets its own attempt
-    // — a per-instance flag would have silently skipped it.
-    expect(mockApiPost.mock.calls.length).toBeGreaterThan(afterFirst);
+    expect(state.displayText).toBeNull();
+    expect(state.isTranslated).toBe(false);
+    expect(state.isTranslating).toBe(false);
+    expect(state.activeTag).toBe('en');
+    // The only request is the one the reader asked for, on post-1.
+    expect(mockApiPost).toHaveBeenCalledTimes(1);
+    expect(mockApiPost).toHaveBeenCalledWith('/posts/post-1/translate', { targetLanguage: 'it-IT' });
 
     await act(async () => {
       renderer.unmount();
@@ -507,55 +521,139 @@ describe('whether the action bar shows a translate icon at all', () => {
   });
 });
 
-describe('auto-translate', () => {
-  it('does NOT machine-translate a post the author wrote in the reader’s language', async () => {
-    // Served in English (a cold request without Accept-Language), but the author
-    // also wrote it in Spanish, and the reader reads Spanish.
-    mockAutoTranslateEnabled = true;
-    mockReaderLanguage = 'es-MX';
-
-    await render({ ...bilingual, text: 'Hello world', textLang: 'en-US' });
-
-    expect(mockApiPost).not.toHaveBeenCalled();
-  });
-
-  it('does NOT fire when the body on screen is already the reader’s language', async () => {
-    mockAutoTranslateEnabled = true;
-    mockReaderLanguage = 'es-MX';
-
-    await render(bilingual);
-
-    expect(mockApiPost).not.toHaveBeenCalled();
-  });
-
-  it('translates a foreign post the author never wrote in the reader’s language', async () => {
-    mockAutoTranslateEnabled = true;
+/**
+ * THERE IS NO AUTOMATIC TRANSLATION.
+ *
+ * Hydration (`PostHydrationService`) resolves `content.text` to the best
+ * rendition the server already HAS for this reader; the client renders it. A
+ * missing language is manufactured only by `POST /posts/:id/translate`, and only
+ * after the reader taps Translate or picks a language.
+ */
+describe('no automatic translation', () => {
+  it('makes zero translate requests when a foreign post mounts', async () => {
     mockReaderLanguage = 'es-ES';
     mockApiPost.mockResolvedValue({ data: { translatedText: 'Hola mundo', tag: 'es-ES' } });
 
     await render(englishOnly);
+    await flush();
 
-    expect(mockApiPost).toHaveBeenCalledWith('/posts/post-1/translate', {
-      targetLanguage: 'es-ES',
-    });
-    expect(state.displayText).toBe('Hola mundo');
+    expect(state.canTranslate).toBe(true);
+    expect(mockApiPost).not.toHaveBeenCalled();
+    expect(state.displayText).toBeNull();
+    expect(state.activeTag).toBe('en');
   });
 
-  it('shows a machine rendition the post already shipped without asking for it again', async () => {
-    mockAutoTranslateEnabled = true;
+  it('makes zero requests across re-renders, render-ahead, recycling and viewability changes', async () => {
+    mockReaderLanguage = 'ja-JP';
+    mockAccountLanguages = ['ja', 'ko'];
+    mockApiPost.mockResolvedValue({ data: { translatedText: 'こんにちは世界', tag: 'ja-JP' } });
+
+    // A row that also receives the props a list feeds it as it scrolls — the
+    // hook has no visibility input, and none of this may reach the network.
+    const Row: React.FC<{ content: PostContent; postId: string; visible: boolean }> = ({
+      content,
+      postId,
+    }) => {
+      state = usePostLanguage(content, postId);
+      return null;
+    };
+
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      // Rendered ahead, off screen.
+      renderer = TestRenderer.create(<Row content={englishOnly} postId="post-1" visible={false} />);
+    });
+    await flush();
+    await act(async () => {
+      renderer.update(<Row content={englishOnly} postId="post-1" visible />);
+    });
+    await flush();
+    await act(async () => {
+      renderer.update(<Row content={englishOnly} postId="post-1" visible={false} />);
+    });
+    for (const id of ['post-2', 'post-3', 'post-4']) {
+      // Recycled onto another foreign post, then scrolled into view.
+      await act(async () => {
+        renderer.update(<Row content={{ ...englishOnly }} postId={id} visible={false} />);
+      });
+      await act(async () => {
+        renderer.update(<Row content={{ ...englishOnly }} postId={id} visible />);
+      });
+      await flush();
+    }
+
+    expect(state.canTranslate).toBe(true);
+    expect(mockApiPost).not.toHaveBeenCalled();
+    expect(state.displayText).toBeNull();
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('renders a hydration-selected machine translation directly, with no client request', async () => {
+    // The server already served this reader the cached Italian machine
+    // rendition as `content.text`. The client renders it as-is: no override,
+    // no request, nothing to "auto" do.
     mockReaderLanguage = 'it-IT';
+    const servedInItalian: PostContent = {
+      text: 'Ciao mondo',
+      textLang: 'it',
+      variants: [
+        { tag: 'en', source: 'author', text: 'Hello world' },
+        { tag: 'it', source: 'machine', text: 'Ciao mondo' },
+      ],
+    };
 
-    await render(englishWithMachineItalian);
+    await render(servedInItalian);
+    await flush();
 
-    expect(state.displayText).toBe('Ciao mondo');
+    expect(state.activeTag).toBe('it');
+    expect(state.displayText).toBeNull();
+    expect(state.canTranslate).toBe(false);
     expect(mockApiPost).not.toHaveBeenCalled();
   });
 
-  it('stays off when the reader has not asked for it', async () => {
-    mockReaderLanguage = 'es-ES';
+  it('calls the translate endpoint exactly once, and only after the reader taps Translate', async () => {
+    mockReaderLanguage = 'es-MX';
+    mockApiPost.mockResolvedValue({ data: { translatedText: 'Hola mundo', tag: 'es-MX' } });
 
     await render(englishOnly);
-
+    await flush();
     expect(mockApiPost).not.toHaveBeenCalled();
+
+    await act(async () => {
+      state.toggleReaderTranslation();
+    });
+    await flush();
+
+    expect(mockApiPost).toHaveBeenCalledTimes(1);
+    expect(mockApiPost).toHaveBeenCalledWith('/posts/post-1/translate', { targetLanguage: 'es-MX' });
+    expect(state.displayText).toBe('Hola mundo');
+    expect(state.isTranslated).toBe(true);
+  });
+
+  it('leaves no auto-translate store, preference or strings behind', () => {
+    const root = path.resolve(__dirname, '../..');
+    expect(fs.existsSync(path.join(root, 'stores/autoTranslateStore.ts'))).toBe(false);
+
+    const hookSource = fs.readFileSync(path.join(root, 'hooks/usePostLanguage.ts'), 'utf8');
+    expect(hookSource).not.toMatch(/autoTranslate|queueMicrotask/i);
+
+    const settingsSource = fs.readFileSync(
+      path.join(root, 'components/settings/pages/language.tsx'),
+      'utf8',
+    );
+    expect(settingsSource).not.toMatch(/autoTranslate/i);
+
+    for (const file of fs.readdirSync(path.join(root, 'locales'))) {
+      if (!file.endsWith('.json')) continue;
+      const locale = fs.readFileSync(path.join(root, 'locales', file), 'utf8');
+      expect(locale).not.toContain('settings.language.autoTranslate');
+    }
+
+    // The retired preference's persisted value is cleared at startup.
+    const initializer = fs.readFileSync(path.join(root, 'lib/appInitializer.ts'), 'utf8');
+    expect(initializer).toMatch(/OBSOLETE_STORAGE_KEYS = \['auto-translate-preference'\]/);
   });
 });

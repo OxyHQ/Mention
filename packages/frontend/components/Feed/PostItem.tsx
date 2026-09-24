@@ -53,7 +53,7 @@ import { THREAD_LINE_WIDTH, THREAD_LINE_BORDER_RADIUS, THREAD_LINE_Z_INDEX } fro
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { useThreadHoverStore } from '@/stores/threadHoverStore';
-import { mergeKnownIdentity, useKnownIdentities } from '@/stores/identityUpdates';
+import { mergeKnownIdentity, useKnownIdentitySet } from '@/stores/identityUpdates';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { reportFeedInteraction } from '@/utils/feedTelemetry';
@@ -198,8 +198,12 @@ const PostItem: React.FC<PostItemProps> = ({
     // `boostedBy` puts the reposter's picture in the same avatar cluster as the
     // author's — so correcting one and not the others is more conspicuous than
     // correcting none: the same person would be drawn twice, differently, in one
-    // cluster.
-    const knownIdentities = useKnownIdentities();
+    // cluster. Subscribed by id, so an edit to someone else never wakes this row.
+    const knownIdentities = useKnownIdentitySet([
+        viewPost?.user?.id,
+        repostedBy?.id,
+        ...(viewPost?.authors?.map((entry) => entry.id) ?? []),
+    ]);
     const author = useMemo(
         () => (viewPost?.user ? mergeKnownIdentity(viewPost.user, knownIdentities.get(viewPost.user.id)) : undefined),
         [viewPost?.user, knownIdentities],

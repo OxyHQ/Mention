@@ -426,8 +426,6 @@
   "settings.sections.preferences": "Préférences",
   "Select your preferred language": "Choisis ta langue préférée",
   "settings.language.selectLanguage": "Choisir la langue",
-  "settings.language.autoTranslate": "Traduire les posts automatiquement",
-  "settings.language.autoTranslateDesc": "Traduit automatiquement les posts écrits dans une autre langue",
   "settings.preferences.appearance": "Apparence",
   "settings.preferences.appearanceDesc": "Personnalise le thème, le texte et l'affichage",
   "settings.theme.source.useAccount": "Synchroniser le thème avec le compte",

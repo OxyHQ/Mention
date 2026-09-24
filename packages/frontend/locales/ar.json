@@ -429,8 +429,6 @@
   "settings.sections.preferences": "التفضيلات",
   "Select your preferred language": "اختر لغتك المفضّلة",
   "settings.language.selectLanguage": "اختيار اللغة",
-  "settings.language.autoTranslate": "الترجمة التلقائية للمنشورات",
-  "settings.language.autoTranslateDesc": "ترجمة المنشورات المكتوبة بلغة مختلفة تلقائيًا",
   "settings.preferences.appearance": "المظهر",
   "settings.preferences.appearanceDesc": "خصّص السمة والنص وإعدادات العرض",
   "settings.theme.source.useAccount": "مزامنة السمة مع الحساب",

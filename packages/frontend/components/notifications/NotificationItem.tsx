@@ -30,7 +30,7 @@ import { DoneAllIcon } from '@/assets/icons/done-all-icon';
 import { TrashIcon } from '@/assets/icons/trash-icon';
 import { getDescriptor, type TranslateFn } from './notificationDescriptors';
 import { useUserById } from '@/hooks/useCachedUser';
-import { useKnownIdentities, type IdentityUpdate } from '@/stores/identityUpdates';
+import { useKnownIdentitySet, type IdentityUpdate } from '@/stores/identityUpdates';
 import type { GroupedNotification } from '@/utils/groupNotifications';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
@@ -362,7 +362,7 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
   // resolving every account created after Oxy's ids became uuid v7.
   const primaryOxyId = primaryActor?.id;
   const cachedPrimary = useUserById(primaryOxyId);
-  const knownIdentities = useKnownIdentities();
+  const knownIdentities = useKnownIdentitySet(item.actors.map((actor) => actor.id));
   const resolvedPrimary = useMemo(
     () =>
       mergeActor(

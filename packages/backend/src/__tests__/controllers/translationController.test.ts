@@ -26,9 +26,17 @@ vi.mock('../../services/PostTranslationService', () => {
     }
   }
 
+  class TranslationSourceChangedError extends TranslationRequestError {
+    readonly code = 'TRANSLATION_SOURCE_CHANGED';
+    constructor() {
+      super('The post changed while it was being translated. Please try again.', 409);
+    }
+  }
+
   return {
     postTranslationService: { translatePost: mocks.translatePost },
     TranslationRequestError,
+    TranslationSourceChangedError,
   };
 });
 
@@ -49,6 +57,7 @@ vi.mock('../../utils/logger', () => ({
 }));
 
 import { translatePost } from '../../controllers/posts/translation';
+import { TranslationSourceChangedError } from '../../services/PostTranslationService';
 
 function response(): Response {
   const res = {
@@ -129,5 +138,19 @@ describe('post translation inference failures', () => {
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ message: 'Translation failed' });
     expect(mocks.error).toHaveBeenCalledOnce();
+  });
+
+  it('answers a post edited mid-translation with a typed 409 the client can retry', async () => {
+    mocks.translatePost.mockRejectedValue(new TranslationSourceChangedError());
+    const res = response();
+
+    await translatePost(request(), res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'The post changed while it was being translated. Please try again.',
+      code: 'TRANSLATION_SOURCE_CHANGED',
+    });
+    expect(mocks.error).not.toHaveBeenCalled();
   });
 });

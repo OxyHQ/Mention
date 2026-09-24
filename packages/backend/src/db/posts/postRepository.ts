@@ -1409,6 +1409,11 @@ export async function readPostCounters(
  * edit collides with itself mid-update unless the old rows are gone first. The
  * whole thing runs in one transaction, so a reader never observes a post with
  * half its renditions.
+ *
+ * It takes {@link lockPostContent} first, so it serializes with
+ * {@link storeMachineVariant}: without it, a translation committing a variant
+ * row between this delete and this insert would collide with the new rows'
+ * `position`s, and a translation of the OLD body could land after the edit.
  */
 export async function replacePostContent(
   postId: string,
@@ -1417,6 +1422,7 @@ export async function replacePostContent(
   db: DatabaseOrTransaction = getDb(),
 ): Promise<void> {
   const write = async (tx: DatabaseOrTransaction): Promise<void> => {
+    await lockPostContent(tx, postId);
     const variantIds = await tx
       .select({ id: postContentVariants.id })
       .from(postContentVariants)
@@ -1489,6 +1495,152 @@ export async function replacePostContent(
     await write(db);
   }
   await invalidatePostDetailCache(postId);
+}
+
+/**
+ * Serialize every writer of one post's rendition list for the rest of the
+ * transaction.
+ *
+ * A transaction-scoped advisory lock rather than `SELECT … FOR UPDATE` on the
+ * `posts` row, because the row lock would also queue every engagement counter
+ * bump on the post behind a translation write; this key only conflicts with the
+ * two writers that rewrite `post_content_variants` — {@link replacePostContent}
+ * and {@link storeMachineVariant}. Same idiom as `ActorIdentityProjectionService`.
+ */
+export async function lockPostContent(tx: DatabaseOrTransaction, postId: string): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`post-content:${postId}`}))`);
+}
+
+/** What {@link storeMachineVariant} did — every case is an answer, none is a 500. */
+export type MachineVariantWrite =
+  /** The variant was written; this is what is now stored. */
+  | { kind: 'stored'; variant: PostContentVariant }
+  /**
+   * A rendition for the tag was already stored (an author one, or a machine one
+   * another request persisted first, when not forcing) — the caller serves it.
+   */
+  | { kind: 'existing'; variant: PostContentVariant }
+  /** The post's source changed since the caller translated it; nothing was written. */
+  | { kind: 'stale'; content: StoredPostContent }
+  /** The post no longer exists. */
+  | { kind: 'missing' };
+
+/**
+ * Persist a machine translation of a post, conflict-safely.
+ *
+ * Under {@link lockPostContent}, re-reads the post and:
+ *  1. asks `sourceMatches` whether the CURRENT content is still the source the
+ *     translation was made from — an author edit that landed while the model was
+ *     working answers `stale`, so a translation of a body that no longer exists
+ *     is never cached;
+ *  2. yields to an AUTHOR rendition of the same tag (the author wrote it since);
+ *  3. unless `force`, yields to a machine rendition another request stored while
+ *     this one was translating — so concurrent requests converge on ONE row and
+ *     one answer, instead of the second overwriting the first (or tripping
+ *     `post_content_variants_post_id_tag_key` into a 500);
+ *  4. otherwise replaces this tag's machine rendition — its row AND its
+ *     `post_variant_alt_texts` rows — with the new one, in the same transaction.
+ *
+ * Localized alt text is only stored for media in the post's SHARED set: that is
+ * the set a variant's `alt` map localizes (see `postVariants.ts`), and a key for
+ * any other media id could never be read back.
+ *
+ * A machine variant is APPENDED after the author's own — `variants[0]` stays the
+ * primary — and it never touches the body, the hashtags or the classification.
+ */
+export async function storeMachineVariant(
+  postId: string,
+  variant: PostContentVariant & { tag: string },
+  options: { force: boolean; sourceMatches: (content: StoredPostContent) => boolean },
+): Promise<MachineVariantWrite> {
+  const outcome = await getDb().transaction(async (tx): Promise<MachineVariantWrite> => {
+    await lockPostContent(tx, postId);
+
+    const current = await loadPostRecord(postId, tx);
+    if (!current) return { kind: 'missing' };
+    if (!options.sourceMatches(current.content)) {
+      return { kind: 'stale', content: current.content };
+    }
+
+    const renditions = current.content.variants ?? [];
+    const authored = renditions.find((entry) => entry.source === 'author' && entry.tag === variant.tag);
+    if (authored) return { kind: 'existing', variant: authored };
+    const cached = renditions.find((entry) => entry.source === 'machine' && entry.tag === variant.tag);
+    if (cached && !options.force) return { kind: 'existing', variant: cached };
+
+    const existing = await tx
+      .select({
+        id: postContentVariants.id,
+        position: postContentVariants.position,
+        tag: postContentVariants.tag,
+        source: postContentVariants.source,
+      })
+      .from(postContentVariants)
+      .where(eq(postContentVariants.postId, postId))
+      .orderBy(asc(postContentVariants.position));
+
+    const isReplaced = (row: { tag: string | null; source: string }): boolean =>
+      row.tag === variant.tag && row.source === 'machine';
+    const replaced = existing.filter(isReplaced).map((row) => row.id);
+    const survivors = existing.filter((row) => !isReplaced(row));
+    if (replaced.length > 0) {
+      await tx.delete(postVariantAltTexts).where(inArray(postVariantAltTexts.variantId, replaced));
+      await tx.delete(postContentVariants).where(inArray(postContentVariants.id, replaced));
+    }
+
+    // Renumber whatever survived so `position` stays dense before the append —
+    // otherwise removing a middle variant leaves a hole the new row cannot
+    // occupy without colliding with the tail.
+    for (const [index, row] of survivors.entries()) {
+      if (row.position === index) continue;
+      await tx
+        .update(postContentVariants)
+        .set({ position: index })
+        .where(eq(postContentVariants.id, row.id));
+    }
+
+    const variantId = uuidv7();
+    await tx.insert(postContentVariants).values({
+      id: variantId,
+      postId,
+      position: survivors.length,
+      tag: variant.tag,
+      source: 'machine',
+      body: variant.text,
+      articleTitle: variant.article?.title ?? null,
+      articleBody: variant.article?.body ?? null,
+      articleExcerpt: variant.article?.excerpt ?? null,
+      variantCreatedAt: variant.createdAt ? new Date(variant.createdAt) : null,
+    });
+
+    const sharedMediaIds = new Set((current.content.media ?? []).map((item) => item.id));
+    const altRows = Object.entries(variant.alt ?? {})
+      .filter(([mediaId]) => sharedMediaIds.has(mediaId))
+      .map(([mediaId, description]) => ({ variantId, mediaId, description }));
+    if (altRows.length > 0) {
+      await tx.insert(postVariantAltTexts).values(altRows);
+    }
+
+    const stored: PostContentVariant = compact({
+      tag: variant.tag,
+      source: 'machine' as const,
+      text: variant.text,
+      alt: altRows.length > 0
+        ? Object.fromEntries(altRows.map((row) => [row.mediaId, row.description]))
+        : undefined,
+      article: variant.article,
+      createdAt: variant.createdAt,
+    });
+    return { kind: 'stored', variant: stored };
+  });
+
+  if (outcome.kind === 'stored') {
+    // The detail read caches the assembled record; without this the next
+    // `GET /posts/:id` would keep serving the post without its new rendition
+    // until the entry aged out.
+    await invalidatePostDetailCache(postId);
+  }
+  return outcome;
 }
 
 /**
