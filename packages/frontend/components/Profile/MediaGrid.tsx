@@ -20,6 +20,7 @@ interface MediaGridProps {
     isOwnProfile?: boolean;
     ownsScroll?: boolean;
     listHeaderComponent?: React.ReactElement | null;
+    listContentHeaderComponent?: React.ReactElement | null;
     listStickyHeaderComponent?: React.ReactElement | null;
     contentContainerStyle?: React.ComponentProps<typeof View>['style'];
     onScroll?: React.ComponentProps<typeof ProfileGridList<MediaGridEntry>>['onScroll'];
@@ -74,6 +75,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
     isOwnProfile,
     ownsScroll,
     listHeaderComponent,
+    listContentHeaderComponent,
     listStickyHeaderComponent,
     contentContainerStyle,
     onScroll,
@@ -238,6 +240,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
             windowSize={WINDOW_SIZE}
             ownsScroll={ownsScroll}
             listHeaderComponent={listHeaderComponent}
+            listContentHeaderComponent={listContentHeaderComponent}
             listStickyHeaderComponent={listStickyHeaderComponent}
             emptyComponent={emptyContent}
             contentContainerStyle={contentContainerStyle}

@@ -20,6 +20,7 @@ interface VideosGridProps {
     isOwnProfile?: boolean;
     ownsScroll?: boolean;
     listHeaderComponent?: React.ReactElement | null;
+    listContentHeaderComponent?: React.ReactElement | null;
     listStickyHeaderComponent?: React.ReactElement | null;
     contentContainerStyle?: React.ComponentProps<typeof View>['style'];
     onScroll?: React.ComponentProps<typeof ProfileGridList<VideoGridEntry>>['onScroll'];
@@ -51,6 +52,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({
     isOwnProfile,
     ownsScroll,
     listHeaderComponent,
+    listContentHeaderComponent,
     listStickyHeaderComponent,
     contentContainerStyle,
     onScroll,
@@ -179,6 +181,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({
             containerClassName="w-full"
             ownsScroll={ownsScroll}
             listHeaderComponent={listHeaderComponent}
+            listContentHeaderComponent={listContentHeaderComponent}
             listStickyHeaderComponent={listStickyHeaderComponent}
             emptyComponent={emptyContent}
             contentContainerStyle={contentContainerStyle}

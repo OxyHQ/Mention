@@ -48,7 +48,7 @@ describe('ProfileGridList scroll ownership', () => {
           data={data}
           renderCell={(item) => <Text>{item.postId}</Text>}
           ownsScroll
-          listHeaderComponent={<Text>summary</Text>}
+          listContentHeaderComponent={<Text>summary</Text>}
           listStickyHeaderComponent={<Text>tabs</Text>}
         />,
       );
@@ -65,21 +65,21 @@ describe('ProfileGridList scroll ownership', () => {
       ) => void;
       drawDistance: number;
     };
-    expect(props.data).toHaveLength(501);
+    expect(props.data).toHaveLength(502);
     expect(props.data[0]).toEqual(
       expect.objectContaining({ kind: 'auxiliary' }),
     );
     expect(props.numColumns).toBe(3);
-    expect(props.stickyHeaderIndices).toEqual([0]);
+    expect(props.stickyHeaderIndices).toEqual([1]);
     expect(props.stickyHeaderConfig?.offset).toBe(73);
     expect(props.drawDistance).toBeGreaterThan(0);
 
     const stickyLayout: { span?: number } = {};
-    props.overrideItemLayout(stickyLayout, props.data[0]);
+    props.overrideItemLayout(stickyLayout, props.data[1]);
     expect(stickyLayout.span).toBe(3);
 
     const cellLayout: { span?: number } = {};
-    props.overrideItemLayout(cellLayout, props.data[1]);
+    props.overrideItemLayout(cellLayout, props.data[2]);
     expect(cellLayout.span).toBeUndefined();
 
     act(() => {
