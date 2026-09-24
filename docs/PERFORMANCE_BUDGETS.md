@@ -213,8 +213,10 @@ Only native modules and the network boundary are replaced
 
 Two kinds of number come out of it, and only one of them gates:
 
-- **Structural, gated** (`__perf__/budgets.json`): element instances and host
-  primitives per row kind, requests and React Query observers per row, renders
+- **Structural, gated** (`__perf__/budgets.json`): element instances, hook
+  slots, context reads and host primitives per row kind (hooks and contexts are
+  read off React's committed fibers — they are the controllers and store
+  subscriptions a row mounts, which an element count cannot see), requests and React Query observers per row, renders
   per mount, re-renders of UNRELATED mounted rows for an unrelated store write /
   a like on another post / a view-count update, and translation requests during
   a 200-post fling (must be zero). These are exact and deterministic. Lower a
@@ -228,18 +230,18 @@ Baseline — `main` at a1705141f, before any #1103 change
 (`__perf__/results/baseline-main.json`) — against the current tree
 (`__perf__/results/latest.json`), node 24, jest-expo ios:
 
-| Row | components | host nodes | requests | Query observers | mount ms (main → now) | recycle ms (main → now) |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| text | 188 | 50 | 0 | 1 | 4.6 → 4.6 | 2.2 → 2.6 |
-| textAvatar | 185 | 49 | 1 | 1 | 4.4 → 5.2 | 3.6 → 3.0 |
-| image | 212 | 57 | 1 | 1 | 5.2 → 5.4 | 2.5 → 2.9 |
-| multiImage | 263 | 72 | 1 | 1 | 5.8 → 5.9 | 3.9 → 3.1 |
-| video | 230 | 62 | 1 | 1 | 5.2 → 5.2 | 3.1 → 2.6 |
-| linkPreview | 210 | 57 | 1 | 1 | 4.1 → 4.4 | 2.2 → 2.4 |
-| quote (2 posts) | 264 | 74 | 2 | 2 | 5.6 → 5.5 | 3.8 → 3.6 |
-| repost | 207 | 55 | 1 | 1 | 4.6 → 5.4 | 2.8 → 4.1 |
-| poll | 213 | 61 | 1 | 1 | 3.9 → 4.8 | 2.1 → 2.1 |
-| communityNote | 218 | 61 | 1 | 1 | 4.5 → 4.6 | 2.1 → 2.2 |
+| Row | components | hook slots (main → now) | context reads | host nodes | requests | Query observers | mount ms (main → now) | recycle ms (main → now) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| text | 188 | 478 → 498 | 52 | 50 | 0 | 1 | 5.6 → 5.0 | 2.5 → 2.6 |
+| textAvatar | 185 | 478 → 498 | 52 | 49 | 1 | 1 | 5.0 → 5.1 | 2.8 → 3.0 |
+| image | 212 | 645 → 665 | 54 | 57 | 1 | 1 | 5.8 → 6.1 | 3.2 → 3.6 |
+| multiImage | 263 | 726 → 746 | 60 | 72 | 1 | 1 | 5.4 → 5.2 | 3.5 → 3.5 |
+| video | 230 | 600 → 620 | 55 | 62 | 1 | 1 | 5.4 → 6.1 | 3.2 → 3.4 |
+| linkPreview | 210 | 531 → 551 | 57 | 57 | 1 | 1 | 4.2 → 4.9 | 2.4 → 3.0 |
+| quote (2 posts) | 264 | 826 → 866 | 80 | 74 | 2 | 2 | 5.2 → 6.0 | 3.0 → 3.1 |
+| repost | 207 | 497 → 517 | 55 | 55 | 1 | 1 | 4.9 → 5.0 | 3.6 → 3.9 |
+| poll | 213 | 512 → 532 | 52 | 61 | 1 | 1 | 4.8 → 4.8 | 2.2 → 2.2 |
+| communityNote | 218 | 522 → 542 | 54 | 61 | 1 | 1 | 5.0 → 4.8 | 2.4 → 2.5 |
 
 | Isolation (10 mixed rows mounted) | main | now |
 | --- | ---: | ---: |
@@ -254,9 +256,13 @@ requests.
 
 The first change it measured (#1109, the row engagement hooks' whole-store
 subscription) moves the isolation table and not the mount timings — which is
-the honest reading: that fix removes RE-renders, not mount work. The mount
-timings are within run-to-run noise of each other here; the component counts
-are the number later changes have to move.
+the honest reading: that fix removes RE-renders, not mount work. It even ADDS
+20 hook slots per row (nine per-action selectors where there were four
+selector-less reads); a row that re-rendered on every store write was the
+worse trade by far, and the shared interaction controller that follows removes
+the per-row engagement hooks altogether. The mount timings are within
+run-to-run noise of each other; hook slots and element counts are the numbers
+later changes have to move.
 
 What this harness cannot see: device frame drops, native RSS, blank-cell
 incidence and time-to-visible. Those need a release build on hardware and are
