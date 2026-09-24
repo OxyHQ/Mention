@@ -88,15 +88,40 @@ function ProfileShellBody({
   const nativeListOwnsScroll = nativeFeedOwnsScroll || nativeGridOwnsScroll;
 
   const listHeader = (
-    <View onLayout={IS_WEB ? undefined : event => setSummaryHeight(event.nativeEvent.layout.height)}>
+    <View
+      onLayout={IS_WEB ? undefined : event => setSummaryHeight(event.nativeEvent.layout.height)}
+      style={{ overflow: 'visible', flexGrow: 0, flexShrink: 0 }}
+    >
       {banner ? <ProfileBanner uri={banner.uri} /> : null}
-      {summary}
+      {/* The hero owns the overlap. Transforming the whole summary at this
+          boundary works inside native virtualized cells as well as document
+          flow on web; its layout height stays intact for the tab list. */}
+      <View
+        style={banner ? { transform: [{ translateY: -45 }] } : undefined}
+      >
+        {summary}
+      </View>
     </View>
   );
   const stickyTabs = tabBar ? (
-    <StickySection testID="profile-sticky-tabs" offset={summaryHeight}>{tabBar}</StickySection>
+    <StickySection
+      testID="profile-sticky-tabs"
+      // Web measures the section's document position. Native virtualized lists
+      // already place the row after the summary; their offset is only the
+      // overlay header inset. Passing the summary height here makes FlashList
+      // reserve that height a second time and creates the large native gap.
+      offset={IS_WEB ? summaryHeight : headerInset}
+    >
+      {tabBar}
+    </StickySection>
   ) : null;
-  return <View className="flex-1 web:z-auto">
+  // Native pushed routes are rendered above the tab navigator by the stack. The
+  // route surface must be opaque, otherwise the mounted tab pager remains
+  // visible through the profile while its list is laying out (and every
+  // profile row appears to overlap the feed underneath). Web already paints
+  // the document surface through AppShell; native needs this route boundary to
+  // publish the same Bloom surface explicitly.
+  return <View className="flex-1 web:z-auto bg-background" style={{ backgroundColor: theme.colors?.background }}>
     <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
     {loading ? <ProfileSkeleton variant={skeletonVariant} /> : !profileData ? (
       <EmptyState customIcon={<NoUpdatesIllustration width={200} height={200} />}
@@ -104,29 +129,34 @@ function ProfileShellBody({
         subtitle={t('profile.notFound.message', { defaultValue: "This profile couldn't be loaded." })}
         action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: safeBack }} />
     ) : <>
-      <ProfilePageHeader profileData={profileData} actions={headerActions}
-        overMedia={Boolean(banner)} />
       {IS_WEB ? <>
+        <ProfilePageHeader profileData={profileData} actions={headerActions}
+          overMedia={Boolean(banner)} />
         {listHeader}
         {stickyTabs}
         <ProfileTabs {...tabs} />
       </> : nativeListOwnsScroll ? <View className="min-h-0 flex-1">
-        <ProfileTabs {...tabs} listOwnsScroll listHeaderComponent={listHeader}
+        <ProfileTabs {...tabs} listOwnsScroll listContentHeaderComponent={listHeader}
           listStickyHeaderComponent={stickyTabs}
           listOnScroll={nativeGridOwnsScroll ? chrome.onScroll : undefined}
           listScrollRef={nativeGridOwnsScroll ? chrome.assignScrollRef : undefined} />
       </View> : <FlashList
-        ref={chrome.assignScrollRef}
-        data={['tabs', 'content'] as const}
-        keyExtractor={item => item}
-        renderItem={({ item }) => item === 'tabs' ? stickyTabs : <ProfileTabs {...tabs} />}
-        ListHeaderComponent={listHeader}
-        onScroll={chrome.onScroll}
-        scrollEventThrottle={16}
-        showsVerticalScrollIndicator={false}
+          ref={chrome.assignScrollRef}
+          data={['tabs', 'content'] as const}
+          keyExtractor={item => item}
+          renderItem={({ item }) => item === 'tabs' ? stickyTabs : <ProfileTabs {...tabs} />}
+          ListHeaderComponent={listHeader}
+          ListHeaderComponentStyle={{ flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' }}
+          onScroll={chrome.onScroll}
+          scrollEventThrottle={16}
+          showsVerticalScrollIndicator={false}
+        // The tabs are the first data row; FlashList keeps ListHeaderComponent
+        // outside the data index space.
         stickyHeaderIndices={tabBar ? [0] : undefined}
-        stickyHeaderConfig={{ offset: headerInset }}
-      />}
+          stickyHeaderConfig={{ offset: headerInset }}
+        />}
+      {!IS_WEB ? <ProfilePageHeader profileData={profileData} actions={headerActions}
+        overMedia={Boolean(banner)} /> : null}
     </>}
   </View>;
 }
