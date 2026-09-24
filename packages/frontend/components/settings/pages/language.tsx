@@ -1,12 +1,10 @@
 import { useMentionSettings } from "@/context/MentionSettingsContext";
-import { useAutoTranslateStore } from "@/stores/autoTranslateStore";
 import { Button } from "@oxy.so/bloom/button";
 import {
   SettingsCard,
   SettingsRow,
   SettingsSection,
 } from "@oxy.so/bloom/settings-modal";
-import { Switch } from "@oxy.so/bloom/switch";
 import { getNativeLanguageName } from "@oxy.so/core";
 import { useAuth, useOxy } from "@oxy.so/services/ui/client";
 import { useCallback } from "react";
@@ -19,8 +17,9 @@ import { View } from "react-native";
  * otherwise) and ships the picker that reads and writes it
  * (`LanguageSelectorScreen`, opened here the same way every other Oxy-owned
  * surface is — `showBottomSheet('LanguageSelector')`, exactly like
- * `ManageAccount` elsewhere in Settings). This screen keeps only what is
- * genuinely Mention's: whether a post gets auto-translated on read.
+ * `ManageAccount` elsewhere in Settings). There is no Mention-side language
+ * preference: which rendition of a post a reader sees is the server's hydration
+ * choice, and a translation only ever happens on an explicit reader action.
  */
 export default function LanguageSettingsScreen() {
   const { t } = useTranslation();
@@ -28,8 +27,6 @@ export default function LanguageSettingsScreen() {
   const { showBottomSheet } = useAuth();
   const { afterClose } = useMentionSettings();
   const { currentLanguage, currentLanguages } = useOxy();
-  const autoTranslateEnabled = useAutoTranslateStore((s) => s.enabled);
-  const setAutoTranslateEnabled = useAutoTranslateStore((s) => s.setEnabled);
 
   const openLanguageSelector = useCallback(() => {
     afterClose(() => showBottomSheet?.("LanguageSelector"));
@@ -62,23 +59,6 @@ export default function LanguageSettingsScreen() {
               >
                 {t("common.open", { defaultValue: "Open" })}
               </Button>
-            </SettingsRow>
-          </SettingsCard>
-        </SettingsSection>
-
-        <SettingsSection label={t("settings.language.autoTranslate")}>
-          <SettingsCard>
-            <SettingsRow
-              label={t("settings.language.autoTranslate")}
-              description={t("settings.language.autoTranslateDesc")}
-            >
-              {
-                <Switch
-                  checked={autoTranslateEnabled}
-                  onCheckedChange={setAutoTranslateEnabled}
-                  accessibilityLabel={t("settings.language.autoTranslate")}
-                />
-              }
             </SettingsRow>
           </SettingsCard>
         </SettingsSection>

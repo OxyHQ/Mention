@@ -425,8 +425,6 @@
   "settings.sections.preferences": "Preferences",
   "Select your preferred language": "Select your preferred language",
   "settings.language.selectLanguage": "Select Language",
-  "settings.language.autoTranslate": "Auto-translate posts",
-  "settings.language.autoTranslateDesc": "Automatically translate posts written in a different language",
   "settings.preferences.appearance": "Appearance",
   "settings.preferences.appearanceDesc": "Customize theme, text, and display settings",
   "settings.theme.source.useAccount": "Sync theme with account",

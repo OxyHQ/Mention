@@ -427,8 +427,6 @@
   "settings.sections.preferences": "Предпочтения",
   "Select your preferred language": "Выберите предпочитаемый язык",
   "settings.language.selectLanguage": "Выбор языка",
-  "settings.language.autoTranslate": "Автоперевод постов",
-  "settings.language.autoTranslateDesc": "Автоматически переводить посты на других языках",
   "settings.preferences.appearance": "Внешний вид",
   "settings.preferences.appearanceDesc": "Настройте тему, текст и параметры отображения",
   "settings.theme.source.useAccount": "Синхронизировать тему с аккаунтом",

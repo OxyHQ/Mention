@@ -425,8 +425,6 @@
   "settings.sections.preferences": "Tercihler",
   "Select your preferred language": "Tercih ettiğin dili seç",
   "settings.language.selectLanguage": "Dil seç",
-  "settings.language.autoTranslate": "Gönderileri otomatik çevir",
-  "settings.language.autoTranslateDesc": "Farklı bir dilde yazılmış gönderileri otomatik olarak çevir",
   "settings.preferences.appearance": "Görünüm",
   "settings.preferences.appearanceDesc": "Tema, metin ve ekran ayarlarını özelleştir",
   "settings.theme.source.useAccount": "Temayı hesapla eşitle",

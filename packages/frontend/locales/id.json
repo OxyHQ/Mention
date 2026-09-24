@@ -425,8 +425,6 @@
   "settings.sections.preferences": "Preferensi",
   "Select your preferred language": "Pilih bahasa yang kamu inginkan",
   "settings.language.selectLanguage": "Pilih Bahasa",
-  "settings.language.autoTranslate": "Terjemahkan postingan otomatis",
-  "settings.language.autoTranslateDesc": "Otomatis menerjemahkan postingan yang ditulis dalam bahasa lain",
   "settings.preferences.appearance": "Tampilan",
   "settings.preferences.appearanceDesc": "Sesuaikan tema, teks, dan pengaturan tampilan",
   "settings.theme.source.useAccount": "Sinkronkan tema dengan akun",

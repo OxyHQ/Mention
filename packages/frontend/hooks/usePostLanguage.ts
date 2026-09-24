@@ -1,9 +1,8 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import type { PostContent } from '@mention/shared-types';
 import { api } from '@/utils/api';
-import { useAutoTranslateStore } from '@/stores/autoTranslateStore';
 import { useTrendsStore } from '@/stores/trendsStore';
 import {
   buildPostLanguageOptions,
@@ -82,6 +81,13 @@ export interface PostLanguageState {
  * between them is a `setState` — never a request. Any OTHER language is a
  * translate call: the server answers it from its cache or from a model, and the
  * reader cannot tell which (nor should the client try to guess).
+ *
+ * NOTHING HERE TRANSLATES ON ITS OWN. Mounting, rendering, recycling, render-ahead
+ * and viewability never reach the translate endpoint: the server's hydration
+ * already picked the best rendition it HAS for this viewer (including a machine
+ * translation some earlier reader asked for), and manufacturing a missing one is
+ * only ever the answer to an explicit reader action — the translate icon or the
+ * language picker. Do not add a preference- or visibility-driven path back.
  */
 export function usePostLanguage(
   content: PostContent,
@@ -89,7 +95,6 @@ export function usePostLanguage(
   postLanguage?: string,
 ): PostLanguageState {
   const { t } = useTranslation();
-  const autoTranslateEnabled = useAutoTranslateStore((s) => s.enabled);
 
   /**
    * Every language this reader understands, most-preferred first — the
@@ -144,14 +149,6 @@ export function usePostLanguage(
     },
     [postId],
   );
-
-  /**
-   * Which post auto-translate has already been offered for. A ref, because
-   * "already tried" must not repaint anything — and stamped, for the same reason
-   * the override above is: a recycled row is a different post and gets its own
-   * attempt.
-   */
-  const autoTranslateAttempted = useRef<string | undefined>(undefined);
 
   const servedTag = servedLanguageTag(content, postLanguage);
 
@@ -222,25 +219,9 @@ export function usePostLanguage(
     }
     const target = resolveTranslateTarget(options, readerLanguages);
     if (target) selectLanguage(target);
-  }, [selectedTag, options, readerLanguages, selectLanguage]);
+  }, [selectedTag, options, readerLanguages, selectLanguage, patchOverride]);
 
   const canTranslate = shouldOfferTranslation({ content, postLanguage, readerLanguages, options });
-
-  // Auto-translate, computed during render and fired once per post. It stays
-  // silent when the author already wrote this post in a language the reader
-  // understands.
-  if (
-    autoTranslateEnabled &&
-    autoTranslateAttempted.current !== postId &&
-    selectedTag === null &&
-    !isTranslating &&
-    postId &&
-    canTranslate
-  ) {
-    autoTranslateAttempted.current = postId;
-    const target = resolveTranslateTarget(options, readerLanguages);
-    if (target) queueMicrotask(() => selectLanguage(target));
-  }
 
   const activeTag = selectedTag ?? servedTag;
   const activeOption = activeTag ? options.find((option) => option.tag === activeTag) : undefined;

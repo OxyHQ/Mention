@@ -425,8 +425,6 @@
   "settings.sections.preferences": "環境設定",
   "Select your preferred language": "使用する言語を選択してください",
   "settings.language.selectLanguage": "言語を選択",
-  "settings.language.autoTranslate": "投稿を自動翻訳",
-  "settings.language.autoTranslateDesc": "別の言語で書かれた投稿を自動的に翻訳します",
   "settings.preferences.appearance": "外観",
   "settings.preferences.appearanceDesc": "テーマ、文字、表示の設定をカスタマイズします",
   "settings.theme.source.useAccount": "テーマをアカウントと同期",

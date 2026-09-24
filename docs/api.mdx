@@ -138,7 +138,7 @@ Authenticated commands and viewer data:
 | DELETE | `/posts/:id` | Delete a post |
 | POST / DELETE | `/posts/:id/like` | Like or unlike |
 | POST / DELETE | `/posts/:id/save` | Save or unsave |
-| POST | `/posts/:id/translate` | Translate a post |
+| POST | `/posts/:id/translate` | Translate a post on an explicit reader action; caches the machine variant under its exact BCP-47 tag |
 
 Collaboration invite actions and threadgate/postgate operations also live under
 `/posts/:id`. Consult the exported shared types and route validators before

@@ -425,8 +425,6 @@
   "settings.sections.preferences": "प्राथमिकताएँ",
   "Select your preferred language": "अपनी पसंदीदा भाषा चुनें",
   "settings.language.selectLanguage": "भाषा चुनें",
-  "settings.language.autoTranslate": "पोस्ट अपने आप अनुवाद करें",
-  "settings.language.autoTranslateDesc": "किसी दूसरी भाषा में लिखी पोस्ट अपने आप अनुवाद करें",
   "settings.preferences.appearance": "दिखावट",
   "settings.preferences.appearanceDesc": "थीम, टेक्स्ट और डिस्प्ले सेटिंग्स अनुकूलित करें",
   "settings.theme.source.useAccount": "थीम को खाते के साथ सिंक करें",
