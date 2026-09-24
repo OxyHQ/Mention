@@ -40,7 +40,8 @@
       "^@oxy.so/core/logger$": "<rootDir>/../../node_modules/@oxy.so/core/dist/cjs/logger/index.js",
       "^@oxy.so/contracts$": "<rootDir>/../../node_modules/@oxy.so/contracts/dist/cjs/index.js",
       "^@oxy.so/bloom/icons$": "<rootDir>/test-support/bloomIcons.js",
-      "^@oxy.so/bloom/icons/(.*)$": "<rootDir>/test-support/bloomIcons.js"
+      "^@oxy.so/bloom/icons/(.*)$": "<rootDir>/test-support/bloomIcons.js",
+      "^@oxy.so/bloom/empty-state$": "<rootDir>/test-support/bloomEmptyState.js"
     },
     "collectCoverageFrom": [
       "**/*.{ts,tsx}",
