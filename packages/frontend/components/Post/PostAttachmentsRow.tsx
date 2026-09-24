@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useCallback, useEffect } from 'react';
 import { ScrollView, StyleSheet, GestureResponderEvent, Dimensions, Platform, View, ViewStyle } from 'react-native';
-import { useAuth } from '@oxy.so/services/ui/client';
+import { oxyServices } from '@/lib/oxyServices';
 import type {
   HydratedPostSummary,
   PollData,
@@ -175,7 +175,10 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
   style
 }) => {
   const router = useRouter();
-  const { oxyServices } = useAuth();
+  // The legacy media-URL fallback (old cached DTOs without server-resolved
+  // URLs) needs only the app's one OxyServices instance — the same object
+  // OxyProvider holds — not a subscription to the whole auth context, which
+  // re-rendered every mounted attachment row on any session change (#1103).
   // Per-provider external-embed prefs, read once (selector) so the link branch
   // can decide between the inline player and the static card without a hook in
   // the render loop.
@@ -229,7 +232,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     } catch {
       return id;
     }
-  }, [oxyServices]);
+  }, []);
 
   const attachmentItems = useMemo(() => {
     const results: AttachmentItem[] = [];
@@ -395,7 +398,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
     }
 
     return results;
-  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasEvent, hasRoom, hasPodcast, hasJob, linkPreviewArray, resolveMediaSrc, oxyServices]);
+  }, [attachmentDescriptors, mediaArray, hasPoll, hasArticle, hasEvent, hasRoom, hasPodcast, hasJob, linkPreviewArray, resolveMediaSrc]);
 
   type Item = AttachmentItem;
 
