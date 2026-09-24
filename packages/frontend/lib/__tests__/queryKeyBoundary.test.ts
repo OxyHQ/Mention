@@ -5,6 +5,8 @@ const FRONTEND_ROOT = path.resolve(__dirname, '../..');
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx']);
 const SKIPPED_DIRECTORIES = new Set([
   '__tests__',
+  // The row-cost harness (test code; its run count and output file are env knobs).
+  '__perf__',
   'coverage',
   'node_modules',
   '.expo',

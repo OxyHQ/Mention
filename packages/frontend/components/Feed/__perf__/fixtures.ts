@@ -1,4 +1,4 @@
-import { PostVisibility } from '@mention/shared-types';
+import { PostVisibility } from '@mention/shared-types/post';
 import type { HydratedPost, MediaItem, PostUser } from '@mention/shared-types';
 
 /**

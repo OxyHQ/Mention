@@ -9,7 +9,7 @@ function sourceFiles(directory: string): string[] {
     const filename = path.join(directory, entry.name);
     if (entry.isDirectory()) {
       return entry.name.startsWith('.')
-        || /^(node_modules|dist.*|__tests__|__fixtures__)$/.test(entry.name)
+        || /^(node_modules|dist.*|__tests__|__fixtures__|__perf__)$/.test(entry.name)
         ? [] : sourceFiles(filename);
     }
     return /\.tsx?$/.test(entry.name) && !entry.name.endsWith('.d.ts') ? [filename] : [];
