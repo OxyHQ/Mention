@@ -19,7 +19,15 @@ module.exports = {
     ...preset.transform,
     '\\.[jt]sx?$': [
       babelJest,
-      { ...babelOptions, plugins: [require.resolve('./test-support/perfDynamicImport')] },
+      {
+        ...babelOptions,
+        // The app ships React-Compiler output (app.json `experiments.reactCompiler`),
+        // and babel-preset-expo only applies it when the caller says so — jest-expo's
+        // caller does not. Without this the harness would measure hand-written hooks
+        // the device never runs.
+        caller: { ...babelOptions.caller, supportsReactCompiler: true },
+        plugins: [require.resolve('./test-support/perfDynamicImport')],
+      },
     ],
   },
   rootDir: '.',
