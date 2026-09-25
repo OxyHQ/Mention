@@ -13,7 +13,7 @@ import { logger } from '@oxy.so/core/logger';
 export function StarterPacksTab() {
   const router = useRouter();
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, canUsePrivateApi } = useAuth();
   const [loading, setLoading] = useState(true);
   const [packs, setPacks] = useState<StarterPackSummary[]>([]);
 
@@ -60,10 +60,12 @@ export function StarterPacksTab() {
         title="No starter packs yet"
         subtitle="Be the first to create a starter pack and help others discover great accounts"
         customIcon={<StarterPackIcon size={48} className="text-muted-foreground" />}
-        action={{
+        // Creating one needs a session; signed out the empty state stays
+        // informational rather than offering a form that cannot submit.
+        action={canUsePrivateApi ? {
           label: t('starterPacks.create'),
           onPress: () => router.push('/starter-packs/create'),
-        }}
+        } : undefined}
         containerStyle={styles.emptyState}
       />
     );

@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { View, Text, Platform } from 'react-native';
 import { router } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '@/components/common/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';

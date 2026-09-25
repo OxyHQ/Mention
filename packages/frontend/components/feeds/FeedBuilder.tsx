@@ -36,6 +36,7 @@ import Feed from '@/components/Feed/Feed';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { HIT_SLOP_MD, HIT_SLOP_SM } from '@/styles/hitSlop';
+import { SignInRequired } from '@/components/common/SignInRequired';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 type ModuleState = { enabled: boolean; params: Record<string, unknown> };
@@ -602,7 +603,7 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
   const { t } = useTranslation();
   const theme = useTheme();
   const safeBack = useSafeBack();
-  const { oxyServices, user } = useAuth();
+  const { oxyServices, user, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
   const { catalog, isLoading: catalogLoading } = useFeedModules();
 
@@ -723,139 +724,148 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
         onBack={() => safeBack()}
         backLabel={t('common.back', { defaultValue: 'Back' })}
         actions={
-          <Button size="small" onPress={handleSave} disabled={!canSave} loading={saving}>
-            {savedFeedId ? t('feeds.builder.saveChanges') : t('feeds.builder.create')}
-          </Button>
+          canUsePrivateApi ? (
+            <Button size="small" onPress={handleSave} disabled={!canSave} loading={saving}>
+              {savedFeedId ? t('feeds.builder.saveChanges') : t('feeds.builder.create')}
+            </Button>
+          ) : undefined
         }
       />
 
-      {catalogLoading || !catalog ? (
-        <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="large" />
-        </View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Details */}
-          <View className="rounded-2xl p-4 bg-muted">
-            <View className="gap-1">
-              <Text className="text-sm font-semibold text-foreground">{t('feeds.builder.titleLabel')}</Text>
-              <TextInput
-                value={title}
-                onChangeText={setTitle}
-                placeholder={t('feeds.builder.titlePlaceholder')}
-                placeholderTextColor={theme.colors.textSecondary}
-                style={styles.fieldInput}
-                className="text-[15px] text-foreground"
-                maxLength={100}
-              />
-            </View>
-            <View style={styles.divider} className="bg-border" />
-            <View className="gap-1">
-              <Text className="text-sm font-semibold text-foreground">{t('feeds.builder.descriptionLabel')}</Text>
-              <TextInput
-                value={description}
-                onChangeText={setDescription}
-                placeholder={t('feeds.builder.descriptionPlaceholder')}
-                placeholderTextColor={theme.colors.textSecondary}
-                style={styles.fieldInput}
-                className="text-[15px] text-foreground"
-                multiline
-                maxLength={500}
-              />
-            </View>
+      <SignInRequired
+        label={t('feeds.builder.signInRequired', { defaultValue: 'Sign in to build a feed' })}
+        description={t('feeds.builder.signInRequiredDesc', {
+          defaultValue: 'Custom feeds are saved to your account, so you can pin and share them.',
+        })}
+      >
+        {catalogLoading || !catalog ? (
+          <View className="flex-1 items-center justify-center">
+            <Loading className="text-primary" size="large" />
           </View>
-
-          {/* Visibility */}
-          <SettingsListGroup title={t('feeds.builder.visibility')} footer={t('feeds.builder.publicDescription')}>
-            <SettingsListItem
-              title={t('feeds.builder.public')}
-              showChevron={false}
-              rightElement={<Toggle value={isPublic} onValueChange={setIsPublic} />}
-            />
-          </SettingsListGroup>
-
-          {/* Mode */}
-          <SettingsListGroup title={t('feeds.builder.mode')} footer={t('feeds.builder.modeDescription')}>
-            <SettingsListItem
-              title={t('feeds.builder.ranked')}
-              onPress={() => setMode('ranked')}
-              showChevron={false}
-              rightElement={<ModeCheck active={mode === 'ranked'} />}
-            />
-            <SettingsListItem
-              title={t('feeds.builder.chronological')}
-              onPress={() => setMode('chronological')}
-              showChevron={false}
-              rightElement={<ModeCheck active={mode === 'chronological'} />}
-            />
-          </SettingsListGroup>
-
-          {/* Sources */}
-          <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.sources')}</Text>
-          <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.sourcesDescription')}</Text>
-          <CategorizedModules
-            entries={catalog.sources}
-            states={sourceStates}
-            onToggle={toggleSource}
-            onParam={paramSource}
-            renderAccountsSlot={(entry) =>
-              entry.id === 'accounts'
-                ? <AccountPicker selected={selectedAccounts} onChange={setSelectedAccounts} />
-                : undefined
-            }
-          />
-
-          {/* Filters */}
-          <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.filters')}</Text>
-          <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.filtersDescription')}</Text>
-          <CategorizedModules
-            entries={catalog.filters}
-            states={filterStates}
-            onToggle={toggleFilter}
-            onParam={paramFilter}
-          />
-
-          {/* Ranking signals (ranked mode only) */}
-          {mode === 'ranked' && catalog.signals.length > 0 ? (
-            <>
-              <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.signals')}</Text>
-              <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.signalsDescription')}</Text>
-              <CategorizedModules
-                entries={catalog.signals}
-                states={signalStates}
-                onToggle={toggleSignal}
-                onParam={paramSignal}
-              />
-            </>
-          ) : null}
-
-          {/* Live preview (available once the feed is saved) */}
-          <Text className="text-[15px] font-bold text-foreground mt-4 mb-2">{t('feeds.builder.preview')}</Text>
-          {savedFeedId ? (
-            <View className="rounded-2xl overflow-hidden border border-border">
-              {/* Non-scrolling inside the builder's ScrollView, so it is not
-                  virtualized: bounded to a preview's worth of rows and never
-                  pages (#1103). The full feed is one tap away once saved. */}
-              <Feed
-                type="custom"
-                filters={{ customFeedId: savedFeedId }}
-                scrollEnabled={false}
-                previewLimit={FEED_PREVIEW_ROWS}
-                reloadKey={previewKey}
-                hideHeader
-              />
+        ) : (
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Details */}
+            <View className="rounded-2xl p-4 bg-muted">
+              <View className="gap-1">
+                <Text className="text-sm font-semibold text-foreground">{t('feeds.builder.titleLabel')}</Text>
+                <TextInput
+                  value={title}
+                  onChangeText={setTitle}
+                  placeholder={t('feeds.builder.titlePlaceholder')}
+                  placeholderTextColor={theme.colors.textSecondary}
+                  style={styles.fieldInput}
+                  className="text-[15px] text-foreground"
+                  maxLength={100}
+                />
+              </View>
+              <View style={styles.divider} className="bg-border" />
+              <View className="gap-1">
+                <Text className="text-sm font-semibold text-foreground">{t('feeds.builder.descriptionLabel')}</Text>
+                <TextInput
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder={t('feeds.builder.descriptionPlaceholder')}
+                  placeholderTextColor={theme.colors.textSecondary}
+                  style={styles.fieldInput}
+                  className="text-[15px] text-foreground"
+                  multiline
+                  maxLength={500}
+                />
+              </View>
             </View>
-          ) : (
-            <Text className="text-[13px] text-muted-foreground">{t('feeds.builder.saveToPreview')}</Text>
-          )}
 
-          <View className="h-10" />
-        </ScrollView>
-      )}
+            {/* Visibility */}
+            <SettingsListGroup title={t('feeds.builder.visibility')} footer={t('feeds.builder.publicDescription')}>
+              <SettingsListItem
+                title={t('feeds.builder.public')}
+                showChevron={false}
+                rightElement={<Toggle value={isPublic} onValueChange={setIsPublic} />}
+              />
+            </SettingsListGroup>
+
+            {/* Mode */}
+            <SettingsListGroup title={t('feeds.builder.mode')} footer={t('feeds.builder.modeDescription')}>
+              <SettingsListItem
+                title={t('feeds.builder.ranked')}
+                onPress={() => setMode('ranked')}
+                showChevron={false}
+                rightElement={<ModeCheck active={mode === 'ranked'} />}
+              />
+              <SettingsListItem
+                title={t('feeds.builder.chronological')}
+                onPress={() => setMode('chronological')}
+                showChevron={false}
+                rightElement={<ModeCheck active={mode === 'chronological'} />}
+              />
+            </SettingsListGroup>
+
+            {/* Sources */}
+            <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.sources')}</Text>
+            <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.sourcesDescription')}</Text>
+            <CategorizedModules
+              entries={catalog.sources}
+              states={sourceStates}
+              onToggle={toggleSource}
+              onParam={paramSource}
+              renderAccountsSlot={(entry) =>
+                entry.id === 'accounts'
+                  ? <AccountPicker selected={selectedAccounts} onChange={setSelectedAccounts} />
+                  : undefined
+              }
+            />
+
+            {/* Filters */}
+            <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.filters')}</Text>
+            <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.filtersDescription')}</Text>
+            <CategorizedModules
+              entries={catalog.filters}
+              states={filterStates}
+              onToggle={toggleFilter}
+              onParam={paramFilter}
+            />
+
+            {/* Ranking signals (ranked mode only) */}
+            {mode === 'ranked' && catalog.signals.length > 0 ? (
+              <>
+                <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.signals')}</Text>
+                <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.signalsDescription')}</Text>
+                <CategorizedModules
+                  entries={catalog.signals}
+                  states={signalStates}
+                  onToggle={toggleSignal}
+                  onParam={paramSignal}
+                />
+              </>
+            ) : null}
+
+            {/* Live preview (available once the feed is saved) */}
+            <Text className="text-[15px] font-bold text-foreground mt-4 mb-2">{t('feeds.builder.preview')}</Text>
+            {savedFeedId ? (
+              <View className="rounded-2xl overflow-hidden border border-border">
+                {/* Non-scrolling inside the builder's ScrollView, so it is not
+                    virtualized: bounded to a preview's worth of rows and never
+                    pages (#1103). The full feed is one tap away once saved. */}
+                <Feed
+                  type="custom"
+                  filters={{ customFeedId: savedFeedId }}
+                  scrollEnabled={false}
+                  previewLimit={FEED_PREVIEW_ROWS}
+                  reloadKey={previewKey}
+                  hideHeader
+                />
+              </View>
+            ) : (
+              <Text className="text-[13px] text-muted-foreground">{t('feeds.builder.saveToPreview')}</Text>
+            )}
+
+            <View className="h-10" />
+          </ScrollView>
+        )}
+      </SignInRequired>
     </View>
   );
 }

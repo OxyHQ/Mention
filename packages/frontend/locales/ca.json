@@ -986,6 +986,7 @@
   "lists.create.remove": "Elimina",
   "lists.create.saving": "S'està desant…",
   "lists.create.createButton": "Crea la llista",
+  "lists.create.failed": "No s'ha pogut crear la llista",
   "lists.memberSingular": "membre",
   "lists.memberPlural": "membres",
   "lists.addTo.menuItem": "Afegeix o treu de llistes",
@@ -1336,6 +1337,8 @@
   "agora.musicStream.removeFromQueue": "Treu de la cua",
   "agora.musicStream.playQueue": "Reprodueix les cançons",
   "agora.musicStream.clearQueue": "Buida",
+  "agora.signInRequired": "Inicia la sessió per unir-te a les sales en directe",
+  "agora.signInRequiredDesc": "Les converses d'àudio en directe, i les sales que organitzis, apareixeran aquí quan iniciïs la sessió.",
   "screens.saved.title": "Publicacions desades",
   "screens.trending.title": "Tendències",
   "screens.post.title": "Publicació",
@@ -1365,6 +1368,9 @@
   "starterPacks.addTo.newPack": "Paquet d'inici nou",
   "starterPacks.addTo.loadError": "No s'han pogut carregar els teus paquets d'inici",
   "starterPacks.addTo.toggleFailed": "Alguna cosa ha anat malament",
+  "starterPacks.createFailed": "No s'ha pogut crear el paquet d'inici",
+  "starterPacks.signInRequired": "Inicia la sessió per fer servir els paquets d'inici",
+  "starterPacks.signInRequiredDesc": "Un paquet d'inici és un conjunt de comptes que recomanes seguir junts.",
   "moderation.show": "Mostra",
   "moderation.warn": "Avisa",
   "moderation.blur": "Difumina",
@@ -1867,6 +1873,8 @@
   "fediverse.settings.signInRequiredDesc": "Controla si el teu perfil i les teves publicacions es comparteixen pel Fediverse.",
   "feed.loadingPosts": "S'estan carregant les publicacions…",
   "feeds.builder.notAllowed": "No pots editar aquest flux.",
+  "feeds.builder.signInRequired": "Inicia la sessió per crear un feed",
+  "feeds.builder.signInRequiredDesc": "Els feeds personalitzats es desen al teu compte, perquè els puguis fixar i compartir.",
   "feeds.untitled": "Flux",
   "labelers.by": "de",
   "labelers.detailTitle": "Etiquetador",
@@ -1893,6 +1901,8 @@
   "lists.emptyMembersSubtext": "Afegeix gent per confeccionar aquesta llista",
   "lists.emptyPosts": "Encara no hi ha publicacions",
   "lists.emptyPostsSubtext": "Afegeix gent a aquesta llista per veure'n les publicacions aquí",
+  "lists.signInRequired": "Inicia la sessió per fer servir les llistes",
+  "lists.signInRequiredDesc": "Les llistes agrupen els comptes que vols llegir junts. Les que creïs o segueixis apareixeran aquí.",
   "marketplace.emptySearchSubtitle": "Prova un altre terme de cerca o una altra categoria",
   "marketplace.emptySubtitle": "Sigues el primer a crear un flux en aquesta categoria",
   "marketplace.emptyTitle": "No s'ha trobat cap flux",
@@ -2359,7 +2369,9 @@
       "internalNotes": "Internal notes (never shown to the applicant)",
       "noNotes": "No notes yet",
       "addNote": "Add a note"
-    }
+    },
+    "signInRequired": "Inicia la sessió per publicar ofertes de feina",
+    "signInRequiredDesc": "Les ofertes de feina es publiquen des d'un compte d'organització o de projecte que gestiones."
   },
   "profile": {
     "jobs": {

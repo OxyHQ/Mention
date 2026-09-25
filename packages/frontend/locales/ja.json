@@ -975,6 +975,7 @@
   "lists.create.remove": "削除",
   "lists.create.saving": "保存中…",
   "lists.create.createButton": "リストを作成",
+  "lists.create.failed": "リストを作成できませんでした",
   "lists.memberSingular": "メンバー",
   "lists.memberPlural": "メンバー",
   "lists.addTo.menuItem": "リストに追加／削除",
@@ -1323,6 +1324,8 @@
   "agora.musicStream.removeFromQueue": "キューから削除",
   "agora.musicStream.playQueue": "曲を再生",
   "agora.musicStream.clearQueue": "クリア",
+  "agora.signInRequired": "ライブルームに参加するにはサインインしてください",
+  "agora.signInRequiredDesc": "サインインすると、ライブ音声の会話やあなたが主催するルームがここに表示されます。",
   "screens.saved.title": "保存した投稿",
   "screens.trending.title": "トレンド",
   "screens.post.title": "投稿",
@@ -1352,6 +1355,9 @@
   "starterPacks.addTo.newPack": "新しいスターターパック",
   "starterPacks.addTo.loadError": "スターターパックを読み込めませんでした",
   "starterPacks.addTo.toggleFailed": "問題が発生しました",
+  "starterPacks.createFailed": "スターターパックを作成できませんでした",
+  "starterPacks.signInRequired": "スターターパックを使うにはサインインしてください",
+  "starterPacks.signInRequiredDesc": "スターターパックは、まとめてフォローするのをおすすめするアカウントのセットです。",
   "moderation.show": "表示",
   "moderation.warn": "警告を表示",
   "moderation.blur": "ぼかす",
@@ -1843,6 +1849,8 @@
   "fediverse.settings.signInRequiredDesc": "プロフィールと投稿をFediverse全体に共有するかどうかを設定できます。",
   "feed.loadingPosts": "投稿を読み込み中…",
   "feeds.builder.notAllowed": "このフィードは編集できません。",
+  "feeds.builder.signInRequired": "フィードを作成するにはサインインしてください",
+  "feeds.builder.signInRequiredDesc": "カスタムフィードはアカウントに保存されるので、ピン留めや共有ができます。",
   "feeds.untitled": "フィード",
   "labelers.by": "提供",
   "labelers.detailTitle": "ラベラー",
@@ -1869,6 +1877,8 @@
   "lists.emptyMembersSubtext": "人を追加して、このリストを作り込みましょう",
   "lists.emptyPosts": "投稿はまだありません",
   "lists.emptyPostsSubtext": "このリストに人を追加すると、その投稿がここに表示されます",
+  "lists.signInRequired": "リストを使うにはサインインしてください",
+  "lists.signInRequiredDesc": "リストは、まとめて読みたいアカウントをひとつにまとめます。作成したリストやフォローしているリストがここに表示されます。",
   "marketplace.emptySearchSubtitle": "別のキーワードやカテゴリでお試しください",
   "marketplace.emptySubtitle": "このカテゴリで最初のフィードを作ってみましょう",
   "marketplace.emptyTitle": "フィードが見つかりません",
@@ -2335,7 +2345,9 @@
       "internalNotes": "Internal notes (never shown to the applicant)",
       "noNotes": "No notes yet",
       "addNote": "Add a note"
-    }
+    },
+    "signInRequired": "求人を掲載するにはサインインしてください",
+    "signInRequiredDesc": "求人は、あなたが運営する組織またはプロジェクトのアカウントから掲載されます。"
   },
   "profile": {
     "jobs": {

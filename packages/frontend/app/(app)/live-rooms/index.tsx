@@ -25,6 +25,7 @@ import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/
 import { CreateRoomSheet } from '@/components/rooms/CreateRoomSheet';
 import { FocusedScrollView } from '@/components/common/FocusedScrollView';
 import { useScreenReselect } from '@/context/ScreenReselectContext';
+import { SignInRequired } from '@/components/common/SignInRequired';
 
 const SectionHeader = ({
   icon,
@@ -45,7 +46,7 @@ const SectionHeader = ({
 );
 
 const LiveRoomsScreen = () => {
-  const { isAuthenticated } = useAuth();
+  const { canUsePrivateApi } = useAuth();
   const theme = useTheme();
   const { t } = useTranslation();
   const bottomSheet = useContext(BottomSheetContext);
@@ -58,7 +59,7 @@ const LiveRoomsScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
 
   const loadRooms = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!canUsePrivateApi) return;
     try {
       setLoading(true);
       setLoadFailed(false);
@@ -76,7 +77,7 @@ const LiveRoomsScreen = () => {
       setHasFetched(true);
       setRefreshing(false);
     }
-  }, [isAuthenticated]);
+  }, [canUsePrivateApi]);
 
   useEffect(() => {
     loadRooms();
@@ -186,32 +187,44 @@ const LiveRoomsScreen = () => {
         <PageHeader
           title={t('agora.title')}
           actions={
-            <Button appearance="solid" tone="accent" size="small" leadingIcon={RiAddLine} onPress={openCreateSheet}>
-              Create
-            </Button>
+            // Signed out, Syra refuses the create with a 401, and the sheet
+            // gave no sign of it. The button is only offered to a reader who
+            // can create; everyone else gets the sign-in prompt below.
+            canUsePrivateApi ? (
+              <Button appearance="solid" tone="accent" size="small" leadingIcon={RiAddLine} onPress={openCreateSheet}>
+                Create
+              </Button>
+            ) : undefined
           }
         />
 
-        {/* WEB hands scroll to the shared panel/document (no nested scroller that
-            would break sticky rails + window scroll restoration); NATIVE keeps a
-            ScrollView (+ pull-to-refresh) as the screen's scroller. */}
-        {Platform.OS === 'web' ? (
-          <View className="pb-6">{body}</View>
-        ) : (
-          <FocusedScrollView
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={theme.colors.primary}
-              />
-            }
-            contentContainerClassName="pb-6"
-          >
-            {body}
-          </FocusedScrollView>
-        )}
+        <SignInRequired
+          label={t('agora.signInRequired', { defaultValue: 'Sign in to join live rooms' })}
+          description={t('agora.signInRequiredDesc', {
+            defaultValue: 'Live audio conversations, and the rooms you host, appear here once you sign in.',
+          })}
+        >
+          {/* WEB hands scroll to the shared panel/document (no nested scroller that
+              would break sticky rails + window scroll restoration); NATIVE keeps a
+              ScrollView (+ pull-to-refresh) as the screen's scroller. */}
+          {Platform.OS === 'web' ? (
+            <View className="pb-6">{body}</View>
+          ) : (
+            <FocusedScrollView
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor={theme.colors.primary}
+                />
+              }
+              contentContainerClassName="pb-6"
+            >
+              {body}
+            </FocusedScrollView>
+          )}
+        </SignInRequired>
       </View>
     </>
   );

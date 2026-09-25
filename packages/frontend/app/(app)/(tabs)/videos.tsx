@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth, FollowButton } from '@oxy.so/services/ui/client';
 import { VideoView, useVideoPlayer, type VideoPlayer } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '@/components/common/Ionicons';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { useRouter, useLocalSearchParams, useIsFocused } from 'expo-router';
 import { useReselectReloadKey, useTabSelect } from '@/context/ScreenReselectContext';

@@ -14,7 +14,7 @@ import {
 // did not change.
 import { composeStyles as styles } from './ComposeScreen.styles';
 import { Loading } from '@oxy.so/bloom/loading';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '@/components/common/Ionicons';
 import { logger } from '@oxy.so/core/logger';
 import { classifyApiError, normalizeApiError, type ApiErrorReason } from '@/utils/apiError';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';

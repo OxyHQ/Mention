@@ -17,6 +17,7 @@ import { List } from '@/assets/icons/list-icon';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { FocusedScrollView } from '@/components/common/FocusedScrollView';
 import { useScreenReselect } from '@/context/ScreenReselectContext';
+import { SignInRequired } from '@/components/common/SignInRequired';
 
 const FOLLOWED_LIST_PAGE_SIZE = 50;
 
@@ -45,7 +46,7 @@ function toListCardData(list: MentionList): ListCardData {
 export default function ListsScreen() {
   const { t } = useTranslation();
   const safeBack = useSafeBack();
-  const { isAuthenticated, user } = useAuth();
+  const { canUsePrivateApi, user } = useAuth();
   const viewerId = user?.id;
   const queryClient = useQueryClient();
 
@@ -55,7 +56,7 @@ export default function ListsScreen() {
   const ownedQueryKey = viewerQueryKeys.ownedLists(viewerId);
   const ownedQuery = useQuery<MentionList[]>({
     queryKey: ownedQueryKey,
-    enabled: isAuthenticated,
+    enabled: canUsePrivateApi,
     queryFn: async () => {
       const res = await listsService.list({ mine: true });
       return res.items ?? [];
@@ -70,7 +71,7 @@ export default function ListsScreen() {
   const followedQueryKey = viewerQueryKeys.followedLists(viewerId);
   const followedQuery = useQuery<MentionList[]>({
     queryKey: followedQueryKey,
-    enabled: isAuthenticated,
+    enabled: canUsePrivateApi,
     queryFn: async () => {
       const follows = await entityFollowService.getFollowing('list', FOLLOWED_LIST_PAGE_SIZE);
       const ids = follows.items.map((f) => f.entityId);
@@ -104,10 +105,10 @@ export default function ListsScreen() {
   // (or unfollowed) appears/disappears without a manual reload.
   useFocusEffect(
     useCallback(() => {
-      if (isAuthenticated) {
+      if (canUsePrivateApi) {
         queryClient.invalidateQueries({ queryKey: viewerQueryKeys.followedLists(viewerId) });
       }
-    }, [isAuthenticated, queryClient, viewerId]),
+    }, [canUsePrivateApi, queryClient, viewerId]),
   );
 
   const ownedLists = ownedQuery.data ?? [];
@@ -180,24 +181,33 @@ export default function ListsScreen() {
           onBack={() => safeBack()}
           backLabel={t('common.back', { defaultValue: 'Back' })}
           actions={
-            <Button size="small" onPress={() => router.push('/lists/create')}>
-              {t('lists.new')}
-            </Button>
+            canUsePrivateApi ? (
+              <Button size="small" onPress={() => router.push('/lists/create')}>
+                {t('lists.new')}
+              </Button>
+            ) : undefined
           }
         />
 
-        {/* WEB: the document (body) is the scroller — the shell owns scroll, so
-            the directory renders in normal flow. A ScrollView here would nest a
-            second scroll container inside the ContentPanel and break the sticky
-            side rails, window scroll-restoration and bottom-bar auto-hide.
-            NATIVE: a ScrollView is the correct screen scroller. */}
-        {IS_WEB ? (
-          <View className="px-3 pt-2.5">{content}</View>
-        ) : (
-          <FocusedScrollView showsVerticalScrollIndicator={false} className="px-3 pt-2.5">
-            {content}
-          </FocusedScrollView>
-        )}
+        <SignInRequired
+          label={t('lists.signInRequired', { defaultValue: 'Sign in to use lists' })}
+          description={t('lists.signInRequiredDesc', {
+            defaultValue: 'Lists group the accounts you want to read together. The ones you create or follow appear here.',
+          })}
+        >
+          {/* WEB: the document (body) is the scroller — the shell owns scroll, so
+              the directory renders in normal flow. A ScrollView here would nest a
+              second scroll container inside the ContentPanel and break the sticky
+              side rails, window scroll-restoration and bottom-bar auto-hide.
+              NATIVE: a ScrollView is the correct screen scroller. */}
+          {IS_WEB ? (
+            <View className="px-3 pt-2.5">{content}</View>
+          ) : (
+            <FocusedScrollView showsVerticalScrollIndicator={false} className="px-3 pt-2.5">
+              {content}
+            </FocusedScrollView>
+          )}
+        </SignInRequired>
       </View>
     </>
   );

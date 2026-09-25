@@ -41,9 +41,23 @@ module.exports = defineConfig([
           name: '@oxy.so/bloom/icons',
           message:
             'Import each glyph by subpath — @oxy.so/bloom/icons/RiXxx. Metro does not tree-shake, so the barrel ships all 461. For the BloomIconComponent type, import it from @oxy.so/bloom.',
+        }, {
+          // A vector-icons glyph is a Text node a screen reader reads aloud as
+          // its private-use code point. The wrapper hides it once for every
+          // call site; the barrel also ships every icon font.
+          name: '@expo/vector-icons',
+          message: 'Use @/components/common/Ionicons (or a Bloom icon) — it hides the glyph from screen readers.',
+        }, {
+          name: '@expo/vector-icons/Ionicons',
+          message: 'Use @/components/common/Ionicons (or a Bloom icon) — it hides the glyph from screen readers.',
         }],
       }],
     },
+  },
+  {
+    // The one place allowed to reach the font directly.
+    files: ['components/common/Ionicons.tsx'],
+    rules: { 'no-restricted-imports': 'off' },
   },
   {
     // Tests are not shipped, so the barrel costs them nothing — and a few assert

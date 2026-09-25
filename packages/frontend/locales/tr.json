@@ -975,6 +975,7 @@
   "lists.create.remove": "Kaldır",
   "lists.create.saving": "Kaydediliyor…",
   "lists.create.createButton": "Liste oluştur",
+  "lists.create.failed": "Liste oluşturulamadı",
   "lists.memberSingular": "üye",
   "lists.memberPlural": "üye",
   "lists.addTo.menuItem": "Listelere ekle/çıkar",
@@ -1323,6 +1324,8 @@
   "agora.musicStream.removeFromQueue": "Sıradan çıkar",
   "agora.musicStream.playQueue": "Parçaları çal",
   "agora.musicStream.clearQueue": "Temizle",
+  "agora.signInRequired": "Canlı odalara katılmak için giriş yapın",
+  "agora.signInRequiredDesc": "Canlı sesli sohbetler ve düzenlediğiniz odalar, giriş yaptığınızda burada görünür.",
   "screens.saved.title": "Kaydedilen gönderiler",
   "screens.trending.title": "Gündem",
   "screens.post.title": "Gönderi",
@@ -1352,6 +1355,9 @@
   "starterPacks.addTo.newPack": "Yeni başlangıç paketi",
   "starterPacks.addTo.loadError": "Başlangıç paketlerin yüklenemedi",
   "starterPacks.addTo.toggleFailed": "Bir şeyler ters gitti",
+  "starterPacks.createFailed": "Başlangıç paketi oluşturulamadı",
+  "starterPacks.signInRequired": "Başlangıç paketlerini kullanmak için giriş yapın",
+  "starterPacks.signInRequiredDesc": "Başlangıç paketi, birlikte takip edilmesini önerdiğiniz hesaplardan oluşan bir settir.",
   "moderation.show": "Göster",
   "moderation.warn": "Uyar",
   "moderation.blur": "Bulanıklaştır",
@@ -1843,6 +1849,8 @@
   "fediverse.settings.signInRequiredDesc": "Profilinin ve gönderilerinin Fediverse genelinde paylaşılıp paylaşılmayacağını belirle.",
   "feed.loadingPosts": "Gönderiler yükleniyor…",
   "feeds.builder.notAllowed": "Bu akışı düzenleyemezsin.",
+  "feeds.builder.signInRequired": "Akış oluşturmak için giriş yapın",
+  "feeds.builder.signInRequiredDesc": "Özel akışlar hesabınıza kaydedilir, böylece onları sabitleyebilir ve paylaşabilirsiniz.",
   "feeds.untitled": "Akış",
   "labelers.by": "hazırlayan",
   "labelers.detailTitle": "Etiketleyici",
@@ -1869,6 +1877,8 @@
   "lists.emptyMembersSubtext": "Bu listeyi düzenlemek için kişi ekle",
   "lists.emptyPosts": "Henüz gönderi yok",
   "lists.emptyPostsSubtext": "Gönderilerini burada görmek için bu listeye kişi ekle",
+  "lists.signInRequired": "Listeleri kullanmak için giriş yapın",
+  "lists.signInRequiredDesc": "Listeler, birlikte okumak istediğiniz hesapları bir araya getirir. Oluşturduğunuz veya takip ettiğiniz listeler burada görünür.",
   "marketplace.emptySearchSubtitle": "Farklı bir arama terimi veya kategori dene",
   "marketplace.emptySubtitle": "Bu kategoride akış oluşturan ilk kişi ol",
   "marketplace.emptyTitle": "Akış bulunamadı",
@@ -2335,7 +2345,9 @@
       "internalNotes": "Internal notes (never shown to the applicant)",
       "noNotes": "No notes yet",
       "addNote": "Add a note"
-    }
+    },
+    "signInRequired": "İş ilanı yayınlamak için giriş yapın",
+    "signInRequiredDesc": "İş ilanları, yönettiğiniz bir kuruluş veya proje hesabı tarafından yayınlanır."
   },
   "profile": {
     "jobs": {

@@ -12,7 +12,7 @@ import {
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Loading } from '@oxy.so/bloom/loading';
 import { router } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '@/components/common/Ionicons';
 import { useTheme, type Theme } from '@oxy.so/bloom/theme';
 import { RiEyeLine } from '@oxy.so/bloom/icons/RiEyeLine';
 import { insightsService } from '@/services/insightsService';

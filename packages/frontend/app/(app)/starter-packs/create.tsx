@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { starterPacksService } from '@/services/starterPacksService';
@@ -11,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
 import type { User } from '@oxy.so/core';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { SignInRequired } from '@/components/common/SignInRequired';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 
@@ -72,10 +74,11 @@ export default function CreateStarterPackScreen() {
       router.replace('/starter-packs');
     } catch (e) {
       logger.error('Create starter pack failed', e);
+      toast.error(t('starterPacks.createFailed', { defaultValue: 'Could not create the starter pack' }));
     } finally {
       setSaving(false);
     }
-  }, [name, description, members, queryClient, user?.id]);
+  }, [name, description, members, queryClient, user?.id, t]);
 
   return (
     <View className="flex-1">
@@ -84,71 +87,78 @@ export default function CreateStarterPackScreen() {
         onBack={() => safeBack()}
         backLabel={t('common.back', { defaultValue: 'Back' })}
       />
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <Text className="text-sm text-muted-foreground mb-1.5 font-primary">Name</Text>
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          placeholder="e.g. Tech people to follow"
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
-          style={styles.input}
-        />
+      <SignInRequired
+        label={t('starterPacks.signInRequired', { defaultValue: 'Sign in to use starter packs' })}
+        description={t('starterPacks.signInRequiredDesc', {
+          defaultValue: 'A starter pack is a set of accounts you recommend following together.',
+        })}
+      >
+        <ScrollView contentContainerStyle={{ padding: 16 }}>
+          <Text className="text-sm text-muted-foreground mb-1.5 font-primary">Name</Text>
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder="e.g. Tech people to follow"
+            className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
+            style={styles.input}
+          />
 
-        <Text className="text-sm text-muted-foreground mb-1.5 font-primary">Description</Text>
-        <TextInput
-          value={description}
-          onChangeText={setDescription}
-          placeholder={t('starterPacks.descriptionPlaceholder')}
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary h-20"
-          style={styles.input}
-          multiline
-        />
+          <Text className="text-sm text-muted-foreground mb-1.5 font-primary">Description</Text>
+          <TextInput
+            value={description}
+            onChangeText={setDescription}
+            placeholder={t('starterPacks.descriptionPlaceholder')}
+            className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary h-20"
+            style={styles.input}
+            multiline
+          />
 
-        <Text className="text-sm text-muted-foreground mb-1.5 mt-3 font-primary">Add accounts ({members.length}/150)</Text>
-        <TextInput
-          value={search}
-          onChangeText={doSearch}
-          placeholder={t('starterPacks.searchUsersPlaceholder')}
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
-          style={styles.input}
-        />
+          <Text className="text-sm text-muted-foreground mb-1.5 mt-3 font-primary">Add accounts ({members.length}/150)</Text>
+          <TextInput
+            value={search}
+            onChangeText={doSearch}
+            placeholder={t('starterPacks.searchUsersPlaceholder')}
+            className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
+            style={styles.input}
+          />
 
-        {results.length > 0 && (
-          <View className="border border-border rounded-[10px] overflow-hidden">
-            {results.map((u) => (
-              <TouchableOpacity key={u.id} className="flex-row items-center justify-between px-3 py-2.5 border-b border-border" onPress={() => addMember(u)}>
-                <Text className="text-foreground font-primary">@{u.username} · {u.name.displayName}</Text>
-                <Text className="text-primary font-semibold font-primary">Add</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        {members.length > 0 && (
-          <View className="mt-2.5">
-            <Text className="text-sm text-muted-foreground mb-1.5 font-primary">Members</Text>
-            {members.map((m) => (
-              <View key={m.id} className="flex-row items-center py-1.5">
-                <Text className="text-foreground">@{m.username}</Text>
-                <TouchableOpacity onPress={() => removeMember(m.id)}>
-                  <Text className="text-destructive ml-2.5">Remove</Text>
+          {results.length > 0 && (
+            <View className="border border-border rounded-[10px] overflow-hidden">
+              {results.map((u) => (
+                <TouchableOpacity key={u.id} className="flex-row items-center justify-between px-3 py-2.5 border-b border-border" onPress={() => addMember(u)}>
+                  <Text className="text-foreground font-primary">@{u.username} · {u.name.displayName}</Text>
+                  <Text className="text-primary font-semibold font-primary">Add</Text>
                 </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-        )}
-
-        <TouchableOpacity
-          disabled={saving || !name.trim()}
-          onPress={onCreate}
-          className={cn(
-            "mt-5 py-3 rounded-[10px] items-center bg-primary",
-            !name.trim() && "opacity-60"
+              ))}
+            </View>
           )}
-        >
-          <Text className="text-primary-foreground font-bold font-primary">{saving ? 'Creating...' : 'Create Starter Pack'}</Text>
-        </TouchableOpacity>
-      </ScrollView>
+
+          {members.length > 0 && (
+            <View className="mt-2.5">
+              <Text className="text-sm text-muted-foreground mb-1.5 font-primary">Members</Text>
+              {members.map((m) => (
+                <View key={m.id} className="flex-row items-center py-1.5">
+                  <Text className="text-foreground">@{m.username}</Text>
+                  <TouchableOpacity onPress={() => removeMember(m.id)}>
+                    <Text className="text-destructive ml-2.5">Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          <TouchableOpacity
+            disabled={saving || !name.trim()}
+            onPress={onCreate}
+            className={cn(
+              "mt-5 py-3 rounded-[10px] items-center bg-primary",
+              !name.trim() && "opacity-60"
+            )}
+          >
+            <Text className="text-primary-foreground font-bold font-primary">{saving ? 'Creating...' : 'Create Starter Pack'}</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </SignInRequired>
     </View>
   );
 }

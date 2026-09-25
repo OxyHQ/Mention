@@ -1,5 +1,5 @@
 import type { ComponentProps, ComponentType } from 'react';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '@/components/common/Ionicons';
 import type { Theme } from '@oxy.so/bloom/theme';
 
 import { GroupAddIcon } from '@/assets/icons/group-add-icon';

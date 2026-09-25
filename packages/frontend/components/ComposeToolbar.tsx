@@ -18,7 +18,7 @@ import { SourcesIcon } from '@/assets/icons/sources-icon';
 import { ArticleIcon } from '@/assets/icons/article-icon';
 import { CalendarIcon } from '@/assets/icons/calendar-icon';
 import { LaneIcon } from '@/assets/icons/lane-icon';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '@/components/common/Ionicons';
 
 /**
  * The attachment row under ONE compose box.

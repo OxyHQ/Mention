@@ -13,6 +13,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-quer
 import { useAuth } from "@oxy.so/services/ui/client";
 import { getNormalizedUserHandle } from "@oxy.so/core";
 import { useSafeBack } from "@/hooks/useSafeBack";
+import { useDismissKeyboardOnBlur } from "@/hooks/useDismissKeyboardOnBlur";
 import { PageHeader } from "@oxy.so/bloom/page-header";
 import { RiArrowRightSLine } from "@oxy.so/bloom/icons/RiArrowRightSLine";
 import { RiCloseLine } from "@oxy.so/bloom/icons/RiCloseLine";
@@ -397,6 +398,9 @@ export default function SearchIndex() {
     const { t } = useTranslation();
     const theme = useTheme();
     const safeBack = useSafeBack();
+    // The box is autofocused; leaving by a result or a tab must not carry the
+    // keyboard onto the next screen.
+    useDismissKeyboardOnBlur();
     const queryClient = useQueryClient();
     const params = useLocalSearchParams();
     const urlQuery = (params.q as string) || "";
