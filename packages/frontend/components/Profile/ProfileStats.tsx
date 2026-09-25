@@ -7,7 +7,8 @@ import type { ProfileStatsProps } from './types';
 
 /**
  * Profile statistics component
- * Displays following, followers, posts, boosts, and replies counts with navigation
+ * Displays following, followers, posts, boosts, and replies counts with navigation.
+ * A follow-graph count that is `undefined` is unknown and its stat is omitted.
  */
 export const ProfileStats = memo(function ProfileStats({
   followingCount,
@@ -35,33 +36,37 @@ export const ProfileStats = memo(function ProfileStats({
 
   return (
     <View className="gap-2.5" style={styles.container}>
-      <TouchableOpacity
-        className="gap-1"
-        style={styles.statItem}
-        onPress={handleFollowingPress}
-        disabled={!followingHref}
-      >
-        <Text className="text-foreground" style={styles.statNumber}>
-          {formatCompactNumber(followingCount ?? 0)}
-        </Text>
-        <Text className="text-muted-foreground" style={styles.statLabel}>
-          {t('profile.following')}
-        </Text>
-      </TouchableOpacity>
+      {followingCount !== undefined && (
+        <TouchableOpacity
+          className="gap-1"
+          style={styles.statItem}
+          onPress={handleFollowingPress}
+          disabled={!followingHref}
+        >
+          <Text className="text-foreground" style={styles.statNumber}>
+            {formatCompactNumber(followingCount)}
+          </Text>
+          <Text className="text-muted-foreground" style={styles.statLabel}>
+            {t('profile.following')}
+          </Text>
+        </TouchableOpacity>
+      )}
 
-      <TouchableOpacity
-        className="gap-1"
-        style={styles.statItem}
-        onPress={handleFollowersPress}
-        disabled={!followersHref}
-      >
-        <Text className="text-foreground" style={styles.statNumber}>
-          {formatCompactNumber(followerCount ?? 0)}
-        </Text>
-        <Text className="text-muted-foreground" style={styles.statLabel}>
-          {t('profile.followers')}
-        </Text>
-      </TouchableOpacity>
+      {followerCount !== undefined && (
+        <TouchableOpacity
+          className="gap-1"
+          style={styles.statItem}
+          onPress={handleFollowersPress}
+          disabled={!followersHref}
+        >
+          <Text className="text-foreground" style={styles.statNumber}>
+            {formatCompactNumber(followerCount)}
+          </Text>
+          <Text className="text-muted-foreground" style={styles.statLabel}>
+            {t('profile.followers')}
+          </Text>
+        </TouchableOpacity>
+      )}
 
       <TouchableOpacity
         className="gap-1"

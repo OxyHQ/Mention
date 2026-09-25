@@ -11,6 +11,7 @@ import { displayNameOrHandle } from '@/utils/displayName';
 import { getCachedFileDownloadUrlSync, type FileUrlResolver } from '@/utils/imageUrlCache';
 import { isPublicProfileHandle } from '@/utils/publicProfileHandle';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { profileAccountFacts } from '@/utils/profileAccountFacts';
 
 const PROFILE_STALE_TIME = 5 * 60 * 1000; // 5 minutes
 const PROFILE_GC_TIME = 30 * 60 * 1000; // 30 minutes
@@ -274,12 +275,12 @@ export function useProfileData(username?: string): {
 
     const design = computeDesign(profile, appearance, oxyServices);
     const federation = profile.federation;
-    const followersCount =
-      profile._count?.followers ??
-      (typeof profile.followersCount === 'number' ? profile.followersCount : 0);
-    const followingCount =
-      profile._count?.following ??
-      (typeof profile.followingCount === 'number' ? profile.followingCount : 0);
+    const isFederatedProfile = Boolean(profile.isFederated || profile.type === 'federated');
+    const { createdAt, followersCount, followingCount } = profileAccountFacts(
+      profile,
+      isFederatedProfile,
+      appearance?.remote,
+    );
     const communities = Array.isArray(profile.communities)
       ? profile.communities.flatMap((entry): Community[] => {
           if (entry && typeof entry === 'object' && typeof (entry as { name?: unknown }).name === 'string') {
@@ -312,11 +313,12 @@ export function useProfileData(username?: string): {
       // wrong "Follow" without this. `undefined` ⇒ unknown; the button then falls
       // back to the follow-store seed.
       isFollowing: profile.relationship?.isFollowing,
-      isFederated: profile.isFederated || profile.type === 'federated',
+      isFederated: isFederatedProfile,
       actorUri:
         (typeof profile.actorUri === 'string' ? profile.actorUri : undefined) ??
         federation?.actorUri,
       instance: profile.instance ?? federation?.domain,
+      createdAt,
       followersCount,
       followingCount,
       design,

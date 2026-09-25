@@ -32,6 +32,7 @@ import { readBoundedResponseBody } from '../shared/httpBody';
 import { reportFederatedActorGone } from '../identity';
 import { resolveOxyIdentity } from '../oxyIdentity';
 import { reconcileActorIdentityProjection } from '../../services/ActorIdentityProjectionService';
+import { trustedRemoteCreatedAt } from '../../services/federation/remoteProfileStats';
 
 /**
  * Resolution, caching and refresh of remote ActivityPub actors.
@@ -68,6 +69,9 @@ const store: FederatedActorStore<EngineFederatedActorRecord> = {
     if (resolved.externalIdentity.actorUri !== uri) throw new Error('Oxy resolved a different source actor');
     const row = await upsertActor(uri, {
       ...columns,
+      // The engine parses `published` with a bare `new Date(...)`; an unparseable
+      // one must not fail the refresh it rides on. See `trustedRemoteCreatedAt`.
+      remoteCreatedAt: trustedRemoteCreatedAt(columns.remoteCreatedAt),
       networkAcct: resolved.externalIdentity.canonicalAcct,
       summary: resolved.user.bio ?? '',
       avatarUrl: resolveAvatarUrl(resolved.user.avatar),

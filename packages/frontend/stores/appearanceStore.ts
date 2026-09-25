@@ -3,6 +3,7 @@ import { api, publicApi, isUnauthorizedError } from '@/utils/api';
 import { queryClient } from '@/lib/queryClient';
 import type { ThemeMode } from '@oxy.so/bloom/theme';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import type { RemoteProfileStats } from '@mention/shared-types/profile';
 
 function unwrapApiData<T>(value: T | { data: T } | null | undefined): T | null {
   if (value === null || value === undefined) {
@@ -103,6 +104,11 @@ export interface UserAppearance {
   interests?: {
     tags?: string[];
   };
+  /**
+   * A federated account's origin-reported totals and join date, each absent
+   * when unknown. Never present for a local account.
+   */
+  remote?: RemoteProfileStats;
   createdAt?: string;
   updatedAt?: string;
 }

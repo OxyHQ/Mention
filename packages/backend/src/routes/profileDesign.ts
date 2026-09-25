@@ -11,6 +11,8 @@ import { canViewProfileDesign, ProfileVisibility } from '../utils/privacyHelpers
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { logger } from '../utils/logger';
+import type { RemoteProfileStats } from '@mention/shared-types/profile';
+import { loadRemoteProfileStats } from '../services/federation/remoteProfileStats';
 
 const router = Router();
 
@@ -33,6 +35,11 @@ interface PublicProfileDesignResponse {
   privacy?: {
     profileVisibility?: 'public' | 'private' | 'followers_only';
   };
+  /**
+   * Present only for a federated account: the origin's own totals and join
+   * date, each omitted when unknown. See `remoteProfileStats`.
+   */
+  remote?: RemoteProfileStats;
 }
 
 /**
@@ -82,7 +89,7 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
       eq(posts.status, 'published'),
       notCollapsedCrosspostSql(),
     );
-    const [counts] = await getDb()
+    const countsQuery = getDb()
       .select({
         // The STORED discriminator, not `parent_post_id IS NULL`: an orphaned
         // reply (parent deleted, `ON DELETE SET NULL` fired) is still a reply and
@@ -94,10 +101,14 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
       })
       .from(posts)
       .where(authored);
+    // Runs beside the counts rather than after them; a local account has no
+    // actor row and gets no `remote` block.
+    const [[counts], remote] = await Promise.all([countsQuery, loadRemoteProfileStats(userId)]);
 
     response.postsCount = counts?.postsCount ?? 0;
     response.boostsCount = counts?.boostsCount ?? 0;
     response.repliesCount = counts?.repliesCount ?? 0;
+    if (remote) response.remote = remote;
 
     // Include privacy info in response
     if (doc?.privacy?.profileVisibility) {
