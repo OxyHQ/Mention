@@ -13,13 +13,19 @@
  *
  * ## What is asserted, and why not the plan's shape
  *
- * Which plan wins — the BitmapAnd, or a newest-first walk of the window — is the
- * planner's call and moves with statistics (see `hotPathIndexes.test.ts` on why
- * asserting a plan choice over `posts` is flaky). Both are correct. What is NOT
- * the planner's call, and what the fix is for, is how many renditions the
- * statement reads: bounded by the window, not by the archive. So the assertion
- * is on the actual rows read from `post_content_variants`, from EXPLAIN ANALYZE,
- * with the unbounded statement as the control.
+ * Which plan wins — the BitmapAnd, or a scan of the window's renditions — is
+ * the planner's call and moves with statistics (see `hotPathIndexes.test.ts` on
+ * why asserting a plan choice is flaky), and this database is shared with every
+ * other suite. Two things hold whatever it picks, and they are the fix:
+ *
+ *  - the time bound reaches the READ OF THE RENDITIONS (`post_created_at`
+ *    appears in the plan; only the rendition side has that column — the posts
+ *    side is `created_at`). Drop the bound from `postTextMatchSql` and the
+ *    statement still returns the right page, via a posts walk, while reading
+ *    every rendition of every post it passes: this is what fails then;
+ *  - the renditions it reads, from EXPLAIN ANALYZE, are no more than the window
+ *    holds — counted as renditions, not posts, because another suite's post in
+ *    the window may carry several.
  *
  * Seeded and measured inside one transaction that is rolled back, so the rows
  * and their statistics reach no other suite.
@@ -71,9 +77,9 @@ function renditionRowsRead(node: PlanNode): number {
   return own + (node.Plans ?? []).reduce((sum, child) => sum + renditionRowsRead(child), 0);
 }
 
-async function measure(): Promise<{ windowed: number; unbounded: number; postsInWindow: number; matches: number }> {
+async function measure(): Promise<{ plan: string; windowed: number; renditionsInWindow: number; matches: number }> {
   const rollback = new Error('roll back the window fixture');
-  let outcome = { windowed: -1, unbounded: -1, postsInWindow: -1, matches: -1 };
+  let outcome = { plan: '', windowed: -1, renditionsInWindow: -1, matches: -1 };
 
   await getDb().transaction(async (tx: Transaction) => {
     await tx.execute(sql`
@@ -96,23 +102,25 @@ async function measure(): Promise<{ windowed: number; unbounded: number; postsIn
 
     const where = and(eq(posts.visibility, 'public'), eq(posts.status, 'published'));
     const [lastDay] = postSearchWindows(new Date());
-    const explain = async (window: { from?: Date; until?: Date }): Promise<number> => {
-      const { sql: text, params } = postSearchWindowQuery(tx, where, WORD, window, 21).toSQL();
-      const rows = await tx.execute<{ 'QUERY PLAN': Array<{ Plan: PlanNode }> }>(
-        sql.raw(`explain (analyze, format json) ${inline(text, params)}`),
-      );
-      return renditionRowsRead(rows[0]['QUERY PLAN'][0].Plan);
-    };
+    const { sql: text, params } = postSearchWindowQuery(tx, where, WORD, lastDay, 21).toSQL();
+    const rows = await tx.execute<{ 'QUERY PLAN': Array<{ Plan: PlanNode }> }>(
+      sql.raw(`explain (analyze, format json) ${inline(text, params)}`),
+    );
+    const plan = rows[0]['QUERY PLAN'][0].Plan;
 
-    const windowed = await explain(lastDay);
-    const unbounded = await explain({});
-    const [counts] = await tx.execute<{ posts_in_window: number; matches: number }>(sql`
+    const [counts] = await tx.execute<{ renditions_in_window: number; matches: number }>(sql`
       select
-        (select count(*)::int from posts where created_at >= ${lastDay.from?.toISOString()}::timestamptz) as posts_in_window,
+        (select count(*)::int from post_content_variants
+          where post_created_at >= ${lastDay.from?.toISOString()}::timestamptz) as renditions_in_window,
         (select count(*)::int from post_content_variants
           where search_vector @@ websearch_to_tsquery('english', ${WORD})) as matches
     `);
-    outcome = { windowed, unbounded, postsInWindow: counts.posts_in_window, matches: counts.matches };
+    outcome = {
+      plan: JSON.stringify(plan),
+      windowed: renditionRowsRead(plan),
+      renditionsInWindow: counts.renditions_in_window,
+      matches: counts.matches,
+    };
     throw rollback;
   }).catch((error: unknown) => {
     if (error !== rollback) throw error;
@@ -132,20 +140,18 @@ function inline(text: string, params: unknown[]): string {
 }
 
 describe('posts search time windows', () => {
-  it('reads the renditions inside the window, not the archive', async () => {
-    const { windowed, unbounded, postsInWindow, matches } = await measure();
+  it('bounds the read of the renditions by the window', async () => {
+    const { plan, windowed, renditionsInWindow, matches } = await measure();
 
     // The fixture is what it claims: a day is a small slice of two weeks, and
     // the word is spread across all of it.
-    expect(postsInWindow).toBeGreaterThan(0);
-    expect(postsInWindow).toBeLessThan(SEEDED_POSTS / 10);
+    expect(renditionsInWindow).toBeGreaterThan(0);
     expect(matches).toBeGreaterThan(150);
 
-    // The fix: whichever plan wins inside the window — the BitmapAnd, or a scan
-    // of the window's renditions — it reads no more than the window holds.
-    expect(windowed).toBeLessThanOrEqual(postsInWindow);
-    // The control: unbounded, the same statement reads past the window (every
-    // match, or a newest-first walk long enough to find 21 of them).
-    expect(unbounded).toBeGreaterThan(postsInWindow);
+    // The bound reaches the renditions, whichever plan reads them.
+    expect(plan).toContain('post_created_at');
+    // And they read no more than the window holds.
+    expect(windowed).toBeGreaterThan(0);
+    expect(windowed).toBeLessThanOrEqual(renditionsInWindow);
   }, 60_000);
 });
