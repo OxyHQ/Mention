@@ -36,7 +36,7 @@ jest.mock('@/context/LayoutScrollContext', () => ({
 
 jest.mock('expo-router', () => ({ useIsFocused: () => true }));
 
-const mockListProps: Array<Record<string, unknown>> = [];
+const mockListProps: Record<string, unknown>[] = [];
 
 jest.mock('@shopify/flash-list', () => {
     const React_ = require('react') as typeof import('react');
