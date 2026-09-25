@@ -33,7 +33,7 @@ import {
  * renders only the tab's CONTENT, and everything above it comes from the
  * `[username]` layout.
  */
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, tab = 'posts', laneId }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, tab = 'posts', laneId, isRootTab = false }) => {
     // Active tab — local state so switching tabs does not remount the page.
     // Held as the tab's KEY, not its index: the strip's length depends on how
     // many lanes the publisher has, so an index means a different tab before and
@@ -90,6 +90,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, tab = 'posts', 
                     summary={view.summary}
                     tabBar={tabBar}
                     tabs={view.tabs}
+                    isRootTab={isRootTab}
                 />
             </View>
         </>

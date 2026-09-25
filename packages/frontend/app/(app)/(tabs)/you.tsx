@@ -58,5 +58,5 @@ export default function YouTab() {
     );
   }
 
-  return <ProfileScreen username={user.username} />;
+  return <ProfileScreen username={user.username} isRootTab />;
 }

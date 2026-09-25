@@ -48,6 +48,8 @@ export interface ProfileShellProps {
    * person; a channel's page is a different shape, not a smaller one.
    */
   skeletonVariant?: 'person' | 'channel';
+  /** A root tab draws no Back control (see `ProfileScreenProps.isRootTab`). */
+  isRootTab?: boolean;
 }
 
 /** Preserves native list ownership and web document flow without a second chrome layer. */
@@ -66,6 +68,7 @@ function ProfileShellBody({
   tabBar,
   tabs,
   skeletonVariant = 'person',
+  isRootTab = false,
 }: ProfileShellProps) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -131,7 +134,7 @@ function ProfileShellBody({
     ) : <>
       {IS_WEB ? <>
         <ProfilePageHeader profileData={profileData} actions={headerActions}
-          overMedia={Boolean(banner)} />
+          overMedia={Boolean(banner)} showBack={!isRootTab} />
         {listHeader}
         {stickyTabs}
         <ProfileTabs {...tabs} />
@@ -156,7 +159,7 @@ function ProfileShellBody({
           stickyHeaderConfig={{ offset: headerInset }}
         />}
       {!IS_WEB ? <ProfilePageHeader profileData={profileData} actions={headerActions}
-        overMedia={Boolean(banner)} /> : null}
+        overMedia={Boolean(banner)} showBack={!isRootTab} /> : null}
     </>}
   </View>;
 }
