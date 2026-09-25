@@ -4,7 +4,7 @@ import { getDb } from '../db/postgres';
 import { QUERY_CANCELED, sqlStateOf } from '@oxy.so/db';
 import { posts } from '../db/schema/posts';
 import { postAuthorships, postMedia, postMentions } from '../db/schema/postContent';
-import { findPostSearchPage, postTextMatchSql } from '../services/search/postSearch';
+import { findPostSearchPage } from '../services/search/postSearch';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient } from '../utils/oxyHelpers';
@@ -279,12 +279,9 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         res.json({ posts: [], hasMore: false });
         return;
       }
-      // The GIN-indexed `search_vector` on the renditions — the port of the Mongo
-      // text index, and there for the same reason: never a regex scan over every
-      // variant. See `services/search/postSearch.ts`.
-      if (operators.textQuery) {
-        conditions.push(postTextMatchSql(operators.textQuery));
-      }
+      // The text match itself — the GIN-indexed `search_vector` on the
+      // renditions, bounded by time windows newest first — is applied by
+      // `findPostSearchPage` below. See `services/search/postSearch.ts`.
 
       // --- Operator-based filters ---
 
@@ -408,6 +405,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       }
 
       // Cursor-based pagination
+      let newest: Date | undefined;
       if (cursor !== undefined) {
         const decodedCursor = typeof cursor === 'string'
           ? decodeChronoCursor(cursor)
@@ -426,6 +424,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
             and(eq(posts.createdAt, decodedCursor.createdAt), lt(posts.id, decodedCursor.id)),
           ) as SQL,
         );
+        newest = decodedCursor.createdAt;
       }
 
       // Validate and normalize limit (max 100)
@@ -435,9 +434,14 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       // `CursorBuilder.ts`: drizzle emits `.desc()` in INDEX DDL as
       // `DESC NULLS LAST` while a query's `desc()` means `NULLS FIRST`, so the
       // bare spelling matches none of the chronological indexes on `posts`.
-      // Planned per search, not from a cached generic plan — the reason, and
-      // the measurements, are in `services/search/postSearch.ts`.
-      const page = await findPostSearchPage(and(...conditions), limitNum + 1); // one extra detects `hasMore`
+      // Planned per search, not from a cached generic plan, and a text match is
+      // read one time window at a time — the reasons, and the measurements, are
+      // in `services/search/postSearch.ts`.
+      const page = await findPostSearchPage(
+        and(...conditions),
+        limitNum + 1, // one extra detects `hasMore`
+        operators.textQuery ? { query: operators.textQuery, newest } : undefined,
+      );
 
       // Check if there are more results
       const hasMoreResults = page.length > limitNum;

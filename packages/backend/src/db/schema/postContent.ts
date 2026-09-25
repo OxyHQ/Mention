@@ -292,6 +292,11 @@ export const postContentVariants = pgTable(
       .on(t.postId, t.tag)
       .where(sql`${t.tag} is not null`),
     index('post_content_variants_search_gin').using('gin', t.searchVector),
+    // The posts search's time windows: intersected with the GIN index above as
+    // a BitmapAnd, so a text match fetches only the renditions inside the
+    // window (`services/search/postSearch.ts`, #1158). Built CONCURRENTLY in
+    // production by `scripts/backfillVariantPostCreatedAt.ts`.
+    index('post_content_variants_post_created_at_idx').on(t.postCreatedAt),
     // "Give me the primary body for these posts" — the hydration hot path.
     index('post_content_variants_primary_idx')
       .on(t.postId)

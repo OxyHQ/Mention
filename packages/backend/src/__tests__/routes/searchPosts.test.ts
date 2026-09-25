@@ -444,6 +444,41 @@ describe('GET /search — order and pagination', () => {
     expect(new Set(seen).size).toBe(created.length);
   });
 
+  it('stitches its time windows newest first, with nothing skipped or repeated', async () => {
+    // The text match is read one window at a time — the last day, the week
+    // before, the month before that, then everything older
+    // (`services/search/postSearch.ts`, #1158). One post in each, plus a second
+    // in the week, so a page boundary falls inside a window as well as between
+    // two. Every page must continue exactly where the last stopped.
+    const now = Date.now();
+    const hoursAgo = (hours: number): Date => new Date(now - hours * 60 * 60 * 1000);
+    const inDay = await seedPost(scope, { content: body('windowed'), createdAt: hoursAgo(2) });
+    const inWeekA = await seedPost(scope, { content: body('windowed'), createdAt: hoursAgo(3 * 24) });
+    const inWeekB = await seedPost(scope, { content: body('windowed'), createdAt: hoursAgo(5 * 24) });
+    const inMonth = await seedPost(scope, { content: body('windowed'), createdAt: hoursAgo(20 * 24) });
+    const older = await seedPost(scope, { content: body('windowed'), createdAt: hoursAgo(90 * 24) });
+    const expected = [inDay.id, inWeekA.id, inWeekB.id, inMonth.id, older.id];
+
+    // One page, across all four windows.
+    expect(await idsFor({ query: `${TERM} windowed`, limit: 10 })).toEqual(expected);
+
+    // Pages of two: boundaries inside the week window and between windows, and
+    // each page's windows re-anchored at its cursor.
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 5; page += 1) {
+      const body_: SearchBody = await search({
+        query: `${TERM} windowed`,
+        limit: 2,
+        ...(cursor ? { cursor } : {}),
+      });
+      seen.push(...body_.posts.map((post) => post.id));
+      if (!body_.hasMore) break;
+      cursor = body_.nextCursor;
+    }
+    expect(seen).toEqual(expected);
+  });
+
   it('reports hasMore only when a further page exists', async () => {
     await seedPost(scope, { content: body('one') });
     await seedPost(scope, { content: body('two') });

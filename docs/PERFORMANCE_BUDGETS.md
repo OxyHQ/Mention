@@ -188,6 +188,26 @@ awaited every source, and `/search` ran 3.2 s, 5.0 s and 6.9 s for "rust",
   not resolved yet, which is the ~2 s every production `/search` spent after
   its query. A read no longer waits; posts are warmed at ingest and creation.
 
+**Then the query itself, cold (#1158).** With the generic plan gone, the posts
+statement still took 1.25 s in production with nothing queued ahead of it.
+EXPLAIN on production from a one-shot task: the GIN index finds the matching
+renditions but cannot order them, and the timestamp lives on `posts`, so the
+statement fetched EVERY match and every one of their posts before keeping 21 —
+"climate" 3,910 matches, 9,209 buffers read, 6.0 s cold; "hello" 7,109 buffers,
+4.6 s; "rust" 4,760, 4.0 s. Warm it was 57–225 ms: the cost was I/O.
+`post_content_variants.post_created_at` (a copy of `posts.created_at`, 0048,
+backfilled by `scripts/backfillVariantPostCreatedAt.ts`) lets the text match be
+bounded by time on the same table, and the search reads windows newest first —
+the last day, the week, the month, then the rest — stopping once the page is
+full. Inside a window the GIN index and the column's btree meet as a BitmapAnd.
+On 1.2M synthetic posts (Zipf vocabulary, 75 days), buffers touched per page:
+a "climate"-frequency word (0.4% of posts) 25,317 → 353, a common word (1%)
+8,456 → 1,266, a 0.1% word 6,695 → 898 (two windows); a 0.01% word, whose
+matches were already few, 540 → 631 (three windows). Each window bounds `posts.created_at`
+too; without it an older window was a 1.9M-buffer walk down from now. Pinned by
+`__tests__/db/postSearchWindows.test.ts` (rows read are bounded by the window)
+and the windowed pagination walk in `__tests__/routes/searchPosts.test.ts`.
+
 The frontend now runs the All tab as one query per source
 (`hooks/useSearchAllSources.ts`) and renders each section as it lands —
 `__tests__/searchScreenProgressive.test.tsx` holds the posts source open and
