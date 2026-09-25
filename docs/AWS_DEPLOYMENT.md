@@ -20,6 +20,12 @@ paths (`/.well-known/*`, `/ap/*`, nodeinfo and inboxes) are routed directly to
 the backend and must never be redirected. The remaining apex web plane is
 proxied to `shell.mention.earth`, a Cloudflare Worker.
 
+`/.well-known/*` never reaches that proxy: the shell's SPA fallback answers any
+path with `200 text/html`. The backend serves every well-known document itself,
+including the App Links `assetlinks.json` and the iOS
+`apple-app-site-association` (`packages/backend/src/routes/appAssociation.routes.ts`),
+and answers any other well-known path with a JSON 404.
+
 That origin is not public. It serves nothing without the `X-Mention-Shell-Key`
 header and answers 403 otherwise, so the only ways to the app's bytes are the
 apex proxy and the OG shell renderer — both of them this backend. It is a Worker
