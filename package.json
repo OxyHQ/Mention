@@ -139,6 +139,7 @@
   "patchedDependencies": {
     "expo-router@57.0.18": "patches/expo-router@57.0.18.patch",
     "expo-video@57.0.3": "patches/expo-video@57.0.3.patch",
-    "react-native-screens@4.26.2": "patches/react-native-screens@4.26.2.patch"
+    "react-native-screens@4.26.2": "patches/react-native-screens@4.26.2.patch",
+    "react-native-reanimated@4.5.1": "patches/react-native-reanimated@4.5.1.patch"
   }
 }
