@@ -1,4 +1,4 @@
-import type { RedisClientType } from 'redis';
+import type { RedisClientType } from '../utils/redis';
 import { describe, expect, it, vi } from 'vitest';
 import {
   isRedisConnectionError,

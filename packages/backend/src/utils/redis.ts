@@ -1,4 +1,8 @@
-import { createClient, type RedisClientOptions, type RedisClientType } from 'redis';
+import {
+  createClient,
+  type RedisClientOptions,
+  type RedisClientType as NodeRedisClientType,
+} from 'redis';
 import {
   getRedisConnectionConfig,
   type RedisConnectionConfig,
@@ -21,6 +25,33 @@ export interface RedisStats {
   nextRetryAt: number | null;
   lastFailureAt: number | null;
 }
+
+/**
+ * node-redis 6 changed four client defaults. Every client here pins the v5
+ * value, so the upgrade changes no wire format and no timing:
+ *
+ * - `RESP: 2` — v6 defaults to RESP3, which reshapes raw `sendCommand`
+ *   replies. The Socket.IO Redis adapter parses `PUBSUB NUMSUB` through
+ *   `sendCommand` as a RESP2 array; a RESP3 map breaks its `serverCount()`.
+ * - `maintNotifications: 'disabled'` — v6 derives `"auto"` from RESP3 and
+ *   still builds its maintenance manager unless told `"disabled"`, which was
+ *   v5's default.
+ * - `commandOptions.timeout` — v6 defaults to 5 s; v5 had none. The command
+ *   client's failure handling is the supervisor below, not a per-command cap.
+ * - `socket.keepAliveInitialDelay` — v6 defaults to 30 s; v5 used 5 s.
+ *
+ * `RedisClientType` is re-exported at RESP2 because node-redis 6 also moved
+ * the type's protocol default to 3.
+ */
+export type RedisClientType = NodeRedisClientType<{}, {}, {}, 2>;
+type Resp2ClientOptions = RedisClientOptions<{}, {}, {}, 2>;
+
+const V5_PROTOCOL_OPTIONS = {
+  RESP: 2,
+  maintNotifications: 'disabled',
+  commandOptions: { timeout: undefined },
+} as const;
+const V5_KEEP_ALIVE_INITIAL_DELAY_MS = 5_000;
 
 const RETRY_BASE_DELAY_MS = 1_000;
 const RETRY_MAX_DELAY_MS = 30_000;
@@ -50,14 +81,16 @@ function pubSubReconnectStrategy(retries: number): number | false {
 function createHostOptions(
   redisConfig: RedisConnectionConfig,
   supervised: boolean,
-): RedisClientOptions {
+): Resp2ClientOptions {
   return {
+    ...V5_PROTOCOL_OPTIONS,
     socket: {
       host: redisConfig.host,
       port: redisConfig.port,
       reconnectStrategy: supervised ? false : pubSubReconnectStrategy,
       connectTimeout: 10_000,
       keepAlive: true,
+      keepAliveInitialDelay: V5_KEEP_ALIVE_INITIAL_DELAY_MS,
     },
     database: redisConfig.db,
     commandsQueueMaxLength: 1_000,
@@ -66,8 +99,9 @@ function createHostOptions(
   };
 }
 
-function createUrlOptions(url: string, supervised: boolean): RedisClientOptions {
+function createUrlOptions(url: string, supervised: boolean): Resp2ClientOptions {
   return {
+    ...V5_PROTOCOL_OPTIONS,
     url,
     commandsQueueMaxLength: 1_000,
     disableOfflineQueue: true,
@@ -75,6 +109,7 @@ function createUrlOptions(url: string, supervised: boolean): RedisClientOptions 
       reconnectStrategy: supervised ? false : pubSubReconnectStrategy,
       connectTimeout: url.startsWith('rediss://') ? 20_000 : 15_000,
       keepAlive: true,
+      keepAliveInitialDelay: V5_KEEP_ALIVE_INITIAL_DELAY_MS,
     },
   };
 }

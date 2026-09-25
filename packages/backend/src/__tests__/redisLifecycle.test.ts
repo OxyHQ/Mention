@@ -1,4 +1,4 @@
-import type { RedisClientType } from 'redis';
+import type { RedisClientType } from '../utils/redis';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 interface Deferred<T> {

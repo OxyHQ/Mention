@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RedisClientType } from 'redis';
+import type { RedisClientType } from '../../utils/redis';
 import { DistributedPresenceService } from '../../services/DistributedPresenceService';
 
 function fakeRedis(): RedisClientType {

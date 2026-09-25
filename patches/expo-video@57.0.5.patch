@@ -69,7 +69,7 @@ index 5cfdf596c5e0d4f3ecfbf96074d732e25e18b23c..6299720a81ab2f7b9f125b0c45b6d96f
 @@ -17,6 +17,15 @@ import type { VideoPlayerEvents } from './VideoPlayerEvents.types';
  import type { VideoThumbnail } from './VideoThumbnail';
  import resolveAssetSource from './resolveAssetSource';
-
+ 
 +// Removing, pausing, or replacing media can cancel a pending browser play.
 +// Consume only that expected cancellation; unexpected failures stay observable.
 +function playVideo(video: HTMLVideoElement): void {
@@ -83,14 +83,14 @@ index 5cfdf596c5e0d4f3ecfbf96074d732e25e18b23c..6299720a81ab2f7b9f125b0c45b6d96f
    source: VideoSource,
    setup?: (player: VideoPlayer) => void
 @@ -290,7 +299,7 @@ export default class VideoPlayerWeb
-
+ 
    play(): void {
      this._mountedVideos.forEach((video) => {
 -      video.play();
 +      playVideo(video);
      });
    }
-
+ 
 @@ -307,7 +316,7 @@ export default class VideoPlayerWeb
        if (uri) {
          video.setAttribute('src', uri);
