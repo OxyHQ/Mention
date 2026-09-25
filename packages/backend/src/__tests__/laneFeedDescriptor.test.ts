@@ -54,6 +54,7 @@ describe('lane feed descriptor', () => {
       'videos',
       'likes',
       'boosts',
+      'mentions',
     ]);
     expect(isValidFeedDescriptor(`author|u1|${LANE_ID}`)).toBe(false);
   });

@@ -46,10 +46,17 @@ describe('empty feed copy', () => {
   });
 
   it('never titles a non-post list "No posts yet"', () => {
-    for (const type of ['replies', 'boosts', 'likes', 'media'] as const) {
+    for (const type of ['replies', 'boosts', 'likes', 'media', 'mentions'] as const) {
       expect(emptyCopy(t, type).title).not.toBe('No posts yet');
     }
     expect(emptyCopy(t, 'for_you', { showOnlySaved: true }).title).toBe('No saved posts yet');
+  });
+
+  it('gives the profile mentions tab its own copy', () => {
+    expect(emptyCopy(t, 'mentions')).toEqual({
+      title: 'No mentions yet',
+      subtitle: 'Posts that mention this account will show up here.',
+    });
   });
 
   it('is translated, not English', () => {
