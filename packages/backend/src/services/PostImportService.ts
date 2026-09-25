@@ -40,6 +40,7 @@ import {
   type PostContent,
 } from '@mention/shared-types';
 import {
+  findActorUrisOwnedBy,
   findBatchPostIds,
   findFederatedCopies,
   findImportsBySourceIds,
@@ -53,6 +54,7 @@ import { normalizeAltInput } from '../utils/mediaInput';
 import { mediaMetadataService } from './MediaMetadataService';
 import { postCreationService } from './PostCreationService';
 import { deleteAuthoredPost } from './PostDeletionService';
+import { collapseImportedCopies } from './PostEquivalenceService';
 import { persistPreparedArticle, prepareArticle } from './postArticles';
 
 /** Items per `posts:batch` call. Keeps one request well inside the body limit and a request timeout. */
@@ -223,7 +225,29 @@ class PostImportService {
         results.push({ sourceId: item.sourceId, status: 'failed', error: 'internal_error' });
       }
     }
+    await this.collapseUnderAdoptedCopies(oxyUserId, results);
     return results;
+  }
+
+  /**
+   * An import that arrives AFTER a verified Move meets federated copies the user
+   * already owns (the Move adopted them). Collapse each created item under the
+   * copy of the same source post, the same rule the Move applies in the other
+   * order (`docs/import.mdx`, "One post, not two"). Best effort: the items are
+   * written either way, and a miss is two visible cards.
+   */
+  private async collapseUnderAdoptedCopies(oxyUserId: string, results: readonly ImportItemResult[]): Promise<void> {
+    const created = results.flatMap((result) => (result.status === 'created' && result.postId ? [result.postId] : []));
+    if (created.length === 0) return;
+    try {
+      const actorUris = await findActorUrisOwnedBy(oxyUserId);
+      if (actorUris.length === 0) return;
+      await collapseImportedCopies({ oxyUserId, actorUris, importedPostIds: created });
+    } catch (error) {
+      logger.warn('[PostImport] could not collapse imports under adopted copies', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   private async importItem(ctx: {
@@ -394,8 +418,9 @@ class PostImportService {
    * imported, and — by AS2 object id or at-uri — the federated copies of their
    * old account's posts that federation ingested before they moved.
    *
-   * The federated half only REPORTS; adopting such a copy as the user's own is
-   * a later step (it needs a verified `Move` of the old actor).
+   * The federated half only REPORTS. Adopting such a copy as the user's own
+   * happens on a verified `Move` of the old actor (`move.service.ts`), after
+   * which a copy reports the user as its `oxyUserId`.
    */
   async lookup(params: {
     oxyUserId: string;

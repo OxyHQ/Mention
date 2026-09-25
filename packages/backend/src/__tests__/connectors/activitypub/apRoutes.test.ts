@@ -239,6 +239,19 @@ describe('GET /ap/users/:username — actor image (banner)', () => {
     expect(res.body.featured).toBe('https://mention.earth/ap/users/alice/collections/featured');
   });
 
+  it('publishes the Oxy profile alsoKnownAs so a Mastodon Move to this account can verify it', async () => {
+    mocks.resolveOxyUser.mockResolvedValue({
+      _id: ALICE,
+      name: { displayName: 'Alice' },
+      avatar: null,
+      alsoKnownAs: ['https://mastodon.example/users/alice'],
+    });
+
+    const res = await request(app).get('/ap/users/alice').set('Accept', AP_ACCEPT).expect(200);
+
+    expect(res.body.alsoKnownAs).toEqual(['https://mastodon.example/users/alice']);
+  });
+
   it('omits image when the banner cannot resolve to an absolute URL', async () => {
     await setBanner('banner-id');
     // Degraded passthrough (unresolvable id) — not an absolute http(s) URL.

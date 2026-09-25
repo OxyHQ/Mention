@@ -392,6 +392,25 @@ export const apUndoSchema = z
   .loose();
 
 /**
+ * `Move` — an account migration: `actor` moves ITSELF (`object`) to `target`.
+ *
+ * Only the shape: an id, and `actor`/`object`/`target` each an IRI or an
+ * embedded `{ id }`. Who may move whom is the engine's `parseInboundMove`, and
+ * whether the move is real is Oxy's (`move.service.ts`).
+ */
+const apMoveActorRef = z.union([z.string().min(1), z.object({ id: apId }).loose()]);
+
+export const apMoveSchema = z
+  .object({
+    id: apId,
+    type: z.literal('Move'),
+    actor: apMoveActorRef,
+    object: apMoveActorRef,
+    target: apMoveActorRef,
+  })
+  .loose();
+
+/**
  * Discriminated-ish union of every inbound activity type the inbox dispatches
  * on. `type` is normalized to its primary string before discrimination because
  * remote servers may send `type` as an array; we therefore use a plain `union`
@@ -408,6 +427,7 @@ export const apInboundActivitySchema = z.union([
   apAcceptSchema,
   apRejectSchema,
   apUndoSchema,
+  apMoveSchema,
 ]);
 
 // ---------------------------------------------------------------------------
@@ -500,7 +520,7 @@ function toResult<T>(parsed: z.ZodSafeParseResult<T>): ApParseResult<T> {
 
 /**
  * Validate an inbound inbox activity (Create/Update/Delete/Announce/Like/
- * Follow/Accept/Reject/Undo). Returns a discriminated result and NEVER throws,
+ * Follow/Accept/Reject/Undo/Move). Returns a discriminated result and NEVER throws,
  * because the input is arbitrary remote JSON.
  */
 export function parseInboundActivity(raw: unknown): ApParseResult<ApInboundActivity> {

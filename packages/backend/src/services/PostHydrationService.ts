@@ -950,12 +950,15 @@ function mayNeedCurrentChannelAuthority(
  * is. That state is transient — `reevaluateCluster` dissolves a cluster the
  * moment it drops below two — but hydration can read a page mid-repair, and a
  * card reading `Instagram` on its own would say nothing while looking like it
- * meant something.
+ * meant something. The same holds for a cluster whose members all sit on ONE
+ * network — an import collapsed under the federated copy of its source post
+ * (`collapseImportedCopies`): `Mastodon · Mastodon` is not provenance either.
  */
 function buildCrosspostProvenance(
   variants: CrosspostVariantRow[] | undefined,
 ): { crosspost: CrosspostProvenance } | undefined {
   if (!variants || variants.length < 2) return undefined;
+  if (new Set(variants.map((variant) => variant.networkDomain)).size < 2) return undefined;
   return {
     crosspost: {
       variants: variants.map((variant) => ({

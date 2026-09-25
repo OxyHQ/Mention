@@ -144,9 +144,65 @@ split on commas, because an id is often a URL and a URL may contain one.
   are copies of the old account's posts that federation brought in before the
   user moved.
 
-This endpoint only reports what exists. Taking over those copies as the
-user's own posts ("adoption") is a later step, which needs a verified
-ActivityPub `Move` of the old actor.
+This endpoint only reports what exists. The copies become the user's own
+posts ("adoption") when the old account sends a verified ActivityPub `Move`
+(see below). After that, `oxyUserId` on a copy is the user.
+
+## Adoption on `Move`, and one post instead of two
+
+A user moving from Mastodon links the old account in Oxy, imports with Move,
+and then presses **Move** on the old account. Mastodon sends a `Move` to every
+server that follows it. Mention's inbox handles it in
+`connectors/activitypub/move.service.ts`:
+
+1. **Shape check.** The federation engine (`parseInboundMove` in
+   `@oxy.so/federation`) requires `actor` and `object` to be the verified HTTP
+   signer, and `target` an `https` URI that is not the actor. A Move that
+   fails is dropped before Oxy is called.
+2. **Oxy decides.** Mention calls `POST /federation/move` with
+   `{ oldActorUri, targetActorUri, activityId }` using its service credential.
+   Oxy checks the alias and a fresh `movedTo`, moves the follows and redirects
+   the old account to the target.
+   - A `4xx` from Oxy (such as `alias_missing` or `moved_to_mismatch`) is a
+     refusal. Mention logs `[Federation] Move refused by Oxy` with the `code`
+     and drops the activity.
+   - A `5xx` (such as `502 old_actor_unreachable`), a `408`, a `429` or a
+     network failure throws, and the inbox job retries.
+   - Oxy is idempotent on `activityId`. The same Move arriving at several
+     inboxes, or a retry, replays the first result.
+3. **Reattribution.** The old actor's posts here become the target user's,
+   through the same source-identity projection the resolver uses
+   (`reconcileActorIdentityProjection`, see
+   [source identity reconciliation](./source-identity-reconciliation.md)).
+   Post ids, replies, likes and moderation stay on the same rows.
+4. **One post, not two.** An imported post and the federated copy of the same
+   source post are now both the user's. `collapseImportedCopies`
+   (`services/PostEquivalenceService.ts`) puts each pair into a cross-post
+   cluster with `imported-copy` evidence:
+   - The pair matches when the ledger's `sourceId` or `sourceUrl` equals the
+     copy's AS2 id or its `url`, and both posts have the same owner.
+   - The **federated copy is shown**, and the import is collapsed. Remote
+     replies, likes and boosts address the copy's AS2 id, so the conversation
+     is on the copy.
+   - **Nothing is deleted.** Both posts keep their ids, replies and likes, and
+     the collapsed import stays reachable at `/p/<id>`. Feeds, profiles and
+     search show one card (`notCollapsedCrosspostSql`). The card shows no
+     network label, because both posts are from one network.
+   - **It is reversible.** If Oxy withdraws the Move and the old actor is
+     projected back, the two posts have different owners again. The projection
+     dissolves the cluster, and both posts are visible again.
+   - **Order does not matter.** The Move collapses imports that already exist.
+     An import batch that arrives after the Move collapses its new posts under
+     the copies the Move adopted.
+5. **Local follows.** Oxy has repointed each local account's follow of the old
+   account to the target, which is local, so no new remote Follow is needed.
+   Each local account that followed the old actor sends it an `Undo(Follow)`
+   through the normal unfollow path, and its `federated_follows` row is
+   removed. Usernames are resolved in one batched Oxy call. A user Oxy does not
+   return keeps the row, and the log counts it (`unfollowUnresolved`).
+
+The Update that lets Mastodon accept the Move is described in
+[fediverse](./fediverse.mdx#4-an-account-that-moves-here).
 
 ## Guarantees
 

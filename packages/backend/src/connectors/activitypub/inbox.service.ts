@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { isApActorType } from '@oxy.so/federation';
-import { createInboundDispatcher } from '@oxy.so/federation/node';
+import { createInboundDispatcher, type InboundDispatcherConfig } from '@oxy.so/federation/node';
 import { logger } from '../../utils/logger';
 import { findActorByUri } from '../../db/federation/actorRepository';
 import {
@@ -76,6 +76,7 @@ import {
   materializeEngagementTombstone,
 } from '../../services/PostEngagementCommandService';
 import { deleteFederatedPostSubtree } from '../../services/FederatedPostDeletionService';
+import { applyInboundMove } from './move.service';
 
 /**
  * Compact, log-safe summary of a `ZodError` — the first few issues rendered as
@@ -1135,7 +1136,7 @@ async function bridgeFollowEdge(
  * verb to Mention's {@link InboxProcessingService.onContentActivity}. Everything
  * app-specific is wired here.
  */
-const inboundDispatcher = createInboundDispatcher({
+const inboundDispatcherConfig: InboundDispatcherConfig = {
   // Mention's instance domain policy (own AP domains + Oxy identity apex +
   // `FEDERATION_BLOCKED_DOMAINS`). The engine applies it to the verified origin of
   // every inbound activity, so suspending an instance here actually stops it
@@ -1226,9 +1227,13 @@ const inboundDispatcher = createInboundDispatcher({
   },
   onContentActivity: (activity, verifiedActorUri) =>
     inboxProcessingService.onContentActivity(activity, verifiedActorUri),
+  // Account migration: Oxy decides, Mention adopts the old account (`move.service.ts`).
+  onMove: applyInboundMove,
   logger: {
     debug: (message) => logger.debug(message),
     info: (message) => logger.info(message),
     warn: (message, detail) => (detail === undefined ? logger.warn(message) : logger.warn(message, detail)),
   },
-});
+};
+
+const inboundDispatcher = createInboundDispatcher(inboundDispatcherConfig);

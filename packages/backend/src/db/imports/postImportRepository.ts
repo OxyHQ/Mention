@@ -6,9 +6,10 @@
  * `post_id` primary key — so none of them scans.
  */
 
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { ImportPlatform, PostImportProvenance } from '@mention/shared-types';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
+import { federatedActors } from '../schema/federation';
 import { postImports } from '../schema/imports';
 import { posts } from '../schema/posts';
 
@@ -171,4 +172,70 @@ export async function findFederatedCopies(
       eq(posts.visibility, 'public'),
     ));
   return rows.flatMap((row) => (row.activityId ? [{ ...row, activityId: row.activityId }] : []));
+}
+
+/** An imported post and the federated copy of the same source item, both one owner's. */
+export interface ImportedCopyPair {
+  importedPostId: string;
+  federatedPostId: string;
+}
+
+/**
+ * Candidate pairs of (imported post, federated copy of its source item) that
+ * `oxyUserId` owns both halves of, where the federated copy came from one of
+ * `actorUris` and neither post is in a cluster yet.
+ *
+ * A candidate FILTER only: exact string equality between the ledger's source
+ * id / permalink and the copy's AS2 id / `url`. `PostEquivalenceService` makes
+ * the decision. Each side is reduced to `(post, key)` rows first — the copies
+ * through the actor index (`federation_actor_uri`), the imports through the
+ * owner prefix of the ledger's unique key — so the two meet in one hash join on
+ * the key rather than a comparison of every copy with every import.
+ */
+export async function findImportedCopyPairs(
+  params: { oxyUserId: string; actorUris: readonly string[]; importedPostIds?: readonly string[] },
+  db: DatabaseOrTransaction = getDb(),
+): Promise<ImportedCopyPair[]> {
+  const actorUris = [...new Set(params.actorUris)];
+  if (actorUris.length === 0) return [];
+  if (params.importedPostIds && params.importedPostIds.length === 0) return [];
+  const rows = await db.execute<{ imported_post_id: string; federated_post_id: string }>(sql`
+    with copy_keys as (
+      select f.id, k.key
+      from posts f
+      cross join lateral (values (f.federation_activity_id), (f.federation_url)) k(key)
+      where f.federation_actor_uri in (${sql.join(actorUris.map((uri) => sql`${uri}`), sql`, `)})
+        and f.oxy_user_id = ${params.oxyUserId}
+        and f.status = 'published'
+        and f.boost_of is null
+        and k.key is not null
+    ), import_keys as (
+      select pi.post_id, k.key
+      from post_imports pi
+      join posts ip on ip.id = pi.post_id
+      cross join lateral (values (pi.source_id), (pi.source_url)) k(key)
+      where pi.oxy_user_id = ${params.oxyUserId}
+        and ip.oxy_user_id = ${params.oxyUserId}
+        and ip.status = 'published'
+        ${params.importedPostIds ? sql`and pi.post_id in (${sql.join(params.importedPostIds.map((id) => sql`${id}`), sql`, `)})` : sql``}
+    )
+    select distinct i.post_id as imported_post_id, c.id as federated_post_id
+    from copy_keys c
+    join import_keys i on i.key = c.key
+    where not exists (select 1 from post_equivalence_members m where m.post_id = c.id or m.post_id = i.post_id)
+    order by c.id, i.post_id
+  `);
+  return rows.map((row) => ({ importedPostId: row.imported_post_id, federatedPostId: row.federated_post_id }));
+}
+
+/** The source actors whose Oxy projection is `oxyUserId` — after a Move, the user's old accounts. */
+export async function findActorUrisOwnedBy(
+  oxyUserId: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<string[]> {
+  const rows = await db
+    .select({ uri: federatedActors.uri })
+    .from(federatedActors)
+    .where(eq(federatedActors.oxyUserId, oxyUserId));
+  return rows.map((row) => row.uri);
 }
