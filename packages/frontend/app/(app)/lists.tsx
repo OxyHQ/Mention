@@ -97,7 +97,7 @@ export default function ListsScreen() {
 
   // Refresh both collections when a list is created/renamed/deleted anywhere
   // (membership/metadata changes broadcast through notifyListChanged).
-  useEffect(() => subscribeToListChanges(() => { void refreshLists(); }), [refreshLists]);
+  useEffect(() => subscribeToListChanges(refreshLists), [refreshLists]);
 
   // The follow/unfollow toggle lives on the list detail screen and updates the
   // shared entity-follow store rather than the list collection. Returning to

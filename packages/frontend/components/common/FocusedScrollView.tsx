@@ -12,7 +12,7 @@ import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
  *
  * The offset travels on the JS thread. That is fine for the short, light
  * screens this is for; a long list of posts reports from a worklet instead
- * (`Feed.native`).
+ * (`FocusedFlashList`).
  *
  * On web the document is the scroller, so this is a plain ScrollView.
  */
