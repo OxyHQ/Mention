@@ -9,9 +9,11 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import type { HydratedPost } from '@mention/shared-types';
 import type { Draft } from '@/hooks/useDrafts';
 import { useScheduledPosts } from '@/hooks/useScheduledPosts';
+import { useServerDrafts } from '@/hooks/useServerDrafts';
 import DraftsList from './DraftsList';
 import ScheduledPostsList from './ScheduledPostsList';
 import ScheduledPostPreview from './ScheduledPostPreview';
+import ServerDraftPreview from './ServerDraftPreview';
 import DraftPreview from './DraftPreview';
 
 export type UnpublishedTab = 'drafts' | 'scheduled';
@@ -79,6 +81,11 @@ const TabButton: React.FC<TabButtonProps> = ({ label, count, isActive, onPress }
  * Previewing a scheduled post REPLACES the sheet's body rather than opening a
  * second sheet on top of this one: the preview is a deeper level of the same
  * shelf, and stacking sheets buys nothing but a second dismiss gesture.
+ *
+ * The drafts tab lists drafts from BOTH places they live — the viewer's account
+ * and this device — as one list (`DraftsList`, over `useDraftsList`). An account
+ * draft's preview replaces the body like a scheduled post's does, and is looked
+ * up by id in the same cached query the list reads, so the two cannot disagree.
  */
 const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
   onClose,
@@ -92,6 +99,7 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
   // A draft is LOCAL, so unlike a scheduled post there is no server list to look
   // it back up in — the draft object itself is the only handle there is.
   const [previewDraft, setPreviewDraft] = useState<Draft | null>(null);
+  const [previewServerDraftId, setPreviewServerDraftId] = useState<string | null>(null);
   const {
     scheduledPosts,
     isLoading,
@@ -101,6 +109,7 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
     publishScheduledPostNow,
     viewerId,
   } = useScheduledPosts();
+  const { serverDrafts, publishServerDraft, deleteServerDraft } = useServerDrafts();
 
   const showDrafts = useCallback(() => setActiveTab('drafts'), []);
   const showScheduled = useCallback(() => setActiveTab('scheduled'), []);
@@ -109,6 +118,11 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
   const closePreview = useCallback(() => setPreviewPostId(null), []);
   const openDraftPreview = useCallback((draft: Draft) => setPreviewDraft(draft), []);
   const closeDraftPreview = useCallback(() => setPreviewDraft(null), []);
+  const openServerDraftPreview = useCallback(
+    (post: HydratedPost) => setPreviewServerDraftId(post.id),
+    [],
+  );
+  const closeServerDraftPreview = useCallback(() => setPreviewServerDraftId(null), []);
 
   /**
    * Editing reuses the composer's OWN edit route rather than the drafts loader.
@@ -117,6 +131,10 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
    * `/compose?editPostId=` already loads a server post through
    * `GET /posts/:id/edit-source` and saves through `PUT /posts/:id`, which is
    * exactly the update this needs.
+   *
+   * A server draft takes the same route, for the same reason: it is a server
+   * post, so it is edited in place and stays a draft. It is published from here,
+   * not from the composer, whose Save on an existing post is an edit.
    */
   const editPost = useCallback((post: HydratedPost) => {
     onClose();
@@ -129,6 +147,27 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
   const previewPost = previewPostId === null
     ? undefined
     : scheduledPosts.find((post) => post.id === previewPostId);
+
+  // By id, like the scheduled preview, so publishing or deleting it from the row
+  // (or a refetch that no longer has it) takes the preview down.
+  const previewServerDraft = previewServerDraftId === null
+    ? undefined
+    : serverDrafts.find((post) => post.id === previewServerDraftId);
+
+  if (previewServerDraft) {
+    return (
+      <View className="flex-1 max-h-[600px] bg-background">
+        <ServerDraftPreview
+          post={previewServerDraft}
+          onBack={closeServerDraftPreview}
+          onEdit={() => editPost(previewServerDraft)}
+          onPublish={publishServerDraft}
+          onDelete={deleteServerDraft}
+          onDone={closeServerDraftPreview}
+        />
+      </View>
+    );
+  }
 
   if (previewDraft) {
     return (
@@ -195,6 +234,8 @@ const UnpublishedSheet: React.FC<UnpublishedSheetProps> = ({
           onLoadDraft={onLoadDraft}
           onPreviewDraft={openDraftPreview}
           currentDraftId={currentDraftId}
+          onPreviewServerDraft={openServerDraftPreview}
+          onEditServerDraft={editPost}
         />
       ) : (
         <ScheduledPostsList
