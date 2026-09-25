@@ -36,10 +36,13 @@ jest.mock('@/context/LayoutScrollContext', () => ({
 
 jest.mock('expo-router', () => ({ useIsFocused: () => true }));
 
+const mockListProps: Array<Record<string, unknown>> = [];
+
 jest.mock('@shopify/flash-list', () => {
     const React_ = require('react') as typeof import('react');
     const { View } = require('react-native') as typeof import('react-native');
     const FlashList = React_.forwardRef<unknown, { children?: React.ReactNode }>((props, ref) => {
+        mockListProps.push(props as Record<string, unknown>);
         React_.useImperativeHandle(ref, () => ({ scrollToOffset: () => undefined }));
         return React_.createElement(View, null, props.children);
     });
@@ -84,5 +87,47 @@ describe('the notifications list’s scroll', () => {
         act(() => {
             renderer.unmount();
         });
+    });
+});
+
+// #1140: the Notifications body was darker than every other tab, and pulling
+// its empty state did not refresh.
+describe('the notifications list’s surface and refresh', () => {
+    function render(items: unknown[]) {
+        mockListProps.length = 0;
+        let renderer!: TestRenderer.ReactTestRenderer;
+        act(() => {
+            renderer = TestRenderer.create(
+                <NotificationsList
+                    items={items as never[]}
+                    renderRow={() => <Text>row</Text>}
+                    header={null}
+                    emptyState={<Text>empty</Text>}
+                    tabKey="all"
+                    refreshing={false}
+                    onRefresh={() => undefined}
+                />,
+            );
+        });
+        const props = mockListProps.at(-1)!;
+        act(() => renderer.unmount());
+        return props;
+    }
+
+    it('paints no fill of its own, so the panel fill shows through like every other tab', () => {
+        const props = render([]);
+        expect(JSON.stringify(props.style ?? {})).not.toMatch(/backgroundColor/);
+        expect(JSON.stringify(props.contentContainerStyle ?? {})).not.toMatch(/backgroundColor/);
+    });
+
+    it('grows an empty list to the viewport and keeps the refresh control on it', () => {
+        const props = render([]);
+        expect(props.contentContainerStyle).toEqual({ flexGrow: 1 });
+        expect(props.refreshControl).toBeTruthy();
+    });
+
+    it('leaves a populated list to size to its rows', () => {
+        const props = render([{ kind: 'header', key: 'h', title: 'Today' }]);
+        expect(props.contentContainerStyle).toBeUndefined();
     });
 });

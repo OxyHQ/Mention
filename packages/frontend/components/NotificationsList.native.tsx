@@ -22,6 +22,9 @@ export interface NotificationsListProps {
     isFetchingMore?: boolean;
 }
 
+const EMPTY_CONTENT = { flexGrow: 1 } as const;
+const LIST_STYLE = { flex: 1 } as const;
+
 /**
  * NATIVE notifications list: a `FocusedFlashList`, so it owns the screen's
  * scroll while the notifications tab is in front.
@@ -81,13 +84,16 @@ export function NotificationsList({
                     />
                 }
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{
-                    backgroundColor: theme.colors.background,
-                }}
-                style={{
-                    flex: 1,
-                    backgroundColor: theme.colors.background,
-                }}
+                // No fill of its own. The list used to paint `colors.background`,
+                // which is darker than the panel fill every other tab shows
+                // through (`StackScene` / `useSurfaceFill`), so the Notifications
+                // body read as a different surface from its own header.
+                //
+                // Empty, the content grows to the viewport: the empty state is
+                // the whole page, and a pull that starts anywhere on it reaches
+                // the refresh control instead of landing below a short content box.
+                contentContainerStyle={items.length === 0 ? EMPTY_CONTENT : undefined}
+                style={LIST_STYLE}
                 drawDistance={400}
                 key={`notifications-${tabKey}`}
             />
