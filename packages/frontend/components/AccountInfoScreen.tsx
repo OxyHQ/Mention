@@ -224,7 +224,12 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
             @handle) and inline verified / federated / agent badges via the shared
             UserName, so it reads as the same identity surface as the profile. */}
         <View className="px-4 pt-4 pb-5 items-center">
-          <Avatar source={avatarUri} size={80} variant={MEDIA_VARIANT_AVATAR_LG} />
+          <Avatar
+            source={avatarUri}
+            name={profileData.design.displayName ?? profileData.name?.displayName ?? profileData.username}
+            size={80}
+            variant={MEDIA_VARIANT_AVATAR_LG}
+          />
           <UserName
             name={profileData.design.displayName ?? profileData.name?.displayName}
             handle={profileData.username}
