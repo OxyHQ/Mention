@@ -115,6 +115,8 @@ if ! jq -e \
       "social.jobs.create",
       "social.jobs.read",
       "social.jobs.update",
+      "social.lanes.manage",
+      "social.lanes.read",
       "social.lists.create",
       "social.lists.delete",
       "social.lists.read",
