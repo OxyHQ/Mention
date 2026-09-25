@@ -192,7 +192,6 @@ const PostActions: React.FC<Props> = ({
       ) : null}
 
       <PressableScale
-        className="flex-row items-center"
         style={styles.countedIconButton}
         onPress={() => {
           haptic('light');
@@ -354,8 +353,12 @@ const styles = StyleSheet.create({
   iconButton: {
     padding: 2,
   },
+  // A plain style, not `className`: a class on the pressable costs every row an
+  // interop wrapper (the row-cost harness counts it), for a layout this states.
   countedIconButton: {
     padding: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
   },
   miniAvatarWrap: {
