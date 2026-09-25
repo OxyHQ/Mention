@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { Share, Text, View } from 'react-native';
-import { router, type Href } from 'expo-router';
+import type { Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { FollowButton as OxyFollowButton, useAuth, useFollow } from '@oxy.so/services/ui/client';
@@ -46,6 +46,7 @@ import {
 } from './useProfileAccount';
 import { useProfileChrome, type ProfileChrome } from './useProfileChrome';
 import { useProfileMoreMenu } from './useProfileMoreMenu';
+import { useMessageInAllo } from './useMessageInAllo';
 import { useOperatesAccount } from './useOperatesAccount';
 import { useJustFollowed } from './useJustFollowed';
 import { useSubscription } from './useSubscription';
@@ -369,14 +370,8 @@ export function usePersonProfileView({
     viewerOperatesAccount: isOwnProfile || operatesThisAccount,
   });
 
-  const handleDM = useCallback(() => {
-    if (!profileData?.id) return;
-    const params = new URLSearchParams({
-      userId: profileData.id,
-      username: profileData.username,
-    });
-    router.push(`/ai?${params.toString()}`);
-  }, [profileData?.id, profileData?.username]);
+  // Mention has no DMs; a message to this person is a conversation in Allo.
+  const handleDM = useMessageInAllo(profileData?.id, handle);
 
   // Open on remote instance (federated only)
   const handleOpenOnInstance = useCallback(() => {
@@ -533,9 +528,9 @@ export function usePersonProfileView({
           iconOnly
           leadingIcon={RiMailLine}
           onPress={handleDM}
-          accessibilityLabel={t('profile.actions.message', {
+          accessibilityLabel={t('profile.actions.messageInAllo', {
             handle,
-            defaultValue: 'Message @{{handle}}',
+            defaultValue: 'Message @{{handle}} in Allo',
           })}
         />
       )}
