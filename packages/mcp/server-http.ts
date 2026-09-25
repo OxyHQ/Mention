@@ -148,20 +148,53 @@ function sendUnauthorized(res: ServerResponse): void {
   }));
 }
 
-async function verifyUserToken(
-  userToken: string,
-): Promise<AuthenticatedMcpToken | undefined> {
+/**
+ * What checking a bearer token came to. `unavailable` is NOT `invalid`: it means
+ * this server could not ask Oxy (its own service identity was refused, Oxy was
+ * down, the network failed), which says nothing about the caller's token.
+ */
+type TokenCheck =
+  | { readonly status: "valid"; readonly token: AuthenticatedMcpToken }
+  | { readonly status: "invalid" }
+  | { readonly status: "unavailable" };
+
+async function checkUserToken(userToken: string | undefined): Promise<TokenCheck> {
+  if (!userToken) return { status: "invalid" };
   try {
-    return (await authenticateMcpAccessToken(userToken, {
+    const token = await authenticateMcpAccessToken(userToken, {
       config,
       introspectCentral: introspectCentralToken,
-    })) ?? undefined;
+    });
+    return token ? { status: "valid", token } : { status: "invalid" };
   } catch (error) {
     logWarn("MCP token validation unavailable", {
       reason: error instanceof Error ? error.message : "unknown",
     });
-    return undefined;
+    return { status: "unavailable" };
   }
+}
+
+/**
+ * Answer a request whose token could not be CHECKED with 503, never 401.
+ *
+ * A 401 tells an MCP client its grant is bad, and a client (Claude, ChatGPT,
+ * an automation) reacts by discarding it and asking its person to sign in
+ * again. On 2026-09-25 Oxy refused this server's workload attestation for half
+ * an hour and every connected client was told to re-authorize — for a fault
+ * that was entirely on this side. `Retry-After` tells them to simply try again.
+ */
+function sendValidationUnavailable(res: ServerResponse): void {
+  res.setHeader("Retry-After", "30");
+  res.setHeader("Cache-Control", "no-store");
+  sendJsonRpcError(res, 503, -32000, "Token validation is temporarily unavailable. Retry shortly.");
+}
+
+/** Answers the request itself unless the token checked out; returns the token when it did. */
+function requireValidToken(check: TokenCheck, res: ServerResponse): AuthenticatedMcpToken | undefined {
+  if (check.status === "valid") return check.token;
+  if (check.status === "unavailable") sendValidationUnavailable(res);
+  else sendUnauthorized(res);
+  return undefined;
 }
 
 function requestAuthContext(
@@ -209,11 +242,8 @@ async function handleStreamableMcp(
   method: "POST" | "GET" | "DELETE",
 ): Promise<void> {
   const userToken = extractBearerToken(headers);
-  const tokenClaims = userToken ? await verifyUserToken(userToken) : undefined;
-  if (!userToken || !tokenClaims) {
-    sendUnauthorized(res);
-    return;
-  }
+  const tokenClaims = requireValidToken(await checkUserToken(userToken), res);
+  if (!userToken || !tokenClaims) return;
 
   if (method === "GET") {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
@@ -407,11 +437,8 @@ async function main() {
 
     if (pathname === "/sse" && req.method === "GET") {
       const userToken = extractBearerToken(headers);
-      const tokenClaims = userToken ? await verifyUserToken(userToken) : undefined;
-      if (!userToken || !tokenClaims) {
-        sendUnauthorized(res);
-        return;
-      }
+      const tokenClaims = requireValidToken(await checkUserToken(userToken), res);
+      if (!userToken || !tokenClaims) return;
       if (sessions.size >= MAX_SESSIONS) {
         sendJsonRpcError(res, 503, -32000, "MCP server is at its session capacity.");
         return;
@@ -437,11 +464,8 @@ async function main() {
     if (pathname === "/messages" && req.method === "POST") {
       setLegacyTransportHeaders(res);
       const userToken = extractBearerToken(headers);
-      const tokenClaims = userToken ? await verifyUserToken(userToken) : undefined;
-      if (!userToken || !tokenClaims) {
-        sendUnauthorized(res);
-        return;
-      }
+      const tokenClaims = requireValidToken(await checkUserToken(userToken), res);
+      if (!userToken || !tokenClaims) return;
       const sessionId = query.sessionId;
       const transport = sessionId ? sessions.get(sessionId) : undefined;
 

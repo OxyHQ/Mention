@@ -6,7 +6,7 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 describe("MCP HTTP resource server", () => {
   test(
-    "challenges unauthenticated clients, rejects invalid tokens and drains on SIGTERM",
+    "challenges unauthenticated clients, rejects invalid tokens, answers 503 when it cannot check one, and drains on SIGTERM",
     async () => {
       const child = Bun.spawn({
         cmd: [process.execPath, "server-http.ts"],
@@ -62,6 +62,27 @@ describe("MCP HTTP resource server", () => {
           }),
         });
         expect(invalidToken.status).toBe(401);
+
+        // A central (EdDSA) token this server cannot CHECK — the Oxy URL here does
+        // not resolve — is its own fault, not the client's: 503 + Retry-After,
+        // never a 401 that would make the client throw its grant away.
+        const centralToken = `${Buffer.from(JSON.stringify({ alg: "EdDSA", typ: "JWT" })).toString("base64url")}.${Buffer.from("{}").toString("base64url")}.sig`;
+        const unavailable = await fetch(`${baseUrl}/`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${centralToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "initialize", params: {} }),
+        });
+        expect(unavailable.status).toBe(503);
+        expect(unavailable.headers.get("retry-after")).toBe("30");
+        expect(unavailable.headers.get("www-authenticate")).toBeNull();
+
+        const unavailableSse = await fetch(`${baseUrl}/sse`, {
+          headers: { Authorization: `Bearer ${centralToken}` },
+        });
+        expect(unavailableSse.status).toBe(503);
 
         const legacySse = await fetch(`${baseUrl}/sse`, {
           headers: { Authorization: "Bearer not-a-valid-jwt" },
