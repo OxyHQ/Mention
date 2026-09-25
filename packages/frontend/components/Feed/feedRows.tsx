@@ -181,6 +181,33 @@ export function ensureUniqueFeedRows(rows: FeedRow[]): FeedRow[] {
 }
 
 /**
+ * The post a row actually DRAWS: a boost row renders its original (see
+ * `renderPostRow`), every other row renders itself.
+ */
+export function displayedPostId(item: FeedItem): string {
+    const original = (item as { boost?: { originalPost?: { id?: string } | null } }).boost?.originalPost;
+    return original?.id ? String(original.id) : getItemKey(item);
+}
+
+/**
+ * One post is drawn once per feed.
+ *
+ * A boost and the post it boosts are two feed entries with two ids, so the id
+ * dedupe keeps both, and a profile that boosted its own post drew that post
+ * twice in a row: "Reposted by you" and then the original again (#1140). Two
+ * accounts boosting the same post did the same on Home. The FIRST occurrence in
+ * feed order wins — on a profile that is the boost, which is newer and carries
+ * the "Reposted by" context — which is how X treats a repost of your own post
+ * and how Bluesky's feed tuner dedupes reposts.
+ *
+ * Only a STANDALONE entry is dropped. A post that recurs inside a multi-post
+ * thread slice stays, because removing it would break the thread it belongs to.
+ */
+function isRedrawOfShownPost(item: FeedItem, shown: Set<string>): boolean {
+    return shown.has(displayedPostId(item));
+}
+
+/**
  * Transform slices (or flat items) into {@link FeedRow}s with thread state, then
  * splice in the server's recommendation cards. Pure: it decides only WHERE a card
  * goes, never what is inside it — which is what keeps the `useDeepCompareMemo`
@@ -201,6 +228,7 @@ export function buildFeedRows({
     if (slices && slices.length > 0) {
         const rows: PostFeedRow[] = [];
         const seenPostIds = new Set<string>();
+        const shownPostIds = new Set<string>();
         for (const slice of slices) {
             // A ranking boundary can overlap the preceding page. Normalize every
             // slice before deriving thread flags so removing a duplicate parent or
@@ -214,10 +242,14 @@ export function buildFeedRows({
                 }
                 const postId = getItemKey(post);
                 if (!postId || seenPostIds.has(postId)) return false;
+                if (slice.items.length === 1 && isRedrawOfShownPost(post, shownPostIds)) return false;
                 seenPostIds.add(postId);
                 return true;
             });
             if (uniqueSliceItems.length === 0) continue;
+            for (const sliceItem of uniqueSliceItems) {
+                shownPostIds.add(displayedPostId(sliceItem.post as FeedItem));
+            }
 
             // Real threads (multi-post slices) share one root: the FIRST item's
             // post. Every row of the thread carries it so a tap opens the whole
@@ -251,12 +283,21 @@ export function buildFeedRows({
     if (src.length === 0) return [];
 
     const deduped = deduplicateItems(src, getItemKey);
-    const filteredByPrivacy = blockedSet.size > 0
+    const visible = blockedSet.size > 0
         ? deduped.filter((item) => {
             const authorId = item.user?.id;
             return authorId ? !blockedSet.has(authorId) : true;
         })
         : deduped;
+    // A thread's replies never carry boosts; the one-draw rule is for feeds.
+    const shownPostIds = new Set<string>();
+    const filteredByPrivacy = threaded
+        ? visible
+        : visible.filter((item) => {
+            if (isRedrawOfShownPost(item, shownPostIds)) return false;
+            shownPostIds.add(displayedPostId(item));
+            return true;
+        });
 
     // Threaded mode: build reply tree and flatten with nesting depth
     if (threaded && threadPostId && filteredByPrivacy.length > 0) {
