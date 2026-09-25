@@ -481,6 +481,60 @@ describe('the authored source (the profile feed)', () => {
     expect(idsOf(mainTab)).toEqual([boost.id, plain.id]);
   });
 
+  describe('the mentions tab', () => {
+    /**
+     * Driven by `post_mentions`, not by the author's own posts — so it lists
+     * OTHER people's posts, and post visibility is judged for the VIEWER.
+     */
+    it('serves other people\'s posts that mention the author, newest first', async () => {
+      const newer = await create({ oxyUserId: STRANGER, createdAt: at(0), mentions: [AUTHOR] });
+      const older = await create({ oxyUserId: FOLLOW, createdAt: at(-1_000), mentions: [AUTHOR, VIEWER] });
+      // Each of the following must NOT appear.
+      await create({ oxyUserId: STRANGER, mentions: [VIEWER] });
+      await create({ oxyUserId: AUTHOR, mentions: [AUTHOR] });
+      await create({ oxyUserId: STRANGER, mentions: [AUTHOR], status: 'draft' });
+      await create({ oxyUserId: AUTHOR });
+
+      const tab = await authoredSource.gather(
+        { currentUserId: VIEWER },
+        { authorId: AUTHOR, filter: 'mentions' },
+        31,
+      );
+      expect(idsOf(tab)).toEqual([newer.id, older.id]);
+    });
+
+    it('shows a followers-only mention only to a follower of whoever wrote it', async () => {
+      const gated = await create({
+        oxyUserId: FOLLOW,
+        visibility: PostVisibility.FOLLOWERS_ONLY,
+        mentions: [AUTHOR],
+      });
+      await create({ oxyUserId: STRANGER, visibility: PostVisibility.PRIVATE, mentions: [AUTHOR] });
+
+      const stranger = await authoredSource.gather(
+        { currentUserId: VIEWER, followingIds: [] },
+        { authorId: AUTHOR, filter: 'mentions' },
+        31,
+      );
+      expect(stranger).toEqual([]);
+
+      const follower = await authoredSource.gather(
+        { currentUserId: VIEWER, followingIds: [FOLLOW] },
+        { authorId: AUTHOR, filter: 'mentions' },
+        31,
+      );
+      expect(idsOf(follower)).toEqual([gated.id]);
+    });
+
+    it('is withheld with the rest of a private profile', async () => {
+      await setProfileVisibility(AUTHOR, 'private');
+      await create({ oxyUserId: STRANGER, mentions: [AUTHOR] });
+
+      const ctx: FeedEngineContext = { currentUserId: VIEWER, followingIds: [STRANGER] };
+      expect(await authoredSource.gather(ctx, { authorId: AUTHOR, filter: 'mentions' }, 31)).toEqual([]);
+    });
+  });
+
   it('accepts all three media shapes on the media tab, and no boost or reply', async () => {
     const typedMedia = await create({ oxyUserId: AUTHOR, createdAt: at(0), type: PostType.IMAGE });
     const withMediaRow = await create({

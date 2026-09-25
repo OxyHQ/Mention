@@ -11,7 +11,7 @@ import type { ProfileData } from '@/hooks/useProfileData';
 import type { useAuth } from '@oxy.so/services/ui/client';
 
 // Tab configuration
-export const TAB_NAMES = ['posts', 'replies', 'media', 'videos', 'likes', 'boosts', 'feeds', 'starter_packs', 'lists'] as const;
+export const TAB_NAMES = ['posts', 'replies', 'media', 'videos', 'likes', 'boosts', 'mentions', 'feeds', 'starter_packs', 'lists'] as const;
 
 /**
  * Tabs only a CHANNEL account's profile has, appended after {@link TAB_NAMES}.
@@ -243,6 +243,7 @@ export const VIRTUALIZED_PROFILE_FEED_TABS = [
   'replies',
   'likes',
   'boosts',
+  'mentions',
 ] as const satisfies readonly ProfileTab[];
 
 export function isVirtualizedProfileFeedTab(

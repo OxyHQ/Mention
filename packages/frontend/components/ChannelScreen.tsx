@@ -139,6 +139,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                     videos: t('profile.tabs.videos'),
                     likes: t('profile.tabs.likes'),
                     boosts: t('profile.tabs.boosts'),
+                    mentions: t('profile.tabs.mentions'),
                     feeds: t('profile.tabs.feeds', { defaultValue: 'Feeds' }),
                     starter_packs: t('profile.tabs.starter_packs', { defaultValue: 'Starter Packs' }),
                     lists: t('profile.tabs.lists', { defaultValue: 'Lists' }),

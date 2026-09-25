@@ -36,7 +36,7 @@ const OFF_MAIN_TAB: readonly LaneDisplayMode[] = ['tab', 'hidden'];
 /**
  * The display modes excluded from ONE profile tab.
  *
- * `likes` is deliberately absent from the caller's path entirely (it lists OTHER
+ * `likes` and `mentions` are deliberately absent from the caller's path entirely (they list OTHER
  * people's posts, so the profile owner's curation has no bearing on it), but the
  * mapping is total so no tab can fall through unfiltered.
  */

@@ -14,6 +14,7 @@ import {
   postAuthorships,
   postContentVariants,
   postMedia,
+  postMentions,
   posts,
   trendStoryPosts,
   userSettings,
@@ -375,6 +376,7 @@ function buildAuthoredConditions(
       );
       break;
     case 'likes':
+    case 'mentions':
       break;
   }
 
@@ -403,8 +405,11 @@ async function canViewAuthorFeed(ctx: FeedEngineContext, authorId: string): Prom
   return (ctx.followingIds ?? []).includes(authorId);
 }
 
-/** Which liked posts the viewer is allowed to see, by post visibility. */
-function buildVisibleLikedPostSql(ctx: FeedEngineContext): SQL {
+/**
+ * Which of OTHER people's posts the viewer is allowed to see, by post
+ * visibility — the likes and mentions tabs, whose posts are not the profile's.
+ */
+function buildViewerVisiblePostSql(ctx: FeedEngineContext): SQL {
   const viewerId = ctx.currentUserId;
   if (!viewerId) return eq(posts.visibility, PostVisibility.PUBLIC);
 
@@ -502,7 +507,7 @@ async function gatherAuthorLikes(authorId: string, ctx: FeedEngineContext): Prom
       and(
         inArray(posts.id, likedPostIds),
         eq(posts.status, 'published'),
-        buildVisibleLikedPostSql(ctx),
+        buildViewerVisiblePostSql(ctx),
       ),
     );
   const loaded: CandidatePost[] = await assemblePostRecords(rows, db);
@@ -520,8 +525,38 @@ async function gatherAuthorLikes(authorId: string, ctx: FeedEngineContext): Prom
 }
 
 /**
- * `authored`: a single author's posts/replies/media/boosts (chronological) or
- * likes (ordered) — the profile feed. Params `{ authorId, filter }`.
+ * Other people's posts that mention the profile, newest first.
+ *
+ * Driven by `post_mentions` rather than the author's own posts, so none of the
+ * author-scan conditions apply: visibility is the VIEWER's (a followers-only
+ * mention shows only to someone following whoever wrote it), and a
+ * self-mention is left out because it is already on the author's own tabs.
+ */
+async function gatherAuthorMentions(
+  authorId: string,
+  ctx: FeedEngineContext,
+  cap: number,
+): Promise<CandidatePost[]> {
+  const mentioned = sql`exists ${getDb()
+    .select({ one: sql`1` })
+    .from(postMentions)
+    .where(and(eq(postMentions.postId, posts.id), eq(postMentions.oxyUserId, authorId)))}`;
+
+  return fetchChrono(
+    [
+      mentioned,
+      sql`${posts.oxyUserId} is distinct from ${authorId}`,
+      buildViewerVisiblePostSql(ctx),
+      eq(posts.status, 'published'), notCollapsedCrosspostSql(),
+    ],
+    ctx.cursor,
+    cap,
+  );
+}
+
+/**
+ * `authored`: a single author's posts/replies/media/boosts/mentions
+ * (chronological) or likes (ordered) — the profile feed. Params `{ authorId, filter }`.
  */
 export const authoredSource: SourceModule = {
   id: 'authored',
@@ -540,6 +575,8 @@ export const authoredSource: SourceModule = {
       // lane curation has no bearing on it.
       return gatherAuthorLikes(authorId, ctx);
     }
+
+    if (filter === 'mentions') return gatherAuthorMentions(authorId, ctx, cap);
 
     const excludedLaneIds = await loadExcludedLaneIds(
       authorId,
