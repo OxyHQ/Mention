@@ -144,7 +144,7 @@ export function usePersonProfileView({
   const refreshAccount = account.refresh;
   const { handle, isFederated } = account;
   const routedCanonicalHref = useProfileCanonicalHref({ routedFamily: 'person', account });
-  const { user: currentUser, oxyServices } = useAuth();
+  const { user: currentUser, oxyServices, canUsePrivateApi } = useAuth();
   const { t } = useTranslation();
 
   /**
@@ -505,7 +505,9 @@ export function usePersonProfileView({
           to carry the state a sighted user reads from the icon — a static
           "Notifications" would leave a screen reader unable to tell subscribed
           from not. */}
-      {!isOwnProfile && (
+      {/* The bell and the DM act as the viewer, so without a session they could
+          only fail with a 401 — the same rule as the "…" menu (#1126). */}
+      {!isOwnProfile && canUsePrivateApi && (
         <Button
           appearance="subtle" tone="neutral"
           iconOnly
@@ -525,7 +527,7 @@ export function usePersonProfileView({
           }
         />
       )}
-      {!isOwnProfile && !isFederated && (
+      {!isOwnProfile && !isFederated && canUsePrivateApi && (
         <Button
           appearance="subtle" tone="neutral"
           iconOnly
