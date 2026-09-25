@@ -773,6 +773,7 @@ const Feed = ((props: FeedProps) => {
                 showOnlySaved={showOnlySaved}
                 onRetry={handleRetry}
                 pending={feedState.pending}
+                isThread={type === 'replies' && Boolean(filters?.parentPostId || filters?.postId)}
             />
         ),
         [feedState.isLoading, feedState.error, feedState.errorKind, feedState.pending, type, showOnlySaved, handleRetry]

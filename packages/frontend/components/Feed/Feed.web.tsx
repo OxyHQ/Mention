@@ -251,6 +251,7 @@ function EmbeddedWebFeed(props: FeedProps) {
                     showOnlySaved={showOnlySaved}
                     onRetry={handleRetry}
                     pending={feedState.pending}
+                    isThread={type === 'replies' && Boolean(filters?.parentPostId || filters?.postId)}
                 />
             ) : (
                 <View style={merged.contentContainerStyle}>
@@ -566,6 +567,7 @@ function VirtualizedWebFeed(props: FeedProps) {
                         showOnlySaved={showOnlySaved}
                         onRetry={handleRetry}
                         pending={feedState.pending}
+                        isThread={type === 'replies' && Boolean(filters?.parentPostId || filters?.postId)}
                     />
                 ) : (
                     // Web-only file: the virtual rows are plain DOM nodes so
