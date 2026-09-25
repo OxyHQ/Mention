@@ -283,18 +283,15 @@ export default function MentionNodeScreen() {
                     tone="danger"
                     onPress={handleDisconnect}
                     disabled={isDisconnecting}
+                    loading={isDisconnecting}
                     accessibilityLabel={t("settings.node.disconnect.action", {
                       defaultValue: "Disconnect",
                     })}
                   >
-                    {isDisconnecting ? (
-                      <Loading
-                        className="text-primary"
-                        variant="inline"
-                        size="small"
-                        style={{ flex: undefined }}
-                      />
-                    ) : undefined}
+                    {/* Labelled for the same reason as the create row below. */}
+                    {t("settings.node.disconnect.action", {
+                      defaultValue: "Disconnect",
+                    })}
                   </Button>
                 </SettingsRow>
               </SettingsCard>
@@ -345,24 +342,23 @@ export default function MentionNodeScreen() {
                       "Mention runs it for you — one tap, nothing to host",
                   })}
                 >
+                  {/* A real, labelled trailing button. It used to render with
+                      no children at all, which collapsed to an empty pill
+                      squeezed against the card's right edge. Bloom's `loading`
+                      draws the spinner over the kept label, so the button does
+                      not change width mid-request. */}
                   <Button
                     size="small"
                     appearance="subtle"
                     tone="neutral"
                     onPress={() => createManagedVault()}
                     disabled={isCreatingVault}
+                    loading={isCreatingVault}
                     accessibilityLabel={t("settings.node.create.managedTitle", {
                       defaultValue: "Create a managed vault",
                     })}
                   >
-                    {isCreatingVault ? (
-                      <Loading
-                        className="text-primary"
-                        variant="inline"
-                        size="small"
-                        style={{ flex: undefined }}
-                      />
-                    ) : undefined}
+                    {t("common.create", { defaultValue: "Create" })}
                   </Button>
                 </SettingsRow>
               </SettingsCard>
