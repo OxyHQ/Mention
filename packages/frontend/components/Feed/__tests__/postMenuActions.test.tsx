@@ -98,13 +98,17 @@ const deps = {
     theme: { colors: { textSecondary: '#888', error: '#f00' } },
     t: (key: string) => key,
     viewerId: 'viewer-1',
+    canUsePrivateApi: true,
     router,
     safeBack,
     bottomSheet,
     queryClient,
 } as unknown as PostMenuDeps;
 
-function build(params: Partial<PostMenuParams> & { viewPost: HydratedPost }) {
+function build(
+    params: Partial<PostMenuParams> & { viewPost: HydratedPost },
+    depOverrides: Partial<PostMenuDeps> = {},
+) {
     return buildPostMenuActions(
         {
             isOwner: false,
@@ -119,7 +123,7 @@ function build(params: Partial<PostMenuParams> & { viewPost: HydratedPost }) {
             onOpenSources: jest.fn(),
             ...params,
         },
-        deps,
+        { ...deps, ...depOverrides },
     );
 }
 
@@ -152,6 +156,23 @@ describe('who gets which actions', () => {
         expect(labels(actions)).not.toContain('postActions.edit');
         expect(labels(actions)).not.toContain('postActions.pinToProfile');
         expect(actions.insightsAction).toEqual([]);
+    });
+
+    // #1126: every one of these is a write on the viewer's account, so signed
+    // out it could only answer 401. Reading actions stay.
+    it('offers a signed-out reader only what needs no session', () => {
+        const signedOut = { viewerId: undefined, canUsePrivateApi: false };
+        const onLane = makePost({ lane: { id: 'l1', name: 'Dev notes' } as HydratedPost['lane'] });
+        const actions = build({ viewPost: onLane, hasArticle: true, hasSources: true }, signedOut);
+
+        expect(labels(actions).sort()).toEqual(
+            ['post.viewArticle', 'post.viewSources', 'postActions.copyLink'].sort(),
+        );
+        expect(actions.saveActionGroup).toEqual([]);
+        expect(actions.addToListAction).toEqual([]);
+        expect(actions.muteReportAction).toEqual([]);
+        // A saved flag left over from a signed-in render must not bring Unsave back.
+        expect(labels(build({ viewPost: onLane, isSaved: true }, signedOut))).not.toContain('postActions.unsave');
     });
 
     it('offers a lane mute first when the post sits on a lane', () => {

@@ -28,7 +28,7 @@ export function PostInteractionsBinder() {
     const bind = usePostInteractionsBinding();
     const theme = useTheme();
     const { t } = useTranslation();
-    const { user } = useAuth();
+    const { user, canUsePrivateApi } = useAuth();
     const router = useRouter();
     const safeBack = useSafeBack();
     const bottomSheet = useContext(BottomSheetContext);
@@ -37,7 +37,7 @@ export function PostInteractionsBinder() {
     const viewerId = user?.id;
 
     const commands = useMemo<BoundPostCommands>(() => {
-        const deps = { theme, t, viewerId, router, safeBack, bottomSheet, queryClient };
+        const deps = { theme, t, viewerId, canUsePrivateApi, router, safeBack, bottomSheet, queryClient };
         const noteSheets = createCommunityNoteSheets({ bottomSheet, router, handlers: noteHandlers });
 
         const openSources: BoundPostCommands['openSources'] = (sources) => {
@@ -117,7 +117,7 @@ export function PostInteractionsBinder() {
                 });
             },
         };
-    }, [theme, t, viewerId, router, safeBack, bottomSheet, queryClient, noteHandlers]);
+    }, [theme, t, viewerId, canUsePrivateApi, router, safeBack, bottomSheet, queryClient, noteHandlers]);
 
     useEffect(() => {
         bind(commands);

@@ -77,6 +77,14 @@ export interface PostMenuDeps {
     theme: ReturnType<typeof useTheme>;
     t: TFunction;
     viewerId: string | undefined;
+    /**
+     * `useAuth().canUsePrivateApi`. Save, lists, mute and report are writes on
+     * the viewer's own account, so without a session they can only answer 401 —
+     * a signed-out reader is not offered them at all. Reading actions (copy
+     * link, the article, sources) stay. Never bare `isAuthenticated`, which is
+     * true before the session can make a private call.
+     */
+    canUsePrivateApi: boolean;
     router: ReturnType<typeof useRouter>;
     safeBack: () => void;
     bottomSheet: BottomSheetContextProps;
@@ -126,7 +134,7 @@ export function buildPostMenuActions({
     onSave,
     onOpenArticle,
     onOpenSources,
-}: PostMenuParams, { theme, t, viewerId, router, safeBack, bottomSheet, queryClient }: PostMenuDeps): PostMenuActions {
+}: PostMenuParams, { theme, t, viewerId, canUsePrivateApi, router, safeBack, bottomSheet, queryClient }: PostMenuDeps): PostMenuActions {
     const { removePostEverywhere, reinsertPost, updatePostEverywhere } = usePostsStore.getState();
     {
         const postId = viewPost?.id;
@@ -192,7 +200,10 @@ export function buildPostMenuActions({
 
         const saveActionGroup: ActionMenuAction[] = [];
 
-        if (!isSaved) {
+        if (!canUsePrivateApi) {
+            // Signed out: nothing below applies. Every row is a write on the
+            // viewer's account, and `isOwner` is false without a session.
+        } else if (!isSaved) {
             saveActionGroup.push({
                 icon: <Bookmark size={20} className="text-muted-foreground" />,
                 label: t('postActions.save'),
@@ -512,7 +523,7 @@ export function buildPostMenuActions({
 
         const muteReportAction: ActionMenuAction[] = [];
 
-        if (!isOwner) {
+        if (!isOwner && canUsePrivateApi) {
             const username = getNormalizedUserHandle(viewPost?.user) || viewPost?.user?.name?.displayName || 'user';
             if (postLane) {
                 muteReportAction.push({
@@ -541,7 +552,7 @@ export function buildPostMenuActions({
 
         const addToListAction: ActionMenuAction[] = [];
         const authorId = viewPost?.user?.id;
-        if (!isOwner && authorId) {
+        if (!isOwner && authorId && canUsePrivateApi) {
             const authorHandle = getNormalizedUserHandle(viewPost?.user) || '';
             addToListAction.push({
                 icon: <ListIcon size={20} className="text-muted-foreground" />,

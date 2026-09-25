@@ -428,16 +428,18 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                     defaultValue: "Share @{{handle}}'s profile",
                 })}
             />
-            <Button
-                appearance="subtle" tone="neutral"
-                iconOnly
-                leadingIcon={RiMoreFill}
-                onPress={handleMoreOptions}
-                accessibilityLabel={t('profile.actions.more', {
-                    handle,
-                    defaultValue: 'More options for @{{handle}}',
-                })}
-            />
+            {handleMoreOptions && (
+                <Button
+                    appearance="subtle" tone="neutral"
+                    iconOnly
+                    leadingIcon={RiMoreFill}
+                    onPress={handleMoreOptions}
+                    accessibilityLabel={t('profile.actions.more', {
+                        handle,
+                        defaultValue: 'More options for @{{handle}}',
+                    })}
+                />
+            )}
         </>
     );
 

@@ -559,7 +559,7 @@ export function usePersonProfileView({
           defaultValue: "Share @{{handle}}'s profile",
         })}
       />
-      {!isOwnProfile && (
+      {!isOwnProfile && handleMoreOptions && (
         <Button
           appearance="subtle" tone="neutral"
           iconOnly
