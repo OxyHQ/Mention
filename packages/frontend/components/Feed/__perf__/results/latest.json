@@ -7,8 +7,8 @@
   },
   "kinds": {
     "text": {
-      "mountMsPerRow": 6.25,
-      "recycleMsPerRow": 1.875,
+      "mountMsPerRow": 5.5,
+      "recycleMsPerRow": 2.625,
       "hostNodesPerRow": 51.125,
       "componentsPerRow": 190,
       "hooksPerRow": 293,
@@ -18,8 +18,8 @@
       "queryObserversPerRow": 0
     },
     "textAvatar": {
-      "mountMsPerRow": 6,
-      "recycleMsPerRow": 2.625,
+      "mountMsPerRow": 6.375,
+      "recycleMsPerRow": 2.875,
       "hostNodesPerRow": 50.125,
       "componentsPerRow": 187,
       "hooksPerRow": 293,
@@ -29,7 +29,7 @@
       "queryObserversPerRow": 0
     },
     "image": {
-      "mountMsPerRow": 4.625,
+      "mountMsPerRow": 5,
       "recycleMsPerRow": 1.75,
       "hostNodesPerRow": 58.125,
       "componentsPerRow": 214,
@@ -40,8 +40,8 @@
       "queryObserversPerRow": 0
     },
     "multiImage": {
-      "mountMsPerRow": 6.5,
-      "recycleMsPerRow": 4,
+      "mountMsPerRow": 7,
+      "recycleMsPerRow": 3,
       "hostNodesPerRow": 73.125,
       "componentsPerRow": 265,
       "hooksPerRow": 408,
@@ -51,8 +51,8 @@
       "queryObserversPerRow": 0
     },
     "video": {
-      "mountMsPerRow": 5.25,
-      "recycleMsPerRow": 2.125,
+      "mountMsPerRow": 5.125,
+      "recycleMsPerRow": 2,
       "hostNodesPerRow": 63.125,
       "componentsPerRow": 232,
       "hooksPerRow": 404,
@@ -62,8 +62,8 @@
       "queryObserversPerRow": 0
     },
     "linkPreview": {
-      "mountMsPerRow": 5.125,
-      "recycleMsPerRow": 1.875,
+      "mountMsPerRow": 4.25,
+      "recycleMsPerRow": 2.75,
       "hostNodesPerRow": 58.125,
       "componentsPerRow": 212,
       "hooksPerRow": 346,
@@ -73,8 +73,8 @@
       "queryObserversPerRow": 0
     },
     "quote": {
-      "mountMsPerRow": 6,
-      "recycleMsPerRow": 2,
+      "mountMsPerRow": 6.25,
+      "recycleMsPerRow": 2.125,
       "hostNodesPerRow": 75.125,
       "componentsPerRow": 266,
       "hooksPerRow": 488,
@@ -84,7 +84,7 @@
       "queryObserversPerRow": 0
     },
     "repost": {
-      "mountMsPerRow": 4.875,
+      "mountMsPerRow": 4.5,
       "recycleMsPerRow": 1.625,
       "hostNodesPerRow": 56.125,
       "componentsPerRow": 209,
@@ -95,8 +95,8 @@
       "queryObserversPerRow": 0
     },
     "poll": {
-      "mountMsPerRow": 6.75,
-      "recycleMsPerRow": 3,
+      "mountMsPerRow": 6.5,
+      "recycleMsPerRow": 3.125,
       "hostNodesPerRow": 62.125,
       "componentsPerRow": 215,
       "hooksPerRow": 327,
@@ -106,8 +106,8 @@
       "queryObserversPerRow": 0
     },
     "communityNote": {
-      "mountMsPerRow": 4.625,
-      "recycleMsPerRow": 1.625,
+      "mountMsPerRow": 3.875,
+      "recycleMsPerRow": 2.25,
       "hostNodesPerRow": 62.125,
       "componentsPerRow": 220,
       "hooksPerRow": 337,
@@ -127,7 +127,7 @@
   "fling": {
     "postsVisited": 200,
     "window": 12,
-    "msTotal": 600,
+    "msTotal": 578,
     "requests": 198,
     "translationRequests": 0,
     "maxQueryObservers": 0,
