@@ -30,7 +30,7 @@
     "@oxy.so/contracts": "catalog:",
     "@oxy.so/core": "catalog:",
     "@oxy.so/db": "^1.0.0",
-    "@oxy.so/federation": "^1.0.1",
+    "@oxy.so/federation": "^2.0.0",
     "@oxy.so/mcp": "catalog:",
     "@oxy.so/protocol": "^1.1.0",
     "@oxy.so/utils": "^1.0.1",

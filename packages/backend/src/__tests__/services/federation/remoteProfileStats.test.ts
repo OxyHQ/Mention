@@ -63,6 +63,20 @@ describe('remoteProfileStats', () => {
     expect(stats.followingCount).toBe(344);
   });
 
+  it('omits a total the remote withheld or that was never read (null), even with a collection URL', () => {
+    const stats = remoteProfileStats(actor({ followersCount: null }));
+    expect(stats).not.toHaveProperty('followersCount');
+    expect(stats.followingCount).toBe(344);
+  });
+
+  it('omits a null atproto total too', () => {
+    const stats = remoteProfileStats(
+      actor({ protocol: 'atproto', followersUrl: undefined, followingUrl: undefined, followingCount: null }),
+    );
+    expect(stats.followersCount).toBe(812);
+    expect(stats).not.toHaveProperty('followingCount');
+  });
+
   it('omits both totals on a row that was never fetched', () => {
     const stats = remoteProfileStats(actor({ lastFetchedAt: undefined, followersCount: 0, followingCount: 0 }));
     expect(stats).not.toHaveProperty('followersCount');

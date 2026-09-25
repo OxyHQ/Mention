@@ -319,9 +319,10 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
       avatarUrl: actor.avatarUrl,
       bannerUrl: actor.headerUrl,
       bio: actor.summary,
-      followersCount: actor.followersCount,
-      followingCount: actor.followingCount,
-      postsCount: actor.postsCount,
+      // Unknown is sent as nothing, never as a zero the bridge would store.
+      followersCount: actor.followersCount ?? undefined,
+      followingCount: actor.followingCount ?? undefined,
+      postsCount: actor.postsCount ?? undefined,
       oxyUserId: actor.oxyUserId ?? undefined,
     };
   }

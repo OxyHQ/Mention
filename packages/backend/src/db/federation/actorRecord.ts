@@ -110,10 +110,13 @@ export interface FederatedActorRecord {
   featuredTagsUrl?: string;
   alsoKnownAs?: string[];
   remoteCreatedAt?: Date;
-  /** Remote aggregate counts, as the remote reports them. Unverifiable. */
-  followersCount: number;
-  followingCount: number;
-  postsCount: number;
+  /**
+   * Remote aggregate counts, as the remote reports them. Unverifiable. `null` is
+   * UNKNOWN (hidden, not advertised, or never read) — never render it as 0.
+   */
+  followersCount: number | null;
+  followingCount: number | null;
+  postsCount: number | null;
   /** The Oxy account minted for this actor (Oxy type `'federated'`). */
   oxyUserId?: string;
   lastFetchedAt?: Date;

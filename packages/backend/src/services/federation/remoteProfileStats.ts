@@ -23,15 +23,16 @@ export async function loadRemoteProfileStats(oxyUserId: string): Promise<RemoteP
  * the actor's `published` on every refresh — and this maps that row to what the
  * page may claim.
  *
- * UNKNOWN is omitted rather than defaulted, because the columns cannot say
- * "unknown" themselves (`not null default 0`):
+ * UNKNOWN is omitted rather than defaulted — the page shows no figure instead
+ * of a fabricated "0 followers":
  *
- * - A row never fetched holds only schema defaults.
+ * - A `null` count: the remote hid the collection (401/403), it is gone, it
+ *   carries no `totalItems`, or no fetch of it has ever succeeded. Since
+ *   `@oxy.so/federation` 2.0 a failed read is never stored as `0`, and a failed
+ *   REFRESH leaves the last known figure in place.
+ * - A row never fetched, whose values are nothing the remote said.
  * - An ActivityPub actor that publishes no `followers`/`following` collection
- *   has no total to report; the resolver stores `0` for it all the same.
- *
- * What remains indistinguishable is an actor whose collection fetch FAILED:
- * `@oxy.so/federation` collapses that to `0` too, before the store ever sees it.
+ *   (rows written before the columns became nullable hold `0` for it).
  */
 export function remoteProfileStats(actor: FederatedActorRecord): RemoteProfileStats {
   const stats: RemoteProfileStats = {};
@@ -39,8 +40,12 @@ export function remoteProfileStats(actor: FederatedActorRecord): RemoteProfileSt
     // An atproto profile reports both counts on every fetch; it has no
     // collection URLs to gate on.
     const isActivityPub = actor.protocol === 'activitypub';
-    if (!isActivityPub || actor.followersUrl) stats.followersCount = actor.followersCount;
-    if (!isActivityPub || actor.followingUrl) stats.followingCount = actor.followingCount;
+    if ((!isActivityPub || actor.followersUrl) && actor.followersCount !== null) {
+      stats.followersCount = actor.followersCount;
+    }
+    if ((!isActivityPub || actor.followingUrl) && actor.followingCount !== null) {
+      stats.followingCount = actor.followingCount;
+    }
   }
   const joinedAt = trustedRemoteCreatedAt(actor.remoteCreatedAt);
   if (joinedAt) stats.joinedAt = joinedAt.toISOString();

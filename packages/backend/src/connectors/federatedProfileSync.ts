@@ -442,8 +442,9 @@ class FederatedProfileSync {
     // must never poll. Short-circuit the common empty case on the VERY first
     // view — before the background backfill has stamped `lastOutboxSyncAt` — so
     // a zero-post Bluesky profile renders empty immediately instead of spinning.
-    // (`postsCount` is populated from the Bluesky profile on actor upsert.)
-    if (actor.protocol === 'atproto' && (actor.postsCount ?? 0) === 0) return false;
+    // (`postsCount` is populated from the Bluesky profile on actor upsert; an
+    // UNKNOWN count is not a zero one, so it falls through to the status checks.)
+    if (actor.protocol === 'atproto' && actor.postsCount === 0) return false;
 
     const outboxStatus = this.currentOutboxBackfillStatus(actor);
     if (outboxStatus === 'unavailable' || outboxStatus === 'complete') return false;
