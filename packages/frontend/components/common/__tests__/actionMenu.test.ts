@@ -96,6 +96,9 @@ describe('action menu wiring', () => {
       // The post ⋯ menu. Built by the app's one post-interaction controller
       // when a row's menu is PRESSED, not by each row (#1103).
       join('components', 'Feed', 'PostInteractionsBinder.tsx'),
+      // "Message in Allo" when Allo is not installed: get Allo, or open it on
+      // the web (#1140).
+      join('components', 'Profile', 'hooks', 'useMessageInAllo.tsx'),
       // The profile overflow menu. It lives in a hook rather than on a screen
       // because BOTH profile screens open the same menu — a person's and a
       // channel's — and what differs between them is data rather than structure:

@@ -72,7 +72,8 @@ interface ChannelProfileProps {
  * - **No self view.** For the same reason, `isOwnProfile` can never be true for
  *   a channel — so no edit/analytics/settings cluster, no "your own lanes"
  *   button beside the tabs, and no fediverse badge (which is own-profile only).
- * - **No DM.** `/ai` messages a person's Mention inbox; a channel has none.
+ * - **No DM.** Messaging a person opens a conversation with them in Allo
+ *   (`useMessageInAllo`); a channel is nobody to talk to.
  * - **No "Follows you" tag.** A channel cannot follow anybody, since following
  *   requires a session it can never have.
  * - **Four tabs, not nine.** `profileTabsForAccountKind` drops the five a channel
