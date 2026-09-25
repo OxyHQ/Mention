@@ -1,0 +1,26 @@
+diff --git a/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/StackHost.kt b/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/StackHost.kt
+index 452a244169c763b51a98fae94fe291f92e2b3d79..e67970a523de1499e043ffd539c53916bedaf934 100644
+--- a/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/StackHost.kt
++++ b/android/src/main/java/com/swmansion/rnscreens/gamma/stack/host/StackHost.kt
+@@ -109,7 +109,11 @@ class StackHost(
+         r: Int,
+         b: Int,
+     ) {
+-        container.layout(l, t, r, b)
++        // `l, t, r, b` are this host's bounds in its PARENT; a child is laid out
++        // in the host's own coordinate space. Passing them through offset the
++        // container by the host's position a second time whenever the host does
++        // not sit at its parent's origin.
++        container.layout(0, 0, r - l, b - t)
+     }
+ 
+     // ReactViewGroup overrides requestLayout to a no-op therefore the request might not be
+@@ -145,7 +149,7 @@ class StackHost(
+                 MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY),
+             )
+         }
+-        container.layout(left, top, right, bottom)
++        container.layout(0, 0, width, height)
+     }
+ 
+     override fun didMountItems(uiManager: UIManager) {
