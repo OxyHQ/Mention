@@ -141,7 +141,7 @@ stated. Query-plan evidence, not request latency — see the caveat above.
 | The `count(*)` beside it | 54.07 ms | **0.21 ms** | 120k lists |
 | `GET /hashtags/` trending window | 325.79 ms | cached | 400k posts |
 | `GET /hashtags/` direction maps (×2) | 63.94 ms each | cached | 400k posts |
-| `GET /hashtags/search` | 32.16 ms (already index-served) | unchanged | 400k posts |
+| `GET /hashtags/search` and the overview's hashtag lane | 51.50 ms (parallel seq scan — see below) | **1.16 ms** | 500k posts, 200k tagged |
 
 The rare-term row is the one that matters: a sequential scan costs the same
 whether it finds nothing or everything, so the old plan charged full price for
@@ -151,8 +151,24 @@ Two of these settled arguments rather than just recording wins. The
 `count(*)` row is why `total` was KEPT on the list and pack endpoints after
 being removed — the count was expensive because the index was missing, so
 fixing the index fixed the count. And the hashtag-search row is why the planned
-`hashtag_stats` table became a cache: search was already fast, and only the
-trending aggregate was not.
+`hashtag_stats` table became a cache — on a measurement that turned out to be
+of a hand-written query rather than the one the service ran.
+
+**The hashtag row was wrong until #1140, and how is worth knowing.** The index
+is on `posts_hashtags_search_text(hashtags)`, an IMMUTABLE wrapper around
+`array_to_string`; the service filtered on `array_to_string(hashtags, ' ')`
+directly. Postgres will not inline an IMMUTABLE function whose body is only
+STABLE, so the two expressions never matched and every hashtag search — the
+Hashtags tab and the `/search/overview` lane alike — read every public tagged
+post. Production, 2026-09-11 to 09-25: that statement logged slow 213 times,
+**4.3 s median, 17.6 s p90, 35.7 s worst**; `/search/overview` ran 1.57 s at the
+median and 10.4 s at worst, and it is the request every search waits on. The
+lane's 1 s statement budget did not stop it either, because the lane queries
+ran on `getDb()` rather than on the transaction the budget was `SET LOCAL` on.
+Both are fixed: the expression is `hashtagsSearchTextSql` on the schema, shared
+by the index and the query, and `searchIndexes.test.ts` EXPLAINs the builder's
+own statement; `searchOverviewBudget.test.ts` pins that a lane query is
+cancelled at its budget and run once.
 
 **Nothing scrapes it.** There is no Prometheus, Grafana, or CloudWatch
 metrics pipeline for Mention in `oxy-infra/terraform-uswest2` (checked
