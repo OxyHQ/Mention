@@ -194,16 +194,20 @@ export default function RootLayout() {
                 />
               )}
               <PortalProvider>
+                {/* Wraps the OUTLET too: the Settings modal is portalled into
+                    the outlet, so its pages render there, not where the
+                    modal is declared. With the outlet outside, every page that
+                    reads the settings context crashed on native (#1126). */}
                 <MentionSettingsProvider>
                   <AuthRouter />
+                  <PortalOutlet />
+                  {/* The shared media surface that carries a playing video across a
+                      route change. Renders null whenever nothing is in flight, so it
+                      costs nothing here and never competes with the portal outlet
+                      above it. It must sit at the ROOT: a flight outlives the screen
+                      that started it, which is the entire point. */}
+                  <MediaFlightLayer />
                 </MentionSettingsProvider>
-                <PortalOutlet />
-                {/* The shared media surface that carries a playing video across a
-                    route change. Renders null whenever nothing is in flight, so it
-                    costs nothing here and never competes with the portal outlet
-                    above it. It must sit at the ROOT: a flight outlives the screen
-                    that started it, which is the entire point. */}
-                <MediaFlightLayer />
               </PortalProvider>
             </>
           ) : Platform.OS === 'web' ? (
