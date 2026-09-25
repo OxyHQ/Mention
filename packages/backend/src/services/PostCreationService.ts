@@ -3,7 +3,8 @@ import { getDb } from '../db/postgres';
 import { postSubscriptions } from '../db/schema/engagement';
 import { posts } from '../db/schema/posts';
 import {
-  claimScheduledPost,
+  claimUnpublishedPost,
+  type ClaimablePostStatus,
   insertPostRecord,
   loadPostRecord,
   loadPostRecords,
@@ -403,7 +404,11 @@ class PostCreationService {
    * to suppress individual stages (e.g. for incoming federated posts).
    */
   async create(params: CreatePostParams): Promise<PostRecord> {
-    const isScheduled = params.status === 'scheduled';
+    // A draft is deferred exactly like a scheduled post: it has no readers yet,
+    // and `publishScheduledPost` pays everything below when it goes out. Letting
+    // a draft through used to notify the people it mentioned and replied to at
+    // DRAFT time, about a post none of them could open.
+    const defersPublication = params.status === 'scheduled' || params.status === 'draft';
 
     // BEFORE anything is built or written, and in this order: WHO the post is
     // authored by, then whether the lane belongs to that author. The publish-as
@@ -684,12 +689,12 @@ class PostCreationService {
     // MTN Protocol dual-write (best-effort, never blocks, never changes output).
     // Postgres is authoritative; this emits a signed `app.mention.feed.*` record
     // for LOCAL authors only (`federation == null && oxyUserId`). A scheduled
-    // post is not yet published, so it emits when the scheduler publishes it.
-    if (!isScheduled) {
+    // post or a draft is not yet published, so it emits when it publishes.
+    if (!defersPublication) {
       await this.emitMtnRecord(post);
     }
 
-    if (isScheduled || params.skipNotifications) {
+    if (defersPublication || params.skipNotifications) {
       return post;
     }
 
@@ -702,7 +707,8 @@ class PostCreationService {
   }
 
   /**
-   * CLAIM a scheduled post, then publish it.
+   * CLAIM a scheduled post — or, from the author's "publish" on a server draft,
+   * a draft — then publish it.
    *
    * The claim is the point. `publishScheduledPost` flips the status on a
    * document it was handed, so two callers holding the same document both run
@@ -710,10 +716,16 @@ class PostCreationService {
    * twice. That is reachable in practice: the 60s sweep may load a due post
    * moments before its author taps "post now".
    *
-   * The conditional UPDATE in {@link claimScheduledPost} is the mutual exclusion
+   * The conditional UPDATE in {@link claimUnpublishedPost} is the mutual exclusion
    * — see its docblock for why one statement is enough. `publishScheduledPost`
    * then re-sets the status it already holds, which is a no-op, and runs the side
    * effects exactly once.
+   *
+   * A draft goes through this SAME method rather than a sibling, because it owes
+   * the world exactly what a scheduled post owes it: `create` deferred the
+   * invites, the MTN record, the notifications and federation for both, and
+   * `publishScheduledPost` is the one place that pays them. `from` defaults to
+   * `scheduled`, so the sweep — which passes nothing — can never publish a draft.
    *
    * **A continuation is refused while its parent is still unpublished.** A
    * scheduled thread's posts are replies to one another, so publishing one out
@@ -733,6 +745,7 @@ class PostCreationService {
   async claimAndPublishScheduledPost(params: {
     postId: string;
     ownerId?: string;
+    from?: ClaimablePostStatus;
   }): Promise<PostRecord | null> {
     const [pending] = await getDb()
       .select({ parentPostId: posts.parentPostId })
@@ -746,7 +759,7 @@ class PostCreationService {
       return null;
     }
 
-    const claimed = await claimScheduledPost(params.postId, params.ownerId);
+    const claimed = await claimUnpublishedPost(params.postId, params.ownerId, params.from);
     if (!claimed) {
       return null;
     }
@@ -755,7 +768,8 @@ class PostCreationService {
 
   /**
    * Publish a post that was created with `status: 'scheduled'` once its
-   * `scheduledFor` time has arrived. Flips the status to `published`, then runs
+   * `scheduledFor` time has arrived, or a `status: 'draft'` post its author has
+   * chosen to publish. Flips the status to `published`, then runs
    * the SAME publish pipeline a fresh published post runs in `create()`:
    * collaborator invites, the MTN dual-write, notifications, the real-time feed
    * emit, and (deferred until every collaborator has resolved) federation.

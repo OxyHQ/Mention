@@ -21,8 +21,17 @@ post is classified and ranked once it exists.
 - **`authorship[]` is REQUIRED on every post**; there is no read-time legacy
   fallback. A post with a pending collaborator invite does NOT federate
   until the last invite resolves (`maybeFederateOnResolve`). Invites are
-  published-only — a scheduled post defers invites/MTN/notifications/
-  federation until it goes live. Threads reject `collaboratorIds` with 400.
+  published-only — a scheduled post and a server draft (`status: 'draft'`)
+  both defer invites/MTN/notifications/federation until they go live. Threads
+  reject `collaboratorIds` with 400.
+- **A server draft publishes through the scheduled pipeline.**
+  `POST /posts/:id/publish` claims a draft with the same conditional UPDATE a
+  scheduled post uses (`claimUnpublishedPost`, `from: 'draft'`), so it runs
+  `publishScheduledPost` exactly once. The claim names ONE state: the sweep
+  cannot publish a draft, and a draft publish cannot reach the queue. The claim
+  restamps a draft's `created_at` to the publish moment; a scheduled post keeps
+  its own. A draft is edited in place (`PUT /posts/:id`, exempt from the
+  30-minute window like a scheduled post) and is never part of a thread.
 - **Erasing an ACCOUNT is not a loop over `deletePost`.** When Oxy reports an
   account deleted, `services/accountErasure/erasePosts.ts` walks the account's
   posts in batches and reuses `cascadePostReferences`, but it KEEPS other

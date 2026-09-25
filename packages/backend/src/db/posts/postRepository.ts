@@ -726,21 +726,34 @@ export async function loadPostRecord(
   return record ?? null;
 }
 
+/** The unpublished states a claim can take a post out of. */
+export type ClaimablePostStatus = 'scheduled' | 'draft';
+
 /**
- * Flip ONE still-scheduled post to `published`, and return it only to the caller
- * that won the flip.
+ * Flip ONE still-unpublished post to `published`, and return it only to the
+ * caller that won the flip.
  *
  * This is a CLAIM, not an update: the publish pipeline behind it federates,
  * writes an MTN record and notifies, so two callers holding the same post must
  * not both run it. That is reachable in practice — the 60s sweep may load a due
- * post moments before its author taps "post now".
+ * post moments before its author taps "post now", and an author can tap
+ * "publish" on the same draft from two devices.
  *
- * `status = 'scheduled'` in the WHERE is the mutual exclusion. The UPDATE takes a
- * row lock, so a second caller blocks until the first commits and then re-checks
- * the predicate against the COMMITTED row, which no longer says `scheduled` —
- * it matches nothing and gets `null`. That is the same filter the sweep selects
- * on, so the sweep is excluded too. No advisory lock and no explicit transaction
- * are needed for this: a single UPDATE statement is already atomic.
+ * `status = from` in the WHERE is the mutual exclusion. The UPDATE takes a row
+ * lock, so a second caller blocks until the first commits and then re-checks
+ * the predicate against the COMMITTED row, which no longer says `scheduled` (or
+ * `draft`) — it matches nothing and gets `null`. For a scheduled post that is
+ * the same filter the sweep selects on, so the sweep is excluded too. No
+ * advisory lock and no explicit transaction are needed for this: a single
+ * UPDATE statement is already atomic.
+ *
+ * `from` names the ONE state the caller expects, never "either": the sweep
+ * claims `scheduled` and must never publish a draft that happened to match an
+ * id, and publishing a draft must not be able to reach into the queue. A
+ * draft's `created_at` is restamped to the publish moment in the same
+ * statement. It records when the draft was STARTED, and a post that goes out
+ * today dated last week would sit below a week of newer posts in every
+ * chronological read and tell its readers it is old.
  *
  * `ownerId` narrows the claim to one author for the request path. The sweep omits
  * it, since it publishes on nobody's behalf.
@@ -749,17 +762,21 @@ export async function loadPostRecord(
  * read. `RETURNING id` then assembling is deliberate — a post is nine tables and
  * `RETURNING *` would still only give one of them.
  */
-export async function claimScheduledPost(
+export async function claimUnpublishedPost(
   postId: string,
   ownerId: string | undefined,
+  from: ClaimablePostStatus = 'scheduled',
   db: DatabaseOrTransaction = getDb(),
 ): Promise<PostRecord | null> {
   const [claimed] = await db
     .update(posts)
-    .set({ status: 'published' })
+    .set({
+      status: 'published',
+      ...(from === 'draft' ? { createdAt: new Date() } : {}),
+    })
     .where(and(
       eq(posts.id, postId),
-      eq(posts.status, 'scheduled'),
+      eq(posts.status, from),
       ...(ownerId ? [eq(posts.oxyUserId, ownerId)] : []),
     ))
     .returning({ id: posts.id });

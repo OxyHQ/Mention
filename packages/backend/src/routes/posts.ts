@@ -173,7 +173,7 @@ router.patch('/:id/settings', ...postWriteRateLimiters, updatePostSettings);
 // moving a post between carriageways with rewriting its text — the exact
 // distinction that handler's docstring exists to preserve.
 router.patch('/:id/lane', ...laneWriteRateLimiters, updatePostLane);
-// Publish one of the caller's own scheduled posts ahead of its time.
+// Publish one of the caller's own scheduled posts ahead of its time, or a draft.
 router.post('/:id/publish', publishScheduledPostNow);
 router.delete('/:id', deletePost);
 router.post('/:id/like', likePost);

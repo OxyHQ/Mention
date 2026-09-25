@@ -1,6 +1,6 @@
 /**
  * The author's unpublished posts: the draft list, the scheduled list, and
- * publishing a scheduled post ahead of its time.
+ * publishing a scheduled post ahead of its time or a draft at all.
  */
 
 import { Response } from 'express';
@@ -19,7 +19,22 @@ import { listOperatedChannelIds } from '../../services/publishAsAccount';
 import { postManagementRefusal } from '../../services/postManagementAccess';
 import { loadScheduledChain } from '../../services/scheduledChain';
 
-// Get drafts
+/**
+ * The server drafts this caller can act on, newest first: their own, plus those
+ * of every channel they operate.
+ *
+ * A server draft is what `POST /posts` with `status: 'draft'` stores — typically
+ * written by an automation through the API or MCP for a person to approve. It is
+ * a different thing from the composer's drafts, which live on the device and
+ * never reach this table.
+ *
+ * Everything {@link getScheduledPosts} says about the channel half and its two
+ * agreeing gates applies here unchanged, for the same reason: a draft written AS
+ * a channel is owned by the channel, so an owner-scoped read returned it to
+ * nobody, the person who wrote it included. The response is the same hydrated
+ * `{ posts }` shape, so the app previews a draft through the feed's own renderer
+ * and the MCP `get-drafts` tool, which already read `posts`, finds them.
+ */
 export const getDrafts = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -27,16 +42,33 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
+    const operatedChannelIds = await listOperatedChannelIds(createUserScopedOxyServices(req));
+
     // Sorted on `created_at`, which is what the Mongoose call MEANT: it passed
     // the snake_case column name, which Mongo treats as an absent field and
     // therefore as no sort at all. The column exists here, so the intended order
     // is finally the one served.
     const drafts = await findPostRecords(
-      and(eq(postsTable.oxyUserId, userId), eq(postsTable.status, 'draft')),
+      and(
+        inArray(postsTable.oxyUserId, [userId, ...operatedChannelIds]),
+        eq(postsTable.status, 'draft'),
+      ),
       { orderBy: CHRONO_DESC },
     );
 
-    res.json(drafts);
+    const hydratedPosts = await postHydrationService.hydratePosts(drafts, {
+      // Not published yet: nobody has read these, so nobody has written a note
+      // about one.
+      includeCommunityNotes: false,
+      viewerId: userId,
+      oxyClient: createScopedOxyClient(req),
+      requestLanguages: requestLanguageCandidates(req),
+      maxDepth: 1,
+      includeLinkMetadata: true,
+      operatedAccountIds: operatedChannelIds,
+    });
+
+    res.json({ posts: hydratedPosts });
   } catch (error) {
     logger.error('Error fetching drafts', error);
     res.status(500).json({ message: 'Error fetching drafts' });
@@ -44,7 +76,7 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
 };
 
 /**
- * Publish one of the caller's scheduled posts immediately.
+ * Publish one of the caller's scheduled posts, or one of their drafts, immediately.
  *
  * Publishing early is NOT a reschedule to now — that would leave the post to the
  * next 60s sweep — and it is not a status flip either, because a scheduled post
@@ -71,6 +103,11 @@ export const getDrafts = async (req: AuthRequest, res: Response) => {
  * ahead of its parent is a reply to something nobody can see, and behind its
  * continuations is a thread that stops mid-sentence until its original time
  * comes round. The chain is the unit, and it goes out in order, root first.
+ *
+ * **A server draft publishes through this same route.** It has not federated,
+ * emitted or notified either, so it needs the same pipeline and the same single
+ * claim; only the state it is claimed FROM differs, and that is read from the
+ * row, never from the request. A draft is never part of a chain.
  */
 export const publishScheduledPostNow = async (req: AuthRequest, res: Response) => {
   try {
@@ -91,7 +128,7 @@ export const publishScheduledPostNow = async (req: AuthRequest, res: Response) =
     // who has left the channel is not an authority over it. The gate proves
     // current membership instead, off `oxy_user_id` alone.
     const [target] = await getDb()
-      .select({ oxyUserId: postsTable.oxyUserId })
+      .select({ oxyUserId: postsTable.oxyUserId, status: postsTable.status })
       .from(postsTable)
       .where(eq(postsTable.id, targetId))
       .limit(1);
@@ -112,24 +149,36 @@ export const publishScheduledPostNow = async (req: AuthRequest, res: Response) =
     // function rather than a reachable branch.
     const ownerId = target.oxyUserId ? String(target.oxyUserId) : userId;
 
-    const chain = await loadScheduledChain(targetId, ownerId);
-    if (!chain.ok) {
-      return res.status(409).json({
-        message: 'This post continues a thread that has not been published yet.',
-      });
-    }
-
-    // Root first, and stop at the first post that does not go out — the same
-    // rule the sweep follows, for the same reason. A post left behind stays
-    // scheduled and publishes at its own time, still in order.
     let published: PostRecord | null = null;
-    for (const postId of chain.postIds) {
-      const result = await postCreationService.claimAndPublishScheduledPost({ postId, ownerId });
-      if (postId === targetId) {
-        published = result;
+    if (target.status === 'draft') {
+      // A draft is always ONE post — `POST /posts/thread` cannot store a draft —
+      // so there is no chain to walk. The status read above only picks the path;
+      // the claim re-checks `draft` in its own WHERE, so a draft published or
+      // deleted since then is a miss like any other.
+      published = await postCreationService.claimAndPublishScheduledPost({
+        postId: targetId,
+        ownerId,
+        from: 'draft',
+      });
+    } else {
+      const chain = await loadScheduledChain(targetId, ownerId);
+      if (!chain.ok) {
+        return res.status(409).json({
+          message: 'This post continues a thread that has not been published yet.',
+        });
       }
-      if (result === null) {
-        break;
+
+      // Root first, and stop at the first post that does not go out — the same
+      // rule the sweep follows, for the same reason. A post left behind stays
+      // scheduled and publishes at its own time, still in order.
+      for (const postId of chain.postIds) {
+        const result = await postCreationService.claimAndPublishScheduledPost({ postId, ownerId });
+        if (postId === targetId) {
+          published = result;
+        }
+        if (result === null) {
+          break;
+        }
       }
     }
 
