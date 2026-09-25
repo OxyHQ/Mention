@@ -1,14 +1,9 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { useEffect, useRef } from 'react';
 import { Pressable } from 'react-native';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import PostItem from '@/components/Feed/PostItem';
+import { useScrollMarginOrigin } from '@/components/Feed/useScrollMarginOrigin';
 import type { SavedPostsListProps } from './SavedPostsList.types';
 
 const ESTIMATED_POST_HEIGHT = 280;
@@ -21,13 +16,11 @@ const LOAD_MORE_ROOT_MARGIN = '600px';
  */
 export default function SavedPostsList({
   posts,
-  header,
   empty,
   footer,
   hasNextPage,
   onEndReached,
   onLongPress,
-  backgroundColor,
 }: SavedPostsListProps) {
   // REQUIRED — without it `getTotalSize()` below is called once and cached
   // forever, so the spacer stops tracking the content. `useWindowVirtualizer`
@@ -47,34 +40,9 @@ export default function SavedPostsList({
   // `subscribe` on the virtualizer to drive `useSyncExternalStore` from.
   'use no memo';
 
-  const headerRef = useRef<HTMLDivElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const [scrollMargin, setScrollMargin] = useState(0);
-
-  const measureScrollMargin = useCallback(() => {
-    const node = wrapperRef.current;
-    if (!node || typeof window === 'undefined') return;
-    const top = node.getBoundingClientRect().top + window.scrollY;
-    setScrollMargin((current) => (current === top ? current : top));
-  }, []);
-
-  useLayoutEffect(() => {
-    measureScrollMargin();
-    if (typeof window === 'undefined') return;
-
-    window.addEventListener('resize', measureScrollMargin);
-    const headerNode = headerRef.current;
-    const resizeObserver = typeof ResizeObserver === 'undefined'
-      ? null
-      : new ResizeObserver(measureScrollMargin);
-    if (headerNode) resizeObserver?.observe(headerNode);
-
-    return () => {
-      window.removeEventListener('resize', measureScrollMargin);
-      resizeObserver?.disconnect();
-    };
-  }, [header, measureScrollMargin, posts.length]);
+  const scrollMargin = useScrollMarginOrigin(wrapperRef);
 
   const virtualizer = useWindowVirtualizer<HTMLDivElement>({
     count: posts.length,
@@ -124,57 +92,55 @@ export default function SavedPostsList({
 
   useScrollRestoration('window', { enabled: true });
 
+  // The spacer stays mounted while the list is empty: it is the element the
+  // scroll-margin origin measures, and that measurement binds once, on mount.
   return (
-    <div style={{ width: '100%', backgroundColor }}>
-      <div ref={headerRef}>{header}</div>
-      {posts.length === 0 ? (
-        empty
-      ) : (
-        <div
-          ref={wrapperRef}
-          style={{
-            height: spacerHeight,
-            width: '100%',
-            position: 'relative',
-          }}
-        >
-          {virtualItems.map((virtualRow) => {
-            const post = posts[virtualRow.index];
-            return (
-              <div
-                key={virtualRow.key as React.Key}
-                ref={virtualizer.measureElement}
-                data-index={virtualRow.index}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
-                }}
+    <div style={{ width: '100%' }}>
+      {posts.length === 0 ? empty : null}
+      <div
+        ref={wrapperRef}
+        style={{
+          height: spacerHeight,
+          width: '100%',
+          position: 'relative',
+        }}
+      >
+        {virtualItems.map((virtualRow) => {
+          const post = posts[virtualRow.index];
+          return (
+            <div
+              key={virtualRow.key as React.Key}
+              ref={virtualizer.measureElement}
+              data-index={virtualRow.index}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
+              }}
+            >
+              <Pressable
+                onLongPress={() => onLongPress(post.id)}
+                delayLongPress={500}
               >
-                <Pressable
-                  onLongPress={() => onLongPress(post.id)}
-                  delayLongPress={500}
-                >
-                  <PostItem post={post} />
-                </Pressable>
-              </div>
-            );
-          })}
-          <div
-            ref={sentinelRef}
-            aria-hidden
-            style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              width: '100%',
-              height: 1,
-            }}
-          />
-        </div>
-      )}
+                <PostItem post={post} />
+              </Pressable>
+            </div>
+          );
+        })}
+        <div
+          ref={sentinelRef}
+          aria-hidden
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            width: '100%',
+            height: 1,
+          }}
+        />
+      </div>
       {footer}
     </div>
   );

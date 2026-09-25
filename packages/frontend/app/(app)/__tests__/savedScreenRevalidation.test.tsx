@@ -64,6 +64,15 @@ jest.mock('@/context/ScreenReselectContext', () => ({
   useReselect: () => () => {},
   useScreenReselect: () => {},
 }));
+
+// The header dock is layout, not the code under test.
+jest.mock('@/context/LayoutScrollContext', () => ({
+  useLayoutScroll: () => ({ scrollPosition: { value: 0 } }),
+}));
+jest.mock('@oxy.so/bloom/layout', () => ({
+  HeaderDockProvider: ({ children }: { children: React.ReactNode }) => children,
+  StickySection: ({ children }: { children: React.ReactNode }) => children,
+}));
 jest.mock('expo-router/head', () => ({ __esModule: true, default: () => null }));
 jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 
