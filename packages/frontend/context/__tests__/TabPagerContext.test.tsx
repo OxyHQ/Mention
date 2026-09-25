@@ -39,6 +39,7 @@ const mockRouter = {
   dismissAll: jest.fn(),
   navigate: jest.fn(),
   prefetch: jest.fn(),
+  replace: jest.fn(),
 };
 
 jest.mock('expo-router', () => ({
@@ -116,6 +117,7 @@ beforeEach(() => {
   mockRouter.dismissAll.mockReset();
   mockRouter.navigate.mockReset();
   mockRouter.prefetch.mockReset();
+  mockRouter.replace.mockReset();
 });
 
 describe('activeIndex answers WHETHER there is a selection', () => {
@@ -198,7 +200,7 @@ describe('selectTab', () => {
     mockRouter.canDismiss.mockReturnValue(true);
     const bar = mountProvider();
     act(() => {
-      bar.value.registerCommitter({ commit: jest.fn(), drivesProgress: true });
+      bar.value.registerCommitter({ commit: jest.fn(), leave: jest.fn(), drivesProgress: true });
     });
 
     act(() => {
@@ -211,7 +213,7 @@ describe('selectTab', () => {
   it('does not try to pop when there is nothing pushed', () => {
     const bar = mountProvider();
     act(() => {
-      bar.value.registerCommitter({ commit: jest.fn(), drivesProgress: true });
+      bar.value.registerCommitter({ commit: jest.fn(), leave: jest.fn(), drivesProgress: true });
     });
     act(() => {
       bar.value.selectTab(page('videos'));
@@ -227,7 +229,7 @@ describe('selectTab', () => {
     mockRouter.canDismiss.mockReturnValue(true);
     const bar = mountProvider();
     act(() => {
-      bar.value.registerCommitter({ commit: jest.fn(), drivesProgress: true });
+      bar.value.registerCommitter({ commit: jest.fn(), leave: jest.fn(), drivesProgress: true });
     });
 
     act(() => {
@@ -246,7 +248,7 @@ describe('selectTab', () => {
     mockRouter.canDismiss.mockReturnValue(true);
     const bar = mountProvider();
     act(() => {
-      bar.value.registerCommitter({ commit: jest.fn(), drivesProgress: true });
+      bar.value.registerCommitter({ commit: jest.fn(), leave: jest.fn(), drivesProgress: true });
     });
 
     act(() => {
@@ -279,7 +281,7 @@ describe('selectTab', () => {
     // The tab router's own move: no route push, so a swipe leaves no history
     // entry per page and the tab being left is not unmounted.
     const bar = mountProvider();
-    const committer: TabCommitter = { commit: jest.fn(), drivesProgress: true };
+    const committer: TabCommitter = { commit: jest.fn(), leave: jest.fn(), drivesProgress: true };
     act(() => {
       bar.value.registerCommitter(committer);
     });
@@ -300,7 +302,7 @@ describe('selectTab', () => {
     mockPathname = '/';
     const bar = mountProvider();
     act(() => {
-      bar.value.registerCommitter({ commit: jest.fn(), drivesProgress: true });
+      bar.value.registerCommitter({ commit: jest.fn(), leave: jest.fn(), drivesProgress: true });
     });
 
     act(() => {
@@ -313,7 +315,7 @@ describe('selectTab', () => {
   it('still moves progress for a navigator that does NOT drive it', () => {
     const bar = mountProvider();
     act(() => {
-      bar.value.registerCommitter({ commit: jest.fn(), drivesProgress: false });
+      bar.value.registerCommitter({ commit: jest.fn(), leave: jest.fn(), drivesProgress: false });
     });
 
     act(() => {
@@ -335,7 +337,7 @@ describe('selectTab', () => {
   it('goes back to navigating once the navigator unregisters', () => {
     const bar = mountProvider();
     act(() => {
-      bar.value.registerCommitter({ commit: jest.fn(), drivesProgress: true });
+      bar.value.registerCommitter({ commit: jest.fn(), leave: jest.fn(), drivesProgress: true });
     });
     act(() => {
       bar.value.registerCommitter(null);
@@ -346,6 +348,45 @@ describe('selectTab', () => {
     });
 
     expect(mockRouter.navigate).toHaveBeenCalledWith('/videos');
+  });
+});
+
+describe('leaveTab — leaving a page for good (OxyHQ/Mention#1140)', () => {
+  it('hands the navigator the page being left, not just the destination', () => {
+    // A plain commit only re-orders the tabs' back history, which is how a
+    // published composer stayed one Back away.
+    const bar = mountProvider();
+    const committer: TabCommitter = { commit: jest.fn(), leave: jest.fn(), drivesProgress: true };
+    act(() => {
+      bar.value.registerCommitter(committer);
+    });
+
+    act(() => {
+      bar.value.leaveTab(page('write'), page('index'));
+    });
+
+    expect(committer.leave).toHaveBeenCalledWith(page('write'), page('index'));
+    expect(committer.commit).not.toHaveBeenCalled();
+    expect(mockRouter.navigate).not.toHaveBeenCalled();
+  });
+
+  it('REPLACES the page in the browser history when there is no navigator', () => {
+    const bar = mountProvider();
+    act(() => {
+      bar.value.leaveTab(page('write'), page('index'));
+    });
+
+    expect(mockRouter.replace).toHaveBeenCalledWith('/');
+    expect(mockRouter.navigate).not.toHaveBeenCalled();
+  });
+
+  it('ignores an index that names no page', () => {
+    const bar = mountProvider();
+    act(() => {
+      bar.value.leaveTab(page('write'), 99);
+      bar.value.leaveTab(99, page('index'));
+    });
+    expect(mockRouter.replace).not.toHaveBeenCalled();
   });
 });
 

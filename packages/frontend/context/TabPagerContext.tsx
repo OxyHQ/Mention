@@ -30,6 +30,12 @@ export interface TabCommitter {
    */
   commit: (pageIndex: number) => void;
   /**
+   * Switch to `toPageIndex` AND drop `fromPageIndex` from the navigator's back
+   * history, so neither Back nor a later switch returns the reader to it. The
+   * composer uses it after a publish: see `components/navigation/tabHistory.ts`.
+   */
+  leave: (fromPageIndex: number, toPageIndex: number) => void;
+  /**
    * True when the registrant writes `progress` AND `chromeProgress` itself,
    * every frame. The pager
    * does; nothing else does. While it is true this provider must not touch
@@ -77,6 +83,13 @@ interface TabPagerValue {
   activePage: number;
   /** Go to a PAGE by index. Pops anything pushed over the pages first. */
   selectTab: (pageIndex: number) => void;
+  /**
+   * Leave PAGE `fromPageIndex` for PAGE `toPageIndex` so that it is GONE, not
+   * merely behind: it leaves the back history (native) or is replaced in the
+   * browser history (web). For a screen whose work is finished — a published
+   * composer — rather than one the reader may want to return to.
+   */
+  leaveTab: (fromPageIndex: number, toPageIndex: number) => void;
   registerCommitter: (committer: TabCommitter | null) => void;
 }
 
@@ -230,9 +243,32 @@ export function TabPagerProvider({ children }: { children: React.ReactNode }) {
     [progress, activePage, viewerUsername],
   );
 
+  /**
+   * No optimistic highlight write here, unlike `selectTab`: a leave follows a
+   * finished task (a publish), not a finger on the bar, so there is no press for
+   * the capsule to answer. The pager writes it on native; everywhere else the
+   * settle effect above does once the route lands.
+   */
+  const leaveTab = useCallback(
+    (fromPageIndex: number, toPageIndex: number) => {
+      const page = PAGES[toPageIndex];
+      if (!page || !PAGES[fromPageIndex]) return;
+      const committer = committerRef.current;
+
+      // No navigator: the history being left is the browser's, so the page is
+      // REPLACED rather than pushed over — Back must not return to it either.
+      if (!committer) {
+        router.replace(tabHref(page, viewerUsername));
+        return;
+      }
+      committer.leave(fromPageIndex, toPageIndex);
+    },
+    [viewerUsername],
+  );
+
   const value = useMemo<TabPagerValue>(
-    () => ({ progress, chromeProgress, activeIndex, activePage, selectTab, registerCommitter }),
-    [progress, chromeProgress, activeIndex, activePage, selectTab, registerCommitter],
+    () => ({ progress, chromeProgress, activeIndex, activePage, selectTab, leaveTab, registerCommitter }),
+    [progress, chromeProgress, activeIndex, activePage, selectTab, leaveTab, registerCommitter],
   );
 
   return <TabPagerContext.Provider value={value}>{children}</TabPagerContext.Provider>;

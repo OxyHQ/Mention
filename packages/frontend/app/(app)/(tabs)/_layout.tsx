@@ -5,6 +5,7 @@ import { useTabsWithTriggers } from 'expo-router/ui';
 
 import { TabsPager } from '@/components/navigation/TabsPager';
 import { PAGES } from '@/components/navigation/tabs';
+import { stateLeavingTab } from '@/components/navigation/tabHistory';
 import { useTabPager } from '@/context/TabPagerContext';
 
 const IS_WEB = Platform.OS === 'web';
@@ -86,13 +87,37 @@ function NativeTabsLayout() {
     [navigation],
   );
 
+  /**
+   * Switch page and forget the one being left, as ONE state change.
+   *
+   * A `RESET` to the rewritten state rather than a `navigate` followed by some
+   * history surgery: the tab router only re-orders its history on a switch, so
+   * the page being left would still be one Back away. `stale: false` state
+   * passes through the router's `RESET` with its history intact. If either page
+   * names no route here, it degrades to the ordinary switch.
+   */
+  const leave = useCallback(
+    (fromPageIndex: number, toPageIndex: number) => {
+      const from = PAGES[fromPageIndex];
+      const to = PAGES[toPageIndex];
+      if (!from || !to) return;
+      navigation.dispatch((current) => {
+        const next = stateLeavingTab(current, from.name, to.name);
+        return next
+          ? { type: 'RESET', payload: next, target: current.key }
+          : { type: 'NAVIGATE', payload: { name: to.name }, target: current.key };
+      });
+    },
+    [navigation],
+  );
+
   // Hand the bar — which lives above this layout, because it renders over pushed
   // routes too — the two things only the navigator can do: commit a tab, and
   // own the highlight's position while the pager is writing it every frame.
   useEffect(() => {
-    registerCommitter({ commit, drivesProgress: true });
+    registerCommitter({ commit, leave, drivesProgress: true });
     return () => registerCommitter(null);
-  }, [commit, registerCommitter]);
+  }, [commit, leave, registerCommitter]);
 
   /**
    * Every page must have a route to show, and this says so out loud in dev.
