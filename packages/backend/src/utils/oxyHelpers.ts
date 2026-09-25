@@ -11,11 +11,12 @@ import { instrumentOxyEgress } from './oxyMetrics';
 
 const OXY_BASE_URL = config.oxyApiUrl;
 const OXY_VIEWER_GRAPH_PATH = '/users/me/graph';
+const OXY_MCP_CONNECTION_VIEWER_GRAPH_PATH = '/auth/mcp/oauth/connections/viewer-graph';
 
 interface ScopedOxyRequest {
   accessToken?: string;
   headers?: { authorization?: string | readonly string[] };
-  mcp?: { activeUserId?: string };
+  mcp?: { activeUserId?: string; authMode?: 'central' | 'legacy' };
   capability?: { claims?: { resource?: { effectiveAccountId?: string } } };
 }
 
@@ -25,7 +26,9 @@ interface ScopedOxyRequest {
  * Normal Oxy sessions receive an isolated token-scoped client. MCP requests
  * MUST NOT plant the resource-bound MCP bearer into OxyServices; instead they
  * use Mention's service credential delegated to the already-verified active
- * bundle account via `X-Oxy-User-Id`.
+ * bundle account via `X-Oxy-User-Id`. A central MCP request also hands its
+ * token to the delegated client, which presents it to Oxy — as proof, never as
+ * a session — for the served account's privacy lists.
  */
 export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefined {
   const delegatedUserId = (
@@ -36,7 +39,10 @@ export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefi
     if (!delegatedUserId) {
       throw new Error('Verified delegated request is missing its effective Oxy account');
     }
-    return createServiceDelegatedOxyClient(delegatedUserId);
+    const connectionToken = req.mcp?.authMode === 'central'
+      ? extractBearerToken(req.headers ?? {})
+      : undefined;
+    return createServiceDelegatedOxyClient(delegatedUserId, connectionToken ?? undefined);
   }
 
   const token = req.accessToken || extractBearerToken(req.headers ?? {});
@@ -122,54 +128,113 @@ function unwrapDataEnvelope(value: unknown): unknown {
   return value;
 }
 
+interface DelegatedViewerGraph {
+  followingIds?: unknown;
+  blockedIds?: unknown;
+  restrictedIds?: unknown;
+}
+
 /**
- * Privacy/graph client for an MCP bundle member. Every read is made with
- * Mention's service credential and an explicit, server-verified viewer id; the
- * incoming MCP token never leaves Mention.
- *
- * WHAT A SERVICE CREDENTIAL CANNOT READ — blocks and restrictions. Oxy answers
- * `GET /users/me/graph` with the EMPTY graph for any service-token caller, by
- * design and asserted by its own route tests: "service-token delegation returns
- * the empty graph even when a delegated viewer resolves, because blocks and
- * restrictions are private data". It is a 200 carrying empty arrays, not an
- * error, so reading the privacy lists off it produced a well-formed answer that
- * said "this viewer blocks nobody" — the exact fail-OPEN that
- * `getUserIdsFromPrivacyList` exists to prevent, on every MCP/capability request
- * that hydrated a post. So the two privacy reads below refuse instead: an MCP
- * caller has no way to resolve them today, and saying so is the only honest
- * answer a fail-closed path can be given.
- *
- * The follow ids come off the same empty graph and are NOT a privacy decision —
- * a caller that cannot resolve them degrades its ranking, which every graph
- * read here already soft-fails to. They stay, unchanged.
+ * Read one bounded id list off the graph Oxy returned for the served account.
+ * A missing or non-array list is an error, never an empty result: treating it
+ * as "no blocks/restrictions" would disclose the accounts the viewer hid.
  */
-function createServiceDelegatedOxyClient(viewerId: string): OxyClient {
+function connectionGraphIds(
+  graph: DelegatedViewerGraph,
+  key: 'blockedIds' | 'restrictedIds',
+): string[] {
+  const ids = graph[key];
+  if (!Array.isArray(ids)) {
+    throw new Error(`Oxy connection viewer graph is missing ${key}`);
+  }
+  return ids.filter((id): id is string => typeof id === 'string' && id.length > 0);
+}
+
+/**
+ * Privacy/graph client for an MCP bundle member or a capability-assigned
+ * account. Every read is made with Mention's service credential; the incoming
+ * token is never installed as an Oxy session.
+ *
+ * BLOCKS AND RESTRICTIONS. Oxy answers `GET /users/me/graph` with the EMPTY
+ * graph for any service-token caller, by design: its viewer is a bare
+ * `X-Oxy-User-Id` header, and blocks and restrictions are private. Reading the
+ * privacy lists off that 200 said "this viewer blocks nobody", the fail-OPEN
+ * `getUserIdsFromPrivacyList` exists to prevent.
+ *
+ * A CENTRAL MCP request can prove more than a header can: its connector's live
+ * access token. `POST /auth/mcp/oauth/connections/viewer-graph` takes that token
+ * as proof (only for a resource Mention registered) and answers the graph of
+ * the account the connection is serving, chosen by Oxy. The answer is refused
+ * unless that account is the one this request serves: Oxy's choice and ours
+ * must agree, or the lists would filter some other account's view.
+ *
+ * Without such a token (a legacy MCP token, a capability ticket), there is still
+ * no way to resolve the lists, so the two privacy reads refuse with
+ * `SERVICE_DELEGATION_NOT_AUTHORIZED`: fail closed.
+ *
+ * The follow ids are NOT a privacy decision: a caller that cannot resolve them
+ * degrades its ranking, which every graph read here already soft-fails to.
+ */
+function createServiceDelegatedOxyClient(viewerId: string, connectionToken?: string): OxyClient {
   const client = getServiceOxyClient();
-  let graph: Promise<unknown> | undefined;
-  const viewerGraph = (): Promise<unknown> => {
-    graph ??= client.makeServiceRequest('GET', OXY_VIEWER_GRAPH_PATH, undefined, viewerId);
-    return graph;
+
+  let connectionGraph: Promise<DelegatedViewerGraph> | undefined;
+  const readConnectionGraph = (token: string): Promise<DelegatedViewerGraph> => {
+    connectionGraph ??= client
+      .makeServiceRequest('POST', OXY_MCP_CONNECTION_VIEWER_GRAPH_PATH, { token })
+      .then((response) => {
+        const body = unwrapDataEnvelope(response) as
+          | { account_id?: unknown; graph?: unknown }
+          | null
+          | undefined;
+        if (!body || typeof body !== 'object' || !body.graph || typeof body.graph !== 'object') {
+          throw new Error('Oxy connection viewer graph response is malformed');
+        }
+        if (body.account_id !== viewerId) {
+          throw Object.assign(
+            new Error('Oxy answered the viewer graph of a different account than this request serves'),
+            { code: 'MCP_CONNECTION_ACCOUNT_MISMATCH' },
+          );
+        }
+        return body.graph as DelegatedViewerGraph;
+      });
+    return connectionGraph;
   };
 
-  /** Oxy discloses no private relationship data to a service credential. */
-  const privacyUnavailable = (listType: 'blocked' | 'restricted'): never => {
-    throw new OxyPrivacyUnavailableError(listType, {
-      code: 'SERVICE_DELEGATION_NOT_AUTHORIZED',
-    });
+  let headerGraph: Promise<unknown> | undefined;
+  const viewerGraph = (): Promise<unknown> => {
+    if (connectionToken) return readConnectionGraph(connectionToken);
+    headerGraph ??= client
+      .makeServiceRequest('GET', OXY_VIEWER_GRAPH_PATH, undefined, viewerId)
+      .then(unwrapDataEnvelope);
+    return headerGraph;
+  };
+
+  const privacyList = async (
+    listType: 'blocked' | 'restricted',
+  ): Promise<unknown[]> => {
+    if (!connectionToken) {
+      throw new OxyPrivacyUnavailableError(listType, {
+        code: 'SERVICE_DELEGATION_NOT_AUTHORIZED',
+      });
+    }
+    const graph = await readConnectionGraph(connectionToken);
+    return listType === 'blocked'
+      ? connectionGraphIds(graph, 'blockedIds').map((blockedId) => ({ blockedId }))
+      : connectionGraphIds(graph, 'restrictedIds').map((restrictedId) => ({ restrictedId }));
   };
 
   return {
-    async getBlockedUsers(): Promise<unknown[]> {
-      return privacyUnavailable('blocked');
+    getBlockedUsers(): Promise<unknown[]> {
+      return privacyList('blocked');
     },
-    async getRestrictedUsers(): Promise<unknown[]> {
-      return privacyUnavailable('restricted');
+    getRestrictedUsers(): Promise<unknown[]> {
+      return privacyList('restricted');
     },
-    // Unwrapped so the delegated shape matches what OxyServices.getViewerGraph
-    // returns for a session-scoped client: the graph object itself, never the
-    // `{ data }` envelope the raw service request carries.
-    async getViewerGraph(): Promise<unknown> {
-      return unwrapDataEnvelope(await viewerGraph());
+    // The graph object itself, never the `{ data }` envelope the raw service
+    // request carries, so the shape matches OxyServices.getViewerGraph.
+    getViewerGraph(): Promise<unknown> {
+      return viewerGraph();
     },
     getUserFollowing(userId: string): Promise<unknown> {
       return client.getUserFollowing(userId);
