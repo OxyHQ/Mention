@@ -84,7 +84,7 @@ The four external connection-management tools (`whoami`, `list-accounts`,
 `link-account`, `switch-account`) remain MCP-only; a native agent never gains
 OAuth bundle administration through a Mention content grant.
 
-## MCP tools (59 total)
+## MCP tools (71 total)
 
 ### Accounts (auth required)
 
@@ -102,6 +102,7 @@ OAuth bundle administration through a Mention content grant.
 | `create-post` | `POST /posts` |
 | `create-thread` | `POST /posts/thread` (no collaborators) |
 | `update-post` | `PUT /posts/:id` |
+| `move-post-to-lane` | `PATCH /posts/:id/lane` |
 | `delete-post` | `DELETE /posts/:id` |
 | `accept-collab-invite` | `POST /posts/:id/collaborators/accept` |
 | `decline-collab-invite` | `POST /posts/:id/collaborators/decline` |
@@ -114,6 +115,19 @@ Media for a post goes through `POST /posts/intent-media` (SSRF-safe URL fetch
 or inline base64), never Oxy `assetUpload` directly — MCP JWT callers have no
 user bearer, so intent-media uploads through the service-token
 `POST /assets/service/user-media` path instead.
+
+### Languages and lanes
+
+- `create-post` and each `create-thread` post take `variants: [{ tag, text, article? }]`, the same post written in up to 3 languages. The first variant is the primary body; readers get the one in their language. Send `variants` or `text`, never both.
+- `laneId` on `create-post` / `create-thread` files the post into one of the author's lanes; `move-post-to-lane` moves an existing post (or takes it out with `null`). Replies and boosts cannot sit in a lane.
+
+| Tool | Backend | Capability |
+|------|---------|------------|
+| `list-lanes` | `GET /lanes/mine` | `social.lanes.read` |
+| `create-lane` | `POST /lanes` | `social.lanes.manage` |
+| `update-lane` | `PATCH /lanes/:id` | `social.lanes.manage` |
+
+Lanes are managed for the active account only (the backend always owns a new lane by the caller). Deleting a lane un-files its posts and is left to the app.
 
 ### Collaborative posts
 

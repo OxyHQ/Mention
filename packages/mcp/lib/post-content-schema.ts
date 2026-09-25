@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { MAX_AUTHOR_VARIANTS } from "@mention/shared-types/language";
 
 export const visibilitySchema = z
   .enum(["public", "private", "followers", "followers_only"])
@@ -88,6 +89,31 @@ export const attachmentDescriptorSchema = z.object({
   mediaType: z.enum(["image", "video", "gif"]).optional(),
 });
 
+/**
+ * One author-written rendition of the post in a named language. The server
+ * validates the tag (BCP-47) and the length exactly as it does for the composer.
+ */
+export const languageVariantSchema = z.object({
+  tag: z.string().min(2).max(35).describe("BCP-47 language tag, e.g. \"en\" or \"es-ES\""),
+  text: z.string().describe("The post body in this language"),
+  article: articleInputSchema.optional().describe("The article in this language, when the post has one"),
+});
+
+export const languageVariantsSchema = z
+  .array(languageVariantSchema)
+  .min(1)
+  .max(MAX_AUTHOR_VARIANTS)
+  .optional()
+  .describe(
+    `The same post written in up to ${MAX_AUTHOR_VARIANTS} languages. The FIRST variant is the primary body; ` +
+    "readers see the variant in their language. Send either variants or text, not both.",
+  );
+
+export const laneIdSchema = z
+  .string()
+  .optional()
+  .describe("Id of one of the author's lanes (see list-lanes). Not allowed on replies.");
+
 export const postContentSchema = z.object({
   text: z.string().optional().describe("Post body text"),
   media: z.array(mediaInputSchema).max(10).optional().describe("Images/videos/gifs"),
@@ -99,6 +125,7 @@ export const postContentSchema = z.object({
   room: roomInputSchema.optional(),
   podcast: podcastInputSchema.optional(),
   attachments: z.array(attachmentDescriptorSchema).optional().describe("Render order"),
+  variants: languageVariantsSchema,
 });
 
 export const postMetadataSchema = z.object({
@@ -107,6 +134,7 @@ export const postMetadataSchema = z.object({
 
 export const threadPostSchema = z.object({
   content: postContentSchema,
+  laneId: laneIdSchema,
   visibility: visibilitySchema,
   hashtags: z.array(z.string()).optional(),
   mentions: z.array(z.string()).optional(),
@@ -116,5 +144,6 @@ export const threadPostSchema = z.object({
   metadata: postMetadataSchema.optional(),
 });
 
+export type LanguageVariantInput = z.infer<typeof languageVariantSchema>;
 export type MediaInput = z.infer<typeof mediaInputSchema>;
 export type PostContentInput = z.infer<typeof postContentSchema>;
