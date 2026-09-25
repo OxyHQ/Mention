@@ -34,6 +34,7 @@ import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 import { SEO } from '@/components/SEO';
+import { requestSettings } from '@/components/settings/settingsRoutes';
 import type { BloomIcon } from '@/components/settings/RowIcon';
 
 import { customFeedsService } from '@/services/customFeedsService';
@@ -534,7 +535,7 @@ const FeedsScreen: React.FC = () => {
               appearance="subtle" tone="neutral"
               iconOnly
               leadingIcon={RiSettings3Line}
-              onPress={() => router.push('/settings/feed')}
+              onPress={() => requestSettings('/settings/feed')}
               accessibilityLabel={t('sidebar.settings', { defaultValue: 'Settings' })}
             />
           }

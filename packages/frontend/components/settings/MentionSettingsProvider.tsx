@@ -31,6 +31,12 @@ useState,
 type PropsWithChildren,
 } from "react";
 import { useTranslation } from "react-i18next";
+import {
+isSettingsPage,
+onSettingsRequest,
+SETTINGS_PAGE_IDS,
+settingsPageFromRoute,
+} from "./settingsRoutes";
 
 const Page0 = lazy(() => import("./pages/account"));
 const Page1 = lazy(() => import("./pages/about"));
@@ -58,41 +64,7 @@ const Page22 = lazy(() => import("./pages/privacy/tags-mentions"));
 const Page23 = lazy(() => import("./pages/privacy"));
 const Page24 = lazy(() => import("./pages/thread-preferences"));
 
-export const SETTINGS_PAGE_IDS = [
-  "account",
-  "about",
-  "accessibility",
-  "appearance",
-  "connected-ai",
-  "external-media",
-  "fediverse",
-  "fediverse/node",
-  "feed",
-  "for-you",
-  "interests",
-  "language",
-  "live-presence",
-  "notifications/subscriptions",
-  "notifications",
-  "privacy/blocked",
-  "privacy/hidden-words",
-  "privacy/hide-counts",
-  "privacy/muted-lanes",
-  "privacy/online-status",
-  "privacy/profile-visibility",
-  "privacy/restricted",
-  "privacy/tags-mentions",
-  "privacy",
-  "thread-preferences",
-] as const;
-const pageIds: ReadonlySet<string> = new Set(SETTINGS_PAGE_IDS);
-export function settingsPageFromRoute(route: string): string | null {
-  const pathname = route.split(/[?#]/)[0].replace(/\/$/, "");
-  if (pathname === "/settings") return "account";
-  if (!pathname.startsWith("/settings/")) return null;
-  const id = pathname.slice("/settings/".length);
-  return pageIds.has(id) ? id : null;
-}
+export { SETTINGS_PAGE_IDS, settingsPageFromRoute };
 
 /** One shared settings surface; pages contain business controls, never chrome or scrollers. */
 export function MentionSettingsProvider({ children }: PropsWithChildren) {
@@ -110,7 +82,7 @@ export function MentionSettingsProvider({ children }: PropsWithChildren) {
     (next?: string) => {
       setInitialView(next ? "page" : "navigation");
       pendingAction.current = null;
-      setPage(next && pageIds.has(next) ? next : "account");
+      setPage(next && isSettingsPage(next) ? next : "account");
       active.current = true;
       setOpenRequest((request) => request + 1);
     },
@@ -119,6 +91,7 @@ export function MentionSettingsProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (openRequest) control.open();
   }, [openRequest, control]);
+  useEffect(() => onSettingsRequest(open), [open]);
   const close = useCallback(() => control.close(), [control]);
   const afterClose = useCallback(
     (action: () => void) => {

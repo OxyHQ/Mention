@@ -2,7 +2,11 @@ import { useMentionSettings } from "@/context/MentionSettingsContext";
 import { useRouter } from "expo-router";
 import { useEffect,useRef } from "react";
 
-/** Compatibility deep link only. Settings content belongs to the shared modal. */
+/**
+ * The web address of a settings page. Settings content belongs to the shared
+ * modal; on native a settings link never reaches this screen — it is
+ * intercepted in `app/+native-intent.tsx` (see `settingsRoutes.ts`).
+ */
 export function createSettingsRoute(page: string) {
   return function SettingsRoute() {
     const { open } = useMentionSettings();
