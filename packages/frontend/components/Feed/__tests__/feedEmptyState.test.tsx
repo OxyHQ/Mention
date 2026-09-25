@@ -28,8 +28,6 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: 'Loading' }));
 
-jest.mock('@/components/ui/Spinner', () => ({ Spinner: 'Spinner' }));
-
 // Bloom draws the block now; keep it as a host element so the assertions below
 // read the DECISION (which glyph, which copy, whether a retry is offered)
 // rather than Bloom's internal layout.
@@ -101,7 +99,7 @@ function textContent(tree: TestRenderer.ReactTestRenderer): string {
 describe('FeedEmptyState', () => {
     it('shows the loading state while a read (and its retries) is in flight', () => {
         const tree = render({ isLoading: true, error: 'Failed to load', errorKind: 'transient' });
-        expect(tree.root.findAll((node) => isElement(node, 'Spinner')).length).toBe(1);
+        expect(tree.root.findAll((node) => isElement(node, 'Loading')).length).toBe(1);
         expect(iconNames(tree)).toEqual([]);
         expect(retryButtons(tree)).toHaveLength(0);
     });

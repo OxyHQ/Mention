@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
+import { AspectRatio } from '@oxy.so/bloom/aspect-ratio';
 import { useDialogControl } from '@oxy.so/bloom/dialog';
 import { parseEmbedPlayerFromUrl, canEmbed } from '@/utils/embedPlayer';
 import { proxyExternalUrl } from '@/utils/imageUrlCache';
@@ -84,13 +85,13 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
   if (params.isGif) {
     return (
       <View style={[{ width }, style]} className="overflow-hidden rounded-2xl border border-border bg-card">
-        <View style={{ aspectRatio: GIF_ASPECT_RATIO }} className="w-full overflow-hidden">
+        <AspectRatio ratio={GIF_ASPECT_RATIO} style={styles.gifWell}>
           <Image
             source={{ uri: proxyExternalUrl(params.playerUri) }}
             style={StyleSheet.absoluteFill}
             contentFit="contain"
           />
-        </View>
+        </AspectRatio>
       </View>
     );
   }
@@ -123,5 +124,9 @@ const PostAttachmentExternalEmbed: React.FC<PostAttachmentExternalEmbedProps> = 
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  gifWell: { overflow: 'hidden' },
+});
 
 export default PostAttachmentExternalEmbed;

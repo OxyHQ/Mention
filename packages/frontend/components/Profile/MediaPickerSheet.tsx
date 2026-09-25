@@ -1,6 +1,5 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   Text,
@@ -15,6 +14,7 @@ import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
 import { RiMusic2Line } from '@oxy.so/bloom/icons/RiMusic2Line';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { Item } from '@oxy.so/bloom/item';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAppearanceStore, type ProfileMedia, type UserAppearance } from '@/stores/appearanceStore';
@@ -422,7 +422,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
       <View className="mt-2 min-h-[120px]">
         {activeSearch.isLoading ? (
           <View className="items-center justify-center py-10">
-            <ActivityIndicator size="small" color={colors.primary} />
+            <SpinnerIcon size={20} color={colors.primary} />
           </View>
         ) : activeSearch.isError ? (
           <Text className="text-muted-foreground text-[15px] text-center py-10">
@@ -560,7 +560,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
             style={{ opacity: saving ? 0.6 : 1 }}
           >
             {saving ? (
-              <ActivityIndicator size="small" color={colors.primaryForeground} />
+              <SpinnerIcon size={20} color={colors.primaryForeground} />
             ) : (
               <Text className="text-[15px] font-semibold" style={{ color: colors.primaryForeground }}>
                 {t('profile.media.save')}
@@ -610,7 +610,7 @@ export const MediaPickerSheet = memo(function MediaPickerSheet({
             style={{ opacity: saving ? 0.6 : 1 }}
           >
             {saving ? (
-              <ActivityIndicator size="small" color={colors.primaryForeground} />
+              <SpinnerIcon size={20} color={colors.primaryForeground} />
             ) : (
               <Text className="text-[15px] font-semibold" style={{ color: colors.primaryForeground }}>
                 {t('profile.media.save')}

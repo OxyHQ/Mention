@@ -3,10 +3,10 @@ import { View, Pressable, StyleSheet, Text, Platform, type StyleProp, type ViewS
 import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer, type VideoPlayer as ExpoVideoPlayer } from 'expo-video';
 import { MediaFlightHost, type MediaFlightHostProps } from '@oxy.so/bloom/media-flight';
+import { PlayButton } from '@oxy.so/bloom/media-controls';
+import { useTranslation } from 'react-i18next';
 import { useEvent, useEventListener } from 'expo';
 import { RiExpandDiagonalSLine } from '@oxy.so/bloom/icons/RiExpandDiagonalSLine';
-import { RiPauseFill } from '@oxy.so/bloom/icons/RiPauseFill';
-import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { RiVolumeMuteLine } from '@oxy.so/bloom/icons/RiVolumeMuteLine';
 import { RiVolumeUpLine } from '@oxy.so/bloom/icons/RiVolumeUpLine';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
@@ -116,6 +116,36 @@ function configurePlayer(
 ): void {
   Object.assign(target, settings);
 }
+
+/**
+ * The overlay's centre play/pause control — Bloom's `PlayButton`, in its
+ * `inverse` form (the one Bloom's own video poster frames use), at `large` (56,
+ * the size the hand-drawn disc was).
+ *
+ * Its own component so the translation hook only mounts with the full controls
+ * overlay: feed rows render the player in preview mode, where this never
+ * mounts, so a video row gains no hook slot from it.
+ */
+const VideoPlayPauseButton = React.memo(function VideoPlayPauseButton({
+  playing,
+  onPress,
+}: {
+  playing: boolean;
+  onPress: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <PlayButton
+      playing={playing}
+      onPress={onPress}
+      size="large"
+      variant="inverse"
+      playLabel={t('videos.play')}
+      pauseLabel={t('videos.pause')}
+      style={styles.playPauseButton}
+    />
+  );
+});
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({
   src,
@@ -511,22 +541,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         {showControls && (
           <View style={styles.controlsOverlay}>
             {/* Play/Pause center button */}
-            <Pressable
-              style={styles.playPauseButton}
-              onPress={handlePlayPause}
-              // Deliberately larger than HIT_SLOP_LG: this is the player's
-              // primary control, centred and alone in the overlay, so a
-              // generous region has nothing nearby to steal taps from.
-              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-            >
-              <View style={styles.playPauseCircle}>
-                {isPlaying ? (
-                  <RiPauseFill size="2xl" fill="white" />
-                ) : (
-                  <RiPlayFill size="2xl" fill="white" style={styles.playIcon} />
-                )}
-              </View>
-            </Pressable>
+            <VideoPlayPauseButton playing={isPlaying} onPress={handlePlayPause} />
 
             {/* Bottom bar: progress + time + buttons */}
             <View style={styles.bottomBar}>
@@ -629,19 +644,6 @@ const styles = StyleSheet.create({
   },
   playPauseButton: {
     zIndex: 2,
-  },
-  playPauseCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  playIcon: {
-    marginLeft: 3, // Visual centering for play triangle
   },
   bottomBar: {
     position: 'absolute',
