@@ -137,6 +137,12 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     reason:
       'Every post whose has_links column disagrees with its own renditions, in both directions.',
   },
+  backfillVariantPostCreatedAt: {
+    scope: 'whole-table',
+    reason:
+      'Walks every rendition by primary key and rewrites post_created_at wherever it disagrees '
+      + 'with the post, then builds an index concurrently.',
+  },
   backfillPostLanguages: {
     scope: 'whole-table',
     reason: 'Its own docblock: "takes no scope — by design, it is a one-shot over" the table.',

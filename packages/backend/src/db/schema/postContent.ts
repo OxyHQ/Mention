@@ -248,6 +248,27 @@ export const postContentVariants = pgTable(
      */
     variantCreatedAt: timestamptz(),
     /**
+     * A copy of `posts.created_at`, so the posts search can bound a text match by
+     * time on THIS table (#1158).
+     *
+     * The text index lives here and the timestamp on `posts`, and an index cannot
+     * span two tables: every search therefore fetched every rendition matching
+     * its words (3,910 for "climate" in production) and every one of their posts
+     * before it could keep the newest 21 — 9,209 buffer reads and 6.0 s cold. With
+     * the copy, the GIN index and a btree on this column intersect as bitmaps and
+     * only the matches inside a recent window are fetched (85 in the last week).
+     *
+     * The same shape as `post_authorships.post_created_at` and
+     * `post_media.post_created_at`, and safe for the same reason: `posts.created_at`
+     * is written once and never updated, and the one writer
+     * (`postRepository`'s `postCreatedAtSql`) reads it back out of `posts` in the
+     * statement that inserts the rendition.
+     *
+     * NULLABLE: added to a populated table without a rewrite, and backfilled in
+     * batches by `scripts/backfillVariantPostCreatedAt.ts` outside the migrator.
+     */
+    postCreatedAt: timestamptz(),
+    /**
      * The replacement for Mongo's `content.variants.text_text` index.
      *
      * GENERATED, so no write path can produce a row whose search vector
