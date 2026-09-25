@@ -13,7 +13,7 @@ import {
   CHRONO_DESC,
   UNIQUE_MATCH_NO_ORDER,
   findPostRecords,
-  insertPostRecord,
+  insertPostRecords,
   loadPostRecord,
   replacePostContent,
 } from '../../db/posts/postRepository';
@@ -1005,14 +1005,17 @@ export class OutboxSyncService {
 
       if (newDocs.length > 0) {
         // Per-row rather than one multi-row INSERT, because a post is nine tables
-        // and `insertPostRecord` writes them in ONE transaction each — so a
+        // and `insertPostRecords` writes them in ONE transaction each — so a
         // duplicate `federation.activity_id` rolls back only its own post instead
         // of aborting the batch, which is what `{ ordered: false }` bought on the
         // Mongo side. A unique violation is the EXPECTED outcome of a concurrent
         // import and is counted, not logged as a failure.
-        const results = await Promise.allSettled(
-          newDocs.map((input) => insertPostRecord(input)),
-        );
+        //
+        // The batch form, not `insertPostRecord` per row under `allSettled`: that
+        // opened every row's transaction at once and read each post back with its
+        // own ~10 lookups, which took the task's whole connection pool and queued
+        // the request path behind it (#1158). See `insertPostRecords`.
+        const results = await insertPostRecords(newDocs);
         const inserted = results.flatMap((result) =>
           result.status === 'fulfilled' ? [result.value] : [],
         );

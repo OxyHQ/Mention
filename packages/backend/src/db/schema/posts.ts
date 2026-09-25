@@ -722,6 +722,14 @@ export const posts = pgTable(
       .on(t.federationActorUri)
       .where(sql`${t.federationActorUri} is not null`),
 
+    // A remote note's web URL → our copy of it (`resolvePostIdFromNoteUrl`, the
+    // only way a Threads quote resolves). Without it that lookup read the whole
+    // table on every call — ~2 s and ~98k buffers each in production (#1158),
+    // run from the inbox path. Partial for the same reason as the two above.
+    index('posts_federation_url_idx')
+      .on(t.federationUrl)
+      .where(sql`${t.federationUrl} is not null`),
+
     // ── Hot paths, ported from the Mongo index manifest + the model's own list ──
     // The names are the manifest's, kept so a DBA reading `pg_indexes` and a
     // developer reading the migration see the same ones. Both the manifest and

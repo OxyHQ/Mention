@@ -63,6 +63,7 @@ import type {
 import { followedAuthorsSql } from '../../utils/postAuthorship';
 import { postTextHasHttpLink } from '../../utils/postSearchMetadata';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
+import { mapWithConcurrency } from '../../utils/concurrency';
 import { uuidv7 } from '@oxy.so/db';
 import { posts } from '../schema/posts';
 import {
@@ -1091,6 +1092,80 @@ export async function insertPostRecord(
   input: PostRecordInput,
   db: DatabaseOrTransaction = getDb(),
 ): Promise<PostRecord> {
+  const id = await writePostRecord(input, db);
+  const record = await loadPostRecord(id, db);
+  if (!record) {
+    // Unreachable via the transaction in `writePostRecord`; a throw is still
+    // correct because a caller that got an id back and no row would otherwise
+    // proceed as if the post existed.
+    throw new Error(`insertPostRecord: post ${id} was not readable after insert`);
+  }
+  return record;
+}
+
+/**
+ * How many posts {@link insertPostRecords} writes at once.
+ *
+ * Every write is a transaction, and a transaction HOLDS one pool connection from
+ * `begin` to `commit` across several round trips. The pool is
+ * `PG_MAX_POOL_SIZE` (20) per task and is shared with every request the task is
+ * serving, so a batch written all at once takes the whole pool: that is what the
+ * federation outbox backfill did with its 20-post pages, and the request-path
+ * lookups issued meanwhile queued behind it (issue #1158 — 0.1-0.5 ms statements
+ * logged at 200-400 ms, in bursts of up to 90 a second, with the database idle).
+ * Four leaves the rest of the pool to the request path while still overlapping
+ * the writes' round trips.
+ */
+export const POST_BATCH_WRITE_CONCURRENCY = 4;
+
+/**
+ * Persist several new posts — each in its OWN transaction, so one failure
+ * (typically a unique violation on `federation_activity_id` from a concurrent
+ * import) rolls back only that post — and read them all back in ONE batched
+ * load.
+ *
+ * This is the batch form of {@link insertPostRecord}, and it exists for two
+ * costs that form multiplies when called once per item:
+ *
+ *  - the writes run at most {@link POST_BATCH_WRITE_CONCURRENCY} at a time
+ *    instead of all at once (see there for why the pool cannot absorb that);
+ *  - the read-back is one `loadPostRecords` — one `posts` query plus one per
+ *    child table — instead of that same ~10 statements PER POST. A 20-post page
+ *    was ~200 concurrent lookups; it is now ~10.
+ *
+ * Settled like `Promise.allSettled`, index-aligned with `inputs`, so a caller can
+ * still classify each failure itself.
+ */
+export async function insertPostRecords(
+  inputs: readonly PostRecordInput[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<PromiseSettledResult<PostRecord>[]> {
+  const written = await mapWithConcurrency(inputs, POST_BATCH_WRITE_CONCURRENCY, (input) =>
+    writePostRecord(input, db),
+  );
+  const ids = written.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
+  const byId = new Map((await loadPostRecords(ids, db)).map((record) => [record.id, record]));
+  return written.map((result): PromiseSettledResult<PostRecord> => {
+    if (result.status === 'rejected') return result;
+    const record = byId.get(result.value);
+    return record
+      ? { status: 'fulfilled', value: record }
+      : {
+          status: 'rejected',
+          reason: new Error(`insertPostRecords: post ${result.value} was not readable after insert`),
+        };
+  });
+}
+
+/**
+ * Write one post and every row it owns, atomically, and return its id. The
+ * shared half of {@link insertPostRecord} and {@link insertPostRecords}, which
+ * differ only in how they read the result back.
+ */
+async function writePostRecord(
+  input: PostRecordInput,
+  db: DatabaseOrTransaction,
+): Promise<string> {
   const id = input.id ?? uuidv7();
 
   const insert = toPostInsert(input, id);
@@ -1133,15 +1208,7 @@ export async function insertPostRecord(
   } else {
     await write(db);
   }
-
-  const record = await loadPostRecord(id, db);
-  if (!record) {
-    // Unreachable via the transaction above; a throw is still correct because a
-    // caller that got an id back and no row would otherwise proceed as if the
-    // post existed.
-    throw new Error(`insertPostRecord: post ${id} was not readable after insert`);
-  }
-  return record;
+  return id;
 }
 
 /** Fields a caller may change on an existing post's scalar row. */

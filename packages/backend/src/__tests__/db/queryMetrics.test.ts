@@ -240,6 +240,31 @@ describe('slow query log', () => {
     expect(String((context as { statement: string }).statement)).toContain('pg_sleep');
   });
 
+  it('records how many statements were already outstanding when a slow one started', async () => {
+    const previousThreshold = config.postgres.slowQueryMs;
+    config.postgres.slowQueryMs = 10;
+    try {
+      // Three dispatched together: the last one to start sees the other two.
+      await Promise.all([
+        db.execute(sql`select pg_sleep(0.05)`),
+        db.execute(sql`select pg_sleep(0.05)`),
+        db.execute(sql`select pg_sleep(0.05)`),
+      ]);
+      // Dispatched alone, after those settled: nothing ahead of it.
+      await db.execute(sql`select pg_sleep(0.02)`);
+    } finally {
+      config.postgres.slowQueryMs = previousThreshold;
+    }
+
+    const counts = vi
+      .mocked(logger.warn)
+      .mock.calls.filter(([message]) => message === 'Slow database query')
+      .map(([, context]) => (context as { inFlightAtStart: number }).inFlightAtStart);
+    expect(counts).toHaveLength(4);
+    expect([...counts.slice(0, 3)].sort()).toEqual([0, 1, 2]);
+    expect(counts[3]).toBe(0);
+  });
+
   it('stays quiet for a statement under the threshold', async () => {
     await db.select({ id: posts.id }).from(posts).limit(1);
 
