@@ -358,6 +358,13 @@
       "when": 1790373570533,
       "tag": "0050_account_erasures",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1790375997882,
+      "tag": "0051_drop_seo_bucket_indexes",
+      "breakpoints": true
     }
   ]
 }
