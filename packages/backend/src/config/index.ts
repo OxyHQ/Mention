@@ -421,6 +421,7 @@ const environmentSchema = z
       z.literal(MENTION_INFERENCE_ROUTING_PROFILE_ID).optional(),
     ),
     MENTION_OXY_CLIENT_ID: trimmedOptionalString,
+    MOVE_APPLICATION_ID: trimmedOptionalString,
     IP_HASH_SALT: optionalString(16),
     DEVICE_ID_SALT: optionalString(16),
     FIREBASE_SERVICE_ACCOUNT_BASE64: trimmedOptionalString,
@@ -885,6 +886,15 @@ export const config = {
   },
   identity: {
     mentionOxyClientId: environment.MENTION_OXY_CLIENT_ID,
+  },
+  imports: {
+    /**
+     * The Oxy application id of Oxy Move — the ONLY caller the content-import
+     * API admits (`routes/imports.ts`). Unset means nobody may import: the
+     * routes answer 403 to every caller rather than falling back to any other
+     * application, internal ones included.
+     */
+    moveApplicationId: environment.MOVE_APPLICATION_ID,
   },
   internalMetrics: {
     /** Holding the token IS being enabled; see the schema for why. */

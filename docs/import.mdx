@@ -1,0 +1,190 @@
+---
+title: Content import
+description: The ingest API Oxy Move uses to bring a user's old posts into Mention, and what Mention guarantees about them.
+order: 5
+---
+
+# Content import
+
+Oxy Move is a separate first-party app. It reads a user's old Mastodon,
+Bluesky or other account and brings that content into Mention. Mention does
+not read other platforms itself. It exposes one server-to-server ingest API,
+and each imported item becomes an ordinary native post of the user.
+
+| Piece | Where |
+| --- | --- |
+| Routes and validation | `packages/backend/src/routes/imports.ts` |
+| Import logic | `packages/backend/src/services/PostImportService.ts` |
+| Import ledger (`post_imports`) | `packages/backend/src/db/schema/imports.ts` |
+| Platform list and labels | `IMPORT_PLATFORMS`, `IMPORT_PLATFORM_LABELS` in `packages/shared-types/src/post.ts` |
+
+## Who may call it
+
+Only Oxy Move, acting for one user:
+
+- `Authorization: Bearer <Oxy service token>`. The token's application id must
+  equal `MOVE_APPLICATION_ID` in the backend config.
+- `X-Oxy-User-Id: <oxy user id>`: the user the import is for. Move is an
+  internal-tier app, so `oxy.auth()` accepts the delegation without a grant
+  (`@oxy.so/core` 1.8.0 or later).
+
+Every other caller gets `403`. That includes a user session, an MCP token, a
+capability ticket, any other service app (internal ones too), and Move without
+`X-Oxy-User-Id`. If `MOVE_APPLICATION_ID` is unset, nobody can import.
+
+Two error codes:
+
+- `IMPORT_CALLER_NOT_ALLOWED`: the caller is not Move.
+- `IMPORT_USER_REQUIRED`: Move sent no user.
+
+The routes use the backend's normal per-user rate limits, keyed on the
+delegated user. The JSON body limit is 1 MB per request.
+
+## `POST /imports/v1/posts:batch`
+
+Imports up to **50** items, in the order sent.
+
+```json
+{
+  "platform": "mastodon",
+  "batchId": "<Move job id>",
+  "items": [
+    {
+      "sourceId": "109876543210",
+      "sourceUrl": "https://mastodon.social/@alice/109876543210",
+      "createdAt": "2019-03-04T05:06:07.123Z",
+      "text": "Plain text body",
+      "contentWarning": "spoilers",
+      "language": "en",
+      "visibility": "public",
+      "replyToSourceId": "109876543200",
+      "quoteSourceId": "109876543100",
+      "media": [{ "assetId": "<Oxy asset id>", "alt": "a cat" }],
+      "article": { "title": "Title", "body": "Long-form body" },
+      "links": ["https://example.com/linked"]
+    }
+  ]
+}
+```
+
+- `platform` is one of `mastodon`, `bluesky`, `threads`, `instagram`, `x`,
+  `facebook`, `medium` or `substack`.
+- `batchId` is the unit that undo deletes. Use Move's job id.
+- `createdAt` is ISO 8601 with an offset. It is stored to the millisecond, and
+  anything finer is dropped. A date more than one hour in the future is refused.
+- `text` is plain text, up to 25,000 characters with the appended links.
+  - An `@handle` in it stays text. No mention is created and nobody is notified.
+  - A `#hashtag` becomes a hashtag, as in a normal post.
+- `visibility` is `public` or `followers_only`.
+- `media` holds up to 10 Oxy asset ids that Move has already uploaded as the
+  user's media.
+  - Each asset must exist, be `active`, and belong to the acting user; Oxy
+    reports the owner to internal apps only, so an owner it does not report is
+    refused as `media_not_owned` too.
+  - Its MIME type sets the kind: an image, a GIF (`image/gif`) or a video.
+- `links` holds up to 10 URLs that the source showed outside the text, such as
+  Bluesky link facets. Any link not already in `text` is added to the end of
+  the body.
+- `article` sets a long-form body, stored like a composer article.
+- `replyToSourceId` and `quoteSourceId` name items **this same user imported
+  from this same platform**, either earlier in the batch or in an earlier
+  batch. For a reply to someone else's post, leave out `replyToSourceId`.
+- A reply to one of the user's own posts joins that post's thread.
+
+The response is `200`, with one result per item in input order:
+
+```json
+{ "results": [{ "sourceId": "109876543210", "status": "created", "postId": "..." }] }
+```
+
+| `status` | Meaning | Written? |
+| --- | --- | --- |
+| `created` | A new post exists; `postId` is its id | yes |
+| `existing` | This user already imported this `(platform, sourceId)`; `postId` is that post | no |
+| `deferred` | `error` is `parent_not_imported` or `quote_not_imported`. Send the referenced item first, then resend this one, or resend it without the reference to import it standalone | no |
+| `failed` | `error` gives the reason: `empty`, `created_at_in_future`, `text_too_long`, `media_not_found`, `media_not_owned`, `media_unsupported`, `media_lookup_failed` or `internal_error` | no |
+
+If the body itself is malformed, the whole request gets `400` with
+`INVALID_IMPORT_BATCH`, and nothing is written.
+
+## `DELETE /imports/v1/batches/:batchId`
+
+Undoes one batch, deleting only the **acting user's** posts from that batch. It
+answers `{ "deleted": n, "failed": m }`.
+
+Every post is deleted through the normal delete path
+(`PostDeletionService.deleteAuthoredPost`), newest first:
+
+- Replies go before their parents, so each post gets its own federated
+  `Delete`.
+- Each public post sends a `Delete(Tombstone)` and an MTN tombstone.
+- Replies from other users are deleted with their parent, as with any post
+  deletion.
+
+A post the author already deleted counts in neither number.
+
+## `GET /imports/v1/lookup`
+
+Query: `platform=`, `sourceIds=` and `federatedIds=`, each repeated once per id
+(`?sourceIds=a&sourceIds=b`). Each list takes up to 200 ids. Values are never
+split on commas, because an id is often a URL and a URL may contain one.
+
+```json
+{
+  "imported": { "<sourceId>": "<postId>" },
+  "federated": {
+    "<AS2 id or at-uri>": { "postId": "...", "actorUri": "...", "url": "...", "oxyUserId": "..." }
+  }
+}
+```
+
+- `imported` covers only this user's own imports.
+- `federated` lists the public, published federated posts Mention already stored under
+  that ActivityPub object id or at-uri (`posts.federation_activity_id`). These
+  are copies of the old account's posts that federation brought in before the
+  user moved.
+
+This endpoint only reports what exists. Taking over those copies as the
+user's own posts ("adoption") is a later step, which needs a verified
+ActivityPub `Move` of the old actor.
+
+## Guarantees
+
+An imported post is an ordinary published post of the user. It has its own
+id, replies, likes and moderation. It differs in these ways:
+
+- **No live side effects.**
+  - No notification of any kind: mention, reply, quote or subscriber.
+  - No socket broadcast.
+  - No push federation delivery.
+  - A backfill of years of posts is not news.
+- **No mentions.** The people it names were addressed on another platform.
+  The post's mention list is always empty, and pasted profile links are not
+  turned into mentions.
+- **Original date.** `created_at` is the source date, so the post sits in its
+  real place on the profile and in chronological feeds.
+- **Federation by pull.**
+  - The ActivityPub outbox serves public root posts, with `published` set to
+    the original date. Remote servers that backfill see them where they belong.
+  - An imported content warning federates as `sensitive: true` only, because
+    native posts have no `summary` text.
+- **Provenance.** The post DTO carries `importedFrom: { platform, sourceUrl }`,
+  and the app shows "Originally posted on Mastodon", which links to the
+  original. An imported content warning becomes `metadata.spoilerText` and
+  gates the body the same way a federated one does.
+- **Idempotency.** `(oxy_user_id, platform, source_id)` is unique.
+  - Resending an item returns `existing` and writes nothing.
+  - If two sends of the same item race, the losing one deletes its duplicate
+    and also returns `existing`.
+- **Classification waits.** The AI classifier leaves imported posts out of its
+  main queue. They are classified in batches of 10, only in a cycle that has no
+  live posts to process (`PostClassificationService.selectQueue`), so an
+  import never delays new posts.
+- **Deletion.** The `post_imports` row is removed with its post (`ON DELETE
+  CASCADE`) however the post is deleted.
+
+## Configuration
+
+| Variable | Meaning |
+| --- | --- |
+| `MOVE_APPLICATION_ID` | Oxy application id of Oxy Move. Empty means imports are disabled. |

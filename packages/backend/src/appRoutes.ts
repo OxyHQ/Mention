@@ -49,6 +49,7 @@ import mtnNodesRoutes from './routes/mtn-nodes.routes';
 import webShellRoutes from './routes/webShell.routes';
 import internalMetricsRoutes from './routes/internalMetrics.routes';
 import webTelemetryRoutes from './routes/webTelemetry.routes';
+import importsRoutes from './routes/imports';
 import {
   apexFrontendProxy,
   isApexHost,
@@ -197,6 +198,10 @@ export function createAppRoutes({
   authenticatedApi.use('/entity-follows', entityFollowRoutes);
   authenticatedApi.use('/mcp/connections', mcpConnectionsRoutes);
   authenticatedApi.use('/mcp/bundles', mcpBundlesRoutes);
+  // Oxy Move's server-to-server content import. Behind `requireAuth` like every
+  // route here, and then narrowed much further inside: only Move's service token
+  // acting for a user passes (`requireMoveServiceCaller`), never a session.
+  authenticatedApi.use('/imports', importsRoutes);
 
   return {
     health: healthRoutes,

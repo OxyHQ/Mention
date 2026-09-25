@@ -250,6 +250,25 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why: 'Long-form body owned by the post. `ON DELETE CASCADE` on `posts.id`.',
   },
   {
+    table: 'post_imports',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why:
+      'The import ledger row of a post brought from another platform: its dedupe key, undo scope and ' +
+      'provenance. It describes the post and nothing else. `ON DELETE CASCADE` on `posts.id`.',
+  },
+  {
+    table: 'post_imports',
+    column: 'oxyUserId',
+    scope: 'channel-posts',
+    action: 'database',
+    why:
+      'The author the post was imported for, denormalized from `posts.oxy_user_id`. A ledger row ' +
+      'exists only beside its post, so it goes with the post: `post_imports.post_id` is ' +
+      '`ON DELETE CASCADE` on `posts.id`.',
+  },
+  {
     table: 'engagement_outbox',
     column: 'payloadPostId',
     scope: 'channel-posts',
@@ -1242,6 +1261,8 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
     'post_equivalence_members.clusterId',
     'the cross-post equivalence cluster a member belongs to; it cascades from the cluster',
   ],
+  ['post_imports.importBatchId', "an Oxy Move job id, a grouping token"],
+  ['post_imports.sourceId', "the imported item's id on another platform"],
   ['post_media.mediaId', 'an Oxy file id, or a remote URL for federated media the cache never rewrote'],
   ['post_variant_alt_texts.mediaId', 'an Oxy file id the localized alt text describes'],
   ['post_variant_alt_texts.variantId', 'the language rendition the alt text belongs to'],
