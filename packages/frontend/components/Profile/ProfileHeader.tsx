@@ -15,6 +15,7 @@ import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { RiLineChartLine } from '@oxy.so/bloom/icons/RiLineChartLine';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { showContentDialog } from '@/components/common/ContentDialog';
+import { requestSettings } from '@/components/settings/settingsRoutes';
 import { EditProfileForm } from './EditProfile/EditProfileForm';
 import { usePoke } from './hooks/usePoke';
 import { useFederatedFollowSync } from './hooks/useFederatedFollowSync';
@@ -40,7 +41,7 @@ const PROFILE_AVATAR_COLLAPSE_TRANSLATE_Y = 16;
 // Static header actions hoisted to stable module-level refs: FrostedIconButton is
 // memo'd, so fresh inline handlers/icon elements each render would defeat the memo.
 const goInsights = () => router.push('/insights');
-const goSettings = () => router.push('/settings');
+const goSettings = () => requestSettings('/settings');
 
 export const ProfileHeader = memo(function ProfileHeader({
   username,

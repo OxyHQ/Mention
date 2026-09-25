@@ -43,6 +43,7 @@ import { StatusBar } from 'expo-status-bar';
 import { toast } from '@oxy.so/bloom/toast';
 import { confirmDialog } from '@/utils/alerts';
 import { SEO } from '@/components/SEO';
+import { requestSettings } from '@/components/settings/settingsRoutes';
 import { Error } from '@/components/Error';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Bell, BellActive } from '@/assets/icons/bell-icon';
@@ -605,14 +606,14 @@ const NotificationsScreen: React.FC = () => {
                                         appearance="subtle" tone="neutral"
                                         iconOnly
                                         icon={<BellActive size={20} color={theme.colors.text} />}
-                                        onPress={() => router.push('/settings/notifications/subscriptions')}
+                                        onPress={() => requestSettings('/settings/notifications/subscriptions')}
                                         accessibilityLabel={t('subscription.list.title', { defaultValue: 'Activity notifications' })}
                                     />
                                     <Button
                                         appearance="subtle" tone="neutral"
                                         iconOnly
                                         icon={<Gear size={20} color={theme.colors.text} />}
-                                        onPress={() => router.push('/settings/notifications')}
+                                        onPress={() => requestSettings('/settings/notifications')}
                                         accessibilityLabel={t('notification.settings', { defaultValue: 'Notification settings' })}
                                     />
                                 </>

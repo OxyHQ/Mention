@@ -1,0 +1,34 @@
+diff --git a/node_modules/react-native-reanimated/.bun-tag-7d1742f20aa303aa b/.bun-tag-7d1742f20aa303aa
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/android/src/main/java/com/swmansion/reanimated/NativeProxy.kt b/android/src/main/java/com/swmansion/reanimated/NativeProxy.kt
+index 48e37714232d5ccf74d99d61cb2fac56314087aa..dc4a263ba28f029036968eb968ded5c6fb4c6d10 100644
+--- a/android/src/main/java/com/swmansion/reanimated/NativeProxy.kt
++++ b/android/src/main/java/com/swmansion/reanimated/NativeProxy.kt
+@@ -245,6 +245,12 @@ open class NativeProxy {
+             }.apply { isAccessible = true }
+     }
+ 
++    private val getViewExistsMethod by lazy {
++        mountingManager.javaClass.methods
++            .first { it.name == "getViewExists" && it.parameterTypes.size == 1 }
++            .apply { isAccessible = true }
++    }
++
+     @DoNotStrip
+     fun synchronouslyUpdateUIProps(
+         intBuffer: IntArray,
+@@ -253,9 +259,11 @@ open class NativeProxy {
+         SynchronousPropsBufferParser.parse(intBuffer, doubleBuffer) { viewTag, props ->
+             if (BuildConfig.IS_REACT_NATIVE_86_OR_NEWER) {
+                 try {
+-                    updatePropsSynchronouslyMethod.invoke(mountingManager, viewTag, props)
++                    if (getViewExistsMethod.invoke(mountingManager, viewTag) == true) {
++                        updatePropsSynchronouslyMethod.invoke(mountingManager, viewTag, props)
++                    }
+                 } catch (e: Exception) {
+-                    Log.w("Reanimated", "synchronouslyUpdateUIProps failed for tag $viewTag", e)
++                    Log.w("Reanimated", "synchronouslyUpdateUIProps failed for tag $viewTag: ${e.cause ?: e}")
+                 }
+             } else {
+                 mFabricUIManager.synchronouslyUpdateViewOnUIThread(viewTag, props)

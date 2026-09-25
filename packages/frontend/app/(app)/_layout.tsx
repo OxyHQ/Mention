@@ -8,6 +8,7 @@ import { AppShell } from '@oxy.so/bloom/app-shell';
 import { registerPanelSurface } from '@/components/shell/panelSurface';
 
 import { MentionHomeHeader } from '@/components/navigation/MentionHomeHeader';
+import { stackSceneLayout } from '@/components/navigation/StackScene';
 import { BottomBar } from "@/components/BottomBar";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import RegisterPush from '@/components/RegisterPushToken';
@@ -84,7 +85,7 @@ export default function AppLayout() {
       {IS_WEB ? (
         <Slot />
       ) : (
-        <ExperimentalStack screenOptions={{ headerShown: false }}>
+        <ExperimentalStack screenOptions={{ headerShown: false }} screenLayout={stackSceneLayout}>
           {/* The five root tabs, as ONE stack screen. Everything else in this
               group is pushed over them, which is what keeps the tabs alive
               underneath a post or a settings page and what makes Back return to
