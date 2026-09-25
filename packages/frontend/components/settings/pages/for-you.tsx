@@ -15,7 +15,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
 
-import { Slider } from "@/components/Slider";
+import { Slider } from "@oxy.so/bloom/slider";
 import { useForYouTuning } from "@/hooks/useForYouTuning";
 import { resolveTuning, updateTuning } from "@/utils/forYouTuning";
 
@@ -96,8 +96,8 @@ function TuningModuleRow({
                 }),
               )
             }
-            minimumValue={range.min}
-            maximumValue={range.max}
+            min={range.min}
+            max={range.max}
             step={range.step}
             label={t("feed.tuning.threshold", { defaultValue: "Threshold" })}
             formatValue={(value) =>

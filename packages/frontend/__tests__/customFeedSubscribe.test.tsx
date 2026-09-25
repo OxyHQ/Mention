@@ -153,6 +153,12 @@ jest.mock('@oxy.so/bloom/bottom-sheet', () => ({
   BottomSheet: () => null,
 }));
 
+/** Bloom's rating / textarea / divider ship ESM sources; the flows here never draw them. */
+jest.mock('@oxy.so/bloom/rating', () => ({ Rating: () => null, RatingInput: () => null }));
+jest.mock('@oxy.so/bloom/textarea', () => ({ Textarea: () => null }));
+jest.mock('@oxy.so/bloom/divider', () => ({ Divider: () => null }));
+jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
+
 jest.mock('@/components/Feed/Feed', () => {
   const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return { __esModule: true, default: () => <RNView testID="feed" /> };

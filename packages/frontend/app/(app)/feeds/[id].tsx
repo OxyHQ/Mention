@@ -6,10 +6,6 @@ import {
   TouchableOpacity,
   Share,
   ScrollView,
-  Platform,
-  TextInput,
-  Modal,
-  KeyboardAvoidingView,
   Pressable,
 } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -39,7 +35,10 @@ import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
 import { formatCompactNumber } from '@/utils/formatNumber';
-import StarRating from '@/components/StarRating';
+import { Rating, RatingInput } from '@oxy.so/bloom/rating';
+import { Textarea } from '@oxy.so/bloom/textarea';
+import { Divider } from '@oxy.so/bloom/divider';
+import { EmptyState } from '@/components/common/EmptyState';
 import { toast } from '@oxy.so/bloom/toast';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { BottomSheet, type BottomSheetRef } from '@oxy.so/bloom/bottom-sheet';
@@ -312,7 +311,7 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
       ) : null}
 
       {/* Divider + report */}
-      <View style={[infoStyles.divider, { backgroundColor: theme.colors.border }]} />
+      <Divider />
       <View className="flex-row items-center justify-between">
         <Text className="text-sm italic text-muted-foreground">
           Something wrong? Let us know.
@@ -335,14 +334,9 @@ const FeedInfoContent = React.memo(function FeedInfoContent({
 
 // Profiles tab
 const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: FeedProfile[] }) {
-  const theme = useTheme();
-
   if (members.length === 0) {
     return (
-      <View className="p-10 items-center justify-center gap-3">
-        <RiGroupLine width={40} height={40} fill={theme.colors.textSecondary} />
-        <Text className="text-base font-medium text-muted-foreground">No profiles yet</Text>
-      </View>
+      <EmptyState title="No profiles yet" icon={{ name: 'people-outline' }} />
     );
   }
 
@@ -390,10 +384,10 @@ const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string
 
   if (keywords.length === 0) {
     return (
-      <View className="p-10 items-center justify-center gap-3">
-        <RiHashtag width={40} height={40} fill={theme.colors.textSecondary} />
-        <Text className="text-base font-medium text-muted-foreground">No topics yet</Text>
-      </View>
+      <EmptyState
+        title="No topics yet"
+        customIcon={<RiHashtag width={40} height={40} fill={theme.colors.textSecondary} />}
+      />
     );
   }
 
@@ -411,100 +405,81 @@ const TopicsTab = React.memo(function TopicsTab({ keywords }: { keywords: string
   );
 });
 
-// Write-review modal
-const WriteReviewModal = React.memo(function WriteReviewModal({
-  visible,
-  onClose,
+// Write-review sheet. Presented / dismissed through `sheetRef`; the draft
+// resets whenever the sheet finishes closing (cancel, pan-down or a submit).
+const WriteReviewSheet = React.memo(function WriteReviewSheet({
+  sheetRef,
   onSubmit,
   submitting,
 }: {
-  visible: boolean;
-  onClose: () => void;
+  sheetRef: React.RefObject<BottomSheetRef | null>;
   onSubmit: (rating: number, text: string) => void;
   submitting: boolean;
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
-  const [rating, setRating] = useState(0);
+  const [rating, setRating] = useState<number | null>(null);
   const [text, setText] = useState('');
 
   const handleSubmit = useCallback(() => {
-    if (rating === 0) return;
+    if (rating === null) return;
     onSubmit(rating, text);
   }, [rating, text, onSubmit]);
 
-  const handleClose = useCallback(() => {
-    setRating(0);
+  const handleDismissed = useCallback(() => {
+    setRating(null);
     setText('');
-    onClose();
-  }, [onClose]);
+  }, []);
 
-  const canSubmit = rating > 0 && !submitting;
+  const handleCancel = useCallback(() => {
+    sheetRef.current?.dismiss();
+  }, [sheetRef]);
+
+  const canSubmit = rating !== null && !submitting;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <KeyboardAvoidingView
-        className="flex-1 justify-end"
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <TouchableOpacity
-          style={reviewStyles.modalBackdrop}
-          activeOpacity={1}
-          onPress={handleClose}
-        />
-        <View style={reviewStyles.modalSheet} className="bg-card">
-          <View className="w-9 h-1 rounded-sm self-center mb-1 bg-border" />
-          <Text className="text-lg font-bold text-center text-foreground">Write a Review</Text>
+    <BottomSheet ref={sheetRef} onDismiss={handleDismissed} enablePanDownToClose>
+      <View className="gap-4 px-5 pb-8 pt-2">
+        <Text className="text-lg font-bold text-center text-foreground">Write a Review</Text>
 
-          <View className="items-center py-1">
-            <StarRating
-              rating={rating}
-              size={32}
-              interactive
-              onRate={setRating}
-              color={theme.colors.primary}
-            />
-          </View>
-
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder={t('feeds.detail.reviewPlaceholder')}
-            placeholderTextColor={theme.colors.textSecondary}
-            style={reviewStyles.modalTextInput}
-            className="text-foreground border border-border bg-muted"
-            multiline
-            maxLength={500}
-            textAlignVertical="top"
-          />
-
-          <View className="flex-row gap-2.5">
-            <TouchableOpacity
-              className="flex-1 h-11 rounded-xl border border-border items-center justify-center"
-              onPress={handleClose}
-              activeOpacity={0.7}
-            >
-              <Text className="text-[15px] font-semibold text-foreground">Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                reviewStyles.modalSubmitBtn,
-                { backgroundColor: canSubmit ? theme.colors.primary : theme.colors.border },
-              ]}
-              onPress={handleSubmit}
-              disabled={!canSubmit}
-              activeOpacity={0.7}
-            >
-              {submitting ? (
-                <SpinnerIcon size={16} className="text-tertiary-foreground" />
-              ) : (
-                <Text className="text-[15px] font-bold text-white">Submit</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+        <View className="items-center py-1">
+          <RatingInput value={rating} onChange={setRating} accessibilityLabel="Rating" />
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
+
+        <Textarea
+          value={text}
+          onValueChange={setText}
+          placeholder={t('feeds.detail.reviewPlaceholder')}
+          maxLength={500}
+          rows={4}
+        />
+
+        <View className="flex-row gap-2.5">
+          <TouchableOpacity
+            className="flex-1 h-11 rounded-xl border border-border items-center justify-center"
+            onPress={handleCancel}
+            activeOpacity={0.7}
+          >
+            <Text className="text-[15px] font-semibold text-foreground">Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              reviewStyles.submitBtn,
+              { backgroundColor: canSubmit ? theme.colors.primary : theme.colors.border },
+            ]}
+            onPress={handleSubmit}
+            disabled={!canSubmit}
+            activeOpacity={0.7}
+          >
+            {submitting ? (
+              <SpinnerIcon size={16} className="text-tertiary-foreground" />
+            ) : (
+              <Text className="text-[15px] font-bold text-white">Submit</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    </BottomSheet>
   );
 });
 
@@ -512,7 +487,7 @@ const WriteReviewModal = React.memo(function WriteReviewModal({
 const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }) {
   const theme = useTheme();
   const queryClient = useQueryClient();
-  const [modalVisible, setModalVisible] = useState(false);
+  const reviewSheetRef = useRef<BottomSheetRef>(null);
 
   const reviewsQueryKey = useMemo(
     () => publicQueryKeys.customFeedReviews(feedId),
@@ -540,7 +515,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
         reviewText: input.reviewText.trim() || undefined,
       }),
     onSuccess: () => {
-      setModalVisible(false);
+      reviewSheetRef.current?.dismiss();
       toast('Review submitted', { type: 'success' });
       void queryClient.invalidateQueries({ queryKey: reviewsQueryKey });
     },
@@ -577,7 +552,7 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
     <View className="p-4 gap-1">
       <TouchableOpacity
         className="flex-row items-center justify-center gap-2 py-3 rounded-xl border border-border mb-2"
-        onPress={() => setModalVisible(true)}
+        onPress={() => reviewSheetRef.current?.present()}
         activeOpacity={0.7}
       >
         <RiEditBoxLine width={18} height={18} fill={theme.colors.text} />
@@ -585,13 +560,11 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
       </TouchableOpacity>
 
       {reviews.length === 0 ? (
-        <View className="p-10 items-center justify-center gap-3">
-          <RiStarLine width={40} height={40} fill={theme.colors.textSecondary} />
-          <Text className="text-base font-medium text-muted-foreground">No reviews yet</Text>
-          <Text className="text-sm text-center text-muted-foreground">
-            Be the first to leave a review
-          </Text>
-        </View>
+        <EmptyState
+          title="No reviews yet"
+          subtitle="Be the first to leave a review"
+          customIcon={<RiStarLine width={40} height={40} fill={theme.colors.textSecondary} />}
+        />
       ) : (
         reviews.map((review) => {
           const reviewId = review.id || String(review._id);
@@ -622,7 +595,12 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
                     {reviewerName}
                   </Text>
                   <View className="flex-row items-center gap-2">
-                    <StarRating rating={review.rating || 0} size={13} color={theme.colors.primary} />
+                    <Rating
+                      variant="stars"
+                      size="small"
+                      value={review.rating || 0}
+                      starColor={theme.colors.primary}
+                    />
                     {date ? (
                       <Text className="text-xs text-muted-foreground">
                         {date}
@@ -658,9 +636,8 @@ const ReviewsTab = React.memo(function ReviewsTab({ feedId }: { feedId: string }
         </TouchableOpacity>
       )}
 
-      <WriteReviewModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
+      <WriteReviewSheet
+        sheetRef={reviewSheetRef}
         onSubmit={handleSubmitReview}
         submitting={isSubmitting}
       />
@@ -915,13 +892,6 @@ const headerStyles = StyleSheet.create({
   },
 });
 
-const infoStyles = StyleSheet.create({
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    width: '100%',
-  },
-});
-
 const styles = StyleSheet.create({
   profilesList: {
     padding: 16,
@@ -945,31 +915,7 @@ const reviewStyles = StyleSheet.create({
     gap: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  modalBackdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  modalSheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    gap: 16,
-    ...Platform.select({
-      ios: { paddingBottom: 36 },
-      default: { paddingBottom: 24 },
-    }),
-  },
-  modalTextInput: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    minHeight: 100,
-    fontSize: 15,
-    ...Platform.select({
-      web: { outlineWidth: 0 },
-    }),
-  },
-  modalSubmitBtn: {
+  submitBtn: {
     flex: 1,
     height: 44,
     borderRadius: 12,

@@ -5,11 +5,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  TextInput,
-  TextStyle,
   ScrollView,
   Platform,
-  StyleProp,
 } from 'react-native';
 import {
   useInfiniteQuery,
@@ -22,7 +19,6 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
@@ -32,14 +28,15 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTranslation } from 'react-i18next';
 import { formatCompactNumber } from '@/utils/formatNumber';
-import StarRating from '@/components/StarRating';
+import { Rating } from '@oxy.so/bloom/rating';
+import { Search } from '@oxy.so/bloom/search';
+import { EmptyState } from '@/components/common/EmptyState';
 import { cn } from '@/lib/utils';
 import { FeedCard, FeedCardSkeleton, type FeedCardData } from '@/components/FeedCard';
 import { FeedSubscribeButton } from '@/components/FeedSubscribeButton';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 import type { CustomFeedListResponse } from '@mention/shared-types';
 import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 const PAGE_LIMIT = 20;
 
@@ -115,13 +112,14 @@ const MarketplaceFeedCard = React.memo(function MarketplaceFeedCard({
       {(averageRating > 0 || subscriberCount > 0) && (
         <View className="flex-row items-center gap-3 px-4 pb-2 -mt-1">
           {averageRating > 0 && (
-            <View className="flex-row items-center gap-1">
-              <StarRating rating={averageRating} color={theme.colors.primary} />
-              <Text className="text-[13px] text-muted-foreground">
-                {averageRating.toFixed(1)}
-                {reviewCount > 0 ? ` (${formatCompactNumber(reviewCount)})` : ''}
-              </Text>
-            </View>
+            <Rating
+              variant="stars"
+              size="small"
+              value={averageRating.toFixed(1)}
+              fillValue={averageRating}
+              count={reviewCount > 0 ? formatCompactNumber(reviewCount) : undefined}
+              starColor={theme.colors.primary}
+            />
           )}
           {subscriberCount > 0 && (
             <View className="flex-row items-center gap-[3px]">
@@ -318,23 +316,14 @@ export default function FeedMarketplaceScreen() {
     () => (
       <View>
         {searchVisible && (
-          <View className="flex-row items-center gap-2 mx-4 mt-2 mb-1 border border-border rounded-xl px-3 py-[9px] bg-muted">
-            <RiSearchLine size="sm" fill={theme.colors.textSecondary} />
-            <TextInput
+          <View className="mx-4 mt-2 mb-1">
+            <Search
+              label={t('marketplace.searchPlaceholder', { defaultValue: 'Search feeds...' })}
               value={search}
-              onChangeText={handleSearchChange}
-              placeholder={t('marketplace.searchPlaceholder', { defaultValue: 'Search feeds...' })}
-              placeholderTextColor={theme.colors.textSecondary}
-              style={searchInputStyle}
-              className="flex-1 text-[15px] text-foreground"
+              onValueChange={handleSearchChange}
+              onClearText={() => handleSearchChange('')}
               autoFocus
-              returnKeyType="search"
             />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => handleSearchChange('')} hitSlop={HIT_SLOP_MD}>
-                <RiCloseCircleLine size="sm" fill={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            )}
           </View>
         )}
 
@@ -408,17 +397,15 @@ export default function FeedMarketplaceScreen() {
   const ListEmpty = useMemo(() => {
     if (loading) return null;
     return (
-      <View className="pt-[60px] px-10 items-center gap-3">
-        <RiSearchLine width={52} height={52} fill={theme.colors.textSecondary} />
-        <Text className="text-lg font-bold text-center text-foreground">
-          {t('marketplace.emptyTitle', { defaultValue: 'No feeds found' })}
-        </Text>
-        <Text className="text-sm leading-5 text-center text-muted-foreground">
-          {debouncedSearch
+      <EmptyState
+        title={t('marketplace.emptyTitle', { defaultValue: 'No feeds found' })}
+        subtitle={
+          debouncedSearch
             ? t('marketplace.emptySearchSubtitle', { defaultValue: 'Try a different search term or category' })
-            : t('marketplace.emptySubtitle', { defaultValue: 'Be the first to create a feed in this category' })}
-        </Text>
-      </View>
+            : t('marketplace.emptySubtitle', { defaultValue: 'Be the first to create a feed in this category' })
+        }
+        customIcon={<RiSearchLine width={52} height={52} fill={theme.colors.textSecondary} />}
+      />
     );
   }, [loading, debouncedSearch, theme, t]);
 
@@ -541,9 +528,4 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 4,
     borderTopRightRadius: 4,
   },
-});
-
-const searchInputStyle: StyleProp<TextStyle> = Platform.select({
-  web: { outlineWidth: 0 },
-  default: {},
 });

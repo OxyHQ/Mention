@@ -1,11 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, StyleSheet } from 'react-native';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
-import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
@@ -25,8 +24,15 @@ import type {
   ModuleParamProperty,
 } from '@mention/shared-types';
 
-import { Toggle } from '@/components/Toggle';
-import { Slider } from '@/components/Slider';
+import { Slider } from '@oxy.so/bloom/slider';
+import { Switch } from '@oxy.so/bloom/switch';
+import { Field } from '@oxy.so/bloom/field';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { Textarea } from '@oxy.so/bloom/textarea';
+import { TagField, commitTag } from '@oxy.so/bloom/tag-field';
+import { Search } from '@oxy.so/bloom/search';
+import { Divider } from '@oxy.so/bloom/divider';
+import { useHaptics } from '@oxy.so/bloom/hooks';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -35,12 +41,65 @@ import { useFeedModules } from '@/hooks/useFeedModules';
 import Feed from '@/components/Feed/Feed';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { HIT_SLOP_MD, HIT_SLOP_SM } from '@/styles/hitSlop';
+import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
 type ModuleState = { enabled: boolean; params: Record<string, unknown> };
 type ModuleStates = Record<string, ModuleState>;
+/** The three module lists a definition carries. */
+type ModuleKind = 'sources' | 'filters' | 'signals';
+
+/**
+ * Text typed into a tag field but not yet committed as a chip, keyed by
+ * {@link chipDraftKey}. Held by the builder (not the field) so Save can fold it
+ * into the list instead of silently dropping it.
+ */
+type ChipDrafts = Record<string, string>;
+
+function chipDraftKey(kind: ModuleKind, moduleId: string, param: string): string {
+  return `${kind}\u0000${moduleId}\u0000${param}`;
+}
+
+interface ChipDraftStore {
+  drafts: ChipDrafts;
+  setDraft: (key: string, text: string) => void;
+}
+
+const ChipDraftContext = createContext<ChipDraftStore | null>(null);
+
+/**
+ * Fold every pending tag-field draft of `kind` into its module's string-array
+ * param, with the same rule the field applies on Enter (`commitTag`: trimmed,
+ * case-insensitive dedupe, `max` respected). Returns `states` itself when there
+ * was nothing to merge.
+ */
+function mergeChipDrafts(
+  kind: ModuleKind,
+  entries: ModuleCatalogEntry[],
+  states: ModuleStates,
+  drafts: ChipDrafts,
+): ModuleStates {
+  let next = states;
+  for (const entry of entries) {
+    const paramKeys = new Set([...entry.params.map((param) => param.key), ...Object.keys(entry.paramsSchema.properties)]);
+    for (const param of paramKeys) {
+      const draft = drafts[chipDraftKey(kind, entry.id, param)];
+      if (!draft) continue;
+      const current = next[entry.id]?.params?.[param];
+      const list = Array.isArray(current) ? current.filter((x): x is string => typeof x === 'string') : [];
+      const max = entry.params.find((descriptor) => descriptor.key === param)?.maxItems;
+      const { next: merged } = commitTag(list, draft, { max });
+      if (!merged) continue;
+      const prev = next[entry.id];
+      next = {
+        ...next,
+        [entry.id]: { enabled: prev?.enabled ?? true, params: { ...(prev?.params ?? {}), [param]: [...merged] } },
+      };
+    }
+  }
+  return next;
+}
 
 /** Turn a camelCase / snake_case module or param id into a readable fallback label. */
 function humanize(id: string): string {
@@ -86,57 +145,73 @@ function cleanParams(params: Record<string, unknown>): Record<string, unknown> {
 /** Rows the builder's live preview shows (it is embedded, so every row is mounted). */
 const FEED_PREVIEW_ROWS = 10;
 
+/**
+ * A switch that ticks a light haptic on change, as the builder's toggles always
+ * have. A hook, not a wrapper component: the control rendered is Bloom's Switch.
+ */
+function useHapticChange(onChange: (value: boolean) => void): (value: boolean) => void {
+  const haptic = useHaptics();
+  return useCallback(
+    (value: boolean) => {
+      haptic('light');
+      onChange(value);
+    },
+    [haptic, onChange],
+  );
+}
+
 // A comma / enter driven string-array editor (keywords, hashtags, domains, …).
 const ChipInput = ({
   label,
   values,
   onChange,
+  max,
+  draftKey,
 }: {
   label: string;
   values: string[];
   onChange: (next: string[]) => void;
+  max?: number;
+  /** Where the uncommitted text lives in the builder's draft store. */
+  draftKey: string;
 }) => {
-  const theme = useTheme();
   const { t } = useTranslation();
-  const [draft, setDraft] = useState('');
-
-  const commit = useCallback(() => {
-    const tokens = draft.split(',').map((s) => s.trim()).filter(Boolean);
-    if (tokens.length === 0) return;
-    onChange(Array.from(new Set([...values, ...tokens])));
-    setDraft('');
-  }, [draft, values, onChange]);
-
+  const store = useContext(ChipDraftContext);
+  // Outside a builder (no store) the field keeps its own text.
+  const setDraft = store?.setDraft;
+  const handleInputChange = useCallback(
+    (text: string) => setDraft?.(draftKey, text),
+    [setDraft, draftKey],
+  );
   return (
-    <View className="gap-1.5">
-      <Text className="text-[13px] font-semibold text-foreground">{label}</Text>
-      {values.length > 0 ? (
-        <View className="flex-row flex-wrap gap-1.5">
-          {values.map((v) => (
-            <View key={v} className="flex-row items-center gap-1 rounded-full px-3 py-1 bg-background">
-              <Text className="text-[13px] text-foreground">{v}</Text>
-              <TouchableOpacity
-                onPress={() => onChange(values.filter((x) => x !== v))}
-                hitSlop={HIT_SLOP_SM}
-              >
-                <RiCloseLine width={13} height={13} fill={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
-      ) : null}
-      <TextInput
-        value={draft}
-        onChangeText={setDraft}
-        onSubmitEditing={commit}
-        onBlur={commit}
+    <Field label={label}>
+      <TagField
+        value={values}
+        onChange={(next) => onChange([...next])}
         placeholder={t('feeds.builder.chipPlaceholder')}
-        placeholderTextColor={theme.colors.textSecondary}
-        style={styles.input}
-        className="text-[15px] text-foreground bg-card border border-border rounded-xl px-3"
-        blurOnSubmit={false}
-        returnKeyType="done"
+        max={max}
+        inputValue={store ? (store.drafts[draftKey] ?? '') : undefined}
+        onInputValueChange={store ? handleInputChange : undefined}
       />
+    </Field>
+  );
+};
+
+/** A label on the left, a Bloom switch on the right — one boolean param. */
+const BooleanParamRow = ({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) => {
+  const handleChange = useHapticChange(onChange);
+  return (
+    <View className="flex-row items-center justify-between">
+      <Text className="text-[13px] font-semibold text-foreground">{label}</Text>
+      <Switch value={value} onValueChange={handleChange} accessibilityLabel={label} />
     </View>
   );
 };
@@ -204,13 +279,11 @@ const AccountPicker = ({
         </View>
       ))}
 
-      <TextInput
+      <Search
+        label={t('feeds.builder.searchAccounts')}
         value={search}
-        onChangeText={doSearch}
-        placeholder={t('feeds.builder.searchAccounts')}
-        placeholderTextColor={theme.colors.textSecondary}
-        style={styles.input}
-        className="text-[15px] text-foreground bg-card border border-border rounded-xl px-3"
+        onValueChange={doSearch}
+        onClearText={() => doSearch('')}
       />
 
       {results.map((u) => (
@@ -251,10 +324,12 @@ const ParamControl = ({
   descriptor,
   value,
   onChange,
+  draftKey,
 }: {
   descriptor: ModuleParamDescriptor;
   value: unknown;
   onChange: (value: unknown) => void;
+  draftKey: string;
 }) => {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -262,12 +337,7 @@ const ParamControl = ({
 
   switch (descriptor.control) {
     case 'boolean':
-      return (
-        <View className="flex-row items-center justify-between">
-          <Text className="text-[13px] font-semibold text-foreground">{label}</Text>
-          <Toggle value={value === true} onValueChange={(b) => onChange(b)} />
-        </View>
-      );
+      return <BooleanParamRow label={label} value={value === true} onChange={(b) => onChange(b)} />;
 
     case 'number-range': {
       const min = descriptor.min ?? 0;
@@ -280,8 +350,8 @@ const ParamControl = ({
         <Slider
           value={current}
           onValueChange={(v) => onChange(fractional ? v : Math.round(v))}
-          minimumValue={min}
-          maximumValue={max}
+          min={min}
+          max={max}
           step={step}
           label={label}
           formatValue={(v) => (fractional ? v.toFixed(2) : String(Math.round(v)))}
@@ -361,6 +431,8 @@ const ParamControl = ({
         <ChipInput
           label={label}
           values={arr}
+          max={cap}
+          draftKey={draftKey}
           onChange={(next) => onChange(cap !== undefined ? next.slice(0, cap) : next)}
         />
       );
@@ -382,73 +454,67 @@ const SchemaParamField = ({
   prop,
   value,
   onChange,
+  draftKey,
 }: {
   moduleId: string;
   name: string;
   prop: ModuleParamProperty;
   value: unknown;
   onChange: (value: unknown) => void;
+  draftKey: string;
 }) => {
   const { t } = useTranslation();
-  const theme = useTheme();
   const label = t(`feeds.modules.${moduleId}.params.${name}`, { defaultValue: humanize(name) });
 
   if (prop.type === 'array') {
     const arr = Array.isArray(value) ? value.filter((x): x is string => typeof x === 'string') : [];
-    return <ChipInput label={label} values={arr} onChange={(next) => onChange(next)} />;
+    return <ChipInput label={label} values={arr} draftKey={draftKey} onChange={(next) => onChange(next)} />;
   }
 
   if (prop.type === 'boolean') {
-    return (
-      <View className="flex-row items-center justify-between">
-        <Text className="text-[13px] font-semibold text-foreground">{label}</Text>
-        <Toggle value={value === true} onValueChange={(b) => onChange(b)} />
-      </View>
-    );
+    return <BooleanParamRow label={label} value={value === true} onChange={(b) => onChange(b)} />;
   }
 
   if (prop.type === 'number') {
     return (
-      <View className="gap-1.5">
-        <Text className="text-[13px] font-semibold text-foreground">{label}</Text>
-        <TextInput
+      <Field label={label}>
+        <TextFieldInput
+          label={label}
+          placeholder={null}
           keyboardType="numeric"
           value={value == null ? '' : String(value)}
-          onChangeText={(txt) => {
+          onValueChange={(txt) => {
             if (txt.trim() === '') return onChange(undefined);
             const n = Number(txt);
             onChange(Number.isNaN(n) ? undefined : n);
           }}
-          placeholderTextColor={theme.colors.textSecondary}
-          style={styles.input}
-          className="text-[15px] text-foreground bg-card border border-border rounded-xl px-3"
         />
-      </View>
+      </Field>
     );
   }
 
   return (
-    <View className="gap-1.5">
-      <Text className="text-[13px] font-semibold text-foreground">{label}</Text>
-      <TextInput
+    <Field label={label}>
+      <TextFieldInput
+        label={label}
+        placeholder={null}
         value={typeof value === 'string' ? value : ''}
-        onChangeText={(txt) => onChange(txt)}
-        placeholderTextColor={theme.colors.textSecondary}
-        style={styles.input}
-        className="text-[15px] text-foreground bg-card border border-border rounded-xl px-3"
+        onValueChange={(txt) => onChange(txt)}
       />
-    </View>
+    </Field>
   );
 };
 
 // One module: an enable toggle + (when enabled) its param editors.
 const ModuleCard = ({
+  kind,
   entry,
   state,
   onToggle,
   onParam,
   accountsSlot,
 }: {
+  kind: ModuleKind;
   entry: ModuleCatalogEntry;
   state: ModuleState | undefined;
   onToggle: (enabled: boolean) => void;
@@ -460,6 +526,7 @@ const ModuleCard = ({
   const label = t(entry.labelKey, { defaultValue: entry.label || humanize(entry.id) });
   const description = t(entry.descriptionKey, { defaultValue: entry.description || '' });
   const isAccounts = entry.id === 'accounts';
+  const handleToggle = useHapticChange(onToggle);
 
   // Curated descriptor params render as rich controls; any schema param without a
   // descriptor falls back to a type-driven editor. The union of both keeps the
@@ -478,11 +545,11 @@ const ModuleCard = ({
             <Text className="text-[13px] leading-[18px] text-muted-foreground">{description}</Text>
           ) : null}
         </View>
-        <Toggle value={enabled} onValueChange={onToggle} />
+        <Switch value={enabled} onValueChange={handleToggle} accessibilityLabel={label} />
       </View>
       {hasBody ? (
         <View className="mt-3 gap-3">
-          <View style={styles.divider} className="bg-border" />
+          <Divider spacing={12} />
           {isAccounts ? (
             accountsSlot
           ) : (
@@ -493,6 +560,7 @@ const ModuleCard = ({
                   descriptor={param}
                   value={state?.params?.[param.key]}
                   onChange={(v) => onParam(param.key, v)}
+                  draftKey={chipDraftKey(kind, entry.id, param.key)}
                 />
               ))}
               {schemaOnlyKeys.map((key) => (
@@ -503,6 +571,7 @@ const ModuleCard = ({
                   prop={entry.paramsSchema.properties[key]}
                   value={state?.params?.[key]}
                   onChange={(v) => onParam(key, v)}
+                  draftKey={chipDraftKey(kind, entry.id, key)}
                 />
               ))}
             </>
@@ -552,12 +621,14 @@ function groupEntriesByCategory(entries: ModuleCatalogEntry[]): ModuleCategoryGr
  * like sources/signals stay flat). Fully data-driven off the catalog.
  */
 const CategorizedModules = ({
+  kind,
   entries,
   states,
   onToggle,
   onParam,
   renderAccountsSlot,
 }: {
+  kind: ModuleKind;
   entries: ModuleCatalogEntry[];
   states: ModuleStates;
   onToggle: (id: string, enabled: boolean) => void;
@@ -580,6 +651,7 @@ const CategorizedModules = ({
           {group.entries.map((entry) => (
             <ModuleCard
               key={entry.id}
+              kind={kind}
               entry={entry}
               state={states[entry.id]}
               onToggle={(e) => onToggle(entry.id, e)}
@@ -601,7 +673,6 @@ const CategorizedModules = ({
  */
 export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialFeed?: CustomFeed }) {
   const { t } = useTranslation();
-  const theme = useTheme();
   const safeBack = useSafeBack();
   const { oxyServices, user, canUsePrivateApi } = useAuth();
   const queryClient = useQueryClient();
@@ -620,6 +691,22 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
   const [savedFeedId, setSavedFeedId] = useState<string | undefined>(feedId);
   const [previewKey, setPreviewKey] = useState(0);
   const [saving, setSaving] = useState(false);
+  const handlePublicChange = useHapticChange(setIsPublic);
+  const [chipDrafts, setChipDrafts] = useState<ChipDrafts>({});
+
+  const setChipDraft = useCallback((key: string, text: string) => {
+    setChipDrafts((prev) => {
+      if ((prev[key] ?? '') === text) return prev;
+      const next = { ...prev };
+      if (text === '') delete next[key];
+      else next[key] = text;
+      return next;
+    });
+  }, []);
+  const chipDraftStore = useMemo<ChipDraftStore>(
+    () => ({ drafts: chipDrafts, setDraft: setChipDraft }),
+    [chipDrafts, setChipDraft],
+  );
 
   // Resolve the `accounts` source's stored authorIds → display users (edit mode).
   const initialAuthorIds = useMemo(() => {
@@ -657,6 +744,17 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
       return;
     }
 
+    // Text typed into a tag field but never committed (no Enter / comma) is
+    // still what the viewer meant: fold it into its list before saving, and show
+    // it as chips from now on.
+    const nextSourceStates = mergeChipDrafts('sources', catalog.sources, sourceStates, chipDrafts);
+    const nextFilterStates = mergeChipDrafts('filters', catalog.filters, filterStates, chipDrafts);
+    const nextSignalStates = mergeChipDrafts('signals', catalog.signals, signalStates, chipDrafts);
+    if (nextSourceStates !== sourceStates) setSourceStates(nextSourceStates);
+    if (nextFilterStates !== filterStates) setFilterStates(nextFilterStates);
+    if (nextSignalStates !== signalStates) setSignalStates(nextSignalStates);
+    if (Object.keys(chipDrafts).length > 0) setChipDrafts({});
+
     const buildRefs = (entries: ModuleCatalogEntry[], states: ModuleStates): FeedModuleRef[] => {
       const refs: FeedModuleRef[] = [];
       for (const entry of entries) {
@@ -673,9 +771,9 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
 
     const definition: FeedDefinitionInput = {
       mode,
-      sources: buildRefs(catalog.sources, sourceStates),
-      signals: mode === 'ranked' ? buildRefs(catalog.signals, signalStates) : [],
-      filters: buildRefs(catalog.filters, filterStates),
+      sources: buildRefs(catalog.sources, nextSourceStates),
+      signals: mode === 'ranked' ? buildRefs(catalog.signals, nextSignalStates) : [],
+      filters: buildRefs(catalog.filters, nextFilterStates),
     };
 
     if (definition.sources.length === 0) {
@@ -713,7 +811,7 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
     } finally {
       setSaving(false);
     }
-  }, [catalog, title, description, isPublic, mode, sourceStates, filterStates, signalStates, selectedAccounts, savedFeedId, queryClient, t, user?.id]);
+  }, [catalog, title, description, isPublic, mode, sourceStates, filterStates, signalStates, chipDrafts, selectedAccounts, savedFeedId, queryClient, t, user?.id]);
 
   const canSave = title.trim().length > 0 && Boolean(catalog);
 
@@ -743,127 +841,133 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
             <Loading className="text-primary" size="large" />
           </View>
         ) : (
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* Details */}
-            <View className="rounded-2xl p-4 bg-muted">
-              <View className="gap-1">
-                <Text className="text-sm font-semibold text-foreground">{t('feeds.builder.titleLabel')}</Text>
-                <TextInput
-                  value={title}
-                  onChangeText={setTitle}
-                  placeholder={t('feeds.builder.titlePlaceholder')}
-                  placeholderTextColor={theme.colors.textSecondary}
-                  style={styles.fieldInput}
-                  className="text-[15px] text-foreground"
-                  maxLength={100}
-                />
+          <ChipDraftContext.Provider value={chipDraftStore}>
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Details */}
+              <View className="rounded-2xl p-4 bg-muted">
+                <Field label={t('feeds.builder.titleLabel')}>
+                  <TextFieldInput
+                    label={t('feeds.builder.titleLabel')}
+                    value={title}
+                    onValueChange={setTitle}
+                    placeholder={t('feeds.builder.titlePlaceholder')}
+                    maxLength={100}
+                  />
+                </Field>
+                <Divider spacing={12} />
+                <Field label={t('feeds.builder.descriptionLabel')}>
+                  <Textarea
+                    value={description}
+                    onValueChange={setDescription}
+                    placeholder={t('feeds.builder.descriptionPlaceholder')}
+                    maxLength={500}
+                    autoResize
+                    rows={2}
+                    maxRows={6}
+                  />
+                </Field>
               </View>
-              <View style={styles.divider} className="bg-border" />
-              <View className="gap-1">
-                <Text className="text-sm font-semibold text-foreground">{t('feeds.builder.descriptionLabel')}</Text>
-                <TextInput
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder={t('feeds.builder.descriptionPlaceholder')}
-                  placeholderTextColor={theme.colors.textSecondary}
-                  style={styles.fieldInput}
-                  className="text-[15px] text-foreground"
-                  multiline
-                  maxLength={500}
+
+              {/* Visibility */}
+              <SettingsListGroup title={t('feeds.builder.visibility')} footer={t('feeds.builder.publicDescription')}>
+                <SettingsListItem
+                  title={t('feeds.builder.public')}
+                  showChevron={false}
+                  rightElement={
+                    <Switch
+                      value={isPublic}
+                      onValueChange={handlePublicChange}
+                      accessibilityLabel={t('feeds.builder.public')}
+                    />
+                  }
                 />
-              </View>
-            </View>
+              </SettingsListGroup>
 
-            {/* Visibility */}
-            <SettingsListGroup title={t('feeds.builder.visibility')} footer={t('feeds.builder.publicDescription')}>
-              <SettingsListItem
-                title={t('feeds.builder.public')}
-                showChevron={false}
-                rightElement={<Toggle value={isPublic} onValueChange={setIsPublic} />}
-              />
-            </SettingsListGroup>
-
-            {/* Mode */}
-            <SettingsListGroup title={t('feeds.builder.mode')} footer={t('feeds.builder.modeDescription')}>
-              <SettingsListItem
-                title={t('feeds.builder.ranked')}
-                onPress={() => setMode('ranked')}
-                showChevron={false}
-                rightElement={<ModeCheck active={mode === 'ranked'} />}
-              />
-              <SettingsListItem
-                title={t('feeds.builder.chronological')}
-                onPress={() => setMode('chronological')}
-                showChevron={false}
-                rightElement={<ModeCheck active={mode === 'chronological'} />}
-              />
-            </SettingsListGroup>
-
-            {/* Sources */}
-            <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.sources')}</Text>
-            <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.sourcesDescription')}</Text>
-            <CategorizedModules
-              entries={catalog.sources}
-              states={sourceStates}
-              onToggle={toggleSource}
-              onParam={paramSource}
-              renderAccountsSlot={(entry) =>
-                entry.id === 'accounts'
-                  ? <AccountPicker selected={selectedAccounts} onChange={setSelectedAccounts} />
-                  : undefined
-              }
-            />
-
-            {/* Filters */}
-            <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.filters')}</Text>
-            <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.filtersDescription')}</Text>
-            <CategorizedModules
-              entries={catalog.filters}
-              states={filterStates}
-              onToggle={toggleFilter}
-              onParam={paramFilter}
-            />
-
-            {/* Ranking signals (ranked mode only) */}
-            {mode === 'ranked' && catalog.signals.length > 0 ? (
-              <>
-                <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.signals')}</Text>
-                <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.signalsDescription')}</Text>
-                <CategorizedModules
-                  entries={catalog.signals}
-                  states={signalStates}
-                  onToggle={toggleSignal}
-                  onParam={paramSignal}
+              {/* Mode */}
+              <SettingsListGroup title={t('feeds.builder.mode')} footer={t('feeds.builder.modeDescription')}>
+                <SettingsListItem
+                  title={t('feeds.builder.ranked')}
+                  onPress={() => setMode('ranked')}
+                  showChevron={false}
+                  rightElement={<ModeCheck active={mode === 'ranked'} />}
                 />
-              </>
-            ) : null}
-
-            {/* Live preview (available once the feed is saved) */}
-            <Text className="text-[15px] font-bold text-foreground mt-4 mb-2">{t('feeds.builder.preview')}</Text>
-            {savedFeedId ? (
-              <View className="rounded-2xl overflow-hidden border border-border">
-                {/* Non-scrolling inside the builder's ScrollView, so it is not
-                    virtualized: bounded to a preview's worth of rows and never
-                    pages (#1103). The full feed is one tap away once saved. */}
-                <Feed
-                  type="custom"
-                  filters={{ customFeedId: savedFeedId }}
-                  scrollEnabled={false}
-                  previewLimit={FEED_PREVIEW_ROWS}
-                  reloadKey={previewKey}
-                  hideHeader
+                <SettingsListItem
+                  title={t('feeds.builder.chronological')}
+                  onPress={() => setMode('chronological')}
+                  showChevron={false}
+                  rightElement={<ModeCheck active={mode === 'chronological'} />}
                 />
-              </View>
-            ) : (
-              <Text className="text-[13px] text-muted-foreground">{t('feeds.builder.saveToPreview')}</Text>
-            )}
+              </SettingsListGroup>
 
-            <View className="h-10" />
-          </ScrollView>
+              {/* Sources */}
+              <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.sources')}</Text>
+              <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.sourcesDescription')}</Text>
+              <CategorizedModules
+                kind="sources"
+                entries={catalog.sources}
+                states={sourceStates}
+                onToggle={toggleSource}
+                onParam={paramSource}
+                renderAccountsSlot={(entry) =>
+                  entry.id === 'accounts'
+                    ? <AccountPicker selected={selectedAccounts} onChange={setSelectedAccounts} />
+                    : undefined
+                }
+              />
+
+              {/* Filters */}
+              <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.filters')}</Text>
+              <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.filtersDescription')}</Text>
+              <CategorizedModules
+                kind="filters"
+                entries={catalog.filters}
+                states={filterStates}
+                onToggle={toggleFilter}
+                onParam={paramFilter}
+              />
+
+              {/* Ranking signals (ranked mode only) */}
+              {mode === 'ranked' && catalog.signals.length > 0 ? (
+                <>
+                  <Text className="text-[15px] font-bold text-foreground mt-4 mb-1">{t('feeds.builder.signals')}</Text>
+                  <Text className="text-[13px] text-muted-foreground mb-2">{t('feeds.builder.signalsDescription')}</Text>
+                  <CategorizedModules
+                    kind="signals"
+                    entries={catalog.signals}
+                    states={signalStates}
+                    onToggle={toggleSignal}
+                    onParam={paramSignal}
+                  />
+                </>
+              ) : null}
+
+              {/* Live preview (available once the feed is saved) */}
+              <Text className="text-[15px] font-bold text-foreground mt-4 mb-2">{t('feeds.builder.preview')}</Text>
+              {savedFeedId ? (
+                <View className="rounded-2xl overflow-hidden border border-border">
+                  {/* Non-scrolling inside the builder's ScrollView, so it is not
+                      virtualized: bounded to a preview's worth of rows and never
+                      pages (#1103). The full feed is one tap away once saved. */}
+                  <Feed
+                    type="custom"
+                    filters={{ customFeedId: savedFeedId }}
+                    scrollEnabled={false}
+                    previewLimit={FEED_PREVIEW_ROWS}
+                    reloadKey={previewKey}
+                    hideHeader
+                  />
+                </View>
+              ) : (
+                <Text className="text-[13px] text-muted-foreground">{t('feeds.builder.saveToPreview')}</Text>
+              )}
+
+              <View className="h-10" />
+            </ScrollView>
+          </ChipDraftContext.Provider>
         )}
       </SignInRequired>
     </View>
@@ -880,18 +984,5 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 8,
     paddingBottom: 80,
-  },
-  fieldInput: {
-    paddingVertical: 4,
-    minHeight: 24,
-    ...Platform.select({ web: { outlineWidth: 0 } }),
-  },
-  input: {
-    paddingVertical: 8,
-    ...Platform.select({ web: { outlineWidth: 0 } }),
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    marginVertical: 12,
   },
 });

@@ -1,4 +1,4 @@
-import { Slider } from "@/components/Slider";
+import { Slider } from "@oxy.so/bloom/slider";
 import {
   DEFAULT_FEED_SETTINGS,
   useFeedSettings,
@@ -233,8 +233,8 @@ export default function FeedSettingsScreen() {
                     },
                   })
                 }
-                minimumValue={0.5}
-                maximumValue={1.0}
+                min={0.5}
+                max={1.0}
                 step={0.01}
                 label={t("settings.feed.diversity.sameAuthorPenalty")}
                 formatValue={(v) => v.toFixed(2)}
@@ -262,8 +262,8 @@ export default function FeedSettingsScreen() {
                     },
                   })
                 }
-                minimumValue={0.5}
-                maximumValue={1.0}
+                min={0.5}
+                max={1.0}
                 step={0.01}
                 label={t("settings.feed.diversity.sameTopicPenalty")}
                 formatValue={(v) => v.toFixed(2)}
@@ -298,8 +298,8 @@ export default function FeedSettingsScreen() {
                       },
                     })
                   }
-                  minimumValue={6}
-                  maximumValue={72}
+                  min={6}
+                  max={72}
                   step={1}
                   label={t("settings.feed.recency.halfLifeHours")}
                   formatValue={(v) =>
@@ -329,8 +329,8 @@ export default function FeedSettingsScreen() {
                       },
                     })
                   }
-                  minimumValue={24}
-                  maximumValue={336}
+                  min={24}
+                  max={336}
                   step={24}
                   label={t("settings.feed.recency.maxAgeHours")}
                   formatValue={(v) =>
