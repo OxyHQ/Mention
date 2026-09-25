@@ -160,6 +160,28 @@ export function publishNewLocalPost(item: HydratedPost): void {
     for (const listener of localNewPostListeners) {
         listener(item);
     }
+    localPostRevision += 1;
+    for (const listener of localPostRevisionListeners) {
+        listener();
+    }
+}
+
+// How many posts the viewer has published this session, as a revision a feed
+// can compare against to know it has a new post of theirs at its top to bring
+// into view (`hooks/useRevealOwnNewPost`). Counted for BOTH storage paths —
+// unlike the item listeners above, which only memory-mode feeds need.
+let localPostRevision = 0;
+const localPostRevisionListeners = new Set<() => void>();
+
+export function getLocalPostRevision(): number {
+    return localPostRevision;
+}
+
+export function subscribeToLocalPostRevision(listener: () => void): () => void {
+    localPostRevisionListeners.add(listener);
+    return () => {
+        localPostRevisionListeners.delete(listener);
+    };
 }
 
 // ── Local new-reply broadcast (thread replies feeds) ─────────────────
