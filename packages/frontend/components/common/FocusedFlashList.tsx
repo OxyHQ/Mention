@@ -7,13 +7,11 @@ import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
 /**
  * Built once at module scope: `createAnimatedComponent` returns a new component
  * type per call, and a new type per render would remount the list. It erases
- * FlashList's generic, so the row type is restored at `FocusedFlashList`.
+ * FlashList's generic, so the cast gives it back.
  */
-const AnimatedFlashList = Animated.createAnimatedComponent(
-    FlashList as React.ComponentType<FlashListProps<unknown>>,
-) as React.ComponentType<
-    AnimatedProps<FlashListProps<unknown>> & { ref?: React.Ref<FlashListRef<unknown>> }
->;
+const AnimatedFlashList = Animated.createAnimatedComponent(FlashList) as unknown as <T>(
+    props: AnimatedProps<FlashListProps<T>> & { ref?: React.Ref<FlashListRef<T>> },
+) => React.ReactElement;
 
 /**
  * A native FlashList that IS its screen's page — `FocusedScrollView`'s
@@ -26,7 +24,7 @@ const AnimatedFlashList = Animated.createAnimatedComponent(
  */
 export function FocusedFlashList<T>(props: Omit<FlashListProps<T>, 'onScroll' | 'scrollEventThrottle'>) {
     const { scrollPosition, scrollEventThrottle } = useLayoutScroll();
-    const ref = useFocusedScrollable<FlashListRef<unknown>>({ initialOffset: 0 });
+    const ref = useFocusedScrollable<FlashListRef<T>>({ initialOffset: 0 });
     const onScroll = useAnimatedScrollHandler({
         onScroll: (event) => {
             'worklet';
@@ -34,8 +32,8 @@ export function FocusedFlashList<T>(props: Omit<FlashListProps<T>, 'onScroll' | 
         },
     });
     return (
-        <AnimatedFlashList
-            {...(props as unknown as FlashListProps<unknown>)}
+        <AnimatedFlashList<T>
+            {...props}
             ref={ref}
             onScroll={onScroll}
             scrollEventThrottle={scrollEventThrottle}

@@ -7,7 +7,6 @@ import type {
   SavedPostsListProps,
 } from './SavedPostsList.types';
 
-
 const keyExtractor = (post: SavedPost) => post.id;
 const getItemType = () => 'saved-post';
 

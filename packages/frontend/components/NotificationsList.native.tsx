@@ -62,8 +62,6 @@ export function NotificationsList({
 
     return (
         <View style={{ flex: 1, minHeight: 0 }}>
-            {/* The notifications tab stays mounted behind the others; the list owns
-                the scroll slot only while it is in front. */}
             <FocusedFlashList
                 data={items}
                 keyExtractor={getItemKey}

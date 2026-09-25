@@ -4,7 +4,8 @@ import TestRenderer, { act } from 'react-test-renderer';
 const mockPush = jest.fn();
 const mockReselect = jest.fn();
 let mockPathname = '/explore';
-let mockTabsProps: { value: string; onValueChange: (value: string) => void } | undefined;
+type TabsProps = { value: string; onValueChange: (value: string) => void };
+let mockTabsProps: TabsProps | undefined;
 
 jest.mock('expo-router', () => ({
   router: { push: (href: string) => mockPush(href) },
@@ -14,7 +15,7 @@ jest.mock('expo-router', () => ({
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 jest.mock('@oxy.so/bloom/tabs', () => ({
-  Tabs: (props: { value: string; onValueChange: (value: string) => void }) => { mockTabsProps = props; return null; },
+  Tabs: (props: TabsProps) => { mockTabsProps = props; return null; },
   TabsTrigger: () => null,
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ isDark: false }) }));
