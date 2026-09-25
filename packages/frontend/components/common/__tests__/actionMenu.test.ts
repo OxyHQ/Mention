@@ -68,16 +68,6 @@ describe('action menu wiring', () => {
     expect(files.length).toBeGreaterThan(200);
   });
 
-  // The host owns ONE dialog for the whole app; a second mount would open two
-  // menus over each other, the way a second ToastOutlet doubled every toast.
-  it('mounts the host exactly once', () => {
-    const mounts = files.filter((file) => /<ActionMenuHost\s*\/>/.test(readFileSync(file, 'utf8')));
-
-    expect(mounts.map((f) => f.slice(FRONTEND.length + 1))).toEqual([
-      join('components', 'providers', 'AppProviders.tsx'),
-    ]);
-  });
-
   // The post menu and the profile menu are the same surface. They diverged once
   // (the profile one hand-rolled full-width buttons on a bare sheet) and that is
   // what this pins.
@@ -111,10 +101,13 @@ describe('action menu wiring', () => {
   // Dialog on a wide viewport, bottom sheet on a phone — the placement is the
   // point of moving off the raw bottom sheet, so it is pinned rather than left
   // to a future edit.
-  it('is a responsive Dialog, not a bottom sheet', () => {
+  // Presented on Bloom's one surface stack (no app-local host to mount twice),
+  // as a responsive Dialog: a centered card from md up, a sheet below.
+  it('is a responsive surface, not a bottom sheet', () => {
     const source = readFileSync(join(FRONTEND, 'components', 'common', 'ActionMenu.tsx'), 'utf8');
 
-    expect(source).toMatch(/placement=\{\{\s*base:\s*'bottom',\s*md:\s*'center'\s*\}\}/);
+    expect(source).toMatch(/from '@oxy\.so\/bloom\/surfaces'/);
+    expect(source).toMatch(/placement:\s*\{\s*base:\s*'bottom',\s*md:\s*'center'\s*\}/);
     expect(source).not.toMatch(/BottomSheetContext/);
   });
 });

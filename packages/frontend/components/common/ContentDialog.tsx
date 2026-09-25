@@ -40,7 +40,7 @@ export function hideContentDialog(): void {
 }
 
 /**
- * The content panel surface. Mount once, next to {@link ActionMenuHost}.
+ * The content panel surface. Mount once, at the app root (AppProviders).
  */
 export function ContentDialogHost() {
   const control = useDialogControl();

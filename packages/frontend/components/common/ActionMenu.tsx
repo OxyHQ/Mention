@@ -1,7 +1,7 @@
-import React, { memo, useEffect, useMemo, useState } from 'react';
+import React, { memo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 
-import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
+import { present, type SurfaceControls } from '@oxy.so/bloom/surfaces';
 
 import { buildMenuGroups, type ActionMenuAction } from '@/components/common/actionMenuGroups';
 import { cn } from '@/lib/utils';
@@ -82,70 +82,53 @@ interface ActionMenuRequest {
   groups: ActionMenuAction[][];
 }
 
-let openMenuRequest: ((request: ActionMenuRequest) => void) | null = null;
-let closeMenu: (() => void) | null = null;
+/** The menu currently on screen, so `hideActionMenu()` can dismiss it. */
+let activeMenu: SurfaceControls | null = null;
 
 /**
- * Open the app's action menu. Imperative on purpose: the menu is a SINGLE
- * surface mounted once at the root (see `ActionMenuHost`), so a feed of a
- * thousand posts mounts one dialog, not one per row — the reason the post menu
- * used to push its rows into a shared bottom sheet instead of rendering its own.
+ * Open the app's action menu. Imperative on purpose: the menu is presented on
+ * Bloom's one surface stack (the `<SurfaceProvider>` OxyProvider mounts), so a feed
+ * of a thousand posts mounts no menu at all until one is pressed — the reason
+ * the post menu used to push its rows into a shared bottom sheet instead of
+ * rendering its own.
+ *
+ * The surface is a centered card from `md` up and a bottom sheet below it. One
+ * surface for the post menu and the profile menu, so they cannot drift apart
+ * again.
  *
  * A row's `onPress` runs AFTER the menu closes, so an action is free to open
  * another surface.
  */
 export function showActionMenu(request: ActionMenuRequest): void {
-  openMenuRequest?.(request);
+  activeMenu?.dismiss();
+  let own: SurfaceControls | null = null;
+  void present(
+    (surface) => {
+      own = surface;
+      activeMenu = surface;
+      const groups = buildMenuGroups(request.groups, surface.dismiss);
+      return (
+        <View className="p-4 gap-2">
+          {groups.map((actions) => (
+            <ActionMenuGroup key={actions[0].label} actions={actions} />
+          ))}
+        </View>
+      );
+    },
+    {
+      label: request.label,
+      placement: { base: 'bottom', md: 'center' },
+      // The cards own their gutter; the Dialog's default 20px inset would
+      // double it.
+      contentPadding: 0,
+    },
+  ).then(() => {
+    if (activeMenu === own) activeMenu = null;
+  });
 }
 
 /** Close the action menu without running an action. */
 export function hideActionMenu(): void {
-  closeMenu?.();
-}
-
-/**
- * The action menu as a Bloom `Dialog`: a centered card from `md` up and a bottom
- * sheet below it. One surface for the post menu and the profile menu, so they
- * cannot drift apart again — and on desktop neither of them slides up from the
- * bottom of a 1400px-wide window any more.
- *
- * Mount once, next to the other root-level dialog hosts.
- */
-export function ActionMenuHost() {
-  const control = useDialogControl();
-  const [request, setRequest] = useState<ActionMenuRequest | null>(null);
-
-  useEffect(() => {
-    openMenuRequest = (next) => {
-      setRequest(next);
-      control.open();
-    };
-    closeMenu = () => control.close();
-    return () => {
-      openMenuRequest = null;
-      closeMenu = null;
-    };
-  }, [control]);
-
-  const groups = useMemo(
-    () => buildMenuGroups(request?.groups ?? [], control.close),
-    [request, control],
-  );
-
-  return (
-    <Dialog
-      control={control}
-      label={request?.label ?? ''}
-      placement={{ base: 'bottom', md: 'center' }}
-      // The cards own their gutter; the Dialog's default 20px inset would
-      // double it.
-      contentPadding={0}
-    >
-      <View className="p-4 gap-2">
-        {groups.map((actions) => (
-          <ActionMenuGroup key={actions[0].label} actions={actions} />
-        ))}
-      </View>
-    </Dialog>
-  );
+  activeMenu?.dismiss();
+  activeMenu = null;
 }

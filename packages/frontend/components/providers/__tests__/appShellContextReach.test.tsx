@@ -52,10 +52,6 @@ jest.mock('react-native-keyboard-controller', () => ({
   KeyboardProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-jest.mock('react-native-popup-menu', () => ({
-  MenuProvider: ({ children }: { children: React.ReactNode }) => children,
-}));
-
 jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 
 // The boot visual AppProviders hands to AccountSwitchReset as its `fallback`.
@@ -115,8 +111,6 @@ jest.mock('@/context/LiveRoomContext', () => ({
   LiveRoomControllerProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-jest.mock('@/components/common/ConfirmPrompt', () => ({ ConfirmPromptProvider: () => null }));
-jest.mock('@/components/common/ActionMenu', () => ({ ActionMenuHost: () => null }));
 // The binder resolves the session SDK and the menu's services; the controller it
 // binds INTO is the real one, and that is what the reach case below pins.
 jest.mock('@/components/Feed/PostInteractionsBinder', () => ({ PostInteractionsBinder: () => null }));

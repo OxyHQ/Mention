@@ -94,7 +94,6 @@ jest.mock('@oxy.so/services/ui/client', () => ({
 jest.mock('@oxy.so/bloom/page-header', () => ({ PageHeader: () => null }));
 jest.mock('@oxy.so/bloom/admonition', () => ({ Admonition: () => null }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: () => null }));
-jest.mock('@/components/common/ConfirmBottomSheet', () => ({ ConfirmBottomSheet: () => null }));
 jest.mock('@/context/MentionSettingsContext', () => ({ useSettingsBack: () => jest.fn() }));
 
 jest.mock('@oxy.so/core/logger', () => ({
