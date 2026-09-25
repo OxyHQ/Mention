@@ -975,6 +975,7 @@
   "lists.create.remove": "Entfernen",
   "lists.create.saving": "Wird gespeichert …",
   "lists.create.createButton": "Liste erstellen",
+  "lists.create.failed": "Die Liste konnte nicht erstellt werden",
   "lists.memberSingular": "Mitglied",
   "lists.memberPlural": "Mitglieder",
   "lists.addTo.menuItem": "Zu Listen hinzufügen/entfernen",
@@ -1323,6 +1324,8 @@
   "agora.musicStream.removeFromQueue": "Aus der Warteschlange entfernen",
   "agora.musicStream.playQueue": "Titel abspielen",
   "agora.musicStream.clearQueue": "Leeren",
+  "agora.signInRequired": "Melde dich an, um Live-Räumen beizutreten",
+  "agora.signInRequiredDesc": "Live-Audiogespräche und die Räume, die du veranstaltest, erscheinen hier, sobald du angemeldet bist.",
   "screens.saved.title": "Gespeicherte Beiträge",
   "screens.trending.title": "Trends",
   "screens.post.title": "Beitrag",
@@ -1352,6 +1355,9 @@
   "starterPacks.addTo.newPack": "Neues Starter-Pack",
   "starterPacks.addTo.loadError": "Deine Starter-Packs konnten nicht geladen werden",
   "starterPacks.addTo.toggleFailed": "Da ist etwas schiefgelaufen",
+  "starterPacks.createFailed": "Das Starterpaket konnte nicht erstellt werden",
+  "starterPacks.signInRequired": "Melde dich an, um Starterpakete zu nutzen",
+  "starterPacks.signInRequiredDesc": "Ein Starterpaket ist eine Auswahl von Konten, denen man zusammen folgen sollte.",
   "moderation.show": "Anzeigen",
   "moderation.warn": "Warnen",
   "moderation.blur": "Weichzeichnen",
@@ -1843,6 +1849,8 @@
   "fediverse.settings.signInRequiredDesc": "Lege fest, ob dein Profil und deine Beiträge im Fediverse geteilt werden.",
   "feed.loadingPosts": "Beiträge werden geladen …",
   "feeds.builder.notAllowed": "Du kannst diesen Feed nicht bearbeiten.",
+  "feeds.builder.signInRequired": "Melde dich an, um einen Feed zu erstellen",
+  "feeds.builder.signInRequiredDesc": "Eigene Feeds werden in deinem Konto gespeichert, damit du sie anheften und teilen kannst.",
   "feeds.untitled": "Feed",
   "labelers.by": "von",
   "labelers.detailTitle": "Labeler",
@@ -1869,6 +1877,8 @@
   "lists.emptyMembersSubtext": "Füge Personen hinzu, um diese Liste zu kuratieren",
   "lists.emptyPosts": "Noch keine Beiträge",
   "lists.emptyPostsSubtext": "Füge Personen zu dieser Liste hinzu, um ihre Beiträge hier zu sehen",
+  "lists.signInRequired": "Melde dich an, um Listen zu nutzen",
+  "lists.signInRequiredDesc": "Listen bündeln die Konten, die du zusammen lesen möchtest. Die Listen, die du erstellst oder denen du folgst, erscheinen hier.",
   "marketplace.emptySearchSubtitle": "Versuche einen anderen Suchbegriff oder eine andere Kategorie",
   "marketplace.emptySubtitle": "Sei die erste Person, die einen Feed in dieser Kategorie erstellt",
   "marketplace.emptyTitle": "Keine Feeds gefunden",
@@ -2335,7 +2345,9 @@
       "internalNotes": "Internal notes (never shown to the applicant)",
       "noNotes": "No notes yet",
       "addNote": "Add a note"
-    }
+    },
+    "signInRequired": "Melde dich an, um Stellenangebote zu veröffentlichen",
+    "signInRequiredDesc": "Stellenangebote werden von einem Organisations- oder Projektkonto veröffentlicht, das du verwaltest."
   },
   "profile": {
     "jobs": {

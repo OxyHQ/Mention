@@ -5,7 +5,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '@/components/common/Ionicons';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { FeedItem } from '@/db';
 import type { HydratedPostSummary, MediaItem } from '@mention/shared-types';

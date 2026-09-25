@@ -986,6 +986,7 @@
   "lists.create.remove": "Rimuovi",
   "lists.create.saving": "Salvataggio…",
   "lists.create.createButton": "Crea Lista",
+  "lists.create.failed": "Impossibile creare la lista",
   "lists.memberSingular": "membro",
   "lists.memberPlural": "membri",
   "lists.addTo.menuItem": "Aggiungi/rimuovi dalle liste",
@@ -1336,6 +1337,8 @@
   "agora.musicStream.removeFromQueue": "Rimuovi dalla coda",
   "agora.musicStream.playQueue": "Riproduci tracce",
   "agora.musicStream.clearQueue": "Svuota",
+  "agora.signInRequired": "Accedi per partecipare alle stanze dal vivo",
+  "agora.signInRequiredDesc": "Le conversazioni audio dal vivo, e le stanze che ospiti, compariranno qui dopo l'accesso.",
   "screens.saved.title": "Post salvati",
   "screens.trending.title": "Di tendenza",
   "screens.post.title": "Post",
@@ -1365,6 +1368,9 @@
   "starterPacks.addTo.newPack": "Nuovo starter pack",
   "starterPacks.addTo.loadError": "Impossibile caricare i tuoi starter pack",
   "starterPacks.addTo.toggleFailed": "Qualcosa è andato storto",
+  "starterPacks.createFailed": "Impossibile creare lo starter pack",
+  "starterPacks.signInRequired": "Accedi per usare gli starter pack",
+  "starterPacks.signInRequiredDesc": "Uno starter pack è un insieme di account che consigli di seguire insieme.",
   "moderation.show": "Mostra",
   "moderation.warn": "Avvisa",
   "moderation.blur": "Sfoca",
@@ -1867,6 +1873,8 @@
   "fediverse.settings.signInRequiredDesc": "Decidi se il tuo profilo e i tuoi post vengono condivisi nel fediverso.",
   "feed.loadingPosts": "Caricamento dei post…",
   "feeds.builder.notAllowed": "Non puoi modificare questo feed.",
+  "feeds.builder.signInRequired": "Accedi per creare un feed",
+  "feeds.builder.signInRequiredDesc": "I feed personalizzati vengono salvati nel tuo account, così puoi fissarli e condividerli.",
   "feeds.untitled": "Feed",
   "labelers.by": "di",
   "labelers.detailTitle": "Labeler",
@@ -1893,6 +1901,8 @@
   "lists.emptyMembersSubtext": "Aggiungi persone per curare questa lista",
   "lists.emptyPosts": "Ancora nessun post",
   "lists.emptyPostsSubtext": "Aggiungi persone a questa lista per vedere qui i loro post",
+  "lists.signInRequired": "Accedi per usare le liste",
+  "lists.signInRequiredDesc": "Le liste raggruppano gli account che vuoi leggere insieme. Quelle che crei o segui compaiono qui.",
   "marketplace.emptySearchSubtitle": "Prova un altro termine di ricerca o un'altra categoria",
   "marketplace.emptySubtitle": "Sii il primo a creare un feed in questa categoria",
   "marketplace.emptyTitle": "Nessun feed trovato",
@@ -2359,7 +2369,9 @@
       "internalNotes": "Internal notes (never shown to the applicant)",
       "noNotes": "No notes yet",
       "addNote": "Add a note"
-    }
+    },
+    "signInRequired": "Accedi per pubblicare offerte di lavoro",
+    "signInRequiredDesc": "Le offerte di lavoro sono pubblicate da un account di organizzazione o di progetto che gestisci."
   },
   "profile": {
     "jobs": {

@@ -975,6 +975,7 @@
   "lists.create.remove": "সরান",
   "lists.create.saving": "সংরক্ষণ করা হচ্ছে…",
   "lists.create.createButton": "তালিকা তৈরি করুন",
+  "lists.create.failed": "তালিকা তৈরি করা যায়নি",
   "lists.memberSingular": "সদস্য",
   "lists.memberPlural": "সদস্য",
   "lists.addTo.menuItem": "তালিকায় যোগ করুন/সরান",
@@ -1323,6 +1324,8 @@
   "agora.musicStream.removeFromQueue": "তালিকা থেকে সরান",
   "agora.musicStream.playQueue": "ট্র্যাকগুলো চালান",
   "agora.musicStream.clearQueue": "মুছুন",
+  "agora.signInRequired": "লাইভ রুমে যোগ দিতে সাইন ইন করুন",
+  "agora.signInRequiredDesc": "সাইন ইন করার পরে লাইভ অডিও আলোচনা এবং আপনার হোস্ট করা রুমগুলো এখানে দেখা যাবে।",
   "screens.saved.title": "সংরক্ষিত পোস্ট",
   "screens.trending.title": "ট্রেন্ডিং",
   "screens.post.title": "পোস্ট",
@@ -1352,6 +1355,9 @@
   "starterPacks.addTo.newPack": "নতুন স্টার্টার প্যাক",
   "starterPacks.addTo.loadError": "আপনার স্টার্টার প্যাকগুলো লোড করা যায়নি",
   "starterPacks.addTo.toggleFailed": "কিছু একটা সমস্যা হয়েছে",
+  "starterPacks.createFailed": "স্টার্টার প্যাক তৈরি করা যায়নি",
+  "starterPacks.signInRequired": "স্টার্টার প্যাক ব্যবহার করতে সাইন ইন করুন",
+  "starterPacks.signInRequiredDesc": "স্টার্টার প্যাক হলো কয়েকটি অ্যাকাউন্টের সংগ্রহ, যেগুলো একসাথে ফলো করার পরামর্শ আপনি দেন।",
   "moderation.show": "দেখান",
   "moderation.warn": "সতর্ক করুন",
   "moderation.blur": "ঝাপসা করুন",
@@ -1843,6 +1849,8 @@
   "fediverse.settings.signInRequiredDesc": "Fediverse জুড়ে আপনার প্রোফাইল ও পোস্ট শেয়ার হবে কিনা তা নিয়ন্ত্রণ করুন।",
   "feed.loadingPosts": "পোস্ট লোড হচ্ছে…",
   "feeds.builder.notAllowed": "আপনি এই ফিডটি সম্পাদনা করতে পারবেন না।",
+  "feeds.builder.signInRequired": "ফিড তৈরি করতে সাইন ইন করুন",
+  "feeds.builder.signInRequiredDesc": "কাস্টম ফিড আপনার অ্যাকাউন্টে সংরক্ষিত হয়, যাতে আপনি সেগুলো পিন ও শেয়ার করতে পারেন।",
   "feeds.untitled": "ফিড",
   "labelers.by": "পরিচালনায়",
   "labelers.detailTitle": "লেবেলার",
@@ -1869,6 +1877,8 @@
   "lists.emptyMembersSubtext": "এই তালিকাটি সাজাতে মানুষ যোগ করুন",
   "lists.emptyPosts": "এখনও কোনো পোস্ট নেই",
   "lists.emptyPostsSubtext": "এখানে তাঁদের পোস্ট দেখতে এই তালিকায় মানুষ যোগ করুন",
+  "lists.signInRequired": "তালিকা ব্যবহার করতে সাইন ইন করুন",
+  "lists.signInRequiredDesc": "তালিকা সেই অ্যাকাউন্টগুলোকে একসাথে রাখে যেগুলো আপনি একসাথে পড়তে চান। আপনার তৈরি বা ফলো করা তালিকাগুলো এখানে দেখা যাবে।",
   "marketplace.emptySearchSubtitle": "অন্য কোনো শব্দ বা বিভাগ দিয়ে চেষ্টা করুন",
   "marketplace.emptySubtitle": "এই বিভাগে প্রথম ফিডটি আপনিই তৈরি করুন",
   "marketplace.emptyTitle": "কোনো ফিড পাওয়া যায়নি",
@@ -2335,7 +2345,9 @@
       "internalNotes": "Internal notes (never shown to the applicant)",
       "noNotes": "No notes yet",
       "addNote": "Add a note"
-    }
+    },
+    "signInRequired": "চাকরির বিজ্ঞাপন প্রকাশ করতে সাইন ইন করুন",
+    "signInRequiredDesc": "চাকরির বিজ্ঞাপন আপনার পরিচালিত কোনো প্রতিষ্ঠান বা প্রকল্প অ্যাকাউন্ট থেকে প্রকাশ করা হয়।"
   },
   "profile": {
     "jobs": {

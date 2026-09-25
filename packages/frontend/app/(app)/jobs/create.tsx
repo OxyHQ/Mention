@@ -37,6 +37,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { displayNameOrHandle } from '@/utils/displayName';
 import { jobsService, getJobErrorMessage, isJobEntitlementError } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { SignInRequired } from '@/components/common/SignInRequired';
 import JobLocationField, {
   EMPTY_JOB_LOCATION,
   isJobLocationIncomplete,
@@ -283,263 +284,270 @@ export default function CreateJobScreen() {
         backLabel={t('common.back', { defaultValue: 'Back' })}
       />
 
-      <ScrollView contentContainerClassName="px-4 pb-16 pt-2" keyboardShouldPersistTaps="handled">
-        {/* Employer picker */}
-        <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
-          {t('jobs.create.employer', { defaultValue: 'Publish as' })}
-        </Text>
-        <View className="border border-border rounded-[14px] overflow-hidden bg-card">
-          <Item
-            onPress={() => setEmployerPickerOpen(true)}
-            leading={
-              employer ? (
-                <Avatar source={employer.account.avatar} size={36} variant={MEDIA_VARIANT_AVATAR} />
-              ) : undefined
-            }
-            title={
-              employer
-                ? displayNameOrHandle(employer.account.name?.displayName, `@${employer.account.username}`)
-                : accountsLoading
-                  ? t('common.loading', { defaultValue: 'Loading…' })
-                  : t('jobs.create.selectEmployer', { defaultValue: 'Select an organization or project' })
-            }
-            subtitle={employer ? `@${employer.account.username}` : undefined}
+      <SignInRequired
+        label={t('jobs.signInRequired', { defaultValue: 'Sign in to publish jobs' })}
+        description={t('jobs.signInRequiredDesc', {
+          defaultValue: 'Jobs are published by an organization or project account you operate.',
+        })}
+      >
+        <ScrollView contentContainerClassName="px-4 pb-16 pt-2" keyboardShouldPersistTaps="handled">
+          {/* Employer picker */}
+          <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
+            {t('jobs.create.employer', { defaultValue: 'Publish as' })}
+          </Text>
+          <View className="border border-border rounded-[14px] overflow-hidden bg-card">
+            <Item
+              onPress={() => setEmployerPickerOpen(true)}
+              leading={
+                employer ? (
+                  <Avatar source={employer.account.avatar} size={36} variant={MEDIA_VARIANT_AVATAR} />
+                ) : undefined
+              }
+              title={
+                employer
+                  ? displayNameOrHandle(employer.account.name?.displayName, `@${employer.account.username}`)
+                  : accountsLoading
+                    ? t('common.loading', { defaultValue: 'Loading…' })
+                    : t('jobs.create.selectEmployer', { defaultValue: 'Select an organization or project' })
+              }
+              subtitle={employer ? `@${employer.account.username}` : undefined}
+            />
+          </View>
+          <EmployerPickerDialog
+            open={employerPickerOpen}
+            accounts={eligibleAccounts}
+            selectedId={employer?.accountId ?? null}
+            onSelect={(account) => {
+              setEmployer(account);
+              setEmployerPickerOpen(false);
+            }}
+            onClose={() => setEmployerPickerOpen(false)}
           />
-        </View>
-        <EmployerPickerDialog
-          open={employerPickerOpen}
-          accounts={eligibleAccounts}
-          selectedId={employer?.accountId ?? null}
-          onSelect={(account) => {
-            setEmployer(account);
-            setEmployerPickerOpen(false);
-          }}
-          onClose={() => setEmployerPickerOpen(false)}
-        />
 
-        {/* Title */}
-        <View className="mt-4">
-          <TextField>
-            <TextFieldInput
-              label={t('jobs.create.jobTitle', { defaultValue: 'Job title' })}
-              value={title}
-              onChangeText={setTitle}
-              maxLength={200}
-            />
-          </TextField>
-        </View>
-
-        {/* Description */}
-        <View className="mt-3">
-          <TextField>
-            <TextFieldInput
-              label={t('jobs.create.description', { defaultValue: 'Description' })}
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={6}
-              style={{ minHeight: 120, textAlignVertical: 'top' }}
-            />
-          </TextField>
-        </View>
-
-        {/* Location — a Clarity place or a country, never free text */}
-        <View className="mt-4">
-          <JobLocationField value={location} onChange={setLocation} />
-        </View>
-
-        {/* Workplace type */}
-        <View className="mt-4">
-          <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
-            {t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
-          </Text>
-          <SegmentedControl
-            label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
-            type="radio"
-            value={workplaceType || 'unset'}
-            onChange={(value) => setWorkplaceType(value === 'unset' ? '' : (value as MentionJobWorkplaceType))}
-          >
-            <SegmentedControlItem value="unset">
-              <SegmentedControlItemText>{t('jobs.create.notSpecified', { defaultValue: 'Not specified' })}</SegmentedControlItemText>
-            </SegmentedControlItem>
-            {MENTION_JOB_WORKPLACE_TYPES.map((value) => (
-              <SegmentedControlItem key={value} value={value}>
-                <SegmentedControlItemText>{WORKPLACE_LABELS[value]}</SegmentedControlItemText>
-              </SegmentedControlItem>
-            ))}
-          </SegmentedControl>
-        </View>
-
-        {/* Employment type — a chip row rather than a SegmentedControl: six
-            values would cram into an unreadable pill row on a phone width. */}
-        <View className="mt-4">
-          <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
-            {t('jobs.create.employmentType', { defaultValue: 'Employment type' })}
-          </Text>
-          <View className="flex-row flex-wrap gap-2">
-            {MENTION_JOB_EMPLOYMENT_TYPES.map((value) => (
-              <Chip
-                key={value}
-                selected={employmentType === value}
-                onPress={() => setEmploymentType((prev) => (prev === value ? '' : value))}
-              >
-                {EMPLOYMENT_LABELS[value]}
-              </Chip>
-            ))}
+          {/* Title */}
+          <View className="mt-4">
+            <TextField>
+              <TextFieldInput
+                label={t('jobs.create.jobTitle', { defaultValue: 'Job title' })}
+                value={title}
+                onChangeText={setTitle}
+                maxLength={200}
+              />
+            </TextField>
           </View>
-        </View>
 
-        {/* Salary */}
-        <View className="mt-4">
-          <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
-            {t('jobs.create.salary', { defaultValue: 'Salary (optional)' })}
-          </Text>
-          <View className="flex-row gap-2">
-            <View className="flex-1">
-              <TextField>
-                <TextFieldInput
-                  label={t('jobs.create.salaryMin', { defaultValue: 'Min' })}
-                  value={salaryMin}
-                  onChangeText={setSalaryMin}
-                  keyboardType="numeric"
-                />
-              </TextField>
-            </View>
-            <View className="flex-1">
-              <TextField>
-                <TextFieldInput
-                  label={t('jobs.create.salaryMax', { defaultValue: 'Max' })}
-                  value={salaryMax}
-                  onChangeText={setSalaryMax}
-                  keyboardType="numeric"
-                />
-              </TextField>
-            </View>
+          {/* Description */}
+          <View className="mt-3">
+            <TextField>
+              <TextFieldInput
+                label={t('jobs.create.description', { defaultValue: 'Description' })}
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={6}
+                style={{ minHeight: 120, textAlignVertical: 'top' }}
+              />
+            </TextField>
           </View>
-          <View className="mt-2">
-            <JobCurrencyField value={salaryCurrency} onChange={setSalaryCurrency} />
+
+          {/* Location — a Clarity place or a country, never free text */}
+          <View className="mt-4">
+            <JobLocationField value={location} onChange={setLocation} />
           </View>
-          <View className="mt-2">
+
+          {/* Workplace type */}
+          <View className="mt-4">
+            <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
+              {t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
+            </Text>
             <SegmentedControl
-              label={t('jobs.create.salaryInterval', { defaultValue: 'Per' })}
+              label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
               type="radio"
-              size="small"
-              value={salaryInterval}
-              onChange={setSalaryInterval}
+              value={workplaceType || 'unset'}
+              onChange={(value) => setWorkplaceType(value === 'unset' ? '' : (value as MentionJobWorkplaceType))}
             >
-              {MENTION_JOB_SALARY_INTERVALS.map((value) => (
+              <SegmentedControlItem value="unset">
+                <SegmentedControlItemText>{t('jobs.create.notSpecified', { defaultValue: 'Not specified' })}</SegmentedControlItemText>
+              </SegmentedControlItem>
+              {MENTION_JOB_WORKPLACE_TYPES.map((value) => (
                 <SegmentedControlItem key={value} value={value}>
-                  <SegmentedControlItemText>{INTERVAL_LABELS[value]}</SegmentedControlItemText>
+                  <SegmentedControlItemText>{WORKPLACE_LABELS[value]}</SegmentedControlItemText>
                 </SegmentedControlItem>
               ))}
             </SegmentedControl>
           </View>
-        </View>
 
-        {/* Skills */}
-        <View className="mt-4">
-          <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
-            {t('jobs.create.skills', { defaultValue: 'Skills' })}
-          </Text>
-          <View className="flex-row gap-2 items-start">
-            <View className="flex-1">
-              <TextField>
-                <TextFieldInput
-                  label={t('jobs.create.addSkill', { defaultValue: 'Add a skill' })}
-                  value={skillDraft}
-                  onChangeText={setSkillDraft}
-                  onSubmitEditing={addSkill}
-                  returnKeyType="done"
-                />
-              </TextField>
-            </View>
-            <Button appearance="subtle" tone="neutral" size="medium" onPress={addSkill} disabled={!skillDraft.trim()}>
-              {t('common.add', { defaultValue: 'Add' })}
-            </Button>
-          </View>
-          {skills.length > 0 ? (
-            <View className="flex-row flex-wrap gap-2 mt-2">
-              {skills.map((skill) => (
-                <Chip key={skill} onClose={() => removeSkill(skill)}>
-                  {skill}
+          {/* Employment type — a chip row rather than a SegmentedControl: six
+              values would cram into an unreadable pill row on a phone width. */}
+          <View className="mt-4">
+            <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
+              {t('jobs.create.employmentType', { defaultValue: 'Employment type' })}
+            </Text>
+            <View className="flex-row flex-wrap gap-2">
+              {MENTION_JOB_EMPLOYMENT_TYPES.map((value) => (
+                <Chip
+                  key={value}
+                  selected={employmentType === value}
+                  onPress={() => setEmploymentType((prev) => (prev === value ? '' : value))}
+                >
+                  {EMPLOYMENT_LABELS[value]}
                 </Chip>
               ))}
             </View>
-          ) : null}
-        </View>
-
-        {/* Application mode */}
-        <View className="mt-4">
-          <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
-            {t('jobs.create.applicationMode', { defaultValue: 'How do people apply?' })}
-          </Text>
-          <SegmentedControl
-            label={t('jobs.create.applicationMode', { defaultValue: 'How do people apply?' })}
-            type="radio"
-            value={applicationMode}
-            onChange={setApplicationMode}
-          >
-            {MENTION_JOB_APPLICATION_MODES.map((value) => (
-              <SegmentedControlItem key={value} value={value}>
-                <SegmentedControlItemText>
-                  {value === 'mention'
-                    ? t('jobs.create.applyViaMention', { defaultValue: 'On Mention' })
-                    : t('jobs.create.applyExternally', { defaultValue: 'External link' })}
-                </SegmentedControlItemText>
-              </SegmentedControlItem>
-            ))}
-          </SegmentedControl>
-          {applicationMode === 'external' ? (
-            <View className="mt-2">
-              <TextField isInvalid={!externalApplyUrl.trim()}>
-                <TextFieldInput
-                  label={t('jobs.create.externalApplyUrl', { defaultValue: 'Application URL' })}
-                  value={externalApplyUrl}
-                  onChangeText={setExternalApplyUrl}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                />
-              </TextField>
-            </View>
-          ) : (
-            <Text className="text-muted-foreground text-xs mt-2">
-              {t('jobs.create.applyViaMentionHint', {
-                defaultValue: 'Applicants apply through Mention, and you’ll review applications from your dashboard.',
-              })}
-            </Text>
-          )}
-        </View>
-
-        {/* Submit */}
-        <View className="flex-row gap-3 mt-6">
-          <Button
-            appearance="subtle" tone="neutral"
-            size="large"
-            style={{ flex: 1 }}
-            loading={createMutation.isPending && !publishingIntent}
-            disabled={!canSubmitBase || createMutation.isPending}
-            onPress={() => submit(false)}
-          >
-            {t('jobs.create.saveDraft', { defaultValue: 'Save draft' })}
-          </Button>
-          <Button
-            appearance="solid" tone="accent"
-            size="large"
-            style={{ flex: 1 }}
-            loading={createMutation.isPending && publishingIntent}
-            disabled={!canPublish || createMutation.isPending}
-            onPress={() => submit(true)}
-          >
-            {t('jobs.create.publish', { defaultValue: 'Publish' })}
-          </Button>
-        </View>
-        {accountsLoading ? (
-          <View className="items-center mt-4">
-            <Loading className="text-primary" size="small" />
           </View>
-        ) : null}
-      </ScrollView>
+
+          {/* Salary */}
+          <View className="mt-4">
+            <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
+              {t('jobs.create.salary', { defaultValue: 'Salary (optional)' })}
+            </Text>
+            <View className="flex-row gap-2">
+              <View className="flex-1">
+                <TextField>
+                  <TextFieldInput
+                    label={t('jobs.create.salaryMin', { defaultValue: 'Min' })}
+                    value={salaryMin}
+                    onChangeText={setSalaryMin}
+                    keyboardType="numeric"
+                  />
+                </TextField>
+              </View>
+              <View className="flex-1">
+                <TextField>
+                  <TextFieldInput
+                    label={t('jobs.create.salaryMax', { defaultValue: 'Max' })}
+                    value={salaryMax}
+                    onChangeText={setSalaryMax}
+                    keyboardType="numeric"
+                  />
+                </TextField>
+              </View>
+            </View>
+            <View className="mt-2">
+              <JobCurrencyField value={salaryCurrency} onChange={setSalaryCurrency} />
+            </View>
+            <View className="mt-2">
+              <SegmentedControl
+                label={t('jobs.create.salaryInterval', { defaultValue: 'Per' })}
+                type="radio"
+                size="small"
+                value={salaryInterval}
+                onChange={setSalaryInterval}
+              >
+                {MENTION_JOB_SALARY_INTERVALS.map((value) => (
+                  <SegmentedControlItem key={value} value={value}>
+                    <SegmentedControlItemText>{INTERVAL_LABELS[value]}</SegmentedControlItemText>
+                  </SegmentedControlItem>
+                ))}
+              </SegmentedControl>
+            </View>
+          </View>
+
+          {/* Skills */}
+          <View className="mt-4">
+            <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
+              {t('jobs.create.skills', { defaultValue: 'Skills' })}
+            </Text>
+            <View className="flex-row gap-2 items-start">
+              <View className="flex-1">
+                <TextField>
+                  <TextFieldInput
+                    label={t('jobs.create.addSkill', { defaultValue: 'Add a skill' })}
+                    value={skillDraft}
+                    onChangeText={setSkillDraft}
+                    onSubmitEditing={addSkill}
+                    returnKeyType="done"
+                  />
+                </TextField>
+              </View>
+              <Button appearance="subtle" tone="neutral" size="medium" onPress={addSkill} disabled={!skillDraft.trim()}>
+                {t('common.add', { defaultValue: 'Add' })}
+              </Button>
+            </View>
+            {skills.length > 0 ? (
+              <View className="flex-row flex-wrap gap-2 mt-2">
+                {skills.map((skill) => (
+                  <Chip key={skill} onClose={() => removeSkill(skill)}>
+                    {skill}
+                  </Chip>
+                ))}
+              </View>
+            ) : null}
+          </View>
+
+          {/* Application mode */}
+          <View className="mt-4">
+            <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
+              {t('jobs.create.applicationMode', { defaultValue: 'How do people apply?' })}
+            </Text>
+            <SegmentedControl
+              label={t('jobs.create.applicationMode', { defaultValue: 'How do people apply?' })}
+              type="radio"
+              value={applicationMode}
+              onChange={setApplicationMode}
+            >
+              {MENTION_JOB_APPLICATION_MODES.map((value) => (
+                <SegmentedControlItem key={value} value={value}>
+                  <SegmentedControlItemText>
+                    {value === 'mention'
+                      ? t('jobs.create.applyViaMention', { defaultValue: 'On Mention' })
+                      : t('jobs.create.applyExternally', { defaultValue: 'External link' })}
+                  </SegmentedControlItemText>
+                </SegmentedControlItem>
+              ))}
+            </SegmentedControl>
+            {applicationMode === 'external' ? (
+              <View className="mt-2">
+                <TextField isInvalid={!externalApplyUrl.trim()}>
+                  <TextFieldInput
+                    label={t('jobs.create.externalApplyUrl', { defaultValue: 'Application URL' })}
+                    value={externalApplyUrl}
+                    onChangeText={setExternalApplyUrl}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="url"
+                  />
+                </TextField>
+              </View>
+            ) : (
+              <Text className="text-muted-foreground text-xs mt-2">
+                {t('jobs.create.applyViaMentionHint', {
+                  defaultValue: 'Applicants apply through Mention, and you’ll review applications from your dashboard.',
+                })}
+              </Text>
+            )}
+          </View>
+
+          {/* Submit */}
+          <View className="flex-row gap-3 mt-6">
+            <Button
+              appearance="subtle" tone="neutral"
+              size="large"
+              style={{ flex: 1 }}
+              loading={createMutation.isPending && !publishingIntent}
+              disabled={!canSubmitBase || createMutation.isPending}
+              onPress={() => submit(false)}
+            >
+              {t('jobs.create.saveDraft', { defaultValue: 'Save draft' })}
+            </Button>
+            <Button
+              appearance="solid" tone="accent"
+              size="large"
+              style={{ flex: 1 }}
+              loading={createMutation.isPending && publishingIntent}
+              disabled={!canPublish || createMutation.isPending}
+              onPress={() => submit(true)}
+            >
+              {t('jobs.create.publish', { defaultValue: 'Publish' })}
+            </Button>
+          </View>
+          {accountsLoading ? (
+            <View className="items-center mt-4">
+              <Loading className="text-primary" size="small" />
+            </View>
+          ) : null}
+        </ScrollView>
+      </SignInRequired>
     </View>
   );
 }

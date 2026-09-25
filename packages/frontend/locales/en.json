@@ -1050,7 +1050,8 @@
       "members": "Members",
       "remove": "Remove",
       "saving": "Saving…",
-      "createButton": "Create List"
+      "createButton": "Create List",
+      "failed": "Could not create the list"
     },
     "memberSingular": "member",
     "memberPlural": "members",
@@ -1082,7 +1083,9 @@
     "sections": {
       "yours": "Your lists",
       "followed": "Followed lists"
-    }
+    },
+    "signInRequired": "Sign in to use lists",
+    "signInRequiredDesc": "Lists group the accounts you want to read together. The ones you create or follow appear here."
   },
   "search": {
     "title": "Search",
@@ -1263,7 +1266,9 @@
       "needsSource": "Enable at least one source",
       "needsTitle": "Give your feed a title",
       "saved": "Feed saved",
-      "saveFailed": "Couldn't save the feed"
+      "saveFailed": "Couldn't save the feed",
+      "signInRequired": "Sign in to build a feed",
+      "signInRequiredDesc": "Custom feeds are saved to your account, so you can pin and share them."
     },
     "modules": {
       "accounts": {
@@ -1498,6 +1503,8 @@
   "searchBar.videos": "Videos",
   "agora.title": "Live Rooms",
   "agora.createRoom": "Create Room",
+  "agora.signInRequired": "Sign in to join live rooms",
+  "agora.signInRequiredDesc": "Live audio conversations, and the rooms you host, appear here once you sign in.",
   "agora.liveNow": "Live Now",
   "agora.upcoming": "Upcoming",
   "agora.room": "Room",
@@ -1560,6 +1567,9 @@
   "feeds.detail.reviewPlaceholder": "Share what you think about this feed (optional)",
   "starterPacks.title": "Starter Packs",
   "starterPacks.create": "Create Starter Pack",
+  "starterPacks.createFailed": "Could not create the starter pack",
+  "starterPacks.signInRequired": "Sign in to use starter packs",
+  "starterPacks.signInRequiredDesc": "A starter pack is a set of accounts you recommend following together.",
   "starterPacks.descriptionPlaceholder": "What's this pack about?",
   "starterPacks.searchUsersPlaceholder": "Search for users...",
   "starterPacks.addTo.menuItem": "Add/remove from starter packs",
@@ -2702,7 +2712,9 @@
       "internalNotes": "Internal notes (never shown to the applicant)",
       "noNotes": "No notes yet",
       "addNote": "Add a note"
-    }
+    },
+    "signInRequired": "Sign in to publish jobs",
+    "signInRequiredDesc": "Jobs are published by an organization or project account you operate."
   },
   "profile": {
     "jobs": {

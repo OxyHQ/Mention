@@ -1019,6 +1019,7 @@
   "lists.create.remove": "إزالة",
   "lists.create.saving": "جارٍ الحفظ…",
   "lists.create.createButton": "إنشاء القائمة",
+  "lists.create.failed": "تعذّر إنشاء القائمة",
   "lists.memberSingular": "عضو",
   "lists.memberPlural": "أعضاء",
   "lists.addTo.menuItem": "إضافة إلى القوائم أو إزالة منها",
@@ -1375,6 +1376,8 @@
   "agora.musicStream.removeFromQueue": "إزالة من قائمة التشغيل",
   "agora.musicStream.playQueue": "تشغيل المقاطع",
   "agora.musicStream.clearQueue": "مسح",
+  "agora.signInRequired": "سجّل الدخول للانضمام إلى الغرف المباشرة",
+  "agora.signInRequiredDesc": "ستظهر هنا المحادثات الصوتية المباشرة والغرف التي تستضيفها بعد تسجيل الدخول.",
   "screens.saved.title": "المنشورات المحفوظة",
   "screens.trending.title": "الرائج",
   "screens.post.title": "منشور",
@@ -1404,6 +1407,9 @@
   "starterPacks.addTo.newPack": "حزمة بداية جديدة",
   "starterPacks.addTo.loadError": "تعذّر تحميل حزم البداية الخاصة بك",
   "starterPacks.addTo.toggleFailed": "حدث خطأ ما",
+  "starterPacks.createFailed": "تعذّر إنشاء حزمة البداية",
+  "starterPacks.signInRequired": "سجّل الدخول لاستخدام حزم البداية",
+  "starterPacks.signInRequiredDesc": "حزمة البداية مجموعة من الحسابات توصي بمتابعتها معًا.",
   "moderation.show": "إظهار",
   "moderation.warn": "تحذير",
   "moderation.blur": "تمويه",
@@ -1937,6 +1943,8 @@
   "fediverse.settings.signInRequiredDesc": "تحكّم في ما إذا كان ملفك الشخصي ومنشوراتك تُشارَك عبر Fediverse.",
   "feed.loadingPosts": "جارٍ تحميل المنشورات…",
   "feeds.builder.notAllowed": "لا يمكنك تعديل هذه الخلاصة.",
+  "feeds.builder.signInRequired": "سجّل الدخول لإنشاء خلاصة",
+  "feeds.builder.signInRequiredDesc": "تُحفظ الخلاصات المخصصة في حسابك، لتتمكن من تثبيتها ومشاركتها.",
   "feeds.untitled": "خلاصة",
   "labelers.by": "بواسطة",
   "labelers.detailTitle": "المصنِّف",
@@ -1963,6 +1971,8 @@
   "lists.emptyMembersSubtext": "أضف أشخاصًا لتنسيق هذه القائمة",
   "lists.emptyPosts": "لا توجد منشورات بعد",
   "lists.emptyPostsSubtext": "أضف أشخاصًا إلى هذه القائمة لرؤية منشوراتهم هنا",
+  "lists.signInRequired": "سجّل الدخول لاستخدام القوائم",
+  "lists.signInRequiredDesc": "تجمع القوائم الحسابات التي تريد قراءتها معًا. ستظهر هنا القوائم التي تنشئها أو تتابعها.",
   "marketplace.emptySearchSubtitle": "جرّب مصطلح بحث أو فئة مختلفة",
   "marketplace.emptySubtitle": "كن أول من ينشئ خلاصة في هذه الفئة",
   "marketplace.emptyTitle": "لم يُعثر على خلاصات",
@@ -2429,7 +2439,9 @@
       "internalNotes": "Internal notes (never shown to the applicant)",
       "noNotes": "No notes yet",
       "addNote": "Add a note"
-    }
+    },
+    "signInRequired": "سجّل الدخول لنشر الوظائف",
+    "signInRequiredDesc": "تُنشر الوظائف من حساب منظمة أو مشروع تديره."
   },
   "profile": {
     "jobs": {

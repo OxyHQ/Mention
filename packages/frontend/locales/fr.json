@@ -986,6 +986,7 @@
   "lists.create.remove": "Retirer",
   "lists.create.saving": "Enregistrement…",
   "lists.create.createButton": "Créer la liste",
+  "lists.create.failed": "Impossible de créer la liste",
   "lists.memberSingular": "membre",
   "lists.memberPlural": "membres",
   "lists.addTo.menuItem": "Ajouter/retirer des listes",
@@ -1336,6 +1337,8 @@
   "agora.musicStream.removeFromQueue": "Retirer de la file",
   "agora.musicStream.playQueue": "Lire les morceaux",
   "agora.musicStream.clearQueue": "Vider",
+  "agora.signInRequired": "Connectez-vous pour rejoindre les salons en direct",
+  "agora.signInRequiredDesc": "Les conversations audio en direct, et les salons que vous animez, apparaîtront ici une fois connecté.",
   "screens.saved.title": "Posts enregistrés",
   "screens.trending.title": "Tendances",
   "screens.post.title": "Post",
@@ -1365,6 +1368,9 @@
   "starterPacks.addTo.newPack": "Nouveau pack de démarrage",
   "starterPacks.addTo.loadError": "Impossible de charger tes packs de démarrage",
   "starterPacks.addTo.toggleFailed": "Une erreur est survenue",
+  "starterPacks.createFailed": "Impossible de créer le pack de démarrage",
+  "starterPacks.signInRequired": "Connectez-vous pour utiliser les packs de démarrage",
+  "starterPacks.signInRequiredDesc": "Un pack de démarrage est un ensemble de comptes que vous recommandez de suivre ensemble.",
   "moderation.show": "Afficher",
   "moderation.warn": "Avertir",
   "moderation.blur": "Flouter",
@@ -1867,6 +1873,8 @@
   "fediverse.settings.signInRequiredDesc": "Choisis si ton profil et tes posts sont partagés sur le Fediverse.",
   "feed.loadingPosts": "Chargement des posts…",
   "feeds.builder.notAllowed": "Tu ne peux pas modifier ce fil.",
+  "feeds.builder.signInRequired": "Connectez-vous pour créer un fil",
+  "feeds.builder.signInRequiredDesc": "Les fils personnalisés sont enregistrés sur votre compte, pour que vous puissiez les épingler et les partager.",
   "feeds.untitled": "Fil",
   "labelers.by": "par",
   "labelers.detailTitle": "Étiqueteur",
@@ -1893,6 +1901,8 @@
   "lists.emptyMembersSubtext": "Ajoute des personnes pour composer cette liste",
   "lists.emptyPosts": "Aucun post pour l'instant",
   "lists.emptyPostsSubtext": "Ajoute des personnes à cette liste pour voir leurs posts ici",
+  "lists.signInRequired": "Connectez-vous pour utiliser les listes",
+  "lists.signInRequiredDesc": "Les listes regroupent les comptes que vous voulez lire ensemble. Celles que vous créez ou suivez apparaissent ici.",
   "marketplace.emptySearchSubtitle": "Essaie un autre terme ou une autre catégorie",
   "marketplace.emptySubtitle": "Sois le premier à créer un fil dans cette catégorie",
   "marketplace.emptyTitle": "Aucun fil trouvé",
@@ -2362,7 +2372,9 @@
       "internalNotes": "Internal notes (never shown to the applicant)",
       "noNotes": "No notes yet",
       "addNote": "Add a note"
-    }
+    },
+    "signInRequired": "Connectez-vous pour publier des offres d'emploi",
+    "signInRequiredDesc": "Les offres d'emploi sont publiées par un compte d'organisation ou de projet que vous gérez."
   },
   "profile": {
     "jobs": {

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch, Platform } from 'react-native';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { listsService } from '@/services/listsService';
 import { router } from 'expo-router';
@@ -8,6 +9,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { logger } from '@oxy.so/core/logger';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
+import { SignInRequired } from '@/components/common/SignInRequired';
 import type { User } from '@oxy.so/core';
 
 type MinimalUser = Pick<User, 'id' | 'username' | 'name' | 'avatar'>;
@@ -63,12 +65,13 @@ export default function CreateListScreen() {
         memberOxyUserIds: members.map((m) => m.id),
       });
       router.replace('/lists');
-    } catch {
-      logger.error('Create list failed');
+    } catch (error) {
+      logger.error('Create list failed', error);
+      toast.error(t('lists.create.failed', { defaultValue: 'Could not create the list' }));
     } finally {
       setSaving(false);
     }
-  }, [title, description, isPublic, members]);
+  }, [title, description, isPublic, members, t]);
 
   return (
     <View className="flex-1">
@@ -77,76 +80,83 @@ export default function CreateListScreen() {
         onBack={() => safeBack()}
         backLabel={t('common.back', { defaultValue: 'Back' })}
       />
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <Text className="text-sm text-muted-foreground mb-1.5 font-primary">{t('lists.create.titleLabel')}</Text>
-        <TextInput
-          value={title}
-          onChangeText={setTitle}
-          placeholder={t('lists.create.titlePlaceholder')}
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
-          style={styles.input}
-        />
+      <SignInRequired
+        label={t('lists.signInRequired', { defaultValue: 'Sign in to use lists' })}
+        description={t('lists.signInRequiredDesc', {
+          defaultValue: 'Lists group the accounts you want to read together. The ones you create or follow appear here.',
+        })}
+      >
+        <ScrollView contentContainerStyle={{ padding: 16 }}>
+          <Text className="text-sm text-muted-foreground mb-1.5 font-primary">{t('lists.create.titleLabel')}</Text>
+          <TextInput
+            value={title}
+            onChangeText={setTitle}
+            placeholder={t('lists.create.titlePlaceholder')}
+            className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
+            style={styles.input}
+          />
 
-        <Text className="text-sm text-muted-foreground mb-1.5 font-primary">{t('lists.create.descriptionLabel')}</Text>
-        <TextInput
-          value={description}
-          onChangeText={setDescription}
-          placeholder={t('lists.create.descriptionPlaceholder')}
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary h-20"
-          style={styles.input}
-          multiline
-        />
+          <Text className="text-sm text-muted-foreground mb-1.5 font-primary">{t('lists.create.descriptionLabel')}</Text>
+          <TextInput
+            value={description}
+            onChangeText={setDescription}
+            placeholder={t('lists.create.descriptionPlaceholder')}
+            className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary h-20"
+            style={styles.input}
+            multiline
+          />
 
-        <View className="flex-row items-center justify-between mb-2.5">
-          <Text className="text-sm text-muted-foreground font-primary">{t('lists.create.publicLabel')}</Text>
-          <Switch value={isPublic} onValueChange={setIsPublic} />
-        </View>
-
-        <Text className="text-sm text-muted-foreground mb-1.5 mt-3 font-primary">{t('lists.create.addMembers')}</Text>
-        <TextInput
-          value={search}
-          onChangeText={doSearch}
-          placeholder={t('lists.create.searchUsersPlaceholder')}
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
-          style={styles.input}
-        />
-
-        {results.length > 0 && (
-          <View className="border border-border rounded-[10px] overflow-hidden">
-            {results.map((u) => (
-              <TouchableOpacity key={u.id} className="flex-row items-center justify-between px-3 py-2.5 border-b border-border" onPress={() => addMember(u)}>
-                <Text className="text-foreground font-primary">@{u.username} • {u.name.displayName}</Text>
-                <Text className="text-primary font-semibold font-primary">{t('lists.create.add')}</Text>
-              </TouchableOpacity>
-            ))}
+          <View className="flex-row items-center justify-between mb-2.5">
+            <Text className="text-sm text-muted-foreground font-primary">{t('lists.create.publicLabel')}</Text>
+            <Switch value={isPublic} onValueChange={setIsPublic} />
           </View>
-        )}
 
-        {members.length > 0 && (
-          <View className="mt-2.5">
-            <Text className="text-sm text-muted-foreground mb-1.5 font-primary">{t('lists.create.members')}</Text>
-            {members.map((m) => (
-              <View key={m.id} className="flex-row items-center py-1.5">
-                <Text className="text-foreground">@{m.username}</Text>
-                <TouchableOpacity onPress={() => removeMember(m.id)}>
-                  <Text className="text-destructive ml-2.5">{t('lists.create.remove')}</Text>
+          <Text className="text-sm text-muted-foreground mb-1.5 mt-3 font-primary">{t('lists.create.addMembers')}</Text>
+          <TextInput
+            value={search}
+            onChangeText={doSearch}
+            placeholder={t('lists.create.searchUsersPlaceholder')}
+            className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
+            style={styles.input}
+          />
+
+          {results.length > 0 && (
+            <View className="border border-border rounded-[10px] overflow-hidden">
+              {results.map((u) => (
+                <TouchableOpacity key={u.id} className="flex-row items-center justify-between px-3 py-2.5 border-b border-border" onPress={() => addMember(u)}>
+                  <Text className="text-foreground font-primary">@{u.username} • {u.name.displayName}</Text>
+                  <Text className="text-primary font-semibold font-primary">{t('lists.create.add')}</Text>
                 </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-        )}
-
-        <TouchableOpacity
-          disabled={saving || !title.trim()}
-          onPress={onCreate}
-          className={cn(
-            "mt-5 py-3 rounded-[10px] items-center bg-primary",
-            !title.trim() && "opacity-60"
+              ))}
+            </View>
           )}
-        >
-          <Text className="text-primary-foreground font-bold font-primary">{saving ? t('lists.create.saving') : t('lists.create.createButton')}</Text>
-        </TouchableOpacity>
-      </ScrollView>
+
+          {members.length > 0 && (
+            <View className="mt-2.5">
+              <Text className="text-sm text-muted-foreground mb-1.5 font-primary">{t('lists.create.members')}</Text>
+              {members.map((m) => (
+                <View key={m.id} className="flex-row items-center py-1.5">
+                  <Text className="text-foreground">@{m.username}</Text>
+                  <TouchableOpacity onPress={() => removeMember(m.id)}>
+                    <Text className="text-destructive ml-2.5">{t('lists.create.remove')}</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          <TouchableOpacity
+            disabled={saving || !title.trim()}
+            onPress={onCreate}
+            className={cn(
+              "mt-5 py-3 rounded-[10px] items-center bg-primary",
+              !title.trim() && "opacity-60"
+            )}
+          >
+            <Text className="text-primary-foreground font-bold font-primary">{saving ? t('lists.create.saving') : t('lists.create.createButton')}</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </SignInRequired>
     </View>
   );
 }

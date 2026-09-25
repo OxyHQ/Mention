@@ -975,6 +975,7 @@
   "lists.create.remove": "Hapus",
   "lists.create.saving": "Menyimpan…",
   "lists.create.createButton": "Buat Daftar",
+  "lists.create.failed": "Tidak dapat membuat daftar",
   "lists.memberSingular": "anggota",
   "lists.memberPlural": "anggota",
   "lists.addTo.menuItem": "Tambah/hapus dari daftar",
@@ -1323,6 +1324,8 @@
   "agora.musicStream.removeFromQueue": "Hapus dari antrean",
   "agora.musicStream.playQueue": "Putar lagu",
   "agora.musicStream.clearQueue": "Kosongkan",
+  "agora.signInRequired": "Masuk untuk bergabung ke ruang langsung",
+  "agora.signInRequiredDesc": "Percakapan audio langsung, dan ruang yang Anda pandu, akan muncul di sini setelah Anda masuk.",
   "screens.saved.title": "Postingan Tersimpan",
   "screens.trending.title": "Tren",
   "screens.post.title": "Postingan",
@@ -1352,6 +1355,9 @@
   "starterPacks.addTo.newPack": "Paket awal baru",
   "starterPacks.addTo.loadError": "Tidak bisa memuat paket awalmu",
   "starterPacks.addTo.toggleFailed": "Terjadi kesalahan",
+  "starterPacks.createFailed": "Tidak dapat membuat paket pemula",
+  "starterPacks.signInRequired": "Masuk untuk memakai paket pemula",
+  "starterPacks.signInRequiredDesc": "Paket pemula adalah kumpulan akun yang Anda sarankan untuk diikuti bersama.",
   "moderation.show": "Tampilkan",
   "moderation.warn": "Peringatkan",
   "moderation.blur": "Buramkan",
@@ -1843,6 +1849,8 @@
   "fediverse.settings.signInRequiredDesc": "Atur apakah profil dan postinganmu dibagikan ke seluruh Fediverse.",
   "feed.loadingPosts": "Memuat postingan…",
   "feeds.builder.notAllowed": "Kamu tidak bisa mengedit feed ini.",
+  "feeds.builder.signInRequired": "Masuk untuk membuat feed",
+  "feeds.builder.signInRequiredDesc": "Feed khusus disimpan di akun Anda, sehingga Anda dapat menyematkan dan membagikannya.",
   "feeds.untitled": "Feed",
   "labelers.by": "oleh",
   "labelers.detailTitle": "Pelabel",
@@ -1869,6 +1877,8 @@
   "lists.emptyMembersSubtext": "Tambahkan orang untuk mengurasi daftar ini",
   "lists.emptyPosts": "Belum ada postingan",
   "lists.emptyPostsSubtext": "Tambahkan orang ke daftar ini untuk melihat postingan mereka di sini",
+  "lists.signInRequired": "Masuk untuk memakai daftar",
+  "lists.signInRequiredDesc": "Daftar mengelompokkan akun yang ingin Anda baca bersama. Daftar yang Anda buat atau ikuti akan muncul di sini.",
   "marketplace.emptySearchSubtitle": "Coba kata pencarian atau kategori lain",
   "marketplace.emptySubtitle": "Jadilah yang pertama membuat feed di kategori ini",
   "marketplace.emptyTitle": "Feed tidak ditemukan",
@@ -2335,7 +2345,9 @@
       "internalNotes": "Internal notes (never shown to the applicant)",
       "noNotes": "No notes yet",
       "addNote": "Add a note"
-    }
+    },
+    "signInRequired": "Masuk untuk memublikasikan lowongan",
+    "signInRequiredDesc": "Lowongan dipublikasikan oleh akun organisasi atau proyek yang Anda kelola."
   },
   "profile": {
     "jobs": {

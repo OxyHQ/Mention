@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Text, View, type TextStyle } from 'react-native';
 import { Image } from 'expo-image';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '@/components/common/Ionicons';
 import { RiFilmLine } from '@oxy.so/bloom/icons/RiFilmLine';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { formatDuration } from '@/utils/formatDuration';

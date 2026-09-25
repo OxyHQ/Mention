@@ -17,6 +17,7 @@ import { displayNameOrHandle } from '@/utils/displayName';
 import { cn } from '@/lib/utils';
 import { FocusedScrollView } from '@/components/common/FocusedScrollView';
 import { useScreenReselect } from '@/context/ScreenReselectContext';
+import { SignInRequired } from '@/components/common/SignInRequired';
 
 /**
  * The channels you operate, and the one place to create another.
@@ -109,93 +110,100 @@ export default function ChannelsScreen() {
         backLabel={t('common.back', { defaultValue: 'Back' })}
       />
 
-      <FocusedScrollView className="flex-1" contentContainerClassName="pb-10">
-        <View className="px-4 pt-4 pb-2">
-          <Text className="text-foreground text-lg font-bold">
-            {t('channels.createTitle', { defaultValue: 'Create a channel' })}
-          </Text>
-          <Text className="text-muted-foreground text-[13px] mt-1">
-            {t('channels.createSubtitle', {
-              defaultValue:
-                'A channel posts under its own name. People follow it without following you.',
-            })}
-          </Text>
-        </View>
-
-        <View className="px-4 gap-3">
-          <View>
-            <TextInput
-              value={handle}
-              onChangeText={setHandle}
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholder={t('channels.handlePlaceholder', { defaultValue: 'handle' })}
-              accessibilityLabel={t('channels.handleLabel', { defaultValue: 'Channel handle' })}
-              className={cn(
-                'bg-muted text-foreground rounded-2xl px-4 py-3 text-[15px]',
-                handleError && 'border border-destructive',
-              )}
-            />
-            {handleError && (
-              <Text className="text-destructive text-[12px] mt-1 px-1">
-                {t('channels.handleInvalid', {
-                  defaultValue: '3–30 characters: letters, numbers, _ or -',
-                })}
-              </Text>
-            )}
+      <SignInRequired
+        label={t('channels.signInRequired', { defaultValue: 'Sign in to manage your channels' })}
+        description={t('channels.signInRequiredDesc', {
+          defaultValue: 'A channel is an account people follow without following the people who write for it.',
+        })}
+      >
+        <FocusedScrollView className="flex-1" contentContainerClassName="pb-10">
+          <View className="px-4 pt-4 pb-2">
+            <Text className="text-foreground text-lg font-bold">
+              {t('channels.createTitle', { defaultValue: 'Create a channel' })}
+            </Text>
+            <Text className="text-muted-foreground text-[13px] mt-1">
+              {t('channels.createSubtitle', {
+                defaultValue:
+                  'A channel posts under its own name. People follow it without following you.',
+              })}
+            </Text>
           </View>
 
-          <TextInput
-            value={title}
-            onChangeText={setTitle}
-            maxLength={MAX_TITLE_LENGTH}
-            placeholder={t('channels.titlePlaceholder', { defaultValue: 'Channel name' })}
-            accessibilityLabel={t('channels.titleLabel', { defaultValue: 'Channel name' })}
-            className="bg-muted text-foreground rounded-2xl px-4 py-3 text-[15px]"
-          />
-
-          <Item
-            onPress={canCreate && !createMutation.isPending ? createMutation.mutate : undefined}
-            disabled={!canCreate || createMutation.isPending}
-            title={
-              createMutation.isPending
-                ? t('channels.creating', { defaultValue: 'Creating…' })
-                : t('channels.create', { defaultValue: 'Create channel' })
-            }
-          />
-        </View>
-
-        <View className="px-4 pt-8 pb-2">
-          <Text className="text-foreground text-lg font-bold">
-            {t('channels.yours', { defaultValue: 'Your channels' })}
-          </Text>
-        </View>
-
-        {isLoading ? (
-          <View className="py-8">
-            <Loading />
-          </View>
-        ) : channels.length === 0 ? (
-          <Text className="text-muted-foreground text-[14px] px-4 py-3">
-            {t('channels.none', { defaultValue: 'You do not operate any channel yet.' })}
-          </Text>
-        ) : (
-          channels.map((account) => {
-            const accountHandle = getNormalizedUserHandle(account.account) ?? '';
-            return (
-              <Item
-                key={account.accountId}
-                onPress={() => openChannel(account)}
-                title={displayNameOrHandle(
-                  account.account.name?.displayName,
-                  accountHandle ? `@${accountHandle}` : '',
+          <View className="px-4 gap-3">
+            <View>
+              <TextInput
+                value={handle}
+                onChangeText={setHandle}
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholder={t('channels.handlePlaceholder', { defaultValue: 'handle' })}
+                accessibilityLabel={t('channels.handleLabel', { defaultValue: 'Channel handle' })}
+                className={cn(
+                  'bg-muted text-foreground rounded-2xl px-4 py-3 text-[15px]',
+                  handleError && 'border border-destructive',
                 )}
-                subtitle={accountHandle ? `@${accountHandle}` : undefined}
               />
-            );
-          })
-        )}
-      </FocusedScrollView>
+              {handleError && (
+                <Text className="text-destructive text-[12px] mt-1 px-1">
+                  {t('channels.handleInvalid', {
+                    defaultValue: '3–30 characters: letters, numbers, _ or -',
+                  })}
+                </Text>
+              )}
+            </View>
+
+            <TextInput
+              value={title}
+              onChangeText={setTitle}
+              maxLength={MAX_TITLE_LENGTH}
+              placeholder={t('channels.titlePlaceholder', { defaultValue: 'Channel name' })}
+              accessibilityLabel={t('channels.titleLabel', { defaultValue: 'Channel name' })}
+              className="bg-muted text-foreground rounded-2xl px-4 py-3 text-[15px]"
+            />
+
+            <Item
+              onPress={canCreate && !createMutation.isPending ? createMutation.mutate : undefined}
+              disabled={!canCreate || createMutation.isPending}
+              title={
+                createMutation.isPending
+                  ? t('channels.creating', { defaultValue: 'Creating…' })
+                  : t('channels.create', { defaultValue: 'Create channel' })
+              }
+            />
+          </View>
+
+          <View className="px-4 pt-8 pb-2">
+            <Text className="text-foreground text-lg font-bold">
+              {t('channels.yours', { defaultValue: 'Your channels' })}
+            </Text>
+          </View>
+
+          {isLoading ? (
+            <View className="py-8">
+              <Loading />
+            </View>
+          ) : channels.length === 0 ? (
+            <Text className="text-muted-foreground text-[14px] px-4 py-3">
+              {t('channels.none', { defaultValue: 'You do not operate any channel yet.' })}
+            </Text>
+          ) : (
+            channels.map((account) => {
+              const accountHandle = getNormalizedUserHandle(account.account) ?? '';
+              return (
+                <Item
+                  key={account.accountId}
+                  onPress={() => openChannel(account)}
+                  title={displayNameOrHandle(
+                    account.account.name?.displayName,
+                    accountHandle ? `@${accountHandle}` : '',
+                  )}
+                  subtitle={accountHandle ? `@${accountHandle}` : undefined}
+                />
+              );
+            })
+          )}
+        </FocusedScrollView>
+      </SignInRequired>
     </View>
   );
 }

@@ -975,6 +975,7 @@
   "lists.create.remove": "移除",
   "lists.create.saving": "保存中…",
   "lists.create.createButton": "创建列表",
+  "lists.create.failed": "无法创建列表",
   "lists.memberSingular": "成员",
   "lists.memberPlural": "成员",
   "lists.addTo.menuItem": "从列表中添加/移除",
@@ -1323,6 +1324,8 @@
   "agora.musicStream.removeFromQueue": "从播放队列移除",
   "agora.musicStream.playQueue": "播放曲目",
   "agora.musicStream.clearQueue": "清空",
+  "agora.signInRequired": "登录后即可加入直播间",
+  "agora.signInRequiredDesc": "登录后，实时语音对话和你主持的直播间会显示在这里。",
   "screens.saved.title": "收藏的帖子",
   "screens.trending.title": "热门",
   "screens.post.title": "帖子",
@@ -1352,6 +1355,9 @@
   "starterPacks.addTo.newPack": "新建入门合集",
   "starterPacks.addTo.loadError": "无法加载你的入门合集",
   "starterPacks.addTo.toggleFailed": "出了点问题",
+  "starterPacks.createFailed": "无法创建新手包",
+  "starterPacks.signInRequired": "登录后即可使用新手包",
+  "starterPacks.signInRequiredDesc": "新手包是一组你推荐一起关注的账号。",
   "moderation.show": "显示",
   "moderation.warn": "警示",
   "moderation.blur": "模糊处理",
@@ -1843,6 +1849,8 @@
   "fediverse.settings.signInRequiredDesc": "控制你的主页和帖子是否分享到 Fediverse。",
   "feed.loadingPosts": "正在加载帖子…",
   "feeds.builder.notAllowed": "你无法编辑此信息流。",
+  "feeds.builder.signInRequired": "登录后即可创建信息流",
+  "feeds.builder.signInRequiredDesc": "自定义信息流会保存到你的账号中，方便你置顶和分享。",
   "feeds.untitled": "信息流",
   "labelers.by": "来自",
   "labelers.detailTitle": "标签服务",
@@ -1869,6 +1877,8 @@
   "lists.emptyMembersSubtext": "添加成员来编排这个列表",
   "lists.emptyPosts": "暂无帖子",
   "lists.emptyPostsSubtext": "把人添加到这个列表，就能在这里看到他们的帖子",
+  "lists.signInRequired": "登录后即可使用列表",
+  "lists.signInRequiredDesc": "列表把你想一起阅读的账号归在一起。你创建或关注的列表会显示在这里。",
   "marketplace.emptySearchSubtitle": "换个搜索关键词或分类试试",
   "marketplace.emptySubtitle": "成为第一个在此分类下创建信息流的人",
   "marketplace.emptyTitle": "未找到信息流",
@@ -2335,7 +2345,9 @@
       "internalNotes": "Internal notes (never shown to the applicant)",
       "noNotes": "No notes yet",
       "addNote": "Add a note"
-    }
+    },
+    "signInRequired": "登录后即可发布职位",
+    "signInRequiredDesc": "职位由你管理的组织或项目账号发布。"
   },
   "profile": {
     "jobs": {

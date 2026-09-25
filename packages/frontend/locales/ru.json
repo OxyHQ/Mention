@@ -997,6 +997,7 @@
   "lists.create.remove": "Удалить",
   "lists.create.saving": "Сохранение…",
   "lists.create.createButton": "Создать список",
+  "lists.create.failed": "Не удалось создать список",
   "lists.memberSingular": "участник",
   "lists.memberPlural": "участников",
   "lists.addTo.menuItem": "Добавить в списки или убрать",
@@ -1349,6 +1350,8 @@
   "agora.musicStream.removeFromQueue": "Убрать из очереди",
   "agora.musicStream.playQueue": "Включить треки",
   "agora.musicStream.clearQueue": "Очистить",
+  "agora.signInRequired": "Войдите, чтобы присоединиться к живым комнатам",
+  "agora.signInRequiredDesc": "Живые аудиобеседы и комнаты, которые вы ведёте, появятся здесь после входа.",
   "screens.saved.title": "Сохранённые посты",
   "screens.trending.title": "В трендах",
   "screens.post.title": "Пост",
@@ -1378,6 +1381,9 @@
   "starterPacks.addTo.newPack": "Новый стартовый набор",
   "starterPacks.addTo.loadError": "Не удалось загрузить ваши стартовые наборы",
   "starterPacks.addTo.toggleFailed": "Что-то пошло не так",
+  "starterPacks.createFailed": "Не удалось создать стартовый набор",
+  "starterPacks.signInRequired": "Войдите, чтобы пользоваться стартовыми наборами",
+  "starterPacks.signInRequiredDesc": "Стартовый набор — это подборка аккаунтов, на которые вы советуете подписаться вместе.",
   "moderation.show": "Показывать",
   "moderation.warn": "Предупреждать",
   "moderation.blur": "Размывать",
@@ -1891,6 +1897,8 @@
   "fediverse.settings.signInRequiredDesc": "Решайте, публикуются ли ваш профиль и посты во всём Fediverse.",
   "feed.loadingPosts": "Загружаем посты…",
   "feeds.builder.notAllowed": "Вы не можете редактировать эту ленту.",
+  "feeds.builder.signInRequired": "Войдите, чтобы создать ленту",
+  "feeds.builder.signInRequiredDesc": "Собственные ленты сохраняются в вашем аккаунте, чтобы их можно было закреплять и делиться ими.",
   "feeds.untitled": "Лента",
   "labelers.by": "от",
   "labelers.detailTitle": "Разметчик",
@@ -1917,6 +1925,8 @@
   "lists.emptyMembersSubtext": "Добавьте людей, чтобы наполнить этот список",
   "lists.emptyPosts": "Постов пока нет",
   "lists.emptyPostsSubtext": "Добавьте людей в этот список, чтобы видеть здесь их посты",
+  "lists.signInRequired": "Войдите, чтобы пользоваться списками",
+  "lists.signInRequiredDesc": "Списки объединяют аккаунты, которые вы хотите читать вместе. Созданные вами и отслеживаемые списки появятся здесь.",
   "marketplace.emptySearchSubtitle": "Попробуйте другой запрос или категорию",
   "marketplace.emptySubtitle": "Создайте первую ленту в этой категории",
   "marketplace.emptyTitle": "Ленты не найдены",
@@ -2383,7 +2393,9 @@
       "internalNotes": "Internal notes (never shown to the applicant)",
       "noNotes": "No notes yet",
       "addNote": "Add a note"
-    }
+    },
+    "signInRequired": "Войдите, чтобы публиковать вакансии",
+    "signInRequiredDesc": "Вакансии публикуются от имени организации или проекта, которыми вы управляете."
   },
   "profile": {
     "jobs": {

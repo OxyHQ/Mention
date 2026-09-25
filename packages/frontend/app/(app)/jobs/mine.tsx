@@ -18,6 +18,7 @@ import { useSafeBack } from '@/hooks/useSafeBack';
 import { confirmDestructive } from '@/utils/alerts';
 import { formatTimeAgo } from '@/utils/dateUtils';
 import { displayNameOrHandle } from '@/utils/displayName';
+import { SignInRequired } from '@/components/common/SignInRequired';
 import { jobsService, getJobErrorMessage } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
@@ -127,14 +128,33 @@ export default function MyJobsScreen() {
       onBack={() => safeBack()}
       backLabel={t('common.back', { defaultValue: 'Back' })}
       actions={
-        <Button appearance="solid" tone="accent" size="small" onPress={() => router.push('/jobs/create')}>
-          {t('jobs.mine.create', { defaultValue: 'Create job' })}
-        </Button>
+        canUsePrivateApi ? (
+          <Button appearance="solid" tone="accent" size="small" onPress={() => router.push('/jobs/create')}>
+            {t('jobs.mine.create', { defaultValue: 'Create job' })}
+          </Button>
+        ) : undefined
       }
     />
   );
 
-  if (!canUsePrivateApi || jobsQuery.isLoading) {
+  // Signed out this used to spin forever: the query is disabled, so
+  // `isLoading` never settles. The gate shows the pending spinner or the
+  // sign-in prompt instead.
+  if (!canUsePrivateApi) {
+    return (
+      <View className="flex-1">
+        {header}
+        <SignInRequired
+          label={t('jobs.signInRequired', { defaultValue: 'Sign in to publish jobs' })}
+          description={t('jobs.signInRequiredDesc', {
+            defaultValue: 'Jobs are published by an organization or project account you operate.',
+          })}
+        />
+      </View>
+    );
+  }
+
+  if (jobsQuery.isLoading) {
     return (
       <View className="flex-1">
         {header}

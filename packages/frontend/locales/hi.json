@@ -975,6 +975,7 @@
   "lists.create.remove": "हटाएँ",
   "lists.create.saving": "सहेजा जा रहा है…",
   "lists.create.createButton": "सूची बनाएँ",
+  "lists.create.failed": "सूची नहीं बनाई जा सकी",
   "lists.memberSingular": "सदस्य",
   "lists.memberPlural": "सदस्य",
   "lists.addTo.menuItem": "सूचियों में जोड़ें/हटाएँ",
@@ -1323,6 +1324,8 @@
   "agora.musicStream.removeFromQueue": "क़तार से हटाएँ",
   "agora.musicStream.playQueue": "ट्रैक चलाएँ",
   "agora.musicStream.clearQueue": "साफ़ करें",
+  "agora.signInRequired": "लाइव रूम में शामिल होने के लिए साइन इन करें",
+  "agora.signInRequiredDesc": "साइन इन करने के बाद लाइव ऑडियो बातचीत और आपके होस्ट किए गए रूम यहाँ दिखेंगे।",
   "screens.saved.title": "सहेजी गई पोस्ट",
   "screens.trending.title": "ट्रेंडिंग",
   "screens.post.title": "पोस्ट",
@@ -1352,6 +1355,9 @@
   "starterPacks.addTo.newPack": "नया स्टार्टर पैक",
   "starterPacks.addTo.loadError": "आपके स्टार्टर पैक लोड नहीं हो सके",
   "starterPacks.addTo.toggleFailed": "कुछ गड़बड़ हो गई",
+  "starterPacks.createFailed": "स्टार्टर पैक नहीं बनाया जा सका",
+  "starterPacks.signInRequired": "स्टार्टर पैक इस्तेमाल करने के लिए साइन इन करें",
+  "starterPacks.signInRequiredDesc": "स्टार्टर पैक उन खातों का सेट है जिन्हें आप एक साथ फ़ॉलो करने की सलाह देते हैं।",
   "moderation.show": "दिखाएँ",
   "moderation.warn": "चेतावनी दें",
   "moderation.blur": "धुँधला करें",
@@ -1843,6 +1849,8 @@
   "fediverse.settings.signInRequiredDesc": "तय करें कि आपकी प्रोफ़ाइल और पोस्ट पूरे Fediverse में साझा हों या नहीं।",
   "feed.loadingPosts": "पोस्ट लोड हो रही हैं…",
   "feeds.builder.notAllowed": "आप यह फ़ीड संपादित नहीं कर सकते।",
+  "feeds.builder.signInRequired": "फ़ीड बनाने के लिए साइन इन करें",
+  "feeds.builder.signInRequiredDesc": "कस्टम फ़ीड आपके खाते में सहेजी जाती हैं, ताकि आप उन्हें पिन और शेयर कर सकें।",
   "feeds.untitled": "फ़ीड",
   "labelers.by": "द्वारा",
   "labelers.detailTitle": "लेबलर",
@@ -1869,6 +1877,8 @@
   "lists.emptyMembersSubtext": "इस सूची को सँवारने के लिए लोग जोड़ें",
   "lists.emptyPosts": "अभी कोई पोस्ट नहीं",
   "lists.emptyPostsSubtext": "उनकी पोस्ट यहाँ देखने के लिए इस सूची में लोग जोड़ें",
+  "lists.signInRequired": "सूचियाँ इस्तेमाल करने के लिए साइन इन करें",
+  "lists.signInRequiredDesc": "सूचियाँ उन खातों को एक साथ रखती हैं जिन्हें आप साथ में पढ़ना चाहते हैं। आपकी बनाई या फ़ॉलो की गई सूचियाँ यहाँ दिखेंगी।",
   "marketplace.emptySearchSubtitle": "कोई और खोज शब्द या श्रेणी आज़माएँ",
   "marketplace.emptySubtitle": "इस श्रेणी में फ़ीड बनाने वाले पहले व्यक्ति बनें",
   "marketplace.emptyTitle": "कोई फ़ीड नहीं मिली",
@@ -2335,7 +2345,9 @@
       "internalNotes": "Internal notes (never shown to the applicant)",
       "noNotes": "No notes yet",
       "addNote": "Add a note"
-    }
+    },
+    "signInRequired": "नौकरियाँ प्रकाशित करने के लिए साइन इन करें",
+    "signInRequiredDesc": "नौकरियाँ आपके द्वारा संचालित किसी संगठन या प्रोजेक्ट खाते से प्रकाशित की जाती हैं।"
   },
   "profile": {
     "jobs": {
