@@ -20,7 +20,14 @@ jest.mock('@/stores/engagementInvalidation', () => ({
   invalidateEngagementLists: (...args: unknown[]) => mockInvalidate(...args),
 }));
 
+const mockInvalidateCounts = jest.fn();
+jest.mock('@/stores/profileCountsInvalidation', () => ({
+  invalidateProfileCounts: (...args: unknown[]) => mockInvalidateCounts(...args),
+}));
+
 const mockFeedService = {
+  createPost: jest.fn(),
+  createThread: jest.fn(),
   voteItem: jest.fn(),
   removeVote: jest.fn(),
   saveItem: jest.fn(),
@@ -31,6 +38,8 @@ const mockFeedService = {
 
 jest.mock('@/services/feedService', () => ({
   feedService: {
+    createPost: (...args: unknown[]) => mockFeedService.createPost(...args),
+    createThread: (...args: unknown[]) => mockFeedService.createThread(...args),
     voteItem: (...args: unknown[]) => mockFeedService.voteItem(...args),
     removeVote: (...args: unknown[]) => mockFeedService.removeVote(...args),
     saveItem: (...args: unknown[]) => mockFeedService.saveItem(...args),
@@ -163,5 +172,61 @@ describe('postsStore reports every engagement it lands', () => {
 
     // A refused write leaves every list exactly as the caches already have it.
     expect(mockInvalidate).not.toHaveBeenCalled();
+    expect(mockInvalidateCounts).not.toHaveBeenCalled();
+  });
+});
+
+// The profile read "0 Posts" above the post it had just listed (#1140).
+describe('postsStore refreshes the profile counters a write changes', () => {
+  const published = (id: string, authorId: string) => ({
+    id,
+    user: { id: authorId },
+    content: { text: id },
+    attachments: {},
+    documents: [],
+    authors: [],
+    engagement: { likes: 0, replies: 0, boosts: 0, saves: 0, downvotes: 0 },
+    viewerState: { isOwner: true, isLiked: false, isBoosted: false, isSaved: false, isDownvoted: false },
+    permissions: {},
+    metadata: { createdAt: '2026-09-25T10:00:00.000Z', status: 'published' },
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPosts.clear();
+    seedPost();
+  });
+
+  it('a published post or reply refreshes its author', async () => {
+    mockFeedService.createPost.mockResolvedValue({ success: true, post: published('new-post', 'author-1') });
+    await usePostsStore.getState().createPost({ content: { text: 'hi' } } as never);
+    expect(mockInvalidateCounts).toHaveBeenCalledWith('author-1');
+  });
+
+  it('a published thread refreshes its author', async () => {
+    mockFeedService.createThread.mockResolvedValue({
+      success: true,
+      posts: [published('t-1', 'author-1'), published('t-2', 'author-1')],
+    });
+    await usePostsStore.getState().createThread({ posts: [] } as never);
+    expect(mockInvalidateCounts).toHaveBeenCalledWith('author-1');
+  });
+
+  it("a scheduled post changes no counter", async () => {
+    mockFeedService.createPost.mockResolvedValue({
+      success: true,
+      post: { ...published('later', 'author-1'), metadata: { createdAt: '2026-09-25T10:00:00.000Z', status: 'scheduled' } },
+    });
+    await usePostsStore.getState().createPost({ content: { text: 'later' } } as never);
+    expect(mockInvalidateCounts).not.toHaveBeenCalled();
+  });
+
+  it("a boost and an unboost refresh the viewer's counters", async () => {
+    mockFeedService.createBoost.mockResolvedValue(accepted);
+    mockFeedService.unboostItem.mockResolvedValue(accepted);
+
+    await usePostsStore.getState().boostPost({ postId: POST_ID });
+    await usePostsStore.getState().unboostPost({ postId: POST_ID });
+    expect(mockInvalidateCounts).toHaveBeenCalledTimes(2);
   });
 });

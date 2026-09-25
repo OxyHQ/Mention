@@ -713,6 +713,18 @@ export const viewerQueryKeys = {
     queryKey[3] === 'user' &&
     queryKey[4] === userId,
   /**
+   * The signed-in viewer's copy of their OWN appearance payload, which carries
+   * their profile counters (posts, boosts, replies). The viewer segment and the
+   * owner segment are the same id there, so no caller needs the viewer's id to
+   * name it.
+   */
+  isOwnAppearance: (queryKey: readonly unknown[]): boolean =>
+    viewerQueryKeys.isFamily(queryKey, 'appearance') &&
+    queryKey[3] === 'user' &&
+    typeof queryKey[4] === 'string' &&
+    queryKey[1] !== ANONYMOUS_VIEWER &&
+    queryKey[4] === queryKey[1],
+  /**
    * Whichever viewer's {@link viewerQueryKeys.operatedAccounts} list this is.
    * The `accounts` family also holds `channelAccountSettings`, which a profile
    * edit never changes, so the family alone is too wide — and a caller that

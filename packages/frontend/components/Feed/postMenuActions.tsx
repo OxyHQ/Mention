@@ -34,6 +34,7 @@ import { noteLaneListsChanged } from '@/stores/laneInvalidation';
 import { reportService } from '@/services/reportService';
 import { List as ListIcon } from '@/assets/icons/list-icon';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { invalidateProfileCounts } from '@/stores/profileCountsInvalidation';
 
 /**
  * The post overflow menu, built when the reader PRESSES "⋯" — never per row.
@@ -166,6 +167,7 @@ export function buildPostMenuActions({
 
             try {
                 await feedService.deletePost(postId);
+                invalidateProfileCounts(authorId);
                 // The pinned slot lives in React Query (ProfileTabs); refetch it so a
                 // deleted pinned post clears from the author's profile too.
                 if (authorId) {
