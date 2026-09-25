@@ -1,5 +1,5 @@
 diff --git a/build/layouts/experimental-stack/ExperimentalStackView.js b/build/layouts/experimental-stack/ExperimentalStackView.js
-index 78ce514ee726c13d820bacfa3097445fed006ff7..c952ec09f92cb2e84068897d4e5eeea1dff02acb 100644
+index 78ce514ee726c13d820bacfa3097445fed006ff7..34a202fd54165efef8c247ba6f87e6ee31600a1b 100644
 --- a/build/layouts/experimental-stack/ExperimentalStackView.js
 +++ b/build/layouts/experimental-stack/ExperimentalStackView.js
 @@ -109,7 +109,7 @@ function ScreenView({ routeKey, descriptor, options, isPreloaded, preventNativeD
@@ -20,3 +20,4 @@ index 78ce514ee726c13d820bacfa3097445fed006ff7..c952ec09f92cb2e84068897d4e5eeea1
      },
  });
  //# sourceMappingURL=ExperimentalStackView.js.map
+\ No newline at end of file

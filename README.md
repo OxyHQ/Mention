@@ -49,7 +49,7 @@ The interface is built with [**Bloom**](https://github.com/OxyHQ/Bloom). Live au
 
 ## Quick start
 
-You need [Bun](https://bun.sh) 1.3.14, Node.js 24.20.0 for the Expo and Jest toolchains, and Docker with Compose for the local data plane. Xcode or Android Studio are needed only when you run the matching native target.
+You need [Bun](https://bun.sh) 1.3.14, Node.js 24.21.0 for the Expo and Jest toolchains, and Docker with Compose for the local data plane. Xcode or Android Studio are needed only when you run the matching native target.
 
 ```bash
 bun install --frozen-lockfile

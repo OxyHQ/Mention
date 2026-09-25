@@ -1,4 +1,4 @@
-# Expo Router 57.0.18
+# Expo Router 57.0.23
 
 The experimental stack currently ignores `contentStyle` and hardcodes a white
 scene. Mention's Bloom AppShell owns the central surface, including its scoped
@@ -8,8 +8,20 @@ wrapper: the stack's `screenLayout` (`components/navigation/StackScene.tsx`)
 paints every screen with the panel's own fill, so no screen shows the one under
 it through itself.
 The npm package ships the compiled implementation, not its TypeScript source.
-Remove this hunk when upstream supports transparent scene styling. This does not
-claim physical-device validation: verify Android rendering after installation.
+Remove this hunk when upstream supports transparent scene styling. Both hunks
+are still needed in 57.0.23 (it keeps `backgroundColor: 'white'` and renders
+`Stack.HeaderConfig` unconditionally); the patch was re-made unchanged against
+it. This does not claim physical-device validation: verify Android rendering
+after installation.
+
+# expo-video 57.0.5
+
+The web player calls `video.play()` and drops the returned promise. Removing,
+pausing or replacing media cancels a pending play, and the browser rejects it
+with an `AbortError` that surfaces as an unhandled rejection. The patch routes
+every call through `playVideo()`, which consumes only that expected
+cancellation and rethrows anything else. Still present in 57.0.5; re-made
+unchanged against it. Remove when upstream handles the `play()` promise.
 
 # react-native-screens 4.26.2
 

@@ -1,6 +1,5 @@
-import { RedisClientType } from 'redis';
 import { logger } from './logger';
-import { reportRedisConnectionFailure } from './redis';
+import { reportRedisConnectionFailure, type RedisClientType } from './redis';
 
 /** Read common fields of an unknown error without assuming its shape. */
 function errorFields(error: unknown): { code?: string; message?: string; name?: string } {

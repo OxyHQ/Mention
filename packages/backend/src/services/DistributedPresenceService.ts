@@ -1,4 +1,4 @@
-import type { RedisClientType } from 'redis';
+import type { RedisClientType } from '../utils/redis';
 import { isValidPresenceUserId as validUserId } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 
