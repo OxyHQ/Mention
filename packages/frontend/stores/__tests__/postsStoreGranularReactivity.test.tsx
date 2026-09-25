@@ -303,6 +303,38 @@ describe('postsStore keyed SQLite reactivity', () => {
     expect(mockPostWriteCounts.get('quoted-post')).toBe(1);
   });
 
+  // The realtime broadcast is hydrated for NO viewer. Writing it over the
+  // viewer's own cached post used to demote it to a stranger's: the ⋯ menu lost
+  // its owner actions and the row lost Insights (#1140).
+  it('a realtime post keeps the viewer state of the copy already cached', () => {
+    const own: FeedItem = {
+      ...makePost('own-post'),
+      viewerState: { ...makePost('own-post').viewerState, isOwner: true, isLiked: true },
+      permissions: { canReply: true, canDelete: true, canPin: true, canViewSources: false },
+    };
+    mockPosts.set(own.id, own);
+
+    const anonymous: FeedItem = { ...makePost('own-post'), content: { text: 'edited body' } };
+    act(() => {
+      usePostsStore.getState().addPostsToFeed([anonymous], 'for_you');
+    });
+
+    const stored = mockPosts.get('own-post')!;
+    expect(stored.viewerState.isOwner).toBe(true);
+    expect(stored.viewerState.isLiked).toBe(true);
+    expect(stored.permissions?.canDelete).toBe(true);
+    // The broadcast still supplies the post's content.
+    expect(stored.content.text).toBe('edited body');
+    expect(mockFeedIds.get('for_you')?.[0]).toBe('own-post');
+  });
+
+  it('a realtime post with no cached copy is written as it arrived', () => {
+    act(() => {
+      usePostsStore.getState().addPostsToFeed([makePost('stranger-post')], 'for_you');
+    });
+    expect(mockPosts.get('stranger-post')?.viewerState.isOwner).toBe(false);
+  });
+
   it('updates only the changed post without re-reading either feed', () => {
     const postA = makePost('granular-a');
     const postB = makePost('granular-b');
