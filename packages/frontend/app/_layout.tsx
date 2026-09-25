@@ -17,7 +17,7 @@ import { PwaHead } from '@/components/PwaHead';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { MentionSettingsProvider } from '@/components/settings/MentionSettingsProvider';
 import { AuthRouter } from '@/components/providers/AuthRouter';
-import { PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
+import { OverlayInertBoundary, PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
 import { MediaFlightLayer } from '@oxy.so/bloom/media-flight';
 
 // Hooks
@@ -199,7 +199,15 @@ export default function RootLayout() {
                     modal is declared. With the outlet outside, every page that
                     reads the settings context crashed on native (#1126). */}
                 <MentionSettingsProvider>
-                  <AuthRouter />
+                  {/* The app's own screens, and ONLY them: while a modal Bloom
+                      surface (settings, a dialog, the media viewer) is open,
+                      the boundary hides this subtree from TalkBack/VoiceOver
+                      and makes it inert on web. The surfaces render at the
+                      outlet below, so wrapping the outlet would hide them
+                      too (#1126). */}
+                  <OverlayInertBoundary>
+                    <AuthRouter />
+                  </OverlayInertBoundary>
                   <PortalOutlet />
                   {/* The shared media surface that carries a playing video across a
                       route change. Renders null whenever nothing is in flight, so it
