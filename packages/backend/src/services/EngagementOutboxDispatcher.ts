@@ -322,7 +322,7 @@ export class EngagementOutboxDispatcher {
     if (!this.running) return;
     if (this.inFlight) return this.inFlight;
     const work = dispatchEngagementOutbox({
-      handler: (event, context) => handleEngagementOutboxEvent(event, context),
+      handler: handleEngagementOutboxEvent,
       batchSize: DISPATCH_BATCH_SIZE,
       signal: this.abortController?.signal,
     })

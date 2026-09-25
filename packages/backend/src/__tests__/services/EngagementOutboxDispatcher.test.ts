@@ -364,6 +364,15 @@ describe('handleEngagementOutboxEvent', () => {
     expect(mocks.createPostAuthorNotificationsStrict).toHaveBeenCalledOnce();
   });
 
+  it('keeps a non-Error rejection readable in the failure', async () => {
+    const postId = await seedCollaborativePost();
+    mocks.emitBookmarkCreatedStrict.mockRejectedValueOnce('store offline');
+
+    await expect(handleEngagementOutboxEvent(event('post.save', postId))).rejects.toThrow(
+      'mtn: store offline',
+    );
+  });
+
   it('skips the effects an earlier attempt already delivered', async () => {
     // Re-running the notification would not duplicate it, but it WOULD float
     // the existing row back to the top of the author's list on every retry.

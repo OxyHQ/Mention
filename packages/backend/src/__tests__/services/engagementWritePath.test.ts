@@ -1151,6 +1151,33 @@ describe('dispatching', () => {
     expect(reclaimed?.completedEffects).toEqual(['mtn']);
   });
 
+  it('fails the effect when the lease moved to another worker mid-delivery', async () => {
+    const postId = await seedPost();
+    const saved = await savePostCommand({ userId: 'viewer-a', postId });
+    const eventId = saved.outboxEventId ?? '';
+    let recordError: unknown;
+
+    await dispatchEngagementOutbox({
+      handler: async (event, context) => {
+        if (event.id !== eventId) return;
+        // Another worker took the event over while this one was delivering.
+        await db
+          .update(engagementOutbox)
+          .set({ leaseOwner: 'worker-b' })
+          .where(eq(engagementOutbox.id, eventId));
+        await context.markEffectDone('mtn').catch((error: unknown) => {
+          recordError = error;
+        });
+      },
+      leaseOwner: 'worker-a',
+      batchSize: 10,
+    });
+
+    expect(recordError).toBeInstanceOf(Error);
+    expect((recordError as Error).message).toBe('lease lost before recording the mtn effect');
+    expect((await outboxRow(eventId))?.completedEffects).toEqual([]);
+  });
+
   it('refuses to record progress on a lease this worker no longer holds', async () => {
     const postId = await seedPost();
     const saved = await savePostCommand({ userId: 'viewer-a', postId });
