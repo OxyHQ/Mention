@@ -310,6 +310,12 @@ export interface ProfileScreenProps {
    * whether that tab exists at all, so an unknown id lands on `posts`.
    */
   laneId?: string;
+  /**
+   * The page is a ROOT TAB (the native `/you` tab), not a pushed screen. A root
+   * tab has nowhere to go back to, so its header draws no Back control, like
+   * every other bar tab.
+   */
+  isRootTab?: boolean;
 }
 
 // Component props for FollowButton from @oxy.so/services

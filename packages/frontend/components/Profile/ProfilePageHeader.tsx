@@ -8,8 +8,13 @@ import UserName from '@/components/UserName';
 export const PROFILE_BANNER_HEIGHT = 170;
 
 /** Profile identity is product content; Bloom owns its scroll-revealed header. */
-export function ProfilePageHeader({ profileData, actions, overMedia = true }: {
+export function ProfilePageHeader({ profileData, actions, overMedia = true, showBack = true }: {
   profileData: ProfileData; actions: React.ReactNode; overMedia?: boolean;
+  /**
+   * `false` on a root tab. Bloom's `PageHeader` draws Back whenever it is handed
+   * an `onBack`, and a root tab has nowhere to go back to.
+   */
+  showBack?: boolean;
 }) {
   const safeBack = useSafeBack();
   return <PageHeader
@@ -22,7 +27,7 @@ export function ProfilePageHeader({ profileData, actions, overMedia = true }: {
     // flow geometry.
     placement={overMedia ? (Platform.OS === 'web' ? 'overlap' : 'overlay') : 'inline'}
     testID="profile-page-header"
-    onBack={safeBack}
+    onBack={showBack ? safeBack : undefined}
     actions={actions}
   />;
 }

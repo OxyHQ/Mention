@@ -21,6 +21,8 @@ import { feedService, type ExtendedFeedRequest } from '../services/feedService';
 import { markLocalAction } from '../services/echoGuard';
 import { publishNewLocalPost, publishRemovedLocalPost } from '@/stores/feedScrollStore';
 import { invalidateEngagementLists } from '@/stores/engagementInvalidation';
+import { invalidateProfileCounts } from '@/stores/profileCountsInvalidation';
+import { queryClient } from '@/lib/queryClient';
 
 // ── Database imports ─────────────────────────────────────────────
 import {
@@ -67,6 +69,27 @@ const isRenderableBoost = (item: FeedItem): boolean => {
   if (!item.boost) return true;
   return Boolean(item.boost.originalPost?.id);
 };
+
+/**
+ * The copy of a post to write when the incoming DTO was hydrated for NO viewer.
+ *
+ * The realtime `feed:updated` broadcast goes to every socket, so the server
+ * hydrates it anonymously: `viewerState.isOwner` is false, nothing is liked or
+ * saved, and `permissions` are a stranger's. Upserting that over the copy the
+ * viewer already holds (their own post, cached from the create response a
+ * moment earlier) silently demoted it: the ⋯ menu lost Delete/Edit/Pin and
+ * offered Report and Mute on the viewer's own post, and the Insights action
+ * vanished from the row (#1140). The post's CONTENT from the broadcast is kept;
+ * only the viewer-relative fields come from the cached copy, when there is one.
+ */
+export function keepViewerFields(incoming: FeedItem, cached: FeedItem | null | undefined): FeedItem {
+  if (!cached) return incoming;
+  return {
+    ...incoming,
+    viewerState: cached.viewerState ?? incoming.viewerState,
+    permissions: cached.permissions ?? incoming.permissions,
+  };
+}
 
 /**
  * Return each canonical embedded relation once. Hydration intentionally exposes
@@ -956,6 +979,7 @@ export const usePostsStore = create<PostsStoreState>()(
 
         notifyPostChanges([newPost.id]);
         notifyFeedChanges(feedKeys);
+        invalidateProfileCounts(queryClient, newPost.user?.id);
         set({ isLoading: false, lastRefresh: Date.now() });
         return newPost;
       } catch (error) {
@@ -1011,6 +1035,7 @@ export const usePostsStore = create<PostsStoreState>()(
 
         notifyPostChanges(collectWrittenPostIds(newPosts));
         notifyFeedChanges(feedKeys);
+        invalidateProfileCounts(queryClient, newPosts[0]?.user?.id);
         set({ isLoading: false, lastRefresh: Date.now() });
         return newPosts;
       } catch (error) {
@@ -1115,6 +1140,7 @@ export const usePostsStore = create<PostsStoreState>()(
           throw new Error('Failed to boost');
         }
         invalidateEngagementLists('boost');
+        invalidateProfileCounts(queryClient);
       } catch (error) {
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;
         if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
@@ -1149,6 +1175,7 @@ export const usePostsStore = create<PostsStoreState>()(
           throw new Error('Failed to unboost');
         }
         invalidateEngagementLists('boost');
+        invalidateProfileCounts(queryClient);
       } catch (error) {
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;
         if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
@@ -1608,11 +1635,13 @@ export const usePostsStore = create<PostsStoreState>()(
     },
 
     // ── addPostsToFeed ───────────────────────────────────────
+    // The realtime path: `socketService` hands it posts the server hydrated for
+    // no viewer, so the viewer's own state on a cached copy is kept.
     addPostsToFeed: (posts: FeedItem[], feedType: FeedType) => {
       if (!posts || posts.length === 0) return;
 
       const feedKey = buildFeedKey(feedType);
-      const transformed = posts.map((p) => toFeedItem(p));
+      const transformed = posts.map((p) => keepViewerFields(toFeedItem(p), get().getPostFromDb(p.id)));
       dbUpsertPosts(transformed);
 
       for (const post of transformed) {

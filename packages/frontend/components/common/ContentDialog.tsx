@@ -1,11 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 
 interface ContentDialogRequest {
   /** Accessibility label for the surface — what the panel is about. */
   label: string;
-  /** Optional visible title rendered by Bloom's dialog chrome. */
+  /**
+   * Optional visible title. It is rendered in Bloom's dialog navigation header,
+   * which also carries the close control.
+   */
   title?: string;
   /** Renders the panel body. `close` dismisses the dialog. */
   render: (close: () => void) => React.ReactNode;
@@ -55,11 +58,24 @@ export function ContentDialogHost() {
     };
   }, [control]);
 
+  const title = request?.title;
+  // A titled panel gets Bloom's navigation header: the title in a bar with a
+  // close control, inset by the bar itself. It used to go through the
+  // declarative `title`, which Bloom renders INSIDE the content padding, and
+  // `contentPadding={0}` below (the list panels own their insets) left that
+  // title flush with the sheet's edge and gave the panel no way to close but a
+  // drag. `largeTitle: false` because the panels own their scrolling, so there
+  // is no scroll for a large title to collapse under.
+  const header = useMemo(
+    () => (title ? { title, largeTitle: false } : undefined),
+    [title],
+  );
+
   return (
     <Dialog
       control={control}
       label={request?.label ?? ''}
-      title={request?.title}
+      header={header}
       placement={{ base: 'bottom', md: 'center' }}
       // The panels render a `FlatList`: the dialog must hand them a bounded
       // height and let them scroll it, not nest a VirtualizedList in a

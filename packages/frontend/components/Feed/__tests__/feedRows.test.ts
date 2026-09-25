@@ -366,3 +366,52 @@ describe('embedded preview bound (#1103)', () => {
         expect(canLoadMoreFeed({ hasMore: false, isLoading: false })).toBe(false);
     });
 });
+
+// A boost and the post it boosts are two entries with two ids. The profile of an
+// account that boosted its own post drew the post twice in a row (#1140).
+describe('one post, one row', () => {
+    /** A boost wrapper of `originalId`, the shape hydration emits. */
+    function boostOf(boostId: string, originalId: string, actorId = 'author-1'): HydratedPost {
+        return {
+            ...post(boostId, actorId),
+            boost: { actor: { id: actorId }, originalPost: post(originalId) },
+        } as unknown as HydratedPost;
+    }
+    function boostSlice(boostId: string, originalId: string, actorId?: string): FeedPostSlice {
+        return {
+            _sliceKey: boostId,
+            isIncompleteThread: false,
+            items: [{ post: boostOf(boostId, originalId, actorId), isThreadParent: false, isThreadChild: false, isThreadLastChild: false }],
+        };
+    }
+
+    it('drops the original when a boost of it was already drawn above (slices)', () => {
+        const rows = build({ slices: [boostSlice('boost-1', 'orig'), slice('orig'), slice('other')] });
+        expect(layout(rows)).toEqual(['boost-1', 'other']);
+    });
+
+    it('drops a later boost of a post already drawn, and a second boost of the same post', () => {
+        const rows = build({
+            slices: [slice('orig'), boostSlice('boost-1', 'orig'), boostSlice('boost-2', 'orig', 'author-2')],
+        });
+        expect(layout(rows)).toEqual(['orig']);
+    });
+
+    it('applies the same rule on the flat-items path', () => {
+        const rows = build({ items: [boostOf('boost-1', 'orig'), post('orig'), post('other')] });
+        expect(layout(rows)).toEqual(['boost-1', 'other']);
+    });
+
+    it('never removes a post from a thread slice', () => {
+        const rows = build({ slices: [boostSlice('boost-1', 'root'), threadSlice(['root', 'reply'])] });
+        expect(layout(rows)).toEqual(['boost-1', 'root', 'reply']);
+    });
+
+    it('a boost by a blocked account does not hide the original', () => {
+        const rows = build({
+            items: [boostOf('boost-1', 'orig', 'blocked'), post('orig')],
+            blockedSet: new Set(['blocked']),
+        });
+        expect(layout(rows)).toEqual(['orig']);
+    });
+});

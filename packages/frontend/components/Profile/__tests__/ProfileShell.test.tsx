@@ -111,3 +111,18 @@ test('a private feed uses the shell list instead of mounting another viewport', 
   expect(mockTabs.mock.calls.at(-1)?.[0].listOwnsScroll).toBeUndefined();
   act(() => tree.unmount());
 });
+
+// The `/you` tab is a ROOT tab. Bloom's PageHeader draws Back whenever it is
+// handed `onBack`, so the shell withholds it there, while a pushed profile
+// (`/@handle`) keeps its Back.
+test('a pushed profile has Back; the root profile tab does not', () => {
+  const pushed = renderShell(makeProps());
+  expect(typeof mockHeader.mock.calls.at(-1)?.[0].onBack).toBe('function');
+  act(() => pushed.unmount());
+
+  mockHeader.mockClear();
+  const rootTab = renderShell({ ...makeProps(), isRootTab: true });
+  expect(mockHeader).toHaveBeenCalled();
+  expect(mockHeader.mock.calls.at(-1)?.[0].onBack).toBeUndefined();
+  act(() => rootTab.unmount());
+});

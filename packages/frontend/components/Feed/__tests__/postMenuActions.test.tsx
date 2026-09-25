@@ -55,6 +55,10 @@ jest.mock('@/services/reportService', () => ({
     },
 }));
 jest.mock('@/stores/laneInvalidation', () => ({ noteLaneListsChanged: jest.fn() }));
+const mockInvalidateCounts = jest.fn();
+jest.mock('@/stores/profileCountsInvalidation', () => ({
+    invalidateProfileCounts: (...args: unknown[]) => mockInvalidateCounts(...args),
+}));
 
 const mockClipboard = { setStringAsync: jest.fn(async (_text: string) => true) };
 jest.mock('expo-clipboard', () => ({
@@ -257,6 +261,8 @@ describe('what the actions do', () => {
         expect(safeBack).toHaveBeenCalled();
         expect(mockFeedService.deletePost).toHaveBeenCalledWith('p1');
         expect(queryClient.invalidateQueries).toHaveBeenCalled();
+        // The author's profile counters drop by one (#1140).
+        expect(mockInvalidateCounts).toHaveBeenCalledWith(expect.anything(), 'author-1');
         expect(mockStore.reinsertPost).not.toHaveBeenCalled();
     });
 
@@ -265,6 +271,7 @@ describe('what the actions do', () => {
         const post = makePost();
         await find(build({ viewPost: post, isOwner: true }), 'postActions.delete').onPress();
         expect(mockStore.reinsertPost).toHaveBeenCalledWith(post);
+        expect(mockInvalidateCounts).not.toHaveBeenCalled();
         expect(mockToast).toHaveBeenCalledWith('postActions.failedToDeletePost', { type: 'error' });
         expect(safeBack).not.toHaveBeenCalled();
     });

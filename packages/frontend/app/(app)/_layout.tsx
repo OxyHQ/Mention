@@ -6,6 +6,7 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import { AppShell } from '@oxy.so/bloom/app-shell';
 import { registerPanelSurface } from '@/components/shell/panelSurface';
+import { hidesBottomBar } from '@/components/shell/bottomBarRoutes';
 
 import { MentionHomeHeader } from '@/components/navigation/MentionHomeHeader';
 import { stackSceneLayout } from '@/components/navigation/StackScene';
@@ -148,7 +149,7 @@ export default function AppLayout() {
         asideWidth={350}
         asideCollapse="hidden"
         aside={<RightBar />}
-        bottomBar={isAuthenticated && !keyboardVisible ? <BottomBar /> : undefined}
+        bottomBar={isAuthenticated && !keyboardVisible && !hidesBottomBar(pathname) ? <BottomBar /> : undefined}
         reserveBottomBarSpace={pathname !== '/videos' && pathname !== '/camera'}
       >
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none" ref={registerPanelSurface} />
