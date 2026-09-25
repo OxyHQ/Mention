@@ -88,15 +88,15 @@ export default function ListsScreen() {
       return resolved.filter((l): l is MentionList => l !== null);
     },
   });
-  useScreenReselect({ refresh: () => queryClient.invalidateQueries({ queryKey: viewerQueryKeys.listsRoot(viewerId) }) });
+  const refreshLists = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: viewerQueryKeys.listsRoot(viewerId) }),
+    [queryClient, viewerId],
+  );
+  useScreenReselect({ refresh: refreshLists });
 
   // Refresh both collections when a list is created/renamed/deleted anywhere
   // (membership/metadata changes broadcast through notifyListChanged).
-  useEffect(() => {
-    return subscribeToListChanges(() => {
-      queryClient.invalidateQueries({ queryKey: viewerQueryKeys.listsRoot(viewerId) });
-    });
-  }, [queryClient, viewerId]);
+  useEffect(() => subscribeToListChanges(() => { void refreshLists(); }), [refreshLists]);
 
   // The follow/unfollow toggle lives on the list detail screen and updates the
   // shared entity-follow store rather than the list collection. Returning to

@@ -12,7 +12,7 @@ import { parseFeedDescriptor } from '@mention/shared-types/mtn/feedDescriptor';
 import type { FeedType } from '@mention/shared-types/feed';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { useReselect, useReselectReloadKey } from '@/context/ScreenReselectContext';
+import { useReselectReloadKey, useTabSelect } from '@/context/ScreenReselectContext';
 import { SEO } from '@/components/SEO';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
@@ -38,7 +38,6 @@ const HomeScreen: React.FC = () => {
     const { t } = useTranslation();
     const { isAuthResolved, canUsePrivateApi, user } = useAuth();
     const theme = useTheme();
-    const reselect = useReselect();
     const [activeTab, setActiveTab] = useState<HomeTab>('for_you');
     const refreshKey = useReselectReloadKey();
     // The home tabs ARE the viewer's server-persisted pinned feeds (server order),
@@ -122,13 +121,7 @@ const HomeScreen: React.FC = () => {
         }
     }, [isAuthResolved, homeTabs, activeTab]);
 
-    const handleTabPress = (tabId: HomeTab) => {
-        if (tabId === activeTab) {
-            reselect();
-        } else {
-            setActiveTab(tabId);
-        }
-    };
+    const handleTabPress = useTabSelect(activeTab, setActiveTab);
 
     const renderContent = () => {
         // Feeds that render in both the anon and authed branches (for_you, …) must

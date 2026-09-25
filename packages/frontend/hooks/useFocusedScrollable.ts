@@ -38,11 +38,10 @@ export function useFocusedScrollable<T extends ScrollableRef>({
     }, [registerScrollable, initialOffset]);
 
     useEffect(() => {
-        if (owns) claim();
-        else release();
+        if (!owns) return;
+        claim();
+        return release;
     }, [owns, claim, release]);
-
-    useEffect(() => release, [release]);
 
     return useCallback((node: T | null) => {
         nodeRef.current = node;

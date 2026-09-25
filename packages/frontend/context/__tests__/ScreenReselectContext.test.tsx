@@ -19,7 +19,9 @@ import {
   ScreenReselectProvider,
   isOffsetAtTop,
   useReselect,
+  useReselectReloadKey,
   useScreenReselect,
+  useTabSelect,
   type ReselectHandler,
 } from '../ScreenReselectContext';
 
@@ -150,5 +152,53 @@ describe('reselecting the screen in front', () => {
     act(() => reselect());
     expect(second).toHaveBeenCalledTimes(1);
     expect(first).not.toHaveBeenCalled();
+  });
+});
+
+describe('useTabSelect', () => {
+  it('reselects the active tab and selects any other one', () => {
+    const select = jest.fn();
+    let press!: (tab: string) => void;
+    function Strip() {
+      press = useTabSelect<string>('for_you', select);
+      return null;
+    }
+    const refresh = jest.fn();
+    render(<><Screen handler={{ refresh }} /><Strip /></>);
+    act(() => press('following'));
+    expect(select).toHaveBeenCalledWith('following');
+    expect(refresh).not.toHaveBeenCalled();
+    act(() => press('for_you'));
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(select).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('useReselectReloadKey', () => {
+  it('moves the key and runs the screen’s own reload with it', () => {
+    const refresh = jest.fn();
+    let reloadKey = -1;
+    function Feed() {
+      reloadKey = useReselectReloadKey({ refresh });
+      return null;
+    }
+    render(<Feed />);
+    expect(reloadKey).toBe(0);
+    act(() => reselect());
+    expect(reloadKey).toBe(1);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the screen’s own top', () => {
+    const scrollToTop = jest.fn();
+    let reloadKey = -1;
+    function Reel() {
+      reloadKey = useReselectReloadKey({ isAtTop: () => false, scrollToTop });
+      return null;
+    }
+    render(<Reel />);
+    act(() => reselect());
+    expect(scrollToTop).toHaveBeenCalledTimes(1);
+    expect(reloadKey).toBe(0);
   });
 });
