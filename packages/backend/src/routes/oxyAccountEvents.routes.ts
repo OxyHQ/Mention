@@ -32,7 +32,7 @@ import { metrics } from '../utils/metrics';
  * - 400: the body is not a compact JWS.
  * - 401: the token did not verify. Oxy retries; a genuine token never gets here.
  * - 415: wrong content type.
- * - 503: the token could not be CHECKED (Oxy's key set unreachable, SDK too old).
+ * - 503: the token could not be CHECKED (Oxy's key set unreachable).
  *   Not a 401, because the event may be genuine and Oxy must retry it.
  * - 500: recording failed. Oxy retries.
  *
