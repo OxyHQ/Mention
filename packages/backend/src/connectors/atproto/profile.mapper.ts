@@ -224,9 +224,10 @@ export async function upsertAtprotoActor(actor: NormalizedExternalActor): Promis
         discoverable: true,
         memorial: false,
         suspended: false,
-        followersCount: actor.followersCount ?? 0,
-        followingCount: actor.followingCount ?? 0,
-        postsCount: actor.postsCount ?? 0,
+        // A count the profile did not carry is unknown, not zero.
+        followersCount: actor.followersCount ?? null,
+        followingCount: actor.followingCount ?? null,
+        postsCount: actor.postsCount ?? null,
         lastFetchedAt: new Date(),
       },
       [],

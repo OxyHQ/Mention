@@ -24,7 +24,7 @@
         "@oxy.so/contracts": "catalog:",
         "@oxy.so/core": "catalog:",
         "@oxy.so/db": "^1.0.0",
-        "@oxy.so/federation": "^1.0.1",
+        "@oxy.so/federation": "^2.0.0",
         "@oxy.so/mcp": "catalog:",
         "@oxy.so/protocol": "^1.1.0",
         "@oxy.so/utils": "^1.0.1",
@@ -908,7 +908,7 @@
 
     "@oxy.so/doctor": ["@oxy.so/doctor@1.0.0", "", { "bin": { "oxy-doctor": "src/cli.mjs" } }, "sha512-Cv+CbLGkx+CTJmRkPBAfLXkHnv+afw2r9H2j6IxvORq2M8gJsnI8X9k4NpjEpK6lthjf2UYAOJPFWKOxL8SWcw=="],
 
-    "@oxy.so/federation": ["@oxy.so/federation@1.0.1", "", { "dependencies": { "@oxy.so/contracts": "^1.0.0", "@oxy.so/core": "^1.0.0" }, "peerDependencies": { "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["express"] }, "sha512-1bGjqHNxLv+nCFgYYgK9qzJ0tVdh/kpjYSX2TJpcL1aqFQx3R19DkcdkcwGhGkFuOWjYXOqnjI1H3l79jXbuAA=="],
+    "@oxy.so/federation": ["@oxy.so/federation@2.0.0", "", { "dependencies": { "@oxy.so/contracts": "^1.0.0", "@oxy.so/core": "^1.0.0" }, "peerDependencies": { "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["express"] }, "sha512-n1tp75apQBn4NeLJj58VFe7uJG4QJv5d4qfor30C5Aq0cMUhETLKCpeggF6zK4f6zNe4qzbV4z7IpNAjyrKL9w=="],
 
     "@oxy.so/mcp": ["@oxy.so/mcp@1.0.0", "", { "dependencies": { "@modelcontextprotocol/sdk": "^1.30.0", "@oxy.so/contracts": "^1.0.1", "zod": "^4.5.4" } }, "sha512-FDKoxHdHLszzKzfrIsgNqRlxopyRySR04nnjtxHlImNsZydVXn6/Crs6R+Biv9W8DErjcdjtyVtwEnm0AIu+4Q=="],
 

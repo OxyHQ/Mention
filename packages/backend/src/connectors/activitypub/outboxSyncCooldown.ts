@@ -1,6 +1,7 @@
 export interface ShouldForceUntrackedOutboxSyncInput {
   outboxStatus?: string;
-  postsCount?: number;
+  /** The remote's own post total; `null` when it is unknown. */
+  postsCount?: number | null;
   lastOutboxSyncAt?: Date;
   nowMs?: number;
   cooldownMs: number;

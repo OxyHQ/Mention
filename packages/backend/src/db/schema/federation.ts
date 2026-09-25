@@ -147,10 +147,13 @@ export const federatedActors = pgTable(
      * by construction — they are the remote instance's numbers about its own
      * account, not a count of anything in this database, which is exactly why
      * they are NOT copied onto `posts.stats_*`.
+     *
+     * NULL is UNKNOWN, and is not 0: the remote hid the collection, advertised
+     * none, or has never been read successfully. A real zero is stored as 0.
      */
-    followersCount: integer().notNull().default(0),
-    followingCount: integer().notNull().default(0),
-    postsCount: integer().notNull().default(0),
+    followersCount: integer(),
+    followingCount: integer(),
+    postsCount: integer(),
     /** The Oxy account minted for this actor (Oxy type `'federated'`). */
     oxyUserId: text(),
     lastFetchedAt: timestamptz(),

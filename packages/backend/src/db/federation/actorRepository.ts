@@ -329,9 +329,9 @@ export interface ActorScanFilter {
   /**
    * Actors the remote reports as having no posts.
    *
-   * The Mongo filter was `$or: [{postsCount: 0}, {postsCount: {$exists: false}}]`;
-   * `posts_count` is `NOT NULL DEFAULT 0`, so the second branch has no Postgres
-   * counterpart and `= 0` covers both.
+   * The Mongo filter was `$or: [{postsCount: 0}, {postsCount: {$exists: false}}]`.
+   * `posts_count` is NULL when UNKNOWN, which is not "no posts", so `= 0`
+   * deliberately matches only a reported zero.
    */
   zeroPostsCount?: boolean;
   /** Narrow to ONE actor by its canonical protocol URI. */
@@ -489,11 +489,19 @@ export interface ActorUpsertColumns {
   featuredTagsUrl?: string;
   alsoKnownAs?: string[];
   remoteCreatedAt?: Date;
-  followersCount: number;
-  followingCount: number;
-  postsCount: number;
+  /**
+   * Remote aggregate counts, with `@oxy.so/federation`'s three meanings: a
+   * number is the remote's figure (0 is a real zero), `null` is definitively
+   * UNKNOWN (hidden or absent collection), and an ABSENT value is a refresh that
+   * could not tell — which keeps whatever the row already holds.
+   */
+  followersCount?: number | null;
+  followingCount?: number | null;
+  postsCount?: number | null;
   lastFetchedAt: Date;
 }
+
+const REMOTE_COUNT_COLUMNS = ['followersCount', 'followingCount', 'postsCount'] as const;
 
 /**
  * Create-or-update the actor cache row keyed by `uri`, replacing its verified
@@ -550,18 +558,25 @@ export async function upsertActor(
     featuredTagsUrl: columns.featuredTagsUrl ?? null,
     alsoKnownAs: columns.alsoKnownAs ?? null,
     remoteCreatedAt: columns.remoteCreatedAt ?? null,
-    followersCount: columns.followersCount,
-    followingCount: columns.followingCount,
-    postsCount: columns.postsCount,
+    // A first insert records an unreadable count as unknown…
+    followersCount: columns.followersCount ?? null,
+    followingCount: columns.followingCount ?? null,
+    postsCount: columns.postsCount ?? null,
     lastFetchedAt: columns.lastFetchedAt,
   } satisfies ActorInsert;
+  // …but an UPDATE must not: a count this refresh could not read is left out of
+  // `set()`, so one timeout does not erase a total we already knew. This is the
+  // one deliberate exception to the `null`-not-`undefined` rule above.
+  const keepStoredCounts = REMOTE_COUNT_COLUMNS.filter((column) => columns[column] === undefined);
 
   const write = async (tx: DatabaseOrTransaction): Promise<ActorRow | undefined> => {
     // `oxy_user_id` is deliberately NOT in either half: it is stamped by
     // `setActorOxyUserId` AFTER the identity bridge resolves, and a refresh that
     // re-wrote it from an upsert payload that never carries it would clear the
     // link on every actor refresh.
-    const { uri: _conflictKey, ...updatable } = values;
+    const { uri: _conflictKey, ...allColumns } = values;
+    const updatable: Partial<typeof allColumns> = { ...allColumns };
+    for (const column of keepStoredCounts) delete updatable[column];
     const [row] = await tx
       .insert(federatedActors)
       .values(values)

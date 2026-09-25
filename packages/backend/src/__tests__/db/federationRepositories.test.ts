@@ -262,3 +262,59 @@ describe('upsertActor — the actor type Postgres will not store', () => {
     expect((await readActor(uri))?.type).toBe('Group');
   });
 });
+
+describe('upsertActor — remote counts: unknown is not zero (OxyHQ/Mention#1126)', () => {
+  const base = (uri: string) => ({
+    protocol: 'activitypub' as const,
+    username: uri.split('/').pop() ?? 'x',
+    domain: scope.domain,
+    acct: `${uri.split('/').pop()}@${scope.domain}`,
+    summary: '',
+    type: 'Person',
+    manuallyApprovesFollowers: false,
+    discoverable: true,
+    memorial: false,
+    suspended: false,
+    lastFetchedAt: new Date(),
+  });
+
+  it('stores a reported 0 as 0 and an unknown (null) count as NULL', async () => {
+    const uri = `${scope.origin}/users/counts-known`;
+    await upsertActor(uri, { ...base(uri), followersCount: null, followingCount: 0, postsCount: 5 }, []);
+
+    const row = await readActor(uri);
+    expect(row?.followersCount).toBeNull();
+    expect(row?.followingCount).toBe(0);
+    expect(row?.postsCount).toBe(5);
+  });
+
+  it('records a count the FIRST fetch could not read as NULL, not 0', async () => {
+    const uri = `${scope.origin}/users/counts-first-failure`;
+    await upsertActor(uri, base(uri), []);
+
+    const row = await readActor(uri);
+    expect(row?.followersCount).toBeNull();
+    expect(row?.followingCount).toBeNull();
+    expect(row?.postsCount).toBeNull();
+  });
+
+  it('keeps the last known count when a refresh could not read it', async () => {
+    const uri = `${scope.origin}/users/counts-kept`;
+    await upsertActor(uri, { ...base(uri), followersCount: 812, followingCount: 344, postsCount: 20 }, []);
+    // The refresh's followers read timed out (key absent); following was read.
+    await upsertActor(uri, { ...base(uri), followingCount: 345, postsCount: 21 }, []);
+
+    const row = await readActor(uri);
+    expect(row?.followersCount).toBe(812);
+    expect(row?.followingCount).toBe(345);
+    expect(row?.postsCount).toBe(21);
+  });
+
+  it('clears a known count when the remote definitively withholds it', async () => {
+    const uri = `${scope.origin}/users/counts-hidden`;
+    await upsertActor(uri, { ...base(uri), followersCount: 812, followingCount: 344, postsCount: 20 }, []);
+    await upsertActor(uri, { ...base(uri), followersCount: null, followingCount: 344, postsCount: 20 }, []);
+
+    expect((await readActor(uri))?.followersCount).toBeNull();
+  });
+});
