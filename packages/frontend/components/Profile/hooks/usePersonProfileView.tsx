@@ -229,8 +229,11 @@ export function usePersonProfileView({
     fetchStatus: refreshFollowStatus,
     fetchUserCounts: refreshFollowCounts,
   } = useFollow(stableUserId);
-  const followerCount = rawFollowerCount ?? 0;
-  const followingCount = rawFollowingCount ?? 0;
+  // A federated account's Oxy graph holds only the follows made through this
+  // server, so its stats are the origin's own totals instead — `undefined`, and
+  // hidden, when the origin did not report one (see `profileAccountFacts`).
+  const followerCount = profileData?.isFederated ? profileData.followersCount : (rawFollowerCount ?? 0);
+  const followingCount = profileData?.isFederated ? profileData.followingCount : (rawFollowingCount ?? 0);
 
   // Show suggestions only on the follow ACTION, never on a revisit.
   const justFollowed = useJustFollowed(stableUserId, isFollowingProfileUser);

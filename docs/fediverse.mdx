@@ -221,6 +221,18 @@ federation delivery and domain moderation. `networkAcct` and `oxyUserId` are
 projections of Oxy's response. Profile links use the canonical Oxy handle;
 additional source aliases are accepted only when Oxy currently returns them.
 
+A federated account's Oxy record is a mirror minted when Mention first resolved
+the actor, so its `createdAt` and follow graph describe the mirror, not the
+account. The profile page instead reads the origin's own figures from the
+cached actor row: the `followers`/`following` collections' `totalItems` and the
+actor's `published` date, which every actor refresh already fetches. `GET
+/profile/design/:userId` serves them as `remote` (`services/federation/remoteProfileStats.ts`),
+and omits any figure the origin did not report. An ActivityPub actor with no
+collection URL, or a row never fetched, has no total. The profile then hides that
+stat or the "Joined" line instead of showing `0` or the discovery date. A
+collection fetch that fails still stores `0`, because `@oxy.so/federation`
+collapses that failure before the row is written.
+
 Mention retains a separate content-only transport list in
 `connectors/activitypub/repostTransportPolicy.ts` for rejecting flattened `RT:`
 content. That list cannot normalize accounts or establish person equivalence.

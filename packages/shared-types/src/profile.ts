@@ -99,3 +99,22 @@ export interface AppearanceSettings {
   /** User-selected primary color in hex (e.g. #005c67) */
   primaryColor?: string;
 }
+
+/**
+ * What a REMOTE account's origin says about it: the ActivityPub actor's
+ * `followers`/`following` collection `totalItems` and its `published` date, or
+ * the atproto profile's counts. Served on the public profile-design DTO for a
+ * federated account, and only there. Mention's own follow graph and the Oxy
+ * account's `createdAt` describe the local mirror, which starts at zero on the
+ * day Mention first discovered the account.
+ *
+ * Every field is ABSENT when the origin did not tell us, and a reader hides that
+ * stat rather than rendering `0` or a date. The numbers are unverifiable by
+ * construction — the remote's own claims about its own account.
+ */
+export interface RemoteProfileStats {
+  followersCount?: number;
+  followingCount?: number;
+  /** ISO 8601 — when the account was created on its origin. */
+  joinedAt?: string;
+}

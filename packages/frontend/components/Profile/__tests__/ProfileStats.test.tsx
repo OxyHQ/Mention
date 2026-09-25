@@ -56,3 +56,20 @@ describe('ProfileStats reputation', () => {
     expect(text).not.toContain('profile.stats.reputation');
   });
 });
+
+describe('ProfileStats follow-graph totals', () => {
+  it('renders a real zero', async () => {
+    const text = await renderedText({ ...BASE_PROPS, followerCount: 0 });
+
+    expect(text).toContain('0');
+    expect(text).toContain('profile.followers');
+  });
+
+  it('hides a total that is unknown instead of rendering 0', async () => {
+    const text = await renderedText({ ...BASE_PROPS, followerCount: undefined, followingCount: undefined });
+
+    expect(text).not.toContain('profile.followers');
+    expect(text).not.toContain('profile.following');
+    expect(text).toContain('profile.tabs.posts');
+  });
+});

@@ -429,8 +429,12 @@ export interface ProfileHeaderProps extends ProfileHeaderBaseProps {
 
 // Profile stats props
 export interface ProfileStatsProps {
-  followingCount: number;
-  followerCount: number;
+  /**
+   * `undefined` hides the stat: a federated account whose origin did not report
+   * a total has no honest number to show, and `0` would be a false one.
+   */
+  followingCount: number | undefined;
+  followerCount: number | undefined;
   postsCount: number;
   boostsCount: number;
   repliesCount: number;
@@ -539,8 +543,9 @@ export interface ProfileContentProps {
   profileData: ProfileData;
   isOwnProfile: boolean;
   isPrivate: boolean;
-  followingCount: number;
-  followerCount: number;
+  /** `undefined` hides the stat — see {@link ProfileStatsProps.followingCount}. */
+  followingCount: number | undefined;
+  followerCount: number | undefined;
   /** Present for people; channels do not carry an Oxy Trust balance. */
   reputationTotal?: number | null;
   /** The canonical handle, for surfaces that address the account by name. */

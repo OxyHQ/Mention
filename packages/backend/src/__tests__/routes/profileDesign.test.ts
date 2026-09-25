@@ -43,6 +43,7 @@ vi.mock('../../utils/privacyHelpers', () => ({
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';
 import type { PostRecordInput } from '../../db/posts/postRecord';
+import { deleteActorsByUris, setActorOxyUserId, upsertActor } from '../../db/federation/actorRepository';
 import profileDesignRoutes from '../../routes/profileDesign';
 
 const app = express();
@@ -128,5 +129,77 @@ describe('profile design public counts', () => {
     expect(response.body.data.postsCount).toBe(0);
     expect(response.body.data.repliesCount).toBe(1);
     expect(created).toContain(reply);
+  });
+});
+
+/**
+ * A federated account's origin figures ride the same DTO (OxyHQ/Mention#1126):
+ * the Oxy mirror's graph and `createdAt` start the day Mention discovered the
+ * actor, so the page reads these instead — and must be able to tell a local
+ * account (no `remote` at all) from an origin that did not report a figure (the
+ * key absent), neither of which may render as `0`.
+ */
+describe('profile design remote stats', () => {
+  const REMOTE_USER = 'remote-design-user';
+  const domain = 'profile-design-remote.test';
+  const uri = `https://${domain}/users/someone`;
+
+  afterEach(async () => {
+    await deleteActorsByUris([uri]);
+  });
+
+  async function seedActor(overrides: { followersUrl?: string; remoteCreatedAt?: Date } = {}) {
+    const row = await upsertActor(
+      uri,
+      {
+        protocol: 'activitypub',
+        username: 'someone',
+        domain,
+        acct: `someone@${domain}`,
+        summary: '',
+        type: 'Person',
+        manuallyApprovesFollowers: false,
+        discoverable: true,
+        memorial: false,
+        suspended: false,
+        followingUrl: `${uri}/following`,
+        followersCount: 0,
+        followingCount: 57,
+        postsCount: 9,
+        lastFetchedAt: new Date(),
+        ...overrides,
+      },
+      [],
+    );
+    await setActorOxyUserId(row!.id, REMOTE_USER);
+  }
+
+  it('serves the origin totals and published date for a federated account', async () => {
+    await seedActor({
+      followersUrl: `${uri}/followers`,
+      remoteCreatedAt: new Date('2022-11-05T00:00:00.000Z'),
+    });
+
+    const response = await request(app).get(`/profile/design/${REMOTE_USER}`).expect(200);
+
+    expect(response.body.data.remote).toEqual({
+      followersCount: 0,
+      followingCount: 57,
+      joinedAt: '2022-11-05T00:00:00.000Z',
+    });
+  });
+
+  it('omits what the origin did not report', async () => {
+    await seedActor();
+
+    const response = await request(app).get(`/profile/design/${REMOTE_USER}`).expect(200);
+
+    expect(response.body.data.remote).toEqual({ followingCount: 57 });
+  });
+
+  it('carries no remote block for a local account', async () => {
+    const response = await request(app).get(`/profile/design/${AUTHOR}`).expect(200);
+
+    expect(response.body.data).not.toHaveProperty('remote');
   });
 });
