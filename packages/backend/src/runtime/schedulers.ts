@@ -74,6 +74,16 @@ export function startSchedulers(): void {
     logger.warn("Failed to start follower snapshot job", error);
   }
 
+  // SEO sitemaps (leader-gated): every child sitemap built in one pass when the
+  // cached catalog is six hours old. Requests only read the cache, so no
+  // crawler can make a sitemap query the database (#1160).
+  try {
+    const { sitemapBuildJob } = require("../services/seoSitemap");
+    sitemapBuildJob.start();
+  } catch (error) {
+    logger.warn("Failed to start sitemap build job", error);
+  }
+
   // CrowdSource reconciliation (leader-gated, and gated on being able to deliver):
   // finds reports whose durable delivery event is missing or dead-lettered. The
   // outbox DISPATCHER runs on every task (lease-claimed in Postgres); this sweep
@@ -163,6 +173,13 @@ export function stopSchedulers(): void {
     followerSnapshotJob.stop();
   } catch (error) {
     logger.warn("Failed to stop follower snapshot job", error);
+  }
+
+  try {
+    const { sitemapBuildJob } = require("../services/seoSitemap");
+    sitemapBuildJob.stop();
+  } catch (error) {
+    logger.warn("Failed to stop sitemap build job", error);
   }
 
   try {

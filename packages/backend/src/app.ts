@@ -278,11 +278,17 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   });
   app.get('/nodeinfo/2.0', async (_req, res) => {
     let postCount = 0;
+    let counted = false;
     try {
       postCount = await deps.countLocalPosts();
+      counted = true;
     } catch (error) {
       deps.logger.debug('nodeinfo: failed to estimate post count, defaulting to 0', error);
     }
+    // Pollers and any cache between them and us may keep the document for half
+    // an hour: the count is an hourly estimate anyway. A placeholder 0 is not
+    // worth keeping, so it is only briefly cacheable.
+    res.setHeader('Cache-Control', counted ? 'public, max-age=1800' : 'public, max-age=60');
     res.json({
       version: '2.0',
       software: { name: 'mention', version: deps.deployment?.software.version ?? '1.0.0' },

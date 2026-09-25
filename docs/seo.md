@@ -27,13 +27,18 @@ every later offset page. A shard contains at most 40,000 URLs, safely below the
 protocol's 50,000 URL limit. Profile entries are derived from authors with
 eligible Mention posts, then resolved in bounded batches through Oxy's public
 bulk-profile gate, which excludes archived and restricted accounts.
-Matching partial expression indexes let PostgreSQL seek directly into a bucket,
-so shard generation grows with the shard rather than with the full archive.
 
-The catalog and gzip-compressed generated XML use the web-shell SWR cache. Oxy
-requests are bounded in batches and concurrency. This keeps repeated crawler
-reads off PostgreSQL and Oxy while still refreshing changed shards without
-allowing large XML strings to dominate Redis memory.
+Sitemaps are built in ONE pass, off the request path, by `SitemapBuildJob` on
+the scheduler leader whenever the cached catalog is six hours old: one grouped
+read for every profile shard and one bucket-ordered, streamed read for every post
+shard, then the catalog. Requests only read that cache. A shard the catalog does
+not list is `404`; an empty cache (a fresh deployment, a flushed Redis) is `503`
+with `Retry-After` until the first build lands. Building each shard on demand
+cost a full read of the eligible posts per shard (~30 s for a profile shard) and
+a crawler walking the index made that ~70% of Mention's database load (#1160).
+Responses carry `Last-Modified` (the build time) and an ETag, so a revalidating
+crawler gets a `304`, and may be cached for an hour (six at the CDN).
+
 Submit only the root sitemap in Google Search Console and monitor Page Indexing,
 ProfilePage markup, crawl failures, and sitemap URL counts. Retired numeric shard
 URLs return XML with `410 Gone`, never the HTML application shell.

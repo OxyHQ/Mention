@@ -10,7 +10,7 @@ import { RedisStore } from './middleware/rateLimitStore';
 import { bruteForceProtection } from './middleware/security';
 import { createOptionalAuth } from './middleware/optionalAuth';
 import { requestObservability } from './middleware/requestObservability';
-import { count } from 'drizzle-orm';
+import { count, sql } from 'drizzle-orm';
 import { getDb } from './db/postgres';
 import { posts } from './db/schema/posts';
 import { setRuntimeOxyClient } from './runtime/oxyClient';
@@ -20,24 +20,48 @@ import { logger } from './utils/logger';
 import { createCache } from './utils/cache';
 
 /**
- * Nodeinfo's `localPosts`, cached for five minutes.
+ * Nodeinfo's `localPosts`: the planner's row estimate, refreshed hourly.
  *
- * A federation-discovery statistic that other instances poll — the number is
- * approximate to its consumers by nature, and nobody can tell a five-minute-old
- * post count from a live one. Long enough that a crawl storm costs one scan,
- * short enough that the figure stays honest.
+ * A federation-discovery statistic that other instances poll — approximate to
+ * its consumers by nature. It used to be an exact `count(*)` cached for five
+ * minutes, and that was still a sequential scan of `posts` (1.46M rows, 1 GB)
+ * every time the entry expired: ~3.8 s and ~70k shared buffers per call, ~70
+ * calls a day in Performance Insights, each holding a request-pool connection
+ * and pushing hot pages out of the buffer cache (#1160). Nobody reading
+ * nodeinfo can tell an hour-old estimate from a live count.
  *
- * Module scope rather than inside `createRuntimeApp`: the bootstrap calls that
- * once, so the two are equivalent today, but a cache built per call would
- * silently lose its single-flight the moment anything constructed a second app
- * (a test harness, most likely).
+ * `pg_class.reltuples` is what autovacuum's ANALYZE last measured, so it is
+ * free to read and as fresh as the table's statistics. It is `-1` on a table
+ * that has never been analyzed — a freshly migrated instance, the case the old
+ * comment here worried about — and only then does this pay for an exact count.
+ *
+ * Stale-while-revalidate: an entry older than an hour is still served while one
+ * background refresh runs, so no poller ever waits on the database, and a crawl
+ * storm collapses onto one refresh per process (`getOrCompute`'s single-flight).
+ *
+ * Module scope rather than inside `createRuntimeApp`: a cache built per call
+ * would silently lose its single-flight the moment anything constructed a
+ * second app (a test harness, most likely).
  */
-const NODEINFO_POST_COUNT_TTL_SECONDS = 300;
-const NODEINFO_POST_COUNT_KEY = 'nodeinfo:v1:localposts';
+const NODEINFO_POST_COUNT_FRESH_MS = 60 * 60 * 1000;
+const NODEINFO_POST_COUNT_TTL_SECONDS = 24 * 60 * 60;
+const NODEINFO_POST_COUNT_KEY = 'nodeinfo:v2:localposts';
 const nodeinfoPostCountCache = createCache({
   name: 'NodeinfoPostCountCache',
   ttlSeconds: NODEINFO_POST_COUNT_TTL_SECONDS,
+  staleAfterMs: NODEINFO_POST_COUNT_FRESH_MS,
 });
+
+/** The planner's row estimate for `posts`, or an exact count if it has none. */
+export async function estimatePostCount(): Promise<number> {
+  const [estimate] = await getDb().execute<{ estimate: number }>(
+    sql`select reltuples::float8 as estimate from pg_class where oid = to_regclass('posts')`,
+  );
+  const reltuples = Number(estimate?.estimate);
+  if (Number.isFinite(reltuples) && reltuples >= 0) return Math.round(reltuples);
+  const [row] = await getDb().select({ count: count() }).from(posts);
+  return row?.count ?? 0;
+}
 
 /**
  * `localPosts` for `GET /nodeinfo/2.0`, served from {@link nodeinfoPostCountCache}.
@@ -47,10 +71,7 @@ const nodeinfoPostCountCache = createCache({
  * every route, none of which this needs.
  */
 export function countLocalPostsCached(): Promise<number> {
-  return nodeinfoPostCountCache.getOrCompute(NODEINFO_POST_COUNT_KEY, async () => {
-    const [row] = await getDb().select({ count: count() }).from(posts);
-    return row?.count ?? 0;
-  });
+  return nodeinfoPostCountCache.getOrCompute(NODEINFO_POST_COUNT_KEY, estimatePostCount);
 }
 
 /** Compose production HTTP dependencies. Runtime bootstrap calls this once. */
@@ -79,19 +100,8 @@ export function createRuntimeApp(activity?: RequestHandler) {
     federationDomain: config.federationDomain,
     isAllowedOrigin,
     ...appRoutePredicates,
-    // `count(*)` rather than an estimate. Mongo's `estimatedDocumentCount` read
-    // collection metadata for free; the Postgres analogue (`pg_class.reltuples`)
-    // is only as fresh as the last autovacuum and reports 0 on a table that has
-    // never been analyzed — which is exactly what a freshly-migrated instance
-    // looks like.
-    //
-    // The original comment here claimed this was "read at most once per request
-    // from a cached surface", and the exact count was affordable BECAUSE of
-    // that. There was no cache: `GET /nodeinfo/2.0` is public, unauthenticated
-    // and advertised through `/.well-known/nodeinfo`, so every fediverse crawler
-    // that discovered this instance ran an unbounded sequential scan of `posts`
-    // — the one table in the schema that only grows. `countLocalPostsCached`
-    // makes the claim true.
+    // An hourly planner estimate, never a scan per poller — see
+    // `countLocalPostsCached`.
     countLocalPosts: countLocalPostsCached,
     logger,
     middleware: {

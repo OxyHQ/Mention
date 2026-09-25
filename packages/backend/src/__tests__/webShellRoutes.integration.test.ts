@@ -3,7 +3,6 @@ import express from 'express';
 import request from 'supertest';
 import { PostType } from '@mention/shared-types';
 import type { ExternalIdentityReference } from '@oxy.so/contracts';
-import { createHash } from 'node:crypto';
 
 /**
  * `/@handle` and `/p/:id` web-shell rendering, against REAL post rows.
@@ -151,16 +150,15 @@ describe('webShell routes (integration)', () => {
     expect(res.text).not.toContain('<html');
   });
 
-  it('builds a stable post shard through the bulk Oxy gate without per-profile requests', async () => {
-    const postId = await seedOgPost();
-    const bucket = Number.parseInt(createHash('md5').update(postId).digest('hex').slice(0, 8), 16) % 64;
+  it('never builds a sitemap shard on a request', async () => {
+    // Sitemaps are built by the leader's `SitemapBuildJob` (see
+    // `seoSitemapBuild.integration.test.ts`); a request only reads the cache,
+    // which the test setup's never-ready Redis leaves empty.
+    const res = await request(makeApp()).get('/sitemaps/posts-2a-0.xml');
 
-    const res = await request(makeApp()).get(`/sitemaps/posts-${bucket.toString(16).padStart(2, '0')}-0.xml`);
-
-    expect(res.status).toBe(200);
-    expect(res.headers['content-type']).toContain('application/xml');
-    expect(res.text).toContain(`https://mention.earth/p/${postId}`);
-    expect(makeServiceRequest).toHaveBeenCalledWith('POST', '/users/by-ids', expect.anything());
+    expect(res.status).toBe(503);
+    expect(res.headers['retry-after']).toBe('900');
+    expect(makeServiceRequest).not.toHaveBeenCalled();
     expect(getProfileByUsername).not.toHaveBeenCalled();
   });
 
