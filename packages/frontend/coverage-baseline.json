@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 38.28,
-      "covered": 10189,
-      "total": 26611
+      "pct": 39.34,
+      "covered": 10522,
+      "total": 26744
     },
     "branches": {
-      "pct": 32.64,
-      "covered": 6293,
-      "total": 19277
+      "pct": 33.5,
+      "covered": 6485,
+      "total": 19355
     },
     "functions": {
-      "pct": 33.18,
-      "covered": 2255,
-      "total": 6795
+      "pct": 34.13,
+      "covered": 2331,
+      "total": 6829
     },
     "lines": {
-      "pct": 39.06,
-      "covered": 9302,
-      "total": 23810
+      "pct": 40.14,
+      "covered": 9605,
+      "total": 23925
     }
   },
   "pins": {
@@ -102,10 +102,10 @@
       "lines": 100
     },
     "db/cacheLifecycle.ts": {
-      "statements": 83,
-      "branches": 54,
-      "functions": 85,
-      "lines": 83
+      "statements": 88,
+      "branches": 59,
+      "functions": 100,
+      "lines": 88
     },
     "db/database.native.ts": {
       "statements": 13,
@@ -122,7 +122,7 @@
     "db/database.web.ts": {
       "statements": 50,
       "branches": 100,
-      "functions": 25,
+      "functions": 50,
       "lines": 50
     },
     "db/feedItem.ts": {
@@ -132,10 +132,10 @@
       "lines": 100
     },
     "db/feedQueries.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 4,
+      "branches": 3,
+      "functions": 10,
+      "lines": 5
     },
     "db/index.ts": {
       "statements": 100,
@@ -150,10 +150,10 @@
       "lines": 1
     },
     "db/memoryStore.ts": {
-      "statements": 35,
-      "branches": 25,
-      "functions": 52,
-      "lines": 41
+      "statements": 48,
+      "branches": 38,
+      "functions": 61,
+      "lines": 56
     },
     "db/migrations.ts": {
       "statements": 93,
@@ -162,16 +162,16 @@
       "lines": 93
     },
     "db/postQueries.ts": {
-      "statements": 13,
-      "branches": 8,
-      "functions": 11,
-      "lines": 16
+      "statements": 23,
+      "branches": 21,
+      "functions": 44,
+      "lines": 27
     },
     "db/schema.ts": {
-      "statements": 70,
-      "branches": 58,
-      "functions": 76,
-      "lines": 72
+      "statements": 79,
+      "branches": 63,
+      "functions": 84,
+      "lines": 82
     },
     "hooks/useAccountCategoryLabel.ts": {
       "statements": 100,
@@ -240,10 +240,10 @@
       "lines": 100
     },
     "hooks/useDraftManager.ts": {
-      "statements": 57,
-      "branches": 32,
-      "functions": 32,
-      "lines": 57
+      "statements": 72,
+      "branches": 42,
+      "functions": 50,
+      "lines": 72
     },
     "hooks/useDrafts.ts": {
       "statements": 50,
@@ -570,10 +570,10 @@
       "lines": 0
     },
     "hooks/useSafeBack.ts": {
-      "statements": 40,
-      "branches": 0,
-      "functions": 50,
-      "lines": 40
+      "statements": 80,
+      "branches": 50,
+      "functions": 100,
+      "lines": 80
     },
     "hooks/useScheduleManager.ts": {
       "statements": 85,
@@ -586,6 +586,12 @@
       "branches": 100,
       "functions": 58,
       "lines": 80
+    },
+    "hooks/useSearchAllSources.ts": {
+      "statements": 68,
+      "branches": 78,
+      "functions": 70,
+      "lines": 75
     },
     "hooks/useServerAppearanceSync.ts": {
       "statements": 0,
@@ -1080,10 +1086,10 @@
       "lines": 100
     },
     "services/searchService.ts": {
-      "statements": 72,
-      "branches": 55,
-      "functions": 74,
-      "lines": 75
+      "statements": 74,
+      "branches": 56,
+      "functions": 77,
+      "lines": 77
     },
     "services/socketService.ts": {
       "statements": 47,
@@ -1188,10 +1194,10 @@
       "lines": 75
     },
     "stores/postsStore.ts": {
-      "statements": 61,
-      "branches": 40,
-      "functions": 60,
-      "lines": 66
+      "statements": 63,
+      "branches": 43,
+      "functions": 61,
+      "lines": 68
     },
     "stores/privacyStore.ts": {
       "statements": 52,
@@ -1290,10 +1296,10 @@
       "lines": 58
     },
     "utils/composeVariants.ts": {
-      "statements": 85,
+      "statements": 86,
       "branches": 69,
-      "functions": 86,
-      "lines": 93
+      "functions": 88,
+      "lines": 94
     },
     "utils/composerProfileLinks.ts": {
       "statements": 100,

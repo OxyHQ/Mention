@@ -18,6 +18,17 @@ describe("Mention MCP capability routes", () => {
       }]);
   });
 
+  test("authorizes lane management apart from publishing", () => {
+    expect(mentionCapabilityRequirementsForRequest("GET", "/lanes/mine"))
+      .toEqual([{ toolName: "list-lanes", requiredCapabilities: ["social.lanes.read"] }]);
+    expect(mentionCapabilityRequirementsForRequest("PATCH", "/lanes/lane-1"))
+      .toEqual([{ toolName: "update-lane", requiredCapabilities: ["social.lanes.manage"] }]);
+    expect(mentionCapabilityRequirementsForRequest("PATCH", "/posts/post-1/lane"))
+      .toEqual([{ toolName: "move-post-to-lane", requiredCapabilities: ["social.posts.update"] }]);
+    // Deleting a lane un-files every post in it; no tool offers that yet.
+    expect(mentionCapabilityRequirementsForRequest("DELETE", "/lanes/lane-1")).toEqual([]);
+  });
+
   test("returns every valid requirement when tools deliberately share a route", () => {
     expect(mentionCapabilityRequirementsForRequest("GET", "/feed/item/post-1"))
       .toEqual([
@@ -35,7 +46,7 @@ describe("Mention MCP capability routes", () => {
       .toEqual([]);
   });
 
-  test("keeps all 67 tool policies in the one shared registry", () => {
-    expect(Object.keys(MENTION_TOOL_POLICIES)).toHaveLength(67);
+  test("keeps all 71 tool policies in the one shared registry", () => {
+    expect(Object.keys(MENTION_TOOL_POLICIES)).toHaveLength(71);
   });
 });

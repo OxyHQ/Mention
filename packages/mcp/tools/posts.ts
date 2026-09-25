@@ -8,6 +8,8 @@ import {
   articleInputSchema,
   attachmentDescriptorSchema,
   eventInputSchema,
+  laneIdSchema,
+  languageVariantsSchema,
   locationInputSchema,
   mediaInputSchema,
   pollInputSchema,
@@ -32,6 +34,8 @@ const createPostFields = {
   room: roomInputSchema.optional(),
   podcast: podcastInputSchema.optional(),
   attachments: z.array(attachmentDescriptorSchema).optional(),
+  variants: languageVariantsSchema,
+  laneId: laneIdSchema,
   visibility: visibilitySchema,
   hashtags: z.array(z.string()).optional().describe("Hashtags (without # prefix)"),
   mentions: z.array(z.string()).optional().describe("User IDs to mention"),
@@ -52,6 +56,13 @@ const createPostFields = {
   metadata: postMetadataSchema.optional(),
 };
 
+/** `variants[0]` IS the primary body, so a second body in `text` would be silently dropped. */
+const TEXT_AND_VARIANTS_ERROR = "Send either text or variants, not both: the first variant is the primary body.";
+
+function sendsTextAndVariants(content: { text?: string; variants?: unknown[] }): boolean {
+  return content.text !== undefined && content.variants !== undefined;
+}
+
 const collaboratorFields = {
   collaboratorIds: createPostFields.collaboratorIds,
   collaboratorHandles: createPostFields.collaboratorHandles,
@@ -60,9 +71,12 @@ const collaboratorFields = {
 export function registerPostsTools(server: MentionToolRegistrar): void {
   server.tool(
     "create-post",
-    "Create a new post on Mention with optional media, poll, article, event, room, podcast, location, sources, and collaborators (requires authorization). Invite up to 5 local users via collaboratorIds or collaboratorHandles; invitees accept through their own authorized account connection.",
+    "Create a new post on Mention with optional media, poll, article, event, room, podcast, location, sources, and collaborators (requires authorization). Invite up to 5 local users via collaboratorIds or collaboratorHandles; invitees accept through their own authorized account connection. Write the same post in several languages with variants, and file it into one of your lanes with laneId.",
     createPostFields,
     withAuthGuard(async (args) => {
+      if (sendsTextAndVariants(args)) {
+        return { content: [{ type: "text" as const, text: TEXT_AND_VARIANTS_ERROR }], isError: true };
+      }
       try {
         const content = await buildPostContentPayload({
           ...(args.text !== undefined ? { text: args.text } : {}),
@@ -75,9 +89,11 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
           ...(args.room ? { room: args.room } : {}),
           ...(args.podcast ? { podcast: args.podcast } : {}),
           ...(args.attachments ? { attachments: args.attachments } : {}),
+          ...(args.variants ? { variants: args.variants } : {}),
         });
 
         const body: Record<string, unknown> = { content };
+        if (args.laneId) body.laneId = args.laneId;
         const vis = normalizeVisibility(args.visibility);
         if (vis) body.visibility = vis;
         if (args.hashtags) body.hashtags = args.hashtags;
@@ -109,11 +125,15 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
       mode: z.enum(["thread", "beast"]).optional().describe("thread = linked chain (default); beast = separate posts"),
     },
     withAuthGuard(async ({ posts, mode }) => {
+      if (posts.some((post) => sendsTextAndVariants(post.content))) {
+        return { content: [{ type: "text" as const, text: TEXT_AND_VARIANTS_ERROR }], isError: true };
+      }
       try {
         const wirePosts = await Promise.all(
           posts.map(async (post) => {
             const content = await buildPostContentPayload(post.content);
             const entry: Record<string, unknown> = { content };
+            if (post.laneId) entry.laneId = post.laneId;
             const vis = normalizeVisibility(post.visibility);
             if (vis) entry.visibility = vis;
             if (post.hashtags) entry.hashtags = post.hashtags;
@@ -187,6 +207,27 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
         const result = await api.put(`/posts/${encodeURIComponent(id)}`, body);
         const post = unwrapApiResponse(result);
         return { content: [{ type: "text" as const, text: `Post updated.\n\n${formatPost(post)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
+    "move-post-to-lane",
+    "Move one of your top-level posts into one of your lanes, or out of any lane with laneId null (requires authorization).",
+    {
+      id: z.string().describe("Post ID"),
+      laneId: z.string().nullable().describe("Id of one of your lanes (see list-lanes), or null to remove the post from its lane"),
+    },
+    withAuthGuard(async ({ id, laneId }) => {
+      try {
+        const result = await api.patch(`/posts/${encodeURIComponent(id)}/lane`, { laneId });
+        const moved = unwrapApiResponse<{ lane?: { name?: string } | null }>(result);
+        const text = moved.lane?.name
+          ? `Post ${id} moved to lane "${moved.lane.name}".`
+          : `Post ${id} removed from its lane.`;
+        return { content: [{ type: "text" as const, text }] };
       } catch (error) {
         return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
       }

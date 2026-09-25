@@ -40,6 +40,8 @@ export function useMentionSidebar(): SidebarProps {
     const router = useRouter();
     const { user, signIn } = useAuth();
     const avatarUri = user?.avatar;
+    // Photo-less accounts get their initial, as in the Oxy account menu.
+    const avatarName = user?.name?.displayName || user?.username || undefined;
     const unreadCount = useUnreadCount();
     const { close } = useDrawer();
     const settings = useMentionSettings();
@@ -72,8 +74,8 @@ export function useMentionSidebar(): SidebarProps {
         },
         ...(user ? [{
             title: t("sidebar.profile"),
-            icon: <Avatar source={avatarUri} size={24} variant={MEDIA_VARIANT_AVATAR} />,
-            iconActive: <Avatar source={avatarUri} size={24} variant={MEDIA_VARIANT_AVATAR} />,
+            icon: <Avatar source={avatarUri} name={avatarName} size={24} variant={MEDIA_VARIANT_AVATAR} />,
+            iconActive: <Avatar source={avatarUri} name={avatarName} size={24} variant={MEDIA_VARIANT_AVATAR} />,
             onPress: handleNavigateProfile,
         }] : []),
         {
@@ -134,7 +136,7 @@ export function useMentionSidebar(): SidebarProps {
             route: '/settings',
             onPress: handleNavigateManage,
         },
-    ], [t, user, avatarUri, handleNavigateProfile, handleNavigateManage]);
+    ], [t, user, avatarUri, avatarName, handleNavigateProfile, handleNavigateManage]);
 
     const pathname = usePathname();
     return {

@@ -22,8 +22,8 @@ import * as ExpoLocation from 'expo-location';
 import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
 import { useQueryClient } from '@tanstack/react-query';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useSafeBack } from '@/hooks/useSafeBack';
+import { useLocalSearchParams } from 'expo-router';
+import { useComposeExit, type ComposePresentation } from './useComposeExit';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import PostArticlePreview from '@/components/Post/PostArticlePreview';
 import PostAttachmentEvent from '@/components/Post/Attachments/PostAttachmentEvent';
@@ -79,7 +79,7 @@ import { usePodcastManager } from '@/hooks/usePodcastManager';
 import { useJobAttachmentManager } from '@/hooks/useJobAttachmentManager';
 import { useAttachmentOrder } from '@/hooks/useAttachmentOrder';
 import { useScheduleManager } from '@/hooks/useScheduleManager';
-import { useDraftManager } from '@/hooks/useDraftManager';
+import { useDraftManager, type ComposeDraftRefs } from '@/hooks/useDraftManager';
 import { useComposeValidation } from '@/hooks/useComposeValidation';
 import { useMediaPicker } from '@/hooks/useMediaPicker';
 import { useRefSync } from '@/hooks/useRefSync';
@@ -181,47 +181,12 @@ const PodcastPickerSheet = lazy(() => import('@/components/Compose/PodcastPicker
 const JobPickerSheet = lazy(() => import('@/components/Compose/JobPickerSheet'));
 const ReplySettingsSheet = lazy(() => import('@/components/Compose/ReplySettingsSheet'));
 
-/**
- * Leaving the composer, in whichever sense leaving means here.
- *
- * A pushed composer pops (`useSafeBack` already handles the deep-link case
- * where there is nothing beneath it). A tab has nothing to pop to — popping
- * would take the reader out of the tab set entirely — so it hands them back to
- * the home tab, which is where "done" leaves you on every other tabbed app.
- */
-function useComposeDismiss(presentation: ComposePresentation): () => void {
-  const safeBack = useSafeBack();
-  return useCallback(() => {
-    if (presentation === 'tab') {
-      router.navigate('/');
-      return;
-    }
-    safeBack();
-  }, [presentation, safeBack]);
-}
-
 // Pre-computed stable style objects using layout constants
 const bottomLeftPadStyle = { marginLeft: BOTTOM_LEFT_PAD };
 const bottomLeftPadWithHPadStyle = { marginLeft: BOTTOM_LEFT_PAD, paddingHorizontal: HPAD };
 const avatarMarginStyle = { marginRight: 12 };
 
-/**
- * How this composer was reached, which is the only thing the two routes serving
- * it disagree about.
- *
- * `pushed` is `/compose` — the composer as a DESTINATION, opened from a reply
- * button, a quote, an edit action or the OS share sheet, almost always carrying
- * params, and dismissed with Back to wherever the reader came from. Fourteen
- * call sites open it that way.
- *
- * `tab` is `/write` — the composer as a PLACE, one of the five root
- * destinations, reached by tapping or swiping the bar. There is no "back to
- * where I was" for a tab, and it must never consume a share intent: the intent
- * belongs to the pushed instance that the share sheet actually opened, and
- * `consumePendingShareMedia` is a one-shot read, so a second live composer
- * reading it would take the media out from under the first.
- */
-export type ComposePresentation = 'pushed' | 'tab';
+export type { ComposePresentation };
 
 export interface ComposeScreenProps {
   presentation?: ComposePresentation;
@@ -230,7 +195,7 @@ export interface ComposeScreenProps {
 const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const theme = useTheme();
   const haptic = useHaptics();
-  const dismiss = useComposeDismiss(presentation);
+  const { dismiss, leaveAfterPublish } = useComposeExit(presentation);
   const bottomSheet = React.useContext(BottomSheetContext);
   const { drafts, saveDraft, deleteDraft } = useDrafts();
   const discardControl = useDialogControl();
@@ -730,10 +695,13 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   });
   const {
     currentDraftId,
-    setCurrentDraftId,
     autoSaveTimeoutRef,
     autoSave: autoSaveDraft,
     loadDraft,
+    beginPublish,
+    publishSucceeded,
+    publishFailed,
+    endPublish,
   } = draftManager;
 
   // Validation
@@ -1183,6 +1151,74 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     return () => { cancelled = true; };
   }, [replyToPostId, t]);
 
+  /** The composer's live content, in the shape the draft manager saves. */
+  const draftRefs = (): ComposeDraftRefs => ({
+    postContent,
+    mediaIds,
+    pollOptions,
+    pollTitle,
+    showPollCreator,
+    location,
+    sources,
+    article,
+    podcast,
+    job,
+    threadItems,
+    mentions,
+    postingMode,
+    attachmentOrder,
+    scheduledAt,
+    currentDraftId,
+    variants,
+  });
+
+  /**
+   * Empty every piece of content the composer holds — text, media, attachments,
+   * the thread, the schedule and the language buffer. "Clear all" runs it, and so
+   * does a successful publish, which is the one that matters: the tab composer
+   * is never unmounted, so whatever it still holds is what the next compose
+   * opens on.
+   */
+  const clearComposerContent = () => {
+    setMainMentionState({ text: '', mentions: [] });
+    setMediaIds([]);
+    setPollOptions([]);
+    setPollTitle('');
+    setShowPollCreator(false);
+    setLocation(null);
+    setSources([]);
+    clearArticle();
+    clearEvent();
+    clearRoom();
+    clearPodcast();
+    clearJob();
+    clearAllThreads();
+    clearAttachmentOrder();
+    clearSchedule({ silent: true });
+    resetVariants();
+  };
+
+  /**
+   * Back to a FRESH composer after a publish: the content, and also the
+   * per-post choices that belonged to the post just sent — its collaborators,
+   * lane, account, audience and warnings — so none of them carries silently into
+   * the next one. The preferred language is re-seeded as on a first open.
+   */
+  const resetComposerAfterPublish = () => {
+    clearComposerContent();
+    clearQuote();
+    setCollaborators([]);
+    setLaneId(null);
+    setPublishAs(null);
+    setAlsoPostToProfile(true);
+    setReplyPermission(['anyone']);
+    setQuotesDisabled(false);
+    setIsSensitive(false);
+    setPostingMode('thread');
+    setFocusedItemId(MAIN_ITEM_ID);
+    preferredSeededRef.current = false;
+  };
+
   const handlePost = async () => {
     if (isPosting || !user) return;
 
@@ -1217,6 +1253,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     }
 
     setIsPosting(true);
+    beginPublish();
+    let published = false;
     try {
       // Prepare all posts (main + thread items)
       const allPosts: CreatePostRequest[] = [];
@@ -1382,11 +1420,12 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         });
       }
 
-      // Clear current draft if it exists
-      if (currentDraftId) {
-        await deleteDraft(currentDraftId);
-        setCurrentDraftId(null);
-      }
+      published = true;
+
+      // The draft this post came from is spent — including one an autosave
+      // created while the request was in flight, which the rendered
+      // `currentDraftId` does not know about yet.
+      await publishSucceeded();
 
       // A scheduled post lands in the queue instead of a feed, so nothing else
       // revalidates it — drop the cached list so the Unpublished sheet shows the
@@ -1407,16 +1446,20 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       haptic('light');
       toast(successMessage, { type: 'success' });
 
-      clearSchedule({ silent: true });
-      clearArticle();
-      clearEvent();
-      clearRoom();
-      clearPodcast();
-      clearJob();
-
-      // Navigate back after posting
-      dismiss();
+      // Empty the composer, then take it out of reach. Both halves matter: the
+      // tab composer stays MOUNTED for the life of the app, so leaving it full
+      // offered the published text again on the next compose; and a composer
+      // left one Back (or one tab switch) away was a duplicate post waiting to
+      // happen (OxyHQ/Mention#1140).
+      resetComposerAfterPublish();
+      leaveAfterPublish();
     } catch (error) {
+      if (published) {
+        // The post is out; what failed is the local cleanup after it. Never
+        // tell the author a published post failed to publish.
+        logger.error('Composer cleanup after publish failed', error);
+        return;
+      }
       const { reason, normalized } = classifyApiError(error);
       logger.error('Failed to publish post', undefined, {
         reason,
@@ -1445,7 +1488,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       };
 
       toast(reasonToToast[reason], { type: 'error' });
+
+      // The work is still a draft: keep it in the composer AND in storage.
+      void publishFailed(draftRefs());
     } finally {
+      if (published) endPublish();
       setIsPosting(false);
     }
   };
@@ -3559,22 +3606,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               label: t('common.clearAll', 'Clear All'),
               color: 'destructive',
               onPress: () => {
-                setMainMentionState({ text: '', mentions: [] });
-                setMediaIds([]);
-                setPollOptions([]);
-                setPollTitle('');
-                setShowPollCreator(false);
-                setLocation(null);
-                setSources([]);
-                clearArticle();
-                clearEvent();
-                clearRoom();
-                clearPodcast();
-                clearJob();
-                clearAllThreads();
-                clearAttachmentOrder();
-                clearSchedule({ silent: true });
-                resetVariants();
+                clearComposerContent();
                 toast(t('common.cleared'), { type: 'success' });
               },
             },
@@ -3648,7 +3680,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
  */
 const ComposeScreen = ({ presentation = 'pushed' }: ComposeScreenProps) => {
   const { t } = useTranslation();
-  const dismiss = useComposeDismiss(presentation);
+  const { dismiss } = useComposeExit(presentation);
   const { isAuthResolved, canUsePrivateApi, isPrivateApiPending } = useAuth();
 
   if (!isAuthResolved || isPrivateApiPending) {

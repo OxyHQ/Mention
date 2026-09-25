@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { router, useLocalSearchParams } from "expo-router";
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@oxy.so/services/ui/client";
 import { getNormalizedUserHandle } from "@oxy.so/core";
 import { useSafeBack } from "@/hooks/useSafeBack";
@@ -62,6 +62,7 @@ import { formatCompactNumber } from "@/utils/formatNumber";
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from "@/lib/viewerQueryKeys";
 import { useLatchedState } from "@/hooks/useLatchedState";
+import { useSearchAllSources } from "@/hooks/useSearchAllSources";
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 type ResultTab = "posts" | "users" | "feeds" | "hashtags" | "lists" | "starterPacks" | "saved";
@@ -188,45 +189,25 @@ function searchTabOfQueryKey(key: readonly unknown[] | undefined): string | unde
 }
 
 /**
- * Fetch one page for a tab — the `queryFn` behind the infinite search query.
+ * Fetch one page for a single-category tab — the `queryFn` behind the infinite
+ * search query. The "All" tab is not here: it runs one query per source
+ * (`useSearchAllSources`) so each section renders as it lands.
  *
- * The "all" tab fans out over every source via `searchAll`, whose `allSettled`
- * keeps the "one flaky source degrades that section, a total failure errors"
- * semantics; a single-category tab fetches only its own source. Every underlying
- * request carries a 15s timeout — the same on every client now, and no longer
- * retried (see `utils/api.ts`) — so a hanging source REJECTS once rather than
- * stalling the screen, which is what lets React Query settle loading
- * deterministically. Before that, a cancelled or timed-out request was re-issued
- * up to three more times with backoff, so one slow source could hold the "all"
- * tab for ~28s while its own abandoned attempts filled the request queue.
+ * Every underlying request carries a 15s timeout — the same on every client
+ * now, and no longer retried (see `utils/api.ts`) — so a hanging source REJECTS
+ * once rather than stalling the screen, which is what lets React Query settle
+ * loading deterministically. Before that, a cancelled or timed-out request was
+ * re-issued up to three more times with backoff, so one slow source could hold
+ * the screen for ~28s while its own abandoned attempts filled the request queue.
  */
 async function fetchSearchPage(
-    tab: SearchTab,
+    tab: ResultTab,
     query: string,
     pageParam: SearchPageParam,
     canUsePrivateApi: boolean,
     signal?: AbortSignal,
 ): Promise<SearchResultsPage> {
     switch (tab) {
-        case "all": {
-            const all = await searchService.searchAll(
-                query,
-                canUsePrivateApi,
-                signal,
-            );
-            return {
-                results: {
-                    posts: all.posts ?? [],
-                    users: all.users ?? [],
-                    feeds: all.feeds ?? [],
-                    hashtags: all.hashtags ?? [],
-                    lists: all.lists ?? [],
-                    starterPacks: all.starterPacks ?? [],
-                    saved: all.saved ?? [],
-                },
-                nextPageParam: undefined,
-            };
-        }
         case "posts": {
             // Auth-gated: `/search` 401s until the private API is ready. Don't fire
             // early — the query is keyed on `canUsePrivateApi`, so it refetches (and
@@ -514,8 +495,20 @@ export default function SearchIndex() {
     const externalActor = useExternalActorResolve(query);
 
     const trimmedDebounced = debouncedQuery.trim();
+    const isAllTab = activeTab === "all";
 
-    // The ONE data owner for search results. React Query owns dedup, staleness,
+    // The "All" tab: one query per source, each section rendered as it lands.
+    // See `useSearchAllSources` for why it is not one query any more.
+    const allSearch = useSearchAllSources({
+        viewerId,
+        query: trimmedDebounced,
+        canUsePrivateApi,
+        enabled: isAllTab && trimmedDebounced.length > 0,
+        staleTime: SEARCH_STALE_TIME,
+        gcTime: SEARCH_GC_TIME,
+    });
+
+    // Every single-category tab: one paginated query. React Query owns dedup, staleness,
     // caching, cancellation and the whole in-flight lifecycle — the hand-rolled
     // loading / requestId / inFlight / stale-guard machine (and the bug where the
     // `finally` only cleared loading when NOT stale, so an interleave could pin it
@@ -527,7 +520,7 @@ export default function SearchIndex() {
         isFetchingNextPage,
         hasNextPage,
         fetchNextPage,
-        isError: searchFailed,
+        isError: tabSearchFailed,
         refetch: refetchSearch,
     } = useInfiniteQuery({
         queryKey: viewerQueryKeys.search(
@@ -536,19 +529,20 @@ export default function SearchIndex() {
             trimmedDebounced,
             canUsePrivateApi,
         ),
-        queryFn: ({ pageParam, signal }) => fetchSearchPage(
-            activeTab,
-            trimmedDebounced,
-            pageParam,
-            canUsePrivateApi,
-            signal,
-        ),
+        // `skipToken` on the "All" tab, whose sources are the hook's above.
+        queryFn: activeTab !== "all" && trimmedDebounced.length > 0
+            ? ({ pageParam, signal }) => fetchSearchPage(
+                activeTab,
+                trimmedDebounced,
+                pageParam,
+                canUsePrivateApi,
+                signal,
+            )
+            : skipToken,
         initialPageParam: null as SearchPageParam,
         // Each tab reports its own "next page" token; `undefined` stops paging, so
-        // the "all" overview settles after one page while every single-category tab
-        // pages until its source runs out.
+        // a tab pages until its source runs out.
         getNextPageParam: (lastPage) => lastPage.nextPageParam,
-        enabled: trimmedDebounced.length > 0,
         staleTime: SEARCH_STALE_TIME,
         gcTime: SEARCH_GC_TIME,
         // Fail fast to the error state (with a manual Retry) rather than stacking
@@ -576,7 +570,7 @@ export default function SearchIndex() {
     // is order-preserving, so the backend's native-first ordering renders exactly
     // as returned — never re-sorted client-side — and appended pages never
     // duplicate a prior page's rows (the cursor/offset sort is stable).
-    const results = useMemo<LocalSearchResults>(() => {
+    const tabResults = useMemo<LocalSearchResults>(() => {
         const pages = searchData?.pages;
         if (!pages || pages.length === 0) return EMPTY_RESULTS;
         return pages.reduce<LocalSearchResults>(
@@ -605,8 +599,17 @@ export default function SearchIndex() {
     // A next-page fetch is excluded for the same reason and gets the footer
     // spinner. Every source request times out, so all settle deterministically —
     // loading can never stick the way the old stale-guard could.
-    const loading = isPending;
-    const refreshing = !isPending && isFetching && !isFetchingNextPage;
+    //
+    // The "All" tab reads the same states off its per-source queries: loading
+    // until the FIRST source answers (or through the debounce wait, before any
+    // has been asked), then each section as it lands, with the hairline up while
+    // the rest are still coming. It errors only if every source failed.
+    const results = isAllTab ? allSearch.results : tabResults;
+    const loading = isAllTab ? allSearch.loading || trimmedDebounced.length === 0 : isPending;
+    const refreshing = isAllTab
+        ? !loading && allSearch.fetching
+        : !isPending && isFetching && !isFetchingNextPage;
+    const searchFailed = isAllTab ? allSearch.failed : tabSearchFailed;
 
     const clearDebounce = useCallback(() => {
         if (debounceTimerRef.current) {
@@ -672,9 +675,11 @@ export default function SearchIndex() {
         commitQuery(searchQuery);
     }, [latestQuery, commitToHistory, commitQuery]);
 
+    const retryAllSources = allSearch.retry;
     const retrySearch = useCallback(() => {
-        void refetchSearch();
-    }, [refetchSearch]);
+        if (isAllTab) retryAllSources();
+        else void refetchSearch();
+    }, [isAllTab, retryAllSources, refetchSearch]);
 
     // Switching tabs searches straight away instead of waiting out the debounce —
     // a tab whose results are already cached (every tab is, right after an "all"
@@ -993,9 +998,14 @@ export default function SearchIndex() {
         if (isIdle) return null;
         if (loading) return { kind: "status", key: "status-loading", state: "loading" };
         if (searchFailed) return { kind: "status", key: "status-error", state: "error" };
-        if (resultRows.length === 0) return { kind: "status", key: "status-empty", state: "empty" };
+        if (resultRows.length === 0) {
+            // Nothing yet from the sources that answered, but others are still
+            // coming: that is not "no results".
+            if (isAllTab && refreshing) return { kind: "status", key: "status-loading", state: "loading" };
+            return { kind: "status", key: "status-empty", state: "empty" };
+        }
         return null;
-    }, [isIdle, loading, searchFailed, resultRows.length]);
+    }, [isIdle, loading, searchFailed, resultRows.length, isAllTab, refreshing]);
 
     const rows = useMemo<SearchRow[]>(
         () => (statusRow ? [...suggestionRows, ...resultRows, statusRow] : [...suggestionRows, ...resultRows]),
@@ -1362,7 +1372,7 @@ export default function SearchIndex() {
                     when idle) rather than overlaying the list, so results
                     never shift by a pixel when it appears. */}
                 <View className="h-0.5 w-full overflow-hidden" accessibilityElementsHidden>
-                    {refreshing ? <View className="h-full w-full bg-primary/60" /> : null}
+                    {refreshing ? <View testID="search-refreshing" className="h-full w-full bg-primary/60" /> : null}
                 </View>
 
                 {/* ONE scroll container for every state — suggestions, results,
