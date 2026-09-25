@@ -32,6 +32,9 @@ function subscribe(listener: () => void): () => void {
     listeners.add(listener);
     if (listeners.size === 1) {
         interval = setInterval(tick, TICK_MS);
+        // A label clock must never be what keeps a process alive (Node: static
+        // rendering, jest). `unref` exists only on Node's timer object.
+        (interval as { unref?: () => void }).unref?.();
         appStateSubscription = AppState.addEventListener?.('change', (state) => {
             if (state === 'active') tick();
         }) ?? null;
