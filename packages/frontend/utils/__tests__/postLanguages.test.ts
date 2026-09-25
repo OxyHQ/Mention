@@ -182,6 +182,20 @@ describe('shouldOfferTranslation', () => {
     ).toBe(true);
   });
 
+  it('offers nothing on the reader’s OWN post, even when its language is unknown', () => {
+    // A short post the classifier would not commit to carries no language, so
+    // no reader language can match it — the author was offered a translation of
+    // their own words (OxyHQ/Mention#1140).
+    const unclassified: PostContent = { text: 'test post' };
+    const params = {
+      content: unclassified,
+      readerLanguages: ['en'],
+      options: buildPostLanguageOptions(unclassified),
+    };
+    expect(shouldOfferTranslation(params)).toBe(true);
+    expect(shouldOfferTranslation({ ...params, isOwnPost: true })).toBe(false);
+  });
+
   it('offers nothing with no reader language at all', () => {
     expect(
       shouldOfferTranslation({

@@ -13,8 +13,8 @@
 
 import { and, asc, desc, eq, gte, lt, sql, type SQL } from 'drizzle-orm';
 
-import { getDb } from '../../db/postgres';
-import { posts } from '../../db/schema/posts';
+import { getDb, type DatabaseOrTransaction } from '../../db/postgres';
+import { hashtagsSearchTextSql, posts } from '../../db/schema/posts';
 import { notCollapsedCrosspostSql } from '../../utils/feedQueryBuilder';
 import { likeContains } from '@oxy.so/utils/sql';
 
@@ -67,14 +67,36 @@ export const UNNESTED_TAG = sql<string>`lower(tag.value)`;
  * deterministic (the tag breaks count ties), so `OFFSET` never shuffles rows
  * between pages. One extra row is over-fetched purely to detect `hasMore`
  * without a second count query.
+ *
+ * `db` is the connection to run on. A caller bounding the search with
+ * `withStatementTimeout` MUST pass the transaction it was handed: the timeout
+ * is `SET LOCAL`, so a query issued on `getDb()` beside it runs unbounded.
  */
-export async function searchHashtagsWithCounts(rawQuery: string, offset: number, limit: number): Promise<HashtagSearchPage> {
+export async function searchHashtagsWithCounts(
+  rawQuery: string,
+  offset: number,
+  limit: number,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<HashtagSearchPage> {
+  const rows = await hashtagSearchQuery(db, rawQuery, offset, limit);
+  const hasMore = rows.length > limit;
+  return { results: hasMore ? rows.slice(0, limit) : rows, hasMore };
+}
+
+/**
+ * The statement {@link searchHashtagsWithCounts} runs, unexecuted.
+ *
+ * Exported so `__tests__/db/searchIndexes.test.ts` can EXPLAIN the query the
+ * service actually issues rather than a hand-written copy of it — a copy is
+ * how the prefilter drifted off the index without any test noticing.
+ */
+export function hashtagSearchQuery(db: DatabaseOrTransaction, rawQuery: string, offset: number, limit: number) {
   // Lower-cased and length-capped BEFORE escaping, because the cap counts the
   // caller's characters and the escape adds its own — capping after would let a
   // term of backslashes produce a pattern twice the intended length.
   const needle = rawQuery.trim().toLowerCase().slice(0, HASHTAG_QUERY_MAX_LENGTH);
   const pattern = likeContains(needle);
-  const rows = await getDb()
+  return db
     .select({ tag: UNNESTED_TAG, count: sql<number>`count(*)::int` })
     .from(posts)
     .innerJoin(sql`lateral unnest(${posts.hashtags}) as tag(value)`, sql`true`)
@@ -87,17 +109,16 @@ export async function searchHashtagsWithCounts(rawQuery: string, offset: number,
       // only ever admit MORE rows than the real answer (a match spanning a
       // boundary between two tags), never fewer, so the exact check right
       // after it is what the result actually depends on — see the index's own
-      // comment in `db/schema/posts.ts`.
-      sql`array_to_string(${posts.hashtags}, ' ') ilike ${pattern}`,
+      // comment in `db/schema/posts.ts`. The expression is the index's own
+      // (`hashtagsSearchTextSql`), never restated: spelled any other way the
+      // planner cannot match it and the filter reads every tagged post.
+      sql`${hashtagsSearchTextSql(posts.hashtags)} ilike ${pattern}`,
       sql`lower(tag.value) like ${pattern}`,
     ))
     .groupBy(UNNESTED_TAG)
     .orderBy(desc(sql`count(*)`), asc(UNNESTED_TAG))
     .offset(offset)
     .limit(limit + 1);
-
-  const hasMore = rows.length > limit;
-  return { results: hasMore ? rows.slice(0, limit) : rows, hasMore };
 }
 
 /** Per-tag post counts within one time window, keyed by lowercase tag. */

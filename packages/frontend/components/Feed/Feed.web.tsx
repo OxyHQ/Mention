@@ -10,6 +10,7 @@ import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@oxy.so/core/logger';
 import { useFeedState } from '@/hooks/useFeedState';
+import { feedReceivesOwnNewPost, useRevealOwnNewPost } from '@/hooks/useRevealOwnNewPost';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
 import { FeedFilters, getItemKey, shallowFiltersEqual } from '@/utils/feedUtils';
 import { FeedHeader } from './FeedHeader';
@@ -220,6 +221,7 @@ function EmbeddedWebFeed(props: FeedProps) {
         listLeadingComponent,
         type,
         showOnlySaved,
+        filters,
     } = merged;
     const theme = useTheme();
     const router = useRouter();
@@ -249,6 +251,7 @@ function EmbeddedWebFeed(props: FeedProps) {
                     showOnlySaved={showOnlySaved}
                     onRetry={handleRetry}
                     pending={feedState.pending}
+                    isThread={type === 'replies' && Boolean(filters?.parentPostId || filters?.postId)}
                 />
             ) : (
                 <View style={merged.contentContainerStyle}>
@@ -272,6 +275,10 @@ function EmbeddedWebFeed(props: FeedProps) {
  * their page header/tab bar as `listHeaderComponent`, so the document scroll
  * still owns the one virtualized list (mirrors native's `ListHeaderComponent`).
  */
+function scrollWindowToTop(): void {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function VirtualizedWebFeed(props: FeedProps) {
     // DECLARED, not inherited. The long note at `getVirtualItems()` below explains
     // why this component must not be memoized; until now the only thing enforcing
@@ -311,6 +318,7 @@ function VirtualizedWebFeed(props: FeedProps) {
         feedState,
         isAuthenticated,
         canReport,
+        currentUserId,
         handleLoadMore,
         handleRetry,
     } = useWebFeed(merged);
@@ -509,9 +517,21 @@ function VirtualizedWebFeed(props: FeedProps) {
     // The route alone is not enough: Explore/profile tabs can host distinct
     // feeds under one navigation entry. Scope the offset to the same stable
     // viewer/feed identity that owns the retained page cache.
-    useScrollRestoration('window', {
+    const { restorePending } = useScrollRestoration('window', {
         enabled: true,
         key: feedState.feedScrollKey,
+    });
+
+    // Back from the composer, the route's saved offset is restored — which left
+    // the reader's own new post, inserted at the head of the list, above the
+    // fold. Bring it into view once, AFTER that restore has landed, or the
+    // restore would move the page straight back.
+    useRevealOwnNewPost({
+        feedKey: feedState.feedScrollKey,
+        enabled: !restorePending
+            && count > 0
+            && feedReceivesOwnNewPost({ type, userId, filters, showOnlySaved, currentUserId }),
+        scrollToTop: scrollWindowToTop,
     });
 
     const header = listHeaderComponent ?? (
@@ -547,6 +567,7 @@ function VirtualizedWebFeed(props: FeedProps) {
                         showOnlySaved={showOnlySaved}
                         onRetry={handleRetry}
                         pending={feedState.pending}
+                        isThread={type === 'replies' && Boolean(filters?.parentPostId || filters?.postId)}
                     />
                 ) : (
                     // Web-only file: the virtual rows are plain DOM nodes so

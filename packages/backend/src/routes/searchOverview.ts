@@ -104,13 +104,25 @@ router.get('/overview', async (req: AuthRequest, res: Response) => {
     // The three viewer-independent lanes, cached together. Grouped rather than
     // cached individually because they share one key and one round trip — three
     // keys would be three Redis reads for one request.
-    const shared = await getSharedLanes(query, limit, async () => {
+    //
+    // Started here and NOT awaited: each of the three lanes below awaits it
+    // inside the orchestrator, so the lane's wall-clock budget and its
+    // timeout/error status apply to it like any other lane. Awaiting it first
+    // resolved the group before the orchestrator ever started, so the budget
+    // raced an already-settled value and bounded nothing. One member over its
+    // budget fails the group, so all three report that status: a partial group
+    // must not be cached, and the member that did finish is not worth a second
+    // code path.
+    let servedFromCache = false;
+    const shared = getSharedLanes(query, limit, async () => {
       const [hashtags, feeds, packs] = await Promise.all([
-        withStatementTimeout(LANE_STATEMENT_BUDGET_MS, () =>
-          searchHashtagsWithCounts(query, 0, limit),
+        // Every lane query runs on the `tx` its budget was set on. The budget
+        // is `SET LOCAL`, so a query on any other connection runs unbounded.
+        withStatementTimeout(LANE_STATEMENT_BUDGET_MS, (tx) =>
+          searchHashtagsWithCounts(query, 0, limit, tx),
         ),
-        withStatementTimeout(LANE_STATEMENT_BUDGET_MS, () => feedLane(query, limit)),
-        withStatementTimeout(LANE_STATEMENT_BUDGET_MS, () => starterPackLane(query, limit)),
+        withStatementTimeout(LANE_STATEMENT_BUDGET_MS, (tx) => feedLane(tx, query, limit)),
+        withStatementTimeout(LANE_STATEMENT_BUDGET_MS, (tx) => starterPackLane(tx, query, limit)),
       ]);
 
       const owners = await resolveLaneOwners([feeds.rows, packs.rows]);
@@ -124,21 +136,24 @@ router.get('/overview', async (req: AuthRequest, res: Response) => {
           hasMore: packs.hasMore,
         },
       };
+    }).then(({ value, fromCache }) => {
+      servedFromCache = fromCache;
+      return value;
     });
+    // Each lane attaches its own handler, but one that loses its wall-clock
+    // race stops listening; this keeps a later rejection from going unhandled.
+    shared.catch(() => undefined);
 
     const lanes: LaneDefinition[] = [
-      // The cached three are already resolved, so their "lane" is a resolved
-      // value. Kept in the orchestrator rather than assembled beside it so
-      // every lane reports `tookMs` and a status the same way.
-      { name: 'hashtags', budgetMs: LANE_BUDGET_MS, run: async () => shared.value.hashtags },
-      { name: 'feeds', budgetMs: LANE_BUDGET_MS, run: async () => shared.value.feeds },
-      { name: 'starterPacks', budgetMs: LANE_BUDGET_MS, run: async () => shared.value.starterPacks },
+      { name: 'hashtags', budgetMs: LANE_BUDGET_MS, run: async () => (await shared).hashtags },
+      { name: 'feeds', budgetMs: LANE_BUDGET_MS, run: async () => (await shared).feeds },
+      { name: 'starterPacks', budgetMs: LANE_BUDGET_MS, run: async () => (await shared).starterPacks },
       {
         name: 'lists',
         budgetMs: LANE_BUDGET_MS,
         run: async () => {
-          const { rows, hasMore } = await withStatementTimeout(LANE_STATEMENT_BUDGET_MS, () =>
-            listLane(query, limit, viewerId),
+          const { rows, hasMore } = await withStatementTimeout(LANE_STATEMENT_BUDGET_MS, (tx) =>
+            listLane(tx, query, limit, viewerId),
           );
           const [owners, memberCounts] = await Promise.all([
             resolveLaneOwners([rows]),
@@ -162,7 +177,9 @@ router.get('/overview', async (req: AuthRequest, res: Response) => {
     ];
 
     const overview = await runSearchOverview(query, lanes, skipped);
-    res.json({ ...overview, servedFromCache: shared.fromCache });
+    // Still `false` if the group failed or outran its lanes' budgets — neither
+    // was served from cache.
+    res.json({ ...overview, servedFromCache });
   } catch (error) {
     // Only reachable if the ORCHESTRATOR itself fails: every lane's failure is
     // already a per-lane status, so this is not the path a slow database takes.

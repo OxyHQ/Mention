@@ -126,71 +126,29 @@ export const composeStyles = StyleSheet.create({
     zIndex: 1,
   },
 
-  /* bottom bar and floating post button */
+  /* the footer: the batch's pills, then the submit slot */
   bottomBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderTopWidth: StyleSheet.hairlineWidth,
-    // A ScrollView stretches to fill its parent unless told not to; this row is
-    // as tall as one pill.
-    flexGrow: 0,
+    paddingVertical: 8,
+    paddingRight: 16,
+    gap: 8,
   },
-  bottomBarContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  // Takes the width the button leaves and never more, so the pills scroll under
+  // their own edge instead of running beneath the button.
+  bottomBarChips: {
+    flex: 1,
+  },
+  bottomBarSubmit: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexShrink: 0,
   },
-  bottomText: {
-    fontSize: 16,
-    flex: 1,
-  },
-  sensitiveToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingLeft: 8,
-  },
-  replySettingsPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 5,
-  },
-  replySettingsText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  floatingCharCount: {
-    position: 'absolute',
-    right: 20,
-    bottom: 16 + 48 + 8, // above floating post button
+  charCount: {
     fontSize: 12,
     fontWeight: '500',
-  },
-  floatingPostButton: {
-    position: 'absolute',
-    right: 16,
-    bottom: 16,
-    backgroundColor: '#fff',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 16,
-    boxShadow: '0px 0px 6px 0px rgba(0, 0, 0, 0.2)',
-    elevation: 6,
-  },
-  floatingPostButtonDisabled: {
-    backgroundColor: '#949494',
-    opacity: 0.7,
-  },
-  floatingPostText: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  floatingPostTextDark: {
-    fontWeight: '700',
-    fontSize: 16,
   },
   /* compose toolbar */
   toolbarIcons: {

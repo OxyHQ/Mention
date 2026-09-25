@@ -160,6 +160,56 @@ export function publishNewLocalPost(item: HydratedPost): void {
     for (const listener of localNewPostListeners) {
         listener(item);
     }
+    localPostRevision += 1;
+    for (const listener of localPostRevisionListeners) {
+        listener();
+    }
+}
+
+// How many posts the viewer has published this session, as a revision a feed
+// can compare against to know it has a new post of theirs at its top to bring
+// into view (`hooks/useRevealOwnNewPost`). Counted for BOTH storage paths —
+// unlike the item listeners above, which only memory-mode feeds need.
+let localPostRevision = 0;
+const localPostRevisionListeners = new Set<() => void>();
+
+export function getLocalPostRevision(): number {
+    return localPostRevision;
+}
+
+export function subscribeToLocalPostRevision(listener: () => void): () => void {
+    localPostRevisionListeners.add(listener);
+    return () => {
+        localPostRevisionListeners.delete(listener);
+    };
+}
+
+// ── Local new-reply broadcast (thread replies feeds) ─────────────────
+//
+// The sibling of the new-post broadcast, for the one kind of feed that one
+// skips: a thread's replies list is a SCOPED memory feed, so a new post never
+// belongs in it — but the viewer's own new reply to that thread does. The
+// listener in `useFeedState` matches the reply's `parentPostId` against the
+// feed's own scope, so a reply lands only in the thread it answers.
+
+/** Invoked with the hydrated reply the server returned for a successful reply. */
+export type LocalNewReplyListener = (reply: HydratedPost) => void;
+
+const localNewReplyListeners = new Set<LocalNewReplyListener>();
+
+/** Subscribe a replies feed to the viewer's new replies. Returns an unsubscribe function. */
+export function subscribeToNewLocalReplies(listener: LocalNewReplyListener): () => void {
+    localNewReplyListeners.add(listener);
+    return () => {
+        localNewReplyListeners.delete(listener);
+    };
+}
+
+/** Broadcast a reply the server has accepted. Called by `postsStore.createReply`. */
+export function publishNewLocalReply(reply: HydratedPost): void {
+    for (const listener of localNewReplyListeners) {
+        listener(reply);
+    }
 }
 
 // ── Local post-removal broadcast (memory-mode feeds) ─────────────────

@@ -150,8 +150,17 @@ export function shouldOfferTranslation(params: {
   postLanguage?: string;
   readerLanguages: readonly string[];
   options: readonly PostLanguageOption[];
+  /**
+   * The reader wrote this post. Nobody needs their own words translated back to
+   * them, and the language comparison below cannot be relied on to say so: a
+   * short post the classifier would not commit to has no served language at
+   * all, and then no reader language "matches" it — which is how the author's
+   * own post in their own language grew a translate icon (OxyHQ/Mention#1140).
+   */
+  isOwnPost?: boolean;
 }): boolean {
-  const { content, postLanguage, readerLanguages, options } = params;
+  const { content, postLanguage, readerLanguages, options, isOwnPost } = params;
+  if (isOwnPost) return false;
   if (readerLanguages.length === 0) return false;
   if (typeof content.text !== 'string' || content.text.trim().length === 0) return false;
 

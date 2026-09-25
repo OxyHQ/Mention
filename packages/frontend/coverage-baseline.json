@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 37.88,
-      "covered": 10048,
-      "total": 26523
+      "pct": 38.28,
+      "covered": 10189,
+      "total": 26611
     },
     "branches": {
-      "pct": 32.21,
-      "covered": 6190,
-      "total": 19214
+      "pct": 32.64,
+      "covered": 6293,
+      "total": 19277
     },
     "functions": {
-      "pct": 32.84,
-      "covered": 2224,
-      "total": 6772
+      "pct": 33.18,
+      "covered": 2255,
+      "total": 6795
     },
     "lines": {
-      "pct": 38.67,
-      "covered": 9180,
-      "total": 23734
+      "pct": 39.06,
+      "covered": 9302,
+      "total": 23810
     }
   },
   "pins": {
@@ -294,10 +294,10 @@
       "lines": 97
     },
     "hooks/useFeedState.ts": {
-      "statements": 68,
-      "branches": 58,
-      "functions": 60,
-      "lines": 69
+      "statements": 72,
+      "branches": 64,
+      "functions": 70,
+      "lines": 73
     },
     "hooks/useFocusedScrollable.ts": {
       "statements": 100,
@@ -551,6 +551,12 @@
       "functions": 100,
       "lines": 100
     },
+    "hooks/useRevealOwnNewPost.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "hooks/useRoomManager.ts": {
       "statements": 0,
       "branches": 0,
@@ -610,6 +616,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "hooks/useTimeAgo.ts": {
+      "statements": 92,
+      "branches": 66,
+      "functions": 85,
+      "lines": 95
     },
     "hooks/useTopicFollows.ts": {
       "statements": 0,
@@ -954,10 +966,10 @@
       "lines": 0
     },
     "services/feedService.ts": {
-      "statements": 36,
-      "branches": 26,
-      "functions": 29,
-      "lines": 40
+      "statements": 38,
+      "branches": 29,
+      "functions": 30,
+      "lines": 41
     },
     "services/feedTuningService.ts": {
       "statements": 0,
@@ -1134,10 +1146,10 @@
       "lines": 50
     },
     "stores/feedScrollStore.ts": {
-      "statements": 65,
+      "statements": 78,
       "branches": 50,
-      "functions": 73,
-      "lines": 65
+      "functions": 84,
+      "lines": 79
     },
     "stores/hapticsStore.ts": {
       "statements": 0,
@@ -1176,10 +1188,10 @@
       "lines": 75
     },
     "stores/postsStore.ts": {
-      "statements": 58,
-      "branches": 38,
-      "functions": 57,
-      "lines": 63
+      "statements": 61,
+      "branches": 40,
+      "functions": 60,
+      "lines": 66
     },
     "stores/privacyStore.ts": {
       "statements": 52,
@@ -1290,10 +1302,10 @@
       "lines": 100
     },
     "utils/dateUtils.ts": {
-      "statements": 74,
-      "branches": 40,
+      "statements": 81,
+      "branches": 51,
       "functions": 70,
-      "lines": 80
+      "lines": 87
     },
     "utils/displayName.ts": {
       "statements": 100,
@@ -1471,7 +1483,7 @@
     },
     "utils/postLanguages.ts": {
       "statements": 96,
-      "branches": 88,
+      "branches": 89,
       "functions": 100,
       "lines": 100
     },

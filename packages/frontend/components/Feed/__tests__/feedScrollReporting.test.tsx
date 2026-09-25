@@ -66,6 +66,8 @@ jest.mock('@/context/LayoutScrollContext', () => ({
 jest.mock('@/stores/feedScrollStore', () => ({
     getFeedScrollOffset: () => 0,
     setFeedScrollOffset: (...args: unknown[]) => mockSetFeedScrollOffset(...args),
+    getLocalPostRevision: () => 0,
+    subscribeToLocalPostRevision: () => () => undefined,
 }));
 
 jest.mock('@shopify/flash-list', () => {

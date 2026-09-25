@@ -12,7 +12,12 @@ describe('hidesBottomBar', () => {
     expect(hidesBottomBar(pathname)).toBe(true);
   });
 
-  it.each(['/', '/videos', '/notifications', '/you', '/aid', '/@ai', undefined, null, ''])(
+  // The pushed composer: the tab bar and the FAB sat on its footer (#1140).
+  it('hides the bar over the pushed composer', () => {
+    expect(hidesBottomBar('/compose')).toBe(true);
+  });
+
+  it.each(['/', '/videos', '/notifications', '/you', '/aid', '/@ai', '/write', '/composer', undefined, null, ''])(
     'keeps the bar on %p',
     (pathname) => {
       expect(hidesBottomBar(pathname)).toBe(false);

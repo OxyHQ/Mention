@@ -81,6 +81,10 @@ export function overviewCacheKey(query: string, limit: number): string {
  * a transient failure costs one request instead of pinning a bad answer for the
  * whole TTL. The outer catch exists only so a REDIS problem cannot take search
  * down — `createCache` is already fail-open, and this is the belt to it.
+ *
+ * A rejection from `compute` ITSELF is rethrown, never retried. The fallback
+ * used to catch it too and run `compute` a second time, so a lane that hit its
+ * statement budget paid the budget twice and then failed anyway.
  */
 export async function getSharedLanes<T>(
   query: string,
@@ -95,13 +99,20 @@ export async function getSharedLanes<T>(
   // expire and the next request would pay the full cost inline, which is
   // exactly the behaviour SWR exists to avoid.
   let computed = false;
+  let computeFailed = false;
   try {
     const value = await cache.getOrCompute(key, async () => {
       computed = true;
-      return compute();
+      try {
+        return await compute();
+      } catch (error) {
+        computeFailed = true;
+        throw error;
+      }
     });
     return { value, fromCache: !computed };
   } catch (error) {
+    if (computeFailed) throw error;
     logger.warn('[SearchOverviewCache] Falling back to an uncached computation', { error });
     return { value: await compute(), fromCache: false };
   }

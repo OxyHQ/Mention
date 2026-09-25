@@ -32,6 +32,7 @@ import { RiCornerDownRightLine } from '@oxy.so/bloom/icons/RiCornerDownRightLine
 import { RiLinkM } from '@oxy.so/bloom/icons/RiLinkM';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
+import { formatCompactNumber } from '@/utils/formatNumber';
 import { useImagePreload } from '@oxy.so/bloom/hooks';
 import { usePostInteractions } from './postInteractions';
 import { PinIcon } from '@/assets/icons/pin-icon';
@@ -472,7 +473,7 @@ const PostItem: React.FC<PostItemProps> = ({
         canTranslate,
         selectLanguage,
         toggleReaderTranslation,
-    } = usePostLanguage(content, viewPostId, metadata.language);
+    } = usePostLanguage(content, viewPostId, metadata.language, isOwner);
     const openLanguagePicker = usePostLanguagePicker(languageOptions, activeLanguageTag, selectLanguage);
 
     const openSourcesSheet = useCallback(() => {
@@ -1021,6 +1022,12 @@ const PostItem: React.FC<PostItemProps> = ({
                             isTranslated={isTranslated}
                             isTranslating={isTranslating}
                             onInsightsPress={isOwner ? handleInsightsPress : undefined}
+                            repliesSummary={actionsEngagement.replies > 0
+                                ? t('post.summary.replies', {
+                                    count: actionsEngagement.replies,
+                                    formattedCount: formatCompactNumber(actionsEngagement.replies),
+                                })
+                                : undefined}
                         />
                     </View>
                 )}

@@ -24,10 +24,16 @@ const ICON_SIZE = 20;
 const MINI_AVATAR = 16;
 const AVATAR_OVERLAP = -4;
 
-/** Only what the bar itself renders. Counts it does not show (boosts, quotes, views) live on <PostDetailStats>. */
+/** Only what the bar itself renders. Counts it does not show (quotes, views) live on <PostDetailStats>. */
 interface Engagement {
   replies: number | null;
   likes: number | null;
+  /**
+   * Shown beside the boost icon, like the like count beside the heart. The bar
+   * used to show likes and saves and leave boosts blank, so a post boosted once
+   * read as a post nobody had boosted (OxyHQ/Mention#1140).
+   */
+  boosts?: number | null;
   downvotes?: number | null;
   saves?: number | null;
   recentReplierAvatars?: string[];
@@ -68,6 +74,12 @@ interface Props {
   isTranslated?: boolean;
   isTranslating?: boolean;
   postId?: string;
+  /**
+   * "2 replies", already localized and pluralized by the caller (i18n plural
+   * rules, not an English `=== 1` check). The bar holds no translation hook of
+   * its own: it mounts once per feed row, and the row already has one.
+   */
+  repliesSummary?: string;
 }
 
 const PostActions: React.FC<Props> = ({
@@ -87,6 +99,7 @@ const PostActions: React.FC<Props> = ({
   onTranslateLongPress,
   isTranslated,
   isTranslating,
+  repliesSummary,
 }) => {
   const theme = useTheme();
   const haptic = useHaptics();
@@ -99,6 +112,7 @@ const PostActions: React.FC<Props> = ({
   const replies = engagement?.replies ?? 0;
   const likes = engagement?.likes ?? 0;
   const saves = engagement?.saves ?? 0;
+  const boosts = engagement?.boosts ?? 0;
   const downvotes = engagement?.downvotes ?? 0;
   const replierAvatars = engagement?.recentReplierAvatars ?? [];
 
@@ -178,7 +192,7 @@ const PostActions: React.FC<Props> = ({
       ) : null}
 
       <PressableScale
-        style={styles.iconButton}
+        style={styles.countedIconButton}
         onPress={() => {
           haptic('light');
           onBoost();
@@ -190,6 +204,14 @@ const PostActions: React.FC<Props> = ({
           <BoostIconActive size={ICON_SIZE} color={theme.colors.success} />
         ) : (
           <BoostIcon size={ICON_SIZE} className="text-muted-foreground" />
+        )}
+        {boosts > 0 && (
+          <Text
+            className={isBoosted ? 'text-[13px]' : 'text-[13px] text-muted-foreground'}
+            style={isBoosted ? { color: theme.colors.success } : undefined}
+          >
+            {formatCompactNumber(boosts)}
+          </Text>
         )}
       </PressableScale>
 
@@ -276,7 +298,7 @@ const PostActions: React.FC<Props> = ({
 
   // Build summary parts like Threads: "X replies · Y likes"
   const summaryParts: string[] = [];
-  if (replies > 0) summaryParts.push(`${formatCompactNumber(replies)} ${replies === 1 ? 'reply' : 'replies'}`);
+  if (replies > 0 && repliesSummary) summaryParts.push(repliesSummary);
 
   // A fragment, not a wrapping <View>: the only caller already renders this bar
   // inside a padded column, so the wrapper laid nothing out. Under NativeWind's
@@ -330,6 +352,14 @@ export default React.memo(PostActions);
 const styles = StyleSheet.create({
   iconButton: {
     padding: 2,
+  },
+  // A plain style, not `className`: a class on the pressable costs every row an
+  // interop wrapper (the row-cost harness counts it), for a layout this states.
+  countedIconButton: {
+    padding: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   miniAvatarWrap: {
     borderWidth: 1.5,

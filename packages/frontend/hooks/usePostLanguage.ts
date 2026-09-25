@@ -93,6 +93,8 @@ export function usePostLanguage(
   content: PostContent,
   postId: string | undefined,
   postLanguage?: string,
+  /** The viewer wrote this post (`viewerState.isOwner`): no translate icon. */
+  isOwnPost?: boolean,
 ): PostLanguageState {
   const { t } = useTranslation();
 
@@ -221,7 +223,7 @@ export function usePostLanguage(
     if (target) selectLanguage(target);
   }, [selectedTag, options, readerLanguages, selectLanguage, patchOverride]);
 
-  const canTranslate = shouldOfferTranslation({ content, postLanguage, readerLanguages, options });
+  const canTranslate = shouldOfferTranslation({ content, postLanguage, readerLanguages, options, isOwnPost });
 
   const activeTag = selectedTag ?? servedTag;
   const activeOption = activeTag ? options.find((option) => option.tag === activeTag) : undefined;

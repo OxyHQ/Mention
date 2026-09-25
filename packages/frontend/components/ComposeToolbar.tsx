@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useMemo } from 'react';
-import { ScrollView } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -144,6 +144,9 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
         gap: 8,
         paddingVertical: 8,
         paddingLeft: contentPaddingLeft,
+        // The last icon clears the screen edge by the composer's own gutter
+        // instead of ending flush against it.
+        paddingRight: TOOLBAR_TRAILING_PAD,
     }), [contentPaddingLeft]);
 
     const CollaboratorsIcon = hasCollaborators ? RiGroupFill : RiGroupLine;
@@ -153,6 +156,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
             horizontal
             showsHorizontalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            style={styles.scroller}
             contentContainerStyle={contentContainerStyle}
         >
             {onMediaPress && (
@@ -373,5 +377,23 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
 });
 
 ComposeToolbar.displayName = 'ComposeToolbar';
+
+/** The composer's horizontal gutter (`composeLayout.HPAD`). */
+const TOOLBAR_TRAILING_PAD = 16;
+
+const styles = StyleSheet.create({
+    // Every caller puts this row inside a `flexDirection: 'row'` wrapper. A
+    // horizontal ScrollView there sizes to its CONTENT on native (a flex child
+    // does not shrink by default), so with more icons than the screen is wide
+    // the scroller itself was wider than the screen: nothing to scroll, and the
+    // last icon clipped off the right edge (OxyHQ/Mention#1140). Shrinking to
+    // the row it is in is what gives it something to scroll; `minWidth: 0`
+    // does the same for web, where a flex item's minimum is its content.
+    scroller: {
+        flexGrow: 1,
+        flexShrink: 1,
+        minWidth: 0,
+    },
+});
 
 export default ComposeToolbar;

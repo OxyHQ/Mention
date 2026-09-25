@@ -52,12 +52,14 @@ jest.mock('@/lib/animations/CountWheel', () => ({ CountWheel: () => null }));
 
 const noop = () => undefined;
 
-function renderBar() {
+function renderBar(props: Partial<React.ComponentProps<typeof PostActions>> = {}) {
     let renderer: TestRenderer.ReactTestRenderer | undefined;
     act(() => {
         renderer = TestRenderer.create(
             <PostActions
                 engagement={{ replies: 2, likes: 3 }}
+                repliesSummary="2 replies"
+                {...props}
                 onReply={noop}
                 onBoost={noop}
                 onLike={noop}
@@ -103,5 +105,24 @@ describe('PostActions shape', () => {
         expect(summaryRoot[0].findAllByType('PressableScale' as never)).toHaveLength(0);
 
         act(() => renderer.unmount());
+    });
+
+    // The bar counted likes and saves and left the boost icon bare, so a post
+    // boosted once read as boosted by nobody (OxyHQ/Mention#1140).
+    it('counts boosts beside the boost icon, and draws no count at zero', () => {
+        const withBoosts = renderBar({ engagement: { replies: 0, likes: 0, boosts: 1 } });
+        const boostButton = withBoosts.root.findAll(
+            (node) => String(node.type) === 'PressableScale' && node.props.accessibilityLabel === 'Boost',
+        );
+        expect(boostButton).toHaveLength(1);
+        expect(boostButton[0].findAll((node) => node.children.includes('1'))).not.toHaveLength(0);
+        act(() => withBoosts.unmount());
+
+        const none = renderBar({ engagement: { replies: 0, likes: 0, boosts: 0 } });
+        const bare = none.root.findAll(
+            (node) => String(node.type) === 'PressableScale' && node.props.accessibilityLabel === 'Boost',
+        );
+        expect(bare[0].findAll((node) => node.children.includes('0'))).toHaveLength(0);
+        act(() => none.unmount());
     });
 });

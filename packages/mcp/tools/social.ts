@@ -6,19 +6,22 @@ import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 export function registerSocialTools(server: MentionToolRegistrar): void {
   server.tool(
     "follow-user",
-    "Follow a user or federated actor (requires authorization). Pass actorUri (ActivityPub URI or acct handle like user@domain.com).",
+    "Follow a Mention user or a federated actor (requires authorization). Pass actorUri: a Mention username (`nate`, `@nate`, `nate@mention.earth`), an Oxy user ID, or a remote ActivityPub URI / acct handle (user@domain.com) / atproto handle.",
     {
-      actorUri: z.string().describe("Remote actor URI or acct handle to follow"),
+      actorUri: z.string().describe("Mention username, Oxy user ID, or remote actor URI / acct handle to follow"),
     },
     withAuthGuard(async ({ actorUri }) => {
       try {
         const result = await api.post("/federation/follow", { actorUri });
         const obj = result as Record<string, unknown>;
         const pending = obj.pending === true ? " (pending approval)" : "";
+        const text = typeof obj.oxyUserId === "string"
+          ? `${obj.changed === false ? "Already following" : "Now following"} ${actorUri}.`
+          : `Follow request sent for ${actorUri}${pending}.`;
         return {
           content: [{
             type: "text" as const,
-            text: `Follow request sent for ${actorUri}${pending}.`,
+            text,
           }],
         };
       } catch (error) {
@@ -29,9 +32,9 @@ export function registerSocialTools(server: MentionToolRegistrar): void {
 
   server.tool(
     "unfollow-user",
-    "Unfollow a user or federated actor (requires authorization).",
+    "Unfollow a Mention user or a federated actor (requires authorization). Accepts the same forms as follow-user.",
     {
-      actorUri: z.string().describe("Remote actor URI or acct handle to unfollow"),
+      actorUri: z.string().describe("Mention username, Oxy user ID, or remote actor URI / acct handle to unfollow"),
     },
     withAuthGuard(async ({ actorUri }) => {
       try {
