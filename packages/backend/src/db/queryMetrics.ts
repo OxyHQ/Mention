@@ -243,7 +243,26 @@ function reportInstrumentationFault(error: unknown): void {
   logger.error('Database query instrumentation failed', error);
 }
 
-function recordStatement(statement: string, durationMs: number, failed: boolean): void {
+/**
+ * Statements this process has started and not yet seen settle.
+ *
+ * A statement's duration is measured from dispatch to settlement IN THIS
+ * PROCESS, so it includes time spent queued for a pool connection and time the
+ * event loop took to get round to the result — neither of which the database
+ * sees. Recording how many statements were already outstanding when one started
+ * is what tells those apart from a slow database: a 0.2 ms lookup logged at
+ * 300 ms with 90 statements ahead of it on a 20-connection pool was waiting for
+ * the pool, not for Postgres (#1158, where exactly that was misread as database
+ * latency).
+ */
+let statementsInFlight = 0;
+
+function recordStatement(
+  statement: string,
+  durationMs: number,
+  failed: boolean,
+  inFlightAtStart: number,
+): void {
   try {
     const { operation, table } = describeStatement(statement);
     metrics.recordLatency('db_query_duration_ms', durationMs, { operation, table });
@@ -260,11 +279,20 @@ function recordStatement(statement: string, durationMs: number, failed: boolean)
       if (slow) tally.slowCount += 1;
     }
 
+    // Only statements at or over the threshold reach this log, so it is a
+    // CENSORED sample: its median sits just above `DB_SLOW_QUERY_MS` whatever
+    // the typical statement costs. #1158 read a ~265 ms median here as "lookups
+    // are slow" while the per-request `queryDurationMs / queryCount` put the
+    // typical statement at ~3 ms. Typical latency comes from the request log.
     if (slow) {
       logger.warn('Slow database query', {
         operation,
         table,
         durationMs: Math.round(durationMs * 100) / 100,
+        // Statements already outstanding in this process when this one was
+        // dispatched. Near or above `PG_MAX_POOL_SIZE`, the duration is mostly
+        // queueing on the client — see `statementsInFlight`.
+        inFlightAtStart,
         // The backend logger merges a non-Error second argument as pino
         // CONTEXT — the opposite of the SDK logger's `error(message, error)`.
         // These are context fields, and `warn` takes nothing else.
@@ -329,11 +357,18 @@ function observeQuery(statement: string, pending: unknown): unknown {
   if (!isThenable(pending)) return pending;
 
   let startedAt: bigint | null = null;
+  let inFlightAtStart = 0;
   let observed = false;
 
   const settle = (failed: boolean): void => {
     if (startedAt === null) return;
-    recordStatement(statement, Number(process.hrtime.bigint() - startedAt) / 1_000_000, failed);
+    statementsInFlight -= 1;
+    recordStatement(
+      statement,
+      Number(process.hrtime.bigint() - startedAt) / 1_000_000,
+      failed,
+      inFlightAtStart,
+    );
   };
 
   const trigger = (method: unknown, target: object, receiver: unknown, args: unknown[]): unknown => {
@@ -342,6 +377,10 @@ function observeQuery(statement: string, pending: unknown): unknown {
     const result = Reflect.apply(method, target, args);
     if (!observed) {
       observed = true;
+      // Counted only once the settle handler below is attached, so every
+      // increment has exactly one matching decrement.
+      inFlightAtStart = statementsInFlight;
+      statementsInFlight += 1;
       // Safe to attach only now: the caller has just triggered execution, so an
       // extra `then` cannot bring it forward. Both branches are handled, so this
       // derived promise never rejects.

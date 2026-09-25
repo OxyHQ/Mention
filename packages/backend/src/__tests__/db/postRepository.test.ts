@@ -38,6 +38,7 @@ import {
   findBoostedPostIds,
   findPostRecords,
   insertPostRecord,
+  insertPostRecords,
   loadPostRecord,
   loadPostRecords,
   replacePostAuthorship,
@@ -476,6 +477,68 @@ describe('the content graph', () => {
     ).rejects.toThrow();
 
     expect(await loadPostRecord(id)).toBeNull();
+  });
+});
+
+describe('the batch insert', () => {
+  it('writes every post and reads each back whole, in the order given', async () => {
+    const inputs = Array.from({ length: 9 }, (_, index) =>
+      baseInput({
+        id: uuidv7(),
+        content: { variants: [{ source: 'author', text: `batch ${index}`, tag: 'en' }] },
+        mentions: [`oxy-batch-mentioned-${index}`],
+      }),
+    );
+
+    const results = await insertPostRecords(inputs);
+    for (const result of results) {
+      if (result.status === 'fulfilled') created.push(result.value.id);
+    }
+
+    expect(results.map((result) => result.status)).toEqual(inputs.map(() => 'fulfilled'));
+    results.forEach((result, index) => {
+      if (result.status !== 'fulfilled') return;
+      expect(result.value.id).toBe(inputs[index].id);
+      expect(result.value.content.variants?.[0]?.text).toBe(`batch ${index}`);
+      expect(result.value.mentions).toEqual([`oxy-batch-mentioned-${index}`]);
+      expect(result.value.authorship).toHaveLength(1);
+    });
+  });
+
+  it('fails only the post that could not be written', async () => {
+    /**
+     * The outbox backfill depends on this: a concurrent import that already
+     * stored one note must cost that note, not the page. Each post keeps its own
+     * transaction, so the rejected one also leaves nothing behind.
+     */
+    const duplicate = uuidv7();
+    const broken = uuidv7();
+    const inputs = [
+      baseInput({ id: duplicate }),
+      baseInput({ id: duplicate }),
+      baseInput({
+        id: broken,
+        content: {
+          variants: [
+            { tag: 'en', source: 'author', text: 'one' },
+            { tag: 'en', source: 'author', text: 'two' },
+          ],
+        },
+      }),
+      baseInput({ id: uuidv7() }),
+    ];
+
+    const results = await insertPostRecords(inputs);
+    for (const result of results) {
+      if (result.status === 'fulfilled') created.push(result.value.id);
+    }
+
+    // The two writes of one id race; which one wins is not the contract, that
+    // exactly one does is.
+    expect([results[0].status, results[1].status].sort()).toEqual(['fulfilled', 'rejected']);
+    expect(results[2].status).toBe('rejected');
+    expect(results[3].status).toBe('fulfilled');
+    expect(await loadPostRecord(broken)).toBeNull();
   });
 });
 
