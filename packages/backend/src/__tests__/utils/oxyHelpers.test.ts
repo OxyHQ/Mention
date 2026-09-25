@@ -139,6 +139,81 @@ describe('request-scoped Oxy clients', () => {
   });
 });
 
+describe('central MCP privacy reads', () => {
+  const graph = {
+    followingIds: ['followed-account'],
+    mutualIds: [],
+    blockedIds: ['blocked-account'],
+    restrictedIds: ['restricted-account'],
+  };
+
+  function centralClient() {
+    return createScopedOxyClient({
+      headers: { authorization: 'Bearer mcp-access-token' },
+      mcp: { activeUserId: 'served-account', authMode: 'central' },
+    });
+  }
+
+  /**
+   * The connector's token is the proof Oxy takes for the served account's
+   * privacy: presented in the BODY of a service-credential call, never installed
+   * as a session, and one Oxy round trip answers all three reads.
+   */
+  it('reads blocks and restrictions of the served account with the connection token as proof', async () => {
+    const serviceClient = mockState.instances[0];
+    serviceClient.makeServiceRequest.mockClear();
+    serviceClient.makeServiceRequest.mockResolvedValueOnce({ account_id: 'served-account', graph });
+    const before = mockState.instances.length;
+    const client = centralClient();
+
+    await expect(client?.getBlockedUsers()).resolves.toEqual([{ blockedId: 'blocked-account' }]);
+    await expect(client?.getRestrictedUsers()).resolves.toEqual([{ restrictedId: 'restricted-account' }]);
+    await expect(client?.getViewerGraph()).resolves.toMatchObject({ followingIds: ['followed-account'] });
+
+    expect(serviceClient.makeServiceRequest).toHaveBeenCalledTimes(1);
+    expect(serviceClient.makeServiceRequest).toHaveBeenCalledWith(
+      'POST',
+      '/auth/mcp/oauth/connections/viewer-graph',
+      { token: 'mcp-access-token' },
+    );
+    expect(serviceClient.setTokens).not.toHaveBeenCalledWith('mcp-access-token');
+    expect(mockState.instances.length).toBe(before);
+  });
+
+  it('refuses the lists when Oxy answers for an account other than the one served', async () => {
+    const serviceClient = mockState.instances[0];
+    serviceClient.makeServiceRequest.mockResolvedValueOnce({ account_id: 'another-account', graph });
+    const client = centralClient();
+
+    await expect(client?.getBlockedUsers()).rejects.toMatchObject({
+      code: 'MCP_CONNECTION_ACCOUNT_MISMATCH',
+    });
+  });
+
+  it('refuses a graph with no privacy lists instead of reading it as "blocks nobody"', async () => {
+    const serviceClient = mockState.instances[0];
+    serviceClient.makeServiceRequest.mockResolvedValueOnce({
+      account_id: 'served-account',
+      graph: { followingIds: [] },
+    });
+    const client = centralClient();
+
+    await expect(client?.getBlockedUsers()).rejects.toThrow(/missing blockedIds/);
+  });
+
+  it('keeps a legacy MCP token fail-closed: it is not proof Oxy accepts', async () => {
+    const client = createScopedOxyClient({
+      headers: { authorization: 'Bearer legacy-token' },
+      mcp: { activeUserId: 'served-account', authMode: 'legacy' },
+    });
+
+    await expect(client?.getBlockedUsers()).rejects.toMatchObject({
+      name: 'OxyPrivacyUnavailableError',
+      code: 'SERVICE_DELEGATION_NOT_AUTHORIZED',
+    });
+  });
+});
+
 describe('ensureProfileMediaPublic', () => {
   beforeEach(() => {
     mockState.control.reject = undefined;
