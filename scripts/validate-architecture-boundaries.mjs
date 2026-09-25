@@ -338,7 +338,6 @@ const LAYER_BASELINE = [
   { file: "src/routes/reports.routes.ts", area: "src/db/moderation/", reason: REASONS.REPOSITORY },
   { file: "src/routes/reports.routes.ts", area: "src/db/schema/", reason: REASONS.BYPASSES_REPOSITORY },
   { file: "src/routes/search.ts", area: "src/db/postgres.ts", reason: REASONS.BYPASSES_REPOSITORY },
-  { file: "src/routes/search.ts", area: "src/db/posts/", reason: REASONS.REPOSITORY },
   { file: "src/routes/search.ts", area: "src/db/schema/", reason: REASONS.BYPASSES_REPOSITORY },
   { file: "src/routes/starterPacks.ts", area: "src/db/postgres.ts", reason: REASONS.BYPASSES_REPOSITORY },
   { file: "src/routes/starterPacks.ts", area: "src/db/schema/", reason: REASONS.BYPASSES_REPOSITORY },

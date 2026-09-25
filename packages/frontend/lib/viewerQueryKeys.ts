@@ -176,6 +176,24 @@ export const viewerQueryKeys = {
     query,
     canUsePrivateApi,
   ] as const,
+  /**
+   * One source of the "All" search tab (`searchAllSources`), cached on its own
+   * so each section renders the moment its source answers. Under the `search`
+   * family, so everything that invalidates search invalidates these too. No
+   * `canUsePrivateApi`: a source's answer does not depend on it — whether an
+   * auth-gated source RUNS does, and that is decided before its key exists.
+   */
+  searchAllSource: (
+    viewerId: ViewerId,
+    source: string,
+    query: string,
+  ) => [
+    ...viewerQueryKeys.all(viewerId),
+    'search',
+    'all',
+    query,
+    source,
+  ] as const,
   searchHistory: (viewerId: ViewerId) => [
     ...viewerQueryKeys.all(viewerId),
     'search-history',

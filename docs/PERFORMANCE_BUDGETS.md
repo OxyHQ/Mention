@@ -170,6 +170,29 @@ by the index and the query, and `searchIndexes.test.ts` EXPLAINs the builder's
 own statement; `searchOverviewBudget.test.ts` pins that a lane query is
 cancelled at its budget and run once.
 
+**The posts search (`GET /search`), the second half of #1140.** With the
+overview fixed, signed-in search still took 8–10 s to show People: the All tab
+awaited every source, and `/search` ran 3.2 s, 5.0 s and 6.9 s for "rust",
+"climate" and "linux" (production, 15:43Z on 09-25). Two causes, both measured:
+
+- The query's best plan depends on how common the word is — newest-first walk
+  for a common word, the `search_vector` GIN index for a rare one — but
+  postgres.js prepares every statement, and after five executions Postgres may
+  cache a GENERIC plan that never sees the word. That plan walks newest-first
+  for everything. On 1M seeded posts (warm cache), before → after
+  `services/search/postSearch.ts` (`force_custom_plan`, serial, and the
+  long-dead `config.search.maxTimeMS` as its `statement_timeout`): "linux"
+  1411 → 5.6 ms, "rust" 1088 → 10.2 ms, "climate" 535 → 33.5 ms, "mention"
+  62 → 3.7 ms. Pinned by `__tests__/db/postSearchPlan.test.ts`.
+- Hydration asked Clarity to wait up to 2 s (`waitMs`) for any link it had
+  not resolved yet, which is the ~2 s every production `/search` spent after
+  its query. A read no longer waits; posts are warmed at ingest and creation.
+
+The frontend now runs the All tab as one query per source
+(`hooks/useSearchAllSources.ts`) and renders each section as it lands —
+`__tests__/searchScreenProgressive.test.tsx` holds the posts source open and
+asserts People is on screen.
+
 **Nothing scrapes it.** There is no Prometheus, Grafana, or CloudWatch
 metrics pipeline for Mention in `oxy-infra/terraform-uswest2` (checked
 directly, not inferred) — `/internal/metrics` is a live snapshot an operator

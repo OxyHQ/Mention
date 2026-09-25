@@ -257,7 +257,7 @@ function emptyIfSignedOut<T>(error: unknown, source: string): T[] {
  * caller abort and a timeout as an `AbortError` with `status: 0`, so the name
  * is what distinguishes them from a real HTTP failure.
  */
-function isAbortError(error: unknown): boolean {
+export function isAbortError(error: unknown): boolean {
   return (
     error instanceof Error &&
     (error.name === 'AbortError' || error.name === 'CanceledError')
@@ -306,6 +306,37 @@ async function searchProfilesCancellable(
     throw new Error('Unexpected search response format');
   }
   return { data: response.data, pagination: response.pagination };
+}
+
+/** A source the "All" tab fans out over. See {@link searchAllSources}. */
+export type SearchAllSource = 'users' | 'overview' | 'posts' | 'saved';
+
+/**
+ * The sources the "All" tab runs for this viewer.
+ *
+ * The AUTH-GATED ones (posts, saved — both behind the authenticated API) only
+ * once the private API is ready: during the SSO cold-boot the viewer can be
+ * authenticated while the private API is still pending, and firing then would
+ * 401 (console noise, not a result). A signed-out viewer never runs them — a
+ * quiet "nothing here", never a 401 storm. `lists` is not among them: the
+ * overview serves it publicly.
+ */
+export function searchAllSources(canUsePrivateApi: boolean): readonly SearchAllSource[] {
+  return canUsePrivateApi ? ['users', 'overview', 'posts', 'saved'] : ['users', 'overview'];
+}
+
+/** Every section present, each the concatenation of what the parts carried. */
+export function mergeSearchResults(parts: readonly SearchResults[]): Required<SearchResults> {
+  const merged: Required<SearchResults> = {
+    posts: [], users: [], feeds: [], hashtags: [], lists: [], saved: [], starterPacks: [],
+  };
+  for (const part of parts) {
+    for (const key of Object.keys(merged) as (keyof SearchResults)[]) {
+      const items = part[key];
+      if (items) (merged[key] as unknown[]).push(...items);
+    }
+  }
+  return merged;
 }
 
 class SearchService {
@@ -584,70 +615,66 @@ class SearchService {
     };
   }
 
-  // Search all - shows users above posts in "all" tab.
+  // Search all — the "All" tab's fan-out, awaited as ONE answer.
   //
-  // FOUR requests now, not seven: the overview above carries hashtags, lists,
-  // feeds and starter packs together, leaving people (Oxy's own endpoint) and
-  // the two post-bearing sources on their own.
-  //
-  // The AUTH-GATED sources (posts, saved — both behind the authenticated API)
-  // only fire once the private API is ready: during the SSO cold-boot the viewer
-  // can be authenticated while the private API is still pending, and firing then
-  // would 401 (console noise, not a result). Those sections stay empty until the
-  // search query refetches on `canUsePrivateApi` flipping true (it is part of the
-  // search query key), then fill in. A signed-out viewer keeps them empty for
-  // good — a quiet "nothing here", never a 401 storm. `lists` is no longer among
-  // them: the overview serves it publicly.
-  //
-  // One flaky source must not blank the whole screen, so sources settle
-  // independently: a partial failure degrades to that section being empty, and
-  // only a TOTAL failure of the sources that actually RAN surfaces as an error.
+  // The screen does not use this: it runs each of `searchAllSources` as its own
+  // query (`searchAllSource`) and renders each section as it lands, because one
+  // slow source — the posts search, typically — must not hold people and
+  // hashtags that answered seconds earlier (issue #1140). This is the same
+  // fan-out for a caller that wants the combined answer, built from the same
+  // pieces so the two cannot disagree about which sources run or what counts as
+  // a failure.
   async searchAll(
     query: string,
     canUsePrivateApi: boolean,
     signal?: AbortSignal,
   ): Promise<SearchResults> {
-    const [users, overview, posts, saved] = await Promise.allSettled([
-      this.searchUsers(query, signal),
-      this.searchOverview(query, signal),
-      canUsePrivateApi ? this.searchPosts(query, signal) : Promise.resolve<SearchPostResult[]>([]),
-      canUsePrivateApi ? this.searchSaved(query, signal) : Promise.resolve<SearchPostResult[]>([]),
-    ]);
+    const sources = searchAllSources(canUsePrivateApi);
+    const settled = await Promise.allSettled(
+      sources.map((source) => this.searchAllSource(source, query, signal)),
+    );
 
-    // The gated sources short-circuit to a resolved empty page when the private
-    // API isn't ready, so exclude them from the total-failure count — otherwise a
-    // signed-out viewer with healthy public sources could never surface a real
-    // error, and a fulfilled no-op would mask one.
-    const activeSources = canUsePrivateApi
-      ? [users, overview, posts, saved]
-      : [users, overview];
-    const rejections = activeSources.filter(
+    const rejections = settled.filter(
       (result): result is PromiseRejectedResult => result.status === 'rejected',
     );
     for (const rejection of rejections) {
       logger.warn("A search source failed", { error: rejection.reason });
     }
+    // One flaky source degrades to its sections being empty; only a TOTAL
+    // failure of the sources that actually ran is an error.
     const firstRejection = rejections[0];
-    if (firstRejection && rejections.length === activeSources.length) {
+    if (firstRejection && rejections.length === sources.length) {
       throw firstRejection.reason;
     }
 
-    const valueOf = <T>(result: PromiseSettledResult<T[]>): T[] =>
-      result.status === 'fulfilled' ? result.value : [];
+    return mergeSearchResults(
+      settled.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : [])),
+    );
+  }
 
-    const lanes = overview.status === 'fulfilled'
-      ? overview.value
-      : { feeds: [], hashtags: [], lists: [], starterPacks: [] };
-
-    return {
-      posts: valueOf(posts),
-      users: valueOf(users),
-      feeds: lanes.feeds,
-      lists: lanes.lists,
-      hashtags: lanes.hashtags,
-      saved: valueOf(saved),
-      starterPacks: lanes.starterPacks,
-    };
+  /**
+   * One source of the "All" tab, as the sections it fills.
+   *
+   * FOUR sources, not seven: the overview carries hashtags, lists, feeds and
+   * starter packs together, leaving people (Oxy's own endpoint) and the two
+   * post-bearing sources on their own. Which of them run is
+   * {@link searchAllSources}'s call.
+   */
+  async searchAllSource(
+    source: SearchAllSource,
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<SearchResults> {
+    switch (source) {
+      case 'users':
+        return { users: await this.searchUsers(query, signal) };
+      case 'overview':
+        return this.searchOverview(query, signal);
+      case 'posts':
+        return { posts: await this.searchPosts(query, signal) };
+      case 'saved':
+        return { saved: await this.searchSaved(query, signal) };
+    }
   }
 
   // --- Search history ---
