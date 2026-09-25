@@ -1,6 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Switch } from 'react-native';
+import { Card } from '@oxy.so/bloom/card';
+import { Divider } from '@oxy.so/bloom/divider';
+import { Field } from '@oxy.so/bloom/field';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Search } from '@oxy.so/bloom/search';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { listsService } from '@/services/listsService';
@@ -87,48 +93,52 @@ export default function CreateListScreen() {
         })}
       >
         <ScrollView contentContainerStyle={{ padding: 16 }}>
-          <Text className="text-sm text-muted-foreground mb-1.5 font-primary">{t('lists.create.titleLabel')}</Text>
-          <TextInput
-            value={title}
-            onChangeText={setTitle}
-            placeholder={t('lists.create.titlePlaceholder')}
-            className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
-            style={styles.input}
-          />
+          <View className="gap-3 mb-2.5">
+            <Field label={t('lists.create.titleLabel')}>
+              <TextFieldInput
+                label={t('lists.create.titleLabel')}
+                value={title}
+                onChangeText={setTitle}
+                placeholder={t('lists.create.titlePlaceholder')}
+              />
+            </Field>
 
-          <Text className="text-sm text-muted-foreground mb-1.5 font-primary">{t('lists.create.descriptionLabel')}</Text>
-          <TextInput
-            value={description}
-            onChangeText={setDescription}
-            placeholder={t('lists.create.descriptionPlaceholder')}
-            className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary h-20"
-            style={styles.input}
-            multiline
-          />
+            <Field label={t('lists.create.descriptionLabel')}>
+              <Textarea
+                value={description}
+                onChangeText={setDescription}
+                placeholder={t('lists.create.descriptionPlaceholder')}
+                rows={3}
+              />
+            </Field>
 
-          <View className="flex-row items-center justify-between mb-2.5">
-            <Text className="text-sm text-muted-foreground font-primary">{t('lists.create.publicLabel')}</Text>
-            <Switch value={isPublic} onValueChange={setIsPublic} />
+            <View className="flex-row items-center justify-between">
+              <Text className="text-sm text-muted-foreground font-primary">{t('lists.create.publicLabel')}</Text>
+              <Switch value={isPublic} onValueChange={setIsPublic} />
+            </View>
+
+            <Field label={t('lists.create.addMembers')} style={{ marginTop: 12 }}>
+              <Search
+                label={t('lists.create.searchUsersPlaceholder')}
+                value={search}
+                onChangeText={doSearch}
+                onClearText={() => doSearch('')}
+              />
+            </Field>
           </View>
 
-          <Text className="text-sm text-muted-foreground mb-1.5 mt-3 font-primary">{t('lists.create.addMembers')}</Text>
-          <TextInput
-            value={search}
-            onChangeText={doSearch}
-            placeholder={t('lists.create.searchUsersPlaceholder')}
-            className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
-            style={styles.input}
-          />
-
           {results.length > 0 && (
-            <View className="border border-border rounded-[10px] overflow-hidden">
-              {results.map((u) => (
-                <TouchableOpacity key={u.id} className="flex-row items-center justify-between px-3 py-2.5 border-b border-border" onPress={() => addMember(u)}>
-                  <Text className="text-foreground font-primary">@{u.username} • {u.name.displayName}</Text>
-                  <Text className="text-primary font-semibold font-primary">{t('lists.create.add')}</Text>
-                </TouchableOpacity>
+            <Card appearance="outline" radius="radius-12">
+              {results.map((u, index) => (
+                <React.Fragment key={u.id}>
+                  {index > 0 && <Divider />}
+                  <TouchableOpacity className="flex-row items-center justify-between px-3 py-2.5" onPress={() => addMember(u)}>
+                    <Text className="text-foreground font-primary">@{u.username} • {u.name.displayName}</Text>
+                    <Text className="text-primary font-semibold font-primary">{t('lists.create.add')}</Text>
+                  </TouchableOpacity>
+                </React.Fragment>
               ))}
-            </View>
+            </Card>
           )}
 
           {members.length > 0 && (
@@ -160,11 +170,3 @@ export default function CreateListScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  input: {
-    ...Platform.select({
-      web: { outlineWidth: 0 },
-    }),
-  },
-});

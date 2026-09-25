@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
+import { Card } from '@oxy.so/bloom/card';
 import { Item } from '@oxy.so/bloom/item';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -210,7 +211,7 @@ export default function MyJobsScreen() {
                 : t('jobs.mine.createdAgo', { defaultValue: 'Created {{time}}', time: formatTimeAgo(job.createdAt) });
 
               return (
-                <View key={job.id} className="border border-border rounded-[14px] overflow-hidden bg-card">
+                <Card key={job.id} border="thin" elevation="none" radius="radius-16">
                   <Item
                     title={job.title}
                     subtitle={`${employerLabel(job.employerOxyUserId)} · ${dateLabel}`}
@@ -319,7 +320,7 @@ export default function MyJobsScreen() {
                       )}
                     </View>
                   </View>
-                </View>
+                </Card>
               );
             })}
           </View>

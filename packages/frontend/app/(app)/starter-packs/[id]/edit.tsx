@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, type TextStyle } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { Button } from '@oxy.so/bloom/button';
+import { Card } from '@oxy.so/bloom/card';
+import { Divider } from '@oxy.so/bloom/divider';
+import { Field } from '@oxy.so/bloom/field';
 import { Item } from '@oxy.so/bloom/item';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
@@ -13,6 +16,8 @@ import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { Search } from '@oxy.so/bloom/search';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -37,9 +42,6 @@ interface MemberProfile {
 
 const SEARCH_DEBOUNCE_MS = 300;
 const MAX_MEMBERS = 150;
-
-// Remove the web focus outline to match the other text inputs in the app.
-const INPUT_STYLE: TextStyle = Platform.OS === 'web' ? { outlineWidth: 0 } : {};
 
 /**
  * Starter pack edit screen (owner only). Mirrors the list member editor at
@@ -269,42 +271,42 @@ export default function EditStarterPackScreen() {
     <View className="flex-1">
       {header}
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
-        <Text className="text-sm text-muted-foreground mb-1.5 font-primary">Name</Text>
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          placeholder="e.g. Tech people to follow"
-          placeholderTextColor={theme.colors.textSecondary}
-          className="border border-border rounded-[10px] p-2.5 mb-2.5 text-foreground bg-card font-primary"
-          style={INPUT_STYLE}
-        />
+        <View className="gap-3 mb-3">
+          <Field label="Name">
+            <TextFieldInput
+              label="Name"
+              value={name}
+              onChangeText={setName}
+              placeholder="e.g. Tech people to follow"
+            />
+          </Field>
 
-        <Text className="text-sm text-muted-foreground mb-1.5 font-primary">Description</Text>
-        <TextInput
-          value={description}
-          onChangeText={setDescription}
-          placeholder="What is this starter pack about?"
-          placeholderTextColor={theme.colors.textSecondary}
-          className="border border-border rounded-[10px] p-2.5 mb-3 text-foreground bg-card font-primary h-20"
-          style={INPUT_STYLE}
-          multiline
-        />
+          <Field label="Description">
+            <Textarea
+              value={description}
+              onChangeText={setDescription}
+              placeholder="What is this starter pack about?"
+              rows={3}
+            />
+          </Field>
 
-        {/* Add accounts: themed Bloom search field + result rows. */}
-        <View className="flex-row items-center justify-between mb-1.5">
-          <Text className="text-sm text-muted-foreground font-primary">Add accounts</Text>
-          <Text className={cn('text-xs font-primary', atCapacity ? 'text-destructive' : 'text-muted-foreground')}>
-            {members.length}/{MAX_MEMBERS}
-          </Text>
+          {/* Add accounts: themed Bloom search field + result rows. The
+              description carries the member count; at capacity the error
+              replaces it and says why the field no longer accepts input. */}
+          <Field
+            label="Add accounts"
+            description={`${members.length}/${MAX_MEMBERS}`}
+            error={atCapacity ? 'This starter pack is full. Remove an account to add another.' : null}
+          >
+            <Search
+              label="Search people"
+              value={search}
+              onChangeText={runSearch}
+              onClearText={clearSearch}
+              editable={!atCapacity}
+            />
+          </Field>
         </View>
-
-        <Search
-          label="Search people"
-          value={search}
-          onChangeText={runSearch}
-          onClearText={clearSearch}
-          editable={!atCapacity}
-        />
 
         {searching && (
           <View className="flex-row items-center gap-2 mt-2.5">
@@ -313,20 +315,15 @@ export default function EditStarterPackScreen() {
           </View>
         )}
 
-        {atCapacity && (
-          <Text className="text-xs text-destructive mt-2 font-primary">
-            This starter pack is full. Remove an account to add another.
-          </Text>
-        )}
-
         {results.length > 0 && (
-          <View className="border border-border rounded-[14px] overflow-hidden mt-2.5 bg-card">
+          <Card border="thin" elevation="none" radius="radius-16" style={{ marginTop: 10 }}>
             {results.map((u, index) => {
               const already = memberIdSet.has(u.id);
               const busy = pendingIds.has(u.id);
               const blockedByCap = atCapacity && !already;
               return (
-                <View key={u.id} className={cn(index < results.length - 1 && 'border-b border-border')}>
+                <React.Fragment key={u.id}>
+                  {index > 0 && <Divider />}
                   <Item
                     leading={<Avatar source={u.avatar} name={u.name.displayName} size={40} variant={MEDIA_VARIANT_AVATAR} />}
                     title={u.name.displayName}
@@ -359,10 +356,10 @@ export default function EditStarterPackScreen() {
                       )
                     }
                   />
-                </View>
+                </React.Fragment>
               );
             })}
-          </View>
+          </Card>
         )}
 
         {/* Current members. */}
@@ -385,11 +382,12 @@ export default function EditStarterPackScreen() {
             </Text>
           </View>
         ) : (
-          <View className="border border-border rounded-[14px] overflow-hidden bg-card">
+          <Card border="thin" elevation="none" radius="radius-16">
             {members.map((m, index) => {
               const busy = pendingIds.has(m.id);
               return (
-                <View key={m.id} className={cn(index < members.length - 1 && 'border-b border-border')}>
+                <React.Fragment key={m.id}>
+                  {index > 0 && <Divider />}
                   <Item
                     leading={<Avatar source={m.avatar} name={m.name.displayName} size={40} variant={MEDIA_VARIANT_AVATAR} />}
                     title={m.name.displayName}
@@ -406,10 +404,10 @@ export default function EditStarterPackScreen() {
                       />
                     }
                   />
-                </View>
+                </React.Fragment>
               );
             })}
-          </View>
+          </Card>
         )}
 
         <TouchableOpacity

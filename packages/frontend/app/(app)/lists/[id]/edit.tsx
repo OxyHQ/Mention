@@ -1,9 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Platform, type TextStyle } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Avatar } from '@oxy.so/bloom/avatar';
+import { Card } from '@oxy.so/bloom/card';
+import { Divider } from '@oxy.so/bloom/divider';
+import { Field } from '@oxy.so/bloom/field';
+import { Search } from '@oxy.so/bloom/search';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -11,7 +15,6 @@ import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiIndeterminateCircleFill } from '@oxy.so/bloom/icons/RiIndeterminateCircleFill';
-import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { queryKeys } from '@oxy.so/services';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
@@ -34,10 +37,6 @@ interface MemberProfile {
 }
 
 const SEARCH_DEBOUNCE_MS = 300;
-
-// Remove the web focus outline to match the other text inputs in the app.
-// `outlineWidth` is a valid numeric react-native-web TextStyle property.
-const INPUT_STYLE: TextStyle = Platform.OS === 'web' ? { outlineWidth: 0 } : {};
 
 /**
  * List member management screen. Resolves the broken `/lists/:id/edit` route that
@@ -217,53 +216,51 @@ export default function EditListMembersScreen() {
     <View className="flex-1">
       {header}
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }} keyboardShouldPersistTaps="handled">
-        <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
-          {t('lists.edit.addMembers', { defaultValue: 'Add members' })}
-        </Text>
-        <View className="flex-row items-center border border-border rounded-[10px] px-2.5 mb-2.5 bg-card">
-          <RiSearchLine width={18} height={18} fill={theme.colors.textSecondary} />
-          <TextInput
+        <Field label={t('lists.edit.addMembers', { defaultValue: 'Add members' })} style={{ marginBottom: 10 }}>
+          <Search
+            label={t('lists.create.searchUsersPlaceholder', { defaultValue: 'Search users' })}
             value={search}
             onChangeText={runSearch}
-            placeholder={t('lists.create.searchUsersPlaceholder', { defaultValue: 'Search users' })}
-            placeholderTextColor={theme.colors.textSecondary}
-            className="flex-1 p-2.5 text-foreground font-primary"
-            style={INPUT_STYLE}
-            autoCapitalize="none"
-            autoCorrect={false}
+            onClearText={() => runSearch('')}
           />
-          {searching && <SpinnerIcon size={16} className="text-primary" />}
-        </View>
+        </Field>
+        {searching && (
+          <View className="items-center mb-2.5">
+            <SpinnerIcon size={16} className="text-primary" />
+          </View>
+        )}
 
         {results.length > 0 && (
-          <View className="border border-border rounded-[10px] overflow-hidden mb-3">
-            {results.map((u) => {
+          <Card appearance="outline" radius="radius-12" style={{ marginBottom: 12 }}>
+            {results.map((u, index) => {
               const already = memberIdSet.has(u.id);
               const busy = pendingIds.has(u.id);
               return (
-                <TouchableOpacity
-                  key={u.id}
-                  className="flex-row items-center gap-3 px-3 py-2.5 border-b border-border"
-                  onPress={() => addMember(u)}
-                  disabled={already || busy}
-                  activeOpacity={0.7}
-                >
-                  <Avatar source={u.avatar} size={36} variant={MEDIA_VARIANT_AVATAR} />
-                  <View className="flex-1">
-                    <Text className="text-foreground font-medium" numberOfLines={1}>@{u.username}</Text>
-                    <Text className="text-muted-foreground text-xs" numberOfLines={1}>{u.name.displayName}</Text>
-                  </View>
-                  {busy ? (
-                    <SpinnerIcon size={18} className="text-primary" />
-                  ) : already ? (
-                    <RiCheckboxCircleFill width={22} height={22} fill={theme.colors.primary} />
-                  ) : (
-                    <Text className="text-primary font-semibold font-primary">{t('lists.create.add', { defaultValue: 'Add' })}</Text>
-                  )}
-                </TouchableOpacity>
+                <React.Fragment key={u.id}>
+                  {index > 0 && <Divider />}
+                  <TouchableOpacity
+                    className="flex-row items-center gap-3 px-3 py-2.5"
+                    onPress={() => addMember(u)}
+                    disabled={already || busy}
+                    activeOpacity={0.7}
+                  >
+                    <Avatar source={u.avatar} size={36} variant={MEDIA_VARIANT_AVATAR} />
+                    <View className="flex-1">
+                      <Text className="text-foreground font-medium" numberOfLines={1}>@{u.username}</Text>
+                      <Text className="text-muted-foreground text-xs" numberOfLines={1}>{u.name.displayName}</Text>
+                    </View>
+                    {busy ? (
+                      <SpinnerIcon size={18} className="text-primary" />
+                    ) : already ? (
+                      <RiCheckboxCircleFill width={22} height={22} fill={theme.colors.primary} />
+                    ) : (
+                      <Text className="text-primary font-semibold font-primary">{t('lists.create.add', { defaultValue: 'Add' })}</Text>
+                    )}
+                  </TouchableOpacity>
+                </React.Fragment>
               );
             })}
-          </View>
+          </Card>
         )}
 
         <Text className="text-sm text-muted-foreground mb-1.5 mt-1 font-primary">
@@ -280,33 +277,36 @@ export default function EditListMembersScreen() {
             </Text>
           </View>
         ) : (
-          <View className="border border-border rounded-[10px] overflow-hidden">
-            {members.map((m) => {
+          <Card appearance="outline" radius="radius-12">
+            {members.map((m, index) => {
               const busy = pendingIds.has(m.id);
               return (
-                <View key={m.id} className="flex-row items-center gap-3 px-3 py-2.5 border-b border-border">
-                  <Avatar source={m.avatar} size={36} variant={MEDIA_VARIANT_AVATAR} />
-                  <View className="flex-1">
-                    <Text className="text-foreground font-medium" numberOfLines={1}>@{m.username}</Text>
-                    <Text className="text-muted-foreground text-xs" numberOfLines={1}>{m.name.displayName}</Text>
+                <React.Fragment key={m.id}>
+                  {index > 0 && <Divider />}
+                  <View className="flex-row items-center gap-3 px-3 py-2.5">
+                    <Avatar source={m.avatar} size={36} variant={MEDIA_VARIANT_AVATAR} />
+                    <View className="flex-1">
+                      <Text className="text-foreground font-medium" numberOfLines={1}>@{m.username}</Text>
+                      <Text className="text-muted-foreground text-xs" numberOfLines={1}>{m.name.displayName}</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => removeMember(m)}
+                      disabled={busy}
+                      hitSlop={HIT_SLOP_MD}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('lists.create.remove', { defaultValue: 'Remove' })}
+                    >
+                      {busy ? (
+                        <SpinnerIcon size={18} className="text-destructive" />
+                      ) : (
+                        <RiIndeterminateCircleFill size="lg" fill={theme.colors.error} />
+                      )}
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    onPress={() => removeMember(m)}
-                    disabled={busy}
-                    hitSlop={HIT_SLOP_MD}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('lists.create.remove', { defaultValue: 'Remove' })}
-                  >
-                    {busy ? (
-                      <SpinnerIcon size={18} className="text-destructive" />
-                    ) : (
-                      <RiIndeterminateCircleFill size="lg" fill={theme.colors.error} />
-                    )}
-                  </TouchableOpacity>
-                </View>
+                </React.Fragment>
               );
             })}
-          </View>
+          </Card>
         )}
       </ScrollView>
     </View>

@@ -3,9 +3,11 @@ import {
     View,
     Text,
     TouchableOpacity,
-    TextInput,
     ScrollView,
 } from 'react-native';
+import { Divider } from '@oxy.so/bloom/divider';
+import { Field } from '@oxy.so/bloom/field';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
@@ -56,7 +58,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     return (
         <View className="bg-background rounded-t-3xl" style={{ maxHeight: '90%' }}>
             {/* Header */}
-            <View className="flex-row items-center px-4 py-3 border-b border-border" style={{ minHeight: 56 }}>
+            <View className="flex-row items-center px-4 py-3" style={{ minHeight: 56 }}>
                 <TouchableOpacity
                     onPress={handleCancel}
                     className="p-2 z-10"
@@ -72,6 +74,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 </Text>
                 <View style={{ width: 36, marginLeft: 'auto' }} />
             </View>
+            <Divider />
 
             {/* Content */}
             <ScrollView className="px-4 pt-4 pb-2">
@@ -137,33 +140,23 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 </View>
 
                 {/* Details Input */}
-                <View className="mb-4">
-                    <Text className="text-foreground text-[15px] font-semibold mb-2">
-                        Additional details (optional)
-                    </Text>
-                    <TextInput
-                        className="border border-border bg-card rounded-xl px-3.5 py-3 text-foreground text-[15px]"
-                        style={{
-                            minHeight: 100,
-                            maxHeight: 150,
-                            color: theme.colors.text,
-                        }}
+                <Field label="Additional details (optional)" style={{ marginBottom: 16 }}>
+                    <Textarea
                         placeholder={t('report.contextPlaceholder')}
-                        placeholderTextColor={theme.colors.textSecondary}
                         value={details}
                         onChangeText={setDetails}
-                        multiline
+                        rows={5}
+                        autoResize
+                        maxRows={7}
                         maxLength={500}
-                        textAlignVertical="top"
+                        showCount
                     />
-                    <Text className="text-muted-foreground text-[13px] text-right mt-1">
-                        {details.length}/500
-                    </Text>
-                </View>
+                </Field>
             </ScrollView>
 
             {/* Action Buttons */}
-            <View className="flex-row gap-3 px-4 py-4 pb-5 border-t border-border">
+            <Divider />
+            <View className="flex-row gap-3 px-4 py-4 pb-5">
                 <TouchableOpacity
                     className="flex-1 items-center justify-center rounded-xl border border-border bg-card"
                     style={{ paddingVertical: 14, minHeight: 50 }}
