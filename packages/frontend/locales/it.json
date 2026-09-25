@@ -1966,6 +1966,7 @@
   "post.boostsTitle": "Boost",
   "post.likesTitle": "Mi piace",
   "post.pinned": "Fissato",
+  "post.originallyPostedOn": "Pubblicato originariamente su {{platform}}",
   "post.replyingTo": "In risposta a",
   "post.replyingToUnknown": "In risposta a un post",
   "post.repostedBy": "Boostato da",

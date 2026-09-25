@@ -1966,6 +1966,7 @@
   "post.boostsTitle": "Impulsos",
   "post.likesTitle": "M'agrada",
   "post.pinned": "Fixada",
+  "post.originallyPostedOn": "Publicat originalment a {{platform}}",
   "post.replyingTo": "En resposta a",
   "post.replyingToUnknown": "En resposta a una publicació",
   "post.repostedBy": "Impulsada per",

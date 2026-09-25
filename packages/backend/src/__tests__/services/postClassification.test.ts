@@ -76,7 +76,8 @@ vi.mock('../../services/TopicService', () => ({
   },
 }));
 
-import { closePostgres, connectPostgres } from '../../db/postgres';
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { postImports } from '../../db/schema/imports';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { insertPostRecord, updatePostRecord } from '../../db/posts/postRepository';
 import { PostType, PostVisibility } from '@mention/shared-types';
@@ -1114,5 +1115,65 @@ describe('PostClassificationService — the batch selector reads the body’s RE
     // …and the pending one took index 0, which is what proves the queue skipped
     // it rather than simply not running.
     expect((await classificationOf(pending.id)).topics).toEqual(['fresh']);
+  });
+});
+
+describe('PostClassificationService — imported posts never displace live work', () => {
+  /**
+   * Seed a post IMPORTED from another platform: an ordinary row with its
+   * original, much older `created_at`, plus the ledger row that marks it.
+   * `ageSeconds` is how far BEFORE every live subject it sits, which is the
+   * whole hazard — oldest-first would put it at the head of the queue.
+   */
+  async function seedImported(text: string, ageSeconds: number): Promise<PostRecord> {
+    const post = await seedPost(scope, {
+      oxyUserId: AUTHOR,
+      type: PostType.TEXT,
+      content: { variants: [{ source: 'author', text: `${OWNED_PREFIX}${text}`, tag: 'en' }] },
+      createdAt: new Date(ANCIENT - ageSeconds * 1000),
+    });
+    await getDb().insert(postImports).values({
+      postId: post.id,
+      oxyUserId: AUTHOR,
+      platform: 'mastodon',
+      sourceId: `${scope.name}-${post.id}`,
+      sourceUrl: `https://mastodon.example/@author/${post.id}`,
+      importBatchId: `${scope.name}-batch`,
+    });
+    return post;
+  }
+
+  it('leaves an OLDER imported post pending while live posts fill the batch', async () => {
+    const imported = await seedImported('an old imported post', 10_000);
+    const live = await seedSubject('written on Mention today');
+    await padBatch(1);
+    respondWith([]);
+
+    await postClassificationService.processQueue();
+
+    // A full live batch, and the imported post — older than all of it — is not in it.
+    expectBatchWasOurs();
+    expect(inferencePayload().some((entry) => entry.text.includes('an old imported post'))).toBe(false);
+    expect((await classificationOf(imported.id)).status).toBe('pending');
+    expect((await classificationOf(live.id)).status).toBe('classified');
+  });
+
+  it('classifies imported posts, in a small batch, once the live queue is empty', async () => {
+    const imported = await Promise.all(
+      Array.from({ length: 12 }, (_unused, index) => seedImported(`imported ${index}`, 1_000 + index)),
+    );
+    respondWith([]);
+
+    await postClassificationService.processQueue();
+
+    // Bounded: ten of the twelve, oldest first — never a full live-sized batch.
+    const payload = inferencePayload();
+    expect(payload).toHaveLength(10);
+    for (const entry of payload) expect(entry.text.startsWith(`${OWNED_PREFIX}imported `)).toBe(true);
+    const statuses = await Promise.all(imported.map((post) => classificationOf(post.id)));
+    expect(statuses.filter((classification) => classification.status === 'classified')).toHaveLength(10);
+    // The two YOUNGEST (index 0 and 1 are the least old) wait for the next idle cycle.
+    expect(statuses[0].status).toBe('pending');
+    expect(statuses[1].status).toBe('pending');
   });
 });

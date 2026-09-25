@@ -219,7 +219,7 @@ describe('one hydration reads user_settings once', () => {
 });
 
 describe('the statement budget for one cold hydration', () => {
-  it('costs seven round trips for one post, and the same for twenty', async () => {
+  it('costs eight round trips for one post, and the same for twenty', async () => {
     /**
      * The budget, and what each entry is. Change a number here only together
      * with the read that moved it.
@@ -237,6 +237,10 @@ describe('the statement budget for one cold hydration', () => {
      *                             authors. Deliberate — see the workstream note
      *                             on why merging them would serialize link
      *                             previews behind the author batch.
+     *  `post_imports`         1 — import provenance ("Originally posted on
+     *                             Mastodon") and an imported post's CW label,
+     *                             by primary key over the batch. Native posts
+     *                             only: a page of federated posts skips it.
      *
      * All five per-viewer reads are `in (...)` over the whole batch, which is
      * why twenty posts cost what one does. A number that grows with the batch
@@ -249,6 +253,7 @@ describe('the statement budget for one cold hydration', () => {
       ['bookmarks', 1],
       ['post_recent_repliers', 1],
       ['starter_pack_members', 2],
+      ['post_imports', 1],
     ]);
 
     const one = await seedPost(scope, { oxyUserId: AUTHOR_ID });
@@ -273,6 +278,9 @@ describe('the statement budget for one cold hydration', () => {
     metrics.reset();
     await hydrate([federated]);
     expect((await statementsByTable()).get('post_equivalence_members')).toBe(1);
+    // ...and the mirror image: an imported post is a NATIVE post, so a batch of
+    // federated posts cannot hold one and does not ask.
+    expect((await statementsByTable()).get('post_imports')).toBeUndefined();
 
     cacheStore.clear();
     const many = await Promise.all(

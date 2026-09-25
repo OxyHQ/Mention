@@ -1939,6 +1939,7 @@
   "post.boostsTitle": "Boosts",
   "post.likesTitle": "Likes",
   "post.pinned": "Angeheftet",
+  "post.originallyPostedOn": "Ursprünglich auf {{platform}} veröffentlicht",
   "post.replyingTo": "Antwort an",
   "post.replyingToUnknown": "Antwort auf einen Beitrag",
   "post.repostedBy": "Geboostet von",

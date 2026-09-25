@@ -1939,6 +1939,7 @@
   "post.boostsTitle": "转发",
   "post.likesTitle": "点赞",
   "post.pinned": "已置顶",
+  "post.originallyPostedOn": "最初发布于 {{platform}}",
   "post.replyingTo": "回复",
   "post.replyingToUnknown": "回复一条帖子",
   "post.repostedBy": "转发自",
