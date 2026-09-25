@@ -12,6 +12,18 @@ const displayModeSchema = z
     "hidden = off the profile entirely. Every mode still reaches followers' feeds.",
   );
 
+/**
+ * The lanes routes answer `{ data }` (with `success: true` only on a 201), so
+ * the generic unwrap — which keys on `success` — would hand back the envelope
+ * for every 200. Unwrap the `data` member whatever the status was.
+ */
+export function laneData<T>(raw: unknown): T {
+  if (typeof raw === "object" && raw !== null && "data" in raw) {
+    return (raw as { data: T }).data;
+  }
+  return unwrapApiResponse<T>(raw);
+}
+
 function formatLane(lane: Lane): string {
   const count = lane.postCount !== undefined ? ` · ${lane.postCount} posts` : "";
   return `${lane.name} (id: ${lane.id}) · ${lane.displayMode}${count}`;
@@ -24,7 +36,7 @@ export function registerLanesTools(server: MentionToolRegistrar): void {
     {},
     withAuthGuard(async () => {
       try {
-        const lanes = unwrapApiResponse<Lane[]>(await api.get("/lanes/mine"));
+        const lanes = laneData<Lane[]>(await api.get("/lanes/mine"));
         if (!Array.isArray(lanes) || lanes.length === 0) {
           return { content: [{ type: "text" as const, text: "No lanes yet. Create one with create-lane." }] };
         }
@@ -47,7 +59,7 @@ export function registerLanesTools(server: MentionToolRegistrar): void {
       try {
         const body: Record<string, unknown> = { name };
         if (displayMode) body.displayMode = displayMode;
-        const lane = unwrapApiResponse<Lane>(await api.post("/lanes", body));
+        const lane = laneData<Lane>(await api.post("/lanes", body));
         return { content: [{ type: "text" as const, text: `Lane created.\n\n${formatLane(lane)}` }] };
       } catch (error) {
         return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
@@ -68,7 +80,7 @@ export function registerLanesTools(server: MentionToolRegistrar): void {
         const body: Record<string, unknown> = {};
         if (name) body.name = name;
         if (displayMode) body.displayMode = displayMode;
-        const lane = unwrapApiResponse<Lane>(await api.patch(`/lanes/${encodeURIComponent(id)}`, body));
+        const lane = laneData<Lane>(await api.patch(`/lanes/${encodeURIComponent(id)}`, body));
         return { content: [{ type: "text" as const, text: `Lane updated.\n\n${formatLane(lane)}` }] };
       } catch (error) {
         return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };

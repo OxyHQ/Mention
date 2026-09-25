@@ -22,6 +22,7 @@ import {
   visibilitySchema,
 } from "../lib/post-content-schema.js";
 import type { MentionToolRegistrar } from "../lib/tool-registry.js";
+import { laneData } from "./lanes.js";
 
 const createPostFields = {
   text: z.string().optional().describe("The text content of the post"),
@@ -223,7 +224,7 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
     withAuthGuard(async ({ id, laneId }) => {
       try {
         const result = await api.patch(`/posts/${encodeURIComponent(id)}/lane`, { laneId });
-        const moved = unwrapApiResponse<{ lane?: { name?: string } | null }>(result);
+        const moved = laneData<{ lane?: { name?: string } | null }>(result);
         const text = moved.lane?.name
           ? `Post ${id} moved to lane "${moved.lane.name}".`
           : `Post ${id} removed from its lane.`;
