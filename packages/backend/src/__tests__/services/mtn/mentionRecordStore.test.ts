@@ -580,3 +580,164 @@ describe('per-key materialization keeps fork archives eligible', () => {
     ).resolves.toBeNull();
   });
 });
+
+/**
+ * A row stored straight into the ledger, bypassing `append` — the shape the
+ * Mongo → Postgres cutover left behind, where records arrived without the head
+ * advance that should have accompanied them.
+ */
+async function insertLedgerRow(
+  owner: string,
+  input: { seq: number; prev: string | null; recordId: string; rkey?: string },
+): Promise<void> {
+  const envelope = envelopeV2(owner, {
+    seq: input.seq,
+    prev: input.prev,
+    rkey: input.rkey ?? `post-${input.recordId}`,
+  });
+  await db.insert(mentionSignedRecords).values({
+    subjectDid: envelope.subject,
+    oxyUserId: owner,
+    type: envelope.type,
+    envelope,
+    publicKey: envelope.publicKey,
+    verified: true,
+    seq: input.seq,
+    prev: input.prev,
+    recordId: input.recordId,
+    chainStatus: MTN_CHAIN_STATUS.CANONICAL,
+    nsid: envelope.collection,
+    rkey: envelope.rkey,
+  });
+}
+
+describe('reconcileHead — a head that fell behind the ledger', () => {
+  it('reports a consistent chain and changes nothing', async () => {
+    const owner = chainOwner();
+    const subject = buildUserDid(owner);
+    await store.append(subject, envelopeV2(owner, { seq: 0, prev: null }), R('record-0'));
+    await store.append(subject, envelopeV2(owner, { seq: 1, prev: R('record-0') }), R('record-1'));
+
+    await expect(store.reconcileHead(subject)).resolves.toEqual({ kind: 'consistent' });
+
+    const head = await readHead(owner);
+    expect(head?.seq).toBe(1);
+    expect(head?.recordCount).toBe(2);
+  });
+
+  it('unblocks the chain the cutover left: a new genesis under an orphaned branch', async () => {
+    // The production shape, measured on 2026-09-25: seq 1..N imported without
+    // their genesis or head, then a post-cutover append that found no head and
+    // wrote a NEW genesis at seq 0. Every later append builds seq 1 and
+    // collides with the imported seq 1, however often it re-reads the head.
+    const owner = chainOwner();
+    const subject = buildUserDid(owner);
+    await insertLedgerRow(owner, { seq: 1, prev: R('lost-genesis'), recordId: R('orphan-1') });
+    await insertLedgerRow(owner, { seq: 2, prev: R('orphan-1'), recordId: R('orphan-2') });
+    await insertLedgerRow(owner, { seq: 3, prev: R('orphan-2'), recordId: R('orphan-3') });
+    await store.append(subject, envelopeV2(owner, { seq: 0, prev: null }), R('genesis'));
+
+    const blocked = await store.append(
+      subject,
+      envelopeV2(owner, { seq: 1, prev: R('genesis'), rkey: 'like-1' }),
+      R('like-1'),
+    );
+    expect(blocked).toEqual({ ok: false, reason: 'chain_conflict' });
+    // A re-read cannot help: the head still says seq 0.
+    await expect(store.getHead(subject)).resolves.toMatchObject({ seq: 0, headRecordId: R('genesis') });
+
+    await expect(store.reconcileHead(subject)).resolves.toEqual({
+      kind: 'repaired',
+      fromSeq: 0,
+      toSeq: 0,
+      fastForwarded: 0,
+      archived: 3,
+    });
+
+    // The orphaned rows are fork archives now: off the linear chain, envelope
+    // intact, still eligible for last-writer-wins materialization.
+    for (const id of ['orphan-1', 'orphan-2', 'orphan-3']) {
+      const row = await readRecord(owner, R(id));
+      expect(row?.chainStatus).toBe(MTN_CHAIN_STATUS.CONFLICT);
+      expect(row?.seq).toBeNull();
+      expect(row?.prev).toBeNull();
+      expect(row?.envelope.seq).toBeGreaterThan(0);
+    }
+    await expect(
+      store.materializeCurrent(subject, 'app.mention.feed.post', `post-${R('orphan-2')}`),
+    ).resolves.toMatchObject({ seq: 2 });
+
+    // …and the append that could never land, lands.
+    await expect(
+      store.append(
+        subject,
+        envelopeV2(owner, { seq: 1, prev: R('genesis'), rkey: 'like-1' }),
+        R('like-1'),
+      ),
+    ).resolves.toEqual({ ok: true, recordId: R('like-1'), seq: 1 });
+    const log = await store.getLogSince(subject, -1, 10);
+    expect(log.map((envelope) => envelope.prev)).toEqual([null, R('genesis')]);
+  });
+
+  it('fast-forwards over rows that DO extend the head, then archives the rest', async () => {
+    // An append whose head advance was lost: the row chains from the head, so
+    // it belongs on the chain and the head moves onto it.
+    const owner = chainOwner();
+    const subject = buildUserDid(owner);
+    await store.append(subject, envelopeV2(owner, { seq: 0, prev: null }), R('record-0'));
+    await insertLedgerRow(owner, { seq: 1, prev: R('record-0'), recordId: R('record-1') });
+    await insertLedgerRow(owner, { seq: 2, prev: R('record-1'), recordId: R('record-2') });
+    await insertLedgerRow(owner, { seq: 3, prev: R('elsewhere'), recordId: R('stray-3') });
+
+    await expect(store.reconcileHead(subject)).resolves.toEqual({
+      kind: 'repaired',
+      fromSeq: 0,
+      toSeq: 2,
+      fastForwarded: 2,
+      archived: 1,
+    });
+
+    const head = await readHead(owner);
+    expect(head?.seq).toBe(2);
+    expect(head?.headRecordId).toBe(R('record-2'));
+    expect(head?.recordCount).toBe(3);
+    expect((await readRecord(owner, R('record-2')))?.chainStatus).toBe(MTN_CHAIN_STATUS.CANONICAL);
+    expect((await readRecord(owner, R('stray-3')))?.chainStatus).toBe(MTN_CHAIN_STATUS.CONFLICT);
+    await expect(store.getHead(subject)).resolves.toMatchObject({ seq: 2 });
+  });
+
+  it('rebuilds a missing head from a ledger that starts at genesis', async () => {
+    const owner = chainOwner();
+    const subject = buildUserDid(owner);
+    await insertLedgerRow(owner, { seq: 0, prev: null, recordId: R('record-0') });
+    await insertLedgerRow(owner, { seq: 1, prev: R('record-0'), recordId: R('record-1') });
+
+    await expect(store.getHead(subject)).resolves.toBeNull();
+    await expect(store.reconcileHead(subject)).resolves.toEqual({
+      kind: 'repaired',
+      fromSeq: null,
+      toSeq: 1,
+      fastForwarded: 2,
+      archived: 0,
+    });
+
+    const head = await readHead(owner);
+    expect(head?.seq).toBe(1);
+    expect(head?.headRecordId).toBe(R('record-1'));
+    expect(head?.recordCount).toBe(2);
+    expect(head?.subjectDid).toBe(subject);
+  });
+
+  it('leaves other accounts alone', async () => {
+    const owner = chainOwner();
+    const bystander = chainOwner();
+    await insertLedgerRow(owner, { seq: 1, prev: R('lost'), recordId: R('orphan') });
+    await insertLedgerRow(bystander, { seq: 1, prev: R('lost-b'), recordId: R('bystander-orphan') });
+
+    await store.reconcileHead(buildUserDid(owner));
+
+    const untouched = await readRecord(bystander, R('bystander-orphan'));
+    expect(untouched?.seq).toBe(1);
+    expect(untouched?.chainStatus).toBe(MTN_CHAIN_STATUS.CANONICAL);
+  });
+});

@@ -17,7 +17,11 @@
  *     injected (the engine returns the canonical `recordId`).
  *
  * On a `chain_conflict` / `bad_seq` (a concurrent writer took this `seq`) it
- * re-reads the head and retries up to {@link MAX_APPEND_ATTEMPTS} times.
+ * re-reads the head and retries up to {@link MAX_APPEND_ATTEMPTS} times. The
+ * first `chain_conflict` also reconciles the head against the ledger
+ * (`MentionRecordStore.reconcileHead`), because a head left BEHIND rows that
+ * already hold the next `seq` makes every re-read build the same colliding
+ * append — a conflict no retry can outlast.
  *
  * INERT-WITHOUT-ENV: when the custodial key is unconfigured the service is a
  * logged no-op (returns `{ ok: false, reason: 'disabled' }`), so the dual-write
@@ -165,6 +169,7 @@ export async function signAndAppend(
   }
 
   let lastReason: RejectionReason = 'chain_conflict';
+  let reconciled = false;
 
   for (let attempt = 0; attempt < MAX_APPEND_ATTEMPTS; attempt++) {
     try {
@@ -239,6 +244,25 @@ export async function signAndAppend(
             idempotencyKey,
           });
           return { ok: false, reason: 'error' };
+        }
+      }
+
+      if (outcome.reason === 'chain_conflict' && !reconciled) {
+        // A concurrent writer advances the head with its row, so a re-read
+        // resolves an ordinary race. A row sitting above a head that does NOT
+        // point at it never goes away on a re-read, and every attempt would
+        // collide with it again — reconcile the head against the ledger once.
+        reconciled = true;
+        const reconciliation = await mentionRecordStore.reconcileHead(subject);
+        if (reconciliation.kind === 'repaired') {
+          logger.warn('MentionRecordService: repaired a chain head that was behind the ledger', {
+            collection,
+            rkey,
+            fromSeq: reconciliation.fromSeq,
+            toSeq: reconciliation.toSeq,
+            fastForwarded: reconciliation.fastForwarded,
+            archived: reconciliation.archived,
+          });
         }
       }
 
