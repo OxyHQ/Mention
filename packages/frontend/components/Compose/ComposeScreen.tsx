@@ -3442,7 +3442,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   </Text>
                 ) : null}
                 <Button
-                  variant="primary"
+                  appearance="solid"
+                  tone="action"
                   onPress={handlePost}
                   disabled={!isPostButtonEnabled}
                   loading={isPosting}
