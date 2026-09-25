@@ -14,7 +14,7 @@ import { emptyCopy } from '../FeedEmptyState';
 
 jest.mock('expo-image', () => ({ Image: 'Image' }));
 jest.mock('@/components/common/EmptyState', () => ({ EmptyState: 'EmptyState' }));
-jest.mock('@/components/ui/Spinner', () => ({ Spinner: 'Spinner' }));
+jest.mock('@oxy.so/bloom/loading', () => ({ Loading: 'Loading' }));
 
 let t: TFunction;
 let tRu: TFunction;
