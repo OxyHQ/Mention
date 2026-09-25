@@ -88,7 +88,7 @@ case "$url" in
     if [[ "${BROKEN_CASE:-}" == "wrong-resource" ]]; then
       resource='https://mcp.other.test'
     fi
-    scopes='["social.accounts.link","social.accounts.read","social.accounts.switch","social.collaboration.manage","social.follow","social.interact","social.jobs.applications.read","social.jobs.create","social.jobs.read","social.jobs.update","social.lists.create","social.lists.delete","social.lists.read","social.lists.update","social.media.create","social.media.read","social.notifications.manage","social.notifications.read","social.polls.vote","social.posts.delete","social.posts.publish","social.posts.read","social.posts.save","social.posts.update","social.profile.read","social.read","social.search","social.starter_packs.create","social.starter_packs.delete","social.starter_packs.read","social.starter_packs.update"]'
+    scopes='["social.accounts.link","social.accounts.read","social.accounts.switch","social.collaboration.manage","social.follow","social.interact","social.jobs.applications.read","social.jobs.create","social.jobs.read","social.jobs.update","social.lanes.manage","social.lanes.read","social.lists.create","social.lists.delete","social.lists.read","social.lists.update","social.media.create","social.media.read","social.notifications.manage","social.notifications.read","social.polls.vote","social.posts.delete","social.posts.publish","social.posts.read","social.posts.save","social.posts.update","social.profile.read","social.read","social.search","social.starter_packs.create","social.starter_packs.delete","social.starter_packs.read","social.starter_packs.update"]'
     if [[ "${BROKEN_CASE:-}" == "wrong-scopes" ]]; then
       scopes='["social.read"]'
     fi
