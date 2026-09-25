@@ -22,7 +22,7 @@ proxied to `shell.mention.earth`, a Cloudflare Worker.
 
 `/.well-known/*` never reaches that proxy: the shell's SPA fallback answers any
 path with `200 text/html`. The backend serves every well-known document itself,
-including the App Links `assetlinks.json` and the iOS
+including the Android App Links statement list and the iOS
 `apple-app-site-association` (`packages/backend/src/routes/appAssociation.routes.ts`),
 and answers any other well-known path with a JSON 404.
 
