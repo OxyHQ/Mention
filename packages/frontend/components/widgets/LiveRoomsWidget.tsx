@@ -66,15 +66,16 @@ const RoomRow = React.memo(function RoomRow({
           style={{ backgroundColor: LIVE_INDICATOR_COLOR }}
         />
         <View className="flex-1">
-          <Text
-            className="text-foreground text-[13px] font-bold"
-            numberOfLines={1}
-          >
+          <Text variant="body-2-bold" numberOfLines={1}>
             {room.title}
           </Text>
           <View className="flex-row items-center gap-1 mt-px">
             <RiCustomerServiceLine width={11} height={11} fill={theme.colors.textSecondary} />
-            <Text className="text-muted-foreground text-[11px] flex-1" numberOfLines={1}>
+            <Text
+              variant="caption-2-regular"
+              style={{ flex: 1, color: theme.colors.textSecondary }}
+              numberOfLines={1}
+            >
               {listenerCount} listening  ·  {hostName}
             </Text>
           </View>

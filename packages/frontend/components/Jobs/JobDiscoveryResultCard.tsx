@@ -1,9 +1,11 @@
 import type { Href } from 'expo-router';
 import React, { memo, useCallback, useState } from 'react';
-import { Pressable, Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
+import { Card } from '@oxy.so/bloom/card';
+import { Divider } from '@oxy.so/bloom/divider';
 import { RiBookmarkFill } from '@oxy.so/bloom/icons/RiBookmarkFill';
 import { RiBookmarkLine } from '@oxy.so/bloom/icons/RiBookmarkLine';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
@@ -14,6 +16,7 @@ import { RiShareForwardLine } from '@oxy.so/bloom/icons/RiShareForwardLine';
 import { Item } from '@oxy.so/bloom/item';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
+import { Text as BloomText } from '@oxy.so/bloom/typography';
 import type { JobEmploymentType, JobReportReason, JobSearchResult, JobWorkplaceType } from '@clarity.surf/sdk';
 import { logger } from '@oxy.so/core/logger';
 import { WEB_BASE_URL } from '@/config';
@@ -214,20 +217,26 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
   const postedLabel = job.publishedAt ? formatTimeAgo(job.publishedAt) : null;
 
   return (
-    <Pressable
+    <Card
+      variant="outlined"
+      radius="radius-16"
       onPress={open}
-      className="mx-4 mb-3 border border-border bg-card rounded-[14px] p-4"
+      className="mx-4 mb-3 p-4"
       accessibilityRole="button"
       accessibilityLabel={job.title}
     >
       <View className="flex-row items-start justify-between gap-2">
         <View className="flex-1">
-          <Text className="text-foreground text-[16px] font-bold" numberOfLines={2}>
+          <BloomText variant="headline-bold" numberOfLines={2}>
             {job.title}
-          </Text>
-          <Text className="text-muted-foreground text-[13px] mt-0.5" numberOfLines={1}>
+          </BloomText>
+          <BloomText
+            variant="body-2-regular"
+            style={{ marginTop: 2, color: theme.colors.textSecondary }}
+            numberOfLines={1}
+          >
             {job.employer.name}
-          </Text>
+          </BloomText>
         </View>
         <TouchableOpacity
           onPress={() => onToggleSave(job)}
@@ -256,26 +265,35 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
       ) : null}
 
       {salaryLabel ? (
-        <Text className="text-foreground text-[14px] font-semibold mt-2">{salaryLabel}</Text>
+        <BloomText variant="body-semibold" style={{ marginTop: 8 }}>{salaryLabel}</BloomText>
       ) : null}
 
       {job.snippet ? (
-        <Text className="text-muted-foreground text-[13px] mt-2" numberOfLines={2}>
+        <BloomText
+          variant="body-2-regular"
+          style={{ marginTop: 8, color: theme.colors.textSecondary }}
+          numberOfLines={2}
+        >
           {job.snippet}
-        </Text>
+        </BloomText>
       ) : null}
 
       {/* Clear source/canonical attribution — never presented as a Mention
           listing unless it genuinely resolves to one of this app's own
           routes. */}
-      <View className="flex-row items-center justify-between mt-3 pt-3 border-t border-border">
+      <Divider style={{ marginTop: 12 }} />
+      <View className="flex-row items-center justify-between pt-3">
         <View className="flex-1 flex-row items-center gap-1.5">
           {appPath ? (
             <RiCheckboxCircleFill width={14} height={14} fill={theme.colors.primary} />
           ) : (
             <RiGlobalLine width={14} height={14} fill={theme.colors.textTertiary} />
           )}
-          <Text className="text-muted-foreground text-[12px]" numberOfLines={1}>
+          <BloomText
+            variant="caption-1-regular"
+            style={{ flexShrink: 1, color: theme.colors.textSecondary }}
+            numberOfLines={1}
+          >
             {appPath
               ? t('jobs.discovery.onMention', { defaultValue: 'On Mention' })
               : t('jobs.discovery.viaSource', {
@@ -283,7 +301,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
                   domain: job.source.domain,
                 })}
             {postedLabel ? ` · ${postedLabel}` : ''}
-          </Text>
+          </BloomText>
         </View>
         <View className="flex-row items-center gap-3">
           <TouchableOpacity onPress={share} hitSlop={HIT_SLOP_MD} accessibilityRole="button" accessibilityLabel={t('jobs.detail.share', { defaultValue: 'Share' })}>
@@ -301,7 +319,7 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
           ) : null}
         </View>
       </View>
-    </Pressable>
+    </Card>
   );
 });
 

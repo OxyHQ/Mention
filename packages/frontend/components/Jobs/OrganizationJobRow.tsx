@@ -1,9 +1,11 @@
 import type { Href } from 'expo-router';
 import React, { memo, useCallback } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@oxy.so/bloom/badge';
+import { Card } from '@oxy.so/bloom/card';
+import { Text as BloomText } from '@oxy.so/bloom/typography';
 import type { MentionJobPosting, MentionJobStatus } from '@mention/shared-types';
 import { formatTimeAgo } from '@/utils/dateUtils';
 import { useJobVocabulary } from '@/utils/jobVocabulary';
@@ -87,16 +89,18 @@ const OrganizationJobRow = memo(function OrganizationJobRow({ job }: Organizatio
     : t('jobs.mine.createdAgo', { defaultValue: 'Created {{time}}', time: formatTimeAgo(job.createdAt) });
 
   return (
-    <Pressable
+    <Card
+      variant="outlined"
+      radius="radius-16"
       onPress={open}
-      className="border border-border bg-card rounded-[14px] p-4"
+      className="p-4"
       accessibilityRole="button"
       accessibilityLabel={job.title}
     >
       <View className="flex-row items-start justify-between gap-2">
-        <Text className="flex-1 text-foreground text-[16px] font-bold" numberOfLines={2}>
+        <BloomText variant="headline-bold" style={{ flex: 1 }} numberOfLines={2}>
           {job.title}
-        </Text>
+        </BloomText>
         {!isPublished ? (
           <Badge content={job.status} color={STATUS_TONE[job.status]} variant="subtle" size="small" />
         ) : null}
@@ -110,10 +114,12 @@ const OrganizationJobRow = memo(function OrganizationJobRow({ job }: Organizatio
         </View>
       ) : null}
 
-      {salaryLabel ? <Text className="text-foreground text-[14px] font-semibold mt-2">{salaryLabel}</Text> : null}
+      {salaryLabel ? (
+        <BloomText variant="body-semibold" style={{ marginTop: 8 }}>{salaryLabel}</BloomText>
+      ) : null}
 
       <Text className="text-muted-foreground text-xs mt-2">{dateLabel}</Text>
-    </Pressable>
+    </Card>
   );
 });
 

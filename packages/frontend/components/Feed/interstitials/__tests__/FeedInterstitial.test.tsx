@@ -274,6 +274,14 @@ jest.mock('@oxy.so/bloom/pressable-scale', () => {
   return { PressableScale: TouchableOpacity };
 });
 
+// StarterPackCard's surface and pack-mark disc.
+jest.mock('@oxy.so/bloom/card', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { Card: ({ children }: { children?: React.ReactNode }) => <View>{children}</View> };
+});
+
+jest.mock('@oxy.so/bloom/icon-circle', () => ({ IconCircle: () => null }));
+
 jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({ colors: { primary: '#0000ff' } }),
 }));

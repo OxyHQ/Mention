@@ -2,6 +2,7 @@ import { Button } from '@oxy.so/bloom/button';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { View } from 'react-native';
 import { Text } from '@oxy.so/bloom/typography';
+import { useTheme } from '@oxy.so/bloom/theme';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
@@ -25,6 +26,7 @@ export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
   const { trends, summary, hasFetched, error, hiddenTrendIds, startPolling, stopPolling } =
     useTrendsStore();
   const router = useRouter();
+  const theme = useTheme();
   const handleMenuPress = useTrendItemMenu();
 
   useEffect(() => {
@@ -79,7 +81,11 @@ export function TrendsWidget({ variant = 'card', divider }: TrendsWidgetProps) {
     <View className="gap-2">
       <View>
         {summary ? (
-          <Text className="text-muted-foreground text-[12px] mb-1 leading-4" numberOfLines={2}>
+          <Text
+            variant="caption-1-regular"
+            style={{ marginBottom: 4, color: theme.colors.textSecondary }}
+            numberOfLines={2}
+          >
             {summary}
           </Text>
         ) : null}

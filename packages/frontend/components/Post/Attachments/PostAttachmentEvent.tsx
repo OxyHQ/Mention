@@ -1,5 +1,6 @@
 import React from 'react';
-import { TouchableOpacity, View, Text, StyleProp, ViewStyle } from 'react-native';
+import { View, Text, StyleProp, ViewStyle } from 'react-native';
+import { Card } from '@oxy.so/bloom/card';
 
 interface PostAttachmentEventProps {
   name: string;
@@ -37,12 +38,14 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
   }) : null;
 
   return (
-    <TouchableOpacity
-      className="w-[200px] min-h-[140px] border border-border bg-card rounded-[14px] overflow-hidden flex-row"
+    // Bloom's `Card` owns the surface (border, card fill, corner, clip) and,
+    // given `onPress`, the press dip; without one it is a plain, inert view.
+    <Card
+      variant="outlined"
+      radius="radius-16"
+      className="w-[200px] min-h-[140px] flex-row"
       style={style}
-      activeOpacity={0.85}
       onPress={onPress}
-      disabled={!onPress}
     >
       <View className="w-[60px] py-3 px-2 items-center justify-center bg-primary">
         {day !== null && (
@@ -69,7 +72,7 @@ const PostAttachmentEvent: React.FC<PostAttachmentEventProps> = ({
           </Text>
         )}
       </View>
-    </TouchableOpacity>
+    </Card>
   );
 };
 

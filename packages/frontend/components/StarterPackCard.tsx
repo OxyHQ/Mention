@@ -1,5 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, type ColorValue, type StyleProp, type ViewStyle } from 'react-native';
+import { Card } from '@oxy.so/bloom/card';
+import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
@@ -37,6 +39,16 @@ interface StarterPackCardProps {
   onPress?: () => void;
   /** Hide description (compact variant for notifications) */
   noDescription?: boolean;
+}
+
+/**
+ * The pack mark as an `IconCircle` glyph: the circle hands its glyph a colour
+ * through `style.color` (the `primary` half of its tint pair), which this app
+ * icon takes as a `color` prop.
+ */
+function StarterPackGlyph({ style }: { style?: StyleProp<ViewStyle & { color?: ColorValue }> }) {
+  const color = StyleSheet.flatten(style)?.color;
+  return <StarterPackIcon size={22} color={typeof color === 'string' ? color : undefined} />;
 }
 
 /** Max avatars shown in the compact row cluster before the "+N" overflow chip. */
@@ -102,84 +114,82 @@ export function StarterPackCard({ pack, onPress, noDescription }: StarterPackCar
   return (
     <PressableScale
       onPress={onPress}
-      className="bg-card border-border"
-      style={styles.outer}
+      style={styles.pressable}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       testID={`starterpack-${pack.id}`}>
-      {/* Compact group-avatar cluster, or the pack mark when no avatars exist */}
-      {hasAvatars ? (
-        <AvatarGroup
-          items={avatarItems}
-          size={32}
-          variant={MEDIA_VARIANT_AVATAR}
-          max={MAX_ROW_AVATARS}
-          total={pack.totalMembers ?? pack.memberCount}
-          ringColor={theme.colors.card}
-        />
-      ) : (
-        <View className="bg-primary/20" style={styles.iconBubble}>
-          <StarterPackIcon size={22} color={theme.colors.primary} />
-        </View>
-      )}
+      {/* The press owns the scale; Bloom's `Card` owns the surface. */}
+      <Card variant="outlined" border="hairline" radius="radius-12" style={styles.outer}>
+        {/* Compact group-avatar cluster, or the pack mark when no avatars exist */}
+        {hasAvatars ? (
+          <AvatarGroup
+            items={avatarItems}
+            size={32}
+            variant={MEDIA_VARIANT_AVATAR}
+            max={MAX_ROW_AVATARS}
+            total={pack.totalMembers ?? pack.memberCount}
+            ringColor={theme.colors.card}
+          />
+        ) : (
+          <IconCircle icon={StarterPackGlyph} style={styles.iconBubble} />
+        )}
 
-      {/* Name and byline */}
-      <View style={styles.titleRow}>
-        <View style={styles.titleContainer}>
-          <Text style={styles.title} numberOfLines={2}>
-            {pack.name}
+        {/* Name and byline */}
+        <View style={styles.titleRow}>
+          <View style={styles.titleContainer}>
+            <Text variant="headline-semibold" style={styles.title} numberOfLines={2}>
+              {pack.name}
+            </Text>
+            {pack.creator && (
+              // No preview of yourself — the byline reads "by you" and is not
+              // even a link in that case.
+              <ProfileHoverCard username={isOwner ? undefined : creatorHandle}>
+                <TouchableOpacity
+                  onPress={handleCreatorPress}
+                  disabled={isOwner}
+                  activeOpacity={0.6}
+                  // Vertical only on purpose: the card behind this byline is
+                  // itself pressable, so horizontal slop would take taps meant
+                  // for opening the pack.
+                  hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}>
+                  <Text
+                    variant="body-regular"
+                    style={[styles.byline, { color: theme.colors.textSecondary }]}
+                    numberOfLines={1}>
+                    {isOwner
+                      ? 'Starter pack by you'
+                      : `Starter pack by @${pack.creator.username}`}
+                  </Text>
+                </TouchableOpacity>
+              </ProfileHoverCard>
+            )}
+          </View>
+        </View>
+
+        {/* Description */}
+        {!noDescription && pack.description ? (
+          <Text variant="body-regular" numberOfLines={3}>
+            {pack.description}
           </Text>
-          {pack.creator && (
-            // No preview of yourself — the byline reads "by you" and is not
-            // even a link in that case.
-            <ProfileHoverCard username={isOwner ? undefined : creatorHandle}>
-              <TouchableOpacity
-                onPress={handleCreatorPress}
-                disabled={isOwner}
-                activeOpacity={0.6}
-                // Vertical only on purpose: the card behind this byline is
-                // itself pressable, so horizontal slop would take taps meant
-                // for opening the pack.
-                hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}>
-                <Text
-                  className="text-muted-foreground"
-                  style={styles.byline}
-                  numberOfLines={1}>
-                  {isOwner
-                    ? 'Starter pack by you'
-                    : `Starter pack by @${pack.creator.username}`}
-                </Text>
-              </TouchableOpacity>
-            </ProfileHoverCard>
-          )}
-        </View>
-      </View>
+        ) : null}
 
-      {/* Description */}
-      {!noDescription && pack.description ? (
-        <Text
-          style={styles.descriptionText}
-          numberOfLines={3}>
-          {pack.description}
+        {/* Stats */}
+        <Text variant="body-2-medium" style={[styles.statLine, { color: theme.colors.textSecondary }]}>
+          {pack.memberCount} {pack.memberCount === 1 ? 'account' : 'accounts'}
+          {pack.useCount > 0
+            ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
+            : ''}
         </Text>
-      ) : null}
 
-      {/* Stats */}
-      <Text className="text-muted-foreground leading-6" style={styles.stats}>
-        {pack.memberCount} {pack.memberCount === 1 ? 'account' : 'accounts'}
-        {pack.useCount > 0
-          ? ` \u00B7 Used by ${formatCompactNumber(pack.useCount)} ${pack.useCount === 1 ? 'person' : 'people'}`
-          : ''}
-      </Text>
-
-      {/* Joined count — only shown when >= 50, matching Bluesky */}
-      {pack.useCount >= 50 && (
-        <Text
-          className="text-muted-foreground leading-6"
-          style={styles.joinedText}>
-          {formatCompactNumber(pack.useCount)} users have joined!
-        </Text>
-      )}
+        {/* Joined count — only shown when >= 50, matching Bluesky */}
+        {pack.useCount >= 50 && (
+          <Text
+            variant="body-2-semibold"
+            style={[styles.statLine, { color: theme.colors.textSecondary }]}>
+            {formatCompactNumber(pack.useCount)} users have joined!
+          </Text>
+        )}
+      </Card>
     </PressableScale>
   );
 }
@@ -200,7 +210,7 @@ export function StarterPackCardNotification({
  */
 export function StarterPackCardSkeleton() {
   return (
-    <View style={styles.outer} className="bg-card border-border">
+    <Card variant="outlined" border="hairline" radius="radius-12" style={styles.outer}>
       {/* Skeleton avatar row */}
       <View style={styles.skeletonAvatarRow}>
         {Array.from({ length: 6 }).map((_, i) => (
@@ -218,25 +228,25 @@ export function StarterPackCardSkeleton() {
         </Skeleton.Col>
       </Skeleton.Row>
       <Skeleton.Text style={{ width: '70%' as unknown as number, fontSize: 14 }} />
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
+  pressable: {
+    width: '100%',
+  },
   outer: {
     width: '100%',
     padding: 16,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
     gap: 10,
-    overflow: 'hidden',
   },
+  // The pack mark keeps its rounded-square tile; `IconCircle` supplies the
+  // primary tint pair, this only its geometry.
   iconBubble: {
     width: 40,
     height: 40,
     borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   titleRow: {
     flexDirection: 'row',
@@ -248,25 +258,13 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   title: {
-    fontSize: 16,
-    fontWeight: '600',
     lineHeight: 20,
   },
   byline: {
-    fontSize: 14,
     lineHeight: 18,
   },
-  descriptionText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  stats: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  joinedText: {
-    fontSize: 13,
-    fontWeight: '600',
+  statLine: {
+    lineHeight: 24,
   },
   // Skeleton styles
   skeletonAvatarRow: {

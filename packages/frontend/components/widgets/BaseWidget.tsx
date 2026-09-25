@@ -1,6 +1,7 @@
 import React, { ReactNode } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View } from 'react-native';
 import { Card } from '@oxy.so/bloom/card';
+import { Divider } from '@oxy.so/bloom/divider';
 import { Text } from '@oxy.so/bloom/typography';
 
 type BaseWidgetProps = {
@@ -19,8 +20,8 @@ export function BaseWidget({ title, icon, divider, children }: BaseWidgetProps) 
         // column collapse to nothing when every widget renders null.
         <Card
             appearance="plain"
-            className={`gap-2 mb-4${divider ? ' pb-4 border-border' : ''}`}
-            style={[{ borderRadius: 0 }, divider && styles.divider]}
+            className="gap-2 mb-4"
+            style={{ borderRadius: 0 }}
         >
             {title && (
                 <View className="flex-row justify-between items-center">
@@ -29,12 +30,9 @@ export function BaseWidget({ title, icon, divider, children }: BaseWidgetProps) 
                 </View>
             )}
             <View>{children}</View>
+            {/* The rule under a widget in a stacked rail: 8px of the card's
+                gap plus this margin keep the 16px it always sat below. */}
+            {divider ? <Divider style={{ marginTop: 8 }} /> : null}
         </Card>
     );
 }
-
-const styles = StyleSheet.create({
-    divider: {
-        borderBottomWidth: StyleSheet.hairlineWidth,
-    },
-});

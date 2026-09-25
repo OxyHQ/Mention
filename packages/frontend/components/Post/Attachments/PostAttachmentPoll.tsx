@@ -20,15 +20,24 @@ interface PostAttachmentPollProps {
 }
 
 const PostAttachmentPoll: React.FC<PostAttachmentPollProps> = ({ pollId, pollData, width = MEDIA_CARD_WIDTH, style }) => {
+  // A live poll draws its own surface (`PollCard` is a Bloom `Card`); only the
+  // static fallbacks below keep a hand-drawn frame. They are what the feed's
+  // row-cost harness mounts for a poll row, and a `Card` there would add hook
+  // slots to every poll row against a budget with no headroom.
+  if (pollId) {
+    return (
+      <View style={[{ width }, webGrabCursorStyle, style]}>
+        <PollCard pollId={pollId} width={width} />
+      </View>
+    );
+  }
+
   return (
     <View
       className="border border-border rounded-[15px] overflow-hidden"
       style={[{ width }, webGrabCursorStyle, style]}
     >
-      {pollId ? (
-        // Use interactive PollCard when we have a pollId
-        <PollCard pollId={pollId} width={width} />
-      ) : pollData ? (
+      {pollData ? (
         // Fallback to simple display if we only have poll data without ID
         <View className="flex-1 bg-muted p-4">
           <Text className="text-foreground text-base font-bold mb-3">{pollData.question}</Text>

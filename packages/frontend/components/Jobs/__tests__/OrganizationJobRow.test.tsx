@@ -10,6 +10,18 @@ jest.mock('expo-router', () => ({
 jest.mock('@oxy.so/bloom/badge', () => ({
   Badge: ({ content }: { content: string }) => content,
 }));
+// Bloom's surface, rule and type ramp, as plain React Native: the Card keeps its
+// press and label so the card-level handlers stay reachable.
+jest.mock('@oxy.so/bloom/card', () => {
+  const { Pressable } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { Card: (props: Record<string, unknown>) => <Pressable {...props} /> };
+});
+jest.mock('@oxy.so/bloom/divider', () => ({ Divider: () => null }));
+jest.mock('@oxy.so/bloom/typography', () => {
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { Text };
+});
+
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({

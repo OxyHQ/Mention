@@ -5,6 +5,7 @@ import { Image } from 'expo-image';
 import Ionicons from '@/components/common/Ionicons';
 import Svg, { Path } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
+import { Card } from '@oxy.so/bloom/card';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiAppleFill } from '@oxy.so/bloom/icons/RiAppleFill';
 import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
@@ -179,57 +180,67 @@ export const PodcastCard = memo(function PodcastCard({
   const handlePress = onPress ?? (showUrl ? openShow : undefined);
 
   if (variant === 'full') {
+    // The press (tap to open, long-press to edit) stays a `Pressable`, since
+    // `Card` has no long-press; the surface inside it is Bloom's `Card`, painted
+    // the muted fill (`contrast50`) this profile card has always sat on.
     return (
       <Pressable
-        className={cn('flex-row items-center gap-3 mb-3 rounded-2xl bg-muted p-3', className)}
+        className={cn('mb-3', className)}
         style={style}
         onPress={handlePress}
         onLongPress={isOwnProfile ? onEdit : undefined}
         accessibilityRole="button"
         accessibilityLabel={t('profile.media.openInSyra')}
       >
-        {artworkUrl ? (
-          <View className="size-14 rounded-xl overflow-hidden">
-            <Image source={{ uri: artworkUrl }} style={styles.fill} contentFit="cover" transition={120} />
-          </View>
-        ) : (
-          <View className="size-14 rounded-xl bg-card items-center justify-center">
-            <RiMic2Line size="lg" fill={colors.textSecondary} />
-          </View>
-        )}
+        <Card
+          appearance="plain"
+          radius="radius-16"
+          className="flex-row items-center gap-3 p-3"
+          style={{ backgroundColor: colors.contrast50 }}
+        >
+          {artworkUrl ? (
+            <View className="size-14 rounded-xl overflow-hidden">
+              <Image source={{ uri: artworkUrl }} style={styles.fill} contentFit="cover" transition={120} />
+            </View>
+          ) : (
+            <View className="size-14 rounded-xl bg-card items-center justify-center">
+              <RiMic2Line size="lg" fill={colors.textSecondary} />
+            </View>
+          )}
 
-        <View className="flex-1 shrink">
-          <Text className="text-foreground text-[15px] font-bold" numberOfLines={2}>
-            {title}
-          </Text>
-          <View className="flex-row items-center gap-1.5 mt-0.5">
-            <Text className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wide">
-              {t('profile.media.podcastLabel')}
+          <View className="flex-1 shrink">
+            <Text className="text-foreground text-[15px] font-bold" numberOfLines={2}>
+              {title}
             </Text>
-            {author ? (
-              <>
-                <Text className="text-muted-foreground text-[11px]">·</Text>
-                <Text className="text-muted-foreground text-[13px] shrink" numberOfLines={1}>
-                  {author}
-                </Text>
-              </>
-            ) : null}
+            <View className="flex-row items-center gap-1.5 mt-0.5">
+              <Text className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wide">
+                {t('profile.media.podcastLabel')}
+              </Text>
+              {author ? (
+                <>
+                  <Text className="text-muted-foreground text-[11px]">·</Text>
+                  <Text className="text-muted-foreground text-[13px] shrink" numberOfLines={1}>
+                    {author}
+                  </Text>
+                </>
+              ) : null}
+            </View>
           </View>
-        </View>
 
-        {isOwnProfile ? (
-          <Pressable
-            onPress={onEdit}
-            accessibilityRole="button"
-            accessibilityLabel={t('profile.media.edit')}
-            hitSlop={HIT_SLOP_MD}
-            className="p-1"
-          >
-            <RiEditLine size="sm" fill={colors.textSecondary} />
-          </Pressable>
-        ) : (
-          <RiExternalLinkLine size="sm" fill={colors.textSecondary} />
-        )}
+          {isOwnProfile ? (
+            <Pressable
+              onPress={onEdit}
+              accessibilityRole="button"
+              accessibilityLabel={t('profile.media.edit')}
+              hitSlop={HIT_SLOP_MD}
+              className="p-1"
+            >
+              <RiEditLine size="sm" fill={colors.textSecondary} />
+            </Pressable>
+          ) : (
+            <RiExternalLinkLine size="sm" fill={colors.textSecondary} />
+          )}
+        </Card>
       </Pressable>
     );
   }
