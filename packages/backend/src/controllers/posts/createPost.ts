@@ -13,7 +13,7 @@ import { PostVisibility, PostContent } from '@mention/shared-types';
 import type { ReplyPermission } from '@mention/shared-types';
 import { affinityEventService } from '../../services/AffinityEventService';
 import { postCreationService } from '../../services/PostCreationService';
-import { insertArticle, newArticleId } from '../../db/posts/articleRepository';
+import { persistPreparedArticle, prepareArticle } from '../../services/postArticles';
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
 import { postHydrationService } from '../../services/PostHydrationService';
@@ -33,8 +33,6 @@ import { sanitizeJobInput, resolveJobContent } from '../../utils/jobPostAttachme
 import { postCollaborationService, CollabValidationError } from '../../services/PostCollaborationService';
 import { resolveMcpAutoAcceptIds } from '../../mcp/utils/resolveMcpAutoAcceptIds';
 import {
-  type PendingArticle,
-  MAX_ARTICLE_EXCERPT_LENGTH,
   DEFAULT_POLL_DURATION_DAYS,
   MAX_POLL_DURATION_DAYS,
   MAX_TEXT_LENGTH,
@@ -279,20 +277,9 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       postContent.sources = sources;
     }
 
-    const sanitizedArticle = sanitizeArticle(content?.article || req.body.article);
-    let pendingArticle: PendingArticle | null = null;
-    if (sanitizedArticle) {
-      pendingArticle = {
-        id: newArticleId(),
-        createdBy: userId,
-        title: sanitizedArticle.title || undefined,
-        body: sanitizedArticle.body || undefined,
-      };
-      postContent.article = {
-        articleId: pendingArticle.id,
-        title: sanitizedArticle.title,
-        excerpt: sanitizedArticle.body ? sanitizedArticle.body.slice(0, MAX_ARTICLE_EXCERPT_LENGTH) : undefined,
-      };
+    const preparedArticle = prepareArticle(sanitizeArticle(content?.article || req.body.article), userId);
+    if (preparedArticle) {
+      postContent.article = preparedArticle.content;
     }
 
     // Handle event data
@@ -474,13 +461,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
       senderUsername: req.user?.username,
     });
 
-    if (pendingArticle) {
-      try {
-        await insertArticle({ ...pendingArticle, postId: post.id });
-      } catch (articleError) {
-        logger.error('Failed to save article content', articleError);
-      }
-    }
+    await persistPreparedArticle(preparedArticle, post.id, 'Failed to save article content');
 
     if (pollId) {
       try {

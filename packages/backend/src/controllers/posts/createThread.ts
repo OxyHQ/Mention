@@ -15,7 +15,7 @@ import { createMentionNotifications } from '../../utils/notificationUtils';
 import { PostVisibility, PostContent, PostContentVariant } from '@mention/shared-types';
 import type { ReplyPermission } from '@mention/shared-types';
 import { postCreationService } from '../../services/PostCreationService';
-import { insertArticle, newArticleId } from '../../db/posts/articleRepository';
+import { persistPreparedArticle, prepareArticle } from '../../services/postArticles';
 import { logger } from '../../utils/logger';
 import { postHydrationService } from '../../services/PostHydrationService';
 import { mergeHashtags } from '../../utils/textProcessing';
@@ -37,8 +37,6 @@ import { sanitizeJobInput, resolveJobContent } from '../../utils/jobPostAttachme
 import { federatePostBatchDetached } from '../../connectors/threadFederation';
 import {
   type ParsedPollInput,
-  type PendingArticle,
-  MAX_ARTICLE_EXCERPT_LENGTH,
   DEFAULT_POLL_DURATION_DAYS,
   buildOrderedAttachments,
   hashtagsSchema,
@@ -442,20 +440,9 @@ export const createThread = async (req: AuthRequest, res: Response) => {
       // every box but the first, and a thread did the same to a continuation.
       // `POST /posts` puts no such condition on it (a reply may carry an article),
       // so there was never a rule here, only a missing loop.
-      let pendingArticle: PendingArticle | null = null;
-      const sanitizedArticle = sanitizeArticle(content?.article);
-      if (sanitizedArticle) {
-        pendingArticle = {
-          id: newArticleId(),
-          createdBy: userId,
-          title: sanitizedArticle.title || undefined,
-          body: sanitizedArticle.body || undefined,
-        };
-        postContent.article = {
-          articleId: pendingArticle.id,
-          title: sanitizedArticle.title,
-          excerpt: sanitizedArticle.body ? sanitizedArticle.body.slice(0, MAX_ARTICLE_EXCERPT_LENGTH) : undefined,
-        };
+      const preparedArticle = prepareArticle(sanitizeArticle(content?.article), userId);
+      if (preparedArticle) {
+        postContent.article = preparedArticle.content;
       }
 
       // Handle event data
@@ -620,13 +607,7 @@ export const createThread = async (req: AuthRequest, res: Response) => {
         anchored = { ...post, threadId: post.id };
       }
 
-      if (pendingArticle) {
-        try {
-          await insertArticle({ ...pendingArticle, postId: anchored.id });
-        } catch (articleError) {
-          logger.error('Failed to save article content (thread)', articleError);
-        }
-      }
+      await persistPreparedArticle(preparedArticle, anchored.id, 'Failed to save article content (thread)');
 
       // Mentions per post in thread. Read the reconciled persisted allowlist,
       // never the raw request metadata: an orphan id must not notify anyone.

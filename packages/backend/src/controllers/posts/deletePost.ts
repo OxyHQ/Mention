@@ -2,8 +2,9 @@
  * `DELETE /posts/:id` — the post delete and its cascade.
  *
  * The subtree walk, the reference sweep and the counter repair are
- * `PostDeletionCascade`; this is the authorisation, the scheduled-continuation
- * cleanup, and the response.
+ * `PostDeletionCascade`, and the deletion plus everything it owes afterwards is
+ * `PostDeletionService.deleteAuthoredPost`; this is the authorisation, the
+ * scheduled-continuation cleanup, and the response.
  */
 
 import { Response } from 'express';
@@ -11,25 +12,15 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { posts as postsTable } from '../../db/schema/posts';
 import { CHRONO_DESC, deletePostRecord, findPostRecords } from '../../db/posts/postRepository';
-import type { PostRecord } from '../../db/posts/postRecord';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
-import { PostVisibility } from '@mention/shared-types';
 import { logger } from '../../utils/logger';
 import { createUserScopedOxyServices } from '../../utils/oxyHelpers';
 import { postManagementRefusal } from '../../services/postManagementAccess';
-import { emitTombstone, postRecordUri } from '../../services/mtn/MentionRecordEmitter';
-import { federateAsResolvedActor } from '../../connectors/outboundFederation';
-import { repairRecentRepliersAfterPostDelete } from '../../services/PostRecentReplierService';
 import {
-  allDeletionTargets,
-  deletePostSubtree,
   PostDeletionTooLargeError,
-  recordDeletionSideEffectFailure,
-  repairSurvivingCounters,
-  reportResidue,
   type DeletedPostSubtree,
-  type PostDeletionTargets,
 } from '../../services/PostDeletionCascade';
+import { deleteAuthoredPost } from '../../services/PostDeletionService';
 import { loadScheduledChain } from '../../services/scheduledChain';
 
 // Delete post
@@ -119,11 +110,11 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       //
       // The claim keeps its atomic-claim property: `authorId` comes from the row
       // this request already read and re-checks the SAME ownership the refusal
-      // decided against, in the DELETE's own `WHERE`.
-      deletion = await deletePostSubtree(
-        String(req.params.id),
-        eq(postsTable.oxyUserId, authorId),
-      );
+      // decided against, in the DELETE's own `WHERE`. Everything a committed
+      // deletion owes afterwards (projections, counters, the MTN tombstone, the
+      // federated Delete, the residue check) is best-effort inside
+      // `deleteAuthoredPost` and never turns the deletion into a 500.
+      deletion = await deleteAuthoredPost(String(req.params.id), authorId);
     } catch (error) {
       if (error instanceof PostDeletionTooLargeError) {
         logger.error('Post deletion refused: too many dependent rows', {
@@ -140,73 +131,6 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
       // allowed to. Both answer 404; distinguishing them would disclose that
       // the post exists.
       return res.status(404).json({ message: 'Post not found' });
-    }
-    const deletedPost: PostRecord = deletion.post;
-    const deletedTargets: PostDeletionTargets = deletion.targets;
-    const postId = deletedPost.id;
-
-    // Everything from here is BEST-EFFORT: the deletion is committed and the
-    // user is about to be told it succeeded, so a failure below must not turn
-    // it into a 500. Each one is swallowed and COUNTED — fail-soft is fine,
-    // silent is not.
-    try {
-      await repairRecentRepliersAfterPostDelete({
-        postId,
-        parentPostId: deletedPost.parentPostId,
-      });
-    } catch (error) {
-      recordDeletionSideEffectFailure('recent_replier_projection', error);
-    }
-    try {
-      await repairSurvivingCounters(deletedTargets, deletion.removedIds);
-    } catch (error) {
-      recordDeletionSideEffectFailure('surviving_counters', error);
-    }
-
-    // MTN dual-write: deleting a LOCAL post tombstones its
-    // `app.mention.feed.post` record. (Federated posts never emitted a record.)
-    if (deletedPost.federation == null && deletedPost.oxyUserId) {
-      await emitTombstone({
-        authorOxyUserId: deletedPost.oxyUserId,
-        tombstoneRkey: postId,
-        subjectUri: postRecordUri(deletedPost.oxyUserId, postId),
-      });
-    }
-
-    // Outbound federation: broadcast a Delete(Tombstone) so remote followers'
-    // Mastodon removes the post. The row is already gone, but its data (id +
-    // author) is captured above from the deleted doc; the canonical Note id is
-    // minted from the resolved username + post id. Local + published + public
-    // only — an unpublished/private post was never federated. Username resolved
-    // server-side from the authoritative oxyUserId.
-    if (
-      deletedPost.federation == null &&
-      deletedPost.oxyUserId &&
-      deletedPost.visibility === PostVisibility.PUBLIC &&
-      deletedPost.status === 'published'
-    ) {
-      const deleterOxyUserId = deletedPost.oxyUserId;
-      federateAsResolvedActor(deleterOxyUserId, 'post delete', (username) => ({
-        kind: 'post.delete',
-        post: { _id: postId },
-        actorOxyUserId: deleterOxyUserId,
-        actorUsername: username,
-      }));
-    }
-
-    // The cascade ITSELF already ran, inside the transaction above — every
-    // reference the delete claims is gone by the time the row is. What is left
-    // here is the VERIFICATION: re-run exactly the claimed probes against the
-    // committed state and say what is actually still there, rather than
-    // assuming the legs worked.
-    //
-    // It has to be outside the transaction to mean anything. Inside, the probes
-    // would read that transaction's own uncommitted deletes and pass by
-    // construction — a check that cannot fail.
-    try {
-      await reportResidue(allDeletionTargets(deletedTargets), postId);
-    } catch (error) {
-      recordDeletionSideEffectFailure('residue_check', error);
     }
 
     await deleteScheduledContinuations(cancelledContinuations, userId);
