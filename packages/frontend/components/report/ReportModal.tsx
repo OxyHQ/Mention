@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { Divider } from '@oxy.so/bloom/divider';
 import { Field } from '@oxy.so/bloom/field';
+import { Checkbox } from '@oxy.so/bloom/checkbox';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -87,54 +88,27 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                     {REPORT_CATEGORIES.map((category) => {
                         const isSelected = selectedCategories.includes(category.id);
                         return (
-                            <TouchableOpacity
+                            // The selected tint is `bg-primary/10`, never
+                            // `theme.colors.primary + '20'`: the token is an
+                            // `rgb(...)` string, so a hex-alpha suffix makes a
+                            // malformed colour react-native-web reads as fully
+                            // opaque primary — a solid card behind the label.
+                            <View
                                 key={category.id}
-                                // The selected tint is `bg-primary/10`, never
-                                // `theme.colors.primary + '20'`: the token is an
-                                // `rgb(...)` string, so a hex-alpha suffix makes a
-                                // malformed colour react-native-web reads as fully
-                                // opaque primary — a solid card behind the label.
-                                className={`flex-row items-center py-3.5 px-4 rounded-xl ${isSelected ? 'bg-primary/10' : 'bg-card'}`}
+                                className={`py-3.5 px-4 rounded-xl ${isSelected ? 'bg-primary/10' : 'bg-card'}`}
                                 style={{
                                     borderColor: isSelected
                                         ? theme.colors.primary
                                         : theme.colors.border,
                                     borderWidth: 1.5,
                                 }}
-                                onPress={() => toggleCategory(category.id)}
-                                activeOpacity={0.7}
                             >
-                                <View
-                                    className="items-center justify-center mr-3 rounded"
-                                    style={{
-                                        width: 20,
-                                        height: 20,
-                                        borderWidth: 2,
-                                        borderColor: isSelected
-                                            ? theme.colors.primary
-                                            : theme.colors.border,
-                                        backgroundColor: isSelected
-                                            ? theme.colors.primary
-                                            : 'transparent',
-                                    }}
-                                >
-                                    {isSelected && (
-                                        <Text className="text-white text-sm font-bold">
-                                            {'\u2713'}
-                                        </Text>
-                                    )}
-                                </View>
-                                <Text
-                                    className="text-[15px] font-medium"
-                                    style={{
-                                        color: isSelected
-                                            ? theme.colors.text
-                                            : theme.colors.textSecondary,
-                                    }}
-                                >
-                                    {category.label}
-                                </Text>
-                            </TouchableOpacity>
+                                <Checkbox
+                                    label={category.label}
+                                    checked={isSelected}
+                                    onCheckedChange={() => toggleCategory(category.id)}
+                                />
+                            </View>
                         );
                     })}
                 </View>

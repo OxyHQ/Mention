@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Switch } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { Switch } from '@oxy.so/bloom/switch';
 import { Card } from '@oxy.so/bloom/card';
 import { Divider } from '@oxy.so/bloom/divider';
 import { Field } from '@oxy.so/bloom/field';
@@ -114,7 +115,11 @@ export default function CreateListScreen() {
 
             <View className="flex-row items-center justify-between">
               <Text className="text-sm text-muted-foreground font-primary">{t('lists.create.publicLabel')}</Text>
-              <Switch value={isPublic} onValueChange={setIsPublic} />
+              <Switch
+                checked={isPublic}
+                onCheckedChange={setIsPublic}
+                accessibilityLabel={t('lists.create.publicLabel')}
+              />
             </View>
 
             <Field label={t('lists.create.addMembers')} style={{ marginTop: 12 }}>
