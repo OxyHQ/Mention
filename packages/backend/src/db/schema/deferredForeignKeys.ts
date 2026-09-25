@@ -44,6 +44,7 @@ import { entityFollows } from './engagement';
 import { actorKeyPairs, federatedActors, federatedMediaCache } from './federation';
 import { laneMutes, lanes } from './channels';
 import { gifs } from './discovery';
+import { postImports } from './imports';
 import { mentionJobApplications, mentionJobs } from './jobs';
 import {
   contentLabels,
@@ -689,6 +690,22 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: mentionJobApplications,
     column: mentionJobApplications.resumeFileId,
     reason: 'An Oxy S3 file id for the uploaded resume. Oxy owns files.',
+  },
+  {
+    table: postImports,
+    column: postImports.sourceId,
+    reason:
+      "The imported item's id on ANOTHER PLATFORM (a Mastodon status id, an " +
+      'at-uri). An identifier from a foreign namespace with no table here; it is ' +
+      'the dedupe key, not a relation.',
+  },
+  {
+    table: postImports,
+    column: postImports.importBatchId,
+    reason:
+      "Oxy Move's job id — a grouping token with no parent row in this " +
+      'database. The batch IS the set of rows sharing the value, which is what ' +
+      'undo deletes.',
   },
 ];
 

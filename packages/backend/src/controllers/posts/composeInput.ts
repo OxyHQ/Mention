@@ -13,25 +13,10 @@ import type { ReplyPermission } from '@mention/shared-types';
 import { config } from '../../config';
 import type { NormalizedMediaItem } from '../../utils/mediaInput';
 
-/**
- * An article whose id is minted but whose row is not written yet.
- *
- * The post's content document has to carry `articleId`, and the article row must
- * not exist until the post it belongs to does — so the id is minted first and
- * the insert happens after the post succeeds. See `db/posts/articleRepository.ts`.
- */
-export interface PendingArticle {
-  id: string;
-  createdBy: string;
-  title?: string;
-  body?: string;
-}
-
 // Constants from centralized config
 const MAX_SOURCES = config.posts.maxSources;
 const MAX_SOURCE_TITLE_LENGTH = config.posts.maxSourceTitleLength;
 const MAX_ARTICLE_TITLE_LENGTH = config.posts.maxArticleTitleLength;
-export const MAX_ARTICLE_EXCERPT_LENGTH = config.posts.maxArticleExcerptLength;
 export const DEFAULT_POLL_DURATION_DAYS = config.posts.defaultPollDurationDays;
 export const MAX_POLL_DURATION_DAYS = config.posts.maxPollDurationDays;
 export const MAX_HASHTAG_LENGTH = config.posts.maxHashtagLength;

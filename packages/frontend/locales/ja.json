@@ -1939,6 +1939,7 @@
   "post.boostsTitle": "ブースト",
   "post.likesTitle": "いいね",
   "post.pinned": "固定済み",
+  "post.originallyPostedOn": "元は{{platform}}に投稿",
   "post.replyingTo": "返信先",
   "post.replyingToUnknown": "投稿への返信",
   "post.repostedBy": "ブーストしたユーザー",

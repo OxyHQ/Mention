@@ -195,6 +195,15 @@ export interface CreatePostParams {
   // Caller-supplied username enables outbound ActivityPub federation delivery.
   // When omitted, federation delivery is skipped.
   senderUsername?: string;
+  /**
+   * The body was written somewhere else and names people who are not Mention
+   * accounts — an IMPORTED post (`services/PostImportService.ts`). No mention is
+   * derived from it: the pasted-profile-link fold is skipped and the stored
+   * allowlist is empty, so an `@someone` in the text stays text, a `[mention:…]`
+   * that happens to be in it resolves to nobody, and nothing can later notify a
+   * person the author never addressed on Mention.
+   */
+  neutralizeMentions?: boolean;
   // Pipeline control flags
   skipNotifications?: boolean;
   skipSocketEmit?: boolean;
@@ -558,9 +567,11 @@ class PostCreationService {
     //
     // `storedContent` is rewritten IN PLACE by the fold, so it must run before
     // the record input reads it.
-    const authorizedMentions = params.federation != null
-      ? params.mentions
-      : (await foldProfileLinkMentions(storedContent, params.mentions)).mentions;
+    const authorizedMentions = params.neutralizeMentions
+      ? []
+      : params.federation != null
+        ? params.mentions
+        : (await foldProfileLinkMentions(storedContent, params.mentions)).mentions;
 
     // Collaborators defer federation: an invitee must never be leaked to the
     // fediverse before consenting, so the flag is set at INSERT rather than

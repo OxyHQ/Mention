@@ -9,6 +9,10 @@
  * {@link OXY_USER_INVALIDATION_CHANNEL} whenever a user's identity changes, and
  * this is the consumer half.
  *
+ * ALIASES — it also hands every event to `federation/aliasPublication`, which
+ * rebroadcasts a local actor whose `alsoKnownAs` changed (the precondition of an
+ * incoming Mastodon `Move`). That check claims each event once across tasks.
+ *
  * WHAT IT DROPS, and why all three:
  *  - the Redis {@link userSummaryCache} entry — the shared, cross-task copy that
  *    `PostHydrationService` reads for every post author;
@@ -40,6 +44,7 @@ import { createRedisPubSub } from '../utils/redis';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { logger } from '../utils/logger';
 import { invalidate as invalidateUserSummaries } from './userSummaryCache';
+import { publishAliasChange } from './federation/aliasPublication';
 
 /** Handle for shutting the subscriber down. */
 export interface UserInvalidationSubscriber {
@@ -86,7 +91,12 @@ export async function startUserInvalidationSubscriber(): Promise<UserInvalidatio
       OXY_USER_INVALIDATION_CHANNEL,
       createOxyUserInvalidationHandler({
         oxy: bothOxyClients(),
-        onInvalidate: (event) => invalidateUserSummaries([event.userId]),
+        onInvalidate: (event) => {
+          // A changed `alsoKnownAs` must reach remote servers before the user
+          // presses Move on their old account. Never throws; runs alongside.
+          void publishAliasChange(event);
+          return invalidateUserSummaries([event.userId]);
+        },
         onError: (error, raw) => {
           logger.warn('[UserInvalidation] dropped an invalidation message', {
             reason: error instanceof Error ? error.message : String(error),

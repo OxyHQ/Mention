@@ -330,6 +330,13 @@
       "when": 1790357350160,
       "tag": "0046_posts_federation_url_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1790364863030,
+      "tag": "0047_the_import_ledger",
+      "breakpoints": true
     }
   ]
 }

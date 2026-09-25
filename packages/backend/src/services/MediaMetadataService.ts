@@ -200,6 +200,23 @@ export class MediaMetadataService {
     });
   }
 
+  /**
+   * Resolve Oxy asset ids to their metadata, keyed by id, FAILING rather than
+   * guessing: a failed lookup throws (`ServiceAssetMetadataError`), and an id
+   * Oxy does not know is simply absent from the map.
+   *
+   * For a writer that must REFUSE media it cannot vouch for — the content
+   * import, which attaches assets another service uploaded — rather than
+   * {@link enrichFromOxy}'s best-effort, which keeps an item it could not
+   * resolve.
+   */
+  async resolveOxyAssets(ids: readonly string[]): Promise<Map<string, ServiceAssetMetadata>> {
+    const oxyIds = [...new Set(ids.filter(isOxyFileId))];
+    if (oxyIds.length === 0) return new Map();
+    const resolved = await getServiceOxyClient().getServiceAssetMetadataByIds(oxyIds);
+    return new Map(resolved.map((entry) => [entry.id, entry]));
+  }
+
   /** True when any Oxy-backed item is still missing width/height after enrich. */
   needsOxyRetry(items: MediaItem[]): boolean {
     return items.some(

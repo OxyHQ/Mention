@@ -1338,6 +1338,56 @@ export interface CrosspostProvenance {
   variants: CrosspostVariant[];
 }
 
+/**
+ * The platforms a user can bring their old posts from (Oxy Move, see the
+ * backend's `docs/import.mdx`).
+ *
+ * ONE declaration: the backend derives the `post_imports.platform` CHECK from
+ * this tuple, the ingest API validates against it, and the client names the
+ * platform from {@link IMPORT_PLATFORM_LABELS}. Adding a platform is one entry
+ * here plus a migration that widens the CHECK.
+ */
+export const IMPORT_PLATFORMS = [
+  'mastodon',
+  'bluesky',
+  'threads',
+  'instagram',
+  'x',
+  'facebook',
+  'medium',
+  'substack',
+] as const;
+
+export type ImportPlatform = (typeof IMPORT_PLATFORMS)[number];
+
+/**
+ * Display names for {@link IMPORT_PLATFORMS}. Proper nouns, so deliberately NOT
+ * translated — the sentence around them is.
+ */
+export const IMPORT_PLATFORM_LABELS: Record<ImportPlatform, string> = {
+  mastodon: 'Mastodon',
+  bluesky: 'Bluesky',
+  threads: 'Threads',
+  instagram: 'Instagram',
+  x: 'X',
+  facebook: 'Facebook',
+  medium: 'Medium',
+  substack: 'Substack',
+};
+
+/**
+ * Where an IMPORTED post was first published — what the card renders as
+ * "Originally posted on Mastodon".
+ *
+ * An imported post is an ordinary native post of its author: it has its own
+ * Mention id, replies, likes and moderation state. This only records where it
+ * came from, and `sourceUrl` is the original permalink on that platform.
+ */
+export interface PostImportProvenance {
+  platform: ImportPlatform;
+  sourceUrl: string;
+}
+
 export interface HydratedPostSummary {
   id: string;
   content: PostContent;
@@ -1382,6 +1432,12 @@ export interface HydratedPostSummary {
    * in no cluster. See {@link CrosspostProvenance}.
    */
   crosspost?: CrosspostProvenance;
+  /**
+   * Where this post was first published, when it was IMPORTED from another
+   * platform (Oxy Move). ABSENT for every post written on Mention or federated in.
+   * See {@link PostImportProvenance}.
+   */
+  importedFrom?: PostImportProvenance;
   /**
    * The author's lane for this post, when it has one — what the name row renders
    * as a `› Lane name` chip after the time.

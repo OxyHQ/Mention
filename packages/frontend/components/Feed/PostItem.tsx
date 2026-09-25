@@ -12,6 +12,7 @@ import type {
     PostRoomContent,
 } from '@mention/shared-types/post';
 import {
+    IMPORT_PLATFORM_LABELS,
     MEDIA_VARIANT_AVATAR,
 } from '@mention/shared-types/post';
 import { usePostSelector } from '../../stores/postsStore';
@@ -21,6 +22,7 @@ import { ProfileHoverCard } from '../ProfileHoverCard';
 import PostContentText from '../Post/PostContentText';
 import PostLaneChip from '../Post/PostLaneChip';
 import PostCrosspostRow from '../Post/PostCrosspostRow';
+import PostImportedFromRow from '../Post/PostImportedFromRow';
 import ContentWarning from '../Post/ContentWarning';
 import { CommunityNoteCard } from '@/components/CommunityNotes/CommunityNoteCard';
 import PostCorrectionNotice from '../Post/PostCorrectionNotice';
@@ -779,6 +781,23 @@ const PostItem: React.FC<PostItemProps> = ({
             <PostCrosspostRow
                 key="crosspost"
                 crosspost={viewPost.crosspost}
+                iconColor={theme.colors.textSecondary}
+            />,
+        );
+    }
+    // "Originally posted on Mastodon" — a post its author imported from another
+    // platform. Off the DTO like the cross-post row, for the same recycling
+    // reason, and right after it: both say something about the post itself.
+    if (viewPost.importedFrom) {
+        const platform = viewPost.importedFrom.platform;
+        contextRows.push(
+            <PostImportedFromRow
+                key="imported-from"
+                label={t('post.originallyPostedOn', {
+                    platform: IMPORT_PLATFORM_LABELS[platform] ?? platform,
+                    defaultValue: 'Originally posted on {{platform}}',
+                })}
+                sourceUrl={viewPost.importedFrom.sourceUrl}
                 iconColor={theme.colors.textSecondary}
             />,
         );

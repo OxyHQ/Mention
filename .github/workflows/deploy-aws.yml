@@ -249,9 +249,14 @@ jobs:
           # `mention-frontend.pages.dev` value as an env var, the code default
           # never applies and the backend would keep proxying to a Pages project
           # this migration retires. Naming it makes the deploy authoritative.
+          #
+          # MOVE_APPLICATION_ID is the Oxy application id of Oxy Move, the only
+          # caller the `/imports/v1` ingest admits (docs/import.mdx). It is an
+          # id, not a secret: the gate is the service token Oxy signs for it.
           TASK_ENV_OVERRIDES_JSON: >-
             {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd",
-             "WEB_SHELL_ORIGIN":"https://shell.mention.earth"}
+             "WEB_SHELL_ORIGIN":"https://shell.mention.earth",
+             "MOVE_APPLICATION_ID":"4bac8f1baed68fd02d65d592"}
           # A standing absence assertion: every revision is derived from the
           # live one, so merely stopping the GitHub-to-SSM sync would otherwise
           # keep injecting this retired provider credential forever.

@@ -22,6 +22,7 @@ import {
 import type { PostRecordFederation } from '../db/posts/postRecord';
 import type { FederatedActorRecord } from '../db/federation/actorRecord';
 import { findActorsByUris } from '../db/federation/actorRepository';
+import { loadImportProvenance, type PostImportHydration } from '../db/imports/postImportRepository';
 import { disclosesWriters, loadSigningChannelIds } from './channelWriterDisclosure';
 import { loadShownNotes } from './communityNotes/CommunityNotesService';
 import { ACTOR_DOMAIN, FEDERATION_DOMAIN } from '../connectors/activitypub/constants';
@@ -949,12 +950,15 @@ function mayNeedCurrentChannelAuthority(
  * is. That state is transient — `reevaluateCluster` dissolves a cluster the
  * moment it drops below two — but hydration can read a page mid-repair, and a
  * card reading `Instagram` on its own would say nothing while looking like it
- * meant something.
+ * meant something. The same holds for a cluster whose members all sit on ONE
+ * network — an import collapsed under the federated copy of its source post
+ * (`collapseImportedCopies`): `Mastodon · Mastodon` is not provenance either.
  */
 function buildCrosspostProvenance(
   variants: CrosspostVariantRow[] | undefined,
 ): { crosspost: CrosspostProvenance } | undefined {
   if (!variants || variants.length < 2) return undefined;
+  if (new Set(variants.map((variant) => variant.networkDomain)).size < 2) return undefined;
   return {
     crosspost: {
       variants: variants.map((variant) => ({
@@ -1027,6 +1031,7 @@ export class PostHydrationService {
       quoteCountMap,
       laneMap,
       crosspostMap,
+      importMap,
     ] = await Promise.all([
       this.populateViewerInteractions(postIds, viewerContext),
       (async () => {
@@ -1085,6 +1090,9 @@ export class PostHydrationService {
       // `participatesInCrossNetworkIdentity`: gate the cost on the thing that
       // makes it possible.
       this.buildCrosspostMap(postsForHydration, postIds),
+      // Import provenance ("Originally posted on Mastodon") for the whole page in
+      // ONE primary-key `in (...)` — see `buildImportMap`.
+      this.buildImportMap(postsForHydration),
     ]);
     const mentionCache: Map<string, PostUser> = new Map(userMap);
 
@@ -1108,6 +1116,7 @@ export class PostHydrationService {
           selfContinuationPostIds,
           laneMap,
           crosspostMap,
+          importMap,
           signingChannelIds,
         })
       )
@@ -1835,6 +1844,30 @@ export class PostHydrationService {
     return loadCrosspostVariants(postIds);
   }
 
+  /**
+   * Import provenance for the page, or an empty map when no post in it could
+   * have any.
+   *
+   * An imported post is a NATIVE post of a local author, so a page of federated
+   * posts cannot contain one and skips the query. Otherwise it is ONE statement
+   * over the `post_imports` primary key for the whole page, never one per post.
+   * Fail-open: provenance is decoration, so a failed read renders the page
+   * without it rather than failing it.
+   */
+  private async buildImportMap(nodes: HydratedGraphNode[]): Promise<Map<string, PostImportHydration>> {
+    const candidateIds = nodes
+      .filter(({ post }) => post && post.oxyUserId && !post.federation?.activityId)
+      .map(({ post }) => this.resolveId(post))
+      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+    if (candidateIds.length === 0) return new Map();
+    try {
+      return await loadImportProvenance(candidateIds);
+    } catch (error) {
+      logger.error('[PostHydration] Failed to build import provenance map:', error);
+      return new Map();
+    }
+  }
+
   private async buildLaneMap(nodes: HydratedGraphNode[]): Promise<Map<string, LaneSummary>> {
     const laneIds = Array.from(
       new Set(
@@ -2452,13 +2485,16 @@ export class PostHydrationService {
     /** The author's lanes, keyed by lane id — the `› Lane name` chip in the name row. */
     laneMap: Map<string, LaneSummary>;
     crosspostMap: Map<string, CrosspostVariantRow[]>;
+    /** Import provenance of the posts in this page that were imported — see {@link buildImportMap}. */
+    importMap: Map<string, PostImportHydration>;
     /** Channel accounts in this page whose `signPosts` is on — see {@link buildSigningChannelIds}. */
     signingChannelIds: Set<string>;
   }): Promise<HydratedPostSummary | null> {
-    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId, selfContinuationPostIds, laneMap, crosspostMap, signingChannelIds } = params;
+    const { post, viewerContext, pollMap, userMap, mentionCache, linkPreviewMap, authorPrivacyMap, recentReplierMap, orphanAuthorMap, resolvedMap, quoteCountMap, replyParentAuthorIdByPostId, selfContinuationPostIds, laneMap, crosspostMap, importMap, signingChannelIds } = params;
 
     const postId = this.resolveId(post);
     if (!postId) return null;
+    const imported = importMap.get(postId);
 
     const isFederatedPost = !!post?.federation;
 
@@ -2608,10 +2644,11 @@ export class PostHydrationService {
       // exposed anywhere — only the fact.
       isEdited: Boolean(post.isEdited),
       isSensitive: Boolean(post.metadata?.isSensitive),
-      // Content-warning label from the federated source (Mastodon `summary`). The
-      // frontend renders it as a spoiler/CW header; absent for native posts and
-      // federated posts without a CW.
-      spoilerText: post.federation?.spoilerText || undefined,
+      // Content-warning label from the federated source (Mastodon `summary`), or
+      // the one an IMPORTED post carried on its platform (a native post has no CW
+      // text of its own, so the import ledger keeps it). The frontend renders it
+      // as a spoiler/CW header; absent for every other post.
+      spoilerText: post.federation?.spoilerText || imported?.contentWarning || undefined,
       isThread: Boolean(post.threadId),
       language: post.language || undefined,
       languages: post.postClassification?.languages ?? undefined,
@@ -2677,6 +2714,8 @@ export class PostHydrationService {
       // otherwise, which is almost always, and absent for a cluster that somehow
       // holds a single member: one network is not provenance, it is the post.
       ...(buildCrosspostProvenance(crosspostMap.get(postId)) ?? {}),
+      // "Originally posted on Mastodon" — only for a post that was imported.
+      ...(imported ? { importedFrom: { platform: imported.platform, sourceUrl: imported.sourceUrl } } : {}),
       // Include parentPostId for thread hierarchy in replies
       ...(post.parentPostId ? { parentPostId: String(post.parentPostId) } : {}),
       // The reply marker rides on the POST, so every surface that renders one —

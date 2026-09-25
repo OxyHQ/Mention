@@ -1939,6 +1939,7 @@
   "post.boostsTitle": "রিপোস্ট",
   "post.likesTitle": "লাইক",
   "post.pinned": "পিন করা",
+  "post.originallyPostedOn": "মূলত {{platform}}-এ পোস্ট করা হয়েছিল",
   "post.replyingTo": "উত্তর দিচ্ছেন",
   "post.replyingToUnknown": "একটি পোস্টে উত্তর দিচ্ছেন",
   "post.repostedBy": "রিপোস্ট করেছেন",

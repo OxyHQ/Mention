@@ -41,7 +41,7 @@ type TransformOptions = {
 type HandledPostKey =
   | 'id' | 'content' | 'attachments' | 'documents' | 'user' | 'authors'
   | 'authorship' | 'engagement' | 'viewerState' | 'permissions' | 'metadata'
-  | 'lane' | 'crosspost' | 'parentPostId' | 'replyContext' | 'communityNote'
+  | 'lane' | 'crosspost' | 'importedFrom' | 'parentPostId' | 'replyContext' | 'communityNote'
   | 'originalPost' | 'quotedPost' | 'boost' | 'context';
 
 type UnhandledPostKey = Exclude<keyof HydratedPost, HandledPostKey>;
@@ -110,6 +110,9 @@ export function toFeedItem(
     // one. That is the same failure this converter's own docblock records as
     // having bitten twice.
     crosspost: post.crosspost,
+    // "Originally posted on Mastodon" — carried for the same reason as
+    // `crosspost` above, with the same `SCHEMA_VERSION` bump (v12).
+    importedFrom: post.importedFrom,
     originalPost,
     quotedPost,
     boost,

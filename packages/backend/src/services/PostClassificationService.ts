@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { and, asc, eq, exists, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, exists, isNull, notExists, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
 import { postContentVariants } from '../db/schema/postContent';
+import { postImports } from '../db/schema/imports';
 import { findPostRecords, updatePostRecord } from '../db/posts/postRepository';
 import type { PostRecord } from '../db/posts/postRecord';
 import type { PostClassificationScores } from '@mention/shared-types';
@@ -116,6 +117,18 @@ function hasVariantSql(): SQL {
   ) as SQL;
 }
 
+/**
+ * The post's `post_imports` ledger row, as a correlated subquery: it exists
+ * exactly when the post was IMPORTED from another platform — see
+ * {@link PostClassificationService.selectQueue}.
+ */
+function importLedgerRow() {
+  return getDb()
+    .select({ one: sql`1` })
+    .from(postImports)
+    .where(eq(postImports.postId, posts.id));
+}
+
 class PostClassificationService {
   private classificationInterval: NodeJS.Timeout | null = null;
   private initialRunTimeout: NodeJS.Timeout | null = null;
@@ -124,6 +137,12 @@ class PostClassificationService {
   private readonly CLASSIFICATION_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
   private readonly INITIAL_RUN_DELAY_MS = 30_000;
   private readonly BATCH_SIZE = 25;
+  /**
+   * The imported lane's batch — deliberately small. It only runs in a cycle
+   * whose live queue came back EMPTY, so it spends idle capacity and never
+   * the live queue's; see {@link selectQueue}.
+   */
+  private readonly IMPORTED_BATCH_SIZE = 10;
   private readonly MAX_TEXT_LENGTH = 1000;
   private readonly MAX_ATTEMPTS = 3;
   private readonly AI_TEMPERATURE = 0.2;
@@ -209,18 +228,44 @@ class PostClassificationService {
    * On any failure the affected posts are marked for retry (and flipped to
    * `failed` once the retry budget is exhausted) — never thrown out of the loop.
    */
-  private async classifyBatch(): Promise<void> {
-    const queue = await findPostRecords(
-      and(
-        UNCLASSIFIED,
-        hasVariantSql(),
-        eq(posts.status, 'published'),
-        // `is null`, never `<> null`: a boost is a row whose `boost_of` is NULL,
-        // and SQL's `<>` against NULL matches nothing at all.
-        isNull(posts.boostOf),
-      ),
-      { orderBy: [asc(posts.createdAt), asc(posts.id)], limit: this.BATCH_SIZE },
+  /**
+   * The posts this cycle classifies: the LIVE queue first, and imported posts
+   * only when the live queue is empty.
+   *
+   * The queue is oldest-first, and an imported post keeps its ORIGINAL
+   * `created_at` — so a user bringing ten years of posts from Mastodon would
+   * put ten years of rows at the head of the queue, and at 25 posts per five
+   * minutes every post written on Mention today would wait behind them for
+   * days. Imports therefore never enter the main query (`NOT EXISTS` a ledger
+   * row) and are drained in a second, smaller batch in a cycle that had no live
+   * work at all. They are ranked on their Stage-A baseline until then, like any
+   * post the AI has not reached yet.
+   */
+  private async selectQueue(): Promise<QueueDoc[]> {
+    const pending = and(
+      UNCLASSIFIED,
+      hasVariantSql(),
+      eq(posts.status, 'published'),
+      // `is null`, never `<> null`: a boost is a row whose `boost_of` is NULL,
+      // and SQL's `<>` against NULL matches nothing at all.
+      isNull(posts.boostOf),
     );
+    const order = { orderBy: [asc(posts.createdAt), asc(posts.id)] };
+
+    const live = await findPostRecords(
+      and(pending, notExists(importLedgerRow())),
+      { ...order, limit: this.BATCH_SIZE },
+    );
+    if (live.length > 0) return live;
+
+    return findPostRecords(
+      and(pending, exists(importLedgerRow())),
+      { ...order, limit: this.IMPORTED_BATCH_SIZE },
+    );
+  }
+
+  private async classifyBatch(): Promise<void> {
+    const queue = await this.selectQueue();
 
     if (queue.length === 0) return;
 

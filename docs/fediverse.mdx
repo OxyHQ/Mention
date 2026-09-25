@@ -207,6 +207,7 @@ argument to `mapPostOg`.
 ## Bridged identity, cross-network people, and cross-posts
 
 Three separate questions that are easy to confuse, and are kept apart on purpose.
+A fourth section covers an account that moves here, which uses all three.
 
 ### 1. Oxy owns external profiles and network identity
 
@@ -260,6 +261,9 @@ Proving two accounts are one person says nothing about their posts, so
 `services/PostEquivalenceService.ts` is a separate concept with its own evidence
 hierarchy: a declared original on the object, the same first-party media asset,
 one object carrying the other's permalink, and a conservative content fallback.
+One more tier, `imported-copy`, pairs a post Oxy Move imported with the
+federated copy of the same source post. It is not cross-network, and it is
+described under [An account that moves here](#4-an-account-that-moves-here).
 Every tier first requires the same currently verified Oxy person, distinct source
 networks, compatible text and media, and the appropriate time window. Strong
 content resemblance cannot replace identity proof.
@@ -283,6 +287,35 @@ collapse exists to prevent.
 `scripts/reconcileMetaIdentityAndCrossposts.ts` reconciles data stored before all
 of this landed, dry-run by default, delegating every decision to the live
 modules.
+
+### 4. An account that moves here
+
+Two things let a Mastodon account move to Mention.
+
+**The alias.** Before a user presses Move, Mastodon requires the target actor's
+`alsoKnownAs` to list the old account. Oxy owns the aliases: they are the
+user's proven linked accounts marked as aliases. `GET /profiles/username/:username`
+returns them, and the federation package puts them in the actor that the actor
+route and the `Update(Person)` builder serve.
+
+When an alias is added or removed, Oxy publishes a `profile` event on
+`oxy:user:invalidate`. `services/federation/aliasPublication.ts` handles it on
+every task:
+
+1. A Redis `NX` claim lets one task handle each event.
+2. It skips accounts with no ActivityPub key pair. A federated mirror has
+   none.
+3. The task reads the profile again and swaps the stored alias set
+   (`SET … GET`).
+4. Only when the set changed does it raise the existing `actor.update` event.
+   That sends the full actor as an `Update(Person)` to the account's followers.
+
+Without Redis, the check does nothing, and remote servers refresh the actor on
+their own schedule.
+
+**The Move.** An inbound `Move` is forwarded to Oxy. Oxy verifies it, and then
+Mention reattributes the old account's posts here, keeps one card for each
+imported post, and unfollows the old account for local users. The steps are in [content import](./import.mdx).
 
 ## Optional AT Protocol connector
 

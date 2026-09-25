@@ -2310,6 +2310,7 @@
   "post.boostsTitle": "Reposts",
   "post.likesTitle": "Likes",
   "post.pinned": "Pinned",
+  "post.originallyPostedOn": "Originally posted on {{platform}}",
   "post.replyingTo": "Replying to",
   "post.replyingToUnknown": "Replying to a post",
   "post.repostedBy": "Reposted by",

@@ -5,6 +5,8 @@ import { getDb } from '../db/postgres';
 import { postEquivalenceMembers, posts } from '../db/schema/posts';
 import { postContentVariants, postMedia } from '../db/schema/postContent';
 import { federatedActors } from '../db/schema/federation';
+import { postImports } from '../db/schema/imports';
+import { findImportedCopyPairs } from '../db/imports/postImportRepository';
 import {
   createCluster,
   dissolveCluster,
@@ -72,6 +74,21 @@ import { lookupOxyIdentities } from '../connectors/oxyIdentity';
  * collide across an account's own history far more often than media does. So a
  * text-only pair has minutes rather than half an hour, and an empty body can
  * never be matched at all — every empty string is equal to every other one.
+ *
+ * ## An import and the federated copy of the same source post
+ *
+ * One more pair is the same piece of writing stored twice, inside ONE network:
+ * a post Oxy Move imported (`post_imports`) and the federated copy of that very
+ * source post, which federation brought in from the user's old account before
+ * they moved. Once a verified `Move` has projected the old account onto the
+ * user, both are theirs. The evidence is deterministic — the import ledger names
+ * the source item, and the federated copy IS that item (`imported-copy` below)
+ * — so no identity proof, window or content comparison is involved, only the
+ * shared owner. The federated copy is always the rendered member: remote
+ * replies, likes and boosts address its AS2 id, so it is the object the
+ * conversation lives on. When the owners diverge again (the Move is withdrawn
+ * in Oxy and the source is projected back), re-evaluation splits the pair and
+ * both posts are visible again. See `docs/import.mdx`.
  */
 
 /** `metrics` label for a refusal, so "why is nothing collapsing?" is answerable. */
@@ -135,6 +152,14 @@ interface EquivalenceCandidate {
   createdAt: Date;
   isEdited: boolean;
   federationUrl: string | null;
+  /** The AS2 object id / at-uri of a federated post; `null` for a native one. */
+  federationActivityId: string | null;
+  /**
+   * Set only for a post Oxy Move IMPORTED: the source item its ledger row names.
+   * Such a post is native, so `actorUri` is empty and `networkDomain` is the
+   * source permalink's host.
+   */
+  importSource: { sourceId: string; sourceUrl: string } | null;
   /** The primary rendition's body, normalized for comparison. */
   text: string;
   media: CandidateMedia[];
@@ -239,6 +264,15 @@ export function crosspostReconciliationPostSql(): SQL {
   )})`;
 }
 
+/** The canonical host of an import's source permalink, or `null` when it is not a URL. */
+function permalinkHost(url: string): string | null {
+  try {
+    return canonicalFederationHost(new URL(url).hostname);
+  } catch {
+    return null;
+  }
+}
+
 /** Load everything the tiers read about one post, or `null` when it is gone. */
 async function loadCandidate(postId: string): Promise<EquivalenceCandidate | null> {
   const db = getDb();
@@ -251,15 +285,24 @@ async function loadCandidate(postId: string): Promise<EquivalenceCandidate | nul
       createdAt: posts.createdAt,
       isEdited: posts.isEdited,
       federationUrl: posts.federationUrl,
+      federationActivityId: posts.federationActivityId,
       status: posts.status,
       boostOf: posts.boostOf,
+      importSourceId: postImports.sourceId,
+      importSourceUrl: postImports.sourceUrl,
     })
     .from(posts)
     .leftJoin(federatedActors, eq(federatedActors.uri, posts.federationActorUri))
+    .leftJoin(postImports, eq(postImports.postId, posts.id))
     .where(eq(posts.id, postId))
     .limit(1);
   if (!row || row.status !== 'published' || row.boostOf !== null) return null;
-  if (!row.oxyUserId || !row.actorUri || !row.networkDomain || !row.createdAt) return null;
+  if (!row.oxyUserId || !row.createdAt) return null;
+  const importSource = row.importSourceId && row.importSourceUrl && !row.actorUri
+    ? { sourceId: row.importSourceId, sourceUrl: row.importSourceUrl }
+    : null;
+  const networkDomain = importSource ? permalinkHost(importSource.sourceUrl) : row.networkDomain;
+  if (!networkDomain || (!importSource && !row.actorUri)) return null;
 
   const [variant] = await db
     .select({ body: postContentVariants.body })
@@ -282,12 +325,14 @@ async function loadCandidate(postId: string): Promise<EquivalenceCandidate | nul
 
   return {
     id: row.id,
-    actorUri: row.actorUri,
+    actorUri: row.actorUri ?? '',
     oxyUserId: row.oxyUserId,
-    networkDomain: row.networkDomain,
+    networkDomain,
     createdAt: row.createdAt,
     isEdited: row.isEdited,
     federationUrl: row.federationUrl,
+    federationActivityId: row.federationActivityId,
+    importSource,
     text: normalizeMultilineText(variant?.body ?? '').trim(),
     media,
   };
@@ -333,7 +378,8 @@ interface EquivalenceErrorOptions {
 
 /** One request per detection/re-evaluation, scoped to the current decision. */
 async function loadIdentityProof(candidates: Iterable<EquivalenceCandidate>, options: EquivalenceErrorOptions = {}) {
-  const identifiers = [...new Set([...candidates].map((candidate) => candidate.actorUri))];
+  // An import has no source actor to prove; its tier needs no identity lookup.
+  const identifiers = [...new Set([...candidates].map((candidate) => candidate.actorUri).filter((uri) => uri.length > 0))];
   if (identifiers.length === 0) return [];
   try {
     return await lookupOxyIdentities(identifiers);
@@ -355,6 +401,9 @@ function classifyPair(
   // query. Recheck Oxy ownership here too: a corrected identity must make its
   // posts visible again, even when the content evidence still matches.
   if (a.oxyUserId !== b.oxyUserId) return undefined;
+  // An import is only ever the same object as the federated copy of its own
+  // source item; it takes no part in the cross-network tiers below.
+  if (a.importSource || b.importSource) return importedCopyEvidence(a, b);
   if (Math.abs(a.createdAt.getTime() - b.createdAt.getTime()) > CROSSPOST_WINDOW_MS) return undefined;
   if ((a.isEdited || b.isEdited) && a.text !== b.text) return undefined;
 
@@ -394,6 +443,29 @@ function classifyPair(
   if (sharedAsset) return { confidence: 'shared-media-id', evidence: `shared-media-id:${sharedAsset}` };
 
   return fingerprint(a, b);
+}
+
+/**
+ * The `imported-copy` tier: one post is an import whose ledger names a source
+ * item, and the other is the federated copy OF that item — its AS2 id or its
+ * permalink. Deterministic, like `declared`; the caller has already required a
+ * shared owner, which after a verified Move is what makes both the user's.
+ *
+ * Two imports never pair (the ledger already dedupes them), and neither does an
+ * import with a native post: only federation holds a second copy of a source.
+ */
+function importedCopyEvidence(
+  a: EquivalenceCandidate,
+  b: EquivalenceCandidate,
+): { confidence: EquivalenceClusterRecord['confidence']; evidence: string } | undefined {
+  const imported = a.importSource ? a : b;
+  const federated = imported === a ? b : a;
+  if (!imported.importSource || federated.importSource || !federated.actorUri) return undefined;
+  const { sourceId, sourceUrl } = imported.importSource;
+  const names = [federated.federationActivityId, federated.federationUrl].filter((url): url is string => !!url);
+  const same = (federated.federationActivityId !== null && federated.federationActivityId === sourceId)
+    || names.some((url) => sameUrl(sourceUrl, url));
+  return same ? { confidence: 'declared', evidence: `imported-copy:${sourceUrl}` } : undefined;
 }
 
 /**
@@ -495,6 +567,8 @@ function fingerprint(
  * always choose the same representative, or a re-evaluation after an edit or a
  * deletion could silently swap which post a permalink-sharing reader sees.
  *
+ *   0. a federated copy over an import of it — the conversation lives on the
+ *      object remote servers address;
  *   1. a member the evidence names as the declared original;
  *   2. the richer media — more items first, then more total pixels;
  *   3. the earliest publication, which is the one that was written first;
@@ -511,6 +585,9 @@ export function preferredVariant(
     .sort((left, right) => {
       const a = candidates.get(left.postId);
       const b = candidates.get(right.postId);
+      const importedLeft = a?.importSource ? 1 : 0;
+      const importedRight = b?.importSource ? 1 : 0;
+      if (importedLeft !== importedRight) return importedLeft - importedRight;
       const declaredLeft = left.evidence.startsWith('declared-original:') && a?.federationUrl
         && sameUrl(left.evidence.slice('declared-original:'.length), a.federationUrl) ? 0 : 1;
       const declaredRight = right.evidence.startsWith('declared-original:') && b?.federationUrl
@@ -544,6 +621,8 @@ export async function detectCrosspostEquivalence(
   try {
     const candidate = await loadCandidate(input.postId);
     if (!candidate) return decision('not-applicable', 'post-not-eligible');
+    // Imports are paired from the ledger (`collapseImportedCopies`), never by search.
+    if (candidate.importSource) return decision('not-applicable', 'imported-post');
     if (await findClusterByPostId(candidate.id)) {
       return decision('not-applicable', 'already-clustered');
     }
@@ -595,6 +674,78 @@ export async function detectCrosspostEquivalence(
     logger.warn('[Equivalence] cross-post detection failed', { post: input.postId, err });
     return decision('not-applicable', 'detection-failed');
   }
+}
+
+/**
+ * Collapse `oxyUserId`'s imported posts under the federated copies of the same
+ * source items, for the copies that came from `actorUris` (optionally only the
+ * given imports). One cluster per pair, the federated copy rendered — see
+ * "An import and the federated copy of the same source post" above.
+ *
+ * Runs from both directions, so the order the two copies arrive in does not
+ * matter: after a verified `Move` projects the old actor onto the user (its
+ * copies meet imports already made), and after an import batch (its imports
+ * meet copies already adopted). Idempotent: a clustered post is not a
+ * candidate again. By default never throws — a miss leaves two visible cards,
+ * which the next run collapses; `failOnError` is for callers that retry.
+ */
+export async function collapseImportedCopies(
+  params: { oxyUserId: string; actorUris: readonly string[]; importedPostIds?: readonly string[] },
+  options: EquivalenceErrorOptions = {},
+): Promise<{ clustered: number; refused: number }> {
+  const result = { clustered: 0, refused: 0 };
+  try {
+    const pairs = await findImportedCopyPairs(params);
+    const claimed = new Set<string>();
+    for (const pair of pairs) {
+      // One source item has one federated copy, but two imports could name
+      // it (the ledger is per platform); the first pair wins, the rest refuse.
+      if (claimed.has(pair.federatedPostId) || claimed.has(pair.importedPostId)) {
+        result.refused += 1;
+        continue;
+      }
+      // eslint-disable-next-line no-await-in-loop
+      const [imported, federated] = await Promise.all([loadCandidate(pair.importedPostId), loadCandidate(pair.federatedPostId)]);
+      const match = imported && federated ? classifyPair(imported, federated, [], []) : undefined;
+      if (!imported || !federated || !match) {
+        result.refused += 1;
+        continue;
+      }
+      const members: EquivalenceMemberWrite[] = [imported, federated].map((candidate) => ({
+        postId: candidate.id,
+        // Both are the SAME network's post: hydration shows no cross-network
+        // label for a cluster that spans one network.
+        networkDomain: federated.networkDomain,
+        preferred: false,
+        evidence: match.evidence,
+      }));
+      const preferredId = preferredVariant(members, new Map([[imported.id, imported], [federated.id, federated]]));
+      for (const member of members) member.preferred = member.postId === preferredId;
+      let clusterId: string;
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        clusterId = await createCluster(match.confidence, members);
+      } catch (err) {
+        // A concurrent run clustered one of the two first (unique member key).
+        if ((err as { code?: string }).code !== '23505' && (err as { cause?: { code?: string } }).cause?.code !== '23505') throw err;
+        result.refused += 1;
+        continue;
+      }
+      claimed.add(pair.federatedPostId);
+      claimed.add(pair.importedPostId);
+      result.clustered += 1;
+      metrics.incrementCounter(EQUIVALENCE_DECISION_METRIC, 1, { outcome: 'clustered', reason: 'imported-copy' });
+      logger.info('[Equivalence] imported post collapsed under its federated copy', {
+        cluster: clusterId,
+        imported: imported.id,
+        federated: federated.id,
+      });
+    }
+  } catch (err) {
+    if (options.failOnError) throw err;
+    logger.warn('[Equivalence] imported-copy collapse failed', { oxyUserId: params.oxyUserId, err });
+  }
+  return result;
 }
 
 /**

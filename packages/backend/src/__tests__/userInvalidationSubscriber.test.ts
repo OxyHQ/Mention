@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   runtimeClearPrefix: vi.fn(),
   info: vi.fn(),
   warn: vi.fn(),
+  publishAliasChange: vi.fn(),
 }));
 
 vi.mock('../utils/redis', () => ({
@@ -64,6 +65,10 @@ vi.mock('../runtime/oxyClient', () => ({
 
 vi.mock('../services/userSummaryCache', () => ({
   invalidate: mocks.invalidateUserSummaries,
+}));
+
+vi.mock('../services/federation/aliasPublication', () => ({
+  publishAliasChange: mocks.publishAliasChange,
 }));
 
 vi.mock('../utils/logger', () => ({
@@ -112,6 +117,14 @@ describe('startUserInvalidationSubscriber', () => {
     expect(mocks.runtimeClearEntry).toHaveBeenCalledWith('GET:/users/user-1');
     expect(mocks.serviceClearPrefix).toHaveBeenCalled();
     expect(mocks.runtimeClearPrefix).toHaveBeenCalled();
+  });
+
+  it('hands every profile event to the alias check, which rebroadcasts a changed alsoKnownAs', async () => {
+    mocks.publishAliasChange.mockResolvedValue('unchanged');
+    await startUserInvalidationSubscriber();
+    deliver(VALID);
+
+    expect(mocks.publishAliasChange).toHaveBeenCalledWith({ userId: 'user-1', reason: 'profile', at: 1 });
   });
 
   it('ignores a message that fails the contract schema', async () => {

@@ -38,6 +38,7 @@ const PERSISTED_POST_KEYS = [
   'documents',
   'engagement',
   'id',
+  'importedFrom',
   'lane',
   'mediaIds',
   'metadata',
@@ -51,7 +52,7 @@ const PERSISTED_POST_KEYS = [
 ] as const;
 
 /** The version that must ship with the key set above. */
-const VERSION_FOR_THESE_KEYS = 11;
+const VERSION_FOR_THESE_KEYS = 12;
 
 function makeFullyPopulatedPost(): HydratedPost {
   return {
@@ -102,6 +103,7 @@ function makeFullyPopulatedPost(): HydratedPost {
         { network: 'threads.net', label: 'Threads', postId: 'post-2', rendered: false },
       ],
     },
+    importedFrom: { platform: 'mastodon', sourceUrl: 'https://mastodon.example/@user1/1' },
     communityNote: {
       id: 'note-1',
       text: 'Context',
