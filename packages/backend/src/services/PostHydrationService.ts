@@ -2074,9 +2074,15 @@ export class PostHydrationService {
 
     const resolvedByUrl = new Map<string, ClarityDocument>();
     try {
+      // No `waitMs`: a read answers with what Clarity already has and leaves
+      // the rest to its background lane, as the docblock above promises.
+      // Asking it to wait up to 2s held every page carrying a not-yet-resolved
+      // link for the whole wait — about 2s of each production `/search` in
+      // issue #1140 — and stored posts are warmed at ingest
+      // (`postEnrichment/clarityDocumentStep`) and at creation
+      // (`warmClarityDocumentForText`) precisely so a reader never has to.
       const response = await (await getClarityClient()).indexing.resolve({
         urls: [...uniqueUrls],
-        waitMs: 2_000,
       });
       for (const resolution of response.data) {
         if (resolution.document) resolvedByUrl.set(resolution.url, resolution.document);

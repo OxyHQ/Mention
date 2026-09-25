@@ -161,7 +161,7 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
 
     // The service requested exactly the extracted URL.
     expect(resolveDocuments).toHaveBeenCalledTimes(1);
-    expect(resolveDocuments).toHaveBeenCalledWith({ urls: [POST_URL], waitMs: 2_000 });
+    expect(resolveDocuments).toHaveBeenCalledWith({ urls: [POST_URL] });
 
     expect(hydrated.documents).toEqual([
       {
@@ -201,7 +201,7 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
 
     const hydrated = await hydrate(`two links: ${SECOND_URL} and ${POST_URL}`);
 
-    expect(resolveDocuments).toHaveBeenCalledWith({ urls: [SECOND_URL, POST_URL], waitMs: 2_000 });
+    expect(resolveDocuments).toHaveBeenCalledWith({ urls: [SECOND_URL, POST_URL] });
     expect(hydrated.documents?.map((preview) => preview.canonicalUrl)).toEqual([SECOND_URL, POST_URL]);
     expect(hydrated.documents?.map((preview) => preview.title)).toEqual(['Second', 'First']);
   });
@@ -220,6 +220,18 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
       expect.objectContaining({ canonicalUrl: POST_URL, title: 'First' }),
       expect.objectContaining({ canonicalUrl: thirdUrl, title: 'Third' }),
     ]);
+  });
+
+  it('never asks Clarity to wait: a read takes what is resolved and moves on', async () => {
+    // A `waitMs` here held every page with a not-yet-resolved link for the
+    // whole wait — about 2s of each production search in issue #1140. Stored
+    // posts are warmed at ingest and at creation; a reader never waits.
+    resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'pending' }] });
+
+    await hydrate();
+
+    expect(resolveDocuments).toHaveBeenCalledTimes(1);
+    expect(resolveDocuments.mock.calls[0][0]).not.toHaveProperty('waitMs');
   });
 
   it('omits a pending document until Clarity resolves it', async () => {
@@ -301,7 +313,7 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
       const hydrated = await hydrate(`https://mention.earth/@alice wrote ${POST_URL}`);
 
       // The gate suppresses one entry, not the map.
-      expect(resolveDocuments).toHaveBeenCalledWith({ urls: [POST_URL], waitMs: 2_000 });
+      expect(resolveDocuments).toHaveBeenCalledWith({ urls: [POST_URL] });
       expect(hydrated.documents?.map((preview) => preview.canonicalUrl)).toEqual([POST_URL]);
     });
 
@@ -313,7 +325,7 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
 
       const hydrated = await hydrate(`mira ${remote}`);
 
-      expect(resolveDocuments).toHaveBeenCalledWith({ urls: [remote], waitMs: 2_000 });
+      expect(resolveDocuments).toHaveBeenCalledWith({ urls: [remote] });
       expect(hydrated.documents?.map((preview) => preview.canonicalUrl)).toEqual([remote]);
     });
 
@@ -323,7 +335,7 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
 
       const hydrated = await hydrate(`mira ${ourPost}`);
 
-      expect(resolveDocuments).toHaveBeenCalledWith({ urls: [ourPost], waitMs: 2_000 });
+      expect(resolveDocuments).toHaveBeenCalledWith({ urls: [ourPost] });
       expect(hydrated.documents?.map((preview) => preview.canonicalUrl)).toEqual([ourPost]);
     });
 
@@ -333,7 +345,7 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
 
       const hydrated = await hydrate(`mira ${followers}`);
 
-      expect(resolveDocuments).toHaveBeenCalledWith({ urls: [followers], waitMs: 2_000 });
+      expect(resolveDocuments).toHaveBeenCalledWith({ urls: [followers] });
       expect(hydrated.documents?.map((preview) => preview.canonicalUrl)).toEqual([followers]);
     });
   });
