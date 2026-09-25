@@ -14,12 +14,10 @@ const getItemType = () => 'saved-post';
 
 export default function SavedPostsList({
   posts,
-  header,
   empty,
   footer,
   onEndReached,
   onLongPress,
-  backgroundColor,
 }: SavedPostsListProps) {
   // The saved list is the page: it owns the shared scroll while Saved is in
   // front, so the chrome follows it and reselecting Saved can take it back up.
@@ -46,7 +44,6 @@ export default function SavedPostsList({
       keyExtractor={keyExtractor}
       getItemType={getItemType}
       renderItem={renderItem}
-      ListHeaderComponent={header}
       ListEmptyComponent={empty}
       ListFooterComponent={footer}
       onEndReached={onEndReached}
@@ -54,8 +51,7 @@ export default function SavedPostsList({
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ backgroundColor }}
-      style={{ flex: 1, backgroundColor }}
+      style={{ flex: 1 }}
       drawDistance={500}
     />
   );

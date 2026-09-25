@@ -20,6 +20,7 @@ import {
 import { Button } from '@oxy.so/bloom/button';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { Loading } from '@oxy.so/bloom/loading';
+import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Search } from '@oxy.so/bloom/search';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
@@ -40,6 +41,7 @@ import {
 } from '@/services/feedService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { logger } from '@oxy.so/core/logger';
+import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { useReselect, useScreenReselect } from '@/context/ScreenReselectContext';
 import SavedPostsList, {
     type SavedPost,
@@ -82,6 +84,7 @@ const SavedPostsScreen: React.FC = () => {
         user,
     } = useAuth();
     const queryClient = useQueryClient();
+    const { scrollPosition } = useLayoutScroll();
     const cachePosts = usePostsStore((state) => state.cachePosts);
     const viewerId = user?.id;
 
@@ -259,31 +262,6 @@ const SavedPostsScreen: React.FC = () => {
         isFetchingNextPage,
     ]);
 
-    const listHeader = useMemo(() => (
-        <View>
-            <View className="mx-4 my-2">
-                <Search
-                    label={t('saved.searchPlaceholder', 'Search saved posts')}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    onClearText={() => setSearchQuery('')}
-                />
-            </View>
-
-            {/* Folders read as sections of one collection, so they get the same
-                tab bar every other sectioned screen uses (search, notifications,
-                lists). Creating a folder is an action, not a section, so it lives
-                in the FAB — same place as "create" on every other screen. */}
-            <Tabs value={selectedFolder === null ? ALL_FOLDERS_TAB_ID : folderTabId(selectedFolder)} onValueChange={handleFolderTabPress} variant="underline">{(folderTabs).map((tab: { id: string; label: string; count?: number }) => <TabsTrigger key={tab.id} value={tab.id} label={tab.label} count={tab.count} />)}</Tabs>
-        </View>
-    ), [
-        folderTabs,
-        handleFolderTabPress,
-        searchQuery,
-        selectedFolder,
-        t,
-    ]);
-
     const listEmpty = useMemo(() => {
         const initialLoading = isPrivateApiPending || (
             canUsePrivateApi && savedPostsPending
@@ -356,32 +334,59 @@ const SavedPostsScreen: React.FC = () => {
                 title={t('seo.saved.title')}
                 description={t('seo.saved.description')}
             />
-            <View className="flex-1">
-                <StatusBar style={theme.isDark ? 'light' : 'dark'} />
-                <PageHeader title={t('screens.saved.title')} />
+            {/* The header and the folder chrome are one docking pair: on web the
+                search field and folder tabs stay pinned under the sticky header
+                while the document scrolls; on native they sit above the list,
+                which owns its own scroll. */}
+            <HeaderDockProvider scrollY={scrollPosition}>
+                <View className="flex-1 web:z-auto">
+                    <StatusBar style={theme.isDark ? 'light' : 'dark'} />
+                    <PageHeader title={t('screens.saved.title')} presentation="floating" />
 
-                <SavedPostsList
-                    posts={posts}
-                    header={listHeader}
-                    empty={listEmpty}
-                    footer={listFooter}
-                    hasNextPage={Boolean(hasNextPage)}
-                    onEndReached={handleEndReached}
-                    onLongPress={handleLongPress}
-                    backgroundColor={theme.colors.background}
-                />
+                    {/* Folders read as sections of one collection, so they get the same
+                        tab bar every other sectioned screen uses. Creating a folder is
+                        an action, not a section, so it lives in the FAB. */}
+                    <StickySection>
+                        <View className="mx-4 my-2">
+                            <Search
+                                label={t('saved.searchPlaceholder', 'Search saved posts')}
+                                value={searchQuery}
+                                onChangeText={setSearchQuery}
+                                onClearText={() => setSearchQuery('')}
+                            />
+                        </View>
+                        <Tabs
+                            value={selectedFolder === null ? ALL_FOLDERS_TAB_ID : folderTabId(selectedFolder)}
+                            onValueChange={handleFolderTabPress}
+                            variant="underline"
+                        >
+                            {folderTabs.map((tab) => (
+                                <TabsTrigger key={tab.id} value={tab.id} label={tab.label} />
+                            ))}
+                        </Tabs>
+                    </StickySection>
 
-                {/* Create-folder FAB — same anchor and BottomBar clearance as the
-                    create action on feeds, lists and the home feed. */}
-                {canUsePrivateApi ? (
-                    <Fab
-                        size="md" placement="bottom-right"
-                        onPress={newFolderControl.open}
-                        icon={<RiAddLine size="lg" fill={theme.colors.tertiaryForeground} />}
-                        accessibilityLabel={t('saved.newFolder', 'New folder')}
+                    <SavedPostsList
+                        posts={posts}
+                        empty={listEmpty}
+                        footer={listFooter}
+                        hasNextPage={Boolean(hasNextPage)}
+                        onEndReached={handleEndReached}
+                        onLongPress={handleLongPress}
                     />
-                ) : null}
-            </View>
+
+                    {/* Create-folder FAB — same anchor and BottomBar clearance as the
+                        create action on feeds, lists and the home feed. */}
+                    {canUsePrivateApi ? (
+                        <Fab
+                            size="md" placement="bottom-right"
+                            onPress={newFolderControl.open}
+                            icon={<RiAddLine size="lg" fill={theme.colors.tertiaryForeground} />}
+                            accessibilityLabel={t('saved.newFolder', 'New folder')}
+                        />
+                    ) : null}
+                </View>
+            </HeaderDockProvider>
 
             <Dialog
                 control={newFolderControl}
