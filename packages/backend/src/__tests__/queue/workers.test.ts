@@ -5,6 +5,17 @@ const mocks = vi.hoisted(() => ({
   processInboxActivity: vi.fn(),
   deliverActivity: vi.fn(),
   getUserById: vi.fn(),
+  findErasedAccountUsernames: vi.fn(),
+  processAccountErasure: vi.fn(),
+}));
+
+// The erasure ledger is the delivery worker's fallback for a sender Oxy no longer
+// resolves (an erased account whose Deletes are still queued).
+vi.mock('../../db/accountErasures/accountErasureRepository', () => ({
+  findErasedAccountUsernames: mocks.findErasedAccountUsernames,
+}));
+vi.mock('../../services/accountErasure/AccountErasureService', () => ({
+  processAccountErasure: mocks.processAccountErasure,
 }));
 
 // `workers.ts` statically imports these singletons. Mock them so the test does
@@ -30,7 +41,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
-import { processInboxJob, processDeliveryJob } from '../../queue/workers';
+import { processAccountErasureJob, processInboxJob, processDeliveryJob } from '../../queue/workers';
 
 function inboxJob(activity: Record<string, unknown>, verifiedActorUri: string): Job {
   return { data: { activity, verifiedActorUri } } as unknown as Job;
@@ -49,6 +60,7 @@ beforeEach(() => {
   mocks.processInboxActivity.mockResolvedValue(undefined);
   mocks.deliverActivity.mockResolvedValue(true);
   mocks.getUserById.mockResolvedValue({ username: 'alice' });
+  mocks.findErasedAccountUsernames.mockResolvedValue(new Map());
 });
 
 describe('processInboxJob', () => {
@@ -103,5 +115,57 @@ describe('processDeliveryJob', () => {
     expect(error).toBeInstanceOf(Error);
     expect(error).not.toBeInstanceOf(UnrecoverableError);
     expect((error as Error).message).toMatch(/failed \(will retry\)/);
+  });
+});
+
+describe('processDeliveryJob for an erased sender', () => {
+  const activity = { id: 'https://local/ap/users/gone/posts/1/delete', type: 'Delete' };
+
+  it('signs with the handle the erasure ledger kept when Oxy no longer resolves the sender', async () => {
+    mocks.getUserById.mockRejectedValueOnce(Object.assign(new Error('Not found'), { status: 404 }));
+    mocks.findErasedAccountUsernames.mockResolvedValueOnce(new Map([['oxy_gone', 'gone']]));
+
+    await processDeliveryJob(deliveryJob(activity, 'https://remote/inbox', 'oxy_gone'));
+
+    expect(mocks.findErasedAccountUsernames).toHaveBeenCalledWith(['oxy_gone']);
+    expect(mocks.deliverActivity).toHaveBeenCalledWith(activity, 'https://remote/inbox', 'oxy_gone', 'gone');
+  });
+
+  it('rethrows the Oxy error (retry) for a sender the ledger does not know', async () => {
+    mocks.getUserById.mockRejectedValueOnce(new Error('oxy 503'));
+
+    await expect(
+      processDeliveryJob(deliveryJob(activity, 'https://remote/inbox', 'oxy_unknown')),
+    ).rejects.toThrow('oxy 503');
+    expect(mocks.deliverActivity).not.toHaveBeenCalled();
+  });
+
+  it('never consults the ledger when Oxy resolves the sender', async () => {
+    await processDeliveryJob(deliveryJob(activity, 'https://remote/inbox', 'oxy_alice'));
+    expect(mocks.findErasedAccountUsernames).not.toHaveBeenCalled();
+  });
+});
+
+describe('processAccountErasureJob', () => {
+  const job = { data: { eventId: 'evt-1' } } as unknown as Job;
+
+  it('completes quietly when the erasure completes or already had', async () => {
+    mocks.processAccountErasure.mockResolvedValueOnce({ outcome: 'completed' });
+    await expect(processAccountErasureJob(job)).resolves.toBeUndefined();
+    mocks.processAccountErasure.mockResolvedValueOnce({ outcome: 'already-completed' });
+    await expect(processAccountErasureJob(job)).resolves.toBeUndefined();
+    expect(mocks.processAccountErasure).toHaveBeenCalledWith('evt-1');
+  });
+
+  it('throws a retriable error while another task holds the lease', async () => {
+    mocks.processAccountErasure.mockResolvedValueOnce({ outcome: 'busy' });
+    const error = await processAccountErasureJob(job).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(UnrecoverableError);
+  });
+
+  it('fails permanently for an event with no ledger row', async () => {
+    mocks.processAccountErasure.mockResolvedValueOnce({ outcome: 'unknown-event' });
+    await expect(processAccountErasureJob(job)).rejects.toBeInstanceOf(UnrecoverableError);
   });
 });

@@ -351,6 +351,13 @@
       "when": 1790370175992,
       "tag": "0049_variant_post_created_at_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1790373570533,
+      "tag": "0050_account_erasures",
+      "breakpoints": true
     }
   ]
 }

@@ -86,6 +86,26 @@ const DEFINITIONS = {
     help: 'Federated actor cache rows that could not be written, by protocol and refusing constraint',
     labelNames: ['protocol', 'reason'],
   },
+  account_erasure_completed_total: {
+    kind: 'counter',
+    help: 'Oxy account erasures that completed, by where the request came from',
+    labelNames: ['source'],
+  },
+  account_erasure_failed_total: {
+    kind: 'counter',
+    help: 'Oxy account erasure attempts that failed and will be retried, by source',
+    labelNames: ['source'],
+  },
+  account_event_refused_total: {
+    kind: 'counter',
+    help: 'Oxy account-event tokens that failed verification, by intake path',
+    labelNames: ['source'],
+  },
+  oxy_account_event_webhook_total: {
+    kind: 'counter',
+    help: 'Oxy account-event webhook deliveries, by outcome',
+    labelNames: ['outcome'],
+  },
   post_deletion_side_effect_failed_total: {
     kind: 'counter',
     help: 'Best-effort work after a committed post deletion that did not complete, by step',

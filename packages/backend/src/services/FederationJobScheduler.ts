@@ -1,3 +1,4 @@
+import { findErasedAccountUsernames } from '../db/accountErasures/accountErasureRepository';
 import { logger } from '../utils/logger';
 import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
 import {
@@ -689,12 +690,20 @@ class FederationJobScheduler {
       } catch (err) {
         logger.warn('[FedSync] Failed to batch-resolve delivery senders:', err);
       }
+      // A sender Oxy no longer resolves may be an ERASED account whose queued
+      // Deletes still have to go out; the erasure ledger keeps its handle for
+      // exactly that (see `resolveSenderUsername` in queue/workers.ts).
+      const erasedSenders = await findErasedAccountUsernames(
+        uniqueSenderIds.filter((id) => !senders.get(id)?.username),
+      );
 
       for (const delivery of pending) {
         try {
           // Need the sender's username to sign the request.
-          const user = senders.get(delivery.senderOxyUserId);
-          if (!user?.username) {
+          const username =
+            senders.get(delivery.senderOxyUserId)?.username ??
+            erasedSenders.get(delivery.senderOxyUserId);
+          if (!username) {
             await recordDeliveryAttempt(delivery.id, {
               status: 'failed',
               error: 'Sender user not found',
@@ -706,7 +715,7 @@ class FederationJobScheduler {
             delivery.activityJson,
             delivery.targetInbox,
             delivery.senderOxyUserId,
-            user.username,
+            username,
           );
 
           if (success) {

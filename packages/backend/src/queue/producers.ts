@@ -1,5 +1,11 @@
 import { createHash } from 'crypto';
-import { getInboxQueue, getDeliveryQueue, getSharingCleanupQueue, getMediaMetadataEnrichQueue } from './queues';
+import {
+  getInboxQueue,
+  getDeliveryQueue,
+  getSharingCleanupQueue,
+  getMediaMetadataEnrichQueue,
+  getAccountErasureQueue,
+} from './queues';
 import {
   DELIVERY_JOB_ATTEMPTS,
   DELIVERY_BACKOFF_STRATEGY,
@@ -9,8 +15,16 @@ import {
   SHARING_CLEANUP_BACKOFF_BASE_MS,
   MEDIA_METADATA_ENRICH_JOB_ATTEMPTS,
   MEDIA_METADATA_ENRICH_BACKOFF_BASE_MS,
+  ACCOUNT_ERASURE_JOB_ATTEMPTS,
+  ACCOUNT_ERASURE_BACKOFF_BASE_MS,
 } from './constants';
-import type { InboxJobData, DeliveryJobData, SharingCleanupJobData, MediaMetadataEnrichJobData } from './types';
+import type {
+  InboxJobData,
+  DeliveryJobData,
+  SharingCleanupJobData,
+  MediaMetadataEnrichJobData,
+  AccountErasureJobData,
+} from './types';
 
 /**
  * Producer helpers — the single place that enqueues federation jobs with the
@@ -139,6 +153,28 @@ export async function enqueueMediaMetadataEnrich(data: MediaMetadataEnrichJobDat
     jobId: `mediameta-${shortHash(data.postId)}`,
     attempts: MEDIA_METADATA_ENRICH_JOB_ATTEMPTS,
     backoff: { type: 'exponential', delay: MEDIA_METADATA_ENRICH_BACKOFF_BASE_MS },
+  });
+  return true;
+}
+
+/**
+ * Enqueue an account erasure. `generation` is the ledger row's attempt count at
+ * enqueue time: a redelivered webhook for a pending event maps to the SAME job id
+ * (deduped), while the sweep re-enqueueing a failed row gets a new one, because
+ * BullMQ keeps a failed job's id and would otherwise refuse the re-add.
+ * Returns false when no queue is available.
+ */
+export async function enqueueAccountErasure(
+  data: AccountErasureJobData,
+  generation: number,
+): Promise<boolean> {
+  const queue = getAccountErasureQueue();
+  if (!queue) return false;
+
+  await queue.add('account-erasure', data, {
+    jobId: `accounterasure-${shortHash(`${data.eventId}|${generation}`)}`,
+    attempts: ACCOUNT_ERASURE_JOB_ATTEMPTS,
+    backoff: { type: 'exponential', delay: ACCOUNT_ERASURE_BACKOFF_BASE_MS },
   });
   return true;
 }

@@ -23,6 +23,14 @@ post is classified and ranked once it exists.
   until the last invite resolves (`maybeFederateOnResolve`). Invites are
   published-only — a scheduled post defers invites/MTN/notifications/
   federation until it goes live. Threads reject `collaboratorIds` with 400.
+- **Erasing an ACCOUNT is not a loop over `deletePost`.** When Oxy reports an
+  account deleted, `services/accountErasure/erasePosts.ts` walks the account's
+  posts in batches and reuses `cascadePostReferences`, but it KEEPS other
+  people's replies (`parent_post_id` → NULL, `is_reply` stays true) where the
+  single-post delete removes direct replies: erasing a person must not destroy
+  what others wrote. Counters on surviving posts are decremented in the batch's
+  own transaction. The whole disposition, table by table, is
+  `docs/account-erasure.md`.
 - **An engagement event's side effects are independent.** The engagement
   outbox (`services/EngagementOutboxDispatcher.ts`) attempts a like's MTN
   record, author notification and federation delivery every time, records

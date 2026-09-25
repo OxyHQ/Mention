@@ -81,6 +81,7 @@ function createTestApp() {
     wellKnownBridge: passThrough,
     media: passThrough,
     crowdSourceWebhook: passThrough,
+    oxyAccountEvents: passThrough,
     mcpOAuth: passThrough,
     webShell: passThrough,
     apexProxy,

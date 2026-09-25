@@ -13,6 +13,7 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 import { logger } from '../utils/logger';
 import type { RemoteProfileStats } from '@mention/shared-types/profile';
 import { loadRemoteProfileStats } from '../services/federation/remoteProfileStats';
+import { isAccountErased } from '../services/accountErasure/erasedAccounts';
 
 const router = Router();
 
@@ -55,6 +56,13 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     const validationError = validateRequired(userId, 'userId');
     if (validationError) {
       return sendErrorResponse(res, 400, 'Bad Request', validationError);
+    }
+
+    // An account Oxy told us was deleted has no profile to describe. Without this
+    // the route would answer 200 with default settings and zero counts for it,
+    // which is what the issue that introduced erasure saw (OxyHQ/Mention#1169).
+    if (await isAccountErased(userId)) {
+      return sendErrorResponse(res, 404, 'Not Found', 'Profile not found');
     }
 
     const doc = await loadUserSettings(userId);

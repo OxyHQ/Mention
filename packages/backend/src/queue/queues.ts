@@ -6,6 +6,9 @@ import {
   FEDERATION_PERIODIC_QUEUE,
   FEDERATION_SHARING_CLEANUP_QUEUE,
   MEDIA_METADATA_ENRICH_QUEUE,
+  ACCOUNT_ERASURE_QUEUE,
+  ACCOUNT_ERASURE_REMOVE_ON_COMPLETE_COUNT,
+  ACCOUNT_ERASURE_REMOVE_ON_FAIL_COUNT,
   INBOX_REMOVE_ON_COMPLETE_COUNT,
   INBOX_REMOVE_ON_FAIL_COUNT,
   DELIVERY_REMOVE_ON_COMPLETE_COUNT,
@@ -23,6 +26,7 @@ import type {
   PeriodicJobData,
   SharingCleanupJobData,
   MediaMetadataEnrichJobData,
+  AccountErasureJobData,
 } from './types';
 
 /**
@@ -48,6 +52,7 @@ let deliveryQueue: Queue<DeliveryJobData> | null = null;
 let periodicQueue: Queue<PeriodicJobData> | null = null;
 let sharingCleanupQueue: Queue<SharingCleanupJobData> | null = null;
 let mediaMetadataEnrichQueue: Queue<MediaMetadataEnrichJobData> | null = null;
+let accountErasureQueue: Queue<AccountErasureJobData> | null = null;
 
 /**
  * Get the inbound-activity queue, or null when Redis is not configured (callers
@@ -125,6 +130,18 @@ export function getMediaMetadataEnrichQueue(): Queue<MediaMetadataEnrichJobData>
   return mediaMetadataEnrichQueue;
 }
 
+/** Get the account-erasure queue, or null when Redis is not configured. */
+export function getAccountErasureQueue(): Queue<AccountErasureJobData> | null {
+  if (!isQueueEnabled()) return null;
+  if (!accountErasureQueue) {
+    accountErasureQueue = new Queue<AccountErasureJobData>(
+      ACCOUNT_ERASURE_QUEUE,
+      baseQueueOptions(ACCOUNT_ERASURE_REMOVE_ON_COMPLETE_COUNT, ACCOUNT_ERASURE_REMOVE_ON_FAIL_COUNT),
+    );
+  }
+  return accountErasureQueue;
+}
+
 /** Close all open producer queues. Internal — used by {@link shutdownQueues}. */
 export async function closeQueues(): Promise<void> {
   const open: Array<
@@ -133,12 +150,14 @@ export async function closeQueues(): Promise<void> {
     | Queue<PeriodicJobData>
     | Queue<SharingCleanupJobData>
     | Queue<MediaMetadataEnrichJobData>
+    | Queue<AccountErasureJobData>
   > = [];
   if (inboxQueue) open.push(inboxQueue);
   if (deliveryQueue) open.push(deliveryQueue);
   if (periodicQueue) open.push(periodicQueue);
   if (sharingCleanupQueue) open.push(sharingCleanupQueue);
   if (mediaMetadataEnrichQueue) open.push(mediaMetadataEnrichQueue);
+  if (accountErasureQueue) open.push(accountErasureQueue);
 
   await Promise.allSettled(open.map((q) => q.close()));
 
@@ -147,4 +166,5 @@ export async function closeQueues(): Promise<void> {
   periodicQueue = null;
   sharingCleanupQueue = null;
   mediaMetadataEnrichQueue = null;
+  accountErasureQueue = null;
 }

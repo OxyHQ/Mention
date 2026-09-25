@@ -6,19 +6,24 @@ const mocks = vi.hoisted(() => ({
   deliveryAdd: vi.fn(),
   getInboxQueue: vi.fn(),
   getDeliveryQueue: vi.fn(),
+  erasureAdd: vi.fn(),
+  getAccountErasureQueue: vi.fn(),
 }));
 
 vi.mock('../../queue/queues', () => ({
   getInboxQueue: mocks.getInboxQueue,
   getDeliveryQueue: mocks.getDeliveryQueue,
+  getAccountErasureQueue: mocks.getAccountErasureQueue,
 }));
 
-import { enqueueInboxActivity, enqueueDelivery } from '../../queue/producers';
+import { enqueueAccountErasure, enqueueInboxActivity, enqueueDelivery } from '../../queue/producers';
 import {
   DELIVERY_JOB_ATTEMPTS,
   DELIVERY_BACKOFF_STRATEGY,
   INBOX_JOB_ATTEMPTS,
   INBOX_BACKOFF_BASE_MS,
+  ACCOUNT_ERASURE_JOB_ATTEMPTS,
+  ACCOUNT_ERASURE_BACKOFF_BASE_MS,
 } from '../../queue/constants';
 
 /** Mirror the producer's jobId hash (sha256 hex, first 40 chars). */
@@ -44,6 +49,8 @@ beforeEach(() => {
   mocks.getDeliveryQueue.mockReturnValue({ add: mocks.deliveryAdd });
   mocks.inboxAdd.mockResolvedValue(undefined);
   mocks.deliveryAdd.mockResolvedValue(undefined);
+  mocks.getAccountErasureQueue.mockReturnValue({ add: mocks.erasureAdd });
+  mocks.erasureAdd.mockResolvedValue(undefined);
 });
 
 describe('enqueueInboxActivity', () => {
@@ -175,5 +182,31 @@ describe('enqueueDelivery', () => {
     const options = mocks.deliveryAdd.mock.calls[0][2];
     expect(options.jobId).toBeUndefined();
     expect(options.attempts).toBe(DELIVERY_JOB_ATTEMPTS);
+  });
+});
+
+describe('enqueueAccountErasure', () => {
+  it('keys the job on the event id AND the attempt generation, with retries', async () => {
+    await expect(enqueueAccountErasure({ eventId: 'evt:1' }, 0)).resolves.toBe(true);
+    await enqueueAccountErasure({ eventId: 'evt:1' }, 0);
+    await enqueueAccountErasure({ eventId: 'evt:1' }, 2);
+
+    const [first, redelivered, retried] = mocks.erasureAdd.mock.calls;
+    expect(first[0]).toBe('account-erasure');
+    expect(first[1]).toEqual({ eventId: 'evt:1' });
+    expect(first[2]).toMatchObject({
+      jobId: `accounterasure-${shortHash('evt:1|0')}`,
+      attempts: ACCOUNT_ERASURE_JOB_ATTEMPTS,
+      backoff: { type: 'exponential', delay: ACCOUNT_ERASURE_BACKOFF_BASE_MS },
+    });
+    expectValidBullmqJobId(first[2].jobId);
+    // A redelivery of a pending event dedupes; a retry after a failure does not.
+    expect(redelivered[2].jobId).toBe(first[2].jobId);
+    expect(retried[2].jobId).not.toBe(first[2].jobId);
+  });
+
+  it('returns false when no queue is available', async () => {
+    mocks.getAccountErasureQueue.mockReturnValueOnce(null);
+    await expect(enqueueAccountErasure({ eventId: 'evt-2' }, 0)).resolves.toBe(false);
   });
 });

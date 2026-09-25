@@ -35,6 +35,14 @@ export const FEDERATION_SHARING_CLEANUP_QUEUE = 'federation-sharing-cleanup';
 /** Retry copying Oxy asset metadata onto post content.media[] when ffprobe was pending at create. */
 export const MEDIA_METADATA_ENRICH_QUEUE = 'media-metadata-enrich';
 
+/**
+ * One job per Oxy `account.deleted` event: erase everything Mention holds for the
+ * account (`services/accountErasure`). The event is recorded in `account_erasures`
+ * BEFORE the job is enqueued, so losing the job loses nothing: the reconciliation
+ * sweep re-runs any row left unfinished.
+ */
+export const ACCOUNT_ERASURE_QUEUE = 'account-erasure';
+
 // --- Inbox worker tunables --------------------------------------------------
 
 /**
@@ -210,3 +218,28 @@ export const MEDIA_METADATA_ENRICH_REMOVE_ON_COMPLETE_COUNT = 500;
 
 /** Failed media-metadata enrich jobs retained before automatic removal. */
 export const MEDIA_METADATA_ENRICH_REMOVE_ON_FAIL_COUNT = 2000;
+
+// --- Account-erasure worker tunables ----------------------------------------
+
+/**
+ * Attempts per enqueue. An erasure is a long, idempotent walk; a failure is
+ * usually a transient database or Oxy error, so a few spaced retries converge.
+ * When they are exhausted the ledger row is `failed` and the reconciliation sweep
+ * enqueues a fresh job (a new job id per attempt generation).
+ */
+export const ACCOUNT_ERASURE_JOB_ATTEMPTS = 5;
+
+/** Base delay for the account-erasure exponential backoff (ms). */
+export const ACCOUNT_ERASURE_BACKOFF_BASE_MS = MS_PER_MINUTE;
+
+/**
+ * One erasure at a time per process. Each walks a whole account; running several
+ * on one task would only contend for the same pool.
+ */
+export const ACCOUNT_ERASURE_WORKER_CONCURRENCY = 1;
+
+/** Completed account-erasure jobs retained before automatic removal. */
+export const ACCOUNT_ERASURE_REMOVE_ON_COMPLETE_COUNT = 500;
+
+/** Failed account-erasure jobs retained before automatic removal. */
+export const ACCOUNT_ERASURE_REMOVE_ON_FAIL_COUNT = 2000;
