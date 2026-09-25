@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 37.54,
-      "covered": 9945,
-      "total": 26486
+      "pct": 37.88,
+      "covered": 10048,
+      "total": 26523
     },
     "branches": {
-      "pct": 32,
-      "covered": 6139,
-      "total": 19179
+      "pct": 32.21,
+      "covered": 6190,
+      "total": 19214
     },
     "functions": {
-      "pct": 32.59,
-      "covered": 2204,
-      "total": 6761
+      "pct": 32.84,
+      "covered": 2224,
+      "total": 6772
     },
     "lines": {
-      "pct": 38.33,
-      "covered": 9085,
-      "total": 23702
+      "pct": 38.67,
+      "covered": 9180,
+      "total": 23734
     }
   },
   "pins": {
@@ -1176,16 +1176,22 @@
       "lines": 75
     },
     "stores/postsStore.ts": {
-      "statements": 52,
-      "branches": 35,
-      "functions": 54,
-      "lines": 56
+      "statements": 58,
+      "branches": 38,
+      "functions": 57,
+      "lines": 63
     },
     "stores/privacyStore.ts": {
       "statements": 52,
       "branches": 36,
       "functions": 56,
       "lines": 55
+    },
+    "stores/profileCountsInvalidation.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "stores/safetyInvalidation.ts": {
       "statements": 100,
