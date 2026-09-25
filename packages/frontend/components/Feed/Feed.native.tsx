@@ -30,6 +30,7 @@ import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { useTranslation } from 'react-i18next';
 import { createLogger } from '@oxy.so/core/logger';
 import { useFeedState } from '@/hooks/useFeedState';
+import { feedReceivesOwnNewPost, useRevealOwnNewPost } from '@/hooks/useRevealOwnNewPost';
 import { useDeepCompareMemo } from '@/hooks/useDeepCompare';
 import { FeedFilters, getItemKey, shallowFiltersEqual } from '@/utils/feedUtils';
 import type { FlashListProps, FlashListRef } from '@shopify/flash-list';
@@ -472,6 +473,23 @@ const Feed = ((props: FeedProps) => {
         scrollEnabled,
     ]);
 
+    // The viewer's own new post goes in at the head of this list, but FlashList
+    // keeps the old first row still, so the post sat above it, cut off under the
+    // header. Bring it into view the next time this feed is in front — after the
+    // restore above, which is declared first and so lands first.
+    const revealOwnNewPost = useCallback(() => {
+        setFeedScrollOffset(feedState.feedScrollKey, 0);
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    }, [feedState.feedScrollKey]);
+    useRevealOwnNewPost({
+        feedKey: feedState.feedScrollKey,
+        enabled: scrollEnabled !== false
+            && isFocused
+            && listRows.length > 0
+            && feedReceivesOwnNewPost({ type, userId, filters, showOnlySaved, currentUserId: currentUser?.id }),
+        scrollToTop: revealOwnNewPost,
+    });
+
     // Feed-ranking telemetry: derive the descriptor this feed reports against and
     // own an impression tracker for the session. The session resets when the
     // descriptor changes or the feed is reloaded (reloadKey), so impressions are
@@ -755,6 +773,7 @@ const Feed = ((props: FeedProps) => {
                 showOnlySaved={showOnlySaved}
                 onRetry={handleRetry}
                 pending={feedState.pending}
+                isThread={type === 'replies' && Boolean(filters?.parentPostId || filters?.postId)}
             />
         ),
         [feedState.isLoading, feedState.error, feedState.errorKind, feedState.pending, type, showOnlySaved, handleRetry]

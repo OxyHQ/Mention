@@ -585,7 +585,7 @@ class FeedService {
   /**
    * Create a reply
    */
-  async createReply(request: CreateReplyRequest): Promise<{ success: boolean; reply: unknown }> {
+  async createReply(request: CreateReplyRequest): Promise<{ success: boolean; reply: HydratedPost | null }> {
     const backendRequest = {
       postId: request.postId,
       content: request.content,
@@ -593,8 +593,18 @@ class FeedService {
       hashtags: request.hashtags || []
     };
 
-    const response = await authenticatedClient.post('/feed/reply', backendRequest);
-    return { success: true, reply: response.data };
+    // The server answers 201 `{ success, reply }` with the reply already
+    // hydrated for this viewer (`feed.controller.createReply`), which is what
+    // lets the thread show it without a refetch.
+    const response = await authenticatedClient.post<{ success?: boolean; reply?: HydratedPost }>(
+      '/feed/reply',
+      backendRequest,
+    );
+    const data = response?.data;
+    return {
+      success: typeof data?.success === 'boolean' ? data.success : true,
+      reply: data?.reply ?? null,
+    };
   }
 
   /**

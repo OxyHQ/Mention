@@ -4,8 +4,6 @@ import {
   Text,
   TouchableOpacity,
   Pressable,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   Image,
 } from 'react-native';
@@ -46,10 +44,13 @@ import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTe
 import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { SEO } from '@/components/SEO';
 import { Button } from '@oxy.so/bloom/button';
+import { Chip, ChipRow } from '@oxy.so/bloom/chip';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { RiAlertFill } from '@oxy.so/bloom/icons/RiAlertFill';
 import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiArrowDownSLine } from '@oxy.so/bloom/icons/RiArrowDownSLine';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
+import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
@@ -60,8 +61,6 @@ import { DraftsIcon } from '@/assets/icons/drafts';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
-import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
-import { useKeyboardVisibility } from '@/hooks/useKeyboardVisibility';
 // Import types separately (not lazy loaded)
 import type { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
 import { Toggle } from '@/components/Toggle';
@@ -238,10 +237,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const clearAllControl = useDialogControl();
   const intentConflictControl = useDialogControl();
   const translateOverwriteControl = useDialogControl();
-  const { user, showBottomSheet, oxyServices, isAuthenticated } = useAuth();
-  const isScreenNotMobile = useIsScreenNotMobile();
-  const keyboardVisible = useKeyboardVisibility();
-  const bottomBarVisible = isAuthenticated && !isScreenNotMobile && !keyboardVisible;
+  const { user, showBottomSheet, oxyServices } = useAuth();
   const { createPost, createThread, createReply, cachePosts, boostPost } = usePostsStore();
   const queryClient = useQueryClient();
   const { t, i18n } = useTranslation();
@@ -2466,19 +2462,43 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           below invisible against it. The loading state's SafeAreaView further
           down paints it too; the signed-out state's PageHeader pads and paints
           the inset itself. */}
-      <SafeAreaView className="flex-1 bg-card" edges={['top']}>
+      {/* The BOTTOM inset too: the shell's bottom bar is never drawn over the
+          composer (`app/(app)/_layout.tsx`), so the footer row sits on the
+          screen edge and has to clear the gesture area itself. */}
+      <SafeAreaView className="flex-1 bg-card" edges={['top', 'bottom']}>
         <StatusBar style="light" />
 
+        {/* keyboard-controller's view, not React Native's: under its
+            `KeyboardProvider` Android runs edge-to-edge, the window is never
+            resized for the keyboard, and RN's view with no `behavior` (what
+            Android had here) did nothing at all — the footer and its Post button
+            stayed behind the keyboard. `automaticOffset` measures where this
+            view actually sits instead of a guessed header height. */}
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
+          automaticOffset
           style={styles.composeArea}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
           <View style={{ flex: 1 }}>
 
             {/* Header */}
             <View className="bg-card border-border" style={styles.header}>
-              {presentation === 'pushed' ? (
+              {presentation === 'tab' ? (
+                // The tab has nothing to pop to, so it CLOSES — back to Home, the
+                // way "done" leaves every tabbed composer. Nothing is discarded:
+                // the tab stays mounted and the draft autosaves, so swiping back
+                // returns to the sentence. A back arrow would be a lie on a root
+                // tab.
+                <Button
+                  appearance="subtle" tone="neutral"
+                  iconOnly
+                  leadingIcon={RiCloseLine}
+                  onPress={dismiss}
+                  style={styles.backBtn}
+                  accessibilityLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}
+                  testID="compose-close"
+                />
+              ) : (
                 <Button
                   appearance="subtle" tone="neutral"
                   iconOnly
@@ -2505,7 +2525,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   style={styles.backBtn}
                   accessibilityLabel={t('compose.close.a11y', { defaultValue: 'Close composer' })}
                 />
-              ) : null}
+              )}
               <Text className="text-foreground" style={[styles.headerTitle, { pointerEvents: 'none' }]}>{isEditMode ? t('Edit post') : replyToPostId ? t('Reply') : t('New post')}</Text>
               <View style={styles.headerIcons}>
                 <Button
@@ -3282,154 +3302,111 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             </View>
             </ScrollView>
 
-            {/* The whole-batch decisions, in a row that SCROLLS. There are four
-                of them now and a pill is as wide as its label — "Anyone can
-                interact" alone is most of a phone — so a fixed row clipped the
-                last one off the screen edge with no way to reach it. */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              style={[styles.bottomBar, bottomBarVisible && { paddingBottom: 80 }]}
-              contentContainerStyle={styles.bottomBarContent}
-            >
-              {/* WHEN everything written here goes out.
-                  It used to be an icon in the first box's attachment row, which
-                  made it look like that post's schedule. It is not one:
-                  `POST /posts/thread` reads `scheduledFor` from the TOP level
-                  and stamps every entry with the same instant, and a per-entry
-                  time is not a field of the request at all. So it sits down here
-                  with the other whole-batch decisions, where no box owns it —
-                  and unlike them it is never hidden, because the batch has a
-                  publish time in both posting modes. */}
-              <TouchableOpacity
-                onPress={handleSchedulePress}
-                disabled={isPosting}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={t('compose.schedule.a11y', { defaultValue: 'Schedule this post' })}
-                style={[styles.replySettingsPill, { backgroundColor: theme.colors.backgroundSecondary }]}
+            {/* The composer's footer: the whole-batch decisions, and the button
+                that publishes them. ONE row inside the keyboard-avoiding view, so
+                it rides above the keyboard with everything in it. The Post button
+                used to float over the screen outside that view, which left it
+                behind the keyboard on Android and parked on top of the last pill
+                once the keyboard was gone (OxyHQ/Mention#1140).
+
+                The pills scroll (four of them, and "Anyone can interact" alone is
+                most of a phone); the button has its own slot beside them and
+                never overlaps one. */}
+            <View className="border-border" style={styles.bottomBar}>
+              <ChipRow
+                style={styles.bottomBarChips}
+                contentInset={16}
+                fadeColor={theme.colors.card}
+                accessibilityLabel={t('compose.batchSettings.a11y', { defaultValue: 'Post settings' })}
               >
-                {/* The FILLED cut once a time is set, not just a tint — the
-                    pairing the rest of the app uses, and the half a
-                    colour-blind reader still gets. Its own glyph, never the
-                    event control's `CalendarIcon`: two different actions drawn
-                    as one picture is the collision that pairing fixed. */}
-                {scheduledAt ? (
-                  <ScheduleIconActive size={16} color={theme.colors.primary} />
-                ) : (
-                  <ScheduleIcon size={16} color={theme.colors.textSecondary} />
-                )}
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.replySettingsText,
-                    { color: scheduledAt ? theme.colors.primary : theme.colors.textSecondary },
-                  ]}
+                {/* WHEN everything written here goes out. It lives down here, not
+                    in a box's attachment row: `POST /posts/thread` reads
+                    `scheduledFor` from the TOP level and stamps every entry with
+                    the same instant, so no box owns it. Never hidden — the batch
+                    has a publish time in both posting modes. The FILLED glyph once
+                    a time is set, not just a tint, and never the event control's
+                    `CalendarIcon`. */}
+                <Chip
+                  size="xl"
+                  variant="subtle"
+                  selected={Boolean(scheduledAt)}
+                  disabled={isPosting}
+                  onPress={handleSchedulePress}
+                  accessibilityLabel={t('compose.schedule.a11y', { defaultValue: 'Schedule this post' })}
+                  startIcon={scheduledAt ? (
+                    <ScheduleIconActive size={16} color={theme.colors.primary} />
+                  ) : (
+                    <ScheduleIcon size={16} color={theme.colors.textSecondary} />
+                  )}
+                  trailingIcon={RiArrowDownSLine}
                 >
                   {/* The SAME short spelling the identity rows show, so the two
                       places that name this instant cannot read differently. */}
                   {scheduledAt
                     ? formatScheduledShort(scheduledAt)
                     : t('compose.schedule.now', { defaultValue: 'Now' })}
-                </Text>
-                <RiArrowDownSLine size="xs" fill={theme.colors.textTertiary} />
-              </TouchableOpacity>
-              {/* WHAT LANGUAGE everything written here is in — the same kind of
-                  whole-batch decision as the two beside it, and the reason the
-                  strip of chips above the composer is gone. `+N` counts the
-                  additional author renditions, so a post carrying more than one
-                  says so without a permanent row. */}
-              <TouchableOpacity
-                onPress={openLanguageSheet}
-                disabled={isPosting}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={t('compose.languages.a11y', {
-                  defaultValue: 'Choose the language of this post',
-                })}
-                style={[styles.replySettingsPill, { backgroundColor: theme.colors.backgroundSecondary }]}
-              >
-                <RiGlobalLine size="sm" fill={theme.colors.textSecondary} />
-                <Text
-                  numberOfLines={1}
-                  style={[styles.replySettingsText, { color: theme.colors.textSecondary }]}
+                </Chip>
+                {/* WHAT LANGUAGE everything written here is in. `+N` counts the
+                    additional author renditions. */}
+                <Chip
+                  size="xl"
+                  variant="subtle"
+                  disabled={isPosting}
+                  onPress={openLanguageSheet}
+                  accessibilityLabel={t('compose.languages.a11y', {
+                    defaultValue: 'Choose the language of this post',
+                  })}
+                  leadingIcon={RiGlobalLine}
+                  trailingIcon={RiArrowDownSLine}
                 >
                   {variants.variantTags.length > 0
                     ? `${describeContentLanguage(activeTag).nativeName} +${variants.variantTags.length}`
                     : describeContentLanguage(activeTag).nativeName}
-                </Text>
-                <RiArrowDownSLine size="xs" fill={theme.colors.textTertiary} />
-              </TouchableOpacity>
-              {!(postingMode === 'beast' && threadItems.length > 0) && (
-                <>
-                  <TouchableOpacity
-                    onPress={openReplySettings}
-                    activeOpacity={0.7}
-                    style={[styles.replySettingsPill, { backgroundColor: theme.colors.backgroundSecondary }]}
-                  >
-                    <InteractionIcon size="sm" fill={theme.colors.textSecondary} />
-                    <Text
-                      numberOfLines={1}
-                      style={[styles.replySettingsText, { color: theme.colors.textSecondary }]}
+                </Chip>
+                {!(postingMode === 'beast' && threadItems.length > 0) && (
+                  <>
+                    <Chip
+                      size="xl"
+                      variant="subtle"
+                      onPress={openReplySettings}
+                      leadingIcon={InteractionIcon}
+                      trailingIcon={RiArrowDownSLine}
                     >
                       {interactionLabel}
-                    </Text>
-                    <RiArrowDownSLine size="xs" fill={theme.colors.textTertiary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={handleSensitiveToggle}
-                    activeOpacity={0.7}
-                    style={styles.sensitiveToggle}
-                  >
-                    <SensitiveIcon
-                      size="sm"
-                      fill={isSensitive ? theme.colors.error : theme.colors.textSecondary}
-                    />
-                    <Text style={[
-                      styles.bottomText,
-                      { color: theme.colors.textSecondary },
-                      isSensitive && { color: theme.colors.error },
-                    ]}>
+                    </Chip>
+                    <Chip
+                      size="xl"
+                      variant="subtle"
+                      color={isSensitive ? 'error' : undefined}
+                      selected={isSensitive}
+                      onPress={handleSensitiveToggle}
+                      leadingIcon={SensitiveIcon}
+                    >
                       {isSensitive ? t('compose.sensitive.on', 'CW: On') : t('compose.sensitive.off', 'CW')}
-                    </Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </ScrollView>
+                    </Chip>
+                  </>
+                )}
+              </ChipRow>
+
+              <View style={styles.bottomBarSubmit}>
+                {focusedCharCount > 0 ? (
+                  <Text className="text-muted-foreground" style={styles.charCount}>
+                    {focusedCharCount}
+                  </Text>
+                ) : null}
+                <Button
+                  variant="primary"
+                  onPress={handlePost}
+                  disabled={!isPostButtonEnabled}
+                  loading={isPosting}
+                  testID="compose-submit"
+                >
+                  {isEditMode ? t('Save') : replyToPostId ? t('Reply') : t('Post')}
+                </Button>
+              </View>
+            </View>
           </View>
         </KeyboardAvoidingView>
-
-        {/* Floating character counter */}
-        {focusedCharCount > 0 && (
-          <Text
-            className="text-muted-foreground"
-            style={[
-              styles.floatingCharCount,
-              bottomBarVisible && { bottom: 96 + 48 + 8 },
-            ]}
-          >
-            {focusedCharCount}
-          </Text>
-        )}
-
-        {/* Floating post button */}
-        <TouchableOpacity
-          onPress={handlePost}
-          disabled={!isPostButtonEnabled}
-          style={[
-            styles.floatingPostButton,
-            { backgroundColor: theme.colors.primary },
-            bottomBarVisible && { bottom: 96 },
-            !isPostButtonEnabled && [styles.floatingPostButtonDisabled, { backgroundColor: theme.colors.border }]
-          ]}
-        >
-          {isPosting ? (
-            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
-          ) : (
-            <Text style={[isPostButtonEnabled ? styles.floatingPostTextDark : styles.floatingPostText, { color: theme.colors.card }]}>{isEditMode ? t('Save') : replyToPostId ? t('Reply') : t('Post')}</Text>
-          )}
-        </TouchableOpacity>
 
         <ArticleEditor
           visible={isArticleEditorVisible}

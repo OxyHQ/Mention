@@ -25,6 +25,8 @@ interface FeedEmptyStateProps {
      * (auto-refetching). Shows a loading state instead of the empty placeholder.
      */
     pending?: boolean;
+    /** A `replies` feed that is one thread's replies, not a profile's Replies tab. */
+    isThread?: boolean;
 }
 
 /**
@@ -32,7 +34,7 @@ interface FeedEmptyStateProps {
  * Handles loading, error, and empty states
  */
 export const FeedEmptyState = memo<FeedEmptyStateProps>(
-    ({ isLoading, error, errorKind, hasItems, type, showOnlySaved, onRetry, pending }) => {
+    ({ isLoading, error, errorKind, hasItems, type, showOnlySaved, onRetry, pending, isThread }) => {
         const { t } = useTranslation();
         if (isLoading || pending) return (
             <View className="items-center justify-center py-12 gap-3">
@@ -75,10 +77,11 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
             );
         }
 
+        const copy = emptyCopy(t, type, { showOnlySaved, isThread });
         return (
             <EmptyState
-                title={showOnlySaved ? 'No saved posts yet' : 'No posts yet'}
-                subtitle={getEmptySubtext(type, showOnlySaved)}
+                title={copy.title}
+                subtitle={copy.subtitle}
                 customIcon={
                     /* Decorative: EmptyState already announces the title and
                        subtitle as a single accessibility element. */
@@ -98,29 +101,51 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
 
 FeedEmptyState.displayName = 'FeedEmptyState';
 
-function getEmptySubtext(type: FeedType, showOnlySaved?: boolean): string {
+type Translate = ReturnType<typeof useTranslation>['t'];
+
+/**
+ * What an empty feed says, as ONE title and subtitle pair per kind of feed.
+ *
+ * The title used to be "No posts yet" for every feed and only the subtitle
+ * varied, so a thread with no replies read "No posts yet" over "No replies yet.
+ * Be the first to reply!" — two headlines contradicting each other, in English
+ * only (OxyHQ/Mention#1140). Each pair is written together now, and translated.
+ * A thread's replies and a profile's Replies tab are both `replies` feeds, and
+ * only the thread can invite a reply.
+ */
+export function emptyCopy(
+    t: Translate,
+    type: FeedType,
+    { showOnlySaved, isThread }: { showOnlySaved?: boolean; isThread?: boolean } = {},
+): { title: string; subtitle: string } {
     if (showOnlySaved) {
-        return 'Posts you save will appear here. Tap the bookmark icon on any post to save it.';
+        return {
+            title: t('feed.emptyState.saved.title'),
+            subtitle: t('feed.emptyState.saved.subtitle'),
+        };
     }
 
     switch (type) {
         case 'posts':
-            return 'Be the first to share something!';
+            return { title: t('feed.emptyState.posts.title'), subtitle: t('feed.emptyState.posts.subtitle') };
         case 'media':
-            return 'No media posts found';
+            return { title: t('feed.emptyState.media.title'), subtitle: t('feed.emptyState.media.subtitle') };
         case 'replies':
-            return 'No replies yet. Be the first to reply!';
+            return isThread
+                ? { title: t('feed.emptyState.thread.title'), subtitle: t('feed.emptyState.thread.subtitle') }
+                : { title: t('feed.emptyState.replies.title'), subtitle: t('feed.emptyState.replies.subtitle') };
         case 'boosts':
-            return 'No boosts yet';
+            return { title: t('feed.emptyState.boosts.title'), subtitle: t('feed.emptyState.boosts.subtitle') };
+        case 'likes':
+            return { title: t('feed.emptyState.likes.title'), subtitle: t('feed.emptyState.likes.subtitle') };
         case 'explore':
-            return 'No trending posts right now. Check back later!';
-        case 'following':
-            return 'Start following people to see their posts';
+            return { title: t('feed.emptyState.explore.title'), subtitle: t('feed.emptyState.explore.subtitle') };
         case 'for_you':
-            return 'Discover posts based on your interests';
+            return { title: t('feed.emptyState.forYou.title'), subtitle: t('feed.emptyState.forYou.subtitle') };
         case 'custom':
-            return 'This feed is empty';
+            return { title: t('feed.emptyState.custom.title'), subtitle: t('feed.emptyState.custom.subtitle') };
+        case 'following':
         default:
-            return 'Start following people to see their posts';
+            return { title: t('feed.emptyState.following.title'), subtitle: t('feed.emptyState.following.subtitle') };
     }
 }

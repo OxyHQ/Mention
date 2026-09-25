@@ -70,6 +70,6 @@ describe('ProfileStats follow-graph totals', () => {
 
     expect(text).not.toContain('profile.followers');
     expect(text).not.toContain('profile.following');
-    expect(text).toContain('profile.tabs.posts');
+    expect(text).toContain('profile.stats.posts');
   });
 });

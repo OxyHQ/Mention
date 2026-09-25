@@ -77,7 +77,7 @@ export const ProfileStats = memo(function ProfileStats({
           {formatCompactNumber(postsCount ?? 0)}
         </Text>
         <Text className="text-muted-foreground" style={styles.statLabel}>
-          {t('profile.tabs.posts')}
+          {t('profile.stats.posts', { count: postsCount ?? 0 })}
         </Text>
       </TouchableOpacity>
 
@@ -90,7 +90,7 @@ export const ProfileStats = memo(function ProfileStats({
           {formatCompactNumber(boostsCount ?? 0)}
         </Text>
         <Text className="text-muted-foreground" style={styles.statLabel}>
-          {t('profile.stats.boosts')}
+          {t('profile.stats.boosts', { count: boostsCount ?? 0 })}
         </Text>
       </TouchableOpacity>
 
@@ -104,7 +104,7 @@ export const ProfileStats = memo(function ProfileStats({
             {formatCompactNumber(repliesCount ?? 0)}
           </Text>
           <Text className="text-muted-foreground" style={styles.statLabel}>
-            {t('profile.stats.replies')}
+            {t('profile.stats.replies', { count: repliesCount ?? 0 })}
           </Text>
         </TouchableOpacity>
       )}

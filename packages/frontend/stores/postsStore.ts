@@ -19,7 +19,7 @@ import type {
 import { createLogger } from '@oxy.so/core/logger';
 import { feedService, type ExtendedFeedRequest } from '../services/feedService';
 import { markLocalAction } from '../services/echoGuard';
-import { publishNewLocalPost, publishRemovedLocalPost } from '@/stores/feedScrollStore';
+import { publishNewLocalPost, publishNewLocalReply, publishRemovedLocalPost } from '@/stores/feedScrollStore';
 import { invalidateEngagementLists } from '@/stores/engagementInvalidation';
 import { invalidateProfileCounts } from '@/stores/profileCountsInvalidation';
 import { queryClient } from '@/lib/queryClient';
@@ -246,7 +246,7 @@ interface PostsStoreState {
   // Content creation
   createPost: (request: CreatePostRequest) => Promise<FeedItem | null>;
   createThread: (request: CreateThreadRequest) => Promise<FeedItem[]>;
-  createReply: (request: CreateReplyRequest) => Promise<void>;
+  createReply: (request: CreateReplyRequest) => Promise<FeedItem | null>;
   createBoost: (request: CreateBoostRequest) => Promise<void>;
   // `source` (optional) is the originating feed descriptor for surface-aware
   // engagement attribution. Threaded only through the POSITIVE actions (boost,
@@ -1066,14 +1066,26 @@ export const usePostsStore = create<PostsStoreState>()(
         }
 
         const response = await feedService.createReply(request);
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
+        if (!isCurrentViewerStateEpoch(operationEpoch)) return null;
         if (!response.success) {
           if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
           throw new Error('Failed to create reply');
         }
+
+        // The reply itself, hydrated by the server for this viewer: cache it
+        // like any other post, and hand it to the thread's replies feed, which
+        // would otherwise not show it until a pull-to-refresh.
+        let reply: FeedItem | null = null;
+        if (response.reply) {
+          reply = { ...toFeedItem(response.reply), isLocalNew: true };
+          dbUpsertPost(reply);
+          notifyPostChanges([reply.id]);
+          publishNewLocalReply(reply);
+        }
         set({ isLoading: false });
+        return reply;
       } catch (error) {
-        if (!isCurrentViewerStateEpoch(operationEpoch)) return;
+        if (!isCurrentViewerStateEpoch(operationEpoch)) return null;
         if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
         const errorMessage = error instanceof Error ? error.message : 'Failed to create reply';
         set({ isLoading: false, error: errorMessage });
