@@ -918,8 +918,9 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
 }
 
 /**
- * `post_authorships.post_created_at` READ BACK FROM THE POST, in the statement
- * that writes the row.
+ * `post_authorships.post_created_at` (and the same copy on `post_media` and
+ * `post_content_variants`) READ BACK FROM THE POST, in the statement that
+ * writes the row.
  *
  * A denormalized copy is only as good as the thing that writes it, and the
  * obvious spelling — thread the `Date` in as a parameter — makes "the copy
@@ -992,6 +993,9 @@ async function insertChildRows(
         articleBody: variant.article?.body ?? null,
         articleExcerpt: variant.article?.excerpt ?? null,
         variantCreatedAt: variant.createdAt ? new Date(variant.createdAt) : null,
+        // The search's time bound; read back from `posts` like the two copies
+        // above and below (`postCreatedAtSql`).
+        postCreatedAt: postCreatedAtSql(postId),
       })),
     );
 
@@ -1678,6 +1682,7 @@ export async function storeMachineVariant(
       articleBody: variant.article?.body ?? null,
       articleExcerpt: variant.article?.excerpt ?? null,
       variantCreatedAt: variant.createdAt ? new Date(variant.createdAt) : null,
+      postCreatedAt: postCreatedAtSql(postId),
     });
 
     const sharedMediaIds = new Set((current.content.media ?? []).map((item) => item.id));

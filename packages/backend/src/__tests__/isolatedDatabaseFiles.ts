@@ -326,6 +326,15 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       + 'mid-assertion.',
   },
   {
+    path: 'src/__tests__/scripts/backfillVariantPostCreatedAtRows.test.ts',
+    jobEntryPoint: 'backfillVariantPostCreatedAt',
+    reason:
+      'Walks EVERY rendition in `post_content_variants` and rewrites `post_created_at` ' +
+      'wherever it disagrees with the post, then builds an index CONCURRENTLY — which waits ' +
+      'for every transaction older than itself, so on a shared database it would stall on ' +
+      "other suites' open transactions as well as rewrite their rows.",
+  },
+  {
     path: 'src/__tests__/scripts/backfillPostHasLinksRows.test.ts',
     jobEntryPoint: 'backfillPostHasLinks',
     reason:

@@ -159,6 +159,7 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
   { name: 'purgeFlattenedRetweets', call: /\bpurgeFlattenedRetweets\s*\(/ },
   { name: 'stripRenderedQuoteMarkers', call: /\bstripRenderedQuoteMarkers\s*\(/ },
   { name: 'backfillPostHasLinks', call: /\bbackfillPostHasLinks\s*\(/ },
+  { name: 'backfillVariantPostCreatedAt', call: /\bbackfillVariantPostCreatedAt\s*\(/ },
   { name: 'backfillMediaMetadata', call: /\bbackfillMediaMetadata\s*\(/ },
   { name: 'backfillPostLanguages', call: /\bbackfillPostLanguages\s*\(/ },
   { name: 'backfillCustomFeedDefinitions', call: /\bbackfillCustomFeedDefinitions\s*\(/ },
