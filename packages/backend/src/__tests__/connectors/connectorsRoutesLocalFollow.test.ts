@@ -111,7 +111,10 @@ beforeEach(() => {
   mocks.isFediverseSharingEnabled.mockResolvedValue(true);
   mocks.connectorFor.mockReturnValue({ deliver: mocks.deliver });
   mocks.deliver.mockResolvedValue(undefined);
-  mocks.getProfileByUsername.mockResolvedValue({ id: TARGET_ID, username: 'qatest0925', type: 'local' });
+  mocks.getProfileByUsername.mockImplementation(async (username: string) => {
+    if (username === 'qatest0925') return { id: TARGET_ID, username: 'qatest0925', type: 'local' };
+    throw Object.assign(new Error('not found'), { status: 404 });
+  });
   mocks.getUserById.mockImplementation(async (id: string) => (
     id === TARGET_ID ? { id: TARGET_ID, username: 'qatest0925', type: 'local' } : { id, username: 'nate' }
   ));
@@ -178,7 +181,7 @@ describe('POST /federation/follow — local accounts over a central MCP connecti
   });
 
   it('404s an unknown local account without asking Oxy to follow anything', async () => {
-    mocks.getProfileByUsername.mockRejectedValue(Object.assign(new Error('nope'), { status: 404 }));
+    mocks.getUserById.mockRejectedValue(Object.assign(new Error('nope'), { status: 404 }));
 
     await request(buildApp({ authMode: 'central' }))
       .post('/federation/follow')
