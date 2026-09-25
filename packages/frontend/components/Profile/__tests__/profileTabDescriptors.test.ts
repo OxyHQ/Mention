@@ -69,6 +69,7 @@ describe('profile tab descriptors', () => {
       'media',
       'videos',
       'boosts',
+      'mentions',
       // Channel-only, and last: this asks the account kind whether the tab is
       // POSSIBLE, not whether this particular channel gets it — that second
       // question is `disclosesWriters`, and it lives in the descriptor builder.
@@ -98,6 +99,12 @@ describe('profile tab descriptors', () => {
 
   it('keeps the boosts tab on a channel', () => {
     expect(profileTabsForAccountKind('channel')).toContain('boosts');
+  });
+
+  it('keeps the mentions tab on a channel', () => {
+    // A channel is mentioned like anyone else; the tab lists other people's
+    // posts, so none of the channel exclusions' reasons apply to it.
+    expect(profileTabsForAccountKind('channel')).toContain('mentions');
   });
 
   it.each(['personal', 'bot', undefined] as const)(
@@ -141,6 +148,7 @@ describe('profile tab descriptors', () => {
       'media',
       'videos',
       'boosts',
+      'mentions',
     ]);
   });
 
@@ -159,9 +167,10 @@ describe('profile tab descriptors', () => {
       'media',
       'videos',
       'boosts',
+      'mentions',
       'writers',
     ]);
-    expect(notDisclosing.map((d) => d.key)).toEqual(['posts', 'media', 'videos', 'boosts']);
+    expect(notDisclosing.map((d) => d.key)).toEqual(['posts', 'media', 'videos', 'boosts', 'mentions']);
     // The two must actually differ; if they ever stop differing, the tab has
     // become unconditional and every assertion above still passes.
     expect(disclosing.map((d) => d.key)).not.toEqual(notDisclosing.map((d) => d.key));

@@ -136,6 +136,8 @@ export function emptyCopy(
                 : { title: t('feed.emptyState.replies.title'), subtitle: t('feed.emptyState.replies.subtitle') };
         case 'boosts':
             return { title: t('feed.emptyState.boosts.title'), subtitle: t('feed.emptyState.boosts.subtitle') };
+        case 'mentions':
+            return { title: t('feed.emptyState.mentions.title'), subtitle: t('feed.emptyState.mentions.subtitle') };
         case 'likes':
             return { title: t('feed.emptyState.likes.title'), subtitle: t('feed.emptyState.likes.subtitle') };
         case 'explore':

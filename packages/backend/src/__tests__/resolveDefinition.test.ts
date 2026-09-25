@@ -62,6 +62,13 @@ describe('resolveDefinition', () => {
     expect(def!.sources[0]).toMatchObject({ module: 'authored', params: { filter: 'likes' } });
   });
 
+  it('author|123|mentions → chronological authored source, not the posts fallback', async () => {
+    const def = await resolveDefinition('author|123|mentions' as FeedDescriptor);
+    expect(def!.id).toBe('author|123|mentions');
+    expect(def!.execution?.ordered).toBeFalsy();
+    expect(def!.sources[0]).toMatchObject({ module: 'authored', params: { authorId: '123', filter: 'mentions' } });
+  });
+
   it('hashtag|Cats → keywords source with lowercased hashtag', async () => {
     const def = await resolveDefinition('hashtag|Cats' as FeedDescriptor);
     expect(def!.sources[0]).toMatchObject({ module: 'keywords', params: { hashtags: ['cats'] } });

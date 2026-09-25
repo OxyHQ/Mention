@@ -29,6 +29,7 @@ import MediaRoute from '@/app/(app)/[username]/media';
 import VideosRoute from '@/app/(app)/[username]/videos';
 import LikesRoute from '@/app/(app)/[username]/likes';
 import BoostsRoute from '@/app/(app)/[username]/boosts';
+import MentionsRoute from '@/app/(app)/[username]/mentions';
 import FeedsRoute from '@/app/(app)/[username]/feeds';
 import StarterPacksRoute from '@/app/(app)/[username]/starter_packs';
 import ListsRoute from '@/app/(app)/[username]/lists';
@@ -78,6 +79,7 @@ const PROFILE_PATHNAMES = [
   '/@nate/videos',
   '/@nate/likes',
   '/@nate/boosts',
+  '/@nate/mentions',
   '/@nate/feeds',
   '/@nate/starter_packs',
   '/@nate/lists',
@@ -148,6 +150,7 @@ describe('[username] tab routes', () => {
     { file: 'videos', Route: VideosRoute, tab: 'videos' },
     { file: 'likes', Route: LikesRoute, tab: 'likes' },
     { file: 'boosts', Route: BoostsRoute, tab: 'boosts' },
+    { file: 'mentions', Route: MentionsRoute, tab: 'mentions' },
     { file: 'feeds', Route: FeedsRoute, tab: 'feeds' },
     { file: 'starter_packs', Route: StarterPacksRoute, tab: 'starter_packs' },
     { file: 'lists', Route: ListsRoute, tab: 'lists' },
