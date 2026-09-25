@@ -20,6 +20,16 @@
  * predicate carries both an index coupling and a correctness recheck that must
  * not drift. Projections differ per surface; predicates must not.
  *
+ * ## The connection is a required argument
+ *
+ * Each lane query takes `db` rather than calling `getDb()`, because the route
+ * runs it inside `withStatementTimeout` and that budget is `SET LOCAL` on the
+ * transaction it opens. A lane reaching for `getDb()` instead ran on another
+ * pooled connection with no budget at all while the transaction sat idle
+ * beside it — which is how the 1s statement budget never bounded anything and a
+ * hashtag seq scan held production overviews for 5–10s (issue #1140).
+ * Required, not defaulted, so that mistake cannot be made by omission.
+ *
  * ## One profile resolution for every lane
  *
  * Lists, feeds and starter packs each render an owner. Resolved as ONE batch
@@ -30,7 +40,7 @@
 
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 
-import { getDb } from '../../db/postgres';
+import { getDb, type DatabaseOrTransaction } from '../../db/postgres';
 import { accountListMembers, accountLists, starterPackMembers, starterPacks } from '../../db/schema/lists';
 import { customFeeds } from '../../db/schema/feeds';
 import {
@@ -159,6 +169,7 @@ function page<T>(rows: T[], limit: number): { items: T[]; hasMore: boolean } {
  * `?userId=`).
  */
 export async function listLane(
+  db: DatabaseOrTransaction,
   term: string,
   limit: number,
   viewerId: string | undefined,
@@ -167,7 +178,7 @@ export async function listLane(
     ? or(eq(accountLists.isPublic, true), eq(accountLists.ownerOxyUserId, viewerId))
     : eq(accountLists.isPublic, true);
 
-  const fetched = await getDb()
+  const fetched = await db
     .select()
     .from(accountLists)
     .where(and(visible, accountListSearchPredicate(term)))
@@ -180,10 +191,11 @@ export async function listLane(
 
 /** Public feeds matching `term`. The overview is a discovery surface. */
 export async function feedLane(
+  db: DatabaseOrTransaction,
   term: string,
   limit: number,
 ): Promise<{ rows: (typeof customFeeds.$inferSelect)[]; hasMore: boolean }> {
-  const fetched = await getDb()
+  const fetched = await db
     .select()
     .from(customFeeds)
     .where(and(eq(customFeeds.isPublic, true), customFeedSearchPredicate(term)))
@@ -196,10 +208,11 @@ export async function feedLane(
 
 /** Starter packs matching `term`, ranked by use as the discovery tab ranks them. */
 export async function starterPackLane(
+  db: DatabaseOrTransaction,
   term: string,
   limit: number,
 ): Promise<{ rows: (typeof starterPacks.$inferSelect)[]; hasMore: boolean }> {
-  const fetched = await getDb()
+  const fetched = await db
     .select()
     .from(starterPacks)
     .where(starterPackSearchPredicate(term))

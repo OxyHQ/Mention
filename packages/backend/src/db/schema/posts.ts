@@ -189,6 +189,24 @@ export function engagementRankSql(t: EngagementRankColumns): SQL<number> {
   )::double precision`;
 }
 
+/**
+ * The text `posts_hashtags_trgm_gin` indexes: every tag, joined by a space.
+ *
+ * It lives here, next to the index, for the reason {@link engagementRankSql}
+ * does: Postgres matches an expression index by comparing PARSED expressions,
+ * so the index serves a query only while the query spells the expression
+ * exactly as the index declares it. Hashtag search once restated it as
+ * `array_to_string(hashtags, ' ')` — the body of the IMMUTABLE wrapper, not the
+ * wrapper — and the planner cannot see through the wrapper (it declines to
+ * inline an IMMUTABLE function whose body is only STABLE), so the index was
+ * never used and every hashtag search read every public tagged post: 4.3s at
+ * the median in production, 35.7s at worst (issue #1140). Both the index and
+ * the query now call THIS, so they cannot drift apart again.
+ */
+export function hashtagsSearchTextSql(hashtags: AnyPgColumn): SQL<string> {
+  return sql<string>`posts_hashtags_search_text(${hashtags})`;
+}
+
 export const posts = pgTable(
   'posts',
   {
@@ -909,7 +927,7 @@ export const posts = pgTable(
      * would only cost write-time maintenance for no read ever satisfied.
      */
     index('posts_hashtags_trgm_gin')
-      .using('gin', sql`posts_hashtags_search_text(${t.hashtags})`)
+      .using('gin', hashtagsSearchTextSql(t.hashtags))
       .where(sql`${t.visibility} = 'public' and coalesce(cardinality(${t.hashtags}), 0) > 0`),
     /**
      * PARTIAL on `classification_region is not null`. The only two predicates

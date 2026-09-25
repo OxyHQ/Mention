@@ -39,6 +39,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
+import { hashtagSearchQuery } from '../../services/search/hashtagSearch';
 
 let db: Database;
 
@@ -172,6 +173,34 @@ describe('the coarse trigram filter is actually reachable', () => {
     return rows.map((row) => row['QUERY PLAN']).join('\n');
   }
 
+  /**
+   * EXPLAIN the statement `prepare` returns, on the transaction it prepared,
+   * then roll the whole transaction back.
+   *
+   * `EXPLAIN` takes no bind parameters, so the builder's `$n` placeholders are
+   * inlined with quoting (the `engagementRankIndex` idiom), over values this
+   * file supplies.
+   */
+  async function explainAndRollBack(
+    prepare: (tx: Parameters<Parameters<Database['transaction']>[0]>[0]) => Promise<{ sql: string; params: unknown[] }>,
+  ): Promise<string> {
+    const rollback = new Error('roll back the plan fixture');
+    let plan = '';
+    await db.transaction(async (tx) => {
+      const { sql: text, params } = await prepare(tx);
+      const inlined = text.replace(/\$(\d+)/g, (_match, index: string) => {
+        const value = params[Number(index) - 1];
+        return typeof value === 'number' ? String(value) : `'${String(value).replace(/'/g, "''")}'`;
+      });
+      const rows = await tx.execute<Record<string, string>>(sql.raw(`explain (costs off) ${inlined}`));
+      plan = rows.map((row) => Object.values(row)[0]).join('\n');
+      throw rollback;
+    }).catch((error: unknown) => {
+      if (error !== rollback) throw error;
+    });
+    return plan;
+  }
+
   it('reaches account_lists_search_trgm_gin for a list search', async () => {
     const plan = await planFor(sql`
       select id from account_lists
@@ -188,6 +217,35 @@ describe('the coarse trigram filter is actually reachable', () => {
     `);
     expect(plan).toContain('starter_packs_search_trgm_gin');
     expect(plan).not.toContain('Seq Scan on starter_packs');
+  });
+
+  it('reaches posts_hashtags_trgm_gin for the hashtag search the service ACTUALLY issues', async () => {
+    // The statement comes from the service's own builder, not a hand-written
+    // copy. A copy is exactly how this regressed: the service filtered on
+    // `array_to_string(hashtags, ' ')` — the wrapper's BODY — while the index is
+    // on the wrapper, which the planner will not inline (its body is only
+    // STABLE). The index was never reachable, and every hashtag search read
+    // every public tagged post: 4.3s median, 35.7s worst in production (#1140).
+    const plan = await explainAndRollBack(async (tx) => {
+      // Seeded, unlike the plans above. `posts` carries other indexes on
+      // `visibility` (the chrono ones), and against an empty, unanalysed table
+      // the planner reaches for one of those even with sequential scans off —
+      // so the "a plan through this index exists" trick does not isolate the
+      // trigram index here. With rows and statistics, a selective substring is
+      // the trigram index's to serve, which is the question being asked. Rolled
+      // back, statistics included, so no other suite sees the rows.
+      await tx.execute(sql`
+        insert into posts (id, visibility, hashtags)
+        select 'search-index-plan-' || g, 'public', array['plantag' || g, 'planother' || (g % 50)]
+        from generate_series(1, 2000) g
+      `);
+      await tx.execute(sql`analyze posts`);
+      await tx.execute(sql`set local enable_seqscan = off`);
+      return hashtagSearchQuery(tx, 'needle', 0, 10).toSQL();
+    });
+
+    expect(plan).toContain('posts_hashtags_trgm_gin');
+    expect(plan).not.toContain('Seq Scan on posts');
   });
 
   it('reaches custom_feeds_search_trgm_gin for a feed search', async () => {
