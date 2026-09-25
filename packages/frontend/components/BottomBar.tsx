@@ -26,6 +26,7 @@ function NotificationGlyph({ count, label, ...iconProps }: React.ComponentProps<
 /** Mention owns destinations and pager state; Bloom owns all navigation chrome. */
 export const BottomBar = () => {
   const { showBottomSheet, user } = useAuth();
+  const avatarName = user?.name?.displayName || user?.username || undefined;
   const { t } = useTranslation();
   const haptic = useHaptics();
   const reselect = useReselect();
@@ -36,8 +37,10 @@ export const BottomBar = () => {
     index: <RiHome5Line />,
     videos: <RiVideoLine />,
     notifications: <NotificationGlyph count={unreadCount} label={t('notification.badge', { count: unreadCount, defaultValue: '{{count}} unread notifications' })} />,
-    you: <Avatar size={26} source={user?.avatar} variant={MEDIA_VARIANT_AVATAR} />,
-  }), [unreadCount, t, user?.avatar]);
+    // `name` gives a photo-less account its initial on a tinted disc — the same
+    // fallback the Oxy account menu draws — instead of the generic placeholder.
+    you: <Avatar size={26} source={user?.avatar} name={avatarName} variant={MEDIA_VARIANT_AVATAR} />,
+  }), [unreadCount, t, user?.avatar, avatarName]);
   const items = useMemo(() => BAR_TABS.map(tab => ({ name: tab.name, label: t(tab.bar.labelKey), icon: glyphs[tab.name] })), [glyphs, t]);
   const onValueChange = useCallback((value: string) => {
     haptic('light');

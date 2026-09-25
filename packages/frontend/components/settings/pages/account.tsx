@@ -123,6 +123,7 @@ export default function AccountSettingsContent() {
               control: (
                 <Avatar
                   source={profile?.avatar}
+                  name={profile?.design.displayName ?? profile?.username}
                   size={40}
                   variant={MEDIA_VARIANT_AVATAR_LG}
                 />
