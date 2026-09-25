@@ -26,13 +26,9 @@ vi.mock('../utils/cache', () => ({
   }),
 }));
 
-import {
-  SitemapBuildCoolingDownError,
-  bulkUsers,
-  cachedSitemapArtifact,
-} from '../services/seoSitemap';
+import { bulkUsers } from '../services/seoSitemap';
 
-const rateLimited = () => Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
+const rateLimited = (): Error => Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
 
 describe('sitemap Oxy budget protection', () => {
   beforeEach(() => {
@@ -59,21 +55,5 @@ describe('sitemap Oxy budget protection', () => {
     await expect(bulkUsers(ids)).rejects.toThrow('HTTP 429');
     // Two concurrent workers: each issues at most one call before the abort.
     expect(makeServiceRequest.mock.calls.length).toBeLessThanOrEqual(2);
-  });
-
-  it('does not rebuild a failed sitemap on every crawler retry', async () => {
-    const build = vi.fn().mockRejectedValue(rateLimited());
-
-    await expect(cachedSitemapArtifact('profiles:1:0', build)).rejects.toThrow('HTTP 429');
-    await expect(cachedSitemapArtifact('profiles:1:0', build)).rejects.toBeInstanceOf(SitemapBuildCoolingDownError);
-    await expect(cachedSitemapArtifact('profiles:1:0', build)).rejects.toBeInstanceOf(SitemapBuildCoolingDownError);
-
-    expect(build).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps cooldowns per sitemap', async () => {
-    await expect(cachedSitemapArtifact('posts:2:0', () => Promise.reject(rateLimited()))).rejects.toThrow();
-
-    await expect(cachedSitemapArtifact('posts:3:0', async () => 'ok')).resolves.toBe('ok');
   });
 });

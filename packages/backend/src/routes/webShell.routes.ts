@@ -51,11 +51,10 @@ import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { webShellRateLimiter } from '../middleware/security';
 import { SHELL_ACCESS_HEADER } from '../middleware/apexFrontendProxy';
 import {
+  SitemapNotReadyError,
   isMentionProfilePublic,
-  postSitemap,
-  profileSitemap,
-  renderSitemapIndex,
-  sitemapCatalog,
+  sitemapIndex,
+  sitemapShard,
 } from '../services/seoSitemap';
 
 /** Frontend CDN origin the static SPA shell is fetched from (NOT the apex — that would loop the Origin Rule). */
@@ -363,11 +362,28 @@ Disallow: /
 Sitemap: ${config.web.origin}/sitemap.xml
 `;
 
-function sendXml(res: Response, xml: string): void {
+/**
+ * Sitemaps are rebuilt every six hours (`SitemapBuildJob`), so a crawler or a
+ * cache in front of us may keep one for an hour, and the CDN for six. The
+ * build time is the Last-Modified, which with Express's own ETag lets a
+ * revalidating crawler get a bodiless 304.
+ */
+function sendXml(res: Response, xml: string, builtAt: string | undefined): void {
   res.status(200);
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+  res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=21600, stale-while-revalidate=86400');
+  const lastModified = builtAt ? new Date(builtAt) : undefined;
+  if (lastModified && !Number.isNaN(lastModified.getTime())) {
+    res.setHeader('Last-Modified', lastModified.toUTCString());
+  }
+  // `res.send` sets the ETag and answers 304 itself when the request is fresh
+  // against it or against the Last-Modified above.
   res.send(xml);
+}
+
+/** Nothing built yet (a fresh deployment or a flushed cache): ask the crawler to come back. */
+function sitemapNotReady(res: Response): void {
+  res.status(503).setHeader('Retry-After', '900').end();
 }
 
 router.get('/robots.txt', (_req, res) => {
@@ -377,10 +393,13 @@ router.get('/robots.txt', (_req, res) => {
 
 router.get('/sitemap.xml', async (_req, res) => {
   try {
-    sendXml(res, renderSitemapIndex(await sitemapCatalog()));
+    const { xml, builtAt } = await sitemapIndex();
+    sendXml(res, xml, builtAt);
   } catch (error) {
-    logger.warn('[webShell] Failed to build sitemap index', error);
-    res.status(503).setHeader('Retry-After', '300').end();
+    if (!(error instanceof SitemapNotReadyError)) {
+      logger.warn('[webShell] Failed to read the sitemap index', error);
+    }
+    sitemapNotReady(res);
   }
 });
 
@@ -396,7 +415,7 @@ router.get(/^\/sitemaps\/(profiles|posts)-(\d+)\.xml$/, (_req, res) => {
 });
 
 router.get(/^\/sitemaps\/(profiles|posts)-([0-9a-f]{2})-(\d+)\.xml$/, async (req, res) => {
-  const kind = req.params[0];
+  const kind = req.params[0] === 'profiles' ? 'profiles' : 'posts';
   const bucket = Number.parseInt(req.params[1], 16);
   const page = Number(req.params[2]);
   if (!Number.isSafeInteger(bucket) || !Number.isSafeInteger(page) || page < 0) {
@@ -404,11 +423,18 @@ router.get(/^\/sitemaps\/(profiles|posts)-([0-9a-f]{2})-(\d+)\.xml$/, async (req
     return;
   }
   try {
-    const shard = { bucket, page };
-    sendXml(res, kind === 'profiles' ? await profileSitemap(shard) : await postSitemap(shard));
+    // A cache read and nothing else: no request builds a sitemap (#1160).
+    const shard = await sitemapShard(kind, { bucket, page });
+    if (shard.status === 'absent') {
+      res.status(404).setHeader('Cache-Control', 'public, max-age=3600').end();
+      return;
+    }
+    sendXml(res, shard.xml, shard.builtAt);
   } catch (error) {
-    logger.warn(`[webShell] Failed to build ${kind} sitemap`, error);
-    res.status(503).setHeader('Retry-After', '300').end();
+    if (!(error instanceof SitemapNotReadyError)) {
+      logger.warn(`[webShell] Failed to read the ${kind} sitemap`, error);
+    }
+    sitemapNotReady(res);
   }
 });
 
