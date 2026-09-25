@@ -3,8 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * The thin adapter over `@oxy.so/core`'s account-event API, and the intake's
  * scheduling decision. The SDK itself is mocked: these tests pin what Mention
- * does with what the SDK returns, and that a client WITHOUT the API refuses
- * rather than accepts.
+ * does with what the SDK returns.
  */
 
 const client = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
@@ -18,8 +17,8 @@ vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
 vi.mock('../../queue/producers', () => ({ enqueueAccountErasure }));
 vi.mock('../../services/accountErasure/AccountErasureService', () => ({ processAccountErasure }));
 
+import { OxyAccountEventError } from '@oxy.so/core';
 import {
-  AccountEventsUnsupportedError,
   isAccountEventRefusal,
   listAccountEvents,
   normalizeUsername,
@@ -33,11 +32,6 @@ beforeEach(() => {
 });
 
 describe('oxyAccountEvents adapter', () => {
-  it('refuses when the installed SDK has no account-event API', async () => {
-    await expect(verifyAccountEvent('a.b.c')).rejects.toBeInstanceOf(AccountEventsUnsupportedError);
-    await expect(listAccountEvents({})).rejects.toBeInstanceOf(AccountEventsUnsupportedError);
-  });
-
   it('passes the token through and keeps only a plain handle from the event', async () => {
     const verify = vi.fn(async () => ({ eventId: 'e', userId: 'u', username: '  alice  ' }));
     client.current = { verifyAccountEvent: verify, listAccountEvents: vi.fn() };
@@ -64,6 +58,10 @@ describe('oxyAccountEvents adapter', () => {
     expect(normalizeUsername(null)).toBeNull();
     expect(normalizeUsername(42)).toBeNull();
     expect(normalizeUsername('x'.repeat(65))).toBeNull();
+  });
+
+  it("recognises the SDK's own refusal class", () => {
+    expect(isAccountEventRefusal(new OxyAccountEventError('Account event token signature is invalid'))).toBe(true);
   });
 
   it('recognises the SDK refusal by name only', () => {
