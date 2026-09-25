@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text } from 'react-native';
+import { ScrollView, StyleSheet, Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import ComposeToolbar from '@/components/ComposeToolbar';
@@ -323,6 +323,34 @@ describe('ComposeToolbar — the lane control', () => {
     act(() => laneControl(tree).props.onPress());
 
     expect(onLanePress).toHaveBeenCalledTimes(1);
+
+    act(() => tree.unmount());
+  });
+});
+
+describe('ComposeToolbar — fitting the screen', () => {
+  // Every caller puts the row in a `flexDirection: 'row'` wrapper. A horizontal
+  // ScrollView there is as wide as its CONTENT unless it may shrink, so with a
+  // full row of icons the scroller outgrew the screen: nothing to scroll, and
+  // the last icon clipped at the right edge (OxyHQ/Mention#1140).
+  it('shrinks to the row it sits in, so the icons scroll instead of overflowing', () => {
+    const tree = render(EVERY_HANDLER);
+    const scroller = tree.root.findByType(ScrollView);
+    const style = StyleSheet.flatten(scroller.props.style);
+
+    expect(scroller.props.horizontal).toBe(true);
+    expect(style.flexShrink).toBe(1);
+    expect(style.minWidth).toBe(0);
+
+    act(() => tree.unmount());
+  });
+
+  it('keeps the last icon off the screen edge', () => {
+    const tree = render({ ...EVERY_HANDLER, contentPaddingLeft: 68 });
+    const content = StyleSheet.flatten(tree.root.findByType(ScrollView).props.contentContainerStyle);
+
+    expect(content.paddingLeft).toBe(68);
+    expect(content.paddingRight).toBeGreaterThan(0);
 
     act(() => tree.unmount());
   });
