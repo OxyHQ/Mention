@@ -5,7 +5,6 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import {
   View,
   Text,
-  TextInput,
   StyleSheet,
   TouchableOpacity,
   FlatList,
@@ -14,10 +13,9 @@ import {
 } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
-import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
 import { RiShieldLine } from '@oxy.so/bloom/icons/RiShieldLine';
+import { Search } from '@oxy.so/bloom/search';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { router } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
@@ -26,7 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { labelerService, type LabelDefinition } from '@/services/labelerService';
 import { cn } from '@/lib/utils';
 import { logger } from '@oxy.so/core/logger';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
+import { EmptyState } from '@/components/common/EmptyState';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -251,17 +249,14 @@ const LabelersScreen: React.FC = () => {
 
   const ListEmpty = useCallback(
     () => (
-      <View className="items-center pt-[60px] gap-3">
-        <RiShieldLine width={48} height={48} fill={theme.colors.textSecondary} />
-        <Text className="text-[17px] font-semibold text-foreground">
-          {t('labelers.emptyTitle', { defaultValue: 'No labelers found' })}
-        </Text>
-        <Text className="text-sm text-center px-8 text-muted-foreground">
-          {t('labelers.emptySubtitle', {
-            defaultValue: 'Try adjusting your search or check back later.',
-          })}
-        </Text>
-      </View>
+      <EmptyState
+        customIcon={<RiShieldLine width={48} height={48} fill={theme.colors.textSecondary} />}
+        title={t('labelers.emptyTitle', { defaultValue: 'No labelers found' })}
+        subtitle={t('labelers.emptySubtitle', {
+          defaultValue: 'Try adjusting your search or check back later.',
+        })}
+        containerStyle={{ paddingTop: 60 }}
+      />
     ),
     [theme, t],
   );
@@ -274,22 +269,13 @@ const LabelersScreen: React.FC = () => {
         backLabel={t('common.back', { defaultValue: 'Back' })}
       />
 
-      <View className="flex-row items-center gap-2 mx-4 mt-2 mb-1 rounded-xl border border-border px-3 py-2.5 bg-muted">
-        <RiSearchLine width={16} height={16} fill={theme.colors.textSecondary} />
-        <TextInput
+      <View className="mx-4 mt-2 mb-1">
+        <Search
+          label={t('labelers.searchPlaceholder', { defaultValue: 'Search labelers\u2026' })}
           value={search}
           onChangeText={setSearch}
-          placeholder={t('labelers.searchPlaceholder', { defaultValue: 'Search labelers\u2026' })}
-          placeholderTextColor={theme.colors.textSecondary}
-          className="flex-1 text-[15px] text-foreground"
-          style={styles.searchInput}
-          returnKeyType="search"
+          onClearText={() => setSearch('')}
         />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')} hitSlop={HIT_SLOP_MD}>
-            <RiCloseCircleLine width={16} height={16} fill={theme.colors.textSecondary} />
-          </TouchableOpacity>
-        )}
       </View>
 
       {isLoading ? (
@@ -339,11 +325,6 @@ const LabelersScreen: React.FC = () => {
 export default LabelersScreen;
 
 const styles = StyleSheet.create({
-  searchInput: {
-    ...Platform.select({
-      web: { outlineWidth: 0 },
-    }),
-  },
   listContent: {
     padding: 16,
     paddingTop: 8,

@@ -11,12 +11,8 @@ import {
 } from 'react-native';
 import { Backdrop } from '@oxy.so/bloom/overlay';
 import { Loading } from '@oxy.so/bloom/loading';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
+import { ScaleAndFadeIn, ScaleAndFadeOut } from '@oxy.so/bloom/motion';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -27,20 +23,13 @@ import { LinkifiedText } from '@/components/common/LinkifiedText';
 import { Portal } from '@oxy.so/bloom/portal';
 import { logger } from '@oxy.so/core/logger';
 
-
-/**
- * Animation configuration for smooth, non-bouncy modal transitions
+/*
+ * A full-screen reader, which Bloom's `Dialog` has no placement for (its
+ * centered card caps at 90% height and its bottom sheet hugs its content), so
+ * the surface stays a Portal (web) / RN `Modal` (native: translucent status
+ * bar, Android back → `onClose`). The enter/exit are Bloom's shared motion
+ * presets rather than hand-timed shared values.
  */
-const ANIMATION_CONFIG = {
-  IN: {
-    duration: 300,
-    easing: Easing.out(Easing.cubic),
-  },
-  OUT: {
-    duration: 250,
-    easing: Easing.in(Easing.cubic),
-  },
-} as const;
 
 interface PostArticleModalProps {
   visible: boolean;
@@ -67,29 +56,6 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const needsFetch = Boolean(articleId && !body);
-
-  // Animation values - initialized once
-  const opacity = useSharedValue(0);
-  const scale = useSharedValue(0.95);
-  const translateY = useSharedValue(20);
-
-  // Memoize onClose to prevent unnecessary re-renders
-  const stableOnClose = useCallback(onClose, [onClose]);
-
-  // Optimize animation effect - smooth, non-bouncy animations
-  useEffect(() => {
-    if (visible) {
-      // Animate in - smooth fade and slide up
-      opacity.value = withTiming(1, ANIMATION_CONFIG.IN);
-      scale.value = withTiming(1, ANIMATION_CONFIG.IN);
-      translateY.value = withTiming(0, ANIMATION_CONFIG.IN);
-    } else {
-      // Animate out - smooth fade and slide down
-      opacity.value = withTiming(0, ANIMATION_CONFIG.OUT);
-      scale.value = withTiming(0.95, ANIMATION_CONFIG.OUT);
-      translateY.value = withTiming(20, ANIMATION_CONFIG.OUT);
-    }
-  }, [visible, opacity, scale, translateY]);
 
   // Fetch article data when modal becomes visible and articleId is provided
   useEffect(() => {
@@ -143,19 +109,10 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
     [t]
   );
 
-  // Animated styles - memoized with worklets
-  const contentAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [
-      { scale: scale.value },
-      { translateY: translateY.value },
-    ],
-  }), []);
-
   // Memoize handlers
   const handleBackdropPress = useCallback(() => {
-    stableOnClose();
-  }, [stableOnClose]);
+    onClose();
+  }, [onClose]);
 
   const handleContentPress = useCallback((e: GestureResponderEvent) => {
     e.stopPropagation();
@@ -173,9 +130,8 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
       {
         paddingTop: insets.top,
       },
-      contentAnimatedStyle,
     ],
-    [insets.top, contentAnimatedStyle]
+    [insets.top]
   );
 
   // Memoize blur tint
@@ -196,10 +152,12 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
       className="web:fixed web:inset-0 web:z-[10000]"
       style={styles.modalContainer}
     >
-      {/* Bloom's shared backdrop (see WelcomeModal) — one blur + dim for every surface. */}
-      <Backdrop onPress={handleBackdropPress} progress={opacity} />
+      {/* Bloom's shared backdrop — one blur + dim for every surface. */}
+      <Backdrop onPress={handleBackdropPress} />
 
       <Animated.View
+        entering={ScaleAndFadeIn}
+        exiting={ScaleAndFadeOut}
         className="bg-background"
         style={[contentContainerStyle, { pointerEvents: 'box-none' }]}
       >
@@ -213,7 +171,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
               iconOnly
               leadingIcon={RiCloseLine}
               accessibilityLabel={t('common.close', { defaultValue: 'Close' })}
-              onPress={stableOnClose}
+              onPress={onClose}
               style={styles.closeButton}
             />
             <Text style={[headerTitleStyle, { pointerEvents: 'none' }]} className="text-foreground">
@@ -276,7 +234,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
         transparent
         animationType="none"
         statusBarTranslucent={Platform.OS === 'android'}
-        onRequestClose={stableOnClose}
+        onRequestClose={onClose}
         hardwareAccelerated={Platform.OS === 'android'}
       >
         {modalContent}

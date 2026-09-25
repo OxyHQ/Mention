@@ -24,6 +24,9 @@ interface WelcomeModalGateProps {
 const WelcomeModalGate: React.FC<WelcomeModalGateProps> = memo(({ appIsReady }) => {
   const { isAuthenticated } = useAuth();
   const [showModal, setShowModal] = useState(false);
+  // Once shown, the modal stays mounted so Bloom's Dialog can play its exit
+  // animation when `visible` flips to false (it unmounts its own surface).
+  const [hasShown, setHasShown] = useState(false);
 
   // Check if user has seen the modal before
   useEffect(() => {
@@ -36,6 +39,7 @@ const WelcomeModalGate: React.FC<WelcomeModalGateProps> = memo(({ appIsReady }) 
           // Small delay to ensure smooth transition from splash screen
           setTimeout(() => {
             setShowModal(true);
+            setHasShown(true);
           }, 300);
         }
       } catch {
@@ -59,8 +63,8 @@ const WelcomeModalGate: React.FC<WelcomeModalGateProps> = memo(({ appIsReady }) 
     }
   };
 
-  // Only render when modal should show to avoid loading the component unnecessarily
-  if (!showModal) {
+  // Only render once the modal has been requested, to avoid loading the component unnecessarily
+  if (!hasShown) {
     return null;
   }
 

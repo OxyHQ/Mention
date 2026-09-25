@@ -121,6 +121,11 @@ jest.mock('@oxy.so/bloom/dialog', () => {
   };
 });
 
+jest.mock('@oxy.so/bloom/item', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { Item: () => <View /> };
+});
+
 jest.mock('@oxy.so/bloom/search', () => {
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
   return { Search: () => <View testID="search" /> };

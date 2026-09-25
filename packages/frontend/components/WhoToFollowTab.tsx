@@ -12,6 +12,7 @@ import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
 import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from '@/components/ProfileCard';
 import { Error as ErrorDisplay } from '@/components/Error';
+import { EmptyState } from '@/components/common/EmptyState';
 import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 import { logger } from '@oxy.so/core/logger';
 import { useInfiniteRecommendations } from '@/hooks/useRecommendations';
@@ -184,11 +185,10 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
         ListHeaderComponent={listHeader}
         ListFooterComponent={renderFooter}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text className="text-base leading-6 text-muted-foreground">
-              {t('No recommendations available')}
-            </Text>
-          </View>
+          <EmptyState
+            title={t('No recommendations available')}
+            icon={{ name: 'people-outline' }}
+          />
         }
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
@@ -245,10 +245,6 @@ const styles = StyleSheet.create({
   errorContainer: {
     flex: 1,
     paddingVertical: 40,
-  },
-  emptyContainer: {
-    padding: 40,
-    alignItems: 'center',
   },
   listContent: {
     paddingBottom: 20,

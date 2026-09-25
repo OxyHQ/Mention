@@ -5,10 +5,7 @@ import React, {
     useState,
 } from 'react';
 import {
-    Modal,
     StyleSheet,
-    Text,
-    TouchableOpacity,
     View,
 } from 'react-native';
 import {
@@ -18,7 +15,8 @@ import {
     useQueryClient,
 } from '@tanstack/react-query';
 import { Button } from '@oxy.so/bloom/button';
-import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
+import { Dialog, useDialogControl, type DialogAction } from '@oxy.so/bloom/dialog';
+import { Item } from '@oxy.so/bloom/item';
 import { Loading } from '@oxy.so/bloom/loading';
 import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -242,6 +240,19 @@ const SavedPostsScreen: React.FC = () => {
         });
     }, [isMovingBookmark, moveBookmark, movingPostId]);
 
+    const closeMoveDialog = useCallback(() => {
+        setShowMoveModal(false);
+        setMovingPostId(null);
+    }, []);
+
+    const moveDialogActions = useMemo<DialogAction[]>(() => [
+        {
+            label: t('common.cancel', 'Cancel'),
+            color: 'cancel',
+            disabled: isMovingBookmark,
+        },
+    ], [isMovingBookmark, t]);
+
     const handleLongPress = useCallback((postId: string) => {
         setMovingPostId(postId);
         setShowMoveModal(true);
@@ -415,52 +426,33 @@ const SavedPostsScreen: React.FC = () => {
                 </View>
             </Dialog>
 
-            <Modal visible={showMoveModal} transparent animationType="fade">
-                <View style={styles.modalOverlay}>
-                    <View className="w-full max-w-[360px] rounded-2xl p-5 bg-card">
-                        <Text className="text-lg font-semibold mb-4 text-foreground">
-                            {t('saved.moveToFolder', 'Move to Folder')}
-                        </Text>
-                        <TouchableOpacity
-                            style={[
-                                styles.moveOption,
-                                { borderColor: theme.colors.border },
-                            ]}
-                            onPress={() => handleMoveToFolder(null)}
+            <Dialog
+                open={showMoveModal}
+                onClose={closeMoveDialog}
+                title={t('saved.moveToFolder', 'Move to Folder')}
+                label={t('saved.moveToFolder', 'Move to Folder')}
+                maxWidth={360}
+                dismissOnBackdrop={!isMovingBookmark}
+                actions={moveDialogActions}
+            >
+                <View className="mb-3">
+                    <Item
+                        role="option"
+                        title={t('saved.allBookmarks', 'All Bookmarks')}
+                        onPress={() => handleMoveToFolder(null)}
+                        disabled={isMovingBookmark}
+                    />
+                    {folders.map((folder) => (
+                        <Item
+                            key={folder}
+                            role="option"
+                            title={folder}
+                            onPress={() => handleMoveToFolder(folder)}
                             disabled={isMovingBookmark}
-                        >
-                            <Text className="text-foreground">
-                                {t('saved.allBookmarks', 'All Bookmarks')}
-                            </Text>
-                        </TouchableOpacity>
-                        {folders.map((folder) => (
-                            <TouchableOpacity
-                                key={folder}
-                                style={[
-                                    styles.moveOption,
-                                    { borderColor: theme.colors.border },
-                                ]}
-                                onPress={() => handleMoveToFolder(folder)}
-                                disabled={isMovingBookmark}
-                            >
-                                <Text className="text-foreground">{folder}</Text>
-                            </TouchableOpacity>
-                        ))}
-                        <TouchableOpacity
-                            className="px-4 py-2.5 rounded-[10px] items-center mt-3 bg-muted"
-                            onPress={() => {
-                                setShowMoveModal(false);
-                                setMovingPostId(null);
-                            }}
-                            disabled={isMovingBookmark}
-                        >
-                            <Text className="text-foreground">
-                                {t('common.cancel', 'Cancel')}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
+                        />
+                    ))}
                 </View>
-            </Modal>
+            </Dialog>
         </>
     );
 };
@@ -468,18 +460,6 @@ const SavedPostsScreen: React.FC = () => {
 const styles = StyleSheet.create({
     listFooterSpace: {
         height: 24,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 24,
-    },
-    moveOption: {
-        paddingVertical: 14,
-        paddingHorizontal: 12,
-        borderBottomWidth: StyleSheet.hairlineWidth,
     },
 });
 

@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Platform,
 } from 'react-native';
+import { Divider } from '@oxy.so/bloom/divider';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
@@ -365,11 +366,7 @@ const LabelerDetailScreen: React.FC = () => {
 
               return (
                 <React.Fragment key={ld.slug}>
-                  {index > 0 && (
-                    <View
-                      style={[styles.separator, { backgroundColor: theme.colors.border }]}
-                    />
-                  )}
+                  {index > 0 && <Divider spacing={12} />}
                   <View className="gap-1.5">
                     <View className="flex-row items-center justify-between gap-2">
                       <Text className="text-[15px] font-semibold flex-1 text-foreground">
@@ -461,10 +458,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     gap: 8,
-  },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    marginVertical: 12,
   },
   subscribeBtn: {
     borderRadius: 20,
