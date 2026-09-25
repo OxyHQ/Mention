@@ -110,6 +110,12 @@ jest.mock('@/components/RoomCard', () => {
   return { __esModule: true, default: RNView };
 });
 
+// Attachment previews draw Bloom's `Card`, an untranspiled ESM subpath.
+jest.mock('@oxy.so/bloom/card', () => {
+  const { View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { Card: RNView };
+});
+
 const item: ThreadItem = {
   id: 'thread-1',
   text: 'A continuation',

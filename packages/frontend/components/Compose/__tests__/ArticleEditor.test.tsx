@@ -37,6 +37,15 @@ jest.mock('@oxy.so/bloom/dialog', () => {
   };
 });
 
+jest.mock('@oxy.so/bloom/text-field', () => {
+  const { TextInput: RNTextInput } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { TextFieldInput: (props: Record<string, unknown>) => <RNTextInput {...props} /> };
+});
+jest.mock('@oxy.so/bloom/textarea', () => {
+  const { TextInput: RNTextInput } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { Textarea: (props: Record<string, unknown>) => <RNTextInput multiline {...props} /> };
+});
+
 jest.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
     colors: {

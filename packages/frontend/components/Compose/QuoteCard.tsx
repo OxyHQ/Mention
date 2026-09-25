@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Avatar } from '@oxy.so/bloom/avatar';
+import { Card } from '@oxy.so/bloom/card';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import type { HydratedPost, HydratedPostSummary } from '@mention/shared-types';
@@ -46,25 +47,25 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
 
   if (loading) {
     return (
-      <View
-        className="border-border bg-muted rounded-2xl border px-4 py-3"
-        accessibilityRole="progressbar"
-        accessibilityLabel={t('compose.quote.loading', { defaultValue: 'Loading quoted post' })}
-      >
-        <View className="flex-row items-center">
+      <Card appearance="subtle" border="thin" radius="radius-16" className="px-4 py-3">
+        <View
+          className="flex-row items-center"
+          accessibilityRole="progressbar"
+          accessibilityLabel={t('compose.quote.loading', { defaultValue: 'Loading quoted post' })}
+        >
           <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
           <Text className="text-muted-foreground ml-2 text-[13px]">
             {t('compose.quote.loading', { defaultValue: 'Loading quoted post...' })}
           </Text>
         </View>
-      </View>
+      </Card>
     );
   }
 
   if (!post) return null;
 
   return (
-    <View className="border-border bg-muted relative rounded-2xl border px-4 py-3">
+    <Card appearance="subtle" border="thin" radius="radius-16" className="relative px-4 py-3">
       <View className="flex-row items-start">
         {/* `avatar` is a bare Oxy file id OR an absolute URL, for local and
             federated authors alike — Bloom's Avatar accepts both shapes
@@ -100,7 +101,7 @@ const QuoteCard: React.FC<QuoteCardProps> = ({ post, loading, onDismiss }) => {
       >
         <CloseIcon size={14} className="text-foreground" />
       </TouchableOpacity>
-    </View>
+    </Card>
   );
 };
 

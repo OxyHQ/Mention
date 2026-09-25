@@ -1,6 +1,8 @@
 import React from "react";
-import { View, Text, TextInput, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { Dialog } from '@oxy.so/bloom/dialog';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from "react-i18next";
 
@@ -75,27 +77,27 @@ export const ArticleEditor: React.FC<ArticleEditorProps> = ({
             testID="articleEditorDialog"
         >
             <View className="gap-4 pb-6">
-                <TextInput
-                    className="text-lg font-bold rounded-[14px] border-[1.5px] border-border bg-muted px-4 py-3 text-foreground"
-                    placeholder={t("compose.article.titlePlaceholder", {
+                <TextFieldInput
+                    label={t("compose.article.titlePlaceholder", {
                         defaultValue: "Article title",
                     })}
-                    placeholderTextColor={theme.colors.textSecondary}
                     value={title}
                     onChangeText={onTitleChange}
                     maxLength={280}
                 />
 
-                <TextInput
-                    className="min-h-[240px] rounded-[14px] border-[1.5px] border-border bg-muted px-4 py-3 text-[15px] text-foreground"
-                    style={{ textAlignVertical: "top" }}
+                <Textarea
+                    accessibilityLabel={t("compose.article.bodyPlaceholder", {
+                        defaultValue: "Start writing…",
+                    })}
                     placeholder={t("compose.article.bodyPlaceholder", {
                         defaultValue: "Start writing…",
                     })}
-                    placeholderTextColor={theme.colors.textSecondary}
                     value={body}
                     onChangeText={onBodyChange}
-                    multiline
+                    rows={12}
+                    autoResize
+                    maxRows={40}
                 />
             </View>
         </Dialog>

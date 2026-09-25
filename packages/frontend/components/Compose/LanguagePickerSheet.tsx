@@ -1,11 +1,11 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
-import { FlatList, Text, TextInput, View } from 'react-native';
+import { FlatList, Text, View } from 'react-native';
+import { Search } from '@oxy.so/bloom/search';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Item } from '@oxy.so/bloom/item';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { CONTENT_LANGUAGES, type ContentLanguage } from '@/constants/contentLanguages';
 
 interface LanguagePickerSheetProps {
@@ -46,7 +46,6 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
   onClose,
 }: LanguagePickerSheetProps) {
   const { t } = useTranslation();
-  const theme = useTheme();
   const [query, setQuery] = useState('');
 
   const results = useMemo(() => {
@@ -124,14 +123,12 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
         }
       />
 
-      <View className="mx-4 mt-3 rounded-xl border-[1.5px] border-border bg-muted px-3 py-2.5">
-        <TextInput
-          className="text-sm text-foreground"
-          placeholder={t('compose.languages.searchPlaceholder', { defaultValue: 'Search languages' })}
-          accessibilityLabel={t('compose.languages.searchPlaceholder', { defaultValue: 'Search languages' })}
-          placeholderTextColor={theme.colors.textTertiary}
+      <View className="mx-4 mt-3">
+        <Search
+          label={t('compose.languages.searchPlaceholder', { defaultValue: 'Search languages' })}
           value={query}
           onChangeText={setQuery}
+          onClearText={() => setQuery('')}
           autoCorrect={false}
           autoCapitalize="none"
         />

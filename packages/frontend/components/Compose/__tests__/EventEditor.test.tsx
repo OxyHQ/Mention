@@ -1,7 +1,6 @@
 import React from 'react';
-import { Modal, Text } from 'react-native';
+import { Modal } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
-import { Calendar } from '@/components/ui/Calendar';
 import { EventEditor } from '../EventEditor';
 
 const mockDialogProps: Record<string, unknown>[] = [];
@@ -29,6 +28,32 @@ jest.mock('@oxy.so/bloom/dialog', () => {
     },
     useDialogControl: () => ({ open: jest.fn(), close: jest.fn() }),
   };
+});
+
+/**
+ * Bloom's pickers own their popup; the editor's contract is only the value it
+ * hands them and what it does with the value they report, so they are stubs
+ * that expose their props.
+ */
+jest.mock('@oxy.so/bloom/date-picker', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    DatePicker: (props: Record<string, unknown>) => <View {...props} />,
+    TimeField: (props: Record<string, unknown>) => <View {...props} />,
+  };
+});
+
+jest.mock('@oxy.so/bloom/field', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { Field: ({ children }: { children?: React.ReactNode }) => <View>{children}</View> };
+});
+jest.mock('@oxy.so/bloom/text-field', () => {
+  const { TextInput } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { TextFieldInput: (props: Record<string, unknown>) => <TextInput {...props} /> };
+});
+jest.mock('@oxy.so/bloom/textarea', () => {
+  const { TextInput } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { Textarea: (props: Record<string, unknown>) => <TextInput multiline {...props} /> };
 });
 
 jest.mock('@oxy.so/bloom/theme', () => ({
@@ -73,28 +98,26 @@ const renderEditor = (date: string, onDateChange: (next: string) => void) => {
 };
 
 describe('EventEditor date field', () => {
-  it('keeps the event time when the calendar reports a new day', () => {
+  const findPicker = (tree: TestRenderer.ReactTestRenderer, testID: string) => {
+    const node = tree.root.findAll((n) => n.props.testID === testID && typeof n.type !== 'string')[0];
+    if (!node) throw new Error(`${testID} not rendered`);
+    return node;
+  };
+
+  it('hands the picker the local day and keeps the event time when a new day is applied', () => {
     const onDateChange = jest.fn();
-    // 18:45 local — the calendar hands back midnight, so the merge is what
+    // 18:45 local — the picker hands back midnight, so the merge is what
     // preserves the time the user already chose.
     const original = new Date(2026, 4, 3, 18, 45, 30);
     const tree = renderEditor(original.toISOString(), onDateChange);
 
-    // The calendar is only mounted once the date field is opened.
-    expect(tree.root.findAllByType(Calendar)).toHaveLength(0);
-    const dateField = tree.root
-      .findAll((node) => node.props.onPress !== undefined)
-      .find((node) =>
-        node.findAllByType(Text).some((text) => text.props.children === 'Date'),
-      );
-    if (!dateField) throw new Error('Date field not rendered');
-    act(() => {
-      dateField.props.onPress();
-    });
+    const picker = findPicker(tree, 'eventEditorDatePicker');
+    const shown = picker.props.value as Date;
+    expect([shown.getFullYear(), shown.getMonth(), shown.getDate(), shown.getHours(), shown.getMinutes()])
+      .toEqual([2026, 4, 3, 0, 0]);
 
-    const calendar = tree.root.findByType(Calendar);
     act(() => {
-      calendar.props.onChange(new Date(2026, 6, 19));
+      picker.props.onChange(new Date(2026, 6, 19));
     });
 
     expect(onDateChange).toHaveBeenCalledTimes(1);
@@ -108,8 +131,31 @@ describe('EventEditor date field', () => {
       merged.getSeconds(),
     ]).toEqual([2026, 6, 19, 18, 45, 30]);
 
-    // Picking a day closes the calendar again.
-    expect(tree.root.findAllByType(Calendar)).toHaveLength(0);
+    act(() => tree.unmount());
+  });
+
+  it('shows the time as 24h HH:mm and keeps the day when a new time is committed', () => {
+    const onDateChange = jest.fn();
+    const tree = renderEditor(new Date(2026, 4, 3, 8, 5).toISOString(), onDateChange);
+
+    const field = findPicker(tree, 'eventEditorTimeField');
+    expect(field.props.value).toBe('08:05');
+
+    act(() => {
+      field.props.onChange('21:30');
+    });
+    expect(onDateChange).toHaveBeenCalledTimes(1);
+    const merged = new Date(onDateChange.mock.calls[0][0]);
+    expect([merged.getFullYear(), merged.getMonth(), merged.getDate(), merged.getHours(), merged.getMinutes()])
+      .toEqual([2026, 4, 3, 21, 30]);
+
+    // Emptying the field is not a time; the event keeps the one it had.
+    act(() => {
+      field.props.onChange(null);
+    });
+    expect(onDateChange).toHaveBeenCalledTimes(1);
+
+    act(() => tree.unmount());
   });
 });
 

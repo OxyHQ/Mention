@@ -41,6 +41,11 @@ jest.mock('@oxy.so/bloom/button', () => {
   return { Button: TouchableOpacity };
 });
 jest.mock('@oxy.so/bloom/icons', () => ({ RiCloseLine: () => null }));
+jest.mock('@oxy.so/bloom/textarea', () => ({ Textarea: () => null }));
+jest.mock('@oxy.so/bloom/card', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { Card: ({ children }: { children?: React.ReactNode }) => <View>{children}</View> };
+});
 
 jest.mock('@/constants/contentLanguages', () => ({
   describeContentLanguage: (tag: string) => ({

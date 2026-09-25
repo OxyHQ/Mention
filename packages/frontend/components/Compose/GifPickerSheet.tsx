@@ -5,16 +5,14 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  TextInput,
 } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
-import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
-import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Search } from '@oxy.so/bloom/search';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
 import VideoPlayer from '@/components/common/VideoPlayer';
@@ -179,22 +177,15 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         }
       />
 
-      <View className="flex-row items-center px-3 py-2.5 mx-4 mt-3 mb-2 rounded-xl bg-muted gap-2.5">
-        <RiSearchLine size="md" fill={theme.colors.textSecondary} />
-        <TextInput
-          className="flex-1 text-[15px] text-foreground"
-          placeholder={t('Search GIFs...')}
-          placeholderTextColor={theme.colors.textTertiary}
+      <View className="mx-4 mt-3 mb-2">
+        <Search
+          label={t('Search GIFs...')}
           value={searchQuery}
           onChangeText={setSearchQuery}
+          onClearText={() => setSearchQuery('')}
           autoCapitalize="none"
           autoCorrect={false}
         />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <RiCloseCircleLine size="md" fill={theme.colors.textSecondary} />
-          </TouchableOpacity>
-        )}
       </View>
 
       {loading && gifs.length === 0 ? (
