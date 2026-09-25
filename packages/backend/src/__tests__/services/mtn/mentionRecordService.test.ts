@@ -60,6 +60,16 @@ interface MemoryStore extends RecordStore {
   heads: Map<string, ChainHead>;
   conflictOnce: boolean;
   commitThenConflictOnce: boolean;
+  /**
+   * A `seq` some stray ledger row already holds while the head does not point
+   * at it: every append at that seq collides until `reconcileHead` clears it.
+   */
+  blockedSeq: number | null;
+  reconcileCalls: number;
+  reconcileHead(subject: string): Promise<
+    | { kind: 'consistent' }
+    | { kind: 'repaired'; fromSeq: number | null; toSeq: number | null; fastForwarded: number; archived: number }
+  >;
   append(
     subject: string,
     env: SignedRecordEnvelope,
@@ -89,12 +99,30 @@ const { memoryStore, resolveDid } = vi.hoisted(() => {
     heads,
     conflictOnce: false,
     commitThenConflictOnce: false,
+    blockedSeq: null,
+    reconcileCalls: 0,
+    async reconcileHead(subject) {
+      store.reconcileCalls += 1;
+      if (store.blockedSeq === null) return { kind: 'consistent' };
+      store.blockedSeq = null;
+      const head = heads.get(subject);
+      return {
+        kind: 'repaired',
+        fromSeq: head?.seq ?? null,
+        toSeq: head?.seq ?? null,
+        fastForwarded: 0,
+        archived: 1,
+      };
+    },
     async getHead(subject) {
       return heads.get(subject) ?? null;
     },
     async append(subject, env, recordId, idempotencyKey?: string) {
       if (store.conflictOnce) {
         store.conflictOnce = false;
+        return { ok: false, reason: 'chain_conflict' };
+      }
+      if (store.blockedSeq !== null && env.seq === store.blockedSeq) {
         return { ok: false, reason: 'chain_conflict' };
       }
       if (
@@ -231,6 +259,8 @@ beforeEach(async () => {
   memoryStore.heads.clear();
   memoryStore.conflictOnce = false;
   memoryStore.commitThenConflictOnce = false;
+  memoryStore.blockedSeq = null;
+  memoryStore.reconcileCalls = 0;
   resolveDid.mockClear();
   clearVerificationMethodCache();
 });
@@ -318,6 +348,41 @@ describe('MentionRecordService.signAndAppend', () => {
     // appended successfully.
     expect(result.ok).toBe(true);
     expect(memoryStore.rows).toHaveLength(1);
+  });
+
+  it('reconciles a head left behind the ledger instead of colliding until it gives up', async () => {
+    // The production failure: a stray row holds seq 1 while the head says 0.
+    // Re-reading the head rebuilds the SAME seq every attempt, so without the
+    // reconcile this exhausts all five attempts with `chain_conflict` — which is
+    // what an engagement outbox event did for weeks, once a minute.
+    const genesis = await signAndAppend(SUBJECT_OXY_ID, MENTION_POST_COLLECTION, 'post-1', {
+      text: 'genesis',
+      createdAt: new Date().toISOString(),
+    });
+    expect(genesis.ok).toBe(true);
+    memoryStore.blockedSeq = 1;
+
+    const eventCreatedAt = new Date(Date.now() - 1_000);
+    const result = await signAndAppend(
+      SUBJECT_OXY_ID,
+      MENTION_LIKE_COLLECTION,
+      'relation-1',
+      { subject: createPostUri('owner-1', 'post-9'), createdAt: eventCreatedAt.toISOString() },
+      { idempotencyKey: 'engagement:post.like:relation-1:v1', issuedAt: eventCreatedAt },
+    );
+
+    expect(result).toMatchObject({ ok: true, seq: 1 });
+    expect(memoryStore.reconcileCalls).toBe(1);
+  });
+
+  it('reconciles at most once per append, and an ordinary race needs no repair', async () => {
+    memoryStore.conflictOnce = true;
+    const result = await signAndAppend(SUBJECT_OXY_ID, MENTION_POST_COLLECTION, 'post-1', {
+      text: 'survives a race',
+      createdAt: new Date().toISOString(),
+    });
+    expect(result.ok).toBe(true);
+    expect(memoryStore.reconcileCalls).toBe(1);
   });
 
   it('returns the original append when an outbox event is retried after a crash', async () => {

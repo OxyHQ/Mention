@@ -61,6 +61,7 @@ import { posts } from '../../db/schema/posts';
 import {
   EngagementOutboxDispatcher,
   handleEngagementOutboxEvent,
+  LIKE_NOTIFICATION_MAX_AGE_MS,
 } from '../../services/EngagementOutboxDispatcher';
 import {
   dispatchEngagementOutbox,
@@ -69,6 +70,9 @@ import {
 
 let db: Database;
 const createdPostIds: string[] = [];
+
+/** A recent event time: a like this fresh still notifies its authors. */
+const CREATED_AT = new Date(Date.now() - 60_000);
 
 /** A post with an owner and one accepted collaborator, both notification recipients. */
 async function seedCollaborativePost(): Promise<string> {
@@ -113,7 +117,7 @@ function event(
     attempts: 1,
     availableAt: new Date(0),
     expiresAt: new Date(Date.now() + 60_000),
-    createdAt: new Date(0),
+    createdAt: CREATED_AT,
   };
 }
 
@@ -164,7 +168,7 @@ describe('handleEngagementOutboxEvent', () => {
       likedPostId: postId,
       likedPostOwnerOxyUserId: 'owner-1',
       idempotencyKey: 'engagement:post.like:relation-1:v1',
-      issuedAt: new Date(0),
+      issuedAt: CREATED_AT,
     });
     expect(mocks.federateAsResolvedActorAndWait).toHaveBeenCalledOnce();
   });
@@ -304,14 +308,14 @@ describe('handleEngagementOutboxEvent', () => {
       bookmarkedPostId: postId,
       bookmarkedPostOwnerOxyUserId: 'owner-1',
       idempotencyKey: 'engagement:post.save:relation-1:v1',
-      issuedAt: new Date(0),
+      issuedAt: CREATED_AT,
     });
     expect(mocks.emitTombstoneStrict).toHaveBeenCalledWith({
       authorOxyUserId: 'actor-1',
       tombstoneRkey: 'relation-1',
       subjectUri: 'mtn://actor-1/bookmarks/relation-1',
       idempotencyKey: 'engagement:post.unsave:relation-1:v1',
-      issuedAt: new Date(0),
+      issuedAt: CREATED_AT,
     });
     // A save is nobody else's business: no notification, no federation.
     expect(mocks.createPostAuthorNotificationsStrict).not.toHaveBeenCalled();
@@ -323,9 +327,105 @@ describe('handleEngagementOutboxEvent', () => {
     mocks.emitLikeCreatedStrict.mockRejectedValueOnce(new Error('MTN unavailable'));
 
     await expect(handleEngagementOutboxEvent(event('post.like', postId))).rejects.toThrow(
-      'MTN unavailable',
+      'mtn: MTN unavailable',
     );
+  });
+
+  it('notifies and federates even when the MTN append fails', async () => {
+    /**
+     * The production failure: the MTN append ran first and threw, so the
+     * author notification and the federation delivery behind it never ran —
+     * for weeks, on every retry. Each effect is independent now.
+     */
+    const postId = await seedCollaborativePost();
+    mocks.emitLikeCreatedStrict.mockRejectedValueOnce(
+      new Error('emitLikeCreated append failed: chain_conflict'),
+    );
+    const markEffectDone = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      handleEngagementOutboxEvent(event('post.like', postId), { markEffectDone }),
+    ).rejects.toThrow('mtn: emitLikeCreated append failed: chain_conflict');
+
+    expect(mocks.createPostAuthorNotificationsStrict).toHaveBeenCalledOnce();
+    expect(mocks.federateAsResolvedActorAndWait).toHaveBeenCalledOnce();
+    // Only what landed is recorded, so the retry repeats the MTN append alone.
+    expect(markEffectDone.mock.calls).toEqual([['notification'], ['federation']]);
+  });
+
+  it('names every effect that failed', async () => {
+    const postId = await seedCollaborativePost();
+    mocks.emitLikeCreatedStrict.mockRejectedValueOnce(new Error('chain_conflict'));
+    mocks.federateAsResolvedActorAndWait.mockRejectedValueOnce(new Error('queue down'));
+
+    await expect(handleEngagementOutboxEvent(event('post.like', postId))).rejects.toThrow(
+      'mtn: chain_conflict; federation: queue down',
+    );
+    expect(mocks.createPostAuthorNotificationsStrict).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a non-Error rejection readable in the failure', async () => {
+    const postId = await seedCollaborativePost();
+    mocks.emitBookmarkCreatedStrict.mockRejectedValueOnce('store offline');
+
+    await expect(handleEngagementOutboxEvent(event('post.save', postId))).rejects.toThrow(
+      'mtn: store offline',
+    );
+  });
+
+  it('skips the effects an earlier attempt already delivered', async () => {
+    // Re-running the notification would not duplicate it, but it WOULD float
+    // the existing row back to the top of the author's list on every retry.
+    const postId = await seedCollaborativePost();
+    const markEffectDone = vi.fn().mockResolvedValue(undefined);
+
+    await handleEngagementOutboxEvent(
+      { ...event('post.like', postId), completedEffects: ['notification', 'federation'] },
+      { markEffectDone },
+    );
+
+    expect(mocks.emitLikeCreatedStrict).toHaveBeenCalledOnce();
     expect(mocks.createPostAuthorNotificationsStrict).not.toHaveBeenCalled();
+    expect(mocks.federateAsResolvedActorAndWait).not.toHaveBeenCalled();
+    expect(markEffectDone.mock.calls).toEqual([['mtn']]);
+  });
+
+  it('retries an effect whose success could not be recorded', async () => {
+    const postId = await seedCollaborativePost();
+    const markEffectDone = vi.fn(async (effect: string) => {
+      if (effect === 'notification') throw new Error('lease lost');
+    });
+
+    await expect(
+      handleEngagementOutboxEvent(event('post.like', postId), { markEffectDone }),
+    ).rejects.toThrow('notification: lease lost');
+  });
+
+  it('does not notify for a like older than the notification window', async () => {
+    /**
+     * A drained backlog must not land on authors as a burst of pushes for likes
+     * days old. The like is still published to MTN and federation, and the
+     * notification is recorded as handled so it is never attempted again.
+     */
+    const postId = await seedCollaborativePost();
+    const markEffectDone = vi.fn().mockResolvedValue(undefined);
+    const now = new Date(CREATED_AT.getTime() + LIKE_NOTIFICATION_MAX_AGE_MS + 1);
+
+    await handleEngagementOutboxEvent(event('post.like', postId), { markEffectDone }, now);
+
+    expect(mocks.createPostAuthorNotificationsStrict).not.toHaveBeenCalled();
+    expect(mocks.emitLikeCreatedStrict).toHaveBeenCalledOnce();
+    expect(mocks.federateAsResolvedActorAndWait).toHaveBeenCalledOnce();
+    expect(markEffectDone.mock.calls).toEqual([['mtn'], ['notification'], ['federation']]);
+  });
+
+  it('still notifies for a like inside the window', async () => {
+    const postId = await seedCollaborativePost();
+    const now = new Date(CREATED_AT.getTime() + LIKE_NOTIFICATION_MAX_AGE_MS - 1);
+
+    await handleEngagementOutboxEvent(event('post.like', postId), undefined, now);
+
+    expect(mocks.createPostAuthorNotificationsStrict).toHaveBeenCalledOnce();
   });
 });
 

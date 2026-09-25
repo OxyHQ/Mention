@@ -1,0 +1,13 @@
+-- The engagement outbox records which side effects of an event already landed.
+--
+-- WHY: `post.like` ran its effects in sequence (MTN record, then the author
+-- notification, then federation) and stopped at the first failure, so one
+-- account whose MTN chain could not append kept its likes' notifications and
+-- federation deliveries from running for weeks. The dispatcher now runs every
+-- effect independently and records each success here, so a retry repeats only
+-- the effects that failed — and never re-runs a notification that already
+-- landed (a re-run would float an existing notification back to the top).
+--
+-- Adding a NOT NULL column with a constant default is safe during a rolling
+-- deploy: the previous release neither reads nor writes it.
+ALTER TABLE "engagement_outbox" ADD COLUMN "completed_effects" text[] DEFAULT '{}'::text[] NOT NULL;

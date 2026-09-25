@@ -52,6 +52,7 @@ import {
   enqueueEngagementOutboxEvent,
   engagementOutboxEventId,
   failEngagementOutboxEvent,
+  markEngagementOutboxEffectDone,
   renewEngagementOutboxEvent,
 } from '../../services/EngagementOutboxService';
 
@@ -1118,6 +1119,78 @@ describe('dispatching', () => {
     expect(stored?.status).toBe('pending');
     expect(stored?.lastError).toBe('temporary failure');
     expect(stored?.leaseOwner).toBeNull();
+  });
+
+  it('records each effect that landed, so the retry sees only what is left', async () => {
+    const postId = await seedPost();
+    const saved = await savePostCommand({ userId: 'viewer-a', postId });
+    const eventId = saved.outboxEventId ?? '';
+
+    const firstPass = await dispatchEngagementOutbox({
+      handler: async (_event, context) => {
+        await context.markEffectDone('mtn');
+        // Recording the same effect twice must not duplicate it.
+        await context.markEffectDone('mtn');
+        throw new Error('federation: queue unavailable');
+      },
+      leaseOwner: 'worker-a',
+      batchSize: 10,
+    });
+
+    expect(firstPass).toEqual({ processed: 0, failed: 1 });
+    const stored = await outboxRow(eventId);
+    expect(stored?.status).toBe('pending');
+    expect(stored?.completedEffects).toEqual(['mtn']);
+
+    // The next claim hands the progress back to the handler.
+    await db
+      .update(engagementOutbox)
+      .set({ availableAt: new Date(0) })
+      .where(eq(engagementOutbox.id, eventId));
+    const reclaimed = await claimEngagementOutboxEvent({ leaseOwner: 'worker-b', eventId });
+    expect(reclaimed?.completedEffects).toEqual(['mtn']);
+  });
+
+  it('fails the effect when the lease moved to another worker mid-delivery', async () => {
+    const postId = await seedPost();
+    const saved = await savePostCommand({ userId: 'viewer-a', postId });
+    const eventId = saved.outboxEventId ?? '';
+    let recordError: unknown;
+
+    await dispatchEngagementOutbox({
+      handler: async (event, context) => {
+        if (event.id !== eventId) return;
+        // Another worker took the event over while this one was delivering.
+        await db
+          .update(engagementOutbox)
+          .set({ leaseOwner: 'worker-b' })
+          .where(eq(engagementOutbox.id, eventId));
+        await context.markEffectDone('mtn').catch((error: unknown) => {
+          recordError = error;
+        });
+      },
+      leaseOwner: 'worker-a',
+      batchSize: 10,
+    });
+
+    expect(recordError).toBeInstanceOf(Error);
+    expect((recordError as Error).message).toBe('lease lost before recording the mtn effect');
+    expect((await outboxRow(eventId))?.completedEffects).toEqual([]);
+  });
+
+  it('refuses to record progress on a lease this worker no longer holds', async () => {
+    const postId = await seedPost();
+    const saved = await savePostCommand({ userId: 'viewer-a', postId });
+    const eventId = saved.outboxEventId ?? '';
+    await claimEngagementOutboxEvent({ leaseOwner: 'worker-a', eventId });
+
+    await expect(
+      markEngagementOutboxEffectDone(eventId, 'worker-b', 'mtn'),
+    ).resolves.toBe(false);
+    await expect(
+      markEngagementOutboxEffectDone(eventId, 'worker-a', 'mtn'),
+    ).resolves.toBe(true);
+    expect((await outboxRow(eventId))?.completedEffects).toEqual(['mtn']);
   });
 
   it('stringifies a non-Error rejection rather than losing the reason', async () => {

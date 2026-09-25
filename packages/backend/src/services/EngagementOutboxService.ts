@@ -51,6 +51,7 @@ import type { SelectedRow } from '@oxy.so/db';
 import {
   ENGAGEMENT_OUTBOX_RETENTION_SECONDS,
   engagementOutbox,
+  type ENGAGEMENT_OUTBOX_EFFECTS,
 } from '../db/schema/outbox';
 import { logger } from '../utils/logger';
 
@@ -69,6 +70,9 @@ const MAX_LAST_ERROR_LENGTH = 2_000;
  * CHECK constraint cannot drift apart.
  */
 export type EngagementOutboxKind = (typeof engagementOutbox.$inferSelect)['kind'];
+
+/** One independently-tracked side effect of an event. */
+export type EngagementOutboxEffect = (typeof ENGAGEMENT_OUTBOX_EFFECTS)[number];
 
 /**
  * The vote value carried across a transition. `null` is a real value here — it
@@ -110,6 +114,8 @@ export interface EngagementOutboxEvent {
   leaseUntil?: Date;
   expiresAt: Date;
   createdAt: Date;
+  /** Side effects already delivered by an earlier attempt; absent means none. */
+  completedEffects?: readonly EngagementOutboxEffect[];
 }
 
 export interface EnqueueEngagementEventInput {
@@ -141,6 +147,7 @@ const EVENT_COLUMNS = {
   leaseUntil: engagementOutbox.leaseUntil,
   expiresAt: engagementOutbox.expiresAt,
   createdAt: engagementOutbox.createdAt,
+  completedEffects: engagementOutbox.completedEffects,
 } as const;
 
 type EventRow = SelectedRow<typeof EVENT_COLUMNS>;
@@ -181,6 +188,7 @@ function toEvent(row: EventRow): EngagementOutboxEvent {
     leaseUntil: row.leaseUntil ?? undefined,
     expiresAt: row.expiresAt,
     createdAt: row.createdAt,
+    completedEffects: row.completedEffects,
   };
 }
 
@@ -423,6 +431,36 @@ export async function renewEngagementOutboxEvent(
   return renewed.length === 1;
 }
 
+/**
+ * Record that one side effect of a claimed event has landed, so a later retry
+ * of the same event skips it.
+ *
+ * Owner-checked like every other transition: a worker whose lease expired must
+ * not write progress onto an event another worker now holds. Recording an
+ * effect twice is a no-op rather than a duplicate entry. Returns whether this
+ * worker still owned the lease.
+ */
+export async function markEngagementOutboxEffectDone(
+  eventId: string,
+  leaseOwner: string,
+  effect: EngagementOutboxEffect,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const marked = await getDb()
+    .update(engagementOutbox)
+    .set({
+      completedEffects: sql`case
+        when ${effect} = any(${engagementOutbox.completedEffects})
+          then ${engagementOutbox.completedEffects}
+        else array_append(${engagementOutbox.completedEffects}, ${effect})
+      end`,
+      updatedAt: now,
+    })
+    .where(ownedLease(eventId, leaseOwner, now))
+    .returning({ id: engagementOutbox.id });
+  return marked.length === 1;
+}
+
 function nextAttemptAt(attempts: number, now: Date): Date {
   const exponent = Math.max(0, Math.min(attempts - 1, 10));
   const delayMs = Math.min(1_000 * (2 ** exponent), MAX_BACKOFF_MS);
@@ -452,8 +490,18 @@ export async function failEngagementOutboxEvent(
   return released.length === 1;
 }
 
+/** What a handler may report back to the dispatcher while it works. */
+export interface EngagementOutboxHandlerContext {
+  /**
+   * Durably record that one side effect landed. Rejects when the lease is no
+   * longer this worker's, which the handler treats like any other failure.
+   */
+  markEffectDone(effect: EngagementOutboxEffect): Promise<void>;
+}
+
 export type EngagementOutboxHandler = (
   event: EngagementOutboxEvent,
+  context: EngagementOutboxHandlerContext,
 ) => Promise<void>;
 
 interface LeaseHeartbeatResult {
@@ -563,8 +611,20 @@ export async function dispatchEngagementOutbox(options: {
       leaseMs,
     });
     let deliveryError: unknown;
+    const context: EngagementOutboxHandlerContext = {
+      async markEffectDone(effect) {
+        const stillOwner = await markEngagementOutboxEffectDone(
+          event.id,
+          leaseOwner,
+          effect,
+        );
+        if (!stillOwner) {
+          throw new Error(`lease lost before recording the ${effect} effect`);
+        }
+      },
+    };
     try {
-      await options.handler(event);
+      await options.handler(event, context);
     } catch (error) {
       deliveryError = error;
     }

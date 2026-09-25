@@ -28,6 +28,13 @@ export const ENGAGEMENT_OUTBOX_KINDS = [
 export const ENGAGEMENT_OUTBOX_STATUSES = ['pending', 'processing', 'processed'] as const;
 
 /**
+ * The independent side effects one engagement event can carry. Each is
+ * recorded in `completed_effects` as it succeeds, so a retry re-runs only the
+ * ones that have not — see `EngagementOutboxDispatcher`.
+ */
+export const ENGAGEMENT_OUTBOX_EFFECTS = ['mtn', 'notification', 'federation'] as const;
+
+/**
  * 30 days. A hard ceiling so a stalled dispatcher cannot turn the outbox into an
  * unbounded table. See the WARNING on this table's entry in `db/expiry.ts`: the
  * sweep deletes by deadline regardless of status, so operational alerting has to
@@ -93,6 +100,16 @@ export const engagementOutbox = pgTable(
     leaseOwner: text(),
     leaseUntil: timestamptz(),
     lastError: text(),
+    /**
+     * The side effects (`ENGAGEMENT_OUTBOX_EFFECTS`) already delivered for this
+     * event. Written under the owner-checked lease as each effect succeeds, so
+     * one failing effect neither blocks the others nor makes a retry repeat
+     * the ones that landed.
+     */
+    completedEffects: text({ enum: ENGAGEMENT_OUTBOX_EFFECTS })
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     processedAt: timestamptz(),
     /** Retention ceiling, swept by `db/expiry.ts`. */
     expiresAt: timestamptz().notNull(),

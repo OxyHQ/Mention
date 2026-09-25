@@ -12,7 +12,9 @@ import {
 } from './mtn/MentionRecordEmitter';
 import {
   dispatchEngagementOutbox,
+  type EngagementOutboxEffect,
   type EngagementOutboxEvent,
+  type EngagementOutboxHandlerContext,
 } from './EngagementOutboxService';
 import { createPostAuthorNotificationsStrict } from '../utils/notificationUtils';
 import { logger } from '../utils/logger';
@@ -86,13 +88,79 @@ async function deliverFederatedLike(
 }
 
 /**
+ * How old a like may be and still notify its post's authors.
+ *
+ * `createNotification` stamps the row with the delivery time and sends a push,
+ * so a like delivered late arrives as a brand-new "X liked your post". That is
+ * right for a like a few minutes or hours behind — the outbox backoff tops out
+ * at about seventeen minutes, so any ordinary outage drains well inside this
+ * window — and wrong for one held back for days: the post has moved on, and a
+ * drained backlog would land on its authors as a burst of stale pushes all at
+ * once. Past this age the notification is skipped (and recorded as done); the
+ * like itself, its counter, its MTN record and its federation delivery are all
+ * unaffected.
+ */
+export const LIKE_NOTIFICATION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/** A context for callers that track no progress (a direct call, a test). */
+const UNTRACKED: EngagementOutboxHandlerContext = {
+  async markEffectDone() {},
+};
+
+interface EngagementEffect {
+  name: EngagementOutboxEffect;
+  run: () => Promise<void>;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Run an event's side effects INDEPENDENTLY.
+ *
+ * They used to run in sequence and stop at the first failure, which made each
+ * one hostage to the one before it: an MTN append that could never succeed kept
+ * a like's author notification and its federation delivery from ever running.
+ * Now every effect not yet recorded as done is attempted on every attempt, each
+ * success is recorded durably before the next effect starts, and the event is
+ * failed — and so retried — only if some effect failed, naming each one. A
+ * retry therefore repeats only what did not land.
+ */
+async function runEffects(
+  event: EngagementOutboxEvent,
+  context: EngagementOutboxHandlerContext,
+  effects: EngagementEffect[],
+): Promise<void> {
+  const done = new Set(event.completedEffects ?? []);
+  const failures: Array<{ name: EngagementOutboxEffect; error: unknown }> = [];
+  for (const effect of effects) {
+    if (done.has(effect.name)) continue;
+    try {
+      await effect.run();
+      await context.markEffectDone(effect.name);
+    } catch (error) {
+      failures.push({ name: effect.name, error });
+    }
+  }
+  if (failures.length === 0) return;
+  const message = failures
+    .map((failure) => `${failure.name}: ${errorMessage(failure.error)}`)
+    .join('; ');
+  throw new Error(message, { cause: failures[0]?.error });
+}
+
+/**
  * Execute every durable engagement side effect. Each downstream identity is
  * deterministic: MTN preserves the relationship rkey and deduplicates by the
  * durable event id, ActivityPub uses that relation id, and Notification has a
- * unique actor/type/entity index.
+ * unique actor/type/entity index. On top of that, `completed_effects` keeps a
+ * retry from repeating an effect that already landed.
  */
 export async function handleEngagementOutboxEvent(
   event: EngagementOutboxEvent,
+  context: EngagementOutboxHandlerContext = UNTRACKED,
+  now: Date = new Date(),
 ): Promise<void> {
   const {
     actorOxyUserId,
@@ -108,43 +176,80 @@ export async function handleEngagementOutboxEvent(
 
   switch (event.kind) {
     case 'post.like':
-      await emitLikeCreatedStrict({
-        likerOxyUserId: actorOxyUserId,
-        likeRkey: relationshipId,
-        likedPostId: postId,
-        likedPostOwnerOxyUserId: postOwnerOxyUserId,
-        ...mtnEventIdentity,
-      });
-      await createPostAuthorNotificationsStrict(await loadPostAuthorship(postId), {
-        actorId: actorOxyUserId,
-        type: 'like',
-        entityId: postId,
-        entityType: 'post',
-      });
-      await deliverFederatedLike(event, 'post.like');
+      await runEffects(event, context, [
+        {
+          name: 'mtn',
+          run: () => emitLikeCreatedStrict({
+            likerOxyUserId: actorOxyUserId,
+            likeRkey: relationshipId,
+            likedPostId: postId,
+            likedPostOwnerOxyUserId: postOwnerOxyUserId,
+            ...mtnEventIdentity,
+          }),
+        },
+        {
+          name: 'notification',
+          run: async () => {
+            const ageMs = now.getTime() - event.createdAt.getTime();
+            if (ageMs > LIKE_NOTIFICATION_MAX_AGE_MS) {
+              logger.info('[EngagementOutbox] skipped a stale like notification', {
+                eventId: event.id,
+                ageHours: Math.floor(ageMs / 3_600_000),
+              });
+              return;
+            }
+            await createPostAuthorNotificationsStrict(await loadPostAuthorship(postId), {
+              actorId: actorOxyUserId,
+              type: 'like',
+              entityId: postId,
+              entityType: 'post',
+            });
+          },
+        },
+        {
+          name: 'federation',
+          run: () => deliverFederatedLike(event, 'post.like'),
+        },
+      ]);
       return;
 
     case 'post.unlike':
-      await emitTombstoneStrict({
-        authorOxyUserId: actorOxyUserId,
-        tombstoneRkey: relationshipId,
-        subjectUri: likeRecordUri(actorOxyUserId, relationshipId),
-        ...mtnEventIdentity,
-      });
-      await deliverFederatedLike(event, 'post.unlike');
+      await runEffects(event, context, [
+        {
+          name: 'mtn',
+          run: () => emitTombstoneStrict({
+            authorOxyUserId: actorOxyUserId,
+            tombstoneRkey: relationshipId,
+            subjectUri: likeRecordUri(actorOxyUserId, relationshipId),
+            ...mtnEventIdentity,
+          }),
+        },
+        {
+          name: 'federation',
+          run: () => deliverFederatedLike(event, 'post.unlike'),
+        },
+      ]);
       return;
 
     case 'post.downvote':
       // A new downvote has no cross-network side effect. Switching from an
       // upvote must durably retract the prior MTN/AP Like.
       if (previousValue === 1) {
-        await emitTombstoneStrict({
-          authorOxyUserId: actorOxyUserId,
-          tombstoneRkey: relationshipId,
-          subjectUri: likeRecordUri(actorOxyUserId, relationshipId),
-          ...mtnEventIdentity,
-        });
-        await deliverFederatedLike(event, 'post.unlike');
+        await runEffects(event, context, [
+          {
+            name: 'mtn',
+            run: () => emitTombstoneStrict({
+              authorOxyUserId: actorOxyUserId,
+              tombstoneRkey: relationshipId,
+              subjectUri: likeRecordUri(actorOxyUserId, relationshipId),
+              ...mtnEventIdentity,
+            }),
+          },
+          {
+            name: 'federation',
+            run: () => deliverFederatedLike(event, 'post.unlike'),
+          },
+        ]);
       }
       return;
 
@@ -152,22 +257,32 @@ export async function handleEngagementOutboxEvent(
       return;
 
     case 'post.save':
-      await emitBookmarkCreatedStrict({
-        ownerOxyUserId: actorOxyUserId,
-        bookmarkRkey: relationshipId,
-        bookmarkedPostId: postId,
-        bookmarkedPostOwnerOxyUserId: postOwnerOxyUserId,
-        ...mtnEventIdentity,
-      });
+      await runEffects(event, context, [
+        {
+          name: 'mtn',
+          run: () => emitBookmarkCreatedStrict({
+            ownerOxyUserId: actorOxyUserId,
+            bookmarkRkey: relationshipId,
+            bookmarkedPostId: postId,
+            bookmarkedPostOwnerOxyUserId: postOwnerOxyUserId,
+            ...mtnEventIdentity,
+          }),
+        },
+      ]);
       return;
 
     case 'post.unsave':
-      await emitTombstoneStrict({
-        authorOxyUserId: actorOxyUserId,
-        tombstoneRkey: relationshipId,
-        subjectUri: bookmarkRecordUri(actorOxyUserId, relationshipId),
-        ...mtnEventIdentity,
-      });
+      await runEffects(event, context, [
+        {
+          name: 'mtn',
+          run: () => emitTombstoneStrict({
+            authorOxyUserId: actorOxyUserId,
+            tombstoneRkey: relationshipId,
+            subjectUri: bookmarkRecordUri(actorOxyUserId, relationshipId),
+            ...mtnEventIdentity,
+          }),
+        },
+      ]);
       return;
   }
 }

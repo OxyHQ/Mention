@@ -80,6 +80,35 @@ const CHAIN_CONFLICT_CONSTRAINTS = [
   'mention_signed_records_idempotency_key',
 ] as const;
 
+/**
+ * Rows read per page while walking forward from a head that fell behind the
+ * ledger. The walk stops at the first row that does not extend the tip, so a
+ * page only matters for a long run of lost head advances.
+ */
+const RECONCILE_WALK_PAGE = 500;
+
+/**
+ * What {@link MentionRecordStoreImpl.reconcileHead} found.
+ *
+ * `consistent`: nothing in the ledger sits above the head — a `chain_conflict`
+ * was a genuine concurrent writer, and re-reading the head is the whole remedy.
+ *
+ * `repaired`: the head was behind rows that occupy the next `seq`, which no
+ * amount of re-reading could fix. `fastForwarded` rows DID extend the head (an
+ * append whose head advance was lost) and the head now points at the last of
+ * them; `archived` rows did NOT descend from the head and were reclassified as
+ * fork archives, freeing their `seq` for the linear chain.
+ */
+export type HeadReconciliation =
+  | { kind: 'consistent' }
+  | {
+      kind: 'repaired';
+      fromSeq: number | null;
+      toSeq: number | null;
+      fastForwarded: number;
+      archived: number;
+    };
+
 export interface StoredIdempotentRecord {
   recordId: string;
   seq: number;
@@ -379,6 +408,161 @@ export class MentionRecordStoreImpl implements RecordStore {
       idempotencyKey: idempotencyKey ?? null,
     });
     return { ok: true, recordId, seq: -1 };
+  }
+
+  /**
+   * Bring the head back in line with the ledger when rows already occupy the
+   * `seq` after it.
+   *
+   * ## Why a re-read is not enough
+   *
+   * The append derives `seq = head.seq + 1` and relies on the unique
+   * `(oxy_user_id, seq)` index to reject a concurrent writer, whose own append
+   * advanced the head in the same transaction — so the loser re-reads the head
+   * and wins the next round. That reasoning holds only while the head and the
+   * ledger agree. When a row sits at `head.seq + 1` WITHOUT the head pointing at
+   * it, every re-read returns the same head, every attempt builds the same `seq`,
+   * and every insert collides: a permanent `chain_conflict` that no retry
+   * resolves.
+   *
+   * Production reached that state through the Mongo → Postgres cutover: one
+   * account's chain arrived as seq 1..100 with neither its seq-0 genesis nor its
+   * head row, so the first post-cutover append found no head, wrote a NEW
+   * genesis at seq 0, and every append after it collided with the imported
+   * seq 1. Its likes and saves then failed in the engagement outbox for weeks.
+   *
+   * ## What it does
+   *
+   * Under a row lock on the head, walk forward from the head:
+   *
+   *  - a row at `tip.seq + 1` whose `prev` is the tip's `recordId` DOES extend
+   *    the chain — an append whose head advance was lost — so the head moves
+   *    onto it (fast-forward);
+   *  - every row still above the tip after the walk does NOT descend from the
+   *    head. It is reclassified as a fork archive — `chain_status = 'conflict'`
+   *    with `seq`/`prev` cleared — which is the one local-metadata mutation the
+   *    ledger permits (see `mention_signed_records` in `db/schema/mtn.ts`) and
+   *    the same shape `MentionNodeSyncService` gives a node's fork. The signed
+   *    envelope is untouched and the row still takes part in last-writer-wins
+   *    materialization; it only leaves the linear log, which it could not be
+   *    verified in anyway, since its ancestry does not reach the genesis.
+   *
+   * A concurrent writer is safe against this: its uncommitted row is invisible
+   * here, the head row lock serializes its head advance behind this
+   * transaction, and the unique index remains the backstop — the worst outcome
+   * of a race is one more ordinary `chain_conflict` and re-read.
+   */
+  async reconcileHead(subject: string): Promise<HeadReconciliation> {
+    const oxyUserId = parseUserDid(subject);
+    if (!oxyUserId) {
+      return { kind: 'consistent' };
+    }
+
+    return getDb().transaction(async (tx) => {
+      const [head] = await tx
+        .select({
+          seq: mentionRepoHeads.seq,
+          headRecordId: mentionRepoHeads.headRecordId,
+        })
+        .from(mentionRepoHeads)
+        .where(eq(mentionRepoHeads.oxyUserId, oxyUserId))
+        .limit(1)
+        .for('update');
+
+      const baseSeq = head ? head.seq : -1;
+      let tipSeq = baseSeq;
+      let tipRecordId: string | null = head ? head.headRecordId : null;
+      let tipSubjectDid: string | null = null;
+      let fastForwarded = 0;
+
+      // Walk forward while each next row extends the tip. Every row with a
+      // non-null `seq` is read, whatever its status, because every one of them
+      // holds a slot in the unique `(oxy_user_id, seq)` index.
+      walk: for (;;) {
+        const page = await tx
+          .select({
+            seq: mentionSignedRecords.seq,
+            prev: mentionSignedRecords.prev,
+            recordId: mentionSignedRecords.recordId,
+            subjectDid: mentionSignedRecords.subjectDid,
+            verified: mentionSignedRecords.verified,
+            chainStatus: mentionSignedRecords.chainStatus,
+          })
+          .from(mentionSignedRecords)
+          .where(
+            and(
+              eq(mentionSignedRecords.oxyUserId, oxyUserId),
+              gt(mentionSignedRecords.seq, tipSeq),
+            ),
+          )
+          .orderBy(asc(mentionSignedRecords.seq))
+          .limit(RECONCILE_WALK_PAGE);
+
+        for (const row of page) {
+          const extendsTip =
+            row.seq === tipSeq + 1 &&
+            row.recordId !== null &&
+            row.prev === tipRecordId &&
+            row.verified &&
+            row.chainStatus !== MTN_CHAIN_STATUS.CONFLICT;
+          if (!extendsTip || row.seq === null || row.recordId === null) break walk;
+          tipSeq = row.seq;
+          tipRecordId = row.recordId;
+          tipSubjectDid = row.subjectDid;
+          fastForwarded += 1;
+        }
+        if (page.length < RECONCILE_WALK_PAGE) break;
+      }
+
+      // Everything still above the tip is unreachable from it.
+      const archivedRows = await tx
+        .update(mentionSignedRecords)
+        .set({
+          chainStatus: MTN_CHAIN_STATUS.CONFLICT,
+          seq: null,
+          prev: null,
+        })
+        .where(
+          and(
+            eq(mentionSignedRecords.oxyUserId, oxyUserId),
+            gt(mentionSignedRecords.seq, tipSeq),
+          ),
+        )
+        .returning({ id: mentionSignedRecords.id });
+      const archived = archivedRows.length;
+
+      if (fastForwarded > 0 && tipRecordId !== null) {
+        await tx
+          .insert(mentionRepoHeads)
+          .values({
+            oxyUserId,
+            subjectDid: tipSubjectDid ?? subject,
+            seq: tipSeq,
+            headRecordId: tipRecordId,
+            recordCount: fastForwarded,
+          })
+          .onConflictDoUpdate({
+            target: mentionRepoHeads.oxyUserId,
+            set: {
+              seq: tipSeq,
+              headRecordId: tipRecordId,
+              recordCount: sql`${mentionRepoHeads.recordCount} + ${fastForwarded}`,
+              updatedAt: new Date(),
+            },
+          });
+      }
+
+      if (fastForwarded === 0 && archived === 0) {
+        return { kind: 'consistent' as const };
+      }
+      return {
+        kind: 'repaired' as const,
+        fromSeq: head ? head.seq : null,
+        toSeq: tipSeq >= 0 ? tipSeq : null,
+        fastForwarded,
+        archived,
+      };
+    });
   }
 
   async getLogSince(subject: string, sinceSeq: number, limit: number = DEFAULT_LOG_LIMIT): Promise<SignedRecordEnvelope[]> {
