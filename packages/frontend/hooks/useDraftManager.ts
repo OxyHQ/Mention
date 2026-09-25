@@ -105,7 +105,7 @@ const readMentions = (value: unknown): MentionData[] =>
  * shape. Shared by the three functions that read it so the contract is stated
  * once instead of re-spelled per function.
  */
-interface ComposeDraftRefs {
+export interface ComposeDraftRefs {
   postContent: string;
   mediaIds: ComposerMediaItem[];
   pollOptions: string[];
@@ -161,8 +161,25 @@ export const useDraftManager = ({
   deleteDraft,
   onDraftLoad,
 }: DraftManagerProps) => {
-  const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
+  const [currentDraftId, setCurrentDraftIdState] = useState<string | null>(null);
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * The draft id as of NOW, not as of the last render. A publish reads it after
+   * awaiting the network, by which time an autosave that fired mid-request may
+   * have created the draft — the rendered `currentDraftId` its closure captured
+   * would still say there is none, and that draft would outlive the post it
+   * duplicates.
+   */
+  const draftIdRef = useRef<string | null>(null);
+  /** The autosave write in flight, if any — a publish settles it before deleting. */
+  const pendingSaveRef = useRef<Promise<void> | null>(null);
+  /** True from the moment a publish starts until the composer has been emptied. */
+  const publishingRef = useRef(false);
+
+  const setCurrentDraftId = useCallback((draftId: string | null) => {
+    draftIdRef.current = draftId;
+    setCurrentDraftIdState(draftId);
+  }, []);
 
   const buildDraftData = useCallback((refs: ComposeDraftRefs): DraftInput => {
     const shouldShowPollCreator = refs.showPollCreator ||
@@ -257,22 +274,85 @@ export const useDraftManager = ({
   }, []);
 
   const autoSave = useCallback(async (refs: ComposeDraftRefs) => {
+    // A post being published is not a draft. Saving it now would persist the
+    // very text the publish is about to put in the feed.
+    if (publishingRef.current) return;
+    const draftId = draftIdRef.current ?? refs.currentDraftId;
+
     if (!hasContent(refs)) {
-      if (refs.currentDraftId) {
-        await deleteDraft(refs.currentDraftId);
+      if (draftId) {
+        await deleteDraft(draftId);
         setCurrentDraftId(null);
       }
       return;
     }
 
+    const save = (async () => {
+      try {
+        const draftData = buildDraftData({ ...refs, currentDraftId: draftId });
+        const savedId = await saveDraft(draftData);
+        setCurrentDraftId(savedId);
+      } catch (error) {
+        logger.error('Error auto-saving draft', error);
+      }
+    })();
+    pendingSaveRef.current = save;
     try {
-      const draftData = buildDraftData(refs);
-      const draftId = await saveDraft(draftData);
-      setCurrentDraftId(draftId);
-    } catch (error) {
-      logger.error('Error auto-saving draft', error);
+      await save;
+    } finally {
+      if (pendingSaveRef.current === save) pendingSaveRef.current = null;
     }
-  }, [hasContent, buildDraftData, saveDraft, deleteDraft]);
+  }, [hasContent, buildDraftData, saveDraft, deleteDraft, setCurrentDraftId]);
+
+  /**
+   * A publish is starting: stop autosaving. The pending debounce is cancelled
+   * and any autosave that fires before the publish settles is a no-op.
+   */
+  const beginPublish = useCallback(() => {
+    publishingRef.current = true;
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
+    }
+  }, []);
+
+  /**
+   * The publish succeeded, so the draft it came from is spent: let any autosave
+   * already in flight land, then delete whatever draft exists NOW (see
+   * {@link draftIdRef}). Autosave stays off until {@link endPublish} — the
+   * composer still holds the published text until it resets itself.
+   *
+   * A failed delete is logged, not thrown: the post is out, and the author must
+   * not be told otherwise because a local cleanup failed.
+   */
+  const publishSucceeded = useCallback(async () => {
+    publishingRef.current = true;
+    if (pendingSaveRef.current) await pendingSaveRef.current;
+    const draftId = draftIdRef.current;
+    setCurrentDraftId(null);
+    if (!draftId) return;
+    try {
+      await deleteDraft(draftId);
+    } catch (error) {
+      logger.error('Error deleting a published draft', error);
+    }
+  }, [deleteDraft, setCurrentDraftId]);
+
+  /**
+   * The publish failed: the author's work is still a draft. Autosave resumes,
+   * and the work is saved NOW — {@link beginPublish} cancelled the debounce
+   * that would otherwise have saved it, and nothing about a failed request
+   * changes the composer's content to re-arm it.
+   */
+  const publishFailed = useCallback(async (refs: ComposeDraftRefs) => {
+    publishingRef.current = false;
+    await autoSave(refs);
+  }, [autoSave]);
+
+  /** The composer has been emptied after a publish; autosave may resume. */
+  const endPublish = useCallback(() => {
+    publishingRef.current = false;
+  }, []);
 
   const loadDraft = useCallback((draft: StoredDraft) => {
     const mediaIdsData = readMediaItems(draft.mediaIds);
@@ -447,7 +527,7 @@ export const useDraftManager = ({
     });
 
     setCurrentDraftId(readString(draft.id) ?? null);
-  }, [onDraftLoad]);
+  }, [onDraftLoad, setCurrentDraftId]);
 
   return {
     currentDraftId,
@@ -455,5 +535,9 @@ export const useDraftManager = ({
     autoSaveTimeoutRef,
     autoSave,
     loadDraft,
+    beginPublish,
+    publishSucceeded,
+    publishFailed,
+    endPublish,
   };
 };
