@@ -2,19 +2,17 @@ import React, { useCallback } from 'react';
 import { RefreshControl, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import type { FlashListProps, FlashListRef } from '@shopify/flash-list';
-import Animated, {
-    useAnimatedScrollHandler,
-    type AnimatedProps,
-} from 'react-native-reanimated';
+import Animated, { type AnimatedProps } from 'react-native-reanimated';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useFocusedScrollable } from '@/hooks/useFocusedScrollable';
+import { useScrollPositionHandler } from '@/hooks/useScrollPositionHandler';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import type { NotificationListItem } from '@/utils/groupNotifications';
 
 /**
- * The list as a reanimated component, so its `onScroll` can be a worklet — see
- * the handler below. Built once at module scope because
+ * The list as a reanimated component, so its `onScroll` can be a worklet
+ * (`useScrollPositionHandler`). Built once at module scope because
  * `createAnimatedComponent` returns a new component type per call, and a new
  * type per render would remount the list on every render.
  *
@@ -64,25 +62,12 @@ export function NotificationsList({
     isFetchingMore,
 }: NotificationsListProps) {
     const theme = useTheme();
-    const { scrollPosition, scrollEventThrottle } = useLayoutScroll();
+    const { scrollEventThrottle } = useLayoutScroll();
     // The notifications tab stays mounted behind the others; it owns the scroll
     // slot only while it is in front.
     const assignListRef = useFocusedScrollable<FlashListRef<NotificationListItem>>({ initialOffset: 0 });
 
-    /**
-     * This list's offset has two readers: the auto-hiding chrome, which
-     * integrates it from `scrollPosition` in a UI-thread worklet, and the
-     * reselect "already at the top?" check, which reads the shared value on
-     * demand. Neither needs it pushed to the JS thread, and as a JS callback
-     * it could only arrive when the JS thread was free — which, on the tab whose
-     * rows carry avatars and text, is exactly when it is not.
-     */
-    const handleScrollEvent = useAnimatedScrollHandler({
-        onScroll: (event) => {
-            'worklet';
-            scrollPosition.value = event.contentOffset.y;
-        },
-    });
+    const handleScrollEvent = useScrollPositionHandler();
 
     const renderItem = useCallback(({ item }: { item: NotificationListItem }) => renderRow(item), [renderRow]);
     const getItemKey = useCallback((item: NotificationListItem) => item.key, []);

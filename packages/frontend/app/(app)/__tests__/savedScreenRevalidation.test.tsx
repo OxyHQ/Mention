@@ -61,8 +61,8 @@ jest.mock('expo-router', () => ({
 
 // Reselect is the shell's (covered on its own); this suite is about the data.
 jest.mock('@/context/ScreenReselectContext', () => ({
-  useReselect: () => () => {},
   useScreenReselect: () => {},
+  useTabSelect: (_active: unknown, select: (tab: unknown) => void) => select,
 }));
 
 // The header dock is layout, not the code under test.

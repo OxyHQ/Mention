@@ -245,15 +245,11 @@ export function LayoutScrollProvider({
         scrollToOffset(0);
     }, [scrollToOffset]);
 
-    // Native scrollers write the shared value from their scroll worklets, so it
-    // is the offset of whichever list owns the slot; it only means something
-    // while one does.
-    const getScrollOffset = useCallback((): number | null => {
-        if (IS_WEB) {
-            return typeof window === 'undefined' ? 0 : window.scrollY || window.pageYOffset || 0;
-        }
-        return scrollableRef.current ? scrollPosition.value : null;
-    }, [scrollPosition]);
+    // The shared value mirrors the document on web and whichever list owns the
+    // slot on native, so on native it only means something while one does.
+    const getScrollOffset = useCallback((): number | null => (
+        IS_WEB || scrollableRef.current ? scrollPosition.value : null
+    ), [scrollPosition]);
 
     const value = useMemo<LayoutScrollContextValue>(() => ({
         scrollY,

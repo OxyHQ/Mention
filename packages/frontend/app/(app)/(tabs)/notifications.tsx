@@ -37,7 +37,7 @@ import {
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { NotificationsList } from '@/components/NotificationsList';
 import { NotificationSkeleton } from '@/components/notifications/NotificationSkeleton';
-import { useReselect, useScreenReselect } from '@/context/ScreenReselectContext';
+import { useScreenReselect, useTabSelect } from '@/context/ScreenReselectContext';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { StatusBar } from 'expo-status-bar';
 import { toast } from '@oxy.so/bloom/toast';
@@ -101,7 +101,6 @@ const NotificationsScreen: React.FC = () => {
     const { t } = useTranslation();
     const theme = useTheme();
     const [activeTab, setActiveTab] = useState<NotificationTab>('all');
-    const reselect = useReselect();
 
     // The realtime socket is mounted app-wide via <RealtimeNotificationsBridge/>
     // (a module singleton). This screen must NOT also call
@@ -277,14 +276,8 @@ const NotificationsScreen: React.FC = () => {
         }
     }, [markAllAsReadMutation, t, unreadCount]);
 
-    const handleTabPress = useCallback((tabId: string) => {
-        const tab = tabId as NotificationTab;
-        if (tab === activeTab) {
-            reselect();
-        } else {
-            setActiveTab(tab);
-        }
-    }, [activeTab, reselect]);
+    const selectTab = useTabSelect(activeTab, setActiveTab);
+    const handleTabPress = useCallback((tabId: string) => selectTab(tabId as NotificationTab), [selectTab]);
 
     const validatedNotifications = useMemo(
         () => validateNotifications(allNotifications),

@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { VerifiedIcon } from '@/assets/icons/verified-icon';
 import { useRouter, useLocalSearchParams, useIsFocused } from 'expo-router';
-import { useReselect, useScreenReselect } from '@/context/ScreenReselectContext';
+import { useReselectReloadKey, useTabSelect } from '@/context/ScreenReselectContext';
 import { usePostsStore } from '@/stores/postsStore';
 import { useVideoMuteStore } from '@/stores/videoMuteStore';
 import { feedService } from '@/services/feedService';
@@ -1382,11 +1382,9 @@ export default function VideosScreen() {
 
     // Reselecting the tab away from the first slide goes back to it; on the
     // first slide it rebuilds the reel (`reloadNonce` re-runs the load below).
-    const [reloadNonce, setReloadNonce] = useState(0);
-    useScreenReselect({
+    const reloadNonce = useReselectReloadKey({
         isAtTop: () => currentVisibleIndex === 0,
         scrollToTop: scrollReelToTop,
-        refresh: () => setReloadNonce(nonce => nonce + 1),
     });
 
     // Initial load + tab switch + reload. Target first (own try/catch), then the ranked
@@ -1595,11 +1593,7 @@ export default function VideosScreen() {
         };
     }, []);
 
-    const reselect = useReselect();
-    const handleSelectFeed = useCallback((tab: VideoFeedTab) => {
-        if (tab === activeFeed) reselect();
-        else setActiveFeed(tab);
-    }, [activeFeed, reselect]);
+    const handleSelectFeed = useTabSelect(activeFeed, setActiveFeed);
 
     // Web: ↑/↓ arrow keys page the reel. Ignored while typing into an input /
     // textarea / contenteditable so the composer and search are unaffected.

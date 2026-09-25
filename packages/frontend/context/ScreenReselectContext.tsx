@@ -85,24 +85,43 @@ export function useReselect(): () => void {
  * is focused: the native tab pager keeps every tab mounted, and a background
  * tab must never answer for the one in front of the reader.
  */
-export function useScreenReselect(handler: ReselectHandler, { enabled = true }: { enabled?: boolean } = {}) {
+export function useScreenReselect(handler: ReselectHandler) {
     const { register } = useScreenReselectContext();
     const isFocused = useIsFocused();
     const handlerRef = useRefSync(handler);
 
     useEffect(() => {
-        if (!enabled || !isFocused) return;
+        if (!isFocused) return;
         return register(() => handlerRef.current);
-    }, [enabled, isFocused, register, handlerRef]);
+    }, [isFocused, register, handlerRef]);
 }
 
 /**
  * For a screen whose reload is "fetch the feed again from the top": a
  * `reloadKey` for its `<Feed>` that moves each time the screen is reselected
- * at the top.
+ * at the top. `handler` carries whatever else the screen reloads alongside
+ * the feed, or where its own top is.
  */
-export function useReselectReloadKey(): number {
+export function useReselectReloadKey(handler: ReselectHandler = {}): number {
     const [reloadKey, setReloadKey] = useState(0);
-    useScreenReselect({ refresh: () => setReloadKey(key => key + 1) });
+    useScreenReselect({
+        ...handler,
+        refresh: () => {
+            setReloadKey(key => key + 1);
+            return handler.refresh?.();
+        },
+    });
     return reloadKey;
+}
+
+/**
+ * An inner tab strip's press handler: the tab already selected is reselected,
+ * any other one is selected with `select`.
+ */
+export function useTabSelect<T>(active: T, select: (tab: T) => void): (tab: T) => void {
+    const reselect = useReselect();
+    return useCallback((tab: T) => {
+        if (tab === active) reselect();
+        else select(tab);
+    }, [active, reselect, select]);
 }

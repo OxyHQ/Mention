@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 37,
-      "covered": 9790,
-      "total": 26454
+      "pct": 37.11,
+      "covered": 9800,
+      "total": 26401
     },
     "branches": {
-      "pct": 31.61,
-      "covered": 6048,
-      "total": 19128
+      "pct": 31.67,
+      "covered": 6047,
+      "total": 19090
     },
     "functions": {
-      "pct": 32.06,
-      "covered": 2164,
-      "total": 6748
+      "pct": 32.18,
+      "covered": 2168,
+      "total": 6737
     },
     "lines": {
-      "pct": 37.79,
-      "covered": 8946,
-      "total": 23669
+      "pct": 37.89,
+      "covered": 8955,
+      "total": 23628
     }
   },
   "pins": {
@@ -574,6 +574,12 @@
       "branches": 100,
       "functions": 58,
       "lines": 80
+    },
+    "hooks/useScrollPositionHandler.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useServerAppearanceSync.ts": {
       "statements": 0,

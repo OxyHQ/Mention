@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { usePathname, useRouter, type Href } from 'expo-router';
 import { useReselect } from '@/context/ScreenReselectContext';
+import { useRefSync } from '@/hooks/useRefSync';
 
 /**
  * Whether `href` is the page the reader is on. Exact, not a prefix: the links
@@ -17,10 +18,12 @@ export function isCurrentRoute(href: Href, pathname: string): boolean {
  */
 export function useNavigateOrReselect(): (href: Href) => void {
     const router = useRouter();
-    const pathname = usePathname();
+    // Read at press time, so the callback keeps one identity across navigations
+    // and the memoized navigation descriptors built from it survive them.
+    const pathnameRef = useRefSync(usePathname());
     const reselect = useReselect();
     return useCallback((href: Href) => {
-        if (isCurrentRoute(href, pathname)) reselect();
+        if (isCurrentRoute(href, pathnameRef.current)) reselect();
         else router.navigate(href);
-    }, [pathname, reselect, router]);
+    }, [pathnameRef, reselect, router]);
 }
