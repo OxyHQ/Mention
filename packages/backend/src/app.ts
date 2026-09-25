@@ -7,6 +7,7 @@ import express, {
   type RequestHandler,
 } from 'express';
 import type { AppRoutes } from './appRoutes';
+import { createAppAssociationRouter, wellKnownNotFound } from './routes/appAssociation.routes';
 
 export interface AppMiddleware {
   activity?: RequestHandler;
@@ -307,6 +308,13 @@ export function createApp(deps: CreateAppDependencies): express.Express {
   app.use('/.well-known', routes.wellKnownBridge);
   app.use('/media', routes.media);
   app.use(routes.mcpOAuth);
+  // App Links / Universal Links. Pure and connection-free, so mounted directly.
+  app.use(createAppAssociationRouter());
+  // Every well-known document is served above. Anything else under this prefix
+  // is a 404 here, NEVER a fall-through to the apex proxy below, whose SPA
+  // fallback answers 200 text/html for any path — which is how
+  // assetlinks.json and the AASA were "served" as the app shell.
+  app.use('/.well-known', wellKnownNotFound);
 
   app.use('/', routes.webShell);
   app.use(routes.apexProxy);

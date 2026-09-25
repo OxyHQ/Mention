@@ -76,6 +76,9 @@ return {
       ios: {
         supportsTablet: true,
         bundleIdentifier: IOS_ID,
+        // Universal Links. iOS fetches the AASA from this domain; the backend
+        // serves it (`packages/backend/src/routes/appAssociation.routes.ts`).
+        associatedDomains: ['applinks:mention.earth'],
         infoPlist: {
           // Allow Linking.canOpenURL('oxycommons://') so "Sign in with Oxy" can
           // deep-link into Commons on iOS (custom schemes are hidden from
@@ -121,6 +124,18 @@ return {
             // variant so either build passes; real FCM needs those registered
             // in Firebase and the file swapped (see the app-variant note above).
             googleServicesFile: process.env.GOOGLE_SERVICES_JSON || "../../google-services.json",
+            // App Links. Every https host listed here is VERIFIED, so each must
+            // serve an assetlinks.json naming this package and signing key —
+            // for mention.earth that is the backend
+            // (`packages/backend/src/routes/appAssociation.routes.ts`, pinned to
+            // this file by its test). `https://oxy.so` used to be listed too,
+            // claiming every oxy.so page for Mention: Mention opens no oxy.so
+            // URL (native Oxy sign-in goes through the shared identity and
+            // Commons' `oxycommons://` scheme, and the
+            // oxy.so links in the app are legal pages meant for the browser),
+            // oxy.so publishes no assetlinks.json for it, and on Android 11 and
+            // below one unverifiable host fails verification for the WHOLE
+            // filter, mention.earth included.
             intentFilters: [
                     {
                         action: 'VIEW',
@@ -144,10 +159,6 @@ return {
                                 scheme: 'http',
                                 host: DEV_HOST,
                                 port: '3000',
-                            },
-                            {
-                                scheme: 'https',
-                                host: 'oxy.so',
                             },
                             IS_DEV && {
                                 scheme: 'http',
