@@ -150,6 +150,27 @@ person.
   failure's reason, and the `!isMediaCacheEnabled()` branch says so
   explicitly, since it is the one cause an operator can actually change.
 
+## An erased account still has Deletes to deliver
+
+When Oxy reports an account deleted, the erasure (`docs/account-erasure.md`)
+queues a `Delete(Tombstone)` per public post and a `Delete` of the actor, then
+removes the account's rows. The deliveries outlive the account by up to about 63
+hours of retries, and two things they need would be gone by then:
+
+- **The handle.** Actor, Note and key ids are minted from it and Oxy no longer
+  resolves the user. The delivery worker (`resolveSenderUsername` in
+  `queue/workers.ts`) and the fallback-queue retry both fall back to
+  `account_erasures.username`, which the reconciliation job clears 14 days after
+  the erasure completed.
+- **The signing key.** Oxy signs on Mention's behalf from `federation_key_pairs`,
+  keyed by key id rather than by user row, and does not delete it with the
+  account. A future key purge in Oxy has to wait out the relying parties'
+  delivery window, or these Deletes fail to sign.
+
+A re-run of an erasure must not cancel the Deletes an earlier attempt queued, so
+the drain step spares queued rows whose activity type is `Delete`, and the actor
+Delete carries a deterministic id so a re-send dedupes per inbox.
+
 ## HLS media proxy — why it must rewrite, not relay
 
 A federated `.m3u8` playlist is never relayed verbatim — it is buffered

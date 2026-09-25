@@ -40,6 +40,7 @@ import channelDeletionRoutes from './routes/channelDeletion.routes';
 import reportsRoutes from './routes/reports.routes';
 import communityNotesRoutes from './routes/communityNotes.routes';
 import { createCrowdSourceWebhookRoutes } from './routes/crowdSourceWebhook.routes';
+import { createOxyAccountEventsRoutes } from './routes/oxyAccountEvents.routes';
 import trendingRoutes from './routes/trending.routes';
 import topicsRoutes from './routes/topics.routes';
 import entityFollowRoutes from './routes/entity-follow.routes';
@@ -96,6 +97,12 @@ export interface AppRoutes {
    * signature covers the bytes that arrived, and a body parser destroys them.
    */
   crowdSourceWebhook: RequestHandler;
+  /**
+   * `POST /webhooks/oxy/account-events`. Mounted beside the CrowdSource webhook,
+   * ahead of the JSON parser and every auth layer: the signed token in the body
+   * is its authentication (`routes/oxyAccountEvents.routes.ts`).
+   */
+  oxyAccountEvents: RequestHandler;
   mcpOAuth: RequestHandler;
   webShell: RequestHandler;
   apexProxy: RequestHandler;
@@ -217,6 +224,7 @@ export function createAppRoutes({
     wellKnownBridge: wellKnownBridgeRouter,
     media: mediaRoutes,
     crowdSourceWebhook: createCrowdSourceWebhookRoutes(),
+    oxyAccountEvents: createOxyAccountEventsRoutes(),
     mcpOAuth: createMcpOAuthRoutes(oxy),
     webShell: webShellRoutes,
     apexProxy: apexFrontendProxy,

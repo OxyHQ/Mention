@@ -150,6 +150,15 @@ const BASELINE = [
       + "instead of emitting a LocalNetworkEvent through the connector registry.",
   },
   {
+    file: "src/services/accountErasure/erasureFederation.ts",
+    protocol: "activitypub",
+    reason:
+      "TRACKED DEBT, the same shape as channelDeletionFederation: an erased account's Delete(Tombstone) "
+      + "and actor Delete go straight to the follow/delivery services, because the connector registry has "
+      + "no actor-delete event and its post.delete path resolves the handle from Oxy, which no longer "
+      + "knows an erased account (OxyHQ/Mention#1169).",
+  },
+  {
     file: "src/mtn/feed/feeds/FeedGeneratorFeed.ts",
     protocol: "atproto",
     reason:

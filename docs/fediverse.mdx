@@ -86,6 +86,13 @@ queues cleanup that broadcasts actor deletion, removes bridged follows, clears
 user-scoped federation rows, and invalidates discovery cache. An unavailable
 Oxy read is retried by cleanup rather than interpreted as a consent value.
 
+Deleting the Oxy account goes further than turning sharing off: the account
+erasure sends a `Delete(Tombstone)` for each public post and a `Delete` of the
+actor to every follower inbox, then removes the federation rows. Oxy keeps the
+signing key and the event carries the handle, so the Deletes can still be signed
+after the account is gone; the delivery worker reads an erased sender's handle
+from `account_erasures`. See [Account erasure](./account-erasure.md).
+
 ## Inbound flow
 
 ```text

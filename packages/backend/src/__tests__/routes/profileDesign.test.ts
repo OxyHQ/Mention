@@ -45,6 +45,8 @@ import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepositor
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import { deleteActorsByUris, setActorOxyUserId, upsertActor } from '../../db/federation/actorRepository';
 import profileDesignRoutes from '../../routes/profileDesign';
+import { accountErasures } from '../../db/schema/accountErasures';
+import { recordAccountErasureRequest } from '../../db/accountErasures/accountErasureRepository';
 
 const app = express();
 app.use('/profile/design', profileDesignRoutes);
@@ -201,5 +203,31 @@ describe('profile design remote stats', () => {
     const response = await request(app).get(`/profile/design/${AUTHOR}`).expect(200);
 
     expect(response.body.data).not.toHaveProperty('remote');
+  });
+});
+
+describe('GET /profile/design/:userId for an erased account (OxyHQ/Mention#1169)', () => {
+  const ERASED = 'profile-design-erased-user';
+
+  afterEach(async () => {
+    await getDb().delete(accountErasures).where(eq(accountErasures.oxyUserId, ERASED));
+  });
+
+  it('answers 404 once Oxy has told Mention the account was deleted, and 200 for everyone else', async () => {
+    // Before: any id answers 200 with a default design, which is what the issue saw.
+    await request(app).get(`/profile/design/${ERASED}`).expect(200);
+
+    await recordAccountErasureRequest({
+      eventId: `${ERASED}-event`,
+      oxyUserId: ERASED,
+      source: 'webhook',
+      reason: 'account.deleted',
+      occurredAt: new Date(),
+      retained: false,
+      username: null,
+    });
+
+    await request(app).get(`/profile/design/${ERASED}`).expect(404);
+    await request(app).get(`/profile/design/${AUTHOR}`).expect(200);
   });
 });

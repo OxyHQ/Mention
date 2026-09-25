@@ -7,6 +7,8 @@ import {
   FEDERATION_PERIODIC_QUEUE,
   FEDERATION_SHARING_CLEANUP_QUEUE,
   MEDIA_METADATA_ENRICH_QUEUE,
+  ACCOUNT_ERASURE_QUEUE,
+  ACCOUNT_ERASURE_WORKER_CONCURRENCY,
   INBOX_WORKER_CONCURRENCY,
   DELIVERY_WORKER_CONCURRENCY,
   PERIODIC_WORKER_CONCURRENCY,
@@ -22,6 +24,7 @@ import type {
   PeriodicTaskName,
   SharingCleanupJobData,
   MediaMetadataEnrichJobData,
+  AccountErasureJobData,
 } from './types';
 import { logger } from '../utils/logger';
 import { activityPubConnector } from '../connectors/activitypub/ActivityPubConnector';
@@ -29,6 +32,8 @@ import { federationJobScheduler } from '../services/FederationJobScheduler';
 import { runSharingCleanup } from '../connectors/activitypub/sharingCleanup.service';
 import { processMediaMetadataEnrichJob } from '../services/mediaMetadataEnrichJob';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
+import { processAccountErasure } from '../services/accountErasure/AccountErasureService';
+import { findErasedAccountUsernames } from '../db/accountErasures/accountErasureRepository';
 
 /**
  * BullMQ consumers (workers) for the federation queues.
@@ -52,6 +57,7 @@ let deliveryWorker: Worker<DeliveryJobData> | null = null;
 let periodicWorker: Worker<PeriodicJobData> | null = null;
 let sharingCleanupWorker: Worker<SharingCleanupJobData> | null = null;
 let mediaMetadataEnrichWorker: Worker<MediaMetadataEnrichJobData> | null = null;
+let accountErasureWorker: Worker<AccountErasureJobData> | null = null;
 let workersStarted = false;
 
 /**
@@ -82,6 +88,33 @@ export async function processInboxJob(job: Job<InboxJobData>): Promise<void> {
 }
 
 /**
+ * The sender's handle, from Oxy, or from the erasure ledger when Oxy no longer
+ * resolves the account.
+ *
+ * The second source exists for one case: the `Delete` activities an account
+ * erasure queues (`services/accountErasure`). Oxy has deleted the account by the
+ * time they are delivered, so `getUserById` fails, yet the Delete must still be
+ * signed under the actor's key id, which is minted from the handle. The ledger
+ * keeps the handle for that window only. Every other sender resolves from Oxy
+ * exactly as before; an Oxy error for a sender the ledger does not know is
+ * rethrown so the job retries, as it always did.
+ */
+export async function resolveSenderUsername(senderOxyUserId: string): Promise<string | null> {
+  let lookupError: unknown = null;
+  try {
+    const user = await getServiceOxyClient().getUserById(senderOxyUserId);
+    if (user?.username) return user.username;
+  } catch (error) {
+    lookupError = error;
+  }
+  const erased = await findErasedAccountUsernames([senderOxyUserId]);
+  const username = erased.get(senderOxyUserId);
+  if (username) return username;
+  if (lookupError !== null) throw lookupError;
+  return null;
+}
+
+/**
  * Process one outbound delivery. Resolves the sender's username from the Oxy
  * client, signs + POSTs via `activityPubConnector.deliverActivity`, and throws on
  * a soft failure so BullMQ retries with the custom backoff. A missing sender is
@@ -96,8 +129,8 @@ export async function processDeliveryJob(job: Job<DeliveryJobData>): Promise<voi
   // service-authed Oxy client — the process-wide request-auth client is
   // unauthenticated and reserved for validating incoming request tokens
   // (`oxy.auth()`), so resolving a user on it returns nothing.
-  const user = await getServiceOxyClient().getUserById(senderOxyUserId);
-  if (!user?.username) {
+  const username = await resolveSenderUsername(senderOxyUserId);
+  if (!username) {
     logger.warn(
       '[FedDeliver] sender not found; dropping delivery',
     );
@@ -108,7 +141,7 @@ export async function processDeliveryJob(job: Job<DeliveryJobData>): Promise<voi
     activityJson,
     targetInbox,
     senderOxyUserId,
-    user.username,
+    username,
   );
 
   if (!delivered) {
@@ -133,6 +166,21 @@ export async function processSharingCleanupJob(job: Job<SharingCleanupJobData>):
 /** Process one media-metadata enrich retry job. */
 export async function processMediaMetadataEnrichWorkerJob(job: Job<MediaMetadataEnrichJobData>): Promise<void> {
   await processMediaMetadataEnrichJob(job.data.postId);
+}
+
+/**
+ * Process one account-erasure job. `busy` (another task holds this account's
+ * lease) throws so BullMQ retries later; an event with no ledger row cannot be
+ * retried into existence and fails permanently.
+ */
+export async function processAccountErasureJob(job: Job<AccountErasureJobData>): Promise<void> {
+  const result = await processAccountErasure(job.data.eventId);
+  if (result.outcome === 'busy') {
+    throw new Error('Another task holds this account erasure; retrying later');
+  }
+  if (result.outcome === 'unknown-event') {
+    throw new UnrecoverableError('No account_erasures row for this event');
+  }
 }
 
 /**
@@ -228,7 +276,25 @@ export function startWorkers(): void {
     },
   );
 
-  for (const worker of [inboxWorker, deliveryWorker, periodicWorker, sharingCleanupWorker, mediaMetadataEnrichWorker]) {
+  accountErasureWorker = new Worker<AccountErasureJobData>(
+    ACCOUNT_ERASURE_QUEUE,
+    processAccountErasureJob,
+    {
+      connection,
+      concurrency: ACCOUNT_ERASURE_WORKER_CONCURRENCY,
+      // An erasure can run for minutes; the job lock must outlive a batch.
+      lockDuration: 5 * 60 * 1000,
+    },
+  );
+
+  for (const worker of [
+    inboxWorker,
+    deliveryWorker,
+    periodicWorker,
+    sharingCleanupWorker,
+    mediaMetadataEnrichWorker,
+    accountErasureWorker,
+  ]) {
     worker.on('failed', (job, err) => {
       logger.warn('[Queue] job failed', {
         worker: worker.name,
@@ -241,7 +307,7 @@ export function startWorkers(): void {
     });
   }
 
-  logger.info('Federation queue workers started (inbox, delivery, periodic, sharing-cleanup, media-metadata-enrich)');
+  logger.info('Queue workers started (inbox, delivery, periodic, sharing-cleanup, media-metadata-enrich, account-erasure)');
 }
 
 /**
@@ -259,12 +325,14 @@ export async function shutdownQueues(): Promise<void> {
     | Worker<PeriodicJobData>
     | Worker<SharingCleanupJobData>
     | Worker<MediaMetadataEnrichJobData>
+    | Worker<AccountErasureJobData>
   > = [];
   if (inboxWorker) workers.push(inboxWorker);
   if (deliveryWorker) workers.push(deliveryWorker);
   if (periodicWorker) workers.push(periodicWorker);
   if (sharingCleanupWorker) workers.push(sharingCleanupWorker);
   if (mediaMetadataEnrichWorker) workers.push(mediaMetadataEnrichWorker);
+  if (accountErasureWorker) workers.push(accountErasureWorker);
 
   await Promise.allSettled(workers.map((w) => w.close()));
 
@@ -273,6 +341,7 @@ export async function shutdownQueues(): Promise<void> {
   periodicWorker = null;
   sharingCleanupWorker = null;
   mediaMetadataEnrichWorker = null;
+  accountErasureWorker = null;
   workersStarted = false;
 
   await closeQueues();

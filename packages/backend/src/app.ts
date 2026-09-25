@@ -189,6 +189,10 @@ export function createApp(deps: CreateAppDependencies): express.Express {
    * a retry schedule for no reason.
    */
   app.use('/webhooks', routes.crowdSourceWebhook);
+  // Oxy's signed account-deletion events (OxyHQ/Mention#1169). Same position and
+  // the same reasoning: the body is a signed token read raw, the token is the
+  // authentication, and no session, admission or CSRF layer may stand in front.
+  app.use('/webhooks', routes.oxyAccountEvents);
 
   app.use(express.json({
     limit: '1mb',

@@ -56,3 +56,11 @@ export interface SharingCleanupJobData {
 export interface MediaMetadataEnrichJobData {
   postId: string;
 }
+
+/**
+ * Erase the account named by one recorded Oxy account event. Only the event id
+ * travels: everything else is read from `account_erasures`, the durable record.
+ */
+export interface AccountErasureJobData {
+  eventId: string;
+}

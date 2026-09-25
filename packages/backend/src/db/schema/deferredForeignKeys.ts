@@ -28,6 +28,7 @@
 import type { PgColumn, PgTable, UpdateDeleteAction } from 'drizzle-orm/pg-core';
 import { getTableColumns, getTableName } from 'drizzle-orm';
 import { sqlColumnName } from '@oxy.so/db';
+import { accountErasures } from './accountErasures';
 import { repairFetchFailures } from './adminScripts';
 import {
   blockedDomainPurgeRuns,
@@ -198,6 +199,13 @@ export function isOxyAccountColumn(column: PgColumn): boolean {
  * like.
  */
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  {
+    table: accountErasures,
+    column: accountErasures.eventId,
+    reason:
+      'The id of an Oxy account event (the SET `jti`), or `operator:<uuid>` for a hand-run ' +
+      'erasure. It names an event on Oxy\'s side; Mention has no events table to reference.',
+  },
   {
     table: lanes,
     column: lanes.ownerId,

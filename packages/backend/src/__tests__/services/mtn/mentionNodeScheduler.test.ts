@@ -190,7 +190,7 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
    *    the orphan that cascade exists to prevent — and nothing in it is reachable
    *    from a feed or hydration request.
    *
-   * Neither exemption widens what a hot path may do; both name a directory that is
+   * No exemption widens what a hot path may do; each names a directory that is
    * not one.
    *
    * Applied when the HOT-PATH set is selected, deliberately NOT inside the walk:
@@ -202,6 +202,10 @@ describe('Read-path invariant — feeds/hydration never touch a node', () => {
   const NOT_A_READ_PATH = [
     path.normalize('src/services/mtn'),
     path.normalize('src/services/channelDeletion'),
+    // Account erasure revokes a managed vault's row / deletes a self-hosted
+    // node's row when Oxy reports the account deleted. A background job, never
+    // a request's read path, like the channel cascade above it.
+    path.normalize('src/services/accountErasure'),
   ];
   const FORBIDDEN = [
     // Re-expressed when the Mongoose `MentionUserNode` model gave way to

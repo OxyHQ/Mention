@@ -87,3 +87,21 @@ export async function getRecentTopics(viewerId: string): Promise<Set<string>> {
     'viewerRecentTopicsGet',
   );
 }
+
+/**
+ * Forget a viewer's recent topics entirely. Used when the account is erased
+ * (`services/accountErasure`); a no-op on a Redis outage, where the set expires
+ * on its own TTL.
+ */
+export async function clearRecentTopics(viewerId: string): Promise<void> {
+  if (!viewerId) return;
+  const redis = getRedisClient();
+  await withRedisFallback(
+    redis,
+    async () => {
+      await redis.del(keyFor(viewerId));
+    },
+    undefined,
+    'viewerRecentTopicsClear',
+  );
+}

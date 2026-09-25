@@ -95,6 +95,17 @@ export function startSchedulers(): void {
     logger.warn("Failed to start moderation reconciliation job", error);
   }
 
+  // Oxy account-deletion reconciliation (leader-gated): reads Oxy's signed
+  // account-event feed forward from a durable cursor and re-runs unfinished
+  // erasures, so a missed webhook can never leave a deleted person's data here
+  // (OxyHQ/Mention#1169). Single-flight across replicas by leadership.
+  try {
+    const { accountEventReconciliationJob } = require("../services/accountErasure/AccountEventReconciliationJob");
+    accountEventReconciliationJob.start();
+  } catch (error) {
+    logger.warn("Failed to start account event reconciliation job", error);
+  }
+
   // Blocklist proposal sweep (leader-gated): reads the blocklists other
   // instances publish and leaves newly corroborated domains in a review queue.
   // It PROPOSES only — it cannot block anything, by construction (see
@@ -187,6 +198,13 @@ export function stopSchedulers(): void {
     moderationReconciliationJob.stop();
   } catch (error) {
     logger.warn("Failed to stop moderation reconciliation job", error);
+  }
+
+  try {
+    const { accountEventReconciliationJob } = require("../services/accountErasure/AccountEventReconciliationJob");
+    accountEventReconciliationJob.stop();
+  } catch (error) {
+    logger.warn("Failed to stop account event reconciliation job", error);
   }
 
   try {

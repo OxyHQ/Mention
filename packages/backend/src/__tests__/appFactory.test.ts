@@ -44,6 +44,7 @@ function createRoutes(): AppRoutes {
     wellKnownBridge: passThrough,
     media: passThrough,
     crowdSourceWebhook: passThrough,
+    oxyAccountEvents: passThrough,
     mcpOAuth: passThrough,
     webShell: routerWith('/@alice', 'web-shell'),
     apexProxy,
@@ -295,6 +296,31 @@ describe('createApp', () => {
         readableEnded: false,
         bytes: '{"id":"evt_1"}',
       });
+  });
+
+  it('mounts the Oxy account-event webhook ahead of every body parser and auth layer', async () => {
+    const { createApp } = await import('../app');
+    const deps = createDependencies();
+    const webhook = express.Router();
+    webhook.post('/oxy/account-events', (req, res) => {
+      // Synchronous facts only, for the reason the CrowdSource test above gives.
+      res.json({ parsedBodyType: typeof req.body, readableEnded: req.readableEnded });
+    });
+    deps.routes.oxyAccountEvents = webhook;
+    const requireAuth = vi.fn((_req: express.Request, res: express.Response) => {
+      res.status(401).end();
+    });
+    deps.routes.requireAuth = requireAuth;
+
+    const app = createApp(deps);
+
+    await request(app)
+      .post('/webhooks/oxy/account-events')
+      .set('Host', 'api.mention.earth')
+      .set('Content-Type', 'application/secevent+jwt')
+      .send('a.b.c')
+      .expect(200, { parsedBodyType: 'undefined', readableEnded: false });
+    expect(requireAuth).not.toHaveBeenCalled();
   });
 
   it('captures raw JSON, reconstructs filter queries and handles nodeinfo failures', async () => {

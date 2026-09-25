@@ -1124,6 +1124,16 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
       'the row survives with one fewer actor. Still a `text[]` column rather than a child table.',
   },
   {
+    table: 'account_erasures',
+    column: 'oxyUserId',
+    scope: 'channel-account',
+    action: 'retain',
+    why:
+      'The account-erasure ledger (`services/accountErasure`). If Oxy reports a channel account deleted, ' +
+      'the row is the record that Mention erased it and the dedupe key for the event. It holds ids and ' +
+      'counts, never content, so deleting a channel\'s content leaves it where it is.',
+  },
+  {
     table: 'mcp_connections',
     column: 'oxyUserId',
     scope: 'channel-account',
@@ -1178,6 +1188,7 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
  * topic ids, file ids and run ids too. Each is dismissed once, here, in writing.
  */
 export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
+  ['account_erasures.eventId', 'an Oxy account-event id, not an account or a post'],
   ['account_list_members.listId', 'the AccountList the membership row belongs to; it cascades from the list'],
   ['actor_key_pairs.keyId', 'the key pair\'s own AP key identifier, not an account'],
   ['blocked_domain_purge_runs.runId', 'an admin purge run, not an account'],

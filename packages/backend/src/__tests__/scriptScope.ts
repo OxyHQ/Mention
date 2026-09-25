@@ -170,6 +170,12 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
       'nothing. Its suite additionally never reaches the counting: it imports the pure ' +
       'evaluatePopulation and passes readings in, so no test drives a query at all.',
   },
+  eraseOxyAccount: {
+    scope: 'caller-scoped',
+    reason:
+      'Every select and write is keyed on the one account id the caller passes (ERASE_OXY_USER_ID); ' +
+      "the rows it updates on other accounts are the ones whose arrays or pointers name that id.",
+  },
   backfillFederatedBoostCounts: {
     scope: 'caller-scoped',
     reason:
