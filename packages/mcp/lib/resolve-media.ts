@@ -87,6 +87,7 @@ export async function buildPostContentPayload(
   if (content.room) payload.room = content.room;
   if (content.podcast) payload.podcast = content.podcast;
   if (content.attachments) payload.attachments = content.attachments;
+  if (content.variants) payload.variants = content.variants;
 
   return payload;
 }
