@@ -34,6 +34,10 @@ import { classifyQuery } from './resolve';
 import type { NetworkConnector } from '@oxy.so/federation';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
+import { extractBearerToken } from '@oxy.so/mcp';
+import type { OxyAuthRequestWithMcp } from '../mcp/middleware/mcpAuth';
+import { invalidateViewerRelations } from '../utils/privacyHelpers';
+import { followThroughConnection, parseLocalFollowRef, resolveLocalFollowTarget } from './localFollow';
 import { apiRateLimiter } from '../middleware/rateLimiter';
 import { isFediverseSharingEnabled, invalidateFediverseSharing } from '../services/fediverseSharing';
 import { invalidateWebfingerCache } from './activitypub/webfingerCache';
@@ -324,10 +328,83 @@ router.get('/resolve', async (req: AuthRequest, res: Response) => {
 });
 
 /**
+ * Serve a follow/unfollow whose target is a LOCAL Oxy account, or return false
+ * and let the federated path handle it.
+ *
+ * Runs before the connector and fediverse-sharing gates: a local follow sends
+ * no outbound activity and needs no connector. It moves Oxy's follow graph,
+ * which only the account's owner may do. A session caller follows through Oxy
+ * directly, as the app does. A central MCP request has Oxy do it with the
+ * connector's token as the consent. Anything else has no proof Oxy accepts and
+ * is refused.
+ */
+async function handleLocalFollow(
+  req: AuthRequest,
+  res: Response,
+  action: 'follow' | 'unfollow',
+): Promise<boolean> {
+  const raw = (req.body as { actorUri?: unknown } | undefined)?.actorUri;
+  if (typeof raw !== 'string' || raw.length > 2048) return false;
+  const ref = parseLocalFollowRef(raw);
+  if (!ref) return false;
+
+  const userId = resolveUserOr401(req, res);
+  if (!userId) return true;
+
+  const target = await resolveLocalFollowTarget(ref);
+  if (!target) {
+    res.status(404).json({ error: 'User not found' });
+    return true;
+  }
+  if (target.federated) {
+    res.status(400).json({ error: 'That is a federated account: follow it by its actor handle or URI' });
+    return true;
+  }
+  if (target.id === userId) {
+    res.status(400).json({ error: 'You cannot follow yourself' });
+    return true;
+  }
+
+  const mcp = (req as OxyAuthRequestWithMcp).mcp;
+  const connectionToken = mcp?.authMode === 'central' ? extractBearerToken(req.headers) : undefined;
+  if (!connectionToken) {
+    res.status(400).json({ error: 'Local accounts are followed through Oxy with your own session' });
+    return true;
+  }
+
+  try {
+    const result = await followThroughConnection({
+      connectionToken,
+      servedAccountId: userId,
+      targetUserId: target.id,
+      action,
+    });
+    await invalidateViewerRelations(userId);
+    res.json({
+      success: true,
+      pending: false,
+      changed: result.changed,
+      oxyUserId: target.id,
+      ...(target.username ? { username: target.username } : {}),
+    });
+  } catch (err) {
+    const status = getErrorStatus(err);
+    if (status === 403) {
+      res.status(403).json({ error: 'This connection is not authorized to follow accounts' });
+      return true;
+    }
+    logger.error(`Local ${action} through the MCP connection failed:`, err);
+    res.status(500).json({ error: action === 'follow' ? 'Follow failed' : 'Unfollow failed' });
+  }
+  return true;
+}
+
+/**
  * POST /federation/follow
  * Follow a remote actor (ActivityPub or atproto), dispatched by protocol.
  */
 router.post('/follow', async (req: AuthRequest, res: Response) => {
+  if (await handleLocalFollow(req, res, 'follow')) return;
   if (!requireAnyConnector(res)) return;
   const userId = resolveUserOr401(req, res);
   if (!userId) return;
@@ -386,6 +463,7 @@ router.post('/follow', async (req: AuthRequest, res: Response) => {
  * Unfollow a remote actor (ActivityPub or atproto), dispatched by protocol.
  */
 router.post('/unfollow', async (req: AuthRequest, res: Response) => {
+  if (await handleLocalFollow(req, res, 'unfollow')) return;
   if (!requireAnyConnector(res)) return;
   const userId = resolveUserOr401(req, res);
   if (!userId) return;
