@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { AccountBadge } from '@/components/AccountBadge';
 import { BoostIcon } from '@/assets/icons/boost-icon';
 import { DrawIcon } from '@/assets/icons/draw-icon';
-import { formatTimeAgo } from '@/utils/dateUtils';
+import { useTimeAgo } from '@/hooks/useTimeAgo';
 import { displayNameOrHandle } from '@/utils/displayName';
 import type { HydratedAuthor, PostUser } from '@mention/shared-types';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -200,7 +200,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   const theme = useTheme();
   const { t } = useTranslation();
 
-  const timeLabel = useMemo(() => formatTimeAgo(date || ''), [date]);
+  const timeLabel = useTimeAgo(date);
   // Collaborative posts (owner + accepted collaborators) render each author's
   // FIRST name as its own tappable link to that author's profile. Reduce the
   // canonical Oxy `User` collaborators to a first-name + normalized-handle view
