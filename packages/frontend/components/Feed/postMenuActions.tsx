@@ -167,7 +167,7 @@ export function buildPostMenuActions({
 
             try {
                 await feedService.deletePost(postId);
-                invalidateProfileCounts(authorId);
+                invalidateProfileCounts(queryClient, authorId);
                 // The pinned slot lives in React Query (ProfileTabs); refetch it so a
                 // deleted pinned post clears from the author's profile too.
                 if (authorId) {

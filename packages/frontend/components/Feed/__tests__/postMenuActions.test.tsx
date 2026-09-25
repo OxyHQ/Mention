@@ -262,7 +262,7 @@ describe('what the actions do', () => {
         expect(mockFeedService.deletePost).toHaveBeenCalledWith('p1');
         expect(queryClient.invalidateQueries).toHaveBeenCalled();
         // The author's profile counters drop by one (#1140).
-        expect(mockInvalidateCounts).toHaveBeenCalledWith('author-1');
+        expect(mockInvalidateCounts).toHaveBeenCalledWith(expect.anything(), 'author-1');
         expect(mockStore.reinsertPost).not.toHaveBeenCalled();
     });
 

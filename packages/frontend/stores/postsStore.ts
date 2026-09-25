@@ -22,6 +22,7 @@ import { markLocalAction } from '../services/echoGuard';
 import { publishNewLocalPost, publishRemovedLocalPost } from '@/stores/feedScrollStore';
 import { invalidateEngagementLists } from '@/stores/engagementInvalidation';
 import { invalidateProfileCounts } from '@/stores/profileCountsInvalidation';
+import { queryClient } from '@/lib/queryClient';
 
 // ── Database imports ─────────────────────────────────────────────
 import {
@@ -978,7 +979,7 @@ export const usePostsStore = create<PostsStoreState>()(
 
         notifyPostChanges([newPost.id]);
         notifyFeedChanges(feedKeys);
-        invalidateProfileCounts(newPost.user?.id);
+        invalidateProfileCounts(queryClient, newPost.user?.id);
         set({ isLoading: false, lastRefresh: Date.now() });
         return newPost;
       } catch (error) {
@@ -1034,7 +1035,7 @@ export const usePostsStore = create<PostsStoreState>()(
 
         notifyPostChanges(collectWrittenPostIds(newPosts));
         notifyFeedChanges(feedKeys);
-        invalidateProfileCounts(newPosts[0]?.user?.id);
+        invalidateProfileCounts(queryClient, newPosts[0]?.user?.id);
         set({ isLoading: false, lastRefresh: Date.now() });
         return newPosts;
       } catch (error) {
@@ -1139,7 +1140,7 @@ export const usePostsStore = create<PostsStoreState>()(
           throw new Error('Failed to boost');
         }
         invalidateEngagementLists('boost');
-        invalidateProfileCounts();
+        invalidateProfileCounts(queryClient);
       } catch (error) {
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;
         if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);
@@ -1174,7 +1175,7 @@ export const usePostsStore = create<PostsStoreState>()(
           throw new Error('Failed to unboost');
         }
         invalidateEngagementLists('boost');
-        invalidateProfileCounts();
+        invalidateProfileCounts(queryClient);
       } catch (error) {
         if (!isCurrentViewerStateEpoch(operationEpoch)) return;
         if (previousPost) get().updatePostEverywhere(postId, () => previousPost!);

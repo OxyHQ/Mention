@@ -1,4 +1,4 @@
-import { queryClient } from '@/lib/queryClient';
+import type { QueryClient } from '@tanstack/react-query';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
@@ -15,9 +15,16 @@ import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
  * dropped. `authorId` names the account the write was published AS when that
  * can differ from the viewer: a channel the viewer posts for, or the author of
  * a post the viewer deleted. Call it only once the server accepted the write.
+ *
+ * The client is a parameter, not an import: the post menu is handed its client
+ * by the controller that binds it, and this module stays free of the app
+ * singleton so importing it constructs nothing.
  */
-export function invalidateProfileCounts(authorId?: string | null): void {
-  void queryClient.invalidateQueries({
+export function invalidateProfileCounts(
+  client: Pick<QueryClient, 'invalidateQueries'>,
+  authorId?: string | null,
+): void {
+  void client.invalidateQueries({
     predicate: (query) =>
       viewerQueryKeys.isOwnAppearance(query.queryKey) ||
       (authorId ? viewerQueryKeys.isAppearanceForUser(query.queryKey, authorId) : false),

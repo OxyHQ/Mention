@@ -200,7 +200,7 @@ describe('postsStore refreshes the profile counters a write changes', () => {
   it('a published post or reply refreshes its author', async () => {
     mockFeedService.createPost.mockResolvedValue({ success: true, post: published('new-post', 'author-1') });
     await usePostsStore.getState().createPost({ content: { text: 'hi' } } as never);
-    expect(mockInvalidateCounts).toHaveBeenCalledWith('author-1');
+    expect(mockInvalidateCounts).toHaveBeenCalledWith(expect.anything(), 'author-1');
   });
 
   it('a published thread refreshes its author', async () => {
@@ -209,7 +209,7 @@ describe('postsStore refreshes the profile counters a write changes', () => {
       posts: [published('t-1', 'author-1'), published('t-2', 'author-1')],
     });
     await usePostsStore.getState().createThread({ posts: [] } as never);
-    expect(mockInvalidateCounts).toHaveBeenCalledWith('author-1');
+    expect(mockInvalidateCounts).toHaveBeenCalledWith(expect.anything(), 'author-1');
   });
 
   it("a scheduled post changes no counter", async () => {

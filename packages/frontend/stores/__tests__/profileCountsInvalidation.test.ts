@@ -1,12 +1,10 @@
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
-const mockInvalidateQueries = jest.fn();
-jest.mock('@/lib/queryClient', () => ({
-  queryClient: { invalidateQueries: (...args: unknown[]) => mockInvalidateQueries(...args) },
-}));
+import { invalidateProfileCounts as invalidate } from '../profileCountsInvalidation';
 
-// eslint-disable-next-line import/first -- the mock above must be installed first.
-import { invalidateProfileCounts } from '../profileCountsInvalidation';
+const mockInvalidateQueries = jest.fn();
+const client = { invalidateQueries: mockInvalidateQueries } as never;
+const invalidateProfileCounts = (authorId?: string) => invalidate(client, authorId);
 
 type Predicate = (query: { queryKey: readonly unknown[] }) => boolean;
 
