@@ -1,14 +1,14 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { Pressable } from 'react-native';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
+import { LoadMoreSentinel } from '@/components/common/LoadMoreSentinel';
 import PostItem from '@/components/Feed/PostItem';
 import { useScrollMarginOrigin } from '@/components/Feed/useScrollMarginOrigin';
 import type { SavedPostsListProps } from './SavedPostsList.types';
 
 const ESTIMATED_POST_HEIGHT = 280;
 const OVERSCAN_POSTS = 6;
-const LOAD_MORE_ROOT_MARGIN = '600px';
 
 /**
  * Saved posts participate in Mention's document-scroll shell on web. The rows
@@ -31,18 +31,12 @@ export default function SavedPostsList({
   // measured against this component, the spacer stayed at 5600px where it should
   // have reached 8400px. A spacer shorter than its absolutely-positioned rows
   // does not grow to contain them, so the column — and the sticky side rails'
-  // containing block — stops short and the rails scroll away.
-  //
-  // The `useEffect` below deliberately avoids a "latest ref" written during
-  // render, which is correct and is also why this function compiles at all;
-  // `Feed.web.tsx` is safe from this only because it does the illegal thing and
-  // gets refused. Opting out is the honest version of that accident. There is no
+  // containing block — stops short and the rails scroll away. There is no
   // `subscribe` on the virtualizer to drive `useSyncExternalStore` from.
   'use no memo';
 
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const scrollMargin = useScrollMarginOrigin(wrapperRef);
+  const spacerRef = useRef<HTMLDivElement | null>(null);
+  const scrollMargin = useScrollMarginOrigin(spacerRef);
 
   const virtualizer = useWindowVirtualizer<HTMLDivElement>({
     count: posts.length,
@@ -61,35 +55,6 @@ export default function SavedPostsList({
     : 0;
   const spacerHeight = Math.max(totalSize, lastItemEnd);
 
-  // The observer closes over `onEndReached` and re-subscribes when its identity
-  // changes, rather than reading it from a ref. A "latest ref" written during
-  // render is illegal input for the React Compiler (enabled for this app), which
-  // is free to memoize past the write and leave the ref on a stale callback — and
-  // a stale callback here means infinite scroll silently stops fetching. The
-  // re-subscribe is cheap and already happens per page: `posts.length` is a dep.
-  useEffect(() => {
-    const node = sentinelRef.current;
-    if (
-      !node ||
-      posts.length === 0 ||
-      !hasNextPage ||
-      typeof IntersectionObserver === 'undefined'
-    ) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          onEndReached();
-        }
-      },
-      { root: null, rootMargin: LOAD_MORE_ROOT_MARGIN },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [hasNextPage, onEndReached, posts.length]);
-
   useScrollRestoration('window', { enabled: true });
 
   // The spacer stays mounted while the list is empty: it is the element the
@@ -98,7 +63,7 @@ export default function SavedPostsList({
     <div style={{ width: '100%' }}>
       {posts.length === 0 ? empty : null}
       <div
-        ref={wrapperRef}
+        ref={spacerRef}
         style={{
           height: spacerHeight,
           width: '100%',
@@ -129,18 +94,8 @@ export default function SavedPostsList({
             </div>
           );
         })}
-        <div
-          ref={sentinelRef}
-          aria-hidden
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            width: '100%',
-            height: 1,
-          }}
-        />
       </div>
+      <LoadMoreSentinel onLoadMore={onEndReached} enabled={hasNextPage && posts.length > 0} />
       {footer}
     </div>
   );

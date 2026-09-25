@@ -332,18 +332,13 @@ const SavedPostsScreen: React.FC = () => {
                 title={t('seo.saved.title')}
                 description={t('seo.saved.description')}
             />
-            {/* The header and the folder chrome are one docking pair: on web the
-                search field and folder tabs stay pinned under the sticky header
-                while the document scrolls; on native they sit above the list,
-                which owns its own scroll. */}
             <HeaderDockProvider scrollY={scrollPosition}>
                 <View className="flex-1 web:z-auto">
                     <StatusBar style={theme.isDark ? 'light' : 'dark'} />
                     <PageHeader title={t('screens.saved.title')} presentation="floating" />
 
-                    {/* Folders read as sections of one collection, so they get the same
-                        tab bar every other sectioned screen uses. Creating a folder is
-                        an action, not a section, so it lives in the FAB. */}
+                    {/* Search and folder tabs dock under the header. Creating a folder
+                        is an action, not a section, so it lives in the FAB. */}
                     <StickySection>
                         <View className="mx-4 my-2">
                             <Search
