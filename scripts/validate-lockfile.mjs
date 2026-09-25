@@ -122,8 +122,6 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
   "vite -> lightningcss@^1.32.0": "Same single-copy native-binary pin as @tailwindcss/node.",
   "@alia.onl/sdk -> @oxy.so/services@^1.0.1":
     "Every Services major so far has been its @oxy.so/bloom peer moving up one — ^2.0.0 in 2.0.0, ^3.0.1 in 3.0.0 — and the API the Alia SDK calls is unchanged across both. The app must run ONE Services copy; two would mean two Bloom copies, whose 3.x contexts do not cross.",
-  "@oxy.so/services -> @oxy.so/contracts@1.4.0":
-    "Services publishes its workspace Contracts as an exact pin, and Core 1.11.0 needs ^1.5.0. Contracts 1.5.0 only ADDS to 1.4.0 (the linkedAccounts and notifications modules, two export lines; every 1.4.0 declaration is byte-identical), so Services reads the same schemas from one shared copy.",
 };
 
 /**
