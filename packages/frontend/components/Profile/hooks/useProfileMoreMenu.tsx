@@ -71,18 +71,27 @@ export interface ProfileMoreMenuOptions {
  * packs. Both are curation of the viewer's own collections, and putting an
  * account you run into a starter pack you assembled is the ordinary use of one,
  * not an accident.
+ *
+ * ## Signed out, there is no menu
+ *
+ * Every shared row is a write on the viewer's own account — their lists, their
+ * starter packs, their mutes and blocks, a report filed in their name — so
+ * without a session each one could only answer 401 (#1126). They are gated on
+ * `canUsePrivateApi`, never bare `isAuthenticated`, and when that leaves
+ * nothing to offer the hook returns `null` so the caller does not render a "…"
+ * button that opens an empty sheet.
  */
 export function useProfileMoreMenu({
   profileData,
   viewerOperatesAccount,
   leadingActions,
-}: ProfileMoreMenuOptions): () => void {
+}: ProfileMoreMenuOptions): (() => void) | null {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { oxyServices } = useAuth();
+  const { oxyServices, canUsePrivateApi } = useAuth();
   const bottomSheet = useContext(BottomSheetContext);
 
-  return useCallback(() => {
+  const openMoreMenu = useCallback(() => {
     if (!profileData) return;
 
     const displayUsername = profileData.username;
@@ -186,8 +195,7 @@ export function useProfileMoreMenu({
       bottomSheet.openBottomSheet(true);
     };
 
-    const actions: ActionMenuAction[] = [
-      ...(leadingActions ?? []),
+    const viewerActions: ActionMenuAction[] = !canUsePrivateApi ? [] : [
       {
         icon: <ListIcon size={22} className="text-foreground" />,
         label: t('lists.addTo.menuItem', { defaultValue: 'Add/remove from lists' }),
@@ -213,8 +221,9 @@ export function useProfileMoreMenu({
           },
         ]),
     ];
+    const actions: ActionMenuAction[] = [...(leadingActions ?? []), ...viewerActions];
 
-    const destructiveActions: ActionMenuAction[] = viewerOperatesAccount
+    const destructiveActions: ActionMenuAction[] = viewerOperatesAccount || !canUsePrivateApi
       ? []
       : [
         {
@@ -247,5 +256,7 @@ export function useProfileMoreMenu({
     }
 
     openMenu();
-  }, [profileData, viewerOperatesAccount, leadingActions, theme, t, bottomSheet, oxyServices]);
+  }, [profileData, viewerOperatesAccount, leadingActions, canUsePrivateApi, theme, t, bottomSheet, oxyServices]);
+
+  return canUsePrivateApi || (leadingActions?.length ?? 0) > 0 ? openMoreMenu : null;
 }
