@@ -1175,7 +1175,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   }, [replyToPostId, t]);
 
   /** The composer's live content, in the shape the draft manager saves. */
-  const draftRefs = (): ComposeDraftRefs => ({
+  const draftSnapshot = useMemo<ComposeDraftRefs>(() => ({
     ...composeContent,
     pollTitle,
     showPollCreator,
@@ -1185,7 +1185,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     scheduledAt,
     currentDraftId,
     variants,
-  });
+  }), [composeContent, pollTitle, showPollCreator, mentions, postingMode, attachmentOrder, scheduledAt, currentDraftId, variants]);
 
   /**
    * Empty every piece of content the composer holds — text, media, attachments,
@@ -1509,7 +1509,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       toast(reasonToToast[reason], { type: 'error' });
 
       // The work is still a draft: keep it in the composer AND in storage.
-      void publishFailed(draftRefs());
+      void publishFailed(draftSnapshot);
     } finally {
       if (published) endPublish();
       setIsPosting(false);
@@ -1521,14 +1521,13 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   // open); once a draft exists, emptying the composer is a change it saves too,
   // by deleting that draft.
   useEffect(() => {
-    const refs = draftRefs();
-    if (!hasDraftContent(refs) && !refs.currentDraftId) return;
+    if (!hasDraftContent(draftSnapshot) && !draftSnapshot.currentDraftId) return;
 
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
     }
     autoSaveTimeoutRef.current = setTimeout(() => {
-      void autoSaveDraft(refs);
+      void autoSaveDraft(draftSnapshot);
     }, 2000);
 
     return () => {
@@ -1536,9 +1535,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-    // `draftRefs` is rebuilt every render from exactly these values.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [composeContent, pollTitle, showPollCreator, mentions, postingMode, attachmentOrder, scheduledAt, currentDraftId, variants, autoSaveDraft, autoSaveTimeoutRef]);
+  }, [draftSnapshot, autoSaveDraft, autoSaveTimeoutRef]);
 
   // back navigation
 
@@ -2551,7 +2548,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   iconOnly
                   leadingIcon={RiArrowLeftLine}
                   onPress={() => {
-                    if (hasDraftContent(draftRefs()) && !isEditMode) {
+                    if (hasDraftContent(draftSnapshot) && !isEditMode) {
                       discardControl.open();
                     } else {
                       dismiss();
@@ -3526,7 +3523,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
               color: 'default',
               onPress: async () => {
                 try {
-                  await saveDraftNow(draftRefs());
+                  await saveDraftNow(draftSnapshot);
                   dismiss();
                 } catch (error) {
                   logger.error('Failed to save draft', error);

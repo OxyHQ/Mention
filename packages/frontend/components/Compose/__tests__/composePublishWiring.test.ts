@@ -67,7 +67,7 @@ describe('handlePost', () => {
 
   it('keeps and saves the draft when the publish fails', () => {
     const failure = failurePath(body);
-    expect(failure).toContain('publishFailed(draftRefs())');
+    expect(failure).toContain('publishFailed(draftSnapshot)');
     expect(failure).not.toContain('resetComposerAfterPublish');
     expect(failure).not.toContain('leaveAfterPublish');
   });
@@ -81,5 +81,31 @@ describe('handlePost', () => {
     expect(reset).toContain('clearQuote();');
     const clearAll = screen.slice(screen.indexOf('control={clearAllControl}'));
     expect(clearAll.slice(0, clearAll.indexOf('toast('))).toContain('clearComposerContent();');
+  });
+});
+
+/**
+ * The close prompt's two exits go through the draft manager, so they act on the
+ * draft this session's autosave has been keeping (OxyHQ/Mention#1124): "Save
+ * draft" used to write a second copy with no id, and "Discard" only closed.
+ */
+describe('the save-draft prompt', () => {
+  function action(label: string): string {
+    const start = screen.indexOf(`label: t('${label}'`);
+    if (start < 0) throw new Error(`No ${label} action in ComposeScreen`);
+    return screen.slice(start, screen.indexOf('\n            },', start));
+  }
+
+  it('saves into the session draft, and closes only once the write has landed', () => {
+    const save = action('compose.saveDraft');
+    expect(save).toContain('await saveDraftNow(draftSnapshot)');
+    expect(save.indexOf('await saveDraftNow')).toBeLessThan(save.indexOf('dismiss()'));
+    expect(save).not.toMatch(/\bsaveDraft\(\{/);
+  });
+
+  it('deletes the session draft before closing on Discard', () => {
+    const discard = action('common.discard');
+    expect(discard).toContain('await discardDraft()');
+    expect(discard.indexOf('await discardDraft()')).toBeLessThan(discard.indexOf('dismiss()'));
   });
 });
