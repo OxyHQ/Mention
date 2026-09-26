@@ -122,6 +122,10 @@ const ACCEPTED_OVERRIDE_RANGE_VIOLATIONS = {
   "vite -> lightningcss@^1.32.0": "Same single-copy native-binary pin as @tailwindcss/node.",
   "@alia.onl/sdk -> @oxy.so/services@^1.0.1":
     "Every Services major so far has been its @oxy.so/bloom peer moving up one — ^2.0.0 in 2.0.0, ^3.0.1 in 3.0.0 — and the API the Alia SDK calls is unchanged across both. The app must run ONE Services copy; two would mean two Bloom copies, whose 3.x contexts do not cross.",
+  "@oxy.so/mcp -> @oxy.so/contracts@^1.0.1":
+    "Contracts 2.0.0 only removes the never-deployed browserHub schemas; @oxy.so/mcp 1.0.0 imports none of them. One contracts copy keeps core, services and mcp on the same schemas.",
+  "@oxy.so/protocol -> @oxy.so/contracts@^1.4.0":
+    "Same as @oxy.so/mcp: contracts 2.0.0 only removes browserHub, which @oxy.so/protocol 1.1.1 never imports.",
 };
 
 /**
