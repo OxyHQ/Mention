@@ -136,6 +136,33 @@ local erasure still runs.
 and one that stays down past the retry budget never hears it. Posts that were
 never public were never federated and get no Delete.
 
+## Channels and other managed accounts
+
+A channel is an Oxy account (`kind: 'channel'`). Deleting one in Mention runs
+Mention's own cascade first (`services/channelDeletion/`, the order is explained
+in `routes/channelDeletion.routes.ts`), and then the client archives the account
+in Oxy (`DELETE /accounts/:id`).
+
+Archiving a managed account (a channel, organization, project or bot) also
+records an `account.deleted` event with `retained: true`, the same event as a
+person's deletion (OxyHQ/Mention#1178). The reasons:
+
+- **The archive is permanent.** It writes an account closure fence, and Oxy has
+  no path that restores an archived account, so the id is gone for every relying
+  party.
+- **Mention is not the only door.** The Oxy Accounts managed-accounts screen, the
+  Oxy Console and the services SDK's account settings all archive a channel
+  directly. Before this change, a channel archived there kept its posts, actor and
+  follows in Mention forever, because nothing told Mention.
+- **Other relying parties hold managed-account ids too** (a channel is a
+  CrowdSource subject author, for example).
+
+When the deletion starts in Mention, the cascade has already removed almost
+everything by the time the event arrives, so the erasure finds residue at most
+and converges. When the archive starts anywhere else, the event is what erases
+the channel. The event carries the handle, so the erasure can still address
+the actor `Delete` after Oxy stops resolving the account.
+
 ## MTN records
 
 The account's chain (`mention_signed_records`, `mention_repo_heads`,
@@ -189,6 +216,12 @@ gh workflow run run-account-erasure.yml -R OxyHQ/Mention --ref main \
   -f oxy_user_id=<oxy user id> -f username=<handle, if known> \
   -f dry_run=false -f confirm_write='ERASE ACCOUNT'
 ```
+
+The dry run's log line is readable: the logger keeps a finite number under a
+`counts` or `preview` key under its category name (`posts.oxyUserId`, …), where
+its name heuristic would otherwise redact every category, since each name ends in
+`id` (`utils/logger.ts`, OxyHQ/Mention#1178). Anything that is not a number
+inside those maps is still sanitized as usual.
 
 The script (`packages/backend/src/scripts/eraseOxyAccount.ts`) refuses an account
 Oxy still resolves as active, or one Oxy cannot answer for; only a 404 or an

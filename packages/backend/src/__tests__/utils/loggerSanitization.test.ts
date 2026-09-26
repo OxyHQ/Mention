@@ -184,6 +184,45 @@ describe('sanitizeLogValue', () => {
     expect(sanitized.callable).toBe('[Function]');
   });
 
+  it('keeps the numbers in an erasure count map readable, and nothing else (Mention#1178)', () => {
+    const categories = Array.from({ length: 90 }, (_, index) => [`table_${index}.oxyUserId`, index]);
+    const sanitized = sanitizeLogValue({
+      eventId: 'operator:01a0d834-b80a-7cbd-b416-5502d33318c9',
+      dryRun: true,
+      preview: {
+        'posts.oxyUserId': 12,
+        'federation_delivery_queue.senderOxyUserId': 3,
+        ...Object.fromEntries(categories),
+        // A string can carry an id, so inside a count map it is sanitized as usual.
+        leakedUserId: '01a0d834-b80a-7cbd-b416-5502d33318c9',
+        nested: { userId: 'u1' },
+      },
+      counts: { 'likes.oxyUserId': 4, 'caches.dropped': 2 },
+      // The same names outside a count map stay redacted.
+      other: { 'posts.oxyUserId': 12 },
+    }) as Record<string, Record<string, unknown>>;
+
+    expect(sanitized.eventId).toBe(REDACTED);
+    expect(sanitized.preview['posts.oxyUserId']).toBe(12);
+    expect(sanitized.preview['federation_delivery_queue.senderOxyUserId']).toBe(3);
+    expect(sanitized.preview['table_89.oxyUserId']).toBe(89);
+    expect(sanitized.preview.__truncated__).toBeUndefined();
+    expect(sanitized.preview.leakedUserId).toBe(REDACTED);
+    expect(sanitized.preview.nested).toEqual({ userId: REDACTED });
+    expect(sanitized.counts).toEqual({ 'likes.oxyUserId': 4, 'caches.dropped': 2 });
+    expect(sanitized.other).toEqual({ 'posts.oxyUserId': REDACTED });
+  });
+
+  it('does not treat a non-finite number or an array under a count key as counts', () => {
+    const sanitized = sanitizeLogValue({
+      preview: { 'posts.oxyUserId': Number.NaN },
+      counts: ['01a0d834-b80a-7cbd-b416-5502d33318c9'],
+    }) as Record<string, unknown>;
+
+    expect(sanitized.preview).toEqual({ 'posts.oxyUserId': REDACTED });
+    expect(sanitized.counts).toEqual([REDACTED]);
+  });
+
   it('fails closed for objects that cannot be inspected', () => {
     const hostile = new Proxy({}, {
       ownKeys() {

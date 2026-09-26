@@ -83,6 +83,7 @@ import { posts } from '../../db/schema/posts';
 import { userBehaviorAuthors, userBehaviors, userSettings } from '../../db/schema/userProfile';
 import { recomputeRecentRepliers } from '../PostRecentReplierService';
 import { ERASED_ACCOUNT_SENTINEL, type ErasurePhase } from './erasureMap';
+import { ERASURE_DELETE_BATCH } from './erasureLimits';
 
 /** What every step is pointed at. */
 export interface ErasureContext {
@@ -99,8 +100,6 @@ export interface ErasureStep {
   readonly apply: (ctx: ErasureContext) => Promise<number>;
 }
 
-/** Rows one DELETE statement takes. Bounds lock time and WAL per statement. */
-export const ERASURE_DELETE_BATCH = 1_000;
 
 async function countRows(table: PgTable, where: SQL): Promise<number> {
   const [row] = await getDb().select({ n: count() }).from(table).where(where);

@@ -13,6 +13,12 @@ const MAX_LOG_DEPTH = 5;
 const MAX_LOG_KEYS = 50;
 const MAX_LOG_ARRAY_ITEMS = 20;
 const MAX_LOG_STRING_LENGTH = 2_000;
+/**
+ * A count map may name more categories than an ordinary object: the account
+ * erasure reports one count per table column (about eighty), and a preview cut
+ * at fifty keys hides the rest from the operator deciding whether to run it.
+ */
+const MAX_COUNT_MAP_KEYS = 250;
 
 const PRESERVED_KEYS = new Set([
   'requestid',
@@ -64,6 +70,20 @@ const SENSITIVE_EXACT_KEYS = new Set([
   'token',
   'username',
 ]);
+
+/**
+ * Keys whose value is a map of category -> row count (the account erasure's
+ * `counts`, and the operator dry run's `preview`, OxyHQ/Mention#1178).
+ *
+ * The category names are code-defined `table.column` labels such as
+ * `posts.oxyUserId`, so the name heuristic below would redact every one of them
+ * (they end in `id`) and the operator could not read what an erasure would
+ * remove. Inside a count map a FINITE NUMBER is kept under its name, because a
+ * number cannot carry an account id (Oxy ids are strings). Anything else inside
+ * one is sanitized exactly as it would be anywhere else, so a string id that
+ * lands in a count map is still redacted.
+ */
+const COUNT_MAP_KEYS = new Set(['counts', 'preview']);
 
 function normalizeKey(key: string): string {
   return key.replace(/[-_.]/g, '').toLowerCase();
@@ -243,23 +263,60 @@ function sanitizeLogValueInternal(
     return safe;
   }
 
+  return sanitizeObject(value, depth, seen, false);
+}
+
+function sanitizeObject(
+  value: object,
+  depth: number,
+  seen: WeakSet<object>,
+  countMap: boolean,
+): Record<string, unknown> {
   const output: Record<string, unknown> = {};
   const entries = Object.entries(Object.getOwnPropertyDescriptors(value))
     .filter(([, descriptor]) => descriptor.enumerable);
-  for (const [key, nested] of entries.slice(0, MAX_LOG_KEYS)) {
+  const maxKeys = countMap ? MAX_COUNT_MAP_KEYS : MAX_LOG_KEYS;
+  for (const [key, nested] of entries.slice(0, maxKeys)) {
     const normalized = normalizeKey(key);
-    if (isSensitiveKey(key)) {
+    if (countMap && 'value' in nested && isFiniteNumber(nested.value)) {
+      output[key] = nested.value;
+    } else if (isSensitiveKey(key)) {
       output[key] = REDACTED;
     } else if (!('value' in nested)) {
       output[key] = ACCESSOR;
     } else if (normalized === 'requestid' && typeof nested.value === 'string') {
       output[key] = sanitizeLogString(nested.value, true);
+    } else if (isCountMapCandidate(normalized, nested.value, depth, seen)) {
+      seen.add(nested.value);
+      output[key] = sanitizeObject(nested.value, depth + 1, seen, true);
     } else {
       output[key] = sanitizeLogValueInternal(nested.value, depth + 1, seen);
     }
   }
-  if (entries.length > MAX_LOG_KEYS) output.__truncated__ = true;
+  if (entries.length > maxKeys) output.__truncated__ = true;
   return output;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isCountMapCandidate(
+  normalizedKey: string,
+  value: unknown,
+  depth: number,
+  seen: WeakSet<object>,
+): value is object {
+  return (
+    COUNT_MAP_KEYS.has(normalizedKey)
+    && depth + 1 < MAX_LOG_DEPTH
+    && typeof value === 'object'
+    && value !== null
+    && !Array.isArray(value)
+    && !(value instanceof Error)
+    && !(value instanceof Date)
+    && !seen.has(value)
+  );
 }
 
 /**
