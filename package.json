@@ -12,7 +12,7 @@
     "catalog": {
       "@oxy.so/bloom": "^4.28.0",
       "@oxy.so/contracts": "^2.2.0",
-      "@oxy.so/core": "^1.18.0",
+      "@oxy.so/core": "^1.18.1",
       "@oxy.so/mcp": "^1.0.0",
       "@oxy.so/services": "^6.2.0",
       "@syra.fm/sdk": "^0.14.1",
@@ -115,7 +115,7 @@
     "metro-transform-worker": "0.84.5",
     "ob1": "0.84.5",
     "@oxy.so/bloom": "catalog:",
-    "@oxy.so/core": "^1.18.0",
+    "@oxy.so/core": "^1.18.1",
     "@oxy.so/services": "^6.2.0",
     "fast-uri": "3.1.8",
     "fast-xml-parser": "5.11.1",

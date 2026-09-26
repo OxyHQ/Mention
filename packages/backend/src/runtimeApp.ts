@@ -78,7 +78,12 @@ export function countLocalPostsCached(): Promise<number> {
 export function createRuntimeApp(activity?: RequestHandler) {
   initConnectors();
 
-  const oxy = new OxyServices({ baseURL: config.oxyApiUrl });
+  // `serviceIdentity`: this client never holds a user session, so without it
+  // every read it makes (web-shell profiles, `getUserById` fallbacks, `from:`
+  // operators) went out anonymous and was charged to the cluster's one NAT
+  // address, paying oxy-api's +500 ms `slowDown` past 100 anonymous requests
+  // per 15 minutes (#1173). With it they carry Mention's service token.
+  const oxy = new OxyServices({ baseURL: config.oxyApiUrl, serviceIdentity: 'when-anonymous' });
   setRuntimeOxyClient(oxy);
 
   // `rate-limit:api:` belongs to THIS limiter — the app-wide one, whose scope is
