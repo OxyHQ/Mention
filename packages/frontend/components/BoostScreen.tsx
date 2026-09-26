@@ -13,6 +13,7 @@ import {
 import { toast } from '@oxy.so/bloom/toast';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 import { Avatar } from '@oxy.so/bloom/avatar';
+import { Divider } from '@oxy.so/bloom/divider';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import type { CreateBoostRequest } from '@mention/shared-types/feed';
@@ -121,7 +122,7 @@ const BoostScreen: React.FC = () => {
         >
             {/* Header */}
             <View
-                className="flex-row justify-between items-center px-4 border-b border-border"
+                className="flex-row justify-between items-center px-4"
                 style={{ paddingBottom: 12, paddingTop: insets.top }}
             >
                 <TouchableOpacity onPress={handleCancel} className="py-2 px-3">
@@ -141,16 +142,18 @@ const BoostScreen: React.FC = () => {
                     </TouchableOpacity>
                 </View>
             </View>
+            <Divider />
 
             <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
                 {/* Boost Header */}
-                <View className="flex-row items-center py-3 border-b border-border mb-4">
+                <View className="flex-row items-center py-3">
                     <RiRepeat2Line width={20} height={20} fill={theme.colors.primary} />
                     <Text className="text-primary text-base font-semibold ml-2">Boost</Text>
                 </View>
+                <Divider />
 
                 {/* Original Post */}
-                <View className="py-4 border-b border-border mb-4">
+                <View className="py-4 mt-4">
                     <View className="flex-row items-center mb-2">
                         <Avatar source={originalPost.user.avatar ?? undefined} size={32} variant={MEDIA_VARIANT_AVATAR} style={{ marginRight: 8 }} />
                         <View className="flex-1">
@@ -165,9 +168,10 @@ const BoostScreen: React.FC = () => {
                     </View>
                     <PostContentText content={originalPost.content} postId={originalPost.id} previewChars={Infinity} />
                 </View>
+                <Divider />
 
                 {/* Boost Input */}
-                <View className="flex-1">
+                <View className="flex-1 mt-4">
                     <View className="flex-row mb-3">
                         <Avatar
                             source={user?.avatar}

@@ -1,9 +1,12 @@
 import React, { useMemo, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
+import { Card } from '@oxy.so/bloom/card';
+import { Field } from '@oxy.so/bloom/field';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -102,27 +105,31 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
               const isUrlInvalid = source.url.trim().length > 0 && !validateUrl(source.url);
 
               return (
-                <View
+                <Card
                   key={source.id}
-                  className="border-[1.5px] rounded-xl p-3 gap-2.5"
-                  style={{
-                    borderColor: isUrlInvalid ? (theme.colors.error || '#ff4d4f') : theme.colors.border,
-                    backgroundColor: theme.colors.card,
-                  }}
+                  appearance="outline"
+                  elevation="none"
+                  radius="radius-12"
+                  className="p-3 gap-2.5"
+                  style={isUrlInvalid ? { borderColor: theme.colors.error || '#ff4d4f' } : undefined}
                 >
                   <View className="flex-row items-center justify-between">
                     <Text className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
                       {t('compose.sources.itemLabel', { defaultValue: 'Source {{index}}', index: index + 1 })}
                     </Text>
-                    <TouchableOpacity onPress={() => onRemove(source.id)} className="p-1" hitSlop={HIT_SLOP_MD}>
+                    <TouchableOpacity
+                      onPress={() => onRemove(source.id)}
+                      className="p-1"
+                      hitSlop={HIT_SLOP_MD}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('common.remove', { defaultValue: 'Remove' })}
+                    >
                       <RiCloseLine size="sm" fill={theme.colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
 
-                  <TextInput
-                    className="rounded-[10px] border-[1.5px] border-border bg-muted px-3 py-2.5 text-sm text-foreground"
-                    placeholder={t('compose.sources.titlePlaceholder', { defaultValue: 'Source title (optional)' })}
-                    placeholderTextColor={theme.colors.textTertiary}
+                  <TextFieldInput
+                    label={t('compose.sources.titlePlaceholder', { defaultValue: 'Source title (optional)' })}
                     value={source.title}
                     onChangeText={(value) => onUpdate(source.id, 'title', value)}
                     maxLength={200}
@@ -130,28 +137,22 @@ const SourcesSheet: React.FC<SourcesSheetProps> = ({
                     autoCorrect
                   />
 
-                  <TextInput
-                    className="rounded-[10px] border-[1.5px] bg-muted px-3 py-2.5 text-sm text-foreground"
-                    style={{
-                      borderColor: isUrlInvalid ? (theme.colors.error || '#ff4d4f') : theme.colors.border,
-                    }}
-                    placeholder={t('compose.sources.urlPlaceholder', { defaultValue: 'https://example.com/article' })}
-                    placeholderTextColor={theme.colors.textTertiary}
-                    value={source.url}
-                    onChangeText={(value) => onUpdate(source.id, 'url', value)}
-                    keyboardType="url"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    textContentType="URL"
-                    returnKeyType="done"
-                  />
-
-                  {isUrlInvalid && (
-                    <Text className="text-[11px] -mt-1" style={{ color: theme.colors.error || '#ff4d4f' }}>
-                      {t('compose.sources.invalidUrl', { defaultValue: 'Enter a valid URL.' })}
-                    </Text>
-                  )}
-                </View>
+                  <Field
+                    error={isUrlInvalid ? t('compose.sources.invalidUrl', { defaultValue: 'Enter a valid URL.' }) : null}
+                  >
+                    <TextFieldInput
+                      label={t('compose.sources.urlPlaceholder', { defaultValue: 'https://example.com/article' })}
+                      value={source.url}
+                      onChangeText={(value) => onUpdate(source.id, 'url', value)}
+                      invalid={isUrlInvalid}
+                      keyboardType="url"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      textContentType="URL"
+                      returnKeyType="done"
+                    />
+                  </Field>
+                </Card>
               );
             })}
           </View>

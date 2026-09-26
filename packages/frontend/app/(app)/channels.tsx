@@ -1,9 +1,12 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
+import { Field } from '@oxy.so/bloom/field';
+import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Item } from '@oxy.so/bloom/item';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -14,7 +17,6 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { displayNameOrHandle } from '@/utils/displayName';
-import { cn } from '@/lib/utils';
 import { FocusedScrollView } from '@/components/common/FocusedScrollView';
 import { useScreenReselect } from '@/context/ScreenReselectContext';
 import { SignInRequired } from '@/components/common/SignInRequired';
@@ -130,35 +132,34 @@ export default function ChannelsScreen() {
           </View>
 
           <View className="px-4 gap-3">
-            <View>
-              <TextInput
-                value={handle}
-                onChangeText={setHandle}
-                autoCapitalize="none"
-                autoCorrect={false}
-                placeholder={t('channels.handlePlaceholder', { defaultValue: 'handle' })}
-                accessibilityLabel={t('channels.handleLabel', { defaultValue: 'Channel handle' })}
-                className={cn(
-                  'bg-muted text-foreground rounded-2xl px-4 py-3 text-[15px]',
-                  handleError && 'border border-destructive',
-                )}
-              />
-              {handleError && (
-                <Text className="text-destructive text-[12px] mt-1 px-1">
-                  {t('channels.handleInvalid', {
-                    defaultValue: '3–30 characters: letters, numbers, _ or -',
-                  })}
-                </Text>
-              )}
-            </View>
+            <Field
+              error={
+                handleError
+                  ? t('channels.handleInvalid', {
+                      defaultValue: '3–30 characters: letters, numbers, _ or -',
+                    })
+                  : null
+              }
+            >
+              <InputGroup>
+                <InputGroupAddon>@</InputGroupAddon>
+                <TextFieldInput
+                  label={t('channels.handleLabel', { defaultValue: 'Channel handle' })}
+                  placeholder={t('channels.handlePlaceholder', { defaultValue: 'handle' })}
+                  value={handle}
+                  onChangeText={setHandle}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </InputGroup>
+            </Field>
 
-            <TextInput
+            <TextFieldInput
+              label={t('channels.titleLabel', { defaultValue: 'Channel name' })}
+              placeholder={t('channels.titlePlaceholder', { defaultValue: 'Channel name' })}
               value={title}
               onChangeText={setTitle}
               maxLength={MAX_TITLE_LENGTH}
-              placeholder={t('channels.titlePlaceholder', { defaultValue: 'Channel name' })}
-              accessibilityLabel={t('channels.titleLabel', { defaultValue: 'Channel name' })}
-              className="bg-muted text-foreground rounded-2xl px-4 py-3 text-[15px]"
             />
 
             <Item

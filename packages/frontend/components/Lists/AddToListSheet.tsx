@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
-import { RiCheckboxBlankCircleLine } from '@oxy.so/bloom/icons/RiCheckboxBlankCircleLine';
-import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';
 import { router } from 'expo-router';
+import { Checkbox } from '@oxy.so/bloom/checkbox';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -153,31 +152,40 @@ export function AddToListSheet({ targetUserId, targetLabel, onClose }: AddToList
       ) : (
         <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
           {rows.map((row) => (
-            <TouchableOpacity
+            <View
               key={row.id}
               className="flex-row items-center justify-between py-3 border-b border-border"
-              onPress={() => toggle(row)}
-              disabled={row.pending}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityState={{ checked: row.hasUser, disabled: row.pending }}
             >
-              <View className="flex-row items-center gap-3 flex-1">
+              {/* The label area and the checkbox are SIBLINGS, never one inside
+                  the other: a pressable row wrapping Bloom's Checkbox is a
+                  button inside a button on web, and a click on the box would
+                  toggle twice. The box carries the accessible name; the label
+                  area is only a bigger touch target for the same toggle. */}
+              <TouchableOpacity
+                className="flex-row items-center gap-3 flex-1"
+                onPress={() => toggle(row)}
+                disabled={row.pending}
+                activeOpacity={0.7}
+                accessible={false}
+              >
                 <View className="w-9 h-9 rounded-lg items-center justify-center bg-muted">
                   <RiListUnordered width={18} height={18} fill={theme.colors.text} />
                 </View>
                 <Text className="text-foreground text-[15px] font-medium flex-1" numberOfLines={1}>
                   {row.title}
                 </Text>
-              </View>
+              </TouchableOpacity>
               {row.pending ? (
                 <SpinnerIcon size={18} className="text-primary" />
-              ) : row.hasUser ? (
-                <RiCheckboxCircleFill size="lg" fill={theme.colors.primary} />
               ) : (
-                <RiCheckboxBlankCircleLine size="lg" fill={theme.colors.textSecondary} />
+                <Checkbox
+                  size="lg"
+                  checked={row.hasUser}
+                  onCheckedChange={() => toggle(row)}
+                  accessibilityLabel={row.title}
+                />
               )}
-            </TouchableOpacity>
+            </View>
           ))}
 
           <TouchableOpacity

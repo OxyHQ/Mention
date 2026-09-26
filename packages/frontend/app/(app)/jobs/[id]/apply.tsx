@@ -4,10 +4,14 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
+import { Card } from '@oxy.so/bloom/card';
 import { Chip } from '@oxy.so/bloom/chip';
+import { Field } from '@oxy.so/bloom/field';
+import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { logger } from '@oxy.so/core/logger';
@@ -187,7 +191,7 @@ export default function JobApplyScreen() {
             })}
           </Text>
 
-          <View className="border border-border rounded-[14px] p-4 gap-3">
+          <Card appearance="outline" radius="radius-16" style={{ padding: 16, gap: 12 }}>
             <View>
               <Text className="text-xs text-muted-foreground font-primary">{t('jobs.apply.displayName', { defaultValue: 'Name' })}</Text>
               <Text className="text-foreground text-[15px]">{displayName.trim() || t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}</Text>
@@ -214,7 +218,7 @@ export default function JobApplyScreen() {
               <Text className="text-xs text-muted-foreground font-primary">{t('jobs.apply.resume', { defaultValue: 'Resume' })}</Text>
               <Text className="text-foreground text-[15px]">{resumeFileName || t('jobs.apply.notProvided', { defaultValue: 'Not provided' })}</Text>
             </View>
-          </View>
+          </Card>
 
           <View className="flex-row gap-3 mt-6">
             <Button appearance="subtle" tone="neutral" size="large" style={{ flex: 1 }} onPress={() => setStep('edit')} disabled={submitMutation.isPending}>
@@ -271,41 +275,37 @@ export default function JobApplyScreen() {
         </View>
 
         <View className="mt-3">
-          <TextField>
-            <TextFieldInput
-              label={t('jobs.apply.coverNote', { defaultValue: 'Cover note (optional)' })}
-              value={coverNote}
-              onChangeText={setCoverNote}
-              multiline
-              numberOfLines={5}
-              style={{ minHeight: 100, textAlignVertical: 'top' }}
-            />
-          </TextField>
+          <Textarea
+            accessibilityLabel={t('jobs.apply.coverNote', { defaultValue: 'Cover note (optional)' })}
+            placeholder={t('jobs.apply.coverNote', { defaultValue: 'Cover note (optional)' })}
+            value={coverNote}
+            onChangeText={setCoverNote}
+            rows={5}
+          />
         </View>
 
+        {/* Not a TagField: a link needs the URL keyboard and no auto-capitalisation,
+            which TagField's caret does not take, and a comma is legal in a URL. */}
         <View className="mt-4">
-          <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
-            {t('jobs.apply.portfolio', { defaultValue: 'Portfolio links (optional)' })}
-          </Text>
-          <View className="flex-row gap-2 items-start">
-            <View className="flex-1">
-              <TextField>
-                <TextFieldInput
-                  label={t('jobs.apply.addLink', { defaultValue: 'Add a link' })}
-                  value={portfolioLinkDraft}
-                  onChangeText={setPortfolioLinkDraft}
-                  onSubmitEditing={addPortfolioLink}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                  returnKeyType="done"
-                />
-              </TextField>
-            </View>
-            <Button appearance="subtle" tone="neutral" size="medium" onPress={addPortfolioLink} disabled={!portfolioLinkDraft.trim()}>
-              {t('common.add', { defaultValue: 'Add' })}
-            </Button>
-          </View>
+          <Field label={t('jobs.apply.portfolio', { defaultValue: 'Portfolio links (optional)' })}>
+            <InputGroup>
+              <TextFieldInput
+                label={t('jobs.apply.addLink', { defaultValue: 'Add a link' })}
+                value={portfolioLinkDraft}
+                onChangeText={setPortfolioLinkDraft}
+                onSubmitEditing={addPortfolioLink}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                returnKeyType="done"
+              />
+              <InputGroupAddon divider noPadding>
+                <Button appearance="plain" tone="neutral" size="small" onPress={addPortfolioLink} disabled={!portfolioLinkDraft.trim()}>
+                  {t('common.add', { defaultValue: 'Add' })}
+                </Button>
+              </InputGroupAddon>
+            </InputGroup>
+          </Field>
           {portfolioLinks.length > 0 ? (
             <View className="flex-row flex-wrap gap-2 mt-2">
               {portfolioLinks.map((link) => (
@@ -317,23 +317,24 @@ export default function JobApplyScreen() {
           ) : null}
         </View>
 
-        <View className="mt-4">
-          <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
-            {t('jobs.apply.resume', { defaultValue: 'Resume (optional)' })}
-          </Text>
+        <Field label={t('jobs.apply.resume', { defaultValue: 'Resume (optional)' })} style={{ marginTop: 16 }}>
           {resumeFileName ? (
-            <View className="flex-row items-center justify-between border border-border rounded-[14px] px-4 py-3">
+            <Card
+              appearance="outline"
+              radius="radius-16"
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 }}
+            >
               <Text className="text-foreground text-[14px] flex-1" numberOfLines={1}>{resumeFileName}</Text>
               <Button appearance="plain" tone="neutral" size="small" onPress={removeResume}>
                 {t('common.remove', { defaultValue: 'Remove' })}
               </Button>
-            </View>
+            </Card>
           ) : (
             <Button appearance="subtle" tone="neutral" size="medium" onPress={openResumePicker} style={{ alignSelf: 'flex-start' }}>
               {t('jobs.apply.attachResume', { defaultValue: 'Attach a resume' })}
             </Button>
           )}
-        </View>
+        </Field>
 
         <View className="mt-6">
           <Button appearance="solid" tone="accent" size="large" disabled={!canContinue} onPress={() => setStep('review')}>

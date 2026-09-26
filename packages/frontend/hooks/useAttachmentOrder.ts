@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
+import { moveItem } from '@oxy.so/bloom/hooks';
 import {
   ComposerMediaItem,
   createLinkAttachmentKey,
@@ -140,9 +141,7 @@ export const useAttachmentOrder = ({
     const targetIndex = direction === 'left' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= current.length) return;
 
-    const updated = [...current];
-    const [item] = updated.splice(index, 1);
-    updated.splice(targetIndex, 0, item);
+    const updated = moveItem(current, index, targetIndex);
 
     stableOrderRef.current = updated;
     setUserOrder(updated);

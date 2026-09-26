@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from '@oxy.so/bloom/toast';
+import { moveItem } from '@oxy.so/bloom/hooks';
 import type { FileMetadata } from '@oxy.so/core';
 import { ComposerMediaItem, toComposerMediaType } from "@/utils/composeUtils";
 import { normalizeApiError } from "@/utils/apiError";
@@ -80,10 +81,7 @@ export const useMediaManager = () => {
       if (index === -1) return prev;
       const targetIndex = direction === "left" ? index - 1 : index + 1;
       if (targetIndex < 0 || targetIndex >= prev.length) return prev;
-      const updated = [...prev];
-      const [item] = updated.splice(index, 1);
-      updated.splice(targetIndex, 0, item);
-      return updated;
+      return moveItem(prev, index, targetIndex);
     });
   }, []);
 

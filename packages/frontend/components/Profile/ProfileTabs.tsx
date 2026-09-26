@@ -8,7 +8,7 @@ import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { Spinner } from '@/components/ui/Spinner';
+import { Loading } from '@oxy.so/bloom/loading';
 import { Feed } from '@/components/Feed/index';
 import { ProfileWriters } from './ProfileWriters';
 import MediaGrid from './MediaGrid';
@@ -344,7 +344,7 @@ const ProfileFeeds = memo(function ProfileFeeds({
   if (loading) {
     return (
       <View className="items-center justify-center p-8">
-        <Spinner />
+        <Loading iconSize={28} style={{ padding: 0 }} />
       </View>
     );
   }
@@ -442,7 +442,7 @@ const ProfileJobs = memo(function ProfileJobs({
   if (loading) {
     return (
       <View className="items-center justify-center p-8">
-        <Spinner />
+        <Loading iconSize={28} style={{ padding: 0 }} />
       </View>
     );
   }
@@ -604,7 +604,7 @@ const ProfileLists = memo(function ProfileLists({
   if (loading) {
     return (
       <View className="items-center justify-center p-8">
-        <Spinner />
+        <Loading iconSize={28} style={{ padding: 0 }} />
       </View>
     );
   }

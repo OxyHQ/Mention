@@ -26,8 +26,7 @@ import { LaneIcon } from '@/assets/icons/lane-icon';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { BloomIcon } from '@/components/settings/RowIcon';
-import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { ConfirmBottomSheet } from '@/components/common/ConfirmBottomSheet';
+import { confirmDialog } from '@/utils/alerts';
 import { showActionMenu } from '@/components/common/ActionMenu';
 import type { ActionMenuAction } from '@/components/common/actionMenuGroups';
 import { getErrorMessage } from '@/utils/apiError';
@@ -67,7 +66,6 @@ export default function LanesScreen() {
     const { colors } = useTheme();
     const safeBack = useSafeBack();
     const { isAuthenticated, user, canUsePrivateApi } = useAuth();
-    const bottomSheet = React.useContext(BottomSheetContext);
     const queryClient = useQueryClient();
     const [input, setInput] = useState('');
     const [editingLaneId, setEditingLaneId] = useState<string | null>(null);
@@ -202,24 +200,20 @@ export default function LanesScreen() {
     );
 
     const handleDelete = useCallback(
-        (lane: Lane) => {
-            bottomSheet.setBottomSheetContent(
-                <ConfirmBottomSheet
-                    title={t('lanes.delete', { defaultValue: 'Delete lane' })}
-                    message={t('lanes.deleteConfirm', {
-                        lane: lane.name,
-                        defaultValue: 'Delete «{{lane}}»? Its posts stay exactly where they are — they simply stop being on a lane, and any of them you were keeping off your profile come back.',
-                    })}
-                    confirmText={t('lanes.delete', { defaultValue: 'Delete lane' })}
-                    cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
-                    destructive
-                    onConfirm={() => deleteMutation.mutate(lane.id)}
-                    onCancel={() => bottomSheet.openBottomSheet(false)}
-                />
-            );
-            bottomSheet.openBottomSheet(true);
+        async (lane: Lane) => {
+            const confirmed = await confirmDialog({
+                title: t('lanes.delete', { defaultValue: 'Delete lane' }),
+                message: t('lanes.deleteConfirm', {
+                    lane: lane.name,
+                    defaultValue: 'Delete «{{lane}}»? Its posts stay exactly where they are — they simply stop being on a lane, and any of them you were keeping off your profile come back.',
+                }),
+                okText: t('lanes.delete', { defaultValue: 'Delete lane' }),
+                cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
+                destructive: true,
+            });
+            if (confirmed) deleteMutation.mutate(lane.id);
         },
-        [bottomSheet, deleteMutation, t],
+        [deleteMutation, t],
     );
 
     const openLaneMenu = useCallback(

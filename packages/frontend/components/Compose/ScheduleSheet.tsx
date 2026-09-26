@@ -1,5 +1,8 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, TextInput, Platform, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { DatePicker, TimeField } from '@oxy.so/bloom/date-picker';
+import { Card } from '@oxy.so/bloom/card';
+import { Field } from '@oxy.so/bloom/field';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@oxy.so/bloom/toast';
@@ -19,26 +22,19 @@ export interface ScheduleSheetProps {
   formatLabel: (date: Date) => string;
 }
 
-const formatDateInput = (date: Date) => {
-  try {
-    return date.toISOString().slice(0, 10);
-  } catch {
-    return '';
-  }
-};
+/** Bloom's `DatePicker` speaks local-midnight days. */
+const toLocalDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
-const formatTimeInput = (date: Date) => {
-  try {
-    return date.toISOString().slice(11, 16);
-  } catch {
-    return '';
-  }
-};
+/** Bloom's `TimeField` speaks local 24h `"HH:mm"`. */
+const formatTimeInput = (date: Date) =>
+  `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 
-const parseDateTime = (dateStr: string, timeStr: string): Date | null => {
-  if (!dateStr || !timeStr) return null;
-  const isoString = `${dateStr}T${timeStr}:00`;
-  const parsed = new Date(isoString);
+/** Merges the picked day and time into one local timestamp. */
+export const parseDateTime = (day: Date | null, time: string | null): Date | null => {
+  if (!day || !time) return null;
+  const [hours, minutes] = time.split(':').map(Number);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+  const parsed = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hours, minutes, 0, 0);
   if (Number.isNaN(parsed.getTime())) {
     return null;
   }
@@ -59,11 +55,13 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
   formatLabel,
 }) => {
   const theme = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const initialDate = useMemo(() => scheduledAt ?? new Date(Date.now() + 15 * 60000), [scheduledAt]);
-  const [customDate, setCustomDate] = useState(() => formatDateInput(initialDate));
-  const [customTime, setCustomTime] = useState(() => formatTimeInput(initialDate));
+  const [customDate, setCustomDate] = useState<Date | null>(() => toLocalDay(initialDate));
+  const [customTime, setCustomTime] = useState<string | null>(() => formatTimeInput(initialDate));
+  // Days before today cannot be scheduled; the time is still checked on apply.
+  const [today] = useState(() => toLocalDay(new Date()));
 
   const handleCustomApply = useCallback(() => {
     const parsed = parseDateTime(customDate, customTime);
@@ -107,7 +105,12 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
         </Text>
 
         {scheduledAt && (
-          <View className="flex-row items-center rounded-[14px] py-3 px-3.5 mb-4.5 bg-muted" style={{ borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border }}>
+          <Card
+            appearance="subtle"
+            border="hairline"
+            radius="radius-16"
+            className="flex-row items-center py-3 px-3.5 mb-4.5"
+          >
             <View className="flex-1">
               <Text className="text-[13px] text-muted-foreground mb-1">
                 {t('compose.schedule.current', { defaultValue: 'Currently scheduled' })}
@@ -121,7 +124,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
                 {t('compose.schedule.clear', { defaultValue: 'Clear' })}
               </Text>
             </TouchableOpacity>
-          </View>
+          </Card>
         )}
 
         <Text className="text-xs uppercase tracking-wide text-muted-foreground mb-2.5">
@@ -130,17 +133,15 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
 
         <View className="flex-row flex-wrap gap-2.5 mb-5">
           {options.map((option) => (
-            <TouchableOpacity
+            <Card
               key={option.key}
-              style={[
-                styles.optionButton,
-                {
-                  borderColor: theme.colors.border,
-                  backgroundColor: theme.colors.card,
-                },
-              ]}
+              appearance="outline"
+              border="hairline"
+              elevation="none"
+              radius="radius-16"
+              style={styles.optionButton}
               onPress={() => handleOptionPress(option)}
-              activeOpacity={0.8}
+              accessibilityLabel={`${option.label}, ${formatLabel(option.date)}`}
             >
               <Text className="text-[15px] font-semibold text-foreground mb-1.5 text-left">
                 {option.label}
@@ -148,7 +149,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
               <Text className="text-[11px] text-muted-foreground text-left" style={{ lineHeight: 14 }}>
                 {formatLabel(option.date)}
               </Text>
-            </TouchableOpacity>
+            </Card>
           ))}
         </View>
 
@@ -156,45 +157,27 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
           {t('compose.schedule.pickCustom', { defaultValue: 'Pick custom time' })}
         </Text>
 
-        <View className="flex-row mb-5">
-          <View className="flex-1 mr-3">
-            <Text className="text-[13px] text-muted-foreground mb-1.5">
-              {t('compose.schedule.dateLabel', { defaultValue: 'Date' })}
-            </Text>
-            <TextInput
+        <View className="flex-row mb-5 gap-3">
+          <Field
+            label={t('compose.schedule.dateLabel', { defaultValue: 'Date' })}
+            style={{ flex: 1 }}
+          >
+            <DatePicker
               value={customDate}
-              onChangeText={setCustomDate}
-              placeholder={t('compose.schedule.datePlaceholder')}
-              placeholderTextColor={theme.colors.textTertiary}
-              className="rounded-xl text-base text-foreground bg-muted px-3"
-              style={{
-                borderWidth: StyleSheet.hairlineWidth,
-                borderColor: theme.colors.border,
-                paddingVertical: Platform.select({ ios: 12, android: 8 }) ?? 10,
-              }}
-              keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'numeric'}
-              autoCorrect={false}
+              onChange={setCustomDate}
+              minDate={today}
+              locale={i18n.language}
+              accessibilityLabel={t('compose.schedule.dateLabel', { defaultValue: 'Date' })}
+              testID="scheduleSheetDatePicker"
             />
-          </View>
-          <View className="flex-1">
-            <Text className="text-[13px] text-muted-foreground mb-1.5">
-              {t('compose.schedule.timeLabel', { defaultValue: 'Time' })}
-            </Text>
-            <TextInput
+          </Field>
+          <Field label={t('compose.schedule.timeLabel', { defaultValue: 'Time' })}>
+            <TimeField
               value={customTime}
-              onChangeText={setCustomTime}
-              placeholder={t('compose.schedule.timePlaceholder')}
-              placeholderTextColor={theme.colors.textTertiary}
-              className="rounded-xl text-base text-foreground bg-muted px-3"
-              style={{
-                borderWidth: StyleSheet.hairlineWidth,
-                borderColor: theme.colors.border,
-                paddingVertical: Platform.select({ ios: 12, android: 8 }) ?? 10,
-              }}
-              keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'numeric'}
-              autoCorrect={false}
+              onChange={setCustomTime}
+              testID="scheduleSheetTimeField"
             />
-          </View>
+          </Field>
         </View>
 
         <TouchableOpacity
@@ -221,8 +204,6 @@ const styles = StyleSheet.create({
   optionButton: {
     width: "31%",
     aspectRatio: 1.6,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 14,
     padding: 10,
     justifyContent: "center",
     alignItems: "flex-start",

@@ -127,6 +127,8 @@ jest.mock('@oxy.so/bloom/icons', () => ({
 jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: () => null }));
 jest.mock('@oxy.so/bloom/loading', () => ({ SpinnerIcon: () => null }));
 jest.mock('@oxy.so/bloom/switch', () => ({ Switch: () => null }));
+jest.mock('@oxy.so/bloom/text-field', () => ({ TextFieldInput: () => null }));
+jest.mock('@oxy.so/bloom/textarea', () => ({ Textarea: () => null }));
 jest.mock('@oxy.so/bloom/toast', () => {
   const toast = Object.assign(jest.fn(), { success: jest.fn(), error: jest.fn() });
   return { toast };

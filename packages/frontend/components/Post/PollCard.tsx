@@ -2,7 +2,9 @@ import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Card } from '@oxy.so/bloom/card';
 import { Loading } from '@oxy.so/bloom/loading';
+import { StatBar } from '@oxy.so/bloom/stat-bar';
 import { toast } from '@oxy.so/bloom/toast';
 import { createLogger } from '@oxy.so/core/logger';
 import { pollService, PollContractError, type PollDetailOption } from '@/services/pollService';
@@ -91,17 +93,19 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
   };
 
   if (loading) return (
-    <View className="flex-1 w-full p-3 bg-card" style={{ width }}>
+    <Card variant="outlined" radius="radius-16" className="flex-1 w-full p-3" style={{ width }}>
       <Loading className="text-primary" size="small" style={{ flex: undefined }} />
-    </View>
+    </Card>
   );
 
   if (error || !poll) return null;
 
+  const locked = ended || (hasVoted && !poll.isMultipleChoice);
+
   return (
-    <View className="flex-1 w-full p-3 bg-card" style={{ width }}>
+    <Card variant="outlined" radius="radius-16" className="flex-1 w-full p-3" style={{ width }}>
       <Text className="text-foreground text-base font-semibold mb-2" numberOfLines={3}>{poll.question}</Text>
-      <View className="gap-2">
+      <View className="gap-1">
         {poll.options.map((opt: PollDetailOption) => {
           const pct = totalVotes > 0 ? (opt.voteCount / totalVotes) : 0;
           return (
@@ -109,21 +113,20 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
               key={opt._id}
               onPress={() => handleVote(opt._id)}
               hitSlop={HIT_SLOP_MD}
-              disabled={ended || (hasVoted && !poll.isMultipleChoice) || voting}
-              className="border-border bg-card"
+              disabled={locked || voting}
+              accessibilityRole="button"
+              accessibilityLabel={`${opt.text}, ${Math.round(pct * 100)}%`}
               style={({ pressed }) => [
                 styles.option,
-                pressed ? { opacity: 0.9 } : null,
-                ended || (hasVoted && !poll.isMultipleChoice) ? { opacity: 0.9 } : null,
+                pressed || locked ? styles.optionDimmed : null,
               ]}
             >
-              <View className="absolute left-0 top-0 bottom-0 w-full bg-muted">
-                <View className="absolute left-0 top-0 bottom-0 bg-primary/25" style={{ width: `${pct * 100}%` }} />
-              </View>
-              <View className="flex-row justify-between items-center">
-                <Text className="text-foreground text-sm flex-1 mr-2" numberOfLines={1}>{opt.text}</Text>
-                <Text className="text-foreground text-sm font-semibold">{Math.round(pct * 100)}%</Text>
-              </View>
+              <StatBar
+                label={opt.text}
+                value={pct * 100}
+                max={100}
+                icon={<Text className="text-foreground text-sm font-semibold">{Math.round(pct * 100)}%</Text>}
+              />
             </Pressable>
           );
         })}
@@ -133,19 +136,19 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
         <Text className="text-muted-foreground">{'\u00B7'}</Text>
         <Text className="text-muted-foreground text-xs">{ended ? 'Ended' : 'Active'}</Text>
       </View>
-    </View>
+    </Card>
   );
 };
 
 export default PollCard;
 
 const styles = StyleSheet.create({
+  // A tap target around the option's labelled bar — the bar itself is Bloom's
+  // `StatBar` (label, share, `Meter`), so the row only owns the press.
   option: {
-    position: 'relative',
-    borderWidth: 1,
-    borderRadius: 15,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    overflow: 'hidden',
+    paddingVertical: 6,
+  },
+  optionDimmed: {
+    opacity: 0.9,
   },
 });

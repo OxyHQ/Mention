@@ -40,6 +40,7 @@ import type { CreatePostRequest, HydratedPost } from '@mention/shared-types';
 import { MAX_POST_COLLABORATORS, MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useHaptics } from '@oxy.so/bloom/hooks';
+import { Switch } from '@oxy.so/bloom/switch';
 import MentionTextInput, { MentionTextInputHandle } from '@/components/MentionTextInput';
 import ComposeMentionSummary from '@/components/Compose/ComposeMentionSummary';
 import { SEO } from '@/components/SEO';
@@ -63,7 +64,6 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { Dialog, useDialogControl } from '@oxy.so/bloom/dialog';
 // Import types separately (not lazy loaded)
 import type { ReplyPermission } from '@/components/Compose/ReplySettingsSheet';
-import { Toggle } from '@/components/Toggle';
 import { useDrafts } from '@/hooks/useDrafts';
 
 // New imports for refactored components and hooks
@@ -2663,11 +2663,16 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       {t('Post as linked thread')}
                     </Text>
                   </View>
-                  <Toggle
-                    value={postingMode === 'beast'}
-                    onValueChange={(value) => setPostingMode(value ? 'beast' : 'thread')}
-                    containerStyle={styles.modeToggle}
-                  />
+                  <View style={styles.modeToggle}>
+                    <Switch
+                      value={postingMode === 'beast'}
+                      onValueChange={(value) => {
+                        haptic('light');
+                        setPostingMode(value ? 'beast' : 'thread');
+                      }}
+                      accessibilityLabel={t('Beast')}
+                    />
+                  </View>
                   <View style={styles.modeOption}>
                     <Text
                       className={postingMode === 'beast' ? 'text-primary' : 'text-foreground'}

@@ -1,5 +1,4 @@
-import { Alert, Platform } from "react-native";
-import { showConfirmPrompt } from "@/components/common/ConfirmPrompt";
+import { confirm } from "@oxy.so/bloom/surfaces";
 
 export interface ConfirmOptions {
   title: string;
@@ -15,22 +14,34 @@ export interface AlertOptions {
   okText?: string;
 }
 
-export async function confirmDialog(options: ConfirmOptions): Promise<boolean> {
-  // Use the in-app bottom sheet prompt on all platforms
-  return showConfirmPrompt(options);
+/**
+ * Ask a yes/no question through Bloom's imperative surface stack (the one
+ * `<SurfaceHost />` mounted in AppProviders). Resolves `false` when the reader
+ * cancels or dismisses it.
+ */
+export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
+  const { title, message, okText, cancelText, destructive } = options;
+  return confirm({
+    title,
+    description: message || undefined,
+    confirmLabel: okText,
+    cancelLabel: cancelText,
+    destructive,
+  });
 }
 
+/**
+ * Show a one-button notice. A single-action `confirm` rather than Bloom's
+ * `alert()`: `confirm` resolves on a backdrop/Escape/back dismissal too, so the
+ * caller's `await` never hangs.
+ */
 export async function alertDialog(options: AlertOptions): Promise<void> {
-  const { title, message = "", okText = "OK" } = options;
-  if (Platform.OS === "web") {
-    window.alert(message ? `${title}\n\n${message}` : title);
-    return;
-  }
-  return new Promise<void>((resolve) => {
-    Alert.alert(title, message, [{ text: okText, onPress: () => resolve() }], {
-      cancelable: true,
-      onDismiss: () => resolve(),
-    });
+  const { title, message, okText = "OK" } = options;
+  await confirm({
+    title,
+    description: message || undefined,
+    confirmLabel: okText,
+    hideCancel: true,
   });
 }
 

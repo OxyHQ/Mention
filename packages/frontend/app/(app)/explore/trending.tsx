@@ -9,12 +9,12 @@ import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 
 import { trendingService, type TrendingTopic, type TrendingDay } from '@/services/trendingService';
+import { EmptyState } from '@/components/common/EmptyState';
 import { TrendItemRow } from '@/components/trending/TrendItemRow';
 import { useTrendNavigation } from '@/hooks/useTrendNavigation';
 import { useTrendItemMenu } from '@/hooks/useTrendItemMenu';
 import { useTrendsStore } from '@/stores/trendsStore';
 import type { Trend } from '@/interfaces/Trend';
-import { SPACING } from '@/styles/spacing';
 import { FONT_SIZES } from '@/styles/typography';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { useScreenReselect } from '@/context/ScreenReselectContext';
@@ -271,12 +271,10 @@ export default function ExploreTrendingScreen() {
       refreshing={trendsLoading || historyQuery.isRefetching}
       stickySectionHeadersEnabled
       ListEmptyComponent={
-        <View className="flex-1 items-center justify-center" style={{ paddingVertical: SPACING['3xl'], gap: SPACING.md }}>
-          <RiLineChartLine size="3xl" fill={theme.colors.textSecondary} />
-          <Text className="text-muted-foreground" style={{ fontSize: FONT_SIZES.md }}>
-            No trending topics available
-          </Text>
-        </View>
+        <EmptyState
+          customIcon={<RiLineChartLine size="3xl" fill={theme.colors.textSecondary} />}
+          title="No trending topics available"
+        />
       }
     />
   );

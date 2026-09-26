@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { FeedType } from '@mention/shared-types';
 import type { FeedFailureKind } from '@/utils/feedRetry';
 import { EmptyState } from '@/components/common/EmptyState';
-import { Spinner } from '@/components/ui/Spinner';
+import { Loading } from '@oxy.so/bloom/loading';
 
 interface FeedEmptyStateProps {
     isLoading: boolean;
@@ -38,7 +38,7 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
         const { t } = useTranslation();
         if (isLoading || pending) return (
             <View className="items-center justify-center py-12 gap-3">
-                <Spinner />
+                <Loading iconSize={28} style={{ padding: 0 }} />
                 {pending && (
                     <Text className="text-muted-foreground text-sm">
                         {t('feed.loadingPosts', { defaultValue: 'Loading posts…' })}

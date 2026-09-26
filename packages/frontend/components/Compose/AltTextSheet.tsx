@@ -1,8 +1,10 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, TextInput, Image, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity } from 'react-native';
 import { Button } from '@oxy.so/bloom/button';
+import { Card } from '@oxy.so/bloom/card';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { PageHeader } from '@oxy.so/bloom/page-header';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { describeContentLanguage } from '@/constants/contentLanguages';
@@ -107,14 +109,14 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
         </Text>
 
         {imageUrl ? (
-          <View className="mx-4 mb-3 rounded-[15px] overflow-hidden border border-border bg-muted">
+          <Card appearance="outline" elevation="none" radius="radius-16" className="mx-4 mb-3">
             <Image
               source={{ uri: imageUrl }}
               className="w-full"
               style={previewStyle}
               resizeMode="cover"
             />
-          </View>
+          </Card>
         ) : null}
 
         {tags.length > 1 ? (
@@ -164,24 +166,21 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
           </ScrollView>
         ) : null}
 
-        <View className="mx-4 rounded-xl border-[1.5px] border-border bg-muted px-3 py-2.5">
-          <TextInput
-            className="text-sm text-foreground"
-            style={inputStyle}
-            placeholder={t('compose.altText.placeholder', { defaultValue: 'Describe this image…' })}
-            placeholderTextColor={theme.colors.textTertiary}
-            value={value}
-            onChangeText={handleChange}
-            maxLength={ALT_MAX_LENGTH}
-            multiline
-            autoFocus
-            autoCapitalize="sentences"
-            autoCorrect
-          />
-        </View>
-        <Text className="text-[11px] text-right text-muted-foreground mt-1.5 px-4">
-          {value.length}/{ALT_MAX_LENGTH}
-        </Text>
+        <Textarea
+          accessibilityLabel={t('compose.altText.heading', { defaultValue: 'Alt text' })}
+          placeholder={t('compose.altText.placeholder', { defaultValue: 'Describe this image…' })}
+          value={value}
+          onChangeText={handleChange}
+          maxLength={ALT_MAX_LENGTH}
+          showCount
+          rows={5}
+          autoResize
+          maxRows={12}
+          autoFocus
+          autoCapitalize="sentences"
+          autoCorrect
+          style={textareaStyle}
+        />
       </ScrollView>
 
       <Button className="mt-2 mx-4" size="large" onPress={handleSave}>
@@ -194,7 +193,7 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
 const scrollContentStyle = { paddingBottom: 24 };
 const helpTextStyle = { lineHeight: 18 };
 const previewStyle = { aspectRatio: 16 / 9 };
-const inputStyle = { minHeight: 96, textAlignVertical: 'top' as const };
+const textareaStyle = { marginHorizontal: 16 };
 const tabsContentStyle = { gap: 8, paddingHorizontal: 16, paddingBottom: 12 };
 
 export default AltTextSheet;

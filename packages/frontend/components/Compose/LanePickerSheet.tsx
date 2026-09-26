@@ -13,6 +13,7 @@ import type { AccountNode } from '@oxy.so/core';
 import type { Lane } from '@mention/shared-types';
 import { lanesService } from '@/services/lanesService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { EmptyState } from '@/components/common/EmptyState';
 
 interface LanePickerSheetProps {
   /** The lane currently chosen for this post, or `null` for none. */
@@ -160,11 +161,12 @@ const LanePickerSheet = memo(function LanePickerSheet({
           renderItem={renderItem}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
-            <Text className="text-center text-sm text-muted-foreground py-6 px-6">
-              {t('lanes.picker.empty', {
+            <EmptyState
+              icon={{ name: 'git-branch-outline' }}
+              subtitle={t('lanes.picker.empty', {
                 defaultValue: 'Lanes let you keep separate tracks of your posts and decide which ones reach your profile.',
               })}
-            </Text>
+            />
           }
         />
       )}

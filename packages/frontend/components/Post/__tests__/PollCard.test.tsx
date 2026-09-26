@@ -38,6 +38,22 @@ jest.mock('@oxy.so/core/logger', () => ({
 }));
 
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: 'Loading' }));
+jest.mock('@oxy.so/bloom/card', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { Card: ({ children }: { children?: React.ReactNode }) => <View>{children}</View> };
+});
+// The option's labelled bar: its label and the share node PollCard hands it.
+jest.mock('@oxy.so/bloom/stat-bar', () => {
+  const { Text: RNText, View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    StatBar: ({ label, icon }: { label: string; icon?: React.ReactNode }) => (
+      <View>
+        <RNText>{label}</RNText>
+        {icon}
+      </View>
+    ),
+  };
+});
 jest.mock('@oxy.so/services/ui/client', () => ({ useAuth: () => ({ user: { id: 'viewer-1' } }) }));
 
 function poll(overrides: Partial<PollDetail> = {}): PollDetail {

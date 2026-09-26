@@ -1,6 +1,15 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
+import { Text } from 'react-native';
+import {
+  AdmonitionButton,
+  AdmonitionContent,
+  AdmonitionIcon,
+  AdmonitionRoot,
+  AdmonitionRow,
+  AdmonitionText,
+} from '@oxy.so/bloom/admonition';
+import { Badge } from '@oxy.so/bloom/badge';
+import type { AccentTone } from '@oxy.so/bloom/theme';
 
 export type Severity = 'low' | 'medium' | 'high' | 'critical';
 export type LabelActionType = 'show' | 'warn' | 'blur' | 'hide';
@@ -13,12 +22,43 @@ export interface LabelBadgeProps {
   onShowAnyway?: () => void;
 }
 
+/**
+ * Raw severity swatches. Still read by the labeler detail screen
+ * (`app/(app)/moderation/labelers/[id].tsx`); this component itself paints from
+ * Bloom's semantic tones below, so a badge follows the theme and mode.
+ */
 export const SEVERITY_COLORS: Record<Severity, string> = {
   low: '#6b7280',
   medium: '#f59e0b',
   high: '#f97316',
   critical: '#ef4444',
 };
+
+/**
+ * Severity as Bloom paints it. Bloom has no orange role, so `high` and
+ * `critical` share the error tone and differ in loudness: `critical` is the
+ * solid fill, everything else the legible subtle tint.
+ */
+export const SEVERITY_TONES: Record<Severity, { tone: AccentTone; variant: 'subtle' | 'solid' }> = {
+  low: { tone: 'default', variant: 'subtle' },
+  medium: { tone: 'warning', variant: 'subtle' },
+  high: { tone: 'error', variant: 'subtle' },
+  critical: { tone: 'error', variant: 'solid' },
+};
+
+/** Which callout a `warn` label raises: a note, a caution, or a hard stop. */
+const SEVERITY_ADMONITION: Record<Severity, 'info' | 'warning' | 'error'> = {
+  low: 'info',
+  medium: 'warning',
+  high: 'warning',
+  critical: 'error',
+};
+
+// Spans inside the callout's sentence: plain nested `Text`, so they inherit its
+// size and colour and add nothing but the weight.
+const BOLD = { fontWeight: '700' as const };
+const SEMIBOLD = { fontWeight: '600' as const };
+const SHOW_ANYWAY = { alignSelf: 'flex-start' as const };
 
 const LabelBadge: React.FC<LabelBadgeProps> = ({
   labelName,
@@ -27,104 +67,48 @@ const LabelBadge: React.FC<LabelBadgeProps> = ({
   action,
   onShowAnyway,
 }) => {
-  const color = SEVERITY_COLORS[severity] ?? SEVERITY_COLORS.low;
-
   if (action === 'hide' || action === 'blur') {
     return null;
   }
 
   if (action === 'warn') {
     return (
-      <View
-        style={[
-          styles.warnBar,
-          { backgroundColor: `${color}12`, borderColor: `${color}40` },
-        ]}
-      >
-        <View style={styles.warnContent}>
-          <Text className="text-foreground" style={styles.warnText}>
-            This post was labeled{' '}
-            <Text style={[styles.warnLabel, { color }]}>{labelName}</Text>
-            {' '}by{' '}
-            <Text style={styles.warnLabeler}>{labelerName}</Text>
-          </Text>
-        </View>
-        {onShowAnyway && (
-          <TouchableOpacity
-            style={[styles.showAnywayBtn, { borderColor: color }]}
-            onPress={onShowAnyway}
-            activeOpacity={0.7}
-            hitSlop={HIT_SLOP_MD}
-          >
-            <Text style={[styles.showAnywayText, { color }]}>Show anyway</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      <AdmonitionRoot type={SEVERITY_ADMONITION[severity] ?? 'info'}>
+        <AdmonitionRow>
+          <AdmonitionIcon />
+          <AdmonitionContent>
+            <AdmonitionText>
+              This post was labeled{' '}
+              <Text style={BOLD}>{labelName}</Text>
+              {' '}by{' '}
+              <Text style={SEMIBOLD}>{labelerName}</Text>
+            </AdmonitionText>
+            {onShowAnyway ? (
+              <AdmonitionButton
+                appearance="outline"
+                tone="neutral"
+                onPress={onShowAnyway}
+                style={SHOW_ANYWAY}
+              >
+                Show anyway
+              </AdmonitionButton>
+            ) : null}
+          </AdmonitionContent>
+        </AdmonitionRow>
+      </AdmonitionRoot>
     );
   }
 
   // action === 'show'
+  const paint = SEVERITY_TONES[severity] ?? SEVERITY_TONES.low;
   return (
-    <View
-      style={[
-        styles.showBadge,
-        { backgroundColor: `${color}15`, borderColor: `${color}40` },
-      ]}
-    >
-      <Text style={[styles.showBadgeText, { color }]} numberOfLines={1}>
-        {labelName}
-      </Text>
-    </View>
+    <Badge
+      content={labelName}
+      color={paint.tone}
+      variant={paint.variant}
+      size="label-small"
+    />
   );
 };
 
 export default React.memo(LabelBadge);
-
-const styles = StyleSheet.create({
-  // 'show' badge — small inline tag
-  showBadge: {
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-  },
-  showBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  // 'warn' interstitial bar — full width
-  warnBar: {
-    width: '100%',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  warnContent: {
-    flex: 1,
-  },
-  warnText: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  warnLabel: {
-    fontWeight: '700',
-  },
-  warnLabeler: {
-    fontWeight: '600',
-  },
-  showAnywayBtn: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  showAnywayText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-});

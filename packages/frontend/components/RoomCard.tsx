@@ -1,16 +1,17 @@
 import { memo } from 'react';
 import {
-  Pressable,
   Text,
   View,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { Card } from '@oxy.so/bloom/card';
+import { IconCircle } from '@oxy.so/bloom/icon-circle';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { LIVE_INDICATOR_COLOR } from '@/styles/colors';
+import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';
 
 export interface RoomCardData {
   _id: string;
@@ -41,42 +42,31 @@ const RoomCard = memo(function RoomCard({
   const theme = useTheme();
   const live = room.status === 'live';
   const listeners = room.participants?.length ?? 0;
-  const iconSize = variant === 'compact' ? 17 : 20;
+  const compact = variant === 'compact';
+  const disc = compact ? 34 : 40;
 
   return (
-    <Pressable
-      accessibilityRole={onPress ? 'button' : undefined}
-      accessibilityLabel={`${room.title}, ${room.status}`}
-      disabled={!onPress}
+    <Card
+      variant="outlined"
+      radius="radius-16"
       onPress={onPress}
-      style={[
-        {
-          borderColor: theme.colors.border,
-          backgroundColor: theme.colors.card,
-          borderWidth: 1,
-          borderRadius: 16,
-          padding: variant === 'compact' ? 12 : 16,
-        },
-        style,
-      ]}
+      accessibilityLabel={`${room.title}, ${room.status}`}
+      style={[{ padding: compact ? 12 : 16 }, style]}
     >
       <View className="flex-row items-center gap-3">
-        <View
-          className="items-center justify-center rounded-full"
+        {/* A live room's disc is the fixed live signal; any other state sits on
+            the quiet secondary surface. Both halves of the pair are overridden
+            together, as `IconCircle` asks. */}
+        <IconCircle
+          icon={live ? RiBroadcastLine : RiCalendarLine}
+          size={compact ? 'sm' : 'md'}
           style={{
-            width: variant === 'compact' ? 34 : 40,
-            height: variant === 'compact' ? 34 : 40,
-            backgroundColor: live
-              ? LIVE_INDICATOR_COLOR
-              : theme.colors.backgroundSecondary,
+            width: disc,
+            height: disc,
+            backgroundColor: live ? LIVE_INDICATOR_COLOR : theme.colors.backgroundSecondary,
           }}
-        >
-          {live ? (
-            <RiBroadcastLine width={iconSize} height={iconSize} fill="#fff" />
-          ) : (
-            <RiCalendarLine width={iconSize} height={iconSize} fill={theme.colors.text} />
-          )}
-        </View>
+          iconStyle={{ color: live ? LIVE_INDICATOR_FOREGROUND_COLOR : theme.colors.text }}
+        />
         <View className="flex-1">
           <Text
             className="font-semibold text-foreground"
@@ -96,7 +86,7 @@ const RoomCard = memo(function RoomCard({
           <RiArrowRightSLine width={18} height={18} fill={theme.colors.textSecondary} />
         ) : null}
       </View>
-    </Pressable>
+    </Card>
   );
 });
 

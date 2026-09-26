@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
-  TextInput,
   Platform,
 } from 'react-native';
 import { Loading } from '@oxy.so/bloom/loading';
@@ -13,7 +12,6 @@ import { Button } from '@oxy.so/bloom/button';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
-import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
 import { RiFireLine } from '@oxy.so/bloom/icons/RiFireLine';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
@@ -40,7 +38,7 @@ import type { BloomIcon } from '@/components/settings/RowIcon';
 import { customFeedsService } from '@/services/customFeedsService';
 import { useFeedPreferences } from '@/hooks/useFeedPreferences';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { Search } from '@/assets/icons/search-icon';
+import { Search } from '@oxy.so/bloom/search';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { logger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -469,21 +467,13 @@ const FeedsScreen: React.FC = () => {
         {t('feeds.discoverNew.title')}
       </Text>
 
-      <View className="flex-row items-center px-3 h-[38px] rounded-[10px] mt-2 mb-1 gap-2 bg-muted">
-        <Search size={18} className="text-muted-foreground" />
-        <TextInput
-          style={styles.searchInput}
-          className="flex-1 text-[15px] text-foreground"
-          placeholder={t('feeds.searchPlaceholder')}
-          placeholderTextColor={theme.colors.textSecondary}
+      <View className="mt-2 mb-1">
+        <Search
+          label={t('feeds.searchPlaceholder')}
           value={searchQuery}
-          onChangeText={setSearchQuery}
+          onValueChange={setSearchQuery}
+          onClearText={() => setSearchQuery('')}
         />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={HIT_SLOP_MD}>
-            <RiCloseCircleLine width={18} height={18} fill={theme.colors.textSecondary} />
-          </TouchableOpacity>
-        )}
       </View>
 
       {loading && !refreshing && publicFeeds.length === 0 ? (
@@ -579,8 +569,6 @@ const FeedsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
-  },
-  searchInput: {
   },
   feedRow: {
     flexDirection: 'row',

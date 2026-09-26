@@ -5,6 +5,7 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { FlashList } from '@shopify/flash-list';
 import { Badge } from '@oxy.so/bloom/badge';
+import { Card } from '@oxy.so/bloom/card';
 import { Chip } from '@oxy.so/bloom/chip';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
@@ -153,7 +154,12 @@ export default function JobApplicationsScreen() {
             data={applications}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <View className="mx-4 mb-3 border border-border bg-card rounded-[14px] p-4">
+              <Card
+                border="thin"
+                elevation="none"
+                radius="radius-16"
+                style={{ marginHorizontal: 16, marginBottom: 12, padding: 16 }}
+              >
                 <View className="flex-row items-start justify-between gap-2">
                   <Text
                     className="flex-1 text-foreground text-[15px] font-semibold"
@@ -180,7 +186,7 @@ export default function JobApplicationsScreen() {
                 >
                   {t('jobs.applications.viewDetails', { defaultValue: 'View details' })}
                 </Text>
-              </View>
+              </Card>
             )}
             onEndReached={handleEndReached}
             onEndReachedThreshold={0.5}

@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { Card } from '@oxy.so/bloom/card';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from "react-i18next";
 import { PollIcon } from "@/assets/icons/poll-icon";
@@ -69,15 +70,11 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
                 </View>
             )}
 
-            <TouchableOpacity
-                style={[
-                    styles.card,
-                    {
-                        borderColor: theme.colors.border,
-                        backgroundColor: theme.colors.card,
-                    },
-                ]}
-                activeOpacity={0.85}
+            <Card
+                appearance="outline"
+                elevation="none"
+                radius="radius-16"
+                style={styles.card}
                 onPress={onPress}
             >
                 <View className="flex-row items-center justify-between gap-3">
@@ -132,7 +129,7 @@ export const PollAttachmentCard: React.FC<PollAttachmentCardProps> = ({
                         </Text>
                     )}
                 </View>
-            </TouchableOpacity>
+            </Card>
 
             <TouchableOpacity
                 onPress={onRemove}
@@ -149,8 +146,6 @@ const styles = StyleSheet.create({
     card: {
         width: MEDIA_CARD_WIDTH,
         minHeight: 150,
-        borderRadius: 15,
-        borderWidth: 1,
         padding: 16,
         gap: 12,
     },

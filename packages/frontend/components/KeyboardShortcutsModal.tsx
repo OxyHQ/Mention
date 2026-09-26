@@ -1,6 +1,7 @@
-import React, { memo } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Platform, ScrollView, Pressable } from 'react-native';
-import { Backdrop } from '@oxy.so/bloom/overlay';
+import React, { memo, useMemo } from 'react';
+import { View, Text, Platform } from 'react-native';
+import { Dialog, type DialogHeaderConfig } from '@oxy.so/bloom/dialog';
+import { Kbd } from '@oxy.so/bloom/kbd';
 
 import { SHORTCUTS } from '@/hooks/useKeyboardShortcuts';
 
@@ -9,143 +10,58 @@ interface KeyboardShortcutsModalProps {
   onClose: () => void;
 }
 
-const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ visible, onClose }) => {
+// Deduplicate: skip Ctrl+n since n is already shown.
+const VISIBLE_SHORTCUTS = SHORTCUTS.filter(
+  (s) => !(s.keys.length === 2 && s.keys[0] === 'Ctrl' && s.keys[1] === 'n'),
+);
 
-  if (Platform.OS !== 'web' || !visible) return null;
+const HEADER: DialogHeaderConfig = { title: 'Keyboard Shortcuts', largeTitle: false };
+
+/**
+ * The `?` help sheet (web only — native has no hardware-keyboard shortcuts).
+ * Bloom's `Dialog` owns the backdrop, the close control and Escape-to-close;
+ * each key is a Bloom `Kbd`.
+ */
+const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ visible, onClose }) => {
+  const rows = useMemo(
+    () =>
+      VISIBLE_SHORTCUTS.map((shortcut, index) => (
+        <View
+          key={index}
+          className="flex-row items-center justify-between border-b border-border py-2.5"
+        >
+          <View className="flex-row items-center">
+            {shortcut.keys.map((key, ki) => (
+              <React.Fragment key={ki}>
+                {ki > 0 && (
+                  <Text className="mx-0.5 text-xs text-muted-foreground">
+                    {shortcut.keys.length === 2 && shortcut.keys[0] === 'g' ? ' then ' : ' + '}
+                  </Text>
+                )}
+                <Kbd>{key}</Kbd>
+              </React.Fragment>
+            ))}
+          </View>
+          <Text className="text-sm text-muted-foreground">{shortcut.description}</Text>
+        </View>
+      )),
+    [],
+  );
+
+  if (Platform.OS !== 'web') return null;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
+    <Dialog
+      open={visible}
+      onClose={onClose}
+      header={HEADER}
+      label="Keyboard shortcuts"
+      maxWidth={400}
     >
-      {/* Bloom's shared backdrop — the same blur + dim every dialog, sheet and
-          menu uses. This screen used to paint its own flat 50% black. */}
-      <Backdrop onPress={onClose} style={styles.overlay}>
-        <Pressable
-          className="bg-background border-border"
-          style={styles.modal}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View className="border-border" style={styles.header}>
-            <Text className="text-foreground" style={styles.title}>Keyboard Shortcuts</Text>
-            <TouchableOpacity
-              onPress={onClose}
-              className="bg-muted"
-              style={styles.closeButton}
-              accessibilityLabel="Close keyboard shortcuts"
-              accessibilityRole="button"
-            >
-              <Text className="text-muted-foreground" style={styles.closeButtonText}>Esc</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={styles.list}>
-            {SHORTCUTS.filter(
-              (s, i, arr) =>
-                // Deduplicate: skip Ctrl+n since n already shown
-                !(s.keys.length === 2 && s.keys[0] === 'Ctrl' && s.keys[1] === 'n')
-            ).map((shortcut, index) => (
-              <View
-                key={index}
-                className="border-border"
-                style={styles.row}
-              >
-                <View style={styles.keysContainer}>
-                  {shortcut.keys.map((key, ki) => (
-                    <React.Fragment key={ki}>
-                      {ki > 0 && (
-                        <Text className="text-muted-foreground" style={styles.plus}>
-                          {shortcut.keys.length === 2 && shortcut.keys[0] === 'g' ? ' then ' : ' + '}
-                        </Text>
-                      )}
-                      <View className="bg-muted border-border" style={styles.key}>
-                        <Text className="text-foreground" style={styles.keyText}>{key}</Text>
-                      </View>
-                    </React.Fragment>
-                  ))}
-                </View>
-                <Text className="text-muted-foreground" style={styles.description}>
-                  {shortcut.description}
-                </Text>
-              </View>
-            ))}
-          </ScrollView>
-        </Pressable>
-      </Backdrop>
-    </Modal>
+      {/* Header mode insets the body below the nav bar but not at the sides. */}
+      <View className="px-5">{rows}</View>
+    </Dialog>
   );
 };
-
-const styles = StyleSheet.create({
-  overlay: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modal: {
-    width: 400,
-    maxWidth: '90%',
-    maxHeight: '80%',
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  closeButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  closeButtonText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  list: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  keysContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  key: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    minWidth: 28,
-    alignItems: 'center',
-  },
-  keyText: {
-    fontSize: 13,
-    fontWeight: '600',
-    fontFamily: 'monospace',
-  },
-  plus: {
-    fontSize: 12,
-    marginHorizontal: 2,
-  },
-  description: {
-    fontSize: 14,
-  },
-});
 
 export default memo(KeyboardShortcutsModal);

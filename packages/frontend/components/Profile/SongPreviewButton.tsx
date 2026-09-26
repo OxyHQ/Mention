@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
-import { ActivityIndicator, Pressable } from 'react-native';
+import { Pressable } from 'react-native';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { RiPauseFill } from '@oxy.so/bloom/icons/RiPauseFill';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -40,7 +41,7 @@ export const SongPreviewButton = memo(function SongPreviewButton({
       style={{ width: dimension, height: dimension }}
     >
       {isLoading ? (
-        <ActivityIndicator size="small" color={colors.primaryForeground} />
+        <SpinnerIcon size={20} color={colors.primaryForeground} />
       ) : (
         <PlaybackIcon size="sm" fill={colors.primaryForeground} />
       )}

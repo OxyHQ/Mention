@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, TextInput, Pressable, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet, type TextInput } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { Divider } from '@oxy.so/bloom/divider';
 import { RiSendPlaneLine } from '@oxy.so/bloom/icons/RiSendPlaneLine';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { usePostsStore } from '@/stores/postsStore';
 
@@ -65,30 +67,35 @@ export function InlineReplyComposer({ postId, onPosted, focusNonce = 0 }: Inline
   }, [text, submitting, createReply, postId, onPosted, t]);
 
   return (
-    <View style={[styles.row, { backgroundColor: surfaceFill }]} className="border-t border-border">
-      <TextInput
-        ref={inputRef}
-        value={text}
-        onChangeText={setText}
-        placeholder={t('videos.addComment')}
-        placeholderTextColor={theme.colors.textSecondary}
-        style={[styles.input, { color: theme.colors.text }]}
-        multiline
-        maxLength={2000}
-      />
-      <Pressable
-        onPress={handleSubmit}
-        disabled={!text.trim() || submitting}
-        style={styles.sendButton}
-        accessibilityRole="button"
-        accessibilityLabel={t('common.send', { defaultValue: 'Send' })}
-      >
-        <RiSendPlaneLine
-          size="md"
-          fill={text.trim() && !submitting ? theme.colors.primary : theme.colors.textSecondary}
+    <>
+      <Divider />
+      <View style={[styles.row, { backgroundColor: surfaceFill }]}>
+        <Textarea
+          inputRef={inputRef}
+          value={text}
+          onChangeText={setText}
+          placeholder={t('videos.addComment')}
+          size="sm"
+          rows={1}
+          autoResize
+          maxRows={5}
+          maxLength={2000}
+          style={styles.input}
         />
-      </Pressable>
-    </View>
+        <Pressable
+          onPress={handleSubmit}
+          disabled={!text.trim() || submitting}
+          style={styles.sendButton}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.send', { defaultValue: 'Send' })}
+        >
+          <RiSendPlaneLine
+            size="md"
+            fill={text.trim() && !submitting ? theme.colors.primary : theme.colors.textSecondary}
+          />
+        </Pressable>
+      </View>
+    </>
   );
 }
 
@@ -102,12 +109,9 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 15,
-    maxHeight: 100,
-    paddingVertical: 6,
   },
   sendButton: {
-    paddingBottom: 6,
+    paddingBottom: 8,
     paddingHorizontal: 4,
   },
 });

@@ -1,10 +1,16 @@
 import React, { useEffect, useState, useCallback, useContext } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Share } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useQueries } from '@tanstack/react-query';
+import { queryKeys } from '@oxy.so/services';
+import type { User } from '@oxy.so/core';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@oxy.so/bloom/toast';
 import { Avatar } from '@oxy.so/bloom/avatar';
+import { AvatarGroup, type AvatarGroupItem } from '@oxy.so/bloom/avatar-group';
 import { Button } from '@oxy.so/bloom/button';
+import { Card } from '@oxy.so/bloom/card';
+import { Divider } from '@oxy.so/bloom/divider';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiCalendarLine } from '@oxy.so/bloom/icons/RiCalendarLine';
 import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
@@ -28,7 +34,7 @@ import type { FileUrlResolver } from '@/utils/imageUrlCache';
 import { useUserById } from '@/hooks/useCachedUser';
 import { useLiveRoom } from '@/context/LiveRoomContext';
 import { roomsService, type Room } from '@/lib/syraApi';
-import { useAuth } from '@oxy.so/services/ui/client';
+import { FollowButton, useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
@@ -38,21 +44,44 @@ import { ReportModal } from '@/components/report/ReportModal';
 import { LIVE_INDICATOR_COLOR, LIVE_INDICATOR_FOREGROUND_COLOR } from '@/styles/colors';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { ProfileHoverCard } from '@/components/ProfileHoverCard';
+import { profileHrefForUser } from '@/components/Profile/profileRoute';
 
-/** The participant grid stays glanceable; the overflow collapses into a "+N" chip. */
+/** The participant pile stays glanceable; the overflow collapses into Bloom's "+N" chip. */
 const MAX_PARTICIPANT_AVATARS = 10;
 
-const ParticipantAvatar = ({ userId, oxyServices }: { userId: string; oxyServices: FileUrlResolver }) => {
-  const profile = useUserById(userId);
-  const avatarUri = getAvatarUrl(profile, oxyServices);
-  // A grid of faces says nothing about who they are — the preview is how you
-  // find out without leaving the room.
-  return (
-    <ProfileHoverCard username={getNormalizedUserHandle(profile) ?? undefined}>
-      <Avatar size={32} source={avatarUri} shape="squircle" />
-    </ProfileHoverCard>
-  );
-};
+/**
+ * The faces for one of the room's avatar piles, read from the same user cache
+ * `useRoomUsers` warms (same key, same fetch), for only the ids the pile shows.
+ */
+function useRoomAvatarItems(userIds: string[], oxyServices: FileUrlResolver & { getUserById: (id: string) => Promise<User> }): AvatarGroupItem[] {
+  const results = useQueries({
+    queries: userIds.map((userId) => ({
+      queryKey: queryKeys.users.detail(userId),
+      queryFn: () => oxyServices.getUserById(userId),
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+  return userIds.map((userId, index) => {
+    const profile = results[index]?.data as User | undefined;
+    return {
+      id: userId,
+      uri: getAvatarUrl(profile, oxyServices),
+      displayName: getDisplayName(profile, userId),
+      username: profile?.username,
+    };
+  });
+}
+
+/** A face in a pile opens that person's profile (and, on web, its hover card links there too). */
+function openRoomMember(item: AvatarGroupItem) {
+  const href = profileHrefForUser({ username: item.username });
+  if (href) router.push(href);
+}
+
+/** The hover card's action — the same follow control the profile preview carries. */
+function renderFollowAction(item: AvatarGroupItem) {
+  return item.id ? <FollowButton userId={item.id} size="small" /> : null;
+}
 
 const HostInfo = ({ hostId, oxyServices }: { hostId: string; oxyServices: FileUrlResolver }) => {
   const profile = useUserById(hostId);
@@ -247,8 +276,9 @@ const RoomDetailScreen = () => {
   useRoomUsers(allUserIds);
 
   const participants = room?.participants ?? [];
-  const visibleParticipants = participants.slice(0, MAX_PARTICIPANT_AVATARS);
-  const hiddenParticipantCount = participants.length - visibleParticipants.length;
+  const speakers = room?.speakers ?? [];
+  const participantItems = useRoomAvatarItems(participants.slice(0, MAX_PARTICIPANT_AVATARS), oxyServices);
+  const speakerItems = useRoomAvatarItems(speakers.slice(0, MAX_PARTICIPANT_AVATARS), oxyServices);
 
   return (
     <>
@@ -340,61 +370,64 @@ const RoomDetailScreen = () => {
               {/* Participants */}
               <View className="px-4 mt-6">
                 <SectionHeading>Participants ({participants.length})</SectionHeading>
-                {visibleParticipants.length > 0 ? (
-                  <View className="flex-row flex-wrap items-center gap-2">
-                    {visibleParticipants.map((participantId) => (
-                      <ParticipantAvatar
-                        key={participantId}
-                        userId={participantId}
-                        oxyServices={oxyServices}
-                      />
-                    ))}
-                    {hiddenParticipantCount > 0 && (
-                      <View className="h-8 px-2 items-center justify-center rounded-lg bg-muted">
-                        <Text className="text-xs font-semibold text-muted-foreground">
-                          +{hiddenParticipantCount}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
+                {participantItems.length > 0 ? (
+                  <AvatarGroup
+                    items={participantItems}
+                    size={32}
+                    max={MAX_PARTICIPANT_AVATARS}
+                    total={participants.length}
+                    ringColor={theme.colors.background}
+                    hoverCard
+                    renderItemAction={renderFollowAction}
+                    onPressItem={openRoomMember}
+                  />
                 ) : (
                   <Text className="text-sm text-muted-foreground">No participants yet</Text>
                 )}
               </View>
 
               {/* Speakers */}
-              {room.speakers && room.speakers.length > 0 && (
+              {speakerItems.length > 0 && (
                 <View className="px-4 mt-6">
                   <SectionHeading>Speakers</SectionHeading>
-                  <View className="flex-row flex-wrap items-center gap-2">
-                    {room.speakers.map((speakerId) => (
-                      <ParticipantAvatar
-                        key={speakerId}
-                        userId={speakerId}
-                        oxyServices={oxyServices}
-                      />
-                    ))}
-                  </View>
+                  <AvatarGroup
+                    items={speakerItems}
+                    size={32}
+                    max={MAX_PARTICIPANT_AVATARS}
+                    total={speakers.length}
+                    ringColor={theme.colors.background}
+                    hoverCard
+                    renderItemAction={renderFollowAction}
+                    onPressItem={openRoomMember}
+                  />
                 </View>
               )}
 
               {/* Stats */}
               {room.stats && (
-                <View className="mx-4 mt-6 flex-row items-center rounded-xl border border-border bg-card p-4">
+                <Card
+                  variant="outlined"
+                  radius="radius-12"
+                  className="mx-4 mt-6 flex-row items-center p-4"
+                >
                   <View className="flex-1 items-center">
-                    <BloomText className="text-foreground text-2xl font-semibold">
+                    <BloomText variant="title-1-semibold">
                       {room.stats.peakListeners || 0}
                     </BloomText>
-                    <Text className="text-[13px] mt-1 text-muted-foreground">Peak listeners</Text>
+                    <BloomText variant="body-2-regular" style={{ marginTop: 4, color: theme.colors.textSecondary }}>
+                      Peak listeners
+                    </BloomText>
                   </View>
-                  <View className="w-px h-10 mx-4 bg-border" />
+                  <Divider vertical spacing={16} style={{ height: 40, alignSelf: 'center' }} />
                   <View className="flex-1 items-center">
-                    <BloomText className="text-foreground text-2xl font-semibold">
+                    <BloomText variant="title-1-semibold">
                       {room.stats.totalJoined || 0}
                     </BloomText>
-                    <Text className="text-[13px] mt-1 text-muted-foreground">Total joined</Text>
+                    <BloomText variant="body-2-regular" style={{ marginTop: 4, color: theme.colors.textSecondary }}>
+                      Total joined
+                    </BloomText>
                   </View>
-                </View>
+                </Card>
               )}
             </ScrollView>
 

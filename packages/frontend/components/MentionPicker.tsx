@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from "react";
 import {
     View,
-    Text,
     TouchableOpacity,
     StyleSheet,
     FlatList,
 } from "react-native";
+import { useTranslation } from "react-i18next";
+import { Card } from '@oxy.so/bloom/card';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useAuth } from "@oxy.so/services/ui/client";
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { logger } from '@oxy.so/core/logger';
 import UserName from '@/components/UserName';
+import { EmptyState } from '@/components/common/EmptyState';
 
 export interface MentionUser {
     id: string;
@@ -34,6 +36,7 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
     onClose,
     maxHeight = 300,
 }) => {
+    const { t } = useTranslation();
     const { oxyServices } = useAuth();
     const [users, setUsers] = useState<MentionUser[]>([]);
     const [loading, setLoading] = useState(false);
@@ -92,25 +95,13 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
     }
 
     return (
-        <View
-            className="bg-card border-border"
-            style={[
-                styles.container,
-                {
-                    maxHeight,
-                },
-            ]}
-        >
+        <Card border="thin" elevation="m" radius="radius-12" style={{ maxHeight }}>
             {loading ? (
                 <View style={styles.loadingContainer}>
                     <Loading className="text-primary" size="small" style={{ flex: undefined }} />
                 </View>
             ) : users.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                    <Text className="text-muted-foreground" style={styles.emptyText}>
-                        No users found
-                    </Text>
-                </View>
+                <EmptyState title={t('collab.noResults', { defaultValue: 'No users found' })} />
             ) : (
                 <FlatList
                     data={users}
@@ -146,30 +137,15 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
                     )}
                 />
             )}
-        </View>
+        </Card>
     );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        borderRadius: 12,
-        borderWidth: 1,
-        overflow: "hidden",
-        boxShadow: '0px 2px 8px 0px rgba(0, 0, 0, 0.1)',
-        elevation: 4,
-    },
     loadingContainer: {
         padding: 20,
         alignItems: "center",
         justifyContent: "center",
-    },
-    emptyContainer: {
-        padding: 20,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    emptyText: {
-        fontSize: 14,
     },
     userItem: {
         flexDirection: "row",

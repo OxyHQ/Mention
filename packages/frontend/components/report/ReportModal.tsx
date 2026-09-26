@@ -3,9 +3,12 @@ import {
     View,
     Text,
     TouchableOpacity,
-    TextInput,
     ScrollView,
 } from 'react-native';
+import { Divider } from '@oxy.so/bloom/divider';
+import { Field } from '@oxy.so/bloom/field';
+import { Checkbox } from '@oxy.so/bloom/checkbox';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { CloseIcon } from '@/assets/icons/close-icon';
@@ -56,7 +59,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     return (
         <View className="bg-background rounded-t-3xl" style={{ maxHeight: '90%' }}>
             {/* Header */}
-            <View className="flex-row items-center px-4 py-3 border-b border-border" style={{ minHeight: 56 }}>
+            <View className="flex-row items-center px-4 py-3" style={{ minHeight: 56 }}>
                 <TouchableOpacity
                     onPress={handleCancel}
                     className="p-2 z-10"
@@ -72,6 +75,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 </Text>
                 <View style={{ width: 36, marginLeft: 'auto' }} />
             </View>
+            <Divider />
 
             {/* Content */}
             <ScrollView className="px-4 pt-4 pb-2">
@@ -84,86 +88,49 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                     {REPORT_CATEGORIES.map((category) => {
                         const isSelected = selectedCategories.includes(category.id);
                         return (
-                            <TouchableOpacity
+                            // The selected tint is `bg-primary/10`, never
+                            // `theme.colors.primary + '20'`: the token is an
+                            // `rgb(...)` string, so a hex-alpha suffix makes a
+                            // malformed colour react-native-web reads as fully
+                            // opaque primary — a solid card behind the label.
+                            <View
                                 key={category.id}
-                                // The selected tint is `bg-primary/10`, never
-                                // `theme.colors.primary + '20'`: the token is an
-                                // `rgb(...)` string, so a hex-alpha suffix makes a
-                                // malformed colour react-native-web reads as fully
-                                // opaque primary — a solid card behind the label.
-                                className={`flex-row items-center py-3.5 px-4 rounded-xl ${isSelected ? 'bg-primary/10' : 'bg-card'}`}
+                                className={`py-3.5 px-4 rounded-xl ${isSelected ? 'bg-primary/10' : 'bg-card'}`}
                                 style={{
                                     borderColor: isSelected
                                         ? theme.colors.primary
                                         : theme.colors.border,
                                     borderWidth: 1.5,
                                 }}
-                                onPress={() => toggleCategory(category.id)}
-                                activeOpacity={0.7}
                             >
-                                <View
-                                    className="items-center justify-center mr-3 rounded"
-                                    style={{
-                                        width: 20,
-                                        height: 20,
-                                        borderWidth: 2,
-                                        borderColor: isSelected
-                                            ? theme.colors.primary
-                                            : theme.colors.border,
-                                        backgroundColor: isSelected
-                                            ? theme.colors.primary
-                                            : 'transparent',
-                                    }}
-                                >
-                                    {isSelected && (
-                                        <Text className="text-white text-sm font-bold">
-                                            {'\u2713'}
-                                        </Text>
-                                    )}
-                                </View>
-                                <Text
-                                    className="text-[15px] font-medium"
-                                    style={{
-                                        color: isSelected
-                                            ? theme.colors.text
-                                            : theme.colors.textSecondary,
-                                    }}
-                                >
-                                    {category.label}
-                                </Text>
-                            </TouchableOpacity>
+                                <Checkbox
+                                    label={category.label}
+                                    checked={isSelected}
+                                    onCheckedChange={() => toggleCategory(category.id)}
+                                />
+                            </View>
                         );
                     })}
                 </View>
 
                 {/* Details Input */}
-                <View className="mb-4">
-                    <Text className="text-foreground text-[15px] font-semibold mb-2">
-                        Additional details (optional)
-                    </Text>
-                    <TextInput
-                        className="border border-border bg-card rounded-xl px-3.5 py-3 text-foreground text-[15px]"
-                        style={{
-                            minHeight: 100,
-                            maxHeight: 150,
-                            color: theme.colors.text,
-                        }}
+                <Field label="Additional details (optional)" style={{ marginBottom: 16 }}>
+                    <Textarea
                         placeholder={t('report.contextPlaceholder')}
-                        placeholderTextColor={theme.colors.textSecondary}
                         value={details}
                         onChangeText={setDetails}
-                        multiline
+                        rows={5}
+                        autoResize
+                        maxRows={7}
                         maxLength={500}
-                        textAlignVertical="top"
+                        showCount
                     />
-                    <Text className="text-muted-foreground text-[13px] text-right mt-1">
-                        {details.length}/500
-                    </Text>
-                </View>
+                </Field>
             </ScrollView>
 
             {/* Action Buttons */}
-            <View className="flex-row gap-3 px-4 py-4 pb-5 border-t border-border">
+            <Divider />
+            <View className="flex-row gap-3 px-4 py-4 pb-5">
                 <TouchableOpacity
                     className="flex-1 items-center justify-center rounded-xl border border-border bg-card"
                     style={{ paddingVertical: 14, minHeight: 50 }}

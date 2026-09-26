@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { TouchableOpacity, View } from 'react-native';
 import { Image } from 'expo-image';
-import { Spinner } from '@/components/ui/Spinner';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -210,7 +210,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
     const emptyContent = isLoading && mediaItems.length === 0
         ? (
             <View className="items-center justify-center p-8">
-                <Spinner />
+                <Loading iconSize={28} style={{ padding: 0 }} />
             </View>
         )
         : !isLoading && mediaItems.length === 0

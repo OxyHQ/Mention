@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
+import { Card } from '@oxy.so/bloom/card';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
@@ -29,7 +30,7 @@ export const LocationDisplay: React.FC<LocationDisplayProps> = ({
     if (!location && !isGettingLocation) return null;
 
     return (
-        <View style={[styles.container, { backgroundColor: theme.colors.backgroundSecondary, borderColor: theme.colors.border }, style]}>
+        <Card appearance="subtle" border="thin" radius="radius-8" style={[styles.container, style]}>
             <View style={styles.header}>
                 <LocationIcon size={16} className="text-primary" />
                 {isGettingLocation ? (
@@ -48,16 +49,14 @@ export const LocationDisplay: React.FC<LocationDisplayProps> = ({
                     </>
                 )}
             </View>
-        </View>
+        </Card>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
-        borderRadius: 8,
         padding: 12,
         marginTop: 8,
-        borderWidth: 1,
     },
     header: {
         flexDirection: "row",

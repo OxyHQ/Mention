@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Image } from 'expo-image';
 import { RiPlayFill } from '@oxy.so/bloom/icons/RiPlayFill';
 import { proxyExternalUrl } from '@/utils/imageUrlCache';
@@ -54,7 +55,7 @@ export function ExternalEmbedPoster({ thumb, active, loading, onPressPlay }: Ext
         className="flex-1 items-center justify-center"
       >
         {active ? (
-          <ActivityIndicator size="large" color="white" />
+          <SpinnerIcon size={36} color="white" />
         ) : (
           <View className="h-16 w-16 items-center justify-center rounded-full bg-black/60">
             <RiPlayFill size="2xl" fill="white" />

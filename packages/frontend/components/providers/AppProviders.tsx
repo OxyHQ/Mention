@@ -9,7 +9,6 @@ import { QueryClient } from '@tanstack/react-query';
 import { I18nextProvider } from 'react-i18next';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { MenuProvider } from 'react-native-popup-menu';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { OxyProvider } from '@oxy.so/services/ui/client';
@@ -22,8 +21,6 @@ import { BottomSheetProvider } from '@/context/BottomSheetContext';
 import { ScreenReselectProvider } from '@/context/ScreenReselectContext';
 import { LayoutScrollProvider } from '@/context/LayoutScrollContext';
 import { OXY_CLIENT_ID, OXY_AUTH_REDIRECT_URI } from '@/config';
-import { ConfirmPromptProvider } from '@/components/common/ConfirmPrompt';
-import { ActionMenuHost } from '@/components/common/ActionMenu';
 import { ContentDialogHost } from '@/components/common/ContentDialog';
 import { FediverseInfoDialogProvider } from '@/components/Fediverse/FediverseInfoDialog';
 import { ChannelInfoDialogProvider } from '@/components/Channels/ChannelInfoDialog';
@@ -148,7 +145,6 @@ export const AppProviders = memo(function AppProviders({
                         by <PostInteractionsBinder />. */}
                     <PostInteractionsProvider>
                     <BottomSheetProvider>
-                      <MenuProvider>
                         <AppErrorBoundary
                           onError={handleBoundaryError}
                         >
@@ -164,8 +160,12 @@ export const AppProviders = memo(function AppProviders({
                                * OxyProvider above already mounts one at the app
                                * root, and it carries Bloom's defaults.
                                */}
-                              <ConfirmPromptProvider />
-                              <ActionMenuHost />
+                              {/*
+                               * Same for Bloom's imperative surface stack:
+                               * OxyProvider mounts the one <SurfaceProvider>, and
+                               * confirm(), alert() and the action menu
+                               * (showActionMenu) all present into it.
+                               */}
                               <PostInteractionsBinder />
                               <ContentDialogHost />
                               <FediverseInfoDialogProvider />
@@ -180,7 +180,6 @@ export const AppProviders = memo(function AppProviders({
                             <LivePresencePoller />
                           </LiveRoomControllerProvider>
                         </AppErrorBoundary>
-                      </MenuProvider>
                     </BottomSheetProvider>
                     </PostInteractionsProvider>
                   </AppShellProviders>

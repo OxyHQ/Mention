@@ -11,6 +11,7 @@ import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Button } from '@oxy.so/bloom/button';
+import { Divider } from '@oxy.so/bloom/divider';
 import { RiChat3Fill } from '@oxy.so/bloom/icons/RiChat3Fill';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiDoubleQuotesL } from '@oxy.so/bloom/icons/RiDoubleQuotesL';
@@ -18,48 +19,17 @@ import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
 import { RiHeartFill } from '@oxy.so/bloom/icons/RiHeartFill';
 import { RiRepeat2Line } from '@oxy.so/bloom/icons/RiRepeat2Line';
 import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
-import type { BloomIconComponent } from '@oxy.so/bloom';
 import { insightsService } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
 import { EmptyState } from '@/components/common/EmptyState';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { StatRow } from '@/components/insights/StatRow';
 
 interface PostInsightsSheetProps {
     postId: string | null;
     onClose: () => void;
 }
-
-interface StatRowProps {
-    icon: BloomIconComponent;
-    iconColor: string;
-    label: string;
-    value: number;
-    percentage?: string;
-    showDivider?: boolean;
-}
-
-const StatRow: React.FC<StatRowProps> = ({ icon: Icon, iconColor, label, value, percentage, showDivider = true }) => (
-    <View>
-        <View className="flex-row items-center justify-between py-3">
-            <View className="flex-row items-center gap-3">
-                <Icon width={18} height={18} fill={iconColor} />
-                <Text className="text-foreground text-[15px] font-medium">{label}</Text>
-            </View>
-            <View className="flex-row items-center" style={{ gap: 10 }}>
-                <Text className="text-foreground text-base font-bold">
-                    {formatCompactNumber(value)}
-                </Text>
-                {percentage && (
-                    <Text className="text-muted-foreground text-[13px] font-medium min-w-[40px] text-right">
-                        {percentage}
-                    </Text>
-                )}
-            </View>
-        </View>
-        {showDivider && <View className="bg-border" style={{ height: StyleSheet.hairlineWidth }} />}
-    </View>
-);
 
 const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }) => {
     const { t } = useTranslation();
@@ -138,7 +108,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                             {t('insights.post.views')}
                         </Text>
                     </View>
-                    <View className="bg-border" style={{ width: 0.5, height: 28 }} />
+                    <Divider vertical style={styles.metricDivider} />
                     <View className="flex-1 items-center">
                         <Text className="text-foreground text-[22px] font-extrabold" style={{ letterSpacing: -0.3 }}>
                             {insights.engagement.engagementRate.toFixed(1)}%
@@ -147,7 +117,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                             {t('insights.post.engagementRate')}
                         </Text>
                     </View>
-                    <View className="bg-border" style={{ width: 0.5, height: 28 }} />
+                    <Divider vertical style={styles.metricDivider} />
                     <View className="flex-1 items-center">
                         <Text className="text-foreground text-[22px] font-extrabold" style={{ letterSpacing: -0.3 }}>
                             {formatCompactNumber(totalInteractions)}
@@ -163,14 +133,14 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                     {t('insights.post.interactions')}
                 </Text>
 
-                <StatRow icon={RiHeartFill} iconColor="#FF3040" label={t('insights.post.likes')} value={insights.stats.likes} percentage={pct(insights.stats.likes)} />
-                <StatRow icon={RiChat3Fill} iconColor={theme.colors.primary} label={t('insights.post.replies')} value={insights.stats.replies} percentage={pct(insights.stats.replies)} />
-                <StatRow icon={RiRepeat2Line} iconColor={theme.colors.primary} label={t('insights.post.boosts')} value={insights.stats.boosts} percentage={pct(insights.stats.boosts)} />
+                <StatRow icon={<RiHeartFill width={18} height={18} fill="#FF3040" />} label={t('insights.post.likes')} value={insights.stats.likes} sub={pct(insights.stats.likes)} />
+                <StatRow icon={<RiChat3Fill width={18} height={18} fill={theme.colors.primary} />} label={t('insights.post.replies')} value={insights.stats.replies} sub={pct(insights.stats.replies)} />
+                <StatRow icon={<RiRepeat2Line width={18} height={18} fill={theme.colors.primary} />} label={t('insights.post.boosts')} value={insights.stats.boosts} sub={pct(insights.stats.boosts)} />
                 {insights.stats.shares > 0 && (
-                    <StatRow icon={RiShare2Line} iconColor={theme.colors.primary} label={t('insights.post.shares')} value={insights.stats.shares} percentage={pct(insights.stats.shares)} />
+                    <StatRow icon={<RiShare2Line width={18} height={18} fill={theme.colors.primary} />} label={t('insights.post.shares')} value={insights.stats.shares} sub={pct(insights.stats.shares)} />
                 )}
                 {insights.stats.quotes > 0 && (
-                    <StatRow icon={RiDoubleQuotesL} iconColor={theme.colors.primary} label={t('insights.post.quotes')} value={insights.stats.quotes} percentage={pct(insights.stats.quotes)} showDivider={false} />
+                    <StatRow icon={<RiDoubleQuotesL width={18} height={18} fill={theme.colors.primary} />} label={t('insights.post.quotes')} value={insights.stats.quotes} sub={pct(insights.stats.quotes)} showDivider={false} />
                 )}
 
                 {insights.engagement.reach > 0 && (
@@ -178,7 +148,7 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
                         <Text className="text-foreground text-[15px] font-bold mb-3 mt-5">
                             {t('insights.post.reach')}
                         </Text>
-                        <StatRow icon={RiGroupFill} iconColor={theme.colors.primary} label={t('insights.post.reach')} value={insights.engagement.reach} showDivider={false} />
+                        <StatRow icon={<RiGroupFill width={18} height={18} fill={theme.colors.primary} />} label={t('insights.post.reach')} value={insights.engagement.reach} showDivider={false} />
                     </>
                 )}
             </ScrollView>
@@ -187,6 +157,11 @@ const PostInsightsSheet: React.FC<PostInsightsSheetProps> = ({ postId, onClose }
 };
 
 const styles = StyleSheet.create({
+    // A vertical `Divider` stretches to its row; the figures' rule is shorter.
+    metricDivider: {
+        height: 28,
+        alignSelf: 'center',
+    },
     contentContainer: {
         paddingHorizontal: 20,
         paddingTop: 8,

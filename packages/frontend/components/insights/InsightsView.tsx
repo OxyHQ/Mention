@@ -13,7 +13,7 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Loading } from '@oxy.so/bloom/loading';
 import { router } from 'expo-router';
 import Ionicons from '@/components/common/Ionicons';
-import { useTheme, type Theme } from '@oxy.so/bloom/theme';
+import { useTheme } from '@oxy.so/bloom/theme';
 import { RiEyeLine } from '@oxy.so/bloom/icons/RiEyeLine';
 import { insightsService } from '@/services/insightsService';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +23,12 @@ import PostItem from '@/components/Feed/PostItem';
 import type { HydratedPost } from '@mention/shared-types';
 import MiniChart from '@/components/MiniChart';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
+import { Divider } from '@oxy.so/bloom/divider';
+import {
+    SegmentedControl,
+    SegmentedControlItem,
+    SegmentedControlItemText,
+} from '@oxy.so/bloom/segmented-control';
 import { EmptyState } from '@/components/common/EmptyState';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { asViewStyle, asTextStyle } from '@/types/webStyles';
@@ -39,6 +45,7 @@ import { MediaIcon } from '@/assets/icons/media-icon';
 import { Video } from '@/assets/icons/video-icon';
 import { PollIcon } from '@/assets/icons/poll-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
+import { StatRow } from '@/components/insights/StatRow';
 
 const PERIOD_OPTIONS = [
     { labelKey: 'insights.period.7days', value: 7 },
@@ -57,60 +64,30 @@ const webStickyRankStyle: TextStyle = asTextStyle({ position: 'sticky', top: 12 
 // the tab's scroller — the standard RN idiom.
 const IS_WEB = Platform.OS === 'web';
 
-// Reusable stat row
-interface StatRowProps {
-    icon: React.ReactNode;
-    label: string;
-    value: string | number;
-    sub?: string;
-    showDivider?: boolean;
-}
-
-const StatRow: React.FC<StatRowProps & { theme: Theme }> = ({ icon, label, value, sub, showDivider = true }) => (
-    <View>
-        <View className="flex-row items-center justify-between py-3">
-            <View className="flex-row items-center gap-3">
-                {icon}
-                <Text className="text-[15px] font-medium text-foreground">{label}</Text>
-            </View>
-            <View className="flex-row items-center gap-2.5">
-                <Text className="text-base font-bold text-foreground">
-                    {typeof value === 'number' ? formatCompactNumber(value) : value}
-                </Text>
-                {sub && (
-                    <Text className="text-[13px] font-medium min-w-[40px] text-right text-muted-foreground">{sub}</Text>
-                )}
-            </View>
-        </View>
-        {showDivider && <View style={styles.rowDivider} className="bg-border" />}
-    </View>
-);
-
-// Period pill selector
+// Period selector — picks the window every figure below is computed over.
 interface PeriodSelectorProps {
     selected: number;
     onSelect: (val: number) => void;
-    theme: Theme;
     t: (key: string) => string;
 }
 
-const PeriodSelector: React.FC<PeriodSelectorProps> = ({ selected, onSelect, theme, t }) => (
-    <View style={[styles.periodRow, { borderBottomColor: theme.colors.border }]}>
-        {PERIOD_OPTIONS.map((opt) => {
-            const active = selected === opt.value;
-            return (
-                <TouchableOpacity
-                    key={opt.value}
-                    style={[styles.periodPill, active && { backgroundColor: theme.colors.text }]}
-                    onPress={() => onSelect(opt.value)}
-                    activeOpacity={0.7}
-                >
-                    <Text style={[styles.periodPillText, { color: active ? theme.colors.background : theme.colors.textSecondary }, active && styles.periodPillTextActive]}>
-                        {t(opt.labelKey)}
-                    </Text>
-                </TouchableOpacity>
-            );
-        })}
+const PeriodSelector: React.FC<PeriodSelectorProps> = ({ selected, onSelect, t }) => (
+    <View style={styles.periodRow}>
+        <View style={styles.periodControl}>
+            <SegmentedControl
+                label={t('insights.title')}
+                type="radio"
+                value={String(selected)}
+                onValueChange={(value) => onSelect(Number(value))}
+            >
+                {PERIOD_OPTIONS.map((opt) => (
+                    <SegmentedControlItem key={opt.value} value={String(opt.value)}>
+                        <SegmentedControlItemText>{t(opt.labelKey)}</SegmentedControlItemText>
+                    </SegmentedControlItem>
+                ))}
+            </SegmentedControl>
+        </View>
+        <Divider />
     </View>
 );
 
@@ -211,21 +188,24 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
 
         const body = (
             <>
-                <PeriodSelector selected={selectedPeriod} onSelect={handlePeriodChange} theme={theme} t={t} />
+                <PeriodSelector selected={selectedPeriod} onSelect={handlePeriodChange} t={t} />
 
                 {/* Weekly Recap link — the viewer's own insights only. See the note above. */}
                 {!accountId && (
-                    <TouchableOpacity
-                        style={[styles.recapRow, { borderBottomColor: theme.colors.border }]}
-                        onPress={() => router.push('/insights/weekly_recap')}
-                        activeOpacity={0.7}
-                    >
-                        <View className="flex-row items-center gap-2.5">
-                            <CalendarIcon size={18} className="text-foreground" />
-                            <Text className="text-[15px] font-semibold text-foreground">{t('insights.weeklyRecap.ready')}</Text>
-                        </View>
-                        <ChevronRightIcon size={18} className="text-muted-foreground" />
-                    </TouchableOpacity>
+                    <>
+                        <TouchableOpacity
+                            style={styles.recapRow}
+                            onPress={() => router.push('/insights/weekly_recap')}
+                            activeOpacity={0.7}
+                        >
+                            <View className="flex-row items-center gap-2.5">
+                                <CalendarIcon size={18} className="text-foreground" />
+                                <Text className="text-[15px] font-semibold text-foreground">{t('insights.weeklyRecap.ready')}</Text>
+                            </View>
+                            <ChevronRightIcon size={18} className="text-muted-foreground" />
+                        </TouchableOpacity>
+                        <Divider />
+                    </>
                 )}
 
                 {/* Top-line metrics */}
@@ -238,7 +218,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
                             {t('insights.posts')}
                         </Text>
                     </View>
-                    <View style={styles.topMetricDivider} className="bg-border" />
+                    <Divider vertical style={styles.topMetricDivider} />
                     <View className="flex-1 items-center">
                         <Text className="text-2xl font-extrabold tracking-tight text-foreground">
                             {formatCompactNumber(stats.overview.totalViews)}
@@ -247,7 +227,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
                             {t('insights.post.views')}
                         </Text>
                     </View>
-                    <View style={styles.topMetricDivider} className="bg-border" />
+                    <Divider vertical style={styles.topMetricDivider} />
                     <View className="flex-1 items-center">
                         <Text className="text-2xl font-extrabold tracking-tight text-foreground">
                             {stats.overview.engagementRate.toFixed(1)}%
@@ -274,10 +254,10 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
                     {t('insights.post.interactions')}
                 </Text>
 
-                <StatRow icon={<HeartIcon size={18} className="text-foreground" />} label={t('insights.post.likes')} value={stats.interactions.likes} sub={perPost(stats.interactions.likes)} theme={theme} />
-                <StatRow icon={<CommentIcon size={18} className="text-foreground" />} label={t('insights.post.replies')} value={stats.interactions.replies} sub={perPost(stats.interactions.replies)} theme={theme} />
-                <StatRow icon={<BoostIcon size={18} className="text-foreground" />} label={t('insights.post.boosts')} value={stats.interactions.boosts} sub={perPost(stats.interactions.boosts)} theme={theme} />
-                <StatRow icon={<ShareIcon size={18} className="text-foreground" />} label={t('insights.post.shares')} value={stats.interactions.shares} sub={perPost(stats.interactions.shares)} showDivider={false} theme={theme} />
+                <StatRow icon={<HeartIcon size={18} className="text-foreground" />} label={t('insights.post.likes')} value={stats.interactions.likes} sub={perPost(stats.interactions.likes)} />
+                <StatRow icon={<CommentIcon size={18} className="text-foreground" />} label={t('insights.post.replies')} value={stats.interactions.replies} sub={perPost(stats.interactions.replies)} />
+                <StatRow icon={<BoostIcon size={18} className="text-foreground" />} label={t('insights.post.boosts')} value={stats.interactions.boosts} sub={perPost(stats.interactions.boosts)} />
+                <StatRow icon={<ShareIcon size={18} className="text-foreground" />} label={t('insights.post.shares')} value={stats.interactions.shares} sub={perPost(stats.interactions.shares)} showDivider={false} />
 
                 {/* Posts by Type */}
                 {Object.keys(stats.postsByType).length > 0 && (
@@ -301,7 +281,6 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
                                     value={count}
                                     sub={pct}
                                     showDivider={index < array.length - 1}
-                                    theme={theme}
                                 />
                             );
                         })}
@@ -316,14 +295,17 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
                         </Text>
                         {topPostsData.length > 0 ? (
                             topPostsData.map((post, index) => (
-                                <View key={post.id} style={[styles.topPostRow, index < topPostsData.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border }]}>
-                                    <Text className="text-xl font-extrabold w-8 pt-3.5 text-muted-foreground" style={webStickyRankStyle}>
-                                        {index + 1}
-                                    </Text>
-                                    <View className="flex-1">
-                                        <PostItem post={post} style={styles.topPostItem} />
+                                <React.Fragment key={post.id}>
+                                    <View style={styles.topPostRow}>
+                                        <Text className="text-xl font-extrabold w-8 pt-3.5 text-muted-foreground" style={webStickyRankStyle}>
+                                            {index + 1}
+                                        </Text>
+                                        <View className="flex-1">
+                                            <PostItem post={post} style={styles.topPostItem} />
+                                        </View>
                                     </View>
-                                </View>
+                                    {index < topPostsData.length - 1 ? <Divider /> : null}
+                                </React.Fragment>
                             ))
                         ) : (
                             <Text className="text-sm font-medium py-4 text-muted-foreground">
@@ -351,7 +333,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
 
         const body = (
             <>
-                <PeriodSelector selected={selectedPeriod} onSelect={handlePeriodChange} theme={theme} t={t} />
+                <PeriodSelector selected={selectedPeriod} onSelect={handlePeriodChange} t={t} />
 
                 {/* Top-line */}
                 <View className="flex-row items-center py-5">
@@ -363,7 +345,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
                             {t('insights.post.engagementRate')}
                         </Text>
                     </View>
-                    <View style={styles.topMetricDivider} className="bg-border" />
+                    <Divider vertical style={styles.topMetricDivider} />
                     <View className="flex-1 items-center">
                         <Text className="text-2xl font-extrabold tracking-tight text-foreground">
                             {formatCompactNumber(engagementRatios.totals.interactions)}
@@ -372,7 +354,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
                             {t('insights.post.interactions')}
                         </Text>
                     </View>
-                    <View style={styles.topMetricDivider} className="bg-border" />
+                    <Divider vertical style={styles.topMetricDivider} />
                     <View className="flex-1 items-center">
                         <Text className="text-2xl font-extrabold tracking-tight text-foreground">
                             {engagementRatios.averages.engagementPerPost.toFixed(1)}
@@ -388,27 +370,27 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
                     {t('insights.engagementRatios')}
                 </Text>
 
-                <StatRow icon={<HeartIcon size={18} className="text-foreground" />} label={t('insights.likeRate')} value={`${engagementRatios.ratios.likeRate.toFixed(2)}%`} theme={theme} />
-                <StatRow icon={<CommentIcon size={18} className="text-foreground" />} label={t('insights.replyRate')} value={`${engagementRatios.ratios.replyRate.toFixed(2)}%`} theme={theme} />
-                <StatRow icon={<BoostIcon size={18} className="text-foreground" />} label={t('insights.boostRate')} value={`${engagementRatios.ratios.boostRate.toFixed(2)}%`} theme={theme} />
-                <StatRow icon={<ShareIcon size={18} className="text-foreground" />} label={t('insights.shareRate')} value={`${engagementRatios.ratios.shareRate.toFixed(2)}%`} showDivider={false} theme={theme} />
+                <StatRow icon={<HeartIcon size={18} className="text-foreground" />} label={t('insights.likeRate')} value={`${engagementRatios.ratios.likeRate.toFixed(2)}%`} />
+                <StatRow icon={<CommentIcon size={18} className="text-foreground" />} label={t('insights.replyRate')} value={`${engagementRatios.ratios.replyRate.toFixed(2)}%`} />
+                <StatRow icon={<BoostIcon size={18} className="text-foreground" />} label={t('insights.boostRate')} value={`${engagementRatios.ratios.boostRate.toFixed(2)}%`} />
+                <StatRow icon={<ShareIcon size={18} className="text-foreground" />} label={t('insights.shareRate')} value={`${engagementRatios.ratios.shareRate.toFixed(2)}%`} showDivider={false} />
 
                 {/* Averages */}
                 <Text className="text-[15px] font-bold mb-1 mt-6 text-foreground">
                     {t('insights.averages')}
                 </Text>
 
-                <StatRow icon={<RiEyeLine width={18} height={18} fill={theme.colors.text} />} label={t('insights.viewsPerPost')} value={formatCompactNumber(Math.round(engagementRatios.averages.viewsPerPost))} sub={`${engagementRatios.totals.posts} ${t('insights.posts').toLowerCase()}`} theme={theme} />
-                <StatRow icon={<AnalyticsIcon size={18} className="text-foreground" />} label={t('insights.engagementPerPost')} value={engagementRatios.averages.engagementPerPost.toFixed(1)} showDivider={false} theme={theme} />
+                <StatRow icon={<RiEyeLine width={18} height={18} fill={theme.colors.text} />} label={t('insights.viewsPerPost')} value={formatCompactNumber(Math.round(engagementRatios.averages.viewsPerPost))} sub={`${engagementRatios.totals.posts} ${t('insights.posts').toLowerCase()}`} />
+                <StatRow icon={<AnalyticsIcon size={18} className="text-foreground" />} label={t('insights.engagementPerPost')} value={engagementRatios.averages.engagementPerPost.toFixed(1)} showDivider={false} />
 
                 {/* Totals */}
                 <Text className="text-[15px] font-bold mb-1 mt-6 text-foreground">
                     {t('insights.totalActivity')}
                 </Text>
 
-                <StatRow icon={<ArticleIcon size={18} className="text-foreground" />} label={t('insights.posts')} value={engagementRatios.totals.posts} theme={theme} />
-                <StatRow icon={<RiEyeLine width={18} height={18} fill={theme.colors.text} />} label={t('insights.post.views')} value={engagementRatios.totals.views} theme={theme} />
-                <StatRow icon={<Ionicons name="flash" size={18} color={theme.colors.text} />} label={t('insights.post.interactions')} value={engagementRatios.totals.interactions} showDivider={false} theme={theme} />
+                <StatRow icon={<ArticleIcon size={18} className="text-foreground" />} label={t('insights.posts')} value={engagementRatios.totals.posts} />
+                <StatRow icon={<RiEyeLine width={18} height={18} fill={theme.colors.text} />} label={t('insights.post.views')} value={engagementRatios.totals.views} />
+                <StatRow icon={<Ionicons name="flash" size={18} color={theme.colors.text} />} label={t('insights.post.interactions')} value={engagementRatios.totals.interactions} showDivider={false} />
 
                 <View className="h-10" />
             </>
@@ -490,37 +472,22 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
     },
     periodRow: {
-        flexDirection: 'row',
-        gap: 8,
-        paddingVertical: 14,
-        borderBottomWidth: StyleSheet.hairlineWidth,
         marginBottom: 4,
     },
-    periodPill: {
-        paddingHorizontal: 14,
-        paddingVertical: 6,
-        borderRadius: 16,
-    },
-    periodPillText: {
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    periodPillTextActive: {
-        fontWeight: '700',
+    periodControl: {
+        paddingVertical: 14,
+        alignItems: 'flex-start',
     },
     recapRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingVertical: 14,
-        borderBottomWidth: StyleSheet.hairlineWidth,
     },
+    // A vertical `Divider` stretches to its row; the figures' rule is shorter.
     topMetricDivider: {
-        width: 0.5,
         height: 28,
-    },
-    rowDivider: {
-        height: StyleSheet.hairlineWidth,
+        alignSelf: 'center',
     },
     topPostRow: {
         flexDirection: 'row',

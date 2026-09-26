@@ -1,5 +1,6 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleProp, ViewStyle } from 'react-native';
+import { Text, StyleProp, ViewStyle } from 'react-native';
+import { Card } from '@oxy.so/bloom/card';
 import { cn } from '@/lib/utils';
 
 interface PostArticlePreviewProps {
@@ -15,12 +16,14 @@ const PostArticlePreview: React.FC<PostArticlePreviewProps> = ({ title, body, on
   const trimmedBody = body?.trim();
 
   return (
-    <TouchableOpacity
-      className={cn('w-[200px] min-h-[140px] border border-border bg-card rounded-[14px] p-4 justify-between', className)}
+    // Bloom's outlined card owns the chrome (card fill, 1px border, corner); a
+    // card with no `onPress` renders as a plain view, as the disabled touchable did.
+    <Card
+      variant="outlined"
+      radius="radius-16"
+      className={cn('w-[200px] min-h-[140px] p-4 justify-between', className)}
       style={style}
-      activeOpacity={0.85}
       onPress={onPress}
-      disabled={!onPress}
     >
       <Text className="text-foreground text-lg font-bold mb-3" numberOfLines={2}>
         {trimmedTitle || 'Untitled article'}
@@ -30,7 +33,7 @@ const PostArticlePreview: React.FC<PostArticlePreviewProps> = ({ title, body, on
           {trimmedBody}
         </Text>
       ) : null}
-    </TouchableOpacity>
+    </Card>
   );
 };
 

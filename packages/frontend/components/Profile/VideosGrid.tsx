@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 import { TouchableOpacity, View } from 'react-native';
-import { Spinner } from '@/components/ui/Spinner';
+import { Loading } from '@oxy.so/bloom/loading';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
@@ -157,7 +157,7 @@ const VideosGrid: React.FC<VideosGridProps> = ({
     const emptyContent = isLoading
         ? (
             <View className="items-center justify-center p-8">
-                <Spinner />
+                <Loading iconSize={28} style={{ padding: 0 }} />
             </View>
         )
         : videoItems.length === 0

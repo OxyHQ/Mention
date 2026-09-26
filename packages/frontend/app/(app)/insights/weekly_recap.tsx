@@ -16,12 +16,22 @@ import { useTranslation } from 'react-i18next';
 import { useAuth, OxyAuthPrompt } from '@oxy.so/services/ui/client';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
-import StatCard from '@/components/insights/StatCard';
+import { StatCards, type StatCardsItem } from '@oxy.so/bloom/stat-cards';
+import type { BloomIconComponent } from '@oxy.so/bloom';
+import MiniChart from '@/components/MiniChart';
 import { formatCompactNumber } from '@/utils/formatNumber';
 import { ArticleIcon } from '@/assets/icons/article-icon';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+
+// The app's own post/reply glyphs, in the shape Bloom's stat card sizes and
+// colours (`width`/`height`/`fill`) — it takes an icon component, not an element.
+const PostsGlyph: BloomIconComponent = ({ width, fill }) => <ArticleIcon size={width} color={fill} />;
+const RepliesGlyph: BloomIconComponent = ({ width, fill }) => <CommentIcon size={width} color={fill} />;
+
+/** This week's bar per day, today's bar highlighted — beside the card's figure. */
+const WEEK_CHART_WIDTH = 112;
 
 
 interface WeeklyRecapData {
@@ -47,31 +57,6 @@ const WeeklyRecapScreen: React.FC = () => {
         sunday.setDate(sunday.getDate() + 6);
 
         return { start: monday, end: sunday };
-    };
-
-    const getDayLabels = () => {
-        const weekDates = getWeekDates(0);
-        const days = [
-            t('insights.weeklyRecap.days.mon'),
-            t('insights.weeklyRecap.days.tue'),
-            t('insights.weeklyRecap.days.wed'),
-            t('insights.weeklyRecap.days.thu'),
-            t('insights.weeklyRecap.days.fri'),
-            t('insights.weeklyRecap.days.sat'),
-            t('insights.weeklyRecap.days.sun')
-        ];
-        const labels = [];
-
-        for (let i = 0; i < 7; i++) {
-            const date = new Date(weekDates.start);
-            date.setDate(date.getDate() + i);
-            const dayIndex = date.getDay();
-            // Convert Sunday (0) to index 6, and shift others
-            const adjustedIndex = dayIndex === 0 ? 6 : dayIndex - 1;
-            labels.push(days[adjustedIndex]);
-        }
-
-        return labels;
     };
 
     const getCurrentWeekData = (data: AccountInsights['dailyBreakdown'], field: 'views' | 'replies' | 'interactions'): number[] => {
@@ -254,39 +239,63 @@ const WeeklyRecapScreen: React.FC = () => {
     const dateRange = formatDateRange(currentWeekDates.start, currentWeekDates.end);
     const avatarUri = user?.avatar;
 
-    const statCards = [
-        {
-            icon: <ArticleIcon size={20} className="text-foreground" />,
-            title: t('insights.weeklyRecap.yourActivity'),
-            current: data.currentWeek.overview.totalPosts,
-            previous: data.previousWeek.overview.totalPosts,
-            unit: t('insights.weeklyRecap.posts'),
-            chartData: getCurrentWeekData(data.currentWeek.dailyBreakdown || [], 'interactions')
-        },
-        {
-            icon: <RiEyeLine size="md" fill={theme.colors.text} />,
-            title: t('insights.weeklyRecap.views'),
-            current: data.currentWeek.overview.totalViews,
-            previous: data.previousWeek.overview.totalViews,
-            unit: '',
-            chartData: getCurrentWeekData(data.currentWeek.dailyBreakdown || [], 'views')
-        },
-        {
-            icon: <CommentIcon size={20} className="text-foreground" />,
-            title: t('insights.weeklyRecap.replies'),
-            current: data.currentWeek.interactions.replies,
-            previous: data.previousWeek.interactions.replies,
-            unit: '',
-            chartData: getCurrentWeekData(data.currentWeek.dailyBreakdown || [], 'replies')
-        },
-        {
-            icon: <RiUserAddFill size="md" fill={theme.colors.text} />,
-            title: t('insights.weeklyRecap.newFollowers'),
-            current: data.newFollowers,
-            previous: data.previousFollowers,
-            unit: '',
-            chartData: Array(7).fill(0)
-        }
+    const withUnit = (n: number, unit: string) => `${formatCompactNumber(n)}${unit ? ` ${unit}` : ''}`;
+
+    const statCard = (
+        icon: BloomIconComponent,
+        label: string,
+        current: number,
+        previous: number,
+        unit: string,
+        chartData: number[],
+    ): StatCardsItem => ({
+        icon,
+        label,
+        value: withUnit(current, unit),
+        // The comparison the recap has always printed, now in the card's delta
+        // chip — coloured by which way the week went.
+        delta: `${t('insights.weeklyRecap.previous')}: ${withUnit(previous, unit)}`,
+        deltaColor: current > previous ? 'lime' : current < previous ? 'rose' : 'neutral',
+        accessory: (
+            <View style={{ width: WEEK_CHART_WIDTH }}>
+                <MiniChart values={chartData} showLabels={false} height={28} />
+            </View>
+        ),
+    });
+
+    const statCards: StatCardsItem[] = [
+        statCard(
+            PostsGlyph,
+            t('insights.weeklyRecap.yourActivity'),
+            data.currentWeek.overview.totalPosts,
+            data.previousWeek.overview.totalPosts,
+            t('insights.weeklyRecap.posts'),
+            getCurrentWeekData(data.currentWeek.dailyBreakdown || [], 'interactions'),
+        ),
+        statCard(
+            RiEyeLine,
+            t('insights.weeklyRecap.views'),
+            data.currentWeek.overview.totalViews,
+            data.previousWeek.overview.totalViews,
+            '',
+            getCurrentWeekData(data.currentWeek.dailyBreakdown || [], 'views'),
+        ),
+        statCard(
+            RepliesGlyph,
+            t('insights.weeklyRecap.replies'),
+            data.currentWeek.interactions.replies,
+            data.previousWeek.interactions.replies,
+            '',
+            getCurrentWeekData(data.currentWeek.dailyBreakdown || [], 'replies'),
+        ),
+        statCard(
+            RiUserAddFill,
+            t('insights.weeklyRecap.newFollowers'),
+            data.newFollowers,
+            data.previousFollowers,
+            '',
+            Array(7).fill(0),
+        ),
     ];
 
     return (
@@ -310,20 +319,7 @@ const WeeklyRecapScreen: React.FC = () => {
                 </View>
 
                 {/* Stats Cards - Full Width, Stacked */}
-                {statCards.map((card, index) => (
-                    <StatCard
-                        key={index}
-                        icon={card.icon}
-                        title={card.title}
-                        value={card.current}
-                        previous={card.previous}
-                        unit={card.unit}
-                        chartData={card.chartData}
-                        chartLabels={getDayLabels()}
-                        showChart={true}
-                        formatNumber={formatCompactNumber}
-                    />
-                ))}
+                <StatCards stats={statCards} columns={1} />
 
             </ScrollView>
         </View>

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +16,8 @@ import { RiUserLine } from '@oxy.so/bloom/icons/RiUserLine';
 import { Item } from '@oxy.so/bloom/item';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { Switch } from '@oxy.so/bloom/switch';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
@@ -488,27 +490,24 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
           </Pressable>
         </View>
 
-        <TextInput
+        <TextFieldInput
+          label={t('channels.titleLabel', { defaultValue: 'Channel name' })}
+          placeholder={t('channels.titlePlaceholder', { defaultValue: 'Channel name' })}
           value={displayName}
           onChangeText={setDisplayName}
           maxLength={MAX_TITLE_LENGTH}
-          placeholder={t('channels.titlePlaceholder', { defaultValue: 'Channel name' })}
-          accessibilityLabel={t('channels.titleLabel', { defaultValue: 'Channel name' })}
-          className="bg-muted text-foreground rounded-2xl px-4 py-3 text-[15px]"
         />
 
-        <TextInput
+        <Textarea
           value={bio}
           onChangeText={setBio}
-          multiline
-          textAlignVertical="top"
+          rows={4}
           placeholder={t('channels.settings.bioPlaceholder', {
             defaultValue: 'What this channel is about',
           })}
           accessibilityLabel={t('channels.settings.bioLabel', {
             defaultValue: 'Channel description',
           })}
-          className="bg-muted text-foreground rounded-2xl px-4 py-3 text-[15px] min-h-[96px]"
         />
 
         <Item

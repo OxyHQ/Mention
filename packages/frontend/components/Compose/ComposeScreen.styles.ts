@@ -151,16 +151,6 @@ export const composeStyles = StyleSheet.create({
     fontWeight: '500',
   },
   /* compose toolbar */
-  toolbarDividerArea: {
-    width: 28,
-    alignItems: 'center',
-  },
-  toolbarDivider: {
-    width: 1,
-    height: 48,
-    backgroundColor: '#ededed',
-    borderRadius: 2,
-  },
   toolbarIcons: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -521,80 +511,5 @@ export const composeStyles = StyleSheet.create({
   },
   modeToggle: {
     marginHorizontal: 20,
-  },
-  scheduleSheetContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 28,
-    gap: 16,
-  },
-  scheduleSheetTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  scheduleSheetSubtitle: {
-    fontSize: 13,
-  },
-  scheduleSheetDivider: {
-    height: StyleSheet.hairlineWidth,
-    width: '100%',
-  },
-  scheduleOptionButton: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  scheduleOptionLabel: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  scheduleOptionHint: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  scheduleCustomSection: {
-    gap: 12,
-  },
-  scheduleCustomLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  scheduleCustomInputsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  scheduleCustomInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    fontSize: 14,
-  },
-  scheduleSheetError: {
-    fontSize: 12,
-  },
-  scheduleSheetActionButton: {
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  scheduleSheetActionText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  scheduleSheetActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  scheduleSheetSecondaryButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-  },
-  scheduleSheetSecondaryText: {
-    fontSize: 14,
-    fontWeight: '500',
   },
 });

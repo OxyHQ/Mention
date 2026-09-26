@@ -5,6 +5,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { FlashList } from '@shopify/flash-list';
 import { Button } from '@oxy.so/bloom/button';
 import { Chip } from '@oxy.so/bloom/chip';
+import { Field } from '@oxy.so/bloom/field';
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Search } from '@oxy.so/bloom/search';
@@ -314,10 +315,7 @@ export default function JobsDiscoveryScreen() {
 
             {showMoreFilters ? (
               <View className="gap-3">
-                <View>
-                  <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
-                    {t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })}
-                  </Text>
+                <Field label={t('jobs.create.workplaceType', { defaultValue: 'Workplace type' })} multiple>
                   <View className="flex-row flex-wrap gap-2">
                     {MENTION_JOB_WORKPLACE_TYPES.map((value) => (
                       <Chip
@@ -329,12 +327,9 @@ export default function JobsDiscoveryScreen() {
                       </Chip>
                     ))}
                   </View>
-                </View>
+                </Field>
 
-                <View>
-                  <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
-                    {t('jobs.create.employmentType', { defaultValue: 'Employment type' })}
-                  </Text>
+                <Field label={t('jobs.create.employmentType', { defaultValue: 'Employment type' })} multiple>
                   <View className="flex-row flex-wrap gap-2">
                     {MENTION_JOB_EMPLOYMENT_TYPES.map((value) => (
                       <Chip
@@ -346,7 +341,7 @@ export default function JobsDiscoveryScreen() {
                       </Chip>
                     ))}
                   </View>
-                </View>
+                </Field>
 
                 <View className="flex-row gap-2">
                   <View className="flex-1">
@@ -371,10 +366,7 @@ export default function JobsDiscoveryScreen() {
                   </View>
                 </View>
 
-                <View>
-                  <Text className="text-sm text-muted-foreground mb-1.5 font-primary">
-                    {t('jobs.discovery.datePosted', { defaultValue: 'Date posted' })}
-                  </Text>
+                <Field label={t('jobs.discovery.datePosted', { defaultValue: 'Date posted' })}>
                   <SegmentedControl
                     label={t('jobs.discovery.datePosted', { defaultValue: 'Date posted' })}
                     type="radio"
@@ -395,7 +387,7 @@ export default function JobsDiscoveryScreen() {
                       <SegmentedControlItemText>{t('jobs.discovery.pastMonth', { defaultValue: 'Past month' })}</SegmentedControlItemText>
                     </SegmentedControlItem>
                   </SegmentedControl>
-                </View>
+                </Field>
               </View>
             ) : null}
           </View>

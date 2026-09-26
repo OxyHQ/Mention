@@ -1,15 +1,15 @@
 import React, { memo, useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, Text, TextInput, View } from 'react-native';
+import { FlatList, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
-import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { Item } from '@oxy.so/bloom/item';
+import { Loading } from '@oxy.so/bloom/loading';
+import { Search } from '@oxy.so/bloom/search';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useInfiniteCatalogSearch, ResultsFooter } from '@/hooks/useInfiniteCatalogSearch';
 import type { PodcastAttachmentData } from '@/hooks/usePodcastManager';
-import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 interface PodcastSearchResult {
   syraPodcastId: string;
@@ -99,36 +99,20 @@ const PodcastPickerSheet = memo(function PodcastPickerSheet({
         {t('compose.podcast.title')}
       </Text>
 
-      {/* Search input — mirrors MediaPickerSheet's styled search row. */}
-      <View className="flex-row items-center px-3 py-2.5 rounded-xl bg-muted gap-2.5">
-        <RiSearchLine size="sm" fill={colors.textSecondary} />
-        <TextInput
-          className="flex-1 text-[15px] text-foreground"
-          placeholder={t('compose.podcast.searchPlaceholder')}
-          placeholderTextColor={colors.textTertiary}
-          value={query}
-          onChangeText={setQuery}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="search"
-        />
-        {query.length > 0 && (
-          <Pressable
-            onPress={() => setQuery('')}
-            accessibilityRole="button"
-            accessibilityLabel={t('profile.media.clearSearch')}
-            hitSlop={HIT_SLOP_MD}
-          >
-            <RiCloseCircleLine size="sm" fill={colors.textSecondary} />
-          </Pressable>
-        )}
-      </View>
+      <Search
+        label={t('compose.podcast.searchPlaceholder')}
+        value={query}
+        onChangeText={setQuery}
+        onClearText={() => setQuery('')}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
 
       {/* Results */}
       <View className="mt-2 min-h-[120px]">
         {search.isLoading ? (
           <View className="items-center justify-center py-10">
-            <ActivityIndicator size="small" color={colors.primary} />
+            <Loading className="text-primary" size="small" style={{ flex: undefined }} />
           </View>
         ) : search.isError ? (
           <Text className="text-muted-foreground text-[15px] text-center py-10">

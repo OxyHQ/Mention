@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
+import { Badge } from '@oxy.so/bloom/badge';
 
 /** Above this the pill collapses to "99+" so it never grows unbounded. */
 const MAX_DISPLAY_COUNT = 99;
@@ -35,17 +36,17 @@ const UnreadBadgeComponent: React.FC<UnreadBadgeProps> = ({ count, dot = false, 
     );
   }
 
-  const label = count > MAX_DISPLAY_COUNT ? `${MAX_DISPLAY_COUNT}+` : String(count);
-
+  // Bloom's counter badge draws the pill, the brand fill and the `99+` cap; the
+  // wrapper only pins it to the icon's corner, rings it in the surface colour so
+  // it reads as punched out of the bell, and carries the announcement (a
+  // standalone `Badge` has no accessibility props of its own).
   return (
     <View
-      className="absolute -top-1 -right-1.5 h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 px-[5px] bg-primary border-background"
+      className="absolute -top-1.5 -right-2 rounded-full p-0.5 bg-background"
       accessibilityRole="image"
       accessibilityLabel={accessibilityLabel}
     >
-      <Text className="text-primary-foreground text-[11px] font-bold leading-[14px]" numberOfLines={1}>
-        {label}
-      </Text>
+      <Badge content={count} max={MAX_DISPLAY_COUNT} color="primary" variant="solid" size="small" />
     </View>
   );
 };
