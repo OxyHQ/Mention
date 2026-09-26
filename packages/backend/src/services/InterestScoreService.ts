@@ -41,6 +41,16 @@ const PUSH_CHUNK_SIZE = 500;
 /** Redis hash storing the last pushed score per user (field = oxyUserId). */
 const LAST_PUSHED_HASH = 'interest:lastPushed:v1';
 
+/**
+ * Redis key that exists while the last completed run is still fresh. Its TTL is
+ * the cadence less {@link LAST_RUN_SLACK_MS}, so it has always expired by the
+ * next scheduled tick.
+ */
+export const LAST_RUN_KEY = 'interest:lastRun:v1';
+
+/** How much earlier than the cadence the freshness key expires. */
+const LAST_RUN_SLACK_MS = 10 * 60 * 1000;
+
 /** Engagement totals + post metadata for one author in the window. */
 interface AuthorAggregate {
   oxyUserId: string;
@@ -185,6 +195,56 @@ export class InterestScoreService {
       out.push(items.slice(i, i + size));
     }
     return out;
+  }
+
+  /**
+   * {@link run}, unless a run completed less than `intervalMs` ago. What the
+   * scheduler calls.
+   *
+   * ## Why (#1166)
+   *
+   * The recompute is scheduled per LEADER: `upsertJobScheduler` on every
+   * leadership acquisition, which enqueues a run straight away. Leadership moves
+   * on every deploy and every lost lease renewal, so the "every six hours"
+   * aggregation ran ~25 times in six hours on a busy deploy day (2026-09-25,
+   * counted from `[InterestScore] scored` lines) — each a scan of every post in
+   * thirty days, 5–9 s and ~120k blocks read. Freshness is kept in Redis, where
+   * every leader can see it.
+   *
+   * With Redis unavailable the run goes ahead: that is the behaviour before this
+   * gate, and a leader cannot have been elected without Redis anyway. The key is
+   * written only after a run SUCCEEDS, so a failed run is retried at the next
+   * tick rather than suppressed for six hours.
+   */
+  async runIfDue(
+    intervalMs: number,
+    now: number = Date.now(),
+  ): Promise<{ scored: number; pushed: number } | { skipped: true }> {
+    const client = getRedisClient();
+    const redisReady = Boolean(client?.isReady);
+    if (client && redisReady) {
+      try {
+        if ((await client.exists(LAST_RUN_KEY)) > 0) {
+          logger.debug('[InterestScore] last run is recent; not due');
+          return { skipped: true };
+        }
+      } catch (error) {
+        logger.debug('[InterestScore] freshness read failed; running anyway:', error);
+      }
+    }
+
+    const result = await this.run(now);
+
+    if (client && redisReady) {
+      try {
+        await client.set(LAST_RUN_KEY, new Date(now).toISOString(), {
+          PX: Math.max(intervalMs - LAST_RUN_SLACK_MS, 1),
+        });
+      } catch (error) {
+        logger.debug('[InterestScore] freshness write failed:', error);
+      }
+    }
+    return result;
   }
 
   /**

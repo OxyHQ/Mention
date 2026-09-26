@@ -809,7 +809,10 @@ class FederationJobScheduler {
     }
     this.isComputeInterestScoresRunning = true;
     try {
-      await interestScoreService.run();
+      // Gated on the last COMPLETED run, not on this timer: every leader
+      // re-registers the schedule, and BullMQ runs a newly upserted scheduler
+      // at once (#1166).
+      await interestScoreService.runIfDue(COMPUTE_INTEREST_SCORES_INTERVAL_MS);
     } finally {
       this.isComputeInterestScoresRunning = false;
     }

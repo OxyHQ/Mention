@@ -43,6 +43,8 @@ import { posts } from '../db/schema/posts';
 import {
   FollowerSnapshotJob,
   followerSnapshotJob,
+  FOLLOWER_SNAPSHOT_CHECK_INTERVAL_MS,
+  FOLLOWER_SNAPSHOT_INTERVAL_MS,
   FOLLOWER_SNAPSHOT_START_DELAY_MS,
 } from '../services/followerSnapshotJob';
 
@@ -274,12 +276,44 @@ describe('runSnapshotSweep — what it stores', () => {
   });
 });
 
+describe('runSnapshotSweepIfDue — due-ness comes from the table, not the timer (#1166)', () => {
+  /**
+   * The timer belongs to whichever task holds leadership, and leadership moves
+   * on every deploy. Before this gate each new leader swept five minutes after
+   * acquiring it, so production swept 19–55 times a day instead of four. The
+   * newest `at` is what every leader can see, so it decides.
+   */
+  it('does not sweep while the newest snapshot is younger than the interval', async () => {
+    const author = authorId('not-due');
+    await seedActivePost(author);
+    // A snapshot written just now makes the table-wide newest `at` recent,
+    // whatever sibling suites have written.
+    await seedSnapshot(author, new Date());
+    summaries = new Map([[author, summary(5)]]);
+
+    await expect(followerSnapshotJob.runSnapshotSweepIfDue()).resolves.toBe(false);
+    expect(resolveUserSummaries).not.toHaveBeenCalled();
+  });
+
+  it('sweeps once the newest snapshot is older than the interval', async () => {
+    const author = authorId('due');
+    await seedActivePost(author);
+    summaries = new Map([[author, summary(5)]]);
+
+    // Asked from a moment one interval past anything this database can hold.
+    const later = Date.now() + FOLLOWER_SNAPSHOT_INTERVAL_MS + 60_000;
+    await expect(followerSnapshotJob.runSnapshotSweepIfDue(later)).resolves.toBe(true);
+    expect(resolveUserSummaries).toHaveBeenCalledTimes(1);
+    expect(resolveUserSummaries.mock.calls[0][0]).toContain(author);
+  });
+});
+
 describe('start() scheduling gate', () => {
   it('is an inline no-op when REDIS_URL is unset', () => {
     delete process.env.REDIS_URL;
     vi.useFakeTimers();
     const job = new FollowerSnapshotJob();
-    const spy = vi.spyOn(job, 'runSnapshotSweep').mockResolvedValue();
+    const spy = vi.spyOn(job, 'runSnapshotSweepIfDue').mockResolvedValue(false);
     job.start();
     vi.advanceTimersByTime(FOLLOWER_SNAPSHOT_START_DELAY_MS + 1000);
     expect(spy).not.toHaveBeenCalled();
@@ -287,15 +321,20 @@ describe('start() scheduling gate', () => {
     vi.useRealTimers();
   });
 
-  it('defers the first sweep and arms it after the start delay when REDIS_URL is set', () => {
+  it('defers the first check, then asks every check interval — never sweeping unconditionally', () => {
     process.env.REDIS_URL = 'redis://localhost:6379';
     vi.useFakeTimers();
     const job = new FollowerSnapshotJob();
-    const spy = vi.spyOn(job, 'runSnapshotSweep').mockResolvedValue();
+    const due = vi.spyOn(job, 'runSnapshotSweepIfDue').mockResolvedValue(false);
+    const sweep = vi.spyOn(job, 'runSnapshotSweep').mockResolvedValue();
     job.start();
-    expect(spy).not.toHaveBeenCalled(); // deferred, not immediate
+    expect(due).not.toHaveBeenCalled(); // deferred, not immediate
     vi.advanceTimersByTime(FOLLOWER_SNAPSHOT_START_DELAY_MS + 1);
-    expect(spy).toHaveBeenCalledTimes(1);
+    expect(due).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(FOLLOWER_SNAPSHOT_CHECK_INTERVAL_MS);
+    expect(due).toHaveBeenCalledTimes(2);
+    // The timer only ever ASKS; the sweep is the due check's decision.
+    expect(sweep).not.toHaveBeenCalled();
     job.stop();
     vi.useRealTimers();
   });

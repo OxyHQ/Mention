@@ -365,6 +365,13 @@
       "when": 1790375997882,
       "tag": "0051_drop_seo_bucket_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1790441187913,
+      "tag": "0052_posts_public_author_recent_idx",
+      "breakpoints": true
     }
   ]
 }

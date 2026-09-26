@@ -761,6 +761,22 @@ export const posts = pgTable(
     index('posts_type_chrono_idx').on(t.type, t.visibility, t.status, t.createdAt.desc()),
     index('posts_created_at_idx').on(t.createdAt.desc()),
     /**
+     * Which accounts published publicly inside a recent window — the question
+     * `followerSnapshotJob.selectAuthorsToSample` asks every sweep (#1166).
+     *
+     * Without it that was a parallel sequential scan of all of `posts` (~135k
+     * blocks, 5 s cold in production, 2026-09-26) to find the ~10% of rows in a
+     * fourteen-day window. The predicate is that query's WHERE and `oxy_user_id`
+     * rides in the key, so the window is an index-only range.
+     *
+     * Neither column is written after a post is created, so the index costs no
+     * HOT update: the engagement counters that move constantly are not in it,
+     * and must never be added (see 0051 for what that costs).
+     */
+    index('posts_public_author_recent_idx')
+      .on(t.createdAt, t.oxyUserId)
+      .where(sql`${t.visibility} = 'public' and ${t.status} = 'published'`),
+    /**
      * The self-thread spine — `(thread_id, author)`, oldest first.
      *
      * PARTIAL on `thread_id is not null`, and the predicate is doing real work

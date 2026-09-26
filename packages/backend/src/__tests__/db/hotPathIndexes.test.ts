@@ -203,6 +203,17 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
     definition: 'CREATE INDEX posts_created_at_idx ON public.posts USING btree (created_at DESC NULLS LAST)',
   },
   {
+    name: 'posts_public_author_recent_idx',
+    table: 'posts',
+    serves:
+      'which accounts published publicly inside a window — `followerSnapshotJob.selectAuthorsToSample`, ' +
+      'as an index-only range instead of a sequential scan of every post (#1166). Neither key column is ' +
+      'written after insert, so it costs the engagement counters no HOT update',
+    definition:
+      'CREATE INDEX posts_public_author_recent_idx ON public.posts ' +
+      "USING btree (created_at, oxy_user_id) WHERE ((visibility = 'public'::text) AND (status = 'published'::text))",
+  },
+  {
     name: 'posts_thread_idx',
     table: 'posts',
     serves:
@@ -912,5 +923,33 @@ it('bounds the federation URL index build, restores prior timeouts and serves ex
     // The shape `resolvePostIdFromNoteUrl` issues.
     const rows = await tx.execute<{ 'QUERY PLAN': string }>(sql`explain (costs off) select id from posts where federation_url = 'https://www.threads.com/@fixture/post/101' and status = 'published' and visibility = 'public' limit 1`);
     expect(rows.map(row => row['QUERY PLAN']).join('\n')).toContain('posts_federation_url_idx');
+  });
+});
+
+it('bounds the public-author window index build, restores prior timeouts and serves the snapshot sweep (#1166)', async () => {
+  const migration = readFileSync(path.resolve(__dirname, '../../../drizzle/0052_posts_public_author_recent_idx.sql'), 'utf8');
+  await db.transaction(async tx => {
+    // A private table shadows public.posts only on this transaction's connection.
+    await tx.execute(sql`create temp table posts (id text, oxy_user_id text, created_at timestamptz, status text, visibility text) on commit drop`);
+    await tx.execute(sql`insert into posts select n::text, 'author-' || (n % 500)::text, now() - (n || ' minutes')::interval, case when n % 10 = 0 then 'draft' else 'published' end, case when n % 7 = 0 then 'private' else 'public' end from generate_series(1, 200000) n`);
+    await tx.execute(sql`set local lock_timeout = '750ms'`);
+    await tx.execute(sql`set local statement_timeout = '90s'`);
+    let boundedBuildObserved = false;
+    for (const statement of migration.split('--> statement-breakpoint')) {
+      if (/^CREATE INDEX/m.test(statement)) {
+        const [settings] = await tx.execute<{ lock_timeout: string; statement_timeout: string }>(sql`select current_setting('lock_timeout') lock_timeout, current_setting('statement_timeout') statement_timeout`);
+        expect(settings).toEqual({ lock_timeout: '5s', statement_timeout: '1min' });
+        boundedBuildObserved = true;
+      }
+      await tx.execute(sql.raw(statement));
+    }
+    expect(boundedBuildObserved).toBe(true);
+    const [restored] = await tx.execute<{ lock_timeout: string; statement_timeout: string }>(sql`select current_setting('lock_timeout') lock_timeout, current_setting('statement_timeout') statement_timeout`);
+    expect(restored).toEqual({ lock_timeout: '750ms', statement_timeout: '90s' });
+    await tx.execute(sql`analyze posts`);
+    // The distinct-author window the sweep reads (fourteen days of 200k rows is
+    // about 10% of them, the production proportion).
+    const rows = await tx.execute<{ 'QUERY PLAN': string }>(sql`explain (costs off) select distinct oxy_user_id from posts where created_at >= now() - interval '20000 minutes' and visibility = 'public' and status = 'published' and oxy_user_id is not null`);
+    expect(rows.map(row => row['QUERY PLAN']).join('\n')).toContain('posts_public_author_recent_idx');
   });
 });

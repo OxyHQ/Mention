@@ -299,3 +299,70 @@ describe('run — real rows in, deltas out', () => {
     expect(pushedIds).toEqual([moved]);
   });
 });
+
+describe('runIfDue — the cadence survives a change of leader (#1166)', () => {
+  /**
+   * Every leader re-registers the BullMQ schedule and BullMQ runs a new
+   * scheduler at once, so the six-hourly recompute ran once per leadership
+   * change. Freshness in Redis is what every leader shares.
+   */
+  const INTERVAL = 6 * 60 * 60 * 1000;
+  const exists = vi.fn();
+  const set = vi.fn();
+
+  function readyRedis(): void {
+    mocks.getRedisClient.mockReturnValue({ isReady: true, exists, set, hGetAll: mocks.hGetAll, hSet: mocks.hSet });
+    mocks.hGetAll.mockResolvedValue({});
+    mocks.hSet.mockResolvedValue(0);
+  }
+
+  afterEach(() => {
+    exists.mockReset();
+    set.mockReset();
+  });
+
+  it('skips without reading posts while the last run is fresh', async () => {
+    readyRedis();
+    exists.mockResolvedValue(1);
+    const service = makeService();
+    const aggregate = vi.spyOn(service, 'aggregateAuthors');
+
+    await expect(service.runIfDue(INTERVAL)).resolves.toEqual({ skipped: true });
+    expect(aggregate).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it('runs when due and marks itself fresh for slightly less than the interval', async () => {
+    readyRedis();
+    exists.mockResolvedValue(0);
+    const service = makeService();
+    vi.spyOn(service, 'aggregateAuthors').mockResolvedValue([]);
+
+    await expect(service.runIfDue(INTERVAL)).resolves.toEqual({ scored: 0, pushed: 0 });
+    expect(set).toHaveBeenCalledTimes(1);
+    const [key, , options] = set.mock.calls[0];
+    expect(key).toBe('interest:lastRun:v1');
+    // Expires before the next scheduled tick, never after it.
+    expect(options.PX).toBeLessThan(INTERVAL);
+    expect(options.PX).toBeGreaterThan(INTERVAL - 60 * 60 * 1000);
+  });
+
+  it('does not mark itself fresh when the run fails, so the next tick retries', async () => {
+    readyRedis();
+    exists.mockResolvedValue(0);
+    const service = makeService();
+    vi.spyOn(service, 'aggregateAuthors').mockRejectedValue(new Error('db down'));
+
+    await expect(service.runIfDue(INTERVAL)).rejects.toThrow('db down');
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it('runs when Redis is unavailable, as it did before the gate', async () => {
+    // resetMocks' default: a client that is not ready.
+    const service = makeService();
+    const aggregate = vi.spyOn(service, 'aggregateAuthors').mockResolvedValue([]);
+
+    await expect(service.runIfDue(INTERVAL)).resolves.toEqual({ scored: 0, pushed: 0 });
+    expect(aggregate).toHaveBeenCalledTimes(1);
+  });
+});
