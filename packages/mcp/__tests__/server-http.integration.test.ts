@@ -81,6 +81,61 @@ describe("MCP HTTP resource server", () => {
   );
 });
 
+describe("MCP HTTP resource server when Oxy cannot be reached", () => {
+  test(
+    "answers 503 with Retry-After, never 401, for a token it cannot check",
+    async () => {
+      // Port 9 on loopback refuses at once, offline, with no DNS lookup a CI
+      // runner could leave hanging. The Oxy client still retries (three 5s
+      // attempts), so each request takes ~15s to give up — hence the timeout.
+      const child = Bun.spawn({
+        cmd: [process.execPath, "server-http.ts"],
+        cwd: packageRoot,
+        env: {
+          ...process.env,
+          MCP_PORT: "0",
+          MENTION_MCP_JWT_SECRET: "integration-test-secret",
+          MENTION_MCP_PUBLIC_URL: "http://127.0.0.1",
+          OXY_API_URL: "http://127.0.0.1:9",
+          OXY_SERVICE_API_KEY: "service-key",
+          OXY_SERVICE_API_SECRET: "service-secret",
+          MENTION_LEGACY_OAUTH_ISSUER: "https://api.mention.test",
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+
+      try {
+        const port = await readListeningPort(child.stdout);
+        const baseUrl = `http://127.0.0.1:${port}`;
+        const centralToken = [
+          Buffer.from(JSON.stringify({ alg: "EdDSA", typ: "JWT" })).toString("base64url"),
+          Buffer.from("{}").toString("base64url"),
+          "signature",
+        ].join(".");
+
+        const unavailable = await fetch(`${baseUrl}/`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${centralToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }),
+        });
+        expect(unavailable.status).toBe(503);
+        expect(unavailable.headers.get("retry-after")).toBe("30");
+        expect(unavailable.headers.get("www-authenticate")).toBeNull();
+
+        const unavailableSse = await fetch(`${baseUrl}/sse`, {
+          headers: { Authorization: `Bearer ${centralToken}` },
+        });
+        expect(unavailableSse.status).toBe(503);
+      } finally {
+        child.kill("SIGKILL");
+        await child.exited;
+      }
+    },
+    60_000,
+  );
+});
+
 async function readListeningPort(
   stdout: ReadableStream<Uint8Array>,
 ): Promise<number> {
