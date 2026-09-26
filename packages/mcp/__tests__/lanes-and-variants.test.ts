@@ -115,8 +115,8 @@ describe("language variants and lanes on create-post", () => {
 
 describe("lane tools", () => {
   test("list-lanes reads the active account's lanes", async () => {
+    // GET /lanes/mine answers 200 with `{ data }` — no `success` flag.
     const captured = captureFetch({
-      success: true,
       data: [{ id: "lane-1", ownerId: "account-1", name: "Updates", displayMode: "tab", postCount: 3, createdAt: "", updatedAt: "" }],
     });
     const result = await callAs(["social.lanes.read"], "list-lanes", {});
@@ -140,6 +140,21 @@ describe("lane tools", () => {
     expect(captured[0]).toMatchObject({ method: "POST", path: "/lanes", body: { name: "Updates", displayMode: "tab" } });
   });
 
+  test("update-lane reads the 200 envelope the route answers with", async () => {
+    captureFetch({ data: { id: "lane-1", ownerId: "account-1", name: "Changelog", displayMode: "tab", createdAt: "", updatedAt: "" } });
+    const result = await callAs(["social.lanes.manage"], "update-lane", { id: "lane-1", name: "Changelog" });
+
+    expect(result.isError).toBeFalsy();
+    expect(result.content).toContainEqual({ type: "text", text: "Lane updated.\n\nChangelog (id: lane-1) · tab" });
+  });
+
+  test("move-post-to-lane names the lane the post moved to", async () => {
+    captureFetch({ data: { postId: "post-1", lane: { id: "lane-1", name: "Changelog", displayMode: "tab" } } });
+    const result = await callAs(["social.posts.update"], "move-post-to-lane", { id: "post-1", laneId: "lane-1" });
+
+    expect(result.content).toContainEqual({ type: "text", text: 'Post post-1 moved to lane "Changelog".' });
+  });
+
   test("create-lane needs the lanes capability, not the publish one", async () => {
     const captured = captureFetch({});
     const result = await callAs(["social.posts.publish"], "create-lane", { name: "Updates" });
@@ -150,7 +165,7 @@ describe("lane tools", () => {
   });
 
   test("move-post-to-lane can also take a post out of its lane", async () => {
-    const captured = captureFetch({ success: true, data: { postId: "post-1", lane: null } });
+    const captured = captureFetch({ data: { postId: "post-1", lane: null } });
     const result = await callAs(["social.posts.update"], "move-post-to-lane", { id: "post-1", laneId: null });
 
     expect(result.isError).toBeFalsy();
