@@ -161,6 +161,7 @@ export const ProfileHeader = memo(function ProfileHeader({
             <FollowButtonComponent
               userId={profileId}
               initiallyFollowing={initialIsFollowing}
+              username={username}
             />
           </View>
         ) : null}

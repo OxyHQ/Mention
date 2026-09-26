@@ -52,11 +52,15 @@ jest.mock('@oxy.so/core', () => ({
   getNormalizedUserHandle: (user: { username?: string } | null | undefined) =>
     user?.username ?? null,
 }));
+/** The `username` each rendered FollowButton received. */
+const mockFollowButtonUsernames: (string | undefined)[] = [];
 jest.mock('@oxy.so/services/ui/client', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   const ReactActual = jest.requireActual<typeof import('react')>('react');
-  return { FollowButton: ({ onFollowChange }: { onFollowChange?: (next: boolean) => void }) =>
-    ReactActual.createElement(TouchableOpacity, { testID: 'follow-control', onPress: () => onFollowChange?.(true) }) };
+  return { FollowButton: ({ onFollowChange, username }: { onFollowChange?: (next: boolean) => void; username?: string }) => {
+    mockFollowButtonUsernames.push(username);
+    return ReactActual.createElement(TouchableOpacity, { testID: 'follow-control', onPress: () => onFollowChange?.(true) });
+  } };
 });
 jest.mock('@oxy.so/bloom/typography', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
@@ -182,5 +186,21 @@ describe('ProfileCard follows the identity it names', () => {
     });
 
     expect(probe(renderer, 'card-avatar')).toBe('avatar-before');
+  });
+});
+
+describe('ProfileCard names its follow button', () => {
+  it('hands the handle to FollowButton so a screen reader hears "Following @ada"', () => {
+    // OxyHQ/oxy#1375 item 22: the button showed "Following" while TalkBack read
+    // "Follow". Services names it by state and handle once it has the handle.
+    act(() => {
+      mounted = TestRenderer.create(
+        <ProfileCard
+          profile={{ id: PERSON_ID, username: 'ada', name: { displayName: 'Ada' } }}
+          showFollowButton
+        />,
+      );
+    });
+    expect(mockFollowButtonUsernames[mockFollowButtonUsernames.length - 1]).toBe('ada');
   });
 });
