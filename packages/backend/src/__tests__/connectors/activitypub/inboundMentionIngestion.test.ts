@@ -440,3 +440,63 @@ describe('handleCreate — broadcast notes notify nobody', () => {
     );
   });
 });
+
+/**
+ * A Note ADDRESSED to a local user is kept even when no local user follows its
+ * author. The inbox used to keep only Notes from followed actors, so a reply to
+ * a Mention post from an account nobody here follows was acknowledged with a
+ * 202 and silently discarded, and Mastodon never retried it. Measured on
+ * production: a mastodon.social reply to a Mention post never appeared.
+ */
+describe('handleCreate — a Note addressed to a local user needs no local follower', () => {
+  const LOCAL_POST_URI = 'https://mention.earth/ap/users/alice/posts/01a0acb7-4cd7-79b8-80b5-8168c265f26a';
+
+  beforeEach(async () => {
+    // The outer setup seeds a follow of the author; this block is about its absence.
+    await clearFederationScope(scope);
+    await seedActors({ [AUTHOR_URI]: AUTHOR_OXY_ID, [FED_MENTION_URI]: FED_MENTION_OXY_ID });
+  });
+
+  it('keeps a reply to one of our posts', async () => {
+    const activity = createActivity('<p>replying</p>', []);
+    (activity.object as Record<string, unknown>).inReplyTo = LOCAL_POST_URI;
+
+    await inboxProcessingService.processInboxActivity(activity, AUTHOR_URI);
+
+    expect(mocks.ensureFederatedReplyLink).toHaveBeenCalledWith(LOCAL_POST_URI);
+    expect(mocks.postCreatorCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a Note that mentions one of our users', async () => {
+    mocks.getProfileByUsername.mockResolvedValue({ _id: LOCAL_MENTION_OXY_ID, username: 'alice' });
+    const activity = createActivity(
+      '<p>cc <span class="h-card"><a href="https://mention.earth/@alice" class="u-url mention">@<span>alice</span></a></span></p>',
+      [{ type: 'Mention', href: LOCAL_MENTION_ACTOR_URI, name: '@alice@mention.earth' }],
+    );
+
+    await inboxProcessingService.processInboxActivity(activity, AUTHOR_URI);
+
+    expect(mocks.postCreatorCreate).toHaveBeenCalledTimes(1);
+    expect(createdPost().mentions).toEqual([LOCAL_MENTION_OXY_ID]);
+  });
+
+  it('still drops a Note that concerns no local user', async () => {
+    await inboxProcessingService.processInboxActivity(createActivity('<p>hello world</p>', []), AUTHOR_URI);
+
+    expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
+  });
+
+  it('still drops a Note that mentions only remote actors, or replies to a remote post', async () => {
+    const mentionsRemote = createActivity('<p>hey</p>', [
+      { type: 'Mention', href: FED_MENTION_URI, name: `@bob@${scope.domain}` },
+    ]);
+    await inboxProcessingService.processInboxActivity(mentionsRemote, AUTHOR_URI);
+
+    const repliesRemote = createActivity('<p>re</p>', []);
+    (repliesRemote.object as Record<string, unknown>).id = `${AUTHOR_URI}/statuses/2`;
+    (repliesRemote.object as Record<string, unknown>).inReplyTo = `${FED_MENTION_URI}/statuses/9`;
+    await inboxProcessingService.processInboxActivity(repliesRemote, AUTHOR_URI);
+
+    expect(mocks.postCreatorCreate).not.toHaveBeenCalled();
+  });
+});

@@ -26,7 +26,10 @@ import {
 } from '../../db/posts/postRepository';
 import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../../db/posts/postRecord';
 import {
+  ACTOR_DOMAIN,
+  FEDERATION_DOMAIN,
   FEDERATION_MAX_CONTENT_LENGTH,
+  extractLocalPostIdFromApUri,
   isBlockedDomain,
   resolveOxyUser,
 } from './constants';
@@ -77,6 +80,40 @@ import {
 } from '../../services/PostEngagementCommandService';
 import { deleteFederatedPostSubtree } from '../../services/FederatedPostDeletionService';
 import { applyInboundMove } from './move.service';
+
+/** Hosts that publish THIS instance's own actors and posts. */
+const LOCAL_FEDERATION_HOSTS = new Set([FEDERATION_DOMAIN.toLowerCase(), ACTOR_DOMAIN.toLowerCase()]);
+
+function isLocalActorUri(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  try {
+    const url = new URL(value);
+    return LOCAL_FEDERATION_HOSTS.has(url.hostname.toLowerCase()) && /^\/ap\/users\/[^/]+\/?$/.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether a Note is ADDRESSED to this instance's users: a reply to one of our
+ * posts, or a `Mention` of one of our actors.
+ *
+ * Such a Note is delivered to us precisely BECAUSE it concerns a local user,
+ * whoever its author is. The inbox used to keep only Notes from actors some
+ * local user follows, so a reply from an account nobody here follows was
+ * acknowledged with a 202 and then silently discarded: the Mention author never
+ * saw it, and Mastodon, having been told it was accepted, never retried.
+ * Mastodon applies the same rule to its own inbox.
+ */
+export function addressesLocalUsers(object: Record<string, unknown>): boolean {
+  const inReplyTo = extractInReplyToUri(object.inReplyTo);
+  if (inReplyTo && extractLocalPostIdFromApUri(inReplyTo)) return true;
+  const tags = Array.isArray(object.tag) ? object.tag : object.tag ? [object.tag] : [];
+  return tags.some((tag) => {
+    const record = asRecord(tag);
+    return record?.type === 'Mention' && isLocalActorUri(record.href);
+  });
+}
 
 /**
  * Compact, log-safe summary of a `ZodError` — the first few issues rendered as
@@ -504,13 +541,14 @@ export class InboxProcessingService {
     // a genuine reply/post returns false and flows through unchanged.
     if (await this.handlePollVote(object, actorUri)) return;
 
-    // Only process if the actor is followed by at least one local user
+    // Only process a Note some local user asked for: its author is followed
+    // here, or it replies to or mentions one of our users.
     const hasFollower = await existsFollow({
       remoteActorUri: actorUri,
       direction: 'outbound',
       statuses: ['accepted'],
     });
-    if (!hasFollower) return;
+    if (!hasFollower && !addressesLocalUsers(object)) return;
 
     // Sanitize and check content length
     const rawContent = note.content || '';
