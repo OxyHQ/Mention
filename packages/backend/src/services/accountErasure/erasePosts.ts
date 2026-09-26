@@ -52,11 +52,8 @@ import { reevaluateClusters } from '../PostEquivalenceService';
 import { recomputeRecentRepliers } from '../PostRecentReplierService';
 import { invalidate as invalidatePostDetail } from '../postDetailCache';
 import { logger } from '../../utils/logger';
+import { ERASURE_BOOST_CHUNK, ERASURE_POST_BATCH } from './erasureLimits';
 
-/** Posts one batch takes. Bounds the IN lists, the transaction and the closure memory. */
-export const ERASURE_POST_BATCH = 100;
-/** Past this many boosts in a batch's closure, boosts are deleted in chunks first. */
-export const ERASURE_BOOST_CHUNK = 1_000;
 
 const LOG_PREFIX = '[AccountErasure]';
 

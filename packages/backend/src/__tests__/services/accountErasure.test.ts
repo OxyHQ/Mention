@@ -36,6 +36,18 @@ vi.mock('../../connectors/activitypub/follow.service', () => ({
     }),
   },
 }));
+/**
+ * The erasure's batch sizes, shrunk so every chunked path (keyset post batches,
+ * the chunked boost closure, bounded DELETEs) runs on a dozen rows. Seeding past
+ * the real sizes (a thousand) is what made this file time out on a loaded CI
+ * runner (OxyHQ/Mention#1178); the code under test is identical, only the
+ * numbers it is handed differ.
+ */
+vi.mock('../../services/accountErasure/erasureLimits', () => ({
+  ERASURE_POST_BATCH: 2,
+  ERASURE_BOOST_CHUNK: 10,
+  ERASURE_DELETE_BATCH: 10,
+}));
 vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
   getServiceOxyClient: () => ({ getUserById }),
@@ -65,6 +77,10 @@ import {
 } from '../../services/accountErasure/AccountErasureService';
 import { ACCOUNT_ERASURE_MAP, ERASED_ACCOUNT_SENTINEL, erasureKey } from '../../services/accountErasure/erasureMap';
 import { ERASURE_STEPS } from '../../services/accountErasure/erasureSteps';
+import {
+  ERASURE_BOOST_CHUNK,
+  ERASURE_DELETE_BATCH,
+} from '../../services/accountErasure/erasureLimits';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
 const scope = serviceScope('account-erasure');
@@ -429,6 +445,18 @@ afterAll(async () => {
   await closePostgres();
 });
 
+/**
+ * The one test given more than vitest's default five seconds, because its work is
+ * inherently large rather than slow: it seeds every mapped category (about forty
+ * tables), previews (one count per map entry), erases twice (every step, twice),
+ * and then checks every map column for the account, around five hundred
+ * sequential round trips in all. Measured: about 1 s alone, 3.4 s on a CI runner
+ * sharing Postgres with nine other workers (OxyHQ/Mention#1178). Everything else
+ * in this file runs on a dozen rows (see the `erasureLimits` mock) and keeps the
+ * default.
+ */
+const FULL_PASS_TIMEOUT_MS = 20_000;
+
 describe('eraseOxyUser on real rows', () => {
   it('erases every mapped category, keeps what the map keeps, and is a no-op the second time', async () => {
     const seeded = await seedEverything();
@@ -577,7 +605,7 @@ describe('eraseOxyUser on real rows', () => {
     expect(nonZero, 'a second run must find nothing').toEqual([]);
     expect(await readPost(seeded.otherPost)).toMatchObject({ likes: 1, saves: 0, comments: 0 });
     expect(deliverToFollowers).not.toHaveBeenCalled();
-  });
+  }, FULL_PASS_TIMEOUT_MS);
 
   it('sends nothing to the fediverse without a handle, and still erases', async () => {
     await seedPost(scope, { oxyUserId: ERASED });
@@ -598,7 +626,11 @@ describe('eraseOxyUser on real rows', () => {
 
   it('clears a boost closure larger than one chunk, deepest level first, and batches big deletes', async () => {
     const original = await seedPost(scope, { oxyUserId: ERASED });
-    const boosters = Array.from({ length: 1_001 }, (_, index) => ({
+    // One past a chunk, so the closure is cleared in chunks and a DELETE batch
+    // comes back full at least once.
+    const boosterCount = ERASURE_BOOST_CHUNK + 1;
+    const interactionCount = ERASURE_DELETE_BATCH + 1;
+    const boosters = Array.from({ length: boosterCount }, (_, index) => ({
       oxyUserId: `${PREFIX}booster-${index}`,
       type: PostType.BOOST,
       visibility: PostVisibility.PUBLIC,
@@ -615,7 +647,7 @@ describe('eraseOxyUser on real rows', () => {
       boostOf: boosts[0].id,
     });
     await getDb().insert(feedInteractions).values(
-      Array.from({ length: 1_001 }, (_, index) => ({
+      Array.from({ length: interactionCount }, (_, index) => ({
         userId: ERASED,
         feedDescriptor: 'for_you',
         postUri: `${PREFIX}uri-${index}`,
@@ -626,8 +658,8 @@ describe('eraseOxyUser on real rows', () => {
     const report = await eraseOxyUser(ERASED, { reason: 'account.deleted', eventId: 'evt-big' });
 
     expect(report.counts['posts.oxyUserId']).toBe(1);
-    expect(report.counts['posts.boostsByOthers']).toBe(1_002);
-    expect(report.counts['feed_interactions.userId']).toBe(1_001);
+    expect(report.counts['posts.boostsByOthers']).toBe(boosterCount + 1);
+    expect(report.counts['feed_interactions.userId']).toBe(interactionCount);
     const [left] = await getDb()
       .select({ n: sql<number>`count(*)::int` })
       .from(posts)
