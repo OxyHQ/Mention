@@ -56,7 +56,7 @@ export function useMutualFollowers(profileId?: string): MutualFollowersResult {
     queryFn: async () => {
       if (!profileId) return { mutuals: [], total: 0 };
       try {
-        const result = await oxyServices.getUserMutuals(profileId, {
+        const result = await oxyServices.follows.mutuals(profileId, {
           limit: MUTUALS_SAMPLE_LIMIT,
           offset: 0,
         });

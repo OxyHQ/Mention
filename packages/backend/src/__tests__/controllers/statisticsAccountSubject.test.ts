@@ -47,13 +47,13 @@ vi.mock('../../services/PostHydrationService', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  createUserScopedOxyServices: () => ({ listAccountMembers: mocks.listAccountMembers }),
+  createUserScopedOxyServices: () => ({ accounts: { members: { list: mocks.listAccountMembers } } }),
   createScopedOxyClient: () => ({}),
   getServiceOxyClient: () => ({}),
 }));
 
 vi.mock('../../runtime/oxyClient', () => ({
-  getRuntimeOxyClient: () => ({ getUserById: vi.fn(async () => ({})) }),
+  getRuntimeOxyClient: () => ({ users: { get: vi.fn(async () => ({})) } }),
 }));
 
 vi.mock('../../utils/oxyInference', () => ({ inferenceChat: vi.fn(), isInferenceEnabled: () => false }));

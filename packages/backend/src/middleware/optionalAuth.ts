@@ -1,6 +1,5 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
-import type { OxyServices } from '@oxy.so/core';
-import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
+import type { OxyAuthRequest as AuthRequest, OxyServer } from '@oxy.so/core/server';
 import { bearerLooksLikeMcpToken } from '../mcp/middleware/mcpAuth';
 import { logger } from '../utils/logger';
 
@@ -11,7 +10,7 @@ import { logger } from '../utils/logger';
  * be sent through Oxy authentication. Invalid Oxy sessions degrade to an
  * anonymous request without rejecting the public read.
  */
-export function createOptionalAuth(oxy: OxyServices): RequestHandler {
+export function createOptionalAuth(oxy: OxyServer): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
     if ((req as AuthRequest).user?.id) {
       return next();
@@ -26,7 +25,7 @@ export function createOptionalAuth(oxy: OxyServices): RequestHandler {
       return next();
     }
 
-    const authMiddleware = oxy.auth();
+    const authMiddleware = oxy.middleware.auth();
     return authMiddleware(req, res, (error?: unknown) => {
       if (error) {
         logger.debug(

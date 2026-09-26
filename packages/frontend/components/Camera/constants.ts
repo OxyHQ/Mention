@@ -12,7 +12,7 @@
  * Three minutes, deliberately between the two obvious answers. Instagram raised
  * its own ceiling to twenty minutes in 2026, but it still only RECOMMENDS reels
  * under three — and the cost here is not the recording, it is the upload:
- * `oxyServices.assetUpload` sends the whole file in one request, with no
+ * `oxyServices.assets.upload` sends the whole file in one request, with no
  * chunking and no resume, so a connection that drops loses the lot. Three
  * minutes triples the old ceiling without turning an ordinary capture into a
  * multi-hundred-megabyte upload from mobile data.

@@ -51,13 +51,13 @@ export const SuggestedUsers = memo(function SuggestedUsers({
       // `getSimilarProfiles` returns the SDK `User` shape (optional id); narrow
       // through `unknown` to the looser `ProfileData`, the same erasure the
       // recommendations path produces.
-      const similar: unknown = await oxyServices.getSimilarProfiles(src);
+      const similar: unknown = await oxyServices.users.similar(src);
       const list: ProfileData[] = Array.isArray(similar) ? similar : [];
       if (list.length > 0) {
         cacheActors(list);
         void enrichMissingAvatars(
           list.slice(0, maxCards),
-          (ids) => oxyServices.getUsersByIds(ids),
+          (ids) => oxyServices.users.getMany(ids),
         );
       }
       return list;

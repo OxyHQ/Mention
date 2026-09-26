@@ -36,7 +36,7 @@ vi.mock('../../../utils/redis', () => ({
 
 vi.mock('../../../db/federation/actorKeyPairRepository', () => ({ hasActorKeyPair: mocks.hasActorKeyPair }));
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getUserById: mocks.getUserById, getProfileByUsername: mocks.getProfileByUsername }),
+  getServiceOxyClient: () => ({ users: { get: mocks.getUserById, byUsername: mocks.getProfileByUsername } }),
 }));
 vi.mock('../../../connectors/outboundFederation', () => ({ federateAsResolvedActorAndWait: mocks.federate }));
 vi.mock('../../../utils/logger', () => ({

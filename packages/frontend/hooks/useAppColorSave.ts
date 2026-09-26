@@ -28,7 +28,7 @@ export function useAppColorSave() {
     setSaving(true);
     setColorPreset(name);
     const hex = APP_COLOR_PRESETS[name].hex;
-    const profileUpdate: Parameters<typeof oxyServices.updateProfile>[0] = { color: name };
+    const profileUpdate: Parameters<typeof oxyServices.users.updateMe>[0] = { color: name };
     if (source === 'account') {
       profileUpdate.themePreference = {
         mode: mode === 'light' || mode === 'dark' ? mode : 'system',
@@ -37,12 +37,12 @@ export function useAppColorSave() {
     }
     try {
       await Promise.all([
-        oxyServices.updateProfile(profileUpdate),
+        oxyServices.users.updateMe(profileUpdate),
         updateMySettings({
           appearance: { primaryColor: hex },
         }),
       ]);
-      // `oxyServices.updateProfile` busts the SDK's internal HTTP response cache
+      // `oxyServices.users.updateMe` busts the SDK's internal HTTP response cache
       // but NOT the React Query user caches that `useProfileData`/`useUserByUsername`
       // read. Without this, the viewer's own profile keeps rendering the
       // pre-change accent color (via `useProfileScreenColor` → `BloomColorScope`)

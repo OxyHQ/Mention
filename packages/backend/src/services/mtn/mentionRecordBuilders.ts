@@ -212,7 +212,7 @@ export async function resolvePostRecordEmbeds(post: PostRecord): Promise<PostRec
   if (fileIds.size === 0) return empty;
 
   try {
-    const metadata = await getServiceOxyClient().getServiceAssetMetadataByIds([...fileIds]);
+    const metadata = await getServiceOxyClient().assets.metadataByIds([...fileIds]);
     const metadataByFileId = new Map(metadata.map((m) => [m.id, m]));
 
     const sha256ByFileId = new Map<string, string>();

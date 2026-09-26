@@ -16,17 +16,18 @@ const {
 
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
-    getUserById: (...args: unknown[]) => getUserById(...args),
-    getUserFollowing: vi.fn(async () => []),
-    getUserFollowers: vi.fn(async () => []),
+    users: { get: (...args: unknown[]) => getUserById(...args) },
+    follows: {
+      following: vi.fn(async () => []),
+      followers: vi.fn(async () => []),
+    },
   }),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUsersByIds: (...args: unknown[]) => getUsersByIds(...args),
-    getClarityDocuments: vi.fn(async () => ({})),
-    getFileDownloadUrl: (id: string) => id,
+    users: { getMany: (...args: unknown[]) => getUsersByIds(...args) },
+    assets: { publicUrl: (id: string) => id },
   }),
 }));
 

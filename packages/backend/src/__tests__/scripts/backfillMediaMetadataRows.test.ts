@@ -24,9 +24,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { eq, inArray } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 
-const getServiceAssetMetadataByIds = vi.fn();
+const metadataByIds = vi.fn();
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getServiceAssetMetadataByIds }),
+  getServiceOxyClient: () => ({ assets: { metadataByIds } }),
 }));
 
 import { closePostgres, connectPostgres, getDb, type Database } from '../../db/postgres';
@@ -82,8 +82,8 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
-  getServiceAssetMetadataByIds.mockReset();
-  getServiceAssetMetadataByIds.mockImplementation(async (ids: string[]) =>
+  metadataByIds.mockReset();
+  metadataByIds.mockImplementation(async (ids: string[]) =>
     ids.map((id) => ({
       id,
       width: 720,
@@ -161,7 +161,7 @@ describe('backfillMediaMetadata', () => {
 
     expect(result.scanned).toBe(0);
     expect(result.updated).toBe(0);
-    expect(getServiceAssetMetadataByIds).not.toHaveBeenCalled();
+    expect(metadataByIds).not.toHaveBeenCalled();
   });
 
   /**
@@ -202,8 +202,8 @@ describe('backfillMediaMetadata', () => {
     const result = await backfillMediaMetadata({ dryRun: true });
 
     expect(result.scanned).toBe(3);
-    expect(getServiceAssetMetadataByIds).toHaveBeenCalledTimes(1);
-    expect(getServiceAssetMetadataByIds.mock.calls[0][0]).toHaveLength(3);
+    expect(metadataByIds).toHaveBeenCalledTimes(1);
+    expect(metadataByIds.mock.calls[0][0]).toHaveLength(3);
   });
 
   /**
@@ -214,7 +214,7 @@ describe('backfillMediaMetadata', () => {
    */
   it('reports posts it could not resolve instead of counting them clean', async () => {
     await seedWithMedia([{ id: UUID_FILE_ID, type: 'video' }]);
-    getServiceAssetMetadataByIds.mockRejectedValue(
+    metadataByIds.mockRejectedValue(
       new Error('Could not resolve asset metadata for 1 id(s) — status 429'),
     );
 
@@ -224,7 +224,7 @@ describe('backfillMediaMetadata', () => {
     expect(result.updated).toBe(0);
     expect(result.skipped).toBe(0);
     // Retried before giving up: a 429 is "ask again later", not a verdict.
-    expect(getServiceAssetMetadataByIds.mock.calls.length).toBeGreaterThan(1);
+    expect(metadataByIds.mock.calls.length).toBeGreaterThan(1);
   }, 30_000);
 
   /**
@@ -285,7 +285,7 @@ describe('backfillMediaMetadata', () => {
       { id: UUID_FILE_ID, type: 'video' },
       { id: HEX_FILE_ID, type: 'image' },
     ]);
-    getServiceAssetMetadataByIds.mockImplementation(async (ids: string[]) =>
+    metadataByIds.mockImplementation(async (ids: string[]) =>
       ids.map((id) => ({
         id,
         width: id === UUID_FILE_ID ? 720 : 1600,

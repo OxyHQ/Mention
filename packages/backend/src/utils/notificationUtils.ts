@@ -166,7 +166,7 @@ export const createNotification = async (
       let actor: NotificationActorProfile | null = null;
       try {
         if (data.actorId && data.actorId !== 'system') {
-          const oxyActor = await getServiceOxyClient().getUserById(data.actorId);
+          const oxyActor = await getServiceOxyClient().users.get(data.actorId);
           actor = oxyActor;
         } else if (data.actorId === 'system') {
           actor = { id: 'system', username: 'system', displayName: 'System' };

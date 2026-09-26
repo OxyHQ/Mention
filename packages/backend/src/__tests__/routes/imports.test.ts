@@ -1,19 +1,20 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import request from 'supertest';
-import jwt from 'jsonwebtoken';
+import { generateKeyPairSync, sign } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The content-import API (`routes/imports.ts` + `services/PostImportService.ts`)
  * against REAL rows, driven over HTTP.
  *
- * The gate is exercised with the REAL `oxy.auth()`: service tokens are signed
- * with the SDK's legacy HS256 secret path, so `req.serviceApp` and the
+ * The gate is exercised with the REAL `oxy.middleware.auth()`: service tokens
+ * are EdDSA-signed by a test key whose JWKS the middleware reads, so
+ * `req.serviceApp` and the
  * internal-tier delegation are populated by the same code production runs —
  * the gate is then tested against what that middleware actually produces, not
  * against a hand-built request. A user SESSION cannot be minted offline (Oxy
  * validates sessions over HTTP), so it is simulated the way `requireAuth` sees
- * one: `req.user` already set and `oxy.auth()` skipped.
+ * one: `req.user` already set and `oxy.middleware.auth()` skipped.
  *
  * Mocked are only the network boundaries: Oxy (asset metadata, usernames), the
  * push federator, the outbound Delete, the MTN emitter and Clarity. Everything
@@ -23,7 +24,12 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 const MOVE_APP_ID = 'app-oxy-move';
 const OTHER_APP_ID = 'app-some-other-internal';
-const SECRET = 'imports-test-secret';
+const SERVICE_KEY_ID = 'imports-test-key';
+const serviceKeys = generateKeyPairSync('ed25519');
+/** The key set the middleware verifies against, as Oxy publishes it. */
+const SERVICE_JWKS_URL = `data:application/json,${encodeURIComponent(JSON.stringify({
+  keys: [{ ...serviceKeys.publicKey.export({ format: 'jwk' }), use: 'sig', alg: 'EdDSA', kid: SERVICE_KEY_ID }],
+}))}`;
 
 const mocks = vi.hoisted(() => ({
   federateNewPost: vi.fn(),
@@ -53,9 +59,11 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUserById: mocks.getUserById,
-    getUsersByIds: vi.fn().mockResolvedValue([]),
-    getServiceAssetMetadataByIds: mocks.getServiceAssetMetadataByIds,
+    users: {
+      get: mocks.getUserById,
+      getMany: vi.fn().mockResolvedValue([]),
+    },
+    assets: { metadataByIds: mocks.getServiceAssetMetadataByIds },
   }),
 }));
 
@@ -89,7 +97,7 @@ vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
   postRecordUri: (author: string, id: string) => `mtn://${author}/${id}`,
 }));
 
-import { OxyServices } from '@oxy.so/core';
+import { OxyServer } from '@oxy.so/core/server';
 import { PostVisibility } from '@mention/shared-types';
 import { and, eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
@@ -104,29 +112,32 @@ const ALICE = scope.user('alice');
 const BOB = scope.user('bob');
 
 function serviceToken(appId: string, tier: 'internal' | 'external' = 'internal'): string {
-  return jwt.sign(
-    {
-      type: 'service',
-      appId,
-      appName: appId,
-      credentialId: `${appId}-cred`,
-      ownerAccountId: `${appId}-owner`,
-      environment: 'production',
-      scopes: [],
-      tier,
-    },
-    SECRET,
-    { algorithm: 'HS256', issuer: 'oxy-auth', audience: 'oxy-api', expiresIn: 300 },
-  );
+  const now = Math.floor(Date.now() / 1000);
+  const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const signingInput = `${encode({ alg: 'EdDSA', typ: 'JWT', kid: SERVICE_KEY_ID })}.${encode({
+    type: 'service',
+    appId,
+    appName: appId,
+    credentialId: `${appId}-cred`,
+    ownerAccountId: `${appId}-owner`,
+    environment: 'production',
+    scopes: [],
+    tier,
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+    iat: now,
+    exp: now + 300,
+  })}`;
+  return `${signingInput}.${sign(null, Buffer.from(signingInput), serviceKeys.privateKey).toString('base64url')}`;
 }
 
 /**
  * The shape of the production mount: `requireAuth` hands an already-identified
- * request straight through and otherwise runs `oxy.auth()`.
+ * request straight through and otherwise runs `oxy.middleware.auth()`.
  */
 function buildApp() {
-  const oxy = new OxyServices({ baseURL: 'http://127.0.0.1:9' });
-  const oxyAuth = oxy.auth({ jwtSecret: SECRET });
+  const oxy = new OxyServer({ baseURL: 'http://127.0.0.1:9' });
+  const oxyAuth = oxy.middleware.auth({ serviceTokenJwksUrl: SERVICE_JWKS_URL });
   const app = express();
   app.use(express.json({ limit: '1mb' }));
   app.use((req: Request, _res: Response, next: NextFunction) => {

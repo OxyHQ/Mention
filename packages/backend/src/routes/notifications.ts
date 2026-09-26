@@ -257,7 +257,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     ));
     if (profileIdsToResolve.length > 0) {
       try {
-        const profiles = await getServiceOxyClient().getUsersByIds(profileIdsToResolve);
+        const profiles = await getServiceOxyClient().users.getMany(profileIdsToResolve);
         for (const profile of profiles) {
           if (profile?.id) profilesMap.set(profile.id, profile);
         }

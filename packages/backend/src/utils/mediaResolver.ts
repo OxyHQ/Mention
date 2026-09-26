@@ -104,7 +104,7 @@ function getPublicBase(): string {
  */
 function getCloudHost(): string | undefined {
   try {
-    return new URL(oxyCdnUrlClient.getCloudURL()).host.toLowerCase();
+    return new URL(oxyCdnUrlClient.cloudURL).host.toLowerCase();
   } catch {
     return undefined;
   }
@@ -127,7 +127,7 @@ function getOwnHosts(): Set<string> {
   };
   add(getPublicBase());
   try {
-    add(oxyCdnUrlClient.getBaseURL());
+    add(oxyCdnUrlClient.baseURL);
   } catch (error) {
     logger.warn('[mediaResolver] Failed to resolve Oxy base URL for own-host check:', error);
   }
@@ -229,9 +229,9 @@ export function resolveMediaRef(ref: string | null | undefined): ResolvedMedia {
     // upgrade to a large variant instead of reusing the thumb or pulling the raw
     // original. `url` stays the no-variant original (also the playable source for
     // videos, where these image variants are simply ignored by the player).
-    const url = oxyCdnUrlClient.getFileDownloadUrl(ref);
-    const thumbUrl = oxyCdnUrlClient.getFileDownloadUrl(ref, MEDIA_VARIANT_THUMB);
-    const fullUrl = oxyCdnUrlClient.getFileDownloadUrl(ref, MEDIA_VARIANT_FULL);
+    const url = oxyCdnUrlClient.assets.publicUrl(ref);
+    const thumbUrl = oxyCdnUrlClient.assets.publicUrl(ref, MEDIA_VARIANT_THUMB);
+    const fullUrl = oxyCdnUrlClient.assets.publicUrl(ref, MEDIA_VARIANT_FULL);
     return { url, thumbUrl, posterUrl: thumbUrl, fullUrl };
   } catch (error) {
     logger.warn('[mediaResolver] Failed to resolve media ref; falling back to passthrough:', error);
@@ -286,7 +286,7 @@ export function resolveAvatarUrl(ref?: string | null): string | undefined {
       return resolved.url || undefined;
     }
     // Oxy file id → square avatar crop.
-    return oxyCdnUrlClient.getFileDownloadUrl(ref, MEDIA_VARIANT_AVATAR) || undefined;
+    return oxyCdnUrlClient.assets.publicUrl(ref, MEDIA_VARIANT_AVATAR) || undefined;
   } catch (error) {
     logger.warn('[mediaResolver] Failed to resolve avatar ref; falling back to passthrough:', error);
     return ref;
@@ -331,7 +331,7 @@ export function resolveBannerUrl(ref?: string | null): string | undefined {
       return resolveMediaRef(ref).url || undefined;
     }
     // Oxy file id → banner-width variant.
-    return oxyCdnUrlClient.getFileDownloadUrl(ref, MEDIA_VARIANT_BANNER) || undefined;
+    return oxyCdnUrlClient.assets.publicUrl(ref, MEDIA_VARIANT_BANNER) || undefined;
   } catch (error) {
     logger.warn('[mediaResolver] Failed to resolve banner ref; falling back to passthrough:', error);
     return ref;
@@ -420,8 +420,8 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
           // Two sizes, because the surfaces differ by an order of magnitude: a
           // ~130px grid cell versus a full-width player. See the MEDIA_VARIANT_*
           // block in `@mention/shared-types` for the sizing rationale.
-          const thumbUrl = oxyCdnUrlClient.getFileDownloadUrl(item.id, MEDIA_VARIANT_VIDEO_THUMB);
-          const posterUrl = oxyCdnUrlClient.getFileDownloadUrl(item.id, MEDIA_VARIANT_VIDEO_POSTER);
+          const thumbUrl = oxyCdnUrlClient.assets.publicUrl(item.id, MEDIA_VARIANT_VIDEO_THUMB);
+          const posterUrl = oxyCdnUrlClient.assets.publicUrl(item.id, MEDIA_VARIANT_VIDEO_POSTER);
           // Adaptive-bitrate HLS master playlist, EMITTED ONLY WHEN IT EXISTS.
           //
           // The URL is derivable from the id, so this used to emit it for every
@@ -438,7 +438,7 @@ export function resolveMediaItems(items: MediaItem[] | undefined | null): MediaI
           // on the media row. Absent means absent: no URL, and the client plays
           // the progressive original directly rather than after a failure.
           const hlsUrl = item.hlsReadyAt
-            ? oxyCdnUrlClient.getFileDownloadUrl(item.id, 'hls_master')
+            ? oxyCdnUrlClient.assets.publicUrl(item.id, 'hls_master')
             : undefined;
           return {
             id: item.id,

@@ -3,7 +3,7 @@
  * user behind them (#1173).
  *
  * Without `serviceIdentity: 'when-anonymous'` those reads — web-shell profile
- * pages, `getUserById` fallbacks, `from:`/`to:` operators — went out anonymous,
+ * pages, `users.get` fallbacks, `from:`/`to:` operators — went out anonymous,
  * were charged to the cluster's single NAT address, and past 100 anonymous
  * requests per 15 minutes each paid oxy-api's +500 ms `slowDown`. What is
  * asserted is the `Authorization` header that reaches the network, which is the
@@ -40,10 +40,11 @@ describe('server-side Oxy clients carry the service token on session-less reads'
     }) as typeof fetch;
 
     const client = getClient();
-    vi.spyOn(client, '_canUseWorkloadIdentity').mockResolvedValue(true);
-    vi.spyOn(client, 'getServiceToken').mockResolvedValue('mention-service-token');
+    // A local checkout can mint nothing; pretend this one can, as a task can.
+    vi.spyOn(client as unknown as { canMintServiceToken(): boolean }, 'canMintServiceToken').mockReturnValue(true);
+    vi.spyOn(client, 'serviceToken').mockResolvedValue('mention-service-token');
 
-    await client.getProfileByUsername(`alice-${Math.random().toString(36).slice(2)}`, { cache: false });
+    await client.users.byUsername(`alice-${Math.random().toString(36).slice(2)}`, { cache: false });
 
     expect(seen).toEqual(['Bearer mention-service-token']);
   });

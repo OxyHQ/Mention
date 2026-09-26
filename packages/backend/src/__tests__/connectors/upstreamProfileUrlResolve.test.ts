@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /** Oxy supplies canonical identity; Mention imports source content and renders that exact profile. */
 
-const { resolve, classifyQuery, getUserById, makeServiceRequest, connectorFor, fetchProfile } = vi.hoisted(() => ({
+const { resolve, classifyQuery, getUserById, serviceRequest, connectorFor, fetchProfile } = vi.hoisted(() => ({
   resolve: vi.fn(),
-  makeServiceRequest: vi.fn(),
+  serviceRequest: vi.fn(),
   connectorFor: vi.fn(),
   fetchProfile: vi.fn(),
   classifyQuery: vi.fn(() => 'activitypub' as const),
@@ -19,10 +19,11 @@ const { resolve, classifyQuery, getUserById, makeServiceRequest, connectorFor, f
 // bridge policy itself is deliberately NOT stubbed: which hosts are asked is the
 // thing under test, and a stubbed policy would test a list nobody reviewed.
 vi.mock('../../runtime/oxyClient', () => ({
-  getRuntimeOxyClient: () => ({ getUserById }),
+  getRuntimeOxyClient: () => ({ users: { get: getUserById } }),
 }));
 
-vi.mock('@oxy.so/core/server', () => ({
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
   getRequiredOxyUserId: () => 'local-user-1',
 }));
 
@@ -75,7 +76,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(),
-  getServiceOxyClient: () => ({ getUserById, makeServiceRequest }),
+  getServiceOxyClient: () => ({ users: { get: getUserById }, serviceRequest }),
 }));
 
 vi.mock('../../services/fediverseSharing', () => ({
@@ -94,7 +95,7 @@ const source = { actorUri: 'https://bird.makeup/users/elonmusk', transportAcct: 
 beforeEach(() => {
   vi.clearAllMocks();
   classifyQuery.mockReturnValue('activitypub');
-  makeServiceRequest.mockResolvedValue(oxyIdentityFixture(source));
+  serviceRequest.mockResolvedValue(oxyIdentityFixture(source));
   connectorFor.mockReturnValue({ id: 'activitypub', enabled: true, fetchProfile });
   fetchProfile.mockResolvedValue({ externalId: source.actorUri, handle: source.transportAcct });
 });
@@ -105,14 +106,14 @@ describe('GET /federation/resolve delegates public identity discovery to Oxy', (
       const res = await request(app).get('/federation/resolve').query({ handle });
       expect(res.status).toBe(200);
       expect(res.body.actor).toMatchObject({ handle: 'elonmusk@x.com', externalId: source.actorUri, oxyUserId: 'oxy-resolved' });
-      expect(makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', { handle });
+      expect(serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', { handle });
       expect(fetchProfile).toHaveBeenCalledExactlyOnceWith(source.actorUri);
       expect(resolve).not.toHaveBeenCalled();
     },
   );
 
   it('returns no match when Oxy cannot prove a profile for the query', async () => {
-    makeServiceRequest.mockRejectedValue(Object.assign(new Error('Unknown profile'), { status: 404 }));
+    serviceRequest.mockRejectedValue(Object.assign(new Error('Unknown profile'), { status: 404 }));
     const res = await request(app).get('/federation/resolve').query({ handle: 'https://x.com/unknown' });
     expect(res.status).toBe(200);
     expect(res.body.actor).toBeNull();
@@ -129,7 +130,7 @@ describe('GET /federation/resolve delegates public identity discovery to Oxy', (
   it('does not use a source response whose Oxy owner disagrees with the public profile', async () => {
     const response = oxyIdentityFixture(source);
     response.externalIdentity.userId = 'somebody-else';
-    makeServiceRequest.mockResolvedValue(response);
+    serviceRequest.mockResolvedValue(response);
     const res = await request(app).get('/federation/resolve').query({ handle: source.transportAcct });
     expect(res.status).toBe(500);
     expect(fetchProfile).not.toHaveBeenCalled();
@@ -137,7 +138,7 @@ describe('GET /federation/resolve delegates public identity discovery to Oxy', (
 
   it('imports atproto by the DID Oxy verified and renders its canonical username', async () => {
     const did = 'did:plc:verified';
-    makeServiceRequest.mockResolvedValue(oxyIdentityFixture({ actorUri: did, transportAcct: 'alice.bsky.social',
+    serviceRequest.mockResolvedValue(oxyIdentityFixture({ actorUri: did, transportAcct: 'alice.bsky.social',
       canonicalAcct: 'alice@bsky.social', network: 'bsky.social', protocol: 'atproto' }));
     connectorFor.mockReturnValue({ id: 'atproto', enabled: true, fetchProfile });
     fetchProfile.mockResolvedValue({ externalId: did });

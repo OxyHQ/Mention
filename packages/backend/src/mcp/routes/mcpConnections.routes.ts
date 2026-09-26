@@ -28,7 +28,7 @@ async function hydrateHandles(
   if (unique.length === 0) return map;
 
   try {
-    const users = await getServiceOxyClient().getUsersByIds(unique);
+    const users = await getServiceOxyClient().users.getMany(unique);
     for (const user of users) {
       const id = user.id;
       if (!id) continue;

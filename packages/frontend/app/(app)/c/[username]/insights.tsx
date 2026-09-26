@@ -59,7 +59,7 @@ export default function ChannelInsightsScreen() {
 
   const { data: accounts = [], isPending: accountsPending } = useQuery<AccountNode[]>({
     queryKey: viewerQueryKeys.operatedAccounts(viewerId),
-    queryFn: () => oxyServices.listAccounts(),
+    queryFn: () => oxyServices.accounts.list(),
     enabled: readsReady && canUsePrivateApi,
   });
 

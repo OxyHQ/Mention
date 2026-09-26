@@ -157,7 +157,7 @@ function computeDesign(
  * - Federation data (federated handles resolved server-side via WebFinger).
  *
  * Local handles (`username`) resolve via the SDK's `useUserByUsername`.
- * Federated handles (`user@domain`) resolve via `oxyServices.resolveProfile`,
+ * Federated handles (`user@domain`) resolve via `oxyServices.users.resolveHandle`,
  * which performs WebFinger discovery and returns `User | null` (never throws).
  */
 export function useProfileData(username?: string): {
@@ -220,7 +220,7 @@ export function useProfileData(username?: string): {
   // resolves or the account switches — identical to the local path.
   const federatedQuery = useQuery<User | null>({
     queryKey: viewerQueryKeys.federatedProfile(viewerId, handle),
-    queryFn: () => oxyServices.resolveProfile(handle),
+    queryFn: () => oxyServices.users.resolveHandle(handle),
     enabled: isFederated && handle.length > 0,
     staleTime: PROFILE_STALE_TIME,
     gcTime: PROFILE_GC_TIME,

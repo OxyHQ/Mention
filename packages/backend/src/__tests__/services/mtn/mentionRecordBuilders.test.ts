@@ -2,13 +2,13 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 
 // Mock the service-scoped Oxy client so `resolvePostRecordEmbeds`'s
-// `getServiceAssetMetadataByIds` (fileId → sha256) is fully controllable and
+// `metadataByIds` (fileId → sha256) is fully controllable and
 // performs no real I/O. Hoisted so it predates the module-under-test import.
 const oxyMock = vi.hoisted(() => ({
-  getServiceAssetMetadataByIds: vi.fn<(ids: string[]) => Promise<Array<{ id: string; sha256: string; mime: string; size: number; status: 'active' | 'trash' }>>>(),
+  metadataByIds: vi.fn<(ids: string[]) => Promise<Array<{ id: string; sha256: string; mime: string; size: number; status: 'active' | 'trash' }>>>(),
 }));
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => oxyMock,
+  getServiceOxyClient: () => ({ assets: { metadataByIds: oxyMock.metadataByIds } }),
 }));
 
 import {
@@ -37,7 +37,7 @@ import {
  */
 
 beforeEach(() => {
-  oxyMock.getServiceAssetMetadataByIds.mockReset();
+  oxyMock.metadataByIds.mockReset();
 });
 
 /** The post's body lives ONLY in `content.variants` — `variants[0]` is the primary. */
@@ -128,7 +128,7 @@ describe('engagement builders', () => {
 
 describe('resolvePostRecordEmbeds', () => {
   it('resolves fileId media into a content-addressed blob embed (sha256/mime/size + alt)', async () => {
-    oxyMock.getServiceAssetMetadataByIds.mockResolvedValue([
+    oxyMock.metadataByIds.mockResolvedValue([
       { id: 'file-img', sha256: 'sha-img', mime: 'image/png', size: 1234, status: 'active' },
       { id: 'file-vid', sha256: 'sha-vid', mime: 'video/mp4', size: 99999, status: 'active' },
     ]);
@@ -146,8 +146,8 @@ describe('resolvePostRecordEmbeds', () => {
     const embed = embeds.embed;
 
     // Exactly one batched lookup over both file ids, preserving order.
-    expect(oxyMock.getServiceAssetMetadataByIds).toHaveBeenCalledTimes(1);
-    expect(oxyMock.getServiceAssetMetadataByIds).toHaveBeenCalledWith(['file-img', 'file-vid']);
+    expect(oxyMock.metadataByIds).toHaveBeenCalledTimes(1);
+    expect(oxyMock.metadataByIds).toHaveBeenCalledWith(['file-img', 'file-vid']);
     expect(embed).toEqual({
       type: 'media',
       items: [
@@ -164,7 +164,7 @@ describe('resolvePostRecordEmbeds', () => {
 
   it('FAIL-SOFT: a lookup error yields no embed (the record still emits without media)', async () => {
     // Simulate a `files:read`-scope 403 on the federation credential.
-    oxyMock.getServiceAssetMetadataByIds.mockRejectedValue(new Error('403 forbidden: files:read'));
+    oxyMock.metadataByIds.mockRejectedValue(new Error('403 forbidden: files:read'));
     const post = makePost({
       content: { ...body('media but no scope'), media: [{ id: 'file-x', type: 'image' }] },
     });
@@ -180,7 +180,7 @@ describe('resolvePostRecordEmbeds', () => {
   });
 
   it('skips temp ids and absolute URLs, and unresolved sha256, never emitting a partial blob', async () => {
-    oxyMock.getServiceAssetMetadataByIds.mockResolvedValue([
+    oxyMock.metadataByIds.mockResolvedValue([
       // `file-ok` resolves; `file-trash` resolves with an empty sha256 → dropped.
       { id: 'file-ok', sha256: 'sha-ok', mime: 'image/jpeg', size: 10, status: 'active' },
       { id: 'file-trash', sha256: '', mime: 'image/jpeg', size: 0, status: 'trash' },
@@ -201,7 +201,7 @@ describe('resolvePostRecordEmbeds', () => {
     const embed = embeds.embed;
 
     // Only the two bare Oxy file ids are looked up (temp/absolute filtered out).
-    expect(oxyMock.getServiceAssetMetadataByIds).toHaveBeenCalledWith(['file-ok', 'file-trash']);
+    expect(oxyMock.metadataByIds).toHaveBeenCalledWith(['file-ok', 'file-trash']);
     // Only the resolvable, non-empty-sha256 item survives.
     expect(embed).toEqual({
       type: 'media',
@@ -214,7 +214,7 @@ describe('resolvePostRecordEmbeds', () => {
     const embeds = await resolvePostRecordEmbeds(post);
     const embed = embeds.embed;
     expect(embed).toBeUndefined();
-    expect(oxyMock.getServiceAssetMetadataByIds).not.toHaveBeenCalled();
+    expect(oxyMock.metadataByIds).not.toHaveBeenCalled();
   });
 });
 
@@ -244,7 +244,7 @@ describe('buildPostRecord — multilingual variants on the chain', () => {
   });
 
   it('re-keys a variant alt map from Oxy file id to blob sha256 — the chain has no file ids in it', async () => {
-    oxyMock.getServiceAssetMetadataByIds.mockResolvedValue([
+    oxyMock.metadataByIds.mockResolvedValue([
       { id: 'file-img', sha256: 'sha-img', mime: 'image/png', size: 10, status: 'active' },
     ]);
     const post = makePost({
@@ -265,7 +265,7 @@ describe('buildPostRecord — multilingual variants on the chain', () => {
   });
 
   it('resolves a variant media OVERRIDE to its own content-addressed embed, in ONE batched lookup', async () => {
-    oxyMock.getServiceAssetMetadataByIds.mockResolvedValue([
+    oxyMock.metadataByIds.mockResolvedValue([
       { id: 'file-es', sha256: 'sha-es', mime: 'image/png', size: 10, status: 'active' },
       { id: 'file-en', sha256: 'sha-en', mime: 'image/png', size: 20, status: 'active' },
     ]);
@@ -285,8 +285,8 @@ describe('buildPostRecord — multilingual variants on the chain', () => {
 
     // The shared set and every variant override resolve together — one call, not
     // one per language.
-    expect(oxyMock.getServiceAssetMetadataByIds).toHaveBeenCalledTimes(1);
-    expect(oxyMock.getServiceAssetMetadataByIds).toHaveBeenCalledWith(['file-es', 'file-en']);
+    expect(oxyMock.metadataByIds).toHaveBeenCalledTimes(1);
+    expect(oxyMock.metadataByIds).toHaveBeenCalledWith(['file-es', 'file-en']);
     expect(mentionPostRecordSchema.safeParse(record).success).toBe(true);
     expect(record.embed?.items[0].blob.sha256).toBe('sha-es');
     expect(record.variants?.[1].embed).toEqual({

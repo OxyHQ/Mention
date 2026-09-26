@@ -220,7 +220,7 @@ async function cachedProfile(handle: string): Promise<OxyProfileData | null> {
 }
 
 async function isOxyAuthorPublic(oxyUserId: string): Promise<boolean> {
-  const [user] = await getServiceOxyClient().getUsersByIds([oxyUserId]);
+  const [user] = await getServiceOxyClient().users.getMany([oxyUserId]);
   if (!user?.username) return false;
   return Boolean(await fetchProfile(user.username));
 }

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { oxyIdentityFixture } from '../../helpers/oxyIdentityFixtures';
 
-const mocks = vi.hoisted(() => ({ makeServiceRequest: vi.fn(), findIdentityOwnerActor: vi.fn() }));
-vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ makeServiceRequest: mocks.makeServiceRequest }) }));
+const mocks = vi.hoisted(() => ({ serviceRequest: vi.fn(), findIdentityOwnerActor: vi.fn() }));
+vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ serviceRequest: mocks.serviceRequest }) }));
 vi.mock('../../../services/userSummaryCache', () => ({ invalidate: vi.fn() }));
 vi.mock('../../../db/federation/actorRepository', () => ({ findIdentityOwnerActor: mocks.findIdentityOwnerActor }));
 
@@ -21,23 +21,23 @@ beforeEach(() => {
 
 describe('Oxy owns external identity across transports and networks', () => {
   it('takes the current Oxy mapping even when a cached network handle points to another user', async () => {
-    mocks.makeServiceRequest.mockResolvedValue(oxyIdentityFixture({ actorUri: actor.externalId,
+    mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({ actorUri: actor.externalId,
       transportAcct: actor.handle, canonicalAcct: 'wired@x.com', network: 'x.com', userId: 'oxy-current-owner' }));
     expect(await resolveOxyExternalUser(actor)).toBe('oxy-current-owner');
     expect(mocks.findIdentityOwnerActor).not.toHaveBeenCalled();
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
+    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
       actorUri: actor.externalId, transportAcct: actor.handle, protocol: 'activitypub',
     });
   });
 
   it('refuses cached adoption when Oxy cannot verify the source', async () => {
-    mocks.makeServiceRequest.mockRejectedValue(new Error('Oxy unavailable'));
+    mocks.serviceRequest.mockRejectedValue(new Error('Oxy unavailable'));
     expect(await resolveOxyExternalUser(actor)).toBeNull();
     expect(mocks.findIdentityOwnerActor).not.toHaveBeenCalled();
   });
 
   it('keeps matching Instagram and Threads handles separate when Oxy returns different people', async () => {
-    mocks.makeServiceRequest.mockResolvedValueOnce(oxyIdentityFixture({
+    mocks.serviceRequest.mockResolvedValueOnce(oxyIdentityFixture({
       actorUri: 'https://kilogram.makeup/users/person', transportAcct: 'person@kilogram.makeup',
       canonicalAcct: 'person@instagram.com', network: 'instagram.com', userId: 'instagram-owner',
     })).mockResolvedValueOnce(oxyIdentityFixture({
@@ -53,14 +53,14 @@ describe('Oxy owns external identity across transports and networks', () => {
 
   it('accepts Oxy revocation on the next resolve instead of retaining an earlier shared user', async () => {
     const source = { actorUri: actor.externalId, transportAcct: actor.handle, canonicalAcct: 'wired@x.com', network: 'x.com' };
-    mocks.makeServiceRequest.mockResolvedValueOnce(oxyIdentityFixture({ ...source, userId: 'shared-user' }))
+    mocks.serviceRequest.mockResolvedValueOnce(oxyIdentityFixture({ ...source, userId: 'shared-user' }))
       .mockResolvedValueOnce(oxyIdentityFixture({ ...source, userId: 'source-user' }));
     expect(await resolveOxyExternalUser(actor)).toBe('shared-user');
     expect(await resolveOxyExternalUser({ ...actor, oxyUserId: 'shared-user' })).toBe('source-user');
   });
 
   it('rejects a response for a different source actor', async () => {
-    mocks.makeServiceRequest.mockResolvedValue(oxyIdentityFixture({ actorUri: 'https://mastox.eu/users/OTHER',
+    mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({ actorUri: 'https://mastox.eu/users/OTHER',
       transportAcct: actor.handle, canonicalAcct: 'wired@x.com', network: 'x.com' }));
     expect(await resolveOxyExternalUser(actor)).toBeNull();
   });

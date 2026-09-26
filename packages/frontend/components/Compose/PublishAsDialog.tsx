@@ -83,7 +83,7 @@ const PublishAsDialog = memo(function PublishAsDialog({
   // account graph. Cached across opens, so only the first one waits.
   const { data: accounts = [], isLoading } = useQuery<AccountNode[]>({
     queryKey: viewerQueryKeys.operatedAccounts(user?.id),
-    queryFn: () => oxyServices.listAccounts(),
+    queryFn: () => oxyServices.accounts.list(),
     enabled: canUsePrivateApi && open,
   });
 

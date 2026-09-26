@@ -80,11 +80,11 @@ async function checkAndPublish(event: { userId: string; at: number }): Promise<A
   if (!(await hasActorKeyPair(event.userId))) return 'not_local';
 
   const oxy = getServiceOxyClient();
-  const username = (await oxy.getUserById(event.userId)).username?.trim();
+  const username = (await oxy.users.get(event.userId)).username?.trim();
   if (!username) return 'no_username';
   // `GET /profiles/username/:username` is the read that carries `alsoKnownAs`,
   // and the same one the actor route and the Update builder use.
-  const profile = await oxy.getProfileByUsername(username);
+  const profile = await oxy.users.byUsername(username);
   const current = aliasFingerprint(profile?.alsoKnownAs);
 
   const previous = await redis.set(snapshotKey(event.userId), current, { GET: true, EX: SNAPSHOT_TTL_SECONDS });

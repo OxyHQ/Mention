@@ -3,8 +3,7 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { OxyServices } from '@oxy.so/core';
-import type { OxyAuthRequest } from '@oxy.so/core/server';
+import type { OxyAuthRequest, OxyServer } from '@oxy.so/core/server';
 
 process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret-that-is-at-least-32-bytes';
 
@@ -17,7 +16,7 @@ vi.mock('@oxy.so/mcp', async (importOriginal) => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getServiceToken: async () => 'service-token',
+    serviceToken: async () => 'service-token',
     invalidateServiceToken: () => undefined,
   }),
 }));
@@ -93,8 +92,10 @@ function buildApp() {
   const app = express();
   app.use(express.json());
   const fakeOxy = {
-    auth: () => (_req: express.Request, res: express.Response) => res.status(401).json({ error: 'oxy_required' }),
-  } as unknown as OxyServices;
+    middleware: {
+      auth: () => (_req: express.Request, res: express.Response) => res.status(401).json({ error: 'oxy_required' }),
+    },
+  } as unknown as OxyServer;
   app.use(createRequireMcpOrOxyAuth(fakeOxy));
   app.get('/resource', (_req, res) => res.json({ ok: true }));
   app.post('/resource', (_req, res) => res.status(201).json({ ok: true }));
@@ -107,8 +108,10 @@ function buildProductionOrderedApp() {
   const app = express();
   app.use(express.json());
   const fakeOxy = {
-    auth: () => (_req: express.Request, res: express.Response) => res.status(401).json({ error: 'oxy_required' }),
-  } as unknown as OxyServices;
+    middleware: {
+      auth: () => (_req: express.Request, res: express.Response) => res.status(401).json({ error: 'oxy_required' }),
+    },
+  } as unknown as OxyServer;
   app.use(createOptionalMcpAuth());
   app.use(createRequireMcpOrOxyAuth(fakeOxy));
   app.post('/resource', (_req, res) => res.status(201).json({ ok: true }));

@@ -109,7 +109,7 @@ export interface McpAccountLink {
  * is signed in there as the account being added.
  */
 export async function requestAccountLink(accessToken: string): Promise<McpAccountLink> {
-  const body = await getServiceOxyClient().makeServiceRequest<unknown>(
+  const body = await getServiceOxyClient().serviceRequest<unknown>(
     'POST',
     '/auth/mcp/oauth/connections/link-intent',
     { token: accessToken },
@@ -132,7 +132,7 @@ export async function selectConnectionAccount(
   accessToken: string,
   accountId: string,
 ): Promise<McpConnectionState> {
-  const body = await getServiceOxyClient().makeServiceRequest<unknown>(
+  const body = await getServiceOxyClient().serviceRequest<unknown>(
     'POST',
     '/auth/mcp/oauth/connections/active',
     { token: accessToken, account_id: accountId },

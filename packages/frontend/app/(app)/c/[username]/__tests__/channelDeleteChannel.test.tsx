@@ -58,9 +58,11 @@ jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
     user: { id: 'viewer-1', username: 'operator' },
     oxyServices: {
-      listAccounts: (...args: unknown[]) => mockListAccounts(...args),
-      updateAccount: jest.fn(),
-      archiveAccount: (...args: unknown[]) => mockArchiveAccount(...args),
+      accounts: {
+        list: (...args: unknown[]) => mockListAccounts(...args),
+        update: jest.fn(),
+        archive: (...args: unknown[]) => mockArchiveAccount(...args),
+      },
     },
     canUsePrivateApi: true,
     isAuthenticated: true,

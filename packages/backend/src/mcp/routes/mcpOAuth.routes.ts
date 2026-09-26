@@ -1,5 +1,5 @@
 import { MENTION_LEGACY_MCP_AUTH_CUTOFF_MS } from '@mention/shared-types/mcpCapabilities';
-import type { OxyServices } from '@oxy.so/core';
+import type { OxyServer } from '@oxy.so/core/server';
 import type { Request, Response } from 'express';
 import { Router } from 'express';
 import {
@@ -38,7 +38,7 @@ function legacyRetired(res: Response): Response {
  * live pre-migration refresh family can rotate until the fixed cutoff.
  */
 export function createMcpOAuthRoutes(
-  _oxy: OxyServices,
+  _oxy: OxyServer,
   options: { now?: () => number } = {},
 ): Router {
   const router = Router();

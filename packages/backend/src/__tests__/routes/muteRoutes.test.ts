@@ -50,7 +50,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.spyOn(getServiceOxyClient(), 'getUsersByIds').mockResolvedValue([]);
+  vi.spyOn(getServiceOxyClient().users, 'getMany').mockResolvedValue([]);
 });
 
 afterEach(async () => {

@@ -26,7 +26,7 @@ import type { PostBatch } from './channelDeletionTargets';
  * from. Resolved ONCE per run and reused by every batch's Tombstones.
  */
 export async function resolveChannelUsername(channelOxyUserId: string): Promise<string> {
-  const user = await getServiceOxyClient().getUserById(channelOxyUserId);
+  const user = await getServiceOxyClient().users.get(channelOxyUserId);
   const username = user.username?.trim();
   if (!username) {
     throw new Error(

@@ -148,7 +148,7 @@ export default function CreateJobScreen() {
 
   const { data: accounts = [], isLoading: accountsLoading } = useQuery<AccountNode[]>({
     queryKey: viewerQueryKeys.operatedAccounts(user?.id),
-    queryFn: () => oxyServices.listAccounts(),
+    queryFn: () => oxyServices.accounts.list(),
     enabled: canUsePrivateApi,
   });
 

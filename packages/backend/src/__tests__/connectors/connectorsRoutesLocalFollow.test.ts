@@ -16,15 +16,16 @@ const mocks = vi.hoisted(() => ({
   deliver: vi.fn(),
   getUserById: vi.fn(),
   getProfileByUsername: vi.fn(),
-  makeServiceRequest: vi.fn(),
+  serviceRequest: vi.fn(),
   invalidateViewerRelations: vi.fn(),
 }));
 
 vi.mock('../../runtime/oxyClient', () => ({
-  getRuntimeOxyClient: () => ({ getUserById: mocks.getUserById }),
+  getRuntimeOxyClient: () => ({ users: { get: mocks.getUserById } }),
 }));
 
-vi.mock('@oxy.so/core/server', () => ({
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
   getRequiredOxyUserId: () => 'local-user-1',
 }));
 
@@ -75,9 +76,8 @@ vi.mock('../../services/PostHydrationService', () => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(),
   getServiceOxyClient: () => ({
-    getUserById: mocks.getUserById,
-    getProfileByUsername: mocks.getProfileByUsername,
-    makeServiceRequest: mocks.makeServiceRequest,
+    users: { get: mocks.getUserById, byUsername: mocks.getProfileByUsername },
+    serviceRequest: mocks.serviceRequest,
   }),
 }));
 
@@ -118,7 +118,7 @@ beforeEach(() => {
   mocks.getUserById.mockImplementation(async (id: string) => (
     id === TARGET_ID ? { id: TARGET_ID, username: 'qatest0925', type: 'local' } : { id, username: 'nate' }
   ));
-  mocks.makeServiceRequest.mockResolvedValue({
+  mocks.serviceRequest.mockResolvedValue({
     account_id: 'local-user-1',
     target_user_id: TARGET_ID,
     action: 'follow',
@@ -142,7 +142,7 @@ describe('POST /federation/follow — local accounts over a central MCP connecti
       .expect(200);
 
     expect(res.body).toMatchObject({ success: true, pending: false, changed: true, oxyUserId: TARGET_ID });
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/auth/mcp/oauth/connections/follow', {
+    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/auth/mcp/oauth/connections/follow', {
       token: 'central-mcp-token',
       tool: 'follow-user',
       target_user_id: TARGET_ID,
@@ -162,7 +162,7 @@ describe('POST /federation/follow — local accounts over a central MCP connecti
       .send({ actorUri: '@qatest0925' })
       .expect(200);
 
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/auth/mcp/oauth/connections/follow', {
+    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/auth/mcp/oauth/connections/follow', {
       token: 'central-mcp-token',
       tool: 'unfollow-user',
       target_user_id: TARGET_ID,
@@ -171,7 +171,7 @@ describe('POST /federation/follow — local accounts over a central MCP connecti
   });
 
   it('refuses when Oxy moved a different account’s edge', async () => {
-    mocks.makeServiceRequest.mockResolvedValue({ account_id: 'someone-else', changed: true });
+    mocks.serviceRequest.mockResolvedValue({ account_id: 'someone-else', changed: true });
 
     await request(buildApp({ authMode: 'central' }))
       .post('/federation/follow')
@@ -188,7 +188,7 @@ describe('POST /federation/follow — local accounts over a central MCP connecti
       .set('Authorization', 'Bearer central-mcp-token')
       .send({ actorUri: 'nobody-here' })
       .expect(404);
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
   });
 
   it('refuses a local follow with no consent Oxy accepts (legacy token, session)', async () => {
@@ -199,7 +199,7 @@ describe('POST /federation/follow — local accounts over a central MCP connecti
         .send({ actorUri: 'qatest0925' })
         .expect(400);
     }
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
   });
 
   it('leaves a remote acct on the federated path, unchanged', async () => {
@@ -212,6 +212,6 @@ describe('POST /federation/follow — local accounts over a central MCP connecti
       .send({ actorUri: 'alice@remote.example' });
 
     expect(mocks.isFediverseSharingEnabled).toHaveBeenCalledWith('local-user-1');
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
   });
 });

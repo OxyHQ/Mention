@@ -45,11 +45,13 @@ jest.mock('@/utils/api', () => ({
 
 jest.mock('@/lib/oxyServices', () => ({
   oxyServices: {
-    searchProfiles: (...args: unknown[]) => mockSearchProfiles(...args),
-    getProfileByUsername: (...args: unknown[]) => mockGetProfileByUsername(...args),
+    users: {
+      search: (...args: unknown[]) => mockSearchProfiles(...args),
+      byUsername: (...args: unknown[]) => mockGetProfileByUsername(...args),
+    },
     // The people lane calls `/profiles/search` through this seam rather than
-    // `searchProfiles`, which takes no AbortSignal — see `searchProfilesCancellable`.
-    httpService: { get: (...args: unknown[]) => mockOxyHttpGet(...args) },
+    // `users.search`, which takes no AbortSignal — see `searchProfilesCancellable`.
+    http: { get: (...args: unknown[]) => mockOxyHttpGet(...args) },
   },
 }));
 

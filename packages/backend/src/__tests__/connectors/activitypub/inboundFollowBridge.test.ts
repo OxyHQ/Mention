@@ -36,7 +36,7 @@ const mocks = vi.hoisted(() => ({
   signViaOxy: vi.fn(),
   signRequest: vi.fn(),
   getServiceOxyClient: vi.fn(),
-  makeServiceRequest: vi.fn(),
+  serviceRequest: vi.fn(),
   resolveOxyUser: vi.fn(),
   createNotification: vi.fn(),
   persistRemoteMedia: vi.fn(),
@@ -175,8 +175,8 @@ beforeEach(async () => {
   vi.clearAllMocks();
   await clearFederationScope(scope);
 
-  mocks.getServiceOxyClient.mockReturnValue({ makeServiceRequest: mocks.makeServiceRequest });
-  mocks.makeServiceRequest.mockResolvedValue({ created: true, counts: { followers: 1, following: 0 } });
+  mocks.getServiceOxyClient.mockReturnValue({ serviceRequest: mocks.serviceRequest });
+  mocks.serviceRequest.mockResolvedValue({ created: true, counts: { followers: 1, following: 0 } });
   mocks.resolveOxyUser.mockResolvedValue({ _id: localOxyUserId });
   mocks.createNotification.mockResolvedValue(undefined);
   sendAcceptSpy.mockResolvedValue(undefined);
@@ -197,7 +197,7 @@ describe('handleIncomingFollow — Oxy follow-graph bridge', () => {
 
     await inboxProcessingService.processInboxActivity(followActivity(), actorUri);
 
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/follow', {
+    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/follow', {
       followerUserId: 'oxy_bob',
       targetUserId: localOxyUserId,
       action: 'follow',
@@ -205,7 +205,7 @@ describe('handleIncomingFollow — Oxy follow-graph bridge', () => {
     expect(sendAcceptSpy).toHaveBeenCalledWith(localOxyUserId, 'alice', followActivityId, actorUri);
 
     // Bridge strictly precedes the Accept so a retry never re-delivers Accepts.
-    const bridgeOrder = mocks.makeServiceRequest.mock.invocationCallOrder[0];
+    const bridgeOrder = mocks.serviceRequest.mock.invocationCallOrder[0];
     const acceptOrder = sendAcceptSpy.mock.invocationCallOrder[0];
     expect(bridgeOrder).toBeLessThan(acceptOrder);
 
@@ -249,7 +249,7 @@ describe('handleIncomingFollow — Oxy follow-graph bridge', () => {
       inboxProcessingService.processInboxActivity(followActivity(), actorUri),
     ).rejects.toBeInstanceOf(ActorResolutionPendingError);
 
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
     expect(sendAcceptSpy).not.toHaveBeenCalled();
     expect(await readFollows(scope)).toHaveLength(0);
   });
@@ -260,14 +260,14 @@ describe('handleIncomingFollow — Oxy follow-graph bridge', () => {
 
     await inboxProcessingService.processInboxActivity(followActivity(), actorUri);
 
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
     expect(sendAcceptSpy).not.toHaveBeenCalled();
     expect(await readFollows(scope)).toHaveLength(0);
   });
 
   it('throws (job retry) and never Accepts or records the row when the bridge call fails', async () => {
     await seedFollowerActor('oxy_bob');
-    mocks.makeServiceRequest.mockRejectedValueOnce(new Error('oxy-api 503'));
+    mocks.serviceRequest.mockRejectedValueOnce(new Error('oxy-api 503'));
 
     await expect(
       inboxProcessingService.processInboxActivity(followActivity(), actorUri),
@@ -285,7 +285,7 @@ describe('handleIncomingFollow — Oxy follow-graph bridge', () => {
       inboxProcessingService.processInboxActivity(followActivity(), actorUri),
     ).resolves.toBeUndefined();
 
-    expect(mocks.makeServiceRequest).toHaveBeenCalledTimes(1);
+    expect(mocks.serviceRequest).toHaveBeenCalledTimes(1);
     expect(sendAcceptSpy).toHaveBeenCalledTimes(1);
     expect(mocks.loggerWarn).toHaveBeenCalled();
   });
@@ -306,7 +306,7 @@ describe('handleIncomingFollow — dropped when the target has fediverse sharing
     // Gate runs BEFORE the follower actor fetch — no bridge, no Accept, no follow
     // row, and (since a Reject would be unverifiable against a 404'd actor and
     // would reveal the account exists) no Reject either.
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
     expect(sendAcceptSpy).not.toHaveBeenCalled();
     expect(await readFollows(scope)).toHaveLength(0);
     expect(mocks.createNotification).not.toHaveBeenCalled();
@@ -325,14 +325,14 @@ describe('handleUndo(Follow) — Oxy follow-graph bridge', () => {
     // `invocationCallOrder` of two doubles could not tell the two apart, because
     // it never observes whether the delete reached the database at all.
     let followsWhenBridged = -1;
-    mocks.makeServiceRequest.mockImplementation(async () => {
+    mocks.serviceRequest.mockImplementation(async () => {
       followsWhenBridged = (await readFollows(scope)).length;
       return { created: false, counts: { followers: 0, following: 0 } };
     });
 
     await inboxProcessingService.processInboxActivity(undoFollowActivity(), actorUri);
 
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/follow', {
+    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/follow', {
       followerUserId: 'oxy_bob',
       targetUserId: localOxyUserId,
       action: 'unfollow',
@@ -347,7 +347,7 @@ describe('handleUndo(Follow) — Oxy follow-graph bridge', () => {
 
     await inboxProcessingService.processInboxActivity(undoFollowActivity(), actorUri);
 
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
     expect(await readFollows(scope)).toHaveLength(0);
   });
 
@@ -356,7 +356,7 @@ describe('handleUndo(Follow) — Oxy follow-graph bridge', () => {
 
     await inboxProcessingService.processInboxActivity(undoFollowActivity(), actorUri);
 
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
     expect(await readFollows(scope)).toHaveLength(0);
   });
 });

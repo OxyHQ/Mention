@@ -44,7 +44,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 // globally in `__tests__/setup.ts`.
 vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
-  createUserScopedOxyServices: () => ({ listAccountMembers }),
+  createUserScopedOxyServices: () => ({ accounts: { members: { list: listAccountMembers } } }),
 }));
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';

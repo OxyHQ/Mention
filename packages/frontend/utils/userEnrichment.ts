@@ -8,7 +8,7 @@ import type { User } from '@oxy.so/core';
  * request and merge-upsert them into the React Query cache (the single in-memory
  * actor cache) via `lib/actorCache`. This avoids the classic N+1 —
  * one HTTP request per missing user — by routing the misses through
- * `oxyServices.getUsersByIds` (chunked 100/req, deduped) instead of looping
+ * `oxyServices.users.getMany` (chunked 100/req, deduped) instead of looping
  * `getUserById`. The merge-upsert fills the avatar without stripping any field an
  * authoritative profile fetch already stored (viewer `relationship`, `createdAt`,
  * `_count`), and seeds the by-username entry too when a username is present.

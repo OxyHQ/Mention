@@ -481,7 +481,7 @@ export const viewerQueryKeys = {
     jobId,
   ] as const,
   /**
-   * The employer's Oxy profile (`oxyServices.getUserById`), for the public
+   * The employer's Oxy profile (`oxyServices.users.get`), for the public
    * job page and the native-apply screen's "who you're applying to" link —
    * a plain identity lookup, not job data, but scoped alongside the other
    * `jobs` keys since both call sites reach it FROM a job.

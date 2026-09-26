@@ -107,7 +107,7 @@ export async function getAtprotoIdentityByOxyUserId(
 ): Promise<BridgeAtprotoIdentity | null> {
   let username: string | undefined;
   try {
-    const user = await getServiceOxyClient().getUserById(oxyUserId);
+    const user = await getServiceOxyClient().users.get(oxyUserId);
     username = user.username;
   } catch (err) {
     logger.warn('[atproto-bridge] failed to resolve Oxy user by id', {
@@ -137,7 +137,7 @@ export async function buildBridgeDidDocumentView(username: string): Promise<DidD
 
   let canonical: DidDocument;
   try {
-    canonical = await getServiceOxyClient().resolveDid(identity.oxyUserId);
+    canonical = await getServiceOxyClient().identity.resolveDid(identity.oxyUserId);
   } catch (err) {
     logger.warn('[atproto-bridge] failed to resolve canonical Oxy DID document', {
       username,

@@ -88,8 +88,7 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
 
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getProfileByUsername: mocks.getProfileByUsername,
-    searchProfiles: mocks.searchProfiles,
+    users: { byUsername: mocks.getProfileByUsername, search: mocks.searchProfiles },
   }),
 }));
 

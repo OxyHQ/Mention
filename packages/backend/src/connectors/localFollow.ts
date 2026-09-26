@@ -84,9 +84,9 @@ async function lookup(read: () => Promise<OxyAccount>): Promise<LocalFollowTarge
 export async function resolveLocalFollowTarget(ref: LocalFollowRef): Promise<LocalFollowTarget | null> {
   const oxy = getServiceOxyClient();
   const username = ref.kind === 'username' ? ref.username : ref.value;
-  const byUsername = await lookup(() => oxy.getProfileByUsername(username, { cache: false }));
+  const byUsername = await lookup(() => oxy.users.byUsername(username, { cache: false }));
   if (byUsername || ref.kind === 'username') return byUsername;
-  return lookup(() => oxy.getUserById(ref.value));
+  return lookup(() => oxy.users.get(ref.value));
 }
 
 export interface ConnectionFollowResult {
@@ -106,7 +106,7 @@ export async function followThroughConnection(input: {
   targetUserId: string;
   action: 'follow' | 'unfollow';
 }): Promise<ConnectionFollowResult> {
-  const response = await getServiceOxyClient().makeServiceRequest<{
+  const response = await getServiceOxyClient().serviceRequest<{
     account_id?: unknown;
     changed?: unknown;
   }>('POST', OXY_CONNECTION_FOLLOW_PATH, {

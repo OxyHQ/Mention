@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   upsertActor: vi.fn(),
   reconcileProjection: vi.fn().mockResolvedValue({}),
   findIdentityOwnerActor: vi.fn(),
-  makeServiceRequest: vi.fn(),
+  serviceRequest: vi.fn(),
 }));
 
 // The signed AP fetch is the only thing replaced in `helpers` — acct
@@ -63,13 +63,13 @@ vi.mock('../../db/federation/actorRepository', async (importOriginal) => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(),
   getServiceOxyClient: () => ({
-    makeServiceRequest: mocks.makeServiceRequest,
-    getUserById: vi.fn(),
-    getUsersByIds: vi.fn(async () => []),
+    serviceRequest: mocks.serviceRequest,
+    users: { get: vi.fn(), getMany: vi.fn(async () => []) },
   }),
 }));
 
-vi.mock('@oxy.so/core/server', () => ({ getRequiredOxyUserId: () => 'local-user-1' }));
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()), getRequiredOxyUserId: () => 'local-user-1' }));
 vi.mock('../../middleware/rateLimiter', () => ({
   apiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
@@ -135,7 +135,7 @@ beforeEach(() => {
     storedRow = { uri, ...columns };
     return Promise.resolve({ ...storedRow, id: 'row-1' });
   });
-  mocks.makeServiceRequest.mockResolvedValue(oxyIdentityFixture({ actorUri: ACTOR_URI, transportAcct: 'elonmusk@bird.makeup', canonicalAcct: 'elonmusk@x.com', network: 'x.com', userId: 'oxy-elon', avatar: AVATAR }));
+  mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({ actorUri: ACTOR_URI, transportAcct: 'elonmusk@bird.makeup', canonicalAcct: 'elonmusk@x.com', network: 'x.com', userId: 'oxy-elon', avatar: AVATAR }));
   mocks.signedFetch.mockImplementation(async (url: string) =>
     url === ACTOR_URI
       ? new Response(JSON.stringify(LIVE_ACTOR), {
@@ -164,7 +164,7 @@ describe('pasting https://x.com/elonmusk', () => {
 
     // The identity Oxy is asked to store, which is the thing the response must
     // agree with — the whole bug was these two disagreeing.
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
+    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
       handle: 'https://x.com/elonmusk',
     });
     expect(res.body.actor.handle).toBe('elonmusk@x.com');

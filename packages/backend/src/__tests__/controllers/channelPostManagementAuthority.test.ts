@@ -51,11 +51,11 @@ const oxy = vi.hoisted(() => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: () => undefined,
   getServiceOxyClient: () => ({
-    getUsersByIds: vi.fn(async () => []),
+    users: { getMany: vi.fn(async () => []) },
     getClarityDocuments: vi.fn(async () => ({})),
-    getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
+    assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
   }),
-  createUserScopedOxyServices: () => ({ listAccountMembers: oxy.listAccountMembers }),
+  createUserScopedOxyServices: () => ({ accounts: { members: { list: oxy.listAccountMembers } } }),
 }));
 
 // `resolveUserSummaries` is how `resolveAccountKind` learns that the authoring

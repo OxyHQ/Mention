@@ -267,7 +267,7 @@ export function isAbortError(error: unknown): boolean {
 /**
  * People search, cancellable.
  *
- * `oxyServices.searchProfiles()` accepts no `AbortSignal` (its signature is
+ * `oxyServices.users.search()` accepts no `AbortSignal` (its signature is
  * `(query, pagination)`), which made People the ONE search lane that could not
  * be cancelled: every keystroke started a profile search that ran to
  * completion and had its result thrown away, while holding one of the SDK
@@ -297,7 +297,7 @@ async function searchProfilesCancellable(
   const params: Record<string, unknown> = { query, limit: pagination.limit };
   if (pagination.offset !== undefined) params.offset = pagination.offset;
 
-  const response = await oxyServices.httpService.get<{
+  const response = await oxyServices.http.get<{
     data?: SearchUserResult[];
     pagination?: { total?: number; limit?: number; offset?: number; hasMore?: boolean };
   }>('/profiles/search', { params, signal, retry: false, cache: true, cacheTTL: 2 * 60 * 1000 });
@@ -393,7 +393,7 @@ class SearchService {
 
       // Fallback: an exact username match still gives the viewer something useful.
       // A miss on the fallback is a real failure — let it propagate.
-      const exactMatch = await oxyServices.getProfileByUsername(query);
+      const exactMatch = await oxyServices.users.byUsername(query);
       return exactMatch ? [exactMatch] : [];
     }
   }
@@ -420,7 +420,7 @@ class SearchService {
       // page has no single match to fall back to, so its failure is real.
       if (offset > 0) throw error;
       logger.warn("Profile search failed, falling back to exact username lookup", { error });
-      const exactMatch = await oxyServices.getProfileByUsername(query);
+      const exactMatch = await oxyServices.users.byUsername(query);
       return { users: exactMatch ? [exactMatch] : [], hasMore: false, nextOffset: SEARCH_PAGE_LIMIT };
     }
   }

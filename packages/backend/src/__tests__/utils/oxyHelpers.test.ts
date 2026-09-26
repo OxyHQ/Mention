@@ -3,40 +3,47 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * Shared mock state. Declared via `vi.hoisted` so it is initialised before the
  * hoisted `vi.mock` factory below runs (vitest lifts `vi.mock` to the top of the
- * module). Records every constructed OxyServices instance so each test can
+ * module). Records every constructed Oxy client instance so each test can
  * inspect the scoped client built inside `ensureProfileMediaPublic` (tokens
  * planted + visibility call). The class is mocked because the helper otherwise
  * performs a real network PATCH to Oxy.
  */
 const mockState = vi.hoisted(() => {
   const instances: Array<{
-    setTokens: ReturnType<typeof vi.fn>;
-    makeServiceRequest: ReturnType<typeof vi.fn>;
-    assetUpdateVisibility: ReturnType<typeof vi.fn>;
+    session: { setAccessToken: ReturnType<typeof vi.fn> };
+    serviceRequest: ReturnType<typeof vi.fn>;
+    assets: { setVisibility: ReturnType<typeof vi.fn> };
   }> = [];
   const control: { reject?: unknown } = {};
-  return { instances, control };
-});
-
-vi.mock('@oxy.so/core', () => {
-  class OxyServices {
-    setTokens = vi.fn();
-    configureServiceAuth = vi.fn();
-    makeServiceRequest = vi.fn().mockResolvedValue({
+  /**
+   * One fake for both clients: the service singleton is an `OxyServer`
+   * (`@oxy.so/core/server`), the per-request clients are `OxyServices`.
+   */
+  class FakeOxyClient {
+    session = { setAccessToken: vi.fn() };
+    serviceRequest = vi.fn().mockResolvedValue({
       data: { blockedIds: [], restrictedIds: [], followingIds: [], mutualIds: [] },
     });
-    assetUpdateVisibility = vi.fn().mockImplementation(() =>
-      mockState.control.reject !== undefined
-        ? Promise.reject(mockState.control.reject)
-        : Promise.resolve({ file: { id: 'x', visibility: 'public' } }),
-    );
+    assets = {
+      setVisibility: vi.fn().mockImplementation(() =>
+        control.reject !== undefined
+          ? Promise.reject(control.reject)
+          : Promise.resolve({ file: { id: 'x', visibility: 'public' } }),
+      ),
+    };
 
     constructor() {
-      mockState.instances.push(this);
+      instances.push(this);
     }
   }
-  return { OxyServices };
+  return { instances, control, FakeOxyClient };
 });
+
+vi.mock('@oxy.so/core', () => ({ OxyServices: mockState.FakeOxyClient }));
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  OxyServer: mockState.FakeOxyClient,
+}));
 
 // Was `() => ({})`, which stubbed the module out entirely — including the
 // `OxyPrivacyUnavailableError` the delegated client throws. The real module is
@@ -63,7 +70,7 @@ describe('request-scoped Oxy clients', () => {
 
     expect(client).toBeDefined();
     expect(mockState.instances.length).toBe(before + 1);
-    expect(lastScopedClient().setTokens).toHaveBeenCalledWith('owner-token');
+    expect(lastScopedClient().session.setAccessToken).toHaveBeenCalledWith('owner-token');
   });
 
   it('rejects combined and duplicate bearer credentials', () => {
@@ -98,15 +105,15 @@ describe('request-scoped Oxy clients', () => {
       },
     });
 
-    await expect(client?.getViewerGraph()).resolves.toMatchObject({ blockedIds: [] });
+    await expect(client?.follows.viewerGraph()).resolves.toMatchObject({ blockedIds: [] });
     expect(mockState.instances.length).toBe(before);
-    expect(serviceClient.makeServiceRequest).toHaveBeenCalledWith(
+    expect(serviceClient.serviceRequest).toHaveBeenCalledWith(
       'GET',
       '/users/me/graph',
       undefined,
-      'assigned-account',
+      { actAs: 'assigned-account' },
     );
-    expect(serviceClient.setTokens).not.toHaveBeenCalledWith('signed-ticket');
+    expect(serviceClient.session.setAccessToken).not.toHaveBeenCalledWith('signed-ticket');
     expect(createUserScopedOxyServices({
       headers: { authorization: 'Capability signed-ticket' },
       capability: {
@@ -128,11 +135,11 @@ describe('request-scoped Oxy clients', () => {
       mcp: { activeUserId: 'assigned-account' },
     });
 
-    await expect(client?.getBlockedUsers()).rejects.toMatchObject({
+    await expect(client?.privacy.blocked()).rejects.toMatchObject({
       name: 'OxyPrivacyUnavailableError',
       code: 'SERVICE_DELEGATION_NOT_AUTHORIZED',
     });
-    await expect(client?.getRestrictedUsers()).rejects.toMatchObject({
+    await expect(client?.privacy.restricted()).rejects.toMatchObject({
       name: 'OxyPrivacyUnavailableError',
       code: 'SERVICE_DELEGATION_NOT_AUTHORIZED',
     });
@@ -161,44 +168,44 @@ describe('central MCP privacy reads', () => {
    */
   it('reads blocks and restrictions of the served account with the connection token as proof', async () => {
     const serviceClient = mockState.instances[0];
-    serviceClient.makeServiceRequest.mockClear();
-    serviceClient.makeServiceRequest.mockResolvedValueOnce({ account_id: 'served-account', graph });
+    serviceClient.serviceRequest.mockClear();
+    serviceClient.serviceRequest.mockResolvedValueOnce({ account_id: 'served-account', graph });
     const before = mockState.instances.length;
     const client = centralClient();
 
-    await expect(client?.getBlockedUsers()).resolves.toEqual([{ blockedId: 'blocked-account' }]);
-    await expect(client?.getRestrictedUsers()).resolves.toEqual([{ restrictedId: 'restricted-account' }]);
-    await expect(client?.getViewerGraph()).resolves.toMatchObject({ followingIds: ['followed-account'] });
+    await expect(client?.privacy.blocked()).resolves.toEqual([{ blockedId: 'blocked-account' }]);
+    await expect(client?.privacy.restricted()).resolves.toEqual([{ restrictedId: 'restricted-account' }]);
+    await expect(client?.follows.viewerGraph()).resolves.toMatchObject({ followingIds: ['followed-account'] });
 
-    expect(serviceClient.makeServiceRequest).toHaveBeenCalledTimes(1);
-    expect(serviceClient.makeServiceRequest).toHaveBeenCalledWith(
+    expect(serviceClient.serviceRequest).toHaveBeenCalledTimes(1);
+    expect(serviceClient.serviceRequest).toHaveBeenCalledWith(
       'POST',
       '/auth/mcp/oauth/connections/viewer-graph',
       { token: 'mcp-access-token' },
     );
-    expect(serviceClient.setTokens).not.toHaveBeenCalledWith('mcp-access-token');
+    expect(serviceClient.session.setAccessToken).not.toHaveBeenCalledWith('mcp-access-token');
     expect(mockState.instances.length).toBe(before);
   });
 
   it('refuses the lists when Oxy answers for an account other than the one served', async () => {
     const serviceClient = mockState.instances[0];
-    serviceClient.makeServiceRequest.mockResolvedValueOnce({ account_id: 'another-account', graph });
+    serviceClient.serviceRequest.mockResolvedValueOnce({ account_id: 'another-account', graph });
     const client = centralClient();
 
-    await expect(client?.getBlockedUsers()).rejects.toMatchObject({
+    await expect(client?.privacy.blocked()).rejects.toMatchObject({
       code: 'MCP_CONNECTION_ACCOUNT_MISMATCH',
     });
   });
 
   it('refuses a graph with no privacy lists instead of reading it as "blocks nobody"', async () => {
     const serviceClient = mockState.instances[0];
-    serviceClient.makeServiceRequest.mockResolvedValueOnce({
+    serviceClient.serviceRequest.mockResolvedValueOnce({
       account_id: 'served-account',
       graph: { followingIds: [] },
     });
     const client = centralClient();
 
-    await expect(client?.getBlockedUsers()).rejects.toThrow(/missing blockedIds/);
+    await expect(client?.privacy.blocked()).rejects.toThrow(/missing blockedIds/);
   });
 
   it('keeps a legacy MCP token fail-closed: it is not proof Oxy accepts', async () => {
@@ -207,7 +214,7 @@ describe('central MCP privacy reads', () => {
       mcp: { activeUserId: 'served-account', authMode: 'legacy' },
     });
 
-    await expect(client?.getBlockedUsers()).rejects.toMatchObject({
+    await expect(client?.privacy.blocked()).rejects.toMatchObject({
       name: 'OxyPrivacyUnavailableError',
       code: 'SERVICE_DELEGATION_NOT_AUTHORIZED',
     });
@@ -230,8 +237,8 @@ describe('ensureProfileMediaPublic', () => {
     // A new scoped client was constructed for this call.
     expect(mockState.instances.length).toBe(before + 1);
     const client = lastScopedClient();
-    expect(client.setTokens).toHaveBeenCalledWith('owner-token');
-    expect(client.assetUpdateVisibility).toHaveBeenCalledWith('file-123', 'public');
+    expect(client.session.setAccessToken).toHaveBeenCalledWith('owner-token');
+    expect(client.assets.setVisibility).toHaveBeenCalledWith('file-123', 'public');
   });
 
   it('does nothing when there is no access token', async () => {
@@ -254,6 +261,6 @@ describe('ensureProfileMediaPublic', () => {
     await expect(
       ensureProfileMediaPublic('owner-token', 'file-456'),
     ).resolves.toBeUndefined();
-    expect(lastScopedClient().assetUpdateVisibility).toHaveBeenCalledWith('file-456', 'public');
+    expect(lastScopedClient().assets.setVisibility).toHaveBeenCalledWith('file-456', 'public');
   });
 });

@@ -46,7 +46,7 @@ vi.mock('../../connectors/activitypub/delivery.service', () => ({
 }));
 vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
-  getServiceOxyClient: () => ({ getUserById }),
+  getServiceOxyClient: () => ({ users: { get: getUserById } }),
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';

@@ -182,7 +182,7 @@ export class MediaMetadataService {
 
     let resolved: ServiceAssetMetadata[] = [];
     try {
-      resolved = await getServiceOxyClient().getServiceAssetMetadataByIds(oxyIds);
+      resolved = await getServiceOxyClient().assets.metadataByIds(oxyIds);
     } catch (error) {
       logger.warn('MediaMetadataService.enrichFromOxy failed', {
         error: error instanceof Error ? error.message : String(error),
@@ -213,7 +213,7 @@ export class MediaMetadataService {
   async resolveOxyAssets(ids: readonly string[]): Promise<Map<string, ServiceAssetMetadata>> {
     const oxyIds = [...new Set(ids.filter(isOxyFileId))];
     if (oxyIds.length === 0) return new Map();
-    const resolved = await getServiceOxyClient().getServiceAssetMetadataByIds(oxyIds);
+    const resolved = await getServiceOxyClient().assets.metadataByIds(oxyIds);
     return new Map(resolved.map((entry) => [entry.id, entry]));
   }
 

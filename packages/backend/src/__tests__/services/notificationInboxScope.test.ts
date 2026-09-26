@@ -140,9 +140,11 @@ function forest(): AccountNode[] {
 function readerReturning(accounts: AccountNode[]): OperatedAccountReader & { calls: number } {
   const reader = {
     calls: 0,
-    async listAccounts() {
-      reader.calls += 1;
-      return accounts;
+    accounts: {
+      async list() {
+        reader.calls += 1;
+        return accounts;
+      },
     },
   };
   return reader;
@@ -264,8 +266,10 @@ describe('listOperatedChannelIds', () => {
 
   it('fails soft to nothing when Oxy cannot answer', async () => {
     const reader: OperatedAccountReader = {
-      async listAccounts() {
-        throw new Error('oxy unavailable');
+      accounts: {
+        async list() {
+          throw new Error('oxy unavailable');
+        },
       },
     };
     // Never throws: this sits under every notification read, and the direction
@@ -284,8 +288,10 @@ describe('resolveNotificationInboxIds', () => {
 
   it("still returns the viewer's own inbox when Oxy is unavailable", async () => {
     const reader: OperatedAccountReader = {
-      async listAccounts() {
-        throw new Error('oxy unavailable');
+      accounts: {
+        async list() {
+          throw new Error('oxy unavailable');
+        },
       },
     };
     await expect(resolveNotificationInboxIds(VIEWER, reader)).resolves.toEqual([VIEWER]);

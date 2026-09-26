@@ -48,7 +48,7 @@ export default function CreateStarterPackScreen() {
     if (!q.trim()) { setResults([]); return; }
     searchTimer.current = setTimeout(async () => {
       try {
-        const { data } = await oxyServices.searchProfiles(q.trim(), { limit: 8 });
+        const { data } = await oxyServices.users.search(q.trim(), { limit: 8 });
         setResults(data);
       } catch (e) {
         logger.warn('searchProfiles failed', { error: e });

@@ -67,7 +67,7 @@ export const useShareIntentRouter = ({
       const uploaded: PendingShareMediaItem[] = [];
       for (const file of mediaFiles) {
         try {
-          const result = (await oxyServices.assetUpload({
+          const result = (await oxyServices.assets.upload({
             uri: file.path,
             type: file.mimeType,
             name: file.fileName ?? undefined,

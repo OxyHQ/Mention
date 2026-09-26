@@ -61,17 +61,19 @@ vi.mock('../../runtime/socketServer', () => ({
 // mocked. Everything Mention stores is real.
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
-    getUserById: vi.fn(),
-    getUserFollowing: vi.fn(async () => []),
-    getUserFollowers: vi.fn(async () => []),
+    users: { get: vi.fn() },
+    follows: {
+      following: vi.fn(async () => []),
+      followers: vi.fn(async () => []),
+    },
   }),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUsersByIds,
+    users: { getMany: getUsersByIds },
     getClarityDocuments: vi.fn(async () => ({})),
-    getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
+    assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
   }),
   // Hydration falls back to the service client when this is undefined, which is
   // what keeps the identity batch on one stub.
@@ -80,17 +82,19 @@ vi.mock('../../utils/oxyHelpers', () => ({
   // halves of this feature ask different questions of the account graph and a
   // stub offering only one silently turns the other's refusals into 503s:
   //
-  //  - `listAccounts` (the caller's forest) answers `listOperatedChannelIds`,
+  //  - `accounts.list` (the caller's forest) answers `listOperatedChannelIds`,
   //    which is how the READ decides which queues to merge in;
-  //  - `listAccountMembers` (one account's roster) answers
+  //  - `accounts.members.list` (one account's roster) answers
   //    `assertCanPublishAsAccount` behind `postManagementRefusal`, which is how
   //    every WRITE decides.
   //
   // Both are derived from ONE fixture below, so the test cannot accidentally
   // describe someone who reads a queue they may not act on, or the reverse.
   createUserScopedOxyServices: (req: { user?: { id?: string } }) => ({
-    listAccounts: async () => listAccounts(req.user?.id),
-    listAccountMembers: async (accountId: string) => listAccountMembers(accountId),
+    accounts: {
+      list: async () => listAccounts(req.user?.id),
+      members: { list: async (accountId: string) => listAccountMembers(accountId) },
+    },
   }),
 }));
 
@@ -598,7 +602,7 @@ describe('the hydration ACL on an unpublished channel post', () => {
 
   /** The reader an id-based surface hands over — the caller's own Oxy client. */
   function readerFor(viewerId: string | undefined) {
-    return { listAccounts: async () => listAccounts(viewerId) as Promise<AccountNode[]> };
+    return { accounts: { list: async () => listAccounts(viewerId) as Promise<AccountNode[]> } };
   }
 
   async function seedQueued(): Promise<Awaited<ReturnType<typeof seedPost>>> {

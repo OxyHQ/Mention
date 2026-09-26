@@ -59,7 +59,7 @@ jest.mock('@oxy.so/services', () => {
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
     user: mockViewer.current,
-    oxyServices: { resolveProfile: mockResolveProfile },
+    oxyServices: { users: { resolveHandle: mockResolveProfile } },
   }),
 }));
 

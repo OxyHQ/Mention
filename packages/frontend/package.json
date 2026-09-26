@@ -84,7 +84,7 @@
     }
   },
   "dependencies": {
-    "@oxy.so/telemetry": "^1.1.1",
+    "@oxy.so/telemetry": "^1.2.0",
     "@clarity.surf/sdk": "^0.4.0",
     "@alia.onl/sdk": "7.2.9",
     "@babel/plugin-transform-export-namespace-from": "^7.29.7",

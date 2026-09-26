@@ -121,7 +121,7 @@ export async function isFediverseSharingEnabled(
   const oxy = getServiceOxyClient();
   let user: FediverseSharingUserView;
   try {
-    user = await oxy.getUserById(oxyUserId, { cache: false });
+    user = await oxy.users.get(oxyUserId, { cache: false });
   } catch (error) {
     logger.warn('[FediverseSharing] Oxy lookup failed, failing open', {
       oxyUserId,
@@ -182,7 +182,7 @@ export async function getFediverseSharingStateByUsername(username: string): Prom
   const oxy = getServiceOxyClient();
   let user: FediverseSharingUserView;
   try {
-    user = await oxy.getProfileByUsername(username, { cache: false });
+    user = await oxy.users.byUsername(username, { cache: false });
   } catch (error) {
     if (isNotFoundError(error)) return 'unknown-user';
     logger.warn('[FediverseSharing] Oxy lookup failed, treating as unavailable', {
@@ -219,7 +219,7 @@ export async function getFediverseSharingStateById(oxyUserId: string): Promise<F
   const oxy = getServiceOxyClient();
   let user: FediverseSharingUserView;
   try {
-    user = await oxy.getUserById(oxyUserId, { cache: false });
+    user = await oxy.users.get(oxyUserId, { cache: false });
   } catch (error) {
     if (isNotFoundError(error)) return 'unknown-user';
     logger.warn('[FediverseSharing] Oxy lookup failed, treating as unavailable', {

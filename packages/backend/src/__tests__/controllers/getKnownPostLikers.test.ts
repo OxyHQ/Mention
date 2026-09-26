@@ -48,7 +48,7 @@ const hoisted = vi.hoisted(() => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: hoisted.createScopedOxyClient,
-  getServiceOxyClient: () => ({ getUserById: vi.fn(), getUsersByIds: vi.fn(async () => []) }),
+  getServiceOxyClient: () => ({ users: { get: vi.fn(), getMany: vi.fn(async () => []) } }),
 }));
 
 vi.mock('../../services/PostHydrationService', () => ({
@@ -115,7 +115,9 @@ async function seedLike(userId: string, value: 1 | -1 = 1): Promise<void> {
 /** Point the viewer graph at a fixed following list. */
 function viewerFollows(followingIds: string[]): void {
   hoisted.createScopedOxyClient.mockReturnValue({
-    getViewerGraph: async () => ({ followingIds, mutualIds: [], blockedIds: [] }),
+    follows: {
+      viewerGraph: async () => ({ followingIds, mutualIds: [], blockedIds: [] }),
+    },
   });
 }
 

@@ -197,7 +197,7 @@ async function resolveActorProfilesByUri(
 
   let users: OxyUser[] = [];
   try {
-    users = await getServiceOxyClient().getUsersByIds(oxyUserIds);
+    users = await getServiceOxyClient().users.getMany(oxyUserIds);
   } catch (err) {
     logger.warn('Failed to resolve Oxy display names for federated actors:', err);
     return byUri;
@@ -428,7 +428,7 @@ router.post('/follow', async (req: AuthRequest, res: Response) => {
     // Service-authed Oxy client — the process-wide request-auth client is
     // unauthenticated and reserved for validating incoming request tokens
     // (`oxy.auth()`), so resolving a user on it returns nothing.
-    const user = await getServiceOxyClient().getUserById(userId);
+    const user = await getServiceOxyClient().users.get(userId);
     if (!user?.username) return res.status(404).json({ error: 'User not found' });
 
     await connector.deliver({
@@ -482,7 +482,7 @@ router.post('/unfollow', async (req: AuthRequest, res: Response) => {
     const connector = await resolveTargetConnector(parsed.data.actorUri);
     if (!connector) return res.status(404).json({ error: 'Unsupported or unknown actor' });
 
-    const user = await getServiceOxyClient().getUserById(userId);
+    const user = await getServiceOxyClient().users.get(userId);
     if (!user?.username) return res.status(404).json({ error: 'User not found' });
 
     await connector.deliver({
@@ -526,7 +526,7 @@ router.post('/sharing-changed', async (req: AuthRequest, res: Response) => {
     // of the flag.
     const enabled = await isFediverseSharingEnabled(userId);
 
-    const user = await getServiceOxyClient().getUserById(userId);
+    const user = await getServiceOxyClient().users.get(userId);
 
     let cleanupQueued = false;
     if (user?.username) {

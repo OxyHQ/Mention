@@ -1197,7 +1197,7 @@ export default function VideosScreen() {
         const raw = ref?.id || '';
         if (!raw) return '';
         if (raw.startsWith('http')) return proxyExternalUrl(raw);
-        return oxyServices?.getFileDownloadUrl ? oxyServices.getFileDownloadUrl(raw) : '';
+        return oxyServices ? oxyServices.assets.publicUrl(raw) : '';
     }, [oxyServices]);
 
     // Preferred playback URL: the adaptive HLS stream when the server resolved

@@ -35,11 +35,11 @@ vi.mock('../../utils/oxyCdnUrlClient', async () => {
 import { oxyCdnUrlClient } from '../../utils/oxyCdnUrlClient';
 import { resolveMediaRef, resolveAvatarUrl, resolveMediaItems } from '../../utils/mediaResolver';
 
-const getFileDownloadUrl = vi.spyOn(oxyCdnUrlClient, 'getFileDownloadUrl');
+const publicUrl = vi.spyOn(oxyCdnUrlClient.assets, 'publicUrl');
 
 describe('resolveMediaRef', () => {
   beforeEach(() => {
-    getFileDownloadUrl.mockClear();
+    publicUrl.mockClear();
   });
 
   it('resolves an Oxy file id to original url + w320 thumb + w2048 fullUrl', () => {
@@ -54,9 +54,9 @@ describe('resolveMediaRef', () => {
     expect(result.posterUrl).toBe(result.thumbUrl);
     // The lightbox upgrade uses a large variant, not the raw original.
     expect(result.fullUrl).toBe(`${CLOUD_BASE}/file123?variant=w2048`);
-    expect(getFileDownloadUrl).toHaveBeenCalledWith('file123');
-    expect(getFileDownloadUrl).toHaveBeenCalledWith('file123', 'w320');
-    expect(getFileDownloadUrl).toHaveBeenCalledWith('file123', 'w2048');
+    expect(publicUrl).toHaveBeenCalledWith('file123');
+    expect(publicUrl).toHaveBeenCalledWith('file123', 'w320');
+    expect(publicUrl).toHaveBeenCalledWith('file123', 'w2048');
   });
 
   it('wraps an external http(s) url behind /media/proxy and /media/poster, asking for sized variants', () => {
@@ -70,7 +70,7 @@ describe('resolveMediaRef', () => {
     expect(result.posterUrl).toBe(`${PUBLIC_BASE}/media/poster?url=${encoded}`);
     expect(result.fullUrl).toBe(`${PUBLIC_BASE}/media/proxy?url=${encoded}&variant=w2048`);
     // External URLs never touch the Oxy file URL builder.
-    expect(getFileDownloadUrl).not.toHaveBeenCalled();
+    expect(publicUrl).not.toHaveBeenCalled();
   });
 
   it('never gives federated media a thumbUrl identical to its full-size url', () => {
@@ -127,7 +127,7 @@ describe('resolveMediaRef', () => {
 
   it('passes through a URL already on the Oxy API origin', () => {
     // The API origin, not the CDN one: `getOwnHosts` is built from our public
-    // base and the SDK's `getBaseURL`, so this is the case it exists for.
+    // base and the SDK's `baseURL`, so this is the case it exists for.
     const own = `${OXY_BASE}/assets/file999/stream?variant=thumb`;
     const result = resolveMediaRef(own);
 
@@ -298,7 +298,7 @@ describe('resolveMediaItems', () => {
 
     expect(items).toHaveLength(1);
     expect(items[0].hlsUrl).toBe(`${CLOUD_BASE}/video-file?variant=hls_master`);
-    expect(getFileDownloadUrl).toHaveBeenCalledWith('video-file', 'hls_master');
+    expect(publicUrl).toHaveBeenCalledWith('video-file', 'hls_master');
   });
 
   it('omits hlsUrl entirely for a video with no recorded ladder', () => {
@@ -309,7 +309,7 @@ describe('resolveMediaItems', () => {
     // a client cannot tell the difference between "no ladder" and a field it
     // forgot to check.
     expect(items[0]).not.toHaveProperty('hlsUrl');
-    expect(getFileDownloadUrl).not.toHaveBeenCalledWith('video-file', 'hls_master');
+    expect(publicUrl).not.toHaveBeenCalledWith('video-file', 'hls_master');
   });
 
   it('still resolves poster and thumb for that video — only the ladder is withheld', () => {

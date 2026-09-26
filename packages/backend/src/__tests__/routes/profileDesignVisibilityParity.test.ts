@@ -51,12 +51,16 @@ vi.mock('../../config', async (importOriginal) => {
 // construction (mediaResolver) and the follow graph the visibility gate reads.
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getBaseURL: () => 'https://api.oxy.so',
-    getCloudURL: () => 'https://cloud.oxy.so',
-    getFileDownloadUrl: (fileId: string, variant?: string) =>
-      `https://cloud.oxy.so/${encodeURIComponent(fileId)}${variant ? `?variant=${variant}` : ''}`,
-    getUserFollowing: (userId: string) =>
-      Promise.resolve({ following: followingByViewer.get(userId) ?? [] }),
+    baseURL: 'https://api.oxy.so',
+    cloudURL: 'https://cloud.oxy.so',
+    assets: {
+      publicUrl: (fileId: string, variant?: string) =>
+        `https://cloud.oxy.so/${encodeURIComponent(fileId)}${variant ? `?variant=${variant}` : ''}`,
+    },
+    follows: {
+      following: (userId: string) =>
+        Promise.resolve({ following: followingByViewer.get(userId) ?? [] }),
+    },
   }),
   ensureProfileMediaPublic: vi.fn().mockResolvedValue(undefined),
   createUserScopedOxyServices: vi.fn(() => undefined),

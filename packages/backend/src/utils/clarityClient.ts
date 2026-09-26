@@ -9,7 +9,7 @@ export function getClarityClient(): Promise<ClarityClient> {
   if (client) return client;
   client = import('@clarity.surf/sdk').then(({ ClarityClient: Client }) => new Client({
       baseUrl: config.clarityApiUrl,
-      getAccessToken: () => getServiceOxyClient().getServiceToken(),
+      getAccessToken: () => getServiceOxyClient().serviceToken(),
     }),
   );
   return client;

@@ -70,7 +70,7 @@ export async function verifyMentionCapabilityTicket(
 async function introspectAtOxy(token: string): Promise<unknown> {
   const oxy = getServiceOxyClient();
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const serviceToken = await oxy.getServiceToken();
+    const serviceToken = await oxy.serviceToken();
     const response = await fetch(`${config.oxyApiUrl}/capabilities/tickets/introspect`, {
       method: 'POST',
       headers: {

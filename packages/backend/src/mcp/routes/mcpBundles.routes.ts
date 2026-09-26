@@ -23,7 +23,7 @@ const router = Router();
 
 async function hydrateUserSummary(oxyUserId: string): Promise<McpUserSummary> {
   try {
-    const user = await getServiceOxyClient().getUserById(oxyUserId, { cache: false });
+    const user = await getServiceOxyClient().users.get(oxyUserId, { cache: false });
     return toMcpUserSummary(oxyUserId, user);
   } catch {
     return toMcpUserSummary(oxyUserId);
@@ -215,7 +215,7 @@ async function resolveSwitchTarget(req: AuthRequest, res: Response): Promise<str
   if (rawHandle) {
     const username = stripMentionHandle(rawHandle);
     try {
-      const profile = await getServiceOxyClient().getProfileByUsername(username, { cache: false });
+      const profile = await getServiceOxyClient().users.byUsername(username, { cache: false });
       return profile.id;
     } catch {
       res.status(404).json({ message: `User @${username} not found` });

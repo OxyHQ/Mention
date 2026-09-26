@@ -852,7 +852,7 @@ export const getWeeklySummary = async (req: AuthRequest, res: Response) => {
     // account declares no language or the profile fetch fails.
     let language = DEFAULT_SUMMARY_LANGUAGE;
     try {
-      const oxyUser = await getRuntimeOxyClient().getUserById(userId);
+      const oxyUser = await getRuntimeOxyClient().users.get(userId);
       const primaryLocale = getPrimaryLanguage(oxyUser);
       const baseLanguage = primaryLocale ? getBaseLanguage(primaryLocale) : '';
       if (baseLanguage) {

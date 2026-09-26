@@ -125,7 +125,7 @@ export class OxySignalsClient {
     const client = getServiceOxyClient();
     for (const batch of chunk(edges, INGEST_CHUNK_SIZE)) {
       const body: SignalIngestBody = { endorsements: batch };
-      await client.makeServiceRequest('POST', INGEST_PATH, body);
+      await client.serviceRequest('POST', INGEST_PATH, body);
     }
     logger.debug(`[OxySignalsClient] pushed ${edges.length} endorsement edges`);
   }
@@ -140,7 +140,7 @@ export class OxySignalsClient {
     const client = getServiceOxyClient();
     for (const batch of chunk(items, INGEST_CHUNK_SIZE)) {
       const body: SignalIngestBody = { interests: batch };
-      await client.makeServiceRequest('POST', INGEST_PATH, body);
+      await client.serviceRequest('POST', INGEST_PATH, body);
     }
     logger.debug(`[OxySignalsClient] pushed ${items.length} interest signals`);
   }
@@ -155,7 +155,7 @@ export class OxySignalsClient {
     const client = getServiceOxyClient();
     for (const batch of chunk(events, EVENTS_CHUNK_SIZE)) {
       const body: AffinityEventsBody = { events: batch };
-      await client.makeServiceRequest('POST', EVENTS_PATH, body);
+      await client.serviceRequest('POST', EVENTS_PATH, body);
     }
     logger.debug(`[OxySignalsClient] pushed ${events.length} affinity events`);
   }

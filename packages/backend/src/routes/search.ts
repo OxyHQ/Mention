@@ -176,7 +176,7 @@ async function resolveOperatorUserId(
 ): Promise<string | undefined> {
   if (operand.toLowerCase() === 'me') return currentUserId;
   try {
-    const profile = await getRuntimeOxyClient().getProfileByUsername(operand);
+    const profile = await getRuntimeOxyClient().users.byUsername(operand);
     return profile?.id ? String(profile.id) : undefined;
   } catch {
     return undefined;

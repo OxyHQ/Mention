@@ -526,7 +526,7 @@ export async function purgeDomainOnPlatform(
     let result: DomainPurgePass;
     try {
       result = parseDomainPurgePass(
-        await getServiceOxyClient().makeServiceRequest('POST', PURGE_PATH, request),
+        await getServiceOxyClient().serviceRequest('POST', PURGE_PATH, request),
       );
     } catch (error) {
       outcome.failed = true;

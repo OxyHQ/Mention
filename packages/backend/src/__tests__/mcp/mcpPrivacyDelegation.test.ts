@@ -6,9 +6,8 @@ process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-privacy-secret-that-is-at-least-3
 process.env.MENTION_MCP_PUBLIC_URL = 'https://mcp.mention.earth';
 
 const mocks = vi.hoisted(() => ({
-  makeServiceRequest: vi.fn(),
+  serviceRequest: vi.fn(),
   setTokens: vi.fn(),
-  configureServiceAuth: vi.fn(),
   getUserFollowing: vi.fn(),
   getUserFollowers: vi.fn(),
   introspect: vi.fn(),
@@ -19,28 +18,30 @@ vi.mock('@oxy.so/mcp', async (importOriginal) => ({
   introspectOxyMcpAccessToken: (...args: unknown[]) => mocks.introspect(...args),
 }));
 
-vi.mock('@oxy.so/core', () => ({
-  OxyServices: class {
-    setTokens(...args: unknown[]) {
-      return mocks.setTokens(...args);
-    }
+/** The one Oxy client double behind both the user-scoped and the service clients. */
+const MockOxyClient = vi.hoisted(() => class {
+  readonly session = {
+    setAccessToken: (...args: unknown[]) => mocks.setTokens(...args),
+  };
 
-    configureServiceAuth(...args: unknown[]) {
-      return mocks.configureServiceAuth(...args);
-    }
+  readonly follows = {
+    following: (...args: unknown[]) => mocks.getUserFollowing(...args),
+    followers: (...args: unknown[]) => mocks.getUserFollowers(...args),
+  };
 
-    makeServiceRequest(...args: unknown[]) {
-      return mocks.makeServiceRequest(...args);
-    }
+  serviceRequest(...args: unknown[]) {
+    return mocks.serviceRequest(...args);
+  }
+});
 
-    getUserFollowing(...args: unknown[]) {
-      return mocks.getUserFollowing(...args);
-    }
+vi.mock('@oxy.so/core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core')>()),
+  OxyServices: MockOxyClient,
+}));
 
-    getUserFollowers(...args: unknown[]) {
-      return mocks.getUserFollowers(...args);
-    }
-  },
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  OxyServer: MockOxyClient,
 }));
 
 vi.mock('../../mcp/services/mcpRevocationService', () => ({
@@ -119,7 +120,7 @@ describe('MCP feed privacy delegation', () => {
     // private data"). This stub used to return populated lists — an assumption
     // no one had checked against the provider — which is exactly why the
     // fail-open below went unnoticed.
-    mocks.makeServiceRequest.mockImplementation(
+    mocks.serviceRequest.mockImplementation(
       async (_method: string, path: string) => {
         if (path === '/users/me/graph') {
           return {
@@ -147,12 +148,12 @@ describe('MCP feed privacy delegation', () => {
     expect(response.body).toEqual({ error: 'OxyPrivacyUnavailableError' });
     expect(response.body.visibleAuthorIds).toBeUndefined();
     // No graph round trip is made for a read it cannot answer.
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
     expect(mocks.setTokens).not.toHaveBeenCalled();
   });
 
   it('refuses the same way when Oxy is unreachable, never with a partial feed', async () => {
-    mocks.makeServiceRequest.mockRejectedValue(
+    mocks.serviceRequest.mockRejectedValue(
       Object.assign(new Error('network unavailable'), { code: 'NETWORK_ERROR' }),
     );
 
@@ -190,7 +191,7 @@ describe('MCP feed privacy through the Oxy connection', () => {
       jti: 'jti-central',
       scope: 'social.read',
     });
-    mocks.makeServiceRequest.mockImplementation(
+    mocks.serviceRequest.mockImplementation(
       async (method: string, path: string, body?: { token?: string }) => {
         if (method === 'POST' && path === '/auth/mcp/oauth/connections/viewer-graph') {
           if (body?.token !== centralToken) throw new Error('wrong proof');
@@ -223,7 +224,7 @@ describe('MCP feed privacy through the Oxy connection', () => {
   });
 
   it('still fails closed when Oxy refuses the connection proof', async () => {
-    mocks.makeServiceRequest.mockRejectedValue(
+    mocks.serviceRequest.mockRejectedValue(
       Object.assign(new Error('invalid_grant'), { status: 401 }),
     );
 

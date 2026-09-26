@@ -49,7 +49,7 @@ const hoisted = vi.hoisted(() => ({
 // reaches this.
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: hoisted.createScopedOxyClient,
-  createUserScopedOxyServices: vi.fn(() => ({ listAccountMembers: hoisted.listAccountMembers })),
+  createUserScopedOxyServices: vi.fn(() => ({ accounts: { members: { list: hoisted.listAccountMembers } } })),
 }));
 
 /**

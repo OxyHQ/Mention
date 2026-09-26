@@ -20,16 +20,15 @@ const { getOrFetchActor, getUsersByIds } = vi.hoisted(() => ({
 // module never starts the server, hits the network, or opens Redis/Mongo.
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
-    getUserById: vi.fn(async () => ({})),
-    getUserFollowing: vi.fn(async () => []),
-    getUserFollowers: vi.fn(async () => []),
+    users: { get: vi.fn(async () => ({})) },
+    follows: { following: vi.fn(async () => []), followers: vi.fn(async () => []) },
   }),
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUsersByIds,
+    users: { getMany: getUsersByIds },
+    assets: { publicUrl: (id: string) => id },
     getClarityDocuments: vi.fn(async () => ({})),
-    getFileDownloadUrl: (id: string) => id,
   }),
 }));
 vi.mock('../../utils/privacyHelpers', () => ({

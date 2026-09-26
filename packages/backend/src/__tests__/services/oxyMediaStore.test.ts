@@ -14,8 +14,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
  *  - `deleteCachedMedia` issues a DELETE to `/assets/service/cache/:id` with the
  *    service bearer.
  *
- * The oxy-api base URL is taken from the service client's `getBaseURL()` — never
- * hardcoded — and the service token from the client's `getServiceToken()`.
+ * The oxy-api base URL is taken from the service client's `baseURL` — never
+ * hardcoded — and the service token from the client's `serviceToken()`.
  */
 
 // --- Force the write side ON for this suite (gated OFF by default in prod). ---
@@ -25,12 +25,11 @@ vi.mock('../../services/mediaCache/constants', () => ({
 
 const SERVICE_TOKEN = 'svc-token-xyz';
 const OXY_BASE = 'http://oxy.test';
-const getServiceToken = vi.fn<() => Promise<string>>().mockResolvedValue(SERVICE_TOKEN);
-const getBaseURL = vi.fn<() => string>().mockReturnValue(OXY_BASE);
+const serviceToken = vi.fn<() => Promise<string>>().mockResolvedValue(SERVICE_TOKEN);
 const invalidateServiceToken = vi.fn<() => void>();
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getServiceToken, getBaseURL, invalidateServiceToken }),
+  getServiceOxyClient: () => ({ serviceToken, baseURL: OXY_BASE, invalidateServiceToken }),
 }));
 
 // --- Capture native HTTP requests + their streamed bodies. ---
@@ -133,8 +132,7 @@ let workDir: string;
 
 beforeEach(async () => {
   requests.length = 0;
-  getServiceToken.mockClear();
-  getBaseURL.mockClear();
+  serviceToken.mockClear();
   invalidateServiceToken.mockClear();
   respond = () => ({ statusCode: 200, body: JSON.stringify({ data: { file: { id: 'oxy_file_default' } } }) });
   resetWriteBudgetCooldowns();
@@ -161,7 +159,7 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
     });
 
     expect(result).toEqual({ oxyFileId: 'oxy_file_123', sizeBytes: payload.byteLength, contentType: 'image/png' });
-    expect(getServiceToken).toHaveBeenCalledTimes(1);
+    expect(serviceToken).toHaveBeenCalledTimes(1);
 
     expect(requests).toHaveLength(1);
     const sent = requests[0];
@@ -229,7 +227,7 @@ describe('oxyMediaStore.uploadCachedMedia', () => {
 
     // The cached token was dropped exactly once, and a fresh token minted per attempt.
     expect(invalidateServiceToken).toHaveBeenCalledTimes(1);
-    expect(getServiceToken).toHaveBeenCalledTimes(2);
+    expect(serviceToken).toHaveBeenCalledTimes(2);
 
     // Two POSTs were issued; the retry re-opened the file and streamed the FULL body.
     expect(requests).toHaveLength(2);
@@ -338,7 +336,7 @@ describe('oxyMediaStore.deleteCachedMedia', () => {
     await deleteCachedMedia('oxy_file_to_delete');
 
     expect(invalidateServiceToken).toHaveBeenCalledTimes(1);
-    expect(getServiceToken).toHaveBeenCalledTimes(2);
+    expect(serviceToken).toHaveBeenCalledTimes(2);
     expect(requests).toHaveLength(2);
     expect(requests[1].options.method).toBe('DELETE');
     expect(requests[1].options.path).toBe('/assets/service/cache/oxy_file_to_delete');

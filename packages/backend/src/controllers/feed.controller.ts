@@ -386,7 +386,7 @@ class FeedController {
                 switch (perm) {
                   case 'followers': {
                     if (!parentAuthorId) break;
-                    const authorFollowers = await getRuntimeOxyClient().getUserFollowers(parentAuthorId);
+                    const authorFollowers = await getRuntimeOxyClient().follows.followers(parentAuthorId);
                     canReply = authorFollowers?.followers?.some((f: FollowerRef) => {
                       const followerId = typeof f === 'string' ? f : (f.id || f._id);
                       return followerId === currentUserId || String(followerId) === String(currentUserId);
@@ -396,7 +396,7 @@ class FeedController {
                   case 'following': {
                     if (!parentAuthorId) break;
                     try {
-                      const authorFollowing = await getRuntimeOxyClient().getUserFollowing(parentAuthorId);
+                      const authorFollowing = await getRuntimeOxyClient().follows.following(parentAuthorId);
                       const followingIds = extractFollowingIds(authorFollowing);
                       canReply = followingIds.includes(currentUserId);
                     } catch (error) {

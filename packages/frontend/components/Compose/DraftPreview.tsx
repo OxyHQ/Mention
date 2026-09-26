@@ -47,7 +47,7 @@ const DraftPreview: React.FC<DraftPreviewProps> = ({ draft, onBack, onEdit }) =>
     () => draftToPreviewPost({
       draft,
       author,
-      resolveMediaUrl: (fileId) => oxyServices.getFileDownloadUrl(fileId),
+      resolveMediaUrl: (fileId) => oxyServices.assets.publicUrl(fileId),
     }),
     [draft, author],
   );

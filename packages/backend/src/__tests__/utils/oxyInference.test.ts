@@ -13,7 +13,7 @@ const state = vi.hoisted(() => ({
     apiSecret: 'application-secret' as string | undefined,
   },
   respond: vi.fn(),
-  getServiceToken: vi.fn(async () => 'service-token'),
+  serviceToken: vi.fn(async () => 'service-token'),
   logError: vi.fn(),
 }));
 
@@ -23,14 +23,14 @@ vi.mock('../../config', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getServiceToken: state.getServiceToken }),
+  getServiceOxyClient: () => ({ serviceToken: state.serviceToken }),
 }));
 
 vi.mock('../../utils/logger', () => ({
   logger: { error: state.logError },
 }));
 
-vi.mock('@oxy.so/core', () => ({
+vi.mock('@oxy.so/core/inference', () => ({
   OxyInferenceClient: class {
     respond = state.respond;
   },

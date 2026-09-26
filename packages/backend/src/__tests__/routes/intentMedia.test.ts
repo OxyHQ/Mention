@@ -38,15 +38,15 @@ vi.mock('@oxy.so/core', async () => {
   return {
     ...actual,
     OxyServices: class MockOxyServices {
-      setTokens(): void {}
-      assetUpload = assetUploadMock;
+      session = { setAccessToken(): void {} };
+      assets = { upload: assetUploadMock };
     },
   };
 });
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getServiceAssetMetadataByIds: vi.fn().mockResolvedValue([]),
+    assets: { metadataByIds: vi.fn().mockResolvedValue([]) },
   }),
   uploadServiceUserMedia: (...args: unknown[]) => uploadServiceUserMediaMock(...args),
 }));

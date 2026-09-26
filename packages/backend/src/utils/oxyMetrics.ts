@@ -11,7 +11,7 @@
  * ## Where it attaches, and why the prototype
  *
  * Every Oxy call in the process funnels through `HttpService.request(config)`:
- * `get`/`post`/`put`/`patch`/`delete` all delegate to it, `OxyServices.makeRequest`
+ * `get`/`post`/`put`/`patch`/`delete` all delegate to it, `OxyServices.request`
  * delegates to it, and the SDK's own 401/CSRF retries re-enter it. One seam
  * reaches 100% of egress.
  *
@@ -188,10 +188,10 @@ const patched = new WeakSet<object>();
  * says what the function actually needs, and `OxyServices` satisfies it
  * structurally.
  */
-export function instrumentOxyEgress(client: { httpService: unknown }): void {
+export function instrumentOxyEgress(client: { http: unknown }): void {
   if (!isOxyInstrumentationEnabled()) return;
 
-  const service: unknown = client.httpService;
+  const service: unknown = client.http;
   if (!service || typeof service !== 'object') return;
   const prototype: unknown = Object.getPrototypeOf(service);
   if (!prototype || typeof prototype !== 'object') return;

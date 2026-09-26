@@ -130,7 +130,7 @@ export function useProfileMoreMenu({
         return;
       }
       try {
-        await oxyServices.blockUser(profileData.id);
+        await oxyServices.privacy.block(profileData.id);
         // The block is written in Oxy; Mention caches the viewer's blocked list
         // per request window, so tell it to drop that entry or the feed keeps
         // showing the blocked account until the window expires. Best-effort —

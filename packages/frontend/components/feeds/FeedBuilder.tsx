@@ -243,7 +243,7 @@ const AccountPicker = ({
       }
       timer.current = setTimeout(async () => {
         try {
-          const { data } = await oxyServices.searchProfiles(q.trim(), { limit: 8 });
+          const { data } = await oxyServices.users.search(q.trim(), { limit: 8 });
           setResults(data.map(toMinimal));
         } catch (error) {
           logger.warn('searchProfiles failed', { error });
@@ -718,7 +718,7 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
     if (initialAuthorIds.length === 0) return;
     let cancelled = false;
     oxyServices
-      .getUsersByIds(initialAuthorIds)
+      .users.getMany(initialAuthorIds)
       .then((users) => { if (!cancelled) setSelectedAccounts(users.map(toMinimal)); })
       .catch((error) => logger.warn('Failed to resolve builder accounts', { error }));
     return () => { cancelled = true; };

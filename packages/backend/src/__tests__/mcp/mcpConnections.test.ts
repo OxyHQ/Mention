@@ -29,7 +29,7 @@ vi.mock('../../mcp/services/mcpRevocationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUsersByIds: mocks.getUsersByIds,
+    users: { getMany: mocks.getUsersByIds },
   }),
 }));
 

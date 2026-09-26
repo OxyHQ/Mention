@@ -32,7 +32,7 @@ export function createCentralTokenIntrospector(
   return (token) =>
     introspectOxyMcpAccessToken(token, {
       endpoint: `${config.oxyApiUrl}/auth/mcp/oauth/introspect`,
-      getServiceToken: () => oxy.getServiceToken(),
+      getServiceToken: () => oxy.serviceToken(),
       invalidateServiceToken: () => oxy.invalidateServiceToken(),
     });
 }

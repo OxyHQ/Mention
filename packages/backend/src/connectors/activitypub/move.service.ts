@@ -68,7 +68,7 @@ async function unfollowMovedActor(oldActorUri: string): Promise<{ unfollowed: nu
   const follows = await findFollows({ remoteActorUri: oldActorUri, direction: 'outbound' });
   if (follows.length === 0) return { unfollowed: 0, unresolved: 0 };
 
-  const users = await getServiceOxyClient().getUsersByIds(follows.map((follow) => follow.localUserId));
+  const users = await getServiceOxyClient().users.getMany(follows.map((follow) => follow.localUserId));
   const usernames = new Map(users.flatMap((user) => (user?.id && user.username ? [[user.id, user.username] as const] : [])));
   const resolved = follows.filter((follow) => usernames.has(follow.localUserId));
 
@@ -87,7 +87,7 @@ async function unfollowMovedActor(oldActorUri: string): Promise<{ unfollowed: nu
 export async function applyInboundMove(move: InboundMove): Promise<void> {
   let outcome: FederationMoveOutcome;
   try {
-    outcome = await getServiceOxyClient().makeServiceRequest<FederationMoveOutcome>('POST', '/federation/move', {
+    outcome = await getServiceOxyClient().serviceRequest<FederationMoveOutcome>('POST', '/federation/move', {
       oldActorUri: move.oldActorUri,
       targetActorUri: move.targetActorUri,
       activityId: move.activityId,

@@ -17,7 +17,7 @@ const signing = vi.hoisted(() => ({ privateKeyPem: '' }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    makeServiceRequest: async (_method: string, _url: string, data?: { signingString?: string }) => {
+    serviceRequest: async (_method: string, _url: string, data?: { signingString?: string }) => {
       const signer = crypto.createSign('sha256');
       signer.update(data?.signingString ?? '');
       signer.end();

@@ -42,7 +42,7 @@ const { inferenceChat, followingIds } = vi.hoisted(() => ({
 
 vi.mock('../../utils/oxyInference', () => ({ isInferenceEnabled: () => true, inferenceChat }));
 vi.mock('../../runtime/oxyClient', () => ({
-  getRuntimeOxyClient: () => ({ getUserById: async () => ({}) }),
+  getRuntimeOxyClient: () => ({ users: { get: async () => ({}) } }),
 }));
 vi.mock('../../services/UserPreferenceService', () => ({
   userPreferenceService: { recordInteraction: vi.fn(async () => undefined) },
@@ -69,7 +69,7 @@ vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   // `undefined` anyway — pinned so the gate can never reach a live Oxy client.
   createUserScopedOxyServices: vi.fn(() => undefined),
   getServiceOxyClient: () => ({
-    getUserFollowing: async () => ({ following: followingIds.value }),
+    follows: { following: async () => ({ following: followingIds.value }) },
   }),
 }));
 

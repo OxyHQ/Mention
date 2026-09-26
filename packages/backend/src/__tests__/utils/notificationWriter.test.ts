@@ -36,7 +36,7 @@ vi.mock('../../utils/push', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getUserById: mocks.getUserById }),
+  getServiceOxyClient: () => ({ users: { get: mocks.getUserById } }),
 }));
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';

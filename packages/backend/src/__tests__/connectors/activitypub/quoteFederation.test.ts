@@ -45,7 +45,7 @@ vi.mock('../../../utils/mediaResolver', () => ({
 const { getUserById } = vi.hoisted(() => ({ getUserById: vi.fn() }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getUserById }),
+  getServiceOxyClient: () => ({ users: { get: getUserById } }),
 }));
 
 import type { PostContent } from '@mention/shared-types';

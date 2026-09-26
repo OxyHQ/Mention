@@ -1,7 +1,6 @@
 import { publicDeploymentInfo } from '@mention/shared-types/deployment';
 import type { RequestHandler } from 'express';
-import { OxyServices } from '@oxy.so/core';
-import { createOxyRateLimit } from '@oxy.so/core/server';
+import { OxyServer, createOxyRateLimit } from '@oxy.so/core/server';
 import { createApp } from './app';
 import { appRoutePredicates, createAppRoutes } from './appRoutes';
 import { config } from './config';
@@ -79,11 +78,11 @@ export function createRuntimeApp(activity?: RequestHandler) {
   initConnectors();
 
   // `serviceIdentity`: this client never holds a user session, so without it
-  // every read it makes (web-shell profiles, `getUserById` fallbacks, `from:`
+  // every read it makes (web-shell profiles, `users.get` fallbacks, `from:`
   // operators) went out anonymous and was charged to the cluster's one NAT
   // address, paying oxy-api's +500 ms `slowDown` past 100 anonymous requests
   // per 15 minutes (#1173). With it they carry Mention's service token.
-  const oxy = new OxyServices({ baseURL: config.oxyApiUrl, serviceIdentity: 'when-anonymous' });
+  const oxy = new OxyServer({ baseURL: config.oxyApiUrl, serviceIdentity: 'when-anonymous' });
   setRuntimeOxyClient(oxy);
 
   // `rate-limit:api:` belongs to THIS limiter — the app-wide one, whose scope is

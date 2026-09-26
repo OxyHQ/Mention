@@ -13,7 +13,7 @@
  * handle and names the SDK's refusal.
  */
 
-import type { OxyAccountEvent, OxyAccountEventFeedItem, OxyAccountEventFeedPage } from '@oxy.so/core';
+import type { OxyAccountEvent, OxyAccountEventFeedItem, OxyAccountEventFeedPage } from '@oxy.so/core/server';
 import { getServiceOxyClient } from '../../utils/oxyHelpers';
 
 export type { OxyAccountEvent, OxyAccountEventFeedItem, OxyAccountEventFeedPage };
@@ -34,7 +34,7 @@ export function isAccountEventRefusal(error: unknown): boolean {
  * defaults to the application id of Mention's own service credential.
  */
 export async function verifyAccountEvent(token: string): Promise<OxyAccountEvent> {
-  const event = await getServiceOxyClient().verifyAccountEvent(token);
+  const event = await getServiceOxyClient().accountEvents.verify(token);
   return { ...event, username: normalizeUsername(event.username) };
 }
 
@@ -43,7 +43,7 @@ export async function listAccountEvents(options: {
   after?: string;
   limit?: number;
 }): Promise<OxyAccountEventFeedPage> {
-  return getServiceOxyClient().listAccountEvents(options);
+  return getServiceOxyClient().accountEvents.list(options);
 }
 
 /**

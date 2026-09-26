@@ -40,7 +40,7 @@ export const useRealtimeNotifications = () => {
     const userId = user?.id;
     if (!isAuthenticated || !isReady || !userId || socket?.connected) return;
 
-    const token = oxyServices?.getAccessToken() ?? undefined;
+    const token = oxyServices?.session.accessToken ?? undefined;
     if (!token) return;
 
     try {

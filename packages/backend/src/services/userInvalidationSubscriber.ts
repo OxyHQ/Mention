@@ -54,21 +54,18 @@ export interface UserInvalidationSubscriber {
 /**
  * Fan one eviction out to both process-level Oxy clients.
  *
- * They are separate `OxyServices` instances (service-token vs public runtime)
+ * They are separate `OxyServer` instances (service-token vs public runtime)
  * and therefore hold SEPARATE response caches, so an invalidation that swept
  * only one would leave the other answering from a stale entry. Resolved lazily
  * per event: `getRuntimeOxyClient` constructs on first use, and building it at
  * module load would drag the Oxy runtime into every importer.
  */
-function bothOxyClients(): OxyIdentityCacheEvictor {
+function bothOxyClients(): { readonly http: OxyIdentityCacheEvictor } {
   return {
-    clearCacheEntry: (key) => {
-      getServiceOxyClient().clearCacheEntry(key);
-      getRuntimeOxyClient().clearCacheEntry(key);
-    },
-    clearCacheByPrefix: (prefix) => {
-      getServiceOxyClient().clearCacheByPrefix(prefix);
-      return getRuntimeOxyClient().clearCacheByPrefix(prefix);
+    http: {
+      invalidateCache: (spec) =>
+        getServiceOxyClient().http.invalidateCache(spec)
+        + getRuntimeOxyClient().http.invalidateCache(spec),
     },
   };
 }

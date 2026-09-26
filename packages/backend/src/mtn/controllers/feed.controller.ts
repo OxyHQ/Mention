@@ -184,7 +184,7 @@ async function computeMutualIds(
 ): Promise<string[]> {
   let oxyMutualIds: string[] = [];
   try {
-    const ids = await getRuntimeOxyClient().getMutualUserIds({ limit: MAX_MUTUAL_IDS });
+    const ids = await getRuntimeOxyClient().follows.mutualIds({ limit: MAX_MUTUAL_IDS });
     oxyMutualIds = ids.filter((id) => id.length > 0);
   } catch (error) {
     logger.warn('[MtnFeedController] Failed to load Oxy mutual ids', error);
@@ -229,7 +229,7 @@ async function computeFriendsOfFriendsIds(): Promise<string[]> {
   const oxyClient = getRuntimeOxyClient();
   if (!supportsFollowsOfFollows(oxyClient)) return [];
   try {
-    const ids = await oxyClient.getFollowsOfFollowsIds({ limit: MAX_FOF_IDS });
+    const ids = await oxyClient.follows.followsOfFollowsIds({ limit: MAX_FOF_IDS });
     return ids.filter((id) => typeof id === 'string' && id.length > 0).slice(0, MAX_FOF_IDS);
   } catch (error) {
     logger.warn('[MtnFeedController] Failed to load friends-of-friends ids', error);
@@ -628,7 +628,7 @@ class MtnFeedController {
         const followingPromise = (async (): Promise<string[]> => {
           let ids: string[] = [];
           try {
-            ids = extractFollowingIds(await feedOxyClient.getUserFollowing(currentUserId));
+            ids = extractFollowingIds(await feedOxyClient.follows.following(currentUserId));
           } catch (error) {
             logger.warn('[MtnFeedController] Failed to load following list', error);
           }

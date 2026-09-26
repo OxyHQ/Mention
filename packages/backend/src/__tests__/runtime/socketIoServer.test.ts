@@ -23,9 +23,9 @@ function createServers(): SocketIOServer {
   return io;
 }
 
-function createAuthProvider(): SocketAuthProvider & { authSocket: ReturnType<typeof vi.fn> } {
+function createAuthProvider(): SocketAuthProvider & { middleware: { socket: ReturnType<typeof vi.fn> } } {
   const middleware = vi.fn().mockResolvedValue(undefined);
-  return { authSocket: vi.fn().mockReturnValue(middleware) };
+  return { middleware: { socket: vi.fn().mockReturnValue(middleware) } };
 }
 
 afterEach(async () => {
@@ -85,8 +85,8 @@ describe('createSocketNamespaces', () => {
 
     const namespaces = createSocketNamespaces(io, oxy);
 
-    expect(oxy.authSocket).toHaveBeenCalledTimes(1);
-    const middleware = oxy.authSocket.mock.results[0].value;
+    expect(oxy.middleware.socket).toHaveBeenCalledTimes(1);
+    const middleware = oxy.middleware.socket.mock.results[0].value;
     expect(notificationsUse).toHaveBeenCalledWith(middleware);
     expect(postsUse).toHaveBeenCalledWith(middleware);
     expect(mainUse).toHaveBeenCalledWith(middleware);

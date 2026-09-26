@@ -31,20 +31,22 @@ const { federateNewPost, createNotification } = vi.hoisted(() => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: vi.fn(() => ({
-    getUsersByIds: vi.fn(async (ids: string[]) =>
-      ids.map((id) => ({ id, type: 'local', username: id, name: { displayName: id } })),
-    ),
-    getUserById: vi.fn(async (id: string) => ({
-      id,
-      type: 'local',
-      username: id,
-      name: { displayName: id },
-    })),
-    getProfileByUsername: vi.fn(async (username: string) => {
-      if (username === 'ghost') throw new Error('not found');
-      if (username === 'remote') return { id: 'fed-1', type: 'federated', username: 'remote' };
-      return { id: `user-${username}`, type: 'local', username };
-    }),
+    users: {
+      getMany: vi.fn(async (ids: string[]) =>
+        ids.map((id) => ({ id, type: 'local', username: id, name: { displayName: id } })),
+      ),
+      get: vi.fn(async (id: string) => ({
+        id,
+        type: 'local',
+        username: id,
+        name: { displayName: id },
+      })),
+      byUsername: vi.fn(async (username: string) => {
+        if (username === 'ghost') throw new Error('not found');
+        if (username === 'remote') return { id: 'fed-1', type: 'federated', username: 'remote' };
+        return { id: `user-${username}`, type: 'local', username };
+      }),
+    },
   })),
 }));
 

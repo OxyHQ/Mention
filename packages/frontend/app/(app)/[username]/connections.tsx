@@ -172,7 +172,7 @@ function ConnectionsContent({
 
     try {
       setError(null);
-      const followersList = await oxyServices.getUserFollowers(profileData.id);
+      const followersList = await oxyServices.follows.followers(profileData.id);
       const list = followersList.followers;
       setFollowers(list);
       cacheActors(list);
@@ -196,7 +196,7 @@ function ConnectionsContent({
 
     try {
       setError(null);
-      const followingList = await oxyServices.getUserFollowing(profileData.id);
+      const followingList = await oxyServices.follows.following(profileData.id);
       const list = followingList.following;
       setFollowing(list);
       cacheActors(list);
@@ -262,7 +262,7 @@ function ConnectionsContent({
       const targetId = profileData?.id;
       if (!targetId) return [];
       try {
-        const result = await oxyServices.getUserMutuals(targetId, { limit: 50 });
+        const result = await oxyServices.follows.mutuals(targetId, { limit: 50 });
         const list = result.mutuals;
         cacheActors(list);
         return list;

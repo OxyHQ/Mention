@@ -12,7 +12,7 @@ import { useAccountThemeSync, useThemeControls } from '../useAccountTheme';
 
 jest.mock('@oxy.so/core/logger', () => ({ logger: { error: jest.fn() } }));
 
-const mockUpdateThemePreference = jest.fn();
+const mockUpdateMe = jest.fn();
 const mockSetMode = jest.fn();
 const mockSetColorPreset = jest.fn();
 const mockSetSource = jest.fn();
@@ -23,7 +23,7 @@ const mockHydrate = jest.fn();
 let mockSource: 'account' | 'app' = 'account';
 
 jest.mock('@oxy.so/services/ui/client', () => ({
-  useAuth: () => ({ ...mockAuth, oxyServices: { updateThemePreference: mockUpdateThemePreference } }),
+  useAuth: () => ({ ...mockAuth, oxyServices: { users: { updateMe: mockUpdateMe } } }),
 }));
 
 jest.mock('@oxy.so/bloom/theme', () => ({
@@ -64,7 +64,7 @@ describe('useThemeControls', () => {
     mockColorPreset = 'teal';
     mockEntitled = true;
     mockSource = 'account';
-    mockUpdateThemePreference.mockResolvedValue(undefined);
+    mockUpdateMe.mockResolvedValue(undefined);
   });
 
   it('keeps a mode change local when signed out', async () => {
@@ -72,7 +72,7 @@ describe('useThemeControls', () => {
     mount();
     await act(() => controls.changeThemeMode('dark'));
     expect(mockSetMode).toHaveBeenCalledWith('dark');
-    expect(mockUpdateThemePreference).not.toHaveBeenCalled();
+    expect(mockUpdateMe).not.toHaveBeenCalled();
   });
 
   it('reports the app source when signed out, whatever is stored', () => {
@@ -86,7 +86,7 @@ describe('useThemeControls', () => {
     mount();
     act(() => controls.changeThemeSource('account'));
     expect(mockSetSource).toHaveBeenCalledWith('account');
-    expect(mockUpdateThemePreference).not.toHaveBeenCalled();
+    expect(mockUpdateMe).not.toHaveBeenCalled();
   });
 
   it('keeps a colour change local when signed out', async () => {
@@ -94,14 +94,14 @@ describe('useThemeControls', () => {
     mount();
     await act(() => controls.changeColorPreset('oxy'));
     expect(mockSetColorPreset).toHaveBeenCalledWith('oxy');
-    expect(mockUpdateThemePreference).not.toHaveBeenCalled();
+    expect(mockUpdateMe).not.toHaveBeenCalled();
   });
 
   it('writes the portable theme to the account when signed in on the account source', async () => {
     mockAuth = { canUsePrivateApi: true, user: { username: 'ada' } };
     mount();
     await act(() => controls.changeThemeMode('adaptive'));
-    expect(mockUpdateThemePreference).toHaveBeenCalledWith({ mode: 'system', colorPreset: 'teal' });
+    expect(mockUpdateMe).toHaveBeenCalledWith({ themePreference: { mode: 'system', colorPreset: 'teal' } });
   });
 
   it('stays local on the app source even when signed in', async () => {
@@ -109,13 +109,13 @@ describe('useThemeControls', () => {
     mockSource = 'app';
     mount();
     await act(() => controls.changeThemeMode('dark'));
-    expect(mockUpdateThemePreference).not.toHaveBeenCalled();
+    expect(mockUpdateMe).not.toHaveBeenCalled();
   });
 
   it('reports a failed first-time account seed without an unhandled rejection', async () => {
     const error = new Error('network unavailable');
     mockAuth = { canUsePrivateApi: true, user: { username: 'ada' } };
-    mockUpdateThemePreference.mockRejectedValueOnce(error);
+    mockUpdateMe.mockRejectedValueOnce(error);
     mount();
     await act(async () => { controls.changeThemeSource('account'); });
     expect(mockSetSource).toHaveBeenCalledWith('account');
@@ -127,7 +127,7 @@ describe('useThemeControls', () => {
     mount();
     act(() => controls.changeThemeSource('account'));
     expect(mockSetSource).toHaveBeenCalledWith('account');
-    expect(mockUpdateThemePreference).toHaveBeenCalledWith({ mode: 'light', colorPreset: 'teal' });
+    expect(mockUpdateMe).toHaveBeenCalledWith({ themePreference: { mode: 'light', colorPreset: 'teal' } });
   });
 });
 

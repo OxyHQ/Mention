@@ -9,9 +9,11 @@ import { CHRONO_DESC, deletePostRecord, findPostRecords, insertPostRecord } from
 
 vi.mock('../utils/oxyHelpers', () => ({
   getServiceOxyClient: vi.fn(() => ({
-    getUsersByIds: vi.fn(async (ids: string[]) =>
-      ids.map((id) => ({ id, type: 'local', username: id, name: { displayName: id } })),
-    ),
+    users: {
+      getMany: vi.fn(async (ids: string[]) =>
+        ids.map((id) => ({ id, type: 'local', username: id, name: { displayName: id } })),
+      ),
+    },
   })),
 }));
 

@@ -127,9 +127,11 @@ export function useThemeControls(): ThemeControls {
 
   const persistAccountTheme = useCallback(
     (next: { mode: ThemeMode; colorPreset: AppColorName }) =>
-      oxyServices.updateThemePreference({
-        mode: toPortableMode(next.mode),
-        colorPreset: next.colorPreset,
+      oxyServices.users.updateMe({
+        themePreference: {
+          mode: toPortableMode(next.mode),
+          colorPreset: next.colorPreset,
+        },
       }),
     [oxyServices],
   );

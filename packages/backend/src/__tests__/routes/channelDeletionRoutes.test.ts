@@ -62,8 +62,8 @@ vi.mock('../../services/channelDeletion/ChannelDeletionService', () => {
 });
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  createUserScopedOxyServices: () => ({
-    async listAccountMembers(accountId: string) {
+  createUserScopedOxyServices: () => ({ accounts: { members: {
+    async list(accountId: string) {
       if (state.callerPermissions === null) return [];
       return [
         {
@@ -79,7 +79,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
         },
       ];
     },
-  }),
+  } } }),
 }));
 
 vi.mock('@oxy.so/core/server', () => ({

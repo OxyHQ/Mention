@@ -22,7 +22,7 @@ type SyraSdk = Pick<typeof import('@syra.fm/sdk'), 'createSyraClient'>;
 export function buildSyraClient({ createSyraClient }: SyraSdk): SyraClient {
   return createSyraClient({
     baseURL: SYRA_API_URL.replace(/\/api\/?$/, ''),
-    getAccessToken: () => oxyServices.getClient().getAccessToken(),
+    getAccessToken: () => oxyServices.http.getAccessToken(),
   });
 }
 

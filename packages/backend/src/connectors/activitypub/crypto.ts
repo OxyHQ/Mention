@@ -179,7 +179,7 @@ export async function getPublicKey(username: string): Promise<FederationPublicKe
   const path = `/federation/public-key/${encodeURIComponent(username)}?domain=${encodeURIComponent(FEDERATION_DOMAIN)}`;
   let response: OxyPublicKeyResponse;
   try {
-    response = await getServiceOxyClient().makeServiceRequest<OxyPublicKeyResponse>('GET', path);
+    response = await getServiceOxyClient().serviceRequest<OxyPublicKeyResponse>('GET', path);
   } catch (err) {
     const message = describeServiceError(err);
     // The public key drives the actor's advertised key material. Without it the
@@ -215,7 +215,7 @@ export async function getPublicKey(username: string): Promise<FederationPublicKe
 export async function signViaOxy(keyId: string, signingString: string): Promise<string> {
   let response: OxySignResponse;
   try {
-    response = await getServiceOxyClient().makeServiceRequest<OxySignResponse>(
+    response = await getServiceOxyClient().serviceRequest<OxySignResponse>(
       'POST',
       '/federation/sign',
       { keyId, signingString },

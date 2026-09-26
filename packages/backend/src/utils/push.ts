@@ -148,7 +148,7 @@ export async function formatPushForNotification(n: PushNotificationSource) {
   let actorName = 'Someone';
   try {
     if (n.actorId && n.actorId !== 'system') {
-      const actor = await getServiceOxyClient().getUserById(n.actorId);
+      const actor = await getServiceOxyClient().users.get(n.actorId);
       actorName = actor?.name.displayName ?? actorName;
     } else if (n.actorId === 'system') {
       actorName = 'System';

@@ -872,7 +872,7 @@ export class FollowService {
 
     let users: OxyUser[] = [];
     try {
-      users = await getServiceOxyClient().getUsersByIds(localIds);
+      users = await getServiceOxyClient().users.getMany(localIds);
     } catch (err) {
       logger.warn('[FedDeliver] mention Oxy user lookup failed', {
         count: localIds.length,
@@ -1119,7 +1119,7 @@ export class FollowService {
     if (!ownerId) return null;
     let ownerUsername: string | undefined;
     try {
-      const owner = await getServiceOxyClient().getUserById(ownerId);
+      const owner = await getServiceOxyClient().users.get(ownerId);
       ownerUsername = owner.username?.trim() || undefined;
     } catch (err) {
       logger.warn('[FedDeliver] failed to resolve original author', err);

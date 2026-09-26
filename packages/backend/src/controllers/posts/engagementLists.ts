@@ -173,7 +173,7 @@ export const getKnownPostLikers = async (req: AuthRequest, res: Response) => {
       return res.json({ likers: [], total: 0 });
     }
 
-    const followingIds = extractFollowingIds(await oxyClient.getViewerGraph())
+    const followingIds = extractFollowingIds(await oxyClient.follows.viewerGraph())
       .slice(0, MAX_KNOWN_LIKER_CANDIDATES);
     if (followingIds.length === 0) {
       return res.json({ likers: [], total: 0 });

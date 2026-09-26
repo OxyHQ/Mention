@@ -15,7 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const mocks = vi.hoisted(() => ({
-  makeServiceRequest: vi.fn(),
+  serviceRequest: vi.fn(),
   loggerError: vi.fn(),
   loggerWarn: vi.fn(),
   loggerInfo: vi.fn(),
@@ -34,7 +34,7 @@ vi.mock('../../../utils/logger', () => ({
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ makeServiceRequest: mocks.makeServiceRequest }),
+  getServiceOxyClient: () => ({ serviceRequest: mocks.serviceRequest }),
 }));
 
 import { getPublicKey, signViaOxy } from '../../../connectors/activitypub/crypto';
@@ -52,7 +52,7 @@ describe('signViaOxy error legibility', () => {
 
   it('surfaces the HTTP status from an ApiError plain object (429), never [object Object]', async () => {
     // Exact shape @oxy.so/core throws: a plain object, NOT an Error instance.
-    mocks.makeServiceRequest.mockRejectedValueOnce({
+    mocks.serviceRequest.mockRejectedValueOnce({
       message: 'Too many requests',
       code: 'RATE_LIMITED',
       status: 429,
@@ -71,7 +71,7 @@ describe('signViaOxy error legibility', () => {
   });
 
   it('surfaces status + body from an axios-style { response: { status, data } } object', async () => {
-    mocks.makeServiceRequest.mockRejectedValueOnce({
+    mocks.serviceRequest.mockRejectedValueOnce({
       response: { status: 503, data: { error: 'sign service down' } },
     });
 
@@ -89,7 +89,7 @@ describe('signViaOxy error legibility', () => {
   });
 
   it('uses .message for a real Error instance', async () => {
-    mocks.makeServiceRequest.mockRejectedValueOnce(
+    mocks.serviceRequest.mockRejectedValueOnce(
       new Error('Service credentials not provided'),
     );
 
@@ -106,7 +106,7 @@ describe('signViaOxy error legibility', () => {
   });
 
   it('never emits [object Object] even for an opaque object with no known fields', async () => {
-    mocks.makeServiceRequest.mockRejectedValueOnce({ weird: 'shape' });
+    mocks.serviceRequest.mockRejectedValueOnce({ weird: 'shape' });
 
     await expect(signViaOxy('key#main', 'signing-string')).rejects.toThrow();
 
@@ -125,7 +125,7 @@ describe('getPublicKey error legibility', () => {
   });
 
   it('surfaces the HTTP status from an ApiError plain object (429), never [object Object]', async () => {
-    mocks.makeServiceRequest.mockRejectedValueOnce({
+    mocks.serviceRequest.mockRejectedValueOnce({
       message: 'Too many requests',
       code: 'RATE_LIMITED',
       status: 429,

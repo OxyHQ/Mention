@@ -35,7 +35,7 @@ export function useSeedViewerFollowStatuses(): void {
 
   const { data } = useQuery({
     queryKey: viewerQueryKeys.viewerFollowing(viewerId),
-    queryFn: () => oxyServices.getViewerGraph(),
+    queryFn: () => oxyServices.follows.viewerGraph(),
     enabled: canUsePrivateApi && viewerId.length > 0,
     staleTime: VIEWER_FOLLOWING_STALE_TIME_MS,
     gcTime: VIEWER_FOLLOWING_GC_TIME_MS,

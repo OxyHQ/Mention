@@ -1,4 +1,5 @@
 import { OxyServices } from '@oxy.so/core';
+import { OxyServer } from '@oxy.so/core/server';
 import { extractBearerToken } from '@oxy.so/mcp';
 import { OxyPrivacyUnavailableError, type OxyClient } from './privacyHelpers';
 import {
@@ -48,8 +49,8 @@ export function createScopedOxyClient(req: ScopedOxyRequest): OxyClient | undefi
   const token = req.accessToken || extractBearerToken(req.headers ?? {});
   if (!token) return undefined;
   const client = new OxyServices({ baseURL: OXY_BASE_URL });
-  client.setTokens(token);
-  return client as unknown as OxyClient;
+  client.session.setAccessToken(token);
+  return client;
 }
 
 /**
@@ -73,42 +74,46 @@ export function createUserScopedOxyServices(req: ScopedOxyRequest): OxyServices 
   const token = req.accessToken || extractBearerToken(req.headers ?? {});
   if (!token) return undefined;
   const client = new OxyServices({ baseURL: OXY_BASE_URL });
-  client.setTokens(token);
+  client.session.setAccessToken(token);
   return client;
 }
 
 /**
- * Module-level singleton OxyServices instance authenticated with the rotating
+ * Module-level singleton OxyServer instance authenticated with the rotating
  * service credential.
  * Used for server-side operations on behalf of the system (e.g. resolving federated actors).
  */
-const serviceClient: OxyServices = (() => {
-  // `serviceIdentity`: the SDK's ordinary reads on this client (everything that
-  // is not `makeServiceRequest`) carry the service token too, rather than going
-  // out anonymous and sharing the NAT address's per-IP budget (#1173).
-  const client = new OxyServices({ baseURL: OXY_BASE_URL, serviceIdentity: 'when-anonymous' });
-
+const serviceClient: OxyServer = (() => {
   const { apiKey, apiSecret } = getOxyServiceCredentials();
-  if (apiKey && apiSecret) {
-    client.configureServiceAuth(apiKey, apiSecret);
-  } else if (canAuthenticateAsService()) {
-    /**
-     * Not a warning, and not "unauthenticated".
-     *
-     * With no key pair the SDK attests this process's task role instead and
-     * mints the same service token (oxy ADR 0026). The old line said the client
-     * would be unauthenticated, which was true when the only identity was a
-     * secret and became false the day the deployment stopped carrying one — and
-     * a warning that says a working deployment is broken is how somebody ends up
-     * putting the credential back.
-     */
-    logger.info('[oxyHelpers] no service key pair; the Oxy client attests this task role instead');
-  } else {
-    logger.warn(
-      '[oxyHelpers] no Oxy service identity: neither a key pair nor an attestable task role. Calls needing one will fail.',
-    );
+  // `serviceIdentity`: the SDK's ordinary reads on this client (everything that
+  // is not `serviceRequest`) carry the service token too, rather than going
+  // out anonymous and sharing the NAT address's per-IP budget (#1173).
+  const client = new OxyServer({
+    baseURL: OXY_BASE_URL,
+    serviceIdentity: 'when-anonymous',
+    ...(apiKey && apiSecret ? { serviceAuth: { apiKey, apiSecret } } : {}),
+  });
+
+  if (!apiKey || !apiSecret) {
+    if (canAuthenticateAsService()) {
+      /**
+       * Not a warning, and not "unauthenticated".
+       *
+       * With no key pair the SDK attests this process's task role instead and
+       * mints the same service token (oxy ADR 0026). The old line said the client
+       * would be unauthenticated, which was true when the only identity was a
+       * secret and became false the day the deployment stopped carrying one — and
+       * a warning that says a working deployment is broken is how somebody ends up
+       * putting the credential back.
+       */
+      logger.info('[oxyHelpers] no service key pair; the Oxy client attests this task role instead');
+    } else {
+      logger.warn(
+        '[oxyHelpers] no Oxy service identity: neither a key pair nor an attestable task role. Calls needing one will fail.',
+      );
+    }
   }
-  // The first `OxyServices` this process builds, and the only install point
+  // The first Oxy client this process builds, and the only install point
   // needed: `instrumentOxyEgress` patches the shared `HttpService` PROTOTYPE, so
   // every instance built before or after — including the two constructed per
   // request — is covered without threading anything through their call sites.
@@ -116,7 +121,7 @@ const serviceClient: OxyServices = (() => {
   return client;
 })();
 
-export function getServiceOxyClient(): OxyServices {
+export function getServiceOxyClient(): OxyServer {
   return serviceClient;
 }
 
@@ -184,7 +189,7 @@ function createServiceDelegatedOxyClient(viewerId: string, connectionToken?: str
   let connectionGraph: Promise<DelegatedViewerGraph> | undefined;
   const readConnectionGraph = (token: string): Promise<DelegatedViewerGraph> => {
     connectionGraph ??= client
-      .makeServiceRequest('POST', OXY_MCP_CONNECTION_VIEWER_GRAPH_PATH, { token })
+      .serviceRequest<unknown>('POST', OXY_MCP_CONNECTION_VIEWER_GRAPH_PATH, { token })
       .then((response) => {
         const body = unwrapDataEnvelope(response) as
           | { account_id?: unknown; graph?: unknown }
@@ -208,7 +213,7 @@ function createServiceDelegatedOxyClient(viewerId: string, connectionToken?: str
   const viewerGraph = (): Promise<unknown> => {
     if (connectionToken) return readConnectionGraph(connectionToken);
     headerGraph ??= client
-      .makeServiceRequest('GET', OXY_VIEWER_GRAPH_PATH, undefined, viewerId)
+      .serviceRequest<unknown>('GET', OXY_VIEWER_GRAPH_PATH, undefined, { actAs: viewerId })
       .then(unwrapDataEnvelope);
     return headerGraph;
   };
@@ -228,22 +233,26 @@ function createServiceDelegatedOxyClient(viewerId: string, connectionToken?: str
   };
 
   return {
-    getBlockedUsers(): Promise<unknown[]> {
-      return privacyList('blocked');
+    privacy: {
+      blocked(): Promise<unknown[]> {
+        return privacyList('blocked');
+      },
+      restricted(): Promise<unknown[]> {
+        return privacyList('restricted');
+      },
     },
-    getRestrictedUsers(): Promise<unknown[]> {
-      return privacyList('restricted');
-    },
-    // The graph object itself, never the `{ data }` envelope the raw service
-    // request carries, so the shape matches OxyServices.getViewerGraph.
-    getViewerGraph(): Promise<unknown> {
-      return viewerGraph();
-    },
-    getUserFollowing(userId: string): Promise<unknown> {
-      return client.getUserFollowing(userId);
-    },
-    getUserFollowers(userId: string): Promise<unknown> {
-      return client.getUserFollowers(userId);
+    follows: {
+      // The graph object itself, never the `{ data }` envelope the raw service
+      // request carries, so the shape matches OxyServices.follows.viewerGraph.
+      viewerGraph(): Promise<unknown> {
+        return viewerGraph();
+      },
+      following(userId: string): Promise<unknown> {
+        return client.follows.following(userId);
+      },
+      followers(userId: string): Promise<unknown> {
+        return client.follows.followers(userId);
+      },
     },
   };
 }
@@ -267,8 +276,8 @@ export async function uploadServiceUserMedia(params: {
   fileName: string;
 }): Promise<ServiceUserMediaUploadResult> {
   const client = getServiceOxyClient();
-  const token = await client.getServiceToken();
-  const baseUrl = client.getBaseURL().replace(/\/+$/, '');
+  const token = await client.serviceToken();
+  const baseUrl = client.baseURL.replace(/\/+$/, '');
   const url = `${baseUrl}${OXY_ASSET_USER_MEDIA_PATH}`;
 
   const response = await fetch(url, {
@@ -344,8 +353,8 @@ export async function ensureProfileMediaPublic(
 
   try {
     const client = new OxyServices({ baseURL: OXY_BASE_URL });
-    client.setTokens(accessToken);
-    await client.assetUpdateVisibility(fileId, 'public');
+    client.session.setAccessToken(accessToken);
+    await client.assets.setVisibility(fileId, 'public');
     logger.info('[oxyHelpers] Promoted profile media asset to public', { fileId });
   } catch (error) {
     // Non-fatal: a failed visibility flip must never block the profile update.

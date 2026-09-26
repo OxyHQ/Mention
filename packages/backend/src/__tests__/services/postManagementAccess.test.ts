@@ -27,7 +27,7 @@ function accountsAre(kinds: Record<string, string>): void {
 }
 
 function memberReaderReturning(members: unknown[]) {
-  return { listAccountMembers: vi.fn(async () => members as never) };
+  return { accounts: { members: { list: vi.fn(async () => members as never) } } };
 }
 
 beforeEach(() => {
@@ -75,7 +75,7 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     expect(refusal).toBeNull();
     // The cost claim, asserted rather than described: hydration-shaped traffic
     // must not reach Oxy, and this is the path every ordinary post takes.
-    expect(reader.listAccountMembers).not.toHaveBeenCalled();
+    expect(reader.accounts.members.list).not.toHaveBeenCalled();
     expect(resolveUserSummaries).not.toHaveBeenCalled();
   });
 
@@ -91,7 +91,7 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     expect(refusal).toBeNull();
     // The point of the whole change: the stored writer buys no shortcut. Being
     // named on the row is what the READ path may act on; the write path asks.
-    expect(reader.listAccountMembers).toHaveBeenCalledWith(CHANNEL);
+    expect(reader.accounts.members.list).toHaveBeenCalledWith(CHANNEL);
   });
 
   it('REFUSES the stored writer once their membership is gone', async () => {
@@ -131,9 +131,13 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     // current writer during an Oxy outage is told to retry, never that the story
     // they queued has vanished.
     const reader = {
-      listAccountMembers: vi.fn(async () => {
-        throw new Error('oxy is down');
-      }),
+      accounts: {
+        members: {
+          list: vi.fn(async () => {
+            throw new Error('oxy is down');
+          }),
+        },
+      },
     };
 
     const refusal = await postManagementRefusal({
@@ -157,7 +161,7 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     });
 
     expect(refusal).toBeNull();
-    expect(reader.listAccountMembers).toHaveBeenCalledWith(CHANNEL);
+    expect(reader.accounts.members.list).toHaveBeenCalledWith(CHANNEL);
   });
 
   it('refuses a non-member with the SAME 404 a missing post answers', async () => {
@@ -198,16 +202,20 @@ describe('postManagementRefusal — the WRITE path gate', () => {
     // A `personal` account is refused before any membership is consulted —
     // nothing can be published as one, so nothing can be managed for one either.
     expect(refusal?.status).toBe(404);
-    expect(reader.listAccountMembers).not.toHaveBeenCalled();
+    expect(reader.accounts.members.list).not.toHaveBeenCalled();
   });
 
   it('answers 503 on an Oxy OUTAGE rather than collapsing it to 404', async () => {
     // The one refusal that must not look like "your post is gone". An operator
     // seeing 404 during an outage would reasonably believe it was deleted.
     const reader = {
-      listAccountMembers: vi.fn(async () => {
-        throw new Error('oxy is down');
-      }),
+      accounts: {
+        members: {
+          list: vi.fn(async () => {
+            throw new Error('oxy is down');
+          }),
+        },
+      },
     };
 
     const refusal = await postManagementRefusal({

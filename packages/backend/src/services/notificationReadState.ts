@@ -77,7 +77,7 @@ export async function enrichNotificationActor(
     actor = SYSTEM_ACTOR;
   } else if (actorId) {
     try {
-      const [profile] = await getServiceOxyClient().getUsersByIds([actorId]);
+      const [profile] = await getServiceOxyClient().users.getMany([actorId]);
       if (profile?.id) actor = profile;
     } catch (e) {
       logger.warn('[Notifications] Failed to resolve actor profile:', e);

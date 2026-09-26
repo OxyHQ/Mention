@@ -26,7 +26,7 @@ export const useLinkDetection = (text: string) => {
   
   const { oxyServices } = useAuth();
   const clarity = useMemo(() => new ClarityClient({
-    getAccessToken: () => oxyServices.getClient().getAccessToken() || Promise.reject(new Error('No active Oxy session')),
+    getAccessToken: () => oxyServices.http.getAccessToken() || Promise.reject(new Error('No active Oxy session')),
   }), [oxyServices]);
   const { getCached, upsertLink } = useLinksStore();
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);

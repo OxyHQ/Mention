@@ -5,7 +5,7 @@ import { getServiceOxyClient } from '../utils/oxyHelpers';
 export async function resolveOxyIdentity(
   input: { handle: string } | { actorUri: string; transportAcct?: string; protocol: 'activitypub' | 'atproto' },
 ) {
-  const response = await getServiceOxyClient().makeServiceRequest<unknown>(
+  const response = await getServiceOxyClient().serviceRequest<unknown>(
     'POST', '/federation/identities/resolve', input,
   );
   const resolved = resolveExternalIdentityResponseSchema.parse(response);
@@ -18,7 +18,7 @@ export async function resolveOxyIdentity(
 
 /** Read current Oxy proof without causing source discovery or minting identities. */
 export async function lookupOxyIdentities(identifiers: string[]) {
-  const response = await getServiceOxyClient().makeServiceRequest<unknown>(
+  const response = await getServiceOxyClient().serviceRequest<unknown>(
     'POST', '/federation/identities/lookup', { identifiers },
   );
   return lookupExternalIdentitiesResponseSchema.parse(response).identities;

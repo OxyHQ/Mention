@@ -46,7 +46,7 @@ const mocks = vi.hoisted(() => ({
   creator: null as null | { create: (params: Record<string, unknown>) => Promise<unknown> },
   federateNewPost: vi.fn(async () => undefined),
   getServiceOxyClient: vi.fn(),
-  makeServiceRequest: vi.fn(),
+  serviceRequest: vi.fn(),
   persistRemoteMedia: vi.fn(),
   recordAccess: vi.fn(),
   assertSafePublicUrl: vi.fn(),
@@ -287,7 +287,7 @@ beforeEach(async () => {
   mocks.assertSafePublicUrl.mockResolvedValue({ ok: true, ip: '93.184.216.34', family: 4 });
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   mocks.recordAccess.mockResolvedValue(undefined);
-  mocks.makeServiceRequest.mockImplementation(async (
+  mocks.serviceRequest.mockImplementation(async (
     method: string,
     path: string,
     input: { actorUri: string; transportAcct: string; protocol: 'activitypub' },
@@ -340,7 +340,7 @@ beforeEach(async () => {
     },
   );
   mocks.getServiceOxyClient.mockReturnValue({
-    makeServiceRequest: mocks.makeServiceRequest,
+    serviceRequest: mocks.serviceRequest,
     getUserById: vi.fn(async (id: string) => ({ id, username: 'someone' })),
     getUsersByIds: vi.fn(async () => []),
   });
@@ -455,7 +455,7 @@ describe('federationService.fetchRemoteActor', () => {
       domain: 'threads.net',
       outboxUrl: 'https://www.threads.net/ap/users/mosseri/outbox',
     });
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
+    expect(mocks.serviceRequest).toHaveBeenCalledWith(
       'POST',
       '/federation/identities/resolve',
       expect.objectContaining({
@@ -490,7 +490,7 @@ describe('federationService.fetchRemoteActor', () => {
 
     expect(actor).toBeNull();
     expect(mocks.findOneAndUpdate).not.toHaveBeenCalled();
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
   });
 
   it('rejects actor documents with a cross-origin public key id', async () => {
@@ -517,7 +517,7 @@ describe('federationService.fetchRemoteActor', () => {
 
     expect(actor).toBeNull();
     expect(mocks.findOneAndUpdate).not.toHaveBeenCalled();
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
   });
 
   it('does not trust cross-domain acct hints or actor webfinger claims', async () => {
@@ -557,7 +557,7 @@ describe('federationService.fetchRemoteActor', () => {
       acct: 'mallory@evil.example',
       domain: 'evil.example',
     });
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
+    expect(mocks.serviceRequest).toHaveBeenCalledWith(
       'POST',
       '/federation/identities/resolve',
       expect.objectContaining({
@@ -645,7 +645,7 @@ describe('federationService.fetchRemoteActor', () => {
       inbox: `${actorUri}/inbox`,
       image: { url: `${scope.origin}/banner.jpg` },
     })));
-    mocks.makeServiceRequest.mockRejectedValueOnce(new Error('Unverified source identity'));
+    mocks.serviceRequest.mockRejectedValueOnce(new Error('Unverified source identity'));
     mocks.persistRemoteMedia.mockResolvedValue({
       ok: true,
       media: { oxyFileId: 'untrusted_banner', contentType: 'image/jpeg', sizeBytes: 1234 },
@@ -695,7 +695,7 @@ describe('federationService.fetchRemoteActor', () => {
       { name: 'Sitio web', value: '<a href="https://carol.example">carol.example</a>', verifiedAt: undefined },
     ]);
     // Mention sends source coordinates only; Oxy verifies the public profile.
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
+    expect(mocks.serviceRequest).toHaveBeenCalledWith(
       'POST',
       '/federation/identities/resolve',
       {
@@ -727,7 +727,7 @@ describe('federationService.fetchRemoteActor', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(mocks.fetchUpstreamSingleHop).not.toHaveBeenCalled();
     expect(mocks.findOneAndUpdate).not.toHaveBeenCalled();
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
   });
 });
 

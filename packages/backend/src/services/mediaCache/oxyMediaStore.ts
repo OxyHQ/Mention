@@ -270,7 +270,7 @@ export function isMediaCacheEnabled(): boolean {
  * is unknown or private; the SDK says as much. This store knows.
  */
 export function cachedMediaCdnUrl(oxyFileId: string, variant?: string): string {
-  return getServiceOxyClient().getFileDownloadUrl(oxyFileId, variant);
+  return getServiceOxyClient().assets.publicUrl(oxyFileId, variant);
 }
 
 /**
@@ -278,7 +278,7 @@ export function cachedMediaCdnUrl(oxyFileId: string, variant?: string): string {
  * SDK owns this value (set from `OXY_API_URL`), so we never hardcode a host here.
  */
 function getOxyApiBaseUrl(): string {
-  return getServiceOxyClient().getBaseURL().replace(/\/+$/, '');
+  return getServiceOxyClient().baseURL.replace(/\/+$/, '');
 }
 
 /**
@@ -287,7 +287,7 @@ function getOxyApiBaseUrl(): string {
  * lifecycle stays owned by the SDK — we never mint one ourselves.
  */
 async function getServiceBearerToken(): Promise<string> {
-  return getServiceOxyClient().getServiceToken();
+  return getServiceOxyClient().serviceToken();
 }
 
 /**

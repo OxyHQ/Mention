@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => ({
   upsertActor: vi.fn(),
   reconcileProjection: vi.fn().mockResolvedValue({}),
   findIdentityOwnerActor: vi.fn(),
-  makeServiceRequest: vi.fn(),
+  serviceRequest: vi.fn(),
 }));
 
 // The signed AP fetch is the only thing replaced in `helpers` — acct
@@ -76,13 +76,18 @@ vi.mock('../../db/federation/actorRepository', async (importOriginal) => ({
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(),
   getServiceOxyClient: () => ({
-    makeServiceRequest: mocks.makeServiceRequest,
-    getUserById: vi.fn(),
-    getUsersByIds: vi.fn(async () => []),
+    serviceRequest: mocks.serviceRequest,
+    users: {
+      get: vi.fn(),
+      getMany: vi.fn(async () => []),
+    },
   }),
 }));
 
-vi.mock('@oxy.so/core/server', () => ({ getRequiredOxyUserId: () => 'local-user-1' }));
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  getRequiredOxyUserId: () => 'local-user-1',
+}));
 vi.mock('../../middleware/rateLimiter', () => ({
   apiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
@@ -204,7 +209,7 @@ beforeEach(() => {
     storedRow = { uri, ...columns };
     return Promise.resolve({ ...storedRow, id: 'row-1' });
   });
-  mocks.makeServiceRequest.mockResolvedValue(oxyIdentityFixture({
+  mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({
     actorUri: ACTOR_URI, transportAcct: 'zuck@kilogram.makeup', canonicalAcct: 'zuck@instagram.com',
     network: 'instagram.com', userId: 'oxy-zuck', displayName: 'Mark Zuckerberg', bio: 'I build stuff', avatar: AVATAR,
   }));
@@ -241,13 +246,13 @@ describe('resolving @zuck@kilogram.makeup', () => {
 
   it('asks Oxy to discover the person without sending app-derived profile assertions', async () => {
     await request(app).get('/federation/resolve').query({ handle: '@zuck@kilogram.makeup' });
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
+    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
       handle: '@zuck@kilogram.makeup',
     });
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
+    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
       actorUri: ACTOR_URI, transportAcct: 'zuck@kilogram.makeup', protocol: 'activitypub',
     });
-    expect(mocks.makeServiceRequest.mock.calls.some(([, path]) => path === '/users/resolve')).toBe(false);
+    expect(mocks.serviceRequest.mock.calls.some(([, path]) => path === '/users/resolve')).toBe(false);
     expect(mocks.findIdentityOwnerActor).not.toHaveBeenCalled();
   });
 
@@ -303,7 +308,7 @@ describe('what the bridge lane deliberately leaves alone', () => {
       inbox: `${actorUri}/inbox`, outbox: `${actorUri}/outbox`,
       summary: "Uno @delbarriotv y de @lodeevole<br>This account is a replica from Twitter. Patreon.",
     });
-    mocks.makeServiceRequest.mockResolvedValue(oxyIdentityFixture({
+    mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({
       actorUri, transportAcct: 'jordievole@bird.makeup', canonicalAcct: 'jordievole@x.com',
       network: 'x.com', userId: 'oxy-jordievole', bio: 'Uno @delbarriotv@x.com y de @lodeevole@x.com',
     }));
@@ -319,7 +324,7 @@ describe('what the bridge lane deliberately leaves alone', () => {
   });
 
   it('does not mint a transport identity when Oxy is unavailable', async () => {
-    mocks.makeServiceRequest.mockRejectedValue(new Error('Oxy unavailable'));
+    mocks.serviceRequest.mockRejectedValue(new Error('Oxy unavailable'));
     const response = await request(app).get('/federation/resolve').query({ handle: 'zuck@kilogram.makeup' });
     expect(response.status).toBe(500);
     expect(mocks.upsertActor).not.toHaveBeenCalled();
@@ -328,7 +333,7 @@ describe('what the bridge lane deliberately leaves alone', () => {
 
   it("does not re-attribute the operator's own account to a person on Instagram", async () => {
     serveActor(OPERATOR_ACTOR);
-    mocks.makeServiceRequest.mockResolvedValue(oxyIdentityFixture({
+    mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({
       actorUri: OPERATOR_ACTOR.id, transportAcct: 'kilogram.makeup@kilogram.makeup',
       canonicalAcct: 'kilogram.makeup@kilogram.makeup', network: 'kilogram.makeup',
       userId: 'oxy-operator', bio: OPERATOR_ACTOR.summary,

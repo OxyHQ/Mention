@@ -384,8 +384,8 @@ const PostDetailScreen: React.FC = () => {
         if (!post) return undefined;
         const media = post.content.media || [];
         const firstImage = media.find((item) => item?.type === 'image');
-        if (firstImage?.id && oxyServices?.getFileDownloadUrl) {
-            return oxyServices.getFileDownloadUrl(firstImage.id);
+        if (firstImage?.id && oxyServices) {
+            return oxyServices.assets.publicUrl(firstImage.id);
         }
         return undefined;
     }, [post, oxyServices]);

@@ -34,7 +34,7 @@ import { PostType, PostVisibility } from '@mention/shared-types';
 const getUserById = vi.fn();
 
 vi.mock('../../../runtime/oxyClient', () => ({
-  getRuntimeOxyClient: () => ({ getUserById }),
+  getRuntimeOxyClient: () => ({ users: { get: getUserById } }),
 }));
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';

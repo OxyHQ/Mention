@@ -85,7 +85,7 @@ class PostCollaborationService {
     if (uniqueIds.length === 0) return [];
 
     const oxy = getServiceOxyClient();
-    const users = await oxy.getUsersByIds(uniqueIds);
+    const users = await oxy.users.getMany(uniqueIds);
     const foundIds = new Set(users.map((u) => u.id));
     const missing = uniqueIds.filter((id) => !foundIds.has(id));
     if (missing.length > 0) {
@@ -252,7 +252,7 @@ class PostCollaborationService {
     if (!ownerId) return post;
 
     try {
-      const owner = await getServiceOxyClient().getUserById(ownerId);
+      const owner = await getServiceOxyClient().users.get(ownerId);
       if (!owner.username) return post;
       await getPostFederator().federateNewPost(post, ownerId, owner.username);
       await updatePostRecord(post.id, {

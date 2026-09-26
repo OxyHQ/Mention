@@ -58,7 +58,7 @@ export function useOperatesAccount(params: {
 
   const { data } = useQuery<AccountNode[]>({
     queryKey: viewerQueryKeys.operatedAccounts(currentUser?.id),
-    queryFn: () => oxyServices.listAccounts(),
+    queryFn: () => oxyServices.accounts.list(),
     enabled: Boolean(currentUser?.id) && Boolean(params.accountId) && couldBeOperated,
   });
 

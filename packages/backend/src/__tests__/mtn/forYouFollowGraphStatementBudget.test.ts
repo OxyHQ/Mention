@@ -52,11 +52,16 @@ vi.mock('../../mtn/feed/engine/FeedEngine', () => ({
 }));
 
 const oxyGraphClient = {
-  getBlockedUsers: vi.fn(async () => []),
-  getRestrictedUsers: vi.fn(async () => []),
-  getUserFollowing: vi.fn(async () => ({ data: [] })),
-  getUserFollowers: vi.fn(async () => ({ data: [] })),
-  getMutualUserIds: vi.fn(async () => ['oxymutual']),
+  privacy: {
+    blocked: vi.fn(async () => []),
+    restricted: vi.fn(async () => []),
+  },
+  follows: {
+    following: vi.fn(async () => ({ data: [] })),
+    followers: vi.fn(async () => ({ data: [] })),
+    viewerGraph: vi.fn(async () => ({})),
+    mutualIds: vi.fn(async () => ['oxymutual']),
+  },
 };
 
 vi.mock('../../runtime/oxyClient', () => ({
@@ -67,9 +72,11 @@ vi.mock('../../utils/oxyHelpers', () => ({
   // The viewer must RESOLVE, or `resolveUserSummaries` falls into its federated
   // repair path and adds reads that have nothing to do with this budget.
   getServiceOxyClient: () => ({
-    getUsersByIds: vi.fn(async (ids: string[]) =>
-      ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {}, languages: ['en-US'] })),
-    ),
+    users: {
+      getMany: vi.fn(async (ids: string[]) =>
+        ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {}, languages: ['en-US'] })),
+      ),
+    },
     getClarityDocuments: vi.fn(async () => []),
   }),
   createScopedOxyClient: () => oxyGraphClient,

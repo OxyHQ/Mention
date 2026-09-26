@@ -22,12 +22,12 @@ const { getUserById, getUsersByIds, cacheStore } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../runtime/oxyClient', () => ({
-  getRuntimeOxyClient: () => ({ getUserById }),
+  getRuntimeOxyClient: () => ({ users: { get: getUserById } }),
 }));
 
 // The bulk service-token client used by resolveUserSummaries for cache misses.
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getUsersByIds }),
+  getServiceOxyClient: () => ({ users: { getMany: getUsersByIds } }),
 }));
 
 // The Redis-backed user-summary cache: start cold (all misses), capture writes.

@@ -13,7 +13,7 @@ import { resolveOxyIdentity } from './oxyIdentity';
 
 /** Service-scoped oxy-api request, resolved at call time (the client is per-request). */
 const callOxyService: ServiceRequest = <T>(method: ServiceRequestMethod, path: string, body?: unknown): Promise<T> =>
-  getServiceOxyClient().makeServiceRequest<T>(method, path, body);
+  getServiceOxyClient().serviceRequest<T>(method, path, body);
 
 const identityBridge = createIdentityBridge({
   makeServiceRequest: callOxyService,

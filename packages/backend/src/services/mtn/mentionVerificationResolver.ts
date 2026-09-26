@@ -76,7 +76,7 @@ async function resolveSubjectPublicKeys(oxyUserId: string): Promise<string[]> {
 
 async function fetchSubjectPublicKeys(oxyUserId: string): Promise<string[]> {
   try {
-    const doc = await getServiceOxyClient().resolveDid(oxyUserId);
+    const doc = await getServiceOxyClient().identity.resolveDid(oxyUserId);
     // `VerificationMethod` is a discriminated union (the Oxy secp256k1 form
     // carries `publicKeyHex`; the atproto-bridge `Multikey` form carries
     // `publicKeyMultibase` instead) — Mention's chain only ever signs with the

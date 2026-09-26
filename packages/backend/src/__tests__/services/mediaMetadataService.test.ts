@@ -106,7 +106,7 @@ describe('MediaMetadataService.enrichFromOxy', () => {
 
   it('copies Oxy by-ids fields onto matching media items', async () => {
     const { getServiceOxyClient } = await import('../../utils/oxyHelpers');
-    const getServiceAssetMetadataByIds = vi.fn().mockResolvedValue([
+    const metadataByIds = vi.fn().mockResolvedValue([
       {
         id: '65fdc8c8c8c8c8c8c8c8c8c8',
         width: 1080,
@@ -118,7 +118,7 @@ describe('MediaMetadataService.enrichFromOxy', () => {
       },
     ]);
     vi.mocked(getServiceOxyClient).mockReturnValue({
-      getServiceAssetMetadataByIds,
+      assets: { metadataByIds },
     } as never);
 
     const { mediaMetadataService } = await import('../../services/MediaMetadataService');
@@ -145,17 +145,17 @@ describe('MediaMetadataService.enrichFromOxy', () => {
   it('enriches an asset whose id is a uuid v7 (post-cutover Oxy ids)', async () => {
     const fileId = '01a0821e-d61a-7a78-b5d1-afb1850bd5a4';
     const { getServiceOxyClient } = await import('../../utils/oxyHelpers');
-    const getServiceAssetMetadataByIds = vi.fn().mockResolvedValue([
+    const metadataByIds = vi.fn().mockResolvedValue([
       { id: fileId, width: 720, height: 1280, durationSec: 12, orientation: 'portrait' },
     ]);
     vi.mocked(getServiceOxyClient).mockReturnValue({
-      getServiceAssetMetadataByIds,
+      assets: { metadataByIds },
     } as never);
 
     const { mediaMetadataService } = await import('../../services/MediaMetadataService');
     const enriched = await mediaMetadataService.enrichFromOxy([{ id: fileId, type: 'video' }]);
 
-    expect(getServiceAssetMetadataByIds).toHaveBeenCalledWith([fileId]);
+    expect(metadataByIds).toHaveBeenCalledWith([fileId]);
     expect(enriched[0]).toMatchObject({ width: 720, height: 1280, durationSec: 12 });
   });
 
@@ -166,16 +166,16 @@ describe('MediaMetadataService.enrichFromOxy', () => {
    */
   it('never asks Oxy about a media item whose id is a remote URL', async () => {
     const { getServiceOxyClient } = await import('../../utils/oxyHelpers');
-    const getServiceAssetMetadataByIds = vi.fn().mockResolvedValue([]);
+    const metadataByIds = vi.fn().mockResolvedValue([]);
     vi.mocked(getServiceOxyClient).mockReturnValue({
-      getServiceAssetMetadataByIds,
+      assets: { metadataByIds },
     } as never);
 
     const { mediaMetadataService } = await import('../../services/MediaMetadataService');
     const items: MediaItem[] = [{ id: 'https://remote.example/video.mp4', type: 'video' }];
 
     expect(await mediaMetadataService.enrichFromOxy(items)).toBe(items);
-    expect(getServiceAssetMetadataByIds).not.toHaveBeenCalled();
+    expect(metadataByIds).not.toHaveBeenCalled();
   });
 
   /**

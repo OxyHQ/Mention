@@ -10,8 +10,8 @@
  *
  * The fifth — `runPopularFallback` — did not. That is the path an authenticated
  * reader reaches when For You exhausts their unseen pool, i.e. ordinary deep
- * scroll rather than an edge case, and it paid `getUserFollowing` +
- * `getUserFollowers` against Oxy on every page while the answer sat on `ctx`.
+ * scroll rather than an edge case, and it paid `follows.following` +
+ * `follows.followers` against Oxy on every page while the answer sat on `ctx`.
  * Nothing went red when it landed, because nothing in this repository pinned an
  * Oxy call count at all: `postHydrationStatementBudget.test.ts` pins Postgres
  * statements, and the efficiency programme's own measurement note says the
@@ -47,9 +47,11 @@ const scope = federationScope('feed-engine-viewer-graph-budget');
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUsersByIds: vi.fn(async (ids: string[]) =>
-      ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {}, languages: ['en-US'] })),
-    ),
+    users: {
+      getMany: vi.fn(async (ids: string[]) =>
+        ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {}, languages: ['en-US'] })),
+      ),
+    },
     getClarityDocuments: vi.fn(async () => []),
   }),
   createScopedOxyClient: () => undefined,
@@ -82,7 +84,7 @@ beforeEach(() => {
 /**
  * A viewer-scoped Oxy client that counts the two graph reads.
  *
- * `getUserFollowing`/`getUserFollowers` are the pair `buildViewerContext` issues
+ * `follows.following`/`follows.followers` are the pair `buildViewerContext` issues
  * when no `viewerGraph` is threaded; the blocked/restricted reads are a separate
  * concern (they are not on the context and are not what this budget is about),
  * so they answer without being counted.
@@ -94,10 +96,14 @@ function makeGraphCountingOxyClient() {
     getUserFollowing,
     getUserFollowers,
     client: {
-      getBlockedUsers: async () => [],
-      getRestrictedUsers: async () => [],
-      getUserFollowing,
-      getUserFollowers,
+      privacy: {
+        blocked: async () => [],
+        restricted: async () => [],
+      },
+      follows: {
+        following: getUserFollowing,
+        followers: getUserFollowers,
+      },
     } as never,
     /** Graph round trips this run made against Oxy. */
     graphCalls: () => getUserFollowing.mock.calls.length + getUserFollowers.mock.calls.length,

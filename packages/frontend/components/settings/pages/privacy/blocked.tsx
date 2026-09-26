@@ -57,7 +57,7 @@ export default function BlockedUsersScreen() {
   // Authoritative cross-app sync: keep the shared privacy store in lockstep so
   // `usePrivacyControls().isBlocked` (which gates interactions everywhere)
   // reflects a block/unblock immediately, without waiting for the store's
-  // interval refresh or a possibly-cached `getBlockedUsers` refetch.
+  // interval refresh or a possibly-cached `privacy.blocked` refetch.
   const setStoreBlocked = usePrivacyStore((state) => state.setBlocked);
   const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
@@ -68,8 +68,8 @@ export default function BlockedUsersScreen() {
   const [blocking, setBlocking] = useState<string | null>(null);
 
   const loadBlockedUsers = useCallback(async () => {
-    if (!oxyServices?.getBlockedUsers) {
-      blockedLogger.warn("oxyServices.getBlockedUsers not available");
+    if (!oxyServices) {
+      blockedLogger.warn("oxyServices not available");
       setBlockedUsers([]);
       setBlockedUserIds([]);
       setLoading(false);
@@ -79,7 +79,7 @@ export default function BlockedUsersScreen() {
     try {
       setLoading(true);
       blockedLogger.debug("Loading blocked users...");
-      const blockedUsersList = await oxyServices.getBlockedUsers();
+      const blockedUsersList = await oxyServices.privacy.blocked();
       blockedLogger.debug("Oxy response received", {
         count: blockedUsersList?.length,
       });
@@ -107,7 +107,7 @@ export default function BlockedUsersScreen() {
       // Single bulk fetch for all blocked profiles (no per-id N+1). The
       // results are primed into the shared React Query cache so any
       // `useUserById`/profile read for these ids hits the cache.
-      const fetched = await oxyServices.getUsersByIds(userIds);
+      const fetched = await oxyServices.users.getMany(userIds);
       for (const user of fetched) {
         if (user?.id) {
           queryClient.setQueryData(queryKeys.users.detail(user.id), user);
@@ -140,15 +140,15 @@ export default function BlockedUsersScreen() {
 
   const searchUsersViaOxy = useCallback(
     async (query: string): Promise<BlockedUser[]> => {
-      if (oxyServices?.searchProfiles) {
+      if (oxyServices) {
         try {
-          const { data } = await oxyServices.searchProfiles(query, {
+          const { data } = await oxyServices.users.search(query, {
             limit: 20,
           });
           return Array.isArray(data) ? data : [];
         } catch (error) {
           blockedLogger.warn(
-            "oxyServices.searchProfiles failed, falling back",
+            "oxyServices.users.search failed, falling back",
             { error },
           );
         }
@@ -208,7 +208,7 @@ export default function BlockedUsersScreen() {
 
       setSearchResults((prev) => prev.filter((u) => getUserId(u) !== userId));
 
-      await oxyServices.blockUser(userId);
+      await oxyServices.privacy.block(userId);
       blockedLogger.info("User blocked successfully");
 
       // Drop Mention's cached copy of this viewer's blocked list so the
@@ -248,7 +248,7 @@ export default function BlockedUsersScreen() {
         setBlockedUserIds((prev) => prev.filter((id) => id !== userId));
         setBlockedUsers((prev) => prev.filter((u) => getUserId(u) !== userId));
 
-        await oxyServices.unblockUser(userId);
+        await oxyServices.privacy.unblock(userId);
         blockedLogger.info("User unblocked successfully");
 
         await refreshPrivacyLists();

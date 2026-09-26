@@ -178,7 +178,7 @@ class FederatedProfileSync {
           // Federated profile lookup is public — use the service client so it
           // works for unauthenticated viewers and avoids per-request token setup.
           const oxyLookupClient = getServiceOxyClient();
-          const oxyUser: User = await oxyLookupClient.getUserById(syncUserId);
+          const oxyUser: User = await oxyLookupClient.users.get(syncUserId);
           oxyIdentity = {
             actorUri: typeof oxyUser.federation?.actorUri === 'string'
               ? oxyUser.federation.actorUri

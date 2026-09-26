@@ -37,7 +37,7 @@ vi.mock('../../services/FederationJobScheduler', () => ({
 // real server entry point.
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUserById: mocks.getUserById,
+    users: { get: mocks.getUserById },
   }),
 }));
 

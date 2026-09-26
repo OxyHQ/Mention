@@ -1,6 +1,7 @@
 import { canParticipateInDeployment } from '@mention/shared-types/deployment';
 import type { AuthenticatedPresenceSocket } from '../services/SocketPresenceLifecycle';
 import type http from 'http';
+import type { OxyMiddleware } from '@oxy.so/core/server';
 import { Namespace, Server as SocketIOServer } from 'socket.io';
 import { PUBLIC_REALTIME_NAMESPACE } from '@mention/shared-types';
 import { config } from '../config';
@@ -65,11 +66,11 @@ const configureNamespaceErrorHandling = (namespace: Namespace) => {
 };
 
 /**
- * The single thing namespace wiring needs from the Oxy client. `OxyServices`
+ * The single thing namespace wiring needs from the Oxy client. `OxyServer`
  * satisfies it; naming it here keeps this module testable without one.
  */
 export interface SocketAuthProvider {
-  authSocket(): (socket: unknown, next: (err?: Error) => void) => Promise<void>;
+  middleware: Pick<OxyMiddleware, 'socket'>;
 }
 
 export interface SocketNamespaces {
@@ -103,10 +104,10 @@ export function createSocketNamespaces(io: SocketIOServer, oxy: SocketAuthProvid
   const publicNamespace = io.of(PUBLIC_REALTIME_NAMESPACE);
 
   // --- Socket Auth Middleware ---
-  // Use oxy.authSocket() which validates tokens via jwtDecode + Oxy API session validation.
-  // This matches how oxy.auth() works for HTTP — no local JWT_SECRET needed.
+  // Use oxy.middleware.socket() which validates tokens via jwtDecode + Oxy API session validation.
+  // This matches how oxy.middleware.auth() works for HTTP — no local JWT_SECRET needed.
   // `publicNamespace` is intentionally absent from this list; see its doc comment.
-  const oxySocketAuth = oxy.authSocket();
+  const oxySocketAuth = oxy.middleware.socket();
   const authTargets: Array<Namespace | SocketIOServer> = [notificationsNamespace, postsNamespace, io];
   authTargets.forEach((namespaceOrServer) => {
     if (namespaceOrServer && typeof namespaceOrServer.use === "function") {

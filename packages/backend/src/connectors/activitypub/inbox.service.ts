@@ -1159,7 +1159,7 @@ async function bridgeFollowEdge(
   targetUserId: string,
   action: 'follow' | 'unfollow',
 ): Promise<void> {
-  await getServiceOxyClient().makeServiceRequest('POST', '/federation/follow', {
+  await getServiceOxyClient().serviceRequest('POST', '/federation/follow', {
     followerUserId,
     targetUserId,
     action,

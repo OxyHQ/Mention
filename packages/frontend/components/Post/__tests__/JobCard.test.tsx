@@ -11,7 +11,7 @@ jest.mock('expo-router', () => ({
 
 const mockGetUserById = jest.fn();
 jest.mock('@oxy.so/services/ui/client', () => ({
-  useAuth: () => ({ oxyServices: { getUserById: (...args: unknown[]) => mockGetUserById(...args) } }),
+  useAuth: () => ({ oxyServices: { users: { get: (...args: unknown[]) => mockGetUserById(...args) } } }),
 }));
 
 jest.mock('@oxy.so/core', () => ({

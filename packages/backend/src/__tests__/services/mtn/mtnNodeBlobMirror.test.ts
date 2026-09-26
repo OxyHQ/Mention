@@ -13,14 +13,14 @@ import type { MentionPostRecord } from '@mention/shared-types';
 
 // Service-scoped Oxy client: the reverse `sha256 → fileId` existence pre-check.
 const oxyMock = vi.hoisted(() => ({
-  getServiceAssetMetadataBySha256: vi.fn<
+  metadataBySha256: vi.fn<
     (sha256s: string[]) => Promise<
       Array<{ sha256: string; id: string; mime: string; size: number; status: 'active' | 'trash'; url?: string }>
     >
   >(),
 }));
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => oxyMock,
+  getServiceOxyClient: () => ({ assets: { metadataBySha256: oxyMock.metadataBySha256 } }),
 }));
 
 // Durable federated-media upload + the write-side enable flag.
@@ -64,8 +64,8 @@ function makeRecord(
 }
 
 beforeEach(() => {
-  oxyMock.getServiceAssetMetadataBySha256.mockReset();
-  oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([]); // default: nothing already in S3
+  oxyMock.metadataBySha256.mockReset();
+  oxyMock.metadataBySha256.mockResolvedValue([]); // default: nothing already in S3
   storeMock.isMediaCacheEnabled.mockReset();
   storeMock.isMediaCacheEnabled.mockReturnValue(true); // default: write side enabled
   storeMock.uploadFederatedMedia.mockReset();
@@ -104,13 +104,13 @@ describe('mirrorNodeBlobsForRecord', () => {
     await mirrorNodeBlobsForRecord(makeRecord([{ sha256: 'sha-x', mediaType: 'image' }]), OWNER, getBlob);
 
     // No existence check, no node fetch, no upload.
-    expect(oxyMock.getServiceAssetMetadataBySha256).not.toHaveBeenCalled();
+    expect(oxyMock.metadataBySha256).not.toHaveBeenCalled();
     expect(getBlob).not.toHaveBeenCalled();
     expect(storeMock.uploadFederatedMedia).not.toHaveBeenCalled();
   });
 
   it('skips a blob already resolvable in our S3 (idempotent — no re-fetch/re-upload)', async () => {
-    oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([
+    oxyMock.metadataBySha256.mockResolvedValue([
       { sha256: 'sha-have', id: 'file-have', mime: 'image/png', size: 10, status: 'active' },
     ]);
     const getBlob = vi.fn<NodeBlobFetcher>().mockResolvedValue(Buffer.from('x'));
@@ -122,7 +122,7 @@ describe('mirrorNodeBlobsForRecord', () => {
   });
 
   it('mirrors only the unresolved blobs in a mixed record', async () => {
-    oxyMock.getServiceAssetMetadataBySha256.mockResolvedValue([
+    oxyMock.metadataBySha256.mockResolvedValue([
       { sha256: 'sha-have', id: 'file-have', mime: 'image/png', size: 10, status: 'active' },
     ]);
     const getBlob = vi.fn<NodeBlobFetcher>().mockResolvedValue(Buffer.from('bytes'));
@@ -199,7 +199,7 @@ describe('mirrorNodeBlobsForRecord', () => {
 
     await mirrorNodeBlobsForRecord(record, OWNER, getBlob);
 
-    expect(oxyMock.getServiceAssetMetadataBySha256).not.toHaveBeenCalled();
+    expect(oxyMock.metadataBySha256).not.toHaveBeenCalled();
     expect(getBlob).not.toHaveBeenCalled();
     expect(storeMock.uploadFederatedMedia).not.toHaveBeenCalled();
   });

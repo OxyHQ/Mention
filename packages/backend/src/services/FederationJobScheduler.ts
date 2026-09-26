@@ -683,7 +683,7 @@ class FederationJobScheduler {
       const uniqueSenderIds = [...new Set(pending.map((d) => d.senderOxyUserId))];
       const senders = new Map<string, User>();
       try {
-        const resolved = await getServiceOxyClient().getUsersByIds(uniqueSenderIds);
+        const resolved = await getServiceOxyClient().users.getMany(uniqueSenderIds);
         for (const sender of resolved) {
           if (sender?.id) senders.set(sender.id, sender);
         }

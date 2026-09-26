@@ -44,7 +44,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(() => ({})),
-  createUserScopedOxyServices: vi.fn(() => ({ listAccountMembers: oxy.listAccountMembers })),
+  createUserScopedOxyServices: vi.fn(() => ({ accounts: { members: { list: oxy.listAccountMembers } } })),
   getServiceOxyClient: vi.fn(() => ({})),
 }));
 
