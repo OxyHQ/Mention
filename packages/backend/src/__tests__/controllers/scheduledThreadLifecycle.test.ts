@@ -67,7 +67,7 @@ vi.mock('../../connectors/outboundFederation', () => ({ federateAsResolvedActor:
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
 import { findArticleById, insertArticle, newArticleId } from '../../db/posts/articleRepository';
-import { claimScheduledPost } from '../../db/posts/postRepository';
+import { claimUnpublishedPost } from '../../db/posts/postRepository';
 import { clearServiceScope, readScopePosts, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import { deletePost } from '../../controllers/posts/deletePost';
 import { publishScheduledPostNow } from '../../controllers/posts/scheduledPosts';
@@ -159,7 +159,7 @@ beforeEach(() => {
   // `claimAndPublishScheduledPost.test.ts`; here what matters is which ids the
   // chain walk drives it with, and in what order.
   hoisted.claim.mockImplementation(async ({ postId }: { postId: string }) => {
-    const record = await claimScheduledPost(postId, undefined);
+    const record = await claimUnpublishedPost(postId, undefined);
     return record ? { id: postId } : null;
   });
 });
@@ -298,7 +298,7 @@ describe('publishing a scheduled thread early', () => {
     await seedThread();
     hoisted.claim.mockImplementation(async ({ postId }: { postId: string }) => {
       if (postId === idByLabel.get('root')) return null;
-      const record = await claimScheduledPost(postId, undefined);
+      const record = await claimUnpublishedPost(postId, undefined);
       return record ? { id: postId } : null;
     });
     const { res, payload } = buildResponse();

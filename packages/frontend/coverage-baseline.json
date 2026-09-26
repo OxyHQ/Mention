@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 39.34,
-      "covered": 10522,
-      "total": 26744
+      "pct": 39.7,
+      "covered": 10679,
+      "total": 26899
     },
     "branches": {
-      "pct": 33.5,
-      "covered": 6485,
-      "total": 19355
+      "pct": 33.75,
+      "covered": 6570,
+      "total": 19466
     },
     "functions": {
-      "pct": 34.13,
-      "covered": 2331,
-      "total": 6829
+      "pct": 34.6,
+      "covered": 2379,
+      "total": 6874
     },
     "lines": {
-      "pct": 40.14,
-      "covered": 9605,
-      "total": 23925
+      "pct": 40.53,
+      "covered": 9756,
+      "total": 24070
     }
   },
   "pins": {
@@ -250,6 +250,12 @@
       "branches": 40,
       "functions": 40,
       "lines": 53
+    },
+    "hooks/useDraftsList.ts": {
+      "statements": 56,
+      "branches": 57,
+      "functions": 70,
+      "lines": 56
     },
     "hooks/useEventManager.ts": {
       "statements": 0,
@@ -599,6 +605,12 @@
       "functions": 0,
       "lines": 0
     },
+    "hooks/useServerDrafts.ts": {
+      "statements": 96,
+      "branches": 90,
+      "functions": 92,
+      "lines": 96
+    },
     "hooks/useSourcesManager.ts": {
       "statements": 0,
       "branches": 0,
@@ -946,6 +958,12 @@
       "branches": 100,
       "functions": 0,
       "lines": 0
+    },
+    "services/draftsService.ts": {
+      "statements": 100,
+      "branches": 50,
+      "functions": 100,
+      "lines": 100
     },
     "services/echoGuard.ts": {
       "statements": 41,

@@ -126,6 +126,17 @@ export const viewerQueryKeys = {
     'scheduled',
   ] as const,
   /**
+   * The SERVER drafts this viewer can act on (`GET /posts/drafts`) — posts
+   * stored with `status: 'draft'`, usually by an automation, never the
+   * composer's own drafts, which live on the device. Viewer-scoped for the same
+   * reason as {@link viewerQueryKeys.scheduledPosts}: the list includes the
+   * drafts of every channel the caller operates.
+   */
+  serverDrafts: (viewerId: ViewerId) => [
+    ...viewerQueryKeys.postsRoot(viewerId),
+    'drafts',
+  ] as const,
+  /**
    * Community notes, always viewer-scoped: every list here is "yours" — the
    * queue CrowdSource assigned to you, the notes you wrote, the ones you rated.
    * None of them may be shared across viewers, and the anonymous key is never

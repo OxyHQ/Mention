@@ -232,6 +232,11 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   // not guess: that the 30-minute edit window does not apply, and that saving
   // has to carry the schedule forward rather than drop it.
   const [editingScheduledPost, setEditingScheduledPost] = useState(false);
+  // The post under edit is a SERVER DRAFT (usually written by an automation).
+  // Also server-decided. It has no window either, and saving keeps it a draft —
+  // it is published from the drafts sheet — so the notice has to say so, and a
+  // save has to refresh that sheet's list.
+  const [editingServerDraft, setEditingServerDraft] = useState(false);
   // The post under edit belongs to a CHANNEL. A channel is a publication: its
   // posts stay editable for their whole life, so the banner must not promise a
   // 30-minute deadline that does not apply to them — and must say what replaces
@@ -1104,6 +1109,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         // composer's empty schedule rather than an Invalid Date.
         const stillScheduled = source.status === 'scheduled';
         setEditingScheduledPost(stillScheduled);
+        setEditingServerDraft(source.status === 'draft');
         // Absent when the server could not resolve the author — which is the
         // case where it applies the 30-minute window, so the banner saying so is
         // the correct reading rather than a fallback.
@@ -1435,11 +1441,19 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           queryKey: viewerQueryKeys.scheduledPosts(user?.id),
         });
       }
+      // Likewise a server draft: it is only ever read back through that sheet.
+      if (isEditMode && editingServerDraft) {
+        queryClient.invalidateQueries({
+          queryKey: viewerQueryKeys.serverDrafts(user?.id),
+        });
+      }
 
       const successMessage = replyToPostId
         ? t('Your reply has been posted!')
         : isEditMode
-          ? t('Post updated successfully')
+          ? editingServerDraft
+            ? t('compose.serverDrafts.saved', { defaultValue: 'Draft saved' })
+            : t('Post updated successfully')
           : wasScheduled && scheduledAtValue
             ? t('compose.schedule.success', { defaultValue: 'Post scheduled for {{time}}', time: formatScheduledLabel(scheduledAtValue) })
             : t('Post published successfully');
@@ -2622,6 +2636,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   ? t('Loading post...')
                   : editingScheduledPost
                     ? t('compose.scheduled.editingNotice', { defaultValue: 'Editing a scheduled post — nobody has seen it yet, so there is no time limit. You can change when it publishes.' })
+                    : editingServerDraft
+                    ? t('compose.serverDrafts.editingNotice', { defaultValue: 'Editing a draft saved to your account — nobody has seen it yet, so there is no time limit. Saving keeps it a draft; publish it from your drafts.' })
                     : editingChannelPost
                       // A channel post has no deadline, and saying "30 minutes"
                       // here would be false. What replaces the window is the

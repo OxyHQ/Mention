@@ -149,9 +149,14 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     // `isChannelAccount` fails SOFT to `false`, which here means "apply the
     // window" — during an Oxy identity outage a late correction is refused rather
     // than allowed, and refusing an edit is the recoverable direction.
+    //
+    // A DRAFT has no readers either, for the same reason as a scheduled post, and
+    // gets the same carve-out: without it a draft an automation stored this
+    // morning could not be corrected by the person asked to approve it.
     const editingScheduledPost = loaded.status === 'scheduled';
+    const editingUnpublishedPost = editingScheduledPost || loaded.status === 'draft';
     const editingChannelPost = await isChannelAccount(loaded.oxyUserId);
-    if (!editingScheduledPost && !editingChannelPost) {
+    if (!editingUnpublishedPost && !editingChannelPost) {
       const EDIT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
       if (Date.now() - loaded.createdAt.getTime() > EDIT_WINDOW_MS) {
         return res.status(403).json({ message: 'Edit window has expired. Posts can only be edited within 30 minutes of creation.' });
@@ -472,24 +477,25 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
       Array.isArray(req.body.collaboratorHandles) ? req.body.collaboratorHandles : undefined,
     );
 
-    // An edit that started under the scheduled carve-out must not land on a post
-    // that went live while it was being assembled — the publisher sweeps every
-    // 60s, and the body above does its own I/O (article save, collaborator
-    // resolution). Re-read the STORED status as late as possible and refuse
-    // rather than write, so a just-published post cannot be edited without its
+    // An edit that started under the unpublished carve-out must not land on a
+    // post that went live while it was being assembled — the publisher sweeps
+    // every 60s, a draft can be published from another device, and the body
+    // above does its own I/O (article save, collaborator resolution). Re-read
+    // the STORED status as late as possible and refuse rather than write, so a
+    // just-published post cannot be edited without its
     // 30-minute window. This narrows the window to the gap between this read and
     // the two writes below; it does not close it, because the content graph is a
     // second statement that no predicate on the first could cover. The residual
     // exposure is bounded: `status` is not among the patched columns, so the
     // write can never revert a publish, and the federation/MTN gates below
     // re-read the status themselves.
-    if (editingScheduledPost) {
-      const [stillScheduled] = await getDb()
+    if (editingUnpublishedPost) {
+      const [stillUnpublished] = await getDb()
         .select({ id: postsTable.id })
         .from(postsTable)
-        .where(and(eq(postsTable.id, post.id), eq(postsTable.status, 'scheduled')))
+        .where(and(eq(postsTable.id, post.id), eq(postsTable.status, loaded.status)))
         .limit(1);
-      if (!stillScheduled) {
+      if (!stillUnpublished) {
         return res.status(409).json({
           message: 'This post published while you were editing it. Reload it to edit within the 30-minute window.',
         });

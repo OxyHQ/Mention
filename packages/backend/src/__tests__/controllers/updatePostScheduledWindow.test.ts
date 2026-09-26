@@ -91,7 +91,7 @@ vi.mock('../../services/mtn/MentionRecordEmitter', () => ({
 }));
 
 import { closePostgres, connectPostgres } from '../../db/postgres';
-import { claimScheduledPost } from '../../db/posts/postRepository';
+import { claimUnpublishedPost } from '../../db/posts/postRepository';
 import { clearServiceScope, readPost, seedPost, serviceScope } from '../helpers/serviceFixtures';
 import type { PostRecordInput } from '../../db/posts/postRecord';
 import { updatePost } from '../../controllers/posts/updatePost';
@@ -322,7 +322,47 @@ describe('updatePost — a SCHEDULED post is exempt', () => {
     // carve-out is decided and BEFORE the late re-read — the exact window the
     // re-read exists to narrow.
     hoisted.resolveCollaboratorRefs.mockImplementation(async () => {
-      await claimScheduledPost(POST_ID, USER_ID);
+      await claimUnpublishedPost(POST_ID, USER_ID);
+      return undefined;
+    });
+    const { res, captured } = buildResponse();
+
+    await updatePost(buildRequest({ content: { text: 'too late' } }) as never, res as never);
+
+    expect(captured.status).toBe(409);
+    expect(await storedText()).toBe('original');
+  });
+});
+
+describe('updatePost — a server DRAFT is exempt too', () => {
+  it('ALLOWS an edit long past the window, because nobody has seen it', async () => {
+    await seedTarget({ status: 'draft' });
+    const { res, captured } = buildResponse();
+
+    await updatePost(buildRequest({ content: { text: 'approved with a fix' } }) as never, res as never);
+
+    expect(captured.status).toBeUndefined();
+    expect(await storedText()).toBe('approved with a fix');
+    expect((await stored())?.status).toBe('draft');
+  });
+
+  it('REFUSES a publish time, since a draft is not in the queue', async () => {
+    await seedTarget({ status: 'draft' });
+    const { res, captured } = buildResponse();
+
+    await updatePost(
+      buildRequest({ scheduledFor: new Date(Date.now() + HOUR_MS).toISOString() }) as never,
+      res as never,
+    );
+
+    expect(captured.status).toBe(400);
+  });
+
+  it('REFUSES to write when the draft was published between the read and the save', async () => {
+    await seedTarget({ status: 'draft' });
+    // Published from another device while this edit was being assembled.
+    hoisted.resolveCollaboratorRefs.mockImplementation(async () => {
+      await claimUnpublishedPost(POST_ID, USER_ID, 'draft');
       return undefined;
     });
     const { res, captured } = buildResponse();

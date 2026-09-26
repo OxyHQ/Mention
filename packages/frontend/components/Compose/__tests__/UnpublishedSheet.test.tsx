@@ -28,6 +28,22 @@ const mockScheduled: {
   cancelScheduledPost: jest.fn(),
 };
 
+const mockServerDrafts: {
+  serverDrafts: { id: string }[];
+  isLoading: boolean;
+  isError: boolean;
+  refetch: jest.Mock;
+  publishServerDraft: jest.Mock;
+  deleteServerDraft: jest.Mock;
+} = {
+  serverDrafts: [],
+  isLoading: false,
+  isError: false,
+  refetch: jest.fn(),
+  publishServerDraft: jest.fn(),
+  deleteServerDraft: jest.fn(),
+};
+
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockRouterPush }) }));
 
 jest.mock('react-i18next', () => ({
@@ -67,16 +83,38 @@ jest.mock('@/hooks/useScheduledPosts', () => ({
   useScheduledPosts: () => mockScheduled,
 }));
 
+jest.mock('@/hooks/useServerDrafts', () => ({
+  useServerDrafts: () => mockServerDrafts,
+}));
+
 jest.mock('../DraftsList', () => {
   const react = jest.requireActual('react');
   const { Text: RNText, TouchableOpacity, View } = jest.requireActual('react-native');
   return {
     __esModule: true,
-    default: (props: { onPreviewDraft: (draft: { id: string }) => void }) =>
+    // The real list reads its rows from `useDraftsList`; here it only has to
+    // hand the sheet a device draft and an account draft to act on.
+    default: (props: {
+      onPreviewDraft: (draft: { id: string }) => void;
+      onPreviewServerDraft: (post: { id: string }) => void;
+      onEditServerDraft: (post: { id: string }) => void;
+    }) =>
       react.createElement(
         View,
         null,
         react.createElement(RNText, null, 'DRAFTS PANEL'),
+        react.createElement(TouchableOpacity, {
+          key: 'server-preview',
+          accessibilityRole: 'button',
+          accessibilityLabel: 'server-draft-row',
+          onPress: () => props.onPreviewServerDraft({ id: 'server-draft-1' }),
+        }),
+        react.createElement(TouchableOpacity, {
+          key: 'server-edit',
+          accessibilityRole: 'button',
+          accessibilityLabel: 'server-draft-edit',
+          onPress: () => props.onEditServerDraft({ id: 'server-draft-1' }),
+        }),
         react.createElement(TouchableOpacity, {
           key: 'preview',
           accessibilityRole: 'button',
@@ -115,6 +153,35 @@ jest.mock('../ScheduledPostsList', () => {
           accessibilityRole: 'button',
           accessibilityLabel: 'edit-row',
           onPress: () => props.onEdit(props.posts[0]),
+        }),
+      ),
+  };
+});
+
+jest.mock('../ServerDraftPreview', () => {
+  const react = jest.requireActual('react');
+  const { Text: RNText, TouchableOpacity, View } = jest.requireActual('react-native');
+  return {
+    __esModule: true,
+    default: (props: { post: { id: string }; onBack: () => void; onEdit: () => void }) =>
+      react.createElement(
+        View,
+        null,
+        react.createElement(
+          TouchableOpacity,
+          {
+            key: 'back',
+            accessibilityRole: 'button',
+            accessibilityLabel: 'server-draft-back',
+            onPress: props.onBack,
+          },
+          react.createElement(RNText, null, `SERVER DRAFT PREVIEW ${props.post.id}`),
+        ),
+        react.createElement(TouchableOpacity, {
+          key: 'edit',
+          accessibilityRole: 'button',
+          accessibilityLabel: 'server-draft-preview-edit',
+          onPress: props.onEdit,
         }),
       ),
   };
@@ -240,6 +307,7 @@ describe('UnpublishedSheet', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockScheduled.scheduledPosts = [];
+    mockServerDrafts.serverDrafts = [];
   });
 
   it('offers a Scheduled tab beside Drafts, opening on Drafts', () => {
@@ -371,6 +439,57 @@ describe('UnpublishedSheet', () => {
     // Leaving the preview matters: the composer is behind this sheet, so staying
     // would leave the user looking at a preview of what they are now editing.
     expect(textContent(tree)).not.toContain('DRAFT PREVIEW');
+
+    act(() => tree.unmount());
+  });
+
+  it('previews a server draft in place of the list, and comes back to it', () => {
+    mockServerDrafts.serverDrafts = [{ id: 'server-draft-1' }];
+    const tree = renderSheet();
+
+    press(tree, 'server-draft-row');
+    expect(textContent(tree)).toContain('SERVER DRAFT PREVIEW server-draft-1');
+    expect(textContent(tree)).not.toContain('DRAFTS PANEL');
+
+    press(tree, 'server-draft-back');
+    expect(textContent(tree)).toContain('DRAFTS PANEL');
+
+    act(() => tree.unmount());
+  });
+
+  it('takes the preview down when the draft leaves the account (published or deleted)', () => {
+    mockServerDrafts.serverDrafts = [{ id: 'server-draft-1' }];
+    const tree = renderSheet();
+
+    press(tree, 'server-draft-row');
+    mockServerDrafts.serverDrafts = [];
+    act(() => {
+      tree.update(
+        <UnpublishedSheet onClose={() => {}} onLoadDraft={() => {}} currentDraftId={null} />,
+      );
+    });
+
+    expect(textContent(tree)).not.toContain('SERVER DRAFT PREVIEW');
+    expect(textContent(tree)).toContain('DRAFTS PANEL');
+
+    act(() => tree.unmount());
+  });
+
+  it('edits a server draft on the composer\'s server-post edit route, from the row and the preview', () => {
+    mockServerDrafts.serverDrafts = [{ id: 'server-draft-1' }];
+    const onClose = jest.fn();
+    const tree = renderSheet({ onClose });
+
+    // A server draft is a server post: loading it into the LOCAL draft loader
+    // would publish a second post and leave the draft behind.
+    press(tree, 'server-draft-edit');
+    expect(mockRouterPush).toHaveBeenLastCalledWith('/compose?editPostId=server-draft-1');
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    press(tree, 'server-draft-row');
+    press(tree, 'server-draft-preview-edit');
+    expect(mockRouterPush).toHaveBeenCalledTimes(2);
+    expect(mockRouterPush).toHaveBeenLastCalledWith('/compose?editPostId=server-draft-1');
 
     act(() => tree.unmount());
   });
