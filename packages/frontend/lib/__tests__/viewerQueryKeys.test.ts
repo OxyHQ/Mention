@@ -46,6 +46,7 @@ describe('viewer-scoped private cache', () => {
       viewerQueryKeys.profileReputation(viewerId, 'profile-1'),
       viewerQueryKeys.mutualFollowers(viewerId, 'profile-1'),
       viewerQueryKeys.knownLikers(viewerId, 'post-1'),
+      viewerQueryKeys.connectionsList(viewerId, 'followers', 'profile-1'),
       viewerQueryKeys.connectionsMutuals(viewerId, 'profile-1'),
       viewerQueryKeys.customFeedsRoot(viewerId),
       viewerQueryKeys.customFeedTitles(viewerId),
