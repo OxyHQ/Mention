@@ -1489,7 +1489,11 @@
     "emptyRecommendationsSubtitle": "Check back later for suggestions.",
     "emptyInCommonSubtitle": "People you follow who also follow this account will appear here.",
     "failedRecommendations": "Failed to load recommendations",
-    "failedInCommon": "Failed to load mutual followers"
+    "failedInCommon": "Failed to load mutual followers",
+    "failedFollowers": "Failed to load followers",
+    "failedFollowing": "Failed to load following",
+    "profileNotFound": "This account doesn't exist, so it has no followers to show.",
+    "profileLoadFailed": "This profile couldn't be loaded. Check your connection and try again."
   },
   "Who May Know": "Who May Know",
   "For You": "For You",
@@ -1614,7 +1618,6 @@
   "feed.empty.message": "Something went wrong while loading your feed. Pull down to refresh or tap the button below to try again.",
   "compose.replyPlaceholder": "Post your reply",
   "compose.commentPlaceholder": "Add a comment...",
-  "compose.podcast.add": "Podcast",
   "compose.podcast.title": "Add a podcast",
   "compose.podcast.searchPlaceholder": "Search podcasts…",
   "compose.podcast.searchHint": "Search for a podcast to add",
@@ -2849,5 +2852,18 @@
   "feed.emptyState.following.title": "No posts yet",
   "feed.emptyState.following.subtitle": "Start following people to see their posts.",
   "post.summary.replies_one": "{{formattedCount}} reply",
-  "post.summary.replies_other": "{{formattedCount}} replies"
+  "post.summary.replies_other": "{{formattedCount}} replies",
+  "compose.event.nameRequired": "Give the event a name to attach it.",
+  "compose.saveDraftFailed": "Couldn't save the draft. Try again.",
+  "compose.toolbar.media": "Add photos or videos",
+  "compose.toolbar.gif": "Add a GIF",
+  "compose.toolbar.emoji": "Add an emoji",
+  "compose.toolbar.poll": "Add a poll",
+  "compose.toolbar.sources": "Add sources",
+  "compose.toolbar.article": "Write an article",
+  "compose.toolbar.event": "Add an event",
+  "compose.toolbar.room": "Attach a live room",
+  "compose.toolbar.podcast": "Add a podcast",
+  "compose.toolbar.location": "Add your location",
+  "saved.createFolderFailed": "Couldn't create the folder. Try again."
 }

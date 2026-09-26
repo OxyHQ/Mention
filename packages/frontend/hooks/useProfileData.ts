@@ -12,7 +12,7 @@ import { getCachedFileDownloadUrlSync, type FileUrlResolver } from '@/utils/imag
 import { isPublicProfileHandle } from '@/utils/publicProfileHandle';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { profileAccountFacts } from '@/utils/profileAccountFacts';
-import { isNotFoundError } from '@/utils/api';
+import { isNotFoundError } from '@/utils/httpStatus';
 
 const PROFILE_STALE_TIME = 5 * 60 * 1000; // 5 minutes
 const PROFILE_GC_TIME = 30 * 60 * 1000; // 30 minutes
