@@ -127,6 +127,7 @@ Authenticated commands and viewer data:
 | POST | `/posts` | Create a post |
 | POST | `/posts/thread` | Create a thread |
 | GET | `/posts/bookmarks/folders` | List bookmark folders |
+| POST | `/posts/bookmarks/folders` | Create an empty bookmark folder (`{ name }` → `201 { folder }`; idempotent) |
 | PATCH | `/posts/bookmarks/by-post/:postId/folder` | Move a post bookmark |
 | PATCH | `/posts/bookmarks/:id/folder` | Move a bookmark |
 | POST | `/posts/translate-draft` | Translate draft content |

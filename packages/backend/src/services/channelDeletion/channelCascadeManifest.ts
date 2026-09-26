@@ -915,6 +915,15 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
     why: 'Bookmarks owned by the channel.',
   },
   {
+    table: 'bookmark_folders',
+    column: 'userId',
+    scope: 'channel-account',
+    action: 'delete-row',
+    why:
+      'Bookmark folders owned by the channel. After its bookmarks: the bookmark foreign key does not let ' +
+      'a folder go while a bookmark still names it.',
+  },
+  {
     table: 'post_subscriptions',
     column: 'subscriberId',
     scope: 'channel-account',

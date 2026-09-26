@@ -1,6 +1,7 @@
 /**
- * The engagement relationships: `likes`, `bookmarks`, `post_subscriptions`,
- * `pokes`, `mutes`, `mute_words`, `entity_follows`.
+ * The engagement relationships: `likes`, `bookmarks` (and the viewer's
+ * `bookmark_folders`), `post_subscriptions`, `pokes`, `mutes`, `mute_words`,
+ * `entity_follows`.
  *
  * Every one of these is a (user, thing) edge that Mongo stored as a document
  * with a compound unique index. The port is direct; the interesting parts are
@@ -10,7 +11,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { check, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { check, foreignKey, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList, numericInList, updatedAt } from '@oxy.so/db';
 import { posts } from './posts';
 
@@ -25,6 +26,9 @@ export const MUTE_WORD_TARGETS = ['content', 'tag'] as const;
 
 /** `MuteWord.actorTarget`. */
 export const MUTE_WORD_ACTOR_TARGETS = ['all', 'exclude-following'] as const;
+
+/** The longest bookmark-folder name; `BookmarkFolderService` trims and checks it first. */
+export const BOOKMARK_FOLDER_NAME_MAX_LENGTH = 100;
 
 /** `MuteWord.value` length ceiling, from the Mongoose `maxlength`. */
 const MUTE_WORD_MAX_LENGTH = 100;
@@ -81,6 +85,37 @@ export const likes = pgTable(
 );
 
 /** `bookmarks` — a user saved a post, optionally into a named folder. */
+/**
+ * `bookmark_folders` — the folders a viewer files saved posts into.
+ *
+ * A folder used to exist only as a value on `bookmarks.folder`, so the list of
+ * folders was "the distinct values over my bookmarks" — and a folder with no
+ * bookmark in it could not exist at all. The Saved screen let a viewer create
+ * one anyway, held it in memory, and lost it on reload (OxyHQ/Mention#1124).
+ * The folder is its own row now, and the list reads only this table.
+ *
+ * The name IS the folder's identity for its owner (`bookmarks.folder` names it),
+ * hence the unique (owner, name) pair the bookmark foreign key targets.
+ */
+export const bookmarkFolders = pgTable(
+  'bookmark_folders',
+  {
+    id: generatedId(),
+    /** An Oxy account id — no foreign key. */
+    userId: text().notNull(),
+    name: text().notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique('bookmark_folders_user_id_name_key').on(t.userId, t.name),
+    check(
+      'bookmark_folders_name_check',
+      sql`${t.name} = btrim(${t.name}) and length(${t.name}) between 1 and ${sql.raw(String(BOOKMARK_FOLDER_NAME_MAX_LENGTH))}`,
+    ),
+  ]
+);
+
 export const bookmarks = pgTable(
   'bookmarks',
   {
@@ -94,6 +129,12 @@ export const bookmarks = pgTable(
      * NULL means the default (unfiled) folder. Mongo used `default: null` for
      * exactly this, and it must stay NULL rather than `''` — an empty string is
      * a VALUE, so it would become a folder literally named "".
+     *
+     * A non-NULL value must name one of the owner's `bookmark_folders` — the
+     * composite foreign key below — so a bookmark can never sit in a folder the
+     * folder list does not know about. `NO ACTION` on delete: a folder that
+     * still holds bookmarks is not deleted out from under them; the account
+     * erasure removes bookmarks (phase `engagement`) before folders (`account`).
      */
     folder: text(),
     createdAt: createdAt(),
@@ -108,6 +149,11 @@ export const bookmarks = pgTable(
     index('bookmarks_user_id_folder_idx')
       .on(t.userId, t.folder)
       .where(sql`${t.folder} is not null`),
+    foreignKey({
+      name: 'bookmarks_folder_fkey',
+      columns: [t.userId, t.folder],
+      foreignColumns: [bookmarkFolders.userId, bookmarkFolders.name],
+    }),
   ]
 );
 

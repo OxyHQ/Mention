@@ -14,6 +14,7 @@ import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { articles } from '../../db/schema/articles';
 import { authorFollowerSnapshots, notifications, pushTokens } from '../../db/schema/discovery';
 import {
+  bookmarkFolders,
   bookmarks,
   entityFollows,
   likes,
@@ -414,6 +415,7 @@ export async function collectPostCascadeResidue(
  */
 export const ACTOR_REFERENCE_PROBE_NAMES = [
   'bookmarks.user_id',
+  'bookmark_folders.user_id',
   'mutes.user_id/muted_id',
   'mute_words.user_id',
   'feed_interactions.user_id',
@@ -481,6 +483,11 @@ export function actorReferenceProbes(
       {
         name: 'bookmarks.user_id',
         hasReference: () => anyRow(bookmarks, bookmarks.id, eq(bookmarks.userId, oxyUserId)),
+      },
+      {
+        name: 'bookmark_folders.user_id',
+        hasReference: () =>
+          anyRow(bookmarkFolders, bookmarkFolders.id, eq(bookmarkFolders.userId, oxyUserId)),
       },
       {
         name: 'mutes.user_id/muted_id',

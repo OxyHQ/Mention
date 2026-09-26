@@ -17,11 +17,14 @@
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
-import { bookmarks } from '../../db/schema/engagement';
+import { bookmarkFolders, bookmarks } from '../../db/schema/engagement';
 import {
   BookmarkFolderInputError,
+  MAX_BOOKMARK_FOLDERS_PER_VIEWER,
+  createBookmarkFolderForViewer,
+  listBookmarkFoldersForViewer,
   normalizeBookmarkFolder,
   updateBookmarkFolderForViewer,
 } from '../../services/BookmarkFolderService';
@@ -30,10 +33,13 @@ import { clearPostScope, postScope, seedPost } from '../helpers/postFixtures';
 const scope = postScope('bookmark-folder-service');
 const VIEWER_A = scope.user('viewer-a');
 const VIEWER_B = scope.user('viewer-b');
+const STRANGER = scope.user('stranger');
 
 /** The post both viewers bookmark. Created per case so no id is hardcoded. */
 async function seedSharedBookmark(): Promise<{ postId: string; bookmarkA: string }> {
   const post = await seedPost(scope);
+  // A filed bookmark names a folder that exists: the foreign key sees to it.
+  await getDb().insert(bookmarkFolders).values({ userId: VIEWER_B, name: 'viewer-b-folder' });
   const rows = await getDb()
     .insert(bookmarks)
     .values([
@@ -59,7 +65,11 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  // Posts first: their bookmarks cascade, and only then may the folders go.
   await clearPostScope(scope);
+  await getDb()
+    .delete(bookmarkFolders)
+    .where(inArray(bookmarkFolders.userId, [VIEWER_A, VIEWER_B, STRANGER]));
 });
 
 afterAll(async () => {
@@ -84,12 +94,14 @@ describe('BookmarkFolderService', () => {
     const { postId } = await seedSharedBookmark();
 
     const result = await updateBookmarkFolderForViewer({
-      viewerId: scope.user('stranger'),
+      viewerId: STRANGER,
       target: { kind: 'postId', id: postId },
       folder: 'Private',
     });
 
     expect(result).toBeNull();
+    // Nor did the attempt leave the stranger a folder as a side effect.
+    expect(await listBookmarkFoldersForViewer(STRANGER)).toEqual([]);
     // The positive half: BOTH real rows are untouched. Asserting only the null
     // return would pass against a service that updated every row and returned
     // nothing.
@@ -148,5 +160,84 @@ describe('BookmarkFolderService', () => {
       .toThrow(BookmarkFolderInputError);
     expect(() => normalizeBookmarkFolder('x'.repeat(101)))
       .toThrow(BookmarkFolderInputError);
+  });
+
+  it('files a bookmark into a new folder by name, creating the folder with it', async () => {
+    const { postId } = await seedSharedBookmark();
+
+    await updateBookmarkFolderForViewer({
+      viewerId: VIEWER_A,
+      target: { kind: 'postId', id: postId },
+      folder: 'Recipes',
+    });
+
+    expect(await listBookmarkFoldersForViewer(VIEWER_A)).toEqual(['Recipes']);
+  });
+
+  it('refuses a bookmark naming a folder that does not exist, at the database', async () => {
+    const post = await seedPost(scope);
+    await expect(
+      getDb().insert(bookmarks).values({ userId: VIEWER_A, postId: post.id, folder: 'nowhere' }),
+    ).rejects.toThrow();
+  });
+});
+
+/**
+ * OxyHQ/Mention#1124: a folder created on the Saved screen vanished on reload,
+ * because a folder only existed as a value on some bookmark.
+ */
+describe('creating an empty folder', () => {
+  it('persists it, empty, as a folder the viewer lists', async () => {
+    expect(await createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: '  QA-empty  ' })).toBe('QA-empty');
+
+    expect(await listBookmarkFoldersForViewer(VIEWER_A)).toEqual(['QA-empty']);
+    const filed = await getDb().select().from(bookmarks).where(eq(bookmarks.userId, VIEWER_A));
+    expect(filed).toEqual([]);
+  });
+
+  it('is a destination before anything is in it', async () => {
+    await createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: 'Later' });
+    const { postId } = await seedSharedBookmark();
+
+    await updateBookmarkFolderForViewer({
+      viewerId: VIEWER_A,
+      target: { kind: 'postId', id: postId },
+      folder: 'Later',
+    });
+
+    expect(await folderOf(VIEWER_A, postId)).toBe('Later');
+    expect(await listBookmarkFoldersForViewer(VIEWER_A)).toEqual(['Later']);
+  });
+
+  it('is idempotent: creating it twice leaves one folder', async () => {
+    await createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: 'Reading' });
+    await createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: 'Reading' });
+
+    expect(await listBookmarkFoldersForViewer(VIEWER_A)).toEqual(['Reading']);
+  });
+
+  it('belongs to its account alone', async () => {
+    await createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: 'Mine' });
+
+    expect(await listBookmarkFoldersForViewer(VIEWER_B)).toEqual([]);
+  });
+
+  it('refuses a blank or oversized name', async () => {
+    await expect(createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: '   ' }))
+      .rejects.toBeInstanceOf(BookmarkFolderInputError);
+    await expect(createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: 'x'.repeat(101) }))
+      .rejects.toBeInstanceOf(BookmarkFolderInputError);
+    expect(await listBookmarkFoldersForViewer(VIEWER_A)).toEqual([]);
+  });
+
+  it('stops at the per-account folder limit', async () => {
+    await getDb().insert(bookmarkFolders).values(
+      Array.from({ length: MAX_BOOKMARK_FOLDERS_PER_VIEWER }, (_, i) => ({ userId: VIEWER_A, name: `f${i}` })),
+    );
+
+    await expect(createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: 'one too many' }))
+      .rejects.toBeInstanceOf(BookmarkFolderInputError);
+    // An existing folder is not "a new one", so naming it still works.
+    await expect(createBookmarkFolderForViewer({ viewerId: VIEWER_A, name: 'f0' })).resolves.toBe('f0');
   });
 });

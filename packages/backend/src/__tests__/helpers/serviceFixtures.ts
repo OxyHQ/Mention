@@ -32,6 +32,7 @@ import { getDb } from '../../db/postgres';
 import { deletePostRecord, insertPostRecord, loadPostRecord } from '../../db/posts/postRepository';
 import type { PostRecord, PostRecordInput } from '../../db/posts/postRecord';
 import { posts } from '../../db/schema/posts';
+import { bookmarkFolders, bookmarks } from '../../db/schema/engagement';
 
 /** A suite's private namespace for the rows it creates. */
 export interface ServiceScope {
@@ -177,5 +178,9 @@ export async function clearServiceScope(scope: ServiceScope): Promise<void> {
       .delete(posts)
       .where(like(posts.oxyUserId, `${ownerPrefix(scope)}%`)),
   );
+  // The scope's bookmark folders, after every bookmark that could still be
+  // filed in one — the bookmark foreign key holds a folder while one does.
+  await getDb().delete(bookmarks).where(like(bookmarks.userId, `${ownerPrefix(scope)}%`));
+  await getDb().delete(bookmarkFolders).where(like(bookmarkFolders.userId, `${ownerPrefix(scope)}%`));
 }
 
