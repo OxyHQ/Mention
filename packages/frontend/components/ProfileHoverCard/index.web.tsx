@@ -133,7 +133,7 @@ function ProfilePreview({ username, onNavigate }: { username: string; onNavigate
               ]
             : undefined
         }
-        action={profile?.id ? <FollowButton userId={profile.id} size="small" /> : undefined}
+        action={profile?.id ? <FollowButton userId={profile.id} username={profile.username || username} size="small" /> : undefined}
         onPressProfile={handlePressProfile}
         footer={
           activity.length > 0 ? (

@@ -320,6 +320,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                     <ChannelActions
                         profileId={profileData.id}
                         isFollowing={profileData.isFollowing}
+                        username={profileData.username}
                         FollowButtonComponent={OxyFollowButton}
                     />
                 </View>

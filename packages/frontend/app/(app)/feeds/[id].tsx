@@ -376,7 +376,7 @@ const ProfilesTab = React.memo(function ProfilesTab({ members }: { members: Feed
                 </Text>
               ) : null}
             </View>
-            <FollowButton userId={member.id} />
+            <FollowButton userId={member.id} username={handle || undefined} />
           </TouchableOpacity>
         );
       })}

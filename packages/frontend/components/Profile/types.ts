@@ -325,6 +325,8 @@ export interface FollowButtonProps {
   size?: 'small' | 'medium' | 'large';
   /** Seeds the button so a followed user renders "Following" on mount (no flash). */
   initiallyFollowing?: boolean;
+  /** The handle a screen reader names the button by ("Following @nate"). */
+  username?: string;
 }
 
 export type FollowButtonComponent = React.ComponentType<FollowButtonProps>;
@@ -418,6 +420,8 @@ export interface ChannelHeaderProps extends ProfileHeaderBaseProps {
 export interface ChannelActionsProps {
   profileId?: string;
   isFollowing?: boolean;
+  /** The channel's handle, for the follow button's accessible name. */
+  username?: string;
   FollowButtonComponent: FollowButtonComponent;
 }
 
