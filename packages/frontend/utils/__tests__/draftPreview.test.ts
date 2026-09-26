@@ -135,3 +135,19 @@ describe('draftToPreviewPost — what it will not pretend', () => {
     expect(post.content.location).toBeUndefined();
   });
 });
+
+describe('draftToPreviewPost — events and rooms', () => {
+  it('shows the event and room a draft keeps', () => {
+    const event = { name: 'QA launch', date: '2026-10-01T18:00:00.000Z', location: 'Barcelona' };
+    const room = { roomId: 'room-1', title: 'Live Q&A', status: 'scheduled' as const };
+    const { post } = build({ postContent: '', event, room });
+    expect(post.content.event).toEqual(event);
+    expect(post.content.room).toEqual(room);
+  });
+
+  it('adds no event or room to a draft without one', () => {
+    const { post } = build();
+    expect(post.content.event).toBeUndefined();
+    expect(post.content.room).toBeUndefined();
+  });
+});

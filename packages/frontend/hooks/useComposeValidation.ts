@@ -1,54 +1,26 @@
 import { useMemo } from 'react';
-import { ComposerMediaItem } from '@/utils/composeUtils';
-import type { ThreadItem } from '@/hooks/useThreadManager';
-import { shouldIncludeThreadItem } from '@/utils/postBuilder';
-import type { LocationData } from '@/hooks/useLocationManager';
-import type { Source } from '@/hooks/useSourcesManager';
+import { hasPublishableContent, type ComposeContent } from '@/utils/composeContent';
 
 interface UseComposeValidationProps {
-  postContent: string;
-  mediaIds: ComposerMediaItem[];
-  pollOptions: string[];
-  location: LocationData | null;
-  hasArticleContent: boolean;
-  threadItems: ThreadItem[];
-  sources: Source[];
+  content: ComposeContent;
   isPosting: boolean;
 }
 
 export const useComposeValidation = ({
-  postContent,
-  mediaIds,
-  pollOptions,
-  location,
-  hasArticleContent,
-  threadItems,
-  sources,
+  content,
   isPosting,
 }: UseComposeValidationProps) => {
-  // Check if there's any valid post content
-  const canPostContent = useMemo(() => {
-    return (
-      postContent.trim().length > 0 ||
-      mediaIds.length > 0 ||
-      (pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0)) ||
-      location !== null ||
-      hasArticleContent ||
-      threadItems.some(shouldIncludeThreadItem)
-    );
-  }, [postContent, mediaIds, pollOptions, location, hasArticleContent, threadItems]);
+  const canPostContent = useMemo(() => hasPublishableContent(content), [content]);
 
-  // Check if there are invalid sources
+  // A source with a URL but no title cannot be published.
   const hasInvalidSources = useMemo(() => {
-    return sources.some(source => {
+    return content.sources.some(source => {
       const url = source?.url?.trim?.() || '';
       const title = source?.title?.trim?.() || '';
-      // Invalid if URL exists but title is empty
       return url.length > 0 && title.length === 0;
     });
-  }, [sources]);
+  }, [content.sources]);
 
-  // Check if the post button should be enabled
   const isPostButtonEnabled = useMemo(() => {
     return canPostContent && !isPosting && !hasInvalidSources;
   }, [canPostContent, isPosting, hasInvalidSources]);

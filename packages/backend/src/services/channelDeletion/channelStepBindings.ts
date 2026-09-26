@@ -19,6 +19,7 @@ import {
   trending,
 } from '../../db/schema/discovery';
 import {
+  bookmarkFolders,
   bookmarks,
   entityFollows,
   likes,
@@ -391,6 +392,11 @@ export const STEP_BINDINGS: Readonly<Record<string, StepBinding>> = {
     phase: 'account',
     table: bookmarks,
     where: accountEq(bookmarks.userId),
+  },
+  'bookmark_folders.userId|channel-account': {
+    phase: 'account',
+    table: bookmarkFolders,
+    where: accountEq(bookmarkFolders.userId),
   },
   'post_subscriptions.subscriberId|channel-account': {
     phase: 'account',

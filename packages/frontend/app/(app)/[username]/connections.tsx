@@ -6,7 +6,7 @@ import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { ProfileCard, ProfileCardSkeletonList, type ProfileCardData } from '@/components/ProfileCard';
 import { useLocalSearchParams, router, usePathname } from 'expo-router';
 import { useSafeBack } from '@/hooks/useSafeBack';
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, TouchableOpacity, Share, Platform } from 'react-native';
 import { VirtualList } from '@oxy.so/bloom/list';
@@ -16,6 +16,8 @@ import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { cacheActors } from '@/lib/actorCache';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Error as ErrorComponent } from '@/components/Error';
+import { EmptyState } from '@/components/common/EmptyState';
+import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { logger } from '@oxy.so/core/logger';
@@ -108,7 +110,13 @@ function toProfileCardData(item: ConnectionUser): ProfileCardData | null {
 export default function ConnectionsScreen() {
   const { username } = useLocalSearchParams<{ username: string }>();
   const cleanUsername = username?.startsWith('@') ? username.slice(1) : username || '';
-  const { data: profileData, loading: profileLoading } = useProfileData(cleanUsername);
+  const {
+    data: profileData,
+    loading: profileLoading,
+    error: profileError,
+    notFound: profileNotFound,
+    refresh: refreshProfile,
+  } = useProfileData(cleanUsername);
   const { colorName: profileColorName } = useProfileScreenColor({
     username: cleanUsername,
     designColor: profileData?.design?.color,
@@ -121,6 +129,9 @@ export default function ConnectionsScreen() {
         cleanUsername={cleanUsername}
         profileData={profileData}
         profileLoading={profileLoading}
+        profileError={profileError}
+        profileNotFound={profileNotFound}
+        refreshProfile={refreshProfile}
       />
     </BloomColorScope>
   );
@@ -131,6 +142,11 @@ interface ConnectionsContentProps {
   cleanUsername: string;
   profileData: ProfileData | null;
   profileLoading: boolean;
+  /** The profile lookup ended with nothing to show. */
+  profileError: boolean;
+  /** ...because the account does not exist — not a failure worth retrying. */
+  profileNotFound: boolean;
+  refreshProfile: () => Promise<void>;
 }
 
 function ConnectionsContent({
@@ -138,14 +154,13 @@ function ConnectionsContent({
   cleanUsername,
   profileData,
   profileLoading,
+  profileError,
+  profileNotFound,
+  refreshProfile,
 }: ConnectionsContentProps) {
   const safeBack = useSafeBack();
   const pathname = usePathname();
   const { oxyServices, user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [followers, setFollowers] = useState<ConnectionUser[]>([]);
-  const [following, setFollowing] = useState<ConnectionUser[]>([]);
   const { t } = useTranslation();
   const theme = useTheme();
 
@@ -166,53 +181,44 @@ function ConnectionsContent({
         ? 'in-common'
         : 'followers';
 
-  // Load followers
-  const loadFollowers = useCallback(async () => {
-    if (!profileData?.id) return;
+  const profileId = profileData?.id;
 
-    try {
-      setError(null);
-      const followersList = await oxyServices.follows.followers(profileData.id);
-      const list = followersList.followers;
-      setFollowers(list);
-      cacheActors(list);
-    } catch (err) {
-      // Followers are public; on an auth error show the empty state rather than
-      // a scary error for logged-out visitors.
-      if (isAuthError(err)) {
-        logger.warn('Auth error loading followers, showing empty state', { error: err });
-        setFollowers([]);
-      } else {
-        const message = err instanceof globalThis.Error ? err.message : 'Failed to load followers';
-        setError(message);
-        logger.error('Error loading followers', err);
+  // The profile's public followers / following. React Query owns this load like
+  // the two viewer-relative tabs below, and for the reason that mattered here:
+  // the old imperative loader held its own `loading` flag, started `true`, and
+  // only a fetch could clear it — but it only fetched once the PROFILE had an
+  // id. A handle with no account never gets one, so the list sat on its
+  // skeletons forever beside a "Profile not found" title (OxyHQ/Mention#1124).
+  // A query that is not enabled is simply not loading.
+  const listKind: 'followers' | 'following' | null =
+    activeTab === 'followers' || activeTab === 'following' ? activeTab : null;
+  const connectionsListQuery = useQuery<ConnectionUser[]>({
+    queryKey: viewerQueryKeys.connectionsList(user?.id, listKind ?? 'followers', profileId),
+    queryFn: async () => {
+      if (!profileId) return [];
+      try {
+        const list = listKind === 'following'
+          ? (await oxyServices.follows.following(profileId)).following
+          : (await oxyServices.follows.followers(profileId)).followers;
+        cacheActors(list);
+        return list;
+      } catch (err) {
+        // The lists are public; an auth error (no usable bearer yet on cold
+        // boot, or a signed-out visitor) shows the empty state, not an error.
+        if (isAuthError(err)) {
+          logger.warn('Auth error loading connections, showing empty state', { error: err });
+          return [];
+        }
+        throw err;
       }
-    }
-  }, [profileData?.id, oxyServices]);
-
-  // Load following
-  const loadFollowing = useCallback(async () => {
-    if (!profileData?.id) return;
-
-    try {
-      setError(null);
-      const followingList = await oxyServices.follows.following(profileData.id);
-      const list = followingList.following;
-      setFollowing(list);
-      cacheActors(list);
-    } catch (err) {
-      // Following lists are public; on an auth error show the empty state rather
-      // than a scary error for logged-out visitors.
-      if (isAuthError(err)) {
-        logger.warn('Auth error loading following, showing empty state', { error: err });
-        setFollowing([]);
-      } else {
-        const message = err instanceof globalThis.Error ? err.message : 'Failed to load following';
-        setError(message);
-        logger.error('Error loading following', err);
-      }
-    }
-  }, [profileData?.id, oxyServices]);
+    },
+    enabled: listKind !== null && Boolean(profileId),
+    staleTime: RECOMMENDATIONS_STALE_TIME_MS,
+  });
+  const connectionsList = useMemo<ConnectionUser[]>(
+    () => connectionsListQuery.data ?? [],
+    [connectionsListQuery.data],
+  );
 
   // Who-may-know recommendations are personalized for the SIGNED-IN VIEWER (not
   // the profile being viewed) by `GET /recommendations` — an optional-auth,
@@ -257,9 +263,9 @@ function ConnectionsContent({
   // during the cold-boot session transition, and the endpoint soft-fails to an
   // empty list (own profile / signed out / no mutuals) rather than throwing.
   const inCommonQuery = useQuery<ConnectionUser[]>({
-    queryKey: viewerQueryKeys.connectionsMutuals(user?.id, profileData?.id),
+    queryKey: viewerQueryKeys.connectionsMutuals(user?.id, profileId),
     queryFn: async () => {
-      const targetId = profileData?.id;
+      const targetId = profileId;
       if (!targetId) return [];
       try {
         const result = await oxyServices.follows.mutuals(targetId, { limit: 50 });
@@ -277,7 +283,7 @@ function ConnectionsContent({
         throw err;
       }
     },
-    enabled: activeTab === 'in-common' && Boolean(profileData?.id),
+    enabled: activeTab === 'in-common' && Boolean(profileId),
     placeholderData: keepPreviousData,
     staleTime: RECOMMENDATIONS_STALE_TIME_MS,
   });
@@ -285,34 +291,6 @@ function ConnectionsContent({
     () => inCommonQuery.data ?? [],
     [inCommonQuery.data],
   );
-
-  // Load data based on active tab. The viewer-relative tabs (who-may-know and
-  // in-common) are owned by React Query above; only the public
-  // followers/following lists flow through this imperative path.
-  const loadCurrentTab = useCallback(async () => {
-    setLoading(true);
-    try {
-      if (activeTab === 'followers') {
-        await loadFollowers();
-      } else if (activeTab === 'following') {
-        await loadFollowing();
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [activeTab, loadFollowers, loadFollowing]);
-
-  // Depend on profileData?.id (primitive) instead of profileData (object reference)
-  // to avoid re-fetching when the profile object is re-created with identical content
-  // (e.g. after the actor cache is primed with the same data). Who-may-know and
-  // in-common are excluded here — they are driven by their React Query above,
-  // not this effect.
-  const profileId = profileData?.id;
-  useEffect(() => {
-    if (profileId && activeTab !== 'who-may-know' && activeTab !== 'in-common') {
-      loadCurrentTab();
-    }
-  }, [activeTab, profileId, loadCurrentTab]);
 
   const handleTabPress = useCallback((tabId: string) => {
     if (!routeUsername) return;
@@ -405,9 +383,8 @@ function ConnectionsContent({
   const currentData = useMemo(() => {
     switch (activeTab) {
       case 'followers':
-        return followers;
       case 'following':
-        return following;
+        return connectionsList;
       case 'who-may-know':
         return recommendations;
       case 'in-common':
@@ -415,7 +392,7 @@ function ConnectionsContent({
       default:
         return [];
     }
-  }, [activeTab, followers, following, recommendations, mutuals]);
+  }, [activeTab, connectionsList, recommendations, mutuals]);
 
   const profileDisplayName = profileData?.design.displayName;
 
@@ -487,42 +464,83 @@ function ConnectionsContent({
     { id: 'who-may-know', label: t('Who May Know', { defaultValue: 'Who May Know' }) },
   ], [t]);
 
-  // Loading/error/refresh are sourced per-tab: the viewer-relative tabs
-  // (who-may-know, in-common) read their React Query state, while
-  // followers/following keep using the imperative state.
+  // Every tab is one query; the active tab's decides loading, error and refresh.
+  // Recommendations come through the shared hook, so its fields are spelled
+  // slightly differently from a raw React Query result.
   const isRecommendationsTab = activeTab === 'who-may-know';
   const isInCommonTab = activeTab === 'in-common';
-  const isQueryTab = isRecommendationsTab || isInCommonTab;
   const { refetch: refetchRecommendations } = recommendationsQuery;
   const { refetch: refetchInCommon } = inCommonQuery;
-  // The two viewer-relative tabs read from different sources — `inCommonQuery` is
-  // a raw React Query result, `recommendationsQuery` is the shared hook's shape —
-  // so the active async state is selected per-tab rather than via a single union.
-  const activeIsError = isInCommonTab ? inCommonQuery.isError : recommendationsQuery.isError;
-  const activeErrorObj = isInCommonTab ? inCommonQuery.error : recommendationsQuery.error;
-  const activeIsPending = isInCommonTab ? inCommonQuery.isPending : recommendationsQuery.isLoading;
-  const activeIsFetching = isInCommonTab ? inCommonQuery.isFetching : recommendationsQuery.isFetching;
-  const queryErrorMessage = activeIsError
-    ? activeErrorObj instanceof globalThis.Error
-      ? activeErrorObj.message
-      : isInCommonTab
-        ? t('connections.failedInCommon', { defaultValue: 'Failed to load mutual followers' })
-        : t('connections.failedRecommendations', { defaultValue: 'Failed to load recommendations' })
+  const { refetch: refetchConnectionsList } = connectionsListQuery;
+  const activeQuery = isRecommendationsTab
+    ? {
+      isError: recommendationsQuery.isError,
+      error: recommendationsQuery.error,
+      // `isLoading`, not `isPending`: a query that is not enabled is pending
+      // forever, and that must not read as a load in progress.
+      isLoading: recommendationsQuery.isLoading,
+      isFetching: recommendationsQuery.isFetching,
+    }
+    : isInCommonTab
+      ? inCommonQuery
+      : connectionsListQuery;
+  const activeFailure = isRecommendationsTab
+    ? t('connections.failedRecommendations', { defaultValue: 'Failed to load recommendations' })
+    : isInCommonTab
+      ? t('connections.failedInCommon', { defaultValue: 'Failed to load mutual followers' })
+      : activeTab === 'following'
+        ? t('connections.failedFollowing', { defaultValue: 'Failed to load following' })
+        : t('connections.failedFollowers', { defaultValue: 'Failed to load followers' });
+  const activeError = activeQuery.isError
+    ? activeQuery.error instanceof globalThis.Error && activeQuery.error.message
+      ? activeQuery.error.message
+      : activeFailure
     : null;
-  const activeLoading = isQueryTab ? activeIsPending : loading;
-  const activeError = isQueryTab ? queryErrorMessage : error;
-  const activeRefreshing = isQueryTab ? activeIsFetching : loading;
+  const activeLoading = activeQuery.isLoading;
+  const activeRefreshing = activeQuery.isFetching;
   const refreshCurrent = useCallback(() => {
     if (isInCommonTab) {
       void refetchInCommon();
     } else if (isRecommendationsTab) {
       refetchRecommendations();
     } else {
-      void loadCurrentTab();
+      void refetchConnectionsList();
     }
-  }, [isInCommonTab, isRecommendationsTab, refetchInCommon, refetchRecommendations, loadCurrentTab]);
+  }, [isInCommonTab, isRecommendationsTab, refetchInCommon, refetchRecommendations, refetchConnectionsList]);
+
+  // Who-may-know is about the VIEWER, so it is the one tab that does not need
+  // the profile in the URL to exist.
+  const needsProfile = !isRecommendationsTab;
 
   const renderContent = () => {
+    if (needsProfile && !profileData && !profileLoading) {
+      if (profileNotFound) {
+        return (
+          <EmptyState
+            customIcon={<NoUpdatesIllustration width={200} height={200} />}
+            title={t('profile.notFound.title', { defaultValue: 'Profile not found' })}
+            subtitle={t('connections.profileNotFound', {
+              defaultValue: "This account doesn't exist, so it has no followers to show.",
+            })}
+            action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: () => safeBack() }}
+          />
+        );
+      }
+      if (profileError) {
+        return (
+          <ErrorComponent
+            title={t('Error', { defaultValue: 'Error' })}
+            message={t('connections.profileLoadFailed', {
+              defaultValue: "This profile couldn't be loaded. Check your connection and try again.",
+            })}
+            onRetry={() => { void refreshProfile(); }}
+            hideBackButton={true}
+            style={{ flex: 1, paddingVertical: 40 }}
+          />
+        );
+      }
+    }
+
     if (activeError && currentData.length === 0 && !activeLoading) {
       return (
         <ErrorComponent
@@ -540,7 +558,7 @@ function ConnectionsContent({
     // skeletons rather than a centered spinner the list then replaces.
     const isWaitingForRows =
       (activeLoading && currentData.length === 0) ||
-      (profileLoading && activeTab !== 'who-may-know');
+      (needsProfile && profileLoading);
     if (isWaitingForRows) {
       return <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton />;
     }

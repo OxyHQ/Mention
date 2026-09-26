@@ -63,9 +63,9 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
-import { bookmarks, likes } from '../../db/schema/engagement';
+import { bookmarkFolders, bookmarks, likes } from '../../db/schema/engagement';
 import { clearServiceScope, seedPost, serviceScope } from '../helpers/serviceFixtures';
-import { getBookmarkFolders, getSavedPosts } from '../../controllers/posts/bookmarks';
+import { createBookmarkFolder, getBookmarkFolders, getSavedPosts } from '../../controllers/posts/bookmarks';
 import { getPostLikes } from '../../controllers/posts/engagementLists';
 import type { PostRecord } from '../../db/posts/postRecord';
 
@@ -265,6 +265,7 @@ describe('getPostLikes — the (created_at DESC, id DESC) keyset', () => {
 describe('getBookmarkFolders', () => {
   async function seedBookmark(folder: string | null, userId = VIEWER): Promise<void> {
     const post = await seedPost(scope, { oxyUserId: scope.user('author') });
+    if (folder) await getDb().insert(bookmarkFolders).values({ userId, name: folder }).onConflictDoNothing();
     await getDb().insert(bookmarks).values({ userId, postId: post.id, folder });
   }
 
@@ -292,6 +293,14 @@ describe('getBookmarkFolders', () => {
     expect([...(await folders())].sort()).toEqual(['reading', 'recipes']);
   });
 
+  it('lists a folder that holds no bookmark yet', async () => {
+    // OxyHQ/Mention#1124: an empty folder is a folder. It used to exist only as
+    // a value on some bookmark, so it could not be listed until one was filed.
+    await getDb().insert(bookmarkFolders).values({ userId: VIEWER, name: 'empty' });
+
+    expect(await folders()).toEqual(['empty']);
+  });
+
   it('never leaks another account’s folders', async () => {
     await seedBookmark('mine');
     await seedBookmark('theirs', scope.user('someone-else'));
@@ -306,6 +315,32 @@ describe('getBookmarkFolders', () => {
   });
 });
 
+describe('createBookmarkFolder', () => {
+  async function create(body: unknown, user: unknown = { id: VIEWER }) {
+    const { res, captured } = buildResponse();
+    await createBookmarkFolder(buildRequest({ user, body }) as never, res as never);
+    return captured;
+  }
+
+  it('creates an empty folder that the folder list then holds', async () => {
+    const created = await create({ name: 'QA-empty-20260925' });
+    expect(created).toEqual({ status: 201, body: { folder: 'QA-empty-20260925' } });
+
+    const { res, captured } = buildResponse();
+    await getBookmarkFolders(buildRequest({ user: { id: VIEWER } }) as never, res as never);
+    expect((captured.body as { folders: string[] }).folders).toEqual(['QA-empty-20260925']);
+  });
+
+  it('answers a blank name with 400', async () => {
+    expect((await create({ name: '  ' })).status).toBe(400);
+    expect((await create({})).status).toBe(400);
+  });
+
+  it('answers an unauthenticated caller with 401', async () => {
+    expect((await create({ name: 'x' }, null)).status).toBe(401);
+  });
+});
+
 describe('getSavedPosts', () => {
   /** Save a post carrying `text`, optionally into a folder. */
   async function seedSaved(text: string, folder: string | null = null): Promise<PostRecord> {
@@ -313,6 +348,7 @@ describe('getSavedPosts', () => {
       oxyUserId: scope.user('author'),
       content: { variants: [{ source: 'author', text, tag: 'en' }] },
     });
+    if (folder) await getDb().insert(bookmarkFolders).values({ userId: VIEWER, name: folder }).onConflictDoNothing();
     await getDb().insert(bookmarks).values({ userId: VIEWER, postId: post.id, folder });
     return post;
   }

@@ -17,9 +17,11 @@ import type { Draft } from '@/hooks/useDrafts';
  * - **Indicated, not rendered:** a THREAD. The surface renders one post; a
  *   multi-post draft previews its first post and reports how many follow, rather
  *   than showing a fragment as if it were the whole thing.
- * - **Absent by construction:** quoted posts, events and rooms. The composer
- *   holds those in its own state and `Draft` has no field for them, so a draft
- *   simply does not carry them — nothing is being dropped here.
+ * - **Faithful too:** an attached event and room — both are plain data a draft
+ *   keeps, and the card renders from that data alone.
+ * - **Absent by construction:** a quoted post. The composer holds it in its own
+ *   state and `Draft` has no field for it, so a draft simply does not carry one
+ *   — nothing is being dropped here.
  *
  * Engagement, viewer state and permissions are all zero/false because the post
  * does not exist yet; that is honest rather than a placeholder.
@@ -90,6 +92,8 @@ export function draftToPreviewPost(params: {
             },
           }
         : {}),
+      ...(draft.event ? { event: { ...draft.event } } : {}),
+      ...(draft.room ? { room: { ...draft.room } } : {}),
     },
     attachments: {},
     user: author,

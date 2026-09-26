@@ -268,7 +268,7 @@ describe('ComposeThreadItem — the per-entry controls a continuation carries', 
       const onPodcastPress = jest.fn();
       const tree = renderItem(mode, { onPodcastPress });
 
-      act(() => control(tree, 'compose.podcast.add').props.onPress());
+      act(() => control(tree, 'Add a podcast').props.onPress());
       // Bound to THIS box's id — a handler that forgot to would attach the show
       // to whichever box the composer happened to have focused.
       expect(onPodcastPress).toHaveBeenCalledWith('thread-1');

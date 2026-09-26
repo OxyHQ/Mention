@@ -96,6 +96,10 @@ export interface BookmarkFoldersResponse {
   folders: string[];
 }
 
+export interface CreateBookmarkFolderResponse {
+  folder: string;
+}
+
 let viewerRequestGeneration = 0;
 let activeViewerRequestScope: string | null | undefined;
 let credentialGeneration = 0;
@@ -698,6 +702,15 @@ class FeedService {
       { signal },
     );
     return response.data.folders ?? [];
+  }
+
+  /** Create an empty folder; resolves to its name as the server stored it. */
+  async createBookmarkFolder(name: string): Promise<string> {
+    const response = await authenticatedClient.post<CreateBookmarkFolderResponse>(
+      '/posts/bookmarks/folders',
+      { name },
+    );
+    return response.data.folder;
   }
 
   async moveBookmarkToFolder(

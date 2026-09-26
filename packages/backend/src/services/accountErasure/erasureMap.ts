@@ -365,6 +365,15 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     why: 'The account\'s muted words.',
   },
   {
+    table: 'bookmark_folders',
+    column: 'userId',
+    disposition: 'delete-row',
+    phase: 'account',
+    why:
+      'The account\'s bookmark folders. After `engagement`, which deleted the bookmarks filed in them — ' +
+      'the bookmark foreign key does not let a folder go while a bookmark still names it.',
+  },
+  {
     table: 'pokes',
     column: 'pokerId',
     disposition: 'delete-row',

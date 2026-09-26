@@ -13,6 +13,7 @@ import { updatePostLane, updatePostSettings } from '../controllers/posts/postSet
 import { deletePost } from '../controllers/posts/deletePost';
 import { likePost, unlikePost } from '../controllers/posts/likes';
 import {
+  createBookmarkFolder,
   getBookmarkFolders,
   getSavedPosts,
   moveBookmarkToFolder,
@@ -137,6 +138,7 @@ publicPostsRouter.get('/:id', getPostById);
 router.post('/', ...postWriteRateLimiters, createPost);
 router.post('/thread', ...postWriteRateLimiters, createThread);
 router.get('/bookmarks/folders', getBookmarkFolders);
+router.post('/bookmarks/folders', createBookmarkFolder);
 router.patch('/bookmarks/by-post/:postId/folder', moveBookmarkToFolderByPostId);
 router.patch('/bookmarks/:id/folder', moveBookmarkToFolder);
 // Composer AI pre-fill: translate a draft body that has no post yet. Must stay

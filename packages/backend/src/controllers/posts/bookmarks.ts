@@ -4,7 +4,7 @@
  */
 
 import { Response } from 'express';
-import { and, eq, exists, ilike, isNotNull, sql, type SQL } from 'drizzle-orm';
+import { and, eq, exists, ilike, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { bookmarks as bookmarksTable } from '../../db/schema/engagement';
 import { posts as postsTable } from '../../db/schema/posts';
@@ -26,6 +26,8 @@ import {
 import {
   BookmarkFolderInputError,
   type BookmarkFolderTarget,
+  createBookmarkFolderForViewer,
+  listBookmarkFoldersForViewer,
   updateBookmarkFolderForViewer,
 } from '../../services/BookmarkFolderService';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './postPageBounds';
@@ -226,17 +228,34 @@ export const getBookmarkFolders = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    // `is not null`, never `<> null`: Mongo's `$ne: null` also excluded a MISSING
-    // field, while SQL's `<>` against NULL evaluates to NULL and matches nothing,
-    // so the literal translation returns an empty folder list for everyone.
-    const rows = await getDb()
-      .selectDistinct({ folder: bookmarksTable.folder })
-      .from(bookmarksTable)
-      .where(and(eq(bookmarksTable.userId, userId), isNotNull(bookmarksTable.folder)));
-    res.json({ folders: rows.map((row) => row.folder) });
+    // The folders themselves, not the distinct values over the viewer's
+    // bookmarks: an empty folder is a folder too (OxyHQ/Mention#1124).
+    res.json({ folders: await listBookmarkFoldersForViewer(userId) });
   } catch (error) {
     logger.error('Error fetching bookmark folders', error);
     res.status(500).json({ message: 'Error fetching bookmark folders' });
+  }
+};
+
+// Create an (empty) bookmark folder for the current user
+export const createBookmarkFolder = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const folder = await createBookmarkFolderForViewer({
+      viewerId: userId,
+      name: req.body?.name,
+    });
+    return res.status(201).json({ folder });
+  } catch (error) {
+    if (error instanceof BookmarkFolderInputError) {
+      return res.status(400).json({ message: error.message });
+    }
+    logger.error('Error creating bookmark folder', error);
+    return res.status(500).json({ message: 'Error creating bookmark folder' });
   }
 };
 

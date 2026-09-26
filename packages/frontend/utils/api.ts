@@ -32,27 +32,6 @@ function withReaderLanguage<C extends { headers?: Record<string, string> }>(conf
   return { ...base, headers: { ...readerLanguageHeaders(), ...base.headers } };
 }
 
-function getHttpStatus(error: unknown): number | undefined {
-  if (!error || typeof error !== 'object') {
-    return undefined;
-  }
-
-  if ('response' in error) {
-    const response = (error as { response?: unknown }).response;
-    if (response && typeof response === 'object' && 'status' in response) {
-      const status = (response as { status?: unknown }).status;
-      return typeof status === 'number' ? status : undefined;
-    }
-  }
-
-  if ('status' in error) {
-    const status = (error as { status?: unknown }).status;
-    return typeof status === 'number' ? status : undefined;
-  }
-
-  return undefined;
-}
-
 /**
  * The Mention API client.
  *
@@ -173,13 +152,7 @@ export const publicApi = {
 };
 
 // Error checking utilities
-export function isUnauthorizedError(error: unknown): boolean {
-  return getHttpStatus(error) === 401;
-}
-
-export function isNotFoundError(error: unknown): boolean {
-  return getHttpStatus(error) === 404;
-}
+export { isNotFoundError, isUnauthorizedError } from '@/utils/httpStatus';
 
 /**
  * Get API origin, ensuring correct port for localhost (4110)

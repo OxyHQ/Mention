@@ -25,6 +25,7 @@ import { blocklistProposals } from '../../db/schema/blocklist';
 import { laneMutes, lanes } from '../../db/schema/channels';
 import { authorFollowerSnapshots, notifications, pushTokens, trending } from '../../db/schema/discovery';
 import {
+  bookmarkFolders,
   bookmarks,
   entityFollows,
   likes,
@@ -451,6 +452,7 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
   'mutes.userId': deleteRows('account', mutes, mutes.id, accountIs(mutes.userId)),
   'mutes.mutedId': deleteRows('account', mutes, mutes.id, accountIs(mutes.mutedId)),
   'mute_words.userId': deleteRows('account', muteWords, muteWords.id, accountIs(muteWords.userId)),
+  'bookmark_folders.userId': deleteRows('account', bookmarkFolders, bookmarkFolders.id, accountIs(bookmarkFolders.userId)),
   'pokes.pokerId': deleteRows('account', pokes, pokes.id, accountIs(pokes.pokerId)),
   'pokes.pokedId': deleteRows('account', pokes, pokes.id, accountIs(pokes.pokedId)),
   'entity_follows.userId': deleteRows('account', entityFollows, entityFollows.id, accountIs(entityFollows.userId)),

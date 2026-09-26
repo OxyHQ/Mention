@@ -290,3 +290,54 @@ describe('useProfileData — Oxy-proven public aliases', () => {
     act(() => renderer.unmount());
   });
 });
+
+/**
+ * "No such profile" and "the lookup failed" are different answers: the first
+ * ends in "Profile not found", the second in a retry (OxyHQ/Mention#1124 — the
+ * connections screen needs to tell them apart, and could not).
+ */
+describe('useProfileData — a profile that cannot be shown', () => {
+  interface Outcome { loading: boolean; error: boolean; notFound: boolean }
+
+  function OutcomeProbe({ handle, sink }: { handle: string; sink: Outcome[] }) {
+    const { loading, error, notFound } = useProfileData(handle);
+    sink.push({ loading, error, notFound });
+    return null;
+  }
+
+  async function outcomeFor(handle: string): Promise<Outcome> {
+    const sink: Outcome[] = [];
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    act(() => {
+      renderer = TestRenderer.create(
+        <QueryClientProvider client={client}>
+          <OutcomeProbe handle={handle} sink={sink} />
+        </QueryClientProvider>,
+      );
+    });
+    await settle();
+    act(() => renderer?.unmount());
+    return sink[sink.length - 1];
+  }
+
+  beforeEach(() => {
+    mockViewer.current = null;
+    mockFetchProfile.mockReset();
+  });
+
+  it('reports a 404 as not found', async () => {
+    mockFetchProfile.mockRejectedValue(Object.assign(new Error('Not found'), { status: 404 }));
+    expect(await outcomeFor('qa_missing')).toEqual({ loading: false, error: true, notFound: true });
+  });
+
+  it('reports a lookup that resolved with no profile as not found', async () => {
+    mockFetchProfile.mockResolvedValue(null);
+    expect(await outcomeFor('qa_missing')).toEqual({ loading: false, error: true, notFound: true });
+  });
+
+  it('reports a failed lookup as an error, not as not found', async () => {
+    mockFetchProfile.mockRejectedValue(Object.assign(new Error('Bad gateway'), { status: 502 }));
+    expect(await outcomeFor('someone')).toEqual({ loading: false, error: true, notFound: false });
+  });
+});

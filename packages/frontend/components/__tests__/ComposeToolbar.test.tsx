@@ -355,3 +355,51 @@ describe('ComposeToolbar — fitting the screen', () => {
     act(() => tree.unmount());
   });
 });
+
+/**
+ * Every control in the row is an icon with no words, so its name and role are
+ * all a screen reader has. OxyHQ/Mention#1124 found most of them unnamed and
+ * role-less on production web.
+ */
+describe('ComposeToolbar — what assistive technology is told', () => {
+  const pressables = (tree: TestRenderer.ReactTestRenderer) =>
+    tree.root.findAll((node) => typeof node.props.onPress === 'function' && typeof node.type !== 'string'
+      && node.props.accessibilityRole !== undefined);
+
+  it('names every control and gives each the button role', () => {
+    const tree = render(EVERY_HANDLER);
+    const controls = pressables(tree);
+
+    // One distinct name per handler handed in: none missing, none shared.
+    expect(new Set(controls.map((node) => node.props.accessibilityLabel)).size)
+      .toBe(Object.keys(EVERY_HANDLER).length);
+    for (const control of controls) {
+      expect(control.props.accessibilityRole).toBe('button');
+      expect(String(control.props.accessibilityLabel ?? '').trim()).not.toBe('');
+    }
+    expect(a11yLabels(tree)).toEqual(expect.arrayContaining([
+      'Add photos or videos', 'Add a GIF', 'Add an emoji', 'Add a poll', 'Add sources',
+      'Write an article', 'Add an event', 'Attach a live room', 'Add a podcast', 'Add your location',
+    ]));
+
+    act(() => tree.unmount());
+  });
+
+  it('reports a control that cannot be used right now as disabled', () => {
+    const tree = render({ ...EVERY_HANDLER, hasPoll: true });
+    const media = pressables(tree).find((node) => node.props.accessibilityLabel === 'Add photos or videos');
+
+    expect(media?.props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }));
+
+    act(() => tree.unmount());
+  });
+
+  it('reports the location control as busy while it locates', () => {
+    const tree = render({ onLocationPress: jest.fn(), isGettingLocation: true });
+    const location = pressables(tree).find((node) => node.props.accessibilityLabel === 'Add your location');
+
+    expect(location?.props.accessibilityState).toEqual({ disabled: true, busy: true });
+
+    act(() => tree.unmount());
+  });
+});

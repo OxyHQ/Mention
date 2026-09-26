@@ -1,8 +1,16 @@
-import { and, eq } from 'drizzle-orm';
-import { getDb } from '../db/postgres';
-import { bookmarks } from '../db/schema/engagement';
+import { and, asc, count, eq } from 'drizzle-orm';
+import { getDb, type Transaction } from '../db/postgres';
+import {
+  BOOKMARK_FOLDER_NAME_MAX_LENGTH,
+  bookmarkFolders,
+  bookmarks,
+} from '../db/schema/engagement';
 
-const MAX_FOLDER_LENGTH = 100;
+/**
+ * How many folders one account may keep. Generous for filing, and a bound on
+ * what a single account can make the folder list (and this table) hold.
+ */
+export const MAX_BOOKMARK_FOLDERS_PER_VIEWER = 200;
 
 export type BookmarkFolderTarget =
   | { kind: 'postId'; id: string }
@@ -52,20 +60,76 @@ export function normalizeBookmarkFolder(folder: unknown): string | null {
   if (!normalized) {
     return null;
   }
-  if (normalized.length > MAX_FOLDER_LENGTH) {
+  if (normalized.length > BOOKMARK_FOLDER_NAME_MAX_LENGTH) {
     throw new BookmarkFolderInputError(
-      `Folder must be at most ${MAX_FOLDER_LENGTH} characters`,
+      `Folder must be at most ${BOOKMARK_FOLDER_NAME_MAX_LENGTH} characters`,
     );
   }
   return normalized;
 }
 
+/** The viewer's folders, oldest first — the order they were made in. */
+export async function listBookmarkFoldersForViewer(viewerId: string): Promise<string[]> {
+  const rows = await getDb()
+    .select({ name: bookmarkFolders.name })
+    .from(bookmarkFolders)
+    .where(eq(bookmarkFolders.userId, viewerId))
+    .orderBy(asc(bookmarkFolders.createdAt), asc(bookmarkFolders.name));
+  return rows.map((row) => row.name);
+}
+
+/**
+ * Make sure the viewer has a folder with this name, inside `tx`. Idempotent: an
+ * existing folder is left as it is. A NEW one counts against
+ * {@link MAX_BOOKMARK_FOLDERS_PER_VIEWER}.
+ */
+async function ensureFolder(tx: Transaction, viewerId: string, name: string): Promise<void> {
+  const [existing] = await tx
+    .select({ id: bookmarkFolders.id })
+    .from(bookmarkFolders)
+    .where(and(eq(bookmarkFolders.userId, viewerId), eq(bookmarkFolders.name, name)));
+  if (existing) return;
+
+  const [{ total }] = await tx
+    .select({ total: count() })
+    .from(bookmarkFolders)
+    .where(eq(bookmarkFolders.userId, viewerId));
+  if (total >= MAX_BOOKMARK_FOLDERS_PER_VIEWER) {
+    throw new BookmarkFolderInputError(
+      `You can keep at most ${MAX_BOOKMARK_FOLDERS_PER_VIEWER} folders`,
+    );
+  }
+
+  // `do nothing` rather than a failure: two requests creating the same folder
+  // at once both mean "this folder should exist", and it does.
+  await tx
+    .insert(bookmarkFolders)
+    .values({ userId: viewerId, name })
+    .onConflictDoNothing({ target: [bookmarkFolders.userId, bookmarkFolders.name] });
+}
+
+/**
+ * Create a folder, empty. It exists — in the folder list and as a destination —
+ * before anything is filed in it. Creating one that already exists is not an
+ * error: the result is the same folder.
+ */
+export async function createBookmarkFolderForViewer(input: {
+  viewerId: string;
+  name: unknown;
+}): Promise<string> {
+  const name = normalizeBookmarkFolder(input.name);
+  if (!name) {
+    throw new BookmarkFolderInputError('Folder name is required');
+  }
+  await getDb().transaction((tx) => ensureFolder(tx, input.viewerId, name));
+  return name;
+}
+
 /**
  * Move exactly one viewer-owned bookmark. The explicit target kind prevents a
  * post id from being mistaken for a bookmark row id, while `userId` stays in the
- * update's own WHERE clause so one account can never move another account's
- * bookmark — the ownership check and the write are one statement, not a read
- * followed by a write.
+ * WHERE clause of both the lookup and the update, so one account can never move
+ * another account's bookmark.
  *
  * Postgres, because that is where bookmarks live: nothing has created a Mongo
  * `Bookmark` since the engagement command service moved, so this update ran
@@ -85,21 +149,33 @@ export async function updateBookmarkFolderForViewer(input: {
   );
   const folder = normalizeBookmarkFolder(input.folder);
 
-  const [updated] = await getDb()
-    .update(bookmarks)
-    .set({ folder })
-    .where(and(
-      eq(bookmarks.userId, input.viewerId),
-      input.target.kind === 'postId'
-        ? eq(bookmarks.postId, targetId)
-        : eq(bookmarks.id, targetId),
-    ))
-    .returning({
-      id: bookmarks.id,
-      userId: bookmarks.userId,
-      postId: bookmarks.postId,
-      folder: bookmarks.folder,
-    });
+  const ownBookmark = and(
+    eq(bookmarks.userId, input.viewerId),
+    input.target.kind === 'postId'
+      ? eq(bookmarks.postId, targetId)
+      : eq(bookmarks.id, targetId),
+  );
+
+  // Filing into a folder by name creates it when it is new, in the same
+  // transaction, so the bookmark's foreign key always finds its folder. The
+  // bookmark is looked up first: moving a bookmark that is not the viewer's (or
+  // does not exist) must not leave a folder behind as a side effect.
+  const updated = await getDb().transaction(async (tx) => {
+    const [target] = await tx.select({ id: bookmarks.id }).from(bookmarks).where(ownBookmark);
+    if (!target) return undefined;
+    if (folder) await ensureFolder(tx, input.viewerId, folder);
+    const [row] = await tx
+      .update(bookmarks)
+      .set({ folder })
+      .where(and(eq(bookmarks.id, target.id), eq(bookmarks.userId, input.viewerId)))
+      .returning({
+        id: bookmarks.id,
+        userId: bookmarks.userId,
+        postId: bookmarks.postId,
+        folder: bookmarks.folder,
+      });
+    return row;
+  });
 
   return updated ?? null;
 }

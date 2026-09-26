@@ -12,6 +12,7 @@ import { getCachedFileDownloadUrlSync, type FileUrlResolver } from '@/utils/imag
 import { isPublicProfileHandle } from '@/utils/publicProfileHandle';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { profileAccountFacts } from '@/utils/profileAccountFacts';
+import { isNotFoundError } from '@/utils/httpStatus';
 
 const PROFILE_STALE_TIME = 5 * 60 * 1000; // 5 minutes
 const PROFILE_GC_TIME = 30 * 60 * 1000; // 30 minutes
@@ -163,7 +164,14 @@ function computeDesign(
 export function useProfileData(username?: string): {
   data: ProfileData | null;
   loading: boolean;
+  /** Nothing to show: the profile does not exist, or the lookup failed. */
   error: boolean;
+  /**
+   * The lookup answered definitively that there is no such profile (a 404, or a
+   * federated handle WebFinger could not resolve). `error` without `notFound`
+   * is a failure worth retrying, not a missing account.
+   */
+  notFound: boolean;
   /** Refetches every remote payload that contributes to the profile chrome. */
   refresh: () => Promise<void>;
 } {
@@ -236,6 +244,7 @@ export function useProfileData(username?: string): {
   const profile = (isFederated ? federatedProfile : localQuery.data) ?? sessionProfile;
   const isPending = isFederated ? federatedQuery.isPending : localQuery.isPending;
   const isError = isFederated ? federatedQuery.isError : localQuery.isError;
+  const queryError = isFederated ? federatedQuery.error : localQuery.error;
 
   // Appearance/customization (privacy, cover image, post count, color overrides).
   // Driven by React Query so it dedupes and avoids a manual effect — React Query
@@ -334,6 +343,7 @@ export function useProfileData(username?: string): {
   // UI can show its empty state instead of an indefinite skeleton.
   const loading = Boolean(handle) && isPending && !profile;
   const error = isError || (Boolean(handle) && !isPending && !profile);
+  const notFound = error && !profile && (!isError || isNotFoundError(queryError));
 
-  return { data: profileData, loading, error, refresh };
+  return { data: profileData, loading, error, notFound, refresh };
 }

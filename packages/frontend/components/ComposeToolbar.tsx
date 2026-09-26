@@ -151,6 +151,9 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
 
     const CollaboratorsIcon = hasCollaborators ? RiGroupFill : RiGroupLine;
 
+    const iconColor = (inactive: boolean, active = false) =>
+        inactive ? theme.colors.textTertiary : active ? theme.colors.primary : theme.colors.textSecondary;
+
     return (
         <ScrollView
             horizontal
@@ -160,170 +163,122 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
             contentContainerStyle={contentContainerStyle}
         >
             {onMediaPress && (
-                <PressableScale
+                <ToolbarAction
+                    label={t('compose.toolbar.media', { defaultValue: 'Add photos or videos' })}
                     onPress={withHaptic(onMediaPress)}
                     disabled={disabled || hasPoll}
-                    className="p-1"
                 >
-                    <MediaIcon
-                        size={20}
-                        color={disabled || hasPoll ? theme.colors.textTertiary : theme.colors.textSecondary}
-                    />
-                </PressableScale>
+                    <MediaIcon size={20} color={iconColor(disabled || hasPoll)} />
+                </ToolbarAction>
             )}
 
             {onGifPress && (
-                <PressableScale
+                <ToolbarAction
+                    label={t('compose.toolbar.gif', { defaultValue: 'Add a GIF' })}
                     onPress={withHaptic(onGifPress)}
                     disabled={disabled}
-                    className="p-1"
                 >
-                    <GifIcon
-                        size={20}
-                        color={disabled ? theme.colors.textTertiary : theme.colors.textSecondary}
-                    />
-                </PressableScale>
+                    <GifIcon size={20} color={iconColor(disabled)} />
+                </ToolbarAction>
             )}
 
             {onEmojiPress && (
-                <PressableScale
+                <ToolbarAction
+                    label={t('compose.toolbar.emoji', { defaultValue: 'Add an emoji' })}
                     onPress={withHaptic(onEmojiPress)}
                     disabled={disabled}
-                    className="p-1"
                 >
-                    <EmojiIcon
-                        size={20}
-                        color={disabled ? theme.colors.textTertiary : theme.colors.textSecondary}
-                    />
-                </PressableScale>
+                    <EmojiIcon size={20} color={iconColor(disabled)} />
+                </ToolbarAction>
             )}
 
             {onPollPress && (
-                <PressableScale
+                <ToolbarAction
+                    label={t('compose.toolbar.poll', { defaultValue: 'Add a poll' })}
                     onPress={withHaptic(onPollPress)}
                     disabled={disabled || hasMedia}
-                    className="p-1"
                 >
-                    <PollIcon
-                        size={20}
-                        color={disabled || hasMedia ? theme.colors.textTertiary : (hasPoll ? theme.colors.primary : theme.colors.textSecondary)}
-                    />
-                </PressableScale>
+                    <PollIcon size={20} color={iconColor(disabled || hasMedia, hasPoll)} />
+                </ToolbarAction>
             )}
 
             {onSourcesPress && (
-                <PressableScale
+                <ToolbarAction
+                    label={t('compose.toolbar.sources', { defaultValue: 'Add sources' })}
                     onPress={withHaptic(onSourcesPress)}
                     disabled={disabled}
-                    className="p-1"
                 >
                     <SourcesIcon
                         size={20}
-                        color={disabled
-                            ? theme.colors.textTertiary
-                            : hasSourceErrors
-                                ? (theme.colors.error || '#ff4d4f')
-                                : hasSources
-                                    ? theme.colors.primary
-                                    : theme.colors.textSecondary}
+                        color={!disabled && hasSourceErrors
+                            ? (theme.colors.error || '#ff4d4f')
+                            : iconColor(disabled, hasSources)}
                     />
-                </PressableScale>
+                </ToolbarAction>
             )}
 
             {onArticlePress && (
-                <PressableScale
+                <ToolbarAction
+                    label={t('compose.toolbar.article', { defaultValue: 'Write an article' })}
                     onPress={withHaptic(onArticlePress)}
                     disabled={disabled}
-                    className="p-1"
                 >
-                    <ArticleIcon
-                        size={20}
-                        color={disabled ? theme.colors.textTertiary : (hasArticle ? theme.colors.primary : theme.colors.textSecondary)}
-                    />
-                </PressableScale>
+                    <ArticleIcon size={20} color={iconColor(disabled, hasArticle)} />
+                </ToolbarAction>
             )}
 
             {onEventPress && (
-                <PressableScale
+                <ToolbarAction
+                    label={t('compose.toolbar.event', { defaultValue: 'Add an event' })}
                     onPress={withHaptic(onEventPress)}
                     disabled={disabled}
-                    className="p-1"
                 >
-                    <CalendarIcon
-                        size={20}
-                        color={disabled ? theme.colors.textTertiary : (hasEvent ? theme.colors.primary : theme.colors.textSecondary)}
-                    />
-                </PressableScale>
+                    <CalendarIcon size={20} color={iconColor(disabled, hasEvent)} />
+                </ToolbarAction>
             )}
 
             {onRoomPress && (
-                <PressableScale
+                <ToolbarAction
+                    label={t('compose.toolbar.room', { defaultValue: 'Attach a live room' })}
                     onPress={withHaptic(onRoomPress)}
                     disabled={disabled}
-                    className="p-1"
                 >
-                    <RiBroadcastLine
-                        size="md"
-                        fill={disabled ? theme.colors.textTertiary : (hasRoom ? theme.colors.primary : theme.colors.textSecondary)}
-                    />
-                </PressableScale>
+                    <RiBroadcastLine size="md" fill={iconColor(disabled, hasRoom)} />
+                </ToolbarAction>
             )}
 
             {onPodcastPress && (
-                <PressableScale
+                <ToolbarAction
+                    label={t('compose.toolbar.podcast', { defaultValue: 'Add a podcast' })}
                     onPress={withHaptic(onPodcastPress)}
                     disabled={disabled}
-                    className="p-1"
-                    // Labelled but role-less until now, alone among the labelled
-                    // controls in this row — a screen reader announced the name
-                    // without saying it could be activated.
-                    accessibilityRole="button"
-                    accessibilityLabel={t('compose.podcast.add')}
                 >
-                    <RiMic2Line
-                        size="md"
-                        fill={disabled ? theme.colors.textTertiary : (hasPodcast ? theme.colors.primary : theme.colors.textSecondary)}
-                    />
-                </PressableScale>
+                    <RiMic2Line size="md" fill={iconColor(disabled, hasPodcast)} />
+                </ToolbarAction>
             )}
 
             {onJobPress && (
-                <PressableScale
+                <ToolbarAction
+                    label={t('compose.job.add', { defaultValue: 'Attach a job' })}
                     onPress={withHaptic(onJobPress)}
                     disabled={disabled}
-                    className="p-1"
-                    accessibilityRole="button"
-                    accessibilityLabel={t('compose.job.add', { defaultValue: 'Attach a job' })}
                 >
-                    <Ionicons
-                        name="briefcase-outline"
-                        size={20}
-                        color={disabled ? theme.colors.textTertiary : (hasJob ? theme.colors.primary : theme.colors.textSecondary)}
-                    />
-                </PressableScale>
+                    <Ionicons name="briefcase-outline" size={20} color={iconColor(disabled, hasJob)} />
+                </ToolbarAction>
             )}
 
             {onCollaboratorsPress && (
-                <PressableScale
+                <ToolbarAction
+                    label={t('collab.inviteCollaborators', { defaultValue: 'Invite collaborators' })}
                     onPress={withHaptic(onCollaboratorsPress)}
                     disabled={disabled || !collaboratorsEnabled}
-                    className="p-1"
-                    accessibilityRole="button"
-                    accessibilityLabel={t('collab.inviteCollaborators', { defaultValue: 'Invite collaborators' })}
                 >
                     {/* The SAME glyph the collaborator picker already labels its
                         rows with, in the two states this row uses everywhere
                         else: filled once the post names someone, outline while
                         it does not. */}
-                    <CollaboratorsIcon
-                        size="md"
-                        fill={disabled || !collaboratorsEnabled
-                            ? theme.colors.textTertiary
-                            : hasCollaborators
-                                ? theme.colors.primary
-                                : theme.colors.textSecondary}
-                    />
-                </PressableScale>
+                    <CollaboratorsIcon size="md" fill={iconColor(disabled || !collaboratorsEnabled, hasCollaborators)} />
+                </ToolbarAction>
             )}
 
             {/* WHO the post is by is not on this row. It is the box's own avatar
@@ -332,12 +287,10 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                 gets its own without a toolbar each. */}
 
             {onLanePress && (
-                <PressableScale
+                <ToolbarAction
+                    label={t('lanes.compose.choose', { defaultValue: 'Choose a lane' })}
                     onPress={withHaptic(onLanePress)}
                     disabled={disabled}
-                    className="p-1"
-                    accessibilityRole="button"
-                    accessibilityLabel={t('lanes.compose.choose', { defaultValue: 'Choose a lane' })}
                 >
                     {/* Parallel tracks, not a branch. A branch is a fork — one
                         history splitting into divergent ones — and a lane forks
@@ -345,36 +298,57 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                         federation are untouched by it. It is a track the post is
                         filed on. The tint carries the on/off state, the way every
                         other icon in this row signals its attachment. */}
-                    <LaneIcon
-                        size={20}
-                        color={disabled
-                            ? theme.colors.textTertiary
-                            : hasLane
-                                ? theme.colors.primary
-                                : theme.colors.textSecondary}
-                    />
-                </PressableScale>
+                    <LaneIcon size={20} color={iconColor(disabled, hasLane)} />
+                </ToolbarAction>
             )}
 
             {onLocationPress && (
-                <PressableScale
+                <ToolbarAction
+                    label={t('compose.toolbar.location', { defaultValue: 'Add your location' })}
                     onPress={withHaptic(onLocationPress)}
                     disabled={disabled || isGettingLocation}
-                    className="p-1"
+                    busy={isGettingLocation}
                 >
                     {isGettingLocation ? (
                         <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
                     ) : (
-                        <LocationIcon
-                            size={20}
-                            color={disabled ? theme.colors.textTertiary : (hasLocation ? theme.colors.primary : theme.colors.textSecondary)}
-                        />
+                        <LocationIcon size={20} color={iconColor(disabled, hasLocation)} />
                     )}
-                </PressableScale>
+                </ToolbarAction>
             )}
         </ScrollView>
     );
 });
+
+/**
+ * One control of the row. Every control is icon-only, so the NAME is a required
+ * prop rather than an attribute each call site has to remember: the row used to
+ * spell out `accessibilityLabel`/`accessibilityRole` per control, and most of
+ * them had neither — a screen reader met a column of unnamed, role-less
+ * focusable boxes (OxyHQ/Mention#1124). The button role gives Tab focus and
+ * Enter/Space activation on web; the state says when a control cannot be used
+ * right now, or is working.
+ */
+interface ToolbarActionProps {
+    label: string;
+    onPress: () => void;
+    disabled: boolean;
+    busy?: boolean;
+    children: React.ReactNode;
+}
+
+const ToolbarAction = ({ label, onPress, disabled, busy = false, children }: ToolbarActionProps) => (
+    <PressableScale
+        onPress={onPress}
+        disabled={disabled}
+        className="p-1"
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled, busy }}
+    >
+        {children}
+    </PressableScale>
+);
 
 ComposeToolbar.displayName = 'ComposeToolbar';
 

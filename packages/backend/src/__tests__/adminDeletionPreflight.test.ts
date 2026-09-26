@@ -59,6 +59,7 @@ import { laneMutes, lanes } from '../db/schema/channels';
 import { mcpConnections } from '../db/schema/mcp';
 import { userBehaviorAuthors, userBehaviors, userSettings } from '../db/schema/userProfile';
 import {
+  bookmarkFolders,
   bookmarks,
   entityFollows,
   likes,
@@ -860,6 +861,16 @@ describe('assertActorSafeToDelete — one planted row per probe', () => {
       },
       // Cascades with the post.
       clear: async () => {},
+    },
+    {
+      probe: 'bookmark_folders.user_id',
+      arm: 'always',
+      plant: async (s) => {
+        await getDb().insert(bookmarkFolders).values({ userId: s.oxyUserId, name: 'probe' });
+      },
+      clear: async (s) => {
+        await getDb().delete(bookmarkFolders).where(eq(bookmarkFolders.userId, s.oxyUserId));
+      },
     },
     {
       probe: 'mutes.user_id/muted_id',

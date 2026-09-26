@@ -399,6 +399,17 @@ export const viewerQueryKeys = {
     'known-likers',
     postId ?? '',
   ] as const,
+  /** A profile's public followers or following list, as this viewer is served it. */
+  connectionsList: (
+    viewerId: ViewerId,
+    kind: 'followers' | 'following',
+    profileId: string | null | undefined,
+  ) => [
+    ...viewerQueryKeys.all(viewerId),
+    'connections',
+    kind,
+    profileId ?? '',
+  ] as const,
   connectionsMutuals: (
     viewerId: ViewerId,
     profileId: string | null | undefined,

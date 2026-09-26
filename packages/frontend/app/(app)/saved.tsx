@@ -23,6 +23,7 @@ import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Search } from '@oxy.so/bloom/search';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
@@ -89,7 +90,6 @@ const SavedPostsScreen: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
-    const [localFolders, setLocalFolders] = useState<string[]>([]);
     const newFolderControl = useDialogControl();
     const [newFolderName, setNewFolderName] = useState('');
     const [movingPostId, setMovingPostId] = useState<string | null>(null);
@@ -103,10 +103,9 @@ const SavedPostsScreen: React.FC = () => {
         return () => clearTimeout(timeout);
     }, [searchQuery]);
 
-    // A local-only folder chip belongs to the current account. AccountSwitchReset
-    // clears server query data; this resets the one small piece of draft UI state.
+    // The selection and an open move dialog belong to the current account.
+    // AccountSwitchReset clears server query data; this resets the UI state.
     useEffect(() => {
-        setLocalFolders([]);
         setSelectedFolder(null);
         setMovingPostId(null);
         setShowMoveModal(false);
@@ -120,10 +119,10 @@ const SavedPostsScreen: React.FC = () => {
         retry: false,
     });
 
-    const folders = useMemo(
-        () => Array.from(new Set([...(foldersQuery.data ?? []), ...localFolders])),
-        [foldersQuery.data, localFolders],
-    );
+    // The server's folders, and only those: a folder is created there, empty,
+    // before it is shown (OxyHQ/Mention#1124 — it used to live in this
+    // component's memory and vanish on reload).
+    const folders = useMemo(() => foldersQuery.data ?? [], [foldersQuery.data]);
 
     const folderTabs = useMemo(
         () => [
@@ -221,16 +220,32 @@ const SavedPostsScreen: React.FC = () => {
         setNewFolderName('');
     }, [newFolderControl]);
 
+    const createFolderMutation = useMutation({
+        mutationFn: (name: string) => feedService.createBookmarkFolder(name),
+        retry: false,
+        onSuccess: async (folder) => {
+            await queryClient.invalidateQueries({
+                queryKey: viewerQueryKeys.bookmarkFolders(viewerId),
+            });
+            setNewFolderName('');
+            newFolderControl.close();
+            setSelectedFolder(folder);
+        },
+        onError: (error) => {
+            logger.error('Error creating bookmark folder', error);
+            toast(t('saved.createFolderFailed', "Couldn't create the folder. Try again."), { type: 'error' });
+        },
+    });
+    const {
+        isPending: isCreatingFolder,
+        mutate: createFolder,
+    } = createFolderMutation;
+
     const handleCreateFolder = useCallback(() => {
         const name = newFolderName.trim();
-        if (!name) return;
-        setLocalFolders((current) => (
-            current.includes(name) ? current : [...current, name]
-        ));
-        setNewFolderName('');
-        newFolderControl.close();
-        setSelectedFolder(name);
-    }, [newFolderControl, newFolderName]);
+        if (!name || isCreatingFolder) return;
+        createFolder(name);
+    }, [createFolder, isCreatingFolder, newFolderName]);
 
     const handleMoveToFolder = useCallback((folder: string | null) => {
         if (!movingPostId || isMovingBookmark) return;
@@ -417,7 +432,8 @@ const SavedPostsScreen: React.FC = () => {
                         <Button
                             appearance="solid" tone="accent"
                             size="large"
-                            disabled={!newFolderName.trim()}
+                            disabled={!newFolderName.trim() || isCreatingFolder}
+                            loading={isCreatingFolder}
                             onPress={handleCreateFolder}
                         >
                             {t('common.create', 'Create')}

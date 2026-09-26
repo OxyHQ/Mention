@@ -5,9 +5,9 @@ import { useThreadManager, type ThreadItem } from '../useThreadManager';
 /**
  * A thread item restored from a draft must arrive COMPLETE.
  *
- * A draft persists only what the composer can rebuild from — it carries no
- * sources, article, event, room, attachment order, or per-item interaction
- * settings. `loadThreadsFromDraft` used to declare `ThreadItem[]` while being
+ * A draft persists a box's authored content — text, media, mentions and every
+ * attachment — but not its per-item interaction settings, lane or account.
+ * `loadThreadsFromDraft` used to declare `ThreadItem[]` while being
  * handed that narrower persisted shape and pass it straight to `setThreadItems`,
  * so a restored item reached the composer with `replyPermission`, `isSensitive`,
  * `quotesDisabled` and `reviewReplies` simply ABSENT.
@@ -36,6 +36,12 @@ const persistedThreadItem = {
   showPollCreator: true,
   location: { latitude: 1, longitude: 2, address: 'somewhere' },
   mentions: [],
+  sources: [{ id: 'source-1', title: 'Source', url: 'https://example.com' }],
+  article: { title: 'Article', body: 'Body' },
+  event: { name: 'Launch', date: '2026-10-01T18:00:00.000Z', location: 'Barcelona' },
+  room: { roomId: 'room-1', title: 'Room', status: 'scheduled' as const },
+  podcast: { syraPodcastId: 'podcast-1', title: 'Show' },
+  attachmentOrder: ['event', 'media:file-1'],
 };
 
 describe('useThreadManager draft restore', () => {
@@ -102,5 +108,11 @@ describe('useThreadManager draft restore', () => {
     expect(restored.pollTitle).toBe('poll?');
     expect(restored.showPollCreator).toBe(true);
     expect(restored.location).toEqual({ latitude: 1, longitude: 2, address: 'somewhere' });
+    expect(restored.sources).toEqual(persistedThreadItem.sources);
+    expect(restored.article).toEqual(persistedThreadItem.article);
+    expect(restored.event).toEqual(persistedThreadItem.event);
+    expect(restored.room).toEqual(persistedThreadItem.room);
+    expect(restored.podcast).toEqual(persistedThreadItem.podcast);
+    expect(restored.attachmentOrder).toEqual(['event', 'media:file-1']);
   });
 });

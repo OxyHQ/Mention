@@ -3,6 +3,8 @@ import { Storage } from '@/utils/storage';
 import { createLogger } from '@oxy.so/core/logger';
 import type { DraftVariants } from '@/utils/composeVariants';
 import type { PostJobContent } from '@mention/shared-types';
+import type { EventData } from './useEventManager';
+import type { RoomAttachmentData } from './useRoomManager';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { viewerStorageKey } from '@/lib/viewerQueryKeys';
 import { useRefSync } from '@/hooks/useRefSync';
@@ -22,6 +24,8 @@ export interface Draft {
   podcast?: { syraPodcastId: string; title: string; author?: string; artworkUrl?: string } | null;
   /** The ROOT post's attached Mention job, if any (OxyHQ/Mention#952). Thread items don't carry one yet. */
   job?: PostJobContent | null;
+  event?: EventData | null;
+  room?: RoomAttachmentData | null;
   attachmentOrder?: string[];
   scheduledAt?: string | null;
   threadItems: Array<{
@@ -33,6 +37,14 @@ export interface Draft {
     showPollCreator: boolean;
     location: { latitude: number; longitude: number; address?: string } | null;
     mentions: Array<{ userId: string; handle: string; name: string }>;
+    // Optional like every field added after the first release: a draft saved
+    // before its box could keep these simply has none.
+    sources?: Array<{ id?: string; title?: string; url?: string }>;
+    article?: { title?: string; body?: string } | null;
+    event?: EventData | null;
+    room?: RoomAttachmentData | null;
+    podcast?: { syraPodcastId: string; title: string; author?: string; artworkUrl?: string } | null;
+    attachmentOrder?: string[];
   }>;
   mentions: Array<{ userId: string; handle: string; name: string }>;
   postingMode: 'thread' | 'beast';
@@ -135,41 +147,43 @@ export const useDrafts = () => {
     }
   }, [viewerId]);
 
-  // Create or update a draft
+  // Create or update a draft. Reads the stored list rather than this hook's
+  // state, for the same reason `deleteDraft` does: every screen that shows or
+  // writes drafts has its own `useDrafts`, so the state here can predate a write
+  // another instance (or this one's previous render) made — and a list built
+  // from it would silently drop that write, or add a second copy of a draft it
+  // did not know was already there.
   const saveDraft = useCallback(async (draft: DraftInput) => {
+    const operationViewerId = viewerId;
+    if (!operationViewerId) {
+      throw new Error('An authenticated viewer is required to save drafts');
+    }
     try {
+      const storedDrafts = await Storage.get<Draft[]>(
+        getDraftsStorageKey(operationViewerId),
+      );
+      const currentDrafts = storedDrafts && Array.isArray(storedDrafts) ? storedDrafts : [];
       const now = Date.now();
-      const draftId = draft.id || `draft_${now}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const existingDraftIndex = drafts.findIndex(d => d.id === draftId);
-      
+      const draftId = draft.id || `draft_${now}_${Math.random().toString(36).slice(2, 11)}`;
+      const existing = currentDrafts.find(d => d.id === draftId);
+
       const draftToSave: Draft = {
         ...draft,
         id: draftId,
-        createdAt: existingDraftIndex >= 0 ? drafts[existingDraftIndex].createdAt : now,
+        createdAt: existing ? existing.createdAt : now,
         updatedAt: now,
       };
 
-      let newDrafts: Draft[];
-      if (existingDraftIndex >= 0) {
-        // Update existing draft
-        newDrafts = [...drafts];
-        newDrafts[existingDraftIndex] = draftToSave;
-      } else {
-        // Add new draft
-        newDrafts = [draftToSave, ...drafts];
-      }
-
-      // Sort by updatedAt descending
+      const newDrafts = [draftToSave, ...currentDrafts.filter(d => d.id !== draftId)];
       newDrafts.sort((a, b) => b.updatedAt - a.updatedAt);
-      
+
       await saveDrafts(newDrafts);
       return draftId;
     } catch (error) {
       logger.error('Error saving draft', error);
       throw error;
     }
-  }, [drafts, saveDrafts]);
+  }, [saveDrafts, viewerId]);
 
   // Delete a draft
   const deleteDraft = useCallback(async (draftId: string) => {

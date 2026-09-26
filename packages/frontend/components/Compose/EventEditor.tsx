@@ -1,11 +1,11 @@
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View } from "react-native";
+import { Button } from '@oxy.so/bloom/button';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { DatePicker, TimeField } from '@oxy.so/bloom/date-picker';
 import { Field } from '@oxy.so/bloom/field';
-import { TextFieldInput } from '@oxy.so/bloom/text-field';
+import { TextField, TextFieldHint, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from "react-i18next";
 
 interface EventEditorProps {
@@ -35,6 +35,10 @@ interface EventEditorProps {
  * Every event field is controlled by the composer, which owns the draft, so an
  * open/close/reopen cycle cannot lose what was typed. The date and time are
  * Bloom's `DatePicker` and `TimeField`, which own their own popup/draft state.
+ *
+ * An event needs a name to be one. Save stays disabled until it has one and the
+ * name field says so — Save used to accept a nameless event and silently attach
+ * nothing, which read as a saved event that then could not be posted.
  */
 export const EventEditor: React.FC<EventEditorProps> = ({
     visible,
@@ -49,8 +53,8 @@ export const EventEditor: React.FC<EventEditorProps> = ({
     onSave,
     onClose,
 }) => {
-    const theme = useTheme();
     const { t, i18n } = useTranslation();
+    const missingName = name.trim().length === 0;
     const eventDate = React.useMemo(() => {
         const parsed = date ? new Date(date) : new Date();
         return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
@@ -82,16 +86,16 @@ export const EventEditor: React.FC<EventEditorProps> = ({
     }, [eventDate, onDateChange]);
 
     const saveAction = (
-        <TouchableOpacity
+        <Button
+            appearance="solid"
+            tone="accent"
+            size="small"
+            disabled={missingName}
             onPress={onSave}
-            className="px-4 py-2 rounded-full bg-primary"
-            activeOpacity={0.85}
-            accessibilityRole="button"
+            testID="eventEditorSave"
         >
-            <Text className="text-[15px] font-semibold" style={{ color: theme.colors.card }}>
-                {t("common.save")}
-            </Text>
-        </TouchableOpacity>
+            {t("common.save")}
+        </Button>
     );
 
     return (
@@ -109,14 +113,26 @@ export const EventEditor: React.FC<EventEditorProps> = ({
             testID="eventEditorDialog"
         >
             <View className="gap-4 pb-6">
-                <TextFieldInput
-                    label={t("compose.event.namePlaceholder", {
-                        defaultValue: "Event name",
-                    })}
-                    value={name}
-                    onChangeText={onNameChange}
-                    maxLength={100}
-                />
+                <View>
+                    <TextField>
+                        <TextFieldInput
+                            label={t("compose.event.namePlaceholder", {
+                                defaultValue: "Event name",
+                            })}
+                            value={name}
+                            onChangeText={onNameChange}
+                            maxLength={100}
+                            testID="eventEditorName"
+                        />
+                    </TextField>
+                    {missingName ? (
+                        <TextFieldHint>
+                            {t("compose.event.nameRequired", {
+                                defaultValue: "Give the event a name to attach it.",
+                            })}
+                        </TextFieldHint>
+                    ) : null}
+                </View>
 
                 <View className="flex-row gap-3">
                     <Field
