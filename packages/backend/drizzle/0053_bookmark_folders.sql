@@ -51,4 +51,4 @@ FROM (
 	GROUP BY b.user_id, b.folder
 ) f;
 --> statement-breakpoint
-ALTER TABLE "bookmarks" ADD CONSTRAINT "bookmarks_folder_fkey" FOREIGN KEY ("user_id","folder") REFERENCES "public"."bookmark_folders"("user_id","name") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "bookmarks" ADD CONSTRAINT "bookmarks_folder_fkey" FOREIGN KEY ("user_id","folder") REFERENCES "public"."bookmark_folders"("user_id","name") ON DELETE restrict ON UPDATE no action;

@@ -132,7 +132,7 @@ export const bookmarks = pgTable(
      *
      * A non-NULL value must name one of the owner's `bookmark_folders` — the
      * composite foreign key below — so a bookmark can never sit in a folder the
-     * folder list does not know about. `NO ACTION` on delete: a folder that
+     * folder list does not know about. `RESTRICT` on delete: a folder that
      * still holds bookmarks is not deleted out from under them; the account
      * erasure removes bookmarks (phase `engagement`) before folders (`account`).
      */
@@ -153,7 +153,7 @@ export const bookmarks = pgTable(
       name: 'bookmarks_folder_fkey',
       columns: [t.userId, t.folder],
       foreignColumns: [bookmarkFolders.userId, bookmarkFolders.name],
-    }),
+    }).onDelete('restrict'),
   ]
 );
 
