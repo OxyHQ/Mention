@@ -83,7 +83,10 @@ export function createUserScopedOxyServices(req: ScopedOxyRequest): OxyServices 
  * Used for server-side operations on behalf of the system (e.g. resolving federated actors).
  */
 const serviceClient: OxyServices = (() => {
-  const client = new OxyServices({ baseURL: OXY_BASE_URL });
+  // `serviceIdentity`: the SDK's ordinary reads on this client (everything that
+  // is not `makeServiceRequest`) carry the service token too, rather than going
+  // out anonymous and sharing the NAT address's per-IP budget (#1173).
+  const client = new OxyServices({ baseURL: OXY_BASE_URL, serviceIdentity: 'when-anonymous' });
 
   const { apiKey, apiSecret } = getOxyServiceCredentials();
   if (apiKey && apiSecret) {

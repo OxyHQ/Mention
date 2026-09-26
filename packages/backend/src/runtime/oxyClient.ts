@@ -20,9 +20,10 @@ export function getRuntimeOxyClient(): OxyServices {
     // Lazy require keeps importing domain modules side-effect free. Isolated
     // tests and scripts that inject a client never load the full Oxy runtime.
     const { OxyServices: OxyServicesConstructor } = require('@oxy.so/core') as {
-      OxyServices: new (options: { baseURL: string }) => OxyServices;
+      OxyServices: new (options: { baseURL: string; serviceIdentity?: 'never' | 'when-anonymous' }) => OxyServices;
     };
-    runtimeOxyClient = new OxyServicesConstructor({ baseURL: config.oxyApiUrl });
+    // Same identity as the production instance in runtimeApp.ts (#1173).
+    runtimeOxyClient = new OxyServicesConstructor({ baseURL: config.oxyApiUrl, serviceIdentity: 'when-anonymous' });
   }
   return runtimeOxyClient;
 }

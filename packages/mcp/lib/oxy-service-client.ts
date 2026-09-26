@@ -19,7 +19,9 @@ export function oxyServiceClient(config: {
   readonly oxyServiceApiKey?: string;
   readonly oxyServiceApiSecret?: string;
 }): OxyServices {
-  const oxy = new OxyServices({ baseURL: config.oxyApiUrl });
+  // Every request this client makes without a user session carries the
+  // service token, not only `makeServiceRequest` ones (Mention#1173).
+  const oxy = new OxyServices({ baseURL: config.oxyApiUrl, serviceIdentity: "when-anonymous" });
   if (config.oxyServiceApiKey && config.oxyServiceApiSecret) {
     oxy.configureServiceAuth(config.oxyServiceApiKey, config.oxyServiceApiSecret);
   }
