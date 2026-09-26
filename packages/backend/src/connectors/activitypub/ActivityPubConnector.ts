@@ -138,6 +138,24 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     return this.fetchProfile(actorUri);
   }
 
+  /**
+   * The actor URI a follow or unfollow is addressed to.
+   *
+   * `matches` accepts a handle as well as a URI, so a caller may follow
+   * `alice@mastodon.social` (the MCP `follow-user` tool does). The delivery engine
+   * reads its target as a URL, and a handle is not one: it took `alice@…` for a
+   * blocked origin and sent nothing, while the route answered `success: true`.
+   * So a handle is resolved to its actor by WebFinger first, and one that does
+   * not resolve is an error rather than a silent no-op.
+   */
+  private async followTargetUri(target: string): Promise<string> {
+    if (isAbsoluteHttpUrl(target)) return target;
+    const acct = normalizeFederatedAcct(target);
+    const actorUri = acct ? await actorService.resolveWebFinger(acct) : null;
+    if (!actorUri) throw new Error('Fediverse handle did not resolve to an ActivityPub actor');
+    return actorUri;
+  }
+
   /** Fetch + normalize a remote actor profile by its actor URI. */
   async fetchProfile(externalId: string): Promise<NormalizedExternalActor | null> {
     const actor = await actorService.fetchRemoteActor(externalId);
@@ -201,14 +219,23 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
         // actor document as an Update(Person) to remote followers.
         await deliveryService.federateActorUpdate(event.actorOxyUserId, event.actorUsername);
         break;
-      case 'follow.add':
+      case 'follow.add': {
         // Sends a Follow activity + records the outbound FederatedFollow. The
-        // `{ success, pending }` it returns is surfaced by the route via the
-        // actor's `manuallyApprovesFollowers` flag (route reads it post-deliver).
-        await deliveryService.sendFollow(event.localOxyUserId, event.localUsername, event.targetActorUri);
+        // `pending` it returns is surfaced by the route via the actor's
+        // `manuallyApprovesFollowers` flag (route reads it post-deliver).
+        const actorUri = await this.followTargetUri(event.targetActorUri);
+        const { success } = await deliveryService.sendFollow(event.localOxyUserId, event.localUsername, actorUri);
+        // A refused Follow sent nothing; answering the caller "followed" would
+        // leave them believing in a follow the remote server never heard of.
+        if (!success) throw new Error('ActivityPub Follow was not sent');
         break;
+      }
       case 'follow.remove':
-        await deliveryService.sendUndoFollow(event.localOxyUserId, event.localUsername, event.targetActorUri);
+        await deliveryService.sendUndoFollow(
+          event.localOxyUserId,
+          event.localUsername,
+          await this.followTargetUri(event.targetActorUri),
+        );
         break;
       default: {
         const exhaustive: never = event;

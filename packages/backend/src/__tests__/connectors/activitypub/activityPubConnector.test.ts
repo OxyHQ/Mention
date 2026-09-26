@@ -14,12 +14,15 @@ const mocks = vi.hoisted(() => ({
   federateLikeStrict: vi.fn(),
   federateUndoLike: vi.fn(),
   federateUndoLikeStrict: vi.fn(),
+  resolveWebFinger: vi.fn(),
+  sendFollow: vi.fn(),
+  sendUndoFollow: vi.fn(),
 }));
 
 vi.mock('../../../connectors/activitypub/actor.service', () => ({
   actorService: {
     getOrFetchActor: mocks.getOrFetchActor,
-    resolveWebFinger: vi.fn(),
+    resolveWebFinger: mocks.resolveWebFinger,
     fetchRemoteActor: vi.fn(),
     refreshActorInBackground: vi.fn(),
     fetchPublicKey: vi.fn(),
@@ -43,6 +46,13 @@ vi.mock('../../../connectors/activitypub/follow.service', () => ({
     federateLikeStrict: mocks.federateLikeStrict,
     federateUndoLike: mocks.federateUndoLike,
     federateUndoLikeStrict: mocks.federateUndoLikeStrict,
+  },
+}));
+
+vi.mock('../../../connectors/activitypub/delivery.service', () => ({
+  deliveryService: {
+    sendFollow: mocks.sendFollow,
+    sendUndoFollow: mocks.sendUndoFollow,
   },
 }));
 
@@ -149,5 +159,59 @@ describe('ActivityPubConnector durable delivery boundary', () => {
       'alice',
     );
     expect(mocks.federateUndoLike).not.toHaveBeenCalled();
+  });
+});
+
+describe('ActivityPubConnector follow delivery', () => {
+  const NUMERIC_ACTOR_URI = 'https://mastodon.social/ap/users/116807053288112257';
+  const follow = (targetActorUri: string) => ({
+    kind: 'follow.add' as const,
+    localOxyUserId: 'local-1',
+    localUsername: 'mention',
+    targetActorUri,
+  });
+
+  beforeEach(() => {
+    mocks.sendFollow.mockResolvedValue({ success: true, pending: false });
+    mocks.sendUndoFollow.mockResolvedValue(true);
+  });
+
+  it('resolves a handle to its actor by WebFinger before sending the Follow', async () => {
+    mocks.resolveWebFinger.mockResolvedValue(NUMERIC_ACTOR_URI);
+
+    await activityPubConnector.deliver(follow('@Alice@mastodon.social'));
+
+    expect(mocks.resolveWebFinger).toHaveBeenCalledWith('alice@mastodon.social');
+    expect(mocks.sendFollow).toHaveBeenCalledWith('local-1', 'mention', NUMERIC_ACTOR_URI);
+  });
+
+  it('sends a Follow addressed by actor URI as is, with no WebFinger', async () => {
+    await activityPubConnector.deliver(follow(ACTOR_URI));
+
+    expect(mocks.resolveWebFinger).not.toHaveBeenCalled();
+    expect(mocks.sendFollow).toHaveBeenCalledWith('local-1', 'mention', ACTOR_URI);
+  });
+
+  it('rejects a handle that does not resolve, sending nothing', async () => {
+    mocks.resolveWebFinger.mockResolvedValue(null);
+
+    await expect(activityPubConnector.deliver(follow('nobody@mastodon.social'))).rejects.toThrow(
+      'Fediverse handle did not resolve',
+    );
+    expect(mocks.sendFollow).not.toHaveBeenCalled();
+  });
+
+  it('rejects a Follow the delivery engine refused, instead of reporting it followed', async () => {
+    mocks.sendFollow.mockResolvedValue({ success: false, pending: false });
+
+    await expect(activityPubConnector.deliver(follow(ACTOR_URI))).rejects.toThrow('Follow was not sent');
+  });
+
+  it('resolves a handle before sending the Undo(Follow)', async () => {
+    mocks.resolveWebFinger.mockResolvedValue(NUMERIC_ACTOR_URI);
+
+    await activityPubConnector.deliver({ ...follow('alice@mastodon.social'), kind: 'follow.remove' });
+
+    expect(mocks.sendUndoFollow).toHaveBeenCalledWith('local-1', 'mention', NUMERIC_ACTOR_URI);
   });
 });

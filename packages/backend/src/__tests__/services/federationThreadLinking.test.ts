@@ -137,6 +137,7 @@ async function rowByActivityId(activityId: string) {
       threadId: posts.threadId,
       isReply: posts.isReply,
       inReplyTo: posts.federationInReplyTo,
+      comments: posts.statsCommentsCount,
     })
     .from(posts)
     .where(eq(posts.federationActivityId, activityId));
@@ -391,6 +392,28 @@ describe('outbox backfill — self-thread linking (the path that used to DROP re
     expect(r3?.threadId).toBe(root?.id);
     expect(r4?.threadId).toBe(root?.id);
     for (const reply of [r2, r3, r4]) expect(reply?.isReply).toBe(true);
+
+    // Each reply COUNTS on the parent it was linked to. The insert cannot count
+    // them (the parent is attached afterwards), and deleting a linked reply
+    // decrements, so a link that did not count left every backfilled reply
+    // uncounted and let its deletion take one off a sibling.
+    expect(root?.comments).toBe(1);
+    expect(r2?.comments).toBe(1);
+    expect(r3?.comments).toBe(1);
+    expect(r4?.comments).toBe(0);
+  });
+
+  it('counts a backfilled reply once, however many times the outbox is synced', async () => {
+    stubSelfThreadOutbox();
+    const actor = { uri: ACTOR_URI, acct: 'alice@mastodon.social', outboxUrl, oxyUserId: AUTHOR_OXY };
+
+    await federationService.syncOutboxPostsDetailed(actor, { limit: 10, maxPages: 1 });
+    await federationService.syncOutboxPostsDetailed(actor, { limit: 10, maxPages: 1 });
+
+    const root = await rowByActivityId(`${ACTOR_URI}/statuses/1`);
+    const r2 = await rowByActivityId(`${ACTOR_URI}/statuses/2`);
+    expect(root?.comments).toBe(1);
+    expect(r2?.comments).toBe(1);
   });
 });
 
