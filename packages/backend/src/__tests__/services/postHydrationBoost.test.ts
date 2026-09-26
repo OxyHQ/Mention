@@ -62,17 +62,18 @@ const { getUserById, getUsersByIds, getUserFollowing, cacheStore } = vi.hoisted(
 
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
-    getUserById,
-    getUserFollowing,
-    getUserFollowers: vi.fn(async () => []),
+    users: { get: getUserById },
+    follows: {
+      following: getUserFollowing,
+      followers: vi.fn(async () => []),
+    },
   }),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUsersByIds,
-    getClarityDocuments: vi.fn(async () => ({})),
-    getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
+    users: { getMany: getUsersByIds },
+    assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
   }),
 }));
 

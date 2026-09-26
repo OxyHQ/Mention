@@ -52,8 +52,8 @@ class FakeHttpService {
   }
 }
 
-function clientThatResolves(): { httpService: FakeHttpService } {
-  return { httpService: new FakeHttpService(async () => ({ ok: true })) };
+function clientThatResolves(): { http: FakeHttpService } {
+  return { http: new FakeHttpService(async () => ({ ok: true })) };
 }
 
 async function exposition(): Promise<string> {
@@ -97,7 +97,7 @@ describe('instrumentOxyEgress', () => {
     const client = clientThatResolves();
     instrumentOxyEgress(client);
 
-    await client.httpService.request({
+    await client.http.request({
       method: 'GET',
       url: '/users/650000000000000000000010/following',
     });
@@ -113,7 +113,7 @@ describe('instrumentOxyEgress', () => {
     const client = clientThatResolves();
     instrumentOxyEgress(client);
 
-    await client.httpService.request({
+    await client.http.request({
       method: 'GET',
       url: '/assets/650000000000000000000010/stream?mt=secret-media-token',
     });
@@ -126,11 +126,11 @@ describe('instrumentOxyEgress', () => {
 
   it('records a rejection under its status class and rethrows it', async () => {
     const failure = Object.assign(new Error('forbidden'), { status: 403 });
-    const client = { httpService: new FakeHttpService(async () => { throw failure; }) };
+    const client = { http: new FakeHttpService(async () => { throw failure; }) };
     instrumentOxyEgress(client);
 
     await expect(
-      client.httpService.request({ method: 'GET', url: '/users/me/graph' }),
+      client.http.request({ method: 'GET', url: '/users/me/graph' }),
     ).rejects.toThrow('forbidden');
 
     expect(await exposition()).toContain(
@@ -145,9 +145,9 @@ describe('instrumentOxyEgress', () => {
     const tally = await runWithOxyAccounting(async (accumulated) => {
       // Awaited across three separate calls: the point of the async context is
       // that a call issued deep inside an awaited chain still lands here.
-      await client.httpService.request({ method: 'GET', url: '/users/me/graph' });
-      await client.httpService.request({ method: 'GET', url: '/users/me/graph' });
-      await client.httpService.request({ method: 'GET', url: '/users/me/graph' });
+      await client.http.request({ method: 'GET', url: '/users/me/graph' });
+      await client.http.request({ method: 'GET', url: '/users/me/graph' });
+      await client.http.request({ method: 'GET', url: '/users/me/graph' });
       return accumulated;
     });
 
@@ -164,7 +164,7 @@ describe('instrumentOxyEgress', () => {
 
     // `second` was never installed against in any meaningful sense — it shares
     // `first`'s prototype — and it must still be measured, exactly once.
-    await second.httpService.request({ method: 'GET', url: '/users/me/graph' });
+    await second.http.request({ method: 'GET', url: '/users/me/graph' });
 
     expect(await exposition()).toContain(
       'oxy_calls_total{method="GET",route="/users/me/graph",status="2xx"} 1',
@@ -182,12 +182,12 @@ describe('instrumentOxyEgress', () => {
           return { ok: true };
         }
       }
-      const client = { httpService: new UnpatchedHttpService() };
-      const before = Object.getPrototypeOf(client.httpService).request;
+      const client = { http: new UnpatchedHttpService() };
+      const before = Object.getPrototypeOf(client.http).request;
       instrumentOxyEgress(client);
-      expect(Object.getPrototypeOf(client.httpService).request).toBe(before);
+      expect(Object.getPrototypeOf(client.http).request).toBe(before);
 
-      await client.httpService.request({ method: 'GET', url: '/users/me/graph' });
+      await client.http.request({ method: 'GET', url: '/users/me/graph' });
       // The metric FAMILY stays registered by earlier cases in this file, so the
       // invariant is that no sample was written — not that the name is absent.
       expect(await exposition()).not.toMatch(/^oxy_calls_total\{/m);

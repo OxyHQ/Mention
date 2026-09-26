@@ -46,7 +46,7 @@ const mocks = vi.hoisted(() => {
     materializeEngagementRelationship: vi.fn(),
     materializeEngagementTombstone: vi.fn(),
     getServiceOxyClient: vi.fn(),
-    makeServiceRequest: vi.fn(),
+    serviceRequest: vi.fn(),
     persistRemoteMedia: vi.fn(),
     recordAccess: vi.fn(),
     postCreatorCreate: vi.fn(),
@@ -274,8 +274,8 @@ beforeEach(() => {
   mocks.persistRemoteMedia.mockResolvedValue({ ok: false, permanent: false });
   mocks.recordAccess.mockResolvedValue(undefined);
   mocks.postCreatorCreate.mockResolvedValue({ _id: 'created_post_1' });
-  mocks.makeServiceRequest.mockResolvedValue({ id: 'oxy_user_1' });
-  mocks.getServiceOxyClient.mockReturnValue({ makeServiceRequest: mocks.makeServiceRequest });
+  mocks.serviceRequest.mockResolvedValue({ id: 'oxy_user_1' });
+  mocks.getServiceOxyClient.mockReturnValue({ serviceRequest: mocks.serviceRequest });
 });
 
 describe('FEDERATION_BLOCKED_DOMAINS reaches the domain policy', () => {
@@ -330,7 +330,7 @@ describe('inbound PUSH from a blocked domain', () => {
       BLOCKED_ACTOR,
     );
 
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
     expect(sendAcceptSpy).not.toHaveBeenCalled();
     expectRefusedBeforeAnyStoreRead();
   });
@@ -343,7 +343,7 @@ describe('inbound PUSH from a blocked domain', () => {
       ALLOWED_ACTOR,
     );
 
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/follow', {
+    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/follow', {
       followerUserId: 'oxy_bob',
       targetUserId: 'oxy_alice',
       action: 'follow',

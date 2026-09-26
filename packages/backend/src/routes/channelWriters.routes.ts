@@ -19,7 +19,7 @@
  *    one.
  *  - The account's members are people who MAY publish as the channel. That set
  *    includes people who never have, people who never will, and people who never
- *    consented to being named anywhere. `listAccountMembers` would answer the
+ *    consented to being named anywhere. `accounts.members.list` would answer the
  *    wrong question, so it is deliberately not called here.
  *
  * "Just list the members, it is simpler" is the change a later reader will reach

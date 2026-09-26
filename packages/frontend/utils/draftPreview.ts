@@ -50,7 +50,7 @@ function buildPoll(draft: Draft): PollData | undefined {
  *
  * `resolveMediaUrl` is injected rather than imported so this stays a pure
  * function — and so the caller passes the app's ONE media chokepoint
- * (`oxyServices.getFileDownloadUrl`) instead of this file inventing a URL shape.
+ * (`oxyServices.assets.publicUrl`) instead of this file inventing a URL shape.
  */
 export function draftToPreviewPost(params: {
   draft: Draft;

@@ -14,7 +14,7 @@ async function resolveOneHandle(
   const oxy = getServiceOxyClient();
   let profile;
   try {
-    profile = await oxy.getProfileByUsername(username, { cache: false });
+    profile = await oxy.users.byUsername(username, { cache: false });
   } catch {
     throw new Error(`Unknown user: @${username}`);
   }

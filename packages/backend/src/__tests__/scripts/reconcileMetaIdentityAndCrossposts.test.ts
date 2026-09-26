@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({ lookup: vi.fn(), resolve: vi.fn(), users: vi.f
 vi.mock('../../services/userSummaryCache', () => ({ invalidate: mocks.invalidate }));
 vi.mock('../../utils/redis', async importOriginal => ({ ...(await importOriginal<object>()), getRedisClient: () => ({ isReady: true, scanIterator: mocks.scan, del: mocks.del }) }));
 vi.mock('../../connectors/oxyIdentity', () => ({ lookupOxyIdentities: mocks.lookup, resolveOxyIdentity: mocks.resolve }));
-vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ getUsersByIds: mocks.users }) }));
+vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ users: { getMany: mocks.users } }) }));
 vi.mock('../../services/PostEquivalenceService', async importOriginal => ({ ...await importOriginal<typeof import('../../services/PostEquivalenceService')>(), detectCrosspostEquivalence: mocks.detect, reevaluateClusterForPost: mocks.reevaluate, reevaluateClusters: vi.fn() }));
 const source = 'https://kilogram.makeup/users/source';
 const otherSource = 'did:plc:other-source';

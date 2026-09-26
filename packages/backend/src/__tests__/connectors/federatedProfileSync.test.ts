@@ -76,7 +76,7 @@ const getUserById = vi.fn<(oxyUserId: string) => Promise<OxyIdentityUser>>(
   async () => LOCAL_OXY_USER,
 );
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getUserById: (...a: unknown[]) => getUserById(...(a as [])) }),
+  getServiceOxyClient: () => ({ users: { get: (...a: unknown[]) => getUserById(...(a as [])) } }),
 }));
 
 import { federatedProfileSync } from '../../connectors/federatedProfileSync';

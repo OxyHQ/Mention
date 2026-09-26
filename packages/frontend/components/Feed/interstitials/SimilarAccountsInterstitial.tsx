@@ -65,12 +65,12 @@ export function SimilarAccountsInterstitial({
     queryKey: viewerQueryKeys.similarProfiles(user?.id, subjectId),
     queryFn: async () => {
       if (!subjectId) return [];
-      const similar = await oxyServices.getSimilarProfiles(subjectId);
+      const similar = await oxyServices.users.similar(subjectId);
       if (similar.length > 0) {
         cacheActors(similar);
         void enrichMissingAvatars(
           similar.map((profile) => ({ ...profile, avatar: profile.avatar ?? undefined })),
-          (ids) => oxyServices.getUsersByIds(ids),
+          (ids) => oxyServices.users.getMany(ids),
         );
       }
       // Cached RAW, exactly as the sibling surface caches it — the entry is

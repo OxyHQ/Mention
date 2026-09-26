@@ -63,8 +63,10 @@ jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
     user: { id: 'viewer-1', username: 'operator' },
     oxyServices: {
-      listAccounts: (...args: unknown[]) => mockListAccounts(...args),
-      updateAccount: (...args: unknown[]) => mockUpdateAccount(...args),
+      accounts: {
+        list: (...args: unknown[]) => mockListAccounts(...args),
+        update: (...args: unknown[]) => mockUpdateAccount(...args),
+      },
     },
     canUsePrivateApi: true,
     isAuthenticated: true,
@@ -180,7 +182,7 @@ function storedAccount() {
   };
 }
 
-/** The account node `listAccounts` returns for it. */
+/** The account node `accounts.list` returns for it. */
 function accountNode() {
   return {
     accountId: CHANNEL_ID,

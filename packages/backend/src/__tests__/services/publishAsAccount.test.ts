@@ -81,9 +81,13 @@ function readerReturning(members: AccountMember[]): AccountMemberReader & { call
   const calls: string[] = [];
   return {
     calls,
-    async listAccountMembers(accountId: string) {
-      calls.push(accountId);
-      return members;
+    accounts: {
+      members: {
+        async list(accountId: string) {
+          calls.push(accountId);
+          return members;
+        },
+      },
     },
   };
 }
@@ -329,8 +333,12 @@ describe('assertCanPublishAsAccount — the refusals that never reach Oxy', () =
 
   it('answers 503 when the membership read fails — the caller can retry', async () => {
     const reader: AccountMemberReader = {
-      listAccountMembers: async () => {
-        throw new Error('oxy 500');
+      accounts: {
+        members: {
+          list: async () => {
+            throw new Error('oxy 500');
+          },
+        },
       },
     };
 
@@ -384,11 +392,11 @@ describe('cacheAccountMemberReads', () => {
     const cached = cacheAccountMemberReads(reader);
 
     await Promise.all([
-      cached.listAccountMembers(ORGANIZATION),
-      cached.listAccountMembers(ORGANIZATION),
-      cached.listAccountMembers(ORGANIZATION),
+      cached.accounts.members.list(ORGANIZATION),
+      cached.accounts.members.list(ORGANIZATION),
+      cached.accounts.members.list(ORGANIZATION),
     ]);
-    await cached.listAccountMembers(ORGANIZATION);
+    await cached.accounts.members.list(ORGANIZATION);
 
     expect(reader.calls).toEqual([ORGANIZATION]);
   });
@@ -397,9 +405,9 @@ describe('cacheAccountMemberReads', () => {
     const reader = readerReturning([member({ permissions: EDITOR_PERMISSIONS })]);
     const cached = cacheAccountMemberReads(reader);
 
-    await cached.listAccountMembers(ORGANIZATION);
-    await cached.listAccountMembers(CHANNEL);
-    await cached.listAccountMembers(ORGANIZATION);
+    await cached.accounts.members.list(ORGANIZATION);
+    await cached.accounts.members.list(CHANNEL);
+    await cached.accounts.members.list(ORGANIZATION);
 
     expect(reader.calls).toEqual([ORGANIZATION, CHANNEL]);
   });
@@ -407,14 +415,18 @@ describe('cacheAccountMemberReads', () => {
   it('shares a FAILURE too, so a batch refuses consistently', async () => {
     let calls = 0;
     const cached = cacheAccountMemberReads({
-      listAccountMembers: async () => {
-        calls += 1;
-        throw new Error('oxy 500');
+      accounts: {
+        members: {
+          list: async () => {
+            calls += 1;
+            throw new Error('oxy 500');
+          },
+        },
       },
     });
 
-    await expect(cached.listAccountMembers(ORGANIZATION)).rejects.toThrow('oxy 500');
-    await expect(cached.listAccountMembers(ORGANIZATION)).rejects.toThrow('oxy 500');
+    await expect(cached.accounts.members.list(ORGANIZATION)).rejects.toThrow('oxy 500');
+    await expect(cached.accounts.members.list(ORGANIZATION)).rejects.toThrow('oxy 500');
     expect(calls).toBe(1);
   });
 

@@ -85,7 +85,7 @@ export default function RestrictedUsersScreen() {
     try {
       setLoading(true);
       restrictedLogger.debug("Loading restricted users...");
-      const restrictedUsersList = await oxyServices.getRestrictedUsers();
+      const restrictedUsersList = await oxyServices.privacy.restricted();
       restrictedLogger.debug("Oxy response", {
         count: restrictedUsersList?.length,
       });
@@ -123,7 +123,7 @@ export default function RestrictedUsersScreen() {
       // Single bulk fetch for all restricted profiles (no per-id N+1, no
       // manual batching — the SDK chunks 100/req internally). Results are
       // primed into the shared React Query cache for downstream reads.
-      const fetched = await oxyServices.getUsersByIds(userIds);
+      const fetched = await oxyServices.users.getMany(userIds);
       for (const user of fetched) {
         if (user?.id) {
           queryClient.setQueryData(queryKeys.users.detail(user.id), user);
@@ -174,15 +174,15 @@ export default function RestrictedUsersScreen() {
       try {
         setSearching(true);
         let results: RestrictedUser[] = [];
-        if (oxyServices?.searchProfiles) {
+        if (oxyServices) {
           try {
-            const { data } = await oxyServices.searchProfiles(query, {
+            const { data } = await oxyServices.users.search(query, {
               limit: 20,
             });
             results = Array.isArray(data) ? data : [];
           } catch (oxyError) {
             restrictedLogger.warn(
-              "oxyServices.searchProfiles failed, falling back",
+              "oxyServices.users.search failed, falling back",
               { error: oxyError },
             );
             const fallbackResults = await searchService.searchUsers(query);
@@ -271,7 +271,7 @@ export default function RestrictedUsersScreen() {
       setRestrictedUsers((prev) => [...prev, user]);
 
       setSearchResults((prev) => prev.filter((u) => getUserId(u) !== userId));
-      await oxyServices.restrictUser(userId);
+      await oxyServices.privacy.restrict(userId);
       restrictedLogger.debug("User restricted successfully");
 
       // Same as a block: Mention caches the viewer's restricted list per
@@ -312,7 +312,7 @@ export default function RestrictedUsersScreen() {
           prev.filter((u) => getUserId(u) !== userId),
         );
 
-        await oxyServices.unrestrictUser(userId);
+        await oxyServices.privacy.unrestrict(userId);
         restrictedLogger.debug("User unrestricted successfully");
 
         await refreshPrivacyLists();

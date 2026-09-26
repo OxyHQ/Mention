@@ -17,7 +17,7 @@ vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
 vi.mock('../../queue/producers', () => ({ enqueueAccountErasure }));
 vi.mock('../../services/accountErasure/AccountErasureService', () => ({ processAccountErasure }));
 
-import { OxyAccountEventError } from '@oxy.so/core';
+import { OxyAccountEventError } from '@oxy.so/core/server';
 import {
   isAccountEventRefusal,
   listAccountEvents,
@@ -34,7 +34,7 @@ beforeEach(() => {
 describe('oxyAccountEvents adapter', () => {
   it('passes the token through and keeps only a plain handle from the event', async () => {
     const verify = vi.fn(async () => ({ eventId: 'e', userId: 'u', username: '  alice  ' }));
-    client.current = { verifyAccountEvent: verify, listAccountEvents: vi.fn() };
+    client.current = { accountEvents: { verify, list: vi.fn() } };
 
     const event = await verifyAccountEvent('a.b.c');
 
@@ -44,7 +44,7 @@ describe('oxyAccountEvents adapter', () => {
 
   it('lists a page with the caller options', async () => {
     const list = vi.fn(async () => ({ events: [], nextCursor: 'c' }));
-    client.current = { verifyAccountEvent: vi.fn(), listAccountEvents: list };
+    client.current = { accountEvents: { verify: vi.fn(), list } };
 
     await expect(listAccountEvents({ after: 'x', limit: 5 })).resolves.toEqual({ events: [], nextCursor: 'c' });
     expect(list).toHaveBeenCalledWith({ after: 'x', limit: 5 });

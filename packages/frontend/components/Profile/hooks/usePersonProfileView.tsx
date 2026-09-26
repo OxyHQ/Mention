@@ -263,8 +263,8 @@ export function usePersonProfileView({
       const profileId = profileData?.id;
       if (!profileId) throw new Error('A profile ID is required to load reputation');
       const balance = isOwnProfile
-        ? await oxyServices.getMyReputationBalance()
-        : await oxyServices.getReputationBalance(profileId);
+        ? await oxyServices.reputation.balance()
+        : await oxyServices.reputation.balance(profileId);
       return balance.total;
     },
   });

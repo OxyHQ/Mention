@@ -80,14 +80,14 @@ async function fetchFollowPage(
 ): Promise<FollowPage> {
   const oxy = getServiceOxyClient();
   if (direction === 'followers') {
-    const result = await oxy.getUserFollowers(userId, { limit, offset });
+    const result = await oxy.follows.followers(userId, { limit, offset });
     return {
       members: Array.isArray(result.followers) ? (result.followers as User[]) : [],
       total: typeof result.total === 'number' ? result.total : 0,
       hasMore: result.hasMore === true,
     };
   }
-  const result = await oxy.getUserFollowing(userId, { limit, offset });
+  const result = await oxy.follows.following(userId, { limit, offset });
   return {
     members: Array.isArray(result.following) ? (result.following as User[]) : [],
     total: typeof result.total === 'number' ? result.total : 0,

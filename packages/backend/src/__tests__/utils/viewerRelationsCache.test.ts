@@ -87,15 +87,15 @@ function oxyClientReturning(
   followers: string[] = [],
 ) {
   return {
-    getBlockedUsers: vi.fn(async () => blocked.map((blockedId) => ({ blockedId }))),
-    getRestrictedUsers: vi.fn(async () => restricted.map((restrictedId) => ({ restrictedId }))),
-    getUserFollowing: vi.fn(async () => ({ following: following.map((id) => ({ id })) })),
-    getUserFollowers: vi.fn(async () => ({ followers: followers.map((id) => ({ id })) })),
-  } as unknown as OxyClient & {
-    getBlockedUsers: ReturnType<typeof vi.fn>;
-    getRestrictedUsers: ReturnType<typeof vi.fn>;
-    getUserFollowing: ReturnType<typeof vi.fn>;
-    getUserFollowers: ReturnType<typeof vi.fn>;
+    privacy: {
+      blocked: vi.fn(async () => blocked.map((blockedId) => ({ blockedId }))),
+      restricted: vi.fn(async () => restricted.map((restrictedId) => ({ restrictedId }))),
+    },
+    follows: {
+      following: vi.fn(async () => ({ following: following.map((id) => ({ id })) })),
+      followers: vi.fn(async () => ({ followers: followers.map((id) => ({ id })) })),
+      viewerGraph: vi.fn(async () => ({})),
+    },
   };
 }
 
@@ -126,8 +126,8 @@ describe('the viewer relations cache', () => {
 
     expect(first).toEqual({ blockedIds: ['blocked-1'], restrictedIds: ['restricted-1'] });
     expect(second).toEqual(first);
-    expect(oxy.getBlockedUsers).toHaveBeenCalledTimes(1);
-    expect(oxy.getRestrictedUsers).toHaveBeenCalledTimes(1);
+    expect(oxy.privacy.blocked).toHaveBeenCalledTimes(1);
+    expect(oxy.privacy.restricted).toHaveBeenCalledTimes(1);
   });
 
   it('keeps serving the last confirmed lists when Oxy stops answering', async () => {
@@ -136,10 +136,12 @@ describe('the viewer relations cache', () => {
 
     vi.setSystemTime(Date.now() + PAST_FRESHNESS_MS);
     const rateLimited = {
-      getBlockedUsers: vi.fn(async () => {
-        throw Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
-      }),
-      getRestrictedUsers: vi.fn(async () => []),
+      privacy: {
+        blocked: vi.fn(async () => {
+          throw Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
+        }),
+        restricted: vi.fn(async () => []),
+      },
     } as unknown as OxyClient;
 
     const served = await resolveViewerPrivacyLists(VIEWER, rateLimited);
@@ -155,10 +157,12 @@ describe('the viewer relations cache', () => {
 
   it('fails closed for a viewer it has never resolved', async () => {
     const rateLimited = {
-      getBlockedUsers: vi.fn(async () => {
-        throw Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
-      }),
-      getRestrictedUsers: vi.fn(async () => []),
+      privacy: {
+        blocked: vi.fn(async () => {
+          throw Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
+        }),
+        restricted: vi.fn(async () => []),
+      },
     } as unknown as OxyClient;
 
     await expect(resolveViewerPrivacyLists(VIEWER, rateLimited)).rejects.toThrow(
@@ -187,7 +191,7 @@ describe('the viewer relations cache', () => {
     const served = await resolveViewerPrivacyLists(VIEWER, afterBlock);
 
     expect(served.blockedIds).toEqual(['blocked-1', 'blocked-2']);
-    expect(afterBlock.getBlockedUsers).toHaveBeenCalledTimes(1);
+    expect(afterBlock.privacy.blocked).toHaveBeenCalledTimes(1);
   });
 
   it('caches per viewer, never across viewers', async () => {
@@ -198,7 +202,7 @@ describe('the viewer relations cache', () => {
     const other = await resolveViewerPrivacyLists('viewer-2', theirs);
 
     expect(other.blockedIds).toEqual(['blocked-2']);
-    expect(theirs.getBlockedUsers).toHaveBeenCalledTimes(1);
+    expect(theirs.privacy.blocked).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -213,8 +217,8 @@ describe('the follow half of the cache', () => {
 
     expect(following).toEqual(['followed-1']);
     expect(followers).toEqual(['follower-1']);
-    expect(oxy.getUserFollowing).toHaveBeenCalledTimes(1);
-    expect(oxy.getUserFollowers).toHaveBeenCalledTimes(1);
+    expect(oxy.follows.following).toHaveBeenCalledTimes(1);
+    expect(oxy.follows.followers).toHaveBeenCalledTimes(1);
   });
 
   it('keeps serving the last confirmed follow list when Oxy stops answering', async () => {
@@ -223,9 +227,11 @@ describe('the follow half of the cache', () => {
 
     vi.setSystemTime(Date.now() + PAST_FRESHNESS_MS);
     const rateLimited = {
-      getUserFollowing: vi.fn(async () => {
-        throw Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
-      }),
+      follows: {
+        following: vi.fn(async () => {
+          throw Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
+        }),
+      },
     } as unknown as OxyClient;
 
     expect(await getFollowingIds(VIEWER, rateLimited)).toEqual(['followed-1']);
@@ -240,9 +246,11 @@ describe('the follow half of the cache', () => {
    */
   it('propagates a cold failure so the caller can keep its own soft-fail', async () => {
     const rateLimited = {
-      getUserFollowing: vi.fn(async () => {
-        throw Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
-      }),
+      follows: {
+        following: vi.fn(async () => {
+          throw Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 });
+        }),
+      },
     } as unknown as OxyClient;
 
     await expect(getFollowingIds(VIEWER, rateLimited)).rejects.toThrow('HTTP 429');
@@ -267,7 +275,7 @@ describe('the follow half of the cache', () => {
     await getFollowingIds(undefined, oxy);
     await getFollowingIds(undefined, oxy);
 
-    expect(oxy.getUserFollowing).toHaveBeenCalledTimes(2);
+    expect(oxy.follows.following).toHaveBeenCalledTimes(2);
     expect(store.size).toBe(0);
   });
 

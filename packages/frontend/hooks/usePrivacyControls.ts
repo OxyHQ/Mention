@@ -56,8 +56,8 @@ export function usePrivacyControls(options?: UsePrivacyControlsOptions) {
         setLoading(true);
         try {
             const [blockedUsers, restrictedUsers] = await Promise.all([
-                oxyServices.getBlockedUsers?.(),
-                oxyServices.getRestrictedUsers?.(),
+                oxyServices.privacy.blocked?.(),
+                oxyServices.privacy.restricted?.(),
             ]);
             if (!isCurrentViewer()) return;
 

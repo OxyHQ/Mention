@@ -107,7 +107,11 @@ export class PublishAsAccessError extends Error {
  * member list and nothing else is implied about what it may do.
  */
 export interface AccountMemberReader {
-  listAccountMembers(accountId: string): Promise<AccountMember[]>;
+  accounts: {
+    members: {
+      list(accountId: string): Promise<AccountMember[]>;
+    };
+  };
 }
 
 /**
@@ -122,7 +126,9 @@ export interface AccountMemberReader {
  * side of a channel is resolved at READ time (see {@link listOperatedChannelIds}).
  */
 export interface OperatedAccountReader {
-  listAccounts(): Promise<AccountNode[]>;
+  accounts: {
+    list(): Promise<AccountNode[]>;
+  };
 }
 
 /**
@@ -196,7 +202,7 @@ export async function listOperatedChannelIds(
   if (!reader) return [];
   let accounts: AccountNode[];
   try {
-    accounts = await reader.listAccounts();
+    accounts = await reader.accounts.list();
   } catch (error) {
     logger.warn('[publishAsAccount] Failed to list operated accounts', error);
     return [];
@@ -230,12 +236,16 @@ export async function listOperatedChannelIds(
 export function cacheAccountMemberReads(reader: AccountMemberReader): AccountMemberReader {
   const byAccount = new Map<string, Promise<AccountMember[]>>();
   return {
-    listAccountMembers(accountId: string): Promise<AccountMember[]> {
-      const pending = byAccount.get(accountId);
-      if (pending) return pending;
-      const started = reader.listAccountMembers(accountId);
-      byAccount.set(accountId, started);
-      return started;
+    accounts: {
+      members: {
+        list(accountId: string): Promise<AccountMember[]> {
+          const pending = byAccount.get(accountId);
+          if (pending) return pending;
+          const started = reader.accounts.members.list(accountId);
+          byAccount.set(accountId, started);
+          return started;
+        },
+      },
     },
   };
 }
@@ -322,7 +332,7 @@ async function readActiveMembership(
 ): Promise<AccountMember> {
   let members: AccountMember[];
   try {
-    members = await memberReader.listAccountMembers(target);
+    members = await memberReader.accounts.members.list(target);
   } catch (error) {
     // Includes Oxy's own 403 for a caller with no `members:read`, which is the
     // same answer as "not a member" — but it is not distinguishable here from a

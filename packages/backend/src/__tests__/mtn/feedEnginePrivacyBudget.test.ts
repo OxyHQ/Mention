@@ -5,8 +5,8 @@
  * The privacy counterpart of `feedEngineViewerGraphBudget.test.ts`, and it pins
  * a larger leak than the graph one did. `buildViewerContext` fetched both lists
  * on EVERY hydration call, and a feed page hydrates more than once — measured on
- * an authenticated For You page, `getBlockedUsers` ran three times and
- * `getRestrictedUsers` twice per request, for an answer the controller had
+ * an authenticated For You page, `privacy.blocked` ran three times and
+ * `privacy.restricted` twice per request, for an answer the controller had
  * already resolved before the engine started. Each one is an HTTP round trip to
  * Oxy sitting on the critical path of a feed page, which is the request a reader
  * waits on while scrolling.
@@ -40,10 +40,11 @@ const scope = federationScope('feed-engine-privacy-budget');
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUsersByIds: vi.fn(async (ids: string[]) =>
-      ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {}, languages: ['en-US'] })),
-    ),
-    getClarityDocuments: vi.fn(async () => []),
+    users: {
+      getMany: vi.fn(async (ids: string[]) =>
+        ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {}, languages: ['en-US'] })),
+      ),
+    },
   }),
   createScopedOxyClient: () => undefined,
 }));
@@ -83,10 +84,11 @@ function makePrivacyCountingOxyClient() {
   const getRestrictedUsers = vi.fn(async () => [] as unknown[]);
   return {
     client: {
-      getBlockedUsers,
-      getRestrictedUsers,
-      getUserFollowing: async () => ({ data: [] }),
-      getUserFollowers: async () => ({ data: [] }),
+      privacy: { blocked: getBlockedUsers, restricted: getRestrictedUsers },
+      follows: {
+        following: async () => ({ data: [] }),
+        followers: async () => ({ data: [] }),
+      },
     } as never,
     /** Privacy round trips this run made against Oxy. */
     privacyCalls: () => getBlockedUsers.mock.calls.length + getRestrictedUsers.mock.calls.length,

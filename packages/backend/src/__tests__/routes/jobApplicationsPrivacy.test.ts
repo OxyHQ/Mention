@@ -47,10 +47,14 @@ vi.mock('../../services/PostHydrationService', () => ({
 /** `EMPLOYER_OPERATOR_ID` is an active member of `EMPLOYER_ID` with `account:act_as`; nobody else is a member of anything. */
 vi.mock('../../utils/oxyHelpers', () => ({
   createUserScopedOxyServices: () => ({
-    listAccountMembers: async (accountId: string) =>
-      accountId === EMPLOYER_ID
-        ? [{ memberUserId: EMPLOYER_OPERATOR_ID, status: 'active', permissions: ['account:act_as'] }]
-        : [],
+    accounts: {
+      members: {
+        list: async (accountId: string) =>
+          accountId === EMPLOYER_ID
+            ? [{ memberUserId: EMPLOYER_OPERATOR_ID, status: 'active', permissions: ['account:act_as'] }]
+            : [],
+      },
+    },
   }),
 }));
 

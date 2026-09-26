@@ -29,7 +29,7 @@ const scope = federationScope('sharing-cleanup');
 
 const mocks = vi.hoisted(() => ({
   deliverToFollowers: vi.fn(),
-  makeServiceRequest: vi.fn(),
+  serviceRequest: vi.fn(),
   getFediverseSharingStateById: vi.fn(),
 }));
 
@@ -42,7 +42,7 @@ vi.mock('../../../services/fediverseSharing', () => ({
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ makeServiceRequest: mocks.makeServiceRequest }),
+  getServiceOxyClient: () => ({ serviceRequest: mocks.serviceRequest }),
 }));
 
 vi.mock('../../../connectors/activitypub/constants', () => ({
@@ -96,7 +96,7 @@ beforeEach(async () => {
   vi.restoreAllMocks();
   await clearFederationScope(scope);
   mocks.deliverToFollowers.mockResolvedValue(undefined);
-  mocks.makeServiceRequest.mockResolvedValue(undefined);
+  mocks.serviceRequest.mockResolvedValue(undefined);
   // Every test in this file simulates the job running because sharing is
   // (still) OFF — the "spurious-queue guard" describe block below exercises
   // the other tri-state outcomes explicitly.
@@ -130,7 +130,7 @@ describe('runSharingCleanup — spurious-queue guard (tri-state)', () => {
 
     expect(result).toEqual({ deletesSent: 0, followersRemoved: 0 });
     expect(mocks.deliverToFollowers).not.toHaveBeenCalled();
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
     // The row survives untouched — a spurious job must not tear anything down.
     expect(await survivingActorUris()).toEqual([ACTOR_URI_1]);
   });
@@ -207,8 +207,8 @@ describe('runSharingCleanup', () => {
 
     const result = await runSharingCleanup(OXY_USER_ID, USERNAME);
 
-    expect(mocks.makeServiceRequest).toHaveBeenCalledTimes(1);
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/follow', {
+    expect(mocks.serviceRequest).toHaveBeenCalledTimes(1);
+    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/follow', {
       followerUserId: 'remote-oxy-1',
       targetUserId: OXY_USER_ID,
       action: 'unfollow',
@@ -223,7 +223,7 @@ describe('runSharingCleanup', () => {
     const callOrder: string[] = [];
     let rowsWhenBridged = -1;
     mocks.deliverToFollowers.mockImplementation(async () => { callOrder.push('deliver'); });
-    mocks.makeServiceRequest.mockImplementation(async () => {
+    mocks.serviceRequest.mockImplementation(async () => {
       callOrder.push('bridge-unfollow');
       rowsWhenBridged = (await readFollows(scope)).length;
     });
@@ -264,7 +264,7 @@ describe('runSharingCleanup', () => {
       { uri: ACTOR_URI_1, oxyUserId: 'remote-oxy-1' },
       { uri: ACTOR_URI_2, oxyUserId: 'remote-oxy-2' },
     ]);
-    mocks.makeServiceRequest
+    mocks.serviceRequest
       .mockResolvedValueOnce(undefined) // follow-1's bridge succeeds
       .mockRejectedValueOnce(new Error('bridge down')); // follow-2's bridge fails
 
@@ -293,7 +293,7 @@ describe('runSharingCleanup', () => {
       { uri: ACTOR_URI_1, oxyUserId: 'remote-oxy-1' },
       { uri: ACTOR_URI_2, oxyUserId: 'remote-oxy-2' },
     ]);
-    mocks.makeServiceRequest
+    mocks.serviceRequest
       .mockResolvedValueOnce(undefined) // follow-1 succeeds
       .mockRejectedValueOnce(new Error('bridge down')); // follow-2 fails
 
@@ -302,8 +302,8 @@ describe('runSharingCleanup', () => {
     expect(await survivingActorUris()).toEqual([ACTOR_URI_2]);
 
     mocks.deliverToFollowers.mockClear();
-    mocks.makeServiceRequest.mockClear();
-    mocks.makeServiceRequest.mockResolvedValue(undefined); // the transient failure is gone now
+    mocks.serviceRequest.mockClear();
+    mocks.serviceRequest.mockResolvedValue(undefined); // the transient failure is gone now
 
     const second = await runSharingCleanup(OXY_USER_ID, USERNAME);
 
@@ -317,7 +317,7 @@ describe('runSharingCleanup', () => {
     const result = await runSharingCleanup(OXY_USER_ID, USERNAME);
 
     expect(mocks.deliverToFollowers).not.toHaveBeenCalled();
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
     expect(result).toEqual({ deletesSent: 0, followersRemoved: 0 });
   });
 
@@ -329,7 +329,7 @@ describe('runSharingCleanup', () => {
     expect(first).toEqual({ deletesSent: 1, followersRemoved: 1 });
 
     mocks.deliverToFollowers.mockClear();
-    mocks.makeServiceRequest.mockClear();
+    mocks.serviceRequest.mockClear();
     // Nothing to simulate: the first run really deleted the row.
     expect(await survivingActorUris()).toEqual([]);
 
@@ -337,7 +337,7 @@ describe('runSharingCleanup', () => {
 
     expect(second).toEqual({ deletesSent: 0, followersRemoved: 0 });
     expect(mocks.deliverToFollowers).not.toHaveBeenCalled();
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
   });
 });
 

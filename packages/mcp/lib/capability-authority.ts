@@ -37,7 +37,7 @@ export function createMentionCapabilityAuthority(
 
   const request = async (path: string, body: Record<string, unknown>): Promise<unknown> => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const serviceToken = await oxy.getServiceToken();
+      const serviceToken = await oxy.serviceToken();
       const response = await fetch(`${config.oxyApiUrl}${path}`, {
         method: "POST",
         headers: {

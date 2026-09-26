@@ -91,7 +91,7 @@ export async function listOperatedJobEmployerIds(
   if (!reader) return [];
   let accounts: AccountNode[];
   try {
-    accounts = await reader.listAccounts();
+    accounts = await reader.accounts.list();
   } catch (error) {
     logger.warn('[jobAuthority] Failed to list operated accounts', error);
     return [];

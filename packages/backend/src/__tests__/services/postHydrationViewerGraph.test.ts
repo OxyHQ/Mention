@@ -31,14 +31,14 @@ const { getUsersByIds, getUserFollowing, getUserFollowers } = vi.hoisted(() => (
 // caller supplies no per-request client. We pass an explicit spy client below, so
 // this is just here to keep the import side-effect-free.
 vi.mock('../../runtime/oxyClient', () => ({
-  getRuntimeOxyClient: () => ({ getUserFollowing, getUserFollowers, getUserById: vi.fn() }),
+  getRuntimeOxyClient: () => ({ follows: { following: getUserFollowing, followers: getUserFollowers }, users: { get: vi.fn() } }),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUsersByIds,
+    users: { getMany: getUsersByIds },
     getClarityDocuments: vi.fn(async () => ({})),
-    getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
+    assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
   }),
 }));
 
@@ -94,10 +94,14 @@ function makePostRow() {
 /** A per-request oxy client whose graph methods are spied for call-count asserts. */
 function makeSpyClient() {
   return {
-    getUserFollowing: vi.fn(async () => ({ following: [AUTHOR_OXY_ID] })),
-    getUserFollowers: vi.fn(async () => ({ followers: [] })),
-    getBlockedUsers: vi.fn(async () => []),
-    getRestrictedUsers: vi.fn(async () => []),
+    follows: {
+      following: vi.fn(async () => ({ following: [AUTHOR_OXY_ID] })),
+      followers: vi.fn(async () => ({ followers: [] })),
+    },
+    privacy: {
+      blocked: vi.fn(async () => []),
+      restricted: vi.fn(async () => []),
+    },
   };
 }
 
@@ -126,8 +130,8 @@ describe('PostHydrationService — viewer-graph threading', () => {
 
     expect(hydrated).toBeDefined();
     // The threaded graph is used directly — no re-fetch.
-    expect(client.getUserFollowing).not.toHaveBeenCalled();
-    expect(client.getUserFollowers).not.toHaveBeenCalled();
+    expect(client.follows.following).not.toHaveBeenCalled();
+    expect(client.follows.followers).not.toHaveBeenCalled();
   });
 
   it('falls back to the live Oxy fetch for non-feed callers (no viewerGraph)', async () => {
@@ -140,7 +144,7 @@ describe('PostHydrationService — viewer-graph threading', () => {
 
     expect(hydrated).toBeDefined();
     // No threaded graph → hydration resolves the viewer graph itself, once each.
-    expect(client.getUserFollowing).toHaveBeenCalledTimes(1);
-    expect(client.getUserFollowers).toHaveBeenCalledTimes(1);
+    expect(client.follows.following).toHaveBeenCalledTimes(1);
+    expect(client.follows.followers).toHaveBeenCalledTimes(1);
   });
 });

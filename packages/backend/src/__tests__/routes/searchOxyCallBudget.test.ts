@@ -76,14 +76,22 @@ const calls = {
   getClarityDocuments: vi.fn(async () => []),
 };
 
+/** The namespaced Oxy client the search path sees, wired to the counters above. */
+const oxyClient = {
+  follows: { following: calls.getUserFollowing, followers: calls.getUserFollowers },
+  privacy: { blocked: calls.getBlockedUsers, restricted: calls.getRestrictedUsers },
+  users: { getMany: calls.getUsersByIds },
+  getClarityDocuments: calls.getClarityDocuments,
+};
+
 vi.mock('../../utils/oxyHelpers', () => ({
   // BOTH factories hand back the same object, so a call made through either
   // seam lands in the same counters — otherwise a leak could hide behind the
   // service client while the scoped one looked clean.
-  createScopedOxyClient: () => calls,
-  getServiceOxyClient: () => calls,
-  getRuntimeOxyClient: () => calls,
-  createUserScopedOxyServices: () => calls,
+  createScopedOxyClient: () => oxyClient,
+  getServiceOxyClient: () => oxyClient,
+  getRuntimeOxyClient: () => oxyClient,
+  createUserScopedOxyServices: () => oxyClient,
 }));
 
 const VIEWER = 'search-budget-viewer';

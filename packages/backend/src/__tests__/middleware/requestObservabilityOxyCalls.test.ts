@@ -26,7 +26,7 @@ class FakeHttpService {
   }
 }
 
-const oxyClient = { httpService: new FakeHttpService() };
+const oxyClient = { http: new FakeHttpService() };
 
 /**
  * The flag is set BEFORE the install, because the prototype is patched once —
@@ -57,8 +57,8 @@ app.get('/feed/item/:id', async (_req, res) => {
   // handler's own frame would still pass a flat version of this test.
   await (async () => {
     await (async () => {
-      await oxyClient.httpService.request({ method: 'GET', url: '/users/me/graph' });
-      await oxyClient.httpService.request({
+      await oxyClient.http.request({ method: 'GET', url: '/users/me/graph' });
+      await oxyClient.http.request({
         method: 'GET',
         url: '/users/650000000000000000000010/followers',
       });

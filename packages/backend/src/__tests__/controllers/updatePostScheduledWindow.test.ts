@@ -51,7 +51,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   // this file edits its own post, which `canManagePostWithoutLookup` settles
   // before any account read — so none of them reaches this.
   createUserScopedOxyServices: vi.fn(() => ({
-    listAccountMembers: (accountId: string) => hoisted.listAccountMembers(accountId),
+    accounts: { members: { list: (accountId: string) => hoisted.listAccountMembers(accountId) } },
   })),
 }));
 

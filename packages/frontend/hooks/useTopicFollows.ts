@@ -61,7 +61,7 @@ export function useFollowedTopics(): FollowedTopicsResult {
       const byUri = new Map<string, FollowedTopic>();
       let cursor: string | undefined;
       for (let page = 0; page < MAX_FOLLOW_PAGES; page += 1) {
-        const result = await oxyServices.listFollows({
+        const result = await oxyServices.follows.list({
           kind: OXY_TOPIC_KIND,
           limit: FOLLOW_PAGE_SIZE,
           ...(cursor ? { cursor } : {}),
@@ -122,7 +122,7 @@ export function useTopicFollowTargetId(input: {
     queryKey: viewerQueryKeys.followGraphTarget(user?.id, uri),
     queryFn: async () => {
       try {
-        const resolved = await oxyServices.ensureFollowTarget({
+        const resolved = await oxyServices.follows.ensureTarget({
           uri,
           kind: OXY_TOPIC_KIND,
           /*

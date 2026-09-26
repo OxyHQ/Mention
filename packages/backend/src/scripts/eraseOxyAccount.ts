@@ -55,7 +55,7 @@ function statusOf(error: unknown): number | undefined {
 
 export async function readOxyAccountState(oxyUserId: string): Promise<OxyAccountState> {
   try {
-    const user: unknown = await getServiceOxyClient().getUserById(oxyUserId);
+    const user: unknown = await getServiceOxyClient().users.get(oxyUserId);
     if (!user) return 'deleted';
     const accountStatus = typeof user === 'object' ? Reflect.get(user, 'accountStatus') : undefined;
     return accountStatus === 'archived' ? 'archived' : 'active';

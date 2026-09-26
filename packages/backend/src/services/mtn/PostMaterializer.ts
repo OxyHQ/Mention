@@ -224,7 +224,7 @@ async function resolveRecordFileIds(record: MentionPostRecord): Promise<Map<stri
   if (sha256s.size === 0) return new Map();
 
   try {
-    const metadata = await getServiceOxyClient().getServiceAssetMetadataBySha256([...sha256s]);
+    const metadata = await getServiceOxyClient().assets.metadataBySha256([...sha256s]);
     const fileIdBySha256 = new Map<string, string>();
     for (const entry of metadata) {
       if (entry.status === 'active' && typeof entry.id === 'string' && entry.id.length > 0) {

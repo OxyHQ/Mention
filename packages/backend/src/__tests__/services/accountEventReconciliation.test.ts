@@ -18,7 +18,7 @@ const processAccountErasure = vi.hoisted(() => vi.fn(async () => ({ outcome: 'co
 
 vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
-  getServiceOxyClient: () => ({ verifyAccountEvent, listAccountEvents }),
+  getServiceOxyClient: () => ({ accountEvents: { verify: verifyAccountEvent, list: listAccountEvents } }),
 }));
 vi.mock('../../queue/producers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../queue/producers')>()),

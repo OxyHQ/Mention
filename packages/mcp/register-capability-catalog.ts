@@ -1,4 +1,4 @@
-import { OxyServices } from "@oxy.so/core";
+import { OxyServer } from "@oxy.so/core/server";
 import { appCapabilityCatalogSchema } from "@oxy.so/contracts";
 import { MENTION_CAPABILITY_CATALOG } from "./lib/mention-catalog.js";
 
@@ -59,12 +59,11 @@ function serviceCredentialPair(): { apiKey: string; apiSecret: string } | null {
 
 async function main(): Promise<void> {
   const catalog = appCapabilityCatalogSchema.parse(MENTION_CAPABILITY_CATALOG);
-  const oxy = new OxyServices({ baseURL: OXY_API_URL });
   const credential = serviceCredentialPair();
-  // Only when there is one: with none, `getServiceToken()` attests the task
+  // Only when there is one: with none, `serviceToken()` attests the task
   // role, which is how this runs in the cluster.
-  if (credential) oxy.configureServiceAuth(credential.apiKey, credential.apiSecret);
-  const serviceToken = await oxy.getServiceToken();
+  const oxy = new OxyServer({ baseURL: OXY_API_URL, ...(credential ? { serviceAuth: credential } : {}) });
+  const serviceToken = await oxy.serviceToken();
   const response = await fetch(`${OXY_API_URL}/capabilities/catalogs/register`, {
     method: "POST",
     headers: {

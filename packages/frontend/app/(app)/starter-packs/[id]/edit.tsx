@@ -128,7 +128,7 @@ export default function EditStarterPackScreen() {
     setSearching(true);
     searchTimer.current = setTimeout(async () => {
       try {
-        const res = await oxyServices.searchProfiles(trimmed, { limit: 10 });
+        const res = await oxyServices.users.search(trimmed, { limit: 10 });
         setResults(res.data.map((profile: User) => ({
           id: profile.id,
           username: profile.username,

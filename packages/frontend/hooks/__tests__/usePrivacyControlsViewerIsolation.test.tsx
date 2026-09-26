@@ -47,8 +47,10 @@ describe('usePrivacyControls viewer isolation', () => {
     usePrivacyStore.getState().reset();
     mockUseAuth.mockImplementation(() => ({
       oxyServices: {
-        getBlockedUsers: mockGetBlockedUsers,
-        getRestrictedUsers: mockGetRestrictedUsers,
+        privacy: {
+          blocked: mockGetBlockedUsers,
+          restricted: mockGetRestrictedUsers,
+        },
       },
       isAuthenticated: true,
       isAuthResolved: true,

@@ -34,10 +34,11 @@ const {
 // module transitively imports the server entrypoint and the full connector
 // registry graph — stub the heavy/circular deps so it loads standalone.
 vi.mock('../../runtime/oxyClient', () => ({
-  getRuntimeOxyClient: () => ({ getUserById }),
+  getRuntimeOxyClient: () => ({ users: { get: getUserById } }),
 }));
 
-vi.mock('@oxy.so/core/server', () => ({
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
   getRequiredOxyUserId: () => 'local-user-1',
 }));
 
@@ -68,7 +69,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(),
-  getServiceOxyClient: () => ({ getUserById }),
+  getServiceOxyClient: () => ({ users: { get: getUserById } }),
 }));
 
 vi.mock('../../services/fediverseSharing', () => ({

@@ -1704,7 +1704,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     bottomSheet.setBottomSheetContent(
       <Suspense fallback={null}>
         <AltTextSheet
-          imageUrl={oxyServices.getFileDownloadUrl(mediaItem.id)}
+          imageUrl={oxyServices.assets.publicUrl(mediaItem.id)}
           languageTags={allTags(variants)}
           initialTag={activeTag}
           getAlt={readAlt}
@@ -1873,7 +1873,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   }, []);
 
   const getFileDownloadUrl = useCallback((id: string) => {
-    return oxyServices.getFileDownloadUrl(id);
+    return oxyServices.assets.publicUrl(id);
   }, [oxyServices]);
 
   const { t: tCompose } = useTranslation();
@@ -2054,7 +2054,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     bottomSheet.setBottomSheetContent(
       <Suspense fallback={null}>
         <AltTextSheet
-          imageUrl={oxyServices.getFileDownloadUrl(mediaItem.id)}
+          imageUrl={oxyServices.assets.publicUrl(mediaItem.id)}
           languageTags={[tag]}
           initialTag={tag}
           getAlt={() => mediaItem.alt ?? ''}
@@ -2989,7 +2989,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                             const mediaId = getMediaIdFromAttachmentKey(key);
                             const mediaItem = mediaIds.find(m => m.id === mediaId);
                             if (!mediaItem) return null;
-                            const mediaUrl = oxyServices.getFileDownloadUrl(mediaItem.id);
+                            const mediaUrl = oxyServices.assets.publicUrl(mediaItem.id);
                             return (
                               <AttachmentCarouselItem
                                 key={key}

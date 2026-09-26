@@ -22,8 +22,8 @@ vi.mock('../../../../connectors/activitypub/constants', async () => {
 
 vi.mock('../../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    resolveDid: (...a: unknown[]) => mockResolveDid(...a),
-    getUserById: (...a: unknown[]) => mockGetUserById(...a),
+    identity: { resolveDid: (...a: unknown[]) => mockResolveDid(...a) },
+    users: { get: (...a: unknown[]) => mockGetUserById(...a) },
   }),
 }));
 

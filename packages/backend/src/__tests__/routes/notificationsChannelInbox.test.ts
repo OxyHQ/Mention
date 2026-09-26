@@ -61,7 +61,7 @@ vi.mock('../../middleware/rateLimiter', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  createScopedOxyClient: () => ({ getUserFollowing: mocks.getUserFollowing }),
+  createScopedOxyClient: () => ({ follows: { following: mocks.getUserFollowing } }),
   /**
    * The reader the route hands to `resolveNotificationInboxIds`. In production it
    * is an `OxyServices` bound to the CALLER's own bearer; the only thing that
@@ -72,12 +72,12 @@ vi.mock('../../utils/oxyHelpers', () => ({
    * this factory omits is `undefined is not a function` on every request.
    */
   createUserScopedOxyServices: (req: { user?: { id?: string } }) => ({
-    listAccounts: async () => mocks.listAccounts(req.user?.id),
+    accounts: { list: async () => mocks.listAccounts(req.user?.id) },
   }),
   getServiceOxyClient: () => ({
-    getUsersByIds: mocks.getUsersByIds,
+    users: { getMany: mocks.getUsersByIds },
     getClarityDocuments: vi.fn(async () => ({})),
-    getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
+    assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
   }),
 }));
 
@@ -97,9 +97,8 @@ vi.mock('../../utils/redis', () => ({
 
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
-    getUserById: vi.fn(async () => null),
-    getUserFollowing: mocks.getUserFollowing,
-    getUserFollowers: vi.fn(async () => []),
+    users: { get: vi.fn(async () => null) },
+    follows: { following: mocks.getUserFollowing, followers: vi.fn(async () => []) },
   }),
 }));
 

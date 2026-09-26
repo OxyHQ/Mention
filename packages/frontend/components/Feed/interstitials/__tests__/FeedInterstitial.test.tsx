@@ -110,8 +110,10 @@ const mockAuth = {
   canUsePrivateApi: true,
   isPrivateApiPending: false,
   oxyServices: {
-    getSimilarProfiles: (...args: unknown[]) => mockGetSimilarProfiles(...args),
-    getUsersByIds: (...args: unknown[]) => mockGetUsersByIds(...args),
+    users: {
+      similar: (...args: unknown[]) => mockGetSimilarProfiles(...args),
+      getMany: (...args: unknown[]) => mockGetUsersByIds(...args),
+    },
   },
 };
 

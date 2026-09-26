@@ -90,7 +90,7 @@ async function runPhase(
 async function resolveUsername(row: AccountErasureRow): Promise<string | null> {
   if (row.username) return row.username;
   try {
-    const user = await getServiceOxyClient().getUserById(row.oxyUserId);
+    const user = await getServiceOxyClient().users.get(row.oxyUserId);
     return normalizeUsername(user?.username);
   } catch {
     return null;

@@ -55,7 +55,7 @@ export default function JobApplyScreen() {
 
   const employerQuery = useQuery<User>({
     queryKey: viewerQueryKeys.jobEmployerProfile(user?.id, job?.employerOxyUserId),
-    queryFn: () => oxyServices.getUserById(job!.employerOxyUserId),
+    queryFn: () => oxyServices.users.get(job!.employerOxyUserId),
     enabled: Boolean(job?.employerOxyUserId),
   });
   const employerName = employerQuery.data

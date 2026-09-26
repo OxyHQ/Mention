@@ -629,7 +629,7 @@ async function resolveOxyUserSummaryMisses(
 
   try {
     const users = await runBoundedOxyUserResolutionCall(
-      () => getServiceOxyClient().getUsersByIds(missIds),
+      () => getServiceOxyClient().users.getMany(missIds),
       deadlineAt,
     );
     for (const user of Array.isArray(users) ? users : []) {
@@ -659,7 +659,7 @@ async function resolveOxyUserSummaryMisses(
 
         try {
           const userData = await runBoundedOxyUserResolutionCall(
-            () => getRuntimeOxyClient().getUserById(userId),
+            () => getRuntimeOxyClient().users.get(userId),
             deadlineAt,
           );
           freshlyResolved.set(userId, toCachedUser(userId, userData));

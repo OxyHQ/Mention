@@ -57,7 +57,7 @@ interface JobCardProps {
  * The employer profile link is the one place this card makes its own
  * request: `PostJobContent` carries `employerOxyUserId` but no handle (posts
  * only ever navigate to a profile by `@handle` — see `app/(app)/[username]`),
- * so the handle is resolved on tap via the Oxy SDK's cached `getUserById`
+ * so the handle is resolved on tap via the Oxy SDK's cached `users.get`
  * rather than upfront for every rendered card.
  */
 const JobCard: React.FC<JobCardProps> = ({ job, width = 280, height }) => {
@@ -84,7 +84,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, width = 280, height }) => {
   const openEmployer = useCallback(() => {
     void (async () => {
       try {
-        const profile = await oxyServices.getUserById(job.employerOxyUserId);
+        const profile = await oxyServices.users.get(job.employerOxyUserId);
         const handle = getNormalizedUserHandle(profile);
         if (handle) router.push(`/@${handle}`);
       } catch (error) {

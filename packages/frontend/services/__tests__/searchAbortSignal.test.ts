@@ -21,14 +21,16 @@ jest.mock('@/utils/api', () => ({
 
 jest.mock('@/lib/oxyServices', () => ({
   oxyServices: {
-    searchProfiles: (...args: unknown[]) => mockSearchProfiles(...args),
-    getProfileByUsername: (...args: unknown[]) =>
-      mockGetProfileByUsername(...args),
-    // People search goes through the raw `httpService` seam rather than
-    // `searchProfiles`, because that SDK method takes no `AbortSignal`. The mock
+    users: {
+      search: (...args: unknown[]) => mockSearchProfiles(...args),
+      byUsername: (...args: unknown[]) =>
+        mockGetProfileByUsername(...args),
+    },
+    // People search goes through the raw `http` seam rather than
+    // `users.search`, because that SDK method takes no `AbortSignal`. The mock
     // has to carry it or the people lane silently falls into its
     // exact-username fallback and the signal assertion below passes vacuously.
-    httpService: {
+    http: {
       get: (...args: unknown[]) => mockOxyHttpGet(...args),
     },
   },
@@ -217,7 +219,7 @@ describe('search AbortSignal propagation', () => {
     expect(results.feeds).toEqual([]);
   });
 
-  // People was the ONE lane that could not be cancelled: `searchProfiles` takes
+  // People was the ONE lane that could not be cancelled: `users.search` takes
   // no signal, so every keystroke started a profile search that ran to
   // completion and had its result discarded while holding a request-queue slot.
   // Since it is also the slowest lane (Oxy's `/profiles/search` has no trigram
@@ -234,7 +236,7 @@ describe('search AbortSignal propagation', () => {
         signal,
       }),
     );
-    // `searchProfiles` is the un-cancellable path. Nothing in search may use it.
+    // `users.search` is the un-cancellable path. Nothing in search may use it.
     expect(mockSearchProfiles).not.toHaveBeenCalled();
   });
 

@@ -18,7 +18,7 @@ import TestRenderer, { act } from 'react-test-renderer';
  * changed mid-flight. Treating a resolved promise as a published post threw the
  * capture away with nothing published.
  *
- * The upload here is the REAL hook against a mocked `assetUpload`, because the
+ * The upload here is the REAL hook against a mocked `assets.upload`, because the
  * gap between the two `busy` flags is the whole bug — mocking the hook would
  * measure the mock.
  */
@@ -35,12 +35,14 @@ jest.mock('expo-router', () => ({
 
 jest.mock('@/lib/oxyServices', () => ({
   oxyServices: {
-    assetUpload: jest.fn(
-      () =>
-        new Promise((resolve) => {
-          mockResolveUpload = resolve;
-        }),
-    ),
+    assets: {
+      upload: jest.fn(
+        () =>
+          new Promise((resolve) => {
+            mockResolveUpload = resolve;
+          }),
+      ),
+    },
   },
 }));
 
@@ -125,7 +127,7 @@ const flushMicrotasks = async () => {
  * Press "post" and let the whole exit run to a stop.
  *
  * The press cannot be awaited directly: `publishNow` awaits the upload, and the
- * mocked `assetUpload` only settles when this helper says so — which is the
+ * mocked `assets.upload` only settles when this helper says so — which is the
  * point, since the window between the two awaits is where the duplicate-post bug
  * lived.
  */

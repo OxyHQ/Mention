@@ -50,7 +50,7 @@ export function useCaptureUpload() {
     setBusy(true);
     setFailed(false);
     try {
-      const response = (await oxyServices.assetUpload({
+      const response = (await oxyServices.assets.upload({
         uri: capture.uri,
         type: capture.mimeType,
         name: capture.uri.split('/').pop() ?? undefined,

@@ -128,7 +128,7 @@ function useRecommendationParams(opts?: UseRecommendationsOptions): Recommendati
     (opts?.enabled ?? true) && (overrideExcludeTypes != null || filtersQuery.isSuccess);
 
   const getUsersByIds = useCallback(
-    (ids: string[]) => oxyServices.getUsersByIds(ids),
+    (ids: string[]) => oxyServices.users.getMany(ids),
     [oxyServices],
   );
 

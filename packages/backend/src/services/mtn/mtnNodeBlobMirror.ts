@@ -118,7 +118,7 @@ async function unresolvedSha256s(sha256s: string[]): Promise<Set<string>> {
   const unresolved = new Set(sha256s);
   if (sha256s.length === 0) return unresolved;
   try {
-    const metadata = await getServiceOxyClient().getServiceAssetMetadataBySha256(sha256s);
+    const metadata = await getServiceOxyClient().assets.metadataBySha256(sha256s);
     for (const entry of metadata) {
       if (entry.status === 'active' && typeof entry.sha256 === 'string') {
         unresolved.delete(entry.sha256);

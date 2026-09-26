@@ -25,19 +25,24 @@ const { getUsersByIds, cacheStore } = vi.hoisted(() => ({
 }));
 
 const oxyClient = {
-  getBlockedUsers: vi.fn(async () => []),
-  getRestrictedUsers: vi.fn(async () => []),
-  getUserFollowing: vi.fn(async () => ({ following: [] })),
-  getUserFollowers: vi.fn(async () => ({ followers: [] })),
+  privacy: {
+    blocked: vi.fn(async () => []),
+    restricted: vi.fn(async () => []),
+  },
+  follows: {
+    following: vi.fn(async () => ({ following: [] })),
+    followers: vi.fn(async () => ({ followers: [] })),
+    viewerGraph: vi.fn(async () => ({})),
+  },
 };
 
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: () => oxyClient,
   createUserScopedOxyServices: () => undefined,
   getServiceOxyClient: () => ({
-    getUsersByIds,
+    users: { getMany: getUsersByIds },
     getClarityDocuments: vi.fn(async () => ({})),
-    getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
+    assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
   }),
 }));
 
@@ -76,10 +81,10 @@ beforeEach(() => {
   getUsersByIds.mockImplementation(async (ids: string[]) =>
     ids.map((id) => ({ id, username: id, name: { displayName: id }, badges: [], verified: false })),
   );
-  oxyClient.getBlockedUsers.mockClear();
-  oxyClient.getRestrictedUsers.mockClear();
-  oxyClient.getUserFollowing.mockClear();
-  oxyClient.getUserFollowers.mockClear();
+  oxyClient.privacy.blocked.mockClear();
+  oxyClient.privacy.restricted.mockClear();
+  oxyClient.follows.following.mockClear();
+  oxyClient.follows.followers.mockClear();
 });
 
 afterEach(async () => {
@@ -108,9 +113,9 @@ describe('GET /posts/:id — viewer privacy/graph call budget', () => {
 
     expect(res.statusCode).toBe(200);
     expect((res.body as { id?: string } | undefined)?.id).toBe(post.id);
-    expect(oxyClient.getBlockedUsers).toHaveBeenCalledTimes(1);
-    expect(oxyClient.getRestrictedUsers).toHaveBeenCalledTimes(1);
-    expect(oxyClient.getUserFollowing).toHaveBeenCalledTimes(1);
-    expect(oxyClient.getUserFollowers).toHaveBeenCalledTimes(1);
+    expect(oxyClient.privacy.blocked).toHaveBeenCalledTimes(1);
+    expect(oxyClient.privacy.restricted).toHaveBeenCalledTimes(1);
+    expect(oxyClient.follows.following).toHaveBeenCalledTimes(1);
+    expect(oxyClient.follows.followers).toHaveBeenCalledTimes(1);
   });
 });

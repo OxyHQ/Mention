@@ -50,7 +50,7 @@ vi.mock('../../utils/redis', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getUsersByIds }),
+  getServiceOxyClient: () => ({ users: { getMany: getUsersByIds } }),
 }));
 
 import { MtnConfig } from '@mention/shared-types';

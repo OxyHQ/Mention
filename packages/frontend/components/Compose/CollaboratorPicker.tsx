@@ -55,7 +55,7 @@ const CollaboratorPicker: React.FC<CollaboratorPickerProps> = ({
       }
       setLoading(true);
       try {
-        const { data: searchResults } = await oxyServices.searchProfiles(query, { limit: 10 });
+        const { data: searchResults } = await oxyServices.users.search(query, { limit: 10 });
         const mapped: CollaboratorUser[] = (searchResults || []).flatMap((profile: {
           id?: string;
           _id?: string;

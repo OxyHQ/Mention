@@ -21,7 +21,9 @@ const clientShape = vi.hoisted(() => ({ supportsEvents: true }));
 vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
   getServiceOxyClient: () =>
-    clientShape.supportsEvents ? { verifyAccountEvent, listAccountEvents } : { getUserById: vi.fn() },
+    clientShape.supportsEvents
+      ? { accountEvents: { verify: verifyAccountEvent, list: listAccountEvents } }
+      : { users: { get: vi.fn() } },
 }));
 vi.mock('../../queue/producers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../queue/producers')>()),

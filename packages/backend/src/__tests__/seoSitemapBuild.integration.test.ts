@@ -25,13 +25,13 @@ import request from 'supertest';
 import { createHash } from 'node:crypto';
 import { PostVisibility } from '@mention/shared-types';
 
-const { makeServiceRequest, store } = vi.hoisted(() => ({
-  makeServiceRequest: vi.fn(),
+const { serviceRequest, store } = vi.hoisted(() => ({
+  serviceRequest: vi.fn(),
   store: new Map<string, unknown>(),
 }));
 
 vi.mock('../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ makeServiceRequest }),
+  getServiceOxyClient: () => ({ serviceRequest }),
 }));
 
 vi.mock('../utils/cache', () => ({
@@ -87,10 +87,10 @@ beforeAll(async () => {
 
 beforeEach(() => {
   store.clear();
-  makeServiceRequest.mockReset();
+  serviceRequest.mockReset();
   // Oxy answers for every requested author except HIDDEN, as its bulk endpoint
   // omits an account that is not publicly discoverable.
-  makeServiceRequest.mockImplementation(async (_method: string, _url: string, body: { ids: string[] }) =>
+  serviceRequest.mockImplementation(async (_method: string, _url: string, body: { ids: string[] }) =>
     body.ids
       .filter((id) => id !== HIDDEN)
       .map((id) => ({ id, username: id === AUTHOR ? 'sitemapauthor' : `u${id.length}`, name: { displayName: 'A' } })));
@@ -114,7 +114,7 @@ describe('SEO sitemaps', () => {
     expect(index.status).toBe(503);
     expect(index.headers['retry-after']).toBe('900');
     expect(shard.status).toBe(503);
-    expect(makeServiceRequest).not.toHaveBeenCalled();
+    expect(serviceRequest).not.toHaveBeenCalled();
   });
 
   it('builds every sitemap in one pass and serves them from the cache', async () => {
@@ -129,7 +129,7 @@ describe('SEO sitemaps', () => {
     const report = await buildAllSitemaps();
     expect(report.postRows).toBeGreaterThanOrEqual(2);
     // Bulk resolution only: 100 authors per Oxy call, never one per profile.
-    expect(makeServiceRequest.mock.calls.every(([method, url]) => method === 'POST' && url === '/users/by-ids')).toBe(true);
+    expect(serviceRequest.mock.calls.every(([method, url]) => method === 'POST' && url === '/users/by-ids')).toBe(true);
 
     const app = makeApp();
     const index = await request(app).get('/sitemap.xml');
@@ -166,10 +166,10 @@ describe('SEO sitemaps', () => {
     expect(revalidated.status).toBe(304);
 
     // A page the catalog does not list is a cheap 404, never a build.
-    const callsBefore = makeServiceRequest.mock.calls.length;
+    const callsBefore = serviceRequest.mock.calls.length;
     const absent = await request(app).get(`/sitemaps/posts-${bucketOf(listed.id)}-7.xml`);
     expect(absent.status).toBe(404);
-    expect(makeServiceRequest.mock.calls.length).toBe(callsBefore);
+    expect(serviceRequest.mock.calls.length).toBe(callsBefore);
   });
 
   it('keeps the previous sitemaps when a build fails', async () => {
@@ -177,7 +177,7 @@ describe('SEO sitemaps', () => {
     await buildAllSitemaps();
     const before = (await request(makeApp()).get('/sitemap.xml')).text;
 
-    makeServiceRequest.mockRejectedValue(Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 }));
+    serviceRequest.mockRejectedValue(Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 }));
     await expect(buildAllSitemaps()).rejects.toThrow('HTTP 429');
 
     const after = await request(makeApp()).get('/sitemap.xml');
@@ -192,20 +192,20 @@ describe('SEO sitemaps', () => {
     expect(await sitemapsAreDue()).toBe(true);
     await job.tick();
     expect(await sitemapsAreDue()).toBe(false);
-    const callsAfterBuild = makeServiceRequest.mock.calls.length;
+    const callsAfterBuild = serviceRequest.mock.calls.length;
     expect(callsAfterBuild).toBeGreaterThan(0);
 
     // Fresh: a tick is one cache read.
     await job.tick();
-    expect(makeServiceRequest.mock.calls.length).toBe(callsAfterBuild);
+    expect(serviceRequest.mock.calls.length).toBe(callsAfterBuild);
 
     // Due again seven hours later, but Oxy fails: the next tick inside the
     // backoff does not try again.
     const later = Date.now() + 7 * 60 * 60 * 1000;
-    makeServiceRequest.mockRejectedValue(new Error('Oxy down'));
+    serviceRequest.mockRejectedValue(new Error('Oxy down'));
     await job.tick(later);
-    const callsAfterFailure = makeServiceRequest.mock.calls.length;
+    const callsAfterFailure = serviceRequest.mock.calls.length;
     await job.tick(later + 60_000);
-    expect(makeServiceRequest.mock.calls.length).toBe(callsAfterFailure);
+    expect(serviceRequest.mock.calls.length).toBe(callsAfterFailure);
   });
 });

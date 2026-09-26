@@ -18,7 +18,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
  */
 
 const mocks = vi.hoisted(() => ({
-  makeServiceRequest: vi.fn(),
+  serviceRequest: vi.fn(),
   getUsersByIds: vi.fn(),
   dispatcherConfig: undefined as undefined | { onMove?: unknown },
   loggerWarn: vi.fn(),
@@ -45,7 +45,7 @@ vi.mock('../../../connectors/activitypub/crypto', () => ({
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ makeServiceRequest: mocks.makeServiceRequest, getUsersByIds: mocks.getUsersByIds }),
+  getServiceOxyClient: () => ({ serviceRequest: mocks.serviceRequest, users: { getMany: mocks.getUsersByIds } }),
 }));
 
 vi.mock('@oxy.so/federation/node', async (importOriginal) => {
@@ -208,13 +208,13 @@ describe('inbound Move → Oxy', () => {
   });
 
   it('forwards the Move to POST /federation/move', async () => {
-    mocks.makeServiceRequest.mockResolvedValue(oxyApplied());
+    mocks.serviceRequest.mockResolvedValue(oxyApplied());
     await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW, lastFetchedAt: new Date() });
 
     await applyInboundMove(MOVE);
 
-    expect(mocks.makeServiceRequest).toHaveBeenCalledTimes(1);
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith('POST', '/federation/move', {
+    expect(mocks.serviceRequest).toHaveBeenCalledTimes(1);
+    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/move', {
       oldActorUri: OLD_ACTOR,
       targetActorUri: TARGET_ACTOR,
       activityId: MOVE_ID,
@@ -222,7 +222,7 @@ describe('inbound Move → Oxy', () => {
   });
 
   it('logs a 4xx refusal with its code and drops it (the job succeeds, nothing is adopted)', async () => {
-    mocks.makeServiceRequest.mockRejectedValue(oxyError(422, 'alias_missing'));
+    mocks.serviceRequest.mockRejectedValue(oxyError(422, 'alias_missing'));
     await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW, lastFetchedAt: new Date() });
     const copy = await federatedCopy('1', 'hello from mastodon');
 
@@ -242,14 +242,14 @@ describe('inbound Move → Oxy', () => {
     ['a network failure', Object.assign(new Error('Network error'), { status: 0 })],
     ['a 429', oxyError(429)],
   ])('throws on %s so the inbox job retries', async (_label, error) => {
-    mocks.makeServiceRequest.mockRejectedValue(error);
+    mocks.serviceRequest.mockRejectedValue(error);
     await expect(applyInboundMove(MOVE)).rejects.toBe(error);
   });
 });
 
 describe('adoption after Oxy applies the Move', () => {
   it('reattributes the old actor posts and collapses a matching import under the federated copy', async () => {
-    mocks.makeServiceRequest.mockResolvedValue(oxyApplied());
+    mocks.serviceRequest.mockResolvedValue(oxyApplied());
     await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW, lastFetchedAt: new Date() });
     const copy = await federatedCopy('1', 'hello from mastodon');
     const onlyFederated = await federatedCopy('2', 'never imported');
@@ -282,7 +282,7 @@ describe('adoption after Oxy applies the Move', () => {
     expect((await row(reply.id)).oxyUserId).toBe(REPLIER);
 
     // The same Move again (another inbox, or a retry): Oxy replays, nothing changes.
-    mocks.makeServiceRequest.mockResolvedValue(oxyApplied({ replayed: true }));
+    mocks.serviceRequest.mockResolvedValue(oxyApplied({ replayed: true }));
     await applyInboundMove(MOVE);
     const clusters = await getDb().select({ clusterId: postEquivalenceMembers.clusterId }).from(postEquivalenceMembers)
       .where(inArray(postEquivalenceMembers.postId, [copy.id, duplicate.id, onlyImported.id, onlyFederated.id]));
@@ -290,7 +290,7 @@ describe('adoption after Oxy applies the Move', () => {
   });
 
   it('is reversible: projecting the source back splits the pair and shows both posts', async () => {
-    mocks.makeServiceRequest.mockResolvedValue(oxyApplied());
+    mocks.serviceRequest.mockResolvedValue(oxyApplied());
     await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW, lastFetchedAt: new Date() });
     const copy = await federatedCopy('1', 'hello from mastodon');
     const duplicate = await importedPost('1', 'hello from mastodon');
@@ -307,7 +307,7 @@ describe('adoption after Oxy applies the Move', () => {
   });
 
   it('collapses an import that arrives after the Move under the copy the Move adopted', async () => {
-    mocks.makeServiceRequest.mockResolvedValue(oxyApplied());
+    mocks.serviceRequest.mockResolvedValue(oxyApplied());
     await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW, lastFetchedAt: new Date() });
     const copy = await federatedCopy('1', 'hello from mastodon');
     await applyInboundMove(MOVE);
@@ -321,7 +321,7 @@ describe('adoption after Oxy applies the Move', () => {
   });
 
   it('adopts nothing when Mention never cached the old actor', async () => {
-    mocks.makeServiceRequest.mockResolvedValue(oxyApplied());
+    mocks.serviceRequest.mockResolvedValue(oxyApplied());
     await expect(applyInboundMove(MOVE)).resolves.toBeUndefined();
     expect(mocks.loggerInfo).toHaveBeenCalledWith('[Federation] Move applied', expect.objectContaining({
       adoptionSkipped: 'actor_not_cached',
@@ -332,7 +332,7 @@ describe('adoption after Oxy applies the Move', () => {
 
 describe('local follows of the old actor', () => {
   it('sends each local follower\'s Undo(Follow) to the old actor and removes the edge, once', async () => {
-    mocks.makeServiceRequest.mockResolvedValue(oxyApplied());
+    mocks.serviceRequest.mockResolvedValue(oxyApplied());
     await seedActor(scope, { username: 'alice', uri: OLD_ACTOR, oxyUserId: SHADOW, lastFetchedAt: new Date() });
     const bob = scope.user('bob');
     const carol = scope.user('carol');
@@ -364,14 +364,14 @@ describe('local follows of the old actor', () => {
 
     // Replayed: nothing left to undo for the users already handled.
     undo.mockClear();
-    mocks.makeServiceRequest.mockResolvedValue(oxyApplied({ replayed: true }));
+    mocks.serviceRequest.mockResolvedValue(oxyApplied({ replayed: true }));
     await applyInboundMove(MOVE);
     expect(undo).not.toHaveBeenCalled();
     undo.mockRestore();
   });
 
   it('sends nothing when Oxy refuses the Move', async () => {
-    mocks.makeServiceRequest.mockRejectedValue(oxyError(422, 'alias_missing'));
+    mocks.serviceRequest.mockRejectedValue(oxyError(422, 'alias_missing'));
     await seedFollow(scope, { localUserId: scope.user('bob'), remoteActorUri: OLD_ACTOR, direction: 'outbound' });
     const undo = vi.spyOn(deliveryService, 'sendUndoFollow');
 

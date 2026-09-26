@@ -219,8 +219,8 @@ async function uploadWithOxySession(
 ): Promise<string> {
   const file = new File([new Uint8Array(buffer)], fileName, { type: contentType });
   const oxyClient = new OxyServices({ baseURL: OXY_API_URL });
-  oxyClient.setTokens(token);
-  const uploadResult = await oxyClient.assetUpload(file);
+  oxyClient.session.setAccessToken(token);
+  const uploadResult = await oxyClient.assets.upload(file);
   const fileId = uploadResult?.file?.id;
   if (typeof fileId !== 'string' || fileId.length === 0) {
     throw new Error('Could not save the media');
@@ -231,7 +231,7 @@ async function uploadWithOxySession(
 async function enrichUploadResponse(fileId: string, contentType: string): Promise<Record<string, unknown>> {
   const responseBody: Record<string, unknown> = { fileId, contentType };
   try {
-    const assets = await getServiceOxyClient().getServiceAssetMetadataByIds([fileId]);
+    const assets = await getServiceOxyClient().assets.metadataByIds([fileId]);
     const asset = assets[0];
     if (asset) {
       if (asset.width !== undefined) responseBody.width = asset.width;

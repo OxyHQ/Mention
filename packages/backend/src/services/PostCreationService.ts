@@ -840,7 +840,7 @@ class PostCreationService {
     const supplied = provided?.trim();
     if (supplied) return supplied;
     try {
-      const owner = await getServiceOxyClient().getUserById(oxyUserId);
+      const owner = await getServiceOxyClient().users.get(oxyUserId);
       const resolved = owner.username?.trim();
       return resolved ? resolved : undefined;
     } catch (error) {

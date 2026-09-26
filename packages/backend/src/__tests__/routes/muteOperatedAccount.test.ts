@@ -47,7 +47,7 @@ vi.mock('../../services/PostHydrationService', () => ({ resolveUserSummaries }))
 // broken rule rather than a missing stub.
 vi.mock('../../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/oxyHelpers')>()),
-  createUserScopedOxyServices: () => ({ listAccountMembers }),
+  createUserScopedOxyServices: () => ({ accounts: { members: { list: listAccountMembers } } }),
 }));
 
 vi.mock('../../utils/logger', () => ({

@@ -136,7 +136,7 @@ export async function runSharingCleanup(
     }
 
     try {
-      await getServiceOxyClient().makeServiceRequest('POST', '/federation/follow', {
+      await getServiceOxyClient().serviceRequest('POST', '/federation/follow', {
         followerUserId: followerOxyUserId,
         targetUserId: oxyUserId,
         action: 'unfollow',

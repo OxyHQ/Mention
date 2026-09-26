@@ -6,10 +6,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // pass an explicit viewer-scoped client, so the fallback is never exercised.
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUserFollowing: vi.fn().mockResolvedValue([]),
-    getUserFollowers: vi.fn().mockResolvedValue([]),
-    getBlockedUsers: vi.fn().mockResolvedValue([]),
-    getRestrictedUsers: vi.fn().mockResolvedValue([]),
+    follows: {
+      following: vi.fn().mockResolvedValue([]),
+      followers: vi.fn().mockResolvedValue([]),
+    },
+    privacy: {
+      blocked: vi.fn().mockResolvedValue([]),
+      restricted: vi.fn().mockResolvedValue([]),
+    },
   }),
 }));
 
@@ -28,13 +32,18 @@ import {
   type OxyClient,
 } from '../../utils/privacyHelpers';
 
-function makeClient(overrides: Partial<OxyClient>): OxyClient {
+function makeClient(privacy: Partial<OxyClient['privacy']>): OxyClient {
   return {
-    getBlockedUsers: vi.fn().mockResolvedValue([]),
-    getRestrictedUsers: vi.fn().mockResolvedValue([]),
-    getUserFollowing: vi.fn().mockResolvedValue([]),
-    getUserFollowers: vi.fn().mockResolvedValue([]),
-    ...overrides,
+    privacy: {
+      blocked: vi.fn().mockResolvedValue([]),
+      restricted: vi.fn().mockResolvedValue([]),
+      ...privacy,
+    },
+    follows: {
+      following: vi.fn().mockResolvedValue([]),
+      followers: vi.fn().mockResolvedValue([]),
+      viewerGraph: vi.fn().mockResolvedValue({}),
+    },
   };
 }
 
@@ -49,7 +58,7 @@ describe('privacyHelpers', () => {
       status: 401,
     });
     const client = makeClient({
-      getBlockedUsers: vi.fn().mockRejectedValue(error),
+      blocked: vi.fn().mockRejectedValue(error),
     });
 
     await expect(getBlockedUserIds(client)).rejects.toMatchObject({
@@ -71,7 +80,7 @@ describe('privacyHelpers', () => {
       status: 403,
     });
     const client = makeClient({
-      getRestrictedUsers: vi.fn().mockRejectedValue(error),
+      restricted: vi.fn().mockRejectedValue(error),
     });
 
     await expect(getRestrictedUserIds(client)).rejects.toMatchObject({
@@ -92,7 +101,7 @@ describe('privacyHelpers', () => {
       code: 'NETWORK_ERROR',
     });
     const client = makeClient({
-      getBlockedUsers: vi.fn().mockRejectedValue(error),
+      blocked: vi.fn().mockRejectedValue(error),
     });
 
     await expect(getBlockedUserIds(client)).rejects.toMatchObject({
@@ -108,7 +117,7 @@ describe('privacyHelpers', () => {
 
   it('fails closed when the restricted-list response cannot be resolved', async () => {
     const client = makeClient({
-      getRestrictedUsers: vi.fn().mockRejectedValue(new Error('malformed response')),
+      restricted: vi.fn().mockRejectedValue(new Error('malformed response')),
     });
 
     await expect(getRestrictedUserIds(client)).rejects.toMatchObject({

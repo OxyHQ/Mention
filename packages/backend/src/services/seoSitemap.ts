@@ -192,7 +192,7 @@ export async function bulkUsers(ids: string[]): Promise<User[]> {
     while (!failed && nextBatch < batches.length) {
       const index = nextBatch++;
       try {
-        const users = await getServiceOxyClient().makeServiceRequest<User[]>(
+        const users = await getServiceOxyClient().serviceRequest<User[]>(
           'POST',
           '/users/by-ids',
           { ids: batches[index] },

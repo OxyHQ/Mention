@@ -413,7 +413,7 @@ function ListMembers({
   // profiles are resolved in ONE bulk call and rendered through the shared row.
   const { data: members = [], isPending } = useQuery<User[]>({
     queryKey: viewerQueryKeys.listMembers(user?.id, listId, memberIds),
-    queryFn: () => oxyServices.getUsersByIds(memberIds),
+    queryFn: () => oxyServices.users.getMany(memberIds),
     enabled: memberIds.length > 0,
     staleTime: MEMBERS_STALE_TIME_MS,
   });

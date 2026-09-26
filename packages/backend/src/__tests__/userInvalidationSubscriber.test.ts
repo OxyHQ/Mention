@@ -27,10 +27,8 @@ const mocks = vi.hoisted(() => ({
   quit: vi.fn(),
   publisherQuit: vi.fn(),
   invalidateUserSummaries: vi.fn(),
-  serviceClearEntry: vi.fn(),
-  serviceClearPrefix: vi.fn(),
-  runtimeClearEntry: vi.fn(),
-  runtimeClearPrefix: vi.fn(),
+  serviceInvalidate: vi.fn(() => 0),
+  runtimeInvalidate: vi.fn(() => 0),
   info: vi.fn(),
   warn: vi.fn(),
   publishAliasChange: vi.fn(),
@@ -51,15 +49,13 @@ vi.mock('../utils/redis', () => ({
 
 vi.mock('../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    clearCacheEntry: mocks.serviceClearEntry,
-    clearCacheByPrefix: mocks.serviceClearPrefix,
+    http: { invalidateCache: mocks.serviceInvalidate },
   }),
 }));
 
 vi.mock('../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
-    clearCacheEntry: mocks.runtimeClearEntry,
-    clearCacheByPrefix: mocks.runtimeClearPrefix,
+    http: { invalidateCache: mocks.runtimeInvalidate },
   }),
 }));
 
@@ -113,10 +109,12 @@ describe('startUserInvalidationSubscriber', () => {
 
     expect(mocks.invalidateUserSummaries).toHaveBeenCalledWith(['user-1']);
     // Both clients, or one task keeps answering from its own stale copy.
-    expect(mocks.serviceClearEntry).toHaveBeenCalledWith('GET:/users/user-1');
-    expect(mocks.runtimeClearEntry).toHaveBeenCalledWith('GET:/users/user-1');
-    expect(mocks.serviceClearPrefix).toHaveBeenCalled();
-    expect(mocks.runtimeClearPrefix).toHaveBeenCalled();
+    const sweep = expect.objectContaining({
+      keys: ['GET:/users/user-1'],
+      prefixes: expect.arrayContaining([expect.any(String)]),
+    });
+    expect(mocks.serviceInvalidate).toHaveBeenCalledWith(sweep);
+    expect(mocks.runtimeInvalidate).toHaveBeenCalledWith(sweep);
   });
 
   it('hands every profile event to the alias check, which rebroadcasts a changed alsoKnownAs', async () => {

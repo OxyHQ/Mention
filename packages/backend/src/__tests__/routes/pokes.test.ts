@@ -29,10 +29,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUsersByIds: mocks.getUsersByIds,
-    getUserById: mocks.getUserById,
-    getUserFollowers: mocks.getUserFollowers,
-    getUserFollowing: mocks.getUserFollowing,
+    users: { getMany: mocks.getUsersByIds, get: mocks.getUserById },
+    follows: { followers: mocks.getUserFollowers, following: mocks.getUserFollowing },
   }),
   // A stand-in for the caller's own bearer-scoped client — real shape
   // verified in `oxyHelpers.test.ts`; here only the one method the block
@@ -101,7 +99,7 @@ beforeEach(() => {
   mocks.getUserFollowing.mockResolvedValue([]);
   mocks.formatPushForNotification.mockResolvedValue({ title: 't', body: 'b', data: {} });
   mocks.isUserBlocked.mockResolvedValue(false);
-  mocks.userScopedClient.mockReturnValue({ isUserBlocked: mocks.isUserBlocked });
+  mocks.userScopedClient.mockReturnValue({ privacy: { isBlocked: mocks.isUserBlocked } });
   mocks.getBlockedUserIds.mockResolvedValue([]);
 });
 

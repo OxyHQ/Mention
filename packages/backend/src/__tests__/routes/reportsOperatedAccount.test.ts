@@ -43,7 +43,7 @@ vi.mock('../../services/moderation/ReportIntakeService', async () => {
 vi.mock('../../services/PostHydrationService', () => ({ resolveUserSummaries }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  createUserScopedOxyServices: () => ({ listAccountMembers }),
+  createUserScopedOxyServices: () => ({ accounts: { members: { list: listAccountMembers } } }),
 }));
 
 vi.mock('../../utils/logger', () => ({

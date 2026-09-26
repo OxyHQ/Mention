@@ -86,8 +86,8 @@ function toImportedGifItem(gif: GifRecord): GifItem {
     klipyId: gif.klipyId,
     slug: gif.slug,
     title: gif.title,
-    mp4Url: client.getFileDownloadUrl(gif.mp4FileId),
-    previewUrl: client.getFileDownloadUrl(gif.previewFileId || gif.mp4FileId),
+    mp4Url: client.assets.publicUrl(gif.mp4FileId),
+    previewUrl: client.assets.publicUrl(gif.previewFileId || gif.mp4FileId),
     width: gif.width,
     height: gif.height,
   };
@@ -293,7 +293,7 @@ router.post("/use", async (req: AuthRequest, res: Response) => {
     res.json({
       gifId: gif.id,
       fileId,
-      mp4Url: getServiceOxyClient().getFileDownloadUrl(fileId),
+      mp4Url: getServiceOxyClient().assets.publicUrl(fileId),
     });
   } catch (error: unknown) {
     logger.error('[GIFs] GIF use error:', { userId: req.user?.id, error });

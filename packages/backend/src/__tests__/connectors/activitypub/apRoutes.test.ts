@@ -172,8 +172,10 @@ beforeEach(() => {
   mocks.resolveAvatarUrl.mockReturnValue(undefined);
   // The follow collections read the Oxy follow graph through the service client.
   mocks.getServiceOxyClient.mockReturnValue({
-    getUserFollowers: mocks.getUserFollowers,
-    getUserFollowing: mocks.getUserFollowing,
+    follows: {
+      followers: mocks.getUserFollowers,
+      following: mocks.getUserFollowing,
+    },
   });
   mocks.getUserFollowers.mockResolvedValue({ followers: [], total: 0, hasMore: false });
   mocks.getUserFollowing.mockResolvedValue({ following: [], total: 0, hasMore: false });

@@ -38,7 +38,7 @@ function freshViewer(): string {
   return `viewer-${randomUUID()}`;
 }
 
-function makeOxyClient(overrides: Partial<OxyClient> = {}): {
+function makeOxyClient(overrides: Partial<OxyClient['follows']> = {}): {
   client: OxyClient;
   getUserFollowing: ReturnType<typeof vi.fn>;
   getUserFollowers: ReturnType<typeof vi.fn>;
@@ -46,11 +46,15 @@ function makeOxyClient(overrides: Partial<OxyClient> = {}): {
   const getUserFollowing = vi.fn(async () => ({ following: ['a', 'b'] }));
   const getUserFollowers = vi.fn(async () => ({ followers: ['x', 'y', 'z'] }));
   const client = {
-    getUserFollowing,
-    getUserFollowers,
-    getBlockedUsers: vi.fn(async () => []),
-    getRestrictedUsers: vi.fn(async () => []),
-    ...overrides,
+    follows: {
+      following: getUserFollowing,
+      followers: getUserFollowers,
+      ...overrides,
+    },
+    privacy: {
+      blocked: vi.fn(async () => []),
+      restricted: vi.fn(async () => []),
+    },
   } as unknown as OxyClient;
   return { client, getUserFollowing, getUserFollowers };
 }
@@ -77,7 +81,7 @@ describe('loadViewerFeedContext — viewer-graph resolution', () => {
 
   it('soft-fails followers independently: a getUserFollowers error leaves followerIds empty but keeps following', async () => {
     const { client, getUserFollowing } = makeOxyClient({
-      getUserFollowers: vi.fn(async () => {
+      followers: vi.fn(async () => {
         throw new Error('oxy followers down');
       }),
     });
@@ -91,7 +95,7 @@ describe('loadViewerFeedContext — viewer-graph resolution', () => {
 
   it('soft-fails following independently: a getUserFollowing error leaves followingIds empty but keeps followers', async () => {
     const { client } = makeOxyClient({
-      getUserFollowing: vi.fn(async () => {
+      following: vi.fn(async () => {
         throw new Error('oxy following down');
       }),
     });
@@ -113,10 +117,8 @@ describe('loadViewerFeedContext — viewer-graph resolution', () => {
       return { following: ['a'] };
     });
     const client = {
-      getUserFollowing,
-      getUserFollowers,
-      getBlockedUsers: vi.fn(async () => []),
-      getRestrictedUsers: vi.fn(async () => []),
+      follows: { following: getUserFollowing, followers: getUserFollowers },
+      privacy: { blocked: vi.fn(async () => []), restricted: vi.fn(async () => []) },
     } as unknown as OxyClient;
 
     const pending = loadViewerFeedContext(freshViewer(), client);

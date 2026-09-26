@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ resolveTopicNames: mocks.resolveTopicNames }),
+  getServiceOxyClient: () => ({ topics: { resolveNames: mocks.resolveTopicNames } }),
 }));
 // Oxy inference is imported by the module; stub so it loads purely. `topic_stats` needs
 // no stub — `resolveTopicRefs` issues no query, and the tests that DO write rows

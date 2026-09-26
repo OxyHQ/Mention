@@ -22,7 +22,7 @@ process.env.MENTION_MCP_JWT_SECRET = 'test-mcp-secret-that-is-at-least-32-bytes'
 const mocks = vi.hoisted(() => ({
   getUserById: vi.fn(),
   getProfileByUsername: vi.fn(),
-  makeServiceRequest: vi.fn(),
+  serviceRequest: vi.fn(),
   redisGet: vi.fn(),
   redisSet: vi.fn(),
   redisReady: true,
@@ -30,12 +30,14 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUserById: mocks.getUserById,
-    getProfileByUsername: mocks.getProfileByUsername,
-    getUsersByIds: vi.fn(),
+    users: {
+      get: mocks.getUserById,
+      byUsername: mocks.getProfileByUsername,
+      getMany: vi.fn(),
+    },
     // The connection routes reach Oxy through the SERVICE credential; the MCP
     // bearer travels as the subject of the call, never as its credential.
-    makeServiceRequest: mocks.makeServiceRequest,
+    serviceRequest: mocks.serviceRequest,
   }),
 }));
 
@@ -240,7 +242,7 @@ describe('MCP bundles routes', () => {
   });
 
   it('hands back the Oxy link that connects another account', async () => {
-    mocks.makeServiceRequest.mockResolvedValue({
+    mocks.serviceRequest.mockResolvedValue({
       link_url: 'https://auth.oxy.so/mcp/link?intent=oxy_mli_test',
       expires_in: 900,
       connection_id: 'connection-1',
@@ -253,7 +255,7 @@ describe('MCP bundles routes', () => {
     expect(res.status).toBe(200);
     expect(res.body.linkUrl).toBe('https://auth.oxy.so/mcp/link?intent=oxy_mli_test');
     expect(res.body.expiresInSeconds).toBe(900);
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
+    expect(mocks.serviceRequest).toHaveBeenCalledWith(
       'POST',
       '/auth/mcp/oauth/connections/link-intent',
       { token: 'mcp-access-token' },
@@ -267,7 +269,7 @@ describe('MCP bundles routes', () => {
       username: 'brand',
       name: { displayName: 'Brand' },
     });
-    mocks.makeServiceRequest.mockResolvedValue({
+    mocks.serviceRequest.mockResolvedValue({
       connection: {
         connection_id: 'connection-1',
         origin_account_id: USER_A,
@@ -286,7 +288,7 @@ describe('MCP bundles routes', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.activeUserId).toBe(USER_B);
-    expect(mocks.makeServiceRequest).toHaveBeenCalledWith(
+    expect(mocks.serviceRequest).toHaveBeenCalledWith(
       'POST',
       '/auth/mcp/oauth/connections/active',
       { token: 'mcp-access-token', account_id: USER_B },
@@ -297,7 +299,7 @@ describe('MCP bundles routes', () => {
     mocks.getProfileByUsername.mockResolvedValue({ id: USER_B, username: 'brand' });
     // The SDK normalizes an OAuth refusal into this shape, with
     // `error_description` already promoted to `message`.
-    mocks.makeServiceRequest.mockRejectedValue({
+    mocks.serviceRequest.mockRejectedValue({
       status: 404,
       code: 'invalid_request',
       message: 'That account is not connected to this MCP connection',
@@ -316,7 +318,7 @@ describe('MCP bundles routes', () => {
     const res = await request(buildApp(USER_A, centralContext)).post('/mcp/bundles/link-token');
 
     expect(res.status).toBe(401);
-    expect(mocks.makeServiceRequest).not.toHaveBeenCalled();
+    expect(mocks.serviceRequest).not.toHaveBeenCalled();
   });
 
   it('GET /mcp/bundles/accounts omits a revoked member', async () => {

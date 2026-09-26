@@ -17,7 +17,7 @@ async function resolveUsers(ids: string[]): Promise<Map<string, User>> {
   if (ids.length === 0) return map;
   try {
     // Single batched round-trip instead of one getUserById per id.
-    const users = await getServiceOxyClient().getUsersByIds(ids);
+    const users = await getServiceOxyClient().users.getMany(ids);
     for (const user of users) {
       if (user?.id) map.set(user.id, user);
     }
@@ -145,8 +145,8 @@ router.get('/suggested', async (req: AuthRequest, res: Response) => {
     // caller has ever sent.
     const oxy = getServiceOxyClient();
     const [followersResult, followingResult] = await Promise.all([
-      oxy.getUserFollowers(userId).catch(() => []),
-      oxy.getUserFollowing(userId).catch(() => []),
+      oxy.follows.followers(userId).catch(() => []),
+      oxy.follows.following(userId).catch(() => []),
     ]);
 
     const followerIds = extractUsersFromResult(followersResult, 'followers').map((user) => user.id);
@@ -237,7 +237,7 @@ router.post('/:userId', async (req: AuthRequest, res: Response) => {
     const oxy = createUserScopedOxyServices(req);
     try {
       if (!oxy) throw new Error('no user-scoped Oxy client for this request');
-      if (await oxy.isUserBlocked(userId)) {
+      if (await oxy.privacy.isBlocked(userId)) {
         return res.status(403).json({ message: 'You cannot poke this user' });
       }
     } catch (error) {

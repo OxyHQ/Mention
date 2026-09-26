@@ -103,7 +103,7 @@ let activeAccessToken: string | undefined;
 
 function readAccessToken(): string | undefined {
   try {
-    return oxyServices.getClient().getAccessToken() || undefined;
+    return oxyServices.http.getAccessToken() || undefined;
   } catch {
     return undefined;
   }
@@ -129,7 +129,7 @@ function authDedupeMarker(): 'auth' | 'anon' {
  */
 function readViewerId(): string | null {
   try {
-    return oxyServices.getCurrentUserId();
+    return oxyServices.session.userId;
   } catch {
     return null;
   }

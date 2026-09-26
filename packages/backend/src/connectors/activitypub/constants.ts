@@ -114,11 +114,11 @@ export async function resolveOxyUser(username: string): Promise<User | null> {
   // (`oxy.auth()`), so resolving a profile on it returns nothing.
   const oxy = getServiceOxyClient();
   try {
-    return await oxy.getProfileByUsername(username);
+    return await oxy.users.byUsername(username);
   } catch (err) {
     logger.debug('[Federation] profile lookup failed; trying profile search', err);
     try {
-      const response = await oxy.searchProfiles(username);
+      const response = await oxy.users.search(username);
       const results = Array.isArray(response) ? response : response?.data;
       return results?.find?.((u: { username?: string }) =>
         u.username?.toLowerCase() === username.toLowerCase()

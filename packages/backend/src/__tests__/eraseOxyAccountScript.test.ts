@@ -10,7 +10,7 @@ import { eq, like } from 'drizzle-orm';
 const getUserById = vi.hoisted(() => vi.fn());
 vi.mock('../utils/oxyHelpers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../utils/oxyHelpers')>()),
-  getServiceOxyClient: () => ({ getUserById }),
+  getServiceOxyClient: () => ({ users: { get: getUserById } }),
 }));
 vi.mock('../connectors/activitypub/delivery.service', () => ({
   deliveryService: { deliverToFollowers: vi.fn(async () => undefined) },

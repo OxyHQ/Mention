@@ -21,21 +21,25 @@ export type ProfileVisibilityType = typeof ProfileVisibility[keyof typeof Profil
  * them defensively at the boundary.
  */
 export interface OxyClient {
-  getBlockedUsers(): Promise<unknown[]>;
-  getRestrictedUsers(): Promise<unknown[]>;
-  getUserFollowing(userId: string): Promise<unknown>;
-  getUserFollowers(userId: string): Promise<unknown>;
-  /**
-   * The viewer's OWN graph as ONE ids-only payload (`GET /users/me/graph`):
-   * following + mutuals + blocked, each server-bounded. Prefer it over
-   * `getUserFollowing` wherever only the ids are needed — that route hydrates a
-   * full user DTO per follow, which is a far heavier response for the same
-   * answer, and is unbounded where this one is capped server-side.
-   *
-   * The viewer is derived from the client's own credential, so this is only
-   * meaningful on a viewer-scoped client (`createScopedOxyClient`).
-   */
-  getViewerGraph(): Promise<unknown>;
+  privacy: {
+    blocked(): Promise<unknown[]>;
+    restricted(): Promise<unknown[]>;
+  };
+  follows: {
+    following(userId: string): Promise<unknown>;
+    followers(userId: string): Promise<unknown>;
+    /**
+     * The viewer's OWN graph as ONE ids-only payload (`GET /users/me/graph`):
+     * following + mutuals + blocked, each server-bounded. Prefer it over
+     * `follows.following` wherever only the ids are needed — that route hydrates a
+     * full user DTO per follow, which is a far heavier response for the same
+     * answer, and is unbounded where this one is capped server-side.
+     *
+     * The viewer is derived from the client's own credential, so this is only
+     * meaningful on a viewer-scoped client (`createScopedOxyClient`).
+     */
+    viewerGraph(): Promise<unknown>;
+  };
 }
 
 /** Read a string-or-`{_id}` reference, returning the resolved id string when present. */
@@ -313,7 +317,7 @@ export async function getBlockedUserIds(client?: OxyClient, viewerId?: string): 
       code: 'MISSING_PRIVACY_CLIENT',
     });
   }
-  return getUserIdsFromPrivacyList(() => client.getBlockedUsers(), 'blocked', viewerId);
+  return getUserIdsFromPrivacyList(() => client.privacy.blocked(), 'blocked', viewerId);
 }
 
 /**
@@ -328,7 +332,7 @@ export async function getRestrictedUserIds(client?: OxyClient, viewerId?: string
       code: 'MISSING_PRIVACY_CLIENT',
     });
   }
-  return getUserIdsFromPrivacyList(() => client.getRestrictedUsers(), 'restricted', viewerId);
+  return getUserIdsFromPrivacyList(() => client.privacy.restricted(), 'restricted', viewerId);
 }
 
 /**
@@ -347,7 +351,7 @@ export async function getFollowingIds(
   client: OxyClient,
 ): Promise<string[]> {
   return cachedRelation('following', viewerId, async () =>
-    extractFollowingIds(await client.getUserFollowing(viewerId ?? '')));
+    extractFollowingIds(await client.follows.following(viewerId ?? '')));
 }
 
 /** The viewer's FOLLOWER ids, through the same cache. See {@link getFollowingIds}. */
@@ -356,13 +360,13 @@ export async function getFollowerIds(
   client: OxyClient,
 ): Promise<string[]> {
   return cachedRelation('followers', viewerId, async () =>
-    extractFollowersIds(await client.getUserFollowers(viewerId ?? '')));
+    extractFollowersIds(await client.follows.followers(viewerId ?? '')));
 }
 
 /**
  * Extract user IDs from an Oxy following response.
  *
- * Handles every shape the Oxy graph endpoints return: `getUserFollowing`'s
+ * Handles every shape the Oxy graph endpoints return: `follows.following`'s
  * hydrated `{ following: User[] }` (and its bare-array variant), and the
  * consolidated viewer graph's ids-only `{ followingIds: string[] }`.
  */
@@ -460,11 +464,11 @@ export async function resolveViewerPrivacyAndGraph(
     getBlockedUserIds(client, viewerId),
     getRestrictedUserIds(client, viewerId),
     getFollowingIds(viewerId, oxyForFollows).catch((error: unknown) => {
-      logger.warn('[OxyPrivacy] getUserFollowing failed:', error);
+      logger.warn('[OxyPrivacy] follows.following failed:', error);
       return [];
     }),
     getFollowerIds(viewerId, oxyForFollows).catch((error: unknown) => {
-      logger.warn('[OxyPrivacy] getUserFollowers failed:', error);
+      logger.warn('[OxyPrivacy] follows.followers failed:', error);
       return [];
     }),
   ]);

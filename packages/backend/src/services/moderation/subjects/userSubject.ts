@@ -49,7 +49,7 @@ export function createUserSubjectProvider(): ModerationSubjectProvider {
        * the thing that was reviewed. A moderation snapshot is a
        * consistency-critical read.
        */
-      const user = await getRuntimeOxyClient().getUserById(reportedId, { cache: false });
+      const user = await getRuntimeOxyClient().users.get(reportedId, { cache: false });
       if (!user) return null;
 
       const displayName = claim(user.name?.displayName);

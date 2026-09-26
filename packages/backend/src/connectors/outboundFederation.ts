@@ -45,7 +45,7 @@ export async function federateAsResolvedActorAndWait(
   buildEvent: (username: string) => LocalNetworkEvent<PostContent>,
   strict: boolean = true,
 ): Promise<void> {
-  const user = await getServiceOxyClient().getUserById(actorOxyUserId);
+  const user = await getServiceOxyClient().users.get(actorOxyUserId);
   const username = user.username?.trim();
   if (!username) {
     throw new Error(

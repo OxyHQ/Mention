@@ -25,18 +25,21 @@ vi.mock('../services/PostHydrationService', () => ({
   postHydrationService: { hydratePosts: vi.fn() },
 }));
 
-const { getProfileByUsername, getUsersByIds, makeServiceRequest } = vi.hoisted(() => ({
+const { getProfileByUsername, getUsersByIds, serviceRequest } = vi.hoisted(() => ({
   getProfileByUsername: vi.fn(),
   getUsersByIds: vi.fn(async (ids: string[]) =>
     ids.map((id) => ({ id, username: 'nate', name: { displayName: 'Nate' } })),
   ),
-  makeServiceRequest: vi.fn(async (_method: string, _url: string, body: { ids: string[] }) =>
+  serviceRequest: vi.fn(async (_method: string, _url: string, body: { ids: string[] }) =>
     body.ids.map((id) => ({ id, username: 'nate', name: { displayName: 'Nate' } })),
   ),
 }));
 
 vi.mock('../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ getProfileByUsername, getUsersByIds, makeServiceRequest }),
+  getServiceOxyClient: () => ({
+    users: { byUsername: getProfileByUsername, getMany: getUsersByIds },
+    serviceRequest,
+  }),
 }));
 
 import webShellRoutes from '../routes/webShell.routes';
@@ -158,7 +161,7 @@ describe('webShell routes (integration)', () => {
 
     expect(res.status).toBe(503);
     expect(res.headers['retry-after']).toBe('900');
-    expect(makeServiceRequest).not.toHaveBeenCalled();
+    expect(serviceRequest).not.toHaveBeenCalled();
     expect(getProfileByUsername).not.toHaveBeenCalled();
   });
 

@@ -10,13 +10,14 @@ import { API_URL, OXY_BASE_URL } from '@/config';
 /**
  * The subset of `OxyServices` these resolvers actually call. A structural shape
  * rather than the SDK class itself, so this util stays trivially mockable in
- * tests; the real client satisfies it. Both members are optional because the
- * resolver methods are what we probe for — a caller that has no client yet
- * (cold boot) passes `null`/`undefined` and gets the raw reference back.
+ * tests; the real client satisfies it. A caller that has no client yet (cold
+ * boot) passes `null`/`undefined` and gets the raw reference back.
  */
 export interface FileUrlResolver {
-  getFileDownloadUrl?: (fileId: string, variant?: string, expiresIn?: number) => string | undefined;
-  getFileDownloadUrlAsync?: (fileId: string, variant?: string, expiresIn?: number) => Promise<string>;
+  assets: {
+    publicUrl(fileId: string, variant?: string, expiresIn?: number): string;
+    url(fileId: string, variant?: string, expiresIn?: number): Promise<string>;
+  };
 }
 
 /**
@@ -27,10 +28,15 @@ export interface FileUrlResolver {
  * letting a foreign contract's `unknown` leak into this module's own signatures.
  */
 export function isFileUrlResolver(value: unknown): value is FileUrlResolver {
+  if (typeof value !== 'object' || value === null || !('assets' in value)) return false;
+  const assets: unknown = value.assets;
   return (
-    typeof value === 'object' &&
-    value !== null &&
-    ('getFileDownloadUrl' in value || 'getFileDownloadUrlAsync' in value)
+    typeof assets === 'object' &&
+    assets !== null &&
+    'publicUrl' in assets &&
+    typeof assets.publicUrl === 'function' &&
+    'url' in assets &&
+    typeof assets.url === 'function'
   );
 }
 
@@ -145,7 +151,7 @@ export function videoPosterUrl(
   if (!isHttp) {
     const cached = imageUrlCache.get(videoUrl, OXY_THUMB_VARIANT);
     if (cached) return cached;
-    const resolved = oxyServices?.getFileDownloadUrl?.(videoUrl, OXY_THUMB_VARIANT);
+    const resolved = oxyServices?.assets.publicUrl(videoUrl, OXY_THUMB_VARIANT);
     if (!resolved || !resolved.startsWith('http')) return undefined;
     imageUrlCache.set(videoUrl, resolved, OXY_THUMB_VARIANT);
     return resolved;
@@ -316,10 +322,10 @@ export async function getCachedFileDownloadUrl(
     return cached;
   }
 
-  // Try async method if available
-  if (resolver?.getFileDownloadUrlAsync) {
+  // Try the async resolver first: it answers for private assets too.
+  if (resolver) {
     try {
-      const url = await resolver.getFileDownloadUrlAsync(fileId, variant, expiresIn);
+      const url = await resolver.assets.url(fileId, variant, expiresIn);
       const ttl = expiresIn ? expiresIn * 1000 : undefined;
       imageUrlCache.set(fileId, url, variant, ttl);
       return url;
@@ -329,7 +335,7 @@ export async function getCachedFileDownloadUrl(
   }
 
   // Fallback to sync method
-  const url = resolver?.getFileDownloadUrl?.(fileId, variant, expiresIn);
+  const url = resolver?.assets.publicUrl(fileId, variant, expiresIn);
   if (!url || !url.startsWith('http')) {
     // Don't cache invalid URLs — return raw fileId so next render retries
     return fileId;
@@ -363,7 +369,7 @@ export function getCachedFileDownloadUrlSync(
   }
 
   // Generate URL using sync method
-  const url = resolver?.getFileDownloadUrl?.(fileId, variant, expiresIn);
+  const url = resolver?.assets.publicUrl(fileId, variant, expiresIn);
   if (!url || !url.startsWith('http')) {
     // Don't cache invalid URLs — return raw fileId so next render retries
     return fileId;

@@ -58,19 +58,24 @@ const VIEWER = 'budget-viewer';
 
 function spyClient() {
   return {
-    getBlockedUsers: vi.fn(async () => [{ blockedId: 'blocked-1' }]),
-    getRestrictedUsers: vi.fn(async () => [{ restrictedId: 'restricted-1' }]),
-    getUserFollowing: vi.fn(async () => ({ following: [{ id: 'followed-1' }] })),
-    getUserFollowers: vi.fn(async () => ({ followers: [{ id: 'follower-1' }] })),
-  } as unknown as OxyClient & Record<'getBlockedUsers' | 'getRestrictedUsers' | 'getUserFollowing' | 'getUserFollowers', ReturnType<typeof vi.fn>>;
+    privacy: {
+      blocked: vi.fn(async (): Promise<unknown[]> => [{ blockedId: 'blocked-1' }]),
+      restricted: vi.fn(async (): Promise<unknown[]> => [{ restrictedId: 'restricted-1' }]),
+    },
+    follows: {
+      following: vi.fn(async (): Promise<unknown> => ({ following: [{ id: 'followed-1' }] })),
+      followers: vi.fn(async (): Promise<unknown> => ({ followers: [{ id: 'follower-1' }] })),
+      viewerGraph: vi.fn(async (): Promise<unknown> => ({})),
+    },
+  } satisfies OxyClient;
 }
 
 function callCounts(oxy: ReturnType<typeof spyClient>): Record<string, number> {
   return {
-    blocked: oxy.getBlockedUsers.mock.calls.length,
-    restricted: oxy.getRestrictedUsers.mock.calls.length,
-    following: oxy.getUserFollowing.mock.calls.length,
-    followers: oxy.getUserFollowers.mock.calls.length,
+    blocked: oxy.privacy.blocked.mock.calls.length,
+    restricted: oxy.privacy.restricted.mock.calls.length,
+    following: oxy.follows.following.mock.calls.length,
+    followers: oxy.follows.followers.mock.calls.length,
   };
 }
 
@@ -130,7 +135,7 @@ describe('resolveViewerPrivacyAndGraph', () => {
 
   it('degrades to the caller soft-fail when only the follow half is unavailable', async () => {
     const oxy = spyClient();
-    oxy.getUserFollowing.mockRejectedValue(
+    oxy.follows.following.mockRejectedValue(
       Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 }),
     );
 
@@ -147,7 +152,7 @@ describe('resolveViewerPrivacyAndGraph', () => {
 
   it('still refuses the request when the privacy half is unavailable cold', async () => {
     const oxy = spyClient();
-    oxy.getBlockedUsers.mockRejectedValue(
+    oxy.privacy.blocked.mockRejectedValue(
       Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 }),
     );
 
@@ -162,7 +167,7 @@ describe('resolveViewerPrivacyAndGraph', () => {
 
     vi.setSystemTime(Date.now() + 60 * 1000);
     const down = spyClient();
-    for (const spy of [down.getBlockedUsers, down.getRestrictedUsers, down.getUserFollowing, down.getUserFollowers]) {
+    for (const spy of [down.privacy.blocked, down.privacy.restricted, down.follows.following, down.follows.followers]) {
       spy.mockRejectedValue(Object.assign(new Error('HTTP 429: Too Many Requests'), { status: 429 }));
     }
 

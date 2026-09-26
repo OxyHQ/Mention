@@ -1,8 +1,4 @@
-import {
-  OxyInferenceClient,
-  type OxyInferenceResponse,
-  type OxyResponsesRequest,
-} from '@oxy.so/core';
+import { OxyInferenceClient, type OxyInferenceResponse, type OxyResponsesRequest } from '@oxy.so/core/inference';
 import type { InferenceMessage } from '@oxy.so/contracts';
 import { config } from '../config';
 import { canAuthenticateAsService } from '../runtime/serviceIdentity';
@@ -26,7 +22,7 @@ let inferenceClient: OxyInferenceClient | undefined;
 function client(): OxyInferenceClient {
   inferenceClient ??= new OxyInferenceClient({
     baseURL: config.oxyApiUrl,
-    credential: () => getServiceOxyClient().getServiceToken(),
+    credential: () => getServiceOxyClient().serviceToken(),
   });
   return inferenceClient;
 }

@@ -231,15 +231,15 @@ export class OxyRankingClient {
     if (options.boosts && options.boosts.length > 0) body.boosts = options.boosts;
 
     const client = getServiceOxyClient();
-    // `makeServiceRequest`'s 4th arg becomes the `X-Oxy-User-Id` header. Omitted
-    // (undefined) for logged-out callers so no viewer is asserted.
-    const response = await client.makeServiceRequest<
+    // `actAs` becomes the `X-Oxy-User-Id` header. Omitted (undefined) for
+    // logged-out callers so no viewer is asserted.
+    const response = await client.serviceRequest<
       OxyRecommendationItem[] | { data: OxyRecommendationItem[] }
     >(
       'POST',
       RECOMMENDATIONS_PATH,
       body,
-      options.viewerId,
+      { actAs: options.viewerId },
     );
 
     const items = extractItems(response);

@@ -31,7 +31,7 @@ import { eq, inArray } from 'drizzle-orm';
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 
 // The service-scoped Oxy client, so the read-side blob resolver's REVERSE lookup
-// (`getServiceAssetMetadataBySha256`, sha256 → fileId) is controllable and does
+// (`assets.metadataBySha256`, sha256 → fileId) is controllable and does
 // no real I/O. Hoisted so it predates the import.
 const oxyMock = vi.hoisted(() => ({
   getServiceAssetMetadataBySha256: vi.fn<
@@ -41,7 +41,7 @@ const oxyMock = vi.hoisted(() => ({
   >(),
 }));
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => oxyMock,
+  getServiceOxyClient: () => ({ assets: { metadataBySha256: oxyMock.getServiceAssetMetadataBySha256 } }),
 }));
 
 import { closePostgres, connectPostgres, type Database } from '../../../db/postgres';

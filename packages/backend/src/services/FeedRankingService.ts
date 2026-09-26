@@ -523,7 +523,7 @@ export class FeedRankingService {
         // Service-authed Oxy client — the process-wide request-auth client is
         // unauthenticated and reserved for validating incoming request tokens
         // (`oxy.auth()`), so resolving the following list on it returns nothing.
-        const followingRes = await getServiceOxyClient().getUserFollowing(userId);
+        const followingRes = await getServiceOxyClient().follows.following(userId);
         followingIds = extractFollowingIds(followingRes);
       } catch (error) {
         logger.warn('Failed to load following list:', error);

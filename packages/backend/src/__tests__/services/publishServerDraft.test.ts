@@ -51,8 +51,10 @@ vi.mock('../../services/PostHydrationService', () => ({
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUserById: vi.fn(async (id: string) => ({ id, username: 'author' })),
-    getUsersByIds: vi.fn(async () => []),
+    users: {
+      get: vi.fn(async (id: string) => ({ id, username: 'author' })),
+      getMany: vi.fn(async () => []),
+    },
   }),
 }));
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));

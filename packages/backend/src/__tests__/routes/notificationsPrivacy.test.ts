@@ -37,15 +37,15 @@ vi.mock('../../middleware/rateLimiter', () => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  createScopedOxyClient: () => ({ getUserFollowing: vi.fn(async () => []) }),
+  createScopedOxyClient: () => ({ follows: { following: vi.fn(async () => []) } }),
   // The route hands this to `resolveNotificationInboxIds`; a module factory
   // replaces the WHOLE module, so an export the route calls and this factory
   // omits is `undefined is not a function` on every request.
   createUserScopedOxyServices: () => undefined,
   getServiceOxyClient: () => ({
-    getUsersByIds: mocks.getUsersByIds,
+    users: { getMany: mocks.getUsersByIds },
     getClarityDocuments: vi.fn(async () => ({})),
-    getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
+    assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
   }),
 }));
 
@@ -60,9 +60,11 @@ vi.mock('../../services/notificationInbox', () => ({
 
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
-    getUserById: vi.fn(async () => null),
-    getUserFollowing: vi.fn(async () => []),
-    getUserFollowers: vi.fn(async () => []),
+    users: { get: vi.fn(async () => null) },
+    follows: {
+      following: vi.fn(async () => []),
+      followers: vi.fn(async () => []),
+    },
   }),
 }));
 

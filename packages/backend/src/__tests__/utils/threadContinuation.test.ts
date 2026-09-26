@@ -356,8 +356,12 @@ describe('assertAnswersOperatedAccount — two operated accounts talking', () =>
   /** Every account the caller may act for, unless a test says otherwise. */
   function readerFor(actable: Record<string, string[]>) {
     return {
-      listAccountMembers: async (accountId: string) =>
-        actable[accountId] ? [member(OPERATOR, actable[accountId])] : [],
+      accounts: {
+        members: {
+          list: async (accountId: string) =>
+            actable[accountId] ? [member(OPERATOR, actable[accountId])] : [],
+        },
+      },
     };
   }
 

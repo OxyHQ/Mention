@@ -13,7 +13,7 @@ import type { SignedRecordEnvelope } from '@oxy.so/contracts';
  *
  * Exercises the REAL `@oxy.so/protocol` engine (custodial `signEnvelope` +
  * `verifyAndAppend`) against an in-memory `RecordStore` and a resolver whose
- * subject VMs come from a mocked `oxyServices.resolveDid`, so the whole chain
+ * subject VMs come from a mocked `oxyServices.identity.resolveDid`, so the whole chain
  * (sign → verify → append → re-verify) runs without Mongo. Covers:
  *  - a local post create writes a verifiable `app.mention.feed.post` record with
  *    the right chain coordinates (genesis seq 0, then seq 1 / prev = head),
@@ -204,7 +204,7 @@ const { memoryStore, resolveDid } = vi.hoisted(() => {
       return typeof latest?.env.issuedAt === 'number' ? latest.env.issuedAt : null;
     },
   };
-  // The resolver resolves subject VMs via oxyServices.resolveDid; the subject has
+  // The resolver resolves subject VMs via oxyServices.identity.resolveDid; the subject has
   // NO Oxy keys by default, so only the custodial branch authorizes.
   const resolveDidMock = vi.fn(async () => ({ verificationMethod: [] as Array<{ publicKeyHex: string }> }));
   return { memoryStore: store, resolveDid: resolveDidMock };
@@ -216,7 +216,7 @@ vi.mock('../../../services/mtn/MentionRecordStore', () => ({
 }));
 
 vi.mock('../../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ resolveDid }),
+  getServiceOxyClient: () => ({ identity: { resolveDid } }),
 }));
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';

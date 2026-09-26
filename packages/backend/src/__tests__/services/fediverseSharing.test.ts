@@ -14,8 +14,10 @@ const mocks = vi.hoisted(() => ({
 // to control the user/profile lookups the consent reads depend on.
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUserById: mocks.getUserById,
-    getProfileByUsername: mocks.getProfileByUsername,
+    users: {
+      get: mocks.getUserById,
+      byUsername: mocks.getProfileByUsername,
+    },
   }),
 }));
 

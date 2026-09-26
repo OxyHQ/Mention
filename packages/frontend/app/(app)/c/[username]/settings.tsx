@@ -135,7 +135,7 @@ export default function ChannelAccountSettingsScreen() {
 
   const { data: accounts = [], isPending: accountsPending } = useQuery<AccountNode[]>({
     queryKey: viewerQueryKeys.operatedAccounts(viewerId),
-    queryFn: () => oxyServices.listAccounts(),
+    queryFn: () => oxyServices.accounts.list(),
     enabled: readsReady && canUsePrivateApi,
   });
 
@@ -267,7 +267,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
   // EMPTIED is not recoverable from the response (Oxy omits a cleared scalar
   // exactly as it omits an untouched one), so the input is the only witness.
   const profileMutation = useMutation<AccountNode, unknown, UpdateAccountInput>({
-    mutationFn: (input) => oxyServices.updateAccount(accountId, input),
+    mutationFn: (input) => oxyServices.accounts.update(accountId, input),
     onSuccess: (updated, input) => {
       // A channel's name, picture and description are held by more caches than
       // this screen can see — the SDK's user cache behind its page, the
@@ -363,7 +363,7 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
 
       await channelDeletionService.deleteContent(accountId);
       // Oxy's half, and ONLY now: see the order argument above.
-      await oxyServices.archiveAccount(accountId);
+      await oxyServices.accounts.archive(accountId);
       return { deleted: true };
     },
     onSuccess: (outcome) => {

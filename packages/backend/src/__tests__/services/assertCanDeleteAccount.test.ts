@@ -86,17 +86,25 @@ function readerReturning(members: AccountMember[]): AccountMemberReader & { call
   const calls: string[] = [];
   return {
     calls,
-    async listAccountMembers(accountId: string) {
-      calls.push(accountId);
-      return members;
+    accounts: {
+      members: {
+        async list(accountId: string) {
+          calls.push(accountId);
+          return members;
+        },
+      },
     },
   };
 }
 
 function readerThatFails(): AccountMemberReader {
   return {
-    async listAccountMembers() {
-      throw new Error('oxy is unreachable');
+    accounts: {
+      members: {
+        async list() {
+          throw new Error('oxy is unreachable');
+        },
+      },
     },
   };
 }

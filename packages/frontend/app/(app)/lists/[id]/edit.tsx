@@ -74,7 +74,7 @@ export default function EditListMembersScreen() {
       const memberIds: string[] = Array.isArray(data?.memberOxyUserIds) ? data.memberOxyUserIds : [];
       // Single bulk fetch (no per-id N+1); prime the shared React Query cache so
       // downstream profile reads for these members hit the cache.
-      const fetched = await oxyServices.getUsersByIds(memberIds);
+      const fetched = await oxyServices.users.getMany(memberIds);
       for (const user of fetched) {
         if (user?.id) {
           queryClient.setQueryData(queryKeys.users.detail(user.id), user);
@@ -119,7 +119,7 @@ export default function EditListMembersScreen() {
     setSearching(true);
     searchTimer.current = setTimeout(async () => {
       try {
-        const res = await oxyServices.searchProfiles(trimmed, { limit: 10 });
+        const res = await oxyServices.users.search(trimmed, { limit: 10 });
         setResults(res.data.map((profile: User) => ({
           id: profile.id,
           username: profile.username,

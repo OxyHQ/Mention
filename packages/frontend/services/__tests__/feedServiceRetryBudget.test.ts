@@ -26,8 +26,8 @@ jest.mock('@/utils/api', () => ({
 
 jest.mock('@/lib/oxyServices', () => ({
   oxyServices: {
-    getClient: () => ({ getAccessToken: () => mockGetAccessToken() }),
-    getCurrentUserId: () => 'viewer-1',
+    http: { getAccessToken: () => mockGetAccessToken() },
+    session: { userId: 'viewer-1' },
   },
 }));
 

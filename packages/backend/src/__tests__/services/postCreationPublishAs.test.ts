@@ -133,13 +133,12 @@ function memberRow(permissions: string[]): AccountMember {
   };
 }
 
-const memberReader = {
-  listAccountMembers: vi.fn(async (accountId: string) =>
-    // A channel member with NO act_as, so the channel cases also prove the
-    // permission is not being demanded where it cannot exist.
-    accountId === CHANNEL ? [memberRow(NO_ACT_AS_PERMISSIONS)] : [memberRow(ACT_AS_PERMISSIONS)],
-  ),
-};
+const listAccountMembers = vi.fn(async (accountId: string) =>
+  // A channel member with NO act_as, so the channel cases also prove the
+  // permission is not being demanded where it cannot exist.
+  accountId === CHANNEL ? [memberRow(NO_ACT_AS_PERMISSIONS)] : [memberRow(ACT_AS_PERMISSIONS)],
+);
+const memberReader = { accounts: { members: { list: listAccountMembers } } };
 
 beforeAll(async () => {
   await connectPostgres();
@@ -161,7 +160,7 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  memberReader.listAccountMembers.mockClear();
+  listAccountMembers.mockClear();
   resolveUserSummaries.mockReset();
   resolveUserSummaries.mockImplementation(async (ids: string[]) => {
     const kinds: Record<string, string> = {
@@ -305,7 +304,7 @@ describe('PostCreationService.create — publishing as another account', () => {
   });
 
   it('refuses an account the caller may not act as, BEFORE writing anything', async () => {
-    memberReader.listAccountMembers.mockResolvedValueOnce([memberRow(NO_ACT_AS_PERMISSIONS)]);
+    listAccountMembers.mockResolvedValueOnce([memberRow(NO_ACT_AS_PERMISSIONS)]);
 
     await expect(
       postCreationService.create({

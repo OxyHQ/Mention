@@ -31,9 +31,11 @@ const scope = federationScope('feed-engine-viewer-language-budget');
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUsersByIds: vi.fn(async (ids: string[]) =>
-      ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {}, languages: ['es-ES'] })),
-    ),
+    users: {
+      getMany: vi.fn(async (ids: string[]) =>
+        ids.map((id) => ({ id, username: `u${id.slice(-6)}`, name: {}, languages: ['es-ES'] })),
+      ),
+    },
     getClarityDocuments: vi.fn(async () => []),
   }),
   createScopedOxyClient: () => undefined,
@@ -114,10 +116,14 @@ describe('FeedEngine — viewer-language hydration budget', () => {
       followerIds: [],
       viewerLanguages: VIEWER_LANGUAGES,
       oxyClient: {
-        getBlockedUsers: async () => [],
-        getRestrictedUsers: async () => [],
-        getUserFollowing: async () => ({ data: [] }),
-        getUserFollowers: async () => ({ data: [] }),
+        privacy: {
+          blocked: async () => [],
+          restricted: async () => [],
+        },
+        follows: {
+          following: async () => ({ data: [] }),
+          followers: async () => ({ data: [] }),
+        },
       } as never,
     };
 

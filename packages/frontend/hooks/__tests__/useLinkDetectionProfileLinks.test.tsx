@@ -33,7 +33,7 @@ jest.mock('@clarity.surf/sdk', () => ({
 
 jest.mock('@oxy.so/services/ui/client', () => ({
   useAuth: () => ({
-    oxyServices: { getClient: () => ({ getAccessToken: () => 'token' }) },
+    oxyServices: { http: { getAccessToken: () => 'token' } },
   }),
 }));
 jest.mock('@oxy.so/core/logger', () => ({

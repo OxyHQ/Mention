@@ -11,7 +11,7 @@ let mockToken: string | null = 'token-1';
 
 jest.mock('@/config', () => ({ SYRA_API_URL: 'https://api.syra.fm/api' }));
 jest.mock('@/lib/oxyServices', () => ({
-  oxyServices: { getClient: () => ({ getAccessToken: () => mockToken }) },
+  oxyServices: { http: { getAccessToken: () => mockToken } },
 }));
 
 type Options = { baseURL: string; getAccessToken: () => string | null };

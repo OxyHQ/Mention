@@ -56,7 +56,7 @@ vi.mock('../../../utils/mediaResolver', () => ({
   resolveMediaRef: (ref: string) => ({ url: `https://cloud.oxy.so/${ref}` }),
 }));
 vi.mock('../../../services/fediverseSharing', () => ({ isFediverseSharingEnabled }));
-vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ getUsersByIds, getUserById }) }));
+vi.mock('../../../utils/oxyHelpers', () => ({ getServiceOxyClient: () => ({ users: { getMany: getUsersByIds, get: getUserById } }) }));
 
 import { closePostgres, connectPostgres } from '../../../db/postgres';
 import {

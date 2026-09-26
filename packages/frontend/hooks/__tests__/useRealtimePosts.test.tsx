@@ -10,7 +10,7 @@ let mockAuthState = {
   activeSessionId: 'session-a' as string | null,
   canUsePrivateApi: true,
   user: { id: 'viewer-a' } as { id: string } | null,
-  oxyServices: { getAccessToken: mockGetAccessToken },
+  oxyServices: { session: { get accessToken() { return mockGetAccessToken(); } } },
 };
 
 jest.mock('@oxy.so/services/ui/client', () => ({
@@ -39,7 +39,7 @@ describe('useRealtimePosts socket ownership', () => {
       activeSessionId: 'session-a',
       canUsePrivateApi: true,
       user: { id: 'viewer-a' },
-      oxyServices: { getAccessToken: mockGetAccessToken },
+      oxyServices: { session: { get accessToken() { return mockGetAccessToken(); } } },
     };
   });
 
@@ -79,7 +79,7 @@ describe('useRealtimePosts socket ownership', () => {
       activeSessionId: 'session-b',
       canUsePrivateApi: true,
       user: { id: 'viewer-b' },
-      oxyServices: { getAccessToken: mockGetAccessToken },
+      oxyServices: { session: { get accessToken() { return mockGetAccessToken(); } } },
     };
     await act(async () => {
       renderer.update(<Harness revision={1} />);

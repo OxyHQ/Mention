@@ -1,7 +1,7 @@
 import { config } from './config';
 import { createDeploymentAdmission } from './middleware/deployment-admission';
 import express, { type RequestHandler } from 'express';
-import type { OxyServices } from '@oxy.so/core';
+import type { OxyServer } from '@oxy.so/core/server';
 import postsRouter, { publicPostsRouter } from './routes/posts';
 import intentMediaRoutes from './routes/intentMedia';
 import healthRoutes from './routes/health.routes';
@@ -112,7 +112,7 @@ export interface AppRoutes {
 }
 
 export interface CreateAppRoutesDependencies {
-  oxy: OxyServices;
+  oxy: OxyServer;
   optionalAuth: RequestHandler;
 }
 

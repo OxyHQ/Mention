@@ -1,4 +1,4 @@
-import type { OxyServices } from '@oxy.so/core';
+import type { OxyServer } from '@oxy.so/core/server';
 import { config } from '../config';
 
 /**
@@ -9,21 +9,21 @@ import { config } from '../config';
  * without booting Express; runtimeApp.ts registers the process-owned instance
  * while composing production dependencies.
  */
-let runtimeOxyClient: OxyServices | undefined;
+let runtimeOxyClient: OxyServer | undefined;
 
-export function setRuntimeOxyClient(client: OxyServices): void {
+export function setRuntimeOxyClient(client: OxyServer): void {
   runtimeOxyClient = client;
 }
 
-export function getRuntimeOxyClient(): OxyServices {
+export function getRuntimeOxyClient(): OxyServer {
   if (!runtimeOxyClient) {
     // Lazy require keeps importing domain modules side-effect free. Isolated
     // tests and scripts that inject a client never load the full Oxy runtime.
-    const { OxyServices: OxyServicesConstructor } = require('@oxy.so/core') as {
-      OxyServices: new (options: { baseURL: string; serviceIdentity?: 'never' | 'when-anonymous' }) => OxyServices;
+    const { OxyServer: OxyServerConstructor } = require('@oxy.so/core/server') as {
+      OxyServer: typeof OxyServer;
     };
     // Same identity as the production instance in runtimeApp.ts (#1173).
-    runtimeOxyClient = new OxyServicesConstructor({ baseURL: config.oxyApiUrl, serviceIdentity: 'when-anonymous' });
+    runtimeOxyClient = new OxyServerConstructor({ baseURL: config.oxyApiUrl, serviceIdentity: 'when-anonymous' });
   }
   return runtimeOxyClient;
 }

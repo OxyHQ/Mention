@@ -50,7 +50,7 @@ describe('cachedMediaCdnUrl', () => {
     // The defect, stated as a test: asking the API to name a public asset IS the
     // bug, whether or not the answer is awaited.
     const { getServiceOxyClient } = await import('../../utils/oxyHelpers');
-    const ask = vi.spyOn(getServiceOxyClient(), 'getFileDownloadUrlAsync');
+    const ask = vi.spyOn(getServiceOxyClient().assets, 'url');
     const httpRequest = vi.spyOn(http, 'request');
     const httpsRequest = vi.spyOn(https, 'request');
 

@@ -102,7 +102,7 @@ export async function processInboxJob(job: Job<InboxJobData>): Promise<void> {
 export async function resolveSenderUsername(senderOxyUserId: string): Promise<string | null> {
   let lookupError: unknown = null;
   try {
-    const user = await getServiceOxyClient().getUserById(senderOxyUserId);
+    const user = await getServiceOxyClient().users.get(senderOxyUserId);
     if (user?.username) return user.username;
   } catch (error) {
     lookupError = error;

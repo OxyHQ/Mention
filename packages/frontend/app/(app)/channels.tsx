@@ -54,7 +54,7 @@ export default function ChannelsScreen() {
 
   const { data: accounts = [], isLoading, refetch } = useQuery<AccountNode[]>({
     queryKey: viewerQueryKeys.operatedAccounts(user?.id),
-    queryFn: () => oxyServices.listAccounts(),
+    queryFn: () => oxyServices.accounts.list(),
     enabled: canUsePrivateApi,
   });
   useScreenReselect({ refresh: refetch });
@@ -71,7 +71,7 @@ export default function ChannelsScreen() {
 
   const createMutation = useMutation({
     mutationFn: () =>
-      oxyServices.createAccount({
+      oxyServices.accounts.create({
         kind: 'channel',
         username: trimmedHandle,
         // A channel has a TITLE, not a given-and-family name, so it sets the

@@ -310,7 +310,7 @@ const NotificationsScreen: React.FC = () => {
 
     useQuery({
         queryKey: viewerQueryKeys.notificationActors(user?.id, unpopulatedActorIds),
-        queryFn: () => prewarmUsersByIds(unpopulatedActorIds, (ids) => oxyServices.getUsersByIds(ids)),
+        queryFn: () => prewarmUsersByIds(unpopulatedActorIds, (ids) => oxyServices.users.getMany(ids)),
         enabled: canUsePrivateApi && !!oxyServices && unpopulatedActorIds.length > 0,
         staleTime: 5 * 60 * 1000,
     });

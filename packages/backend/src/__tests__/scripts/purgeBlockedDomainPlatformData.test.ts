@@ -34,14 +34,14 @@ const CURSORS = [
 ] as const;
 
 const h = vi.hoisted(() => ({
-  makeServiceRequest: vi.fn(),
+  serviceRequest: vi.fn(),
   readAdminScriptCursor: vi.fn(),
   recordAdminScriptCursor: vi.fn(),
   clearAdminScriptCursor: vi.fn(),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  getServiceOxyClient: () => ({ makeServiceRequest: h.makeServiceRequest }),
+  getServiceOxyClient: () => ({ serviceRequest: h.serviceRequest }),
   createScopedOxyClient: vi.fn(),
   uploadServiceUserMedia: vi.fn(),
   ensureProfileMediaPublic: vi.fn(),
@@ -111,7 +111,7 @@ function pass(overrides: Partial<Record<string, unknown>> = {}): Record<string, 
 /** Script the endpoint: one queued response per call, in order. */
 function respondWith(...responses: unknown[]): void {
   let index = 0;
-  h.makeServiceRequest.mockImplementation(async () => {
+  h.serviceRequest.mockImplementation(async () => {
     const response = responses[Math.min(index, responses.length - 1)];
     index += 1;
     if (response instanceof Error) throw response;
@@ -121,7 +121,7 @@ function respondWith(...responses: unknown[]): void {
 
 /** Every request body the run issued, in order. */
 function issuedRequests(): DomainPurgeRequest[] {
-  return h.makeServiceRequest.mock.calls.map((call) => call[2] as DomainPurgeRequest);
+  return h.serviceRequest.mock.calls.map((call) => call[2] as DomainPurgeRequest);
 }
 
 beforeEach(() => {
@@ -165,7 +165,7 @@ describe('the plan and the execute', () => {
     await purgeDomainOnPlatform(DOMAIN, options({ dryRun: true }), emptyIssues());
     const planned = issuedRequests();
 
-    h.makeServiceRequest.mockClear();
+    h.serviceRequest.mockClear();
     respondWith(...paged.map((page) => ({ ...page, dryRun: false })));
     await purgeDomainOnPlatform(DOMAIN, options({ dryRun: false }), emptyIssues());
     const executed = issuedRequests();
@@ -337,7 +337,7 @@ describe('a cursor that does not advance', () => {
 describe('the pass ceiling', () => {
   it('stops a domain that never finishes, and fails the run for it', async () => {
     let cursor = 0;
-    h.makeServiceRequest.mockImplementation(async () => {
+    h.serviceRequest.mockImplementation(async () => {
       cursor += 1;
       return pass({
         nextCursor: `6a2f9d8989b795cfdfac${String(3500 + cursor).padStart(4, '0')}`,
@@ -477,7 +477,7 @@ describe('a failing request', () => {
   it('does not strand the domains behind it', async () => {
     const domains = new Set(['a.example', 'b.example', 'c.example']);
     let call = 0;
-    h.makeServiceRequest.mockImplementation(async (_method, _path, request) => {
+    h.serviceRequest.mockImplementation(async (_method, _path, request) => {
       call += 1;
       if (call === 1) throw { message: 'Bad Gateway', status: 502 };
       return pass({ canonicalDomain: (request as DomainPurgeRequest).domain });
@@ -505,7 +505,7 @@ describe('a failing request', () => {
     const domains = new Set(
       Array.from({ length: 9 }, (_unused, index) => `d${index}.example`),
     );
-    h.makeServiceRequest.mockRejectedValue({ message: 'Unauthorized', status: 401 });
+    h.serviceRequest.mockRejectedValue({ message: 'Unauthorized', status: 401 });
 
     const report = await purgeBlockedDomainPlatformData(domains, options());
 
@@ -523,7 +523,7 @@ describe('a failing request', () => {
       Array.from({ length: 9 }, (_unused, index) => `d${index}.example`),
     );
     let call = 0;
-    h.makeServiceRequest.mockImplementation(async (_method, _path, request) => {
+    h.serviceRequest.mockImplementation(async (_method, _path, request) => {
       call += 1;
       if (call % 2 === 1) throw { message: 'Bad Gateway', status: 502 };
       return pass({ canonicalDomain: (request as DomainPurgeRequest).domain });
@@ -545,7 +545,7 @@ describe('the domains that may be sent', () => {
 
   it('never include a domain that is not in the policy', async () => {
     const policy = new Set(getBlockedDomainPolicy().map((entry) => entry.domain));
-    h.makeServiceRequest.mockImplementation(async (_method, _path, request) =>
+    h.serviceRequest.mockImplementation(async (_method, _path, request) =>
       pass({ canonicalDomain: (request as DomainPurgeRequest).domain }));
 
     await purgeBlockedDomainPlatformData(resolvePurgeTargets(options()), options());

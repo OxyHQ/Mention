@@ -2,8 +2,7 @@ import {
   MENTION_LEGACY_MCP_AUTH_CUTOFF_MS,
   mentionCapabilityRequirementsForRequest,
 } from '@mention/shared-types/mcpCapabilities';
-import type { OxyServices } from '@oxy.so/core';
-import type { OxyAuthRequest } from '@oxy.so/core/server';
+import type { OxyAuthRequest, OxyServer } from '@oxy.so/core/server';
 import { extractBearerToken, introspectOxyMcpAccessToken } from '@oxy.so/mcp';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import jwt from 'jsonwebtoken';
@@ -80,7 +79,7 @@ async function resolveCentralMcpUser(token: string): Promise<McpAuthOutcome> {
     const oxyApiUrl = config.oxyApiUrl.replace(/\/+$/, '');
     const claims = await introspectOxyMcpAccessToken(token, {
       endpoint: `${oxyApiUrl}/auth/mcp/oauth/introspect`,
-      getServiceToken: () => oxy.getServiceToken(),
+      getServiceToken: () => oxy.serviceToken(),
       invalidateServiceToken: () => oxy.invalidateServiceToken(),
     });
     if (!claims) return { status: 'revoked' };
@@ -239,8 +238,8 @@ export function createOptionalMcpAuth(): RequestHandler {
 }
 
 /** Require either a capability-scoped MCP token or a normal Oxy session. */
-export function createRequireMcpOrOxyAuth(oxy: OxyServices): RequestHandler {
-  const oxyAuth = oxy.auth();
+export function createRequireMcpOrOxyAuth(oxy: OxyServer): RequestHandler {
+  const oxyAuth = oxy.middleware.auth();
 
   return async (req: Request, res: Response, next: NextFunction) => {
     if ((req as OxyAuthRequest).user?.id) {

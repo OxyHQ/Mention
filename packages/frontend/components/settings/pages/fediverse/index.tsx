@@ -82,7 +82,7 @@ function FediverseSharingBody() {
       setSharing(value);
       setPending(true);
       try {
-        await oxyServices.updatePrivacySettings({ fediverseSharing: value });
+        await oxyServices.privacy.updateSettings({ fediverseSharing: value });
       } catch (error) {
         logger.error("Failed to update fediverse sharing preference", error);
         setSharing(!value);

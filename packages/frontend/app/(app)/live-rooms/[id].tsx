@@ -53,11 +53,11 @@ const MAX_PARTICIPANT_AVATARS = 10;
  * The faces for one of the room's avatar piles, read from the same user cache
  * `useRoomUsers` warms (same key, same fetch), for only the ids the pile shows.
  */
-function useRoomAvatarItems(userIds: string[], oxyServices: FileUrlResolver & { getUserById: (id: string) => Promise<User> }): AvatarGroupItem[] {
+function useRoomAvatarItems(userIds: string[], oxyServices: FileUrlResolver & { users: { get(id: string): Promise<User> } }): AvatarGroupItem[] {
   const results = useQueries({
     queries: userIds.map((userId) => ({
       queryKey: queryKeys.users.detail(userId),
-      queryFn: () => oxyServices.getUserById(userId),
+      queryFn: () => oxyServices.users.get(userId),
       staleTime: 5 * 60 * 1000,
     })),
   });

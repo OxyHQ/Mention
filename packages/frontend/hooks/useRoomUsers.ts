@@ -22,7 +22,7 @@ export function useRoomUsers(userIds: string[]) {
       ids.map((id) =>
         queryClient.prefetchQuery({
           queryKey: queryKeys.users.detail(id),
-          queryFn: () => oxyServices.getUserById(id),
+          queryFn: () => oxyServices.users.get(id),
           staleTime: 5 * 60 * 1000,
         }),
       ),

@@ -28,8 +28,8 @@
  *
  * ## What is stubbed, and why only this
  *
- * Oxy is a foreign HTTP service (`getProfileByUsername` for `from:`/`to:`,
- * `getUserFollowing` for an `exclude-following` mute), so it is a stub.
+ * Oxy is a foreign HTTP service (`users.byUsername` for `from:`/`to:`,
+ * `follows.following` for an `exclude-following` mute), so it is a stub.
  * `PostHydrationService` is stubbed too — hydration is its own suite's subject —
  * but the stub DERIVES its DTO from the record search actually selected, so the
  * muted-word filter still runs against the stored body, hashtags and author.
@@ -49,12 +49,12 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
-  createScopedOxyClient: () => ({ getUserFollowing: mocks.getUserFollowing }),
+  createScopedOxyClient: () => ({ follows: { following: mocks.getUserFollowing } }),
   getServiceOxyClient: () => undefined,
 }));
 
 vi.mock('../../runtime/oxyClient', () => ({
-  getRuntimeOxyClient: () => ({ getProfileByUsername: mocks.getProfileByUsername }),
+  getRuntimeOxyClient: () => ({ users: { byUsername: mocks.getProfileByUsername } }),
 }));
 
 /**

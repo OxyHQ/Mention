@@ -23,17 +23,19 @@ const { getUsersByIds } = vi.hoisted(() => ({ getUsersByIds: vi.fn() }));
 
 vi.mock('../../runtime/oxyClient', () => ({
   getRuntimeOxyClient: () => ({
-    getUserFollowing: vi.fn(async () => ({ following: [] })),
-    getUserFollowers: vi.fn(async () => ({ followers: [] })),
-    getUserById: vi.fn(),
+    follows: {
+      following: vi.fn(async () => ({ following: [] })),
+      followers: vi.fn(async () => ({ followers: [] })),
+    },
+    users: { get: vi.fn() },
   }),
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({
-    getUsersByIds,
+    users: { getMany: getUsersByIds },
     getClarityDocuments: vi.fn(async () => ({})),
-    getFileDownloadUrl: (id: string) => `https://cdn.test/${id}`,
+    assets: { publicUrl: (id: string) => `https://cdn.test/${id}` },
   }),
 }));
 

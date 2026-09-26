@@ -81,11 +81,11 @@ const JobApplicationDetailSheet = ({ jobId, application, onStatusChanged }: JobA
   const openResume = useCallback(() => {
     // The resume is an Oxy file id (`resumeFileId`), never a URL — resolved
     // through the ONE canonical chokepoint every Oxy-hosted file in this app
-    // goes through (`oxyServices.getFileDownloadUrl`), never a hand-rolled
+    // goes through (`oxyServices.assets.publicUrl`), never a hand-rolled
     // per-app URL (see `~/Oxy/docs/frontend-conventions.md`'s "canonical
     // media" rule).
     if (!application.resumeFileId) return;
-    void openExternalLink(oxyServices.getFileDownloadUrl(application.resumeFileId));
+    void openExternalLink(oxyServices.assets.publicUrl(application.resumeFileId));
   }, [application.resumeFileId, oxyServices]);
 
   const submitNote = useCallback(() => {

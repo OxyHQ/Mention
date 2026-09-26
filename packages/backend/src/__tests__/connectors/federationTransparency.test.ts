@@ -85,9 +85,12 @@ vi.mock('../../connectors/activitypub/federationBlockPolicy', async (importOrigi
 // graph. Stub the heavy/circular deps so it loads standalone — but NOT
 // `activitypub/constants` or the policy resolver, which are the code under test.
 vi.mock('../../runtime/oxyClient', () => ({
-  getRuntimeOxyClient: () => ({ getUserById: mocks.getUserById }),
+  getRuntimeOxyClient: () => ({ users: { get: mocks.getUserById } }),
 }));
-vi.mock('@oxy.so/core/server', () => ({ getRequiredOxyUserId: () => 'local-user-1' }));
+vi.mock('@oxy.so/core/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@oxy.so/core/server')>()),
+  getRequiredOxyUserId: () => 'local-user-1',
+}));
 vi.mock('../../connectors/atproto/constants', () => ({
   ATPROTO_ENABLED: false,
   isDid: () => false,
@@ -110,7 +113,7 @@ vi.mock('../../services/PostHydrationService', () => ({
 }));
 vi.mock('../../utils/oxyHelpers', () => ({
   createScopedOxyClient: vi.fn(),
-  getServiceOxyClient: () => ({ getUserById: mocks.getUserById }),
+  getServiceOxyClient: () => ({ users: { get: mocks.getUserById } }),
 }));
 vi.mock('../../services/fediverseSharing', () => ({
   isFediverseSharingEnabled: vi.fn(async () => true),

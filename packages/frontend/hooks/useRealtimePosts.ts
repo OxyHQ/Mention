@@ -9,7 +9,7 @@ export default function useRealtimePosts() {
 
 	useEffect(() => {
 		if (!canUsePrivateApi || !user?.id) return;
-		const token = oxyServices?.getAccessToken() ?? undefined;
+		const token = oxyServices?.session.accessToken ?? undefined;
 		if (!token) return;
 		socketService.connect(user.id, token);
 		return () => socketService.disconnect();

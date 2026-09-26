@@ -29,9 +29,11 @@ jest.mock('@/utils/api', () => ({
 
 jest.mock('@/lib/oxyServices', () => ({
   oxyServices: {
-    searchProfiles: (...args: unknown[]) => mockSearchProfiles(...args),
-    getProfileByUsername: (...args: unknown[]) => mockGetProfileByUsername(...args),
-    httpService: { get: (...args: unknown[]) => mockOxyHttpGet(...args) },
+    users: {
+      search: (...args: unknown[]) => mockSearchProfiles(...args),
+      byUsername: (...args: unknown[]) => mockGetProfileByUsername(...args),
+    },
+    http: { get: (...args: unknown[]) => mockOxyHttpGet(...args) },
   },
 }));
 

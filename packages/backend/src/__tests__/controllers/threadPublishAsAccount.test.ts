@@ -19,7 +19,7 @@ import type { OxyAuthRequest } from '@oxy.so/core/server';
  *     the earlier entries published.
  *  3. **One membership call per distinct account, not one per post.** The real
  *     gate runs here (only `PostCreationService.create` is stubbed), so the count
- *     of `listAccountMembers` calls is a real measurement rather than a proxy.
+ *     of `accounts.members.list` calls is a real measurement rather than a proxy.
  *
  * ## What the Postgres port changed
  *
@@ -57,7 +57,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   // The caller's own bearer-scoped Oxy client, which is what the gate reads
   // membership with. One shared spy so the call COUNT across the whole request is
   // observable — that is the assertion behind "resolve each account once".
-  createUserScopedOxyServices: vi.fn(() => ({ listAccountMembers })),
+  createUserScopedOxyServices: vi.fn(() => ({ accounts: { members: { list: listAccountMembers } } })),
 }));
 
 vi.mock('../../utils/notificationUtils', async (importOriginal) => ({
