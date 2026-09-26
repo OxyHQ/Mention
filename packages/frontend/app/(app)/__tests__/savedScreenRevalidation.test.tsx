@@ -132,10 +132,17 @@ jest.mock('@oxy.so/bloom/search', () => {
 });
 
 jest.mock('@oxy.so/bloom/text-field', () => {
-  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { TextInput, View } = jest.requireActual<typeof import('react-native')>('react-native');
   const Passthrough = ({ children }: { children?: React.ReactNode }) => <View>{children}</View>;
-  return { TextField: Passthrough, TextFieldInput: () => <View testID="text-input" /> };
+  return {
+    TextField: Passthrough,
+    TextFieldInput: ({ value, onChangeText }: { value?: string; onChangeText?: (text: string) => void }) => (
+      <TextInput testID="text-input" value={value} onChangeText={onChangeText} />
+    ),
+  };
 });
+
+jest.mock('@oxy.so/bloom/toast', () => ({ toast: jest.fn() }));
 
 jest.mock('@oxy.so/bloom/tabs', () => {
   const R = jest.requireActual<typeof import('react')>('react');
@@ -189,6 +196,13 @@ jest.mock('@/components/saved/SavedPostsList', () => {
 
 /** Post ids the server currently reports as saved, newest first. */
 let mockServerSaved: string[] = [];
+/** The viewer's folders as the server stores them. */
+let mockServerFolders: string[] = [];
+const mockCreateBookmarkFolder = jest.fn(async (name: string) => {
+  const folder = name.trim();
+  if (!mockServerFolders.includes(folder)) mockServerFolders = [...mockServerFolders, folder];
+  return folder;
+});
 
 const mockGetSavedPosts = jest.fn(
   async ({ page = 1, limit = 30 }: { page?: number; limit?: number }) => ({
@@ -205,7 +219,8 @@ const mockGetSavedPosts = jest.fn(
 jest.mock('@/services/feedService', () => ({
   feedService: {
     getSavedPosts: (...args: [{ page?: number; limit?: number }]) => mockGetSavedPosts(...args),
-    getBookmarkFolders: async () => [],
+    getBookmarkFolders: async () => [...mockServerFolders],
+    createBookmarkFolder: (name: string) => mockCreateBookmarkFolder(name),
     moveBookmarkToFolder: async () => undefined,
   },
 }));
@@ -348,6 +363,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   resetEngagementInvalidation();
   mockServerSaved = [];
+  mockServerFolders = [];
 });
 
 afterEach(() => {
@@ -432,5 +448,36 @@ describe('saved screen revalidation after a save', () => {
     const secondVisit = await openSavedScreen(client);
     expect(mockGetSavedPosts).toHaveBeenCalledTimes(1);
     expect(renderedText(secondVisit)).toContain('saved:post-existing');
+  });
+});
+
+/**
+ * OxyHQ/Mention#1124: "New folder" showed the folder's tab, and a reload took it
+ * away — it only ever lived in the screen's memory.
+ */
+describe('creating an empty folder', () => {
+  it('creates it on the server, so it survives a reload before anything is filed in it', async () => {
+    const client = appClient();
+    const firstVisit = await openSavedScreen(client);
+
+    await act(async () => {
+      firstVisit.root.findByProps({ testID: 'text-input' }).props.onChangeText('QA-empty-20260925');
+    });
+    const create = firstVisit.root
+      .findAll((node) => node.props.accessibilityRole === 'button' && typeof node.props.onPress === 'function')
+      .find((node) => collectText(node.children as unknown as JsonNode[]).includes('Create'));
+    await act(async () => {
+      create?.props.onPress();
+    });
+    await settle(client);
+
+    expect(mockCreateBookmarkFolder).toHaveBeenCalledWith('QA-empty-20260925');
+    expect(renderedText(firstVisit)).toContain('QA-empty-20260925');
+    closeScreen(firstVisit);
+
+    // A reload: nothing in memory survives, only what the server kept.
+    client.clear();
+    const afterReload = await openSavedScreen(client);
+    expect(renderedText(afterReload)).toContain('QA-empty-20260925');
   });
 });
