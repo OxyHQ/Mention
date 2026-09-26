@@ -140,7 +140,11 @@ describe('useServerDrafts', () => {
 
   it('reads GET /posts/drafts under the viewer-scoped key', async () => {
     const client = renderProbe();
-    await waitUntil(() => cachedIds(client)?.length === 2, 'the drafts to land in the cache');
+    // The cache fills a render before the hook returns it, so wait for both.
+    await waitUntil(
+      () => cachedIds(client)?.length === 2 && latest?.serverDrafts.length === 2,
+      'the drafts to land in the cache and reach the hook',
+    );
 
     expect(mockGet).toHaveBeenCalledWith('/posts/drafts');
     expect(viewerQueryKeys.serverDrafts('viewer-1')).toEqual(['viewer', 'viewer-1', 'posts', 'drafts']);
