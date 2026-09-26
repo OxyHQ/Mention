@@ -49,6 +49,8 @@ const refs = (postContent: string): ComposeDraftRefs => ({
   article: null,
   podcast: null,
   job: null,
+  event: null,
+  room: null,
   threadItems: [],
   mentions: [],
   postingMode: 'thread',

@@ -150,6 +150,12 @@ const DraftsList: React.FC<DraftsListProps> = ({
     if (draft.article && ((draft.article.title && draft.article.title.trim().length > 0) || (draft.article.body && draft.article.body.trim().length > 0))) {
       return draft.article.title?.trim() || t('compose.draftWithArticle', { defaultValue: 'Draft with article' });
     }
+    if (draft.event?.name?.trim()) {
+      return draft.event.name.trim();
+    }
+    if (draft.room?.title?.trim()) {
+      return draft.room.title.trim();
+    }
     if (draft.threadItems.length > 0) {
       const totalPosts = draft.threadItems.length + 1;
       return t('compose.draftWithThread', { count: totalPosts });

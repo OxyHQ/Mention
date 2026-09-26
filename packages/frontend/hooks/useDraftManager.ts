@@ -15,17 +15,21 @@ import {
   SOURCES_ATTACHMENT_KEY,
   PODCAST_ATTACHMENT_KEY,
   JOB_ATTACHMENT_KEY,
+  EVENT_ATTACHMENT_KEY,
+  ROOM_ATTACHMENT_KEY,
   createMediaAttachmentKey,
 } from '@/utils/composeUtils';
+import { hasDraftContent, isCompleteEvent, type ComposeContent } from '@/utils/composeContent';
 import type { ArticleData } from './useArticleManager';
 import type { Draft, DraftInput } from './useDrafts';
+import type { EventData } from './useEventManager';
 import type { LocationData } from './useLocationManager';
 import type { PodcastAttachmentData } from './usePodcastManager';
 import type { JobAttachmentData } from './useJobAttachmentManager';
+import type { RoomAttachmentData } from './useRoomManager';
 import type { Source } from './useSourcesManager';
-import type { DraftThreadItem, ThreadItem } from './useThreadManager';
+import type { DraftThreadItem } from './useThreadManager';
 import {
-  hasVariantWork,
   draftVariantTextsForItem,
   MAIN_ITEM_ID,
   serializeVariants,
@@ -100,24 +104,151 @@ const readMentions = (value: unknown): MentionData[] =>
       displayName: readString(mention.name) ?? '',
     }));
 
+const readLocation = (value: unknown): LocationData | null => {
+  if (!isRecord(value)) return null;
+  return {
+    latitude: readNumber(value.latitude) ?? 0,
+    longitude: readNumber(value.longitude) ?? 0,
+    address: readString(value.address),
+  };
+};
+
+const readSources = (value: unknown): Source[] =>
+  readArray(value)
+    .filter(isRecord)
+    .map((source) => ({
+      id: readString(source.id) ?? '',
+      title: readString(source.title) ?? '',
+      url: readString(source.url) ?? '',
+    }));
+
+/** An article with neither a title nor a body is no article. */
+const readArticle = (value: unknown): ArticleData | null => {
+  if (!isRecord(value)) return null;
+  const title = readString(value.title) ?? '';
+  const body = readString(value.body) ?? '';
+  return title || body ? { title, body } : null;
+};
+
+const readPodcast = (value: unknown): PodcastAttachmentData | null => {
+  if (!isRecord(value)) return null;
+  const syraPodcastId = readString(value.syraPodcastId);
+  if (!syraPodcastId) return null;
+  return {
+    syraPodcastId,
+    title: readString(value.title) ?? '',
+    author: readString(value.author),
+    artworkUrl: readString(value.artworkUrl),
+  };
+};
+
+/** Only an event the composer could have attached: one with a name and a date. */
+const readEvent = (value: unknown): EventData | null => {
+  if (!isRecord(value)) return null;
+  const event: EventData = {
+    name: readString(value.name) ?? '',
+    date: readString(value.date) ?? '',
+    location: readString(value.location),
+    description: readString(value.description),
+  };
+  return isCompleteEvent(event) ? event : null;
+};
+
+const ROOM_STATUSES = ['scheduled', 'live', 'ended'] as const;
+const ROOM_TYPES = ['talk', 'stage', 'broadcast'] as const;
+
+const readOneOf = <T extends string>(value: unknown, allowed: readonly T[]): T | undefined =>
+  allowed.find((candidate) => candidate === value);
+
+/** A reference to a room that exists: it needs its id and its title. */
+const readRoom = (value: unknown): RoomAttachmentData | null => {
+  if (!isRecord(value)) return null;
+  const roomId = readString(value.roomId);
+  const title = readString(value.title);
+  if (!roomId || !title?.trim()) return null;
+  return {
+    roomId,
+    title,
+    status: readOneOf(value.status, ROOM_STATUSES),
+    type: readOneOf(value.type, ROOM_TYPES),
+    topic: readString(value.topic),
+    host: readString(value.host),
+  };
+};
+
+/**
+ * The stored attachment order, reconciled against what the draft actually
+ * restored: keys for attachments that did not survive are dropped, and a
+ * restored attachment the stored order never named is appended.
+ */
+const reconcileAttachmentOrder = (stored: unknown, available: string[]): string[] => {
+  const order = readArray(stored)
+    .filter(isString)
+    .filter((key, index, keys) => available.includes(key) && keys.indexOf(key) === index);
+  return [...order, ...available.filter((key) => !order.includes(key))];
+};
+
+/** The carousel keys of the attachments one restored box holds. */
+const attachmentKeysOf = (box: {
+  showPoll: boolean;
+  article: ArticleData | null;
+  event: EventData | null;
+  room: RoomAttachmentData | null;
+  podcast: PodcastAttachmentData | null;
+  job?: JobAttachmentData | null;
+  location: LocationData | null;
+  sources: Source[];
+  media: ComposerMediaItem[];
+}): string[] => [
+  ...(box.showPoll ? [POLL_ATTACHMENT_KEY] : []),
+  ...(box.article ? [ARTICLE_ATTACHMENT_KEY] : []),
+  ...(box.event ? [EVENT_ATTACHMENT_KEY] : []),
+  ...(box.room ? [ROOM_ATTACHMENT_KEY] : []),
+  ...(box.podcast ? [PODCAST_ATTACHMENT_KEY] : []),
+  ...(box.job ? [JOB_ATTACHMENT_KEY] : []),
+  ...(box.location ? [LOCATION_ATTACHMENT_KEY] : []),
+  ...(box.sources.some((source) => source.url.trim().length > 0) ? [SOURCES_ATTACHMENT_KEY] : []),
+  ...box.media.map((media) => createMediaAttachmentKey(media.id)),
+];
+
+const writeLocation = (location: LocationData | null) =>
+  location
+    ? { latitude: location.latitude, longitude: location.longitude, address: location.address }
+    : null;
+
+const writeSources = (sources: Source[]) =>
+  sources.map((source) => ({ id: source.id, title: source.title, url: source.url }));
+
+const writeArticle = (article: ArticleData | null) =>
+  article
+    ? {
+      ...(article.title ? { title: article.title } : {}),
+      ...(article.body ? { body: article.body } : {}),
+    }
+    : null;
+
+const writePodcast = (podcast: PodcastAttachmentData | null) =>
+  podcast
+    ? {
+      syraPodcastId: podcast.syraPodcastId,
+      title: podcast.title,
+      ...(podcast.author ? { author: podcast.author } : {}),
+      ...(podcast.artworkUrl ? { artworkUrl: podcast.artworkUrl } : {}),
+    }
+    : null;
+
+const writeEvent = (event: EventData | null) => (event ? { ...event } : null);
+
+const writeRoom = (room: RoomAttachmentData | null) => (room ? { ...room } : null);
+
 /**
  * The composer state a draft is built from — the live values, not the persisted
  * shape. Shared by the three functions that read it so the contract is stated
  * once instead of re-spelled per function.
  */
-export interface ComposeDraftRefs {
-  postContent: string;
-  mediaIds: ComposerMediaItem[];
-  pollOptions: string[];
+export interface ComposeDraftRefs extends ComposeContent {
   pollTitle: string;
   showPollCreator: boolean;
-  location: LocationData | null;
-  sources: Source[];
-  article: ArticleData | null;
-  podcast: PodcastAttachmentData | null;
-  /** ROOT post only — see `useJobAttachmentManager.ts`. */
-  job: JobAttachmentData | null;
-  threadItems: ThreadItem[];
   mentions: MentionData[];
   postingMode: 'thread' | 'beast';
   attachmentOrder: string[];
@@ -142,6 +273,8 @@ interface DraftManagerProps {
     articleDraftBody: string;
     podcast: PodcastAttachmentData | null;
     job: JobAttachmentData | null;
+    event: EventData | null;
+    room: RoomAttachmentData | null;
     scheduledAt: Date | null;
     attachmentOrder: string[];
     mentions: MentionData[];
@@ -171,14 +304,25 @@ export const useDraftManager = ({
    * duplicates.
    */
   const draftIdRef = useRef<string | null>(null);
-  /** The autosave write in flight, if any — a publish settles it before deleting. */
+  /** The draft write in flight, if any — every later write and delete settles it first. */
   const pendingSaveRef = useRef<Promise<void> | null>(null);
-  /** True from the moment a publish starts until the composer has been emptied. */
-  const publishingRef = useRef(false);
+  /**
+   * True while something else owns the draft and an autosave must not touch it:
+   * from the moment a publish starts until the composer has been emptied, and
+   * from a discard on (the composer is closing).
+   */
+  const suspendedRef = useRef(false);
 
   const setCurrentDraftId = useCallback((draftId: string | null) => {
     draftIdRef.current = draftId;
     setCurrentDraftIdState(draftId);
+  }, []);
+
+  const cancelScheduledAutoSave = useCallback(() => {
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
+    }
   }, []);
 
   const buildDraftData = useCallback((refs: ComposeDraftRefs): DraftInput => {
@@ -201,27 +345,13 @@ export const useDraftManager = ({
       pollOptions: refs.pollOptions || [],
       pollTitle: refs.pollTitle || '',
       showPollCreator: shouldShowPollCreator,
-      location: refs.location ? {
-        latitude: refs.location.latitude,
-        longitude: refs.location.longitude,
-        address: refs.location.address,
-      } : null,
-      sources: refs.sources.map((source) => ({ 
-        id: source.id, 
-        title: source.title, 
-        url: source.url 
-      })),
-      article: refs.article ? {
-        ...(refs.article.title ? { title: refs.article.title } : {}),
-        ...(refs.article.body ? { body: refs.article.body } : {}),
-      } : undefined,
-      podcast: refs.podcast ? {
-        syraPodcastId: refs.podcast.syraPodcastId,
-        title: refs.podcast.title,
-        ...(refs.podcast.author ? { author: refs.podcast.author } : {}),
-        ...(refs.podcast.artworkUrl ? { artworkUrl: refs.podcast.artworkUrl } : {}),
-      } : undefined,
-      job: refs.job ? { ...refs.job } : undefined,
+      location: writeLocation(refs.location),
+      sources: writeSources(refs.sources),
+      article: writeArticle(refs.article),
+      podcast: writePodcast(refs.podcast),
+      job: refs.job ? { ...refs.job } : null,
+      event: writeEvent(refs.event),
+      room: writeRoom(refs.room),
       threadItems: refs.threadItems.map(item => ({
         id: item.id,
         text: item.text,
@@ -231,11 +361,7 @@ export const useDraftManager = ({
         showPollCreator: item.showPollCreator ||
           (item.pollOptions && item.pollOptions.length > 0 &&
            item.pollOptions.some(opt => opt.trim().length > 0)),
-        location: item.location ? {
-          latitude: item.location.latitude,
-          longitude: item.location.longitude,
-          address: item.location.address,
-        } : null,
+        location: writeLocation(item.location),
         mentions: reconcileMentionData(
           [item.text, ...variantTextsForItem(refs.variants, item.id)],
           item.mentions,
@@ -244,6 +370,12 @@ export const useDraftManager = ({
           handle: m.username,
           name: m.displayName,
         })),
+        sources: writeSources(item.sources),
+        article: writeArticle(item.article),
+        event: writeEvent(item.event),
+        room: writeRoom(item.room),
+        podcast: writePodcast(item.podcast),
+        attachmentOrder: item.attachmentOrder,
       })),
       mentions: mainMentions.map(m => ({
         userId: m.userId,
@@ -256,65 +388,83 @@ export const useDraftManager = ({
     };
   }, []);
 
-  const hasContent = useCallback((refs: ComposeDraftRefs) => {
-    return hasVariantWork(refs.variants) ||
-      refs.postContent.trim().length > 0 ||
-      refs.mediaIds.length > 0 ||
-      (refs.pollOptions.length > 0 && refs.pollOptions.some(opt => opt.trim().length > 0)) ||
-      refs.location !== null ||
-      (refs.article && ((refs.article.title && refs.article.title.trim().length > 0) ||
-                        (refs.article.body && refs.article.body.trim().length > 0))) ||
-      Boolean(refs.podcast?.syraPodcastId) ||
-      Boolean(refs.job?.mentionJobId) ||
-      refs.sources.some(source => (source.title && source.title.trim().length > 0) ||
-                                   (source.url && source.url.trim().length > 0)) ||
-      refs.threadItems.some(item => item.text.trim().length > 0 || item.mediaIds.length > 0 ||
-        (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) ||
-        item.location !== null);
-  }, []);
+  /**
+   * Write the composer's content to THE draft of this editing session — the one
+   * {@link draftIdRef} names, created on the first write — or delete that draft
+   * when the composer has been emptied. Writes are chained, never concurrent:
+   * each runs after the one before it has settled and reads the draft id only
+   * then, so a second write always updates the draft the first one created
+   * instead of starting another (OxyHQ/Mention#1124).
+   */
+  const writeDraft = useCallback(async (refs: ComposeDraftRefs) => {
+    const write = async () => {
+      const draftId = draftIdRef.current;
+      if (!hasDraftContent(refs)) {
+        if (draftId) {
+          await deleteDraft(draftId);
+          setCurrentDraftId(null);
+        }
+        return;
+      }
+      const savedId = await saveDraft(buildDraftData({ ...refs, currentDraftId: draftId }));
+      setCurrentDraftId(savedId);
+    };
+    // With nothing in flight the write starts NOW, not a microtask later.
+    const run = pendingSaveRef.current ? pendingSaveRef.current.then(write) : write();
+    const settled = run.catch(() => undefined);
+    pendingSaveRef.current = settled;
+    try {
+      await run;
+    } finally {
+      if (pendingSaveRef.current === settled) pendingSaveRef.current = null;
+    }
+  }, [buildDraftData, saveDraft, deleteDraft, setCurrentDraftId]);
 
+  /** The debounced background save. A failure is logged; the next change retries it. */
   const autoSave = useCallback(async (refs: ComposeDraftRefs) => {
     // A post being published is not a draft. Saving it now would persist the
     // very text the publish is about to put in the feed.
-    if (publishingRef.current) return;
-    const draftId = draftIdRef.current ?? refs.currentDraftId;
-
-    if (!hasContent(refs)) {
-      if (draftId) {
-        await deleteDraft(draftId);
-        setCurrentDraftId(null);
-      }
-      return;
-    }
-
-    const save = (async () => {
-      try {
-        const draftData = buildDraftData({ ...refs, currentDraftId: draftId });
-        const savedId = await saveDraft(draftData);
-        setCurrentDraftId(savedId);
-      } catch (error) {
-        logger.error('Error auto-saving draft', error);
-      }
-    })();
-    pendingSaveRef.current = save;
+    if (suspendedRef.current) return;
     try {
-      await save;
-    } finally {
-      if (pendingSaveRef.current === save) pendingSaveRef.current = null;
+      await writeDraft(refs);
+    } catch (error) {
+      logger.error('Error auto-saving draft', error);
     }
-  }, [hasContent, buildDraftData, saveDraft, deleteDraft, setCurrentDraftId]);
+  }, [writeDraft]);
+
+  /**
+   * "Save draft": write NOW, into the same draft the autosave has been keeping,
+   * and throw if the write fails — the author asked for it, so a failure is
+   * theirs to see, not a log line.
+   */
+  const saveNow = useCallback(async (refs: ComposeDraftRefs) => {
+    cancelScheduledAutoSave();
+    await writeDraft(refs);
+  }, [cancelScheduledAutoSave, writeDraft]);
+
+  /**
+   * "Discard": the work of this session is thrown away, including whatever the
+   * autosave already stored. The pending debounce is cancelled, a write already
+   * in flight is allowed to land and then deleted, and no autosave runs again —
+   * the composer is closing.
+   */
+  const discard = useCallback(async () => {
+    suspendedRef.current = true;
+    cancelScheduledAutoSave();
+    if (pendingSaveRef.current) await pendingSaveRef.current;
+    const draftId = draftIdRef.current;
+    setCurrentDraftId(null);
+    if (draftId) await deleteDraft(draftId);
+  }, [cancelScheduledAutoSave, deleteDraft, setCurrentDraftId]);
 
   /**
    * A publish is starting: stop autosaving. The pending debounce is cancelled
    * and any autosave that fires before the publish settles is a no-op.
    */
   const beginPublish = useCallback(() => {
-    publishingRef.current = true;
-    if (autoSaveTimeoutRef.current) {
-      clearTimeout(autoSaveTimeoutRef.current);
-      autoSaveTimeoutRef.current = null;
-    }
-  }, []);
+    suspendedRef.current = true;
+    cancelScheduledAutoSave();
+  }, [cancelScheduledAutoSave]);
 
   /**
    * The publish succeeded, so the draft it came from is spent: let any autosave
@@ -326,7 +476,7 @@ export const useDraftManager = ({
    * not be told otherwise because a local cleanup failed.
    */
   const publishSucceeded = useCallback(async () => {
-    publishingRef.current = true;
+    suspendedRef.current = true;
     if (pendingSaveRef.current) await pendingSaveRef.current;
     const draftId = draftIdRef.current;
     setCurrentDraftId(null);
@@ -345,13 +495,13 @@ export const useDraftManager = ({
    * changes the composer's content to re-arm it.
    */
   const publishFailed = useCallback(async (refs: ComposeDraftRefs) => {
-    publishingRef.current = false;
+    suspendedRef.current = false;
     await autoSave(refs);
   }, [autoSave]);
 
   /** The composer has been emptied after a publish; autosave may resume. */
   const endPublish = useCallback(() => {
-    publishingRef.current = false;
+    suspendedRef.current = false;
   }, []);
 
   const loadDraft = useCallback((draft: StoredDraft) => {
@@ -360,49 +510,12 @@ export const useDraftManager = ({
     const pollOpts = readArray(draft.pollOptions).filter(isString);
     const shouldShowPoll = draft.showPollCreator === true || pollOpts.length > 0;
 
-    let locationData: LocationData | null = null;
-    const storedLocation = isRecord(draft.location) ? draft.location : null;
-    if (storedLocation) {
-      locationData = {
-        latitude: readNumber(storedLocation.latitude) ?? 0,
-        longitude: readNumber(storedLocation.longitude) ?? 0,
-        address: readString(storedLocation.address),
-      };
-    }
-
-    const sourcesData: Source[] = readArray(draft.sources)
-      .filter(isRecord)
-      .map((source) => ({
-        id: readString(source.id) ?? '',
-        title: readString(source.title) ?? '',
-        url: readString(source.url) ?? '',
-      }));
-
-    let articleData: ArticleData | null = null;
-    let articleDraftTitle = '';
-    let articleDraftBody = '';
-    const storedArticle = isRecord(draft.article) ? draft.article : null;
-    if (storedArticle) {
-      const title = readString(storedArticle.title) ?? '';
-      const body = readString(storedArticle.body) ?? '';
-      if (title || body) {
-        articleData = { title, body };
-        articleDraftTitle = title;
-        articleDraftBody = body;
-      }
-    }
-
-    let podcastData: PodcastAttachmentData | null = null;
-    const storedPodcast = isRecord(draft.podcast) ? draft.podcast : null;
-    const syraPodcastId = storedPodcast ? readString(storedPodcast.syraPodcastId) : undefined;
-    if (storedPodcast && syraPodcastId) {
-      podcastData = {
-        syraPodcastId,
-        title: readString(storedPodcast.title) ?? '',
-        author: readString(storedPodcast.author),
-        artworkUrl: readString(storedPodcast.artworkUrl),
-      };
-    }
+    const locationData = readLocation(draft.location);
+    const sourcesData = readSources(draft.sources);
+    const articleData = readArticle(draft.article);
+    const podcastData = readPodcast(draft.podcast);
+    const eventData = readEvent(draft.event);
+    const roomData = readRoom(draft.room);
 
     let jobData: JobAttachmentData | null = null;
     const storedJob = isRecord(draft.job) ? draft.job : null;
@@ -433,41 +546,20 @@ export const useDraftManager = ({
       }
     }
 
-    // Build attachment order
-    const availableAttachmentKeys: string[] = [];
-    if (shouldShowPoll) {
-      availableAttachmentKeys.push(POLL_ATTACHMENT_KEY);
-    }
-    if (articleData) {
-      availableAttachmentKeys.push(ARTICLE_ATTACHMENT_KEY);
-    }
-    if (podcastData) {
-      availableAttachmentKeys.push(PODCAST_ATTACHMENT_KEY);
-    }
-    if (jobData) {
-      availableAttachmentKeys.push(JOB_ATTACHMENT_KEY);
-    }
-    if (locationData) {
-      availableAttachmentKeys.push(LOCATION_ATTACHMENT_KEY);
-    }
-    if (sourcesData.some((source) => source.url.trim().length > 0)) {
-      availableAttachmentKeys.push(SOURCES_ATTACHMENT_KEY);
-    }
-    mediaIdsData.forEach((media) => {
-      availableAttachmentKeys.push(createMediaAttachmentKey(media.id));
-    });
-
-    const sanitizedAttachmentOrder: string[] = [];
-    readArray(draft.attachmentOrder).filter(isString).forEach((key) => {
-      if (availableAttachmentKeys.includes(key)) {
-        sanitizedAttachmentOrder.push(key);
-      }
-    });
-    availableAttachmentKeys.forEach(key => {
-      if (!sanitizedAttachmentOrder.includes(key)) {
-        sanitizedAttachmentOrder.push(key);
-      }
-    });
+    const sanitizedAttachmentOrder = reconcileAttachmentOrder(
+      draft.attachmentOrder,
+      attachmentKeysOf({
+        showPoll: shouldShowPoll,
+        article: articleData,
+        event: eventData,
+        room: roomData,
+        podcast: podcastData,
+        job: jobData,
+        location: locationData,
+        sources: sourcesData,
+        media: mediaIdsData,
+      }),
+    );
 
     const postContent = readString(draft.postContent) ?? '';
     const mentionsData = reconcileMentionData(
@@ -483,24 +575,44 @@ export const useDraftManager = ({
       .map((item) => {
         const id = readString(item.id) ?? '';
         const text = readString(item.text) ?? '';
-        const storedLocation = isRecord(item.location) ? item.location : null;
+        const mediaIds = readMediaItems(item.mediaIds);
+        const pollOptions = readArray(item.pollOptions).filter(isString);
+        const showPollCreator = item.showPollCreator === true;
+        const location = readLocation(item.location);
+        const sources = readSources(item.sources);
+        const article = readArticle(item.article);
+        const event = readEvent(item.event);
+        const room = readRoom(item.room);
+        const podcast = readPodcast(item.podcast);
         return {
           id,
           text,
-          mediaIds: readMediaItems(item.mediaIds),
-          pollOptions: readArray(item.pollOptions).filter(isString),
+          mediaIds,
+          pollOptions,
           pollTitle: readString(item.pollTitle) ?? '',
-          showPollCreator: item.showPollCreator === true,
-          location: storedLocation
-            ? {
-              latitude: readNumber(storedLocation.latitude) ?? 0,
-              longitude: readNumber(storedLocation.longitude) ?? 0,
-              address: readString(storedLocation.address),
-            }
-            : null,
+          showPollCreator,
+          location,
           mentions: reconcileMentionData(
             [text, ...draftVariantTextsForItem(draft.languages, id)],
             readMentions(item.mentions),
+          ),
+          sources,
+          article,
+          event,
+          room,
+          podcast,
+          attachmentOrder: reconcileAttachmentOrder(
+            item.attachmentOrder,
+            attachmentKeysOf({
+              showPoll: showPollCreator || pollOptions.length > 0,
+              article,
+              event,
+              room,
+              podcast,
+              location,
+              sources,
+              media: mediaIds,
+            }),
           ),
         };
       });
@@ -514,10 +626,12 @@ export const useDraftManager = ({
       location: locationData,
       sources: sourcesData,
       article: articleData,
-      articleDraftTitle,
-      articleDraftBody,
+      articleDraftTitle: articleData?.title ?? '',
+      articleDraftBody: articleData?.body ?? '',
       podcast: podcastData,
       job: jobData,
+      event: eventData,
+      room: roomData,
       scheduledAt: scheduledAtData,
       attachmentOrder: sanitizedAttachmentOrder,
       mentions: mentionsData,
@@ -534,6 +648,8 @@ export const useDraftManager = ({
     setCurrentDraftId,
     autoSaveTimeoutRef,
     autoSave,
+    saveNow,
+    discard,
     loadDraft,
     beginPublish,
     publishSucceeded,

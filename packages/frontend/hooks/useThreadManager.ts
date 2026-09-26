@@ -11,21 +11,33 @@ import { ArticleData } from "@/hooks/useArticleManager";
 import { EventData } from "@/hooks/useEventManager";
 import { PodcastAttachmentData } from "@/hooks/usePodcastManager";
 import { RoomAttachmentData } from "@/hooks/useRoomManager";
-import type { Draft } from "@/hooks/useDrafts";
 import type { ReplyPermission } from "@/components/Compose/ReplySettingsSheet";
 import type { AccountNode } from "@oxy.so/core";
 
 /**
- * A thread item as it comes back OUT of a stored draft: the persisted subset,
- * with mentions and media already reconciled into their composer shapes by the
- * draft reader. Narrower than {@link ThreadItem} — a draft never persisted the
- * attachments or the per-item interaction settings.
+ * A thread item as it comes back OUT of a stored draft: the authored content of
+ * the box — text, media, mentions and every attachment — already narrowed into
+ * composer shapes by the draft reader. Narrower than {@link ThreadItem} only by
+ * the per-post DECISIONS a draft deliberately does not keep (lane, account,
+ * interaction settings); see `loadThreadsFromDraft`.
  */
-export interface DraftThreadItem
-  extends Omit<Draft['threadItems'][number], 'mediaIds' | 'mentions'> {
-  mediaIds: ComposerMediaItem[];
-  mentions: MentionData[];
-}
+export type DraftThreadItem = Pick<
+  ThreadItem,
+  | 'id'
+  | 'text'
+  | 'mediaIds'
+  | 'pollOptions'
+  | 'pollTitle'
+  | 'showPollCreator'
+  | 'location'
+  | 'mentions'
+  | 'sources'
+  | 'article'
+  | 'event'
+  | 'room'
+  | 'podcast'
+  | 'attachmentOrder'
+>;
 
 export interface ThreadItem {
   id: string;
@@ -626,15 +638,14 @@ export const useThreadManager = () => {
       showPollCreator: thread.showPollCreator,
       location: thread.location,
       mentions: thread.mentions,
-      sources: [],
-      article: null,
-      event: null,
-      room: null,
-      podcast: null,
-      // Neither the attachments nor the lane were ever persisted in a draft, so
-      // a restored box starts on none of them.
+      sources: thread.sources,
+      article: thread.article,
+      event: thread.event,
+      room: thread.room,
+      podcast: thread.podcast,
+      attachmentOrder: thread.attachmentOrder,
+      // A draft never persisted the lane, so a restored box starts on none.
       laneId: null,
-      attachmentOrder: [],
       replyPermission: ["anyone"],
       reviewReplies: false,
       quotesDisabled: false,

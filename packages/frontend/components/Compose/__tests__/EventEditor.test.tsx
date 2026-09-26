@@ -48,8 +48,20 @@ jest.mock('@oxy.so/bloom/field', () => {
   return { Field: ({ children }: { children?: React.ReactNode }) => <View>{children}</View> };
 });
 jest.mock('@oxy.so/bloom/text-field', () => {
-  const { TextInput } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { TextFieldInput: (props: Record<string, unknown>) => <TextInput {...props} /> };
+  const { Text, TextInput, View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    TextField: ({ children }: { children?: React.ReactNode }) => <View>{children}</View>,
+    TextFieldHint: ({ children }: { children?: React.ReactNode }) => <Text testID="eventEditorNameHint">{children}</Text>,
+    TextFieldInput: (props: Record<string, unknown>) => <TextInput {...props} />,
+  };
+});
+jest.mock('@oxy.so/bloom/button', () => {
+  const { Pressable, Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    Button: ({ children, ...props }: { children?: React.ReactNode } & Record<string, unknown>) => (
+      <Pressable {...props}><Text>{children}</Text></Pressable>
+    ),
+  };
 });
 jest.mock('@oxy.so/bloom/textarea', () => {
   const { TextInput } = jest.requireActual<typeof import('react-native')>('react-native');
@@ -74,13 +86,13 @@ jest.mock('react-native-safe-area-context', () => ({
 
 const noop = () => {};
 
-const renderEditor = (date: string, onDateChange: (next: string) => void) => {
+const renderEditor = (date: string, onDateChange: (next: string) => void, name = 'Launch party') => {
   let tree: TestRenderer.ReactTestRenderer | undefined;
   act(() => {
     tree = TestRenderer.create(
       <EventEditor
         visible
-        name="Launch party"
+        name={name}
         date={date}
         location=""
         description=""
@@ -257,5 +269,28 @@ describe('EventEditor surface', () => {
     expect(values).toEqual(expect.arrayContaining(['Launch party', 'Berlin', 'Bring cake']));
 
     act(() => tree?.unmount());
+  });
+});
+
+describe('EventEditor name requirement', () => {
+  // The Save button is handed to the Dialog header, so the recorded props are
+  // where it lives.
+  const lastHeaderAction = () => {
+    const props = mockDialogProps[mockDialogProps.length - 1];
+    return (props.header as { right: React.ReactElement<{ disabled?: boolean }> }).right;
+  };
+
+  it('keeps Save disabled and says why while the event has no name', () => {
+    const tree = renderEditor(new Date(2026, 4, 3).toISOString(), noop, '   ');
+    expect(lastHeaderAction().props.disabled).toBe(true);
+    expect(tree.root.findAll((n) => n.props.testID === 'eventEditorNameHint' && typeof n.type === 'string')).toHaveLength(1);
+    act(() => tree.unmount());
+  });
+
+  it('enables Save and drops the hint once the event is named', () => {
+    const tree = renderEditor(new Date(2026, 4, 3).toISOString(), noop, 'Launch party');
+    expect(lastHeaderAction().props.disabled).toBe(false);
+    expect(tree.root.findAll((n) => n.props.testID === 'eventEditorNameHint' && typeof n.type === 'string')).toHaveLength(0);
+    act(() => tree.unmount());
   });
 });

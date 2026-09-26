@@ -136,6 +136,30 @@ describe('useDrafts viewer isolation', () => {
     });
   });
 
+  it('saves against the stored list, not a stale copy in state', async () => {
+    // Storage holds a draft this instance has never loaded — another screen's
+    // `useDrafts` wrote it. Saving must neither drop it nor duplicate an id.
+    let storedList: Draft[] = [];
+    mockStorageGet.mockImplementation(() => Promise.resolve(storedList));
+    mockStorageSet.mockImplementation((_key: string, value: unknown) => {
+      storedList = value as Draft[];
+      return Promise.resolve(true);
+    });
+
+    await act(async () => {
+      TestRenderer.create(<Probe />);
+    });
+    storedList = [draft('written-elsewhere', 1), draft('session', 2)];
+
+    await act(async () => {
+      await latestResult!.saveDraft({ ...draft('session', 0), postContent: 'updated' });
+    });
+
+    expect(storedList.map((item) => item.id).sort()).toEqual(['session', 'written-elsewhere']);
+    expect(storedList.find((item) => item.id === 'session')?.postContent).toBe('updated');
+    expect(storedList.find((item) => item.id === 'session')?.createdAt).toBe(2);
+  });
+
   it('does not persist drafts without an authenticated owner', async () => {
     mockViewerId = null;
     mockStorageGet.mockResolvedValue(null);

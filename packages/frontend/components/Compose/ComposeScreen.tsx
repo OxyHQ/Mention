@@ -81,6 +81,7 @@ import { useAttachmentOrder } from '@/hooks/useAttachmentOrder';
 import { useScheduleManager } from '@/hooks/useScheduleManager';
 import { useDraftManager, type ComposeDraftRefs } from '@/hooks/useDraftManager';
 import { useComposeValidation } from '@/hooks/useComposeValidation';
+import { hasDraftContent, hasPublishableContent, type ComposeContent } from '@/utils/composeContent';
 import { useMediaPicker } from '@/hooks/useMediaPicker';
 import { useRefSync } from '@/hooks/useRefSync';
 import { useUrlUtils } from '@/hooks/useUrlUtils';
@@ -143,7 +144,6 @@ import {
   hasVariantWork,
   primaryTextFromPost,
   promoteVariantToPrimary,
-  serializeVariants,
   variantTextsForItem,
   draftVariantTextsForItem,
   type ComposeVariantArticle,
@@ -384,6 +384,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     saveEvent: handleEventSave,
     removeEvent,
     hasContent: eventHasContent,
+    loadEventFromDraft,
     clearEvent,
   } = eventManager;
   const {
@@ -391,6 +392,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     attachRoom,
     removeRoom,
     hasContent: roomHasContent,
+    loadRoomFromDraft,
     clearRoom,
   } = roomManager;
   const {
@@ -691,6 +693,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       setArticleDraftBody(draft.articleDraftBody);
       loadPodcastFromDraft(draft.podcast);
       jobManager.setJob(draft.job);
+      loadEventFromDraft(draft.event);
+      loadRoomFromDraft(draft.room);
       setScheduledAt(draft.scheduledAt);
       setAttachmentOrder(draft.attachmentOrder);
       setPostingMode(draft.postingMode);
@@ -702,6 +706,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     currentDraftId,
     autoSaveTimeoutRef,
     autoSave: autoSaveDraft,
+    saveNow: saveDraftNow,
+    discard: discardDraft,
     loadDraft,
     beginPublish,
     publishSucceeded,
@@ -709,15 +715,26 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     endPublish,
   } = draftManager;
 
-  // Validation
-  const validation = useComposeValidation({
+  // Everything the composer holds, as the one content predicate reads it
+  // (`utils/composeContent.ts`) — validation, publish, autosave and the close
+  // prompt all ask it the same question.
+  const composeContent = useMemo<ComposeContent>(() => ({
     postContent,
     mediaIds,
     pollOptions,
     location,
-    hasArticleContent,
-    threadItems,
     sources,
+    article,
+    event,
+    room: attachedRoom,
+    podcast,
+    job,
+    threadItems,
+  }), [postContent, mediaIds, pollOptions, location, sources, article, event, attachedRoom, podcast, job, threadItems]);
+
+  // Validation
+  const validation = useComposeValidation({
+    content: composeContent,
     isPosting,
   });
   const { hasInvalidSources: invalidSources, isPostButtonEnabled } = validation;
@@ -1159,17 +1176,9 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
   /** The composer's live content, in the shape the draft manager saves. */
   const draftRefs = (): ComposeDraftRefs => ({
-    postContent,
-    mediaIds,
-    pollOptions,
+    ...composeContent,
     pollTitle,
     showPollCreator,
-    location,
-    sources,
-    article,
-    podcast,
-    job,
-    threadItems,
     mentions,
     postingMode,
     attachmentOrder,
@@ -1230,11 +1239,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
     const scheduledAtValue = scheduledAt;
     const wasScheduled = Boolean(scheduledAtValue);
-    const hasText = postContent.trim().length > 0;
-    const hasMedia = mediaIds.length > 0;
-    const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
-
-    if (!(hasText || hasMedia || hasPoll || hasArticleContent || hasEventContent || hasRoomContent || hasPodcastContent || hasJobContent)) {
+    if (!hasPublishableContent(composeContent)) {
       toast(t('Add text, an image, a poll, or an article'), { type: 'error' });
       return;
     }
@@ -1511,48 +1516,29 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     }
   };
 
-  // Debounced auto-save - trigger when any content changes
+  // Debounced auto-save — armed by any change to what the composer holds. It
+  // stays idle for a composer that holds nothing and has no draft yet (a fresh
+  // open); once a draft exists, emptying the composer is a change it saves too,
+  // by deleting that draft.
   useEffect(() => {
-    // Don't auto-save on initial mount
-    if (!postContent && mediaIds.length === 0 && pollOptions.length === 0 && !location && threadItems.length === 0 && !hasVariantWork(variants)) {
-      return;
-    }
+    const refs = draftRefs();
+    if (!hasDraftContent(refs) && !refs.currentDraftId) return;
 
-    // Clear existing timeout
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
     }
-
-    // Set new timeout for auto-save (2 seconds after last change)
     autoSaveTimeoutRef.current = setTimeout(() => {
-      autoSaveDraft({
-        postContent,
-        mediaIds,
-        pollOptions,
-        pollTitle,
-        showPollCreator,
-        location,
-        sources,
-        article,
-        podcast,
-        job,
-        threadItems,
-        mentions,
-        postingMode,
-        attachmentOrder,
-        scheduledAt,
-        currentDraftId,
-        variants,
-      });
+      void autoSaveDraft(refs);
     }, 2000);
 
-    // Cleanup on unmount
     return () => {
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [postContent, mediaIds, pollOptions, pollTitle, showPollCreator, location, sources, threadItems, mentions, postingMode, attachmentOrder, scheduledAt, article, podcast, job, currentDraftId, variants, autoSaveDraft, autoSaveTimeoutRef]);
+    // `draftRefs` is rebuilt every render from exactly these values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composeContent, pollTitle, showPollCreator, mentions, postingMode, attachmentOrder, scheduledAt, currentDraftId, variants, autoSaveDraft, autoSaveTimeoutRef]);
 
   // back navigation
 
@@ -2565,19 +2551,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   iconOnly
                   leadingIcon={RiArrowLeftLine}
                   onPress={() => {
-                    const hasContent =
-                      postContent.trim().length > 0 ||
-                      mediaIds.length > 0 ||
-                      pollOptions.length > 0 ||
-                      threadItems.length > 0 ||
-                      sources.length > 0 ||
-                      location !== null ||
-                      hasArticleContent ||
-                      hasEventContent ||
-                      hasPodcastContent ||
-                      hasJobContent ||
-                      hasVariantWork(variants);
-                    if (hasContent && !isEditMode) {
+                    if (hasDraftContent(draftRefs()) && !isEditMode) {
                       discardControl.open();
                     } else {
                       dismiss();
@@ -3550,60 +3524,29 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             {
               label: t('compose.saveDraft', 'Save draft'),
               color: 'default',
-              onPress: () => {
-                saveDraft({
-                  postContent,
-                  mediaIds,
-                  pollOptions,
-                  pollTitle,
-                  showPollCreator,
-                  location,
-                  sources,
-                  threadItems: threadItems.map((item) => ({
-                    id: item.id,
-                    text: item.text,
-                    mediaIds: item.mediaIds,
-                    pollOptions: item.pollOptions,
-                    pollTitle: item.pollTitle,
-                    showPollCreator: item.showPollCreator,
-                    location: item.location,
-                    mentions: reconcileMentionData(
-                      [
-                        item.text,
-                        ...variantTextsForItem(variants, item.id),
-                      ],
-                      item.mentions,
-                    ).map((m) => ({
-                      userId: m.userId,
-                      handle: m.username,
-                      name: m.displayName,
-                    })),
-                  })),
-                  mentions: reconcileMentionData(
-                    [
-                      postContent,
-                      ...variantTextsForItem(variants, MAIN_ITEM_ID),
-                    ],
-                    mentions,
-                  ).map((m) => ({
-                    userId: m.userId,
-                    handle: m.username,
-                    name: m.displayName,
-                  })),
-                  postingMode,
-                  attachmentOrder,
-                  scheduledAt: scheduledAt ? scheduledAt.toISOString() : null,
-                  article,
-                  podcast,
-                  languages: serializeVariants(variants),
-                });
-                dismiss();
+              onPress: async () => {
+                try {
+                  await saveDraftNow(draftRefs());
+                  dismiss();
+                } catch (error) {
+                  logger.error('Failed to save draft', error);
+                  toast(t('compose.saveDraftFailed', "Couldn't save the draft. Try again."), { type: 'error' });
+                }
               },
             },
             {
               label: t('common.discard', 'Discard'),
               color: 'destructive',
-              onPress: () => dismiss(),
+              onPress: async () => {
+                try {
+                  await discardDraft();
+                } catch (error) {
+                  // The author chose to throw this work away; a stored copy that
+                  // could not be deleted must not keep them in the composer.
+                  logger.error('Failed to delete the discarded draft', error);
+                }
+                dismiss();
+              },
             },
             {
               label: t('compose.keepEditing', 'Keep editing'),
