@@ -16,15 +16,17 @@
  *    without the distributed lock that guarantees single-writer semantics.
  *  - Every timer calls `.unref?.()` so the job NEVER keeps the event loop /
  *    process alive on its own (no test hangs, clean shutdown).
+ *  - Due-ness is read from the newest snapshot, not kept by the timer, so a
+ *    change of leader does not start a fresh six-hour cycle with an immediate
+ *    sweep (see `runSnapshotSweepIfDue`).
  *  - Re-entrancy guarded and fully non-throwing: a sweep that outlasts its
  *    interval is skipped, and any error is caught + logged, never thrown into the
  *    timer.
  */
 
 import { PostVisibility } from '@mention/shared-types';
-import { and, eq, gte, isNotNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNotNull, sql } from 'drizzle-orm';
 import { isRedisRuntimeConfigured } from '../config';
-import { qualified } from '@oxy.so/db';
 import { getDb } from '../db/postgres';
 import { authorFollowerSnapshots } from '../db/schema/discovery';
 import { posts } from '../db/schema/posts';
@@ -33,6 +35,13 @@ import { logger } from '../utils/logger';
 
 /** Sampling cadence. 6 hours — follower growth is a slow signal. */
 export const FOLLOWER_SNAPSHOT_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * How often the leader ASKS whether a sweep is due (see `runSnapshotSweepIfDue`).
+ * The question is one index probe; the sweep still happens once per
+ * {@link FOLLOWER_SNAPSHOT_INTERVAL_MS}. 30 minutes.
+ */
+export const FOLLOWER_SNAPSHOT_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
 /** Defer the first sweep so boot is never contended. 5 minutes. */
 export const FOLLOWER_SNAPSHOT_START_DELAY_MS = 5 * 60 * 1000;
@@ -61,10 +70,10 @@ export class FollowerSnapshotJob {
 
     this.startTimeout = setTimeout(() => {
       this.startTimeout = null;
-      void this.runSnapshotSweep();
+      void this.runSnapshotSweepIfDue();
       this.interval = setInterval(() => {
-        void this.runSnapshotSweep();
-      }, FOLLOWER_SNAPSHOT_INTERVAL_MS);
+        void this.runSnapshotSweepIfDue();
+      }, FOLLOWER_SNAPSHOT_CHECK_INTERVAL_MS);
       this.interval.unref?.();
     }, FOLLOWER_SNAPSHOT_START_DELAY_MS);
     this.startTimeout.unref?.();
@@ -99,37 +108,41 @@ export class FollowerSnapshotJob {
    * ported as-is: sample whoever has waited longest.
    *
    * That makes the NULL ordering load-bearing. A never-snapshotted author has no
-   * `max(at)` at all, and Postgres sorts NULLs LAST by default — so under the
+   * last snapshot at all, and Postgres sorts NULLs LAST by default — so under the
    * default they would sink behind every already-sampled author and, past the
    * cap, never be reached. `nulls first` puts "never sampled" ahead of "sampled
    * long ago", which is the only ordering that lets a new author ever enter the
    * series. Mongo's own rule (missing sorts FIRST) says the same thing.
    *
-   * `oxy_user_id` is the final tiebreak: `max(at)` alone is not a total order
+   * `oxy_user_id` is the final tiebreak: the last `at` alone is not a total order
    * (a whole batch of authors is written with one identical `at`), so without it
    * the cap would cut an arbitrary, run-to-run-varying slice through the tie.
    *
-   * The correlated reference is `qualified()`, and the reason is worth stating
-   * precisely rather than as a blanket rule, because it was MEASURED against
-   * drizzle 0.45.2 and the blanket version is wrong: drizzle strips the table
-   * prefix from an interpolated column in exactly ONE position — the SELECT LIST
-   * of a single-table select. `where`, `order by` and an `update … set` all come
-   * out fully qualified on their own, so this particular expression would render
-   * correctly even bare (a mutation removing `qualified()` here leaves every test
-   * green).
+   * ## Why a lateral `limit 1` and not `max(at)` (#1166)
    *
-   * It stays because `isSingleTable` is a property of the surrounding QUERY, not
-   * of this expression: adding a join flips it, removing one flips it back, and
-   * moving this subquery into a select list — where it would read naturally —
-   * flips it too. There, `where "oxy_user_id" = "oxy_user_id"` resolves BOTH
-   * names against `author_follower_snapshots`, the predicate compares a column to
-   * itself, `max(at)` becomes one global maximum shared by every author, and the
-   * ordering silently collapses to the tiebreak with no error anywhere. That is
-   * the shape that shipped zero follow counts in the sibling oxy-api port.
+   * This was a correlated `(select max(at) … where oxy_user_id = posts.oxy_user_id)`
+   * in the ORDER BY. Postgres did not turn that `max` into a one-row index probe:
+   * measured in production (2026-09-26), every one of 22,813 active authors
+   * aggregated ALL of their snapshots (138 each, 464k heap fetches, 613k
+   * buffers), 12 s of a 17.4 s statement. The lateral `order by at desc nulls
+   * last limit 1` reads one entry of `author_follower_snapshots_owner_chrono_idx`
+   * per author — the index's own order, so NULLS LAST must stay spelled out —
+   * and measured 1.25 s for the whole statement on the same data.
+   *
+   * The distinct-author set is read from `posts_public_author_recent_idx`
+   * (migration 0052), whose predicate is exactly this WHERE: an index-only range
+   * over the window instead of a sequential scan of every post.
+   *
+   * The correlation is a lateral join on the derived table's own alias, so there
+   * is no bare column for drizzle to strip the table prefix from — the failure
+   * that shipped zero follow counts in the sibling oxy-api port, where a
+   * correlated `where "oxy_user_id" = "oxy_user_id"` compared a column to itself.
+   * `distinguishes authors by their OWN last snapshot` is the test that holds it.
    */
   private async selectAuthorsToSample(windowStart: Date): Promise<string[]> {
-    const rows = await getDb()
-      .select({ oxyUserId: posts.oxyUserId })
+    const db = getDb();
+    const active = db
+      .selectDistinct({ oxyUserId: posts.oxyUserId })
       .from(posts)
       .where(
         and(
@@ -139,19 +152,75 @@ export class FollowerSnapshotJob {
           isNotNull(posts.oxyUserId),
         ),
       )
-      .groupBy(posts.oxyUserId)
-      .orderBy(
-        sql`(select max(${authorFollowerSnapshots.at})
-             from ${authorFollowerSnapshots}
-             where ${qualified(authorFollowerSnapshots.oxyUserId)} = ${qualified(posts.oxyUserId)})
-             asc nulls first`,
-        sql`${qualified(posts.oxyUserId)} asc`,
-      )
+      .as('active_authors');
+    const lastSnapshot = db
+      .select({ at: authorFollowerSnapshots.at })
+      .from(authorFollowerSnapshots)
+      .where(eq(authorFollowerSnapshots.oxyUserId, active.oxyUserId))
+      .orderBy(sql`${authorFollowerSnapshots.at} desc nulls last`)
+      .limit(1)
+      .as('last_snapshot');
+
+    const rows = await db
+      .select({ oxyUserId: active.oxyUserId })
+      .from(active)
+      .leftJoinLateral(lastSnapshot, sql`true`)
+      .orderBy(sql`${lastSnapshot.at} asc nulls first`, sql`${active.oxyUserId} asc`)
       .limit(FOLLOWER_SNAPSHOT_MAX_AUTHORS);
 
     return rows.flatMap((row) =>
       typeof row.oxyUserId === 'string' && row.oxyUserId.length > 0 ? [row.oxyUserId] : [],
     );
+  }
+
+  /**
+   * When the last sweep wrote, or `null` if none ever has. One probe of
+   * `author_follower_snapshots_at_idx`.
+   */
+  private async lastSweepAt(): Promise<Date | null> {
+    const [row] = await getDb()
+      .select({ at: authorFollowerSnapshots.at })
+      .from(authorFollowerSnapshots)
+      .orderBy(desc(authorFollowerSnapshots.at))
+      .limit(1);
+    return row?.at ?? null;
+  }
+
+  /**
+   * Sweep only when the last one is at least {@link FOLLOWER_SNAPSHOT_INTERVAL_MS}
+   * old. This is what the timer calls; `runSnapshotSweep` itself is unconditional.
+   *
+   * ## Why due-ness lives in the table, not in the timer (#1166)
+   *
+   * The timer is per LEADER, and leadership moves on every deploy and every lost
+   * lease renewal. Each new leader swept five minutes after acquiring it, so the
+   * "every six hours" sweep ran 19–55 times a day (counted from the distinct `at`
+   * values production wrote, 2026-09-19..25) — each one a 17 s statement and a
+   * 2,000-author Oxy lookup. The newest `at` is the one fact every leader shares,
+   * so due-ness is read from it; the timer only decides how often to ASK, which
+   * is why it ticks every {@link FOLLOWER_SNAPSHOT_CHECK_INTERVAL_MS} and not every
+   * six hours (a leader that arrived just after a sweep would otherwise wait up to
+   * twelve).
+   *
+   * A failed read skips the tick rather than sweeping: sweeping blind is what
+   * this replaced.
+   */
+  async runSnapshotSweepIfDue(now: number = Date.now()): Promise<boolean> {
+    let last: Date | null;
+    try {
+      last = await this.lastSweepAt();
+    } catch (error) {
+      logger.warn('[FollowerSnapshotJob] could not read the last sweep time; skipping this tick', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    }
+    if (last && now - last.getTime() < FOLLOWER_SNAPSHOT_INTERVAL_MS) {
+      logger.debug('[FollowerSnapshotJob] last sweep is recent; not due', { lastSweepAt: last.toISOString() });
+      return false;
+    }
+    await this.runSnapshotSweep();
+    return true;
   }
 
   /**
