@@ -178,11 +178,16 @@ copy; Mention stops syncing it. A managed vault is revoked for teardown.
 
 - **Oxy** owns the identity, graph, blocks and every uploaded media file (post
   media are bare Oxy file ids), so erasing them is Oxy's `DELETE /users/me`, not
-  Mention's. Mention holds no media store of its own: its federated-media cache
-  re-hosts REMOTE media in Oxy, keyed by remote URL, not by a local account.
-- **CrowdSource** holds reports delivered to it and community notes or ratings
-  authored under the account's id. Mention has no erasure call into CrowdSource
-  today; that is a follow-up on the CrowdSource side.
+  Mention's. Oxy records the account's storage keys in the deletion's own
+  transaction and a worker deletes the S3 objects, originals and variants alike
+  (OxyHQ/oxy#1426, `docs/identity/account-storage-deletion.md` in oxy). Mention
+  holds no media store of its own: its federated-media cache re-hosts REMOTE
+  media in Oxy, keyed by remote URL, not by a local account.
+- **CrowdSource** consumes the same `account.deleted` event (webhook and pull
+  feed) and erases the person's notes, ratings and reviewer data. It keeps the
+  moderation records (reports, cases, appeals) with the id replaced and the
+  person's own free text removed (OxyHQ/CrowdSource#210,
+  `docs/architecture/account-erasure.md` there).
 - **Search** is Postgres full-text over post variants, which go with the posts.
   User search is Oxy's.
 - **Caches** that cannot be found by account id (per-post view markers, the
