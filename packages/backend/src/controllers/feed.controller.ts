@@ -1224,6 +1224,15 @@ class FeedController {
         },
       );
 
+      // Hydration drops a post this viewer may not read — a draft, a private or
+      // followers-only post, a hidden author. That is a 404, exactly as if the
+      // post did not exist: answering `res.json(undefined)` sent an EMPTY 200,
+      // which told a caller "this exists" while showing nothing, and an
+      // automation took a draft for published on the strength of it.
+      if (!transformed) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
       return res.json(transformed);
     } catch (error) {
       logger.error('Error fetching feed item', error);
