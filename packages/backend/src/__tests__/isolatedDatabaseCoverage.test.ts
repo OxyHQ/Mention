@@ -161,6 +161,7 @@ const JOB_ENTRY_POINTS: readonly JobEntryPoint[] = [
   { name: 'backfillPostHasLinks', call: /\bbackfillPostHasLinks\s*\(/ },
   { name: 'backfillVariantPostCreatedAt', call: /\bbackfillVariantPostCreatedAt\s*\(/ },
   { name: 'backfillInstagramSourceKeys', call: /\bbackfillInstagramSourceKeys\s*\(/ },
+  { name: 'repairInstagramReelPosters', call: /\brepairInstagramReelPosters\s*\(/ },
   { name: 'drainFederatedMediaDeletions', call: /\bdrainFederatedMediaDeletions\s*\(/ },
   { name: 'backfillMediaMetadata', call: /\bbackfillMediaMetadata\s*\(/ },
   { name: 'backfillPostLanguages', call: /\bbackfillPostLanguages\s*\(/ },

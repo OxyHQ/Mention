@@ -34,6 +34,7 @@ vi.mock('../../../services/mediaCache/cacheWorker', () => ({
   persistRemoteMediaForFederatedOwnerDetailed: h.persist,
 }));
 vi.mock('../../../services/mediaCache/cacheStore', () => ({ recordAccessAndMaybeEnqueue: vi.fn() }));
+vi.mock('../../../services/mediaMetadataEnrichJob', () => ({ enqueueMediaMetadataEnrich: vi.fn(async () => true) }));
 vi.mock('../../../queue/producers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../queue/producers')>()),
   enqueueInstagramGraphSync: h.enqueue,
@@ -95,9 +96,10 @@ import { buildFederatedNoteProvenance } from '../../../connectors/activitypub/ap
 import { resolvePostIdFromObjectUri } from '../../../connectors/activitypub/helpers';
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
 import { importInstagramMedia } from '../../../connectors/instagram/importer';
+import { repairInstagramReelPosters } from '../../../scripts/repairInstagramReelPosters';
 import { optionsFor, requestInstagramSync, syncInstagramActor, syncResultFor } from '../../../connectors/instagram/sync';
 import { InstagramGraphError, type GraphMedia } from '../../../connectors/instagram/graphClient';
-import { BIG_IMAGE_CAROUSEL, IMAGE, REEL_WITH_VIDEO, ZUCK_PROFILE } from './fixtures/graphSnapshot';
+import { BIG_IMAGE_CAROUSEL, IMAGE, REEL_WITH_VIDEO, REEL_WITHOUT_VIDEO, ZUCK_PROFILE } from './fixtures/graphSnapshot';
 
 const SUITE = 'igdedupe';
 const USERNAME = `${SUITE}.acct`;
@@ -343,9 +345,9 @@ describe('media is re-hosted, or the post is not imported yet', () => {
 
   it.each([
     ['too large', { ok: false, reason: 'too-large', permanent: false }],
-    ['the store unavailable', { ok: false, reason: 'store-unavailable', permanent: false }],
-    ['an upload failure', { ok: false, reason: 'upload-failed', permanent: false }],
-  ])('falls back to the poster image when the video fails as %s', async (_case, failure) => {
+    ['not media', { ok: false, reason: 'not-media', permanent: true }],
+    ['gone at the source', { ok: false, reason: 'upstream-error', status: 404, permanent: true }],
+  ])('falls back to the poster image ONLY when the video can never be stored (%s)', async (_case, failure) => {
     h.persist.mockImplementation(async (url: string) => (url === REEL_WITH_VIDEO.media_url
       ? failure
       : { ok: true, media: { oxyFileId: `oxyfile-poster-${(fileSeq += 1)}`, contentType: 'image/jpeg', sizeBytes: 10 } }));
@@ -357,6 +359,37 @@ describe('media is re-hosted, or the post is not imported yet', () => {
     const [id] = await rowsFor(12);
     const media = await getDb().select({ mediaId: postMedia.mediaId, type: postMedia.type }).from(postMedia).where(eq(postMedia.postId, id));
     expect(media).toEqual([{ mediaId: expect.stringMatching(/^oxyfile-poster-/), type: 'image' }]);
+  });
+
+  /**
+   * Production, 2026-09-27: Reels imported while Oxy's media-write budget was
+   * spent ("Oxy media store upload budget is spent for this window") were
+   * stored as their cover image — for good, because the next sync saw the post
+   * as imported. A video that may still be stored makes the post WAIT; the
+   * next sync imports it WITH its video.
+   */
+  it.each([
+    ['the upload budget spent', { ok: false, reason: 'upload-failed', permanent: false }],
+    ['the store unavailable', { ok: false, reason: 'store-unavailable', permanent: false }],
+    ['a dropped connection', { ok: false, reason: 'upstream-error', permanent: false }],
+  ])('never degrades a Reel to its poster on a failure that may pass (%s): the post waits, then gets its video', async (_case, failure) => {
+    h.persist.mockImplementation(async (url: string) => (url === REEL_WITH_VIDEO.media_url
+      ? failure
+      : { ok: true, media: { oxyFileId: `oxyfile-poster-${(fileSeq += 1)}`, contentType: 'image/jpeg', sizeBytes: 10 } }));
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(16, REEL_WITH_VIDEO)]));
+
+    expect(await importInstagramMedia(TARGET, ONE_SHOT)).toMatchObject({ outcome: 'partial', imported: 0 });
+    expect(await rowsFor(16)).toHaveLength(0);
+
+    // The budget refills: the next sync stores the Reel as a VIDEO.
+    h.persist.mockImplementation(async () => ({
+      ok: true,
+      media: { oxyFileId: `oxyfile-${SUITE}-video-${(fileSeq += 1)}`, contentType: 'video/mp4', sizeBytes: 10 },
+    }));
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(16, REEL_WITH_VIDEO)]));
+    expect(await importInstagramMedia(TARGET, ONE_SHOT)).toMatchObject({ outcome: 'ok', imported: 1 });
+    const [id] = await rowsFor(16);
+    expect(await getDb().select({ type: postMedia.type }).from(postMedia).where(eq(postMedia.postId, id))).toEqual([{ type: 'video' }]);
   });
 
   it('bytes Oxy holds for another owner (409 owned elsewhere) fall back to the poster, then are dropped — never an fbcdn URL', async () => {
@@ -431,6 +464,74 @@ describe('media is re-hosted, or the post is not imported yet', () => {
     // Its claim is released, so the other road (or the next sync) can take the key.
     expect(await getDb().select().from(postSourceKeys).where(eq(postSourceKeys.sourceKey, keyOf(13)))).toEqual([]);
     expect(syncResultFor('partial')).toBe('error');
+  });
+});
+
+describe('repairInstagramReelPosters: Reels stored as their poster get their video', () => {
+  const videoFile = () => ({ ok: true, media: { oxyFileId: `oxyfile-${SUITE}-video-${(fileSeq += 1)}`, contentType: 'video/mp4', sizeBytes: 10 } });
+  const posterFile = () => ({ ok: true, media: { oxyFileId: `oxyfile-poster-${(fileSeq += 1)}`, contentType: 'image/jpeg', sizeBytes: 10 } });
+
+  /** The production shape: a Reel whose video slot was stored as its poster image. */
+  async function importReelAsPoster(n: number) {
+    h.persist.mockImplementation(async (url: string) => (url === REEL_WITH_VIDEO.media_url
+      ? { ok: false, reason: 'too-large', permanent: false }
+      : posterFile()));
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(n, REEL_WITH_VIDEO), item(n + 1)]));
+    await importInstagramMedia(TARGET, ONE_SHOT);
+    const [id] = await rowsFor(n);
+    const [poster] = await getDb().select({ id: postMedia.mediaId, type: postMedia.type }).from(postMedia).where(eq(postMedia.postId, id));
+    expect(poster.type).toBe('image');
+    return { id, poster: poster.id };
+  }
+
+  beforeEach(async () => {
+    await seedKilogramActor({ instagramGraphSyncedAt: new Date(), instagramGraphUserId: IG_USER_ID });
+  });
+
+  it('a dry run lists the Reel (and not the image post beside it) and changes nothing', async () => {
+    const { id, poster } = await importReelAsPoster(20);
+    h.persist.mockReset();
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(20, REEL_WITH_VIDEO), item(21)]));
+
+    const result = await repairInstagramReelPosters({ dryRun: true });
+
+    expect(result.candidates).toEqual([{ postId: id, sourceKey: keyOf(20), slots: [0] }]);
+    expect(result.checked).toBe(2);
+    expect(h.persist).not.toHaveBeenCalled();
+    expect(await mediaOf(id)).toEqual([poster]);
+  });
+
+  it('a mutating run swaps the video in, queues the poster file, and is idempotent', async () => {
+    const { id, poster } = await importReelAsPoster(22);
+    h.persist.mockReset().mockImplementation(async () => videoFile());
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(22, REEL_WITH_VIDEO), item(23)]));
+
+    const result = await repairInstagramReelPosters({ dryRun: false });
+
+    expect(result).toMatchObject({ repaired: 1, waiting: 0, gone: 0 });
+    expect(h.persist).toHaveBeenCalledWith(REEL_WITH_VIDEO.media_url, OWNER, expect.objectContaining({ mediaType: 'video' }));
+    const media = await getDb().select({ id: postMedia.mediaId, type: postMedia.type }).from(postMedia).where(eq(postMedia.postId, id));
+    expect(media).toEqual([{ id: expect.stringMatching(/-video-/), type: 'video' }]);
+    expect(await queuedDeletions([poster])).toEqual([poster]);
+
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(22, REEL_WITH_VIDEO), item(23)]));
+    expect((await repairInstagramReelPosters({ dryRun: false })).candidates).toEqual([]);
+  });
+
+  it('a video that still cannot be stored leaves the post as it is (re-run later)', async () => {
+    const { id, poster } = await importReelAsPoster(24);
+    h.persist.mockReset().mockResolvedValue({ ok: false, reason: 'upload-failed', permanent: false });
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(24, REEL_WITH_VIDEO)]));
+
+    expect(await repairInstagramReelPosters({ dryRun: false })).toMatchObject({ repaired: 0, waiting: 1 });
+    expect(await mediaOf(id)).toEqual([poster]);
+  });
+
+  it('never touches a Reel Meta lists WITHOUT a video (its thumbnail is the right shape)', async () => {
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(25, REEL_WITHOUT_VIDEO)]));
+    await importInstagramMedia(TARGET, ONE_SHOT);
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(25, REEL_WITHOUT_VIDEO)]));
+    expect((await repairInstagramReelPosters({ dryRun: true })).candidates).toEqual([]);
   });
 });
 

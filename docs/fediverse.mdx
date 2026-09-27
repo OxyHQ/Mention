@@ -412,11 +412,26 @@ import. Meta's CDN URLs expire (`oe=`), so an Instagram post never keeps one:
 - A carousel imports every child, in order.
 - A video that Instagram serves only as a thumbnail (licensed audio) imports that
   thumbnail as an image.
-- A video that cannot be stored, for any reason, falls back to its poster image.
-- A file that will never be storable (404/410, over the size cap, not media) is
+- A video that can never be stored (404/410, over the size cap, not media,
+  owned by another Oxy account) falls back to its poster image.
+- A file that will never be storable, with no poster to fall back to, is
   dropped.
-- A failure that may pass (media writes off, Oxy unavailable) leaves the whole
-  post for the next sync rather than storing an expiring link.
+- A failure that may pass (media writes off, Oxy's upload budget spent, Oxy
+  unavailable, a dropped connection) leaves the whole post for the next sync.
+  It never stores an expiring link, and it never degrades a video to its poster:
+  that was permanent, because the next sync saw the post as imported.
+- **Repair for posts stored before this rule:**
+  `packages/backend/src/scripts/repairInstagramReelPosters.ts` (`DRY_RUN` by
+  default). It walks each synced account's listing with the background Graph
+  budget and finds Graph-imported posts whose slot Meta lists as a video with a
+  `media_url` but that is stored as an image. It re-hosts the video, swaps it in
+  and queues the poster file for deletion. A Reel Meta lists without
+  `media_url` is correct as an image and is left alone.
+
+On the web, a video whose stored media has no dimensions yet (they are collected
+from Oxy shortly after import) is shown in the card's default box. It is resized
+from the `<video>` element's own size once its metadata loads, rather than
+collapsing to nothing.
 
 **One post, two roads.** A Graph-imported post is stored with
 `federation_activity_id = instagram:<shortcode>`, with the shortcode taken from

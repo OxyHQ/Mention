@@ -19,15 +19,16 @@ import type { GraphChildMedia, GraphMedia } from './graphClient';
  *   shared with the kilogram bridge (see `shared/instagramSourceKey.ts`). An item
  *   whose permalink carries no shortcode is not importable and maps to null.
  * - Media: an IMAGE is its `media_url`; a VIDEO is its `media_url` with the
- *   `thumbnail_url` kept as a FALLBACK image (a Reel with licensed music can come
- *   back with no `media_url` at all — then the thumbnail IS the media); a
+ *   `thumbnail_url` kept as a FALLBACK image, used only if the video can never
+ *   be stored (a Reel with licensed music can come back with no `media_url` at
+ *   all — then the thumbnail IS the media); a
  *   CAROUSEL_ALBUM is every child, in order.
  */
 
 /** Clamp self-reported future timestamps like every other connector. */
 const MAX_FUTURE_SKEW_MS = 60 * 60 * 1000;
 
-/** One media slot: what to import, and what to import instead if that fails. */
+/** One media slot: what to import, and what to import instead if that can NEVER be stored. */
 export interface InstagramMediaPlan {
   primary: NormalizedExternalMedia;
   /** The poster image of a video, imported when the video itself cannot be. */
