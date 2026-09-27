@@ -1,6 +1,6 @@
 /** Browser contract between the real backend renderer and the candidate Expo build. */
 import { test, expect, type BrowserContext } from '@playwright/test';
-import { renderShellWithOg, type OgData } from '../../backend/src/services/webShellRenderer';
+import { mapHomepageOg, renderShellWithOg, type OgData } from '../../backend/src/services/webShellRenderer';
 import { APP_ORIGIN, CANDIDATE_ORIGIN, PROFILE_HANDLE } from '../environment';
 
 const profilePath = `/@${PROFILE_HANDLE}`;
@@ -227,7 +227,10 @@ test('delayed application scripts never display a separate SEO screen', async ({
 
 test('homepage raw head advertises a real JPEG and transfers ownership on profile navigation', async ({ context, page, request }) => {
   const response = await request.get(`${CANDIDATE_ORIGIN}/`);
-  const html = await response.text();
+  const shell = await response.text();
+  expect(shell).not.toContain('rel="canonical"');
+  const html = renderShellWithOg(shell, mapHomepageOg());
+  expect(html.slice(html.indexOf('<body'))).toBe(shell.slice(shell.indexOf('<body')));
   const head = html.split('</head>')[0];
   expect(head).toContain('property="og:image" content="https://mention.earth/og-image.jpg"');
   expect(head).toContain('property="og:image:width" content="1280"');
@@ -242,7 +245,7 @@ test('homepage raw head advertises a real JPEG and transfers ownership on profil
   expect([...(await image.body()).subarray(0, 3)]).toEqual([255, 216, 255]);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await serveDocument(context, '/', null);
+  await serveDocument(context, '/', mapHomepageOg());
   await page.goto(APP_ORIGIN);
   await expect(page.locator('link[rel="canonical"][data-rh="true"]')).toHaveAttribute('href', `${APP_ORIGIN}/`);
   await expect(page.locator('meta[property="og:image"]')).toHaveCount(1);

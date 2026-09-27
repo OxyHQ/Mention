@@ -14,7 +14,7 @@ export function initialSEODocumentPath(document: Document): string {
   return pathname;
 }
 
-/** The export and backend mark initial nodes; ExpoHead owns its own lifecycle. */
+/** Only the backend marks these nodes; ExpoHead owns its own lifecycle. */
 export function releaseServerSEO(document: Document): void {
   document.head.querySelectorAll('[data-mention-seo="true"]')
     .forEach((node) => {
@@ -67,8 +67,6 @@ export function releaseServerSEOForNavigation(
 export function readServerSEO(document: Document, pathname: string) {
   const canonical = document.querySelector<HTMLLinkElement>('link[data-mention-seo="true"][rel="canonical"]');
   const documentPath = initialSEODocumentPath(document);
-  // A generic SPA shell is not authoritative entity privacy metadata.
-  if (canonical?.hasAttribute('data-mention-seo-default') && !matchesSEOPath(canonical.href, pathname)) return undefined;
   if (!canonical || (pathKey(documentPath) !== pathKey(pathname) && !matchesSEOPath(canonical.href, pathname))) return undefined;
   const meta = (selector: string) => document.querySelector<HTMLMetaElement>(`meta[data-mention-seo="true"]${selector}`)?.content;
   const structured = document.querySelector('script[data-mention-seo="true"][type="application/ld+json"]')?.textContent;

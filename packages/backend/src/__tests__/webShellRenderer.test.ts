@@ -1,9 +1,14 @@
+import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { config } from '../config';
 import { describe, it, expect } from 'vitest';
 import type { HydratedPost } from '@mention/shared-types';
 import {
   escapeHtml,
   buildOgMetaHtml,
   renderShellWithOg,
+  mapHomepageOg,
   mapProfileOg,
   mapPostOg,
   OgData,
@@ -245,5 +250,29 @@ describe('head metadata without replacement UI', () => {
     expect(html.match(/name="robots"/g)).toHaveLength(1);
     expect(html).toContain('<script data-mention-seo="true" type="application/ld+json">');
     expect(html).toContain('<title data-mention-seo="true">@nate on Mention</title>');
+  });
+});
+
+describe('homepage social preview', () => {
+  it('adds the real JPEG and metadata only to the requested home document', () => {
+    const home = mapHomepageOg();
+    const html = renderShellWithOg(SHELL, home);
+    expect(home.url).toBe(`${config.web.origin}/`);
+    expect(html).toContain(`property="og:image" content="${config.web.origin}/og-image.jpg"`);
+    expect(html).toContain('property="og:image:width" content="1280"');
+    expect(html).toContain('property="og:image:height" content="720"');
+    expect(html).toContain('property="og:image:type" content="image/jpeg"');
+    expect(html).toContain('name="twitter:image:alt"');
+    expect(html.slice(html.indexOf('<body'))).toBe(SHELL.slice(SHELL.indexOf('<body')));
+    expect(renderShellWithOg(SHELL, null)).toBe(SHELL);
+    const entity = renderShellWithOg(html, mapProfileOg({ username: 'nate', bio: 'Profile bio' }));
+    expect(entity).not.toContain('/og-image.jpg');
+    expect(entity).not.toContain('og:image:width');
+    expect(entity.match(/rel="canonical"/g)).toHaveLength(1);
+  });
+  it('keeps the supplied public asset byte-identical', () => {
+    const image = readFileSync(resolve(__dirname, '../../../frontend/public/og-image.jpg'));
+    expect([...image.subarray(0, 3)]).toEqual([255, 216, 255]);
+    expect(createHash('sha256').update(image).digest('hex')).toBe('dd40609c5f18f558fd6ff4f50667bbc8eb7315fe6c6119f082de3c1a2720aaed');
   });
 });
