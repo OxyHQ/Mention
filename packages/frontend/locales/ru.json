@@ -1529,6 +1529,8 @@
   "feed.tuning.noContentWarning.label": "Без предупреждений о контенте",
   "feed.tuning.noContentWarning.description": "Не показывает в рекомендациях посты за предупреждением о контенте, кроме случаев, когда вы подписаны на автора.",
   "feed.interstitial.seeMore": "Показать ещё",
+  "feed.interstitial.previous": "Предыдущие рекомендации",
+  "feed.interstitial.next": "Ещё рекомендации",
   "feed.interstitial.dismissHint": "Убирает эту подсказку до следующего обновления",
   "feed.interstitial.users.title": "На кого подписаться",
   "feed.interstitial.users.dismiss": "Скрыть {{name}}",

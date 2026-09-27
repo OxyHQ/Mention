@@ -1493,6 +1493,8 @@
   "feed.tuning.noContentWarning.label": "কোনো কনটেন্ট সতর্কতা নয়",
   "feed.tuning.noContentWarning.description": "কনটেন্ট সতর্কতার আড়ালে থাকা পোস্ট আপনার সুপারিশ থেকে বাদ রাখে, যদি না আপনি লেখককে অনুসরণ করেন।",
   "feed.interstitial.seeMore": "আরও দেখুন",
+  "feed.interstitial.previous": "আগের পরামর্শ",
+  "feed.interstitial.next": "আরও পরামর্শ",
   "feed.interstitial.dismissHint": "রিফ্রেশ না করা পর্যন্ত এই সুপারিশটি সরিয়ে রাখে",
   "feed.interstitial.users.title": "যাদের ফলো করতে পারেন",
   "feed.interstitial.users.dismiss": "{{name}}-কে সরান",

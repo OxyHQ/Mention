@@ -1511,6 +1511,8 @@
   "feed.tuning.noContentWarning.label": "Nessun avviso sui contenuti",
   "feed.tuning.noContentWarning.description": "Tiene fuori dai consigli i post dietro un avviso sui contenuti, a meno che tu non segua l’autore.",
   "feed.interstitial.seeMore": "Vedi altro",
+  "feed.interstitial.previous": "Suggerimenti precedenti",
+  "feed.interstitial.next": "Altri suggerimenti",
   "feed.interstitial.dismissHint": "Nasconde questo suggerimento fino al prossimo aggiornamento",
   "feed.interstitial.users.title": "Chi seguire",
   "feed.interstitial.users.dismiss": "Ignora {{name}}",

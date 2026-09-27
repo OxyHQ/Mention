@@ -1511,6 +1511,8 @@
   "feed.tuning.noContentWarning.label": "Sem avisos de conteúdo",
   "feed.tuning.noContentWarning.description": "Mantém fora das tuas recomendações as publicações atrás de um aviso de conteúdo, exceto se segues quem as publicou.",
   "feed.interstitial.seeMore": "Ver mais",
+  "feed.interstitial.previous": "Sugestões anteriores",
+  "feed.interstitial.next": "Mais sugestões",
   "feed.interstitial.dismissHint": "Remove esta sugestão até atualizares",
   "feed.interstitial.users.title": "Quem seguir",
   "feed.interstitial.users.dismiss": "Dispensar {{name}}",

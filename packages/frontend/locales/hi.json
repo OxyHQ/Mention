@@ -1493,6 +1493,8 @@
   "feed.tuning.noContentWarning.label": "कोई सामग्री चेतावनी नहीं",
   "feed.tuning.noContentWarning.description": "सामग्री चेतावनी के पीछे छिपी पोस्ट आपकी सिफ़ारिशों से बाहर रखता है, बशर्ते आप लेखक को फ़ॉलो न करते हों।",
   "feed.interstitial.seeMore": "और देखें",
+  "feed.interstitial.previous": "पिछले सुझाव",
+  "feed.interstitial.next": "और सुझाव",
   "feed.interstitial.dismissHint": "ताज़ा करने तक यह सुझाव हटा देता है",
   "feed.interstitial.users.title": "किसे फ़ॉलो करें",
   "feed.interstitial.users.dismiss": "{{name}} को हटाएँ",

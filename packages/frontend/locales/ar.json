@@ -1565,6 +1565,8 @@
   "feed.tuning.noContentWarning.label": "بلا تحذيرات محتوى",
   "feed.tuning.noContentWarning.description": "يُبقي المنشورات المخفية خلف تحذير محتوى خارج توصياتك، إلا إذا كنت تتابع صاحبها.",
   "feed.interstitial.seeMore": "عرض المزيد",
+  "feed.interstitial.previous": "الاقتراحات السابقة",
+  "feed.interstitial.next": "المزيد من الاقتراحات",
   "feed.interstitial.dismissHint": "يزيل هذا الاقتراح حتى تُحدّث الصفحة",
   "feed.interstitial.users.title": "اقتراحات للمتابعة",
   "feed.interstitial.users.dismiss": "تجاهل {{name}}",

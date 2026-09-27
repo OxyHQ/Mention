@@ -1493,6 +1493,8 @@
   "feed.tuning.noContentWarning.label": "不推荐内容警告",
   "feed.tuning.noContentWarning.description": "将带有内容警告的帖子排除在推荐之外，除非你已关注作者。",
   "feed.interstitial.seeMore": "查看更多",
+  "feed.interstitial.previous": "上一组推荐",
+  "feed.interstitial.next": "更多推荐",
   "feed.interstitial.dismissHint": "在你刷新之前不再显示此推荐",
   "feed.interstitial.users.title": "推荐关注",
   "feed.interstitial.users.dismiss": "忽略 {{name}}",

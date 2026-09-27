@@ -965,6 +965,22 @@ describe('SuggestedUsersInterstitial', () => {
     // 3 left — below the minimum of 4 the carousel needs to be worth a swipe.
     expect(renderer.toJSON()).toBeNull();
   });
+
+  it('names a nameless account by @handle, a handle-less one "Unknown user" — and never links the latter', async () => {
+    const pool = users(4);
+    // Degraded payloads the type does not admit but the wire can deliver.
+    pool[0] = { ...pool[0], name: undefined } as unknown as ProfileData;
+    pool[1] = { ...pool[1], name: undefined, username: undefined } as unknown as ProfileData;
+    mockRecommendations = pool;
+
+    const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
+
+    // The X carries the same degraded label the tile shows, never the raw id.
+    expect(dismissButton(renderer, '@person1')).toBeDefined();
+    expect(dismissButton(renderer, 'Unknown user')).toBeDefined();
+    // Four tiles, three links: an account with no handle has nowhere to go.
+    expect(profileRowPressables(renderer)).toHaveLength(3);
+  });
 });
 
 // ── Suggested feeds ─────────────────────────────────────────────────────────
@@ -1221,6 +1237,26 @@ describe('SuggestedStarterPacksInterstitial', () => {
 // ── Similar accounts ────────────────────────────────────────────────────────
 
 describe('SimilarAccountsInterstitial', () => {
+  it('names a nameless account by @handle, a handle-less one "Unknown user" — and never links the latter', async () => {
+    const pool = similarAccounts(4);
+    pool[0] = { ...pool[0], name: undefined as unknown as User['name'] };
+    pool[1] = { ...pool[1], name: undefined as unknown as User['name'], username: '' };
+    mockGetSimilarProfiles.mockResolvedValue(pool);
+
+    const renderer = await renderBand(
+      <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
+    );
+
+    const labels = pressables(renderer).map((node) => node.props.accessibilityLabel);
+    expect(labels).toContain(
+      mockTranslate('feed.interstitial.similarAccounts.dismiss', { name: '@similar1' }),
+    );
+    expect(labels).toContain(
+      mockTranslate('feed.interstitial.similarAccounts.dismiss', { name: 'Unknown user' }),
+    );
+    expect(profileRowPressables(renderer)).toHaveLength(3);
+  });
+
   it('renders nothing when the subject has no similar accounts', async () => {
     mockGetSimilarProfiles.mockResolvedValue([]);
 

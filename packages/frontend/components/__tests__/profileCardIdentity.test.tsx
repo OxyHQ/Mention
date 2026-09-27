@@ -246,6 +246,15 @@ describe('SuggestedProfileCard resolves its identity the way the row does', () =
     expect(target).toHaveLength(0);
   });
 
+  it('opens the profile it names when the caller hands it no press handler', () => {
+    const renderer = renderTile({ id: PERSON_ID, username: 'ada', name: { displayName: 'Ada' } });
+    const target = renderer.root.find(
+      (node) => node.props.accessibilityRole === 'link' && typeof node.props.onPress === 'function',
+    );
+    act(() => target.props.onPress());
+    expect(mockPush).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps Follow outside the profile navigation target, and names it by handle', () => {
     const onFollowChange = jest.fn();
     act(() => {
