@@ -225,20 +225,34 @@ export async function repairInstagramReelPosters(options: {
   return result;
 }
 
+/** The exit code of a run that finished with work left over (re-run later) — not a failure. */
+export const EXIT_INCOMPLETE = 75;
+
+/**
+ * 0 when the run reached everything it set out to check; {@link EXIT_INCOMPLETE}
+ * when an actor's walk stopped at a Graph refusal (budget, rate limit) or a
+ * video could not be stored yet — the one-shot workflow reports that as
+ * "re-run", not as a failure.
+ */
+export function reelPosterRepairExitCode(result: Pick<ReelPosterRepairResult, 'stopped' | 'waiting'>): number {
+  return result.stopped > 0 || result.waiting > 0 ? EXIT_INCOMPLETE : 0;
+}
+
 async function main(): Promise<void> {
   const dryRun = (process.env.DRY_RUN ?? 'true') !== 'false';
   const depth = Number(process.env.REPAIR_DEPTH ?? DEFAULT_DEPTH);
   assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun });
   await connectPostgres();
   logger.info(`[${SCRIPT_NAME}] starting`, { dryRun, depth });
-  await repairInstagramReelPosters({ dryRun, depth: Number.isFinite(depth) && depth > 0 ? depth : DEFAULT_DEPTH });
+  const result = await repairInstagramReelPosters({ dryRun, depth: Number.isFinite(depth) && depth > 0 ? depth : DEFAULT_DEPTH });
+  process.exitCode = reelPosterRepairExitCode(result);
 }
 
 if (require.main === module) {
   main()
     .then(async () => {
       await closeAdminScriptResources();
-      process.exit(0);
+      process.exit(process.exitCode ?? 0);
     })
     .catch(async (error) => {
       logger.error(`[${SCRIPT_NAME}] failed`, { reason: error instanceof Error ? error.message : 'unknown' });
