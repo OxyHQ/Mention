@@ -17,8 +17,7 @@ import { useTrendItemMenu } from '@/hooks/useTrendItemMenu';
 import { useTrendNavigation } from '@/hooks/useTrendNavigation';
 import { TrendItemRow } from '@/components/trending/TrendItemRow';
 import { reportTrendEvent } from '@/utils/feedTelemetry';
-import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
-import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';
+import { InterstitialShell } from './InterstitialShell';
 import {
   INTERSTITIAL_CARD_WIDTH,
   resolveInterstitialLimits,
@@ -60,7 +59,6 @@ export function TrendingTopicsInterstitial({
   feedDescriptor,
 }: InterstitialCardProps) {
   const { t } = useTranslation();
-  const isDesktop = useIsScreenNotMobile();
   const { navigateToTrend } = useTrendNavigation();
   const handleMenuPress = useTrendItemMenu();
 
@@ -77,7 +75,7 @@ export function TrendingTopicsInterstitial({
   }, [startPolling, stopPolling]);
 
   const report = useInterstitialReporter({ feedDescriptor, slotKey, kind: 'trendingTopics' });
-  const limits = resolveInterstitialLimits('trendingTopics', isDesktop);
+  const limits = resolveInterstitialLimits('trendingTopics');
 
   // Trends the reader hid are fed to the window as "dismissed", so the band
   // backfills from deeper in the pool instead of shrinking — the same treatment
@@ -122,7 +120,7 @@ export function TrendingTopicsInterstitial({
   );
 
   const renderItem = useCallback(
-    (trend: Trend, { position }: InterstitialItemContext) => (
+    (trend: Trend, position: number) => (
       <View className="bg-card border-border flex-1 justify-center overflow-hidden rounded-xl border">
         <TrendItemRow
           trend={trend}
@@ -165,7 +163,6 @@ export function TrendingTopicsInterstitial({
       keyExtractor={trendKey}
       cardWidth={INTERSTITIAL_CARD_WIDTH.trend}
       renderItem={renderItem}
-      limits={limits}
       isLoading={isLoading}
       renderSkeleton={renderSkeleton}
       report={reportCardEvent}

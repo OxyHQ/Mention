@@ -24,44 +24,35 @@ function pool(count: number): Suggestion[] {
 }
 
 describe('shouldRenderInterstitial', () => {
-  const desktop = resolveInterstitialLimits('suggestedUsers', true);
-  const mobile = resolveInterstitialLimits('suggestedUsers', false);
+  const limits = resolveInterstitialLimits('suggestedUsers');
 
   it('renders nothing when the suggestions come back empty', () => {
-    expect(shouldRenderInterstitial(0, false, desktop)).toBe(false);
-    expect(shouldRenderInterstitial(0, false, mobile)).toBe(false);
+    expect(shouldRenderInterstitial(0, false, limits)).toBe(false);
   });
 
-  it('renders nothing below the minimum of 4 — the same on every screen, since both are a carousel', () => {
-    expect(desktop.minItems).toBe(4);
-    expect(mobile.minItems).toBe(4);
-
-    for (const limits of [desktop, mobile]) {
-      expect(shouldRenderInterstitial(3, false, limits)).toBe(false);
-      expect(shouldRenderInterstitial(4, false, limits)).toBe(true);
-    }
+  it('renders nothing below the minimum of 4 — the same on every screen, since every band is a carousel', () => {
+    expect(limits.minItems).toBe(4);
+    expect(shouldRenderInterstitial(3, false, limits)).toBe(false);
+    expect(shouldRenderInterstitial(4, false, limits)).toBe(true);
   });
 
-  it('only the placeholder count depends on the screen — a wide column shows more of the row', () => {
-    expect(desktop.maxItems).toBe(mobile.maxItems);
-    expect(desktop.skeletonItems).toBe(4);
-    expect(mobile.skeletonItems).toBe(2);
+  it('hands every caller the same limits object, so a memo over it holds', () => {
+    expect(resolveInterstitialLimits('suggestedUsers')).toBe(limits);
   });
 
   it('holds the band open on placeholders while the suggestions load', () => {
-    expect(shouldRenderInterstitial(0, true, desktop)).toBe(true);
+    expect(shouldRenderInterstitial(0, true, limits)).toBe(true);
   });
 
   it('applies the same gate to every kind', () => {
     for (const kind of ['suggestedUsers', 'suggestedFeeds', 'suggestedStarterPacks'] as const) {
-      expect(shouldRenderInterstitial(0, false, resolveInterstitialLimits(kind, true))).toBe(false);
-      expect(shouldRenderInterstitial(0, false, resolveInterstitialLimits(kind, false))).toBe(false);
+      expect(shouldRenderInterstitial(0, false, resolveInterstitialLimits(kind))).toBe(false);
     }
   });
 });
 
 describe('selectInterstitialWindow', () => {
-  const limits = resolveInterstitialLimits('suggestedUsers', true); // max 8, min 4
+  const limits = resolveInterstitialLimits('suggestedUsers'); // max 8, min 4
 
   it('returns an empty window for an empty pool', () => {
     expect(selectInterstitialWindow<Suggestion>([], 0, limits, idOf, none)).toEqual([]);

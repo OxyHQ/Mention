@@ -1,6 +1,5 @@
 import React, { type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import { FollowButton } from '@oxy.so/services/ui/client';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
@@ -20,17 +19,11 @@ const AVATAR_SIZE = 64;
 const BIO_LINES = 2;
 const BIO_LINE_HEIGHT = 18;
 
-const IDENTITY_TEXT_STYLES = StyleSheet.create({
+const IDENTITY_STYLE = StyleSheet.create({
   name: { fontSize: 15, fontWeight: '700', lineHeight: 20 },
   handle: { fontSize: 13, lineHeight: 18 },
-  column: { gap: 0, alignSelf: 'stretch' },
+  container: { gap: 0, alignSelf: 'stretch' },
 });
-
-const IDENTITY_STYLE = {
-  name: IDENTITY_TEXT_STYLES.name,
-  handle: IDENTITY_TEXT_STYLES.handle,
-  container: IDENTITY_TEXT_STYLES.column,
-};
 
 const styles = StyleSheet.create({
   bio: { minHeight: BIO_LINES * BIO_LINE_HEIGHT, lineHeight: BIO_LINE_HEIGHT },
@@ -67,25 +60,15 @@ export function SuggestedProfileCard({
   onFollowChange,
   accessory,
 }: SuggestedProfileCardProps) {
-  const router = useRouter();
-  const { resolved, handle, nameLabel, hasHandle, href } = useResolvedProfileIdentity(profile);
-  const canPress = Boolean(onPress) || hasHandle;
+  const { resolved, handle, nameLabel, press } = useResolvedProfileIdentity(profile, onPress);
   const bio = resolved.description?.trim();
-
-  const handlePress = () => {
-    if (onPress) {
-      onPress();
-    } else if (href) {
-      router.push(href);
-    }
-  };
 
   return (
     <View className="bg-card border-border flex-1 gap-3 rounded-xl border p-3">
       <PressableScale
-        onPress={canPress ? handlePress : undefined}
-        disabled={!canPress}
-        accessibilityRole={canPress ? 'link' : undefined}
+        onPress={press}
+        disabled={!press}
+        accessibilityRole={press ? 'link' : undefined}
         className="flex-1 items-center gap-2">
         <Avatar
           source={resolved.avatar || undefined}
@@ -133,8 +116,8 @@ export function SuggestedProfileCardSkeleton() {
     <View className="bg-card border-border gap-3 rounded-xl border p-3">
       <View className="items-center gap-2">
         <Skeleton.Circle size={AVATAR_SIZE} />
-        <Skeleton.Text style={{ width: 110, fontSize: 15, lineHeight: 20 }} />
-        <Skeleton.Text style={{ width: 80, fontSize: 13, lineHeight: 18 }} />
+        <Skeleton.Text style={[IDENTITY_STYLE.name, { width: 110 }]} />
+        <Skeleton.Text style={[IDENTITY_STYLE.handle, { width: 80 }]} />
         <Skeleton.Col style={{ gap: 0, alignItems: 'center', minHeight: BIO_LINES * BIO_LINE_HEIGHT }}>
           <Skeleton.Text style={{ width: 130, fontSize: 13, lineHeight: BIO_LINE_HEIGHT }} />
           <Skeleton.Text style={{ width: 90, fontSize: 13, lineHeight: BIO_LINE_HEIGHT }} />

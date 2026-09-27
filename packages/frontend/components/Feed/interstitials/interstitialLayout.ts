@@ -49,8 +49,6 @@ export const INTERSTITIAL_EDGE_PADDING = 12;
 /** The trailing "See more" card is narrower than a content card. */
 export const INTERSTITIAL_SEE_MORE_CARD_WIDTH = 148;
 
-export type InterstitialBreakpoint = 'desktop' | 'mobile';
-
 /**
  * Fewer suggestions than this and the band costs more (a header, a border, a
  * scroll interruption) than it gives back — the interstitial renders nothing.
@@ -80,30 +78,26 @@ const MAX_ITEMS: Record<FeedInterstitialKind, number> = {
  * Placeholders shown while the suggestions load — as many as will be seen. A
  * wide feed column shows more of the row than a phone does.
  */
-const SKELETON_ITEMS: Record<InterstitialBreakpoint, number> = {
+export const INTERSTITIAL_SKELETON_ITEMS = {
   desktop: 4,
   mobile: 2,
-};
+} as const;
 
 export interface InterstitialLimits {
   /** Below this many available items, the band does not render. */
   minItems: number;
   /** At most this many items are shown at once. */
   maxItems: number;
-  /** Placeholder count for the loading state. */
-  skeletonItems: number;
 }
 
-/** Resolve a kind's item limits for the current breakpoint. */
-export function resolveInterstitialLimits(
-  kind: FeedInterstitialKind,
-  isDesktop: boolean,
-): InterstitialLimits {
-  return {
-    minItems: MIN_ITEMS,
-    maxItems: MAX_ITEMS[kind],
-    skeletonItems: SKELETON_ITEMS[isDesktop ? 'desktop' : 'mobile'],
-  };
+/** One frozen limits object per kind, so a band's memo over `limits` holds. */
+const LIMITS = Object.fromEntries(
+  Object.entries(MAX_ITEMS).map(([kind, maxItems]) => [kind, { minItems: MIN_ITEMS, maxItems }]),
+) as Record<FeedInterstitialKind, InterstitialLimits>;
+
+/** Resolve a kind's item limits — the same on every screen, since every band is a carousel. */
+export function resolveInterstitialLimits(kind: FeedInterstitialKind): InterstitialLimits {
+  return LIMITS[kind];
 }
 
 /**

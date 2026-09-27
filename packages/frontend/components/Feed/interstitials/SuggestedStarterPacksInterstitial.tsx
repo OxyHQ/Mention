@@ -15,7 +15,7 @@ import {
 } from '@/services/starterPacksService';
 import { logger } from '@oxy.so/core/logger';
 import { DismissButton } from './DismissButton';
-import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';
+import { InterstitialShell } from './InterstitialShell';
 import {
   INTERSTITIAL_CARD_WIDTH,
   INTERSTITIAL_STALE_TIME_MS,
@@ -28,7 +28,6 @@ import {
   type InterstitialCardProps,
   type ReportInterstitialEvent,
 } from './interstitialTelemetry';
-import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
@@ -47,7 +46,6 @@ export function SuggestedStarterPacksInterstitial({
   feedDescriptor,
 }: InterstitialCardProps) {
   const { t } = useTranslation();
-  const isDesktop = useIsScreenNotMobile();
   const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
   const report = useInterstitialReporter({
@@ -56,7 +54,7 @@ export function SuggestedStarterPacksInterstitial({
     kind: 'suggestedStarterPacks',
   });
 
-  const limits = resolveInterstitialLimits('suggestedStarterPacks', isDesktop);
+  const limits = resolveInterstitialLimits('suggestedStarterPacks');
 
   const query = useQuery({
     // `excludeUsed` makes the list viewer-specific — never share it across an
@@ -116,7 +114,7 @@ export function SuggestedStarterPacksInterstitial({
   );
 
   const renderItem = useCallback(
-    (pack: StarterPackSummary, { position }: InterstitialItemContext) => (
+    (pack: StarterPackSummary, position: number) => (
       <SuggestedStarterPackItem
         pack={pack}
         position={position}
@@ -143,7 +141,6 @@ export function SuggestedStarterPacksInterstitial({
       keyExtractor={starterPackId}
       cardWidth={INTERSTITIAL_CARD_WIDTH.wide}
       renderItem={renderItem}
-      limits={limits}
       isLoading={isLoading}
       renderSkeleton={renderSkeleton}
       report={report}
