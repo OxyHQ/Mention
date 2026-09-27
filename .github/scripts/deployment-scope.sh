@@ -46,6 +46,7 @@ for path in "${changed_paths[@]}"; do
     backend:.github/scripts/audit-runtime-image.sh | \
     backend:.github/scripts/require-current-main.sh | \
     backend:.github/scripts/smoke-mention.sh | \
+    backend:.github/scripts/optional-task-bindings.sh | \
     mcp:packages/mcp/* | \
     mcp:packages/shared-types/* | \
     mcp:.github/scripts/deploy-ecs-image.sh | \

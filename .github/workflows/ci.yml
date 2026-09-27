@@ -85,6 +85,7 @@ jobs:
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-ci-scope.sh
           bash .github/scripts/test-deploy-ecs-image.sh
+          bash .github/scripts/test-optional-task-bindings.sh
           bash .github/scripts/test-source-identity-reconciliation.sh
           bash .github/scripts/test-source-identity-recovery.sh
           bash .github/scripts/test-source-identity-stop.sh
