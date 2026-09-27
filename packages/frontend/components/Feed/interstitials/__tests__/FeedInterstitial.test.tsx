@@ -39,8 +39,8 @@ import { TrendingTopicsInterstitial } from '../TrendingTopicsInterstitial';
  * Mocks stop at the module boundary the band talks to: the data hooks/services
  * that fetch suggestions, the responsive hook that decides the layout, and the
  * SDK packages (`@oxy.so/services`, `@oxy.so/bloom`) that ship untranspiled TS
- * source. Everything from the interstitial down to the `ProfileCard` /
- * `FeedCard` / `StarterPackCard` rows — including the real telemetry module,
+ * source. Everything from the interstitial down to the `SuggestedProfileCard` /
+ * `FeedCard` / `StarterPackCard` cards — including the real telemetry module,
  * the dismiss buttons and the carousel — is the component under test.
  */
 
@@ -268,6 +268,46 @@ jest.mock('@oxy.so/bloom/skeleton', () => {
     <View testID="skeleton">{children}</View>
   );
   return { Row: Box, Col: Box, Text: Box, Circle: Box, Pill: Box, Box };
+});
+
+// Bloom's carousel, reduced to what the band hands it: the header row (title,
+// link, arrows when asked for) over ONE horizontal scroller of slides.
+jest.mock('@oxy.so/bloom/carousel', () => {
+  const { ScrollView, TouchableOpacity, View } =
+    jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    Carousel: ({
+      children,
+      header,
+      showArrows = true,
+      previousLabel,
+      nextLabel,
+    }: {
+      children?: React.ReactNode;
+      header?: React.ReactNode;
+      showArrows?: boolean;
+      previousLabel?: string;
+      nextLabel?: string;
+    }) => (
+      <View>
+        <View>
+          {header}
+          {showArrows ? (
+            <>
+              <TouchableOpacity accessibilityLabel={previousLabel} />
+              <TouchableOpacity accessibilityLabel={nextLabel} />
+            </>
+          ) : null}
+        </View>
+        <ScrollView horizontal>{children}</ScrollView>
+      </View>
+    ),
+    CarouselItem: ({ children, width }: { children?: React.ReactNode; width?: number }) => (
+      <View testID="carousel-item" style={{ width }}>
+        {children}
+      </View>
+    ),
+  };
 });
 
 jest.mock('@oxy.so/bloom/pressable-scale', () => {
@@ -592,22 +632,63 @@ function dismissButtonCount(renderer: TestRenderer.ReactTestRenderer): number {
   ).length;
 }
 
-/** The mobile carousel is the ONLY horizontal scroller a band renders. */
+/** The carousel's scroller is the ONLY horizontal scroller a band renders. */
 function horizontalScrollers(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
   return renderer.root.findAllByType(ScrollView).filter((node) => node.props.horizontal === true);
 }
 
-/** The desktop header's "See more" link (the carousel uses a card instead). */
-function seeMoreLinks(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
+/** The carousel's slides, in render order — the suggestions, then the "See more" card. */
+function carouselItems(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
   return renderer.root.findAll(
-    (node) => typeof node.type === 'string' && node.props.accessibilityRole === 'link',
+    (node) => typeof node.type === 'string' && node.props.testID === 'carousel-item',
+  );
+}
+
+/** The width of every suggestion's slide (the trailing "See more" card excluded). */
+function suggestionSlideWidths(renderer: TestRenderer.ReactTestRenderer): number[] {
+  return carouselItems(renderer)
+    .slice(0, -1)
+    .map((node) => (node.props.style as { width: number }).width);
+}
+
+/** The carousel's previous/next arrows, which only a wide screen gets. */
+function carouselArrows(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
+  const labels = [
+    mockTranslate('feed.interstitial.previous'),
+    mockTranslate('feed.interstitial.next'),
+  ];
+  return pressables(renderer).filter((node) => labels.includes(node.props.accessibilityLabel));
+}
+
+/**
+ * The desktop header's "See more" link. Matched by name as well as role: a
+ * person tile is a `link` too (it opens the profile), and must not count.
+ */
+function seeMoreLinks(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
+  const label = mockTranslate('feed.interstitial.seeMore');
+  return renderer.root.findAll(
+    (node) =>
+      typeof node.type === 'string' &&
+      node.props.accessibilityRole === 'link' &&
+      node.props.accessibilityLabel === label,
   );
 }
 
 /**
- * The pressable "See more" control — the header link on desktop, the trailing
- * carousel card on mobile. (`seeMoreLinks` matches the rendered host node, which
- * carries the accessible role but not the press handler.)
+ * The trailing "See more" card — the last slide, on every screen size. A
+ * `button`, where the header link is a `link`.
+ */
+function seeMoreCards(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
+  const label = mockTranslate('feed.interstitial.seeMore');
+  return pressables(renderer).filter(
+    (node) => node.props.accessibilityRole === 'button' && node.props.accessibilityLabel === label,
+  );
+}
+
+/**
+ * Every pressable "See more" control — on desktop the header link AND the
+ * trailing card, on mobile the card alone. (`seeMoreLinks` matches the rendered
+ * host node, which carries the accessible role but not the press handler.)
  */
 function seeMoreButtons(renderer: TestRenderer.ReactTestRenderer): ReactTestInstance[] {
   const label = mockTranslate('feed.interstitial.seeMore');
@@ -643,16 +724,17 @@ function followButtons(renderer: TestRenderer.ReactTestRenderer): ReactTestInsta
 }
 
 /**
- * The pressable region of a profile row — the account itself, as opposed to the
+ * The pressable region of a person tile — the account itself, as opposed to the
  * follow/dismiss controls beside it. It is the only control in a band whose
- * accessible role is a button and which carries no accessible name of its own.
+ * accessible role is a link and which carries no accessible name of its own
+ * (the header "See more" link is named).
  */
 function profileRowPressables(
   renderer: TestRenderer.ReactTestRenderer,
 ): ReactTestInstance[] {
   return pressables(renderer).filter(
     (node) =>
-      node.props.accessibilityRole === 'button' &&
+      node.props.accessibilityRole === 'link' &&
       node.props.accessibilityLabel === undefined,
   );
 }
@@ -723,21 +805,27 @@ describe('SuggestedUsersInterstitial', () => {
     expect(renderer.toJSON()).toBeNull();
   });
 
-  it('renders nothing below the desktop minimum of 3', async () => {
-    mockRecommendations = users(2);
+  it('renders nothing below the minimum of 4', async () => {
+    mockRecommendations = users(3);
 
     const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
 
     expect(renderer.toJSON()).toBeNull();
   });
 
-  it('renders nothing below the mobile minimum of 4 — the same 3 that suffice on desktop', async () => {
-    mockIsDesktop = false;
+  it('holds the same minimum of 4 on every screen size', async () => {
+    // One carousel everywhere, so one floor: 3 are too few on desktop as well as
+    // on a phone, and 4 suffice on both.
     mockRecommendations = users(3);
+    mockIsDesktop = false;
+    expect((await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />)).toJSON()).toBeNull();
+    mockIsDesktop = true;
+    expect((await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />)).toJSON()).toBeNull();
 
+    mockRecommendations = users(4);
+    mockIsDesktop = false;
     const mobile = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
-    expect(mobile.toJSON()).toBeNull();
-
+    expect(renderedText(mobile)).toContain(TITLES.suggestedUsers);
     mockIsDesktop = true;
     const desktop = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
     expect(renderedText(desktop)).toContain(TITLES.suggestedUsers);
@@ -759,7 +847,7 @@ describe('SuggestedUsersInterstitial', () => {
   });
 
   it('renders the header and every suggested account once it has enough', async () => {
-    mockRecommendations = users(3);
+    mockRecommendations = users(4);
 
     const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
     const text = renderedText(renderer);
@@ -768,51 +856,57 @@ describe('SuggestedUsersInterstitial', () => {
     expect(text).toContain('Person 1');
     expect(text).toContain('Person 2');
     expect(text).toContain('Person 3');
-    expect(dismissButtonCount(renderer)).toBe(3);
+    expect(text).toContain('Person 4');
+    expect(dismissButtonCount(renderer)).toBe(4);
   });
 
   it('caps the band at maxItems and offsets the next band past them', async () => {
-    mockRecommendations = users(12);
+    mockRecommendations = users(20);
 
     const first = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
-    // Desktop shows 5; the 6th account belongs to the next band.
-    expect(dismissButtonCount(first)).toBe(5);
-    expect(renderedText(first)).toContain('Person 5');
-    expect(renderedText(first)).not.toContain('Person 6');
+    // A band shows 8; the 9th account belongs to the next band.
+    expect(dismissButtonCount(first)).toBe(8);
+    expect(renderedText(first)).toContain('Person 8');
+    expect(renderedText(first)).not.toContain('Person 9');
 
     const second = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={1} />);
-    expect(renderedText(second)).toContain('Person 6');
-    expect(renderedText(second)).not.toContain('Person 5');
+    expect(renderedText(second)).toContain('Person 9');
+    expect(renderedText(second)).not.toContain('Person 8');
   });
 
-  it('renders a vertical list on desktop — no carousel, a "See more" link in the header', async () => {
+  it('renders a carousel on desktop — arrows, a header "See more" link and a trailing card', async () => {
     mockIsDesktop = true;
     mockRecommendations = users(5);
 
     const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
 
-    expect(horizontalScrollers(renderer)).toHaveLength(0);
+    expect(horizontalScrollers(renderer)).toHaveLength(1);
+    // A mouse cannot swipe, so a wide screen gets the arrows.
+    expect(carouselArrows(renderer).map((node) => node.props.accessibilityLabel)).toEqual([
+      mockTranslate('feed.interstitial.previous'),
+      mockTranslate('feed.interstitial.next'),
+    ]);
     expect(seeMoreLinks(renderer)).toHaveLength(1);
-    expect(renderedText(renderer)).toContain('See more');
+    expect(seeMoreCards(renderer)).toHaveLength(1);
+    // Every suggestion is a fixed-width person tile.
+    expect(suggestionSlideWidths(renderer)).toEqual(Array(5).fill(172));
   });
 
-  it('renders a horizontal carousel on mobile — no header link, a trailing "See more" card', async () => {
+  it('renders a carousel on mobile — no arrows, no header link, a trailing "See more" card', async () => {
     mockIsDesktop = false;
     mockRecommendations = users(5);
 
     const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
 
-    const carousels = horizontalScrollers(renderer);
-    expect(carousels).toHaveLength(1);
-    // The carousel snaps by a whole card and every suggestion is a fixed-width
-    // card inside it — the vertical list has neither.
-    expect(carousels[0].props.snapToInterval).toBe(296 + 12);
+    expect(horizontalScrollers(renderer)).toHaveLength(1);
+    expect(carouselArrows(renderer)).toHaveLength(0);
     expect(seeMoreLinks(renderer)).toHaveLength(0);
-    expect(renderedText(renderer)).toContain('See more');
+    expect(seeMoreCards(renderer)).toHaveLength(1);
+    expect(suggestionSlideWidths(renderer)).toEqual(Array(5).fill(172));
   });
 
   it('removes a dismissed account from the band', async () => {
-    mockRecommendations = users(4);
+    mockRecommendations = users(5);
 
     const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
     expect(renderedText(renderer)).toContain('Person 2');
@@ -823,42 +917,42 @@ describe('SuggestedUsersInterstitial', () => {
     expect(text).not.toContain('Person 2');
     expect(text).toContain('Person 1');
     expect(text).toContain('Person 3');
-    expect(text).toContain('Person 4');
-    expect(dismissButtonCount(renderer)).toBe(3);
+    expect(text).toContain('Person 5');
+    expect(dismissButtonCount(renderer)).toBe(4);
   });
 
   it('backfills a dismissal from further down the pool instead of shrinking the band', async () => {
     mockRecommendations = users(12);
 
     const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
-    expect(renderedText(renderer)).not.toContain('Person 6');
+    expect(renderedText(renderer)).not.toContain('Person 9');
 
     press(dismissButton(renderer, 'Person 2'));
 
     const text = renderedText(renderer);
     expect(text).not.toContain('Person 2');
-    // The band stays full: the 6th account slides up into the freed slot.
-    expect(text).toContain('Person 6');
-    expect(dismissButtonCount(renderer)).toBe(5);
+    // The band stays full: the 9th account slides up into the freed slot.
+    expect(text).toContain('Person 9');
+    expect(dismissButtonCount(renderer)).toBe(8);
   });
 
   it('disappears entirely once dismissals drain it below the minimum', async () => {
-    mockRecommendations = users(4);
+    mockRecommendations = users(5);
 
     const renderer = await renderBand(<SuggestedUsersInterstitial {...inFeed} ordinal={0} />);
 
     press(dismissButton(renderer, 'Person 1'));
-    // 3 left — still at the desktop minimum, so the band stands.
-    expect(dismissButtonCount(renderer)).toBe(3);
+    // 4 left — still at the minimum, so the band stands.
+    expect(dismissButtonCount(renderer)).toBe(4);
     expect(renderedText(renderer)).toContain(TITLES.suggestedUsers);
 
     press(dismissButton(renderer, 'Person 2'));
 
-    // 2 left: below the minimum. Not an empty band, not a lone header — nothing.
+    // 3 left: below the minimum. Not an empty band, not a lone header — nothing.
     expect(renderer.toJSON()).toBeNull();
   });
 
-  it('dismisses from the mobile carousel too, and closes the band below the mobile minimum', async () => {
+  it('dismisses from the mobile carousel too, and closes the band below the minimum', async () => {
     mockIsDesktop = false;
     mockRecommendations = users(4);
 
@@ -868,7 +962,7 @@ describe('SuggestedUsersInterstitial', () => {
 
     press(dismissButton(renderer, 'Person 3'));
 
-    // 3 left — enough for desktop, but the mobile carousel needs 4.
+    // 3 left — below the minimum of 4 the carousel needs to be worth a swipe.
     expect(renderer.toJSON()).toBeNull();
   });
 });
@@ -893,7 +987,7 @@ describe('SuggestedFeedsInterstitial', () => {
   });
 
   it('renders the header and every suggested feed once it has enough', async () => {
-    mockGetMarketplace.mockResolvedValue({ items: feeds(3), total: 3 });
+    mockGetMarketplace.mockResolvedValue({ items: feeds(4), total: 4 });
 
     const renderer = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
     const text = renderedText(renderer);
@@ -902,11 +996,12 @@ describe('SuggestedFeedsInterstitial', () => {
     expect(text).toContain('Feed 1');
     expect(text).toContain('Feed 2');
     expect(text).toContain('Feed 3');
-    expect(dismissButtonCount(renderer)).toBe(3);
+    expect(text).toContain('Feed 4');
+    expect(dismissButtonCount(renderer)).toBe(4);
   });
 
   it('asks the marketplace to exclude what the viewer already subscribes to', async () => {
-    mockGetMarketplace.mockResolvedValue({ items: feeds(3), total: 3 });
+    mockGetMarketplace.mockResolvedValue({ items: feeds(4), total: 4 });
 
     await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
 
@@ -915,50 +1010,61 @@ describe('SuggestedFeedsInterstitial', () => {
     );
   });
 
-  it('renders a vertical list on desktop and a horizontal carousel on mobile', async () => {
+  it('renders a carousel on every screen size — arrows and a header link only on desktop', async () => {
     mockGetMarketplace.mockResolvedValue({ items: feeds(6), total: 6 });
 
     mockIsDesktop = true;
     const desktop = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
-    expect(horizontalScrollers(desktop)).toHaveLength(0);
+    expect(horizontalScrollers(desktop)).toHaveLength(1);
+    expect(carouselArrows(desktop)).toHaveLength(2);
     expect(seeMoreLinks(desktop)).toHaveLength(1);
+    expect(seeMoreCards(desktop)).toHaveLength(1);
+    expect(suggestionSlideWidths(desktop)).toEqual(Array(6).fill(280));
 
     mockIsDesktop = false;
     const mobile = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
     expect(horizontalScrollers(mobile)).toHaveLength(1);
+    expect(carouselArrows(mobile)).toHaveLength(0);
     expect(seeMoreLinks(mobile)).toHaveLength(0);
+    expect(seeMoreCards(mobile)).toHaveLength(1);
+    expect(suggestionSlideWidths(mobile)).toEqual(Array(6).fill(280));
   });
 
   it('removes a dismissed feed, and closes the band once too few are left', async () => {
-    mockGetMarketplace.mockResolvedValue({ items: feeds(4), total: 4 });
+    mockGetMarketplace.mockResolvedValue({ items: feeds(7), total: 7 });
 
     const renderer = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
-    // Desktop shows 3 of the 4 available feeds.
-    expect(dismissButtonCount(renderer)).toBe(3);
-    expect(renderedText(renderer)).not.toContain('Feed 4');
+    // The band shows 6 of the 7 available feeds.
+    expect(dismissButtonCount(renderer)).toBe(6);
+    expect(renderedText(renderer)).not.toContain('Feed 7');
 
     press(dismissButton(renderer, 'Feed 1'));
 
-    // The 4th feed backfills the dismissed one — the band is still full.
+    // The 7th feed backfills the dismissed one — the band is still full.
     const text = renderedText(renderer);
     expect(text).not.toContain('Feed 1');
-    expect(text).toContain('Feed 4');
-    expect(dismissButtonCount(renderer)).toBe(3);
+    expect(text).toContain('Feed 7');
+    expect(dismissButtonCount(renderer)).toBe(6);
 
     press(dismissButton(renderer, 'Feed 2'));
+    press(dismissButton(renderer, 'Feed 3'));
+    // Nothing left to backfill with, but 4 feeds is still the minimum.
+    expect(dismissButtonCount(renderer)).toBe(4);
 
-    // Nothing left to backfill with: 2 feeds, below the minimum of 3. The band
-    // disappears rather than shrink to a stub.
+    press(dismissButton(renderer, 'Feed 4'));
+
+    // 3 feeds, below the minimum of 4. The band disappears rather than shrink to
+    // a stub.
     expect(renderer.toJSON()).toBeNull();
   });
 
   it('subscribes to the feed the viewer pressed — and only that one', async () => {
-    mockGetMarketplace.mockResolvedValue({ items: feeds(3), total: 3 });
+    mockGetMarketplace.mockResolvedValue({ items: feeds(4), total: 4 });
 
     const renderer = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
     const buttons = subscribeButtons(renderer);
-    expect(buttons).toHaveLength(3);
-    expect(renderedText(renderer).filter((text) => text === 'Subscribe')).toHaveLength(3);
+    expect(buttons).toHaveLength(4);
+    expect(renderedText(renderer).filter((text) => text === 'Subscribe')).toHaveLength(4);
 
     // The SECOND card: a per-item callback that captured the wrong id would
     // subscribe to Feed 1 or Feed 3 here.
@@ -970,7 +1076,7 @@ describe('SuggestedFeedsInterstitial', () => {
 
     const text = renderedText(renderer);
     expect(text.filter((entry) => entry === 'Subscribed')).toHaveLength(1);
-    expect(text.filter((entry) => entry === 'Subscribe')).toHaveLength(2);
+    expect(text.filter((entry) => entry === 'Subscribe')).toHaveLength(3);
     // Subscribing is not dismissing: the feed stays in the band.
     expect(text).toContain('Feed 2');
   });
@@ -1013,7 +1119,7 @@ describe('SuggestedStarterPacksInterstitial', () => {
   });
 
   it('renders the header and every suggested pack once it has enough', async () => {
-    mockListStarterPacks.mockResolvedValue({ items: packs(3), total: 3 });
+    mockListStarterPacks.mockResolvedValue({ items: packs(4), total: 4 });
 
     const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
     const text = renderedText(renderer);
@@ -1022,11 +1128,12 @@ describe('SuggestedStarterPacksInterstitial', () => {
     expect(text).toContain('Pack 1');
     expect(text).toContain('Pack 2');
     expect(text).toContain('Pack 3');
-    expect(dismissButtonCount(renderer)).toBe(3);
+    expect(text).toContain('Pack 4');
+    expect(dismissButtonCount(renderer)).toBe(4);
   });
 
   it('asks the API to exclude packs the viewer already used', async () => {
-    mockListStarterPacks.mockResolvedValue({ items: packs(3), total: 3 });
+    mockListStarterPacks.mockResolvedValue({ items: packs(4), total: 4 });
 
     await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
 
@@ -1036,11 +1143,11 @@ describe('SuggestedStarterPacksInterstitial', () => {
   });
 
   it('records the pack as used when the viewer follows all of its members', async () => {
-    mockListStarterPacks.mockResolvedValue({ items: packs(3), total: 3 });
+    mockListStarterPacks.mockResolvedValue({ items: packs(4), total: 4 });
 
     const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
     const buttons = followAllButtons(renderer);
-    expect(buttons).toHaveLength(3);
+    expect(buttons).toHaveLength(4);
 
     // The SECOND pack — a callback closing over the wrong pack would record p1/p3.
     press(buttons[1]);
@@ -1052,8 +1159,8 @@ describe('SuggestedStarterPacksInterstitial', () => {
 
   it('offers no "Follow all" for a pack with no members to follow', async () => {
     mockListStarterPacks.mockResolvedValue({
-      items: packs(3).map((pack) => ({ ...pack, memberOxyUserIds: [], memberCount: 0 })),
-      total: 3,
+      items: packs(4).map((pack) => ({ ...pack, memberOxyUserIds: [], memberCount: 0 })),
+      total: 4,
     });
 
     const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
@@ -1063,39 +1170,50 @@ describe('SuggestedStarterPacksInterstitial', () => {
     expect(followAllButtons(renderer)).toHaveLength(0);
   });
 
-  it('renders a vertical list on desktop and a horizontal carousel on mobile', async () => {
+  it('renders a carousel on every screen size — arrows and a header link only on desktop', async () => {
     mockListStarterPacks.mockResolvedValue({ items: packs(6), total: 6 });
 
     mockIsDesktop = true;
     const desktop = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
-    expect(horizontalScrollers(desktop)).toHaveLength(0);
+    expect(horizontalScrollers(desktop)).toHaveLength(1);
+    expect(carouselArrows(desktop)).toHaveLength(2);
     expect(seeMoreLinks(desktop)).toHaveLength(1);
+    expect(seeMoreCards(desktop)).toHaveLength(1);
+    expect(suggestionSlideWidths(desktop)).toEqual(Array(6).fill(280));
 
     mockIsDesktop = false;
     const mobile = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
     expect(horizontalScrollers(mobile)).toHaveLength(1);
+    expect(carouselArrows(mobile)).toHaveLength(0);
     expect(seeMoreLinks(mobile)).toHaveLength(0);
+    expect(seeMoreCards(mobile)).toHaveLength(1);
+    expect(suggestionSlideWidths(mobile)).toEqual(Array(6).fill(280));
   });
 
   it('removes a dismissed pack, and closes the band once too few are left', async () => {
-    mockListStarterPacks.mockResolvedValue({ items: packs(4), total: 4 });
+    mockListStarterPacks.mockResolvedValue({ items: packs(7), total: 7 });
 
     const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
-    // Desktop shows 3 of the 4 available packs.
-    expect(dismissButtonCount(renderer)).toBe(3);
-    expect(renderedText(renderer)).not.toContain('Pack 4');
+    // The band shows 6 of the 7 available packs.
+    expect(dismissButtonCount(renderer)).toBe(6);
+    expect(renderedText(renderer)).not.toContain('Pack 7');
 
     press(dismissButton(renderer, 'Pack 1'));
 
-    // The 4th pack backfills the dismissed one — the band is still full.
+    // The 7th pack backfills the dismissed one — the band is still full.
     const text = renderedText(renderer);
     expect(text).not.toContain('Pack 1');
-    expect(text).toContain('Pack 4');
-    expect(dismissButtonCount(renderer)).toBe(3);
+    expect(text).toContain('Pack 7');
+    expect(dismissButtonCount(renderer)).toBe(6);
 
     press(dismissButton(renderer, 'Pack 2'));
+    press(dismissButton(renderer, 'Pack 3'));
+    // Nothing left to backfill with, but 4 packs is still the minimum.
+    expect(dismissButtonCount(renderer)).toBe(4);
 
-    // 2 packs left, below the minimum of 3: the band disappears entirely.
+    press(dismissButton(renderer, 'Pack 4'));
+
+    // 3 packs left, below the minimum of 4: the band disappears entirely.
     expect(renderer.toJSON()).toBeNull();
   });
 });
@@ -1114,7 +1232,7 @@ describe('SimilarAccountsInterstitial', () => {
   });
 
   it('renders nothing below the minimum', async () => {
-    mockGetSimilarProfiles.mockResolvedValue(similarAccounts(2));
+    mockGetSimilarProfiles.mockResolvedValue(similarAccounts(3));
 
     const renderer = await renderBand(
       <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
@@ -1137,7 +1255,7 @@ describe('SimilarAccountsInterstitial', () => {
   });
 
   it("renders the header and the SUBJECT's similar accounts", async () => {
-    mockGetSimilarProfiles.mockResolvedValue(similarAccounts(3));
+    mockGetSimilarProfiles.mockResolvedValue(similarAccounts(4));
 
     const renderer = await renderBand(
       <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
@@ -1149,12 +1267,13 @@ describe('SimilarAccountsInterstitial', () => {
     expect(text).toContain('Similar 1');
     expect(text).toContain('Similar 2');
     expect(text).toContain('Similar 3');
-    expect(dismissButtonCount(renderer)).toBe(3);
+    expect(text).toContain('Similar 4');
+    expect(dismissButtonCount(renderer)).toBe(4);
   });
 
   it('never suggests the subject as similar to itself', async () => {
     mockGetSimilarProfiles.mockResolvedValue([
-      ...similarAccounts(3),
+      ...similarAccounts(4),
       { id: SUBJECT_ID, publicKey: 'k', username: 'subject', name: { displayName: 'The Subject' } },
     ]);
 
@@ -1163,45 +1282,47 @@ describe('SimilarAccountsInterstitial', () => {
     );
 
     expect(renderedText(renderer)).not.toContain('The Subject');
-    expect(dismissButtonCount(renderer)).toBe(3);
+    expect(dismissButtonCount(renderer)).toBe(4);
   });
 
-  it('renders a vertical list on desktop and a horizontal carousel on mobile', async () => {
+  it('renders a carousel on every screen size — arrows and a header link only on desktop', async () => {
     mockGetSimilarProfiles.mockResolvedValue(similarAccounts(6));
 
     mockIsDesktop = true;
-    const desktop = await renderBand(
-      <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
-    );
-    expect(horizontalScrollers(desktop)).toHaveLength(0);
+    const desktop = await renderBand(<SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />);
+    expect(horizontalScrollers(desktop)).toHaveLength(1);
+    expect(carouselArrows(desktop)).toHaveLength(2);
     expect(seeMoreLinks(desktop)).toHaveLength(1);
+    expect(seeMoreCards(desktop)).toHaveLength(1);
+    expect(suggestionSlideWidths(desktop)).toEqual(Array(6).fill(172));
 
     mockIsDesktop = false;
-    const mobile = await renderBand(
-      <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
-    );
+    const mobile = await renderBand(<SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />);
     expect(horizontalScrollers(mobile)).toHaveLength(1);
+    expect(carouselArrows(mobile)).toHaveLength(0);
     expect(seeMoreLinks(mobile)).toHaveLength(0);
+    expect(seeMoreCards(mobile)).toHaveLength(1);
+    expect(suggestionSlideWidths(mobile)).toEqual(Array(6).fill(172));
   });
 
   it('removes a dismissed account, and closes the band once too few are left', async () => {
-    mockGetSimilarProfiles.mockResolvedValue(similarAccounts(4));
+    mockGetSimilarProfiles.mockResolvedValue(similarAccounts(5));
 
     const renderer = await renderBand(
       <SimilarAccountsInterstitial {...inFeed} ordinal={0} subjectId={SUBJECT_ID} />,
     );
-    expect(dismissButtonCount(renderer)).toBe(4);
+    expect(dismissButtonCount(renderer)).toBe(5);
 
     press(dismissButton(renderer, 'Similar 2'));
 
     const text = renderedText(renderer);
     expect(text).not.toContain('Similar 2');
     expect(text).toContain('Similar 1');
-    expect(dismissButtonCount(renderer)).toBe(3);
+    expect(dismissButtonCount(renderer)).toBe(4);
 
     press(dismissButton(renderer, 'Similar 1'));
 
-    // 2 left, below the desktop minimum of 3: the band disappears entirely.
+    // 3 left, below the minimum of 4: the band disappears entirely.
     expect(renderer.toJSON()).toBeNull();
   });
 });
@@ -1232,8 +1353,8 @@ describe('TrendingTopicsInterstitial', () => {
     expect(renderer.toJSON()).toBeNull();
   });
 
-  it('renders nothing below the desktop minimum of 3', async () => {
-    mockTrends = trendItems(2);
+  it('renders nothing below the minimum of 4', async () => {
+    mockTrends = trendItems(3);
 
     const renderer = await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
 
@@ -1244,7 +1365,7 @@ describe('TrendingTopicsInterstitial', () => {
     // The band never fetches: the store is its source. Without the lease, a
     // session that never opens a surface with the right rail would leave the
     // store empty and the card would silently never render.
-    mockTrends = trendItems(3);
+    mockTrends = trendItems(4);
     mockStartPolling.mockClear();
 
     await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
@@ -1253,7 +1374,7 @@ describe('TrendingTopicsInterstitial', () => {
   });
 
   it('paints the position in the RENDERED list, never the batch-wide rank', async () => {
-    mockTrends = trendItems(3);
+    mockTrends = trendItems(4);
 
     const renderer = await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
     const text = renderedText(renderer);
@@ -1262,30 +1383,41 @@ describe('TrendingTopicsInterstitial', () => {
     // The LABEL, not the term: a row must never paint a raw slug at a reader.
     expect(text).toContain('Topic 1');
     expect(text).not.toContain('#topic1');
-    expect(text).toEqual(expect.arrayContaining(['1', '2', '3']));
-    // The fixture's ranks are 11, 12, 13. A row painting `trend.rank` would put
-    // them on screen — which is the bug this replaces, since a hidden trend
-    // leaves visible gaps in a raw rank sequence.
+    expect(text).toEqual(expect.arrayContaining(['1', '2', '3', '4']));
+    // The fixture's ranks are 11–14. A row painting `trend.rank` would put them
+    // on screen — which is the bug this replaces, since a hidden trend leaves
+    // visible gaps in a raw rank sequence.
     expect(text).not.toContain('11');
     expect(text).not.toContain('12');
     expect(text).not.toContain('13');
+    expect(text).not.toContain('14');
+  });
+
+  it('lays the trends out as a carousel of trend-width cards', async () => {
+    mockTrends = trendItems(4);
+
+    const renderer = await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
+
+    expect(horizontalScrollers(renderer)).toHaveLength(1);
+    expect(suggestionSlideWidths(renderer)).toEqual(Array(4).fill(220));
+    expect(seeMoreCards(renderer)).toHaveLength(1);
   });
 
   it('skips the trends the reader hid, backfilling from deeper in the pool', async () => {
-    mockTrends = trendItems(4);
+    mockTrends = trendItems(6);
     mockHiddenTrendIds = ['t2'];
 
     const renderer = await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
     const text = renderedText(renderer);
 
     expect(text).not.toContain('Topic 2');
-    // Backfilled, not shrunk: the fourth trend takes the hidden one's place.
-    expect(text).toContain('Topic 4');
-    expect(trendRowPressables(renderer)).toHaveLength(3);
+    // Backfilled, not shrunk: the sixth trend takes the hidden one's place.
+    expect(text).toContain('Topic 6');
+    expect(trendRowPressables(renderer)).toHaveLength(5);
   });
 
   it('reports one `seen` per trend when the CARD is seen — not on mere mount', async () => {
-    mockTrends = trendItems(3);
+    mockTrends = trendItems(4);
 
     await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
 
@@ -1300,11 +1432,12 @@ describe('TrendingTopicsInterstitial', () => {
       { event: 'seen', type: 'hashtag', surface: 'interstitial', rank: 1, recId: TREND_REC_ID },
       { event: 'seen', type: 'hashtag', surface: 'interstitial', rank: 2, recId: TREND_REC_ID },
       { event: 'seen', type: 'hashtag', surface: 'interstitial', rank: 3, recId: TREND_REC_ID },
+      { event: 'seen', type: 'hashtag', surface: 'interstitial', rank: 4, recId: TREND_REC_ID },
     ]);
   });
 
   it('reports a press to BOTH endpoints, and never to the post-interaction one', async () => {
-    mockTrends = trendItems(3);
+    mockTrends = trendItems(4);
 
     const renderer = await renderBand(<TrendingTopicsInterstitial {...inFeed} ordinal={0} />);
     press(trendRowPressables(renderer)[1]);
@@ -1378,7 +1511,7 @@ describe('FeedInterstitial', () => {
   });
 
   it('dispatches trendingTopics to the trends band', async () => {
-    mockTrends = trendItems(3);
+    mockTrends = trendItems(4);
 
     const renderer = await renderBand(
       <FeedInterstitial slot={slot('trendingTopics')} ordinal={0} />,
@@ -1406,14 +1539,14 @@ describe('FeedInterstitial', () => {
   });
 
   it('passes the ordinal through, so a second band of the same kind shows different accounts', async () => {
-    mockRecommendations = users(12);
+    mockRecommendations = users(20);
 
     const first = await renderBand(<FeedInterstitial slot={slot('suggestedUsers')} ordinal={0} />);
     const second = await renderBand(<FeedInterstitial slot={slot('suggestedUsers')} ordinal={1} />);
 
     expect(renderedText(first)).toContain('Person 1');
     expect(renderedText(second)).not.toContain('Person 1');
-    expect(renderedText(second)).toContain('Person 6');
+    expect(renderedText(second)).toContain('Person 9');
   });
 
   it('threads the feed descriptor into the card, so its events name the feed it interrupted', async () => {
@@ -1575,7 +1708,7 @@ describe('interstitial telemetry', () => {
   });
 
   it('reports a feed subscription — once it actually succeeded — as the feeds card', async () => {
-    mockGetMarketplace.mockResolvedValue({ items: feeds(3), total: 3 });
+    mockGetMarketplace.mockResolvedValue({ items: feeds(4), total: 4 });
 
     const renderer = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
     press(subscribeButtons(renderer)[1]);
@@ -1587,7 +1720,7 @@ describe('interstitial telemetry', () => {
   });
 
   it('reports nothing when a subscription fails — a failed subscribe is not a subscribe', async () => {
-    mockGetMarketplace.mockResolvedValue({ items: feeds(3), total: 3 });
+    mockGetMarketplace.mockResolvedValue({ items: feeds(4), total: 4 });
     mockLikeFeed.mockRejectedValue(new Error('nope'));
 
     const renderer = await renderBand(<SuggestedFeedsInterstitial {...inFeed} ordinal={0} />);
@@ -1598,7 +1731,7 @@ describe('interstitial telemetry', () => {
   });
 
   it('reports a starter pack as USED when the reader follows all of its members', async () => {
-    mockListStarterPacks.mockResolvedValue({ items: packs(3), total: 3 });
+    mockListStarterPacks.mockResolvedValue({ items: packs(4), total: 4 });
 
     const renderer = await renderBand(<SuggestedStarterPacksInterstitial {...inFeed} ordinal={0} />);
     press(followAllButtons(renderer)[2]);

@@ -15,6 +15,7 @@ import { logger } from '@oxy.so/core/logger';
 import { DismissButton } from './DismissButton';
 import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';
 import {
+  INTERSTITIAL_CARD_WIDTH,
   INTERSTITIAL_STALE_TIME_MS,
   SUGGESTED_FEEDS_FETCH_LIMIT,
   resolveInterstitialLimits,
@@ -116,12 +117,11 @@ export function SuggestedFeedsInterstitial({
   );
 
   const renderItem = useCallback(
-    (feed: MarketplaceFeed, { isCarousel, position }: InterstitialItemContext) => {
+    (feed: MarketplaceFeed, { position }: InterstitialItemContext) => {
       const id = marketplaceFeedId(feed);
       return (
         <SuggestedFeedItem
           feed={feed}
-          isCarousel={isCarousel}
           position={position}
           isSubscribed={subscribed.has(id) || feed.isLiked === true}
           isSubscribing={subscribe.isPending && subscribe.variables?.feedId === id}
@@ -156,6 +156,7 @@ export function SuggestedFeedsInterstitial({
       seeMoreHref="/feeds/marketplace"
       items={feeds}
       keyExtractor={marketplaceFeedId}
+      cardWidth={INTERSTITIAL_CARD_WIDTH.wide}
       renderItem={renderItem}
       limits={limits}
       isLoading={isLoading}
@@ -178,7 +179,6 @@ interface SubscribeTarget {
 
 interface SuggestedFeedItemProps {
   feed: MarketplaceFeed;
-  isCarousel: boolean;
   /** 0-based index within the band — the `position` every item event carries. */
   position: number;
   isSubscribed: boolean;
@@ -189,13 +189,11 @@ interface SuggestedFeedItemProps {
 }
 
 /**
- * One suggested feed: the app-wide {@link FeedCard} with Subscribe and the X in
- * its `headerRight` slot. The carousel gets the rounded `card` surface, the
- * vertical list the flush `row` — the two variants the card already ships.
+ * One suggested feed: the app-wide {@link FeedCard}, as its rounded `card`
+ * variant, with Subscribe and the X in its `headerRight` slot.
  */
 function SuggestedFeedItem({
   feed,
-  isCarousel,
   position,
   isSubscribed,
   isSubscribing,
@@ -224,7 +222,7 @@ function SuggestedFeedItem({
   return (
     <FeedCard
       feed={cardData}
-      variant={isCarousel ? 'card' : 'row'}
+      variant="card"
       showDescription
       // Reports the tap, then opens the feed exactly as the card does by default.
       onPress={() => {

@@ -1,12 +1,11 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import type { ProfileCardData } from '@/components/ProfileCard';
 import {
-  ProfileCard,
-  ProfileCardSkeleton,
-  type ProfileCardData,
-} from '@/components/ProfileCard';
+  SuggestedProfileCard,
+  SuggestedProfileCardSkeleton,
+} from '@/components/SuggestedProfileCard';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import type { ProfileData } from '@/lib/recommendations';
 import { getNormalizedUserHandle } from '@oxy.so/core';
@@ -14,6 +13,7 @@ import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import { DismissButton } from './DismissButton';
 import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';
 import {
+  INTERSTITIAL_CARD_WIDTH,
   resolveInterstitialLimits,
   selectInterstitialWindow,
   shouldRenderInterstitial,
@@ -67,11 +67,9 @@ export function SuggestedUsersInterstitial({
   );
 
   const renderItem = useCallback(
-    (profile: ProfileData, { isCarousel, isLast, position }: InterstitialItemContext) => (
+    (profile: ProfileData, { position }: InterstitialItemContext) => (
       <SuggestedUserItem
         profile={profile}
-        isCarousel={isCarousel}
-        isLast={isLast}
         position={position}
         report={report}
         onDismiss={handleDismiss}
@@ -80,7 +78,7 @@ export function SuggestedUsersInterstitial({
     [report, handleDismiss],
   );
 
-  const renderSkeleton = useCallback(() => <ProfileCardSkeleton showFollowButton />, []);
+  const renderSkeleton = useCallback(() => <SuggestedProfileCardSkeleton />, []);
 
   if (!shouldRenderInterstitial(users.length, isLoading, limits)) return null;
 
@@ -90,6 +88,7 @@ export function SuggestedUsersInterstitial({
       seeMoreHref="/explore/who-to-follow"
       items={users}
       keyExtractor={profileId}
+      cardWidth={INTERSTITIAL_CARD_WIDTH.profile}
       renderItem={renderItem}
       limits={limits}
       isLoading={isLoading}
@@ -105,8 +104,6 @@ function profileId(profile: ProfileData): string {
 
 interface SuggestedUserItemProps {
   profile: ProfileData;
-  isCarousel: boolean;
-  isLast: boolean;
   /** 0-based index within the band — the `position` every item event carries. */
   position: number;
   report: ReportInterstitialEvent;
@@ -114,15 +111,11 @@ interface SuggestedUserItemProps {
 }
 
 /**
- * One suggested account: the app-wide {@link ProfileCard} row, with the X as its
- * trailing accessory. In the carousel the row loses its divider and sits on a
- * card surface; in the vertical list it stays the flush, feed-consistent row it
- * is everywhere else.
+ * One suggested account: the {@link SuggestedProfileCard} person tile, with the
+ * X in its corner.
  */
 function SuggestedUserItem({
   profile,
-  isCarousel,
-  isLast,
   position,
   report,
   onDismiss,
@@ -146,8 +139,7 @@ function SuggestedUserItem({
     name: profile.name,
     avatar: profile.avatar,
     verified: profile.verified,
-    // The carousel card has no room for a bio; the wide desktop row does.
-    description: isCarousel ? undefined : (profile.description ?? profile.bio),
+    description: profile.description ?? profile.bio,
     isFederated: profile.isFederated,
     isAgent: profile.isAgent,
     isAutomated: profile.isAutomated,
@@ -155,10 +147,10 @@ function SuggestedUserItem({
     federation: profile.federation,
   };
 
-  const row = (
-    <ProfileCard
+  return (
+    <SuggestedProfileCard
       profile={cardData}
-      // Reports the tap, then does exactly what the row does by default. Only
+      // Reports the tap, then does exactly what the tile does by default. Only
       // wired when there IS somewhere to go: a handle-less (degraded) profile is
       // not pressable, and must not become so just because we want the signal.
       onPress={
@@ -169,22 +161,17 @@ function SuggestedUserItem({
             }
           : undefined
       }
-      showFollowButton
       onFollowChange={(isFollowing) => {
         // An unfollow is not a follow — the band measures accounts GAINED.
         if (isFollowing) report('follow', position);
       }}
-      showDivider={!isCarousel && !isLast}
       accessory={
         <DismissButton
+          overlay
           onPress={() => onDismiss(profile.id, position)}
           accessibilityLabel={dismissLabel}
         />
       }
     />
   );
-
-  if (!isCarousel) return row;
-
-  return <View className="bg-card flex-1 justify-center overflow-hidden rounded-xl">{row}</View>;
 }

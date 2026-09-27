@@ -32,15 +32,20 @@ describe('shouldRenderInterstitial', () => {
     expect(shouldRenderInterstitial(0, false, mobile)).toBe(false);
   });
 
-  it('renders nothing below the minimum — 3 on desktop, 4 on mobile', () => {
-    expect(desktop.minItems).toBe(3);
+  it('renders nothing below the minimum of 4 — the same on every screen, since both are a carousel', () => {
+    expect(desktop.minItems).toBe(4);
     expect(mobile.minItems).toBe(4);
 
-    expect(shouldRenderInterstitial(2, false, desktop)).toBe(false);
-    expect(shouldRenderInterstitial(3, false, desktop)).toBe(true);
+    for (const limits of [desktop, mobile]) {
+      expect(shouldRenderInterstitial(3, false, limits)).toBe(false);
+      expect(shouldRenderInterstitial(4, false, limits)).toBe(true);
+    }
+  });
 
-    expect(shouldRenderInterstitial(3, false, mobile)).toBe(false);
-    expect(shouldRenderInterstitial(4, false, mobile)).toBe(true);
+  it('only the placeholder count depends on the screen — a wide column shows more of the row', () => {
+    expect(desktop.maxItems).toBe(mobile.maxItems);
+    expect(desktop.skeletonItems).toBe(4);
+    expect(mobile.skeletonItems).toBe(2);
   });
 
   it('holds the band open on placeholders while the suggestions load', () => {
@@ -56,7 +61,7 @@ describe('shouldRenderInterstitial', () => {
 });
 
 describe('selectInterstitialWindow', () => {
-  const limits = resolveInterstitialLimits('suggestedUsers', true); // max 5, min 3
+  const limits = resolveInterstitialLimits('suggestedUsers', true); // max 8, min 4
 
   it('returns an empty window for an empty pool', () => {
     expect(selectInterstitialWindow<Suggestion>([], 0, limits, idOf, none)).toEqual([]);
@@ -64,14 +69,14 @@ describe('selectInterstitialWindow', () => {
 
   it('caps the first band at maxItems', () => {
     const window = selectInterstitialWindow(pool(20), 0, limits, idOf, none);
-    expect(window.map(idOf)).toEqual(['s0', 's1', 's2', 's3', 's4']);
+    expect(window.map(idOf)).toEqual(['s0', 's1', 's2', 's3', 's4', 's5', 's6', 's7']);
   });
 
   it('offsets each band by its ordinal so consecutive bands never repeat', () => {
     const first = selectInterstitialWindow(pool(20), 0, limits, idOf, none);
     const second = selectInterstitialWindow(pool(20), 1, limits, idOf, none);
 
-    expect(second.map(idOf)).toEqual(['s5', 's6', 's7', 's8', 's9']);
+    expect(second.map(idOf)).toEqual(['s8', 's9', 's10', 's11', 's12', 's13', 's14', 's15']);
     expect(first.map(idOf).some((id) => second.map(idOf).includes(id))).toBe(false);
   });
 
@@ -80,23 +85,23 @@ describe('selectInterstitialWindow', () => {
     const window = selectInterstitialWindow(pool(20), 0, limits, idOf, dismissed);
 
     expect(window).toHaveLength(limits.maxItems);
-    expect(window.map(idOf)).toEqual(['s0', 's2', 's4', 's5', 's6']);
+    expect(window.map(idOf)).toEqual(['s0', 's2', 's4', 's5', 's6', 's7', 's8', 's9']);
   });
 
   it('runs the band dry — and therefore closes it — when the pool is exhausted', () => {
-    // Six suggestions, all consumed by the first band: the second has one left,
-    // which is below the minimum, so the gate closes the band.
-    const window = selectInterstitialWindow(pool(6), 1, limits, idOf, none);
+    // Nine suggestions, eight consumed by the first band: the second has one
+    // left, which is below the minimum, so the gate closes the band.
+    const window = selectInterstitialWindow(pool(9), 1, limits, idOf, none);
 
-    expect(window.map(idOf)).toEqual(['s5']);
+    expect(window.map(idOf)).toEqual(['s8']);
     expect(shouldRenderInterstitial(window.length, false, limits)).toBe(false);
   });
 
   it('closes the band once dismissals drain the remaining pool below the minimum', () => {
     const dismissed = new Set(['s0', 's2']);
-    const window = selectInterstitialWindow(pool(4), 0, limits, idOf, dismissed);
+    const window = selectInterstitialWindow(pool(5), 0, limits, idOf, dismissed);
 
-    expect(window.map(idOf)).toEqual(['s1', 's3']);
+    expect(window.map(idOf)).toEqual(['s1', 's3', 's4']);
     expect(shouldRenderInterstitial(window.length, false, limits)).toBe(false);
   });
 });

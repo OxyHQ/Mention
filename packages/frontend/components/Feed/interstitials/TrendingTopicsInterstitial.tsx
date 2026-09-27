@@ -20,6 +20,7 @@ import { reportTrendEvent } from '@/utils/feedTelemetry';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';
 import {
+  INTERSTITIAL_CARD_WIDTH,
   resolveInterstitialLimits,
   selectInterstitialWindow,
   shouldRenderInterstitial,
@@ -122,26 +123,28 @@ export function TrendingTopicsInterstitial({
 
   const renderItem = useCallback(
     (trend: Trend, { position }: InterstitialItemContext) => (
-      <TrendItemRow
-        trend={trend}
-        ordinal={position + 1}
-        onPress={() => {
-          // Both endpoints, on purpose: the card click compares this card
-          // against the other card kinds, the trend click compares this surface
-          // against the other places a trend is shown.
-          reportCardEvent('click', position);
-          navigateToTrend(trend, 'interstitial', position + 1);
-        }}
-        onMenuPress={handleMenuPress}
-        size="large"
-      />
+      <View className="bg-card border-border flex-1 justify-center overflow-hidden rounded-xl border">
+        <TrendItemRow
+          trend={trend}
+          ordinal={position + 1}
+          onPress={() => {
+            // Both endpoints, on purpose: the card click compares this card
+            // against the other card kinds, the trend click compares this surface
+            // against the other places a trend is shown.
+            reportCardEvent('click', position);
+            navigateToTrend(trend, 'interstitial', position + 1);
+          }}
+          onMenuPress={handleMenuPress}
+          size="large"
+        />
+      </View>
     ),
     [reportCardEvent, navigateToTrend, handleMenuPress],
   );
 
   const renderSkeleton = useCallback(
     () => (
-      <View className="px-3 py-2">
+      <View className="bg-card border-border rounded-xl border px-3 py-2">
         <Skeleton.Col>
           <Skeleton.Text style={{ fontSize: 13, lineHeight: 15, width: 110 }} />
           <Skeleton.Text style={{ fontSize: 16, lineHeight: 18, width: 150 }} />
@@ -160,6 +163,7 @@ export function TrendingTopicsInterstitial({
       seeMoreHref={TRENDING_ROUTE}
       items={trends}
       keyExtractor={trendKey}
+      cardWidth={INTERSTITIAL_CARD_WIDTH.trend}
       renderItem={renderItem}
       limits={limits}
       isLoading={isLoading}

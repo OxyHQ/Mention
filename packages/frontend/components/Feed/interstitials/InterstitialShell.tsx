@@ -1,7 +1,8 @@
 import React, { useCallback } from 'react';
-import { Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { Carousel, CarouselItem } from '@oxy.so/bloom/carousel';
 import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { RiArrowRightLine } from '@oxy.so/bloom/icons/RiArrowRightLine';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -9,10 +10,8 @@ import { Text } from '@oxy.so/bloom/typography';
 import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import {
   INTERSTITIAL_CARD_GAP,
-  INTERSTITIAL_CARD_WIDTH,
   INTERSTITIAL_EDGE_PADDING,
   INTERSTITIAL_SEE_MORE_CARD_WIDTH,
-  INTERSTITIAL_SNAP_INTERVAL,
   type InterstitialLimits,
 } from './interstitialLayout';
 import { useInterstitialImpression, type ReportInterstitialEvent } from './interstitialTelemetry';
@@ -21,39 +20,32 @@ import { HIT_SLOP_MD } from '@/styles/hitSlop';
 /**
  * The frame every recommendation band shares.
  *
- * One band, two layouts: a snapping horizontal carousel of fixed-width cards on
- * phones (where vertical space is the scarce resource and a swipe is cheap), a
- * vertical list of full-width rows on wider screens (where the feed column is
- * wide enough to read a row and a carousel would be a mouse-hostile gimmick).
- * The band itself is a distinct surface — its own background, closed by the
- * hairline every feed row already draws above it — so it reads as an aside and
- * never as a post.
+ * One layout on every screen: a horizontal carousel of fixed-width cards —
+ * Bloom's `Carousel`, the same row X and Instagram put between posts. On a
+ * phone it is swiped; on a wide screen the arrows sit beside the title, because
+ * a mouse cannot swipe. The band itself is a distinct surface — its own
+ * background, closed by the hairline every feed row already draws above it — so
+ * it reads as an aside and never as a post.
  *
- * The shell owns the frame, the header, the "See more" affordance and the
- * responsive placement. It knows nothing about what is inside a card, which is
- * why all three kinds (users, feeds, starter packs) can share it.
+ * The shell owns the frame, the header, the "See more" affordance and the card
+ * width. It knows nothing about what is inside a card, which is why every kind
+ * (people, feeds, starter packs, trends) can share it.
  */
 
 export interface InterstitialItemContext {
-  /**
-   * The item is a fixed-width card in the mobile carousel rather than a
-   * full-width row. Items use it to drop the row chrome (dividers, insets) that
-   * only makes sense in the vertical list.
-   */
-  isCarousel: boolean;
-  /** Last item in the band — a row can drop its trailing divider. */
-  isLast: boolean;
   /** 0-based index within the band — the `position` on every item-level event. */
   position: number;
 }
 
 interface InterstitialShellProps<TItem> {
   title: string;
-  /** Destination of the header link (desktop) and the trailing card (mobile). */
+  /** Destination of the header link (wide screens) and the trailing card. */
   seeMoreHref: Href;
   /** The suggestions to show. Empty while `isLoading`. */
   items: readonly TItem[];
   keyExtractor: (item: TItem) => string;
+  /** Width of one card, from `INTERSTITIAL_CARD_WIDTH`. */
+  cardWidth: number;
   renderItem: (item: TItem, context: InterstitialItemContext) => React.ReactElement;
   limits: InterstitialLimits;
   /** True until the suggestions land: placeholders stand in their place. */
@@ -74,6 +66,7 @@ export function InterstitialShell<TItem>({
   seeMoreHref,
   items,
   keyExtractor,
+  cardWidth,
   renderItem,
   limits,
   isLoading = false,
@@ -97,86 +90,75 @@ export function InterstitialShell<TItem>({
   // and it may still collapse to nothing once its suggestions land.
   const impressionRef = useInterstitialImpression(report, !isLoading && items.length > 0);
 
-  return (
-    <View ref={impressionRef} className="bg-muted border-border w-full border-b">
-      <View className="flex-row items-center justify-between px-3 pb-2 pt-3">
-        <Text className="text-base leading-6 font-bold text-foreground" numberOfLines={1}>
-          {title}
-        </Text>
-        {isDesktop && (
-          <TouchableOpacity
-            onPress={handleSeeMore}
-            activeOpacity={0.7}
-            hitSlop={HIT_SLOP_MD}
-            style={styles.webCursor}
-            accessibilityRole="link"
-            accessibilityLabel={seeMoreLabel}>
-            <Text className="text-primary text-sm leading-6 font-medium">{seeMoreLabel}</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+  const header = (
+    <View className="flex-row items-center gap-3">
+      <Text className="text-base leading-6 font-bold text-foreground flex-shrink" numberOfLines={1}>
+        {title}
+      </Text>
+      {isDesktop && (
+        <TouchableOpacity
+          onPress={handleSeeMore}
+          activeOpacity={0.7}
+          hitSlop={HIT_SLOP_MD}
+          style={styles.webCursor}
+          accessibilityRole="link"
+          accessibilityLabel={seeMoreLabel}>
+          <Text className="text-primary text-sm leading-6 font-medium">{seeMoreLabel}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
 
-      {isDesktop ? (
-        <View className="pb-2">
-          {showSkeleton && renderSkeleton
-            ? skeletonKeys.map((key) => (
-                <View key={key}>{renderSkeleton()}</View>
-              ))
-            : items.map((item, index) => (
-                <View key={keyExtractor(item)}>
-                  {renderItem(item, {
-                    isCarousel: false,
-                    isLast: index === items.length - 1,
-                    position: index,
-                  })}
-                </View>
-              ))}
-        </View>
-      ) : showSkeleton && renderSkeleton ? (
+  return (
+    <View ref={impressionRef} className="bg-muted border-border w-full border-b pb-3 pt-3">
+      {showSkeleton && renderSkeleton ? (
         // Placeholders sit in a plain row, not a scroller: there is nothing to
         // swipe to yet, and a bouncing empty carousel reads as a broken one.
-        <View style={styles.carouselContent} className="flex-row pb-3">
-          {skeletonKeys.map((key) => (
-            <View key={key} style={styles.card}>
-              {renderSkeleton()}
-            </View>
-          ))}
+        <View className="gap-3">
+          <View style={styles.inset}>{header}</View>
+          <View style={styles.skeletonRow}>
+            {skeletonKeys.map((key) => (
+              <View key={key} style={{ width: cardWidth }}>
+                {renderSkeleton()}
+              </View>
+            ))}
+          </View>
         </View>
       ) : (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={INTERSTITIAL_SNAP_INTERVAL}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          contentContainerStyle={styles.carouselContent}
-          className="pb-3">
+        <Carousel
+          accessibilityLabel={title}
+          header={header}
+          showArrows={isDesktop}
+          showDots={false}
+          gap={INTERSTITIAL_CARD_GAP}
+          inset={INTERSTITIAL_EDGE_PADDING}
+          previousLabel={t('feed.interstitial.previous')}
+          nextLabel={t('feed.interstitial.next')}
+          style={styles.carousel}>
           {items.map((item, index) => (
-            <View key={keyExtractor(item)} style={styles.card}>
-              {renderItem(item, {
-                isCarousel: true,
-                isLast: index === items.length - 1,
-                position: index,
-              })}
-            </View>
+            <CarouselItem key={keyExtractor(item)} width={cardWidth}>
+              {renderItem(item, { position: index })}
+            </CarouselItem>
           ))}
-          <SeeMoreCard label={seeMoreLabel} onPress={handleSeeMore} />
-        </ScrollView>
+          <CarouselItem key="see-more" width={INTERSTITIAL_SEE_MORE_CARD_WIDTH} accessibilityLabel={seeMoreLabel}>
+            <SeeMoreCard label={seeMoreLabel} onPress={handleSeeMore} />
+          </CarouselItem>
+        </Carousel>
       )}
     </View>
   );
 }
 
 /**
- * The carousel's last card. Mobile has no room for a header link, so the way out
- * of the band to the full screen is the card you reach by swiping past the
+ * The carousel's last card. A phone has no room for a header link, so the way
+ * out of the band to the full screen is the card you reach by swiping past the
  * suggestions — the same gesture you were already making.
  */
 function SeeMoreCard({ label, onPress }: { label: string; onPress: () => void }) {
   const theme = useTheme();
 
   return (
-    <View style={styles.seeMoreCard}>
+    <View className="flex-1">
       <PressableScale
         onPress={onPress}
         className="bg-surface border-border flex-1 items-center justify-center gap-2 rounded-xl border"
@@ -192,15 +174,20 @@ function SeeMoreCard({ label, onPress }: { label: string; onPress: () => void })
 }
 
 const styles = StyleSheet.create({
-  carouselContent: {
-    paddingHorizontal: INTERSTITIAL_EDGE_PADDING,
+  // Title row to cards — tighter than Bloom's gallery default of 16.
+  carousel: {
+    gap: 12,
+  },
+  inset: {
+    paddingLeft: INTERSTITIAL_EDGE_PADDING,
+    paddingRight: INTERSTITIAL_EDGE_PADDING,
+  },
+  skeletonRow: {
+    flexDirection: 'row',
+    overflow: 'hidden',
+    paddingLeft: INTERSTITIAL_EDGE_PADDING,
+    paddingRight: INTERSTITIAL_EDGE_PADDING,
     gap: INTERSTITIAL_CARD_GAP,
-  },
-  card: {
-    width: INTERSTITIAL_CARD_WIDTH,
-  },
-  seeMoreCard: {
-    width: INTERSTITIAL_SEE_MORE_CARD_WIDTH,
   },
   webCursor: Platform.select({ web: { cursor: 'pointer' }, default: {} }),
 });

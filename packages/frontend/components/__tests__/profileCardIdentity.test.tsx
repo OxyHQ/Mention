@@ -67,6 +67,10 @@ jest.mock('@oxy.so/bloom/typography', () => {
   return { Text };
 });
 jest.mock('@oxy.so/bloom/skeleton', () => ({ Box: () => null, Group: () => null }));
+jest.mock('@oxy.so/bloom/pressable-scale', () => {
+  const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { PressableScale: TouchableOpacity };
+});
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('react-i18next', () => ({
@@ -87,6 +91,8 @@ jest.mock('@/utils/userPlaceholderColor', () => ({
 
 // eslint-disable-next-line import/first
 import { ProfileCard } from '@/components/ProfileCard';
+// eslint-disable-next-line import/first
+import { SuggestedProfileCard } from '@/components/SuggestedProfileCard';
 // eslint-disable-next-line import/first
 import { noteIdentityChanged } from '@/lib/actorCache';
 // eslint-disable-next-line import/first
@@ -201,6 +207,55 @@ describe('ProfileCard names its follow button', () => {
         />,
       );
     });
+    expect(mockFollowButtonUsernames[mockFollowButtonUsernames.length - 1]).toBe('ada');
+  });
+});
+
+describe('SuggestedProfileCard resolves its identity the way the row does', () => {
+  function renderTile(profile: React.ComponentProps<typeof SuggestedProfileCard>['profile']) {
+    act(() => {
+      mounted = TestRenderer.create(<SuggestedProfileCard profile={profile} />);
+    });
+    if (!mounted) throw new Error('the tile did not render');
+    return mounted;
+  }
+
+  it('repaints a MOUNTED tile when that profile is edited, and links to the new handle', () => {
+    const renderer = renderTile({
+      id: PERSON_ID,
+      username: 'ada',
+      name: { displayName: 'Ada' },
+      avatar: 'avatar-before',
+    });
+
+    act(() => {
+      noteIdentityChanged({ id: PERSON_ID, username: 'ada-l', avatar: 'avatar-after' });
+    });
+
+    expect(probe(renderer, 'card-avatar')).toBe('avatar-after');
+    expect(probe(renderer, 'card-name')).toBe('Ada|ada-l');
+  });
+
+  it('degrades a profile with no name and no handle to "Unknown user", and does not link it', () => {
+    const renderer = renderTile({ id: PERSON_ID });
+
+    expect(probe(renderer, 'card-name')).toBe('Unknown user|');
+    const target = renderer.root.findAll(
+      (node) => node.props.accessibilityRole === 'link' && typeof node.props.onPress === 'function',
+    );
+    expect(target).toHaveLength(0);
+  });
+
+  it('keeps Follow outside the profile navigation target, and names it by handle', () => {
+    const onFollowChange = jest.fn();
+    act(() => {
+      mounted = TestRenderer.create(
+        <SuggestedProfileCard profile={{ id: PERSON_ID, username: 'ada' }} onFollowChange={onFollowChange} />,
+      );
+    });
+    act(() => mounted!.root.findByProps({ testID: 'follow-control' }).props.onPress());
+    expect(onFollowChange).toHaveBeenCalledWith(true);
+    expect(mockPush).not.toHaveBeenCalled();
     expect(mockFollowButtonUsernames[mockFollowButtonUsernames.length - 1]).toBe('ada');
   });
 });

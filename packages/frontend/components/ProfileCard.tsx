@@ -113,6 +113,56 @@ interface ProfileCardProps {
   horizontalInset?: number;
 }
 
+/**
+ * What a person row or tile draws for `profile`: the profile corrected against
+ * any identity edit made in this session, its handle, the label its name line
+ * shows, and where tapping it goes.
+ *
+ * `profile` is a snapshot the surface that fetched it is still holding, and
+ * nothing rewrites it. The person row ({@link ProfileCard}) and the feed's
+ * person tile (`SuggestedProfileCard`) are what search results, who-to-follow,
+ * list and starter-pack members, followers and following, engagement and
+ * collaborator lists, pokes, subscriptions and the feed's suggestion bands all
+ * draw — so resolving it HERE is what makes an edit reach all of them without
+ * each of them having to remember to.
+ *
+ * A federated profile's canonical handle carries its instance (`user@domain`),
+ * so no separate "globe + instance" line is needed. An unresolved author has no
+ * handle at all — it must never fall back to the raw id, so a profile with
+ * neither name nor handle degrades to "Unknown user" and is not pressable (no
+ * `/@<id>` links). Derived from the CORRECTED profile: a rename changes the
+ * handle, and a link that still pointed at the old one would 404 on tap.
+ */
+export function useResolvedProfileIdentity(profile: ProfileCardData) {
+  const { t } = useTranslation();
+  const knownIdentities = useKnownIdentitySet([profile.id]);
+  const resolved = useMemo(
+    () => mergeKnownIdentity(profile, knownIdentities.get(profile.id)),
+    [profile, knownIdentities],
+  );
+
+  const handle = getNormalizedUserHandle(resolved) ?? '';
+  const displayName = resolved.name?.displayName?.trim();
+  // `UserName` owns the "display name else @handle, shown once" rule and the
+  // handle line beneath it. Hand it the degraded "Unknown user" label ONLY when
+  // there is neither a name nor a handle, so an unresolved profile never leaks
+  // its raw id as a handle.
+  const nameLabel =
+    displayName ??
+    (handle.length > 0 ? undefined : t('user.unknown', { defaultValue: 'Unknown user' }));
+
+  return {
+    resolved,
+    handle,
+    nameLabel,
+    /** A handle-less (degraded) profile has nowhere to go and is not pressable. */
+    hasHandle: handle.length > 0,
+    // Resolved from the profile's own record, so a channel opens `/c/` instead
+    // of bouncing through the `/@` redirect.
+    href: profileHrefForUser(resolved),
+  };
+}
+
 export function ProfileCard({
   profile,
   onPress,
@@ -126,43 +176,8 @@ export function ProfileCard({
   horizontalInset = 12,
 }: ProfileCardProps) {
   const router = useRouter();
-  const { t } = useTranslation();
-
-  // Corrected against any profile edit made in this session, for the same reason
-  // a post row is: `profile` is a snapshot the surface that fetched it is still
-  // holding, and nothing rewrites it. This ONE row is what search results,
-  // who-to-follow, list and starter-pack members, followers and following,
-  // engagement and collaborator lists, pokes and subscriptions all draw — so
-  // resolving it here is what makes an edit reach all of them without each of
-  // them having to remember to.
-  const knownIdentities = useKnownIdentitySet([profile.id]);
-  const resolved = useMemo(
-    () => mergeKnownIdentity(profile, knownIdentities.get(profile.id)),
-    [profile, knownIdentities],
-  );
-
-  // A federated profile's canonical handle carries its instance (`user@domain`),
-  // so the row never needs a separate "globe + instance" line. An unresolved
-  // author has no handle at all — it must never fall back to the raw id, so a
-  // profile with neither name nor handle degrades to "Unknown user" and is not
-  // pressable (no `/@<id>` links). Derived from the CORRECTED profile: a rename
-  // changes the handle, and a row whose link still pointed at the old one would
-  // 404 on tap.
-  const handle = getNormalizedUserHandle(resolved) ?? '';
-
-  const displayName = resolved.name?.displayName?.trim();
-  const canPress = Boolean(onPress) || handle.length > 0;
-  // `UserName` owns the "display name else @handle, shown once" rule and the
-  // handle line beneath it. Hand it the degraded "Unknown user" label ONLY when
-  // there is neither a name nor a handle, so an unresolved profile never leaks
-  // its raw id as a handle.
-  const nameLabel =
-    displayName ??
-    (handle.length > 0 ? undefined : t('user.unknown', { defaultValue: 'Unknown user' }));
-
-  // Resolved from the row's own record, so a channel row opens `/c/` instead of
-  // bouncing through the `/@` redirect.
-  const href = profileHrefForUser(resolved);
+  const { resolved, handle, nameLabel, hasHandle, href } = useResolvedProfileIdentity(profile);
+  const canPress = Boolean(onPress) || hasHandle;
 
   const handlePress = () => {
     if (onPress) {

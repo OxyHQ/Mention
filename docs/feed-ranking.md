@@ -244,7 +244,9 @@ selection.
 ## Feed Interstitials (Recommendation Cards)
 
 Suggested users / custom feeds / starter packs spliced between post slices —
-horizontal snap carousel on mobile, vertical list on desktop
+a horizontal carousel of cards on every screen size (Bloom `Carousel`: swiped
+on touch, arrows beside the title on wide screens). People are vertical tiles
+(`SuggestedProfileCard`: avatar, name, bio, Follow), not list rows
 (`packages/frontend/components/Feed/interstitials/InterstitialShell.tsx`).
 
 - The server sends PLACEMENT, never content.

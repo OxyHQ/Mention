@@ -4,11 +4,11 @@ import type { FeedInterstitialKind } from '@mention/shared-types';
  * Geometry, sizing and fetch bounds for the feed's recommendation bands, in ONE
  * place.
  *
- * Every interstitial renders the same two layouts — a snapping horizontal
- * carousel on phones, a vertical list of full-width rows on wider screens — so
- * the numbers that define them (card width, snap step, how many items a band
- * shows, how few make it not worth showing at all) belong to the family, not to
- * any one card.
+ * Every interstitial is the same horizontal carousel of cards on every screen
+ * size (Bloom's `Carousel`: swiped on touch, arrows beside the title on a wide
+ * screen), so the numbers that define it (card widths, how many items a band
+ * shows, how few make it not worth showing at all) belong to the family, not
+ * to any one card.
  */
 
 /**
@@ -25,22 +25,25 @@ export const INTERSTITIAL_STALE_TIME_MS = 5 * 60_000;
 export const SUGGESTED_FEEDS_FETCH_LIMIT = 30;
 
 /**
- * Width of one card in the mobile carousel. Wide enough for a profile row
- * (avatar, name, follow button, dismiss) without truncating the name to nothing,
- * narrow enough that the next card still peeks in and invites the swipe.
+ * Width of one card, by what the card holds.
+ *
+ * - `profile`: the vertical person tile (avatar over name, bio and Follow), the
+ *   width X and Instagram use. About two and a quarter fit a phone, so the next
+ *   one always peeks in and invites the swipe.
+ * - `wide`: a starter pack or a feed, which read as a card with a facepile and a
+ *   paragraph, not a tile.
+ * - `trend`: one trend row (kicker, name, count).
  */
-export const INTERSTITIAL_CARD_WIDTH = 296;
+export const INTERSTITIAL_CARD_WIDTH = {
+  profile: 172,
+  wide: 280,
+  trend: 220,
+} as const;
 
 /** Horizontal space between two carousel cards. */
 export const INTERSTITIAL_CARD_GAP = 12;
 
-/**
- * The carousel snaps by a WHOLE card — width plus the gap that follows it.
- * Snapping by the width alone drifts a gap per card and lands mid-card.
- */
-export const INTERSTITIAL_SNAP_INTERVAL = INTERSTITIAL_CARD_WIDTH + INTERSTITIAL_CARD_GAP;
-
-/** Inset from the band's edges to the first/last carousel card. */
+/** Inset from the band's edges to its title and to the first/last card. */
 export const INTERSTITIAL_EDGE_PADDING = 12;
 
 /** The trailing "See more" card is narrower than a content card. */
@@ -51,35 +54,34 @@ export type InterstitialBreakpoint = 'desktop' | 'mobile';
 /**
  * Fewer suggestions than this and the band costs more (a header, a border, a
  * scroll interruption) than it gives back — the interstitial renders nothing.
- * The carousel needs a couple more than the list because a card that cannot be
- * swiped reads as broken.
+ * A carousel that cannot be swiped reads as broken, so the floor is four.
  */
-const MIN_ITEMS: Record<InterstitialBreakpoint, number> = {
-  desktop: 3,
-  mobile: 4,
-};
+const MIN_ITEMS = 4;
 
 /**
- * How many suggestions one band shows. The vertical list is capped tighter: it
- * pushes real posts down the page, while the carousel only costs a swipe.
+ * How many suggestions one band shows. A carousel only costs a swipe, not the
+ * posts it would push down the page, so the band can run deep.
  */
-const MAX_ITEMS: Record<FeedInterstitialKind, Record<InterstitialBreakpoint, number>> = {
-  suggestedUsers: { desktop: 5, mobile: 8 },
-  suggestedFeeds: { desktop: 3, mobile: 6 },
-  suggestedStarterPacks: { desktop: 3, mobile: 6 },
-  // Similar accounts are the same profile row as "who to follow", from a pool the
-  // subject's own graph bounds — so it shares that band's shape.
-  similarAccounts: { desktop: 5, mobile: 8 },
+const MAX_ITEMS: Record<FeedInterstitialKind, number> = {
+  suggestedUsers: 8,
+  suggestedFeeds: 6,
+  suggestedStarterPacks: 6,
+  // Similar accounts are the same person tile as "who to follow", from a pool
+  // the subject's own graph bounds — so it shares that band's shape.
+  similarAccounts: 8,
   // Trends are read, not acted on one by one, so the band stays short — a
   // glanceable few rather than a second feed. The pool itself is only ten deep
   // (what the trends store fetches), which also bounds how many bands can offset
   // into it before one comes up empty and renders nothing.
-  trendingTopics: { desktop: 3, mobile: 5 },
+  trendingTopics: 5,
 };
 
-/** Placeholders shown while the suggestions load — as many as will be seen. */
+/**
+ * Placeholders shown while the suggestions load — as many as will be seen. A
+ * wide feed column shows more of the row than a phone does.
+ */
 const SKELETON_ITEMS: Record<InterstitialBreakpoint, number> = {
-  desktop: 3,
+  desktop: 4,
   mobile: 2,
 };
 
@@ -97,11 +99,10 @@ export function resolveInterstitialLimits(
   kind: FeedInterstitialKind,
   isDesktop: boolean,
 ): InterstitialLimits {
-  const breakpoint: InterstitialBreakpoint = isDesktop ? 'desktop' : 'mobile';
   return {
-    minItems: MIN_ITEMS[breakpoint],
-    maxItems: MAX_ITEMS[kind][breakpoint],
-    skeletonItems: SKELETON_ITEMS[breakpoint],
+    minItems: MIN_ITEMS,
+    maxItems: MAX_ITEMS[kind],
+    skeletonItems: SKELETON_ITEMS[isDesktop ? 'desktop' : 'mobile'],
   };
 }
 

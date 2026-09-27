@@ -17,6 +17,7 @@ import { logger } from '@oxy.so/core/logger';
 import { DismissButton } from './DismissButton';
 import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';
 import {
+  INTERSTITIAL_CARD_WIDTH,
   INTERSTITIAL_STALE_TIME_MS,
   resolveInterstitialLimits,
   selectInterstitialWindow,
@@ -115,10 +116,9 @@ export function SuggestedStarterPacksInterstitial({
   );
 
   const renderItem = useCallback(
-    (pack: StarterPackSummary, { isCarousel, position }: InterstitialItemContext) => (
+    (pack: StarterPackSummary, { position }: InterstitialItemContext) => (
       <SuggestedStarterPackItem
         pack={pack}
-        isCarousel={isCarousel}
         position={position}
         report={report}
         onBulkFollow={handleBulkFollow}
@@ -128,14 +128,7 @@ export function SuggestedStarterPacksInterstitial({
     [report, handleBulkFollow, handleDismiss],
   );
 
-  const renderSkeleton = useCallback(
-    () => (
-      <View className="px-3 pb-2">
-        <StarterPackCardSkeleton />
-      </View>
-    ),
-    [],
-  );
+  const renderSkeleton = useCallback(() => <StarterPackCardSkeleton />, []);
 
   if (!canUsePrivateApi && !isPrivateApiPending) return null;
 
@@ -148,6 +141,7 @@ export function SuggestedStarterPacksInterstitial({
       seeMoreHref="/explore/starter-packs"
       items={packs}
       keyExtractor={starterPackId}
+      cardWidth={INTERSTITIAL_CARD_WIDTH.wide}
       renderItem={renderItem}
       limits={limits}
       isLoading={isLoading}
@@ -163,7 +157,6 @@ function starterPackId(pack: StarterPackSummary): string {
 
 interface SuggestedStarterPackItemProps {
   pack: StarterPackSummary;
-  isCarousel: boolean;
   /** 0-based index within the band — the `position` every item event carries. */
   position: number;
   report: ReportInterstitialEvent;
@@ -182,7 +175,6 @@ interface SuggestedStarterPackItemProps {
  */
 function SuggestedStarterPackItem({
   pack,
-  isCarousel,
   position,
   report,
   onBulkFollow,
@@ -206,15 +198,16 @@ function SuggestedStarterPackItem({
   };
 
   return (
-    <View className={isCarousel ? 'gap-2' : 'gap-2 px-3 pb-2'}>
-      <View>
+    <View className="flex-1 gap-2">
+      <View className="flex-1">
         <StarterPackCard
           pack={cardData}
           onPress={() => {
             report('click', position);
             router.push(`/starter-packs/${id}`);
           }}
-          noDescription={isCarousel}
+          // A carousel card has room for the faces and the counts, not a paragraph.
+          noDescription
         />
         <DismissButton
           overlay
