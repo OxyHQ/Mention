@@ -52,6 +52,7 @@ for path in "${changed_paths[@]}"; do
     mcp:.github/scripts/audit-runtime-image.sh | \
     mcp:.github/scripts/require-current-main.sh | \
     mcp:.github/scripts/smoke-mcp.sh | \
+    mcp:.github/scripts/mcp-expected-scopes.json | \
     frontend:packages/frontend/* | \
     frontend:packages/shared-types/* | \
     frontend:.github/scripts/require-current-main.sh | \
