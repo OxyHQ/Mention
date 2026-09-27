@@ -210,6 +210,19 @@ describe('mapPostOg', () => {
 
 
 describe('public semantic content', () => {
+  it.each([
+    '<meta name="description" content="old">',
+    '<link rel="canonical" href="https://mention.earth/old">',
+    '<script type="application/ld+json">{"old":true}</script>',
+  ])('preserves token boundaries when replacing existing SEO: %s', (tag) => {
+    const shell = SHELL.replace('</head>', `<scr${tag}ipt id="joined-token"></script></head>`);
+    const html = renderShellWithOg(shell, mapProfileOg({ username: 'nate' }));
+    expect(html).toContain('<scr ipt id="joined-token">');
+    expect(html).not.toContain('<script id="joined-token">');
+    // Application scripts in the trusted export remain executable and intact.
+    expect(html).toContain('<script src="/_expo/static/js/web/entry.js" defer></script>');
+  });
+
   it('withholds semantic fallback from legacy shells during independent deployment', () => {
     const legacy = SHELL.replace('<meta name="mention-seo-handoff" content="1">', '');
     const og = mapProfileOg({ username: 'nate', bio: 'Public biography' });

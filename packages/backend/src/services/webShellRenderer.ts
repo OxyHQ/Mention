@@ -211,10 +211,12 @@ export function renderShellWithOg(shell: string, og: OgData | null): string {
 
   // The exported SPA may already contain generic SEO. Replace that ownership
   // rather than emitting competing canonical/robots/description values.
+  // Keep a token boundary where a tag was removed. This transforms a trusted
+  // executable shell; it is not an HTML sanitizer.
   let html = shell.replace(/<meta\b[^>]*>/gi, (tag) =>
-    /\b(?:name|property)\s*=\s*(["'])(?:description|robots|og:[^"']+|twitter:[^"']+)\1/i.test(tag) ? '' : tag)
-    .replace(/<link\b[^>]*>/gi, (tag) => /\brel\s*=\s*(["'])canonical\1/i.test(tag) ? '' : tag)
-    .replace(/<script\b[^>]*type\s*=\s*(["'])application\/ld\+json\1[^>]*>[\s\S]*?<\/script>/gi, '');
+    /\b(?:name|property)\s*=\s*(["'])(?:description|robots|og:[^"']+|twitter:[^"']+)\1/i.test(tag) ? ' ' : tag)
+    .replace(/<link\b[^>]*>/gi, (tag) => /\brel\s*=\s*(["'])canonical\1/i.test(tag) ? ' ' : tag)
+    .replace(/<script\b[^>]*type\s*=\s*(["'])application\/ld\+json\1[^>]*>[\s\S]*?<\/script>/gi, ' ');
   if (og.lang) {
     html = html.replace(/<html\b([^>]*)\blang=(['"])[^'"]*\2([^>]*)>/i, (_match, before, _quote, after) =>
       `<html${before}lang="${escapeHtml(og.lang ?? 'en')}"${after}>`);
