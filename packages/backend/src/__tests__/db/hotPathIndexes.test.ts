@@ -115,16 +115,6 @@ const POSTS_INDEXES: readonly ClassifiedIndex[] = [
       'USING btree (federation_activity_id) WHERE (federation_activity_id IS NOT NULL)',
   },
   {
-    name: 'posts_source_post_key_key',
-    table: 'posts',
-    serves:
-      'cross-road dedup — a CONSTRAINT, not a performance index: one Instagram post reached through ' +
-      'the Graph API and the kilogram bridge collides on `instagram:<shortcode>` instead of duplicating',
-    definition:
-      'CREATE UNIQUE INDEX posts_source_post_key_key ON public.posts ' +
-      'USING btree (source_post_key) WHERE (source_post_key IS NOT NULL)',
-  },
-  {
     name: 'posts_federation_actor_uri_idx',
     table: 'posts',
     serves: 'source identity projection and cache inspection — avoid scanning all posts for each immutable source actor',

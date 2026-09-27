@@ -37,7 +37,7 @@
  * assembly stays one flat object literal instead of fifteen conditional spreads.
  */
 
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, ne, not, or, sql, type SQL } from 'drizzle-orm';
 import { qualified } from '@oxy.so/db';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import {
@@ -116,6 +116,7 @@ export function assembleActorRecord(row: ActorRow): FederatedActorRecord {
     outboxBackfill: assembleOutboxBackfill(row),
     instagramGraphSyncedAt: optional(row.instagramGraphSyncedAt),
     instagramGraphLastResult: optional(row.instagramGraphLastResult),
+    instagramGraphUserId: optional(row.instagramGraphUserId),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -127,6 +128,15 @@ export async function findActorByUri(
   db: DatabaseOrTransaction = getDb(),
 ): Promise<FederatedActorRecord | null> {
   const [row] = await db.select().from(federatedActors).where(eq(federatedActors.uri, uri)).limit(1);
+  return row ? assembleActorRecord(row) : null;
+}
+
+/** Load one actor by its row id. */
+export async function findActorById(
+  id: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<FederatedActorRecord | null> {
+  const [row] = await db.select().from(federatedActors).where(eq(federatedActors.id, id)).limit(1);
   return row ? assembleActorRecord(row) : null;
 }
 
@@ -770,15 +780,37 @@ export async function releaseAtprotoGraphSync(
     );
 }
 
+/** Last results that hold the long (weekly) cooldown rather than the ordinary one. */
+function longCooldownResultSql(): SQL {
+  return sql`coalesce(${federatedActors.instagramGraphLastResult} in ('not_business', 'identity_mismatch'), false)`;
+}
+
+/**
+ * Pin the Instagram user id an actor's username answered with on its first
+ * successful Graph sync. Only ever sets an EMPTY pin — an existing one is the
+ * evidence a later mismatch is judged against, so it is never overwritten here.
+ */
+export async function pinInstagramGraphUserId(
+  actorId: string,
+  igUserId: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<void> {
+  await db
+    .update(federatedActors)
+    .set({ instagramGraphUserId: igUserId, updatedAt: new Date() })
+    .where(and(eq(federatedActors.id, actorId), isNull(federatedActors.instagramGraphUserId)));
+}
+
 /**
  * Claim the Instagram Graph post sync of one actor — the same conditional-UPDATE
  * cooldown + lease as {@link claimAtprotoGraphSync}, so concurrent profile views,
  * several API tasks and the periodic job cannot fan out duplicate Graph calls
  * against Meta's ~200 calls/hour budget. The row count IS the answer.
  *
- * `cooldownCutoff` gates a completed sync; a `not_business` answer is gated by
- * the (longer) `notBusinessCutoff` instead, because an account that is not a
- * Business/Creator account stays that way for weeks.
+ * `cooldown` gates a completed sync; a `not_business` or `identity_mismatch`
+ * answer is gated by the (longer) `notBusiness` cutoff instead: an account that
+ * is not a Business/Creator account stays that way for weeks, and a username now
+ * naming a different Instagram account will not un-recycle itself in hours.
  */
 export async function claimInstagramGraphSync(
   actorId: string,
@@ -796,11 +828,11 @@ export async function claimInstagramGraphSync(
         or(
           isNull(federatedActors.instagramGraphSyncedAt),
           and(
-            sql`${federatedActors.instagramGraphLastResult} is distinct from 'not_business'`,
+            not(longCooldownResultSql()),
             lte(federatedActors.instagramGraphSyncedAt, cutoffs.cooldown),
           ),
           and(
-            eq(federatedActors.instagramGraphLastResult, 'not_business'),
+            longCooldownResultSql(),
             lte(federatedActors.instagramGraphSyncedAt, cutoffs.notBusiness),
           ),
         ),
@@ -895,11 +927,11 @@ export async function findInstagramGraphSyncCandidates(
         or(
           isNull(federatedActors.instagramGraphSyncedAt),
           and(
-            sql`${federatedActors.instagramGraphLastResult} is distinct from 'not_business'`,
+            not(longCooldownResultSql()),
             lte(federatedActors.instagramGraphSyncedAt, dueBefore),
           ),
           and(
-            eq(federatedActors.instagramGraphLastResult, 'not_business'),
+            longCooldownResultSql(),
             lte(federatedActors.instagramGraphSyncedAt, notBusinessDueBefore),
           ),
         ),

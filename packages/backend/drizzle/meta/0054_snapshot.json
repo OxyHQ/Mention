@@ -1,5 +1,5 @@
 {
-  "id": "ee10b288-a94c-4376-b6a4-297bc0899de7",
+  "id": "7907075f-d727-4b91-bc8f-8fc47431651f",
   "prevId": "a214e2f4-377c-46d9-815a-5dc4b461b040",
   "version": "7",
   "dialect": "postgresql",
@@ -3967,6 +3967,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "instagram_graph_user_id": {
+          "name": "instagram_graph_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -4136,7 +4142,7 @@
         },
         "federated_actors_instagram_graph_last_result_check": {
           "name": "federated_actors_instagram_graph_last_result_check",
-          "value": "\"federated_actors\".\"instagram_graph_last_result\" is null or \"federated_actors\".\"instagram_graph_last_result\" in ('ok', 'not_business', 'error')"
+          "value": "\"federated_actors\".\"instagram_graph_last_result\" is null or \"federated_actors\".\"instagram_graph_last_result\" in ('ok', 'not_business', 'identity_mismatch', 'error')"
         },
         "federated_actors_outbox_backfill_status_check": {
           "name": "federated_actors_outbox_backfill_status_check",
@@ -11419,6 +11425,90 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.post_source_keys": {
+      "name": "post_source_keys",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "source_key": {
+          "name": "source_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "post_id": {
+          "name": "post_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "claimed_until": {
+          "name": "claimed_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "claim_token": {
+          "name": "claim_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "post_source_keys_post_id_posts_id_fk": {
+          "name": "post_source_keys_post_id_posts_id_fk",
+          "tableFrom": "post_source_keys",
+          "tableTo": "posts",
+          "columnsFrom": [
+            "post_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "post_source_keys_source_key_key": {
+          "name": "post_source_keys_source_key_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "source_key"
+          ]
+        },
+        "post_source_keys_post_id_key": {
+          "name": "post_source_keys_post_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "post_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "post_source_keys_claim_shape_check": {
+          "name": "post_source_keys_claim_shape_check",
+          "value": "(\"post_source_keys\".\"post_id\" is not null and \"post_source_keys\".\"claimed_until\" is null and \"post_source_keys\".\"claim_token\" is null)\n        or (\"post_source_keys\".\"post_id\" is null and \"post_source_keys\".\"claimed_until\" is not null and \"post_source_keys\".\"claim_token\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.post_sources": {
       "name": "post_sources",
       "schema": "",
@@ -12211,12 +12301,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "source_post_key": {
-          "name": "source_post_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "content_poll_id": {
           "name": "content_poll_id",
           "type": "text",
@@ -12540,22 +12624,6 @@
           ],
           "isUnique": true,
           "where": "\"posts\".\"federation_activity_id\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "posts_source_post_key_key": {
-          "name": "posts_source_post_key_key",
-          "columns": [
-            {
-              "expression": "source_post_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"posts\".\"source_post_key\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}

@@ -2,11 +2,14 @@ import { config } from '../../config';
 import type { FederatedActorRecord, InstagramGraphSyncResult } from '../../db/federation/actorRecord';
 import {
   claimInstagramGraphSync,
+  findActorById,
   findActorByUri,
   findInstagramGraphSyncCandidates,
+  pinInstagramGraphUserId,
   releaseInstagramGraphSync,
   setActorRemoteCounts,
 } from '../../db/federation/actorRepository';
+import { enqueueInstagramGraphSync } from '../../queue/producers';
 import { logger } from '../../utils/logger';
 import { mapWithConcurrency } from '../../utils/concurrency';
 import { INSTAGRAM_AP_BRIDGE_HOSTS } from '../shared/instagramSourceKey';
@@ -21,6 +24,7 @@ import {
   PERIODIC_SYNC_LIMIT,
   PROFILE_VIEW_SYNC_COOLDOWN_MS,
   PROFILE_VIEW_SYNC_LIMIT,
+  SYNC_DEADLINE_MS,
   SYNC_LEASE_TTL_MS,
 } from './constants';
 import { importInstagramMedia, type InstagramImportOptions, type InstagramImportResult } from './importer';
@@ -32,12 +36,17 @@ import { importInstagramMedia, type InstagramImportOptions, type InstagramImport
  *  - `profile_view` — a reader opened the profile; one page, interactive budget,
  *    at most every {@link PROFILE_VIEW_SYNC_COOLDOWN_MS}.
  *  - `follow` — a reader followed the account; the configured backfill
- *    (`INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT`), no cooldown.
- *  - `periodic` — a followed account's new posts; newest first, stopping at the
- *    first post already here, background budget only.
+ *    (`INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT`), at most every
+ *    {@link PERIODIC_SYNC_DUE_MS} — a follow/unfollow loop, or a thousand
+ *    followers, is ONE backfill, not a thousand.
+ *  - `periodic` — a followed account's new posts, background budget only.
  *
- * Every trigger takes the per-actor lease first (`claimInstagramGraphSync`), so
- * any number of concurrent views, tasks and job runs make ONE set of Graph calls.
+ * After an account's first successful sync, every trigger stops paging at the
+ * first page that holds an already-imported post: everything older is already
+ * here. Every trigger takes the per-actor lease first
+ * (`claimInstagramGraphSync`), so concurrent views, tasks and job runs make ONE
+ * set of Graph calls, and every run stops starting new work after
+ * {@link SYNC_DEADLINE_MS} so it always ends inside its lease.
  */
 
 export type InstagramSyncTrigger = 'profile_view' | 'follow' | 'periodic';
@@ -47,14 +56,22 @@ export function isInstagramIdentityActor(actor: Pick<FederatedActorRecord, 'prot
   return actor.protocol === 'instagram-graph' || instagramUsernameOfActor(actor) !== undefined;
 }
 
-function optionsFor(trigger: InstagramSyncTrigger): InstagramImportOptions {
+/** Exported for tests. */
+export function optionsFor(
+  trigger: InstagramSyncTrigger,
+  actor: Pick<FederatedActorRecord, 'instagramGraphLastResult'>,
+  now = Date.now(),
+): InstagramImportOptions {
+  const deadline = now + SYNC_DEADLINE_MS;
+  // History is only walked until the first sync has succeeded once.
+  const stopAtKnown = trigger === 'periodic' || actor.instagramGraphLastResult === 'ok';
   switch (trigger) {
     case 'profile_view':
-      return { limit: PROFILE_VIEW_SYNC_LIMIT, stopAtKnown: false, kind: 'interactive' };
+      return { limit: PROFILE_VIEW_SYNC_LIMIT, stopAtKnown, kind: 'interactive', deadline };
     case 'follow':
-      return { limit: config.instagramGraph.followBackfillLimit, stopAtKnown: false, kind: 'interactive' };
+      return { limit: config.instagramGraph.followBackfillLimit, stopAtKnown, kind: 'interactive', deadline };
     case 'periodic':
-      return { limit: PERIODIC_SYNC_LIMIT, stopAtKnown: true, kind: 'background' };
+      return { limit: PERIODIC_SYNC_LIMIT, stopAtKnown, kind: 'background', deadline };
     default: {
       const exhaustive: never = trigger;
       throw new Error(`unknown Instagram sync trigger ${String(exhaustive)}`);
@@ -62,16 +79,18 @@ function optionsFor(trigger: InstagramSyncTrigger): InstagramImportOptions {
   }
 }
 
-function cooldownFor(trigger: InstagramSyncTrigger): number {
-  if (trigger === 'profile_view') return PROFILE_VIEW_SYNC_COOLDOWN_MS;
-  if (trigger === 'periodic') return PERIODIC_SYNC_DUE_MS;
-  return 0;
+/** Exported for tests. */
+export function cooldownFor(trigger: InstagramSyncTrigger): number {
+  return trigger === 'profile_view' ? PROFILE_VIEW_SYNC_COOLDOWN_MS : PERIODIC_SYNC_DUE_MS;
 }
 
 /**
  * The cooldown stamp an import result earns. `null` = release without stamping:
- * a call we WITHHELD (budget, throttle, bad token, disabled) says nothing about
- * the account, so it must be retried at the next opportunity.
+ * a call we WITHHELD (budget, throttle, bad token, disabled) or a run cut short
+ * by its deadline says nothing final about the account, so it is retried at the
+ * next opportunity. A `partial` run (some post waits for media) stamps `error`:
+ * the ordinary cooldown, and — because it is not `ok` — the next run walks
+ * history again instead of stopping at the first known post.
  */
 export function syncResultFor(outcome: InstagramImportResult['outcome']): InstagramGraphSyncResult | null {
   switch (outcome) {
@@ -79,10 +98,13 @@ export function syncResultFor(outcome: InstagramImportResult['outcome']): Instag
       return 'ok';
     case 'not_business':
       return 'not_business';
+    case 'identity_mismatch':
+      return 'identity_mismatch';
     case 'budget':
     case 'throttled':
     case 'token_invalid':
     case 'disabled':
+    case 'deadline':
       return null;
     default:
       return 'error';
@@ -120,29 +142,38 @@ export async function syncInstagramActor(
   let result: InstagramImportResult | null = null;
   try {
     const isKilogram = actor.protocol === 'activitypub' && INSTAGRAM_AP_BRIDGE_HOSTS.has(actor.domain.toLowerCase());
+    // The id the username must still answer with: the pin from the first
+    // successful sync, or — for a Graph-only actor — the id in its own URI.
+    const expectedIgUserId = actor.instagramGraphUserId
+      ?? (actor.protocol === 'instagram-graph' ? igUserIdFromActorUri(actor.uri) : undefined);
     result = await importInstagramMedia(
       {
         username,
         ownerOxyUserId,
         actorUri: actor.uri,
-        expectedIgUserId: actor.protocol === 'instagram-graph' ? igUserIdFromActorUri(actor.uri) : undefined,
+        expectedIgUserId,
         kilogramActorUri: isKilogram ? actor.uri : undefined,
       },
-      optionsFor(trigger),
+      optionsFor(trigger, actor),
     );
 
-    // An `instagram-graph` actor has no other source for its counts.
-    if (actor.protocol === 'instagram-graph' && result.outcome === 'ok' && result.profile) {
-      await setActorRemoteCounts(actor.id, {
-        followersCount: result.profile.followers_count,
-        followingCount: result.profile.follows_count,
-        postsCount: result.profile.media_count,
-      });
+    const answered = result.profile;
+    if (answered && (result.outcome === 'ok' || result.outcome === 'partial' || result.outcome === 'deadline')) {
+      if (!actor.instagramGraphUserId) await pinInstagramGraphUserId(actor.id, answered.id);
+      // An `instagram-graph` actor has no other source for its counts.
+      if (actor.protocol === 'instagram-graph') {
+        await setActorRemoteCounts(actor.id, {
+          followersCount: answered.followers_count,
+          followingCount: answered.follows_count,
+          postsCount: answered.media_count,
+        });
+      }
     }
     logger.info('[instagram] Graph sync finished', {
       trigger,
       outcome: result.outcome,
       imported: result.imported,
+      deleted: result.deleted,
     });
     return result;
   } catch (err) {
@@ -156,9 +187,28 @@ export async function syncInstagramActor(
   }
 }
 
-/** Detached {@link syncInstagramActor}. */
-export function syncInstagramActorInBackground(actor: FederatedActorRecord, trigger: InstagramSyncTrigger): void {
-  void syncInstagramActor(actor, trigger).catch(() => undefined);
+/**
+ * A profile view or a follow asked for a sync: queue it on a worker (one per
+ * actor and trigger while queued), or — with no queue (local dev, degraded
+ * boot) — run it detached in this process. The lease and cooldown still decide
+ * inside, so an over-eager caller costs a lookup, not Graph budget.
+ */
+export function requestInstagramSync(actor: FederatedActorRecord, trigger: 'profile_view' | 'follow'): void {
+  void (async () => {
+    try {
+      if (await enqueueInstagramGraphSync({ actorId: actor.id, trigger })) return;
+    } catch (err) {
+      logger.warn('[instagram] could not queue Graph sync; running it here', { error: err instanceof Error ? err.message : String(err) });
+    }
+    await syncInstagramActor(actor, trigger);
+  })().catch(() => undefined);
+}
+
+/** The queue worker's body: re-read the actor (the job carries only its id) and sync it. */
+export async function runQueuedInstagramSync(actorId: string, trigger: 'profile_view' | 'follow'): Promise<void> {
+  const actor = await findActorById(actorId);
+  if (!actor) return;
+  await syncInstagramActor(actor, trigger);
 }
 
 /**
@@ -188,7 +238,7 @@ export async function runPeriodicInstagramSync(): Promise<{ synced: number; impo
     if (!result) return;
     synced += 1;
     imported += result.imported;
-    if (syncResultFor(result.outcome) === null) blocked = true;
+    if (['budget', 'throttled', 'token_invalid', 'disabled'].includes(result.outcome)) blocked = true;
   });
   logger.info('[instagram] periodic Graph sync', { candidates: candidates.length, synced, imported, blocked });
   return { synced, imported };

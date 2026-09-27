@@ -5,6 +5,9 @@ import {
   FEDERATION_DELIVERY_QUEUE,
   FEDERATION_PERIODIC_QUEUE,
   FEDERATION_SHARING_CLEANUP_QUEUE,
+  INSTAGRAM_GRAPH_SYNC_QUEUE,
+  INSTAGRAM_GRAPH_SYNC_REMOVE_ON_COMPLETE_COUNT,
+  INSTAGRAM_GRAPH_SYNC_REMOVE_ON_FAIL_COUNT,
   MEDIA_METADATA_ENRICH_QUEUE,
   ACCOUNT_ERASURE_QUEUE,
   ACCOUNT_ERASURE_REMOVE_ON_COMPLETE_COUNT,
@@ -25,6 +28,7 @@ import type {
   DeliveryJobData,
   PeriodicJobData,
   SharingCleanupJobData,
+  InstagramGraphSyncJobData,
   MediaMetadataEnrichJobData,
   AccountErasureJobData,
 } from './types';
@@ -53,6 +57,7 @@ let periodicQueue: Queue<PeriodicJobData> | null = null;
 let sharingCleanupQueue: Queue<SharingCleanupJobData> | null = null;
 let mediaMetadataEnrichQueue: Queue<MediaMetadataEnrichJobData> | null = null;
 let accountErasureQueue: Queue<AccountErasureJobData> | null = null;
+let instagramGraphSyncQueue: Queue<InstagramGraphSyncJobData> | null = null;
 
 /**
  * Get the inbound-activity queue, or null when Redis is not configured (callers
@@ -142,6 +147,18 @@ export function getAccountErasureQueue(): Queue<AccountErasureJobData> | null {
   return accountErasureQueue;
 }
 
+/** Get the Instagram Graph sync queue, or null when Redis is not configured. */
+export function getInstagramGraphSyncQueue(): Queue<InstagramGraphSyncJobData> | null {
+  if (!isQueueEnabled()) return null;
+  if (!instagramGraphSyncQueue) {
+    instagramGraphSyncQueue = new Queue<InstagramGraphSyncJobData>(
+      INSTAGRAM_GRAPH_SYNC_QUEUE,
+      baseQueueOptions(INSTAGRAM_GRAPH_SYNC_REMOVE_ON_COMPLETE_COUNT, INSTAGRAM_GRAPH_SYNC_REMOVE_ON_FAIL_COUNT),
+    );
+  }
+  return instagramGraphSyncQueue;
+}
+
 /** Close all open producer queues. Internal — used by {@link shutdownQueues}. */
 export async function closeQueues(): Promise<void> {
   const open: Array<
@@ -151,6 +168,7 @@ export async function closeQueues(): Promise<void> {
     | Queue<SharingCleanupJobData>
     | Queue<MediaMetadataEnrichJobData>
     | Queue<AccountErasureJobData>
+    | Queue<InstagramGraphSyncJobData>
   > = [];
   if (inboxQueue) open.push(inboxQueue);
   if (deliveryQueue) open.push(deliveryQueue);
@@ -158,6 +176,7 @@ export async function closeQueues(): Promise<void> {
   if (sharingCleanupQueue) open.push(sharingCleanupQueue);
   if (mediaMetadataEnrichQueue) open.push(mediaMetadataEnrichQueue);
   if (accountErasureQueue) open.push(accountErasureQueue);
+  if (instagramGraphSyncQueue) open.push(instagramGraphSyncQueue);
 
   await Promise.allSettled(open.map((q) => q.close()));
 
@@ -167,4 +186,5 @@ export async function closeQueues(): Promise<void> {
   sharingCleanupQueue = null;
   mediaMetadataEnrichQueue = null;
   accountErasureQueue = null;
+  instagramGraphSyncQueue = null;
 }

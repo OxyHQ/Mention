@@ -53,6 +53,12 @@ export interface SharingCleanupJobData {
   nonce: string;
 }
 
+/** One Instagram Graph sync of one actor (see `connectors/instagram/sync.ts`). */
+export interface InstagramGraphSyncJobData {
+  actorId: string;
+  trigger: 'profile_view' | 'follow';
+}
+
 /** Retry Oxy ffprobe/sharp metadata copy onto a post's content.media[]. */
 export interface MediaMetadataEnrichJobData {
   postId: string;

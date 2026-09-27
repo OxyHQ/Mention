@@ -6,6 +6,9 @@ import {
   FEDERATION_DELIVERY_QUEUE,
   FEDERATION_PERIODIC_QUEUE,
   FEDERATION_SHARING_CLEANUP_QUEUE,
+  INSTAGRAM_GRAPH_SYNC_QUEUE,
+  INSTAGRAM_GRAPH_SYNC_WORKER_CONCURRENCY,
+  INSTAGRAM_GRAPH_SYNC_LOCK_DURATION_MS,
   MEDIA_METADATA_ENRICH_QUEUE,
   ACCOUNT_ERASURE_QUEUE,
   ACCOUNT_ERASURE_WORKER_CONCURRENCY,
@@ -23,6 +26,7 @@ import type {
   PeriodicJobData,
   PeriodicTaskName,
   SharingCleanupJobData,
+  InstagramGraphSyncJobData,
   MediaMetadataEnrichJobData,
   AccountErasureJobData,
 } from './types';
@@ -30,6 +34,7 @@ import { logger } from '../utils/logger';
 import { activityPubConnector } from '../connectors/activitypub/ActivityPubConnector';
 import { federationJobScheduler } from '../services/FederationJobScheduler';
 import { runSharingCleanup } from '../connectors/activitypub/sharingCleanup.service';
+import { instagramGraphConnector } from '../connectors/instagram/InstagramGraphConnector';
 import { processMediaMetadataEnrichJob } from '../services/mediaMetadataEnrichJob';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { processAccountErasure } from '../services/accountErasure/AccountErasureService';
@@ -56,6 +61,7 @@ let inboxWorker: Worker<InboxJobData> | null = null;
 let deliveryWorker: Worker<DeliveryJobData> | null = null;
 let periodicWorker: Worker<PeriodicJobData> | null = null;
 let sharingCleanupWorker: Worker<SharingCleanupJobData> | null = null;
+let instagramGraphSyncWorker: Worker<InstagramGraphSyncJobData> | null = null;
 let mediaMetadataEnrichWorker: Worker<MediaMetadataEnrichJobData> | null = null;
 let accountErasureWorker: Worker<AccountErasureJobData> | null = null;
 let workersStarted = false;
@@ -149,6 +155,11 @@ export async function processDeliveryJob(job: Job<DeliveryJobData>): Promise<voi
     // tiered backoff until DELIVERY_JOB_ATTEMPTS is exhausted.
     throw new Error(`Delivery to ${targetInbox} failed (will retry)`);
   }
+}
+
+/** Run one queued Instagram Graph sync (lease, cooldown and budget apply inside). */
+export async function processInstagramGraphSyncJob(job: Job<InstagramGraphSyncJobData>): Promise<void> {
+  await instagramGraphConnector.runQueuedSync(job.data.actorId, job.data.trigger);
 }
 
 /**
@@ -290,6 +301,16 @@ export function startWorkers(): void {
     },
   );
 
+  instagramGraphSyncWorker = new Worker<InstagramGraphSyncJobData>(
+    INSTAGRAM_GRAPH_SYNC_QUEUE,
+    processInstagramGraphSyncJob,
+    {
+      connection,
+      concurrency: INSTAGRAM_GRAPH_SYNC_WORKER_CONCURRENCY,
+      lockDuration: INSTAGRAM_GRAPH_SYNC_LOCK_DURATION_MS,
+    },
+  );
+
   for (const worker of [
     inboxWorker,
     deliveryWorker,
@@ -297,6 +318,7 @@ export function startWorkers(): void {
     sharingCleanupWorker,
     mediaMetadataEnrichWorker,
     accountErasureWorker,
+    instagramGraphSyncWorker,
   ]) {
     worker.on('failed', (job, err) => {
       logger.warn('[Queue] job failed', {
@@ -310,7 +332,7 @@ export function startWorkers(): void {
     });
   }
 
-  logger.info('Queue workers started (inbox, delivery, periodic, sharing-cleanup, media-metadata-enrich, account-erasure)');
+  logger.info('Queue workers started (inbox, delivery, periodic, sharing-cleanup, media-metadata-enrich, account-erasure, instagram-graph-sync)');
 }
 
 /**
@@ -329,6 +351,7 @@ export async function shutdownQueues(): Promise<void> {
     | Worker<SharingCleanupJobData>
     | Worker<MediaMetadataEnrichJobData>
     | Worker<AccountErasureJobData>
+    | Worker<InstagramGraphSyncJobData>
   > = [];
   if (inboxWorker) workers.push(inboxWorker);
   if (deliveryWorker) workers.push(deliveryWorker);
@@ -336,6 +359,7 @@ export async function shutdownQueues(): Promise<void> {
   if (sharingCleanupWorker) workers.push(sharingCleanupWorker);
   if (mediaMetadataEnrichWorker) workers.push(mediaMetadataEnrichWorker);
   if (accountErasureWorker) workers.push(accountErasureWorker);
+  if (instagramGraphSyncWorker) workers.push(instagramGraphSyncWorker);
 
   await Promise.allSettled(workers.map((w) => w.close()));
 
@@ -345,6 +369,7 @@ export async function shutdownQueues(): Promise<void> {
   sharingCleanupWorker = null;
   mediaMetadataEnrichWorker = null;
   accountErasureWorker = null;
+  instagramGraphSyncWorker = null;
   workersStarted = false;
 
   await closeQueues();

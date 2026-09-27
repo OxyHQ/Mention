@@ -291,6 +291,14 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'verification. It names a key on someone else\'s server.',
   },
   {
+    table: federatedActors,
+    column: federatedActors.instagramGraphUserId,
+    reason:
+      'Meta\'s Instagram user id (Business Discovery `id`), pinned on the first ' +
+      'successful Graph sync so a recycled username cannot import a stranger\'s ' +
+      'posts. An identifier in Meta\'s namespace; nothing here to reference.',
+  },
+  {
     table: posts,
     column: posts.federationActivityId,
     reason:

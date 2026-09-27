@@ -55,7 +55,7 @@ vi.mock('../../../services/ActorIdentityProjectionService', () => ({ reconcileAc
 vi.mock('../../../services/userSummaryCache', () => ({ invalidate: vi.fn() }));
 vi.mock('../../../connectors/instagram/sync', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../connectors/instagram/sync')>()),
-  syncInstagramActorInBackground: h.syncInBackground,
+  requestInstagramSync: h.syncInBackground,
   syncInstagramActor: h.syncInstagramActor,
 }));
 vi.mock('@oxy.so/core/server', async (importOriginal) => ({

@@ -1,0 +1,98 @@
+/**
+ * `backfillInstagramSourceKeys` gives every post the kilogram.makeup bridge
+ * delivered before `post_source_keys` existed its Instagram source key, and
+ * validates the CHECKs migration 0054 added NOT VALID.
+ *
+ * It walks EVERY bridge actor and validates constraints on shared tables, so
+ * this file runs against its own database (`isolatedDatabaseFiles.ts`).
+ */
+
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { eq, sql } from 'drizzle-orm';
+import { PostType, PostVisibility } from '@mention/shared-types';
+
+import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
+import { federatedActors, postSourceKeys } from '../../db/schema';
+import { insertPostRecord } from '../../db/posts/postRepository';
+import {
+  NOT_VALID_CONSTRAINTS,
+  backfillInstagramSourceKeys,
+} from '../../scripts/backfillInstagramSourceKeys';
+
+const ACTOR = 'https://kilogram.makeup/users/igbackfill.acct';
+const OWNER = 'oxy-igbackfill-owner';
+
+async function bridgePost(shortcode: string, withKey = false): Promise<string> {
+  const record = await insertPostRecord({
+    oxyUserId: OWNER,
+    authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
+    type: PostType.TEXT,
+    visibility: PostVisibility.PUBLIC,
+    status: 'published',
+    content: { variants: [{ source: 'author', text: `bridge ${shortcode}`, tag: 'en' }] },
+    federation: {
+      activityId: `${ACTOR}/statuses/${shortcode}`,
+      actorUri: ACTOR,
+      ...(withKey ? { sourcePostKey: `instagram:${shortcode}` } : {}),
+    },
+  });
+  return record.id;
+}
+
+async function keyOf(postId: string): Promise<string | undefined> {
+  const [row] = await getDb().select({ key: postSourceKeys.sourceKey }).from(postSourceKeys).where(eq(postSourceKeys.postId, postId));
+  return row?.key;
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+  await getDb().insert(federatedActors).values({
+    protocol: 'activitypub',
+    uri: ACTOR,
+    username: 'igbackfill.acct',
+    domain: 'kilogram.makeup',
+    acct: 'igbackfill.acct@kilogram.makeup',
+    networkAcct: 'igbackfill.acct@instagram.com',
+    type: 'Service',
+    oxyUserId: OWNER,
+    lastFetchedAt: new Date(),
+  });
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+describe('backfillInstagramSourceKeys', () => {
+  it('counts without writing on a dry run, then keys the legacy bridge posts and validates the CHECKs', async () => {
+    const legacyA = await bridgePost('DqLegacyA01');
+    const legacyB = await bridgePost('DqLegacyB02');
+    const keyed = await bridgePost('DqKeyedC003', true);
+    // A key another post already holds (the Graph import got there first).
+    const taken = await bridgePost('DqTakenD004');
+    await getDb().update(postSourceKeys).set({ postId: keyed }).where(eq(postSourceKeys.postId, keyed));
+    await getDb().insert(postSourceKeys).values({ sourceKey: 'instagram:DqTakenD004', claimToken: 'someone', claimedUntil: new Date(Date.now() + 60_000) });
+
+    const dry = await backfillInstagramSourceKeys({ dryRun: true, pauseMs: 0 });
+    expect(dry).toMatchObject({ candidates: 3, written: 0, validated: [] });
+    expect(await keyOf(legacyA)).toBeUndefined();
+
+    const run = await backfillInstagramSourceKeys({ dryRun: false, pauseMs: 0 });
+    expect(run).toMatchObject({ candidates: 3, written: 2, conflicts: 1 });
+    expect(await keyOf(legacyA)).toBe('instagram:DqLegacyA01');
+    expect(await keyOf(legacyB)).toBe('instagram:DqLegacyB02');
+    expect(await keyOf(keyed)).toBe('instagram:DqKeyedC003');
+    expect(await keyOf(taken)).toBeUndefined();
+
+    expect(run.validated.sort()).toEqual(NOT_VALID_CONSTRAINTS.map((c) => c.constraint).sort());
+    const rows = await getDb().execute<{ convalidated: boolean }>(sql`
+      select convalidated from pg_constraint
+      where conname in ('federated_actors_protocol_check', 'federated_follows_network_check',
+                        'federated_actors_instagram_graph_last_result_check')
+    `);
+    expect([...rows].every((row) => row.convalidated)).toBe(true);
+
+    // Idempotent: a second run has nothing left to do.
+    expect(await backfillInstagramSourceKeys({ dryRun: false, pauseMs: 0 })).toMatchObject({ candidates: 1, written: 0, validated: [] });
+  });
+});

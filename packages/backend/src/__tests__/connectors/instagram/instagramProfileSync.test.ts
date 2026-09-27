@@ -48,7 +48,7 @@ vi.mock('../../../db/federation/actorRepository', async (importOriginal) => ({
 }));
 vi.mock('../../../connectors/instagram/sync', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../connectors/instagram/sync')>()),
-  syncInstagramActorInBackground: h.syncInBackground,
+  requestInstagramSync: h.syncInBackground,
 }));
 vi.mock('../../../utils/oxyHelpers', () => ({
   getServiceOxyClient: () => ({ users: { get: vi.fn(async () => ({ id: 'oxy-zuck', type: 'federated', username: 'zuck@instagram.com' })) } }),

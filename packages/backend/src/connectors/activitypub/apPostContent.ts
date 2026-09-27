@@ -637,7 +637,7 @@ export function buildFederatedNoteProvenance(input: {
     spoilerText: input.spoilerText,
     // A Note from an Instagram bridge carries the Instagram post's source key,
     // so a copy of the same post already imported from the Graph API (or
-    // imported after this one) collides on `posts_source_post_key_key`.
+    // imported after this one) collides on `post_source_keys_source_key_key`.
     ...withInstagramSourceKey(input.activityId),
   };
 }

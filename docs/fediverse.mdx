@@ -362,21 +362,30 @@ The connector is inert unless the flag and both credentials are set.
 
 **When posts are read.** Each sync takes a per-actor lease
 (`federated_actors.instagram_graph_*`), so concurrent triggers make one set of
-calls:
+calls. Profile-view and follow syncs run on the `instagram-graph-sync` queue
+worker; they run detached in the API process only when there is no queue. A run
+stops starting new work after 20 minutes, which keeps it inside its 30-minute
+lease, so a reclaimed lease never repeats downloads.
 
 - A profile view imports one page, at most every 6 hours per actor. The profile
   reports `pending` only until a first sync has finished, so it does not flicker
   between a spinner and an empty page.
-- A follow imports up to `INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT` posts. This
-  covers a kilogram follow and an `instagram-graph` subscription.
+- A follow imports up to `INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT` posts, at most
+  every 2 hours per actor. A follow/unfollow loop, or many followers, therefore
+  costs one backfill.
 - The `syncInstagramFollowedAccounts` periodic job runs every 30 minutes. It
-  syncs up to 10 actors that have an accepted local follower, 2 at a time. Each
-  sync goes newest first and stops at the first post already imported.
+  syncs up to 10 actors that have an accepted local follower, 2 at a time.
 
-**Budget.** A token gets about 200 calls per hour. Each response's `x-app-usage`
-header is recorded in Redis, or per process when Redis is unavailable. The
-recorded value decays over one hour. Background calls stop at 75% usage, and
-profile views stop at 95%.
+After an account's first successful sync, every trigger stops paging at the
+first page that holds an already-imported post.
+
+**Budget.** A token gets about 200 calls per hour. Every call must first take a
+token from a bucket in Redis (a per-process bucket when Redis is unavailable).
+The bucket refills at 150 per hour with a burst of 30, and background calls
+cannot draw it below 15. Taking a token is one Lua script, so concurrent tasks
+cannot overspend. The `x-app-usage` header is also recorded and decays over one
+hour: background calls stop at 75% usage, and profile views and follows stop at
+95%. Throttle strikes use an atomic `INCR`.
 
 | Error code | Meaning | Response |
 | --- | --- | --- |
@@ -384,38 +393,68 @@ profile views stop at 95%.
 | 190 | Invalid token | Pause for an hour and log once at `error`. Neither the token nor a URL is ever logged. |
 | 110 / 2207013 | Not a Business or Creator account | Remember it and re-ask weekly. Personal accounts cannot be read. |
 
+**Identity pin.** The first successful sync stores the Instagram user id that the
+username answered with (`instagram_graph_user_id`). If a later answer carries a
+different id, the username has been recycled: the sync imports and deletes
+nothing, records `identity_mismatch`, and waits a week before asking again.
+
 **What is imported.** Each post goes through `getPostCreator().create` with
 notifications, socket emits and federation delivery skipped, and it keeps its
 original `createdAt`. The caption becomes the text; bare `@handles` are qualified
-onto instagram.com and hashtags are extracted. Media is materialized at import,
-because Meta's CDN URLs expire (`oe=`) and a video can be about 30 MB:
+onto instagram.com and hashtags are extracted. Media is re-hosted in Oxy at
+import. Meta's CDN URLs expire (`oe=`), so an Instagram post never keeps one:
 
 - A carousel imports every child, in order.
 - A video that Instagram serves only as a thumbnail (licensed audio) imports that
   thumbnail as an image.
-- A video that cannot be stored falls back to its poster image.
-
-If the media cache is disabled, the remote URLs are kept and will expire.
+- A video that cannot be stored, for any reason, falls back to its poster image.
+- A file that will never be storable (404/410, over the size cap, not media) is
+  dropped.
+- A failure that may pass (media writes off, Oxy unavailable) leaves the whole
+  post for the next sync rather than storing an expiring link.
 
 **One post, two roads.** A Graph-imported post is stored with
 `federation_activity_id = instagram:<shortcode>`, with the shortcode taken from
 the permalink. A kilogram Note's id is
 `https://kilogram.makeup/users/<u>/statuses/<shortcode>`, measured live. Both
-write `posts.source_post_key = instagram:<shortcode>` under a partial UNIQUE
-index (migration `0054`), so whichever road arrives second collides instead of
-duplicating.
+roads write `instagram:<shortcode>` into `post_source_keys` under a UNIQUE key,
+in the same transaction as the post, so whichever road arrives second collides
+instead of duplicating.
 
+- The Graph import **claims** the key before it downloads anything, and the post
+  insert fills the claim. A kilogram push racing it collides, and its inbox job
+  retries into the finished post, so no upload is made for a post that then
+  loses. oxy-api has no route to delete a durable federation asset.
 - Every "is this object already here?" gate on the ActivityPub side matches on
-  that key. A kilogram Like, boost, reply or re-push of a Graph-imported post
-  links to the existing row.
-- A Graph import skips a post that kilogram delivered before the key existed. It
-  finds that post by its bridge Note id.
+  the key. A kilogram Like, boost, reply, Delete or Update of a Graph-imported
+  post reaches the existing row. Ownership is still checked against the signing
+  actor.
 - Graph posts of a kilogram actor are stored under the kilogram actor URI, so
-  identity projection and cross-post detection treat both roads as one source.
+  identity projection, cross-post detection and a bridge Delete treat both roads
+  as one source.
+- **Posts deleted on Instagram are removed.** The media listing is newest-first
+  and contiguous, so a stored post inside the listed window that the listing no
+  longer has was deleted. More than 10 such posts from one listing is treated as
+  an anomaly, and nothing is deleted.
 
 Nothing is sent to Instagram. Replies, likes and boosts of a Graph-imported post
 are not delivered, and the permalink stands in as the object a reply or quote
 references.
+
+**Migration 0054 and its post-deploy step.** `post_source_keys` is a new child
+table rather than a `posts` column. A column plus unique index on `posts` would
+hold ACCESS EXCLUSIVE on `posts` for the whole index build inside the
+transactional migrator.
+
+- Measured with `pg_locks`, the migration takes only SHARE ROW EXCLUSIVE on
+  `posts`, so reads continue.
+- It adds the widened CHECKs on `federated_actors` and `federated_follows` as
+  `NOT VALID`, so it scans no rows under their ACCESS EXCLUSIVE.
+- After the deploy, run `packages/backend/src/scripts/backfillInstagramSourceKeys.ts` (`DRY_RUN`
+  first). It gives pre-0054 kilogram posts their source key, batched per bridge
+  actor through the actor-URI index, then runs `VALIDATE CONSTRAINT` on the three
+  CHECKs. VALIDATE does not block reads or writes. Until the script runs, the
+  Graph import still recognises those posts by their bridge Note id.
 
 **Protocol types.** `instagram-graph` is a first-class protocol upstream:
 `@oxy.so/contracts` 4.0.0 accepts it in the external-identity schemas and

@@ -4,7 +4,7 @@ import { fetchUpstreamSingleHop } from '../../utils/safeUpstreamFetch';
 import { readBoundedResponseBody } from '../shared/httpBody';
 import { GRAPH_API_HOST, isInstagramGraphEnabled, isValidInstagramUsername } from './constants';
 import {
-  checkBudget,
+  acquireCallBudget,
   recordThrottle,
   recordTokenInvalid,
   recordUsage,
@@ -232,9 +232,12 @@ export async function fetchBusinessDiscovery(
     throw new InstagramGraphError('invalid_request', 'Not a Graph paging cursor');
   }
 
-  const refusal = await checkBudget(options.kind);
+  // Takes a call token atomically, BEFORE the call: the budget is spent by
+  // sending, not by the answer arriving.
+  const refusal = await acquireCallBudget(options.kind);
   if (refusal) {
-    throw new InstagramGraphError(refusal === 'usage' ? 'budget' : refusal, `Graph call withheld (${refusal})`);
+    const kind = refusal === 'usage' || refusal === 'tokens' ? 'budget' : refusal;
+    throw new InstagramGraphError(kind, `Graph call withheld (${refusal})`);
   }
 
   const fields = buildBusinessDiscoveryFields(username, options.media);

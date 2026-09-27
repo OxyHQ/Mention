@@ -47,7 +47,7 @@
  * needs a nullable sort key must say `nulls first` explicitly.
  */
 
-import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import type {
@@ -73,6 +73,7 @@ import {
   postContentVariants,
   postMedia,
   postMentions,
+  postSourceKeys,
   postSources,
   postVariantAltTexts,
   postVariantMedia,
@@ -873,7 +874,6 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     federationUrl: input.federation?.url ?? null,
     federationSensitive: input.federation?.sensitive ?? null,
     federationSpoilerText: input.federation?.spoilerText ?? null,
-    sourcePostKey: input.federation?.sourcePostKey ?? null,
 
     contentPollId: content.pollId ?? null,
     contentArticleId: content.article?.articleId ?? null,
@@ -1103,6 +1103,32 @@ async function insertChildRows(
 }
 
 /**
+ * Give post `postId` its source key, inside the post's own transaction.
+ *
+ * First FILL a claim this caller holds (`claimToken`), or one whose holder died
+ * (`claimed_until` passed). Otherwise a plain INSERT — which raises a genuine
+ * unique violation (23505) when the key is filled, or claimed by a live holder,
+ * so every caller's existing `isUniqueViolation` "already here" branch applies.
+ */
+async function attachSourceKey(
+  tx: DatabaseOrTransaction,
+  sourceKey: string,
+  postId: string,
+  claimToken: string | undefined,
+): Promise<void> {
+  const claimable = claimToken
+    ? or(eq(postSourceKeys.claimToken, claimToken), lt(postSourceKeys.claimedUntil, sql`now()`))
+    : lt(postSourceKeys.claimedUntil, sql`now()`);
+  const filled = await tx
+    .update(postSourceKeys)
+    .set({ postId, claimedUntil: null, claimToken: null })
+    .where(and(eq(postSourceKeys.sourceKey, sourceKey), isNull(postSourceKeys.postId), claimable))
+    .returning({ id: postSourceKeys.id });
+  if (filled.length > 0) return;
+  await tx.insert(postSourceKeys).values({ sourceKey, postId });
+}
+
+/**
  * Persist a new post and every row it owns, atomically.
  *
  * ONE transaction, deliberately: a post whose authorship row failed to land has
@@ -1194,6 +1220,13 @@ async function writePostRecord(
 
   const write = async (tx: DatabaseOrTransaction): Promise<void> => {
     await tx.insert(posts).values(insert);
+    // A post reachable by a second road takes its source key IN THIS
+    // TRANSACTION: a collision on `post_source_keys_source_key_key` rolls the
+    // whole post back, so the other road's copy stays the only one.
+    const sourceKey = input.federation?.sourcePostKey;
+    if (sourceKey) {
+      await attachSourceKey(tx, sourceKey, id, input.federation?.sourceKeyClaimToken);
+    }
     await insertChildRows(
       tx,
       id,

@@ -86,6 +86,18 @@ export function instagramUsernameOfActor(
 // consumed share in `x-app-usage`. One Business Discovery call returns one page
 // of media, so each sync below costs one call per page.
 
+/**
+ * The call-token bucket every Graph call must draw from BEFORE it is sent
+ * (`usageBudget.ts`). Refill {@link GRAPH_CALLS_PER_HOUR} plus a full
+ * {@link GRAPH_CALL_BUCKET_CAPACITY} burst stays under Meta's ~200/hour even in
+ * the worst hour.
+ */
+export const GRAPH_CALLS_PER_HOUR = 150;
+export const GRAPH_CALL_BUCKET_CAPACITY = 30;
+
+/** Background calls may not drain the bucket below this: the rest is for readers. */
+export const BACKGROUND_TOKEN_FLOOR = 15;
+
 /** Above this `x-app-usage` percentage, background (non-interactive) calls stop. */
 export const BACKGROUND_USAGE_CEILING_PCT = 75;
 
@@ -121,6 +133,23 @@ export const NOT_BUSINESS_RECHECK_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** A sync lease older than this belongs to a dead worker and may be reclaimed. */
 export const SYNC_LEASE_TTL_MS = 30 * 60 * 1000;
+
+/**
+ * A sync stops starting new work this long after it began, so a live worker
+ * always finishes (and releases) well inside {@link SYNC_LEASE_TTL_MS}: a lease
+ * reclaimed from a worker that is still downloading would run the same imports
+ * twice.
+ */
+export const SYNC_DEADLINE_MS = 20 * 60 * 1000;
+
+/**
+ * A single sync never removes more than this many posts as "deleted on
+ * Instagram"; more than that from one listing is an anomaly, not a clean-up.
+ */
+export const MAX_RECONCILE_DELETIONS = 10;
+
+/** A claimed source key (media being re-hosted) expires after this. */
+export const SOURCE_KEY_CLAIM_TTL_MS = 30 * 60 * 1000;
 
 /** A followed Instagram actor is re-synced by the periodic job at most this often. */
 export const PERIODIC_SYNC_DUE_MS = 2 * 60 * 60 * 1000;

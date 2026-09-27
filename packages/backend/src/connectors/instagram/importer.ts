@@ -1,14 +1,27 @@
+import { randomUUID } from 'node:crypto';
 import { PostVisibility, type MediaItem } from '@mention/shared-types';
 import type { NormalizedExternalMedia, NormalizedExternalPost } from '@oxy.so/federation';
 import { isUniqueViolation } from '@oxy.so/db';
-import { inArray, or } from 'drizzle-orm';
+import { and, between, eq, inArray, like } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
+import { postSourceKeys } from '../../db/schema/postContent';
 import { posts } from '../../db/schema/posts';
+import { claimSourceKey, findTakenSourceKeys, releaseSourceKeyClaim } from '../../db/posts/postSourceKeyRepository';
+import { mediaMetadataService } from '../../services/MediaMetadataService';
+import { deleteFederatedPostSubtree } from '../../services/FederatedPostDeletionService';
+import { persistRemoteMediaForFederatedOwnerDetailed } from '../../services/mediaCache/cacheWorker';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { logger } from '../../utils/logger';
-import { materializeFederatedMedia, type ExtractedMediaAttachment } from '../shared/federatedMedia';
-import { kilogramNoteIdFor } from '../shared/instagramSourceKey';
-import { GRAPH_MEDIA_PAGE_SIZE, INSTAGRAM_IDENTITY_DOMAIN } from './constants';
+import { metrics } from '../../utils/metrics';
+import { INSTAGRAM_SOURCE_KEY_PREFIX, kilogramNoteIdFor } from '../shared/instagramSourceKey';
+import { getRemoteHost } from '../shared/url';
+import type { ExtractedMediaAttachment } from '../shared/federatedMedia';
+import {
+  GRAPH_MEDIA_PAGE_SIZE,
+  INSTAGRAM_IDENTITY_DOMAIN,
+  MAX_RECONCILE_DELETIONS,
+  SOURCE_KEY_CLAIM_TTL_MS,
+} from './constants';
 import {
   fetchBusinessDiscovery,
   InstagramGraphError,
@@ -23,17 +36,27 @@ import type { GraphCallKind } from './usageBudget';
  *
  * Through the SAME `getPostCreator().create` path the ActivityPub and atproto
  * imports use (no notifications, no socket emit, no outbound federation, the
- * original `createdAt`), with the remote media MATERIALIZED at import — Meta's
- * CDN URLs are signed and expire (`oe=`), so a post that kept its remote URL
- * would lose its media within days.
+ * original `createdAt`).
  *
- * Dedupe, strongest first:
- *  1. `posts_source_post_key_key` — the partial UNIQUE index a Graph import and a
- *     kilogram push both write `instagram:<shortcode>` into. A concurrent or
- *     later import of either road collides; the collision is "already here".
- *  2. A pre-read of the keys, plus — for a kilogram-backed actor — the bridge's
- *     Note ids for the same shortcodes, which is how a post ingested from
- *     kilogram BEFORE `source_post_key` existed is recognised.
+ * MEDIA IS RE-HOSTED OR THE POST WAITS. Meta's CDN URLs are signed and expire
+ * (`oe=`), so an Instagram post never keeps one as its media: a slot whose file
+ * cannot be stored falls back to its poster image, a slot that is gone for good
+ * is dropped, and a slot that failed for a reason that may pass (media writes
+ * off, Oxy unavailable, a throttled download) leaves the whole post for the next
+ * sync rather than storing it with a link that dies in days.
+ *
+ * ONE POST, TWO ROADS. Before any download the post's source key
+ * (`instagram:<shortcode>`) is CLAIMED in `post_source_keys`; the post insert
+ * fills that claim. A kilogram push racing it collides on the claim (and its
+ * inbox job retries into the finished post), so an upload is never made for a
+ * post that then loses the race — oxy-api has no route to delete a durable
+ * federation asset again. A post the bridge delivered before `post_source_keys`
+ * existed is recognised by its bridge Note id.
+ *
+ * DELETIONS. The media listing is newest-first and contiguous, so the posts it
+ * returns are EVERY post of the account between its oldest and newest entry. A
+ * stored Instagram post of this account inside that window that the listing no
+ * longer has was deleted on Instagram, and is removed here.
  */
 
 export interface InstagramImportTarget {
@@ -43,14 +66,16 @@ export interface InstagramImportTarget {
   ownerOxyUserId: string;
   /**
    * `posts.federation_actor_uri` for imported posts: the kilogram actor URI for a
-   * bridge-identity account (so identity projection and cross-post detection,
-   * both keyed on it, treat the two roads as one source), or `instagram-graph:<id>`.
+   * bridge-identity account (so identity projection, cross-post detection and a
+   * bridge Delete/Update — all keyed on it — treat the two roads as one source),
+   * or `instagram-graph:<id>`.
    */
   actorUri: string;
   /**
-   * For an `instagram-graph` actor: the IG user id it was resolved as. A username
-   * can be released and re-registered; if Business Discovery now answers with a
-   * different id, nothing is imported under the old identity.
+   * The Instagram user id this account is pinned to (first successful sync, or
+   * the id in an `instagram-graph:<id>` URI). A username can be released and
+   * re-registered: if Business Discovery answers with another id, nothing is
+   * imported or deleted under this identity.
    */
   expectedIgUserId?: string;
   /** Set for a kilogram-backed account: its bridge actor URI, for legacy dedupe. */
@@ -60,14 +85,20 @@ export interface InstagramImportTarget {
 export interface InstagramImportOptions {
   /** Maximum posts to inspect, newest first. */
   limit: number;
-  /** Stop at the first already-imported post (the periodic "what's new" sync). */
+  /** Do not fetch another page once a page contained an already-imported post. */
   stopAtKnown: boolean;
   /** Which budget tier the Graph calls draw from. */
   kind: GraphCallKind;
+  /** Epoch ms after which no new page or post is started (lease safety). */
+  deadline?: number;
 }
 
 export type InstagramImportOutcome =
   | 'ok'
+  /** Finished, but some post waits for media that could not be stored yet. */
+  | 'partial'
+  /** Stopped at the deadline; the rest is for the next run. */
+  | 'deadline'
   | 'identity_mismatch'
   | InstagramGraphError['kind'];
 
@@ -78,87 +109,146 @@ export interface InstagramImportResult {
   posts: NormalizedExternalPost[];
   /** Media items the Graph API returned (before dedupe). */
   seen: number;
+  /** Stored posts removed because Instagram no longer lists them. */
+  deleted: number;
   profile?: Omit<GraphBusinessProfile, 'media'>;
 }
 
-function toMediaItem(item: NormalizedExternalMedia): MediaItem {
+const ORPHAN_METRIC = 'instagram_graph_media_orphan_total';
+
+type SlotOutcome =
+  | { kind: 'stored'; media: MediaItem; attachment: ExtractedMediaAttachment }
+  | { kind: 'gone' }
+  | { kind: 'retry' };
+
+/** Re-host one remote file. `retry` = it may work later; `gone` = it never will. */
+async function persistOne(
+  item: NormalizedExternalMedia,
+  ownerOxyUserId: string,
+  context: { activityId: string; actorUri: string },
+): Promise<SlotOutcome> {
+  const remoteUrl = item.remoteUrl ?? item.id;
+  const result = await persistRemoteMediaForFederatedOwnerDetailed(remoteUrl, ownerOxyUserId, {
+    remoteHost: getRemoteHost(remoteUrl),
+    activityId: context.activityId,
+    actorUri: context.actorUri,
+    mediaType: item.type,
+  });
+  if (!result.ok) {
+    // For Instagram an over-cap or non-media file is as final as a 404: the
+    // same bytes fail every retry, and — unlike ActivityPub media, whose stable
+    // remote URL the proxy can keep streaming — keeping this URL would leave a
+    // signed link that expires. The generic classifier deliberately keeps these
+    // retryable for ActivityPub, so the Instagram rule lives here.
+    const final = result.permanent || result.reason === 'too-large' || result.reason === 'not-media';
+    return final ? { kind: 'gone' } : { kind: 'retry' };
+  }
+  const oxyFileId = result.media.oxyFileId;
   return {
-    id: item.id,
-    type: item.type,
-    ...(item.remoteUrl ? { remoteUrl: item.remoteUrl } : {}),
-    ...(item.width !== undefined ? { width: item.width } : {}),
-    ...(item.height !== undefined ? { height: item.height } : {}),
+    kind: 'stored',
+    media: {
+      id: oxyFileId,
+      type: item.type,
+      // Kept for provenance only; it is never rendered — the id is the Oxy file.
+      remoteUrl,
+      cachedFromFederation: true,
+    },
+    attachment: { type: 'media', id: oxyFileId, mediaType: item.type },
   };
 }
 
-function toAttachment(item: NormalizedExternalMedia): ExtractedMediaAttachment {
-  return { type: 'media', id: item.id, mediaType: item.type };
-}
-
 /**
- * Materialize every slot in order. A slot whose primary is permanently
- * unavailable (a video past the size cap, a 404) falls back to its poster image,
- * so a Reel degrades to its still rather than vanishing from the post.
+ * Re-host every slot, in order. A slot whose primary fails for ANY reason falls
+ * back to its poster image (a Reel degrades to its still); a slot with nothing
+ * storable is dropped when that is permanent, and makes the whole post wait
+ * (`null`) when it might succeed later. Exported for tests.
  */
-async function materializePlans(
+export async function materializeInstagramMedia(
   plans: readonly InstagramMediaPlan[],
   ownerOxyUserId: string,
   context: { activityId: string; actorUri: string },
-): Promise<{ media: MediaItem[]; attachments: ExtractedMediaAttachment[] }> {
+): Promise<{ media: MediaItem[]; attachments: ExtractedMediaAttachment[] } | null> {
   const media: MediaItem[] = [];
   const attachments: ExtractedMediaAttachment[] = [];
   for (const plan of plans) {
-    let result = await materializeFederatedMedia([toMediaItem(plan.primary)], [toAttachment(plan.primary)], ownerOxyUserId, context);
-    if (result.media.length === 0 && plan.fallback) {
-      result = await materializeFederatedMedia([toMediaItem(plan.fallback)], [toAttachment(plan.fallback)], ownerOxyUserId, context);
+    let outcome = await persistOne(plan.primary, ownerOxyUserId, context);
+    if (outcome.kind !== 'stored' && plan.fallback) {
+      // The poster stands in whatever stopped the video. If it cannot be stored
+      // either, the slot is only "gone" when BOTH are gone for good; otherwise
+      // one of them may still work, and the post waits for it.
+      const fallback = await persistOne(plan.fallback, ownerOxyUserId, context);
+      if (fallback.kind === 'stored') outcome = fallback;
+      else outcome = outcome.kind === 'gone' && fallback.kind === 'gone' ? { kind: 'gone' } : { kind: 'retry' };
     }
-    media.push(...result.media);
-    attachments.push(...result.attachments);
+    if (outcome.kind === 'retry') return null;
+    if (outcome.kind === 'stored') {
+      media.push(outcome.media);
+      attachments.push(outcome.attachment);
+    }
   }
-  return { media, attachments };
+  const enriched = media.length > 0 ? await mediaMetadataService.enrichFromOxy(media) : media;
+  return { media: enriched, attachments };
 }
 
-/** The mapped posts already stored, by either road. */
+/** The mapped posts already here (either road) — by source key. */
 async function findAlreadyImported(
   mapped: readonly InstagramMappedPost[],
   kilogramActorUri: string | undefined,
 ): Promise<Set<string>> {
   if (mapped.length === 0) return new Set();
   const keys = mapped.map((entry) => entry.post.activityId);
-  const kilogramIds = kilogramActorUri
-    ? mapped.flatMap((entry) => kilogramNoteIdFor(kilogramActorUri, entry.shortcode) ?? [])
-    : [];
-  const rows = await getDb()
-    .select({ activityId: posts.federationActivityId, sourcePostKey: posts.sourcePostKey })
-    .from(posts)
-    .where(or(
-      inArray(posts.federationActivityId, [...keys, ...kilogramIds]),
-      inArray(posts.sourcePostKey, keys),
-    ));
+  const known = await findTakenSourceKeys(keys);
 
-  const known = new Set<string>();
-  for (const row of rows) {
-    if (row.sourcePostKey) known.add(row.sourcePostKey);
-    if (row.activityId) known.add(row.activityId);
-  }
-  // Report by source key, whichever column matched.
-  const knownKeys = new Set<string>();
+  const byKilogramId = new Map<string, string>();
   for (const entry of mapped) {
-    const kilogramId = kilogramActorUri ? kilogramNoteIdFor(kilogramActorUri, entry.shortcode) : undefined;
-    if (known.has(entry.post.activityId) || (kilogramId && known.has(kilogramId))) {
-      knownKeys.add(entry.post.activityId);
-    }
+    const noteId = kilogramActorUri ? kilogramNoteIdFor(kilogramActorUri, entry.shortcode) : undefined;
+    if (noteId) byKilogramId.set(noteId, entry.post.activityId);
   }
-  return knownKeys;
+  // Graph-imported rows carry the key as their activity id too; bridge rows
+  // stored before `post_source_keys` existed carry only their Note id.
+  const activityIds = [...keys, ...byKilogramId.keys()];
+  const rows = await getDb()
+    .select({ activityId: posts.federationActivityId })
+    .from(posts)
+    .where(inArray(posts.federationActivityId, activityIds));
+  for (const row of rows) {
+    if (!row.activityId) continue;
+    known.add(byKilogramId.get(row.activityId) ?? row.activityId);
+  }
+  return known;
 }
 
-/** Store one mapped post. True on a fresh insert; false when it already existed. */
-async function createInstagramPost(entry: InstagramMappedPost, target: InstagramImportTarget): Promise<boolean> {
+type CreateOutcome = 'created' | 'exists' | 'deferred' | 'failed';
+
+/** Claim, re-host, insert. */
+async function createInstagramPost(entry: InstagramMappedPost, target: InstagramImportTarget): Promise<CreateOutcome> {
   const { post } = entry;
-  const materialized = await materializePlans(entry.mediaPlans, target.ownerOxyUserId, {
-    activityId: post.activityId,
-    actorUri: target.actorUri,
-  });
+  const claimToken = randomUUID();
+  if (!(await claimSourceKey(post.activityId, claimToken, new Date(Date.now() + SOURCE_KEY_CLAIM_TTL_MS)))) {
+    // Filled (the other road got here) or being imported right now.
+    return 'exists';
+  }
+
+  let materialized: Awaited<ReturnType<typeof materializeInstagramMedia>>;
+  try {
+    materialized = await materializeInstagramMedia(entry.mediaPlans, target.ownerOxyUserId, {
+      activityId: post.activityId,
+      actorUri: target.actorUri,
+    });
+  } catch (err) {
+    await releaseSourceKeyClaim(post.activityId, claimToken).catch(() => undefined);
+    logger.warn('[instagram] media re-hosting failed', { error: err instanceof Error ? err.message : String(err) });
+    return 'deferred';
+  }
+  if (!materialized) {
+    await releaseSourceKeyClaim(post.activityId, claimToken).catch(() => undefined);
+    return 'deferred';
+  }
+  if (materialized.media.length === 0 && post.text.trim().length === 0) {
+    // Nothing left to show: every slot is permanently gone and there is no caption.
+    await releaseSourceKeyClaim(post.activityId, claimToken).catch(() => undefined);
+    return 'failed';
+  }
 
   try {
     await getPostCreator().create({
@@ -169,6 +259,7 @@ async function createInstagramPost(entry: InstagramMappedPost, target: Instagram
         url: post.url,
         sensitive: false,
         sourcePostKey: post.activityId,
+        sourceKeyClaimToken: claimToken,
       },
       content: {
         text: post.text,
@@ -185,33 +276,88 @@ async function createInstagramPost(entry: InstagramMappedPost, target: Instagram
       skipFederationDelivery: true,
       ...(post.createdAt ? { createdAt: post.createdAt, updatedAt: post.createdAt } : {}),
     });
-    return true;
+    return 'created';
   } catch (err) {
-    // The other road (or a concurrent import) got there first.
-    if (isUniqueViolation(err)) return false;
-    logger.warn('[instagram] failed to import post', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return false;
+    await releaseSourceKeyClaim(post.activityId, claimToken).catch(() => undefined);
+    // Only reachable if our claim expired mid-import and the other road filled
+    // the key: the uploads above are then unreferenced (oxy-api cannot delete a
+    // durable federation asset), so they are counted rather than lost silently.
+    if (materialized.media.length > 0) {
+      metrics.incrementCounter(ORPHAN_METRIC, materialized.media.length, { reason: isUniqueViolation(err) ? 'lost_race' : 'insert_failed' });
+    }
+    if (isUniqueViolation(err)) return 'exists';
+    logger.warn('[instagram] failed to import post', { error: err instanceof Error ? err.message : String(err) });
+    return 'failed';
   }
 }
 
 /**
- * Page through the account's media newest-first and import what is new.
- * Never throws: a Graph failure is the result's `outcome`, with whatever the
- * earlier pages already imported counted in `imported`.
+ * Remove stored Instagram posts of this account that the listing no longer has,
+ * within the window the listing proves complete. Guarded: an implausibly large
+ * number of "vanished" posts is a listing anomaly, not a mass deletion.
+ */
+async function reconcileDeletions(
+  target: InstagramImportTarget,
+  listed: readonly GraphMedia[],
+  listedKeys: ReadonlySet<string>,
+): Promise<number> {
+  if (listed.length === 0) return 0;
+  // Pinned posts can head the listing out of order; the TAIL is the oldest
+  // entry of the contiguous run, the max is its newest.
+  const times = listed.map((item) => Date.parse(item.timestamp ?? '')).filter(Number.isFinite);
+  const tail = Date.parse(listed[listed.length - 1].timestamp ?? '');
+  if (!Number.isFinite(tail) || times.length === 0) return 0;
+  const from = new Date(tail);
+  const to = new Date(Math.max(...times));
+
+  const stored = await getDb()
+    .select({ id: posts.id, sourceKey: postSourceKeys.sourceKey })
+    .from(posts)
+    .innerJoin(postSourceKeys, eq(postSourceKeys.postId, posts.id))
+    .where(and(
+      eq(posts.federationActorUri, target.actorUri),
+      eq(posts.oxyUserId, target.ownerOxyUserId),
+      like(postSourceKeys.sourceKey, `${INSTAGRAM_SOURCE_KEY_PREFIX}%`),
+      between(posts.createdAt, from, to),
+    ));
+  const vanished = stored.filter((row) => !listedKeys.has(row.sourceKey));
+  if (vanished.length === 0) return 0;
+  if (vanished.length > MAX_RECONCILE_DELETIONS) {
+    logger.warn('[instagram] refused to reconcile an implausible number of deletions', { vanished: vanished.length });
+    return 0;
+  }
+
+  let deleted = 0;
+  for (const row of vanished) {
+    if ((await deleteFederatedPostSubtree(row.id, target.actorUri)) === 'deleted') deleted += 1;
+  }
+  if (deleted > 0) logger.info('[instagram] removed posts deleted on Instagram', { deleted });
+  return deleted;
+}
+
+/**
+ * Page through the account's media newest-first, import what is new and remove
+ * what Instagram no longer lists. Never throws: a Graph failure is the result's
+ * `outcome`, with whatever earlier pages already imported counted.
  */
 export async function importInstagramMedia(
   target: InstagramImportTarget,
   options: InstagramImportOptions,
 ): Promise<InstagramImportResult> {
   let imported = 0;
+  let deferred = 0;
   const importedPosts: NormalizedExternalPost[] = [];
+  const listed: GraphMedia[] = [];
+  const listedKeys = new Set<string>();
   let seen = 0;
   let after: string | undefined;
   let profile: InstagramImportResult['profile'];
+  const result = (outcome: InstagramImportOutcome, deleted = 0): InstagramImportResult =>
+    ({ outcome, imported, posts: importedPosts, seen, deleted, profile });
+  const pastDeadline = () => options.deadline !== undefined && Date.now() >= options.deadline;
 
   while (seen < options.limit) {
+    if (pastDeadline()) return result('deadline');
     const pageSize = Math.min(GRAPH_MEDIA_PAGE_SIZE, options.limit - seen);
     let page: GraphBusinessProfile;
     try {
@@ -224,43 +370,50 @@ export async function importInstagramMedia(
       if (outcome !== 'not_business') {
         logger.info('[instagram] Graph import stopped', { outcome, imported });
       }
-      return { outcome, imported, posts: importedPosts, seen, profile };
+      return result(outcome);
     }
 
     if (target.expectedIgUserId && page.id !== target.expectedIgUserId) {
       // The username now names a different Instagram account.
       logger.warn('[instagram] username resolves to a different Instagram account; import refused');
-      return { outcome: 'identity_mismatch', imported, posts: importedPosts, seen, profile };
+      return result('identity_mismatch');
     }
 
     const { media, ...pageProfile } = page;
     profile = pageProfile;
     const items: GraphMedia[] = media?.data ?? [];
     seen += items.length;
+    listed.push(...items);
 
     const mapped = items
       .map((item) => mapGraphMediaToNormalizedPost(item, target.actorUri))
       .filter((entry): entry is InstagramMappedPost => entry !== null);
+    for (const entry of mapped) listedKeys.add(entry.post.activityId);
     const known = await findAlreadyImported(mapped, target.kilogramActorUri);
 
-    let reachedKnown = false;
     for (const entry of mapped) {
-      if (known.has(entry.post.activityId)) {
-        if (options.stopAtKnown) {
-          reachedKnown = true;
-          break;
-        }
-        continue;
-      }
-      if (await createInstagramPost(entry, target)) {
+      if (known.has(entry.post.activityId)) continue;
+      if (pastDeadline()) return result('deadline');
+      const outcome = await createInstagramPost(entry, target);
+      if (outcome === 'created') {
         imported += 1;
         importedPosts.push({ ...entry.post, authorOxyUserId: target.ownerOxyUserId });
+      } else if (outcome === 'deferred') {
+        deferred += 1;
       }
     }
 
     after = media?.after;
-    if (reachedKnown || !after || items.length < pageSize) break;
+    const pageHadKnown = mapped.some((entry) => known.has(entry.post.activityId));
+    if ((options.stopAtKnown && pageHadKnown) || !after || items.length < pageSize) break;
   }
 
-  return { outcome: 'ok', imported, posts: importedPosts, seen, profile };
+  // Items WITHOUT a mappable shortcode still occupy the listing; the window and
+  // the kept keys are computed over what was listed, so none of them can make a
+  // stored post look deleted.
+  const deleted = await reconcileDeletions(target, listed, listedKeys).catch((err: unknown) => {
+    logger.warn('[instagram] deletion reconcile failed', { error: err instanceof Error ? err.message : String(err) });
+    return 0;
+  });
+  return result(deferred > 0 ? 'partial' : 'ok', deleted);
 }

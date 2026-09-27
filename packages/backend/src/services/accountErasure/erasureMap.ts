@@ -826,6 +826,7 @@ export const ACCOUNT_REFERENCE_EXTRAS: ReadonlyMap<string, string> = new Map([
  */
 export const NOT_AN_ACCOUNT_COLUMN: ReadonlyMap<string, string> = new Map([
   ['posts.contentPodcastAuthor', 'the display name of a podcast\'s author from Syra\'s catalog'],
+  ['federated_actors.instagramGraphUserId', 'Meta\'s Instagram user id of a remote account, never an Oxy account id'],
   ['user_settings.profileMediaAuthor', 'the display name of a podcast\'s author from Syra\'s catalog'],
   ['posts.metadataAuthorBlocked', 'a boolean flag on the post'],
   ['posts.metadataAuthorMuted', 'a boolean flag on the post'],

@@ -13,6 +13,8 @@ const TOKEN = 'EAAG-test-token-that-must-never-leak';
 const h = vi.hoisted(() => ({
   fetch: vi.fn(),
   logs: [] as Array<{ level: string; args: unknown[] }>,
+  /** Not ready by default: the process-local path. The Redis cases swap in a fake. */
+  redis: { isReady: false } as Record<string, unknown>,
 }));
 
 vi.mock('../../../utils/safeUpstreamFetch', async (importOriginal) => ({
@@ -20,7 +22,7 @@ vi.mock('../../../utils/safeUpstreamFetch', async (importOriginal) => ({
   fetchUpstreamSingleHop: h.fetch,
 }));
 
-vi.mock('../../../utils/redis', () => ({ getRedisClient: () => ({ isReady: false }) }));
+vi.mock('../../../utils/redis', () => ({ getRedisClient: () => h.redis }));
 
 vi.mock('../../../utils/logger', () => {
   const record = (level: string) => (...args: unknown[]) => { h.logs.push({ level, args }); };
@@ -48,12 +50,19 @@ import {
   resetGraphClientForTests,
 } from '../../../connectors/instagram/graphClient';
 import {
+  acquireCallBudget,
+  decayedUsagePct,
   decideBudget,
-  effectiveUsagePct,
+  localBudgetStateForTests,
   parseAppUsageHeader,
-  readBudgetState,
+  recordThrottle,
   resetLocalBudgetStateForTests,
+  throttleBackoffMs,
 } from '../../../connectors/instagram/usageBudget';
+import {
+  BACKGROUND_TOKEN_FLOOR,
+  GRAPH_CALL_BUCKET_CAPACITY,
+} from '../../../connectors/instagram/constants';
 import { IMAGE, REAL_PAGING, ZUCK_PROFILE } from './fixtures/graphSnapshot';
 
 function respond(status: number, body: unknown, headers: Record<string, string> = {}) {
@@ -69,6 +78,7 @@ function graphError(code: number, subcode?: number) {
 }
 
 beforeEach(() => {
+  h.redis = { isReady: false };
   h.fetch.mockReset();
   h.logs.length = 0;
   resetLocalBudgetStateForTests();
@@ -104,7 +114,7 @@ describe('a successful Business Discovery call', () => {
   it('feeds x-app-usage into the shared budget', async () => {
     respond(200, { business_discovery: { ...ZUCK_PROFILE } }, { 'x-app-usage': '{"call_count":81,"total_cputime":3,"total_time":7}' });
     await fetchBusinessDiscovery('zuck', { kind: 'interactive' });
-    expect((await readBudgetState()).usagePct).toBe(81);
+    expect(localBudgetStateForTests().usagePct).toBe(81);
   });
 
   it('builds the media edge with limit and cursor', () => {
@@ -173,8 +183,64 @@ describe('refusing to call', () => {
   });
 });
 
+describe('the call-token bucket (taken BEFORE a call, not learned after it)', () => {
+  function okResponses(n: number) {
+    for (let i = 0; i < n; i += 1) respond(200, { business_discovery: { ...ZUCK_PROFILE } });
+  }
+
+  it('caps a burst of interactive calls at the bucket, without sending the rest', async () => {
+    okResponses(GRAPH_CALL_BUCKET_CAPACITY);
+    for (let i = 0; i < GRAPH_CALL_BUCKET_CAPACITY; i += 1) {
+      await fetchBusinessDiscovery('zuck', { kind: 'interactive' });
+    }
+    // x-app-usage never reported anything high: the bucket alone stops this.
+    await expect(fetchBusinessDiscovery('zuck', { kind: 'interactive' })).rejects.toMatchObject({ kind: 'budget' });
+    expect(h.fetch).toHaveBeenCalledTimes(GRAPH_CALL_BUCKET_CAPACITY);
+  });
+
+  it('keeps the floor of the bucket for readers: background calls stop above it', async () => {
+    const drain = GRAPH_CALL_BUCKET_CAPACITY - BACKGROUND_TOKEN_FLOOR;
+    for (let i = 0; i < drain; i += 1) expect(await acquireCallBudget('interactive')).toBeNull();
+    expect(await acquireCallBudget('background')).toBe('tokens');
+    expect(await acquireCallBudget('interactive')).toBeNull();
+  });
+
+  it('uses ONE atomic Redis script per call when Redis is up — no read-modify-write', async () => {
+    const evalCalls: Array<{ keys: string[]; arguments: string[] }> = [];
+    h.redis = {
+      isReady: true,
+      mGet: vi.fn(async () => [null, null, null]),
+      eval: vi.fn(async (_script: string, options: { keys: string[]; arguments: string[] }) => {
+        evalCalls.push(options);
+        return 1;
+      }),
+      set: vi.fn(),
+      get: vi.fn(),
+    };
+    expect(await acquireCallBudget('background')).toBeNull();
+    expect(await acquireCallBudget('interactive')).toBeNull();
+    expect(evalCalls.map((call) => call.arguments[2])).toEqual([String(BACKGROUND_TOKEN_FLOOR), '0']);
+    expect(h.redis.get).not.toHaveBeenCalled();
+    expect(h.redis.set).not.toHaveBeenCalled();
+  });
+
+  it('counts throttle strikes with an atomic INCR shared by every task', async () => {
+    let strikes = 2;
+    h.redis = {
+      isReady: true,
+      incr: vi.fn(async () => { strikes += 1; return strikes; }),
+      pExpire: vi.fn(),
+      set: vi.fn(),
+    };
+    const until = await recordThrottle();
+    expect(h.redis.incr).toHaveBeenCalledTimes(1);
+    expect(until - Date.now()).toBeGreaterThan(throttleBackoffMs(3) - 1_000);
+    expect(h.redis.set).toHaveBeenCalledWith('instagram-graph:throttled-until', String(until), { PX: throttleBackoffMs(3) });
+  });
+});
+
 describe('the budget arithmetic', () => {
-  const base = { usagePct: 0, observedAt: 0, throttledUntil: 0, throttleStrikes: 0, tokenInvalidUntil: 0 };
+  const base = { usagePct: 0, usageAt: 0, throttledUntil: 0, tokenInvalidUntil: 0 };
 
   it('takes the highest of the three x-app-usage figures', () => {
     expect(parseAppUsageHeader('{"call_count":10,"total_cputime":40,"total_time":22}')).toBe(40);
@@ -184,17 +250,22 @@ describe('the budget arithmetic', () => {
 
   it('decays an observation across the one-hour window', () => {
     const now = 10_000_000;
-    expect(effectiveUsagePct({ ...base, usagePct: 80, observedAt: now }, now)).toBe(80);
-    expect(effectiveUsagePct({ ...base, usagePct: 80, observedAt: now - 30 * 60_000 }, now)).toBeCloseTo(40);
-    expect(effectiveUsagePct({ ...base, usagePct: 80, observedAt: now - 61 * 60_000 }, now)).toBe(0);
+    expect(decayedUsagePct(80, now, now)).toBe(80);
+    expect(decayedUsagePct(80, now - 30 * 60_000, now)).toBeCloseTo(40);
+    expect(decayedUsagePct(80, now - 61 * 60_000, now)).toBe(0);
   });
 
   it('orders refusals: token, then throttle, then usage', () => {
     const now = 10_000_000;
     expect(decideBudget({ ...base, tokenInvalidUntil: now + 1, throttledUntil: now + 1 }, 'interactive', now)).toBe('token_invalid');
     expect(decideBudget({ ...base, throttledUntil: now + 1 }, 'interactive', now)).toBe('throttled');
-    expect(decideBudget({ ...base, usagePct: 76, observedAt: now }, 'background', now)).toBe('usage');
-    expect(decideBudget({ ...base, usagePct: 76, observedAt: now }, 'interactive', now)).toBeNull();
-    expect(decideBudget({ ...base, usagePct: 96, observedAt: now }, 'interactive', now)).toBe('usage');
+    expect(decideBudget({ ...base, usagePct: 76, usageAt: now }, 'background', now)).toBe('usage');
+    expect(decideBudget({ ...base, usagePct: 76, usageAt: now }, 'interactive', now)).toBeNull();
+    expect(decideBudget({ ...base, usagePct: 96, usageAt: now }, 'interactive', now)).toBe('usage');
+  });
+
+  it('doubles the throttle backoff per strike, up to its ceiling', () => {
+    expect(throttleBackoffMs(2)).toBe(2 * throttleBackoffMs(1));
+    expect(throttleBackoffMs(50)).toBe(throttleBackoffMs(49));
   });
 });

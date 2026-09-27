@@ -483,16 +483,6 @@ export const posts = pgTable(
     federationSensitive: boolean(),
     /** The remote content warning. Mention's own CW gate reads this. */
     federationSpoilerText: text(),
-    /**
-     * The network-level identity of the SOURCE post, when one object can reach
-     * Mention by more than one road. Today only Instagram: `instagram:<shortcode>`,
-     * written both by the Graph API import (whose `federation_activity_id` is that
-     * same key) and by the ActivityPub ingest of a kilogram.makeup Note (whose
-     * activity id is the bridge's `…/statuses/<shortcode>` URL). A partial UNIQUE
-     * index makes the second arrival collide instead of duplicating the post,
-     * whichever road it took. NULL for every post that has only one road.
-     */
-    sourcePostKey: text(),
 
     // ── `content` scalar leaves (the arrays live in `postContent.ts`) ──
     /**
@@ -724,13 +714,6 @@ export const posts = pgTable(
     uniqueIndex('posts_federation_activity_id_key')
       .on(t.federationActivityId)
       .where(sql`${t.federationActivityId} is not null`),
-
-    // Cross-road dedup (see `sourcePostKey`): one Instagram post imported from the
-    // Graph API and pushed by the kilogram bridge is ONE row. Partial for the same
-    // reason as the index above — almost every post has no source key.
-    uniqueIndex('posts_source_post_key_key')
-      .on(t.sourcePostKey)
-      .where(sql`${t.sourcePostKey} is not null`),
 
     // Source identity projection reads all posts for one immutable actor URI.
     // Keep local posts out of the index; reconciliation must not scan every

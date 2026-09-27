@@ -1,4 +1,6 @@
-import { eq, or, type SQL } from 'drizzle-orm';
+import { qualified } from '@oxy.so/db';
+import { eq, or, sql, type SQL } from 'drizzle-orm';
+import { postSourceKeys } from '../../db/schema/postContent';
 import { posts } from '../../db/schema/posts';
 
 /**
@@ -15,7 +17,7 @@ import { posts } from '../../db/schema/posts';
  *    API): `…/statuses/DLmzYr6tcKJ`, `…/statuses/DIzVBJDA8sj`, the same 11-char
  *    shortcodes the Graph permalinks carry. The Note's `url` equals its id.
  *
- * Both reduce to `instagram:<shortcode>`, stored in `posts.source_post_key` under
+ * Both reduce to `instagram:<shortcode>`, stored in `post_source_keys.source_key` under
  * a partial UNIQUE index, so whichever road arrives second collides instead of
  * duplicating. The shortcode is case-SENSITIVE (Instagram's base64-ish alphabet),
  * so it is never lowercased.
@@ -97,7 +99,7 @@ export function instagramSourceKeyFromApObjectUri(objectUri: string | undefined 
 /**
  * The Note id the kilogram bridge mints (or would mint) for `shortcode` under
  * `actorUri` — used to find a post ingested from the bridge BEFORE
- * `source_post_key` existed, which carries only its activity id.
+ * `post_source_keys` existed, which carries only its activity id.
  */
 export function kilogramNoteIdFor(actorUri: string, shortcode: string): string | undefined {
   const noteId = `${actorUri.replace(/\/+$/, '')}/statuses/${shortcode}`;
@@ -121,5 +123,18 @@ export function isInstagramSourceActivityId(activityId: string | undefined | nul
 export function postMatchesFederatedObjectSql(objectUri: string): SQL {
   const sourceKey = instagramSourceKeyFromApObjectUri(objectUri);
   const byActivityId = eq(posts.federationActivityId, objectUri);
-  return sourceKey ? (or(byActivityId, eq(posts.sourcePostKey, sourceKey)) as SQL) : byActivityId;
+  return sourceKey ? (or(byActivityId, postHasSourceKeySql(sourceKey)) as SQL) : byActivityId;
+}
+
+/**
+ * "This post carries source key `sourceKey`". Every reference `qualified()`:
+ * a bare column in a correlated subquery resolves against the subquery's own
+ * table and silently matches nothing (`schema/CONVENTIONS.md`).
+ */
+export function postHasSourceKeySql(sourceKey: string): SQL {
+  return sql`exists (
+    select 1 from ${postSourceKeys}
+    where ${qualified(postSourceKeys.postId)} = ${qualified(posts.id)}
+      and ${qualified(postSourceKeys.sourceKey)} = ${sourceKey}
+  )`;
 }

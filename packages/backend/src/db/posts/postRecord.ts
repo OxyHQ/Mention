@@ -77,11 +77,17 @@ export interface PostRecordFederation {
   /**
    * WRITE-SIDE ONLY: the network-level source identity (`instagram:<shortcode>`)
    * that makes one post reached by two roads collide on
-   * `posts_source_post_key_key` instead of duplicating. Never read back into the
+   * `post_source_keys_source_key_key` instead of duplicating. Never read back into the
    * record — nothing downstream decides anything on it; readers that need it
    * query the column.
    */
   sourcePostKey?: string;
+  /**
+   * WRITE-SIDE ONLY: the token of a claim on `sourcePostKey` this writer took
+   * before re-hosting the media (`claimSourceKey`), so the insert fills its own
+   * claim instead of colliding with it.
+   */
+  sourceKeyClaimToken?: string;
 }
 
 /** The Stage-A → Stage-B lifecycle of `postClassification`. */

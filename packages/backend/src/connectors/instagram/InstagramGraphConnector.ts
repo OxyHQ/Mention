@@ -16,9 +16,10 @@ import { INSTAGRAM_GRAPH_NETWORK_ID, isInstagramGraphActorUri, isInstagramGraphE
 import { fetchAndUpsertInstagramGraphActor } from './profile';
 import {
   isInstagramIdentityActor,
+  requestInstagramSync,
   runPeriodicInstagramSync,
+  runQueuedInstagramSync,
   syncInstagramActor,
-  syncInstagramActorInBackground,
 } from './sync';
 
 /**
@@ -137,19 +138,19 @@ class InstagramGraphConnector implements NetworkConnector<PostContent> {
       await this.fetchProfile(actorUri);
       actor = await findActorByUri(actorUri);
     }
-    if (actor) syncInstagramActorInBackground(actor, 'follow');
+    if (actor) requestInstagramSync(actor, 'follow');
   }
 
   // ── Product-facing hooks (the ONLY surface outside connectors/instagram/) ──
 
   /**
    * An Instagram-identity profile was opened with nothing to show: sync it in
-   * the background (lease, cooldown and budget permitting). Detached — no I/O on
-   * the caller's path.
+   * the background (lease, cooldown and budget permitting), on a queue worker.
+   * No I/O on the caller's path.
    */
   syncOnProfileView(actor: Parameters<typeof syncInstagramActor>[0]): void {
     if (!this.enabled || !actor.oxyUserId || !isInstagramIdentityActor(actor)) return;
-    syncInstagramActorInBackground(actor, 'profile_view');
+    requestInstagramSync(actor, 'profile_view');
   }
 
   /** A local user followed `actorUri` over ANY connector; backfill it if it is Instagram. */
@@ -158,11 +159,16 @@ class InstagramGraphConnector implements NetworkConnector<PostContent> {
     try {
       const actor = await findActorByUri(actorUri);
       if (actor?.oxyUserId && isInstagramIdentityActor(actor)) {
-        syncInstagramActorInBackground(actor, 'follow');
+        requestInstagramSync(actor, 'follow');
       }
     } catch (err) {
       logger.warn('[instagram] follow backfill lookup failed', { error: err instanceof Error ? err.message : String(err) });
     }
+  }
+
+  /** The `instagram-graph-sync` queue worker's body. */
+  runQueuedSync(actorId: string, trigger: 'profile_view' | 'follow'): Promise<void> {
+    return runQueuedInstagramSync(actorId, trigger);
   }
 
   /** The periodic job body (`syncInstagramFollowedAccounts`). */

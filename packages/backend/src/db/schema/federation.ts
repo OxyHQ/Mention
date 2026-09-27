@@ -47,7 +47,7 @@ import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/
 export const FEDERATION_PROTOCOLS = ['activitypub', 'atproto', 'instagram-graph'] as const;
 
 /** The outcome of the last Instagram Graph post sync of an actor. */
-export const INSTAGRAM_GRAPH_SYNC_RESULTS = ['ok', 'not_business', 'error'] as const;
+export const INSTAGRAM_GRAPH_SYNC_RESULTS = ['ok', 'not_business', 'identity_mismatch', 'error'] as const;
 
 /** ActivityPub actor types Mention accepts. */
 export const FEDERATED_ACTOR_TYPES = [
@@ -220,6 +220,15 @@ export const federatedActors = pgTable(
     instagramGraphSyncedAt: timestamptz(),
     instagramGraphSyncStartedAt: timestamptz(),
     instagramGraphLastResult: text({ enum: INSTAGRAM_GRAPH_SYNC_RESULTS }),
+    /**
+     * The Instagram user id (Business Discovery `id`) this actor's username
+     * answered with on its first successful Graph sync. A username can be
+     * released and re-registered by someone else; from then on a sync whose
+     * answer carries a different id is refused (`identity_mismatch`) instead of
+     * importing a stranger's posts under this actor's identity. For an
+     * `instagram-graph` actor it equals the id in its URI.
+     */
+    instagramGraphUserId: text(),
 
     createdAt: createdAt(),
     updatedAt: updatedAt(),
