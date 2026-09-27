@@ -36,6 +36,8 @@ import { insightsService } from '@/services/insightsService';
 import { feedService } from '@/services/feedService';
 import { socketService } from '@/services/socketService';
 import { SEO } from '@/components/SEO';
+import { WEB_BASE_URL } from '@/config';
+import { readServerSEO } from '@/lib/seoHandoff';
 import { postAcceptsReplies } from '@/utils/postReplies';
 import { createLogger } from '@oxy.so/core/logger';
 import { getFollowingCachedPost } from '@/modules/mention-widgets';
@@ -60,7 +62,7 @@ const PostDetailScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const safeBack = useSafeBack();
     const { getPostById, revalidatePostById } = usePostsStore();
-    const { user, oxyServices } = useAuth();
+    const { user } = useAuth();
     const theme = useTheme();
     const { t } = useTranslation();
     const { treeView, sortOrder } = useThreadPreferences();
@@ -379,24 +381,23 @@ const PostDetailScreen: React.FC = () => {
         safeBack();
     };
 
-    // Generate SEO data for the post (must be before any early returns)
-    const getPostImage = useCallback(() => {
-        if (!post) return undefined;
-        const media = post.content.media || [];
-        const firstImage = media.find((item) => item?.type === 'image');
-        if (firstImage?.id && oxyServices) {
-            return oxyServices.assets.publicUrl(firstImage.id);
-        }
-        return undefined;
-    }, [post, oxyServices]);
-
-    const postText = post?.content.text || '';
-    const postDescription = postText.length > 200
-        ? `${postText.substring(0, 197)}...`
-        : postText || t('seo.post.description', { defaultValue: 'View this post on Mention' });
+    // Server discovery policy includes author privacy, boost origins and remote
+    // safety flags absent from this DTO. Never infer indexing from visibility alone.
+    const [initialSEO] = useState(() => Platform.OS === 'web' && typeof document !== 'undefined'
+        ? readServerSEO(document, window.location.pathname) : undefined);
+    const postUrl = `${WEB_BASE_URL}/p/${encodeURIComponent(String(id))}`;
+    const locallyRestricted = Boolean(post && (
+        ('visibility' in post && post.visibility !== 'public')
+        || ('status' in post && post.status && post.status !== 'published')
+        || ('visibility' in post.metadata && post.metadata.visibility !== 'public')
+        || ('status' in post.metadata && post.metadata.status && post.metadata.status !== 'published')
+        || post.metadata?.isSensitive || post.metadata?.spoilerText
+    ));
+    const authoritativeSEO = initialSEO?.url === postUrl && !locallyRestricted ? initialSEO : undefined;
     const postAuthor = post?.user?.name?.displayName || t('common.someone');
-    const postTitle = t('seo.post.title', { author: postAuthor, defaultValue: `${postAuthor} on Mention` });
-    const postImage = getPostImage();
+    const postTitle = authoritativeSEO?.title || t('seo.post.title', { author: postAuthor, defaultValue: `${postAuthor} on Mention` });
+    const postDescription = authoritativeSEO?.description || t('seo.post.description', { defaultValue: 'View this post on Mention' });
+    const postImage = authoritativeSEO?.image;
 
     // List header for Feed: ancestor thread + focused post + the OP's self-thread
     // spine. The reply composer is NOT part of it — it is pinned to the bottom of
@@ -485,6 +486,7 @@ const PostDetailScreen: React.FC = () => {
                 <SEO
                     title={t('seo.post.notFound')}
                     description={t('seo.post.notFoundDescription')}
+                    robots="noindex,nofollow"
                 />
                 <View className="flex-1">
                     <PageHeader
@@ -512,6 +514,9 @@ const PostDetailScreen: React.FC = () => {
                 description={postDescription}
                 image={postImage}
                 type="article"
+                ready={Boolean(post)}
+                robots={authoritativeSEO?.robots || 'noindex,nofollow'}
+                jsonLd={authoritativeSEO?.jsonLd}
                 author={postAuthor}
                 publishedTime={post && 'metadata' in post ? post.metadata?.createdAt : undefined}
                 modifiedTime={post && 'metadata' in post ? post.metadata?.updatedAt : undefined}

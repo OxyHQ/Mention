@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { HydratedPost } from '@mention/shared-types';
 import {
   escapeHtml,
+  buildPublicContentHtml,
   buildOgMetaHtml,
   renderShellWithOg,
   mapProfileOg,
@@ -11,7 +12,7 @@ import {
 } from '../services/webShellRenderer';
 
 const SHELL =
-  '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Mention</title>' +
+  '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="mention-seo-handoff" content="1"><title>Mention</title>' +
   '<link rel="icon" href="/favicon.ico" /></head><body><div id="root"></div>' +
   '<script src="/_expo/static/js/web/entry.js" defer></script></body></html>';
 
@@ -36,11 +37,11 @@ describe('buildOgMetaHtml', () => {
 
   it('emits all OG/Twitter tags with escaped values', () => {
     const html = buildOgMetaHtml(og);
-    expect(html).toContain('<meta property="og:type" content="profile">');
-    expect(html).toContain('<meta property="og:site_name" content="Mention">');
-    expect(html).toContain('<meta property="og:url" content="https://mention.earth/@nate">');
-    expect(html).toContain('<meta property="og:title" content="Nate (@nate) on Mention">');
-    expect(html).toContain('<meta name="twitter:card" content="summary_large_image">');
+    expect(html).toContain('<meta data-mention-seo="true" property="og:type" content="profile">');
+    expect(html).toContain('<meta data-mention-seo="true" property="og:site_name" content="Mention">');
+    expect(html).toContain('<meta data-mention-seo="true" property="og:url" content="https://mention.earth/@nate">');
+    expect(html).toContain('<meta data-mention-seo="true" property="og:title" content="Nate (@nate) on Mention">');
+    expect(html).toContain('<meta data-mention-seo="true" name="twitter:card" content="summary_large_image">');
     // description is escaped everywhere it appears
     expect(html).toContain('content="hello &lt;world&gt; &amp; &quot;friends&quot;"');
     expect(html).not.toContain('hello <world>');
@@ -48,8 +49,8 @@ describe('buildOgMetaHtml', () => {
 
   it('emits image tags only when an image is present', () => {
     const withImage = buildOgMetaHtml(og);
-    expect(withImage).toContain('<meta property="og:image" content="https://cloud.oxy.so/abc?variant=thumb">');
-    expect(withImage).toContain('<meta name="twitter:image" content="https://cloud.oxy.so/abc?variant=thumb">');
+    expect(withImage).toContain('<meta data-mention-seo="true" property="og:image" content="https://cloud.oxy.so/abc?variant=thumb">');
+    expect(withImage).toContain('<meta data-mention-seo="true" name="twitter:image" content="https://cloud.oxy.so/abc?variant=thumb">');
 
     const noImage = buildOgMetaHtml({ ...og, image: undefined });
     expect(noImage).not.toContain('og:image');
@@ -65,17 +66,17 @@ describe('renderShellWithOg', () => {
     type: 'profile',
   };
 
-  it('replaces the existing <title> and injects the meta before </head>', () => {
+  it('replaces the existing <title data-mention-seo="true"> and injects the meta before </head>', () => {
     const html = renderShellWithOg(SHELL, og);
-    expect(html).toContain('<title>Nate (@nate) on Mention</title>');
+    expect(html).toContain('<title data-mention-seo="true">Nate (@nate) on Mention</title>');
     expect(html).not.toContain('<title>Mention</title>');
     // the whole OG block is injected inside <head>, ending right before </head>
-    expect(html).toContain('<meta property="og:title" content="Nate (@nate) on Mention">');
-    expect(html).toContain('<meta name="description" content="bio">');
-    expect(html).toContain('<link rel="canonical" href="https://mention.earth/@nate">');
+    expect(html).toContain('<meta data-mention-seo="true" property="og:title" content="Nate (@nate) on Mention">');
+    expect(html).toContain('<meta data-mention-seo="true" name="description" content="bio">');
+    expect(html).toContain('<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@nate">');
     expect(html.indexOf('og:title')).toBeLessThan(html.indexOf('</head>'));
     // exactly one title tag remains
-    expect(html.match(/<title>/g)?.length).toBe(1);
+    expect(html.match(/<title data-mention-seo="true">/g)?.length).toBe(1);
   });
 
   it('returns the shell verbatim when og is null', () => {
@@ -84,10 +85,10 @@ describe('renderShellWithOg', () => {
 
   it('does not treat a $ in the title as a replace back-reference', () => {
     const html = renderShellWithOg(SHELL, { ...og, title: 'Deal $5 & $1' });
-    expect(html).toContain('<title>Deal $5 &amp; $1</title>');
+    expect(html).toContain('<title data-mention-seo="true">Deal $5 &amp; $1</title>');
   });
 
-  it('leaves the SPA root empty so metadata never becomes a second visible UI', () => {
+  it('leaves the SPA root empty when no public content is supplied', () => {
     const html = renderShellWithOg(SHELL, og);
 
     expect(html).toContain('<div id="root"></div>');
@@ -204,5 +205,68 @@ describe('mapPostOg', () => {
       ],
     } as unknown as HydratedPost;
     expect(mapPostOg(post, 'p1', SAFE).image).toBe('https://l/i.jpg');
+  });
+});
+
+
+describe('public semantic content', () => {
+  it.each([
+    '<meta name="description" content="old">',
+    '<link rel="canonical" href="https://mention.earth/old">',
+    '<script type="application/ld+json">{"old":true}</script>',
+  ])('preserves token boundaries when replacing existing SEO: %s', (tag) => {
+    const shell = SHELL.replace('</head>', `<scr${tag}ipt id="joined-token"></script></head>`);
+    const html = renderShellWithOg(shell, mapProfileOg({ username: 'nate' }));
+    expect(html).toContain('<scr ipt id="joined-token">');
+    expect(html).not.toContain('<script id="joined-token">');
+    // Application scripts in the trusted export remain executable and intact.
+    expect(html).toContain('<script src="/_expo/static/js/web/entry.js" defer></script>');
+  });
+
+  it('withholds semantic fallback from legacy shells during independent deployment', () => {
+    const legacy = SHELL.replace('<meta name="mention-seo-handoff" content="1">', '');
+    const og = mapProfileOg({ username: 'nate', bio: 'Public biography' });
+    const html = renderShellWithOg(legacy, og);
+    expect(html).not.toContain('data-mention-seo-fallback');
+    expect(html).toContain('<div id="root"></div>');
+    expect(html).toContain('data-mention-seo="true"');
+    expect(renderShellWithOg(SHELL, og)).toContain('data-mention-seo-fallback="true"');
+    expect(renderShellWithOg(SHELL.replace('content="1"', 'content="2"'), og)).not.toContain('data-mention-seo-fallback');
+  });
+
+  it('renders escaped identity, biography and safe public links outside the SPA root', () => {
+    const og = mapProfileOg({ username: 'nate', name: { displayName: '<Nate>' },
+      bio: 'Hello & welcome\n<script>alert(1)</script>',
+      links: ['https://example.com/?a=1&b=2', 'javascript:alert(1)'] })!;
+    const html = renderShellWithOg(SHELL, og);
+    expect(html).toContain('<h1>&lt;Nate&gt;</h1>');
+    expect(html).toContain('<p>Hello &amp; welcome</p>');
+    expect(html).toContain('<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>');
+    expect(html).not.toContain('javascript:');
+    expect(html).toContain('</main><div id="root"></div>');
+    expect(html).toContain('data-mention-seo-url="https://mention.earth/@nate"');
+  });
+
+  it('renders full safe post text and publication date, never warning-gated text', () => {
+    const post = { user: { username: 'nate' }, content: { text: 'x'.repeat(300) },
+      metadata: { createdAt: '2026-09-01T00:00:00Z' } } as unknown as HydratedPost;
+    const safe = mapPostOg(post, 'p1', { requiresWarning: false });
+    expect(buildPublicContentHtml(safe)).toContain(`<p>${'x'.repeat(300)}</p>`);
+    expect(buildPublicContentHtml(safe)).toContain('<time datetime="2026-09-01T00:00:00Z">');
+    const gated = renderShellWithOg(SHELL, mapPostOg(post, 'p1', { requiresWarning: true }));
+    expect(gated).not.toContain('x'.repeat(300));
+    expect(gated).not.toContain('data-mention-seo-fallback');
+    expect(buildPublicContentHtml({ ...safe, robots: 'noindex,follow' })).toBe('');
+  });
+
+  it('replaces generic SEO and marks all server-owned tags for the client handoff', () => {
+    const shell = SHELL.replace('</head>', '<meta name="description" content="generic"><meta name="robots" content="noindex"><meta property="og:title" content="generic"><link rel="canonical" href="https://mention.earth/"><script type="application/ld+json">{"stale":true}</script></head>');
+    const html = renderShellWithOg(shell, mapProfileOg({ username: 'nate' }));
+    expect(html).not.toContain('generic');
+    expect(html).not.toContain('stale');
+    expect(html.match(/rel="canonical"/g)).toHaveLength(1);
+    expect(html.match(/name="robots"/g)).toHaveLength(1);
+    expect(html).toContain('<script data-mention-seo="true" type="application/ld+json">');
+    expect(html).toContain('<title data-mention-seo="true">@nate on Mention</title>');
   });
 });

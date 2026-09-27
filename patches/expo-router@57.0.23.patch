@@ -21,3 +21,35 @@ index 78ce514ee726c13d820bacfa3097445fed006ff7..34a202fd54165efef8c247ba6f87e6ee
  });
  //# sourceMappingURL=ExperimentalStackView.js.map
 \ No newline at end of file
+diff --git a/build/react-navigation/core/useOnGetState.js b/build/react-navigation/core/useOnGetState.js
+--- a/build/react-navigation/core/useOnGetState.js
++++ b/build/react-navigation/core/useOnGetState.js
+@@ -48,7 +48,12 @@
+         const state = getState();
+         // Avoid returning new route objects if we don't need to
+         const routes = state.routes.map((route) => {
+-            const childState = getStateListeners[route.key]?.();
++            // A gated/lazy child has not registered yet. Keep its pending deep-link
++            // state until it does. Unregistration retains an own key with an
++            // undefined value, so removed navigators still clear their old state.
++            const childState = Object.prototype.hasOwnProperty.call(getStateListeners, route.key)
++                ? getStateListeners[route.key]?.()
++                : route.state;
+             if (route.state === childState) {
+                 return route;
+             }
+diff --git a/build/fork/useLinking.js b/build/fork/useLinking.js
+--- a/build/fork/useLinking.js
++++ b/build/fork/useLinking.js
+@@ -19,7 +19,10 @@
+  * e.g.: a -> b -> c -> d and a -> b -> c -> e -> f, if history in b changed, b is the matching state
+  */
+ const findMatchingState = (a, b) => {
+-    if (a === undefined || b === undefined || a.key !== b.key) {
++    // Pending deep-link states have no hydrated index/key yet. They cannot
++    // identify a push/pop delta; reconcile them with replace until both child
++    // navigators register. Indexing them throws and rejects the history queue.
++    if (a === undefined || b === undefined || a.stale !== false || b.stale !== false || a.key !== b.key) {
+         return [undefined, undefined];
+     }
+     // Tab and drawer will have `history` property, but stack will have history in `routes`

@@ -19,6 +19,8 @@ import { lanesService } from '@/services/lanesService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { openExternalLink } from '@/utils/openExternalLink';
 import { SEO } from '@/components/SEO';
+import { useProfileSEOPolicy } from '@/hooks/useProfileSEOPolicy';
+import { WEB_BASE_URL } from '@/config';
 import { FediverseSharingBadge } from '@/components/AccountBadge';
 import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
 import { SuggestedUsers } from '@/components/suggestions/SuggestedUsers';
@@ -572,15 +574,16 @@ export function usePersonProfileView({
     </>
   );
 
+  const seoPolicy = useProfileSEOPolicy(profileData?.privacy?.profileVisibility);
   const seo = profileData ? (
     <SEO
-      title={t('seo.profile.title', {
+      title={seoPolicy.server?.title || t('seo.profile.title', {
         name: profileData.design.displayName,
         username: profileData.username,
         defaultValue: `${profileData.design.displayName} (@${profileData.username}) on Mention`,
       })}
-      description={
-        profileData.bio
+      description={seoPolicy.server?.description || (
+        seoPolicy.detailsAllowed && profileData.bio
           ? t('seo.profile.description', {
               name: profileData.design.displayName,
               bio: profileData.bio,
@@ -591,10 +594,27 @@ export function usePersonProfileView({
               bio: '',
               defaultValue: `View ${profileData.design.displayName}'s profile on Mention.`,
             })
-      }
-      image={avatarUri || bannerUri}
+      )}
+      image={seoPolicy.server?.image || (seoPolicy.detailsAllowed ? avatarUri || bannerUri : undefined)}
       type="profile"
+      url={seoPolicy.server?.url}
+      ready={!loading && canonicalHref === null}
+      robots={seoPolicy.robots === 'index,follow' && activeKey !== 'posts' ? 'noindex,follow' : seoPolicy.robots}
+      jsonLd={seoPolicy.server?.jsonLd || (seoPolicy.detailsAllowed ? {
+        '@context': 'https://schema.org',
+        '@type': 'ProfilePage',
+        mainEntity: {
+          '@type': 'Person',
+          name: profileData.design.displayName,
+          alternateName: `@${handle}`,
+          description: profileData.bio || undefined,
+          url: `${WEB_BASE_URL}/@${encodeURIComponent(handle)}`,
+          image: avatarUri || undefined,
+        },
+      } : undefined)}
     />
+  ) : active && !loading ? (
+    <SEO title="Profile unavailable" description="This profile could not be loaded." robots="noindex,nofollow" />
   ) : null;
 
   return {

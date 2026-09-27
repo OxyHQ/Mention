@@ -118,6 +118,7 @@ app.use('/profile/design', profileDesignRoutes);
 app.use('/profile', profileSettingsRoutes);
 
 interface ProfileDesignPayload {
+  privacy?: { profileVisibility: 'public' | 'private' | 'followers_only' };
   appearance?: { primaryColor?: string };
   profileHeaderImage?: string;
   profileMedia?: { type: string };
@@ -317,6 +318,33 @@ describe('GET /profile/design/:userId post counters', () => {
       repliesCount: 0,
     });
   });
+});
+
+describe('profile design resolved privacy policy', () => {
+  it('explicitly reports public for an anonymous read with no settings row', async () => {
+    currentViewer = undefined;
+    const design = await getDesign();
+    expect(design.privacy).toEqual({ profileVisibility: 'public' });
+    expect(design.postsCount).toBe(0);
+  });
+
+  it.each(['private', 'followers_only'] as const)(
+    'reports %s while keeping the stranger response redacted and owner access intact', async (visibility) => {
+      await seedTarget(visibility);
+      followingByViewer.set(VIEWER, []);
+      const stranger = await getDesign();
+      expect(stranger.privacy).toEqual({ profileVisibility: visibility });
+      expect(stranger.profileHeaderImage).toBeUndefined();
+      expect(stranger.profileMedia).toBeUndefined();
+      expect(stranger.postsCount).toBeUndefined();
+
+      currentViewer = TARGET;
+      const owner = await getDesign();
+      expect(owner.privacy).toEqual({ profileVisibility: visibility });
+      expect(owner.profileHeaderImage).toContain('private-banner-file');
+      expect(owner.profileMedia?.type).toBe('song');
+    },
+  );
 });
 
 describe('profile design and profile settings agree on visibility', () => {
