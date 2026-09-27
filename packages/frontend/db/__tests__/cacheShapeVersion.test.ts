@@ -36,6 +36,7 @@ const PERSISTED_POST_KEYS = [
   'crosspost',
   'date',
   'documents',
+  'documentsPending',
   'engagement',
   'id',
   'importedFrom',
@@ -52,7 +53,7 @@ const PERSISTED_POST_KEYS = [
 ] as const;
 
 /** The version that must ship with the key set above. */
-const VERSION_FOR_THESE_KEYS = 12;
+const VERSION_FOR_THESE_KEYS = 13;
 
 function makeFullyPopulatedPost(): HydratedPost {
   return {

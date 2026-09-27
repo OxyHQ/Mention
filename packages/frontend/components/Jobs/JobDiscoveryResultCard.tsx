@@ -17,7 +17,7 @@ import { Item } from '@oxy.so/bloom/item';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
 import { Text as BloomText } from '@oxy.so/bloom/typography';
-import type { JobEmploymentType, JobReportReason, JobSearchResult, JobWorkplaceType } from '@clarity.surf/sdk';
+import type { JobEmploymentType, JobReportReason, JobSearchResult, JobWorkplaceType } from '@mention/shared-types/job';
 import { logger } from '@oxy.so/core/logger';
 import { WEB_BASE_URL } from '@/config';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';

@@ -20,22 +20,15 @@ import { useLinkDetection } from '../useLinkDetection';
 const mockResolve = jest.fn();
 const mockGetCached = jest.fn();
 const mockUpsertLink = jest.fn();
-let capturedGetAccessToken: (() => string | Promise<string>) | undefined;
 
-jest.mock('@clarity.surf/sdk', () => ({
-  ClarityClient: class {
-    constructor(options: { getAccessToken: () => string | Promise<string> }) {
-      capturedGetAccessToken = options.getAccessToken;
-    }
-    indexing = { resolve: (...args: unknown[]) => mockResolve(...args) };
+// The composer asks MENTION's backend, never Clarity: this is the only seam the
+// hook has to the network.
+jest.mock('@/services/feedService', () => ({
+  feedService: {
+    resolveLinkPreviews: (...args: unknown[]) => mockResolve(...args),
   },
-}), { virtual: true });
-
-jest.mock('@oxy.so/services/ui/client', () => ({
-  useAuth: () => ({
-    oxyServices: { http: { getAccessToken: () => 'token' } },
-  }),
 }));
+
 jest.mock('@oxy.so/core/logger', () => ({
   logger: { error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() },
 }));
@@ -56,7 +49,14 @@ async function requestedPreviewUrls(text: string): Promise<string[]> {
   await act(async () => {
     await jest.advanceTimersByTimeAsync(600);
   });
-  return mockResolve.mock.calls.flatMap(([request]) => (request as { urls: string[] }).urls);
+  return mockResolve.mock.calls.flatMap(([urls]) => urls as string[]);
+}
+
+function preview(url: string) {
+  return {
+    url,
+    document: { id: url, canonicalUrl: url, title: 'a title', type: 'page', status: 'indexed', authors: [], evidence: {} },
+  };
 }
 
 beforeEach(() => {
@@ -64,32 +64,24 @@ beforeEach(() => {
   mockResolve.mockReset();
   mockGetCached.mockReset();
   mockUpsertLink.mockReset();
-  mockResolve.mockImplementation(async ({ urls }: { urls: string[] }) => ({
-    data: urls.map((url) => ({
-      url,
-      status: 'indexed',
-      document: { id: url, canonicalUrl: url, title: 'a title', type: 'page', status: 'indexed', authors: [], evidence: {} },
-    })),
-  }));
+  mockResolve.mockImplementation(async (urls: string[]) => ({ previews: urls.map(preview), pending: [] }));
 });
 
-it('gives the Clarity SDK the active Oxy access token', async () => {
-  await act(async () => {
-    TestRenderer.create(<Probe text="" />);
-  });
-
-  expect(capturedGetAccessToken).toBeDefined();
-  expect(await capturedGetAccessToken?.()).toBe('token');
+it('asks for every uncached link in one backend call', async () => {
+  const urls = await requestedPreviewUrls('https://example.com/a and https://example.org/b');
+  expect(mockResolve).toHaveBeenCalledTimes(1);
+  expect(urls).toEqual(['https://example.com/a', 'https://example.org/b']);
+  expect(mockUpsertLink).toHaveBeenCalledTimes(2);
 });
 
-it('uses cached Clarity metadata without another request', async () => {
+it('uses cached metadata without another request', async () => {
   mockGetCached.mockReturnValue({ url: 'https://example.com/cached', title: 'Cached', fetchedAt: 1 });
   expect(await requestedPreviewUrls('https://example.com/cached')).toEqual([]);
   expect(mockResolve).not.toHaveBeenCalled();
 });
 
-it('does not cache a pending resolution without a document', async () => {
-  mockResolve.mockResolvedValue({ data: [{ url: 'https://example.com/pending', status: 'queued', jobId: 'job-1' }] });
+it('does not cache a link the backend reports still pending', async () => {
+  mockResolve.mockResolvedValue({ previews: [], pending: ['https://example.com/pending'] });
   expect(await requestedPreviewUrls('https://example.com/pending')).toEqual(['https://example.com/pending']);
   expect(mockUpsertLink).not.toHaveBeenCalled();
 });

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, lazy, Suspense, Fragment } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, lazy, Suspense, Fragment } from 'react';
 import { StyleSheet, View, Pressable, TouchableOpacity, Text, GestureResponderEvent } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import type {
@@ -16,6 +16,7 @@ import {
     MEDIA_VARIANT_AVATAR,
 } from '@mention/shared-types/post';
 import { usePostSelector } from '../../stores/postsStore';
+import { requestPendingDocuments } from '../../stores/pendingDocuments';
 import PostHeader from '../Post/PostHeader';
 import { HEADER_CONTENT_GAP, POST_CONTEXT_ROW_HEIGHT } from '../Post/postContextRowLayout';
 import { ProfileHoverCard } from '../ProfileHoverCard';
@@ -174,6 +175,14 @@ const PostItem: React.FC<PostItemProps> = ({
     const storePost = usePostSelector(postId ? String(postId) : undefined);
     const viewPost = storePost ?? post;
     const viewPostId = viewPost?.id ? String(viewPost.id) : undefined;
+
+    // A link card Clarity had not finished when this post was read: ask for it
+    // shortly, batched with every other pending post on screen, instead of
+    // treating the post's empty `documents` as final.
+    const documentsPending = viewPost?.documentsPending === true;
+    useEffect(() => {
+        if (documentsPending && viewPostId) requestPendingDocuments(viewPostId);
+    }, [documentsPending, viewPostId]);
 
     // Every actor on this row, corrected against any profile edit made in this
     // session.

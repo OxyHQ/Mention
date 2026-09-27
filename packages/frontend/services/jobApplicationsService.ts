@@ -1,5 +1,5 @@
 import { authenticatedClient } from '@/utils/api';
-import type { JobReportReason } from '@clarity.surf/sdk';
+import type { JobReportReason } from '@mention/shared-types/job';
 import type {
   MentionJobApplication,
   MentionJobApplicationNote,
@@ -105,7 +105,7 @@ class JobApplicationsService {
    * (Clarity-indexed-only, not Mention-owned) job listing. Proxied through
    * Mention's backend to Clarity's own report mechanism.
    *
-   * `reason` is `@clarity.surf/sdk`'s `JobReportReason`, deliberately NOT
+   * `reason` is Clarity's `JobReportReason` (via `@mention/shared-types/job`), deliberately NOT
    * `@mention/shared-types`' `MentionJobReportReason` — the backend's
    * `externalJobReportSchema` (`jobApplications.controller.ts`) validates
    * against Clarity's narrower, differently-named vocabulary (no

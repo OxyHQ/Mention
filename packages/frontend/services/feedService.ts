@@ -21,8 +21,12 @@ import type {
   FeedPostViewCounts,
   FeedInterstitialEventInput,
   PostCorrectionsResponse,
+  PostDocumentsRequest,
+  PostDocumentsResponse,
   PostEditSource,
   PostUser,
+  LinkPreviewRequest,
+  LinkPreviewResponse,
 } from '@mention/shared-types';
 
 import {
@@ -807,6 +811,35 @@ class FeedService {
       `/posts/${postId}`,
       { signal },
     );
+  }
+
+  /**
+   * The link cards of posts whose first read came back `documentsPending`.
+   *
+   * Signed in, the read goes out with the viewer's session, so a followers-only
+   * post they can see still gets its cards; a session the server rejects falls
+   * back to the anonymous read, like every viewer-aware read here. Posts the
+   * viewer may not read are simply absent from the answer.
+   */
+  async getPostDocuments(ids: string[]): Promise<PostDocumentsResponse> {
+    const body: PostDocumentsRequest = { ids };
+    if (authDedupeMarker() === 'auth') {
+      try {
+        return (await authenticatedClient.post<PostDocumentsResponse>('/posts/documents', body, { retry: false })).data;
+      } catch (error) {
+        if (normalizeApiError(error).status !== 401) throw error;
+      }
+    }
+    return (await publicClient.post<PostDocumentsResponse>('/posts/documents', body)).data;
+  }
+
+  /**
+   * The composer's link cards. Resolved by the backend with its own credentials:
+   * the app never talks to Clarity itself.
+   */
+  async resolveLinkPreviews(urls: string[], signal?: AbortSignal): Promise<LinkPreviewResponse> {
+    const body: LinkPreviewRequest = { urls };
+    return (await authenticatedClient.post<LinkPreviewResponse>('/posts/link-previews', body, { signal, retry: false })).data;
   }
 
   /**

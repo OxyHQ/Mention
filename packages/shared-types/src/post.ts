@@ -1112,6 +1112,36 @@ export interface PostAttachmentBundle {
  */
 export const MAX_POST_DOCUMENTS = 4;
 
+/** Most post ids one `POST /posts/documents` call accepts. */
+export const MAX_POST_DOCUMENTS_BATCH = 50;
+
+/** `POST /posts/documents` body: the posts whose cards were still pending. */
+export interface PostDocumentsRequest {
+  ids: string[];
+}
+
+/**
+ * `POST /posts/documents` response, keyed by post id. A post the viewer may not
+ * read, or that no longer exists, is simply absent.
+ */
+export interface PostDocumentsResponse {
+  posts: Record<string, { documents: ClarityDocument[]; documentsPending?: boolean }>;
+}
+
+/** `POST /posts/link-previews` body: the links the composer found in a draft. */
+export interface LinkPreviewRequest {
+  urls: string[];
+}
+
+/**
+ * `POST /posts/link-previews` response: one entry per requested URL that has a card,
+ * in request order. URLs still being indexed are listed in `pending`.
+ */
+export interface LinkPreviewResponse {
+  previews: { url: string; document: ClarityDocument }[];
+  pending: string[];
+}
+
 export interface PostFeedContext {
   reason?: string;
   position?: number;
@@ -1394,12 +1424,20 @@ export interface HydratedPostSummary {
   attachments: PostAttachmentBundle;
   /**
    * Link-preview cards for the post text, in text order, capped at
-   * {@link MAX_POST_DOCUMENTS}. Every eligible URL carries at least `url`;
-   * title, description, image and site name are added when remote metadata
-   * resolves. This can still be absent or empty when metadata hydration was not
-   * requested or every extracted URL is deliberately suppressed.
+   * {@link MAX_POST_DOCUMENTS}: one Clarity document per link Clarity has
+   * indexed. A link Clarity has not finished yet has no entry here (see
+   * {@link documentsPending}); a link it gave up on never gets one. Absent or
+   * empty when metadata hydration was not requested or every link is
+   * deliberately suppressed.
    */
   documents?: ClarityDocument[];
+  /**
+   * True when at least one of the post's links is still being indexed, so
+   * {@link documents} is missing cards that will exist shortly. The app asks
+   * `POST /posts/documents` for these posts again instead of treating the
+   * missing cards as final. Absent when every card is settled.
+   */
+  documentsPending?: boolean;
   /** Primary author (owner) — backward-compatible single-author field. */
   user: PostUser;
   /**

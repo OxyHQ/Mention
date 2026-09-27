@@ -71,6 +71,28 @@ function notification(post: unknown) {
 }
 
 describe('notification embedded post contract', () => {
+  it('keeps a notification whose post carries a link card', () => {
+    // A Clarity document has `canonicalUrl` and no `url`; requiring `url` used to
+    // drop every such notification from the list.
+    const post = {
+      ...canonicalPost(),
+      documents: [{
+        id: 'doc-1',
+        canonicalUrl: 'https://example.com/article',
+        title: 'Article',
+        type: 'page',
+        status: 'indexed',
+        authors: [],
+        evidence: {},
+      }],
+    };
+
+    const results = validateNotifications([notification(post)]);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.post?.documents?.[0]?.canonicalUrl).toBe('https://example.com/article');
+  });
+
   it('accepts the canonical hydrated identity and viewerState shape', () => {
     const [result] = validateNotifications([notification(canonicalPost())]);
 

@@ -119,6 +119,7 @@ import { getServiceOxyClient } from '../../utils/oxyHelpers';
 import { parseUserDid } from './mentionDid';
 import { baselineContentClassifier } from '../BaselineContentClassifier';
 import { buildAuthorship } from '../../utils/postAuthorship';
+import { enrichIngestedPosts } from '../postEnrichment';
 import { clampFutureDate } from '../../utils/ingestTimestamp';
 import {
   recordRecentReplierForPost,
@@ -631,6 +632,11 @@ async function projectPost(
       await refreshProjectedPost(raced, content, { hashtags, language, threadId }, baseline?.classification);
     }
   }
+
+  // A projection stores through the repository directly, so it owes the
+  // post-ingest enrichment itself — including on a re-projection, whose body may
+  // carry links the previous one did not.
+  enrichIngestedPosts([{ id: rkey, content }]);
 
   if (parentPostId) {
     await recordRecentReplierForPost({

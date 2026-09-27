@@ -36,6 +36,7 @@ jest.mock('../../Post/PostHeader', () => ({
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 
 jest.mock('../../../stores/postsStore', () => ({ usePostSelector: () => undefined }));
+jest.mock('../../../stores/pendingDocuments', () => ({ requestPendingDocuments: jest.fn() }));
 
 jest.mock('@/stores/threadHoverStore', () => ({
   useThreadHoverStore: (selector: (state: unknown) => unknown) =>

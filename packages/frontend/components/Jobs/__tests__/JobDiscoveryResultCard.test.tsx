@@ -1,6 +1,6 @@
 import React from 'react';
 import TestRenderer, { type ReactTestInstance, type ReactTestRenderer, act } from 'react-test-renderer';
-import type { JobSearchResult } from '@clarity.surf/sdk';
+import type { JobSearchResult } from '@mention/shared-types/job';
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({

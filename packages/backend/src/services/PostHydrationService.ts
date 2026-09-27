@@ -25,13 +25,9 @@ import { findActorsByUris } from '../db/federation/actorRepository';
 import { loadImportProvenance, type PostImportHydration } from '../db/imports/postImportRepository';
 import { disclosesWriters, loadSigningChannelIds } from './channelWriterDisclosure';
 import { loadShownNotes } from './communityNotes/CommunityNotesService';
-import { ACTOR_DOMAIN, FEDERATION_DOMAIN } from '../connectors/activitypub/constants';
 import { deriveBridgyActorUri } from '../connectors/activitypub/bridgy';
 import { getRuntimeOxyClient } from '../runtime/oxyClient';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
-import { getClarityClient } from '../utils/clarityClient';
-import { extractUrls } from '../utils/extractUrls';
-import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 import {
   getBlockedUserIds,
   getRestrictedUserIds,
@@ -69,42 +65,18 @@ import {
   type ResolvedVariant,
 } from './postVariants';
 import { loadRecentReplierIds } from './PostRecentReplierService';
+import { previewableUrls, resolveClarityDocuments } from '../utils/clarityDocuments';
 
 import { PostContentVariant, PostMetadata, StoredPostContent } from '@mention/shared-types';
 
 /**
- * The hosts whose `/@alice` URLs name a user in OUR namespace.
- *
- * These must be the same hosts the app recognises
- * (`packages/frontend/utils/ownProfileLinks.ts`, which derives its list from the
- * app's `WEB_BASE_URL` and is shared by the reader's linkifier, the composer's
- * card gate and the composer's mention summary), because the decisions are all
- * halves of one behaviour:
- * the renderer turns such a URL into a mention, and {@link ownProfileLinkUrls}
- * withholds the preview card that would otherwise sit under it. If the lists
- * disagree the reader sees the mismatch — a mention with a redundant card, or a
- * link that lost its card for no visible reason.
- *
- * The federation domain rather than `FRONTEND_URL`: they agree in production,
- * but `FRONTEND_URL` is a CORS origin and is `http://localhost:8110` in
- * development, where the app's own base URL is not. `ACTOR_DOMAIN` defaults to
- * the same value and is only distinct when actor URIs are served elsewhere.
+ * The link cards of a hydrated batch: each post's documents in text order, and
+ * the posts with a link Clarity is still indexing (reported to the client as
+ * `documentsPending`, so it can ask `POST /posts/documents` again).
  */
-const OWN_PROFILE_HOSTS: readonly string[] = [
-  ...new Set([FEDERATION_DOMAIN, ACTOR_DOMAIN].filter((host): host is string => Boolean(host))),
-];
-
-/**
- * True when a URL names a profile on this instance — the URLs the reader is
- * shown a MENTION for rather than a link.
- *
- * The same `ownProfileUrlHandle` the linkifier decides with, so the two cannot
- * drift into disagreeing about a URL: whatever the renderer swallows into a
- * mention is exactly what loses its card, and everything else keeps one. Purely
- * syntactic, so this costs a `URL` parse per extracted link and no I/O.
- */
-function isOwnProfileLink(url: string): boolean {
-  return ownProfileUrlHandle(url, OWN_PROFILE_HOSTS) !== undefined;
+interface ClarityDocumentMap {
+  documents: Map<string, ClarityDocument[]>;
+  pending: Set<string>;
 }
 
 /**
@@ -179,6 +151,14 @@ interface HydrationOptions {
   oxyClient?: OxyClient; // Per-request OxyServices instance with user's auth token
   maxDepth?: number;
   includeLinkMetadata?: boolean;
+  /**
+   * How long Clarity may hold the link-preview resolve open for a URL it has not
+   * finished indexing. Omitted on every feed and detail read, which answer with
+   * what Clarity already has (issue #1140). Only the pending-documents follow-up
+   * (`POST /posts/documents`) sets it: that call is off the render path, and its
+   * whole job is to wait for the cards the first read had to leave out.
+   */
+  linkMetadataWaitMs?: number;
   includeFullArticleBody?: boolean; // For feed, skip full article bodies
   includeFullMetadata?: boolean; // For feed, skip some metadata fields
   /**
@@ -1069,8 +1049,8 @@ export class PostHydrationService {
       this.buildPollMap(postsForHydration),
       this.buildAuthorPrivacyMap(postsForHydration, viewerContext),
       options.includeLinkMetadata !== false
-        ? this.buildClarityDocumentMap(postsForHydration, resolvedMap)
-        : Promise.resolve(new Map<string, ClarityDocument[]>()),
+        ? this.buildClarityDocumentMap(postsForHydration, resolvedMap, options.linkMetadataWaitMs)
+        : Promise.resolve<ClarityDocumentMap>({ documents: new Map(), pending: new Set() }),
       this.buildOrphanFederatedAuthorMap(postsForHydration),
       // `undefined` (not an empty Map) when the caller did not ask, so a post
       // with zero quotes is still reported as 0 rather than as "not counted".
@@ -2035,53 +2015,39 @@ export class PostHydrationService {
   /**
    * Build the per-post link-preview map for a batch of posts. Each post maps to
    * its preview cards IN TEXT ORDER, capped at `MAX_POST_DOCUMENTS` by
-   * {@link extractUrls} — a post with several links renders a card per link. The
+   * {@link previewableUrls} — a post with several links renders a card per link. The
    * URLs are read from the RESOLVED body, so a reader served the Spanish variant
    * gets the cards for the links that variant actually contains.
    *
-   * Link previews are resolved through the Oxy ecosystem link-preview service
-   * through Clarity instead of being scraped locally. Clarity
-   * owns BOTH resolution and privacy-preserving image hosting: the `image` /
-   * `favicon` on every returned preview is an absolute Oxy-hosted
-   * (`cloud.oxy.so`) URL — never re-proxied via `/media/proxy`, but sized down
-   * via {@link attachCdnVariant} (the `MEDIA_VARIANT_THUMB`/`w320` context,
-   * matching the link-preview card's rendered width) instead of serving the
-   * no-variant original for what renders as a small card cover image.
+   * Documents come from Clarity, through {@link resolveClarityDocuments}: one
+   * batch call over the DEDUPED url set, so posts sharing a URL cost one
+   * resolution. Clarity owns fetching, caching and image hosting; `imageUrl` and
+   * `faviconUrl` are served as Clarity returns them.
    *
-   * This stays safe on the `/feed/*` response path: the batch call is a fast
-   * cached read (mirroring the {@link OxyServices.getUsersByIds} author-batch
-   * call also awaited here) over the DEDUPED url set, so posts sharing a URL
-   * cost one resolution. Oxy returns already-resolved previews immediately and a
-   * `'pending'` placeholder for any first-seen URL, which it warms server-side in
-   * the background — it does NOT block on a remote HTML fetch. A
-   * `'pending'`/`'empty'`/missing result still becomes a URL-only preview:
-   * Bloom's canonical card deliberately falls back to the hostname when remote
-   * metadata is unavailable, so a site that blocks crawlers never makes its
-   * links lose their card entirely. A later hydration overlays the resolved
-   * metadata once Oxy has it. Only top-level posts carry previewable text;
-   * nested boosts/quotes have no preview of their own.
+   * No `waitMs` unless the caller passes one: a feed or detail read answers with
+   * what Clarity already has. Asking it to wait up to 2s held every page carrying
+   * a not-yet-resolved link for the whole wait — about 2s of each production
+   * `/search` in issue #1140. Stored posts are warmed at ingest
+   * (`postEnrichment/clarityDocumentStep`) and at creation
+   * (`warmClarityDocumentForText`), so most links are already indexed by the
+   * time anyone reads them.
    *
-   * A URL naming a profile on THIS instance gets no card ({@link isOwnProfileLink}),
-   * because the reader is not shown a link there: the linkifier renders that span
-   * as a mention, and a card underneath would preview a page the reader can no
-   * longer see a link to. It is dropped before the batch call rather than after,
-   * so we also stop asking the preview service to scrape our own profile pages.
-   * The suppression is per URL, not per post — a post carrying a profile link AND
-   * an article still gets the article's card.
+   * A link Clarity has NOT finished (a post seen for the first time — a remote
+   * profile's older posts, say) has no document yet. Rather than answer as if the
+   * post had no card, the post is marked pending, and the app asks
+   * `POST /posts/documents` for it a few seconds later. A link Clarity gave up on
+   * (`failed`, `blocked`, `removed`) gets no card and is not pending.
    *
-   * One bounded consequence, stated rather than hidden: {@link extractUrls}
-   * applies the `MAX_POST_DOCUMENTS` cap BEFORE this filter, so a post
-   * carrying more than that many links, one of which is a profile link, renders
-   * one card fewer instead of promoting the next link into the freed slot. Moving
-   * the filter ahead of the cap would mean teaching a generally-named URL
-   * extractor about profile links, which is a worse trade for a case that needs
-   * five links in one body to reach.
+   * A URL naming a profile on THIS instance gets no card (see
+   * {@link previewableUrls}), because the reader is not shown a link there: the
+   * linkifier renders that span as a mention.
    */
   private async buildClarityDocumentMap(
     nodes: HydratedGraphNode[],
     resolvedMap: Map<string, ResolvedVariant>,
-  ): Promise<Map<string, ClarityDocument[]>> {
-    const previewMap = new Map<string, ClarityDocument[]>();
+    waitMs?: number,
+  ): Promise<ClarityDocumentMap> {
+    const result: ClarityDocumentMap = { documents: new Map(), pending: new Set() };
 
     const postToUrls = new Map<string, string[]>(); // postId -> [url] (text order)
     const uniqueUrls = new Set<string>();
@@ -2093,50 +2059,28 @@ export class PostHydrationService {
       const text = resolvedMap.get(postId)?.text;
       if (!text || typeof text !== 'string') continue;
 
-      const urls = extractUrls(text).filter((url) => !isOwnProfileLink(url));
+      const urls = previewableUrls(text);
       if (urls.length === 0) continue;
 
       postToUrls.set(postId, urls);
-
-      for (const url of urls) {
-        uniqueUrls.add(url);
-      }
+      for (const url of urls) uniqueUrls.add(url);
     }
 
-    if (uniqueUrls.size === 0) return previewMap;
+    if (uniqueUrls.size === 0) return result;
 
-    const resolvedByUrl = new Map<string, ClarityDocument>();
-    try {
-      // No `waitMs`: a read answers with what Clarity already has and leaves
-      // the rest to its background lane, as the docblock above promises.
-      // Asking it to wait up to 2s held every page carrying a not-yet-resolved
-      // link for the whole wait — about 2s of each production `/search` in
-      // issue #1140 — and stored posts are warmed at ingest
-      // (`postEnrichment/clarityDocumentStep`) and at creation
-      // (`warmClarityDocumentForText`) precisely so a reader never has to.
-      const response = await (await getClarityClient()).indexing.resolve({
-        urls: [...uniqueUrls],
-      });
-      for (const resolution of response.data) {
-        if (resolution.document) resolvedByUrl.set(resolution.url, resolution.document);
-      }
-    } catch (error) {
-      logger.warn('[PostHydration] Failed to resolve documents from Clarity', {
-        count: uniqueUrls.size,
-        reason: error instanceof Error ? error.message : 'unknown',
-      });
-    }
+    const resolved = await resolveClarityDocuments([...uniqueUrls], { waitMs });
 
     for (const [postId, urls] of postToUrls) {
-      const resolved: ClarityDocument[] = [];
+      const documents: ClarityDocument[] = [];
       for (const url of urls) {
-        const preview = resolvedByUrl.get(url);
-        if (preview) resolved.push(preview);
+        const document = resolved.documents.get(url);
+        if (document) documents.push(document);
+        else if (resolved.pending.has(url)) result.pending.add(postId);
       }
-      if (resolved.length > 0) previewMap.set(postId, resolved);
+      if (documents.length > 0) result.documents.set(postId, documents);
     }
 
-    return previewMap;
+    return result;
   }
 
   private async buildAuthorPrivacyMap(
@@ -2471,7 +2415,7 @@ export class PostHydrationService {
     pollMap: Map<string, Record<string, unknown>>;
     userMap: Map<string, PostUser>;
     mentionCache: Map<string, PostUser>;
-    linkPreviewMap: Map<string, ClarityDocument[]>;
+    linkPreviewMap: ClarityDocumentMap;
     authorPrivacyMap: Map<string, typeof DEFAULT_PRIVACY>;
     recentReplierMap?: Map<string, string[]>;
     orphanAuthorMap: Map<string, PostUser>;
@@ -2595,7 +2539,8 @@ export class PostHydrationService {
     );
     const content = this.buildContent(post, pollMap, viewerContext, resolved, inlineVariants);
     const attachments = this.buildAttachments(post, pollMap, resolved);
-    const documents = linkPreviewMap.get(postId) ?? [];
+    const documents = linkPreviewMap.documents.get(postId) ?? [];
+    const documentsPending = linkPreviewMap.pending.has(postId);
     const viewerState = this.buildViewerState(post, postId, viewerContext, authorship);
     const permissions = this.buildPermissions(post, authorId, viewerContext, authorship);
     const authorPrivacy = authorPrivacyMap.get(authorId) ?? { ...DEFAULT_PRIVACY };
@@ -2695,6 +2640,7 @@ export class PostHydrationService {
       content: content ?? { text: finalText },
       attachments,
       documents,
+      ...(documentsPending ? { documentsPending: true } : {}),
       user,
       authors,
       ...(includeAuthorship ? { authorship } : {}),

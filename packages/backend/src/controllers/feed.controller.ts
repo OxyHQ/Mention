@@ -33,6 +33,7 @@ import { checkFollowAccess, extractFollowingIds, requiresAccessCheck, resolveVie
 import { getOrLoadPostRecord } from '../services/postDetailCache';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { logger } from '../utils/logger';
+import { enrichIngestedPosts } from '../services/postEnrichment';
 import { validateAndNormalizeLimit, FEED_CONSTANTS } from '../utils/feedUtils';
 import { notCollapsedCrosspostSql } from '../utils/feedQueryBuilder';
 import { ChronoCursor, chronoCursorSql, chronoOrderBy, ScoreCursor } from '../mtn/feed/CursorBuilder';
@@ -529,6 +530,9 @@ class FeedController {
         ...(classification ? { postClassification: classification } : {}),
       });
       await recordRecentReplierForPost(reply);
+      // This path stores through the repository directly, so it owes the
+      // post-ingest enrichment itself (media metadata, link-card warm).
+      enrichIngestedPosts([reply]);
 
       // MTN dual-write: a reply emits an `app.mention.feed.post` record with the
       // thread position (reply.root / reply.parent). The direct parent is
