@@ -5,6 +5,7 @@ import { Card } from '@oxy.so/bloom/card';
 import { Field } from '@oxy.so/bloom/field';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
+import { useDatePickerLabels } from '@/hooks/useDatePickerLabels';
 import { toast } from '@oxy.so/bloom/toast';
 
 export type ScheduleOption = {
@@ -56,6 +57,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
 }) => {
   const theme = useTheme();
   const { t, i18n } = useTranslation();
+  const datePickerLabels = useDatePickerLabels();
 
   const initialDate = useMemo(() => scheduledAt ?? new Date(Date.now() + 15 * 60000), [scheduledAt]);
   const [customDate, setCustomDate] = useState<Date | null>(() => toLocalDay(initialDate));
@@ -167,6 +169,7 @@ const ScheduleSheet: React.FC<ScheduleSheetProps> = ({
               onChange={setCustomDate}
               minDate={today}
               locale={i18n.language}
+              labels={datePickerLabels}
               accessibilityLabel={t('compose.schedule.dateLabel', { defaultValue: 'Date' })}
               testID="scheduleSheetDatePicker"
             />

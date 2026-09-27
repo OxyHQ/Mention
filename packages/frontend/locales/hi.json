@@ -2540,5 +2540,8 @@
   "connections.profileNotFound": "यह खाता मौजूद नहीं है, इसलिए दिखाने के लिए कोई फ़ॉलोअर नहीं है।",
   "saved.createFolderFailed": "फ़ोल्डर नहीं बन सका। फिर से कोशिश करें।",
   "profile.loadFailed": "यह प्रोफ़ाइल लोड नहीं हो सकी। अपना कनेक्शन जांचें और फिर से कोशिश करें।",
-  "profile.notFound.gone": "यह खाता मौजूद नहीं है, या अब उपलब्ध नहीं है।"
+  "profile.notFound.gone": "यह खाता मौजूद नहीं है, या अब उपलब्ध नहीं है।",
+  "datePicker.apply": "लागू करें",
+  "datePicker.previousMonth": "पिछला महीना",
+  "datePicker.nextMonth": "अगला महीना"
 }

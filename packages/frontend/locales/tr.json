@@ -2540,5 +2540,8 @@
   "connections.profileNotFound": "Bu hesap mevcut değil, bu yüzden gösterilecek takipçi yok.",
   "saved.createFolderFailed": "Klasör oluşturulamadı. Tekrar dene.",
   "profile.loadFailed": "Bu profil yüklenemedi. Bağlantını kontrol edip tekrar dene.",
-  "profile.notFound.gone": "Bu hesap mevcut değil veya artık kullanılamıyor."
+  "profile.notFound.gone": "Bu hesap mevcut değil veya artık kullanılamıyor.",
+  "datePicker.apply": "Uygula",
+  "datePicker.previousMonth": "Önceki ay",
+  "datePicker.nextMonth": "Sonraki ay"
 }

@@ -2596,5 +2596,8 @@
   "connections.profileNotFound": "Этого аккаунта не существует, поэтому подписчиков нет.",
   "saved.createFolderFailed": "Не удалось создать папку. Попробуйте ещё раз.",
   "profile.loadFailed": "Не удалось загрузить профиль. Проверьте подключение и попробуйте ещё раз.",
-  "profile.notFound.gone": "Этот аккаунт не существует или больше недоступен."
+  "profile.notFound.gone": "Этот аккаунт не существует или больше недоступен.",
+  "datePicker.apply": "Применить",
+  "datePicker.previousMonth": "Предыдущий месяц",
+  "datePicker.nextMonth": "Следующий месяц"
 }
