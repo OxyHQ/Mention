@@ -343,6 +343,14 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       'posts could be rewritten mid-assertion.',
   },
   {
+    path: 'src/__tests__/services/federatedBannerMirror.test.ts',
+    jobEntryPoint: 'runFederatedBannerMirrors',
+    reason:
+      'Claims due rows from the WHOLE `federated_banner_mirrors` table, and runs ' +
+      '`queueFederatedBannerMirrors`, which pages EVERY federated actor advertising a banner — ' +
+      "so on a shared database it would mirror other suites' rows and queue their actors.",
+  },
+  {
     path: 'src/__tests__/scripts/backfillInstagramSourceKeys.test.ts',
     jobEntryPoint: 'backfillInstagramSourceKeys',
     reason:

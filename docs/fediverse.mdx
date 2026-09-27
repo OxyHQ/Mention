@@ -200,6 +200,47 @@ revalidation, content-type checks, byte limits, stream abort, and timeouts.
 SVG is rejected. Frequently used remote media can be cached in Oxy object
 storage when the cache-write feature is enabled.
 
+### Federated banners
+
+A federated account's banner is Mention's own (`user_settings.profile_header_image`),
+not part of the Oxy identity, so Mention mirrors it into Oxy itself.
+
+- **Recording.** Every actor resolve records the banner URL its source
+  advertises in `federated_banner_mirrors` (one row per Oxy user). It writes
+  only when the URL is new or changed, and never waits or fails the resolve.
+- **Mirroring.** A periodic sweep (`runFederatedBannerMirrors`, every 2 minutes,
+  at most 50 banners, 4 at a time, only while media writes are on) mirrors due
+  rows through `mirrorFederatedBanner`. A replaced banner file is queued for
+  deletion.
+- **What a banner is decided from its bytes.** The declared Content-Type is not
+  trusted. A real image served as `text/plain`, `binary/octet-stream`,
+  `text/html` or with no type is stored, typed by its magic bytes. HTML, SVG and
+  anything that is not a raster image are refused, whatever the label.
+- **Sizes.** The download is capped at 25 MB (the same ceiling oxy-api uses for
+  avatars). A web-format still up to 10 MB is stored as-is. A larger, animated,
+  or non-web-format (HEIC, BMP, TIFF) banner is stored as its first frame,
+  re-encoded as a WebP of at most 1920 px on the long edge, by the ffmpeg the
+  runtime image ships (JPEG if that ffmpeg lacks `libwebp`). An animated banner
+  within 10 MB whose first frame ffmpeg cannot take (animated WebP, which ffmpeg
+  7 does not decode) is stored as-is.
+- **Retries, never final.** A failure that may pass (5xx, timeout, Oxy
+  unavailable, a re-encoder that could not run) retries after 5 minutes, times
+  3 per failure, up to 6 hours. A banner whose bytes are not a usable image
+  (not an image, undecodable, over 25 MB, 404/410) retries once a day. `failed`
+  is a state of the row, not an end.
+- **Recovery.** `packages/backend/src/scripts/queueFederatedBannerMirrors.ts`
+  (`DRY_RUN` by default) queues every account whose source advertises a banner
+  and that has none stored: every account resolved since #994 (2026-09-13), when
+  the resolve-time mirror stopped, and banners dropped earlier for a mislabelled
+  type or for size. `INCLUDE_EXISTING=true` re-syncs accounts that already have
+  a banner; `RETRY_FAILED=true` makes every `failed` row due now.
+
+  ```
+  bun packages/backend/dist/src/scripts/queueFederatedBannerMirrors.js
+  DRY_RUN=false CONFIRM_ADMIN_MUTATION=queueFederatedBannerMirrors \
+    bun packages/backend/dist/src/scripts/queueFederatedBannerMirrors.js
+  ```
+
 ## Identity and safety on federated surfaces
 
 **Author hydration must NEVER emit a raw `oxyUserId` as a handle.**

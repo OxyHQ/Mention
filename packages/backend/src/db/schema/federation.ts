@@ -550,6 +550,53 @@ export const federatedMediaPosters = pgTable(
 );
 
 /**
+ * The states of a federated banner mirror. `failed` is NOT terminal: every row
+ * that is not `mirrored` is retried on a backoff (see
+ * `services/federatedBannerMirror.ts`), so a banner is never lost to one bad
+ * answer.
+ */
+export const FEDERATED_BANNER_MIRROR_STATES = ['pending', 'mirrored', 'failed'] as const;
+
+/**
+ * `federated_banner_mirrors` — the durable retry state of mirroring a federated
+ * account's profile banner into Oxy (stored in `user_settings.profile_header_image`).
+ *
+ * One row per Oxy user: the banner URL its source currently advertises, and
+ * whether that URL has been mirrored. An actor resolve records the URL (a write
+ * only when it CHANGED); a periodic sweep mirrors due rows, backing off on
+ * failure — transient failures quickly (5 min x 3^n, up to 6 h), a banner whose
+ * bytes are not a usable image once a day. Nothing here is ever final.
+ */
+export const federatedBannerMirrors = pgTable(
+  'federated_banner_mirrors',
+  {
+    oxyUserId: text().primaryKey(),
+    /** The actor whose banner this is (the upload's provenance). */
+    actorUri: text().notNull(),
+    /** The banner URL the source advertises NOW. */
+    sourceUrl: text().notNull(),
+    state: text({ enum: FEDERATED_BANNER_MIRROR_STATES }).notNull().default('pending'),
+    attempts: integer().notNull().default(0),
+    retryAt: timestamptz().notNull().defaultNow(),
+    /** A sweep's claim; a crashed sweep's rows are taken again once it passes. */
+    leaseUntil: timestamptz(),
+    /** Short, non-sensitive reason of the last failure (`not-media`, `upstream-error:503`, …). */
+    lastFailure: text(),
+    mirroredAt: timestamptz(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check(
+      'federated_banner_mirrors_state_check',
+      sql`${t.state} in (${sql.raw(inList(FEDERATED_BANNER_MIRROR_STATES))})`
+    ),
+    // The sweep's claim: rows still owed a mirror, by due time.
+    index('federated_banner_mirrors_due_idx').on(t.retryAt).where(sql`${t.state} <> 'mirrored'`),
+  ]
+);
+
+/**
  * `federated_follows` — a follow edge across a protocol boundary.
  *
  * `remote_actor_uri` is a URI rather than a `federated_actors.id` because an

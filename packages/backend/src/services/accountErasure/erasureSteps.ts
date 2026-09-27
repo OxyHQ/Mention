@@ -37,6 +37,7 @@ import {
 import {
   actorKeyPairs,
   federatedActors,
+  federatedBannerMirrors,
   federatedFollows,
   federatedIdentityLinks,
   federationDeliveryQueue,
@@ -565,5 +566,11 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
   'federated_follows.localUserId': deleteRows('federation', federatedFollows, federatedFollows.id, accountIs(federatedFollows.localUserId)),
   'federated_identity_links.oxyUserId': deleteRows('federation', federatedIdentityLinks, federatedIdentityLinks.id, accountIs(federatedIdentityLinks.oxyUserId)),
   'federated_actors.oxyUserId': deleteRows('federation', federatedActors, federatedActors.id, accountIs(federatedActors.oxyUserId)),
+  'federated_banner_mirrors.oxyUserId': deleteRows(
+    'federation',
+    federatedBannerMirrors,
+    federatedBannerMirrors.oxyUserId,
+    accountIs(federatedBannerMirrors.oxyUserId),
+  ),
   'actor_key_pairs.oxyUserId': deleteRows('federation', actorKeyPairs, actorKeyPairs.id, accountIs(actorKeyPairs.oxyUserId)),
 };

@@ -23,6 +23,7 @@ import { activityPubConnector, isPermanentlyUnavailableOutboxReason } from '../c
 import { runCacheWorkerOnce } from './mediaCache/cacheWorker';
 import { runEvictionOnce } from './mediaCache/evictionJob';
 import { drainFederatedMediaDeletions } from './mediaCache/federatedMediaDeletion';
+import { runFederatedBannerMirrors } from './federatedBannerMirror';
 import { isMediaCacheEnabled } from './mediaCache/oxyMediaStore';
 import {
   MEDIA_CACHE_EVICTION_INTERVAL_MS,
@@ -43,6 +44,8 @@ import {
   PERIODIC_INSTAGRAM_GRAPH_SYNC,
   PERIODIC_FEDERATED_MEDIA_DELETIONS,
   FEDERATED_MEDIA_DELETIONS_INTERVAL_MS,
+  PERIODIC_FEDERATED_BANNER_MIRRORS,
+  FEDERATED_BANNER_MIRRORS_INTERVAL_MS,
   REFRESH_STALE_ACTORS_INTERVAL_MS,
   SYNC_FOLLOWED_OUTBOX_INTERVAL_MS,
   RECENT_OUTBOX_BACKFILL_INTERVAL_MS,
@@ -98,6 +101,7 @@ class FederationJobScheduler {
   private affinityEventsInterval: ReturnType<typeof setInterval> | null = null;
   private instagramGraphSyncInterval: ReturnType<typeof setInterval> | null = null;
   private federatedMediaDeletionsInterval: ReturnType<typeof setInterval> | null = null;
+  private federatedBannerMirrorsInterval: ReturnType<typeof setInterval> | null = null;
 
   // Startup delay timeout handles (cleared in stop())
   private initialSyncTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -113,6 +117,7 @@ class FederationJobScheduler {
   private isFlushAffinityEventsRunning = false;
   private isInstagramGraphSyncRunning = false;
   private isFederatedMediaDeletionsRunning = false;
+  private isFederatedBannerMirrorsRunning = false;
 
   /** True when this scheduler registered BullMQ repeatable jobs (queue mode). */
   private usingQueue = false;
@@ -196,6 +201,14 @@ class FederationJobScheduler {
         );
       }, MEDIA_CACHE_WORKER_INTERVAL_MS);
       this.mediaCacheWorkerInterval.unref?.();
+
+      // Mirror federated banners (a sweep that cannot upload would only burn attempts).
+      this.federatedBannerMirrorsInterval = setInterval(() => {
+        this.runFederatedBannerMirrors().catch((err) =>
+          logger.error('Federated banner mirror sweep failed:', err)
+        );
+      }, FEDERATED_BANNER_MIRRORS_INTERVAL_MS);
+      this.federatedBannerMirrorsInterval.unref?.();
 
       // Evict idle cached media from Oxy S3 (activity-based TTL).
       this.mediaCacheEvictionInterval = setInterval(() => {
@@ -295,6 +308,7 @@ class FederationJobScheduler {
     if (isMediaCacheEnabled()) {
       await upsert(PERIODIC_MEDIA_CACHE_WORKER, MEDIA_CACHE_WORKER_INTERVAL_MS, 'runMediaCacheWorker');
       await upsert(PERIODIC_MEDIA_CACHE_EVICTION, MEDIA_CACHE_EVICTION_INTERVAL_MS, 'runMediaCacheEviction');
+      await upsert(PERIODIC_FEDERATED_BANNER_MIRRORS, FEDERATED_BANNER_MIRRORS_INTERVAL_MS, 'runFederatedBannerMirrors');
     }
 
     await upsert(PERIODIC_FEDERATED_MEDIA_DELETIONS, FEDERATED_MEDIA_DELETIONS_INTERVAL_MS, 'drainFederatedMediaDeletions');
@@ -426,6 +440,10 @@ class FederationJobScheduler {
       clearInterval(this.federatedMediaDeletionsInterval);
       this.federatedMediaDeletionsInterval = null;
     }
+    if (this.federatedBannerMirrorsInterval) {
+      clearInterval(this.federatedBannerMirrorsInterval);
+      this.federatedBannerMirrorsInterval = null;
+    }
     if (this.initialSyncTimeout) {
       clearTimeout(this.initialSyncTimeout);
       this.initialSyncTimeout = null;
@@ -452,6 +470,7 @@ class FederationJobScheduler {
       PERIODIC_FLUSH_AFFINITY_EVENTS,
       PERIODIC_INSTAGRAM_GRAPH_SYNC,
       PERIODIC_FEDERATED_MEDIA_DELETIONS,
+      PERIODIC_FEDERATED_BANNER_MIRRORS,
     ];
 
     await Promise.allSettled(ids.map((id) => queue.removeJobScheduler(id)));
@@ -908,6 +927,17 @@ class FederationJobScheduler {
       await affinityEventService.drainOnce();
     } finally {
       this.isFlushAffinityEventsRunning = false;
+    }
+  }
+
+  /** Mirror due federated banners (`services/federatedBannerMirror.ts`). */
+  async runFederatedBannerMirrors(): Promise<void> {
+    if (this.isFederatedBannerMirrorsRunning) return;
+    this.isFederatedBannerMirrorsRunning = true;
+    try {
+      await runFederatedBannerMirrors();
+    } finally {
+      this.isFederatedBannerMirrorsRunning = false;
     }
   }
 

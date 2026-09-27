@@ -143,6 +143,12 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
       'Pages every federated actor with instagram_graph_synced_at set, by primary key, and '
       + 'rewrites the media of its Graph-imported posts whose video slot holds the poster.',
   },
+  queueFederatedBannerMirrors: {
+    scope: 'whole-table',
+    reason:
+      'Pages every federated actor with a header_url and an oxy_user_id, by primary key, '
+      + 'and records a banner mirror for each (and, with retryFailed, re-arms every failed row).',
+  },
   backfillInstagramSourceKeys: {
     scope: 'whole-table',
     reason:

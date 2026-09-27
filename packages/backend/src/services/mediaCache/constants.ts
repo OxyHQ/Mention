@@ -34,12 +34,19 @@ export const MEDIA_CACHE_MAX_VIDEO_BYTES = 200 * BYTES_PER_MIB;
 export const MEDIA_CACHE_MAX_IMAGE_BYTES = 32 * BYTES_PER_MIB;
 
 /**
- * Maximum size of a federated actor's profile BANNER. Much smaller than the
- * generic image cap because a banner is one decorative header image mirrored on
- * every actor resolve, not user-posted content — an over-cap banner is skipped
- * (the actor still resolves, it just keeps no banner).
+ * Largest federated actor BANNER stored byte-for-byte. A banner is one
+ * decorative header image, not user-posted content, so it is kept small: a
+ * larger (or animated, or non-web-format) banner is stored as a re-encoded
+ * first-frame still instead (`utils/imageReencode.ts`), never dropped.
  */
 export const FEDERATED_BANNER_MAX_BYTES = 10 * BYTES_PER_MIB;
+
+/**
+ * Hard ceiling on the bytes DOWNLOADED for a federated banner — above the
+ * stored cap, so an oversized banner can still be fetched and re-encoded. The
+ * same ceiling oxy-api uses for federated avatars (OxyHQServices #1452).
+ */
+export const FEDERATED_BANNER_DOWNLOAD_MAX_BYTES = 25 * BYTES_PER_MIB;
 
 /**
  * Number of leading bytes of a video to buffer for poster-frame extraction. A
