@@ -27,8 +27,11 @@
  *    holds — counted as renditions, not posts, because another suite's post in
  *    the window may carry several.
  *
- * Seeded and measured inside one transaction that is rolled back, so the rows
- * and their statistics reach no other suite.
+ * Seeded and measured inside one REPEATABLE READ transaction that is rolled
+ * back: the rows and their statistics reach no other suite, and the plan's
+ * reads and the window's count see the same snapshot — under READ COMMITTED a
+ * concurrent suite's commit between the two statements could make them
+ * disagree by a row.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -122,7 +125,11 @@ async function measure(): Promise<{ plan: string; windowed: number; renditionsIn
       matches: counts.matches,
     };
     throw rollback;
-  }).catch((error: unknown) => {
+    // ONE snapshot for the EXPLAIN ANALYZE and the counts it is compared with.
+    // Under READ COMMITTED each statement saw its own: another suite deleting a
+    // recent post between the two made the plan read one rendition more than
+    // the count then found in the window (CI: "expected 1443 to be <= 1442").
+  }, { isolationLevel: 'repeatable read' }).catch((error: unknown) => {
     if (error !== rollback) throw error;
   });
 
