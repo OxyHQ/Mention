@@ -27,6 +27,7 @@ vi.mock('../../utils/safeUpstreamFetch', async () => {
 vi.mock('../../db/federation/mediaDeletionRepository', () => ({
   recordFederatedPoster: vi.fn(async () => undefined),
   reviveFederatedFiles: mocks.reviveFederatedFiles,
+  databaseNow: vi.fn(async () => new Date()),
 }));
 
 vi.mock('../../services/mediaCache/oxyMediaStore', () => ({

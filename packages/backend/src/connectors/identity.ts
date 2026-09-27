@@ -1,6 +1,8 @@
 import { logger } from '../utils/logger';
 import { getDb } from '../db/postgres';
-import { assertFederatedMediaUsable, FederatedMediaGoneError } from '../db/federation/mediaDeletionRepository';
+import { assertFederatedMediaUsable, enqueueFederatedMediaDeletions, FederatedMediaGoneError } from '../db/federation/mediaDeletionRepository';
+import { userSettings } from '../db/schema/userProfile';
+import { eq } from 'drizzle-orm';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { updateUserSettings } from '../db/userProfile/userSettingsRepository';
 import { invalidate as invalidateUserSummaryCache } from '../services/userSummaryCache';
@@ -127,7 +129,16 @@ export async function mirrorFederatedBanner(
       try {
         await getDb().transaction(async (tx) => {
           await assertFederatedMediaUsable(tx, [bannerFileId]);
+          const [previous] = await tx
+            .select({ banner: userSettings.profileHeaderImage })
+            .from(userSettings)
+            .where(eq(userSettings.oxyUserId, oxyUserId));
           await updateUserSettings(oxyUserId, { set: { profileHeaderImage: bannerFileId } }, tx);
+          // The REPLACED banner is a re-hosted federated file nothing may need
+          // any more: queue it (the drain re-checks references first).
+          if (previous?.banner && previous.banner !== bannerFileId) {
+            await enqueueFederatedMediaDeletions([previous.banner], tx);
+          }
         });
       } catch (err) {
         if (err instanceof FederatedMediaGoneError) return { ok: false, permanent: false };

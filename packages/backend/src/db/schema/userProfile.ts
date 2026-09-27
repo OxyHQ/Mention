@@ -380,6 +380,12 @@ export const userSettings = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
+    // The federated-media deletion drain's reference check ("is this re-hosted
+    // file still some federated profile's banner?"), run under per-file advisory
+    // locks. Partial: most accounts have no banner.
+    index('user_settings_profile_header_image_idx')
+      .on(t.profileHeaderImage)
+      .where(sql`${t.profileHeaderImage} is not null`),
     check(
       'user_settings_theme_mode_check',
       sql`${t.appearanceThemeMode} in (${sql.raw(inList(THEME_MODES))})`

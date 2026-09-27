@@ -474,6 +474,11 @@ export const postVariantMedia = pgTable(
     ),
     check('post_variant_media_position_check', sql`${t.position} >= 0`),
     unique('post_variant_media_variant_id_position_key').on(t.variantId, t.position),
+    // The federated-media deletion drain's reference check ("does any variant
+    // still use this file?"), run under per-file advisory locks — without it, a
+    // scan of the table while those locks are held. Not partial: a reference
+    // counts whatever flag the row carries.
+    index('post_variant_media_media_id_idx').on(t.mediaId),
   ]
 );
 

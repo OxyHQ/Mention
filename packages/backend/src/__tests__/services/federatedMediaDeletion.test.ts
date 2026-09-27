@@ -13,26 +13,40 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const h = vi.hoisted(() => ({ deleteFederatedMedia: vi.fn() }));
+const h = vi.hoisted(() => ({ deleteFederatedMedia: vi.fn(), tombstoneFailure: null as Error | null }));
 
 vi.mock('../../services/mediaCache/oxyMediaStore', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../services/mediaCache/oxyMediaStore')>()),
   deleteFederatedMedia: h.deleteFederatedMedia,
 }));
 
+vi.mock('../../db/federation/mediaDeletionRepository', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../db/federation/mediaDeletionRepository')>();
+  return {
+    ...actual,
+    tombstoneUnreferenced: async (ids: string[]) => {
+      if (h.tombstoneFailure) throw h.tombstoneFailure;
+      return actual.tombstoneUnreferenced(ids);
+    },
+  };
+});
+
 import { eq, inArray, sql } from 'drizzle-orm';
 import { PostType, PostVisibility, type MediaItem } from '@mention/shared-types';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
-import { federatedMediaDeletions } from '../../db/schema/federation';
+import { federatedMediaDeletions, federatedMediaPosters } from '../../db/schema/federation';
 import { userSettings } from '../../db/schema/userProfile';
-import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepository';
+import { deletePostRecord, insertPostRecord, replacePostContent } from '../../db/posts/postRepository';
+import { postMedia } from '../../db/schema/postContent';
+import { config } from '../../config';
+import { metrics } from '../../utils/metrics';
 import {
   FederatedMediaGoneError,
   recordFederatedPoster,
   reviveFederatedFiles,
   tombstoneUnreferenced,
 } from '../../db/federation/mediaDeletionRepository';
-import { drainFederatedMediaDeletions, mediaDeletionBackoffMs } from '../../services/mediaCache/federatedMediaDeletion';
+import { drainFederatedMediaDeletions, mediaDeletionBackoffMs, STUCK_ATTEMPTS } from '../../services/mediaCache/federatedMediaDeletion';
 import { OxyMediaStoreRequestError, OxyMediaStoreThrottledError } from '../../services/mediaCache/oxyMediaStore';
 
 const OWNER = 'oxy-fedmedia-owner';
@@ -43,7 +57,7 @@ function rehosted(id: string, type: MediaItem['type'] = 'image'): MediaItem {
   return { id, type, remoteUrl: `https://cdn.example/${id}.jpg`, cachedFromFederation: true };
 }
 
-async function federatedPost(media: MediaItem[]): Promise<string> {
+async function federatedPost(media: MediaItem[], goneMediaPolicy?: 'refuse' | 'remote-url'): Promise<string> {
   const record = await insertPostRecord({
     oxyUserId: OWNER,
     authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
@@ -51,7 +65,11 @@ async function federatedPost(media: MediaItem[]): Promise<string> {
     visibility: PostVisibility.PUBLIC,
     status: 'published',
     content: { variants: [{ source: 'author', text: 'post', tag: 'en' }], media },
-    federation: { activityId: `https://remote.example/statuses/${(seq += 1)}`, actorUri: 'https://remote.example/users/a' },
+    federation: {
+      activityId: `https://remote.example/statuses/${(seq += 1)}`,
+      actorUri: 'https://remote.example/users/a',
+      ...(goneMediaPolicy ? { goneMediaPolicy } : {}),
+    },
   });
   return record.id;
 }
@@ -159,16 +177,40 @@ describe('a SHARED file id (Oxy dedupes by content hash) is kept while anything 
 });
 
 describe('the race with an import reusing the id', () => {
-  it('a tombstoned id cannot be referenced again: the insert is refused', async () => {
+  it('a tombstoned id cannot be referenced again: an expiring-URL source (Instagram) is refused', async () => {
     const x = fileId();
     const post = await federatedPost([rehosted(x)]);
     await deletePostRecord(post, undefined);
     expect(await tombstoneUnreferenced([x])).toEqual([x]);
 
-    await expect(federatedPost([rehosted(x)])).rejects.toBeInstanceOf(FederatedMediaGoneError);
-    // Even after Oxy confirmed the delete: file ids are never reused.
+    await expect(federatedPost([rehosted(x)], 'refuse')).rejects.toBeInstanceOf(FederatedMediaGoneError);
     await drainFederatedMediaDeletions();
-    await expect(federatedPost([rehosted(x)])).rejects.toBeInstanceOf(FederatedMediaGoneError);
+    await expect(federatedPost([rehosted(x)], 'refuse')).rejects.toBeInstanceOf(FederatedMediaGoneError);
+  });
+
+  it('an ActivityPub post is NOT lost while a delete is unsettled: its item keeps the stable remote URL', async () => {
+    const x = fileId();
+    await deletePostRecord(await federatedPost([rehosted(x)]), undefined);
+    expect(await tombstoneUnreferenced([x])).toEqual([x]);
+
+    const post = await federatedPost([rehosted(x)]);
+    const media = await getDb().select({ mediaId: postMedia.mediaId, cached: postMedia.cachedFromFederation })
+      .from(postMedia).where(eq(postMedia.postId, post));
+    expect(media).toEqual([{ mediaId: `https://cdn.example/${x}.jpg`, cached: null }]);
+    await drainFederatedMediaDeletions(); // settle the claimed row for later tests
+  });
+
+  it('an item without an Oxy id has nothing to lock or check (it is stored as before)', async () => {
+    const legacy = { type: 'image', remoteUrl: 'https://cdn.example/no-id.jpg' } as unknown as MediaItem;
+    await expect(federatedPost([legacy])).resolves.toEqual(expect.any(String));
+  });
+
+  it('locks and checks EVERY media id, not only items flagged as re-hosted', async () => {
+    const x = fileId();
+    await deletePostRecord(await federatedPost([rehosted(x)]), undefined);
+    expect(await tombstoneUnreferenced([x])).toEqual([x]);
+    await expect(federatedPost([{ id: x, type: 'image' }], 'refuse')).rejects.toBeInstanceOf(FederatedMediaGoneError);
+    await drainFederatedMediaDeletions();
   });
 
   it('an import that commits FIRST keeps the file: the drain waits on its lock, then sees the reference', async () => {
@@ -236,14 +278,15 @@ describe('Oxy\'s dedupe REUSES ids: an upload can bring back a file this app del
     // An upload that started BEFORE the delete was confirmed may have been
     // trashed by it: it does not re-open the id, and the insert is refused.
     expect(await reviveFederatedFiles([x], uploadDuringDelete)).toEqual([]);
-    await expect(federatedPost([rehosted(x)])).rejects.toBeInstanceOf(FederatedMediaGoneError);
+    await expect(federatedPost([rehosted(x)], 'refuse')).rejects.toBeInstanceOf(FederatedMediaGoneError);
 
     // The import's retry uploads again AFTER the confirmation: Oxy reactivated
     // the trashed file under the same id, so the id is live and usable again.
     await new Promise((resolve) => setTimeout(resolve, 5));
     expect(await reviveFederatedFiles([x], new Date())).toEqual([x]);
-    expect(await stateOf(x)).toBe('in_use');
-    const post = await federatedPost([rehosted(x)]);
+    // Re-opened, but not yet a reference: pending, due only after a grace period.
+    expect(await stateOf(x)).toBe('pending');
+    const post = await federatedPost([rehosted(x)], 'refuse');
 
     // And the cycle works again when that post goes.
     await deletePostRecord(post, undefined);
@@ -273,6 +316,92 @@ describe('the batch cap (oxy-api takes at most 20 ids per call)', () => {
     expect(calls.length).toBeGreaterThanOrEqual(3);
     expect(files.every((id) => calls.some((ids) => ids.includes(id)))).toBe(true);
     for (const id of files) expect(await stateOf(id)).toBe('deleted');
+  });
+});
+
+describe('nothing leaks, nothing jams', () => {
+  it('a revived file whose insert then FAILED is deleted again after the grace period', async () => {
+    const x = fileId();
+    await deletePostRecord(await federatedPost([rehosted(x)]), undefined);
+    await drainFederatedMediaDeletions();
+    expect(await stateOf(x)).toBe('deleted');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(await reviveFederatedFiles([x], new Date())).toEqual([x]);
+
+    // No post ever referenced it. Not due yet…
+    h.deleteFederatedMedia.mockClear();
+    await drainFederatedMediaDeletions();
+    expect(h.deleteFederatedMedia).not.toHaveBeenCalled();
+    // …and once the grace period is over, it is deleted again.
+    await getDb().update(federatedMediaDeletions).set({ nextAttemptAt: new Date(Date.now() - 1_000) }).where(eq(federatedMediaDeletions.oxyFileId, x));
+    await drainFederatedMediaDeletions();
+    expect(await stateOf(x)).toBe('deleted');
+  });
+
+  it('an edit that drops a re-hosted file queues it; a file the edit keeps is not queued', async () => {
+    const kept = fileId();
+    const dropped = fileId();
+    const post = await federatedPost([rehosted(kept), rehosted(dropped)]);
+    await replacePostContent(post, { variants: [{ source: 'author', text: 'edited', tag: 'en' }], media: [rehosted(kept)] }, []);
+    expect(await stateOf(dropped)).toBe('pending');
+    expect(await stateOf(kept)).toBeUndefined();
+  });
+
+  it('a failing reference check BACKS OFF its rows instead of re-selecting them forever', async () => {
+    const x = fileId();
+    await deletePostRecord(await federatedPost([rehosted(x)]), undefined);
+    h.tombstoneFailure = new Error('database hiccup');
+    try {
+      await drainFederatedMediaDeletions();
+    } finally {
+      h.tombstoneFailure = null;
+    }
+    const [row] = await getDb().select().from(federatedMediaDeletions).where(eq(federatedMediaDeletions.oxyFileId, x));
+    expect(row).toMatchObject({ state: 'pending', attempts: 1 });
+    expect(row.nextAttemptAt.getTime()).toBeGreaterThan(Date.now() + 30_000);
+    expect(h.deleteFederatedMedia).not.toHaveBeenCalled();
+  });
+
+  it('reports deletions Oxy keeps failing to answer (the stuck gauge)', async () => {
+    const x = fileId();
+    await deletePostRecord(await federatedPost([rehosted(x)]), undefined);
+    await getDb().update(federatedMediaDeletions)
+      .set({ attempts: STUCK_ATTEMPTS, nextAttemptAt: new Date(Date.now() + 3_600_000) })
+      .where(eq(federatedMediaDeletions.oxyFileId, x));
+    await drainFederatedMediaDeletions();
+    expect(metrics.getGauge('federated_media_delete_stuck')).toBeGreaterThanOrEqual(1);
+  });
+
+  it('prunes old forbidden rows and poster pairs whose video is gone — never tombstones', async () => {
+    const notOurs = fileId();
+    const video = fileId();
+    const poster = fileId();
+    await getDb().insert(federatedMediaDeletions).values([
+      { oxyFileId: notOurs, state: 'forbidden', updatedAt: new Date(Date.now() - 31 * 86_400_000) },
+      { oxyFileId: video, state: 'deleted', settledAt: new Date() },
+      { oxyFileId: poster, state: 'pending', nextAttemptAt: new Date(Date.now() + 3_600_000) },
+    ]);
+    await recordFederatedPoster(video, poster);
+    await drainFederatedMediaDeletions();
+    expect(await stateOf(notOurs)).toBeUndefined();
+    expect(await stateOf(video)).toBe('deleted');
+    const pairs = await getDb().select().from(federatedMediaPosters).where(eq(federatedMediaPosters.videoFileId, video));
+    expect(pairs).toEqual([]);
+  });
+
+  it('FEDERATED_MEDIA_DELETE_ENABLED=false pauses the drain without losing a queued row', async () => {
+    const x = fileId();
+    await deletePostRecord(await federatedPost([rehosted(x)]), undefined);
+    config.federatedMediaDeletion.enabled = false;
+    try {
+      await drainFederatedMediaDeletions();
+      expect(h.deleteFederatedMedia).not.toHaveBeenCalled();
+      expect(await stateOf(x)).toBe('pending');
+    } finally {
+      config.federatedMediaDeletion.enabled = true;
+    }
+    await drainFederatedMediaDeletions();
+    expect(await stateOf(x)).toBe('deleted');
   });
 });
 

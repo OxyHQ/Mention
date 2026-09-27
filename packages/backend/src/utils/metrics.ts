@@ -81,10 +81,10 @@ const DEFINITIONS = {
     help: 'Feed interstitial engagement events',
     labelNames: ['kind', 'event', 'descriptor'],
   },
-  instagram_graph_media_orphan_total: {
-    kind: 'counter',
-    help: 'Instagram media re-hosted for a post that was then not stored (unreferenced Oxy files), by reason',
-    labelNames: ['reason'],
+  federated_media_delete_stuck: {
+    kind: 'gauge',
+    help: 'Federated media deletions still owed after many attempts (Oxy keeps failing to answer)',
+    labelNames: [],
   },
   federated_actor_upsert_failed_total: {
     kind: 'counter',

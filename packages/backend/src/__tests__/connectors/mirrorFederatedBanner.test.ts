@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   updateUserSettings: vi.fn(),
   loggerWarn: vi.fn(),
   assertFederatedMediaUsable: vi.fn(),
+  enqueueFederatedMediaDeletions: vi.fn(),
+  previousBanner: null as string | null,
 }));
 
 /**
@@ -22,12 +24,18 @@ const mocks = vi.hoisted(() => ({
  * tombstone read themselves are proven on real rows in
  * `federatedMediaDeletion.test.ts`; here the transaction just runs its callback.
  */
+const tx = {
+  tx: true,
+  // The previous banner read (`select … from user_settings where …`).
+  select: () => ({ from: () => ({ where: async () => [{ banner: mocks.previousBanner }] }) }),
+};
 vi.mock('../../db/postgres', () => ({
-  getDb: () => ({ transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({ tx: true }) }),
+  getDb: () => ({ transaction: async (fn: (t: unknown) => Promise<unknown>) => fn(tx) }),
 }));
 vi.mock('../../db/federation/mediaDeletionRepository', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../db/federation/mediaDeletionRepository')>()),
   assertFederatedMediaUsable: mocks.assertFederatedMediaUsable,
+  enqueueFederatedMediaDeletions: mocks.enqueueFederatedMediaDeletions,
 }));
 
 vi.mock('../../services/mediaCache/cacheWorker', () => ({
@@ -57,6 +65,7 @@ import { mirrorFederatedBanner } from '../../connectors/identity';
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.updateUserSettings.mockResolvedValue(undefined);
+  mocks.previousBanner = null;
 });
 
 describe('mirrorFederatedBanner', () => {
@@ -87,12 +96,31 @@ describe('mirrorFederatedBanner', () => {
       // rather than inheriting the generic federated-media video/audio allowance.
       expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
     );
-    expect(mocks.assertFederatedMediaUsable).toHaveBeenCalledWith({ tx: true }, ['banner_file_1']);
+    expect(mocks.assertFederatedMediaUsable).toHaveBeenCalledWith(tx, ['banner_file_1']);
     expect(mocks.updateUserSettings).toHaveBeenCalledWith(
       'oxy-user-1',
       { set: { profileHeaderImage: 'banner_file_1' } },
-      { tx: true },
+      tx,
     );
+  });
+
+  it('queues the REPLACED banner file for deletion, in the same transaction', async () => {
+    mocks.previousBanner = 'old_banner_file';
+    mocks.persistRemoteMedia.mockResolvedValue({ ok: true, media: { oxyFileId: 'new_banner_file', contentType: 'image/png', sizeBytes: 1 } });
+
+    const result = await mirrorFederatedBanner('https://files.mastodon.social/b.png', 'oxy-user-1', 'https://mastodon.social/users/alice');
+
+    expect(result).toEqual({ ok: true, permanent: false });
+    expect(mocks.enqueueFederatedMediaDeletions).toHaveBeenCalledWith(['old_banner_file'], tx);
+  });
+
+  it('does not queue the banner when the remote re-sends the SAME file', async () => {
+    mocks.previousBanner = 'same_file';
+    mocks.persistRemoteMedia.mockResolvedValue({ ok: true, media: { oxyFileId: 'same_file', contentType: 'image/png', sizeBytes: 1 } });
+
+    await mirrorFederatedBanner('https://files.mastodon.social/b.png', 'oxy-user-1', 'https://mastodon.social/users/alice');
+
+    expect(mocks.enqueueFederatedMediaDeletions).not.toHaveBeenCalled();
   });
 
   it('does not store a banner whose file is being deleted (a shared, tombstoned id)', async () => {

@@ -25,6 +25,12 @@ import { userSettings } from '../schema/userProfile';
  * insert is refused and its import retries later with a fresh upload.
  */
 
+/** How long a revived file waits before the drain re-checks its references. */
+const REVIVE_GRACE_MS = 60 * 60 * 1000;
+
+/** Terminal `forbidden` rows are kept this long for diagnosis, then pruned. */
+const FORBIDDEN_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
 /** A file this app no longer references is being, or has been, deleted in Oxy. */
 const TOMBSTONE_STATES = ['deleting', 'deleted', 'not_found'] as const;
 
@@ -50,24 +56,48 @@ export class FederatedMediaGoneError extends Error {
 }
 
 /**
- * Inside the post insert's transaction: lock each re-hosted federated file id
- * and refuse if any is tombstoned. The locks are held to commit, so the drain
- * cannot tombstone one of them between this check and the media rows landing.
+ * Inside the post insert's transaction: lock EVERY media id the post will
+ * reference (a per-file advisory lock is cheap, and a caller's
+ * `cachedFromFederation` flag is not what decides whether an id is shared) and
+ * return the ones that are tombstoned. The locks are held to commit, so the
+ * drain cannot tombstone one between this check and the media rows landing.
  */
-export async function assertFederatedMediaUsable(
+export async function findGoneFederatedMedia(
   tx: DatabaseOrTransaction,
-  fileIds: readonly string[],
-): Promise<void> {
-  if (fileIds.length === 0) return;
+  requested: readonly (string | null | undefined)[],
+): Promise<Set<string>> {
+  // Items without an id (a stored remote-only item, legacy input) reference no
+  // Oxy file: nothing to lock or check.
+  const fileIds = [...new Set(requested.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+  if (fileIds.length === 0) return new Set();
   await lockFiles(tx, fileIds);
   const gone = await tx
     .select({ oxyFileId: federatedMediaDeletions.oxyFileId })
     .from(federatedMediaDeletions)
     .where(and(
-      inArray(federatedMediaDeletions.oxyFileId, [...fileIds]),
+      inArray(federatedMediaDeletions.oxyFileId, fileIds),
       inArray(federatedMediaDeletions.state, [...TOMBSTONE_STATES]),
     ));
-  if (gone.length > 0) throw new FederatedMediaGoneError(gone.map((row) => row.oxyFileId));
+  return new Set(gone.map((row) => row.oxyFileId));
+}
+
+/** {@link findGoneFederatedMedia}, refusing (throwing) when any id is tombstoned. */
+export async function assertFederatedMediaUsable(
+  tx: DatabaseOrTransaction,
+  fileIds: readonly string[],
+): Promise<void> {
+  const gone = await findGoneFederatedMedia(tx, fileIds);
+  if (gone.size > 0) throw new FederatedMediaGoneError([...gone]);
+}
+
+/**
+ * The DATABASE clock, for instants compared with `settled_at` (also written by
+ * the database): a JS clock skewed against it could make an upload that
+ * overlapped a delete look like it started after it.
+ */
+export async function databaseNow(db: DatabaseOrTransaction = getDb()): Promise<Date> {
+  const [row] = await db.execute<{ now: string | Date }>(sql`select clock_timestamp() as now`);
+  return new Date(row.now);
 }
 
 /**
@@ -96,6 +126,20 @@ export async function enqueueFederatedMediaDeletionsForPosts(
   return enqueueFederatedMediaDeletions(fileIds, db);
 }
 
+/** The re-hosted federated file ids a post references (its media and its variants' media). */
+export async function federatedMediaIdsOfPost(db: DatabaseOrTransaction, postId: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ mediaId: postMedia.mediaId })
+    .from(postMedia)
+    .where(and(eq(postMedia.postId, postId), eq(postMedia.cachedFromFederation, true)));
+  const variantRows = await db
+    .select({ mediaId: postVariantMedia.mediaId })
+    .from(postVariantMedia)
+    .innerJoin(postContentVariants, eq(postContentVariants.id, postVariantMedia.variantId))
+    .where(and(eq(postContentVariants.postId, postId), eq(postVariantMedia.cachedFromFederation, true)));
+  return new Set([...rows, ...variantRows].map((row) => row.mediaId));
+}
+
 /** Queue deletion of specific re-hosted federated files (see above). */
 export async function enqueueFederatedMediaDeletions(
   fileIds: readonly string[],
@@ -108,7 +152,11 @@ export async function enqueueFederatedMediaDeletions(
     .onConflictDoUpdate({
       target: federatedMediaDeletions.oxyFileId,
       set: { state: 'pending', attempts: 0, nextAttemptAt: sql`now()`, lastError: null, updatedAt: new Date() },
-      setWhere: sql`${federatedMediaDeletions.state} = 'in_use'`,
+      // Re-arm a file kept as `in_use`, or a revived one waiting out its grace
+      // period (`pending`, no failed attempts yet); leave a tombstone, and a row
+      // backing off after failures, as they are.
+      setWhere: sql`${federatedMediaDeletions.state} = 'in_use'
+        or (${federatedMediaDeletions.state} = 'pending' and ${federatedMediaDeletions.attempts} = 0)`,
     })
     .returning({ id: federatedMediaDeletions.id });
   return written.length;
@@ -269,6 +317,12 @@ export async function retryMediaDeletions(
  * leaves the tombstone in place; the post insert refuses the id and the import
  * retries, and its next upload starts after the settle.
  *
+ * A lifted row goes back to `pending` with its next attempt a grace period
+ * away — NOT straight to `in_use` — because the upload that revived the file is
+ * not yet a reference: if the insert that was going to use it fails, the drain
+ * finds the file unreferenced after the grace period and deletes it again,
+ * instead of leaking a live file nothing points at.
+ *
  * Under the same per-file lock the drain and the insert take.
  */
 export async function reviveFederatedFiles(
@@ -280,7 +334,13 @@ export async function reviveFederatedFiles(
     await lockFiles(tx, fileIds);
     const revived = await tx
       .update(federatedMediaDeletions)
-      .set({ state: 'in_use', updatedAt: new Date() })
+      .set({
+        state: 'pending',
+        attempts: 0,
+        nextAttemptAt: sql`now() + (${REVIVE_GRACE_MS} * interval '1 millisecond')`,
+        lastError: null,
+        updatedAt: new Date(),
+      })
       .where(and(
         inArray(federatedMediaDeletions.oxyFileId, [...fileIds]),
         inArray(federatedMediaDeletions.state, ['deleted', 'not_found']),
@@ -289,4 +349,47 @@ export async function reviveFederatedFiles(
       .returning({ oxyFileId: federatedMediaDeletions.oxyFileId });
     return revived.map((row) => row.oxyFileId);
   });
+}
+
+/**
+ * Bounded housekeeping, run by the drain:
+ *  - terminal `forbidden` rows (never this app's file — no tombstone meaning)
+ *    past {@link FORBIDDEN_RETENTION_MS};
+ *  - poster pairs whose video is gone (tombstoned) and whose poster has already
+ *    been queued: the pair can no longer keep the poster alive or queue it.
+ * Tombstones themselves stay, by design.
+ */
+export async function pruneFederatedMediaHousekeeping(limit = 500): Promise<{ forbidden: number; posterPairs: number }> {
+  const forbidden = await getDb().execute<{ id: string }>(sql`
+    delete from ${federatedMediaDeletions}
+    where ${federatedMediaDeletions.id} in (
+      select ${federatedMediaDeletions.id} from ${federatedMediaDeletions}
+      where ${federatedMediaDeletions.state} = 'forbidden'
+        and ${federatedMediaDeletions.updatedAt} < now() - (${FORBIDDEN_RETENTION_MS} * interval '1 millisecond')
+      limit ${limit}
+    )
+    returning ${federatedMediaDeletions.id}
+  `);
+  const posterPairs = await getDb().execute<{ id: string }>(sql`
+    delete from ${federatedMediaPosters}
+    where ${federatedMediaPosters.id} in (
+      select pair.id from ${federatedMediaPosters} pair
+      join ${federatedMediaDeletions} video on video.oxy_file_id = pair.video_file_id
+      join ${federatedMediaDeletions} poster on poster.oxy_file_id = pair.poster_file_id
+      where video.state in ('deleting', 'deleted', 'not_found')
+      limit ${limit}
+    )
+    returning ${federatedMediaPosters.id}
+  `);
+  return { forbidden: [...forbidden].length, posterPairs: [...posterPairs].length };
+}
+
+/** Rows whose attempts reached `threshold`: a deletion Oxy keeps refusing to answer. */
+export async function countStuckMediaDeletions(threshold: number, db: DatabaseOrTransaction = getDb()): Promise<number> {
+  const [row] = await db.execute<{ stuck: number }>(sql`
+    select count(*)::int as stuck from ${federatedMediaDeletions}
+    where ${federatedMediaDeletions.state} in ('pending', 'deleting')
+      and ${federatedMediaDeletions.attempts} >= ${threshold}
+  `);
+  return Number(row?.stuck ?? 0);
 }

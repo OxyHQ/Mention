@@ -1,5 +1,9 @@
+import { config } from '../../config';
+import { metrics } from '../../utils/metrics';
 import {
+  countStuckMediaDeletions,
   findDueMediaDeletions,
+  pruneFederatedMediaHousekeeping,
   retryMediaDeletions,
   settleMediaDeletions,
   tombstoneUnreferenced,
@@ -34,6 +38,7 @@ import {
  * on media writes: a deletion at the source is a privacy obligation.
  */
 
+const STUCK_METRIC = 'federated_media_delete_stuck';
 const RETRY_BASE_MS = 60 * 1000;
 const RETRY_MAX_MS = 6 * 60 * 60 * 1000;
 
@@ -79,7 +84,13 @@ async function drainOneBatch(
   try {
     tombstoned = await tombstoneUnreferenced(pending);
   } catch (err) {
-    logger.warn('[MediaDelete] reference check failed; retrying later', { reason: describe(err) });
+    // BACK THEM OFF, and end this run: left as they are, the same oldest rows
+    // would be re-selected on every batch of every run and jam the queue.
+    const attempts = Math.max(0, ...due.filter((row) => row.state === 'pending').map((row) => row.attempts));
+    await retryMediaDeletions(pending, mediaDeletionBackoffMs(attempts), `reference check: ${describe(err)}`).catch(() => undefined);
+    result.retried += pending.length;
+    logger.warn('[MediaDelete] reference check failed; backed off', { reason: describe(err), files: pending.length });
+    return result;
   }
   const toDelete = [...due.filter((row) => row.state === 'deleting').map((row) => row.oxyFileId), ...tombstoned];
   if (toDelete.length === 0) return result;
@@ -126,20 +137,48 @@ async function drainOneBatch(
 /** Oxy batch calls per drain run: ≤ 100 files a minute, far inside 240 requests/minute. */
 const MAX_BATCHES_PER_RUN = 5;
 
+/** Attempts after which a deletion counts as STUCK (≈ a day of backoff). */
+export const STUCK_ATTEMPTS = 10;
+
 /**
  * One drain run: batches of at most {@link FEDERATED_MEDIA_DELETE_BATCH_MAX}
  * files (the route's cap) until nothing is due or {@link MAX_BATCHES_PER_RUN}
  * calls were made. A batch that had to retry ends the run — the rest would hit
- * the same wall. Never throws.
+ * the same wall. Then bounded housekeeping, and the stuck-row gauge.
+ *
+ * `FEDERATED_MEDIA_DELETE_ENABLED=false` PAUSES this: nothing is sent and no
+ * row changes, so every queued deletion resumes when it is switched back on.
+ * Never throws.
  */
 export async function drainFederatedMediaDeletions(
   limit = FEDERATED_MEDIA_DELETE_BATCH_MAX,
 ): Promise<MediaDeletionDrainResult> {
   const total: MediaDeletionDrainResult = { checked: 0, deleted: 0, notFound: 0, forbidden: 0, keptByOxy: 0, retried: 0 };
+  if (!config.federatedMediaDeletion.enabled) {
+    logger.debug('[MediaDelete] paused by FEDERATED_MEDIA_DELETE_ENABLED=false');
+    return total;
+  }
   for (let batch = 0; batch < MAX_BATCHES_PER_RUN; batch += 1) {
     const result = await drainOneBatch(limit);
     for (const key of Object.keys(total) as Array<keyof MediaDeletionDrainResult>) total[key] += result[key];
     if (result.checked === 0 || result.retried > 0) break;
+  }
+
+  try {
+    const pruned = await pruneFederatedMediaHousekeeping();
+    if (pruned.forbidden > 0 || pruned.posterPairs > 0) logger.debug('[MediaDelete] housekeeping', pruned);
+    const stuck = await countStuckMediaDeletions(STUCK_ATTEMPTS);
+    metrics.setGauge(STUCK_METRIC, stuck);
+    if (stuck > 0) {
+      // Loud: a deletion Oxy has failed to answer for about a day is a privacy
+      // obligation not being met, and nothing else will surface it.
+      logger.error('[MediaDelete] federated media deletions are stuck (Oxy keeps failing to answer)', {
+        stuck,
+        attemptsAtLeast: STUCK_ATTEMPTS,
+      });
+    }
+  } catch (err) {
+    logger.warn('[MediaDelete] housekeeping failed', { reason: describe(err) });
   }
   return total;
 }

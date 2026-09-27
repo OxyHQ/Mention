@@ -426,6 +426,14 @@ const environmentSchema = z
     ),
     INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT: integerFromEnv(50, { minimum: 1, maximum: 200 }),
 
+    /**
+     * Operational kill switch for deleting re-hosted federated media from Oxy.
+     * ON by default (a deletion at the source is a privacy obligation). `false`
+     * PAUSES the drain only: deletions keep being queued and resume when it is
+     * switched back on.
+     */
+    FEDERATED_MEDIA_DELETE_ENABLED: booleanFromEnv(true),
+
     GIF_LIBRARY_WRITE_ENABLED: booleanFromEnv(true),
     KLIPY_MEDIA_HOSTS: commaSeparatedDomains(['klipy.com']),
     GIF_MEDIA_PROXY_SECRET: optionalString(32),
@@ -896,6 +904,9 @@ export const config = {
     shellAccessKey: environment.MENTION_SHELL_ACCESS_KEY,
     apiOrigin: environment.MENTION_API_ORIGIN,
     oxyMediaCdnOrigin: environment.OXY_MEDIA_CDN_ORIGIN,
+  },
+  federatedMediaDeletion: {
+    enabled: environment.FEDERATED_MEDIA_DELETE_ENABLED,
   },
   instagramGraph: {
     /**

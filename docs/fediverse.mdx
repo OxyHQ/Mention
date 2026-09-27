@@ -455,29 +455,60 @@ files are deleted too, including the poster frame of a video.
 `federated_media_posters` records those poster frames.
 
 - The files are queued in `federated_media_deletions`, in the same transaction
-  that deletes the posts.
+  that deletes the posts. The same happens for every other way a re-hosted file
+  stops being used:
+  - an edit (`replacePostContent`) that drops an item;
+  - a federated banner that is replaced by a new one;
+  - Instagram files uploaded for a post that then has to wait (a later slot
+    could not be stored yet) or whose insert fails.
 - A periodic drain (`drainFederatedMediaDeletions`, every minute, at most 5 calls of 20 files, not gated on
-  any flag) calls oxy-api's `POST /assets/service/federation/delete`.
+  the connector flags) calls oxy-api's `POST /assets/service/federation/delete`.
+- **Kill switch:** `FEDERATED_MEDIA_DELETE_ENABLED=false` (default `true`) pauses
+  the drain. Deletions keep being queued, and nothing is lost or settled while
+  it is off. Setting it back to `true` resumes from the queue.
+- If the reference check itself fails (a database error), the batch's files back
+  off exactly as an Oxy failure does, and the run ends; they are not re-selected
+  every minute. Files that failed 10 or more times are reported by the gauge
+  `federated_media_delete_stuck` and an error log on every run.
 
 Oxy stores one file per content hash, so a file id can be shared by another
 post, a variant or a federated banner. The drain therefore re-checks every
 reference before deleting anything. It does this under a per-file advisory lock
 that the post insert also takes, so an import reusing the id either commits
-first (the file is kept, `in_use`) or finds a tombstone and retries later with a
-fresh upload.
+first (the file is kept, `in_use`) or finds a tombstone. The insert locks and
+checks every media id, not only the items flagged as re-hosted. What happens on
+a tombstoned id depends on the source:
+
+- **ActivityPub and atproto** never lose the post. The item keeps its stable
+  remote URL (served through the media proxy) instead of the file id. This also
+  covers the case where Oxy is down and files stay in `deleting`.
+- **Instagram** refuses the insert (its CDN URLs expire). The post waits, and a
+  later sync uploads it again and gets a fresh id.
+
+The reference check uses `post_media_media_id_idx`,
+`post_variant_media_media_id_idx` and the partial
+`user_settings_profile_header_image_idx`, so it never scans those tables.
 
 Only an answer from Oxy settles a deletion:
 
 - `deleted` and `not_found` are done. The tombstone is kept, because file ids
   are never reused.
-- `forbidden` is logged and dropped.
+- `forbidden` (the file is not this app's) is logged and never retried. The row
+  is removed after 30 days.
 - `in_use` means Oxy keeps the file because another owner or app also holds it.
   It is settled and logged, with no retry. A result this build does not know is
   retried later.
 - **Reuse:** Oxy dedupes uploads by content hash and reactivates a trashed file
   under its old id. An upload that started after Oxy confirmed the delete
-  (`settled_at`) re-opens the id. Any earlier or overlapping upload is refused
-  by the post insert, and the import retries.
+  (`settled_at`, both times read from the database clock) re-opens the id. The
+  row goes back to `pending`, due after a one-hour grace period: if the post
+  that needed the file is inserted, the drain finds the reference and keeps it,
+  and if the insert failed, the file is deleted again. Any earlier or overlapping
+  upload is treated as a tombstone by the post insert (see above).
+- **Housekeeping:** every drain also prunes up to 500 `forbidden` rows older
+  than 30 days and `federated_media_posters` pairs whose video is tombstoned and
+  whose poster is already queued. Tombstones (`deleted`, `not_found`) are kept
+  forever, because file ids must never be reused.
 - **Owned elsewhere:** a 409 `FEDERATED_MEDIA_OWNED_ELSEWHERE` on upload is
   permanent for that item. Instagram falls back to the poster, or drops the
   item, and never stores the expiring URL. ActivityPub and atproto keep the
@@ -503,6 +534,16 @@ transactional migrator.
   actor through the actor-URI index, then runs `VALIDATE CONSTRAINT` on the three
   CHECKs. VALIDATE does not block reads or writes. Until the script runs, the
   Graph import still recognises those posts by their bridge Note id.
+
+**Migration 0055.** It builds the two reference-check indexes
+(`post_variant_media.media_id` and the partial
+`user_settings.profile_header_image`) with `CREATE INDEX IF NOT EXISTS`.
+
+- Measured with `pg_locks`, it holds SHARE on those two tables and nothing
+  stronger anywhere: reads continue, and writes to them wait for the build.
+- It sets `lock_timeout` 5s and `statement_timeout` 60s, then restores them.
+- On a large database, build both indexes `CONCURRENTLY` by hand before
+  deploying (as for 0049). The migration then skips them.
 
 **Protocol types.** `instagram-graph` is a first-class protocol upstream:
 `@oxy.so/contracts` 4.0.0 accepts it in the external-identity schemas and
