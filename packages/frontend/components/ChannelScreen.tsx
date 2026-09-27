@@ -24,6 +24,8 @@ import { AnalyticsIcon } from '@/assets/icons/analytics-icon';
 import UserName from './UserName';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { SEO } from '@/components/SEO';
+import { useProfileSEOPolicy } from '@/hooks/useProfileSEOPolicy';
+import { WEB_BASE_URL } from '@/config';
 
 // Profile primitives
 import {
@@ -104,6 +106,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
     // of the column it is in rather than naming `card`.
     const surfaceFill = useSurfaceFill();
 
+    const seoPolicy = useProfileSEOPolicy(profileData?.privacy?.profileVisibility);
     const [activeTabKey, setActiveTabKey] = useState<string>('posts');
 
     // A lane's owner is an `oxyUserId` and a channel account is one, so a channel
@@ -450,19 +453,33 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
         <>
             {profileData ? (
                 <SEO
-                    title={t('seo.profile.title', {
+                    title={seoPolicy.server?.title || t('seo.profile.title', {
                         name: profileData.design.displayName,
                         username,
                         defaultValue: `${profileData.design.displayName} (@${username}) on Mention`,
                     })}
-                    description={t('seo.profile.description', {
+                    description={seoPolicy.server?.description || t('seo.profile.description', {
                         name: profileData.design.displayName,
-                        bio: profileData.bio ?? '',
+                        bio: seoPolicy.detailsAllowed ? profileData.bio ?? '' : '',
                         defaultValue: `View ${profileData.design.displayName}'s profile on Mention.`,
                     })}
-                    image={profileData.design.avatar}
+                    image={seoPolicy.server?.image || (seoPolicy.detailsAllowed ? profileData.design.avatar : undefined)}
                     type="profile"
+                    ready={!loading}
+                    jsonLd={seoPolicy.server?.jsonLd || (seoPolicy.detailsAllowed ? {
+                        '@context': 'https://schema.org',
+                        '@type': 'ProfilePage',
+                        mainEntity: {
+                            '@type': 'Organization',
+                            name: profileData.design.displayName,
+                            alternateName: `@${handle}`,
+                            url: `${WEB_BASE_URL}/c/${encodeURIComponent(handle)}`,
+                        },
+                    } : undefined)}
+                    robots={seoPolicy.robots === 'index,follow' && activeTabKey !== 'posts' ? 'noindex,follow' : seoPolicy.robots}
                 />
+            ) : !loading ? (
+                <SEO title="Profile unavailable" description="This profile could not be loaded." robots="noindex,nofollow" />
             ) : null}
             <ProfileShell
                 chrome={chrome}

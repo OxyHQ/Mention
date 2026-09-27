@@ -43,6 +43,9 @@ vi.mock('../utils/oxyHelpers', () => ({
 }));
 
 import webShellRoutes from '../routes/webShell.routes';
+import { updatePostRecord } from '../db/posts/postRepository';
+import * as shellCache from '../services/webShellOgCache';
+import { mapPostOg } from '../services/webShellRenderer';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import type { HydratedPost } from '@mention/shared-types';
@@ -54,7 +57,7 @@ const scope = postScope('web-shell');
 const AUTHOR = scope.user('author');
 
 const SHELL =
-  '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Mention</title></head>' +
+  '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="mention-seo-handoff" content="1"><title>Mention</title></head>' +
   '<body><div id="root"></div><script src="/_expo/static/js/web/entry.js" defer></script></body></html>';
 
 /** An id that matches no row — the "missing post" case, and a browser fast-path probe. */
@@ -175,8 +178,8 @@ describe('webShell routes (integration)', () => {
     expect(res.headers.location).toBeUndefined();
     expect(res.headers.vary).toContain('Accept');
     expect(res.headers.vary).not.toContain('User-Agent');
-    expect(res.text).toContain('<meta property="og:title" content="Nate (@nate) on Mention">');
-    expect(res.text).toContain('<title>Nate (@nate) on Mention</title>');
+    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate (@nate) on Mention">');
+    expect(res.text).toContain('<title data-mention-seo="true">Nate (@nate) on Mention</title>');
     expect(res.text).not.toContain('<title>Mention</title>');
     // Head hints are always injected (browsers benefit; crawlers ignore them).
     expect(res.text).toContain('rel="preconnect"');
@@ -203,7 +206,7 @@ describe('webShell routes (integration)', () => {
   function expectNoCanonicalProfile(res: request.Response) {
     expect(res.status).toBe(404);
     expect(res.headers.location).toBeUndefined();
-    expect(res.text).toContain('<meta name="robots" content="noindex,nofollow">');
+    expect(res.text).toContain('<meta data-mention-seo="true" name="robots" content="noindex,nofollow">');
     expect(res.text).not.toContain('"@type":"ProfilePage"');
     expect(res.text).not.toContain(canonicalIdentity.name.displayName);
     expect(res.text).not.toContain(canonicalIdentity.bio);
@@ -227,7 +230,7 @@ describe('webShell routes (integration)', () => {
       expect(res.text).toContain(canonicalIdentity.name.displayName);
       expect(res.text).toContain(canonicalIdentity.bio);
       expect(res.text).toContain('ssr-canonical-private-route-avatar');
-      expect(res.text).toContain('<link rel="canonical" href="https://mention.earth/@ssr-canonical%40instagram.com">');
+      expect(res.text).toContain('<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@ssr-canonical%40instagram.com">');
     },
   );
 
@@ -278,12 +281,12 @@ describe('webShell routes (integration)', () => {
 
     expect(res.status).toBe(200);
     expect(res.text).toContain(
-      '<meta property="og:image" content="http://localhost:4110/media/proxy?url=https%3A%2F%2Ffiles.remote.social%2Favatars%2F1.png&amp;variant=w320">',
+      '<meta data-mention-seo="true" property="og:image" content="http://localhost:4110/media/proxy?url=https%3A%2F%2Ffiles.remote.social%2Favatars%2F1.png&amp;variant=w320">',
     );
     expect(res.text).not.toContain('files.remote.social/avatars');
   });
 
-  it('serves profile metadata without a duplicate visible profile to a real browser', async () => {
+  it('serves profile metadata and semantic fallback outside the SPA root to a browser', async () => {
     stubFetch({ ok: true, body: { data: { username: 'nate', name: { displayName: 'Nate' }, bio: 'bio' } } });
 
     const res = await request(makeApp())
@@ -292,11 +295,11 @@ describe('webShell routes (integration)', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
-    expect(res.text).toContain('<title>Nate (@nate) on Mention</title>');
-    expect(res.text).toContain('<meta property="og:title" content="Nate (@nate) on Mention">');
-    expect(res.text).toContain('<link rel="canonical" href="https://mention.earth/@nate">');
+    expect(res.text).toContain('<title data-mention-seo="true">Nate (@nate) on Mention</title>');
+    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate (@nate) on Mention">');
+    expect(res.text).toContain('<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@nate">');
     expect(res.text).toContain('<div id="root"></div>');
-    expect(res.text).not.toContain('data-mention-seo-fallback');
+    expect(res.text).toContain('data-mention-seo-fallback="true"');
     expect(res.text).toContain('rel="preconnect"');
   });
 
@@ -325,7 +328,7 @@ describe('webShell routes (integration)', () => {
 
     expect(res.status).toBe(200);
     expect(res.text).toContain('<div id="root"></div>');
-    expect(res.text).toContain('<link rel="canonical" href="https://mention.earth/@aida_quilcue%40x.com">');
+    expect(res.text).toContain('<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@aida_quilcue%40x.com">');
     expect(res.text).toContain('"@type":"ProfilePage"');
   });
 
@@ -411,14 +414,14 @@ describe('webShell routes (integration)', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
-    expect(res.text).toContain('<meta property="og:title" content="Nate on Mention">');
-    expect(res.text).toContain(`<meta property="og:url" content="https://mention.earth/p/${postId}">`);
+    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate on Mention">');
+    expect(res.text).toContain(`<meta data-mention-seo="true" property="og:url" content="https://mention.earth/p/${postId}">`);
     // NOT the remote URL. A federated avatar lives on the remote instance's own
     // media host, and emitting it here made every card renderer — crawlers,
     // Slack, WhatsApp — fetch the image from that third party. Nothing outside
     // Oxy is asked for bytes on our behalf, so it goes through our proxy.
     expect(res.text).toContain(
-      '<meta property="og:image" content="http://localhost:4110/media/proxy?url=https%3A%2F%2Fcdn%2Fa.png&amp;variant=w320">',
+      '<meta data-mention-seo="true" property="og:image" content="http://localhost:4110/media/proxy?url=https%3A%2F%2Fcdn%2Fa.png&amp;variant=w320">',
     );
     expect(res.text).not.toContain('content="https://cdn/a.png"');
   });
@@ -434,10 +437,10 @@ describe('webShell routes (integration)', () => {
 
     const res = await request(makeApp()).get(`/p/${postId}`).set('User-Agent', 'facebookexternalhit/1.1');
 
-    expect(res.text).toContain('<meta property="og:title" content="Nate on Mention">');
+    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate on Mention">');
   });
 
-  it('serves post metadata without a duplicate visible post to a browser', async () => {
+  it('serves post metadata and semantic fallback outside the SPA root to a browser', async () => {
     stubPublicAuthor();
     const postId = await seedOgPost();
 
@@ -446,10 +449,10 @@ describe('webShell routes (integration)', () => {
       .set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/125 Safari/537.36');
 
     expect(res.status).toBe(200);
-    expect(res.text).toContain('<title>Nate on Mention</title>');
-    expect(res.text).toContain('<meta property="og:title" content="Nate on Mention">');
+    expect(res.text).toContain('<title data-mention-seo="true">Nate on Mention</title>');
+    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate on Mention">');
     expect(res.text).toContain('<div id="root"></div>');
-    expect(res.text).not.toContain('data-mention-seo-fallback');
+    expect(res.text).toContain('data-mention-seo-fallback="true"');
     expect(vi.mocked(postHydrationService.hydratePosts)).toHaveBeenCalled();
   });
 
@@ -461,8 +464,8 @@ describe('webShell routes (integration)', () => {
       .set('User-Agent', 'Slackbot-LinkExpanding 1.0');
 
     expect(res.status).toBe(404);
-    expect(res.text).toContain('<title>Post not found</title>');
-    expect(res.text).toContain('<meta name="robots" content="noindex,nofollow">');
+    expect(res.text).toContain('<title data-mention-seo="true">Post not found</title>');
+    expect(res.text).toContain('<meta data-mention-seo="true" name="robots" content="noindex,nofollow">');
     expect(res.text).toContain('<div id="root"></div>');
     expect(res.text).not.toContain('data-mention-seo-fallback="true"');
   });
@@ -512,11 +515,11 @@ describe('webShell post OG sensitivity gate', () => {
     expect(res.text).not.toContain('twitter:image');
     expect(res.text).not.toContain('https://cdn/sensitive.jpg');
     // The card must not promise a large image it is no longer sending.
-    expect(res.text).toContain('<meta name="twitter:card" content="summary">');
+    expect(res.text).toContain('<meta data-mention-seo="true" name="twitter:card" content="summary">');
     // Attribution and the link still go out — neither reveals what the warning covers.
-    expect(res.text).toContain('<meta property="og:title" content="Nate on Mention">');
-    expect(res.text).toContain(`<meta property="og:url" content="https://mention.earth/p/${postId}">`);
-    expect(res.text).toContain('<meta name="robots" content="noindex,nofollow">');
+    expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate on Mention">');
+    expect(res.text).toContain(`<meta data-mention-seo="true" property="og:url" content="https://mention.earth/p/${postId}">`);
+    expect(res.text).toContain('<meta data-mention-seo="true" name="robots" content="noindex,nofollow">');
   });
 
   it('emits NO og:image for the legacy metadata.isSensitive flag', async () => {
@@ -558,7 +561,7 @@ describe('webShell post OG sensitivity gate', () => {
 
     const res = await crawl(postId);
 
-    expect(res.text).toContain('<meta property="og:description" content="CW: eye contact">');
+    expect(res.text).toContain('<meta data-mention-seo="true" property="og:description" content="CW: eye contact">');
     expect(res.text).not.toContain(SENSITIVE_BODY);
     expect(res.text).not.toContain('og:image');
   });
@@ -606,8 +609,51 @@ describe('webShell post OG sensitivity gate', () => {
 
     const res = await crawl(boostId);
 
-    expect(res.text).toContain('<meta property="og:image" content="https://cdn/ordinary.jpg">');
-    expect(res.text).toContain('<meta property="og:description" content="an ordinary original">');
+    expect(res.text).toContain('<meta data-mention-seo="true" property="og:image" content="https://cdn/ordinary.jpg">');
+    expect(res.text).toContain('<meta data-mention-seo="true" property="og:description" content="an ordinary original">');
+  });
+
+  it.each([{ visibility: 'private' }, { status: 'draft' }] as const)(
+    'withholds a boost original that became unavailable: %j', async (patch) => {
+      const originalId = await seedOgPost();
+      const boostId = await seedOgPost({ type: PostType.BOOST, boostOf: originalId });
+      mockHydrated(boostId, { originalPost: { content: { text: SENSITIVE_BODY } } } as unknown as Partial<HydratedPost>);
+      await updatePostRecord(originalId, patch);
+      const response = await crawl(boostId);
+      expect(response.text).not.toContain(SENSITIVE_BODY);
+      expect(response.text).not.toContain('data-mention-seo-fallback');
+      expect(response.text).toContain('content="noindex,nofollow"');
+      expect(postHydrationService.hydratePosts).not.toHaveBeenCalled();
+    },
+  );
+
+  it('withholds a boost whose original author is no longer publicly resolvable', async () => {
+    const originalId = await seedOgPost({ oxyUserId: scope.user('hidden-original') });
+    const boostId = await seedOgPost({ type: PostType.BOOST, boostOf: originalId });
+    getUsersByIds.mockImplementationOnce(async (ids) =>
+      ids.map((id) => ({ id, username: 'nate', name: { displayName: 'Nate' } })));
+    getUsersByIds.mockResolvedValueOnce([]);
+    const response = await crawl(boostId);
+    expect(response.text).not.toContain('data-mention-seo-fallback');
+    expect(response.text).toContain('content="noindex,nofollow"');
+    expect(postHydrationService.hydratePosts).not.toHaveBeenCalled();
+  });
+
+  it('bypasses cached public text after the raw sensitivity flag changes', async () => {
+    const postId = await seedGatedPost({}, SENSITIVE_BODY);
+    const stale = mapPostOg({ user: { username: 'nate' }, content: { text: SENSITIVE_BODY } } as unknown as HydratedPost,
+      postId, { requiresWarning: false });
+    const cache = vi.spyOn(shellCache, 'getShellCached').mockResolvedValue(stale);
+    try {
+      await updatePostRecord(postId, { metadata: { isSensitive: true } });
+      const response = await crawl(postId);
+      expect(response.text).not.toContain(SENSITIVE_BODY);
+      expect(response.text).not.toContain('data-mention-seo-fallback');
+      expect(response.text).toContain('content="noindex,nofollow"');
+      expect(cache).not.toHaveBeenCalled();
+    } finally {
+      cache.mockRestore();
+    }
   });
 
   it('still unfurls an ordinary post with its image and text', async () => {
@@ -615,8 +661,8 @@ describe('webShell post OG sensitivity gate', () => {
 
     const res = await crawl(postId);
 
-    expect(res.text).toContain('<meta property="og:image" content="https://cdn/sensitive.jpg">');
-    expect(res.text).toContain('<meta property="og:description" content="an ordinary post">');
-    expect(res.text).toContain('<meta name="twitter:card" content="summary_large_image">');
+    expect(res.text).toContain('<meta data-mention-seo="true" property="og:image" content="https://cdn/sensitive.jpg">');
+    expect(res.text).toContain('<meta data-mention-seo="true" property="og:description" content="an ordinary post">');
+    expect(res.text).toContain('<meta data-mention-seo="true" name="twitter:card" content="summary_large_image">');
   });
 });

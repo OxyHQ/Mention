@@ -7,6 +7,47 @@ canonical URL, robots directive, Open Graph fields, JSON-LD, and visible fallbac
 content; the frontend `SEO` component keeps those fields current after client-side
 navigation.
 
+## Server-to-client handoff
+
+The renderer marks its title, meta, canonical and JSON-LD elements with
+`data-mention-seo="true"`. Eligible public content appears in a separate
+`<main data-mention-seo-fallback="true">` outside Expo's `#root`, with the
+canonical URL in `data-mention-seo-url`. User text is escaped; no public body is
+emitted for restricted, missing, failed or warning-gated responses. Boosts must
+also pass current visibility and author checks for their original post before
+a cached representation can be served.
+
+The frontend stylesheet keeps that document visible while the matching React
+route loads underneath. Only the route's ready state releases the fallback;
+mounting providers or resolving authentication alone is insufficient. Real
+navigation to another pathname releases stale server content and metadata,
+including navigation to a route without an SEO component.
+
+Initial post metadata remains authoritative because the backend evaluates raw
+safety and visibility signals that the hydrated client DTO does not contain.
+When navigating client-side to a post without that server proof, use generic
+`noindex,nofollow` metadata without body text, content-derived images or structured data. A direct
+request for the same eligible public URL still receives indexable server HTML.
+Do not infer public eligibility from the DTO's `metadata.isSensitive` alone.
+
+## Rollout and verification
+
+The frontend export advertises `<meta name="mention-seo-handoff" content="1">`.
+The backend adds semantic fallback content only when that capability is present
+in the fetched shell. Cached legacy shells keep their existing empty SPA body,
+so parallel frontend/backend rollout and rollback are safe. Frontend-first
+rollout remains preferred; verify the marker survives the exported document.
+The backend's minimal no-JavaScript emergency shell also advertises support,
+because it has no client tree that could duplicate the visible content.
+
+Use a production web export and real renderer output to check JavaScript-disabled
+public content, initial boot, delayed profile/post reads, and client navigation.
+Assert a single title/canonical/robots/description, fallback removal only when
+matching content is ready, no transient home pathname on a deep-link load, and
+no private or sensitive text in response HTML. Backend tests also cover current
+boost-original eligibility and bypassing cached public text after a warning
+flag changes. Missing entities and dependency failures retain 404 and 503.
+
 ## Eligibility
 
 - Profiles must resolve through Oxy's public profile endpoint and have public

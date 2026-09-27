@@ -13,6 +13,7 @@ import { APP_DEFAULT_COLOR_PRESET } from '@/lib/colorEntitlement';
 // Components
 import AppSplashScreen from '@/components/AppSplashScreen';
 import { NotificationPermissionGate } from '@/components/NotificationPermissionGate';
+import { SEOHandoff } from '@/components/SEOHandoff';
 import { PwaHead } from '@/components/PwaHead';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { MentionSettingsProvider } from '@/components/settings/MentionSettingsProvider';
@@ -169,6 +170,7 @@ export default function RootLayout() {
           Sits OUTSIDE <BloomProvider> on purpose: the theme provider gates its
           children while fonts load, and the manifest must not wait for that. */}
       <PwaHead />
+      <SEOHandoff />
       {/* The single Bloom root — theme + haptics + image resolution + scroll
           restoration + tab-bar minimize progress. Everything Bloom renders must be
           under it: on web `useScrollRestoration()` throws outside its provider, so

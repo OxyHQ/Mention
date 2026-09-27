@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Platform } from 'react-native';
-import { usePathname } from 'expo-router';
+import { useFocusEffect, usePathname } from 'expo-router';
+import { releaseServerSEO } from '@/lib/seoHandoff';
 import ExpoHead from 'expo-router/head';
 import { useTranslation } from 'react-i18next';
 
@@ -15,6 +16,10 @@ export interface SEOProps {
   author?: string;
   publishedTime?: string;
   modifiedTime?: string;
+  /** Keep the server document until equivalent route content has committed. */
+  ready?: boolean;
+  robots?: string;
+  jsonLd?: Record<string, unknown>;
 }
 
 const defaultSEO = {
@@ -34,6 +39,9 @@ export const SEO: React.FC<SEOProps> = ({
   author,
   publishedTime,
   modifiedTime,
+  ready = true,
+  robots = 'index,follow',
+  jsonLd,
 }) => {
   const pathname = usePathname();
   const { t } = useTranslation();
@@ -58,8 +66,14 @@ export const SEO: React.FC<SEOProps> = ({
   // Default image (you should add your logo/image)
   const pageImage = image || 'https://mention.earth/og-image.png';
 
-  // Only render on web
-  if (Platform.OS !== 'web') {
+  useFocusEffect(useCallback(() => {
+    if (Platform.OS === 'web' && ready && typeof document !== 'undefined') {
+      releaseServerSEO(document);
+    }
+  }, [ready]));
+
+  // Loading routes must not overwrite complete server metadata with placeholders.
+  if (Platform.OS !== 'web' || !ready) {
     return null;
   }
 
@@ -69,6 +83,8 @@ export const SEO: React.FC<SEOProps> = ({
       <title>{pageTitle}</title>
       <meta name="title" content={pageTitle} />
       <meta name="description" content={pageDescription} />
+      <meta name="robots" content={robots} />
+      {jsonLd && <script type="application/ld+json">{JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>}
       
       {/* Open Graph / Facebook */}
       <meta property="og:type" content={type} />
@@ -97,7 +113,6 @@ export const SEO: React.FC<SEOProps> = ({
       )}
       
       {/* Additional meta tags */}
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <link rel="canonical" href={fullUrl} />
     </ExpoHead>
   );

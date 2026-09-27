@@ -118,12 +118,10 @@ router.get('/:userId', async (req: AuthRequest, res: Response) => {
     response.repliesCount = counts?.repliesCount ?? 0;
     if (remote) response.remote = remote;
 
-    // Include privacy info in response
-    if (doc?.privacy?.profileVisibility) {
-      response.privacy = {
-        profileVisibility: doc.privacy.profileVisibility,
-      };
-    }
+    // Report the same resolved policy used by the access check, including the
+    // public default when no settings row exists. Missing client privacy then
+    // means unresolved/failed data rather than an implicitly public profile.
+    response.privacy = { profileVisibility };
     return sendSuccessResponse(res, 200, response);
   } catch (error) {
     logger.error('[ProfileDesign] Error fetching profile design:', { userId: req.user?.id, targetUserId: req.params.userId, error });

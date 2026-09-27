@@ -56,3 +56,24 @@ exists. Scoped to settings on purpose (all-static routes there) — widen it
 before trusting it to catch a bad route anywhere else in the app.
 
 - **Settings are one modal** — `MentionSettingsProvider` uses Bloom `SettingsModal` with real `SettingsGeneralPage` / `SettingsProfilePage`, `SettingsCard`, `SettingsRow` and controls. `/settings/*` files are deep-link bridges only; page content lives in `components/settings/pages`. Account operations keep SDK auth and mutation hooks.
+## Deep-link boot navigation
+
+The `expo-router@57.0.23` patch preserves a pending child navigator's initial
+state in `build/react-navigation/core/useOnGetState.js` until its state listener
+has registered. Without it, a delayed child can temporarily publish the root
+route and rewrite a direct profile URL to `/` before restoring the profile.
+The distinction is whether the listener key has ever registered: an own key
+whose value is now `undefined` represents an unregistered child and must still
+clear its state. Do not replace this with an unconditional stale-state fallback.
+
+The paired `findMatchingState` guard treats states with `stale !== false` as
+partial states. They must never be compared as hydrated navigation states:
+preserved pending children do not yet have the complete fields that matching
+requires. Both guards are needed; preserving pending state alone can replace
+the URL flash with a runtime error.
+
+When upgrading Expo Router or changing this patch, run the production-browser
+regression in `packages/e2e/tests/deep-link-boot.spec.ts`, including its captured
+history writes. Require no transient home URL, no browser `pageerror`, and correct
+back/forward traversal. An eventual correct URL or a screenshot alone cannot
+detect the intermediate `/` rewrite. Keep the existing native stack header patch intact.

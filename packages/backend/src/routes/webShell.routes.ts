@@ -108,6 +108,7 @@ const CHANNEL_PATH_PREFIX = '/c/';
 const FALLBACK_SHELL =
   '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">' +
   '<meta name="viewport" content="width=device-width, initial-scale=1"><title>Mention</title>' +
+  '<meta name="mention-seo-handoff" content="1">' +
   '</head><body><div id="root"></div></body></html>';
 
 interface ShellCache {
@@ -568,12 +569,25 @@ router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: R
       return;
     }
 
+    // A boost's rendered body comes from its original. Check current visibility
+    // for both rows before reading any cached representation.
+    if (post.boostOf) {
+      const original = await loadPostRecord(String(post.boostOf));
+      const originalAuthor = original?.oxyUserId ? String(original.oxyUserId) : '';
+      if (!original || original.visibility !== 'public' || original.status !== 'published'
+        || !originalAuthor || !(await isMentionProfilePublic(originalAuthor))
+        || !(await isOxyAuthorPublic(originalAuthor))) {
+        await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Post unavailable', 'This post is unavailable on Mention.'));
+        return;
+      }
+    }
+
     const safety = await resolvePostOgSafety(post);
     // Never serve a previously cached safe body after a sensitivity change.
     // A gated post is re-rendered from the current row on every request.
     const og = safety.requiresWarning
       ? await fetchPostOg(id)
-      : await getShellCached(`post:${id}`, () => fetchPostOg(id), { rethrow: true });
+      : await getShellCached(`post:semantic-v1:${id}`, () => fetchPostOg(id), { rethrow: true });
     if (!og) {
       await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Post not found', 'This post is unavailable on Mention.'), 404);
       return;
