@@ -153,6 +153,11 @@ class FeedController {
       // call. See `HydrationOptions.viewerPrivacy`/`viewerGraph`.
       viewerPrivacy?: ViewerPrivacyContext;
       viewerGraph?: ViewerGraphContext;
+      // A hydration FAILURE rethrows instead of reading as an empty result.
+      // The single-item route needs this: there, empty means "this viewer may
+      // not read it" (a 404), and a failed read must not be reported as one.
+      // A feed keeps the default — one bad page must not blank the timeline.
+      rethrow?: boolean;
     } = {},
   ): Promise<HydratedPost[]> {
     try {
@@ -189,6 +194,7 @@ class FeedController {
       });
     } catch (error) {
       logger.error('[Feed] Error transforming posts', error);
+      if (options.rethrow) throw error;
       // Return empty array instead of throwing to prevent feed from breaking
       return [];
     }
@@ -1221,6 +1227,7 @@ class FeedController {
           operatedAccountReader: createUserScopedOxyServices(req),
           viewerPrivacy: viewerContext?.viewerPrivacy,
           viewerGraph: viewerContext?.viewerGraph,
+          rethrow: true,
         },
       );
 
