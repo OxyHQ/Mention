@@ -9,9 +9,13 @@
  * and none of them participate in row construction.
  */
 
+import React from 'react';
+import TestRenderer, { act } from 'react-test-renderer';
 import type { FeedInterstitialSlot, FeedPostSlice, HydratedPost } from '@mention/shared-types';
 import {
     buildFeedRows,
+    renderFeedRow,
+    type RenderFeedRowDeps,
     feedRowKey,
     feedRowType,
     type FeedRow,
@@ -26,7 +30,20 @@ import {
 // Hoisted above the imports by babel-jest, so `feedRows` resolves these mocks.
 jest.mock('../PostItem', () => ({ __esModule: true, default: () => null }));
 jest.mock('../PostErrorBoundary', () => ({ __esModule: true, PostErrorBoundary: () => null }));
-jest.mock('../interstitials/FeedInterstitial', () => ({ __esModule: true, default: () => null }));
+/** Mounts of the recommendation card — one per React instance, not per render. */
+let mockInterstitialMounts = 0;
+jest.mock('../interstitials/FeedInterstitial', () => {
+    const { useEffect } = jest.requireActual<typeof import('react')>('react');
+    return {
+        __esModule: true,
+        default: function MockFeedInterstitial() {
+            useEffect(() => {
+                mockInterstitialMounts += 1;
+            }, []);
+            return null;
+        },
+    };
+});
 jest.mock('@oxy.so/bloom/subtle-hover', () => ({ __esModule: true, SubtleHover: () => null }));
 jest.mock('@/stores/threadHoverStore', () => ({ __esModule: true, useThreadHoverStore: () => undefined }));
 
@@ -413,5 +430,38 @@ describe('one post, one row', () => {
             blockedSet: new Set(['blocked']),
         });
         expect(layout(rows)).toEqual(['orig']);
+    });
+});
+
+describe('renderFeedRow — a recycled cell never inherits another card', () => {
+    // FlashList recycles a cell across rows of the same type, so two "who to
+    // follow" cards in one scroll can land in ONE React instance. Without a key
+    // per slot, the second card would inherit the first one's state: its
+    // dismissals, its carousel's scroll position — and the flag that says its
+    // impression was already reported, so the second card would never count as
+    // seen.
+    const deps = { router: {}, threadLineColor: '#000' } as unknown as RenderFeedRowDeps;
+
+    function Cell({ row }: { row: FeedRow }) {
+        return renderFeedRow(row, deps);
+    }
+
+    it('remounts the card when the cell is recycled for a different slot of the same kind', () => {
+        const [first, second] = build({
+            slices: [slice('p1'), slice('p2')],
+            interstitials: [slot('suggestedUsers', 'p1'), slot('suggestedUsers', 'p2')],
+        }).filter((row) => row.kind === 'interstitial');
+        mockInterstitialMounts = 0;
+
+        let renderer: TestRenderer.ReactTestRenderer | undefined;
+        act(() => {
+            renderer = TestRenderer.create(React.createElement(Cell, { row: first }));
+        });
+        act(() => renderer!.update(React.createElement(Cell, { row: first })));
+        expect(mockInterstitialMounts).toBe(1);
+
+        act(() => renderer!.update(React.createElement(Cell, { row: second })));
+        expect(mockInterstitialMounts).toBe(2);
+        act(() => renderer!.unmount());
     });
 });

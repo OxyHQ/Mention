@@ -451,8 +451,13 @@ const ShowThreadLink: React.FC<{ sliceKey: string; onPress: () => void }> = ({ s
  */
 export function renderFeedRow(row: FeedRow, { router, threadLineColor, feedDescriptor }: RenderFeedRowDeps): React.ReactElement | null {
     if (row.kind === 'interstitial') {
+        // Keyed by slot: FlashList recycles a cell across rows of the same type,
+        // and a card that inherited another card's instance would inherit its
+        // dismissals, its carousel's scroll position and its "impression already
+        // reported" flag — so the second card of a kind would never count as seen.
         return (
             <FeedInterstitial
+                key={row.slot.key}
                 slot={row.slot}
                 ordinal={row.ordinal}
                 feedDescriptor={feedDescriptor}
