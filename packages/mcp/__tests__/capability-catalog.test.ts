@@ -94,6 +94,11 @@ describe("Mention canonical capability catalog", () => {
     expect(effectIdempotencyKey(invocation)).toBe(first);
     expect(effectIdempotencyKey({ ...invocation, accountId: "account-2" })).not.toBe(first);
     expect(effectIdempotencyKey({ ...invocation, requestId: "42" })).not.toBe(first);
+    // Clients restart request ids on every connection, so the session id is
+    // what keeps a new connection's request 42 from replaying an old one's.
+    expect(effectIdempotencyKey({ ...invocation, transportId: "session-2" })).not.toBe(first);
+    expect(effectIdempotencyKey({ ...invocation, clientId: "client-2" })).not.toBe(first);
+    expect(effectIdempotencyKey({ ...invocation, toolName: "delete-post" })).not.toBe(first);
   });
 
   test("enforces each tool's semantic capability before invoking its handler", async () => {

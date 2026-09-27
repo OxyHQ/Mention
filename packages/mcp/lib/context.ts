@@ -17,6 +17,12 @@ export interface RequestContext {
   clientId?: string;
   accountId?: string;
   scopes: ReadonlySet<string>;
+  /**
+   * The MCP session id this request belongs to: the `Mcp-Session-Id` a
+   * Streamable HTTP client echoes, or a legacy SSE session's id. It scopes
+   * effect idempotency keys to one client connection; it carries no authority.
+   */
+  sessionId?: string;
   /** Present only while one effectful tool invocation is running. */
   idempotencyKey?: string;
   toolName?: string;

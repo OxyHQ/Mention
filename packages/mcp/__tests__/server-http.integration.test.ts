@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readListeningPort, waitForExit } from "./support/spawn-server.js";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -63,6 +64,27 @@ describe("MCP HTTP resource server", () => {
         });
         expect(invalidToken.status).toBe(401);
 
+        // A session id never substitutes for a token, whichever task it names.
+        const invalidTokenWithSession = await fetch(`${baseUrl}/mcp`, {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer not-a-valid-jwt",
+            "Content-Type": "application/json",
+            "Mcp-Session-Id": "session-from-another-task",
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }),
+        });
+        expect(invalidTokenWithSession.status).toBe(401);
+        expect(invalidTokenWithSession.headers.get("www-authenticate")).toContain("Bearer");
+
+        for (const method of ["GET", "DELETE"]) {
+          const unauthenticated = await fetch(`${baseUrl}/mcp`, {
+            method,
+            headers: { Authorization: "Bearer not-a-valid-jwt" },
+          });
+          expect(unauthenticated.status).toBe(401);
+        }
+
         const legacySse = await fetch(`${baseUrl}/sse`, {
           headers: { Authorization: "Bearer not-a-valid-jwt" },
         });
@@ -114,18 +136,33 @@ describe("MCP HTTP resource server when Oxy cannot be reached", () => {
           "signature",
         ].join(".");
 
-        const unavailable = await fetch(`${baseUrl}/`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${centralToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }),
-        });
-        expect(unavailable.status).toBe(503);
-        expect(unavailable.headers.get("retry-after")).toBe("30");
-        expect(unavailable.headers.get("www-authenticate")).toBeNull();
-
-        const unavailableSse = await fetch(`${baseUrl}/sse`, {
-          headers: { Authorization: `Bearer ${centralToken}` },
-        });
+        // Concurrent, since each one waits out the Oxy client's retries.
+        const [unavailable, unavailableInSession, unavailableSse] = await Promise.all([
+          fetch(`${baseUrl}/`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${centralToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }),
+          }),
+          // A call inside a session issued by another task: still 503, never
+          // 401 (re-authorize) and never 404 (session lost).
+          fetch(`${baseUrl}/mcp`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${centralToken}`,
+              "Content-Type": "application/json",
+              "Mcp-Session-Id": "session-from-another-task",
+            },
+            body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }),
+          }),
+          fetch(`${baseUrl}/sse`, {
+            headers: { Authorization: `Bearer ${centralToken}` },
+          }),
+        ]);
+        for (const response of [unavailable, unavailableInSession]) {
+          expect(response.status).toBe(503);
+          expect(response.headers.get("retry-after")).toBe("30");
+          expect(response.headers.get("www-authenticate")).toBeNull();
+        }
         expect(unavailableSse.status).toBe(503);
       } finally {
         child.kill("SIGKILL");
@@ -135,46 +172,3 @@ describe("MCP HTTP resource server when Oxy cannot be reached", () => {
     60_000,
   );
 });
-
-async function readListeningPort(
-  stdout: ReadableStream<Uint8Array>,
-): Promise<number> {
-  const reader = stdout.getReader();
-  const decoder = new TextDecoder();
-  let output = "";
-  const deadline = Date.now() + 10_000;
-
-  while (Date.now() < deadline) {
-    const remaining = deadline - Date.now();
-    const result = await Promise.race([
-      reader.read(),
-      delay(remaining).then(() => {
-        throw new Error(`MCP server did not start. Output: ${output}`);
-      }),
-    ]);
-    if (result.done) {
-      throw new Error(`MCP server exited before listening. Output: ${output}`);
-    }
-    output += decoder.decode(result.value, { stream: true });
-    const match = /Listening on :(\d+)/.exec(output);
-    if (match) return Number(match[1]);
-  }
-
-  throw new Error(`MCP server did not report a listening port. Output: ${output}`);
-}
-
-async function waitForExit(
-  child: Bun.Subprocess<"ignore" | "pipe", "ignore" | "pipe", "inherit">,
-): Promise<number> {
-  return Promise.race([
-    child.exited,
-    delay(10_000).then(() => {
-      child.kill("SIGKILL");
-      throw new Error("MCP server did not terminate after SIGTERM");
-    }),
-  ]);
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}

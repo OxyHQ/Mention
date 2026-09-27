@@ -157,7 +157,10 @@ export class MentionToolRegistry implements MentionToolRegistrar {
           const idempotencyKey = effectIdempotencyKey({
             accountId: context.accountId,
             clientId: context.clientId,
-            transportId: extra.sessionId ?? `token:${context.tokenId}`,
+            // The stateless /mcp transport has no `extra.sessionId`; the
+            // session id the client echoes arrives through the request context
+            // instead, so the key is the same whichever task serves the call.
+            transportId: context.sessionId ?? extra.sessionId ?? `token:${context.tokenId}`,
             requestId: extra.requestId,
             toolName: definition.name,
           });
