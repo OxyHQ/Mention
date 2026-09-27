@@ -58,6 +58,11 @@ that answers every page with the empty fallback shell.
    checks and stickiness are infrastructure-owned and are not mutated by an
    application release.
 
+`mention-mcp` serves Streamable HTTP (`/mcp`) statelessly, so it needs no
+stickiness and any number of tasks may run at once, which every rollover does.
+Only the deprecated `/sse` + `/messages` transport keeps a session in one task's
+memory; see [`packages/mcp/README.md`](../packages/mcp/README.md#sessions-and-scaling).
+
 Cloudflare Pages first receives an immutable preview deployment, which is what
 the browser release gate runs against — a Worker has no per-branch preview URL,
 so the candidate origin the gate requires is still a Pages deployment. The exact

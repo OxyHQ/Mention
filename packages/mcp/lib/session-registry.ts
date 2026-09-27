@@ -1,31 +1,31 @@
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import type { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
   mcpPrincipalMatchesFingerprint,
   type AuthenticatedMcpToken,
 } from "./http-security.js";
 
-export type McpHttpTransport =
-  | StreamableHTTPServerTransport
-  | SSEServerTransport;
-
 /**
- * Owns all state associated with an MCP transport session.
+ * The open legacy SSE sessions of THIS process.
  *
- * Keeping transport, activity and principal bindings behind one API prevents
+ * Only the deprecated `/sse` + `/messages` transport needs one: its response
+ * stream lives in the task that accepted `GET /sse`, and each `POST /messages`
+ * must reach that same task. Streamable HTTP at `/mcp` is stateless and never
+ * registers here.
+ *
+ * Keeping transport and principal binding behind one API prevents
  * partially-deleted sessions and makes account isolation an invariant rather
- * than a convention spread across the HTTP router.
+ * than a convention spread across the HTTP router. A session is removed when
+ * its stream closes, so there is no idle sweep.
  */
 export class McpSessionRegistry {
-  readonly #transports = new Map<string, McpHttpTransport>();
-  readonly #lastActivity = new Map<string, number>();
+  readonly #transports = new Map<string, SSEServerTransport>();
   readonly #principalFingerprints = new Map<string, string>();
 
   get size(): number {
     return this.#transports.size;
   }
 
-  get(id: string): McpHttpTransport | undefined {
+  get(id: string): SSEServerTransport | undefined {
     return this.#transports.get(id);
   }
 
@@ -35,19 +35,11 @@ export class McpSessionRegistry {
 
   register(
     id: string,
-    transport: McpHttpTransport,
+    transport: SSEServerTransport,
     principalFingerprint: string,
-    now = Date.now(),
   ): void {
     this.#transports.set(id, transport);
-    this.#lastActivity.set(id, now);
     this.#principalFingerprints.set(id, principalFingerprint);
-  }
-
-  touch(id: string, now = Date.now()): void {
-    if (this.#transports.has(id)) {
-      this.#lastActivity.set(id, now);
-    }
   }
 
   isAuthorized(id: string, claims: AuthenticatedMcpToken): boolean {
@@ -59,24 +51,7 @@ export class McpSessionRegistry {
 
   delete(id: string): void {
     this.#transports.delete(id);
-    this.#lastActivity.delete(id);
     this.#principalFingerprints.delete(id);
-  }
-
-  cleanupIdle(now: number, idleTimeoutMs: number): number {
-    let cleaned = 0;
-    for (const [id, transport] of this.#transports) {
-      // Legacy SSE sessions are tied directly to their response stream and are
-      // removed by its `close` event.
-      if (transport instanceof SSEServerTransport) continue;
-      const lastActivity = this.#lastActivity.get(id) ?? 0;
-      if (now - lastActivity <= idleTimeoutMs) continue;
-
-      void transport.close().catch(() => {});
-      this.delete(id);
-      cleaned++;
-    }
-    return cleaned;
   }
 
   async closeAll(): Promise<void> {

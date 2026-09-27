@@ -219,6 +219,44 @@ through `lib/auth-guard.ts`.
 
 **Session note:** Claude must complete OAuth before `initialize` (POST requires Bearer). Some tools are callable without extra per-tool auth once the session is open, but the connector itself always needs OAuth first.
 
+## Sessions and scaling
+
+Streamable HTTP at `/mcp` (and `/`) is **stateless**: every POST gets a fresh
+SDK server and transport and is answered from the request alone, so any
+`mention-mcp` task can serve any request. Deploy rollovers and scale-out run two
+or more tasks behind the ALB with no cookie stickiness, and MCP clients do not
+keep cookies anyway; a session held in one task's memory was answered
+`404 Session not found` by the other, for every client, for the whole rollover.
+
+| What a session used to hold | Where it comes from now |
+|------|------|
+| Identity, account, capabilities | The bearer token, introspected live on every request (unchanged) |
+| Active account of a multi-account connection | Oxy's introspection and `/mcp/bundles/*`, never MCP memory |
+| Effect idempotency namespace | The `Mcp-Session-Id` the client echoes (below) |
+| Server-initiated messages | None exist: the tool list is static and no tool notifies or calls the client |
+
+`initialize` still returns an `Mcp-Session-Id`: an opaque random value that no
+task stores or looks up, so every task accepts every well-formed id, including
+one issued before a deploy. It exists for effect safety. Clients number JSON-RPC
+requests per connection and restart at 0 or 1; the session id keeps a new
+connection's request 2 from repeating an earlier connection's idempotency key.
+It grants nothing — every request is authorized by its own token, and the key
+also binds the account and OAuth client.
+
+| Request | Answer |
+|------|------|
+| `POST` `initialize` | 200, new `Mcp-Session-Id` |
+| `POST` anything else with any well-formed `Mcp-Session-Id` | Served, on any task |
+| `POST` anything else without `Mcp-Session-Id` | 400 (as before) |
+| `GET` (standalone SSE stream) / `DELETE` (end session) | 405 after authentication; clients treat it as "not offered" |
+| No or invalid token | 401 with the `WWW-Authenticate` challenge |
+| Token cannot be checked (Oxy unreachable) | 503 with `Retry-After: 30` |
+
+The deprecated `/sse` + `/messages` transport is stateful by construction —
+the SSE stream lives in the task that opened it — and still works only while a
+client's requests reach one task. It is the only thing `MCP_MAX_SESSIONS`
+counts. See [`docs/COMPATIBILITY_RETIREMENT.md`](../../docs/COMPATIBILITY_RETIREMENT.md).
+
 ## OAuth authority and transition
 
 New connections use Oxy's central endpoints under `/auth/mcp/oauth/*`. Mention's
@@ -278,7 +316,7 @@ the protected-resource metadata and must be removed after that deadline.
 | `MENTION_MCP_JWT_SECRET` | (required during transition) | Legacy HS256 verification only |
 | `MCP_ALLOWED_ORIGINS` | Claude defaults | Extra CORS origins |
 | `MCP_MAX_REQUEST_BODY_BYTES` | `1048576` | Maximum JSON request body retained in memory |
-| `MCP_MAX_SESSIONS` | `1000` | Per-task cap for active HTTP/SSE sessions |
+| `MCP_MAX_SESSIONS` | `1000` | Per-task cap for open legacy `/sse` sessions (Streamable HTTP keeps none) |
 
 ### Backend (`mention` ECS)
 
@@ -328,6 +366,7 @@ From repo root: `bun run dev:mcp:http`
 6. Revoke the Oxy MCP grant → the next MCP and backend request fail
 7. Authorize a second account separately → each `whoami` stays isolated
 8. Verify the deployed catalog digest and the Mention service principal used for introspection
+9. During a rollover (two tasks), a connected client keeps working: no `404 Session not found`
 
 ## Security
 
