@@ -55,6 +55,20 @@ export function registerNotificationsTools(server: MentionToolRegistrar): void {
   );
 
   server.tool(
+    "mark-notification-read",
+    "Mark one notification as read (requires authorization). Use the ID get-notifications shows in brackets.",
+    { id: z.string().describe("Notification ID") },
+    withAuthGuard(async ({ id }) => {
+      try {
+        await api.patch(`/notifications/${encodeURIComponent(id)}/read`);
+        return { content: [{ type: "text" as const, text: `Notification ${id} marked as read.` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
     "get-unread-count",
     "Get unread notification count (requires authorization).",
     {},

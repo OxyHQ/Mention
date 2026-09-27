@@ -101,6 +101,8 @@ function buildApp() {
   app.post('/resource', (_req, res) => res.status(201).json({ ok: true }));
   app.get('/notifications', (req, res) => res.json({ userId: (req as OxyAuthRequest).userId }));
   app.post('/posts', (req, res) => res.status(201).json({ userId: (req as OxyAuthRequest).userId }));
+  app.delete('/feed/:postId/boost', (req, res) => res.json({ userId: (req as OxyAuthRequest).userId }));
+  app.post('/mute', (req, res) => res.status(201).json({ userId: (req as OxyAuthRequest).userId }));
   return app;
 }
 
@@ -197,6 +199,30 @@ describe('createRequireMcpOrOxyAuth MCP scope enforcement', () => {
       error: 'insufficient_scope',
       required_scope: ['social.posts.publish'],
     });
+  });
+
+  it('lets the boost capability undo its own boost', async () => {
+    const res = await request(app)
+      .delete('/feed/post-1/boost')
+      .set('Authorization', `Bearer ${centralToken(['social.interact'])}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ userId: 'account-1' });
+  });
+
+  it('keeps muting behind its own capability', async () => {
+    const refused = await request(app)
+      .post('/mute')
+      .set('Authorization', `Bearer ${centralToken(['social.interact'])}`)
+      .send({ mutedId: 'user-2' });
+    expect(refused.status).toBe(403);
+    expect(refused.body.required_scope).toEqual(['social.mutes.manage']);
+
+    const allowed = await request(app)
+      .post('/mute')
+      .set('Authorization', `Bearer ${centralToken(['social.mutes.manage'])}`)
+      .send({ mutedId: 'user-2' });
+    expect(allowed.status).toBe(201);
   });
 
   it('does not widen central tokens to backend routes absent from the catalog', async () => {

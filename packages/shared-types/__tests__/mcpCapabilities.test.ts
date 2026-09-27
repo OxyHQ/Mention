@@ -25,8 +25,40 @@ describe("Mention MCP capability routes", () => {
       .toEqual([{ toolName: "update-lane", requiredCapabilities: ["social.lanes.manage"] }]);
     expect(mentionCapabilityRequirementsForRequest("PATCH", "/posts/post-1/lane"))
       .toEqual([{ toolName: "move-post-to-lane", requiredCapabilities: ["social.posts.update"] }]);
-    // Deleting a lane un-files every post in it; no tool offers that yet.
-    expect(mentionCapabilityRequirementsForRequest("DELETE", "/lanes/lane-1")).toEqual([]);
+    expect(mentionCapabilityRequirementsForRequest("DELETE", "/lanes/lane-1"))
+      .toEqual([{ toolName: "delete-lane", requiredCapabilities: ["social.lanes.manage"] }]);
+    // Muting ANOTHER publisher's lane is a reader preference, not lane management.
+    expect(mentionCapabilityRequirementsForRequest("POST", "/lanes/lane-1/mute"))
+      .toEqual([{ toolName: "mute-lane", requiredCapabilities: ["social.mutes.manage"] }]);
+  });
+
+  test("every reversible action has its inverse on the same capability", () => {
+    const pairs: Array<[string, string, string, string]> = [
+      ["POST", "/feed/boost", "DELETE", "/feed/post-1/boost"],
+      ["POST", "/mute", "DELETE", "/mute/user-1"],
+      ["POST", "/mute-words", "DELETE", "/mute-words/word-1"],
+      ["POST", "/lanes/lane-1/mute", "DELETE", "/lanes/lane-1/mute"],
+      ["POST", "/lists/list-1/members", "DELETE", "/lists/list-1/members"],
+      ["POST", "/subscriptions/user-1", "DELETE", "/subscriptions/user-1"],
+      ["POST", "/pokes/user-1", "DELETE", "/pokes/user-1"],
+      ["POST", "/entity-follows", "DELETE", "/entity-follows"],
+    ];
+    for (const [doMethod, doPath, undoMethod, undoPath] of pairs) {
+      const [forward] = mentionCapabilityRequirementsForRequest(doMethod, doPath);
+      const [inverse] = mentionCapabilityRequirementsForRequest(undoMethod, undoPath);
+      expect(forward).toBeDefined();
+      expect(inverse).toBeDefined();
+      expect(inverse?.requiredCapabilities).toEqual(forward?.requiredCapabilities);
+    }
+  });
+
+  test("pinning and the other post settings share one route and one capability", () => {
+    expect(mentionCapabilityRequirementsForRequest("PATCH", "/posts/post-1/settings"))
+      .toEqual([
+        { toolName: "pin-post", requiredCapabilities: ["social.posts.update"] },
+        { toolName: "unpin-post", requiredCapabilities: ["social.posts.update"] },
+        { toolName: "update-post-settings", requiredCapabilities: ["social.posts.update"] },
+      ]);
   });
 
   test("returns every valid requirement when tools deliberately share a route", () => {
@@ -46,7 +78,7 @@ describe("Mention MCP capability routes", () => {
       .toEqual([]);
   });
 
-  test("keeps all 71 tool policies in the one shared registry", () => {
-    expect(Object.keys(MENTION_TOOL_POLICIES)).toHaveLength(71);
+  test("keeps all 97 tool policies in the one shared registry", () => {
+    expect(Object.keys(MENTION_TOOL_POLICIES)).toHaveLength(97);
   });
 });

@@ -7,6 +7,7 @@ import { registerInteractionsTools } from "../tools/interactions.js";
 import { registerJobsTools } from "../tools/jobs.js";
 import { registerLanesTools } from "../tools/lanes.js";
 import { registerListsTools } from "../tools/lists.js";
+import { registerMutesTools } from "../tools/mutes.js";
 import { registerMediaTools } from "../tools/media.js";
 import { registerNotificationsTools } from "../tools/notifications.js";
 import { registerPollsTools } from "../tools/polls.js";
@@ -32,6 +33,7 @@ function buildRegistry(): MentionToolRegistry {
   registerHashtagsTools(registry);
   registerProfileTools(registry);
   registerSocialTools(registry);
+  registerMutesTools(registry);
   registerStarterPackTools(registry);
   registerAccountTools(registry);
   registerMediaTools(registry);

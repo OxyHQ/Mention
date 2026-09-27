@@ -87,6 +87,60 @@ export function registerInteractionsTools(server: MentionToolRegistrar): void {
   );
 
   server.tool(
+    "unboost",
+    "Remove your boost of a post (requires authorization). Pass the ORIGINAL post's ID, the same one given to boost.",
+    { id: z.string().describe("The original post ID you boosted") },
+    withAuthGuard(async ({ id }) => {
+      try {
+        await api.delete(`/feed/${encodeURIComponent(id)}/boost`);
+        return { content: [{ type: "text" as const, text: `Boost of post ${id} removed.` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
+    "get-bookmark-folders",
+    "List the folders your saved posts are sorted into (requires authorization). Pass a folder name to get-saved-posts to read one.",
+    {},
+    withAuthGuard(async () => {
+      try {
+        const result = await api.get<{ folders?: unknown }>("/posts/bookmarks/folders");
+        const folders = Array.isArray(result.folders)
+          ? result.folders.filter((folder): folder is string => typeof folder === "string")
+          : [];
+        if (folders.length === 0) {
+          return { content: [{ type: "text" as const, text: "No bookmark folders yet." }] };
+        }
+        return { content: [{ type: "text" as const, text: `Bookmark folders (${folders.length}):\n\n${folders.join("\n")}` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
+    "move-saved-post-to-folder",
+    "Move one of your saved posts into a bookmark folder, creating the folder if it is new, or back out of every folder with folder null (requires authorization). The post must already be saved.",
+    {
+      id: z.string().describe("The saved post's ID"),
+      folder: z.string().min(1).nullable().describe("Folder name, or null to take the post out of its folder"),
+    },
+    withAuthGuard(async ({ id, folder }) => {
+      try {
+        await api.patch(`/posts/bookmarks/by-post/${encodeURIComponent(id)}/folder`, { folder });
+        const text = folder === null
+          ? `Saved post ${id} taken out of its folder.`
+          : `Saved post ${id} moved to folder "${folder}".`;
+        return { content: [{ type: "text" as const, text }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
     "quote-post",
     "Quote a post with commentary and optional media (requires authorization).",
     {

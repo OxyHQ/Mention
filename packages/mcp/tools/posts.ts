@@ -294,6 +294,84 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
   );
 
   server.tool(
+    "publish-post-now",
+    "Publish one of your drafts or scheduled posts immediately instead of waiting for its scheduled time (requires authorization). Cancel a draft or scheduled post with delete-post instead.",
+    { id: z.string().describe("Draft or scheduled post ID") },
+    withAuthGuard(async ({ id }) => {
+      try {
+        const result = await api.post(`/posts/${encodeURIComponent(id)}/publish`);
+        const post = unwrapApiResponse(result);
+        return { content: [{ type: "text" as const, text: `Post published.\n\n${formatPost(post)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
+    "pin-post",
+    "Pin one of your posts to the top of your profile (requires authorization). Undo with unpin-post.",
+    { id: z.string().describe("Post ID") },
+    withAuthGuard(async ({ id }) => {
+      try {
+        await api.patch(`/posts/${encodeURIComponent(id)}/settings`, { isPinned: true });
+        return { content: [{ type: "text" as const, text: `Post ${id} pinned to your profile.` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
+    "unpin-post",
+    "Unpin a post from your profile (requires authorization).",
+    { id: z.string().describe("Post ID") },
+    withAuthGuard(async ({ id }) => {
+      try {
+        await api.patch(`/posts/${encodeURIComponent(id)}/settings`, { isPinned: false });
+        return { content: [{ type: "text" as const, text: `Post ${id} unpinned.` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
+    "update-post-settings",
+    "Change who may reply to or quote one of your posts, whether replies wait for your review, and whether its like and boost counts are hidden (requires authorization). Every setting can be changed back the same way, with no edit window.",
+    {
+      id: z.string().describe("Post ID"),
+      replyPermission: replyPermissionSchema,
+      reviewReplies: z.boolean().optional().describe("Hold new replies for your approval"),
+      quotesDisabled: z.boolean().optional().describe("Stop others from quoting this post"),
+      hideEngagementCounts: z.boolean().optional().describe("Hide like and boost counts from others"),
+    },
+    withAuthGuard(async ({ id, replyPermission, reviewReplies, quotesDisabled, hideEngagementCounts }) => {
+      const body: Record<string, unknown> = {};
+      if (replyPermission) body.replyPermission = replyPermission;
+      if (reviewReplies !== undefined) body.reviewReplies = reviewReplies;
+      if (quotesDisabled !== undefined) body.quotesDisabled = quotesDisabled;
+      if (hideEngagementCounts !== undefined) body.hideEngagementCounts = hideEngagementCounts;
+      if (Object.keys(body).length === 0) {
+        return { content: [{ type: "text" as const, text: "Nothing to change: pass at least one setting." }], isError: true };
+      }
+      try {
+        const result = await api.patch<Record<string, unknown>>(`/posts/${encodeURIComponent(id)}/settings`, body);
+        const lines = [
+          `Settings for post ${id} updated.`,
+          `Replies: ${Array.isArray(result.replyPermission) && result.replyPermission.length > 0 ? result.replyPermission.join(", ") : "anyone"}`,
+          `Review replies: ${result.reviewReplies === true ? "yes" : "no"}`,
+          `Quotes disabled: ${result.quotesDisabled === true ? "yes" : "no"}`,
+          `Counts hidden: ${result.hideEngagementCounts === true ? "yes" : "no"}`,
+        ];
+        return { content: [{ type: "text" as const, text: lines.join("\n") }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
     "get-drafts",
     "Get your draft posts (requires authorization).",
     {
