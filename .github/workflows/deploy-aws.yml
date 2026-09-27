@@ -102,6 +102,7 @@ jobs:
         run: bash .github/scripts/require-current-main.sh
 
       - name: Sync GitHub secrets to SSM
+        id: sync
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}
@@ -121,6 +122,11 @@ jobs:
           REDIS_HOST: ${{ secrets.REDIS_HOST }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           REDIS_URI: ${{ secrets.REDIS_URI }}
+          # Instagram Graph (Business Discovery) connector credentials. OPTIONAL:
+          # unset, they are skipped like any other empty secret and the deploy
+          # step binds neither (see OPTIONAL_TASK_SECRETS there).
+          META_GRAPH_ACCESS_TOKEN: ${{ secrets.META_GRAPH_ACCESS_TOKEN }}
+          META_IG_BUSINESS_ACCOUNT_ID: ${{ secrets.META_IG_BUSINESS_ACCOUNT_ID }}
           # No REDIS_URL. `/oxy/_shared/REDIS_URL` is owned by oxy-infra
           # Terraform (terraform-uswest2/redis.tf), and an app deploy must never
           # write a shared parameter: six repos each copied their own
@@ -143,8 +149,17 @@ jobs:
             MENTION_SHELL_ACCESS_KEY
             REDIS_URI
             REDIS_HOST REDIS_PASSWORD
+            META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID
         run: |
           set -euo pipefail
+          # The backend's config schema refuses to boot on a non-numeric id, and
+          # a boot failure only surfaces as a reverted rollout. Refuse it here,
+          # before anything is written. The value is never printed.
+          if [[ -n "$META_IG_BUSINESS_ACCOUNT_ID" && "$META_IG_BUSINESS_ACCOUNT_ID" != "-" &&
+                ! "$META_IG_BUSINESS_ACCOUNT_ID" =~ ^[[:space:]]*[0-9]{1,32}[[:space:]]*$ ]]; then
+            echo "::error::secrets.META_IG_BUSINESS_ACCOUNT_ID is not a numeric Instagram user id; nothing was synced."
+            exit 1
+          fi
           if [[ -z "$MENTION_MCP_JWT_SECRET" || "$MENTION_MCP_JWT_SECRET" == "-" ]]; then
             echo "::error::MENTION_MCP_JWT_SECRET is empty; refusing to rotate only one service."
             exit 1
@@ -164,6 +179,11 @@ jobs:
             echo "Synced $path"
           done
 
+          # NAMES written in this run, never values. The deploy step binds an
+          # optional secret only when its name is here: the write above succeeded
+          # (or the job already failed), so the parameter exists before any
+          # revision naming it is registered.
+          synced=""
           for key in $SSM_SECRET_ALLOWLIST; do
             value="${!key:-}"
             [[ -z "$key" ]] && continue
@@ -179,7 +199,9 @@ jobs:
               --overwrite \
               >/dev/null
             echo "Synced $path"
+            synced="${synced:+$synced }$key"
           done
+          echo "synced=$synced" >>"$GITHUB_OUTPUT"
 
       - name: Re-verify current main before ECS rollout
         run: bash .github/scripts/require-current-main.sh
@@ -252,6 +274,30 @@ jobs:
             {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd",
              "WEB_SHELL_ORIGIN":"https://shell.mention.earth",
              "MOVE_APPLICATION_ID":"4bac8f1baed68fd02d65d592"}
+          # OPTIONAL bindings, merged into the three lists above and below by
+          # optional-task-bindings.sh (which states the rules in full):
+          #
+          # - A secret here is bound to /oxy/mention/<NAME> ONLY when the sync
+          #   step wrote it in this run. Merging before anybody sets the GitHub
+          #   secret therefore binds nothing, rather than naming a parameter
+          #   that does not exist (registers fine, cannot start).
+          # - A variable here comes from the repository variable of the same
+          #   name. Set: validated against the backend's config schema and
+          #   rendered. Unset: REMOVED from the revision, so the code default
+          #   applies — Instagram off, Graph v23.0, backfill 50, federated media
+          #   deletion ON. The Instagram connector additionally stays inert
+          #   until both credentials are present.
+          OPTIONAL_TASK_SECRETS: META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID
+          SYNCED_SECRETS: ${{ steps.sync.outputs.synced }}
+          OPTIONAL_TASK_ENV: >-
+            INSTAGRAM_GRAPH_ENABLED
+            META_GRAPH_API_VERSION
+            INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT
+            FEDERATED_MEDIA_DELETE_ENABLED
+          OPTIONAL_ENV_INSTAGRAM_GRAPH_ENABLED: ${{ vars.INSTAGRAM_GRAPH_ENABLED }}
+          OPTIONAL_ENV_META_GRAPH_API_VERSION: ${{ vars.META_GRAPH_API_VERSION }}
+          OPTIONAL_ENV_INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT: ${{ vars.INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT }}
+          OPTIONAL_ENV_FEDERATED_MEDIA_DELETE_ENABLED: ${{ vars.FEDERATED_MEDIA_DELETE_ENABLED }}
           # A standing absence assertion: every revision is derived from the
           # live one, so merely stopping the GitHub-to-SSM sync would otherwise
           # keep injecting this retired provider credential forever.
@@ -366,7 +412,14 @@ jobs:
         # The existing target group remains on `/`, which server.ts now serves
         # as the same readiness gate as `/health/ready`. ELB mutations belong
         # in oxy-infra because the deploy role intentionally lacks ELB access.
-        run: bash .github/scripts/deploy-ecs-image.sh
+        run: |
+          set -euo pipefail
+          bindings="$(bash .github/scripts/optional-task-bindings.sh)"
+          TASK_SECRET_OVERRIDES_JSON="$(jq -c '.secrets' <<<"$bindings")"
+          TASK_ENV_OVERRIDES_JSON="$(jq -c '.environment' <<<"$bindings")"
+          TASK_ENV_REMOVALS="$(jq -r '.environmentRemovals | join(" ")' <<<"$bindings")"
+          export TASK_SECRET_OVERRIDES_JSON TASK_ENV_OVERRIDES_JSON TASK_ENV_REMOVALS
+          bash .github/scripts/deploy-ecs-image.sh
 
   record-deployment:
     # Runs only after a green production rollout, so a failed or rolled back
