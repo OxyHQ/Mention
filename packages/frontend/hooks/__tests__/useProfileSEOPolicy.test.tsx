@@ -34,7 +34,7 @@ beforeEach(() => {
   Platform.OS = 'web';
   window.history.replaceState(null, '', '/@alias');
   document.head.innerHTML = '<title data-mention-seo="true">Initial alias</title><link data-mention-seo="true" rel="canonical" href="https://mention.earth/@primary"><meta data-mention-seo="true" name="robots" content="noindex,nofollow">';
-  document.body.innerHTML = '<main data-mention-seo-fallback="true" data-mention-seo-url="https://mention.earth/@primary">Public identity</main><div id="root"></div>';
+  document.body.innerHTML = '<div id="root">Application content</div>';
 });
 afterEach(() => {
   act(() => tree?.unmount());
@@ -75,24 +75,24 @@ test('native profiles never adopt a web server document', () => {
   Platform.OS = 'ios';
   render('public');
   expect(latest.server).toBeUndefined();
-  expect(document.querySelector('[data-mention-seo-fallback]')).not.toBeNull();
+  expect(document.querySelector('link[data-mention-seo]')).not.toBeNull();
 });
 
 test('the root bridge preserves alias boot and releases the initial document on real navigation', () => {
   act(() => { tree = TestRenderer.create(<SEOHandoff />); });
-  expect(document.querySelector('[data-mention-seo-fallback]')).not.toBeNull();
+  expect(document.querySelector('link[data-mention-seo]')).not.toBeNull();
   mockPathname = '/@primary';
   act(() => { tree!.update(<SEOHandoff />); });
-  expect(document.querySelector('[data-mention-seo-fallback]')).not.toBeNull();
+  expect(document.querySelector('link[data-mention-seo]')).not.toBeNull();
   mockPathname = '/explore';
   window.history.replaceState(null, '', '/explore');
   act(() => { tree!.update(<SEOHandoff />); });
-  expect(document.querySelector('[data-mention-seo-fallback]')).toBeNull();
+  expect(document.querySelector('link[data-mention-seo]')).toBeNull();
   expect(document.title).toBe('Managed Mention');
 });
 
 test('the native root bridge leaves the document alone', () => {
   Platform.OS = 'ios';
   act(() => { tree = TestRenderer.create(<SEOHandoff />); });
-  expect(document.querySelector('[data-mention-seo-fallback]')).not.toBeNull();
+  expect(document.querySelector('link[data-mention-seo]')).not.toBeNull();
 });

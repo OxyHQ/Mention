@@ -31,17 +31,8 @@ export interface OgData {
   lang?: string;
   /** Search indexing policy. Public entity pages default to index/follow. */
   robots?: 'index,follow' | 'noindex,follow' | 'noindex,nofollow';
-  /** JSON-LD entity represented by the visible semantic body. */
+  /** JSON-LD entity represented by the public profile or post. */
   jsonLd?: Record<string, unknown>;
-  /** Public text only; never populated for warning-gated or inaccessible entities. */
-  publicContent?: {
-    heading: string;
-    text: string;
-    handle?: string;
-    authorUrl?: string;
-    publishedAt?: string;
-    links?: string[];
-  };
 }
 
 /** Canonical web origin used for `og:url` (the apex the SPA is served from). */
@@ -158,28 +149,6 @@ export function buildOgMetaHtml(og: OgData): string {
   return html.replace(/<(meta|link|script)\b/g, '<$1 data-mention-seo="true"');
 }
 
-/** A visible, escaped document until the matching client route can replace it. */
-export function buildPublicContentHtml(og: OgData): string {
-  const content = og.publicContent;
-  if (!content || og.robots?.startsWith('noindex')) return '';
-  const heading = escapeHtml(content.heading);
-  const identity = content.authorUrl
-    ? `<a href="${escapeHtml(content.authorUrl)}">${heading}</a>`
-    : heading;
-  const paragraphs = content.text.split(/\n+/).filter(Boolean)
-    .map((text) => `<p>${escapeHtml(text)}</p>`).join('');
-  const links = (content.links ?? []).map((link) =>
-    `<li><a href="${escapeHtml(link)}" rel="nofollow ugc">${escapeHtml(link)}</a></li>`).join('');
-  const published = content.publishedAt
-    ? `<p><time datetime="${escapeHtml(content.publishedAt)}">${escapeHtml(content.publishedAt)}</time></p>`
-    : '';
-  return `<main data-mention-seo-fallback="true" data-mention-seo-url="${escapeHtml(og.url)}" aria-label="Public ${og.type === 'profile' ? 'profile' : 'post'}">` +
-    `<article><h1>${identity}</h1>` +
-    (content.handle ? `<p>${escapeHtml(content.handle)}</p>` : '') +
-    published + paragraphs + (links ? `<ul>${links}</ul>` : '') +
-    `<p><a href="${escapeHtml(og.url)}">View on Mention</a></p></article></main>`;
-}
-
 const TITLE_RE = /<title\b[^>]*>[\s\S]*?<\/title>/i;
 const HEAD_CLOSE_RE = /<\/head>/i;
 
@@ -226,11 +195,6 @@ export function renderShellWithOg(shell: string, og: OgData | null): string {
     ? html.replace(HEAD_CLOSE_RE, () => `${meta}</head>`)
     : meta + html;
 
-  // Backend and frontend deploy independently. An old cached shell cannot
-  // retire the semantic fallback, so advertise this capability in the export.
-  const supportsHandoff = /<meta\b(?=[^>]*\bname=["']mention-seo-handoff["'])(?=[^>]*\bcontent=["']1["'])[^>]*>/i.test(shell);
-  const body = supportsHandoff ? buildPublicContentHtml(og) : '';
-  if (body) html = html.replace(/<body\b[^>]*>/i, (tag) => tag + body);
   return html;
 }
 
@@ -259,7 +223,6 @@ export function mapProfileOg(data: OxyProfileData | null | undefined): OgData | 
     url,
     type: 'profile',
     robots: 'index,follow',
-    publicContent: { heading: name, handle: `@${username}`, text: description, links: publicLinks },
     jsonLd: {
       '@context': 'https://schema.org',
       '@type': 'ProfilePage',
@@ -362,7 +325,6 @@ export function mapPostOg(post: HydratedPost, id: string, safety: PostOgSafety):
     type: 'article',
     lang: post.content?.textLang || post.metadata?.language,
     robots: 'index,follow',
-    publicContent: { heading: author, handle: authorHandle, text: bodyText, authorUrl, publishedAt: createdAt },
     jsonLd: {
       '@context': 'https://schema.org',
       '@type': 'SocialMediaPosting',

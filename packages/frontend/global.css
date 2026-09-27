@@ -123,24 +123,3 @@ body {
   min-height: 100vh !important;
   overflow: visible !important;
 }
-
-/* Public semantic HTML remains readable while Expo/fonts/session initialize.
- * Keep React laid out underneath, then reveal it when the route commits data. */
-[data-mention-seo-fallback="true"] {
-  position: fixed;
-  inset: 0;
-  z-index: 2147483646;
-  overflow: auto;
-  padding: 24px;
-  background: Canvas;
-  color: CanvasText;
-}
-[data-mention-seo-fallback="true"] > article {
-  max-width: 640px;
-  margin: 0 auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-body:has([data-mention-seo-fallback="true"]) #root {
-  visibility: hidden;
-}

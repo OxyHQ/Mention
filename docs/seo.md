@@ -1,52 +1,36 @@
 # Public search indexing
 
-Mention serves public profiles and posts from the apex as semantic HTML before
-the Expo application becomes interactive. Browser and crawler requests receive
-the same initial document. The backend owns the initial title, description,
-canonical URL, robots directive, Open Graph fields, JSON-LD, and visible fallback
-content; the frontend `SEO` component keeps those fields current after client-side
-navigation.
+Mention serves the same Expo application shell to browsers and crawlers. The
+backend provides the initial title, description, canonical URL, robots directive,
+Open Graph fields and JSON-LD. The frontend `SEO` component keeps those head
+fields current after client-side navigation.
 
-## Server-to-client handoff
+## Head metadata handoff
 
 The renderer marks its title, meta, canonical and JSON-LD elements with
-`data-mention-seo="true"`. Eligible public content appears in a separate
-`<main data-mention-seo-fallback="true">` outside Expo's `#root`, with the
-canonical URL in `data-mention-seo-url`. User text is escaped; no public body is
-emitted for restricted, missing, failed or warning-gated responses. Boosts must
-also pass current visibility and author checks for their original post before
-a cached representation can be served.
+`data-mention-seo="true"`. A ready route adopts those fields; navigating away
+also retires the initial metadata. Proven aliases preserve the original request
+identity separately from the canonical URL until their profile is ready.
 
-The frontend stylesheet keeps that document visible while the matching React
-route loads underneath. Only the route's ready state releases the fallback;
-mounting providers or resolving authentication alone is insufficient. Real
-navigation to another pathname releases stale server content and metadata,
-including navigation to a route without an SEO component.
+SEO must not introduce an alternate visible interface. The renderer leaves the
+application body unchanged: no injected profile/post article, boot overlay,
+hidden replacement content or crawler-specific body. React owns the visible
+application throughout startup, including its normal loading states.
 
 Initial post metadata remains authoritative because the backend evaluates raw
 safety and visibility signals that the hydrated client DTO does not contain.
 When navigating client-side to a post without that server proof, use generic
-`noindex,nofollow` metadata without body text, content-derived images or structured data. A direct
-request for the same eligible public URL still receives indexable server HTML.
-Do not infer public eligibility from the DTO's `metadata.isSensitive` alone.
+`noindex,nofollow` metadata without body text, content-derived images or structured
+data. A direct request for an eligible public URL still receives indexable head
+metadata. Do not infer eligibility from `metadata.isSensitive` alone.
 
-## Rollout and verification
+## Verification
 
-The frontend export advertises `<meta name="mention-seo-handoff" content="1">`.
-The backend adds semantic fallback content only when that capability is present
-in the fetched shell. Cached legacy shells keep their existing empty SPA body,
-so parallel frontend/backend rollout and rollback are safe. Frontend-first
-rollout remains preferred; verify the marker survives the exported document.
-The backend's minimal no-JavaScript emergency shell also advertises support,
-because it has no client tree that could duplicate the visible content.
-
-Use a production web export and real renderer output to check JavaScript-disabled
-public content, initial boot, delayed profile/post reads, and client navigation.
-Assert a single title/canonical/robots/description, fallback removal only when
-matching content is ready, no transient home pathname on a deep-link load, and
-no private or sensitive text in response HTML. Backend tests also cover current
-boost-original eligibility and bypassing cached public text after a warning
-flag changes. Missing entities and dependency failures retain 404 and 503.
+Use a production web export and the real backend renderer. Verify that JavaScript-
+disabled and delayed-script responses preserve the application's original body,
+that no intermediate SEO screen appears, and that `#root` is never hidden by SEO.
+Assert a single title/canonical/robots/description after readiness, no transient
+home pathname on deep-link loads, and removal of stale metadata after navigation.
 
 ## Eligibility
 
@@ -85,5 +69,6 @@ ProfilePage markup, crawl failures, and sitemap URL counts. Retired numeric shar
 URLs return XML with `410 Gone`, never the HTML application shell.
 
 The production smoke test is `https://mention.earth/@aida_quilcue@x.com`: it must
-return a `200`, a self-canonical URL, visible “Aida Quilcué” identity text, and
-valid `ProfilePage` JSON-LD to both a normal browser user agent and Googlebot.
+return a `200`, a self-canonical URL, and valid `ProfilePage` JSON-LD to both a
+normal browser user agent and Googlebot. Visible identity text comes from the
+application after it loads.
