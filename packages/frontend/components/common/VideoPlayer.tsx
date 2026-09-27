@@ -14,7 +14,7 @@ import { useVideoPlayback } from '@/context/VideoPlaybackContext';
 import { useHlsPlayback } from '@/lib/hlsPlayback';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { formatDuration } from '@/utils/formatDuration';
-import { findVideoElement, watchVideoSize } from './videoElementSize';
+import { findVideoElement } from './videoElementSize';
 
 interface VideoPlayerProps {
   src: string;
@@ -305,8 +305,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
     reportAspectRatio(player.videoTrack?.size?.width, player.videoTrack?.size?.height);
     if (Platform.OS === 'web') {
-      // The flight surface can mount its <video> after the effect below ran;
-      // by `readyToPlay` it exists and knows its size.
+      // expo-video's web player reports no track sizes, so the read above never
+      // learns a ratio there. By `readyToPlay` the <video> element has loaded
+      // its metadata: read the size off it, or a video whose record carries no
+      // dimensions keeps the card's fallback box. Read inside this existing
+      // listener rather than a new effect: this component mounts in every video
+      // row, and the row-cost budget counts its hooks.
       const video = findVideoElement(videoViewRef.current, resolveDomElement(containerRef.current));
       if (video) reportAspectRatio(video.videoWidth, video.videoHeight);
     }
@@ -324,15 +328,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   });
 
-  // Web: expo-video reports no track sizes there, so the `videoTrack` /
-  // `availableVideoTracks` reads above never learn a ratio. Read it from the
-  // <video> element itself (the same element HLS attaches to), or a video whose
-  // record carries no dimensions keeps the fallback box forever.
-  useEffect(() => {
-    if (Platform.OS !== 'web' || !onAspectRatio) return;
-    const video = findVideoElement(videoViewRef.current, resolveDomElement(containerRef.current));
-    return video ? watchVideoSize(video, reportAspectRatio) : undefined;
-  }, [onAspectRatio, reportAspectRatio, src, player]);
 
   // Web only: this player's own IntersectionObserver is its visibility source. It
   // reports BOTH the viewport center-Y (which contests the single audible slot)

@@ -4,8 +4,8 @@
  *
  * expo-video's web player reports no track sizes (`videoTrack` /
  * `availableVideoTracks` carry none), so on web the only source of a video's
- * shape is the element itself: `videoWidth`/`videoHeight`, known from
- * `loadedmetadata` on. Without it a video stored before its dimensions were
+ * shape is the element itself: `videoWidth`/`videoHeight`, known once its
+ * metadata loaded (the player reads them at `readyToPlay`). Without it a video stored before its dimensions were
  * collected (an Instagram Reel in the half-minute after import) keeps the
  * card's fallback box — or, before that box existed, rendered as nothing.
  */
@@ -14,20 +14,12 @@
 export interface VideoElementLike {
   readonly videoWidth: number;
   readonly videoHeight: number;
-  readonly readyState: number;
-  addEventListener(type: 'loadedmetadata', listener: () => void): void;
-  removeEventListener(type: 'loadedmetadata', listener: () => void): void;
 }
-
-/** `HAVE_METADATA`: from here on the size is known and `loadedmetadata` has fired. */
-const HAVE_METADATA = 1;
 
 function isVideoElement(value: unknown): value is VideoElementLike {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<VideoElementLike>;
-  return typeof candidate.videoWidth === 'number'
-    && typeof candidate.videoHeight === 'number'
-    && typeof candidate.addEventListener === 'function';
+  return typeof candidate.videoWidth === 'number' && typeof candidate.videoHeight === 'number';
 }
 
 /**
@@ -42,20 +34,4 @@ export function findVideoElement(
   if (isVideoElement(own)) return own;
   const found = container?.querySelector?.('video');
   return isVideoElement(found) ? found : null;
-}
-
-/**
- * Report the element's size now if it is known, and again whenever new metadata
- * loads (a new source). Returns the unsubscribe.
- */
-export function watchVideoSize(
-  video: VideoElementLike,
-  onSize: (width: number, height: number) => void,
-): () => void {
-  const read = () => {
-    if (video.videoWidth > 0 && video.videoHeight > 0) onSize(video.videoWidth, video.videoHeight);
-  };
-  if (video.readyState >= HAVE_METADATA) read();
-  video.addEventListener('loadedmetadata', read);
-  return () => video.removeEventListener('loadedmetadata', read);
 }
