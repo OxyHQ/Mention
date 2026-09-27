@@ -38,15 +38,18 @@
  */
 
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, ne, or, sql, type SQL } from 'drizzle-orm';
+import { qualified } from '@oxy.so/db';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import {
   federatedActorFields,
   federatedActors,
+  federatedFollows,
 } from '../schema/federation';
 import type {
   FederatedActorField,
   FederatedActorRecord,
   FederatedOutboxBackfillState,
+  InstagramGraphSyncResult,
 } from './actorRecord';
 
 type ActorRow = typeof federatedActors.$inferSelect;
@@ -111,6 +114,8 @@ export function assembleActorRecord(row: ActorRow): FederatedActorRecord {
     lastFetchedAt: optional(row.lastFetchedAt),
     lastOutboxSyncAt: optional(row.lastOutboxSyncAt),
     outboxBackfill: assembleOutboxBackfill(row),
+    instagramGraphSyncedAt: optional(row.instagramGraphSyncedAt),
+    instagramGraphLastResult: optional(row.instagramGraphLastResult),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -765,6 +770,154 @@ export async function releaseAtprotoGraphSync(
     );
 }
 
+/**
+ * Claim the Instagram Graph post sync of one actor — the same conditional-UPDATE
+ * cooldown + lease as {@link claimAtprotoGraphSync}, so concurrent profile views,
+ * several API tasks and the periodic job cannot fan out duplicate Graph calls
+ * against Meta's ~200 calls/hour budget. The row count IS the answer.
+ *
+ * `cooldownCutoff` gates a completed sync; a `not_business` answer is gated by
+ * the (longer) `notBusinessCutoff` instead, because an account that is not a
+ * Business/Creator account stays that way for weeks.
+ */
+export async function claimInstagramGraphSync(
+  actorId: string,
+  now: Date,
+  cutoffs: { cooldown: Date; notBusiness: Date; staleLease: Date },
+  db: DatabaseOrTransaction = getDb(),
+): Promise<boolean> {
+  const claimed = await db
+    .update(federatedActors)
+    .set({ instagramGraphSyncStartedAt: now, updatedAt: new Date() })
+    .where(
+      and(
+        eq(federatedActors.id, actorId),
+        isNotNull(federatedActors.oxyUserId),
+        or(
+          isNull(federatedActors.instagramGraphSyncedAt),
+          and(
+            sql`${federatedActors.instagramGraphLastResult} is distinct from 'not_business'`,
+            lte(federatedActors.instagramGraphSyncedAt, cutoffs.cooldown),
+          ),
+          and(
+            eq(federatedActors.instagramGraphLastResult, 'not_business'),
+            lte(federatedActors.instagramGraphSyncedAt, cutoffs.notBusiness),
+          ),
+        ),
+        or(
+          isNull(federatedActors.instagramGraphSyncStartedAt),
+          lte(federatedActors.instagramGraphSyncStartedAt, cutoffs.staleLease),
+        ),
+      ),
+    )
+    .returning({ id: federatedActors.id });
+
+  return claimed.length > 0;
+}
+
+/**
+ * Release the lease taken by {@link claimInstagramGraphSync}. `result` stamps the
+ * cooldown; `null` releases WITHOUT stamping (a skipped run — budget exhausted,
+ * throttled — is retried at the next opportunity rather than sitting out the
+ * window). `heldSince` keeps a late finisher from clearing a newer holder's lease.
+ */
+export async function releaseInstagramGraphSync(
+  actorId: string,
+  heldSince: Date,
+  result: InstagramGraphSyncResult | null,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<void> {
+  await db
+    .update(federatedActors)
+    .set({
+      instagramGraphSyncStartedAt: null,
+      ...(result ? { instagramGraphSyncedAt: new Date(), instagramGraphLastResult: result } : {}),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(federatedActors.id, actorId),
+        eq(federatedActors.instagramGraphSyncStartedAt, heldSince),
+      ),
+    );
+}
+
+/**
+ * Store an actor's remote aggregate counts as the source reported them — for an
+ * actor whose counts no actor-document refresh supplies (an `instagram-graph`
+ * actor's arrive with its Graph post sync). `undefined` leaves a column alone.
+ */
+export async function setActorRemoteCounts(
+  actorId: string,
+  counts: { followersCount?: number; followingCount?: number; postsCount?: number },
+  db: DatabaseOrTransaction = getDb(),
+): Promise<void> {
+  const set: Partial<ActorInsert> = {};
+  if (counts.followersCount !== undefined) set.followersCount = counts.followersCount;
+  if (counts.followingCount !== undefined) set.followingCount = counts.followingCount;
+  if (counts.postsCount !== undefined) set.postsCount = counts.postsCount;
+  if (Object.keys(set).length === 0) return;
+  await db.update(federatedActors).set({ ...set, updatedAt: new Date() }).where(eq(federatedActors.id, actorId));
+}
+
+/** An actor the periodic Instagram Graph sync may pick up. */
+export interface InstagramGraphSyncCandidate {
+  id: string;
+  uri: string;
+}
+
+/**
+ * Instagram-identity actors with at least one ACCEPTED local follower whose
+ * Graph sync is due, oldest (or never) synced first.
+ *
+ * "Instagram identity" is the same rule `identityDomainOfActor` applies — the
+ * `network_acct` domain — plus every `instagram-graph` actor. The follower test is
+ * an outbound follow edge (a local user following the remote actor) in
+ * `accepted`, so an unconfirmed kilogram Follow does not cost Graph budget.
+ */
+export async function findInstagramGraphSyncCandidates(
+  dueBefore: Date,
+  notBusinessDueBefore: Date,
+  limit: number,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<InstagramGraphSyncCandidate[]> {
+  return db
+    .select({ id: federatedActors.id, uri: federatedActors.uri })
+    .from(federatedActors)
+    .where(
+      and(
+        isNotNull(federatedActors.oxyUserId),
+        eq(federatedActors.suspended, false),
+        or(
+          eq(federatedActors.protocol, 'instagram-graph'),
+          sql`lower(split_part(${federatedActors.networkAcct}, '@', 2)) = 'instagram.com'`,
+        ),
+        or(
+          isNull(federatedActors.instagramGraphSyncedAt),
+          and(
+            sql`${federatedActors.instagramGraphLastResult} is distinct from 'not_business'`,
+            lte(federatedActors.instagramGraphSyncedAt, dueBefore),
+          ),
+          and(
+            eq(federatedActors.instagramGraphLastResult, 'not_business'),
+            lte(federatedActors.instagramGraphSyncedAt, notBusinessDueBefore),
+          ),
+        ),
+        // Every reference `qualified()`: a bare column in a correlated subquery
+        // resolves against the SUBQUERY's table and silently matches nothing
+        // (`schema/CONVENTIONS.md`).
+        sql`exists (
+          select 1 from ${federatedFollows}
+          where ${qualified(federatedFollows.remoteActorUri)} = ${qualified(federatedActors.uri)}
+            and ${qualified(federatedFollows.direction)} = 'outbound'
+            and ${qualified(federatedFollows.status)} = 'accepted'
+        )`,
+      ),
+    )
+    .orderBy(sql`${federatedActors.instagramGraphSyncedAt} asc nulls first`, asc(federatedActors.id))
+    .limit(limit);
+}
+
 /** A whitespace/markup normalization of one actor's stored remote text. */
 export interface ActorTextPatch {
   username?: string;
@@ -912,6 +1065,9 @@ export async function findStaleActorsForRefresh(
           isNull(federatedActors.lastFetchedAt),
         ),
         or(...reachable),
+        // An `instagram-graph` actor has no ActivityPub document to refresh; its
+        // profile is Oxy's and its posts come from the Instagram connector.
+        ne(federatedActors.protocol, 'instagram-graph'),
       ),
     )
     .limit(limit);

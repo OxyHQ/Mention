@@ -1,4 +1,5 @@
 import { logger } from '../../utils/logger';
+import { isInstagramSourceActivityId } from '../shared/instagramSourceKey';
 import {
   findActorByUri,
   findActorInboxesByUris,
@@ -1100,6 +1101,19 @@ export class FollowService {
     if (!original) return null;
 
     const activityId = original.federation?.activityId;
+    if (activityId && isInstagramSourceActivityId(activityId)) {
+      // Imported from Meta's Graph API: there is no ActivityPub object and no
+      // inbox to reach. The Instagram permalink stands in as the reference a
+      // reply or quote names; with no `authorInbox`, a Like / Announce / reply
+      // push to the author is skipped — Instagram cannot receive it, and the
+      // bridge actor this author may also have never minted this object id.
+      return {
+        objectUri: original.federation?.url ?? activityId,
+        authorActorUri: undefined,
+        authorInbox: undefined,
+        authorAcct: undefined,
+      };
+    }
     if (activityId) {
       const authorActorUri = original.federation?.actorUri;
       // ONE actor read yields both the delivery inbox and the acct (`user@domain`)

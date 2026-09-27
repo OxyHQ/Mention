@@ -36,8 +36,18 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 
-/** The external networks an actor can belong to. */
-export const FEDERATION_PROTOCOLS = ['activitypub', 'atproto'] as const;
+/**
+ * The external networks an actor can belong to.
+ *
+ * `instagram-graph` is an Instagram account Oxy resolved through Meta's Graph API
+ * (Business Discovery) because no ActivityPub bridge could answer for it. Its
+ * `uri` is `instagram-graph:<ig-user-id>`; it has no inbox, no outbox and is read
+ * only by the pull-based Instagram connector (`connectors/instagram/`).
+ */
+export const FEDERATION_PROTOCOLS = ['activitypub', 'atproto', 'instagram-graph'] as const;
+
+/** The outcome of the last Instagram Graph post sync of an actor. */
+export const INSTAGRAM_GRAPH_SYNC_RESULTS = ['ok', 'not_business', 'error'] as const;
 
 /** ActivityPub actor types Mention accepts. */
 export const FEDERATED_ACTOR_TYPES = [
@@ -196,6 +206,21 @@ export const federatedActors = pgTable(
     lastAtprotoGraphSyncAt: timestamptz(),
     atprotoGraphSyncStartedAt: timestamptz(),
 
+    // ── Instagram Graph post sync ──
+    //
+    // The same cooldown + lease pair as the atproto graph sync above, for the
+    // pull-only Instagram connector: an Instagram identity (a kilogram bridge
+    // actor whose `network_acct` is on instagram.com, or an `instagram-graph`
+    // actor) has its posts read from Meta's Graph API, and several profile views
+    // plus the periodic job can reach one actor at once. Deliberately NOT
+    // `last_outbox_sync_at`: the ActivityPub outbox sync of a kilogram actor stamps
+    // that one, and sharing it would let either sync starve the other.
+    // `instagram_graph_last_result` keeps a "not a business account" answer, which
+    // is stable for weeks, from being re-asked on every cooldown.
+    instagramGraphSyncedAt: timestamptz(),
+    instagramGraphSyncStartedAt: timestamptz(),
+    instagramGraphLastResult: text({ enum: INSTAGRAM_GRAPH_SYNC_RESULTS }),
+
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -207,6 +232,10 @@ export const federatedActors = pgTable(
     check(
       'federated_actors_type_check',
       sql`${t.type} in (${sql.raw(inList(FEDERATED_ACTOR_TYPES))})`
+    ),
+    check(
+      'federated_actors_instagram_graph_last_result_check',
+      sql`${t.instagramGraphLastResult} is null or ${t.instagramGraphLastResult} in (${sql.raw(inList(INSTAGRAM_GRAPH_SYNC_RESULTS))})`
     ),
     check(
       'federated_actors_outbox_backfill_status_check',

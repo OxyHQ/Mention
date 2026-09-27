@@ -333,6 +333,96 @@ this side reads, the bridge writes. These
 features do not change the ActivityPub routes or the native PostgreSQL
 authority.
 
+## Instagram: the kilogram bridge and the Graph API
+
+Oxy maps `<u>@instagram.com` to the kilogram.makeup ActivityPub bridge. That
+bridge is the preferred road for identity and for new posts, but it never serves
+history: its outbox is a bare `{"type":"Collection"}`, and its WebFinger often
+answers 429. A kilogram profile therefore opens empty, and it only fills after
+someone follows the account and it posts again.
+
+The optional Instagram connector (`packages/backend/src/connectors/instagram/`)
+fills that gap. It reads posts from Meta's Graph API through Business Discovery,
+and it only reads. It covers every actor whose identity is on instagram.com. For
+a kilogram actor that is the `network_acct` domain. It also covers the
+`instagram-graph:<ig-user-id>` actors that Oxy returns when no bridge answers.
+Those actors are cached with `protocol = 'instagram-graph'`,
+`domain = instagram.com` and `acct = networkAcct = <u>@instagram.com`. Their
+profile, bio and avatar come from Oxy.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `INSTAGRAM_GRAPH_ENABLED` | `false` | Master gate |
+| `META_GRAPH_ACCESS_TOKEN` | — | Secret. Long-lived token, sent only in the `Authorization` header |
+| `META_IG_BUSINESS_ACCOUNT_ID` | — | The Instagram Business account the token acts as |
+| `META_GRAPH_API_VERSION` | `v23.0` | Graph API version |
+| `INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT` | `50` | Posts imported when someone follows |
+
+The connector is inert unless the flag and both credentials are set.
+
+**When posts are read.** Each sync takes a per-actor lease
+(`federated_actors.instagram_graph_*`), so concurrent triggers make one set of
+calls:
+
+- A profile view imports one page, at most every 6 hours per actor. The profile
+  reports `pending` only until a first sync has finished, so it does not flicker
+  between a spinner and an empty page.
+- A follow imports up to `INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT` posts. This
+  covers a kilogram follow and an `instagram-graph` subscription.
+- The `syncInstagramFollowedAccounts` periodic job runs every 30 minutes. It
+  syncs up to 10 actors that have an accepted local follower, 2 at a time. Each
+  sync goes newest first and stops at the first post already imported.
+
+**Budget.** A token gets about 200 calls per hour. Each response's `x-app-usage`
+header is recorded in Redis, or per process when Redis is unavailable. The
+recorded value decays over one hour. Background calls stop at 75% usage, and
+profile views stop at 95%.
+
+| Error code | Meaning | Response |
+| --- | --- | --- |
+| 4, 17, 32, 613 | Throttled | Back off exponentially, from 15 minutes up to 2 hours |
+| 190 | Invalid token | Pause for an hour and log once at `error`. Neither the token nor a URL is ever logged. |
+| 110 / 2207013 | Not a Business or Creator account | Remember it and re-ask weekly. Personal accounts cannot be read. |
+
+**What is imported.** Each post goes through `getPostCreator().create` with
+notifications, socket emits and federation delivery skipped, and it keeps its
+original `createdAt`. The caption becomes the text; bare `@handles` are qualified
+onto instagram.com and hashtags are extracted. Media is materialized at import,
+because Meta's CDN URLs expire (`oe=`) and a video can be about 30 MB:
+
+- A carousel imports every child, in order.
+- A video that Instagram serves only as a thumbnail (licensed audio) imports that
+  thumbnail as an image.
+- A video that cannot be stored falls back to its poster image.
+
+If the media cache is disabled, the remote URLs are kept and will expire.
+
+**One post, two roads.** A Graph-imported post is stored with
+`federation_activity_id = instagram:<shortcode>`, with the shortcode taken from
+the permalink. A kilogram Note's id is
+`https://kilogram.makeup/users/<u>/statuses/<shortcode>`, measured live. Both
+write `posts.source_post_key = instagram:<shortcode>` under a partial UNIQUE
+index (migration `0054`), so whichever road arrives second collides instead of
+duplicating.
+
+- Every "is this object already here?" gate on the ActivityPub side matches on
+  that key. A kilogram Like, boost, reply or re-push of a Graph-imported post
+  links to the existing row.
+- A Graph import skips a post that kilogram delivered before the key existed. It
+  finds that post by its bridge Note id.
+- Graph posts of a kilogram actor are stored under the kilogram actor URI, so
+  identity projection and cross-post detection treat both roads as one source.
+
+Nothing is sent to Instagram. Replies, likes and boosts of a Graph-imported post
+are not delivered, and the permalink stands in as the object a reply or quote
+references.
+
+**Pending upstream.** The published `@oxy.so/contracts` (3.0.0) and
+`@oxy.so/federation` (2.1.2) do not name `instagram-graph` yet.
+`packages/backend/src/connectors/pendingUpstreamWidening.ts` widens the types and parses Oxy's
+identity responses with that one enum value masked. Every other published check
+still runs. After the contracts 4.0.0 bump, that file becomes re-exports.
+
 ## The connector contract
 
 Mention's content core (`PostCreationService`, the feed engine, notifications)

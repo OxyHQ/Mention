@@ -5,7 +5,7 @@ import { invalidate as invalidateUserSummaryCache } from '../services/userSummar
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../services/mediaCache/cacheWorker';
 import { FEDERATED_BANNER_DOWNLOAD_POLICY } from '../services/mediaCache/policy';
 import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
-import type { NormalizedExternalActor } from '@oxy.so/federation';
+import type { NormalizedExternalActor } from './pendingUpstreamWidening';
 import { createIdentityBridge, type ServiceRequest, type ServiceRequestMethod } from '@oxy.so/federation/node';
 import { resolveOxyIdentity } from './oxyIdentity';
 
@@ -29,7 +29,9 @@ export async function resolveOxyExternalUser(actor: NormalizedExternalActor): Pr
     const resolved = await resolveOxyIdentity({
       actorUri: actor.externalId,
       transportAcct: actor.handle,
-      protocol: actor.network === 'atproto' ? 'atproto' : 'activitypub',
+      // The actor's own network IS the protocol Oxy resolves it through — no
+      // longer "atproto, else ActivityPub": an `instagram-graph` actor is neither.
+      protocol: actor.network,
     });
     await invalidateUserSummaryCache([resolved.user.id]);
     return resolved.user.id;

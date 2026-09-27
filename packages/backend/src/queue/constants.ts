@@ -123,6 +123,8 @@ export const PERIODIC_SYNC_FOLLOWED_OUTBOX = 'federation:sync-followed-outbox';
 export const PERIODIC_RECENT_OUTBOX_BACKFILL = 'federation:recent-outbox-backfill';
 export const PERIODIC_MEDIA_CACHE_WORKER = 'federation:media-cache-worker';
 export const PERIODIC_MEDIA_CACHE_EVICTION = 'federation:media-cache-eviction';
+/** Followed Instagram-identity accounts' new posts, through the Graph API. */
+export const PERIODIC_INSTAGRAM_GRAPH_SYNC = 'federation:instagram-graph-sync';
 
 /**
  * Recommendation-signal scheduler ids. These pipe Mention curation + engagement
@@ -166,6 +168,13 @@ export const FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS = 2 * MS_PER_MINUTE;
  * per-event push cost across a whole batch.
  */
 export const FLUSH_AFFINITY_EVENTS_INTERVAL_MS = 30 * MS_PER_SECOND;
+
+/**
+ * Instagram Graph sync cadence. Each run spends at most one Graph call per
+ * actor in its batch (`connectors/instagram/constants.ts`), so 30 minutes keeps
+ * the job to a small, bounded share of the ~200 calls/hour budget.
+ */
+export const INSTAGRAM_GRAPH_SYNC_INTERVAL_MS = 30 * MS_PER_MINUTE;
 
 /** Concurrency for the periodic worker. MUST be 1 so a repeatable job never overlaps itself. */
 export const PERIODIC_WORKER_CONCURRENCY = 1;

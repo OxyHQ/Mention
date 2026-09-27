@@ -138,6 +138,13 @@ export interface AccountBadgeProps extends IdentityBadgeVisualProps {
    */
   network?: ExternalNetwork;
   /**
+   * The account's IDENTITY handle (`local@domain`), when the caller has it. An
+   * account whose identity is on instagram.com is an Instagram account however
+   * its posts arrive — through the kilogram bridge (an ActivityPub actor) or the
+   * Graph API — so the handle, not the transport, decides the Instagram chip.
+   */
+  handle?: string;
+  /**
    * Opt IN to the fediverse explainer. Honoured ONLY by the federated marker.
    * Passing it alongside a `channel` kind does nothing, so wiring the fediverse
    * dialog to a channel icon is not something a call site can do by mistake.
@@ -189,10 +196,20 @@ export function AccountBadge(props: AccountBadgeProps) {
   return <AccountBadgeMarker {...props} />;
 }
 
+/** The domain half of a `local@domain` identity handle, lowercased. */
+function identityDomainOfHandle(handle: string | undefined): string | undefined {
+  if (!handle) return undefined;
+  const at = handle.lastIndexOf('@');
+  return at > 0 && at < handle.length - 1 ? handle.slice(at + 1).toLowerCase() : undefined;
+}
+
+const INSTAGRAM_IDENTITY_DOMAIN = 'instagram.com';
+
 function AccountBadgeMarker({
   kind,
   isFederated,
   network = 'activitypub',
+  handle,
   onExplainNetwork,
   onExplainChannel,
   ...visual
@@ -200,6 +217,23 @@ function AccountBadgeMarker({
   const { t } = useTranslation();
 
   if (isFederated) {
+    if (network === 'instagram-graph' || identityDomainOfHandle(handle) === INSTAGRAM_IDENTITY_DOMAIN) {
+      // Instagram is not the fediverse either, even when a bridge carries it
+      // over ActivityPub — and nothing Mention sends reaches its author. A named
+      // chip, never interactive, for the same reason as Bluesky's below.
+      return (
+        <View
+          className={visual.containerClassName}
+          style={visual.style}
+          accessibilityRole="image"
+          accessibilityLabel={t('fediverse.remoteBadge.instagramA11yLabel')}
+        >
+          <View className="bg-muted rounded-full px-2 py-0.5">
+            <Text className="text-muted-foreground text-xs font-medium">Instagram</Text>
+          </View>
+        </View>
+      );
+    }
     if (network === 'atproto') {
       // Bluesky is not the fediverse, so a named chip rather than a glyph that
       // would claim it is. Never interactive, at any call site: the only

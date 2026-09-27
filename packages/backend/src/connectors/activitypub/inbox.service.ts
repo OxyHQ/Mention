@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { postMatchesFederatedObjectSql } from '../shared/instagramSourceKey';
 import { isApActorType } from '@oxy.so/federation';
 import { createInboundDispatcher, type InboundDispatcherConfig } from '@oxy.so/federation/node';
 import { logger } from '../../utils/logger';
@@ -557,11 +558,12 @@ export class InboxProcessingService {
       return;
     }
 
-    // Dedup by activityId
+    // Dedup by activityId — and, for a bridged Instagram Note, by the Instagram
+    // post it mirrors, so a post the Graph import already holds is not stored twice.
     const [existingPost] = await getDb()
       .select({ id: posts.id })
       .from(posts)
-      .where(eq(posts.federationActivityId, note.id))
+      .where(postMatchesFederatedObjectSql(note.id))
       .limit(1);
     if (existingPost) return;
 

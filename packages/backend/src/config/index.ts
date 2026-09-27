@@ -408,6 +408,24 @@ const environmentSchema = z
     ATPROTO_PLC_DIRECTORY: z.preprocess(emptyAsUndefined, host.default('plc.directory')),
     ATPROTO_BRIDGE_ENABLED: booleanFromEnv(false),
 
+    /**
+     * Instagram posts through Meta's Graph API (Business Discovery). OFF by
+     * default and INERT unless the token and the business account id are both
+     * configured too: the connector reads, never writes, and every call spends a
+     * shared ~200 calls/hour budget (see `connectors/instagram/`).
+     */
+    INSTAGRAM_GRAPH_ENABLED: booleanFromEnv(false),
+    META_GRAPH_ACCESS_TOKEN: trimmedOptionalString,
+    META_IG_BUSINESS_ACCOUNT_ID: z.preprocess(
+      emptyAsUndefined,
+      z.string().trim().regex(/^\d{1,32}$/, 'META_IG_BUSINESS_ACCOUNT_ID must be a numeric Instagram user id').optional(),
+    ),
+    META_GRAPH_API_VERSION: z.preprocess(
+      emptyAsUndefined,
+      z.string().trim().regex(/^v\d{1,3}\.\d{1,3}$/, 'META_GRAPH_API_VERSION must look like v23.0').default('v23.0'),
+    ),
+    INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT: integerFromEnv(50, { minimum: 1, maximum: 200 }),
+
     GIF_LIBRARY_WRITE_ENABLED: booleanFromEnv(true),
     KLIPY_MEDIA_HOSTS: commaSeparatedDomains(['klipy.com']),
     GIF_MEDIA_PROXY_SECRET: optionalString(32),
@@ -704,6 +722,14 @@ export function getGifMediaProxySecret(): string | undefined {
   return environment.GIF_MEDIA_PROXY_SECRET;
 }
 
+/**
+ * The Meta Graph API token. A function, not a `config` field, so the secret is
+ * never part of an object someone might log or serialize.
+ */
+export function getMetaGraphAccessToken(): string | undefined {
+  return environment.META_GRAPH_ACCESS_TOKEN;
+}
+
 export function getKlipyAppKey(): string {
   return environment.KLIPY_APP_KEY ?? '';
 }
@@ -870,6 +896,18 @@ export const config = {
     shellAccessKey: environment.MENTION_SHELL_ACCESS_KEY,
     apiOrigin: environment.MENTION_API_ORIGIN,
     oxyMediaCdnOrigin: environment.OXY_MEDIA_CDN_ORIGIN,
+  },
+  instagramGraph: {
+    /**
+     * The EFFECTIVE gate: the flag AND both credentials. A half-configured
+     * deployment is inert rather than failing calls it knows cannot succeed.
+     */
+    enabled: environment.INSTAGRAM_GRAPH_ENABLED
+      && Boolean(environment.META_GRAPH_ACCESS_TOKEN)
+      && Boolean(environment.META_IG_BUSINESS_ACCOUNT_ID),
+    businessAccountId: environment.META_IG_BUSINESS_ACCOUNT_ID,
+    apiVersion: environment.META_GRAPH_API_VERSION,
+    followBackfillLimit: environment.INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT,
   },
   atproto: {
     enabled: environment.ATPROTO_ENABLED,

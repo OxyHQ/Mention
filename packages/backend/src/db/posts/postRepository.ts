@@ -873,6 +873,7 @@ function toPostInsert(input: PostRecordInput, id: string): PostInsert {
     federationUrl: input.federation?.url ?? null,
     federationSensitive: input.federation?.sensitive ?? null,
     federationSpoilerText: input.federation?.spoilerText ?? null,
+    sourcePostKey: input.federation?.sourcePostKey ?? null,
 
     contentPollId: content.pollId ?? null,
     contentArticleId: content.article?.articleId ?? null,

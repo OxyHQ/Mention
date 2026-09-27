@@ -4,7 +4,7 @@ export function oxyIdentityFixture(input: {
   transportAcct: string;
   canonicalAcct: string;
   network: string;
-  protocol?: 'activitypub' | 'atproto';
+  protocol?: 'activitypub' | 'atproto' | 'instagram-graph';
   userId?: string;
   displayName?: string;
   bio?: string;

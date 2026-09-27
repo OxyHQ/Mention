@@ -33,7 +33,8 @@ export type PeriodicTaskName =
   | 'runMediaCacheEviction'
   | 'computeInterestScores'
   | 'flushEndorsementOutbox'
-  | 'flushAffinityEvents';
+  | 'flushAffinityEvents'
+  | 'syncInstagramFollowedAccounts';
 
 /** Payload for a periodic (repeatable) federation maintenance job. */
 export interface PeriodicJobData {

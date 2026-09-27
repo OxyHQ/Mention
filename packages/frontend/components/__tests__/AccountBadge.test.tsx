@@ -208,6 +208,26 @@ describe('AccountBadge — which marker the account state chooses', () => {
     expect(buttons(renderer)).toHaveLength(0);
     expect(pressHandlers(renderer)).toHaveLength(0);
   });
+
+  it.each([
+    ['a kilogram bridge account, identified by its instagram.com handle', { handle: 'zuck@instagram.com' }],
+    ['a Graph API account', { network: 'instagram-graph' as const, handle: 'zuck@instagram.com' }],
+  ])('names Instagram for %s, and stays inert', (_case, props) => {
+    const onExplainNetwork = jest.fn();
+    const renderer = render(<AccountBadge isFederated {...props} onExplainNetwork={onExplainNetwork} />);
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('Instagram');
+    expect(labels(renderer)).toEqual([enStrings['fediverse.remoteBadge.instagramA11yLabel']]);
+    expect(icons(renderer, 'FediverseIcon')).toHaveLength(0);
+    expect(buttons(renderer)).toHaveLength(0);
+    expect(pressHandlers(renderer)).toHaveLength(0);
+  });
+
+  it('keeps the fediverse marker for an ordinary fediverse handle', () => {
+    const renderer = render(<AccountBadge isFederated handle="alice@mastodon.social" />);
+    expect(icons(renderer, 'FediverseIcon')).toHaveLength(1);
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Instagram');
+  });
 });
 
 /**

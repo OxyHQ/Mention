@@ -76,6 +76,7 @@ const fixtureFloors = process.env.ARCHITECTURE_VALIDATOR_FIXTURE_FLOORS === "1";
 const PROTOCOLS = [
   { id: "activitypub", dir: "src/connectors/activitypub/", publicEntry: "src/connectors/activitypub/ActivityPubConnector.ts" },
   { id: "atproto", dir: "src/connectors/atproto/", publicEntry: "src/connectors/atproto/AtprotoConnector.ts" },
+  { id: "instagram", dir: "src/connectors/instagram/", publicEntry: "src/connectors/instagram/InstagramGraphConnector.ts" },
 ];
 
 /** Importer prefixes this first cut does not police — see the module docblock. */

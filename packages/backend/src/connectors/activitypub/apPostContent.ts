@@ -1,3 +1,4 @@
+import { instagramSourceKeyFromApObjectUri } from '../shared/instagramSourceKey';
 import {
   MAX_AUTHOR_VARIANTS,
   canonicalizeLanguageTag,
@@ -634,7 +635,17 @@ export function buildFederatedNoteProvenance(input: {
     url: typeof input.noteUrl === 'string' ? input.noteUrl : input.activityId,
     sensitive: input.sensitive,
     spoilerText: input.spoilerText,
+    // A Note from an Instagram bridge carries the Instagram post's source key,
+    // so a copy of the same post already imported from the Graph API (or
+    // imported after this one) collides on `posts_source_post_key_key`.
+    ...withInstagramSourceKey(input.activityId),
   };
+}
+
+/** `{ sourcePostKey }` for a bridged Instagram Note, else no key at all. */
+function withInstagramSourceKey(activityId: string): Pick<PostRecordFederation, 'sourcePostKey'> {
+  const sourcePostKey = instagramSourceKeyFromApObjectUri(activityId);
+  return sourcePostKey ? { sourcePostKey } : {};
 }
 
 /**

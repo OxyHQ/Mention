@@ -45,6 +45,17 @@ import { Loading } from '@oxy.so/bloom/loading';
 const BLUESKY_NETWORK_DOMAIN = 'bsky.social';
 
 /**
+ * Instagram's network domain. An account whose identity is `<u>@instagram.com`
+ * is an Instagram account whichever road its posts take — the kilogram.makeup
+ * ActivityPub bridge or Meta's Graph API (`instagram-graph:<id>` actor) — so the
+ * About screen names Instagram and links to the account's instagram.com page.
+ */
+const INSTAGRAM_NETWORK_DOMAIN = 'instagram.com';
+
+/** Instagram usernames: letters, digits, `.` and `_`, at most 30. */
+const INSTAGRAM_USERNAME_RE = /^[A-Za-z0-9._]{1,30}$/;
+
+/**
  * An account's "about" surface — joined date, location, website, verification,
  * and where else on the network it can be reached.
  *
@@ -136,7 +147,10 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
       instance === BLUESKY_NETWORK_DOMAIN ||
       (actorUri?.startsWith('did:') ?? false) ||
       (actorUri?.startsWith('at://') ?? false);
-    const network: ExternalNetwork = isBluesky ? 'atproto' : 'activitypub';
+    const isInstagram =
+      instance?.toLowerCase() === INSTAGRAM_NETWORK_DOMAIN ||
+      (actorUri?.startsWith('instagram-graph:') ?? false);
+    const network: ExternalNetwork = isBluesky ? 'atproto' : isInstagram ? 'instagram-graph' : 'activitypub';
     const handle = getNormalizedUserHandle({
       username: profileData.username,
       instance,
@@ -144,7 +158,15 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
     });
 
     let originalProfileUrl: string | null = null;
-    if (actorUri?.startsWith('https://') || actorUri?.startsWith('http://')) {
+    if (isInstagram) {
+      // The Instagram page, never the bridge's actor URL: the bridge serves an
+      // ActivityPub document, and the Graph actor URI is not a web address.
+      const at = handle?.lastIndexOf('@') ?? -1;
+      const username = handle && at > 0 ? handle.slice(0, at) : undefined;
+      originalProfileUrl = username && INSTAGRAM_USERNAME_RE.test(username)
+        ? `https://www.instagram.com/${username}/`
+        : null;
+    } else if (actorUri?.startsWith('https://') || actorUri?.startsWith('http://')) {
       originalProfileUrl = actorUri;
     } else if (isBluesky && actorUri) {
       // bsky.app resolves both DIDs and handles at `/profile/<id>`.
@@ -348,25 +370,33 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
           <SettingsListGroup
             title={federationInfo.network === 'atproto'
               ? t('fediverse.about.titleBluesky', { defaultValue: 'Bluesky' })
-              : t('fediverse.about.title', { defaultValue: 'Fediverse' })}
+              : federationInfo.network === 'instagram-graph'
+                ? t('fediverse.about.titleInstagram', { defaultValue: 'Instagram' })
+                : t('fediverse.about.title', { defaultValue: 'Fediverse' })}
             footer={federationInfo.network === 'atproto'
               ? t('fediverse.about.descriptionBluesky', {
                   instance: federationInfo.instance ?? BLUESKY_NETWORK_DOMAIN,
                   defaultValue: 'This account lives on Bluesky ({{instance}}). You can follow it and reply from Mention just like a native account.',
                 })
+              : federationInfo.network === 'instagram-graph'
+                ? t('fediverse.about.descriptionInstagram', {
+                    defaultValue: "This account's posts are copied from Instagram. You can follow it on Mention, but its author can't see replies or likes from here.",
+                  })
               : t('fediverse.about.descriptionActivityPub', {
                   instance: federationInfo.instance ?? '',
                   defaultValue: 'This account lives on another server in the fediverse ({{instance}}). You can follow it and reply from Mention just like a native account.',
                 })}
           >
             <SettingsListItem
-              icon={federationInfo.network === 'atproto'
+              icon={federationInfo.network !== 'activitypub'
                 ? <RowIcon icon={RiEarthLine} />
                 : <FediverseIcon size={20} className="text-muted-foreground" />}
               title={t('fediverse.about.network', { defaultValue: 'Network' })}
               value={federationInfo.network === 'atproto'
                 ? t('fediverse.about.networkBluesky', { defaultValue: 'Bluesky' })
-                : t('fediverse.about.networkActivityPub', { defaultValue: 'ActivityPub' })}
+                : federationInfo.network === 'instagram-graph'
+                  ? t('fediverse.about.networkInstagram', { defaultValue: 'Instagram' })
+                  : t('fediverse.about.networkActivityPub', { defaultValue: 'ActivityPub' })}
             />
 
             {federationInfo.instance && (

@@ -43,6 +43,9 @@ import {
 } from './activitypub/outboxSyncCooldown';
 import { ATPROTO_ENABLED } from './atproto/constants';
 import { syncAtprotoProfileGraph } from './atproto/profileGraph';
+import { instagramGraphConnector } from './instagram/InstagramGraphConnector';
+import { INSTAGRAM_IDENTITY_DOMAIN } from './instagram/constants';
+import { identityDomainOfActor } from './activitypub/identityDomain';
 import { connectorRegistry } from './index';
 
 /**
@@ -79,7 +82,7 @@ class FederatedProfileSync {
    * lookup; never performs network I/O on the caller's path and never throws.
    */
   async syncOnProfileView(oxyUserId: string): Promise<boolean> {
-    if (!FEDERATION_ENABLED && !ATPROTO_ENABLED) return false;
+    if (!FEDERATION_ENABLED && !ATPROTO_ENABLED && !instagramGraphConnector.enabled) return false;
 
     let cachedActor: FederatedActorRecord | null = null;
     try {
@@ -130,6 +133,18 @@ class FederatedProfileSync {
   private runInBackground(syncUserId: string, cachedActor?: FederatedActorRecord): void {
     void (async () => {
       try {
+        // An Instagram identity (a kilogram bridge actor, or an `instagram-graph`
+        // one) reads its posts from Meta's Graph API: the bridge never serves
+        // history, so its outbox sync below can only ever find an empty
+        // collection. The Graph sync is leased, cooled down and budgeted inside
+        // the connector; the ActivityPub flow still runs for a kilogram actor
+        // (actor refresh, and an outbox the bridge might one day fill).
+        if (cachedActor && instagramGraphConnector.isInstagramIdentity(cachedActor)) {
+          instagramGraphConnector.syncOnProfileView(cachedActor);
+        }
+        // A Graph-only actor has no ActivityPub side at all.
+        if (cachedActor?.protocol === 'instagram-graph') return;
+
         // Dispatch by the cached actor's network. atproto profiles backfill
         // through the atproto connector's pull-based author feed (no AP outbox
         // dance); the rest of this method is the ActivityPub outbox flow.
@@ -210,6 +225,16 @@ class FederatedProfileSync {
           const { actorUri, acctHint } = await getOxyIdentity();
           if (!actorUri) {
             // Local user with an empty feed — nothing to sync.
+            return;
+          }
+
+          // An Instagram account Oxy resolved through the Graph API: cache it
+          // through its own connector, then sync it there. Never an AP fetch.
+          if (instagramGraphConnector.matches(actorUri)) {
+            if (!instagramGraphConnector.enabled) return;
+            await instagramGraphConnector.fetchProfile(actorUri);
+            const graphActor = await findActorByOxyUserId(syncUserId);
+            if (graphActor?.uri === actorUri) instagramGraphConnector.syncOnProfileView(graphActor);
             return;
           }
 
@@ -445,6 +470,18 @@ class FederatedProfileSync {
     // (`postsCount` is populated from the Bluesky profile on actor upsert; an
     // UNKNOWN count is not a zero one, so it falls through to the status checks.)
     if (actor.protocol === 'atproto' && actor.postsCount === 0) return false;
+
+    // An Instagram identity. The kilogram bridge's outbox is ALWAYS an empty
+    // collection, so the outbox-cooldown rule below would re-report `pending`
+    // every 15 minutes forever — the profile flickering between a spinner and
+    // empty. The Graph sync decides instead: pending only until a first sync
+    // has finished. With the Graph connector off, an Instagram identity whose
+    // outbox has been read once has nothing further to wait for.
+    if (actor.protocol === 'instagram-graph' || identityDomainOfActor(actor) === INSTAGRAM_IDENTITY_DOMAIN) {
+      if (instagramGraphConnector.enabled) return instagramGraphConnector.isProfileSyncPending(actor);
+      if (actor.protocol === 'instagram-graph') return false;
+      return actor.lastOutboxSyncAt === undefined;
+    }
 
     const outboxStatus = this.currentOutboxBackfillStatus(actor);
     if (outboxStatus === 'unavailable' || outboxStatus === 'complete') return false;
