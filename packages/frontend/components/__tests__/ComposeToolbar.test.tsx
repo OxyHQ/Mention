@@ -429,16 +429,15 @@ describe('ComposeToolbar — what assistive technology is told', () => {
 });
 
 describe('ComposeToolbar — what the tint says', () => {
-  const colorOf = (tree: TestRenderer.ReactTestRenderer, Icon: React.ComponentType<never>) =>
-    tree.root.findByType(Icon).props.color;
+  const eventColor = (tree: TestRenderer.ReactTestRenderer) => tree.root.findByType(CalendarIcon).props.color;
 
   it('tints an attachment the post carries, and flags sources that need a title', () => {
     const plain = render({ onEventPress: noop, onSourcesPress: noop });
-    expect(colorOf(plain, CalendarIcon as never)).toBe('#666');
+    expect(eventColor(plain)).toBe('#666');
     act(() => plain.unmount());
 
     const attached = render({ onEventPress: noop, hasEvent: true, onSourcesPress: noop, hasSources: true });
-    expect(colorOf(attached, CalendarIcon as never)).toBe('#7c3aed');
+    expect(eventColor(attached)).toBe('#7c3aed');
     act(() => attached.unmount());
 
     const invalid = render({ onSourcesPress: noop, hasSources: true, hasSourceErrors: true });
