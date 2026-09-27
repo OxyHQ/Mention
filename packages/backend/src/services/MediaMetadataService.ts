@@ -217,13 +217,24 @@ export class MediaMetadataService {
     return new Map(resolved.map((entry) => [entry.id, entry]));
   }
 
-  /** True when any Oxy-backed item is still missing width/height after enrich. */
+  /**
+   * True when any Oxy-backed item is still missing what Oxy's probe fills in:
+   * width/height for EVERY type, and a duration for a video — the same rule
+   * `scripts/backfillMediaMetadata.ts` repairs by.
+   *
+   * It used to ask only about VIDEOS. Oxy probes images asynchronously too, so
+   * an image whose inline enrichment beat the probe was never retried and kept
+   * no dimensions for good — every image of National Geographic's Graph import
+   * (2026-09-27) was stored without width/height, and the feed could reserve no
+   * space for any of them.
+   */
   needsOxyRetry(items: MediaItem[]): boolean {
     return items.some(
       (item) =>
         isOxyFileId(item.id)
-        && item.type === 'video'
-        && (item.width === undefined || item.height === undefined || item.durationSec === undefined),
+        && (item.width === undefined
+          || item.height === undefined
+          || (item.type === 'video' && item.durationSec === undefined)),
     );
   }
 }

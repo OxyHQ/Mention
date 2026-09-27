@@ -97,6 +97,7 @@ import { resolvePostIdFromObjectUri } from '../../../connectors/activitypub/help
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
 import { importInstagramMedia } from '../../../connectors/instagram/importer';
 import { EXIT_INCOMPLETE, reelPosterRepairExitCode, repairInstagramReelPosters } from '../../../scripts/repairInstagramReelPosters';
+import { enqueueMediaMetadataEnrich } from '../../../services/mediaMetadataEnrichJob';
 import { optionsFor, requestInstagramSync, syncInstagramActor, syncResultFor } from '../../../connectors/instagram/sync';
 import { InstagramGraphError, type GraphMedia } from '../../../connectors/instagram/graphClient';
 import { BIG_IMAGE_CAROUSEL, IMAGE, REEL_WITH_VIDEO, REEL_WITHOUT_VIDEO, ZUCK_PROFILE } from './fixtures/graphSnapshot';
@@ -451,6 +452,24 @@ describe('media is re-hosted, or the post is not imported yet', () => {
     // The tombstone is untouched (never re-armed, never reused).
     const [row] = await getDb().select({ state: federatedMediaDeletions.state }).from(federatedMediaDeletions).where(eq(federatedMediaDeletions.oxyFileId, gone));
     expect(row.state).toBe('deleted');
+  });
+
+  /**
+   * Production, 2026-09-27: every image of National Geographic's import kept no
+   * width/height. Oxy probes an upload after it returns, so the inline lookup
+   * finds nothing yet; the retry job is what fills them in — and it was only
+   * ever scheduled for videos.
+   */
+  it('schedules the metadata retry for an imported IMAGE whose dimensions Oxy has not probed yet', async () => {
+    vi.mocked(enqueueMediaMetadataEnrich).mockClear();
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(17)]));
+
+    await importInstagramMedia(TARGET, ONE_SHOT);
+
+    const [id] = await rowsFor(17);
+    const [stored] = await getDb().select({ width: postMedia.width, type: postMedia.type }).from(postMedia).where(eq(postMedia.postId, id));
+    expect(stored).toEqual({ width: null, type: 'image' });
+    expect(enqueueMediaMetadataEnrich).toHaveBeenCalledWith(id);
   });
 
   it('never stores an expiring CDN URL: with media writes off, the post waits for the next sync', async () => {
