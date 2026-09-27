@@ -10,7 +10,7 @@ export EXPECTED_IMAGE_DIGEST=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 export CLUSTER=fixture-cluster SERVICE=fixture-service
 export TEST_ROOT="$test_directory"
 export TEST_CASE=success
-export DRY_RUN=true SCRIPT=repairInstagramReelPosters CONFIRM_WRITE='' REPAIR_DEPTH=''
+export DRY_RUN=true SCRIPT=repairInstagramReelPosters CONFIRM_WRITE='' REPAIR_DEPTH='' INCLUDE_EXISTING='' RETRY_FAILED=''
 export GITHUB_STEP_SUMMARY="$test_directory/summary"
 git() {
   if [[ "$1" == fetch ]]; then return 0; fi
@@ -36,12 +36,16 @@ aws() {
         shift
       done
       cp "$overrides" "$TEST_ROOT/overrides.json"
-      jq -e --arg dry "$DRY_RUN" --arg script "$SCRIPT" --arg depth "$REPAIR_DEPTH" '.containerOverrides[0]
+      jq -e --arg dry "$DRY_RUN" --arg script "$SCRIPT" --arg depth "$REPAIR_DEPTH" \
+        --arg inc "${INCLUDE_EXISTING:-false}" --arg retry "${RETRY_FAILED:-false}" '.containerOverrides[0]
         | .command[-1] == ("packages/backend/dist/src/scripts/" + $script + ".js")
         and .command[0:2] == ["sh","-c"]
         and .environment[0] == {name:"DRY_RUN",value:$dry}
         and .environment[1] == {name:"CONFIRM_ADMIN_MUTATION",value:(if $dry == "false" then $script else "" end)}
-        and (if $depth == "" then (.environment | length == 2) else .environment[2] == {name:"REPAIR_DEPTH",value:$depth} end)' "$overrides" >/dev/null
+        and (if $script == "queueFederatedBannerMirrors" then
+               .environment[2:] == [{name:"INCLUDE_EXISTING",value:$inc},{name:"RETRY_FAILED",value:$retry}]
+             elif $depth == "" then (.environment | length == 2)
+             else .environment[2] == {name:"REPAIR_DEPTH",value:$depth} end)' "$overrides" >/dev/null
       echo '{"failures":[],"tasks":[{"taskArn":"arn:aws:ecs:us-west-2:1:task/oxy-cluster/fixturetask"}]}' ;;
     'ecs describe-tasks')
       local code=0
@@ -59,7 +63,11 @@ aws() {
       fi
       local dry="$DRY_RUN"
       if [[ "$TEST_CASE" == wrong-mode ]]; then dry=false; fi
-      if [[ "$SCRIPT" == repairInstagramReelPosters ]]; then
+      if [[ "$SCRIPT" == queueFederatedBannerMirrors ]]; then
+        local inc="${INCLUDE_EXISTING:-false}"
+        if [[ "$TEST_CASE" == wrong-options ]]; then inc=true; fi
+        jq -n --argjson dry "$dry" --argjson inc "$inc" --argjson retry "${RETRY_FAILED:-false}" '{events:[{message:({msg:"[queueFederatedBannerMirrors] complete",dryRun:$dry,includeExisting:$inc,retryFailed:$retry,actors:12,withoutBanner:9,queued:0,retried:0,failedDue:2} | tojson)}],nextForwardToken:"done"}'
+      elif [[ "$SCRIPT" == repairInstagramReelPosters ]]; then
         jq -n --argjson dry "$dry" '{events:[{message:({msg:"[repairInstagramReelPosters] complete",dryRun:$dry,actors:3,checked:40,candidates:1,repaired:0,waiting:0,gone:0,stopped:0} | tojson)}],nextForwardToken:"done"}'
       else
         jq -n --argjson dry "$dry" '{events:[{message:({msg:"[backfillInstagramSourceKeys] complete",dryRun:$dry,actors:2,candidates:7,written:0,conflicts:0,claimed:0,validated:[],unvalidated:[]} | tojson)}],nextForwardToken:"done"}'
@@ -80,6 +88,10 @@ run_case() {
   if [[ "$name" == wrong-preview-source ]]; then
     sed -i "s/$DEPLOY_SHA/cccccccccccccccccccccccccccccccccccccccc/" "$case_dir/reviewed-preview/instagram-one-shot-report.json"
   fi
+  if [[ "$name" == wrong-preview-options ]]; then
+    jq '.options.retryFailed = true' "$case_dir/reviewed-preview/instagram-one-shot-report.json" > "$case_dir/p.json"
+    mv "$case_dir/p.json" "$case_dir/reviewed-preview/instagram-one-shot-report.json"
+  fi
   if [[ "$name" == wrong-preview-script ]]; then
     jq '.script = "someOtherScript"' "$case_dir/reviewed-preview/instagram-one-shot-report.json" > "$case_dir/p.json"
     mv "$case_dir/p.json" "$case_dir/reviewed-preview/instagram-one-shot-report.json"
@@ -91,7 +103,9 @@ run_case() {
     [[ "$status" == 0 ]] || { cat "$case_dir/output"; echo "FAIL $SCRIPT $name"; exit 1; }
     jq -e --arg script "$SCRIPT" --arg sha "$DEPLOY_SHA" '.script == $script and .sourceSha == $sha and (.report | length > 0)' "$case_dir/instagram-one-shot-report.json" >/dev/null
     jq -e '.logGroup == "/oxy/ecs" and .logStream == "mention/backend/fixturetask"' "$case_dir/instagram-one-shot-run.json" >/dev/null
-    if [[ "$SCRIPT" == repairInstagramReelPosters ]]; then
+    if [[ "$SCRIPT" == queueFederatedBannerMirrors ]]; then
+      jq -e --argjson inc "${INCLUDE_EXISTING:-false}" --argjson retry "${RETRY_FAILED:-false}" '.report == {actors:12,withoutBanner:9,queued:0,retried:0,failedDue:2} and .options == {includeExisting:$inc,retryFailed:$retry}' "$case_dir/instagram-one-shot-report.json" >/dev/null
+    elif [[ "$SCRIPT" == repairInstagramReelPosters ]]; then
       jq -e '.report == {actors:3,checked:40,candidates:1,repaired:0,waiting:0,gone:0,stopped:0} and .candidates == [{postId:"p1",sourceKey:"instagram:Abc",slots:[0]}]' "$case_dir/instagram-one-shot-report.json" >/dev/null
     else
       jq -e '.report == {actors:2,candidates:7,written:0,conflicts:0,claimed:0}' "$case_dir/instagram-one-shot-report.json" >/dev/null
@@ -99,7 +113,7 @@ run_case() {
   else
     [[ "$status" != 0 ]] || { cat "$case_dir/output"; echo "Expected refusal: $SCRIPT $name"; exit 1; }
     case "$name" in
-      missing-report|task-failure|timed-out|wrong-mode) ;;
+      missing-report|task-failure|timed-out|wrong-mode|wrong-options) ;;
       *) ! grep -q '^ecs run-task$' "$test_directory/calls" || { echo "Started a task before refusing $name"; exit 1; } ;;
     esac
   fi
@@ -142,4 +156,29 @@ export SCRIPT=backfillInstagramSourceKeys REPAIR_DEPTH=10
 run_case depth-wrong-script fail
 export SCRIPT=eraseOxyAccount REPAIR_DEPTH=''
 run_case unsupported-script fail
-echo "all instagram one-shot cases passed"
+
+# The banner recovery: same runner, its own options, which a write must share
+# with its reviewed dry run.
+export SCRIPT=queueFederatedBannerMirrors DRY_RUN=true CONFIRM_WRITE='' REPAIR_DEPTH='' INCLUDE_EXISTING='' RETRY_FAILED=''
+run_case success pass
+run_case incomplete pass
+run_case wrong-options fail
+run_case wrong-image fail
+run_case stale-source fail
+export DRY_RUN=false
+run_case unconfirmed-write fail
+export CONFIRM_WRITE=queueFederatedBannerMirrors
+run_case missing-preview fail
+run_case wrong-preview-options fail
+run_case wrong-preview-script fail
+run_case apply pass
+export DRY_RUN=true CONFIRM_WRITE='' INCLUDE_EXISTING=true RETRY_FAILED=true
+run_case options pass
+jq -e '.containerOverrides[0].environment[2:] == [{name:"INCLUDE_EXISTING",value:"true"},{name:"RETRY_FAILED",value:"true"}]' "$test_directory/overrides.json" >/dev/null
+export INCLUDE_EXISTING='yes'
+run_case invalid-option fail
+export INCLUDE_EXISTING='' RETRY_FAILED='' REPAIR_DEPTH=10
+run_case depth-on-banner fail
+export SCRIPT=repairInstagramReelPosters REPAIR_DEPTH='' RETRY_FAILED=true
+run_case banner-option-on-repair fail
+echo "all one-shot cases passed"

@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
-# Run ONE reviewed Instagram maintenance script as an ECS one-shot on the exact
+# Run ONE reviewed backend maintenance script as an ECS one-shot on the exact
 # deployed backend image (never a rebuild), and turn its `[<script>] complete`
-# log line into a structured report. Driven by run-instagram-one-shot.yml.
+# log line into a structured report. Driven by run-instagram-one-shot.yml
+# (the two Instagram scripts) and run-banner-mirror-recovery.yml (the banner
+# recovery). The file keeps its first name so a preview recorded by an earlier
+# run stays valid.
 #
 #   SCRIPT          repairInstagramReelPosters | backfillInstagramSourceKeys
+#                   | queueFederatedBannerMirrors
 #   DRY_RUN         true | false (anything else is refused)
 #   CONFIRM_WRITE   apply only: the script name, typed back
 #   REPAIR_DEPTH    repairInstagramReelPosters only, optional: 1..1000
+#   INCLUDE_EXISTING, RETRY_FAILED
+#                   queueFederatedBannerMirrors only, optional: true | false
+#                   (default false). A write must use the SAME values as the
+#                   reviewed dry run.
 #   reviewed-preview/instagram-one-shot-report.json
 #                   apply only: the successful dry run of the same script,
 #                   source sha and image digest
@@ -22,8 +30,25 @@ case "$SCRIPT" in
   backfillInstagramSourceKeys)
     report_fields='actors,candidates,written,conflicts,claimed'
     ;;
+  queueFederatedBannerMirrors)
+    report_fields='actors,withoutBanner,queued,retried,failedDue'
+    ;;
   *) echo '::error::Unsupported script'; exit 1 ;;
 esac
+include_existing="${INCLUDE_EXISTING:-}"
+retry_failed="${RETRY_FAILED:-}"
+if [[ "$SCRIPT" == queueFederatedBannerMirrors ]]; then
+  for flag in "$include_existing" "$retry_failed"; do
+    [[ -z "$flag" || "$flag" == true || "$flag" == false ]] || { echo '::error::include_existing and retry_failed must be true or false'; exit 1; }
+  done
+  include_existing="${include_existing:-false}"
+  retry_failed="${retry_failed:-false}"
+else
+  [[ -z "$include_existing" && -z "$retry_failed" ]] || { echo '::error::include_existing/retry_failed apply to queueFederatedBannerMirrors only'; exit 1; }
+fi
+# The options a write must share with its reviewed dry run (banner recovery only).
+options_json=$(jq -nc --arg script "$SCRIPT" --arg inc "$include_existing" --arg retry "$retry_failed" \
+  'if $script == "queueFederatedBannerMirrors" then {includeExisting:($inc == "true"),retryFailed:($retry == "true")} else {} end')
 repair_depth="${REPAIR_DEPTH:-}"
 if [[ -n "$repair_depth" ]]; then
   [[ "$SCRIPT" == repairInstagramReelPosters && "$repair_depth" =~ ^[1-9][0-9]{0,3}$ && "$repair_depth" -le 1000 ]] || { echo '::error::repair_depth applies to repairInstagramReelPosters only, 1..1000'; exit 1; }
@@ -34,9 +59,11 @@ case "$DRY_RUN" in
   false)
     [[ "${CONFIRM_WRITE:-}" == "$SCRIPT" ]] || { echo "::error::A write run requires confirm_write=$SCRIPT"; exit 1; }
     jq -e --arg sha "$DEPLOY_SHA" --arg digest "$EXPECTED_IMAGE_DIGEST" --arg script "$SCRIPT" \
-      '.script == $script and .sourceSha == $sha and .imageDigest == $digest and .dryRun == true and (.exitCode == 0 or .exitCode == 75)' \
+      --argjson options "$options_json" \
+      '.script == $script and .sourceSha == $sha and .imageDigest == $digest and .dryRun == true and (.exitCode == 0 or .exitCode == 75)
+       and (if $script == "queueFederatedBannerMirrors" then .options == $options else true end)' \
       reviewed-preview/instagram-one-shot-report.json >/dev/null \
-      || { echo '::error::The reviewed preview is not a successful dry run of this script on this source and image'; exit 1; }
+      || { echo '::error::The reviewed preview is not a successful dry run of this script, with these options, on this source and image'; exit 1; }
     ;;
   *) echo '::error::dry_run must be exactly true or false'; exit 1 ;;
 esac
@@ -81,13 +108,16 @@ jq -e '.awsvpcConfiguration | (.subnets | length > 0) and (.securityGroups | len
 # the 3600 s wait below); the explicit status keeps the shell from exec-ing.
 # CONFIRM_ADMIN_MUTATION is set only on a confirmed write: withheld, a live mode
 # that somehow reached the container is refused by the script itself.
-jq -n --arg name "$container" --arg dry "$DRY_RUN" --arg script "$SCRIPT" --arg depth "$repair_depth" '
+jq -n --arg name "$container" --arg dry "$DRY_RUN" --arg script "$SCRIPT" --arg depth "$repair_depth" \
+  --arg inc "$include_existing" --arg retry "$retry_failed" '
   {containerOverrides:[{name:$name,
     command: ["sh","-c","busybox timeout -s TERM -k 30 3300 bun \"$1\"; status=$?; exit \"$status\"","mention-instagram-one-shot",
               ("packages/backend/dist/src/scripts/" + $script + ".js")],
     environment: ([{name:"DRY_RUN",value:$dry},
                    {name:"CONFIRM_ADMIN_MUTATION",value:(if $dry == "false" then $script else "" end)}]
-                  + (if $depth == "" then [] else [{name:"REPAIR_DEPTH",value:$depth}] end))}]}
+                  + (if $depth == "" then [] else [{name:"REPAIR_DEPTH",value:$depth}] end)
+                  + (if $script == "queueFederatedBannerMirrors"
+                     then [{name:"INCLUDE_EXISTING",value:$inc},{name:"RETRY_FAILED",value:$retry}] else [] end))}]}
 ' > "$work_dir/overrides.json"
 
 # Re-read the live definition just before starting. Never update the service.
@@ -144,13 +174,17 @@ done
 
 # Counts and public post ids / source keys only — never raw logs or inherited secrets.
 jq -s -e --arg sha "$DEPLOY_SHA" --arg digest "$EXPECTED_IMAGE_DIGEST" --arg script "$SCRIPT" --argjson dry "$DRY_RUN" \
-  --argjson code "$exit_code" --arg fields "$report_fields" --slurpfile candidates "$work_dir/candidates.jsonl" '
+  --argjson code "$exit_code" --arg fields "$report_fields" --slurpfile candidates "$work_dir/candidates.jsonl" \
+  --argjson options "$options_json" '
   if length != 1 then error("Expected exactly one completion line") else .[0] end
   | if .dryRun != $dry then error("The task reported a different execution mode") else . end
+  | if ($options | has("includeExisting")) and ({includeExisting, retryFailed} != $options)
+    then error("The task reported different options") else . end
   | . as $line
   | ($fields | split(",")) as $names
   | {script:$script,sourceSha:$sha,imageDigest:$digest,dryRun:$dry,exitCode:$code,
      report:(reduce $names[] as $n ({}; .[$n] = $line[$n])),
+     options:$options,
      unvalidated:($line.unvalidated // []),
      candidates:($candidates | .[0:1000])}
   | if ([.report[] | (type == "number" and . >= 0 and floor == .)] | all) then . else error("Invalid summary counts") end
@@ -177,7 +211,7 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     echo ""
     echo "Mode: \`dryRun=$DRY_RUN\`. Full log: CloudWatch \`$log_group\` / \`$log_stream\`."
     echo '```json'
-    jq '{script,dryRun,exitCode,report,unvalidated,candidates:(.candidates | length)}' instagram-one-shot-report.json
+    jq '{script,dryRun,exitCode,options,report,unvalidated,candidates:(.candidates | length)}' instagram-one-shot-report.json
     echo '```'
   } >> "$GITHUB_STEP_SUMMARY"
 fi
