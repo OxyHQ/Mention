@@ -39,19 +39,21 @@ for (const key of POSTGRES_ENV_KEYS) {
  * whichever file happens to ask while the server is saturated — never the file
  * at fault.
  *
- * **8, not 1, and the difference is measurable coverage.** A suite does NOT
- * only issue its queries sequentially: several stage CONCURRENT operations to
- * exercise contention. With one connection those serialise, the contention
- * branch never runs, and every test still PASSES while covering less.
- * Measured on this tree, `PostEngagementCommandService` alone:
+ * **Why 8 and not smaller.** Several suites run CONCURRENT operations on
+ * purpose (five viewers voting at once, a dispatcher racing a replay), and a
+ * pool of 1 would serialise them into a sequential test of the same code.
  *
- *   pool=1  lines 95.12  functions 94.73
- *   pool=8  lines 98.78  functions 100
- *
- * So a pool of 1 buys stability by quietly disarming the tests written for the
- * races this service exists to survive — the same shape as every other check
- * that stops distinguishing. 8 is the floor that keeps them armed; `maxWorkers`
- * below is the other half, and the two only work together.
+ * **Coverage does NOT depend on this number.** It used to: the staged
+ * relationship races in `engagementWritePath.test.ts` held their "winner" on an
+ * APP-pool connection and released it after a fixed 50 ms sleep, so a pool of 1
+ * — or merely a loaded runner — let the command read the committed winner and
+ * take the ordinary no-op path instead of the race. `PostEngagementCommandService`
+ * then measured lines 95.12 / functions 94.73 against a floor of 98.78 / 100,
+ * and failed CI on a PR that never touched it (#1218). Those races now hold the
+ * winner on their own connections and release it only once `pg_stat_activity`
+ * shows the command blocked on the winner's key, so the race branch runs every
+ * time: measured 98.78 / 100 at pool=1 and pool=8 alike. A per-file floor must
+ * never again depend on how two requests happen to interleave.
  */
 if (!process.env.PG_MAX_POOL_SIZE) process.env.PG_MAX_POOL_SIZE = '8';
 
