@@ -152,11 +152,15 @@ export async function enqueueFederatedMediaDeletions(
     .onConflictDoUpdate({
       target: federatedMediaDeletions.oxyFileId,
       set: { state: 'pending', attempts: 0, nextAttemptAt: sql`now()`, lastError: null, updatedAt: new Date() },
-      // Re-arm a file kept as `in_use`, or a revived one waiting out its grace
-      // period (`pending`, no failed attempts yet); leave a tombstone, and a row
-      // backing off after failures, as they are.
+      // Re-arm a file kept as `in_use`, or a `pending` row with no failed
+      // attempts that is already due. A revived file waits out its grace period
+      // (`next_attempt_at` in the future): pulling it to now would delete it
+      // under the import that is about to reference it (upload/delete churn).
+      // A tombstone, and a row backing off after failures, stay as they are.
       setWhere: sql`${federatedMediaDeletions.state} = 'in_use'
-        or (${federatedMediaDeletions.state} = 'pending' and ${federatedMediaDeletions.attempts} = 0)`,
+        or (${federatedMediaDeletions.state} = 'pending'
+            and ${federatedMediaDeletions.attempts} = 0
+            and ${federatedMediaDeletions.nextAttemptAt} <= now())`,
     })
     .returning({ id: federatedMediaDeletions.id });
   return written.length;

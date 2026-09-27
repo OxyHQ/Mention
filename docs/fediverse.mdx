@@ -503,7 +503,10 @@ Only an answer from Oxy settles a deletion:
   (`settled_at`, both times read from the database clock) re-opens the id. The
   row goes back to `pending`, due after a one-hour grace period: if the post
   that needed the file is inserted, the drain finds the reference and keeps it,
-  and if the insert failed, the file is deleted again. Any earlier or overlapping
+  and if the insert failed, the file is deleted again. Queuing the file again
+  during the grace period (another post using it goes, or Instagram retries)
+  does not cut the grace period short. That would delete the file under the
+  import about to use it. The delete then runs when the grace period ends. Any earlier or overlapping
   upload is treated as a tombstone by the post insert (see above).
 - **Housekeeping:** every drain also prunes up to 500 `forbidden` rows older
   than 30 days and `federated_media_posters` pairs whose video is tombstoned and
@@ -543,7 +546,21 @@ transactional migrator.
   stronger anywhere: reads continue, and writes to them wait for the build.
 - It sets `lock_timeout` 5s and `statement_timeout` 60s, then restores them.
 - On a large database, build both indexes `CONCURRENTLY` by hand before
-  deploying (as for 0049). The migration then skips them.
+  deploying (as for 0049), with the same names and definitions as the
+  migration. The migration then skips them.
+- **Check the pre-built indexes before deploying.** A failed or cancelled
+  `CREATE INDEX CONCURRENTLY` leaves an INVALID index behind. `IF NOT EXISTS`
+  sees the name and skips it, so the check would keep scanning. Run:
+
+  ```sql
+  select c.relname, i.indisvalid
+  from pg_index i join pg_class c on c.oid = i.indexrelid
+  where c.relname in ('post_variant_media_media_id_idx', 'user_settings_profile_header_image_idx');
+  ```
+
+  Both rows must show `indisvalid = true`. For any `false` row, run
+  `DROP INDEX CONCURRENTLY <name>;` and build it again `CONCURRENTLY`, then
+  re-check.
 
 **Protocol types.** `instagram-graph` is a first-class protocol upstream:
 `@oxy.so/contracts` 4.0.0 accepts it in the external-identity schemas and
