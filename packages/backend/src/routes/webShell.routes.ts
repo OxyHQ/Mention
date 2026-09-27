@@ -6,8 +6,8 @@
  * path already reaches here and adding one costs no infrastructure change — the
  * CF Origin Rule that used to route `/@*` and `/p/*` selectively was deleted with
  * the Cloudflare Pages worker on 2026-07-05. For the paths below we serve the
- * static SPA shell HTML with metadata, JSON-LD, and semantic public content
- * injected while browsers still boot the SPA normally.
+ * static SPA shell HTML with head metadata and JSON-LD
+ * injected while leaving the application body unchanged.
  * This replaces the OG injection the retired `_worker.js` used to do at the edge.
  *
  * The shell (Expo's single static `index.html`) is fetched ONCE from the frontend
@@ -41,6 +41,7 @@ import {
   PostOgSafety,
   canonicalProfilePath,
   injectHeadHtml,
+  mapHomepageOg,
   mapPostOg,
   mapProfileOg,
   renderShellWithOg,
@@ -49,7 +50,7 @@ import { getShellCached } from '../services/webShellOgCache';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { webShellRateLimiter } from '../middleware/security';
-import { SHELL_ACCESS_HEADER } from '../middleware/apexFrontendProxy';
+import { isApexHost, SHELL_ACCESS_HEADER } from '../middleware/apexFrontendProxy';
 import {
   SitemapNotReadyError,
   isMentionProfilePublic,
@@ -337,6 +338,20 @@ function noindexPage(url: string, title: string, description: string): OgData {
 }
 
 const router = Router();
+
+// The single exported shell is also used by /explore and unknown paths. Keep
+// homepage canonical/indexing metadata here, never in that shared fallback.
+router.get('/', async (req, res, next) => {
+  if (!isApexHost(req)) { next(); return; }
+  // Unlike an entity preview, home must not cache an empty app as a success.
+  // getShell still returns a stale usable shell when a refresh fails.
+  if (!await getShell()) {
+    res.status(502).set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
+    res.type('text/plain').send('Application temporarily unavailable');
+    return;
+  }
+  await serveShell(res, mapHomepageOg());
+});
 
 const ROBOTS_TXT = `User-agent: *
 Content-Signal: search=yes,ai-train=no,use=reference

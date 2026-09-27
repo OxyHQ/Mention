@@ -1,6 +1,6 @@
 /** Browser contract between the real backend renderer and the candidate Expo build. */
 import { test, expect, type BrowserContext } from '@playwright/test';
-import { renderShellWithOg, type OgData } from '../../backend/src/services/webShellRenderer';
+import { mapHomepageOg, renderShellWithOg, type OgData } from '../../backend/src/services/webShellRenderer';
 import { APP_ORIGIN, CANDIDATE_ORIGIN, PROFILE_HANDLE } from '../environment';
 
 const profilePath = `/@${PROFILE_HANDLE}`;
@@ -223,4 +223,48 @@ test('delayed application scripts never display a separate SEO screen', async ({
   await expect(page.locator('link[rel="canonical"][data-rh="true"]')).toHaveCount(1);
   await expect(page.locator('#root')).toBeVisible();
   await expect(page.locator('[data-mention-seo-fallback], body > main, body > article')).toHaveCount(0);
+});
+
+test('homepage raw head advertises a real JPEG and transfers ownership on profile navigation', async ({ context, page, request }) => {
+  const response = await request.get(`${CANDIDATE_ORIGIN}/`);
+  const shell = await response.text();
+  expect(shell).not.toContain('rel="canonical"');
+  const html = renderShellWithOg(shell, mapHomepageOg());
+  expect(html.slice(html.indexOf('<body'))).toBe(shell.slice(shell.indexOf('<body')));
+  const head = html.split('</head>')[0];
+  expect(head).toContain('property="og:image" content="https://mention.earth/og-image.jpg"');
+  expect(head).toContain('property="og:image:width" content="1280"');
+  expect(head).toContain('property="og:image:height" content="720"');
+  expect(head).toContain('property="og:image:type" content="image/jpeg"');
+  expect(head).toContain('property="og:image:alt" content="Illustration of friends and a dog');
+  expect(head).toContain('name="twitter:image:alt" content="Illustration of friends and a dog');
+  expect(head).toContain('name="twitter:card" content="summary_large_image"');
+  const image = await request.get(`${CANDIDATE_ORIGIN}/og-image.jpg`);
+  expect(image.status()).toBe(200);
+  expect(image.headers()['content-type']).toContain('image/jpeg');
+  expect([...(await image.body()).subarray(0, 3)]).toEqual([255, 216, 255]);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await serveDocument(context, '/', mapHomepageOg());
+  await page.goto(APP_ORIGIN);
+  await expect(page.locator('link[rel="canonical"][data-rh="true"]')).toHaveAttribute('href', `${APP_ORIGIN}/`);
+  await expect(page.locator('meta[property="og:image"]')).toHaveCount(1);
+  await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
+  await expect(page.locator('meta[property="og:image:alt"]')).toHaveCount(1);
+  await expect(page.locator('meta[name="twitter:image:alt"]')).toHaveCount(1);
+  // The feed author uses a pressable, not an anchor; exercise its real router handler.
+  const author = page.locator('[data-post-uri]').first().getByText(/@/).first();
+  await expect(author).toBeVisible();
+  // The adjacent display name owns profile navigation; the handle itself opens the post.
+  await author.locator('xpath=preceding-sibling::*[1]').click();
+  await expect(page).toHaveURL(new RegExp('/@'));
+  await expect(page.getByRole('tab', { name: 'Posts', exact: true })).toBeVisible();
+  await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /\/@/);
+  await expect(page.locator('meta[property="og:url"]')).toHaveCount(1);
+  await expect(page.locator('meta[property="og:image"]')).toHaveCount(1);
+  const profileImage = await page.locator('meta[property="og:image"]').getAttribute('content');
+  await expect(page.locator('meta[property="og:image:width"]')).toHaveCount(profileImage === `${APP_ORIGIN}/og-image.jpg` ? 1 : 0);
+  await expect(page.locator('[data-mention-seo="true"]')).toHaveCount(0);
+  expect(errors).toEqual([]);
 });

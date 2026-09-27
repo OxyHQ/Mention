@@ -42,6 +42,7 @@ vi.mock('../utils/oxyHelpers', () => ({
   }),
 }));
 
+import { config } from '../config';
 import webShellRoutes from '../routes/webShell.routes';
 import { updatePostRecord } from '../db/posts/postRepository';
 import * as shellCache from '../services/webShellOgCache';
@@ -134,6 +135,37 @@ describe('webShell routes (integration)', () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
     vi.clearAllMocks();
+  });
+
+  // First shell request in this module: the process cache is genuinely cold.
+  it('does not cache an empty homepage when the shell origin is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 503 })));
+    const response = await request(makeApp()).get('/').set('Host', new URL(config.web.origin).hostname);
+    expect(response.status).toBe(502);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.headers['x-robots-tag']).toBe('noindex');
+    expect(response.text).not.toContain('rel="canonical"');
+    expect(response.text).not.toContain('og-image.jpg');
+  });
+
+  it('limits homepage preview to the apex root and leaves other SPA paths neutral', async () => {
+    stubFetch({ ok: true });
+    const app = makeApp();
+    app.use((_req, res) => res.type('html').send(SHELL));
+    const host = new URL(config.web.origin).hostname;
+    const home = await request(app).get('/').set('Host', host);
+    expect(home.status).toBe(200);
+    expect(home.text).toContain(`rel="canonical" href="${config.web.origin}/"`);
+    expect(home.text).toContain('og-image.jpg');
+    expect(home.text.slice(home.text.indexOf('<body'))).toBe(SHELL.slice(SHELL.indexOf('<body')));
+    for (const path of ['/explore', '/missing-seo-route']) {
+      const response = await request(app).get(path).set('Host', host);
+      expect(response.text).toBe(SHELL);
+      expect(response.text).not.toContain('rel="canonical"');
+      expect(response.text).not.toContain('index,follow');
+    }
+    const api = await request(app).get('/').set('Host', new URL(config.web.apiOrigin).hostname);
+    expect(api.text).toBe(SHELL);
   });
 
   it('serves explicit crawler policy with the canonical sitemap', async () => {

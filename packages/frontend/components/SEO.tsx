@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { Platform } from 'react-native';
 import { useFocusEffect, usePathname } from 'expo-router';
 import { releaseServerSEO } from '@/lib/seoHandoff';
+import { WEB_BASE_URL } from '@/config';
 import ExpoHead from 'expo-router/head';
 import { useTranslation } from 'react-i18next';
 
@@ -26,6 +27,7 @@ const defaultSEO = {
   siteName: 'Mention',
   twitterHandle: '@mention',
   type: 'website' as const,
+  imageAlt: 'Illustration of friends and a dog gathered around the Mention logo under a blue sky.',
 };
 
 export const SEO: React.FC<SEOProps> = ({
@@ -63,8 +65,8 @@ export const SEO: React.FC<SEOProps> = ({
     siteName: finalSiteName
   });
 
-  // Default image (you should add your logo/image)
-  const pageImage = image || 'https://mention.earth/og-image.png';
+  // The exported homepage and runtime share the same real public asset.
+  const pageImage = image || `${WEB_BASE_URL.replace(/\/$/, '')}/og-image.jpg`;
 
   useFocusEffect(useCallback(() => {
     if (Platform.OS === 'web' && ready && typeof document !== 'undefined') {
@@ -92,6 +94,10 @@ export const SEO: React.FC<SEOProps> = ({
       <meta property="og:title" content={pageTitle} />
       <meta property="og:description" content={pageDescription} />
       <meta property="og:image" content={pageImage} />
+      {!image && <meta property="og:image:width" content="1280" />}
+      {!image && <meta property="og:image:height" content="720" />}
+      {!image && <meta property="og:image:type" content="image/jpeg" />}
+      {!image && <meta property="og:image:alt" content={defaultSEO.imageAlt} />}
       <meta property="og:site_name" content={finalSiteName} />
       
       {/* Twitter Card */}
@@ -100,6 +106,7 @@ export const SEO: React.FC<SEOProps> = ({
       <meta name="twitter:title" content={pageTitle} />
       <meta name="twitter:description" content={pageDescription} />
       <meta name="twitter:image" content={pageImage} />
+      {!image && <meta name="twitter:image:alt" content={defaultSEO.imageAlt} />}
       {twitterHandle && <meta name="twitter:site" content={twitterHandle} />}
       {twitterHandle && <meta name="twitter:creator" content={twitterHandle} />}
       

@@ -24,6 +24,10 @@ export interface OgData {
   description: string;
   /** Absolute image URL; omitted entirely when the entity has no image. */
   image?: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  imageType?: string;
+  imageAlt?: string;
   url: string;
   /** OpenGraph object type (`profile` | `article`). */
   type: string;
@@ -37,6 +41,23 @@ export interface OgData {
 
 /** Canonical web origin used for `og:url` (the apex the SPA is served from). */
 const WEB_ORIGIN = config.web.origin;
+
+/** Homepage metadata is served ONLY by the exact apex root route, never baked into the SPA fallback. */
+export function mapHomepageOg(): OgData {
+  const name = config.deployment?.branding.name ?? 'Mention';
+  return {
+    title: `${name} - Social Platform`,
+    description: `Join ${name} and connect with people around the world. Share your thoughts, discover trends, and engage with a global community.`,
+    url: `${WEB_ORIGIN}/`,
+    type: 'website',
+    robots: 'index,follow',
+    image: `${WEB_ORIGIN}/og-image.jpg`,
+    imageWidth: 1280,
+    imageHeight: 720,
+    imageType: 'image/jpeg',
+    imageAlt: 'Illustration of friends and a dog gathered around the Mention logo under a blue sky.',
+  };
+}
 
 /**
  * The `og:image` for an avatar, always on one of OUR origins.
@@ -137,6 +158,11 @@ export function buildOgMetaHtml(og: OgData): string {
     html +=
       `<meta property="og:image" content="${image}">` +
       `<meta name="twitter:image" content="${image}">`;
+    if (og.imageWidth) html += `<meta property="og:image:width" content="${og.imageWidth}">`;
+    if (og.imageHeight) html += `<meta property="og:image:height" content="${og.imageHeight}">`;
+    if (og.imageType) html += `<meta property="og:image:type" content="${escapeHtml(og.imageType)}">`;
+    if (og.imageAlt) html += `<meta property="og:image:alt" content="${escapeHtml(og.imageAlt)}">` +
+      `<meta name="twitter:image:alt" content="${escapeHtml(og.imageAlt)}">`;
   }
 
   if (og.jsonLd) {
