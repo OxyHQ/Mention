@@ -58,8 +58,8 @@ export interface MediaDeletionDrainResult {
   retried: number;
 }
 
-/** One pass: at most one Oxy batch call. Never throws. */
-export async function drainFederatedMediaDeletions(
+/** One batch: at most one Oxy call. Never throws. */
+async function drainOneBatch(
   limit = FEDERATED_MEDIA_DELETE_BATCH_MAX,
 ): Promise<MediaDeletionDrainResult> {
   const result: MediaDeletionDrainResult = { checked: 0, deleted: 0, notFound: 0, forbidden: 0, keptByOxy: 0, retried: 0 };
@@ -121,4 +121,25 @@ export async function drainFederatedMediaDeletions(
     logger.warn('[MediaDelete] Oxy delete failed; will retry', { reason, files: toDelete.length });
   }
   return result;
+}
+
+/** Oxy batch calls per drain run: ≤ 100 files a minute, far inside 240 requests/minute. */
+const MAX_BATCHES_PER_RUN = 5;
+
+/**
+ * One drain run: batches of at most {@link FEDERATED_MEDIA_DELETE_BATCH_MAX}
+ * files (the route's cap) until nothing is due or {@link MAX_BATCHES_PER_RUN}
+ * calls were made. A batch that had to retry ends the run — the rest would hit
+ * the same wall. Never throws.
+ */
+export async function drainFederatedMediaDeletions(
+  limit = FEDERATED_MEDIA_DELETE_BATCH_MAX,
+): Promise<MediaDeletionDrainResult> {
+  const total: MediaDeletionDrainResult = { checked: 0, deleted: 0, notFound: 0, forbidden: 0, keptByOxy: 0, retried: 0 };
+  for (let batch = 0; batch < MAX_BATCHES_PER_RUN; batch += 1) {
+    const result = await drainOneBatch(limit);
+    for (const key of Object.keys(total) as Array<keyof MediaDeletionDrainResult>) total[key] += result[key];
+    if (result.checked === 0 || result.retried > 0) break;
+  }
+  return total;
 }

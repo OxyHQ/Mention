@@ -106,12 +106,12 @@ describe('deleting a federated post deletes its re-hosted media', () => {
     const post = await federatedPost([rehosted(video, 'video')]);
     await deletePostRecord(post, undefined);
 
+    // The video's batch queues its poster; the same run's next batch deletes it.
     await drainFederatedMediaDeletions();
     expect(await stateOf(video)).toBe('deleted');
-    expect(await stateOf(poster)).toBe('pending');
-
-    await drainFederatedMediaDeletions();
     expect(await stateOf(poster)).toBe('deleted');
+    const calls = h.deleteFederatedMedia.mock.calls.map(([ids]) => ids as string[]);
+    expect(calls.findIndex((ids) => ids.includes(video))).toBeLessThan(calls.findIndex((ids) => ids.includes(poster)));
   });
 });
 
@@ -258,6 +258,21 @@ describe('Oxy\'s dedupe REUSES ids: an upload can bring back a file this app del
     expect(await tombstoneUnreferenced([x])).toEqual([x]);
     expect(await reviveFederatedFiles([x], new Date(Date.now() + 60_000))).toEqual([]);
     expect(await stateOf(x)).toBe('deleting');
+  });
+});
+
+describe('the batch cap (oxy-api takes at most 20 ids per call)', () => {
+  it('never sends more than 20 ids in one call, and drains a larger backlog in several', async () => {
+    const files = Array.from({ length: 45 }, () => fileId());
+    for (const id of files) await deletePostRecord(await federatedPost([rehosted(id)]), undefined);
+
+    await drainFederatedMediaDeletions();
+
+    const calls = h.deleteFederatedMedia.mock.calls.map(([ids]) => ids as string[]);
+    expect(Math.max(...calls.map((ids) => ids.length))).toBeLessThanOrEqual(20);
+    expect(calls.length).toBeGreaterThanOrEqual(3);
+    expect(files.every((id) => calls.some((ids) => ids.includes(id)))).toBe(true);
+    for (const id of files) expect(await stateOf(id)).toBe('deleted');
   });
 });
 

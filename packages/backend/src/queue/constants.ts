@@ -198,7 +198,8 @@ export const INSTAGRAM_GRAPH_SYNC_INTERVAL_MS = 30 * MS_PER_MINUTE;
 
 /**
  * Federated-media deletion drain cadence. Each run makes at most one Oxy batch
- * call (≤ 50 files), far inside Oxy's 240 requests/minute per app; a failed
+ * run makes at most 5 Oxy batch calls (≤ 20 files each), far inside Oxy's
+ * 240 requests/minute per app; a failed
  * file waits out its own backoff in the outbox, so a frequent tick costs one
  * indexed read when nothing is due.
  */

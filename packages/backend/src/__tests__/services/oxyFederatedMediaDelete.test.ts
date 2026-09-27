@@ -128,6 +128,7 @@ describe('deleteFederatedMedia', () => {
   it('ignores answers for ids it did not ask about, and refuses more than 50 ids', async () => {
     h.handler = (_req, _body, res) => json(res, 200, { data: { results: [{ id: 'someone-else', result: 'deleted' }, { id: 'file-a', result: 'forbidden' }] } });
     await expect(deleteFederatedMedia(['file-a'])).resolves.toEqual([{ id: 'file-a', result: 'forbidden' }]);
-    await expect(deleteFederatedMedia(Array.from({ length: 51 }, (_, i) => `f${i}`))).rejects.toThrow(/at most 50/);
+    await expect(deleteFederatedMedia(Array.from({ length: 21 }, (_, i) => `f${i}`))).rejects.toThrow(/at most 20/);
+    expect(h.requests).toHaveLength(1);
   });
 });

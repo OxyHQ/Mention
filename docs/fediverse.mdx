@@ -456,7 +456,7 @@ files are deleted too, including the poster frame of a video.
 
 - The files are queued in `federated_media_deletions`, in the same transaction
   that deletes the posts.
-- A periodic drain (`drainFederatedMediaDeletions`, every minute, not gated on
+- A periodic drain (`drainFederatedMediaDeletions`, every minute, at most 5 calls of 20 files, not gated on
   any flag) calls oxy-api's `POST /assets/service/federation/delete`.
 
 Oxy stores one file per content hash, so a file id can be shared by another

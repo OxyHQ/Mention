@@ -556,12 +556,12 @@ export type FederatedMediaDeleteResult = 'deleted' | 'not_found' | 'forbidden' |
 
 const KNOWN_DELETE_RESULTS: ReadonlySet<string> = new Set(['deleted', 'not_found', 'forbidden', 'in_use']);
 
-/** The batch route's ceiling (oxy-api validates 1–50 ids). */
-export const FEDERATED_MEDIA_DELETE_BATCH_MAX = 50;
+/** The batch route's ceiling (oxy-api validates 1–20 ids). */
+export const FEDERATED_MEDIA_DELETE_BATCH_MAX = 20;
 
 /**
  * Delete durable federated media Mention re-hosted (`POST
- * /assets/service/federation/delete`, body `{ ids }`, 1–50 ids). Same raw
+ * /assets/service/federation/delete`, body `{ ids }`, 1–20 ids). Same raw
  * transport, SDK service token and single 401 retry as the upload beside it.
  *
  * DELIBERATELY NOT gated on {@link isMediaCacheEnabled}: turning media WRITES
