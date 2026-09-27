@@ -37,12 +37,13 @@ import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { federatedMediaDeletions, federatedMediaPosters } from '../../db/schema/federation';
 import { userSettings } from '../../db/schema/userProfile';
 import { deletePostRecord, insertPostRecord, replacePostContent } from '../../db/posts/postRepository';
-import { postMedia } from '../../db/schema/postContent';
+import { postContentVariants, postMedia, postVariantAltTexts, postVariantMedia } from '../../db/schema/postContent';
 import { config } from '../../config';
 import { metrics } from '../../utils/metrics';
 import {
   FederatedMediaGoneError,
   recordFederatedPoster,
+  enqueueFederatedMediaDeletions,
   reviveFederatedFiles,
   tombstoneUnreferenced,
 } from '../../db/federation/mediaDeletionRepository';
@@ -57,14 +58,18 @@ function rehosted(id: string, type: MediaItem['type'] = 'image'): MediaItem {
   return { id, type, remoteUrl: `https://cdn.example/${id}.jpg`, cachedFromFederation: true };
 }
 
-async function federatedPost(media: MediaItem[], goneMediaPolicy?: 'refuse' | 'remote-url'): Promise<string> {
+async function federatedPost(
+  media: MediaItem[],
+  goneMediaPolicy?: 'refuse' | 'remote-url',
+  variant: { media?: MediaItem[]; alt?: Record<string, string> } = {},
+): Promise<string> {
   const record = await insertPostRecord({
     oxyUserId: OWNER,
     authorship: [{ oxyUserId: OWNER, role: 'owner', status: 'accepted' }],
     type: PostType.IMAGE,
     visibility: PostVisibility.PUBLIC,
     status: 'published',
-    content: { variants: [{ source: 'author', text: 'post', tag: 'en' }], media },
+    content: { variants: [{ source: 'author', text: 'post', tag: 'en', ...variant }], media },
     federation: {
       activityId: `https://remote.example/statuses/${(seq += 1)}`,
       actorUri: 'https://remote.example/users/a',
@@ -200,6 +205,31 @@ describe('the race with an import reusing the id', () => {
     await drainFederatedMediaDeletions(); // settle the claimed row for later tests
   });
 
+  it('the remote-URL fallback keeps the alt texts (keyed by media id) with their item', async () => {
+    const x = fileId();
+    const y = fileId();
+    const kept = fileId();
+    await deletePostRecord(await federatedPost([rehosted(x)], undefined, { media: [rehosted(y)] }), undefined);
+    expect((await tombstoneUnreferenced([x, y])).sort()).toEqual([x, y].sort());
+
+    const post = await federatedPost([rehosted(x), rehosted(kept)], undefined, {
+      media: [rehosted(y)],
+      alt: { [x]: 'a cat on a sofa', [y]: 'the same cat, cropped', [kept]: 'a dog' },
+    });
+
+    const [variant] = await getDb().select({ id: postContentVariants.id }).from(postContentVariants).where(eq(postContentVariants.postId, post));
+    const overrides = await getDb().select({ mediaId: postVariantMedia.mediaId }).from(postVariantMedia).where(eq(postVariantMedia.variantId, variant.id));
+    expect(overrides).toEqual([{ mediaId: `https://cdn.example/${y}.jpg` }]);
+    const alts = await getDb().select({ mediaId: postVariantAltTexts.mediaId, description: postVariantAltTexts.description })
+      .from(postVariantAltTexts).where(eq(postVariantAltTexts.variantId, variant.id));
+    expect(Object.fromEntries(alts.map((row) => [row.mediaId, row.description]))).toEqual({
+      [`https://cdn.example/${x}.jpg`]: 'a cat on a sofa',
+      [`https://cdn.example/${y}.jpg`]: 'the same cat, cropped',
+      [kept]: 'a dog',
+    });
+    await drainFederatedMediaDeletions();
+  });
+
   it('an item without an Oxy id has nothing to lock or check (it is stored as before)', async () => {
     const legacy = { type: 'image', remoteUrl: 'https://cdn.example/no-id.jpg' } as unknown as MediaItem;
     await expect(federatedPost([legacy])).resolves.toEqual(expect.any(String));
@@ -288,9 +318,12 @@ describe('Oxy\'s dedupe REUSES ids: an upload can bring back a file this app del
     expect(await stateOf(x)).toBe('pending');
     const post = await federatedPost([rehosted(x)], 'refuse');
 
-    // And the cycle works again when that post goes.
+    // And the cycle works again when that post goes. The re-queue does not
+    // cut the grace period short (that would churn a file an import is about
+    // to use): the delete waits at most one grace period, then proceeds.
     await deletePostRecord(post, undefined);
     expect(await stateOf(x)).toBe('pending');
+    await getDb().update(federatedMediaDeletions).set({ nextAttemptAt: new Date(Date.now() - 1_000) }).where(eq(federatedMediaDeletions.oxyFileId, x));
     await drainFederatedMediaDeletions();
     expect(await stateOf(x)).toBe('deleted');
   });
@@ -320,6 +353,31 @@ describe('the batch cap (oxy-api takes at most 20 ids per call)', () => {
 });
 
 describe('nothing leaks, nothing jams', () => {
+  it('re-queuing a revived file does NOT cancel its grace period (no upload/delete churn)', async () => {
+    const x = fileId();
+    await deletePostRecord(await federatedPost([rehosted(x)]), undefined);
+    await drainFederatedMediaDeletions();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(await reviveFederatedFiles([x], new Date())).toEqual([x]);
+    const due = async () => (await getDb().select({ at: federatedMediaDeletions.nextAttemptAt }).from(federatedMediaDeletions)
+      .where(eq(federatedMediaDeletions.oxyFileId, x)))[0].at.getTime();
+    const graceEnds = await due();
+    expect(graceEnds).toBeGreaterThan(Date.now() + 30 * 60_000);
+
+    // Another post using the file is deleted, or Instagram retries and queues it.
+    await enqueueFederatedMediaDeletions([x]);
+    expect(await due()).toBe(graceEnds);
+    h.deleteFederatedMedia.mockClear();
+    await drainFederatedMediaDeletions();
+    expect(h.deleteFederatedMedia).not.toHaveBeenCalled();
+
+    // Once the grace period is over, a re-queue re-arms it as usual.
+    await getDb().update(federatedMediaDeletions).set({ nextAttemptAt: new Date(Date.now() - 1_000) }).where(eq(federatedMediaDeletions.oxyFileId, x));
+    await enqueueFederatedMediaDeletions([x]);
+    await drainFederatedMediaDeletions();
+    expect(await stateOf(x)).toBe('deleted');
+  });
+
   it('a revived file whose insert then FAILED is deleted again after the grace period', async () => {
     const x = fileId();
     await deletePostRecord(await federatedPost([rehosted(x)]), undefined);

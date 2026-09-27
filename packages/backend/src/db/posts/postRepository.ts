@@ -1003,7 +1003,20 @@ function withoutGoneMedia(content: StoredPostContent, gone: ReadonlySet<string>)
     });
   };
   const media = swap(content.media);
-  const variants = content.variants?.map((variant) => (variant.media ? { ...variant, media: swap(variant.media) } : variant));
+  const swappedVariants = content.variants?.map((variant) => (variant.media ? { ...variant, media: swap(variant.media) } : variant));
+  // A variant's alt texts are keyed by media id (`post_variant_alt_texts.media_id`)
+  // and may describe the post's own media as well as the variant's: remap them
+  // with the SAME ids, once every item has been swapped, or the description is
+  // stored under an id no item carries any more (lost).
+  const variants = swappedVariants?.map((variant) => {
+    if (!variant.alt) return variant;
+    const alt = Object.fromEntries(Object.entries(variant.alt).flatMap(([mediaId, description]) => {
+      if (!replaced.has(mediaId)) return [[mediaId, description]];
+      const remote = replaced.get(mediaId);
+      return remote ? [[remote, description]] : [];
+    }));
+    return { ...variant, alt };
+  });
   const attachments = content.attachments?.flatMap((attachment) => {
     const id = attachment.type === 'media' ? attachment.id : undefined;
     if (!id || !replaced.has(id)) return [attachment];
