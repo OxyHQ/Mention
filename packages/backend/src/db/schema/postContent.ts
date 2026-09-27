@@ -595,6 +595,13 @@ export const postSourceKeys = pgTable(
     claimedUntil: timestamptz(),
     /** Who holds the claim — only its holder may fill it before it expires. */
     claimToken: text(),
+    /**
+     * When a sync first found this post MISSING from the source's listing. A
+     * deletion is irreversible, so one observation only marks it; the post is
+     * removed when the NEXT sync still does not list it, and the mark is
+     * cleared if it reappears.
+     */
+    missingSince: timestamptz(),
     createdAt: createdAt(),
   },
   (t) => [

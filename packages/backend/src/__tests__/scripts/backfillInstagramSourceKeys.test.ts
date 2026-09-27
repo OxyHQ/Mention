@@ -68,21 +68,29 @@ describe('backfillInstagramSourceKeys', () => {
     const legacyA = await bridgePost('DqLegacyA01');
     const legacyB = await bridgePost('DqLegacyB02');
     const keyed = await bridgePost('DqKeyedC003', true);
-    // A key another post already holds (the Graph import got there first).
-    const taken = await bridgePost('DqTakenD004');
-    await getDb().update(postSourceKeys).set({ postId: keyed }).where(eq(postSourceKeys.postId, keyed));
-    await getDb().insert(postSourceKeys).values({ sourceKey: 'instagram:DqTakenD004', claimToken: 'someone', claimedUntil: new Date(Date.now() + 60_000) });
+    // Filled by another post (the Graph import got there first): a conflict.
+    const conflicting = await bridgePost('DqTakenD004');
+    const graphCopy = await bridgePost('DqGraphE005', true);
+    await getDb().update(postSourceKeys).set({ sourceKey: 'instagram:DqTakenD004' }).where(eq(postSourceKeys.postId, graphCopy));
+    // Claimed by a LIVE Graph import: reported, left for a re-run.
+    const claimedByImport = await bridgePost('DqClaimF006');
+    await getDb().insert(postSourceKeys).values({ sourceKey: 'instagram:DqClaimF006', claimToken: 'live', claimedUntil: new Date(Date.now() + 60_000) });
+    // Claimed by a DEAD import: taken over.
+    const deadClaim = await bridgePost('DqDeadG0007');
+    await getDb().insert(postSourceKeys).values({ sourceKey: 'instagram:DqDeadG0007', claimToken: 'dead', claimedUntil: new Date(Date.now() - 60_000) });
 
     const dry = await backfillInstagramSourceKeys({ dryRun: true, pauseMs: 0 });
-    expect(dry).toMatchObject({ candidates: 3, written: 0, validated: [] });
+    expect(dry).toMatchObject({ candidates: 5, written: 0, validated: [] });
     expect(await keyOf(legacyA)).toBeUndefined();
 
     const run = await backfillInstagramSourceKeys({ dryRun: false, pauseMs: 0 });
-    expect(run).toMatchObject({ candidates: 3, written: 2, conflicts: 1 });
+    expect(run).toMatchObject({ candidates: 5, written: 3, conflicts: 1, claimed: 1, unvalidated: [] });
     expect(await keyOf(legacyA)).toBe('instagram:DqLegacyA01');
     expect(await keyOf(legacyB)).toBe('instagram:DqLegacyB02');
     expect(await keyOf(keyed)).toBe('instagram:DqKeyedC003');
-    expect(await keyOf(taken)).toBeUndefined();
+    expect(await keyOf(deadClaim)).toBe('instagram:DqDeadG0007');
+    expect(await keyOf(conflicting)).toBeUndefined();
+    expect(await keyOf(claimedByImport)).toBeUndefined();
 
     expect(run.validated.sort()).toEqual(NOT_VALID_CONSTRAINTS.map((c) => c.constraint).sort());
     const rows = await getDb().execute<{ convalidated: boolean }>(sql`
@@ -93,6 +101,6 @@ describe('backfillInstagramSourceKeys', () => {
     expect([...rows].every((row) => row.convalidated)).toBe(true);
 
     // Idempotent: a second run has nothing left to do.
-    expect(await backfillInstagramSourceKeys({ dryRun: false, pauseMs: 0 })).toMatchObject({ candidates: 1, written: 0, validated: [] });
+    expect(await backfillInstagramSourceKeys({ dryRun: false, pauseMs: 0 })).toMatchObject({ candidates: 2, written: 0, validated: [] });
   });
 });

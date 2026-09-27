@@ -15,7 +15,9 @@
 -- LOCK PROFILE — measured with `pg_locks` for this transaction's pid against a
 -- database migrated to 0053 (2026-09-27), not assumed:
 --  - `posts`: SHARE ROW EXCLUSIVE (plus ACCESS SHARE / ROW SHARE), from the
---    foreign key of the NEW, empty `post_source_keys`. Reads of `posts`
+--    foreign key of the NEW, empty `post_source_keys` — taken FIRST, before any
+--    federation-table DDL, so this migration acquires `posts` before the
+--    federation tables the inbox path locks after it. Reads of `posts`
 --    continue; writes wait only until this short transaction commits. No scan
 --    and no index build touches `posts`.
 --  - `federated_actors`, `federated_follows`: ACCESS EXCLUSIVE (ADD COLUMN and
@@ -42,6 +44,7 @@ CREATE TABLE "post_source_keys" (
 	"post_id" text,
 	"claimed_until" timestamp with time zone,
 	"claim_token" text,
+	"missing_since" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT date_trunc('milliseconds', now()) NOT NULL,
 	CONSTRAINT "post_source_keys_source_key_key" UNIQUE("source_key"),
 	CONSTRAINT "post_source_keys_post_id_key" UNIQUE("post_id"),
@@ -49,15 +52,26 @@ CREATE TABLE "post_source_keys" (
         or ("post_source_keys"."post_id" is null and "post_source_keys"."claimed_until" is not null and "post_source_keys"."claim_token" is not null))
 );
 --> statement-breakpoint
-ALTER TABLE "federated_actors" DROP CONSTRAINT "federated_actors_protocol_check";--> statement-breakpoint
-ALTER TABLE "federated_follows" DROP CONSTRAINT "federated_follows_network_check";--> statement-breakpoint
-ALTER TABLE "federated_actors" ADD COLUMN "instagram_graph_synced_at" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "federated_actors" ADD COLUMN "instagram_graph_sync_started_at" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "federated_actors" ADD COLUMN "instagram_graph_last_result" text;--> statement-breakpoint
-ALTER TABLE "federated_actors" ADD COLUMN "instagram_graph_user_id" text;--> statement-breakpoint
-ALTER TABLE "post_source_keys" ADD CONSTRAINT "post_source_keys_post_id_posts_id_fk" FOREIGN KEY ("post_id") REFERENCES "public"."posts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "federated_actors" ADD CONSTRAINT "federated_actors_instagram_graph_last_result_check" CHECK ("federated_actors"."instagram_graph_last_result" is null or "federated_actors"."instagram_graph_last_result" in ('ok', 'not_business', 'identity_mismatch', 'error')) NOT VALID;--> statement-breakpoint
-ALTER TABLE "federated_actors" ADD CONSTRAINT "federated_actors_protocol_check" CHECK ("federated_actors"."protocol" in ('activitypub', 'atproto', 'instagram-graph')) NOT VALID;--> statement-breakpoint
+ALTER TABLE "post_source_keys" ADD CONSTRAINT "post_source_keys_post_id_posts_id_fk" FOREIGN KEY ("post_id") REFERENCES "public"."posts"("id") ON DELETE cascade ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "federated_actors" DROP CONSTRAINT "federated_actors_protocol_check";
+--> statement-breakpoint
+ALTER TABLE "federated_follows" DROP CONSTRAINT "federated_follows_network_check";
+--> statement-breakpoint
+ALTER TABLE "federated_actors" ADD COLUMN "instagram_graph_synced_at" timestamp with time zone;
+--> statement-breakpoint
+ALTER TABLE "federated_actors" ADD COLUMN "instagram_graph_sync_started_at" timestamp with time zone;
+--> statement-breakpoint
+ALTER TABLE "federated_actors" ADD COLUMN "instagram_graph_last_result" text;
+--> statement-breakpoint
+ALTER TABLE "federated_actors" ADD COLUMN "instagram_graph_user_id" text;
+--> statement-breakpoint
+ALTER TABLE "federated_actors" ADD COLUMN "instagram_graph_history_depth" integer;
+--> statement-breakpoint
+ALTER TABLE "federated_actors" ADD CONSTRAINT "federated_actors_instagram_graph_last_result_check" CHECK ("federated_actors"."instagram_graph_last_result" is null or "federated_actors"."instagram_graph_last_result" in ('ok', 'not_business', 'identity_mismatch', 'error', 'deadline')) NOT VALID;
+--> statement-breakpoint
+ALTER TABLE "federated_actors" ADD CONSTRAINT "federated_actors_protocol_check" CHECK ("federated_actors"."protocol" in ('activitypub', 'atproto', 'instagram-graph')) NOT VALID;
+--> statement-breakpoint
 ALTER TABLE "federated_follows" ADD CONSTRAINT "federated_follows_network_check" CHECK ("federated_follows"."network" in ('activitypub', 'atproto', 'instagram-graph')) NOT VALID;
 --> statement-breakpoint
 SELECT set_config('lock_timeout', current_setting('mention.instagram_graph_lock_timeout'), true),

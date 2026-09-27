@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { postSourceKeys } from '../schema/postContent';
 
@@ -56,8 +56,13 @@ export async function releaseSourceKeyClaim(
     ));
 }
 
-/** Source keys (of `keys`) that are filled or claimed by a live holder. */
-export async function findTakenSourceKeys(
+/**
+ * Source keys (of `keys`) that are FILLED — the post exists. A key that is only
+ * claimed is not "known": its import may still fail and release it, so a sync
+ * must not treat it as history it has already walked (the claim itself makes a
+ * second importer skip it).
+ */
+export async function findFilledSourceKeys(
   keys: readonly string[],
   db: DatabaseOrTransaction = getDb(),
 ): Promise<Set<string>> {
@@ -65,9 +70,6 @@ export async function findTakenSourceKeys(
   const rows = await db
     .select({ sourceKey: postSourceKeys.sourceKey })
     .from(postSourceKeys)
-    .where(and(
-      inArray(postSourceKeys.sourceKey, [...keys]),
-      or(isNotNull(postSourceKeys.postId), gte(postSourceKeys.claimedUntil, sql`now()`)),
-    ));
+    .where(and(inArray(postSourceKeys.sourceKey, [...keys]), isNotNull(postSourceKeys.postId)));
   return new Set(rows.map((row) => row.sourceKey));
 }

@@ -31,7 +31,7 @@ const REVERT_0054 = [
   'alter table federated_actors drop constraint federated_actors_protocol_check',
   'alter table federated_follows drop constraint federated_follows_network_check',
   'alter table federated_actors drop column instagram_graph_synced_at, drop column instagram_graph_sync_started_at, '
-    + 'drop column instagram_graph_last_result, drop column instagram_graph_user_id',
+    + 'drop column instagram_graph_last_result, drop column instagram_graph_user_id, drop column instagram_graph_history_depth',
   "alter table federated_actors add constraint federated_actors_protocol_check check (protocol in ('activitypub', 'atproto'))",
   "alter table federated_follows add constraint federated_follows_network_check check (network in ('activitypub', 'atproto'))",
 ];

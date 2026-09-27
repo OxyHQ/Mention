@@ -123,18 +123,25 @@ export function isInstagramSourceActivityId(activityId: string | undefined | nul
 export function postMatchesFederatedObjectSql(objectUri: string): SQL {
   const sourceKey = instagramSourceKeyFromApObjectUri(objectUri);
   const byActivityId = eq(posts.federationActivityId, objectUri);
-  return sourceKey ? (or(byActivityId, postHasSourceKeySql(sourceKey)) as SQL) : byActivityId;
+  return sourceKey ? (or(byActivityId, postIsSourceKeySql(sourceKey)) as SQL) : byActivityId;
 }
 
 /**
- * "This post carries source key `sourceKey`". Every reference `qualified()`:
- * a bare column in a correlated subquery resolves against the subquery's own
- * table and silently matches nothing (`schema/CONVENTIONS.md`).
+ * "This post is the one holding source key `sourceKey`".
+ *
+ * An UNCORRELATED scalar subquery, on purpose. The obvious spelling — a
+ * correlated `exists (… post_id = posts.id …)` — cannot be driven by any index
+ * on `posts` inside the `or` above, so every bridged Note turned the inbox
+ * dedupe, Delete, Update and object resolution into a sequential scan of
+ * `posts` (it stayed one even with `enable_seqscan = off`). This form is
+ * evaluated ONCE (an InitPlan through `post_source_keys_source_key_key`), and
+ * the `or` becomes a BitmapOr of the activity-id index and the primary key.
+ * `source_key` is UNIQUE, so the subquery yields at most one row; a claim
+ * (NULL `post_id`) matches nothing.
  */
-export function postHasSourceKeySql(sourceKey: string): SQL {
-  return sql`exists (
-    select 1 from ${postSourceKeys}
-    where ${qualified(postSourceKeys.postId)} = ${qualified(posts.id)}
-      and ${qualified(postSourceKeys.sourceKey)} = ${sourceKey}
+export function postIsSourceKeySql(sourceKey: string): SQL {
+  return sql`${qualified(posts.id)} = (
+    select ${qualified(postSourceKeys.postId)} from ${postSourceKeys}
+    where ${qualified(postSourceKeys.sourceKey)} = ${sourceKey}
   )`;
 }

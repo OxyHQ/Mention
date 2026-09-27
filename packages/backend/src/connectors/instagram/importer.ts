@@ -2,18 +2,23 @@ import { randomUUID } from 'node:crypto';
 import { PostVisibility, type MediaItem } from '@mention/shared-types';
 import type { NormalizedExternalMedia, NormalizedExternalPost } from '@oxy.so/federation';
 import { isUniqueViolation } from '@oxy.so/db';
-import { and, between, eq, inArray, like } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNotNull, isNull, like, lte } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
 import { postSourceKeys } from '../../db/schema/postContent';
 import { posts } from '../../db/schema/posts';
-import { claimSourceKey, findTakenSourceKeys, releaseSourceKeyClaim } from '../../db/posts/postSourceKeyRepository';
+import { claimSourceKey, findFilledSourceKeys, releaseSourceKeyClaim } from '../../db/posts/postSourceKeyRepository';
 import { mediaMetadataService } from '../../services/MediaMetadataService';
 import { deleteFederatedPostSubtree } from '../../services/FederatedPostDeletionService';
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../../services/mediaCache/cacheWorker';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { logger } from '../../utils/logger';
 import { metrics } from '../../utils/metrics';
-import { INSTAGRAM_SOURCE_KEY_PREFIX, kilogramNoteIdFor } from '../shared/instagramSourceKey';
+import {
+  INSTAGRAM_SOURCE_KEY_PREFIX,
+  instagramShortcodeFromPermalink,
+  instagramSourceKey,
+  kilogramNoteIdFor,
+} from '../shared/instagramSourceKey';
 import { getRemoteHost } from '../shared/url';
 import type { ExtractedMediaAttachment } from '../shared/federatedMedia';
 import {
@@ -54,9 +59,12 @@ import type { GraphCallKind } from './usageBudget';
  * existed is recognised by its bridge Note id.
  *
  * DELETIONS. The media listing is newest-first and contiguous, so the posts it
- * returns are EVERY post of the account between its oldest and newest entry. A
- * stored Instagram post of this account inside that window that the listing no
- * longer has was deleted on Instagram, and is removed here.
+ * returns are EVERY post of the account after its oldest entry. A stored
+ * Instagram post of this account inside that window that the listing no longer
+ * has was probably deleted on Instagram. Deleting is irreversible, so one such
+ * observation only MARKS it (`post_source_keys.missing_since`); it is removed
+ * when a later sync still does not list it, and the mark is cleared whenever
+ * it is listed again.
  */
 
 export interface InstagramImportTarget {
@@ -109,8 +117,16 @@ export interface InstagramImportResult {
   posts: NormalizedExternalPost[];
   /** Media items the Graph API returned (before dedupe). */
   seen: number;
-  /** Stored posts removed because Instagram no longer lists them. */
+  /** Stored posts removed because Instagram no longer lists them (second observation). */
   deleted: number;
+  /** Stored posts marked missing for the first time (removed only if still missing next time). */
+  markedMissing: number;
+  /**
+   * How many media items this run walked newest-first WITHOUT stopping at
+   * known posts, and whether the listing ended inside that walk. A sync that
+   * stopped at known posts reports 0.
+   */
+  historyWalked: { items: number; exhausted: boolean };
   profile?: Omit<GraphBusinessProfile, 'media'>;
 }
 
@@ -197,7 +213,7 @@ async function findAlreadyImported(
 ): Promise<Set<string>> {
   if (mapped.length === 0) return new Set();
   const keys = mapped.map((entry) => entry.post.activityId);
-  const known = await findTakenSourceKeys(keys);
+  const known = await findFilledSourceKeys(keys);
 
   const byKilogramId = new Map<string, string>();
   for (const entry of mapped) {
@@ -292,47 +308,75 @@ async function createInstagramPost(entry: InstagramMappedPost, target: Instagram
 }
 
 /**
- * Remove stored Instagram posts of this account that the listing no longer has,
- * within the window the listing proves complete. Guarded: an implausibly large
- * number of "vanished" posts is a listing anomaly, not a mass deletion.
+ * Reconcile stored Instagram posts of this account against the listing, within
+ * the window the listing proves complete: AFTER its oldest (tail) entry — the
+ * bound is exclusive, since another post could share the tail's second and not
+ * have been listed — up to its newest.
+ *
+ * A post missing for the first time is MARKED; one already marked by an earlier
+ * sync and still missing is removed; a listed post loses any mark. Guarded: an
+ * implausibly large number of missing posts is a listing anomaly, and then
+ * nothing is marked or removed.
  */
 async function reconcileDeletions(
   target: InstagramImportTarget,
   listed: readonly GraphMedia[],
   listedKeys: ReadonlySet<string>,
-): Promise<number> {
-  if (listed.length === 0) return 0;
+): Promise<{ deleted: number; marked: number }> {
+  const none = { deleted: 0, marked: 0 };
+  if (listed.length === 0) return none;
+
+  // A post that reappeared is no longer suspected, wherever it sits.
+  if (listedKeys.size > 0) {
+    await getDb()
+      .update(postSourceKeys)
+      .set({ missingSince: null })
+      .where(and(inArray(postSourceKeys.sourceKey, [...listedKeys]), isNotNull(postSourceKeys.missingSince)));
+  }
+
   // Pinned posts can head the listing out of order; the TAIL is the oldest
   // entry of the contiguous run, the max is its newest.
   const times = listed.map((item) => Date.parse(item.timestamp ?? '')).filter(Number.isFinite);
   const tail = Date.parse(listed[listed.length - 1].timestamp ?? '');
-  if (!Number.isFinite(tail) || times.length === 0) return 0;
+  if (!Number.isFinite(tail) || times.length === 0) return none;
   const from = new Date(tail);
   const to = new Date(Math.max(...times));
 
   const stored = await getDb()
-    .select({ id: posts.id, sourceKey: postSourceKeys.sourceKey })
+    .select({ id: posts.id, sourceKey: postSourceKeys.sourceKey, missingSince: postSourceKeys.missingSince })
     .from(posts)
     .innerJoin(postSourceKeys, eq(postSourceKeys.postId, posts.id))
     .where(and(
       eq(posts.federationActorUri, target.actorUri),
       eq(posts.oxyUserId, target.ownerOxyUserId),
       like(postSourceKeys.sourceKey, `${INSTAGRAM_SOURCE_KEY_PREFIX}%`),
-      between(posts.createdAt, from, to),
+      gt(posts.createdAt, from),
+      lte(posts.createdAt, to),
     ));
-  const vanished = stored.filter((row) => !listedKeys.has(row.sourceKey));
-  if (vanished.length === 0) return 0;
-  if (vanished.length > MAX_RECONCILE_DELETIONS) {
-    logger.warn('[instagram] refused to reconcile an implausible number of deletions', { vanished: vanished.length });
-    return 0;
+  const missing = stored.filter((row) => !listedKeys.has(row.sourceKey));
+  if (missing.length === 0) return none;
+  if (missing.length > MAX_RECONCILE_DELETIONS) {
+    logger.warn('[instagram] refused to reconcile an implausible number of missing posts', { missing: missing.length });
+    return none;
+  }
+
+  const firstSeen = missing.filter((row) => row.missingSince === null).map((row) => row.sourceKey);
+  if (firstSeen.length > 0) {
+    await getDb()
+      .update(postSourceKeys)
+      .set({ missingSince: new Date() })
+      .where(and(inArray(postSourceKeys.sourceKey, firstSeen), isNull(postSourceKeys.missingSince)));
   }
 
   let deleted = 0;
-  for (const row of vanished) {
+  for (const row of missing) {
+    if (row.missingSince === null) continue;
     if ((await deleteFederatedPostSubtree(row.id, target.actorUri)) === 'deleted') deleted += 1;
   }
-  if (deleted > 0) logger.info('[instagram] removed posts deleted on Instagram', { deleted });
-  return deleted;
+  if (deleted > 0 || firstSeen.length > 0) {
+    logger.info('[instagram] reconciled posts missing on Instagram', { deleted, marked: firstSeen.length });
+  }
+  return { deleted, marked: firstSeen.length };
 }
 
 /**
@@ -350,10 +394,22 @@ export async function importInstagramMedia(
   const listed: GraphMedia[] = [];
   const listedKeys = new Set<string>();
   let seen = 0;
+  let exhausted = false;
   let after: string | undefined;
   let profile: InstagramImportResult['profile'];
-  const result = (outcome: InstagramImportOutcome, deleted = 0): InstagramImportResult =>
-    ({ outcome, imported, posts: importedPosts, seen, deleted, profile });
+  const result = (
+    outcome: InstagramImportOutcome,
+    reconciled: { deleted: number; marked: number } = { deleted: 0, marked: 0 },
+  ): InstagramImportResult => ({
+    outcome,
+    imported,
+    posts: importedPosts,
+    seen,
+    deleted: reconciled.deleted,
+    markedMissing: reconciled.marked,
+    historyWalked: options.stopAtKnown ? { items: 0, exhausted: false } : { items: seen, exhausted },
+    profile,
+  });
   const pastDeadline = () => options.deadline !== undefined && Date.now() >= options.deadline;
 
   while (seen < options.limit) {
@@ -384,11 +440,17 @@ export async function importInstagramMedia(
     const items: GraphMedia[] = media?.data ?? [];
     seen += items.length;
     listed.push(...items);
+    // EVERY listed item's key, including items that map to no importable post
+    // (nothing to show, no media): such an item is still on Instagram, and a
+    // stored copy of it must never look deleted.
+    for (const item of items) {
+      const key = instagramSourceKey(instagramShortcodeFromPermalink(item.permalink));
+      if (key) listedKeys.add(key);
+    }
 
     const mapped = items
       .map((item) => mapGraphMediaToNormalizedPost(item, target.actorUri))
       .filter((entry): entry is InstagramMappedPost => entry !== null);
-    for (const entry of mapped) listedKeys.add(entry.post.activityId);
     const known = await findAlreadyImported(mapped, target.kilogramActorUri);
 
     for (const entry of mapped) {
@@ -404,16 +466,17 @@ export async function importInstagramMedia(
     }
 
     after = media?.after;
+    if (!after || items.length < pageSize) {
+      exhausted = true;
+      break;
+    }
     const pageHadKnown = mapped.some((entry) => known.has(entry.post.activityId));
-    if ((options.stopAtKnown && pageHadKnown) || !after || items.length < pageSize) break;
+    if (options.stopAtKnown && pageHadKnown) break;
   }
 
-  // Items WITHOUT a mappable shortcode still occupy the listing; the window and
-  // the kept keys are computed over what was listed, so none of them can make a
-  // stored post look deleted.
-  const deleted = await reconcileDeletions(target, listed, listedKeys).catch((err: unknown) => {
+  const reconciled = await reconcileDeletions(target, listed, listedKeys).catch((err: unknown) => {
     logger.warn('[instagram] deletion reconcile failed', { error: err instanceof Error ? err.message : String(err) });
-    return 0;
+    return { deleted: 0, marked: 0 };
   });
-  return result(deferred > 0 ? 'partial' : 'ok', deleted);
+  return result(deferred > 0 ? 'partial' : 'ok', reconciled);
 }

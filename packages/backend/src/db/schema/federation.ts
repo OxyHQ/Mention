@@ -47,7 +47,7 @@ import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/
 export const FEDERATION_PROTOCOLS = ['activitypub', 'atproto', 'instagram-graph'] as const;
 
 /** The outcome of the last Instagram Graph post sync of an actor. */
-export const INSTAGRAM_GRAPH_SYNC_RESULTS = ['ok', 'not_business', 'identity_mismatch', 'error'] as const;
+export const INSTAGRAM_GRAPH_SYNC_RESULTS = ['ok', 'not_business', 'identity_mismatch', 'error', 'deadline'] as const;
 
 /** ActivityPub actor types Mention accepts. */
 export const FEDERATED_ACTOR_TYPES = [
@@ -229,6 +229,13 @@ export const federatedActors = pgTable(
      * `instagram-graph` actor it equals the id in its URI.
      */
     instagramGraphUserId: text(),
+    /**
+     * How many media items of this account's history a sync has walked (newest
+     * first) without stopping at known posts; NULL before any. A follow backfill
+     * walks until this reaches `INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT` (or the
+     * listing ended: stored as that limit), then only looks for what is new.
+     */
+    instagramGraphHistoryDepth: integer(),
 
     createdAt: createdAt(),
     updatedAt: updatedAt(),

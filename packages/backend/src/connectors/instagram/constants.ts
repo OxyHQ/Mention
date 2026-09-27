@@ -148,6 +148,9 @@ export const SYNC_DEADLINE_MS = 20 * 60 * 1000;
  */
 export const MAX_RECONCILE_DELETIONS = 10;
 
+/** A sync cut short by its deadline may resume after this (not the full cooldown). */
+export const DEADLINE_RETRY_MS = 15 * 60 * 1000;
+
 /** A claimed source key (media being re-hosted) expires after this. */
 export const SOURCE_KEY_CLAIM_TTL_MS = 30 * 60 * 1000;
 

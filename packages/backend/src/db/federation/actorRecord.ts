@@ -128,10 +128,12 @@ export interface FederatedActorRecord {
   outboxBackfill: FederatedOutboxBackfillState;
   /** When the Instagram Graph post sync last FINISHED for this actor (any outcome). */
   instagramGraphSyncedAt?: Date;
-  /** That sync's outcome — `not_business` and `identity_mismatch` hold a long cooldown. */
+  /** That sync's outcome — `not_business` / `identity_mismatch` hold a long cooldown, `deadline` a short one. */
   instagramGraphLastResult?: InstagramGraphSyncResult;
   /** The Instagram user id pinned on the first successful Graph sync. */
   instagramGraphUserId?: string;
+  /** How many media items of history a Graph sync has walked (see the column). */
+  instagramGraphHistoryDepth?: number;
   createdAt: Date;
   updatedAt: Date;
 }

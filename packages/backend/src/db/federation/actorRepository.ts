@@ -37,7 +37,7 @@
  * assembly stays one flat object literal instead of fifteen conditional spreads.
  */
 
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, ne, not, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import { qualified } from '@oxy.so/db';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import {
@@ -117,6 +117,7 @@ export function assembleActorRecord(row: ActorRow): FederatedActorRecord {
     instagramGraphSyncedAt: optional(row.instagramGraphSyncedAt),
     instagramGraphLastResult: optional(row.instagramGraphLastResult),
     instagramGraphUserId: optional(row.instagramGraphUserId),
+    instagramGraphHistoryDepth: optional(row.instagramGraphHistoryDepth),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -780,9 +781,50 @@ export async function releaseAtprotoGraphSync(
     );
 }
 
-/** Last results that hold the long (weekly) cooldown rather than the ordinary one. */
-function longCooldownResultSql(): SQL {
-  return sql`coalesce(${federatedActors.instagramGraphLastResult} in ('not_business', 'identity_mismatch'), false)`;
+/** The cutoffs a sync of each last-result tier must be older than to be due. */
+export interface InstagramGraphDueCutoffs {
+  /** A finished sync (`ok` / `error`). */
+  due: Date;
+  /** `not_business` / `identity_mismatch`: weekly. */
+  notBusiness: Date;
+  /** `deadline`: cut short, resumes soon. */
+  shortRetry: Date;
+}
+
+/**
+ * "This actor's Instagram Graph sync is due", as one predicate so the claim and
+ * the periodic selection can never disagree about it.
+ */
+function instagramGraphDueSql(cutoffs: InstagramGraphDueCutoffs): SQL {
+  const result = federatedActors.instagramGraphLastResult;
+  const syncedAt = federatedActors.instagramGraphSyncedAt;
+  return or(
+    isNull(syncedAt),
+    and(inArray(result, ['not_business', 'identity_mismatch']), lte(syncedAt, cutoffs.notBusiness)),
+    and(eq(result, 'deadline'), lte(syncedAt, cutoffs.shortRetry)),
+    and(
+      sql`coalesce(${result} not in ('not_business', 'identity_mismatch', 'deadline'), true)`,
+      lte(syncedAt, cutoffs.due),
+    ),
+  ) as SQL;
+}
+
+/**
+ * Record how deep into an account's history a sync has walked — only ever
+ * DEEPER, so a shallower later walk cannot re-open a finished backfill.
+ */
+export async function recordInstagramGraphHistoryDepth(
+  actorId: string,
+  depth: number,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<void> {
+  await db
+    .update(federatedActors)
+    .set({
+      instagramGraphHistoryDepth: sql`greatest(coalesce(${federatedActors.instagramGraphHistoryDepth}, 0), ${depth})`,
+      updatedAt: new Date(),
+    })
+    .where(eq(federatedActors.id, actorId));
 }
 
 /**
@@ -810,12 +852,13 @@ export async function pinInstagramGraphUserId(
  * `cooldown` gates a completed sync; a `not_business` or `identity_mismatch`
  * answer is gated by the (longer) `notBusiness` cutoff instead: an account that
  * is not a Business/Creator account stays that way for weeks, and a username now
- * naming a different Instagram account will not un-recycle itself in hours.
+ * naming a different Instagram account will not un-recycle itself in hours. A
+ * run cut short by its deadline is gated by the short `shortRetry` cutoff.
  */
 export async function claimInstagramGraphSync(
   actorId: string,
   now: Date,
-  cutoffs: { cooldown: Date; notBusiness: Date; staleLease: Date },
+  cutoffs: { cooldown: Date; notBusiness: Date; shortRetry: Date; staleLease: Date },
   db: DatabaseOrTransaction = getDb(),
 ): Promise<boolean> {
   const claimed = await db
@@ -825,17 +868,7 @@ export async function claimInstagramGraphSync(
       and(
         eq(federatedActors.id, actorId),
         isNotNull(federatedActors.oxyUserId),
-        or(
-          isNull(federatedActors.instagramGraphSyncedAt),
-          and(
-            not(longCooldownResultSql()),
-            lte(federatedActors.instagramGraphSyncedAt, cutoffs.cooldown),
-          ),
-          and(
-            longCooldownResultSql(),
-            lte(federatedActors.instagramGraphSyncedAt, cutoffs.notBusiness),
-          ),
-        ),
+        instagramGraphDueSql({ due: cutoffs.cooldown, notBusiness: cutoffs.notBusiness, shortRetry: cutoffs.shortRetry }),
         or(
           isNull(federatedActors.instagramGraphSyncStartedAt),
           lte(federatedActors.instagramGraphSyncStartedAt, cutoffs.staleLease),
@@ -908,8 +941,7 @@ export interface InstagramGraphSyncCandidate {
  * `accepted`, so an unconfirmed kilogram Follow does not cost Graph budget.
  */
 export async function findInstagramGraphSyncCandidates(
-  dueBefore: Date,
-  notBusinessDueBefore: Date,
+  cutoffs: InstagramGraphDueCutoffs,
   limit: number,
   db: DatabaseOrTransaction = getDb(),
 ): Promise<InstagramGraphSyncCandidate[]> {
@@ -924,17 +956,7 @@ export async function findInstagramGraphSyncCandidates(
           eq(federatedActors.protocol, 'instagram-graph'),
           sql`lower(split_part(${federatedActors.networkAcct}, '@', 2)) = 'instagram.com'`,
         ),
-        or(
-          isNull(federatedActors.instagramGraphSyncedAt),
-          and(
-            not(longCooldownResultSql()),
-            lte(federatedActors.instagramGraphSyncedAt, dueBefore),
-          ),
-          and(
-            longCooldownResultSql(),
-            lte(federatedActors.instagramGraphSyncedAt, notBusinessDueBefore),
-          ),
-        ),
+        instagramGraphDueSql(cutoffs),
         // Every reference `qualified()`: a bare column in a correlated subquery
         // resolves against the SUBQUERY's table and silently matches nothing
         // (`schema/CONVENTIONS.md`).

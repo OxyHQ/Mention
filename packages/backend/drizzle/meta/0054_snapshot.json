@@ -1,5 +1,5 @@
 {
-  "id": "7907075f-d727-4b91-bc8f-8fc47431651f",
+  "id": "6c74219b-3d5a-41ab-8a03-3002ba5b7db3",
   "prevId": "a214e2f4-377c-46d9-815a-5dc4b461b040",
   "version": "7",
   "dialect": "postgresql",
@@ -3973,6 +3973,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "instagram_graph_history_depth": {
+          "name": "instagram_graph_history_depth",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -4142,7 +4148,7 @@
         },
         "federated_actors_instagram_graph_last_result_check": {
           "name": "federated_actors_instagram_graph_last_result_check",
-          "value": "\"federated_actors\".\"instagram_graph_last_result\" is null or \"federated_actors\".\"instagram_graph_last_result\" in ('ok', 'not_business', 'identity_mismatch', 'error')"
+          "value": "\"federated_actors\".\"instagram_graph_last_result\" is null or \"federated_actors\".\"instagram_graph_last_result\" in ('ok', 'not_business', 'identity_mismatch', 'error', 'deadline')"
         },
         "federated_actors_outbox_backfill_status_check": {
           "name": "federated_actors_outbox_backfill_status_check",
@@ -11456,6 +11462,12 @@
         "claim_token": {
           "name": "claim_token",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "missing_since": {
+          "name": "missing_since",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },

@@ -88,7 +88,7 @@ import { posts } from '../../../db/schema/posts';
 import { postMedia, postSourceKeys } from '../../../db/schema/postContent';
 import { federatedActors, federatedFollows } from '../../../db/schema/federation';
 import { findInstagramGraphSyncCandidates, findActorByUri } from '../../../db/federation/actorRepository';
-import { claimSourceKey } from '../../../db/posts/postSourceKeyRepository';
+import { claimSourceKey, findFilledSourceKeys } from '../../../db/posts/postSourceKeyRepository';
 import { deletePostRecord } from '../../../db/posts/postRepository';
 import '../../../services/PostCreationService';
 import { buildFederatedNoteProvenance } from '../../../connectors/activitypub/apPostContent';
@@ -287,6 +287,22 @@ describe('the source-key claim (no upload for a post the other road wins)', () =
     expect(await rowsFor(9)).toHaveLength(0);
   });
 
+  it('a claimed-but-unfilled key is not "known": it cannot stop the walk as imported history', async () => {
+    // A FULL first page (the Graph page size), every key claimed by someone else.
+    const claimedPage = Array.from({ length: 25 }, (_, n) => item(n));
+    for (let n = 0; n < 25; n += 1) {
+      expect(await claimSourceKey(keyOf(n), 'someone-else', new Date(Date.now() + 60_000))).toBe(true);
+    }
+    expect(await findFilledSourceKeys([keyOf(0)])).toEqual(new Set());
+    // With stopAtKnown the walk must go on past a page of mere claims.
+    h.fetchBusinessDiscovery
+      .mockResolvedValueOnce(page(claimedPage, 'next'))
+      .mockResolvedValueOnce(page([item(29)]));
+    const result = await importInstagramMedia(TARGET, { limit: 30, stopAtKnown: true, kind: 'background' });
+    expect(h.fetchBusinessDiscovery).toHaveBeenCalledTimes(2);
+    expect(result.imported).toBe(1);
+  });
+
   it('an expired claim (dead worker) is taken over', async () => {
     expect(await claimSourceKey(keyOf(10), 'dead-worker', new Date(Date.now() - 1_000))).toBe(true);
     h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(10)]));
@@ -413,20 +429,64 @@ describe('a bridge Delete / Update reaches the Graph-imported copy', () => {
   });
 });
 
-describe('posts deleted on Instagram are removed', () => {
-  it('removes a stored post the listing no longer has, inside the listed window only', async () => {
+describe('posts deleted on Instagram are removed — on the SECOND observation', () => {
+  it('marks a post the listing no longer has, and removes it only when the next sync still lacks it', async () => {
     h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(16), item(17), item(18), item(19)]));
     await importInstagramMedia(TARGET, ONE_SHOT);
 
     // 17 was deleted on Instagram; 19 is older than this listing's window.
     h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(16), item(18)]));
-    const result = await importInstagramMedia(TARGET, ONE_SHOT);
+    expect(await importInstagramMedia(TARGET, ONE_SHOT)).toMatchObject({ deleted: 0, markedMissing: 1 });
+    expect(await rowsFor(17)).toHaveLength(1);
 
-    expect(result.deleted).toBe(1);
-    expect(await rowsFor(16)).toHaveLength(1);
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(16), item(18)]));
+    expect(await importInstagramMedia(TARGET, ONE_SHOT)).toMatchObject({ deleted: 1 });
     expect(await rowsFor(17)).toHaveLength(0);
+    expect(await rowsFor(16)).toHaveLength(1);
     expect(await rowsFor(18)).toHaveLength(1);
     expect(await rowsFor(19)).toHaveLength(1);
+  });
+
+  it('clears the mark when the post is listed again (a transient gap is not a deletion)', async () => {
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(16), item(17), item(18)]));
+    await importInstagramMedia(TARGET, ONE_SHOT);
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(16), item(18)]));
+    await importInstagramMedia(TARGET, ONE_SHOT);
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(16), item(17), item(18)]));
+    await importInstagramMedia(TARGET, ONE_SHOT);
+
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(16), item(18)]));
+    expect(await importInstagramMedia(TARGET, ONE_SHOT)).toMatchObject({ deleted: 0, markedMissing: 1 });
+    expect(await rowsFor(17)).toHaveLength(1);
+  });
+
+  it('never treats a listed item that maps to no importable post as deleted', async () => {
+    // Stored (from the bridge); on Instagram it is now listed with nothing the
+    // mapper can import — still listed, so still there.
+    await ingestKilogramNote(20);
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(19)]));
+    await importInstagramMedia(TARGET, ONE_SHOT);
+    const bare: GraphMedia = { ...item(20), caption: undefined, media_url: undefined, thumbnail_url: undefined, media_type: 'IMAGE' };
+    await getDb().update(posts).set({ createdAt: new Date(BASE - 20 * 60_000) }).where(eq(posts.federationActivityId, noteIdOf(20)));
+
+    for (let i = 0; i < 2; i += 1) {
+      h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(19), bare, item(21)]));
+      expect(await importInstagramMedia(TARGET, ONE_SHOT)).toMatchObject({ deleted: 0, markedMissing: 0 });
+    }
+    expect(await rowsFor(20)).toHaveLength(1);
+  });
+
+  it('does not judge a post that shares the listing tail\'s timestamp (the lower bound is exclusive)', async () => {
+    const tail = item(24);
+    const sameSecond: GraphMedia = { ...item(25), timestamp: tail.timestamp };
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(22), item(23), tail, sameSecond]));
+    await importInstagramMedia(TARGET, ONE_SHOT);
+
+    for (let i = 0; i < 2; i += 1) {
+      h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(22), item(23), tail]));
+      await importInstagramMedia(TARGET, ONE_SHOT);
+    }
+    expect(await rowsFor(25)).toHaveLength(1);
   });
 
   it('refuses an implausible mass deletion (a listing anomaly)', async () => {
@@ -434,8 +494,10 @@ describe('posts deleted on Instagram are removed', () => {
     h.fetchBusinessDiscovery.mockResolvedValueOnce(page(many));
     await importInstagramMedia(TARGET, { ...ONE_SHOT, limit: 20 });
 
-    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([many[0], many[many.length - 1]]));
-    expect(await importInstagramMedia(TARGET, ONE_SHOT)).toMatchObject({ deleted: 0 });
+    for (let i = 0; i < 2; i += 1) {
+      h.fetchBusinessDiscovery.mockResolvedValueOnce(page([many[0], many[many.length - 1]]));
+      expect(await importInstagramMedia(TARGET, ONE_SHOT)).toMatchObject({ deleted: 0, markedMissing: 0 });
+    }
     expect(await rowsFor(21)).toHaveLength(1);
   });
 });
@@ -483,17 +545,50 @@ describe('the leased sync', () => {
     expect(h.fetchBusinessDiscovery).toHaveBeenCalledTimes(1);
   });
 
-  it('stops walking history once a sync has succeeded', () => {
+  it('a follow walks history to the backfill depth once — a profile view\'s page does not count', () => {
     expect(optionsFor('follow', {})).toMatchObject({ stopAtKnown: false, limit: 50 });
-    expect(optionsFor('follow', { instagramGraphLastResult: 'ok' })).toMatchObject({ stopAtKnown: true });
+    expect(optionsFor('follow', { instagramGraphLastResult: 'ok' })).toMatchObject({ stopAtKnown: false });
+    expect(optionsFor('follow', { instagramGraphLastResult: 'ok', instagramGraphHistoryDepth: 20 })).toMatchObject({ stopAtKnown: false });
+    expect(optionsFor('follow', { instagramGraphLastResult: 'ok', instagramGraphHistoryDepth: 50 })).toMatchObject({ stopAtKnown: true });
     expect(optionsFor('profile_view', { instagramGraphLastResult: 'error' })).toMatchObject({ stopAtKnown: false });
+    expect(optionsFor('periodic', {})).toMatchObject({ stopAtKnown: true });
   });
 
-  it('never starts work past its deadline (it must end inside its lease), and does not stamp', async () => {
+  it('records how deep a follow walked, so the next follow only looks for what is new', async () => {
+    const actor = await seedKilogramActor();
+    // A profile view first: one full page, the sync succeeds — but that is no backfill.
+    const viewPage = Array.from({ length: 20 }, (_, n) => item(n));
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page(viewPage, 'cursor-after'));
+    await syncInstagramActor(actor, 'profile_view');
+    const afterView = (await findActorByUri(KILOGRAM_ACTOR))!;
+    expect(afterView.instagramGraphHistoryDepth).toBe(20);
+    expect(optionsFor('follow', afterView)).toMatchObject({ stopAtKnown: false });
+
+    // The follow then walks until the listing ends: history fully walked.
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([...viewPage, item(20), item(21)]));
+    await getDb().update(federatedActors).set({ instagramGraphSyncedAt: new Date(Date.now() - 3 * 3_600_000) }).where(eq(federatedActors.uri, KILOGRAM_ACTOR));
+    await syncInstagramActor((await findActorByUri(KILOGRAM_ACTOR))!, 'follow');
+    const afterFollow = (await findActorByUri(KILOGRAM_ACTOR))!;
+    expect(afterFollow.instagramGraphHistoryDepth).toBe(50);
+    expect(optionsFor('follow', afterFollow)).toMatchObject({ stopAtKnown: true });
+  });
+
+  it('never starts work past its deadline (it must end inside its lease)', async () => {
     h.fetchBusinessDiscovery.mockResolvedValue(page([item(38)]));
     expect(await importInstagramMedia(TARGET, { ...ONE_SHOT, deadline: Date.now() - 1 })).toMatchObject({ outcome: 'deadline' });
     expect(h.fetchBusinessDiscovery).not.toHaveBeenCalled();
-    expect(syncResultFor('deadline')).toBeNull();
+  });
+
+  it('a run cut short by its deadline resumes after a SHORT cooldown, not the full one', async () => {
+    expect(syncResultFor('deadline')).toBe('deadline');
+    await seedKilogramActor({ instagramGraphLastResult: 'deadline', instagramGraphSyncedAt: new Date(Date.now() - 20 * 60_000) });
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(38)]));
+    expect(await syncInstagramActor((await findActorByUri(KILOGRAM_ACTOR))!, 'profile_view')).not.toBeNull();
+
+    await getDb().update(federatedActors)
+      .set({ instagramGraphLastResult: 'deadline', instagramGraphSyncedAt: new Date(Date.now() - 5 * 60_000) })
+      .where(eq(federatedActors.uri, KILOGRAM_ACTOR));
+    expect(await syncInstagramActor((await findActorByUri(KILOGRAM_ACTOR))!, 'profile_view')).toBeNull();
   });
 
   it('does not stamp a call it withheld (budget), so the next trigger retries', async () => {
@@ -521,7 +616,10 @@ describe('the leased sync', () => {
 });
 
 describe('periodic job selection', () => {
-  const candidates = async () => (await findInstagramGraphSyncCandidates(new Date(), new Date(Date.now() - 7 * 86_400_000), 500))
+  const candidates = async () => (await findInstagramGraphSyncCandidates(
+    { due: new Date(), notBusiness: new Date(Date.now() - 7 * 86_400_000), shortRetry: new Date(Date.now() - 15 * 60_000) },
+    500,
+  ))
     .map((candidate) => candidate.uri)
     .filter((uri) => uri === KILOGRAM_ACTOR || uri === GRAPH_ACTOR);
 

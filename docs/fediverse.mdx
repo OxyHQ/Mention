@@ -372,12 +372,17 @@ lease, so a reclaimed lease never repeats downloads.
   between a spinner and an empty page.
 - A follow imports up to `INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT` posts, at most
   every 2 hours per actor. A follow/unfollow loop, or many followers, therefore
-  costs one backfill.
+  costs one backfill. The depth walked is recorded
+  (`instagram_graph_history_depth`), so the backfill walks history once, until
+  it reaches that depth or the listing ends. A profile view's single page does
+  not count toward it.
 - The `syncInstagramFollowedAccounts` periodic job runs every 30 minutes. It
   syncs up to 10 actors that have an accepted local follower, 2 at a time.
 
-After an account's first successful sync, every trigger stops paging at the
-first page that holds an already-imported post.
+The periodic job and profile views after a successful sync stop paging at the
+first page that holds an already-imported post; a key that is only claimed does
+not count as imported. A run cut short by its deadline resumes after 15 minutes
+instead of the full cooldown.
 
 **Budget.** A token gets about 200 calls per hour. Every call must first take a
 token from a bucket in Redis (a per-process bucket when Redis is unavailable).
@@ -426,16 +431,23 @@ instead of duplicating.
   retries into the finished post, so no upload is made for a post that then
   loses. oxy-api has no route to delete a durable federation asset.
 - Every "is this object already here?" gate on the ActivityPub side matches on
-  the key. A kilogram Like, boost, reply, Delete or Update of a Graph-imported
+  the key. It uses an uncorrelated lookup, so it stays index-driven;
+  `instagramSourceKeyPlan.test.ts` asserts that the plan never scans `posts`. A kilogram Like, boost, reply, Delete or Update of a Graph-imported
   post reaches the existing row. Ownership is still checked against the signing
   actor.
 - Graph posts of a kilogram actor are stored under the kilogram actor URI, so
   identity projection, cross-post detection and a bridge Delete treat both roads
   as one source.
-- **Posts deleted on Instagram are removed.** The media listing is newest-first
-  and contiguous, so a stored post inside the listed window that the listing no
-  longer has was deleted. More than 10 such posts from one listing is treated as
-  an anomaly, and nothing is deleted.
+- **Posts deleted on Instagram are removed, on the second observation.** The
+  media listing is newest-first and contiguous, so a stored post that the
+  listing no longer has probably was deleted. The window runs after the oldest
+  listed entry (exclusive bound) up to the newest.
+  - The first observation only marks the post (`post_source_keys.missing_since`).
+    A later sync that still does not list it removes it.
+  - Listing the post again clears the mark.
+  - Every listed item counts as present, including one with nothing importable.
+  - More than 10 missing posts from one listing is treated as an anomaly, and
+    nothing is marked or removed.
 
 Nothing is sent to Instagram. Replies, likes and boosts of a Graph-imported post
 are not delivered, and the permalink stands in as the object a reply or quote

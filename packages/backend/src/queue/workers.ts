@@ -301,15 +301,19 @@ export function startWorkers(): void {
     },
   );
 
-  instagramGraphSyncWorker = new Worker<InstagramGraphSyncJobData>(
-    INSTAGRAM_GRAPH_SYNC_QUEUE,
-    processInstagramGraphSyncJob,
-    {
-      connection,
-      concurrency: INSTAGRAM_GRAPH_SYNC_WORKER_CONCURRENCY,
-      lockDuration: INSTAGRAM_GRAPH_SYNC_LOCK_DURATION_MS,
-    },
-  );
+  // Only when the connector is configured: an inert connector enqueues
+  // nothing, and a worker would hold a Redis connection polling for nothing.
+  instagramGraphSyncWorker = instagramGraphConnector.enabled
+    ? new Worker<InstagramGraphSyncJobData>(
+      INSTAGRAM_GRAPH_SYNC_QUEUE,
+      processInstagramGraphSyncJob,
+      {
+        connection,
+        concurrency: INSTAGRAM_GRAPH_SYNC_WORKER_CONCURRENCY,
+        lockDuration: INSTAGRAM_GRAPH_SYNC_LOCK_DURATION_MS,
+      },
+    )
+    : null;
 
   for (const worker of [
     inboxWorker,
@@ -318,7 +322,7 @@ export function startWorkers(): void {
     sharingCleanupWorker,
     mediaMetadataEnrichWorker,
     accountErasureWorker,
-    instagramGraphSyncWorker,
+    ...(instagramGraphSyncWorker ? [instagramGraphSyncWorker] : []),
   ]) {
     worker.on('failed', (job, err) => {
       logger.warn('[Queue] job failed', {
