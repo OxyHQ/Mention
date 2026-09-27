@@ -1,20 +1,17 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { router, type Href } from 'expo-router';
+import type { Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { cacheActors } from '@/lib/actorCache';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { getNormalizedUserHandle, type User } from '@oxy.so/core';
+import type { User } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
 import type { ProfileCardData } from '@/components/ProfileCard';
-import {
-  SuggestedProfileCard,
-  SuggestedProfileCardSkeleton,
-} from '@/components/SuggestedProfileCard';
+import { SuggestedProfileCardSkeleton } from '@/components/SuggestedProfileCard';
 import { useUserById } from '@/hooks/useCachedUser';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
-import { DismissButton } from './DismissButton';
-import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';
+import { PersonSuggestionItem } from './PersonSuggestionItem';
+import { InterstitialShell } from './InterstitialShell';
 import {
   INTERSTITIAL_CARD_WIDTH,
   INTERSTITIAL_STALE_TIME_MS,
@@ -25,9 +22,7 @@ import {
 import {
   useInterstitialReporter,
   type InterstitialCardProps,
-  type ReportInterstitialEvent,
 } from './interstitialTelemetry';
-import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
@@ -49,12 +44,11 @@ export function SimilarAccountsInterstitial({
   subjectId,
 }: SimilarAccountsInterstitialProps) {
   const { t } = useTranslation();
-  const isDesktop = useIsScreenNotMobile();
   const { oxyServices, user } = useAuth();
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
   const report = useInterstitialReporter({ feedDescriptor, slotKey, kind: 'similarAccounts' });
 
-  const limits = resolveInterstitialLimits('similarAccounts', isDesktop);
+  const limits = resolveInterstitialLimits('similarAccounts');
 
   // The SAME cache entry the profile screen's suggestion strip owns
   // (`components/suggestions/SuggestedUsers.tsx`): same endpoint, same key
@@ -117,9 +111,10 @@ export function SimilarAccountsInterstitial({
   );
 
   const renderItem = useCallback(
-    (account: User, { position }: InterstitialItemContext) => (
-      <SimilarAccountItem
-        account={account}
+    (account: User, position: number) => (
+      <PersonSuggestionItem
+        profile={toCardData(account)}
+        dismissLabelKey="feed.interstitial.similarAccounts.dismiss"
         position={position}
         report={report}
         onDismiss={handleDismiss}
@@ -143,7 +138,6 @@ export function SimilarAccountsInterstitial({
       keyExtractor={accountId}
       cardWidth={INTERSTITIAL_CARD_WIDTH.profile}
       renderItem={renderItem}
-      limits={limits}
       isLoading={isLoading}
       renderSkeleton={renderSkeleton}
       report={report}
@@ -169,36 +163,9 @@ function isVerified(account: User): boolean | undefined {
   return typeof account.verified === 'boolean' ? account.verified : undefined;
 }
 
-interface SimilarAccountItemProps {
-  account: User;
-  /** 0-based index within the band — the `position` every item event carries. */
-  position: number;
-  report: ReportInterstitialEvent;
-  onDismiss: (id: string, position: number) => void;
-}
-
-/**
- * One similar account — the same {@link SuggestedProfileCard} person tile the
- * who-to-follow band renders, so a suggestion looks and behaves the same in
- * either band.
- */
-function SimilarAccountItem({
-  account,
-  position,
-  report,
-  onDismiss,
-}: SimilarAccountItemProps) {
-  const { t } = useTranslation();
-
-  const handle = getNormalizedUserHandle(account) ?? '';
-  const accountHref = profileHrefForUser(account);
-  const dismissLabel = t('feed.interstitial.similarAccounts.dismiss', {
-    name:
-      account.name?.displayName?.trim() ||
-      (handle.length > 0 ? `@${handle}` : t('user.unknown')),
-  });
-
-  const cardData: ProfileCardData = {
+/** The tile's view of a similar account. */
+function toCardData(account: User): ProfileCardData {
+  return {
     id: account.id,
     username: account.username,
     name: account.name,
@@ -211,32 +178,4 @@ function SimilarAccountItem({
     instance: account.instance,
     federation: account.federation,
   };
-
-  return (
-    <SuggestedProfileCard
-      profile={cardData}
-      // Reports the tap, then does exactly what the tile does by default. Only
-      // wired when there IS somewhere to go: a handle-less (degraded) profile is
-      // not pressable, and must not become so just because we want the signal.
-      onPress={
-        accountHref
-          ? () => {
-              report('click', position);
-              router.push(accountHref);
-            }
-          : undefined
-      }
-      onFollowChange={(isFollowing) => {
-        // An unfollow is not a follow — the band measures accounts GAINED.
-        if (isFollowing) report('follow', position);
-      }}
-      accessory={
-        <DismissButton
-          overlay
-          onPress={() => onDismiss(account.id, position)}
-          accessibilityLabel={dismissLabel}
-        />
-      }
-    />
-  );
 }

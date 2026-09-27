@@ -13,7 +13,7 @@ import {
 } from '@/services/customFeedsService';
 import { logger } from '@oxy.so/core/logger';
 import { DismissButton } from './DismissButton';
-import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';
+import { InterstitialShell } from './InterstitialShell';
 import {
   INTERSTITIAL_CARD_WIDTH,
   INTERSTITIAL_STALE_TIME_MS,
@@ -27,7 +27,6 @@ import {
   type InterstitialCardProps,
   type ReportInterstitialEvent,
 } from './interstitialTelemetry';
-import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
 /**
@@ -45,13 +44,12 @@ export function SuggestedFeedsInterstitial({
   feedDescriptor,
 }: InterstitialCardProps) {
   const { t } = useTranslation();
-  const isDesktop = useIsScreenNotMobile();
   const { user, canUsePrivateApi, isPrivateApiPending } = useAuth();
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
   const [subscribed, setSubscribed] = useState<ReadonlySet<string>>(() => new Set());
   const report = useInterstitialReporter({ feedDescriptor, slotKey, kind: 'suggestedFeeds' });
 
-  const limits = resolveInterstitialLimits('suggestedFeeds', isDesktop);
+  const limits = resolveInterstitialLimits('suggestedFeeds');
 
   const query = useQuery({
     // Keyed on the viewer: `excludeSubscribed` makes this list viewer-specific,
@@ -117,7 +115,7 @@ export function SuggestedFeedsInterstitial({
   );
 
   const renderItem = useCallback(
-    (feed: MarketplaceFeed, { position }: InterstitialItemContext) => {
+    (feed: MarketplaceFeed, position: number) => {
       const id = marketplaceFeedId(feed);
       return (
         <SuggestedFeedItem
@@ -158,7 +156,6 @@ export function SuggestedFeedsInterstitial({
       keyExtractor={marketplaceFeedId}
       cardWidth={INTERSTITIAL_CARD_WIDTH.wide}
       renderItem={renderItem}
-      limits={limits}
       isLoading={isLoading}
       renderSkeleton={renderSkeleton}
       report={report}

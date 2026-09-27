@@ -1,17 +1,11 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import type { ProfileCardData } from '@/components/ProfileCard';
-import {
-  SuggestedProfileCard,
-  SuggestedProfileCardSkeleton,
-} from '@/components/SuggestedProfileCard';
+import { SuggestedProfileCardSkeleton } from '@/components/SuggestedProfileCard';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import type { ProfileData } from '@/lib/recommendations';
-import { getNormalizedUserHandle } from '@oxy.so/core';
-import { profileHrefForUser } from '@/components/Profile/profileRoute';
-import { DismissButton } from './DismissButton';
-import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';
+import { PersonSuggestionItem } from './PersonSuggestionItem';
+import { InterstitialShell } from './InterstitialShell';
 import {
   INTERSTITIAL_CARD_WIDTH,
   resolveInterstitialLimits,
@@ -21,9 +15,7 @@ import {
 import {
   useInterstitialReporter,
   type InterstitialCardProps,
-  type ReportInterstitialEvent,
 } from './interstitialTelemetry';
-import { useIsScreenNotMobile } from '@/hooks/useOptimizedMediaQuery';
 
 /**
  * "Who to follow", inline in the feed.
@@ -42,12 +34,11 @@ export function SuggestedUsersInterstitial({
   feedDescriptor,
 }: InterstitialCardProps) {
   const { t } = useTranslation();
-  const isDesktop = useIsScreenNotMobile();
   const { recommendations, isLoading } = useRecommendations();
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set());
   const report = useInterstitialReporter({ feedDescriptor, slotKey, kind: 'suggestedUsers' });
 
-  const limits = resolveInterstitialLimits('suggestedUsers', isDesktop);
+  const limits = resolveInterstitialLimits('suggestedUsers');
 
   const users = useMemo(
     () => selectInterstitialWindow(recommendations, ordinal, limits, profileId, dismissed),
@@ -67,9 +58,10 @@ export function SuggestedUsersInterstitial({
   );
 
   const renderItem = useCallback(
-    (profile: ProfileData, { position }: InterstitialItemContext) => (
-      <SuggestedUserItem
-        profile={profile}
+    (profile: ProfileData, position: number) => (
+      <PersonSuggestionItem
+        profile={toCardData(profile)}
+        dismissLabelKey="feed.interstitial.users.dismiss"
         position={position}
         report={report}
         onDismiss={handleDismiss}
@@ -90,7 +82,6 @@ export function SuggestedUsersInterstitial({
       keyExtractor={profileId}
       cardWidth={INTERSTITIAL_CARD_WIDTH.profile}
       renderItem={renderItem}
-      limits={limits}
       isLoading={isLoading}
       renderSkeleton={renderSkeleton}
       report={report}
@@ -102,38 +93,9 @@ function profileId(profile: ProfileData): string {
   return profile.id;
 }
 
-interface SuggestedUserItemProps {
-  profile: ProfileData;
-  /** 0-based index within the band — the `position` every item event carries. */
-  position: number;
-  report: ReportInterstitialEvent;
-  onDismiss: (id: string, position: number) => void;
-}
-
-/**
- * One suggested account: the {@link SuggestedProfileCard} person tile, with the
- * X in its corner.
- */
-function SuggestedUserItem({
-  profile,
-  position,
-  report,
-  onDismiss,
-}: SuggestedUserItemProps) {
-  const { t } = useTranslation();
-
-  // Same degradation ladder the row itself renders: display name, else @handle,
-  // else "Unknown user" — an unresolved profile must never leak its raw id, not
-  // even into a screen reader.
-  const handle = getNormalizedUserHandle(profile) ?? '';
-  const profileHref = profileHrefForUser(profile);
-  const dismissLabel = t('feed.interstitial.users.dismiss', {
-    name:
-      profile.name?.displayName?.trim() ||
-      (handle.length > 0 ? `@${handle}` : t('user.unknown')),
-  });
-
-  const cardData: ProfileCardData = {
+/** The tile's view of a recommended profile. */
+function toCardData(profile: ProfileData): ProfileCardData {
+  return {
     id: profile.id,
     username: profile.username,
     name: profile.name,
@@ -146,32 +108,4 @@ function SuggestedUserItem({
     instance: profile.instance,
     federation: profile.federation,
   };
-
-  return (
-    <SuggestedProfileCard
-      profile={cardData}
-      // Reports the tap, then does exactly what the tile does by default. Only
-      // wired when there IS somewhere to go: a handle-less (degraded) profile is
-      // not pressable, and must not become so just because we want the signal.
-      onPress={
-        profileHref
-          ? () => {
-              report('click', position);
-              router.push(profileHref);
-            }
-          : undefined
-      }
-      onFollowChange={(isFollowing) => {
-        // An unfollow is not a follow — the band measures accounts GAINED.
-        if (isFollowing) report('follow', position);
-      }}
-      accessory={
-        <DismissButton
-          overlay
-          onPress={() => onDismiss(profile.id, position)}
-          accessibilityLabel={dismissLabel}
-        />
-      }
-    />
-  );
 }

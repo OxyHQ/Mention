@@ -133,8 +133,9 @@ interface ProfileCardProps {
  * `/@<id>` links). Derived from the CORRECTED profile: a rename changes the
  * handle, and a link that still pointed at the old one would 404 on tap.
  */
-export function useResolvedProfileIdentity(profile: ProfileCardData) {
+export function useResolvedProfileIdentity(profile: ProfileCardData, onPress?: () => void) {
   const { t } = useTranslation();
+  const router = useRouter();
   const knownIdentities = useKnownIdentitySet([profile.id]);
   const resolved = useMemo(
     () => mergeKnownIdentity(profile, knownIdentities.get(profile.id)),
@@ -151,15 +152,20 @@ export function useResolvedProfileIdentity(profile: ProfileCardData) {
     displayName ??
     (handle.length > 0 ? undefined : t('user.unknown', { defaultValue: 'Unknown user' }));
 
+  // Resolved from the profile's own record, so a channel opens `/c/` instead of
+  // bouncing through the `/@` redirect.
+  const href = profileHrefForUser(resolved);
+
   return {
     resolved,
     handle,
     nameLabel,
-    /** A handle-less (degraded) profile has nowhere to go and is not pressable. */
-    hasHandle: handle.length > 0,
-    // Resolved from the profile's own record, so a channel opens `/c/` instead
-    // of bouncing through the `/@` redirect.
-    href: profileHrefForUser(resolved),
+    /**
+     * The caller's handler, else a push to the profile — and `undefined` for a
+     * handle-less (degraded) profile the caller did not wire, which has nowhere
+     * to go and must not be pressable.
+     */
+    press: onPress ?? (handle.length > 0 && href ? () => router.push(href) : undefined),
   };
 }
 
@@ -175,17 +181,7 @@ export function ProfileCard({
   size = 'medium',
   horizontalInset = 12,
 }: ProfileCardProps) {
-  const router = useRouter();
-  const { resolved, handle, nameLabel, hasHandle, href } = useResolvedProfileIdentity(profile);
-  const canPress = Boolean(onPress) || hasHandle;
-
-  const handlePress = () => {
-    if (onPress) {
-      onPress();
-    } else if (href) {
-      router.push(href);
-    }
-  };
+  const { resolved, handle, nameLabel, press } = useResolvedProfileIdentity(profile, onPress);
 
   return (
     <View
@@ -201,7 +197,7 @@ export function ProfileCard({
         size={size}
         horizontalInset={0}
         style={{ flex: 1 }}
-        onPress={canPress ? handlePress : undefined}
+        onPress={press}
         avatarSlot={<Avatar
           source={resolved.avatar || undefined}
           size={size === 'small' ? 36 : 44}

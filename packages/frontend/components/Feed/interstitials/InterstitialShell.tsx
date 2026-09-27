@@ -12,7 +12,7 @@ import {
   INTERSTITIAL_CARD_GAP,
   INTERSTITIAL_EDGE_PADDING,
   INTERSTITIAL_SEE_MORE_CARD_WIDTH,
-  type InterstitialLimits,
+  INTERSTITIAL_SKELETON_ITEMS,
 } from './interstitialLayout';
 import { useInterstitialImpression, type ReportInterstitialEvent } from './interstitialTelemetry';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
@@ -32,11 +32,6 @@ import { HIT_SLOP_MD } from '@/styles/hitSlop';
  * (people, feeds, starter packs, trends) can share it.
  */
 
-export interface InterstitialItemContext {
-  /** 0-based index within the band — the `position` on every item-level event. */
-  position: number;
-}
-
 interface InterstitialShellProps<TItem> {
   title: string;
   /** Destination of the header link (wide screens) and the trailing card. */
@@ -46,11 +41,11 @@ interface InterstitialShellProps<TItem> {
   keyExtractor: (item: TItem) => string;
   /** Width of one card, from `INTERSTITIAL_CARD_WIDTH`. */
   cardWidth: number;
-  renderItem: (item: TItem, context: InterstitialItemContext) => React.ReactElement;
-  limits: InterstitialLimits;
+  /** `position` is the 0-based index within the band — on every item-level event. */
+  renderItem: (item: TItem, position: number) => React.ReactElement;
   /** True until the suggestions land: placeholders stand in their place. */
   isLoading?: boolean;
-  /** ONE placeholder item; the shell repeats it `limits.skeletonItems` times. */
+  /** ONE placeholder item; the shell repeats it as many times as will be seen. */
   renderSkeleton?: () => React.ReactElement;
   /**
    * The band's bound reporter. The shell owns the two CARD-level events — the
@@ -68,7 +63,6 @@ export function InterstitialShell<TItem>({
   keyExtractor,
   cardWidth,
   renderItem,
-  limits,
   isLoading = false,
   renderSkeleton,
   report,
@@ -83,7 +77,6 @@ export function InterstitialShell<TItem>({
 
   const seeMoreLabel = t('feed.interstitial.seeMore');
 
-  const skeletonKeys = Array.from({ length: limits.skeletonItems }, (_, index) => index);
   const showSkeleton = isLoading && renderSkeleton !== undefined;
 
   // A band still on placeholders has not been seen — it has nothing to show yet,
@@ -111,40 +104,42 @@ export function InterstitialShell<TItem>({
 
   return (
     <View ref={impressionRef} className="bg-muted border-border w-full border-b pb-3 pt-3">
-      {showSkeleton && renderSkeleton ? (
-        // Placeholders sit in a plain row, not a scroller: there is nothing to
-        // swipe to yet, and a bouncing empty carousel reads as a broken one.
-        <View className="gap-3">
-          <View style={styles.inset}>{header}</View>
-          <View style={styles.skeletonRow}>
-            {skeletonKeys.map((key) => (
-              <View key={key} style={{ width: cardWidth }}>
-                {renderSkeleton()}
-              </View>
-            ))}
-          </View>
-        </View>
-      ) : (
-        <Carousel
-          accessibilityLabel={title}
-          header={header}
-          showArrows={isDesktop}
-          showDots={false}
-          gap={INTERSTITIAL_CARD_GAP}
-          inset={INTERSTITIAL_EDGE_PADDING}
-          previousLabel={t('feed.interstitial.previous')}
-          nextLabel={t('feed.interstitial.next')}
-          style={styles.carousel}>
-          {items.map((item, index) => (
-            <CarouselItem key={keyExtractor(item)} width={cardWidth}>
-              {renderItem(item, { position: index })}
-            </CarouselItem>
-          ))}
-          <CarouselItem key="see-more" width={INTERSTITIAL_SEE_MORE_CARD_WIDTH} accessibilityLabel={seeMoreLabel}>
-            <SeeMoreCard label={seeMoreLabel} onPress={handleSeeMore} />
-          </CarouselItem>
-        </Carousel>
-      )}
+      {/* Placeholders sit in the same carousel as the cards they stand in for, so
+          nothing shifts when the suggestions land; only the arrows and the
+          See-more card wait for real content. */}
+      <Carousel
+        accessibilityLabel={title}
+        header={header}
+        showArrows={isDesktop && !showSkeleton}
+        showDots={false}
+        gap={INTERSTITIAL_CARD_GAP}
+        inset={INTERSTITIAL_EDGE_PADDING}
+        previousLabel={t('feed.interstitial.previous')}
+        nextLabel={t('feed.interstitial.next')}
+        style={styles.carousel}>
+        {showSkeleton && renderSkeleton
+          ? Array.from(
+              { length: INTERSTITIAL_SKELETON_ITEMS[isDesktop ? 'desktop' : 'mobile'] },
+              (_, index) => (
+                <CarouselItem key={index} width={cardWidth}>
+                  {renderSkeleton()}
+                </CarouselItem>
+              ),
+            )
+          : [
+              ...items.map((item, index) => (
+                <CarouselItem key={keyExtractor(item)} width={cardWidth}>
+                  {renderItem(item, index)}
+                </CarouselItem>
+              )),
+              <CarouselItem
+                key="see-more"
+                width={INTERSTITIAL_SEE_MORE_CARD_WIDTH}
+                accessibilityLabel={seeMoreLabel}>
+                <SeeMoreCard label={seeMoreLabel} onPress={handleSeeMore} />
+              </CarouselItem>,
+            ]}
+      </Carousel>
     </View>
   );
 }
@@ -158,18 +153,16 @@ function SeeMoreCard({ label, onPress }: { label: string; onPress: () => void })
   const theme = useTheme();
 
   return (
-    <View className="flex-1">
-      <PressableScale
-        onPress={onPress}
-        className="bg-surface border-border flex-1 items-center justify-center gap-2 rounded-xl border"
-        accessibilityRole="button"
-        accessibilityLabel={label}>
-        <View className="bg-primary/10 h-9 w-9 items-center justify-center rounded-full">
-          <RiArrowRightLine width={18} height={18} fill={theme.colors.primary} />
-        </View>
-        <Text className="text-primary text-sm leading-6 font-semibold">{label}</Text>
-      </PressableScale>
-    </View>
+    <PressableScale
+      onPress={onPress}
+      className="bg-surface border-border flex-1 items-center justify-center gap-2 rounded-xl border"
+      accessibilityRole="button"
+      accessibilityLabel={label}>
+      <View className="bg-primary/10 h-9 w-9 items-center justify-center rounded-full">
+        <RiArrowRightLine width={18} height={18} fill={theme.colors.primary} />
+      </View>
+      <Text className="text-primary text-sm leading-6 font-semibold">{label}</Text>
+    </PressableScale>
   );
 }
 
@@ -177,17 +170,6 @@ const styles = StyleSheet.create({
   // Title row to cards — tighter than Bloom's gallery default of 16.
   carousel: {
     gap: 12,
-  },
-  inset: {
-    paddingLeft: INTERSTITIAL_EDGE_PADDING,
-    paddingRight: INTERSTITIAL_EDGE_PADDING,
-  },
-  skeletonRow: {
-    flexDirection: 'row',
-    overflow: 'hidden',
-    paddingLeft: INTERSTITIAL_EDGE_PADDING,
-    paddingRight: INTERSTITIAL_EDGE_PADDING,
-    gap: INTERSTITIAL_CARD_GAP,
   },
   webCursor: Platform.select({ web: { cursor: 'pointer' }, default: {} }),
 });
