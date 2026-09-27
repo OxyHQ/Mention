@@ -132,3 +132,13 @@ test('missing canonical metadata never authorizes a body mutation', () => {
   releaseServerSEOForNavigation(document, '/explore');
   expect(document.body.innerHTML).toBe('<div id="root">Application content</div>');
 });
+
+test('generic homepage metadata never authorizes entity details on a SPA fallback URL', () => {
+  document.head.innerHTML = `<link data-mention-seo="true" data-mention-seo-default="true" rel="canonical" href="https://mention.earth/">
+    <meta data-mention-seo="true" name="robots" content="index,follow">`;
+  expect(readServerSEO(document, '/@nate')).toBeUndefined();
+  expect(readServerSEO(document, '/p/123')).toBeUndefined();
+  expect(readServerSEO(document, '/')?.robots).toBe('index,follow');
+  releaseServerSEO(document);
+  expect(document.querySelectorAll('[data-mention-seo]')).toHaveLength(0);
+});
