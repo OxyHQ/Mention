@@ -51,11 +51,6 @@ export const useEventManager = () => {
     setEventDraftDescription("");
   }, []);
 
-  const hasContent = useCallback(() => {
-    if (!event) return false;
-    return Boolean(event.name?.trim() && event.date?.trim());
-  }, [event]);
-
   const loadEventFromDraft = useCallback((draftEvent: EventData | null) => {
     setEvent(draftEvent);
   }, []);
@@ -85,7 +80,6 @@ export const useEventManager = () => {
     closeEventEditor,
     saveEvent,
     removeEvent,
-    hasContent,
     loadEventFromDraft,
     clearEvent,
   };

@@ -15,16 +15,14 @@ import type { ReplyPermission } from "@/components/Compose/ReplySettingsSheet";
 import type { AccountNode } from "@oxy.so/core";
 
 /**
- * A thread item as it comes back OUT of a stored draft: the authored content of
- * the box — text, media, mentions and every attachment — already narrowed into
+ * One box — the root post or a thread item — as it comes back OUT of a stored
+ * draft: the authored content, every attachment included, already narrowed into
  * composer shapes by the draft reader. Narrower than {@link ThreadItem} only by
  * the per-post DECISIONS a draft deliberately does not keep (lane, account,
  * interaction settings); see `loadThreadsFromDraft`.
  */
-export type DraftThreadItem = Pick<
+export type DraftBoxContent = Pick<
   ThreadItem,
-  | 'id'
-  | 'text'
   | 'mediaIds'
   | 'pollOptions'
   | 'pollTitle'
@@ -38,6 +36,9 @@ export type DraftThreadItem = Pick<
   | 'podcast'
   | 'attachmentOrder'
 >;
+
+/** A thread item restored from a draft: its box, and its id and text. */
+export type DraftThreadItem = DraftBoxContent & Pick<ThreadItem, 'id' | 'text'>;
 
 export interface ThreadItem {
   id: string;

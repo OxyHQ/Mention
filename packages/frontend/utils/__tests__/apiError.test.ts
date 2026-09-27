@@ -11,6 +11,8 @@ import {
   isRateLimitError,
   isValidationError,
   classifyApiError,
+  isNotFoundError,
+  isUnauthorizedError,
 } from '../apiError';
 
 /** Build an AxiosError with a synthetic response, matching axios's runtime shape. */
@@ -174,5 +176,15 @@ describe('classifyApiError', () => {
   it('classifies a 500 as server', () => {
     const { reason } = classifyApiError(makeAxiosError({ status: 500, data: {} }));
     expect(reason).toBe('server');
+  });
+});
+
+describe('isNotFoundError / isUnauthorizedError', () => {
+  it('read the status wherever normalizeApiError finds it', () => {
+    expect(isNotFoundError(Object.assign(new Error('x'), { status: 404 }))).toBe(true);
+    expect(isNotFoundError(new Error('wrapped', { cause: Object.assign(new Error('x'), { status: 404 }) }))).toBe(true);
+    expect(isNotFoundError(Object.assign(new Error('x'), { status: 502 }))).toBe(false);
+    expect(isUnauthorizedError(Object.assign(new Error('x'), { status: 401 }))).toBe(true);
+    expect(isUnauthorizedError('boom')).toBe(false);
   });
 });

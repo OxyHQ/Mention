@@ -2,6 +2,7 @@ import React from 'react';
 import TestRenderer, { type ReactTestRenderer, act } from 'react-test-renderer';
 
 import { useJobAttachmentManager, type JobAttachmentData } from '../useJobAttachmentManager';
+import { hasJobContent } from '@/utils/composeContent';
 
 const SAMPLE: JobAttachmentData = {
   mentionJobId: 'job-1',
@@ -47,16 +48,14 @@ describe('useJobAttachmentManager', () => {
   it('starts with no job attached', () => {
     mount();
     expect(harnessRef.current!.job).toBeNull();
-    expect(harnessRef.current!.hasContent()).toBe(false);
   });
 
-  it('saveJob attaches a job and hasContent reflects it', () => {
+  it('saveJob attaches a job', () => {
     mount();
     act(() => {
       harnessRef.current!.saveJob(SAMPLE);
     });
     expect(harnessRef.current!.job).toEqual(SAMPLE);
-    expect(harnessRef.current!.hasContent()).toBe(true);
   });
 
   it('removeJob and clearJob both detach the current job', () => {
@@ -91,11 +90,8 @@ describe('useJobAttachmentManager', () => {
     expect(harnessRef.current!.job).toBeNull();
   });
 
-  it('hasContent is false for a job with a falsy mentionJobId', () => {
-    mount();
-    act(() => {
-      harnessRef.current!.saveJob({ ...SAMPLE, mentionJobId: '' });
-    });
-    expect(harnessRef.current!.hasContent()).toBe(false);
+  it('a job with a falsy mentionJobId does not count as attached content', () => {
+    expect(hasJobContent({ ...SAMPLE, mentionJobId: '' })).toBe(false);
+    expect(hasJobContent(SAMPLE)).toBe(true);
   });
 });

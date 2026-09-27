@@ -1,4 +1,10 @@
-import { hasDraftContent, hasPublishableContent, type ComposeContent } from '../composeContent';
+import {
+  attachmentKeysOf,
+  hasDraftContent,
+  hasPublishableContent,
+  reconcileAttachmentOrder,
+  type ComposeContent,
+} from '../composeContent';
 import { createVariantsState } from '@/utils/composeVariants';
 
 /**
@@ -47,8 +53,11 @@ describe('hasPublishableContent', () => {
     expect(hasPublishableContent({ ...empty, location: { latitude: 1, longitude: 2 } })).toBe(true);
   });
 
-  it('does not count half-written sources as a post', () => {
-    expect(hasPublishableContent({ ...empty, sources: [{ id: 's', title: '', url: 'https://x.test' }] })).toBe(false);
+  it('counts a linked source, the same in every box, and not a source with no link', () => {
+    // (A link with no title still cannot be posted — `useComposeValidation`'s
+    // invalid-sources check says so — but it is content.)
+    expect(hasPublishableContent({ ...empty, sources: [{ id: 's', title: '', url: 'https://x.test' }] })).toBe(true);
+    expect(hasPublishableContent({ ...empty, sources: [{ id: 's', title: 'Only a title', url: '' }] })).toBe(false);
   });
 });
 
@@ -60,10 +69,25 @@ describe('hasDraftContent', () => {
   });
 
   it('keeps half-written sources, which are not publishable yet', () => {
-    expect(hasDraftContent({ ...empty, sources: [{ id: 's', title: '', url: 'https://x.test' }], variants })).toBe(true);
+    expect(hasDraftContent({ ...empty, sources: [{ id: 's', title: 'Only a title', url: '' }], variants })).toBe(true);
   });
 
   it('keeps nothing for an empty composer', () => {
     expect(hasDraftContent({ ...empty, variants })).toBe(false);
+  });
+});
+
+describe('attachment keys and order', () => {
+  const box = { ...empty, showPollCreator: false };
+
+  it('lists a card only for an attachment that counts', () => {
+    expect(attachmentKeysOf({ ...box, event: { name: ' ', date: '2026-10-01' } })).toEqual([]);
+    expect(attachmentKeysOf({ ...box, event: EVENT, mediaIds: [{ id: 'm', type: 'image' }] }))
+      .toEqual(['event', 'media:m']);
+  });
+
+  it('keeps a chosen order, drops vanished cards and appends new ones once', () => {
+    expect(reconcileAttachmentOrder(['media:m', 'poll', 'media:m', 'event'], ['event', 'media:m', 'room']))
+      .toEqual(['media:m', 'event', 'room']);
   });
 });

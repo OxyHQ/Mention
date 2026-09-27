@@ -2,19 +2,10 @@ import { useState, useCallback, useMemo, useRef } from 'react';
 import { moveItem } from '@oxy.so/bloom/hooks';
 import {
   ComposerMediaItem,
-  createLinkAttachmentKey,
-  createMediaAttachmentKey,
   getMediaIdFromAttachmentKey,
   isMediaAttachmentKey,
-  POLL_ATTACHMENT_KEY,
-  ARTICLE_ATTACHMENT_KEY,
-  EVENT_ATTACHMENT_KEY,
-  LOCATION_ATTACHMENT_KEY,
-  SOURCES_ATTACHMENT_KEY,
-  ROOM_ATTACHMENT_KEY,
-  PODCAST_ATTACHMENT_KEY,
-  JOB_ATTACHMENT_KEY,
 } from '@/utils/composeUtils';
+import { attachmentKeysOf, reconcileAttachmentOrder } from '@/utils/composeContent';
 import type { ArticleData } from './useArticleManager';
 import type { EventData } from './useEventManager';
 import type { LocationData } from './useLocationManager';
@@ -25,16 +16,11 @@ import type { JobAttachmentData } from './useJobAttachmentManager';
 
 interface UseAttachmentOrderProps {
   showPollCreator: boolean;
-  hasArticleContent: boolean;
   article: ArticleData | null;
-  hasEventContent: boolean;
   event: EventData | null;
-  hasRoomContent: boolean;
   room: RoomAttachmentData | null;
-  hasPodcastContent: boolean;
   podcast: PodcastAttachmentData | null;
   /** ROOT post only — see `useJobAttachmentManager.ts`. */
-  hasJobContent: boolean;
   job: JobAttachmentData | null;
   location: LocationData | null;
   sources: Source[];
@@ -46,15 +32,10 @@ interface UseAttachmentOrderProps {
 
 export const useAttachmentOrder = ({
   showPollCreator,
-  hasArticleContent,
   article,
-  hasEventContent,
   event,
-  hasRoomContent,
   room,
-  hasPodcastContent,
   podcast,
-  hasJobContent,
   job,
   location,
   sources,
@@ -65,25 +46,11 @@ export const useAttachmentOrder = ({
   // User-specified ordering (from drag-to-reorder or draft loading)
   const [userOrder, setUserOrder] = useState<string[]>([]);
 
-  // Compute the set of currently active attachment keys from props
-  const activeKeys = useMemo(() => {
-    const keys = new Set<string>();
-    if (showPollCreator) keys.add(POLL_ATTACHMENT_KEY);
-    if (hasArticleContent && article) keys.add(ARTICLE_ATTACHMENT_KEY);
-    if (hasEventContent && event) keys.add(EVENT_ATTACHMENT_KEY);
-    if (hasRoomContent && room) keys.add(ROOM_ATTACHMENT_KEY);
-    if (hasPodcastContent && podcast) keys.add(PODCAST_ATTACHMENT_KEY);
-    if (hasJobContent && job) keys.add(JOB_ATTACHMENT_KEY);
-    if (location) keys.add(LOCATION_ATTACHMENT_KEY);
-    if (sources.some(source => source?.url?.trim?.().length)) keys.add(SOURCES_ATTACHMENT_KEY);
-    linkUrls.forEach((url: string) => {
-      keys.add(createLinkAttachmentKey(url));
-    });
-    mediaIds.forEach((media: ComposerMediaItem) => {
-      keys.add(createMediaAttachmentKey(media.id));
-    });
-    return keys;
-  }, [showPollCreator, hasArticleContent, article, hasEventContent, event, hasRoomContent, room, hasPodcastContent, podcast, hasJobContent, job, location, sources, mediaIds, linkUrls]);
+  // The keys of the cards this box currently shows — `composeContent` decides.
+  const activeKeys = useMemo(
+    () => attachmentKeysOf({ showPollCreator, article, event, room, podcast, job, location, sources, mediaIds, linkUrls }),
+    [showPollCreator, article, event, room, podcast, job, location, sources, mediaIds, linkUrls],
+  );
 
   // Preserve the last computed ordering between attachment changes.
   const stableOrderRef = useRef<string[]>([]);
@@ -92,19 +59,9 @@ export const useAttachmentOrder = ({
   const attachmentOrder = useMemo(() => {
     const prevStableOrder = stableOrderRef.current;
 
-    // Start from the last known stable order (which includes user reordering)
-    // Filter out keys that are no longer active
-    const filtered = (userOrder.length > 0 ? userOrder : prevStableOrder).filter(
-      key => activeKeys.has(key)
-    );
-
-    // Append any newly active keys not already in the order
-    const result = [...filtered];
-    activeKeys.forEach(key => {
-      if (!result.includes(key)) {
-        result.push(key);
-      }
-    });
+    // Start from the last known stable order (which includes user reordering),
+    // drop keys that are no longer active and append newly active ones.
+    const result = reconcileAttachmentOrder(userOrder.length > 0 ? userOrder : prevStableOrder, activeKeys);
 
     // Update refs for next reconciliation
     stableOrderRef.current = result;

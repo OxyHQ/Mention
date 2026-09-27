@@ -80,32 +80,30 @@ export async function listBookmarkFoldersForViewer(viewerId: string): Promise<st
 
 /**
  * Make sure the viewer has a folder with this name, inside `tx`. Idempotent: an
- * existing folder is left as it is. A NEW one counts against
- * {@link MAX_BOOKMARK_FOLDERS_PER_VIEWER}.
+ * existing folder is left as it is — one statement, the common case. Only a
+ * folder this call actually created is counted against
+ * {@link MAX_BOOKMARK_FOLDERS_PER_VIEWER}, and one past the limit throws, which
+ * rolls the insert back with the transaction.
  */
 async function ensureFolder(tx: Transaction, viewerId: string, name: string): Promise<void> {
-  const [existing] = await tx
-    .select({ id: bookmarkFolders.id })
-    .from(bookmarkFolders)
-    .where(and(eq(bookmarkFolders.userId, viewerId), eq(bookmarkFolders.name, name)));
-  if (existing) return;
+  // `do nothing` rather than a failure: two requests creating the same folder
+  // at once both mean "this folder should exist", and it does.
+  const created = await tx
+    .insert(bookmarkFolders)
+    .values({ userId: viewerId, name })
+    .onConflictDoNothing({ target: [bookmarkFolders.userId, bookmarkFolders.name] })
+    .returning({ id: bookmarkFolders.id });
+  if (created.length === 0) return;
 
   const [{ total }] = await tx
     .select({ total: count() })
     .from(bookmarkFolders)
     .where(eq(bookmarkFolders.userId, viewerId));
-  if (total >= MAX_BOOKMARK_FOLDERS_PER_VIEWER) {
+  if (total > MAX_BOOKMARK_FOLDERS_PER_VIEWER) {
     throw new BookmarkFolderInputError(
       `You can keep at most ${MAX_BOOKMARK_FOLDERS_PER_VIEWER} folders`,
     );
   }
-
-  // `do nothing` rather than a failure: two requests creating the same folder
-  // at once both mean "this folder should exist", and it does.
-  await tx
-    .insert(bookmarkFolders)
-    .values({ userId: viewerId, name })
-    .onConflictDoNothing({ target: [bookmarkFolders.userId, bookmarkFolders.name] });
 }
 
 /**

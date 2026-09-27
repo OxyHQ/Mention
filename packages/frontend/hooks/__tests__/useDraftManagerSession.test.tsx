@@ -321,3 +321,65 @@ describe('"Discard" removes the session draft', () => {
     expect(stored.size).toBe(0);
   });
 });
+
+describe('a draft round-trips every field it keeps', () => {
+  it('keeps the root job, a full podcast, the schedule and the posting mode', async () => {
+    const job = {
+      mentionJobId: 'job-1',
+      title: 'Engineer',
+      employerName: 'Oxy',
+      employerOxyUserId: 'oxy-1',
+      canonicalUrl: 'https://mention.earth/jobs/job-1',
+      status: 'published' as const,
+      location: { countryCode: 'ES', city: 'Barcelona' },
+    };
+    const podcast = { syraPodcastId: 'pod-1', title: 'Show', author: 'Host', artworkUrl: 'https://x.test/a.png' };
+    const scheduledAt = new Date('2026-12-01T10:00:00.000Z');
+    await act(async () => {
+      await manager().saveNow(refs({
+        postContent: 'hiring',
+        job: job as ComposeDraftRefs['job'],
+        podcast,
+        scheduledAt,
+        postingMode: 'beast',
+        pollOptions: ['yes', ''],
+        pollTitle: 'Apply?',
+      }));
+    });
+
+    act(() => {
+      manager().loadDraft([...stored.values()][0]);
+    });
+    const restored = onDraftLoad.mock.calls[0][0];
+    expect(restored.job).toMatchObject({ mentionJobId: 'job-1', location: { countryCode: 'ES', city: 'Barcelona' } });
+    expect(restored.podcast).toEqual(podcast);
+    expect(restored.scheduledAt).toEqual(scheduledAt);
+    expect(restored.postingMode).toBe('beast');
+    expect(restored.showPollCreator).toBe(true);
+    expect(restored.pollTitle).toBe('Apply?');
+    expect(restored.attachmentOrder).toEqual(expect.arrayContaining(['poll', 'podcast', 'job']));
+  });
+
+  it('narrows what storage holds instead of trusting it', () => {
+    act(() => {
+      manager().loadDraft({
+        id: 'draft-odd',
+        postContent: 'old shapes',
+        // Bare file ids, as drafts once stored media.
+        mediaIds: ['file-1'],
+        scheduledAt: 'not a date',
+        job: { mentionJobId: 'job-1' },
+        podcast: { title: 'no id' },
+        room: { roomId: 'r', title: 'Room', status: 'paused', type: 'party' },
+        location: { latitude: 'north', longitude: 2 },
+      });
+    });
+    const restored = onDraftLoad.mock.calls[0][0];
+    expect(restored.mediaIds).toEqual([expect.objectContaining({ id: 'file-1' })]);
+    expect(restored.scheduledAt).toBeNull();
+    expect(restored.job).toBeNull();
+    expect(restored.podcast).toBeNull();
+    expect(restored.room).toEqual({ roomId: 'r', title: 'Room', status: undefined, type: undefined, topic: undefined, host: undefined });
+    expect(restored.location).toEqual({ latitude: 0, longitude: 2, address: undefined });
+  });
+});

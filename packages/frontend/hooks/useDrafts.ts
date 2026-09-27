@@ -11,42 +11,34 @@ import { useRefSync } from '@/hooks/useRefSync';
 
 const logger = createLogger('useDrafts');
 
-export interface Draft {
-  id: string;
-  postContent: string;
+/**
+ * What a draft stores for ONE box — the root post or a thread item. The two
+ * used to be spelled out separately and drifted: thread items kept none of
+ * their attachments. Fields added after the first release are optional because
+ * drafts are stored raw and unversioned; an older draft simply has none.
+ */
+export interface DraftBox {
   mediaIds: Array<{ id: string; type: 'image' | 'video' | 'gif' }>;
   pollOptions: string[];
   pollTitle?: string;
   showPollCreator: boolean;
   location: { latitude: number; longitude: number; address?: string } | null;
+  mentions: Array<{ userId: string; handle: string; name: string }>;
   sources?: Array<{ id?: string; title?: string; url?: string }>;
   article?: { title?: string; body?: string } | null;
-  podcast?: { syraPodcastId: string; title: string; author?: string; artworkUrl?: string } | null;
-  /** The ROOT post's attached Mention job, if any (OxyHQ/Mention#952). Thread items don't carry one yet. */
-  job?: PostJobContent | null;
   event?: EventData | null;
   room?: RoomAttachmentData | null;
+  podcast?: { syraPodcastId: string; title: string; author?: string; artworkUrl?: string } | null;
   attachmentOrder?: string[];
+}
+
+export interface Draft extends DraftBox {
+  id: string;
+  postContent: string;
+  /** The ROOT post's attached Mention job, if any (OxyHQ/Mention#952). Thread items don't carry one yet. */
+  job?: PostJobContent | null;
   scheduledAt?: string | null;
-  threadItems: Array<{
-    id: string;
-    text: string;
-    mediaIds: Array<{ id: string; type: 'image' | 'video' | 'gif' }>;
-    pollOptions: string[];
-    pollTitle?: string;
-    showPollCreator: boolean;
-    location: { latitude: number; longitude: number; address?: string } | null;
-    mentions: Array<{ userId: string; handle: string; name: string }>;
-    // Optional like every field added after the first release: a draft saved
-    // before its box could keep these simply has none.
-    sources?: Array<{ id?: string; title?: string; url?: string }>;
-    article?: { title?: string; body?: string } | null;
-    event?: EventData | null;
-    room?: RoomAttachmentData | null;
-    podcast?: { syraPodcastId: string; title: string; author?: string; artworkUrl?: string } | null;
-    attachmentOrder?: string[];
-  }>;
-  mentions: Array<{ userId: string; handle: string; name: string }>;
+  threadItems: Array<DraftBox & { id: string; text: string }>;
   postingMode: 'thread' | 'beast';
   /**
    * The post's declared languages and their author renditions, keyed by composer
@@ -73,6 +65,12 @@ const DRAFTS_STORAGE_KEY = '@mention_drafts:v2';
 
 export const getDraftsStorageKey = (viewerId: string): string =>
   viewerStorageKey(DRAFTS_STORAGE_KEY, viewerId);
+
+/** The viewer's drafts as stored — never a list held in some component's state. */
+async function readStoredDrafts(viewerId: string): Promise<Draft[]> {
+  const stored = await Storage.get<Draft[]>(getDraftsStorageKey(viewerId));
+  return Array.isArray(stored) ? stored : [];
+}
 
 export const useDrafts = () => {
   const { user } = useAuth();
@@ -102,19 +100,11 @@ export const useDrafts = () => {
 
     try {
       setIsLoading(true);
-      const storedDrafts = await Storage.get<Draft[]>(
-        getDraftsStorageKey(operationViewerId),
-      );
+      const storedDrafts = await readStoredDrafts(operationViewerId);
       if (viewerIdRef.current !== operationViewerId) return;
-      if (storedDrafts && Array.isArray(storedDrafts)) {
-        // Sort by updatedAt descending
-        const sorted = [...storedDrafts].sort(
-          (a, b) => b.updatedAt - a.updatedAt,
-        );
-        setDrafts(sorted);
-      } else {
-        setDrafts([]);
-      }
+      // Newest first. Sorted on read too: a list written by an older build may
+      // not be in order.
+      setDrafts([...storedDrafts].sort((a, b) => b.updatedAt - a.updatedAt));
     } catch (error) {
       if (viewerIdRef.current !== operationViewerId) return;
       logger.error('Error loading drafts', error);
@@ -159,10 +149,7 @@ export const useDrafts = () => {
       throw new Error('An authenticated viewer is required to save drafts');
     }
     try {
-      const storedDrafts = await Storage.get<Draft[]>(
-        getDraftsStorageKey(operationViewerId),
-      );
-      const currentDrafts = storedDrafts && Array.isArray(storedDrafts) ? storedDrafts : [];
+      const currentDrafts = await readStoredDrafts(operationViewerId);
       const now = Date.now();
       const draftId = draft.id || `draft_${now}_${Math.random().toString(36).slice(2, 11)}`;
       const existing = currentDrafts.find(d => d.id === draftId);
@@ -174,10 +161,8 @@ export const useDrafts = () => {
         updatedAt: now,
       };
 
-      const newDrafts = [draftToSave, ...currentDrafts.filter(d => d.id !== draftId)];
-      newDrafts.sort((a, b) => b.updatedAt - a.updatedAt);
-
-      await saveDrafts(newDrafts);
+      // Newest first, as the list is kept: the saved draft is the newest.
+      await saveDrafts([draftToSave, ...currentDrafts.filter(d => d.id !== draftId)]);
       return draftId;
     } catch (error) {
       logger.error('Error saving draft', error);
@@ -193,13 +178,8 @@ export const useDrafts = () => {
     }
     try {
       logger.debug(`deleteDraft called with draftId: ${draftId}`);
-      // Read latest drafts from storage to avoid stale state
-      const storedDrafts = await Storage.get<Draft[]>(
-        getDraftsStorageKey(operationViewerId),
-      );
+      const currentDrafts = await readStoredDrafts(operationViewerId);
       if (viewerIdRef.current !== operationViewerId) return;
-      logger.debug(`Stored drafts: ${storedDrafts?.length || 0}`);
-      const currentDrafts = storedDrafts && Array.isArray(storedDrafts) ? storedDrafts : [];
 
       // Filter out the draft to delete
       const newDrafts = currentDrafts.filter(d => d.id !== draftId);

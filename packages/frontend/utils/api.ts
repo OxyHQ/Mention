@@ -152,7 +152,7 @@ export const publicApi = {
 };
 
 // Error checking utilities
-export { isNotFoundError, isUnauthorizedError } from '@/utils/httpStatus';
+export { isNotFoundError, isUnauthorizedError } from '@/utils/apiError';
 
 /**
  * Get API origin, ensuring correct port for localhost (4110)

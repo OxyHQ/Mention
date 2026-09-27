@@ -23,8 +23,6 @@ export const usePodcastManager = () => {
     setPodcast(null);
   }, []);
 
-  const hasContent = useCallback(() => Boolean(podcast?.syraPodcastId), [podcast]);
-
   const loadPodcastFromDraft = useCallback((draftPodcast: PodcastAttachmentData | null) => {
     setPodcast(draftPodcast);
   }, []);
@@ -38,7 +36,6 @@ export const usePodcastManager = () => {
     setPodcast,
     savePodcast,
     removePodcast,
-    hasContent,
     loadPodcastFromDraft,
     clearPodcast,
   };

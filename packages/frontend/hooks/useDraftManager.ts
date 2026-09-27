@@ -9,26 +9,27 @@ import { isCountryCode } from '@mention/shared-types/job';
 import {
   ComposerMediaItem,
   toComposerMediaType,
-  POLL_ATTACHMENT_KEY,
-  ARTICLE_ATTACHMENT_KEY,
-  LOCATION_ATTACHMENT_KEY,
-  SOURCES_ATTACHMENT_KEY,
-  PODCAST_ATTACHMENT_KEY,
-  JOB_ATTACHMENT_KEY,
-  EVENT_ATTACHMENT_KEY,
-  ROOM_ATTACHMENT_KEY,
-  createMediaAttachmentKey,
 } from '@/utils/composeUtils';
-import { hasDraftContent, isCompleteEvent, type ComposeContent } from '@/utils/composeContent';
+import {
+  attachmentKeysOf,
+  hasArticleContent,
+  hasDraftContent,
+  hasPodcastContent,
+  hasPollOption,
+  hasRoomContent,
+  isCompleteEvent,
+  reconcileAttachmentOrder,
+  type ComposeContent,
+} from '@/utils/composeContent';
 import type { ArticleData } from './useArticleManager';
-import type { Draft, DraftInput } from './useDrafts';
+import type { Draft, DraftBox, DraftInput } from './useDrafts';
 import type { EventData } from './useEventManager';
 import type { LocationData } from './useLocationManager';
 import type { PodcastAttachmentData } from './usePodcastManager';
 import type { JobAttachmentData } from './useJobAttachmentManager';
 import type { RoomAttachmentData } from './useRoomManager';
 import type { Source } from './useSourcesManager';
-import type { DraftThreadItem } from './useThreadManager';
+import type { DraftBoxContent, DraftThreadItem } from './useThreadManager';
 import {
   draftVariantTextsForItem,
   MAIN_ITEM_ID,
@@ -122,27 +123,26 @@ const readSources = (value: unknown): Source[] =>
       url: readString(source.url) ?? '',
     }));
 
-/** An article with neither a title nor a body is no article. */
+// Each reader restores only an attachment `composeContent` would count — the
+// same predicate the composer, the carousel and the payload use.
+
 const readArticle = (value: unknown): ArticleData | null => {
   if (!isRecord(value)) return null;
-  const title = readString(value.title) ?? '';
-  const body = readString(value.body) ?? '';
-  return title || body ? { title, body } : null;
+  const article = { title: readString(value.title) ?? '', body: readString(value.body) ?? '' };
+  return hasArticleContent(article) ? article : null;
 };
 
 const readPodcast = (value: unknown): PodcastAttachmentData | null => {
   if (!isRecord(value)) return null;
-  const syraPodcastId = readString(value.syraPodcastId);
-  if (!syraPodcastId) return null;
-  return {
-    syraPodcastId,
+  const podcast = {
+    syraPodcastId: readString(value.syraPodcastId) ?? '',
     title: readString(value.title) ?? '',
     author: readString(value.author),
     artworkUrl: readString(value.artworkUrl),
   };
+  return hasPodcastContent(podcast) ? podcast : null;
 };
 
-/** Only an event the composer could have attached: one with a name and a date. */
 const readEvent = (value: unknown): EventData | null => {
   if (!isRecord(value)) return null;
   const event: EventData = {
@@ -160,86 +160,102 @@ const ROOM_TYPES = ['talk', 'stage', 'broadcast'] as const;
 const readOneOf = <T extends string>(value: unknown, allowed: readonly T[]): T | undefined =>
   allowed.find((candidate) => candidate === value);
 
-/** A reference to a room that exists: it needs its id and its title. */
 const readRoom = (value: unknown): RoomAttachmentData | null => {
   if (!isRecord(value)) return null;
-  const roomId = readString(value.roomId);
-  const title = readString(value.title);
-  if (!roomId || !title?.trim()) return null;
-  return {
-    roomId,
-    title,
+  const room: RoomAttachmentData = {
+    roomId: readString(value.roomId) ?? '',
+    title: readString(value.title) ?? '',
     status: readOneOf(value.status, ROOM_STATUSES),
     type: readOneOf(value.type, ROOM_TYPES),
     topic: readString(value.topic),
     host: readString(value.host),
   };
+  return hasRoomContent(room) ? room : null;
 };
+
+/** One box's content as the composer holds it — what {@link writeBox} stores. */
+type LiveBox = DraftBoxContent & { itemId: string; text: string };
+
+const toStoredMention = (mention: MentionData) => ({
+  userId: mention.userId,
+  handle: mention.username,
+  name: mention.displayName,
+});
 
 /**
- * The stored attachment order, reconciled against what the draft actually
- * restored: keys for attachments that did not survive are dropped, and a
- * restored attachment the stored order never named is appended.
+ * Store one box — the root post or a thread item, the same way for both, so a
+ * field one of them keeps cannot be one the other forgets.
  */
-const reconcileAttachmentOrder = (stored: unknown, available: string[]): string[] => {
-  const order = readArray(stored)
-    .filter(isString)
-    .filter((key, index, keys) => available.includes(key) && keys.indexOf(key) === index);
-  return [...order, ...available.filter((key) => !order.includes(key))];
+const writeBox = (box: LiveBox, variants: ComposeVariantsState): DraftBox => ({
+  mediaIds: box.mediaIds.map((media) => ({ id: media.id, type: media.type })),
+  pollOptions: box.pollOptions,
+  pollTitle: box.pollTitle,
+  showPollCreator: box.showPollCreator || hasPollOption(box.pollOptions),
+  location: box.location
+    ? { latitude: box.location.latitude, longitude: box.location.longitude, address: box.location.address }
+    : null,
+  // Only the mentions the text (in any language) still names.
+  mentions: reconcileMentionData([box.text, ...variantTextsForItem(variants, box.itemId)], box.mentions)
+    .map(toStoredMention),
+  sources: box.sources.map((source) => ({ id: source.id, title: source.title, url: source.url })),
+  article: box.article
+    ? { ...(box.article.title ? { title: box.article.title } : {}), ...(box.article.body ? { body: box.article.body } : {}) }
+    : null,
+  event: box.event ? { ...box.event } : null,
+  room: box.room ? { ...box.room } : null,
+  podcast: box.podcast
+    ? {
+      syraPodcastId: box.podcast.syraPodcastId,
+      title: box.podcast.title,
+      ...(box.podcast.author ? { author: box.podcast.author } : {}),
+      ...(box.podcast.artworkUrl ? { artworkUrl: box.podcast.artworkUrl } : {}),
+    }
+    : null,
+  attachmentOrder: box.attachmentOrder,
+});
+
+/**
+ * Restore one box from storage, narrowing every field and reconciling its
+ * attachment order against the attachments that actually survived. `job` is
+ * passed in because only the root post carries one.
+ */
+const readBox = (
+  stored: Record<string, unknown>,
+  text: string,
+  itemId: string,
+  languages: unknown,
+  job: JobAttachmentData | null = null,
+): DraftBoxContent => {
+  const mediaIds = readMediaItems(stored.mediaIds);
+  const pollOptions = readArray(stored.pollOptions).filter(isString);
+  const showPollCreator = stored.showPollCreator === true || pollOptions.length > 0;
+  const location = readLocation(stored.location);
+  const sources = readSources(stored.sources);
+  const article = readArticle(stored.article);
+  const event = readEvent(stored.event);
+  const room = readRoom(stored.room);
+  const podcast = readPodcast(stored.podcast);
+  return {
+    mediaIds,
+    pollOptions,
+    pollTitle: readString(stored.pollTitle) ?? '',
+    showPollCreator,
+    location,
+    mentions: reconcileMentionData(
+      [text, ...draftVariantTextsForItem(languages, itemId)],
+      readMentions(stored.mentions),
+    ),
+    sources,
+    article,
+    event,
+    room,
+    podcast,
+    attachmentOrder: reconcileAttachmentOrder(
+      readArray(stored.attachmentOrder).filter(isString),
+      attachmentKeysOf({ showPollCreator, article, event, room, podcast, job, location, sources, mediaIds }),
+    ),
+  };
 };
-
-/** The carousel keys of the attachments one restored box holds. */
-const attachmentKeysOf = (box: {
-  showPoll: boolean;
-  article: ArticleData | null;
-  event: EventData | null;
-  room: RoomAttachmentData | null;
-  podcast: PodcastAttachmentData | null;
-  job?: JobAttachmentData | null;
-  location: LocationData | null;
-  sources: Source[];
-  media: ComposerMediaItem[];
-}): string[] => [
-  ...(box.showPoll ? [POLL_ATTACHMENT_KEY] : []),
-  ...(box.article ? [ARTICLE_ATTACHMENT_KEY] : []),
-  ...(box.event ? [EVENT_ATTACHMENT_KEY] : []),
-  ...(box.room ? [ROOM_ATTACHMENT_KEY] : []),
-  ...(box.podcast ? [PODCAST_ATTACHMENT_KEY] : []),
-  ...(box.job ? [JOB_ATTACHMENT_KEY] : []),
-  ...(box.location ? [LOCATION_ATTACHMENT_KEY] : []),
-  ...(box.sources.some((source) => source.url.trim().length > 0) ? [SOURCES_ATTACHMENT_KEY] : []),
-  ...box.media.map((media) => createMediaAttachmentKey(media.id)),
-];
-
-const writeLocation = (location: LocationData | null) =>
-  location
-    ? { latitude: location.latitude, longitude: location.longitude, address: location.address }
-    : null;
-
-const writeSources = (sources: Source[]) =>
-  sources.map((source) => ({ id: source.id, title: source.title, url: source.url }));
-
-const writeArticle = (article: ArticleData | null) =>
-  article
-    ? {
-      ...(article.title ? { title: article.title } : {}),
-      ...(article.body ? { body: article.body } : {}),
-    }
-    : null;
-
-const writePodcast = (podcast: PodcastAttachmentData | null) =>
-  podcast
-    ? {
-      syraPodcastId: podcast.syraPodcastId,
-      title: podcast.title,
-      ...(podcast.author ? { author: podcast.author } : {}),
-      ...(podcast.artworkUrl ? { artworkUrl: podcast.artworkUrl } : {}),
-    }
-    : null;
-
-const writeEvent = (event: EventData | null) => (event ? { ...event } : null);
-
-const writeRoom = (room: RoomAttachmentData | null) => (room ? { ...room } : null);
 
 /**
  * The composer state a draft is built from — the live values, not the persisted
@@ -260,24 +276,10 @@ export interface ComposeDraftRefs extends ComposeContent {
 interface DraftManagerProps {
   saveDraft: (draft: DraftInput) => Promise<string>;
   deleteDraft: (draftId: string) => Promise<void>;
-  onDraftLoad: (draft: {
+  onDraftLoad: (draft: DraftBoxContent & {
     postContent: string;
-    mediaIds: ComposerMediaItem[];
-    pollOptions: string[];
-    pollTitle: string;
-    showPollCreator: boolean;
-    location: LocationData | null;
-    sources: Source[];
-    article: ArticleData | null;
-    articleDraftTitle: string;
-    articleDraftBody: string;
-    podcast: PodcastAttachmentData | null;
     job: JobAttachmentData | null;
-    event: EventData | null;
-    room: RoomAttachmentData | null;
     scheduledAt: Date | null;
-    attachmentOrder: string[];
-    mentions: MentionData[];
     postingMode: 'thread' | 'beast';
     threadItems: DraftThreadItem[];
     /**
@@ -325,68 +327,20 @@ export const useDraftManager = ({
     }
   }, []);
 
-  const buildDraftData = useCallback((refs: ComposeDraftRefs): DraftInput => {
-    const shouldShowPollCreator = refs.showPollCreator ||
-      (refs.pollOptions.length > 0 && refs.pollOptions.some(opt => opt.trim().length > 0));
-    const languages = serializeVariants(refs.variants);
-    const mainMentions = reconcileMentionData(
-      [
-        refs.postContent,
-        ...variantTextsForItem(refs.variants, MAIN_ITEM_ID),
-      ],
-      refs.mentions,
-    );
-
-    return {
-      id: refs.currentDraftId || undefined,
-      postContent: refs.postContent,
-      languages,
-      mediaIds: refs.mediaIds.map(m => ({ id: m.id, type: m.type })),
-      pollOptions: refs.pollOptions || [],
-      pollTitle: refs.pollTitle || '',
-      showPollCreator: shouldShowPollCreator,
-      location: writeLocation(refs.location),
-      sources: writeSources(refs.sources),
-      article: writeArticle(refs.article),
-      podcast: writePodcast(refs.podcast),
-      job: refs.job ? { ...refs.job } : null,
-      event: writeEvent(refs.event),
-      room: writeRoom(refs.room),
-      threadItems: refs.threadItems.map(item => ({
-        id: item.id,
-        text: item.text,
-        mediaIds: item.mediaIds.map(m => ({ id: m.id, type: m.type })),
-        pollOptions: item.pollOptions || [],
-        pollTitle: item.pollTitle || '',
-        showPollCreator: item.showPollCreator ||
-          (item.pollOptions && item.pollOptions.length > 0 &&
-           item.pollOptions.some(opt => opt.trim().length > 0)),
-        location: writeLocation(item.location),
-        mentions: reconcileMentionData(
-          [item.text, ...variantTextsForItem(refs.variants, item.id)],
-          item.mentions,
-        ).map((m: MentionData) => ({
-          userId: m.userId,
-          handle: m.username,
-          name: m.displayName,
-        })),
-        sources: writeSources(item.sources),
-        article: writeArticle(item.article),
-        event: writeEvent(item.event),
-        room: writeRoom(item.room),
-        podcast: writePodcast(item.podcast),
-        attachmentOrder: item.attachmentOrder,
-      })),
-      mentions: mainMentions.map(m => ({
-        userId: m.userId,
-        handle: m.username,
-        name: m.displayName,
-      })),
-      postingMode: refs.postingMode,
-      attachmentOrder: refs.attachmentOrder,
-      scheduledAt: refs.scheduledAt ? refs.scheduledAt.toISOString() : null,
-    };
-  }, []);
+  const buildDraftData = useCallback((refs: ComposeDraftRefs): DraftInput => ({
+    id: refs.currentDraftId || undefined,
+    postContent: refs.postContent,
+    languages: serializeVariants(refs.variants),
+    ...writeBox({ ...refs, itemId: MAIN_ITEM_ID, text: refs.postContent }, refs.variants),
+    job: refs.job ? { ...refs.job } : null,
+    threadItems: refs.threadItems.map((item) => ({
+      id: item.id,
+      text: item.text,
+      ...writeBox({ ...item, itemId: item.id }, refs.variants),
+    })),
+    postingMode: refs.postingMode,
+    scheduledAt: refs.scheduledAt ? refs.scheduledAt.toISOString() : null,
+  }), []);
 
   /**
    * Write the composer's content to THE draft of this editing session — the one
@@ -443,19 +397,28 @@ export const useDraftManager = ({
   }, [cancelScheduledAutoSave, writeDraft]);
 
   /**
+   * The session's draft is spent — a publish took it, or the author threw it
+   * away. Autosave stops, a write already in flight is allowed to land, and then
+   * whatever draft exists NOW (see {@link draftIdRef}) is deleted.
+   */
+  const deleteSessionDraft = useCallback(async () => {
+    suspendedRef.current = true;
+    if (pendingSaveRef.current) await pendingSaveRef.current;
+    const draftId = draftIdRef.current;
+    setCurrentDraftId(null);
+    if (draftId) await deleteDraft(draftId);
+  }, [deleteDraft, setCurrentDraftId]);
+
+  /**
    * "Discard": the work of this session is thrown away, including whatever the
    * autosave already stored. The pending debounce is cancelled, a write already
    * in flight is allowed to land and then deleted, and no autosave runs again —
    * the composer is closing.
    */
   const discard = useCallback(async () => {
-    suspendedRef.current = true;
     cancelScheduledAutoSave();
-    if (pendingSaveRef.current) await pendingSaveRef.current;
-    const draftId = draftIdRef.current;
-    setCurrentDraftId(null);
-    if (draftId) await deleteDraft(draftId);
-  }, [cancelScheduledAutoSave, deleteDraft, setCurrentDraftId]);
+    await deleteSessionDraft();
+  }, [cancelScheduledAutoSave, deleteSessionDraft]);
 
   /**
    * A publish is starting: stop autosaving. The pending debounce is cancelled
@@ -476,17 +439,12 @@ export const useDraftManager = ({
    * not be told otherwise because a local cleanup failed.
    */
   const publishSucceeded = useCallback(async () => {
-    suspendedRef.current = true;
-    if (pendingSaveRef.current) await pendingSaveRef.current;
-    const draftId = draftIdRef.current;
-    setCurrentDraftId(null);
-    if (!draftId) return;
     try {
-      await deleteDraft(draftId);
+      await deleteSessionDraft();
     } catch (error) {
       logger.error('Error deleting a published draft', error);
     }
-  }, [deleteDraft, setCurrentDraftId]);
+  }, [deleteSessionDraft]);
 
   /**
    * The publish failed: the author's work is still a draft. Autosave resumes,
@@ -505,138 +463,43 @@ export const useDraftManager = ({
   }, []);
 
   const loadDraft = useCallback((draft: StoredDraft) => {
-    const mediaIdsData = readMediaItems(draft.mediaIds);
-
-    const pollOpts = readArray(draft.pollOptions).filter(isString);
-    const shouldShowPoll = draft.showPollCreator === true || pollOpts.length > 0;
-
-    const locationData = readLocation(draft.location);
-    const sourcesData = readSources(draft.sources);
-    const articleData = readArticle(draft.article);
-    const podcastData = readPodcast(draft.podcast);
-    const eventData = readEvent(draft.event);
-    const roomData = readRoom(draft.room);
-
-    let jobData: JobAttachmentData | null = null;
     const storedJob = isRecord(draft.job) ? draft.job : null;
     const mentionJobId = storedJob ? readString(storedJob.mentionJobId) : undefined;
     const jobEmployerOxyUserId = storedJob ? readString(storedJob.employerOxyUserId) : undefined;
     const jobCanonicalUrl = storedJob ? readString(storedJob.canonicalUrl) : undefined;
     const jobStatus = storedJob ? readString(storedJob.status) : undefined;
-    if (storedJob && mentionJobId && jobEmployerOxyUserId && jobCanonicalUrl && jobStatus) {
-      jobData = {
-        mentionJobId,
-        title: readString(storedJob.title) ?? '',
-        employerName: readString(storedJob.employerName) ?? '',
-        employerOxyUserId: jobEmployerOxyUserId,
-        canonicalUrl: jobCanonicalUrl,
-        status: jobStatus as JobAttachmentData['status'],
-        location: readJobLocation(storedJob.location),
-        workplaceType: readString(storedJob.workplaceType) as JobAttachmentData['workplaceType'],
-        employmentType: readString(storedJob.employmentType) as JobAttachmentData['employmentType'],
-      };
-    }
+    const job: JobAttachmentData | null =
+      storedJob && mentionJobId && jobEmployerOxyUserId && jobCanonicalUrl && jobStatus
+        ? {
+          mentionJobId,
+          title: readString(storedJob.title) ?? '',
+          employerName: readString(storedJob.employerName) ?? '',
+          employerOxyUserId: jobEmployerOxyUserId,
+          canonicalUrl: jobCanonicalUrl,
+          status: jobStatus as JobAttachmentData['status'],
+          location: readJobLocation(storedJob.location),
+          workplaceType: readString(storedJob.workplaceType) as JobAttachmentData['workplaceType'],
+          employmentType: readString(storedJob.employmentType) as JobAttachmentData['employmentType'],
+        }
+        : null;
 
-    let scheduledAtData: Date | null = null;
     const storedScheduledAt = readString(draft.scheduledAt);
-    if (storedScheduledAt) {
-      const parsed = new Date(storedScheduledAt);
-      if (!Number.isNaN(parsed.getTime())) {
-        scheduledAtData = parsed;
-      }
-    }
-
-    const sanitizedAttachmentOrder = reconcileAttachmentOrder(
-      draft.attachmentOrder,
-      attachmentKeysOf({
-        showPoll: shouldShowPoll,
-        article: articleData,
-        event: eventData,
-        room: roomData,
-        podcast: podcastData,
-        job: jobData,
-        location: locationData,
-        sources: sourcesData,
-        media: mediaIdsData,
-      }),
-    );
+    const scheduledAt = storedScheduledAt ? new Date(storedScheduledAt) : null;
 
     const postContent = readString(draft.postContent) ?? '';
-    const mentionsData = reconcileMentionData(
-      [
-        postContent,
-        ...draftVariantTextsForItem(draft.languages, MAIN_ITEM_ID),
-      ],
-      readMentions(draft.mentions),
-    );
-
-    const threadItemsData: DraftThreadItem[] = readArray(draft.threadItems)
-      .filter(isRecord)
-      .map((item) => {
-        const id = readString(item.id) ?? '';
-        const text = readString(item.text) ?? '';
-        const mediaIds = readMediaItems(item.mediaIds);
-        const pollOptions = readArray(item.pollOptions).filter(isString);
-        const showPollCreator = item.showPollCreator === true;
-        const location = readLocation(item.location);
-        const sources = readSources(item.sources);
-        const article = readArticle(item.article);
-        const event = readEvent(item.event);
-        const room = readRoom(item.room);
-        const podcast = readPodcast(item.podcast);
-        return {
-          id,
-          text,
-          mediaIds,
-          pollOptions,
-          pollTitle: readString(item.pollTitle) ?? '',
-          showPollCreator,
-          location,
-          mentions: reconcileMentionData(
-            [text, ...draftVariantTextsForItem(draft.languages, id)],
-            readMentions(item.mentions),
-          ),
-          sources,
-          article,
-          event,
-          room,
-          podcast,
-          attachmentOrder: reconcileAttachmentOrder(
-            item.attachmentOrder,
-            attachmentKeysOf({
-              showPoll: showPollCreator || pollOptions.length > 0,
-              article,
-              event,
-              room,
-              podcast,
-              location,
-              sources,
-              media: mediaIds,
-            }),
-          ),
-        };
-      });
-
     onDraftLoad({
       postContent,
-      mediaIds: mediaIdsData,
-      pollOptions: pollOpts,
-      pollTitle: readString(draft.pollTitle) ?? '',
-      showPollCreator: shouldShowPoll,
-      location: locationData,
-      sources: sourcesData,
-      article: articleData,
-      articleDraftTitle: articleData?.title ?? '',
-      articleDraftBody: articleData?.body ?? '',
-      podcast: podcastData,
-      job: jobData,
-      event: eventData,
-      room: roomData,
-      scheduledAt: scheduledAtData,
-      attachmentOrder: sanitizedAttachmentOrder,
-      mentions: mentionsData,
+      ...readBox(draft, postContent, MAIN_ITEM_ID, draft.languages, job),
+      job,
+      scheduledAt: scheduledAt && !Number.isNaN(scheduledAt.getTime()) ? scheduledAt : null,
       postingMode: draft.postingMode === 'beast' ? 'beast' : 'thread',
-      threadItems: threadItemsData,
+      threadItems: readArray(draft.threadItems)
+        .filter(isRecord)
+        .map((item) => {
+          const id = readString(item.id) ?? '';
+          const text = readString(item.text) ?? '';
+          return { id, text, ...readBox(item, text, id, draft.languages) };
+        }),
       languages: draft.languages,
     });
 
