@@ -130,7 +130,6 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
     hasSourceErrors = false,
     disabled = false,
 }) => {
-    const theme = useTheme();
     const haptic = useHaptics();
     const { t } = useTranslation();
 

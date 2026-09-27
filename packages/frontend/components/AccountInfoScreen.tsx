@@ -1,5 +1,4 @@
 import { PageHeader } from '@oxy.so/bloom/page-header';
-import { Text } from '@oxy.so/bloom/typography';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR_LG } from '@mention/shared-types/post';
 import { Redirect } from 'expo-router';
