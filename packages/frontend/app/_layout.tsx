@@ -23,6 +23,7 @@ import { MediaFlightLayer } from '@oxy.so/bloom/media-flight';
 
 // Hooks
 import { useHapticsStore } from '@/stores/hapticsStore';
+import { useAppLanguage } from '@/hooks/useAppLanguage';
 
 // Services & Utils
 import { oxyServices } from '@/lib/oxyServices';
@@ -83,6 +84,9 @@ export default function RootLayout() {
   // Global haptics on/off, persisted via the accessibility settings toggle. Passed
   // to <BloomProvider haptics> so every useHaptics() call honors the preference.
   const hapticsDisabled = useHapticsStore((s) => s.disabled);
+  // Bloom's own strings and dates (pickers, chevrons, …) follow the app's
+  // language, not the device's.
+  const language = useAppLanguage();
   const [splashState, setSplashState] = useState<SplashState>({
     initializationComplete: false,
     fadeComplete: false,
@@ -178,6 +182,7 @@ export default function RootLayout() {
       <BloomProvider
         imageResolver={resolveImageSource}
         haptics={!hapticsDisabled}
+        locale={language}
         defaultMode="system"
         defaultColorPreset={APP_DEFAULT_COLOR_PRESET}
         persistKey={BLOOM_THEME_PERSIST_KEY}

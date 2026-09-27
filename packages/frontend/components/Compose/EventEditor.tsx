@@ -7,7 +7,6 @@ import { Field } from '@oxy.so/bloom/field';
 import { TextField, TextFieldHint, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { useTranslation } from "react-i18next";
-import { useDatePickerLabels } from "@/hooks/useDatePickerLabels";
 
 interface EventEditorProps {
     visible: boolean;
@@ -54,8 +53,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
     onSave,
     onClose,
 }) => {
-    const { t, i18n } = useTranslation();
-    const datePickerLabels = useDatePickerLabels();
+    const { t } = useTranslation();
     const missingName = name.trim().length === 0;
     const eventDate = React.useMemo(() => {
         const parsed = date ? new Date(date) : new Date();
@@ -144,8 +142,6 @@ export const EventEditor: React.FC<EventEditorProps> = ({
                         <DatePicker
                             value={eventDay}
                             onChange={handleDateChange}
-                            locale={i18n.language}
-                            labels={datePickerLabels}
                             accessibilityLabel={t("compose.event.date", { defaultValue: "Date" })}
                             testID="eventEditorDatePicker"
                         />

@@ -95,17 +95,6 @@ describe('ScheduleSheet custom time', () => {
     act(() => tree.unmount());
   });
 
-  it("routes the picker's footer and month chevrons through i18n", () => {
-    const tree = renderSheet(jest.fn());
-    expect(byTestID(tree, 'scheduleSheetDatePicker').props.labels).toEqual({
-      cancel: 'Cancel',
-      apply: 'Apply',
-      previousMonth: 'Previous month',
-      nextMonth: 'Next month',
-    });
-    act(() => tree.unmount());
-  });
-
   it('schedules the picked future day and time', () => {
     const onSelect = jest.fn();
     const tree = renderSheet(onSelect);

@@ -2568,8 +2568,5 @@
   "connections.profileNotFound": "Esta conta não existe, então não há seguidores para mostrar.",
   "saved.createFolderFailed": "Não foi possível criar a pasta. Tente novamente.",
   "profile.loadFailed": "Não foi possível carregar este perfil. Verifique sua conexão e tente novamente.",
-  "profile.notFound.gone": "Esta conta não existe ou não está mais disponível.",
-  "datePicker.apply": "Aplicar",
-  "datePicker.previousMonth": "Mês anterior",
-  "datePicker.nextMonth": "Próximo mês"
+  "profile.notFound.gone": "Esta conta não existe ou não está mais disponível."
 }
