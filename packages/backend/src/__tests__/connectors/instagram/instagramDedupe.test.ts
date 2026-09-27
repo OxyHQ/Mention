@@ -96,7 +96,7 @@ import { buildFederatedNoteProvenance } from '../../../connectors/activitypub/ap
 import { resolvePostIdFromObjectUri } from '../../../connectors/activitypub/helpers';
 import { inboxProcessingService } from '../../../connectors/activitypub/inbox.service';
 import { importInstagramMedia } from '../../../connectors/instagram/importer';
-import { repairInstagramReelPosters } from '../../../scripts/repairInstagramReelPosters';
+import { EXIT_INCOMPLETE, reelPosterRepairExitCode, repairInstagramReelPosters } from '../../../scripts/repairInstagramReelPosters';
 import { optionsFor, requestInstagramSync, syncInstagramActor, syncResultFor } from '../../../connectors/instagram/sync';
 import { InstagramGraphError, type GraphMedia } from '../../../connectors/instagram/graphClient';
 import { BIG_IMAGE_CAROUSEL, IMAGE, REEL_WITH_VIDEO, REEL_WITHOUT_VIDEO, ZUCK_PROFILE } from './fixtures/graphSnapshot';
@@ -509,6 +509,7 @@ describe('repairInstagramReelPosters: Reels stored as their poster get their vid
     const result = await repairInstagramReelPosters({ dryRun: false });
 
     expect(result).toMatchObject({ repaired: 1, waiting: 0, gone: 0 });
+    expect(reelPosterRepairExitCode(result)).toBe(0);
     expect(h.persist).toHaveBeenCalledWith(REEL_WITH_VIDEO.media_url, OWNER, expect.objectContaining({ mediaType: 'video' }));
     const media = await getDb().select({ id: postMedia.mediaId, type: postMedia.type }).from(postMedia).where(eq(postMedia.postId, id));
     expect(media).toEqual([{ id: expect.stringMatching(/-video-/), type: 'video' }]);
@@ -523,8 +524,18 @@ describe('repairInstagramReelPosters: Reels stored as their poster get their vid
     h.persist.mockReset().mockResolvedValue({ ok: false, reason: 'upload-failed', permanent: false });
     h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(24, REEL_WITH_VIDEO)]));
 
-    expect(await repairInstagramReelPosters({ dryRun: false })).toMatchObject({ repaired: 0, waiting: 1 });
+    const result = await repairInstagramReelPosters({ dryRun: false });
+    expect(result).toMatchObject({ repaired: 0, waiting: 1 });
+    // The workflow reads this as "re-run later", not as a failure.
+    expect(reelPosterRepairExitCode(result)).toBe(EXIT_INCOMPLETE);
     expect(await mediaOf(id)).toEqual([poster]);
+  });
+
+  it('an actor whose walk stops at a Graph refusal makes the run incomplete (exit 75)', async () => {
+    h.fetchBusinessDiscovery.mockRejectedValueOnce(new InstagramGraphError('budget', 'Graph call withheld (usage)'));
+    const result = await repairInstagramReelPosters({ dryRun: true });
+    expect(result.stopped).toBe(1);
+    expect(reelPosterRepairExitCode(result)).toBe(EXIT_INCOMPLETE);
   });
 
   it('never touches a Reel Meta lists WITHOUT a video (its thumbnail is the right shape)', async () => {

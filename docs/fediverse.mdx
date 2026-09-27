@@ -426,7 +426,8 @@ import. Meta's CDN URLs expire (`oe=`), so an Instagram post never keeps one:
   budget and finds Graph-imported posts whose slot Meta lists as a video with a
   `media_url` but that is stored as an image. It re-hosts the video, swaps it in
   and queues the poster file for deletion. A Reel Meta lists without
-  `media_url` is correct as an image and is left alone.
+  `media_url` is correct as an image and is left alone. Run it in production
+  with the **Run Instagram one-shot** workflow (see below).
 
 On the web, a video whose stored media has no dimensions yet (they are collected
 from Oxy shortly after import) is shown in the card's default box. It is resized
@@ -551,7 +552,44 @@ transactional migrator.
   first). It gives pre-0054 kilogram posts their source key, batched per bridge
   actor through the actor-URI index, then runs `VALIDATE CONSTRAINT` on the three
   CHECKs. VALIDATE does not block reads or writes. Until the script runs, the
-  Graph import still recognises those posts by their bridge Note id.
+  Graph import still recognises those posts by their bridge Note id. Run it in
+  production with the **Run Instagram one-shot** workflow (see below).
+
+**Running the Instagram one-shots in production.**
+`.github/workflows/run-instagram-one-shot.yml` runs `repairInstagramReelPosters`
+or `backfillInstagramSourceKeys` as an ECS one-shot on the exact deployed backend
+image. It is dispatched from protected `main` only, when `main` is the recorded
+backend deployment, by a login listed in the repository variable
+`INSTAGRAM_ONE_SHOT_OPERATORS`. A dry run comes first. A write needs
+`confirm_write` set to the script name and `preview_run_id` set to that dry
+run.
+
+```bash
+DIGEST=$(aws ecs describe-task-definition --task-definition \
+  "$(aws ecs describe-services --cluster oxy-cluster --services mention \
+     --query 'services[0].taskDefinition' --output text)" \
+  --query 'taskDefinition.containerDefinitions[0].image' --output text | sed 's/.*@//')
+gh workflow run run-instagram-one-shot.yml --ref main \
+  -f script=backfillInstagramSourceKeys -f dry_run=true -f expected_image_digest="$DIGEST"
+# after reading its report:
+gh workflow run run-instagram-one-shot.yml --ref main \
+  -f script=backfillInstagramSourceKeys -f dry_run=false -f expected_image_digest="$DIGEST" \
+  -f preview_run_id=<dry-run id> -f confirm_write=backfillInstagramSourceKeys
+```
+
+The same two commands with `script=repairInstagramReelPosters` (optionally
+`-f repair_depth=<1-1000>`) run the Reel repair.
+
+**Where the output goes:**
+- The run's step summary.
+- The `instagram-one-shot` artifact, which holds the counts and, for the repair,
+  up to 1000 candidate post ids and source keys.
+- The full log in CloudWatch, log group `/oxy/ecs`, stream
+  `mention/<container>/<task id>`, printed by the run step.
+
+Exit 75 means the run finished with work left, such as a Graph refusal, a video
+not storable yet, a live claim or an unvalidated CHECK. It is a warning: run it
+again later.
 
 **Migration 0055.** It builds the two reference-check indexes
 (`post_variant_media.media_id` and the partial
