@@ -35,7 +35,7 @@
 import { and, asc, count, eq, gt, isNotNull, isNull, type SQL } from 'drizzle-orm';
 import { connectPostgres, getDb } from '../db/postgres';
 import { posts } from '../db/schema/posts';
-import { findPostRecords } from '../db/posts/postRepository';
+import { findPostRecords, linkReplyToParent } from '../db/posts/postRepository';
 import { outboxSyncService } from '../connectors/activitypub/outbox.service';
 import { extractInReplyToUri } from '../connectors/activitypub/helpers';
 import { logger } from '../utils/logger';
@@ -140,11 +140,9 @@ async function backfillFederatedThreadLinks(): Promise<void> {
         if (!DRY_RUN) {
           // `is_reply` is deliberately NOT written: the row already carries
           // `federation.inReplyTo`, so `derivesReplyIntent` stamped the
-          // discriminator at insert. This pass only attaches the LINKS.
-          await db
-            .update(posts)
-            .set({ parentPostId: link.parentPostId, threadId: link.threadId })
-            .where(eq(posts.id, post.id));
+          // discriminator at insert. This pass attaches the links, and counts
+          // the reply on its parent like every other linking path.
+          await linkReplyToParent(eq(posts.id, post.id), link, db);
         }
         if (
           post.oxyUserId &&

@@ -1,8 +1,8 @@
 import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
+import { unwrapData } from "../lib/api-response.js";
 import { withAuthGuard } from "../lib/auth-guard.js";
 import type { MentionToolRegistrar } from "../lib/tool-registry.js";
-import { laneData } from "./lanes.js";
 
 interface MutedWord {
   id: string;
@@ -70,8 +70,7 @@ export function registerMutesTools(server: MentionToolRegistrar): void {
     {},
     withAuthGuard(async () => {
       try {
-        // `/mute-words` answers the same `{ data }` envelope as the lanes routes.
-        const words = laneData<MutedWord[]>(await api.get("/mute-words"));
+        const words = unwrapData<MutedWord[]>(await api.get("/mute-words"));
         if (!Array.isArray(words) || words.length === 0) {
           return { content: [{ type: "text" as const, text: "No muted words." }] };
         }
@@ -99,10 +98,7 @@ export function registerMutesTools(server: MentionToolRegistrar): void {
     },
     withAuthGuard(async ({ value, targets, actorTarget }) => {
       try {
-        const body: Record<string, unknown> = { value };
-        if (targets) body.targets = targets;
-        if (actorTarget) body.actorTarget = actorTarget;
-        const word = laneData<MutedWord>(await api.post("/mute-words", body));
+        const word = unwrapData<MutedWord>(await api.post("/mute-words", { value, targets, actorTarget }));
         return { content: [{ type: "text" as const, text: `Muted.\n\n${formatMutedWord(word)}` }] };
       } catch (error) {
         return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };

@@ -27,8 +27,6 @@ import {
 } from '../../db/posts/postRepository';
 import { POST_CLASSIFICATION_PENDING, type PostRecord } from '../../db/posts/postRecord';
 import {
-  ACTOR_DOMAIN,
-  FEDERATION_DOMAIN,
   FEDERATION_MAX_CONTENT_LENGTH,
   extractLocalPostIdFromApUri,
   isBlockedDomain,
@@ -67,7 +65,9 @@ import {
   detectCrosspostEquivalence,
   reevaluateClusterForPost,
 } from '../../services/PostEquivalenceService';
-import { applyMentionPlaceholders, resolveInboundMentions } from './apMentions';
+import { applyMentionPlaceholders, extractMentionTags, resolveInboundMentions } from './apMentions';
+import { OWN_DOMAINS } from './ownDomain';
+import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 import { isMentionBroadcast } from '@mention/shared-types/mentions';
 import { normalizeMentionIds } from '../../utils/textProcessing';
 import { getRemoteHost } from '../shared/url';
@@ -82,38 +82,15 @@ import {
 import { deleteFederatedPostSubtree } from '../../services/FederatedPostDeletionService';
 import { applyInboundMove } from './move.service';
 
-/** Hosts that publish THIS instance's own actors and posts. */
-const LOCAL_FEDERATION_HOSTS = new Set([FEDERATION_DOMAIN.toLowerCase(), ACTOR_DOMAIN.toLowerCase()]);
-
-function isLocalActorUri(value: unknown): boolean {
-  if (typeof value !== 'string') return false;
-  try {
-    const url = new URL(value);
-    return LOCAL_FEDERATION_HOSTS.has(url.hostname.toLowerCase()) && /^\/ap\/users\/[^/]+\/?$/.test(url.pathname);
-  } catch {
-    return false;
-  }
-}
-
 /**
- * Whether a Note is ADDRESSED to this instance's users: a reply to one of our
- * posts, or a `Mention` of one of our actors.
- *
- * Such a Note is delivered to us precisely BECAUSE it concerns a local user,
- * whoever its author is. The inbox used to keep only Notes from actors some
- * local user follows, so a reply from an account nobody here follows was
- * acknowledged with a 202 and then silently discarded: the Mention author never
- * saw it, and Mastodon, having been told it was accepted, never retried.
- * Mastodon applies the same rule to its own inbox.
+ * Whether a Note replies to one of our posts or mentions one of our users. Such
+ * a Note concerns a local user whoever sent it, so it is kept without a local
+ * follower of its author — the rule Mastodon applies to its own inbox.
  */
 export function addressesLocalUsers(object: Record<string, unknown>): boolean {
   const inReplyTo = extractInReplyToUri(object.inReplyTo);
   if (inReplyTo && extractLocalPostIdFromApUri(inReplyTo)) return true;
-  const tags = Array.isArray(object.tag) ? object.tag : object.tag ? [object.tag] : [];
-  return tags.some((tag) => {
-    const record = asRecord(tag);
-    return record?.type === 'Mention' && isLocalActorUri(record.href);
-  });
+  return extractMentionTags(object).some((tag) => ownProfileUrlHandle(tag.href, OWN_DOMAINS) !== undefined);
 }
 
 /**
@@ -542,14 +519,12 @@ export class InboxProcessingService {
     // a genuine reply/post returns false and flows through unchanged.
     if (await this.handlePollVote(object, actorUri)) return;
 
-    // Only process a Note some local user asked for: its author is followed
-    // here, or it replies to or mentions one of our users.
-    const hasFollower = await existsFollow({
-      remoteActorUri: actorUri,
-      direction: 'outbound',
-      statuses: ['accepted'],
-    });
-    if (!hasFollower && !addressesLocalUsers(object)) return;
+    // Only process a Note some local user asked for: it replies to or mentions
+    // one of our users, or its author is followed here. The in-memory check first.
+    if (
+      !addressesLocalUsers(object) &&
+      !(await existsFollow({ remoteActorUri: actorUri, direction: 'outbound', statuses: ['accepted'] }))
+    ) return;
 
     // Sanitize and check content length
     const rawContent = note.content || '';

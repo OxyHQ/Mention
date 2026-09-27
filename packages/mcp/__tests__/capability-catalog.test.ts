@@ -9,19 +9,22 @@ import {
 } from "../lib/mention-catalog.js";
 import { requestContext } from "../lib/context.js";
 import { effectIdempotencyKey } from "../lib/tool-registry.js";
+import { MENTION_TOOL_POLICIES } from "@mention/shared-types/mcpCapabilities";
 
 describe("Mention canonical capability catalog", () => {
   test("is valid, complete and has one policy for every tool", () => {
     expect(appCapabilityCatalogSchema.parse(MENTION_CAPABILITY_CATALOG))
       .toEqual(MENTION_CAPABILITY_CATALOG);
-    expect(MENTION_CAPABILITY_CATALOG.tools).toHaveLength(97);
+    // The inventory itself is pinned once, in shared-types' mcpCapabilities test.
+    const toolCount = Object.keys(MENTION_TOOL_POLICIES).length;
+    expect(MENTION_CAPABILITY_CATALOG.tools).toHaveLength(toolCount);
     expect(MENTION_CAPABILITY_CATALOG.externalMcp).toEqual({
       resource: "https://mcp.mention.earth",
     });
     expect(MENTION_CAPABILITY_CATALOG.internalBaseUrl)
       .toBe("https://mcp.mention.earth");
-    expect(MENTION_TOOL_REGISTRY.definitions()).toHaveLength(97);
-    expect(new Set(MENTION_CAPABILITY_CATALOG.tools.map((tool) => tool.name)).size).toBe(97);
+    expect(MENTION_TOOL_REGISTRY.definitions()).toHaveLength(toolCount);
+    expect(new Set(MENTION_CAPABILITY_CATALOG.tools.map((tool) => tool.name)).size).toBe(toolCount);
   });
 
   test("drives MCP names, descriptions, input schemas and policy metadata", async () => {

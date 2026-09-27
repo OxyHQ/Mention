@@ -81,6 +81,8 @@ const WRITE_CASES: Array<{
   method: string;
   path: string;
   body?: unknown;
+  /** What the API answers, when the tool reads its response. */
+  response?: unknown;
 }> = [
   { tool: "unboost", scope: "social.interact", args: { id: "post-1" }, method: "DELETE", path: "/feed/post-1/boost" },
   {
@@ -159,6 +161,7 @@ const WRITE_CASES: Array<{
     method: "POST",
     path: "/mute-words",
     body: { value: "spoilers", actorTarget: "exclude-following" },
+    response: { success: true, data: { id: "word-1", value: "spoilers", targets: ["content", "tag"], actorTarget: "exclude-following" } },
   },
   { tool: "unmute-word", scope: "social.mutes.manage", args: { id: "word-1" }, method: "DELETE", path: "/mute-words/word-1" },
 ];
@@ -166,11 +169,7 @@ const WRITE_CASES: Array<{
 describe("new write tools", () => {
   for (const testCase of WRITE_CASES) {
     test(`${testCase.tool} ${testCase.method} ${testCase.path}`, async () => {
-      const captured = captureFetch((method, path) =>
-        path === "/mute-words" && method === "POST"
-          ? { success: true, data: { id: "word-1", value: "spoilers", targets: ["content", "tag"], actorTarget: "exclude-following" } }
-          : {},
-      );
+      const captured = captureFetch(() => testCase.response ?? {});
       const result = await callAs([testCase.scope], testCase.tool, testCase.args);
 
       expect(result.isError).toBeFalsy();

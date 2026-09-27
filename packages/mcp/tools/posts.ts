@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
-import { normalizeVisibility, unwrapApiResponse } from "../lib/api-response.js";
+import { normalizeVisibility, unwrapApiResponse, unwrapData } from "../lib/api-response.js";
 import { withAuthGuard } from "../lib/auth-guard.js";
 import { formatPost } from "../lib/formatters.js";
 import { buildPostContentPayload, resolveMediaInputs } from "../lib/resolve-media.js";
@@ -22,7 +22,6 @@ import {
   visibilitySchema,
 } from "../lib/post-content-schema.js";
 import type { MentionToolRegistrar } from "../lib/tool-registry.js";
-import { laneData } from "./lanes.js";
 
 const createPostFields = {
   text: z.string().optional().describe("The text content of the post"),
@@ -224,7 +223,7 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
     withAuthGuard(async ({ id, laneId }) => {
       try {
         const result = await api.patch(`/posts/${encodeURIComponent(id)}/lane`, { laneId });
-        const moved = laneData<{ lane?: { name?: string } | null }>(result);
+        const moved = unwrapData<{ lane?: { name?: string } | null }>(result);
         const text = moved.lane?.name
           ? `Post ${id} moved to lane "${moved.lane.name}".`
           : `Post ${id} removed from its lane.`;
@@ -347,12 +346,9 @@ export function registerPostsTools(server: MentionToolRegistrar): void {
       hideEngagementCounts: z.boolean().optional().describe("Hide like and boost counts from others"),
     },
     withAuthGuard(async ({ id, replyPermission, reviewReplies, quotesDisabled, hideEngagementCounts }) => {
-      const body: Record<string, unknown> = {};
-      if (replyPermission) body.replyPermission = replyPermission;
-      if (reviewReplies !== undefined) body.reviewReplies = reviewReplies;
-      if (quotesDisabled !== undefined) body.quotesDisabled = quotesDisabled;
-      if (hideEngagementCounts !== undefined) body.hideEngagementCounts = hideEngagementCounts;
-      if (Object.keys(body).length === 0) {
+      // `undefined` members are dropped by the JSON encoding.
+      const body = { replyPermission, reviewReplies, quotesDisabled, hideEngagementCounts };
+      if (Object.values(body).every((value) => value === undefined)) {
         return { content: [{ type: "text" as const, text: "Nothing to change: pass at least one setting." }], isError: true };
       }
       try {
