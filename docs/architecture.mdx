@@ -277,6 +277,9 @@ Internet ── ALB/CF ──┤                       ├── ECS mention :30
 MCP client ── ALB ── mcp.mention.earth ── ECS mention-mcp :3100
 ```
 
+`mention-mcp` keeps no Streamable HTTP session state, so the ALB may send each
+request to any task; only the deprecated `/sse` transport is bound to one task.
+
 The backend handles federation and OG routes before proxying remaining apex
 GET/HEAD requests to the static Expo origin. Hashed assets receive immutable
 caching; HTML revalidates. A hashed asset URL that resolves to HTML is rejected
