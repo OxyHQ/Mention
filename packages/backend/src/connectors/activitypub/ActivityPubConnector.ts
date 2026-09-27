@@ -10,6 +10,7 @@ import type {
   FetchPostsResult,
 } from '@oxy.so/federation';
 import { withEngineId, type FederatedActorRecord } from '../../db/federation/actorRecord';
+import { findActorByUriOrAcct } from '../../db/federation/actorRepository';
 import { resolveOxyExternalUser } from '../identity';
 import { isAbsoluteHttpUrl } from '../shared/url';
 import { actorService } from './actor.service';
@@ -139,19 +140,16 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
   }
 
   /**
-   * The actor URI a follow or unfollow is addressed to.
-   *
-   * `matches` accepts a handle as well as a URI, so a caller may follow
-   * `alice@mastodon.social` (the MCP `follow-user` tool does). The delivery engine
-   * reads its target as a URL, and a handle is not one: it took `alice@…` for a
-   * blocked origin and sent nothing, while the route answered `success: true`.
-   * So a handle is resolved to its actor by WebFinger first, and one that does
-   * not resolve is an error rather than a silent no-op.
+   * The actor URI a follow or unfollow is addressed to. `matches` accepts a
+   * handle, but the delivery engine only takes a URL: a known actor is read from
+   * the store, anything else is WebFingered, and a handle that resolves to no
+   * actor is an error rather than a silent no-op.
    */
   private async followTargetUri(target: string): Promise<string> {
     if (isAbsoluteHttpUrl(target)) return target;
     const acct = normalizeFederatedAcct(target);
-    const actorUri = acct ? await actorService.resolveWebFinger(acct) : null;
+    const known = acct ? await findActorByUriOrAcct(acct) : null;
+    const actorUri = known?.uri ?? (acct ? await actorService.resolveWebFinger(acct) : null);
     if (!actorUri) throw new Error('Fediverse handle did not resolve to an ActivityPub actor');
     return actorUri;
   }
@@ -526,22 +524,6 @@ class ActivityPubConnector implements NetworkConnector<PostContent> {
     senderUsername: string,
   ): Promise<void> {
     return followService.federateNewPost(post, senderOxyUserId, senderUsername);
-  }
-
-  sendFollow(
-    localOxyUserId: string,
-    localUsername: string,
-    remoteActorUri: string,
-  ): Promise<{ success: boolean; pending: boolean }> {
-    return deliveryService.sendFollow(localOxyUserId, localUsername, remoteActorUri);
-  }
-
-  sendUndoFollow(
-    localOxyUserId: string,
-    localUsername: string,
-    remoteActorUri: string,
-  ): Promise<boolean> {
-    return deliveryService.sendUndoFollow(localOxyUserId, localUsername, remoteActorUri);
   }
 
   sendAccept(

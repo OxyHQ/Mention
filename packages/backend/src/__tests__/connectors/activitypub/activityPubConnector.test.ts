@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   resolveWebFinger: vi.fn(),
   sendFollow: vi.fn(),
   sendUndoFollow: vi.fn(),
+  findActorByUriOrAcct: vi.fn(),
 }));
 
 vi.mock('../../../connectors/activitypub/actor.service', () => ({
@@ -47,6 +48,10 @@ vi.mock('../../../connectors/activitypub/follow.service', () => ({
     federateUndoLike: mocks.federateUndoLike,
     federateUndoLikeStrict: mocks.federateUndoLikeStrict,
   },
+}));
+
+vi.mock('../../../db/federation/actorRepository', () => ({
+  findActorByUriOrAcct: mocks.findActorByUriOrAcct,
 }));
 
 vi.mock('../../../connectors/activitypub/delivery.service', () => ({
@@ -174,6 +179,17 @@ describe('ActivityPubConnector follow delivery', () => {
   beforeEach(() => {
     mocks.sendFollow.mockResolvedValue({ success: true, pending: false });
     mocks.sendUndoFollow.mockResolvedValue(true);
+    mocks.findActorByUriOrAcct.mockResolvedValue(null);
+  });
+
+  it('uses a stored actor for a known handle, with no WebFinger', async () => {
+    mocks.findActorByUriOrAcct.mockResolvedValue({ uri: NUMERIC_ACTOR_URI });
+
+    await activityPubConnector.deliver(follow('alice@mastodon.social'));
+
+    expect(mocks.findActorByUriOrAcct).toHaveBeenCalledWith('alice@mastodon.social');
+    expect(mocks.resolveWebFinger).not.toHaveBeenCalled();
+    expect(mocks.sendFollow).toHaveBeenCalledWith('local-1', 'mention', NUMERIC_ACTOR_URI);
   });
 
   it('resolves a handle to its actor by WebFinger before sending the Follow', async () => {

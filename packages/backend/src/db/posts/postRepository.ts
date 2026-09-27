@@ -1892,6 +1892,37 @@ export async function replacePostAuthorship(
 }
 
 /**
+ * Attach a reply to its parent AFTER it was written, and count it there.
+ *
+ * The outbox backfill and the thread-link repair script insert a reply first and
+ * link it once the parent is resolvable, so {@link writePostRecord} never saw it
+ * as a reply — while {@link deletePostRecord} decrements every linked one. The
+ * count moves only when the parent actually changes, so a re-link never counts
+ * twice. Returns whether a row matched.
+ */
+export async function linkReplyToParent(
+  where: SQL,
+  link: { parentPostId: string; threadId: string },
+  db: DatabaseOrTransaction = getDb(),
+): Promise<boolean> {
+  const write = async (tx: DatabaseOrTransaction): Promise<boolean> => {
+    const [current] = await tx
+      .select({ parentPostId: posts.parentPostId, isReply: posts.isReply })
+      .from(posts)
+      .where(where)
+      .for('update');
+    if (!current) return false;
+    await tx.update(posts).set({ parentPostId: link.parentPostId, threadId: link.threadId }).where(where);
+    if (current.isReply && current.parentPostId !== link.parentPostId) {
+      if (current.parentPostId) await bumpPostCounters(current.parentPostId, { comments: -1 }, tx);
+      await bumpPostCounters(link.parentPostId, { comments: 1 }, tx);
+    }
+    return true;
+  };
+  return 'transaction' in db ? db.transaction(write) : write(db);
+}
+
+/**
  * Delete a post and return the record it was, or `null` when nothing matched.
  *
  * The record is read BEFORE the delete because every caller needs it afterwards:

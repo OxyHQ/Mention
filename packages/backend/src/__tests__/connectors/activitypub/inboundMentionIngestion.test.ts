@@ -441,11 +441,8 @@ describe('handleCreate — broadcast notes notify nobody', () => {
 });
 
 /**
- * A Note ADDRESSED to a local user is kept even when no local user follows its
- * author. The inbox used to keep only Notes from followed actors, so a reply to
- * a Mention post from an account nobody here follows was acknowledged with a
- * 202 and silently discarded, and Mastodon never retried it. Measured on
- * production: a mastodon.social reply to a Mention post never appeared.
+ * A Note addressed to a local user is kept even when nobody here follows its
+ * author; it used to be acknowledged with a 202 and silently discarded.
  */
 describe('handleCreate — a Note addressed to a local user needs no local follower', () => {
   const LOCAL_POST_URI = 'https://mention.earth/ap/users/alice/posts/01a0acb7-4cd7-79b8-80b5-8168c265f26a';

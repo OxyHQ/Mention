@@ -750,5 +750,8 @@ describe('reconciliation script — backfillFederatedThreadLinks', () => {
     expect(untouched?.threadId).toBe(parent.id);
     const parentRow = await rowByActivityId(parentUri);
     expect(parentRow?.parentPostId).toBeNull();
+    // Both replies count on the parent: the linked one from its insert, the
+    // orphan from the repair that linked it.
+    expect(parentRow?.comments).toBe(2);
   });
 });

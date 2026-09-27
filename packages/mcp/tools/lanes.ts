@@ -1,7 +1,7 @@
 import { LANE_DISPLAY_MODES, MAX_LANE_NAME_LENGTH, type Lane, type LaneSummary, type MutedLane } from "@mention/shared-types/lane";
 import { z } from "zod/v4";
 import { api, formatApiError } from "../lib/api-client.js";
-import { unwrapApiResponse } from "../lib/api-response.js";
+import { unwrapData } from "../lib/api-response.js";
 import { withAuthGuard } from "../lib/auth-guard.js";
 import type { MentionToolRegistrar } from "../lib/tool-registry.js";
 
@@ -11,18 +11,6 @@ const displayModeSchema = z
     "mixed = posts also show on the main profile tab (default); tab = only in the lane's own profile tab; " +
     "hidden = off the profile entirely. Every mode still reaches followers' feeds.",
   );
-
-/**
- * The lanes routes answer `{ data }` (with `success: true` only on a 201), so
- * the generic unwrap — which keys on `success` — would hand back the envelope
- * for every 200. Unwrap the `data` member whatever the status was.
- */
-export function laneData<T>(raw: unknown): T {
-  if (typeof raw === "object" && raw !== null && "data" in raw) {
-    return (raw as { data: T }).data;
-  }
-  return unwrapApiResponse<T>(raw);
-}
 
 function formatLane(lane: Lane | LaneSummary): string {
   const count = "postCount" in lane && lane.postCount !== undefined ? ` · ${lane.postCount} posts` : "";
@@ -36,7 +24,7 @@ export function registerLanesTools(server: MentionToolRegistrar): void {
     {},
     withAuthGuard(async () => {
       try {
-        const lanes = laneData<Lane[]>(await api.get("/lanes/mine"));
+        const lanes = unwrapData<Lane[]>(await api.get("/lanes/mine"));
         if (!Array.isArray(lanes) || lanes.length === 0) {
           return { content: [{ type: "text" as const, text: "No lanes yet. Create one with create-lane." }] };
         }
@@ -59,7 +47,7 @@ export function registerLanesTools(server: MentionToolRegistrar): void {
       try {
         const body: Record<string, unknown> = { name };
         if (displayMode) body.displayMode = displayMode;
-        const lane = laneData<Lane>(await api.post("/lanes", body));
+        const lane = unwrapData<Lane>(await api.post("/lanes", body));
         return { content: [{ type: "text" as const, text: `Lane created.\n\n${formatLane(lane)}` }] };
       } catch (error) {
         return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
@@ -80,7 +68,7 @@ export function registerLanesTools(server: MentionToolRegistrar): void {
         const body: Record<string, unknown> = {};
         if (name) body.name = name;
         if (displayMode) body.displayMode = displayMode;
-        const lane = laneData<Lane>(await api.patch(`/lanes/${encodeURIComponent(id)}`, body));
+        const lane = unwrapData<Lane>(await api.patch(`/lanes/${encodeURIComponent(id)}`, body));
         return { content: [{ type: "text" as const, text: `Lane updated.\n\n${formatLane(lane)}` }] };
       } catch (error) {
         return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
@@ -94,7 +82,7 @@ export function registerLanesTools(server: MentionToolRegistrar): void {
     {},
     withAuthGuard(async () => {
       try {
-        const muted = laneData<MutedLane[]>(await api.get("/lanes/muted"));
+        const muted = unwrapData<MutedLane[]>(await api.get("/lanes/muted"));
         if (!Array.isArray(muted) || muted.length === 0) {
           return { content: [{ type: "text" as const, text: "No muted lanes." }] };
         }

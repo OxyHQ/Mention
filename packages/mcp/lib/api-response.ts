@@ -31,3 +31,15 @@ export function normalizeVisibility(
   }
   return PostVisibility.PUBLIC;
 }
+
+/**
+ * Unwrap a `{ data }` envelope whatever its status. Routes that answer `{ data }`
+ * without `success: true` (lanes, mute words) would come back whole from
+ * {@link unwrapApiResponse}, which keys on `success`.
+ */
+export function unwrapData<T>(raw: unknown): T {
+  if (typeof raw === "object" && raw !== null && "data" in raw) {
+    return (raw as { data: T }).data;
+  }
+  return unwrapApiResponse<T>(raw);
+}

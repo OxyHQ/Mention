@@ -12,6 +12,7 @@ import { posts } from '../../db/schema/posts';
 import {
   bumpPostCounters,
   CHRONO_DESC,
+  linkReplyToParent,
   UNIQUE_MATCH_NO_ORDER,
   findPostRecords,
   insertPostRecords,
@@ -1075,39 +1076,10 @@ export class OutboxSyncService {
         try {
           const link = await this.resolveThreadLink(inReplyToUri, 0, true);
           if (!link) continue;
-          // `is_reply` is NOT written here, and must not be: the row was
-          // inserted with `federation.inReplyTo` already set, so
-          // `derivesReplyIntent` stamped the discriminator at insert time. This
-          // pass only attaches the LINKS once the parent is resolvable.
-          //
-          // The reply COUNTS on its parent from the moment it is linked. The
-          // insert could not count it (`writePostRecord` bumps only a reply
-          // inserted WITH its parent), yet `deletePostRecord` decrements every
-          // linked reply — so a backfilled reply was never counted and its
-          // deletion took one off some other reply. Counted only on the
-          // unlinked → linked transition, in the same transaction as the link,
-          // so a re-link of an already-linked row never counts it twice.
-          const linked = await getDb().transaction(async (tx) => {
-            const [current] = await tx
-              .select({ parentPostId: posts.parentPostId, isReply: posts.isReply })
-              .from(posts)
-              .where(eq(posts.federationActivityId, activityId))
-              .for('update');
-            if (!current) return [];
-            const rows = await tx
-              .update(posts)
-              .set({ parentPostId: link.parentPostId, threadId: link.threadId })
-              .where(eq(posts.federationActivityId, activityId))
-              .returning({ id: posts.id });
-            if (rows.length > 0 && current.isReply && current.parentPostId !== link.parentPostId) {
-              if (current.parentPostId) {
-                await bumpPostCounters(current.parentPostId, { comments: -1 }, tx);
-              }
-              await bumpPostCounters(link.parentPostId, { comments: 1 }, tx);
-            }
-            return rows;
-          });
-          if (linked.length > 0) {
+          // `is_reply` is not written: `derivesReplyIntent` stamped it at insert
+          // from `federation.inReplyTo`. This pass only attaches the links.
+          const linked = await linkReplyToParent(eq(posts.federationActivityId, activityId), link);
+          if (linked) {
             await recordRecentReplierForPost({
               parentPostId: link.parentPostId,
               oxyUserId,
