@@ -3,23 +3,23 @@
   "total": {
     "statements": {
       "pct": 41.25,
-      "covered": 11008,
-      "total": 26686
+      "covered": 11009,
+      "total": 26688
     },
     "branches": {
-      "pct": 35.78,
-      "covered": 6876,
-      "total": 19215
+      "pct": 35.79,
+      "covered": 6878,
+      "total": 19217
     },
     "functions": {
-      "pct": 36.46,
-      "covered": 2496,
-      "total": 6844
+      "pct": 36.48,
+      "covered": 2498,
+      "total": 6846
     },
     "lines": {
       "pct": 42.07,
-      "covered": 10038,
-      "total": 23858
+      "covered": 10039,
+      "total": 23860
     }
   },
   "pins": {
@@ -191,6 +191,12 @@
       "functions": 0,
       "lines": 0
     },
+    "hooks/useAppLanguage.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "hooks/useArticleManager.ts": {
       "statements": 0,
       "branches": 0,
@@ -226,12 +232,6 @@
       "branches": 100,
       "functions": 0,
       "lines": 0
-    },
-    "hooks/useDatePickerLabels.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
     },
     "hooks/useDeepCompare.ts": {
       "statements": 66,

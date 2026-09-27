@@ -2540,8 +2540,5 @@
   "connections.profileNotFound": "このアカウントは存在しないため、表示するフォロワーはいません。",
   "saved.createFolderFailed": "フォルダを作成できませんでした。もう一度お試しください。",
   "profile.loadFailed": "このプロフィールを読み込めませんでした。接続を確認してもう一度お試しください。",
-  "profile.notFound.gone": "このアカウントは存在しないか、利用できなくなっています。",
-  "datePicker.apply": "適用",
-  "datePicker.previousMonth": "前の月",
-  "datePicker.nextMonth": "次の月"
+  "profile.notFound.gone": "このアカウントは存在しないか、利用できなくなっています。"
 }

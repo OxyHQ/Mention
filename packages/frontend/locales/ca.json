@@ -2568,8 +2568,5 @@
   "connections.profileNotFound": "Aquest compte no existeix, així que no té seguidors per mostrar.",
   "saved.createFolderFailed": "No s'ha pogut crear la carpeta. Torna-ho a provar.",
   "profile.loadFailed": "No s'ha pogut carregar aquest perfil. Comprova la connexió i torna-ho a provar.",
-  "profile.notFound.gone": "Aquest compte no existeix o ja no està disponible.",
-  "datePicker.apply": "Aplica",
-  "datePicker.previousMonth": "Mes anterior",
-  "datePicker.nextMonth": "Mes següent"
+  "profile.notFound.gone": "Aquest compte no existeix o ja no està disponible."
 }

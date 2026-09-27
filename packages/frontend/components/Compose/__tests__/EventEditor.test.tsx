@@ -124,7 +124,6 @@ describe('EventEditor date field', () => {
     const tree = renderEditor(original.toISOString(), onDateChange);
 
     const picker = findPicker(tree, 'eventEditorDatePicker');
-    expect(Object.keys(picker.props.labels)).toEqual(['cancel', 'apply', 'previousMonth', 'nextMonth']);
     const shown = picker.props.value as Date;
     expect([shown.getFullYear(), shown.getMonth(), shown.getDate(), shown.getHours(), shown.getMinutes()])
       .toEqual([2026, 4, 3, 0, 0]);
