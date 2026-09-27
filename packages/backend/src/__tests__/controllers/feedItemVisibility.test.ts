@@ -18,6 +18,7 @@ vi.mock('../../utils/privacyHelpers', async (importOriginal) => ({
 }));
 
 import { feedController } from '../../controllers/feed.controller';
+import { postHydrationService } from '../../services/PostHydrationService';
 
 function request(id: string) {
   return { params: { id }, user: undefined, query: {}, headers: {}, acceptsLanguages: () => [] as string[] };
@@ -61,5 +62,20 @@ describe('GET /feed/item/:id visibility', () => {
     await feedController.getFeedItemById(request('p-1') as never, res as never);
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ id: 'p-1' });
+  });
+
+  it('answers 500, not 404, when hydrating a readable post fails', async () => {
+    hoisted.loadPost.mockResolvedValue({ id: 'p-2', status: 'published' });
+    vi.restoreAllMocks();
+    vi.spyOn(postHydrationService, 'hydratePosts').mockRejectedValue(new Error('quote count query failed'));
+    const res = response();
+    await feedController.getFeedItemById(request('p-2') as never, res as never);
+    expect(res.statusCode).toBe(500);
+  });
+
+  it('still answers the lists timeline with an empty page when hydration fails, as before', async () => {
+    vi.restoreAllMocks();
+    vi.spyOn(postHydrationService, 'hydratePosts').mockRejectedValue(new Error('boom'));
+    await expect(feedController.transformPostsWithProfiles([{ id: 'x' }])).resolves.toEqual([]);
   });
 });
