@@ -416,6 +416,76 @@ for (const workflowName of workflowNames) {
   }
 }
 
+/**
+ * The configuration-only redeploy (deploy-backend-config.yml) re-runs the code
+ * release's secret sync and task render on the running image. It carries COPIES
+ * of those two deploy-aws.yml steps, because sharing them would mean one
+ * workflow mixing the dispatch trigger with the workflow_run head SHA — the
+ * flow CodeQL correctly reports as cache poisoning. A copy is only safe while it
+ * IS a copy, so any difference fails here: a secret synced by one path and not
+ * the other, or a binding one path renders and the other drops, is exactly the
+ * drift that a config redeploy would then ship to production.
+ *
+ * And the redeploy itself must stay the shape that makes it safe: dispatch
+ * only, main only, a required reason, github.sha checked out with no ref.
+ */
+{
+  const readWorkflow = async (name) =>
+    parseDocument(await readFile(resolve(workflowsDirectory, name), "utf8")).toJS();
+  const release = await readWorkflow("deploy-aws.yml");
+  const redeploy = await readWorkflow("deploy-backend-config.yml").catch(() => undefined);
+  if (redeploy) {
+    const name = "deploy-backend-config.yml";
+    const triggers = Object.keys(redeploy.on ?? {});
+    if (triggers.length !== 1 || triggers[0] !== "workflow_dispatch") {
+      failures.push(`${name}: must be triggered by workflow_dispatch alone, never by an event that can name another commit`);
+    }
+    if (redeploy.on?.workflow_dispatch?.inputs?.reason?.required !== true) {
+      failures.push(`${name}: must require a \`reason\` input`);
+    }
+    const inputNames = Object.keys(redeploy.on?.workflow_dispatch?.inputs ?? {});
+    if (inputNames.some((input) => input !== "reason")) {
+      failures.push(`${name}: must take no input but \`reason\`; a ref or SHA input would let a dispatch run code other than main's head`);
+    }
+    const jobs = Object.values(redeploy.jobs ?? {});
+    for (const job of jobs) {
+      if (!String(job?.if ?? "").includes("github.ref == 'refs/heads/main'")) {
+        failures.push(`${name}: every job must be gated to github.ref == 'refs/heads/main'`);
+      }
+      for (const step of job?.steps ?? []) {
+        if (typeof step?.uses === "string" && step.uses.startsWith("actions/checkout@") && step.with?.ref !== undefined) {
+          failures.push(`${name}: its checkout must take no \`ref\`; github.sha of main is the only code it may run`);
+        }
+        if (typeof step?.uses === "string" && /docker\/build-push-action|actions\/cache/.test(step.uses)) {
+          failures.push(`${name}: must not build or use a cache; it redeploys the running image`);
+        }
+      }
+    }
+    const releaseSteps = release?.jobs?.deploy?.steps ?? [];
+    const redeploySteps = jobs.flatMap((job) => job?.steps ?? []);
+    const comparable = (step, ignoredEnv = []) => {
+      if (!step) return undefined;
+      const env = { ...(step.env ?? {}) };
+      for (const key of ignoredEnv) delete env[key];
+      return JSON.stringify({ id: step.id, env, run: step.run });
+    };
+    for (const [stepName, ignoredEnv] of [
+      ["Sync GitHub secrets to SSM", []],
+      ["Register immutable task definition and deploy", ["IMAGE_URI", "RUN_MIGRATIONS"]],
+    ]) {
+      const original = comparable(releaseSteps.find((step) => step?.name === stepName), ignoredEnv);
+      const copy = comparable(redeploySteps.find((step) => step?.name === stepName), ignoredEnv);
+      if (!original || !copy) {
+        failures.push(`${name}: both workflows must have a step named "${stepName}"`);
+      } else if (original !== copy) {
+        failures.push(
+          `${name}: "${stepName}" differs from deploy-aws.yml's step of the same name; a config redeploy must sync and render exactly what a code release does`,
+        );
+      }
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error("GitHub Actions YAML validation failed:\n");
   for (const failure of failures) console.error(`- ${failure}`);

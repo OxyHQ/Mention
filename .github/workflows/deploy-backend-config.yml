@@ -1,0 +1,222 @@
+name: Redeploy Mention Backend Configuration
+
+# A CONFIGURATION-ONLY backend redeploy: re-syncs the GitHub secrets to SSM and
+# re-renders the task definition's environment from vars.*, on the image the
+# service is ALREADY RUNNING. Repository variables and secrets are not paths
+# deployment-scope.sh can see, so deploy-aws.yml (the code release, triggered by
+# CI) skips a change to them; this is how one ships.
+#
+# Deliberately a separate workflow, and deliberately no build:
+#
+# - It runs only on workflow_dispatch from refs/heads/main and checks out
+#   github.sha — nothing else. There is no ref input and no SHA from another
+#   event, so the only code it executes is the default branch's head, which
+#   require-current-main.sh re-proves before each stage.
+# - It builds no image and touches no cache, so there is nothing a run could
+#   poison. The code release keeps its own build, cache and trigger unchanged.
+# - It ships no code, so it neither runs migrations nor moves deployed/backend.
+#
+# The two steps below that do the work are COPIES of deploy-aws.yml's steps of
+# the same names, where every setting is documented. scripts/validate-workflows.mjs
+# fails CI unless they match exactly (the image and RUN_MIGRATIONS aside), so a
+# change there must be made here too.
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Why this redeploy (e.g. "vars.INSTAGRAM_GRAPH_ENABLED=true")
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+  # Confirms CI passed on the exact commit whose scripts this run executes.
+  actions: read
+
+concurrency:
+  # The SAME group as deploy-aws.yml: a config redeploy and a code release never
+  # overlap, and neither is cancelled mid-rollout.
+  group: deploy-mention-backend
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  AWS_ACCOUNT_ID: '237343248947'
+  ECR_REGISTRY: 237343248947.dkr.ecr.us-west-2.amazonaws.com
+  APP: mention
+  CONTAINER_NAME: mention
+  CLUSTER: oxy-cluster
+  DEPLOY_SHA: ${{ github.sha }}
+
+jobs:
+  redeploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      # No `ref`: github.sha, the head of refs/heads/main at dispatch.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 1
+
+      - name: Verify current main before anything runs
+        run: bash .github/scripts/require-current-main.sh
+
+      - name: Require a reason and green CI for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Read from the environment, never interpolated into the script.
+          REDEPLOY_REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${REDEPLOY_REASON//[[:space:]]/}" ]]; then
+            echo "::error::A configuration-only redeploy needs a reason."
+            exit 1
+          fi
+          printf 'Configuration-only redeploy at %s requested by %s: %s\n' \
+            "$DEPLOY_SHA" "$GITHUB_ACTOR" "$REDEPLOY_REASON"
+          passed="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$DEPLOY_SHA&event=push&status=success&per_page=1" \
+            --jq '.total_count')"
+          if [[ "$passed" == "0" ]]; then
+            echo "::error::CI has not passed on a push of $DEPLOY_SHA; refusing to run its deploy scripts. Wait for CI, then dispatch again."
+            exit 1
+          fi
+          echo "CI passed on $DEPLOY_SHA."
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      # The image stays exactly what is serving. A config redeploy that rebuilt
+      # from main would ship whatever backend code the last code release did not.
+      - name: Resolve the running backend image
+        id: running
+        run: |
+          set -euo pipefail
+          task_definition="$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" \
+            --query 'services[0].taskDefinition' --output text)"
+          image="$(aws ecs describe-task-definition --task-definition "$task_definition" \
+            --query "taskDefinition.containerDefinitions[?name=='$CONTAINER_NAME'].image | [0]" --output text)"
+          if [[ ! "$image" =~ ^${ECR_REGISTRY//./\\.}/oxy/${APP}@sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::$task_definition does not run a digest-pinned $APP image from $ECR_REGISTRY (got '$image'); refusing a config-only redeploy."
+            exit 1
+          fi
+          echo "Redeploying $task_definition's image $image"
+          echo "image_uri=$image" >>"$GITHUB_OUTPUT"
+
+      - name: Verify current main before production changes
+        run: bash .github/scripts/require-current-main.sh
+
+      - name: Sync GitHub secrets to SSM
+        id: sync
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          INTERNAL_METRICS_TOKEN: ${{ secrets.INTERNAL_METRICS_TOKEN }}
+          KLIPY_APP_KEY: ${{ secrets.KLIPY_APP_KEY }}
+          MENTION_DID: ${{ secrets.MENTION_DID }}
+          MENTION_MCP_JWT_SECRET: ${{ secrets.MENTION_MCP_JWT_SECRET }}
+          MENTION_OXY_CLIENT_ID: ${{ secrets.MENTION_OXY_CLIENT_ID }}
+          MENTION_PRIVATE_KEY: ${{ secrets.MENTION_PRIVATE_KEY }}
+          MENTION_PUBLIC_KEY: ${{ secrets.MENTION_PUBLIC_KEY }}
+          MENTION_SHELL_ACCESS_KEY: ${{ secrets.MENTION_SHELL_ACCESS_KEY }}
+          REDIS_HOST: ${{ secrets.REDIS_HOST }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          REDIS_URI: ${{ secrets.REDIS_URI }}
+          META_GRAPH_ACCESS_TOKEN: ${{ secrets.META_GRAPH_ACCESS_TOKEN }}
+          META_IG_BUSINESS_ACCOUNT_ID: ${{ secrets.META_IG_BUSINESS_ACCOUNT_ID }}
+          SSM_SECRET_ALLOWLIST: DATABASE_URL FIREBASE_SERVICE_ACCOUNT_BASE64 FIREBASE_PROJECT_ID INTERNAL_METRICS_TOKEN KLIPY_APP_KEY MENTION_OXY_CLIENT_ID MENTION_DID MENTION_PRIVATE_KEY MENTION_PUBLIC_KEY MENTION_SHELL_ACCESS_KEY REDIS_URI REDIS_HOST REDIS_PASSWORD META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID
+        run: |
+          set -euo pipefail
+          # The backend's config schema refuses to boot on a non-numeric id, and
+          # a boot failure only surfaces as a reverted rollout. Refuse it here,
+          # before anything is written. The value is never printed.
+          if [[ -n "$META_IG_BUSINESS_ACCOUNT_ID" && "$META_IG_BUSINESS_ACCOUNT_ID" != "-" &&
+                ! "$META_IG_BUSINESS_ACCOUNT_ID" =~ ^[[:space:]]*[0-9]{1,32}[[:space:]]*$ ]]; then
+            echo "::error::secrets.META_IG_BUSINESS_ACCOUNT_ID is not a numeric Instagram user id; nothing was synced."
+            exit 1
+          fi
+          if [[ -z "$MENTION_MCP_JWT_SECRET" || "$MENTION_MCP_JWT_SECRET" == "-" ]]; then
+            echo "::error::MENTION_MCP_JWT_SECRET is empty; refusing to rotate only one service."
+            exit 1
+          fi
+
+          # Running tasks keep their injected value. Update both parameter
+          # paths successfully before any task is restarted.
+          for path in \
+            /oxy/mention/MENTION_MCP_JWT_SECRET \
+            /oxy/mention-mcp/MENTION_MCP_JWT_SECRET; do
+            aws ssm put-parameter \
+              --name "$path" \
+              --value "$MENTION_MCP_JWT_SECRET" \
+              --type SecureString \
+              --overwrite \
+              >/dev/null
+            echo "Synced $path"
+          done
+
+          # NAMES written in this run, never values. The deploy step binds an
+          # optional secret only when its name is here: the write above succeeded
+          # (or the job already failed), so the parameter exists before any
+          # revision naming it is registered.
+          synced=""
+          for key in $SSM_SECRET_ALLOWLIST; do
+            value="${!key:-}"
+            [[ -z "$key" ]] && continue
+            if [[ -z "$value" || "$value" == "-" ]]; then
+              echo "::warning::Skipping empty or placeholder secret $key; SSM unchanged."
+              continue
+            fi
+            path="/oxy/$APP/$key"
+            aws ssm put-parameter \
+              --name "$path" \
+              --value "$value" \
+              --type SecureString \
+              --overwrite \
+              >/dev/null
+            echo "Synced $path"
+            synced="${synced:+$synced }$key"
+          done
+          echo "synced=$synced" >>"$GITHUB_OUTPUT"
+      - name: Re-verify current main before ECS rollout
+        run: bash .github/scripts/require-current-main.sh
+
+      - name: Register immutable task definition and deploy
+        env:
+          IMAGE_URI: ${{ steps.running.outputs.image_uri }}
+          RUN_MIGRATIONS: "false"
+          INTERNAL_METRICS_PARAMETER: /oxy/mention/INTERNAL_METRICS_TOKEN
+          ALLOW_ZERO_DESIRED_COUNT: ${{ vars.ALLOW_ZERO_DESIRED_COUNT }}
+          TASK_SECRET_OVERRIDES_JSON: |-
+            {"MENTION_MCP_JWT_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_MCP_JWT_SECRET",
+             "DATABASE_URL":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/DATABASE_URL",
+             "MENTION_SHELL_ACCESS_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/MENTION_SHELL_ACCESS_KEY",
+             "CROWDSOURCE_WEBHOOK_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/mention/CROWDSOURCE_WEBHOOK_SECRET"}
+          TASK_ENV_OVERRIDES_JSON: |-
+            {"OXY_INFERENCE_ROUTING_PROFILE_ID":"01a06477-94f5-74f0-bc25-4c5c13b93ccd",
+             "WEB_SHELL_ORIGIN":"https://shell.mention.earth",
+             "MOVE_APPLICATION_ID":"4bac8f1baed68fd02d65d592"}
+          OPTIONAL_TASK_SECRETS: META_GRAPH_ACCESS_TOKEN META_IG_BUSINESS_ACCOUNT_ID
+          SYNCED_SECRETS: ${{ steps.sync.outputs.synced }}
+          OPTIONAL_TASK_ENV: INSTAGRAM_GRAPH_ENABLED META_GRAPH_API_VERSION INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT FEDERATED_MEDIA_DELETE_ENABLED
+          OPTIONAL_ENV_INSTAGRAM_GRAPH_ENABLED: ${{ vars.INSTAGRAM_GRAPH_ENABLED }}
+          OPTIONAL_ENV_META_GRAPH_API_VERSION: ${{ vars.META_GRAPH_API_VERSION }}
+          OPTIONAL_ENV_INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT: ${{ vars.INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT }}
+          OPTIONAL_ENV_FEDERATED_MEDIA_DELETE_ENABLED: ${{ vars.FEDERATED_MEDIA_DELETE_ENABLED }}
+          TASK_SECRET_REMOVALS: ALIA_API_KEY OXY_SERVICE_TOKEN OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET
+          TASK_ENV_REMOVALS: ATPROTO_ENABLED FEDERATION_MEDIA_CACHE_WRITE_ENABLED INTERNAL_METRICS_ENABLED OXY_ECOSYSTEM_ACTIVITY_ENABLED POST_CLASSIFICATION_ENABLED MENTION_FRONTEND_ORIGIN
+          POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-mention.sh
+        run: |
+          set -euo pipefail
+          bindings="$(bash .github/scripts/optional-task-bindings.sh)"
+          TASK_SECRET_OVERRIDES_JSON="$(jq -c '.secrets' <<<"$bindings")"
+          TASK_ENV_OVERRIDES_JSON="$(jq -c '.environment' <<<"$bindings")"
+          TASK_ENV_REMOVALS="$(jq -r '.environmentRemovals | join(" ")' <<<"$bindings")"
+          export TASK_SECRET_OVERRIDES_JSON TASK_ENV_OVERRIDES_JSON TASK_ENV_REMOVALS
+          bash .github/scripts/deploy-ecs-image.sh
