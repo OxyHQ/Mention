@@ -193,4 +193,21 @@ describe('MediaMetadataService.enrichFromOxy', () => {
       mediaMetadataService.needsOxyRetry([{ ...pending[0], width: 720, height: 1280, durationSec: 12 }]),
     ).toBe(false);
   });
+
+  /**
+   * Production, 2026-09-27: National Geographic's Graph-imported IMAGES kept no
+   * width/height hours after import. Oxy probes images asynchronously too, and
+   * the retry asked only about videos, so an image whose inline enrichment beat
+   * the probe was never retried.
+   */
+  it('reports a pending retry for an Oxy IMAGE with no dimensions yet', async () => {
+    const { mediaMetadataService } = await import('../../services/MediaMetadataService');
+    const image: MediaItem = { id: '01a0e27d-6547-7866-8621-e8c3155f5170', type: 'image' };
+
+    expect(mediaMetadataService.needsOxyRetry([image])).toBe(true);
+    // An image has no duration to wait for: dimensions settle it.
+    expect(mediaMetadataService.needsOxyRetry([{ ...image, width: 1080, height: 1350 }])).toBe(false);
+    // A remote (proxied) image is not Oxy's to probe.
+    expect(mediaMetadataService.needsOxyRetry([{ id: 'https://remote.example/a.jpg', type: 'image' }])).toBe(false);
+  });
 });
