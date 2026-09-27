@@ -1,4 +1,5 @@
 import { createWriteStream } from 'node:fs';
+import { recordFederatedPoster } from '../../db/federation/mediaDeletionRepository';
 import { mkdtemp, open, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -394,6 +395,16 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
           },
         })
       );
+    }
+
+    if (posterFileId) {
+      // The poster is a durable Oxy file too, and nothing else records it: without
+      // this row it could never be deleted along with its video.
+      await recordFederatedPoster(media.oxyFileId, posterFileId).catch((error: unknown) => {
+        logger.warn('[MediaCache] Failed to record a federated video poster', {
+          reason: error instanceof Error ? error.message : 'unknown',
+        });
+      });
     }
 
     return {

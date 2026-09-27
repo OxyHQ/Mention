@@ -48,6 +48,7 @@
  */
 
 import { and, asc, eq, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
+import { assertFederatedMediaUsable, enqueueFederatedMediaDeletionsForPosts } from '../federation/mediaDeletionRepository';
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import type {
@@ -996,6 +997,16 @@ async function insertChildRows(
     );
   }
 
+  // Re-hosted federated files can be shared (Oxy dedupes by content hash) and
+  // may be mid-deletion: lock each and refuse a tombstoned one BEFORE any media
+  // row lands, so the deletion drain and this write cannot interleave
+  // (`db/federation/mediaDeletionRepository.ts`).
+  const federatedFileIds = [
+    ...(content.media ?? []),
+    ...(content.variants ?? []).flatMap((variant) => variant.media ?? []),
+  ].filter((item) => item.cachedFromFederation === true).map((item) => item.id);
+  await assertFederatedMediaUsable(tx, federatedFileIds);
+
   const variants = content.variants ?? [];
   if (variants.length > 0) {
     const variantIds = variants.map(() => uuidv7());
@@ -1828,6 +1839,12 @@ export async function deletePostRecord(
 ): Promise<PostRecord | null> {
   const record = await loadPostRecord(postId, db);
   if (!record) return null;
+
+  // Queue its re-hosted federated media BEFORE the rows go (the media rows are
+  // what says which files they were). Always safe: the drain re-checks every
+  // reference under a lock before deleting anything, so a delete that then
+  // fails, or a file another post shares, is simply kept.
+  await enqueueFederatedMediaDeletionsForPosts([postId], db);
 
   const deleted = await db
     .delete(posts)

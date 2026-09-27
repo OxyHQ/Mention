@@ -27,6 +27,8 @@ const MIGRATION = readFileSync(
 /** Undo 0054 on an already-migrated database, leaving the 0053 shape. */
 const REVERT_0054 = [
   'drop table post_source_keys',
+  'drop table federated_media_deletions',
+  'drop table federated_media_posters',
   'alter table federated_actors drop constraint federated_actors_instagram_graph_last_result_check',
   'alter table federated_actors drop constraint federated_actors_protocol_check',
   'alter table federated_follows drop constraint federated_follows_network_check',

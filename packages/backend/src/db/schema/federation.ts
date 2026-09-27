@@ -464,6 +464,82 @@ export const federatedIdentityLinkEvidence = pgTable(
   ]
 );
 
+/** `federated_media_deletions.state`. */
+export const FEDERATED_MEDIA_DELETION_STATES = [
+  'pending',
+  'deleting',
+  'deleted',
+  'not_found',
+  'forbidden',
+  'in_use',
+] as const;
+
+/**
+ * `federated_media_deletions` — the durable outbox (and tombstone list) for
+ * Oxy files Mention re-hosted from a federated source and no longer references.
+ *
+ * A row is written IN THE SAME TRANSACTION that deletes the posts using the
+ * file, so a deletion can never be lost between "the post is gone" and "delete
+ * its media". The drain (`services/mediaCache/federatedMediaDeletion.ts`) then,
+ * per file and under an advisory lock the post insert also takes:
+ *
+ *  - `pending`  → re-checks every reference (a file id can be SHARED: Oxy stores
+ *    one file per content hash, so another post, variant or banner may use it).
+ *    Still referenced → `in_use` (final until the next deletion re-arms it);
+ *    unreferenced → `deleting`.
+ *  - `deleting` → a TOMBSTONE: no post may start referencing this id again (the
+ *    insert refuses), and the Oxy delete is attempted with backoff until Oxy
+ *    answers for it: `deleted` / `not_found` (done, tombstone kept forever — file
+ *    ids are never reused) or `forbidden` (not this app's file: left alone and
+ *    not a tombstone).
+ */
+export const federatedMediaDeletions = pgTable(
+  'federated_media_deletions',
+  {
+    id: generatedId(),
+    /** The Oxy file id. One row per file, whatever deleted it. */
+    oxyFileId: text().notNull().unique('federated_media_deletions_oxy_file_id_key'),
+    state: text({ enum: FEDERATED_MEDIA_DELETION_STATES }).notNull().default('pending'),
+    attempts: integer().notNull().default(0),
+    nextAttemptAt: timestamptz().notNull().defaultNow(),
+    /** Short, non-sensitive reason of the last failed attempt. */
+    lastError: text(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check(
+      'federated_media_deletions_state_check',
+      sql`${t.state} in (${sql.raw(inList(FEDERATED_MEDIA_DELETION_STATES))})`
+    ),
+    // The drain's claim: due rows of the two live states only.
+    index('federated_media_deletions_due_idx')
+      .on(t.nextAttemptAt)
+      .where(sql`${t.state} in ('pending', 'deleting')`),
+  ]
+);
+
+/**
+ * `federated_media_posters` — the poster frame Oxy-hosted for a re-hosted
+ * federated VIDEO. The durable upload extracts and uploads one, and nothing
+ * else records it; without this row it could never be deleted with its video.
+ * Both ids can be shared (content-hash dedupe), so it is a pair table, unique
+ * per pair.
+ */
+export const federatedMediaPosters = pgTable(
+  'federated_media_posters',
+  {
+    id: generatedId(),
+    videoFileId: text().notNull(),
+    posterFileId: text().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique('federated_media_posters_video_poster_key').on(t.videoFileId, t.posterFileId),
+    index('federated_media_posters_poster_file_id_idx').on(t.posterFileId),
+  ]
+);
+
 /**
  * `federated_follows` — a follow edge across a protocol boundary.
  *

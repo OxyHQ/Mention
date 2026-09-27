@@ -326,6 +326,14 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       + 'mid-assertion.',
   },
   {
+    path: 'src/__tests__/services/federatedMediaDeletion.test.ts',
+    jobEntryPoint: 'drainFederatedMediaDeletions',
+    reason:
+      'Drains the WHOLE `federated_media_deletions` outbox — every file any suite\'s post ' +
+      'deletion queued — re-checking references and settling rows, so on a shared database ' +
+      "it would decide other suites' files.",
+  },
+  {
     path: 'src/__tests__/scripts/backfillInstagramSourceKeys.test.ts',
     jobEntryPoint: 'backfillInstagramSourceKeys',
     reason:

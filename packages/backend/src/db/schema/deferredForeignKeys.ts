@@ -42,7 +42,7 @@ import {
   mcpRegisteredClients,
 } from './mcp';
 import { entityFollows } from './engagement';
-import { actorKeyPairs, federatedActors, federatedMediaCache } from './federation';
+import { actorKeyPairs, federatedActors, federatedMediaCache, federatedMediaDeletions, federatedMediaPosters } from './federation';
 import { laneMutes, lanes } from './channels';
 import { gifs } from './discovery';
 import { postImports } from './imports';
@@ -289,6 +289,23 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     reason:
       'The REMOTE actor\'s advertised `keyId` URI, resolved during HTTP-signature ' +
       'verification. It names a key on someone else\'s server.',
+  },
+  {
+    table: federatedMediaDeletions,
+    column: federatedMediaDeletions.oxyFileId,
+    reason:
+      'An Oxy file id (oxy-api owns files). It must OUTLIVE every post that used it — the ' +
+      'row is the deletion owed for the file, and after that its tombstone.',
+  },
+  {
+    table: federatedMediaPosters,
+    column: federatedMediaPosters.videoFileId,
+    reason: 'An Oxy file id for a re-hosted federated video; oxy-api owns files.',
+  },
+  {
+    table: federatedMediaPosters,
+    column: federatedMediaPosters.posterFileId,
+    reason: 'An Oxy file id for the poster frame uploaded with that video; oxy-api owns files.',
   },
   {
     table: federatedActors,

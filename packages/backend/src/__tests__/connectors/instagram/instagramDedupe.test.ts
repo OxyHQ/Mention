@@ -86,7 +86,7 @@ import { config } from '../../../config';
 import { closePostgres, connectPostgres, getDb } from '../../../db/postgres';
 import { posts } from '../../../db/schema/posts';
 import { postMedia, postSourceKeys } from '../../../db/schema/postContent';
-import { federatedActors, federatedFollows } from '../../../db/schema/federation';
+import { federatedActors, federatedFollows, federatedMediaDeletions } from '../../../db/schema/federation';
 import { findInstagramGraphSyncCandidates, findActorByUri } from '../../../db/federation/actorRepository';
 import { claimSourceKey, findFilledSourceKeys } from '../../../db/posts/postSourceKeyRepository';
 import { deletePostRecord } from '../../../db/posts/postRepository';
@@ -142,6 +142,18 @@ async function rowsFor(n: number) {
     .from(posts)
     .where(or(eq(posts.federationActivityId, noteIdOf(n)), eq(posts.federationActivityId, keyOf(n))));
   return [...new Set([...byKey, ...byActivity].map((row) => row.id))];
+}
+
+async function mediaOf(postId: string): Promise<string[]> {
+  const rows = await getDb().select({ id: postMedia.mediaId }).from(postMedia).where(eq(postMedia.postId, postId));
+  return rows.map((row) => row.id).sort();
+}
+
+async function queuedDeletions(fileIds: string[]): Promise<string[]> {
+  if (fileIds.length === 0) return [];
+  const rows = await getDb().select({ id: federatedMediaDeletions.oxyFileId }).from(federatedMediaDeletions)
+    .where(inArray(federatedMediaDeletions.oxyFileId, fileIds));
+  return rows.map((row) => row.id).sort();
 }
 
 async function clearPosts() {
@@ -376,6 +388,7 @@ describe('a bridge Delete / Update reaches the Graph-imported copy', () => {
     h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(14)]));
     await importInstagramMedia(TARGET, ONE_SHOT);
     expect(await rowsFor(14)).toHaveLength(1);
+    const files = await mediaOf((await rowsFor(14))[0]);
 
     await inboxProcessingService.onContentActivity(
       { id: `${noteIdOf(14)}#delete`, type: 'Delete', actor: KILOGRAM_ACTOR, object: noteIdOf(14) },
@@ -383,6 +396,9 @@ describe('a bridge Delete / Update reaches the Graph-imported copy', () => {
     );
 
     expect(await rowsFor(14)).toHaveLength(0);
+    // Its re-hosted media is queued for deletion from Oxy, in that transaction.
+    expect(files.length).toBeGreaterThan(0);
+    expect(await queuedDeletions(files)).toEqual(files);
   });
 
   it('applies a bridge edit to the Graph-imported post instead of creating a second one', async () => {
@@ -439,9 +455,12 @@ describe('posts deleted on Instagram are removed — on the SECOND observation',
     expect(await importInstagramMedia(TARGET, ONE_SHOT)).toMatchObject({ deleted: 0, markedMissing: 1 });
     expect(await rowsFor(17)).toHaveLength(1);
 
+    const files = await mediaOf((await rowsFor(17))[0]);
     h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(16), item(18)]));
     expect(await importInstagramMedia(TARGET, ONE_SHOT)).toMatchObject({ deleted: 1 });
     expect(await rowsFor(17)).toHaveLength(0);
+    expect(files.length).toBeGreaterThan(0);
+    expect(await queuedDeletions(files)).toEqual(files);
     expect(await rowsFor(16)).toHaveLength(1);
     expect(await rowsFor(18)).toHaveLength(1);
     expect(await rowsFor(19)).toHaveLength(1);

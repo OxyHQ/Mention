@@ -34,7 +34,8 @@ export type PeriodicTaskName =
   | 'computeInterestScores'
   | 'flushEndorsementOutbox'
   | 'flushAffinityEvents'
-  | 'syncInstagramFollowedAccounts';
+  | 'syncInstagramFollowedAccounts'
+  | 'drainFederatedMediaDeletions';
 
 /** Payload for a periodic (repeatable) federation maintenance job. */
 export interface PeriodicJobData {

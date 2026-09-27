@@ -13,6 +13,21 @@ const mocks = vi.hoisted(() => ({
   persistRemoteMedia: vi.fn(),
   updateUserSettings: vi.fn(),
   loggerWarn: vi.fn(),
+  assertFederatedMediaUsable: vi.fn(),
+}));
+
+/**
+ * The banner write runs in a transaction behind the federated-media tombstone
+ * check (a banner can share its Oxy file with a post image). The lock and the
+ * tombstone read themselves are proven on real rows in
+ * `federatedMediaDeletion.test.ts`; here the transaction just runs its callback.
+ */
+vi.mock('../../db/postgres', () => ({
+  getDb: () => ({ transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({ tx: true }) }),
+}));
+vi.mock('../../db/federation/mediaDeletionRepository', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../db/federation/mediaDeletionRepository')>()),
+  assertFederatedMediaUsable: mocks.assertFederatedMediaUsable,
 }));
 
 vi.mock('../../services/mediaCache/cacheWorker', () => ({
@@ -72,10 +87,23 @@ describe('mirrorFederatedBanner', () => {
       // rather than inheriting the generic federated-media video/audio allowance.
       expect.objectContaining({ allowedContentTypePrefixes: ['image/'] }),
     );
+    expect(mocks.assertFederatedMediaUsable).toHaveBeenCalledWith({ tx: true }, ['banner_file_1']);
     expect(mocks.updateUserSettings).toHaveBeenCalledWith(
       'oxy-user-1',
       { set: { profileHeaderImage: 'banner_file_1' } },
+      { tx: true },
     );
+  });
+
+  it('does not store a banner whose file is being deleted (a shared, tombstoned id)', async () => {
+    const { FederatedMediaGoneError } = await import('../../db/federation/mediaDeletionRepository');
+    mocks.persistRemoteMedia.mockResolvedValue({ ok: true, media: { oxyFileId: 'gone_file', contentType: 'image/png', sizeBytes: 1 } });
+    mocks.assertFederatedMediaUsable.mockRejectedValueOnce(new FederatedMediaGoneError(['gone_file']));
+
+    const result = await mirrorFederatedBanner('https://files.mastodon.social/b.png', 'oxy-user-1', 'https://mastodon.social/users/alice');
+
+    expect(result).toEqual({ ok: false, permanent: false });
+    expect(mocks.updateUserSettings).not.toHaveBeenCalled();
   });
 
   it('warns and reports a transient (retryable) failure (no header stored)', async () => {

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { FederatedMediaGoneError } from '../../db/federation/mediaDeletionRepository';
 import { PostVisibility, type MediaItem } from '@mention/shared-types';
 import type { NormalizedExternalMedia, NormalizedExternalPost } from '@oxy.so/federation';
 import { isUniqueViolation } from '@oxy.so/db';
@@ -295,6 +296,10 @@ async function createInstagramPost(entry: InstagramMappedPost, target: Instagram
     return 'created';
   } catch (err) {
     await releaseSourceKeyClaim(post.activityId, claimToken).catch(() => undefined);
+    // A re-hosted file came back with the id of a file being deleted (Oxy
+    // dedupes by content hash): wait for the deletion to finish, then a fresh
+    // upload gets a fresh id.
+    if (err instanceof FederatedMediaGoneError) return 'deferred';
     // Only reachable if our claim expired mid-import and the other road filled
     // the key: the uploads above are then unreferenced (oxy-api cannot delete a
     // durable federation asset), so they are counted rather than lost silently.

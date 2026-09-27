@@ -1225,6 +1225,9 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ['entity_follows.entityId', 'a hashtag or list id; entityType is never "user"'],
   ['federated_actor_fields.actorId', 'the FederatedActor row a profile field belongs to; it cascades from the actor'],
   ['federated_actors.publicKeyId', 'a remote actor\'s AP key id'],
+  ['federated_media_deletions.oxyFileId', 'an Oxy file id of re-hosted federated media owed a deletion; a channel posts local media'],
+  ['federated_media_posters.videoFileId', 'an Oxy file id of a re-hosted federated video'],
+  ['federated_media_posters.posterFileId', 'an Oxy file id of that video\'s poster frame'],
   ['federated_actors.instagramGraphUserId', 'Meta\'s Instagram user id of a remote account; a channel is a local account'],
   [
     'federated_identity_claims.subjectActorUri',

@@ -449,6 +449,31 @@ instead of duplicating.
   - More than 10 missing posts from one listing is treated as an anomaly, and
     nothing is marked or removed.
 
+**Deleting re-hosted media.** When a federated post is deleted (a bridge
+`Delete`, a post gone from Instagram, or any other deletion), its re-hosted Oxy
+files are deleted too, including the poster frame of a video.
+`federated_media_posters` records those poster frames.
+
+- The files are queued in `federated_media_deletions`, in the same transaction
+  that deletes the posts.
+- A periodic drain (`drainFederatedMediaDeletions`, every minute, not gated on
+  any flag) calls oxy-api's `POST /assets/service/federation/delete`.
+
+Oxy stores one file per content hash, so a file id can be shared by another
+post, a variant or a federated banner. The drain therefore re-checks every
+reference before deleting anything. It does this under a per-file advisory lock
+that the post insert also takes, so an import reusing the id either commits
+first (the file is kept, `in_use`) or finds a tombstone and retries later with a
+fresh upload.
+
+Only an answer from Oxy settles a deletion:
+
+- `deleted` and `not_found` are done. The tombstone is kept, because file ids
+  are never reused.
+- `forbidden` is logged and dropped.
+- A 429 (honouring `Retry-After`), a 5xx, a transport failure, or a 404 for the
+  route itself (an oxy-api that predates it) is retried with exponential backoff.
+
 Nothing is sent to Instagram. Replies, likes and boosts of a Graph-imported post
 are not delivered, and the permalink stands in as the object a reply or quote
 references.

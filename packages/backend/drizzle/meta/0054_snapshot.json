@@ -1,5 +1,5 @@
 {
-  "id": "6c74219b-3d5a-41ab-8a03-3002ba5b7db3",
+  "id": "ae979f4c-b576-40de-a739-dd3e3d374d34",
   "prevId": "a214e2f4-377c-46d9-815a-5dc4b461b040",
   "version": "7",
   "dialect": "postgresql",
@@ -4813,6 +4813,165 @@
           "value": "\"federated_media_cache\".\"fail_count\" >= 0"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.federated_media_deletions": {
+      "name": "federated_media_deletions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "oxy_file_id": {
+          "name": "oxy_file_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "next_attempt_at": {
+          "name": "next_attempt_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_error": {
+          "name": "last_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "federated_media_deletions_due_idx": {
+          "name": "federated_media_deletions_due_idx",
+          "columns": [
+            {
+              "expression": "next_attempt_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"federated_media_deletions\".\"state\" in ('pending', 'deleting')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "federated_media_deletions_oxy_file_id_key": {
+          "name": "federated_media_deletions_oxy_file_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "oxy_file_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "federated_media_deletions_state_check": {
+          "name": "federated_media_deletions_state_check",
+          "value": "\"federated_media_deletions\".\"state\" in ('pending', 'deleting', 'deleted', 'not_found', 'forbidden', 'in_use')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.federated_media_posters": {
+      "name": "federated_media_posters",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "video_file_id": {
+          "name": "video_file_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "poster_file_id": {
+          "name": "poster_file_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "federated_media_posters_poster_file_id_idx": {
+          "name": "federated_media_posters_poster_file_id_idx",
+          "columns": [
+            {
+              "expression": "poster_file_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "federated_media_posters_video_poster_key": {
+          "name": "federated_media_posters_video_poster_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "video_file_id",
+            "poster_file_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.federation_delivery_queue": {

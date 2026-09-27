@@ -1,4 +1,6 @@
 import { logger } from '../utils/logger';
+import { getDb } from '../db/postgres';
+import { assertFederatedMediaUsable, FederatedMediaGoneError } from '../db/federation/mediaDeletionRepository';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 import { updateUserSettings } from '../db/userProfile/userSettingsRepository';
 import { invalidate as invalidateUserSummaryCache } from '../services/userSummaryCache';
@@ -118,9 +120,19 @@ export async function mirrorFederatedBanner(
     );
 
     if (result.ok) {
-      await updateUserSettings(oxyUserId, {
-        set: { profileHeaderImage: result.media.oxyFileId },
-      });
+      // A banner can share its file with a post image (Oxy dedupes by content
+      // hash), so it takes the same per-file lock and tombstone check a post's
+      // media does before it starts referencing the id.
+      const bannerFileId = result.media.oxyFileId;
+      try {
+        await getDb().transaction(async (tx) => {
+          await assertFederatedMediaUsable(tx, [bannerFileId]);
+          await updateUserSettings(oxyUserId, { set: { profileHeaderImage: bannerFileId } }, tx);
+        });
+      } catch (err) {
+        if (err instanceof FederatedMediaGoneError) return { ok: false, permanent: false };
+        throw err;
+      }
       return { ok: true, permanent: false };
     }
 

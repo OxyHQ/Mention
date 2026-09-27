@@ -143,6 +143,8 @@ export const PERIODIC_MEDIA_CACHE_WORKER = 'federation:media-cache-worker';
 export const PERIODIC_MEDIA_CACHE_EVICTION = 'federation:media-cache-eviction';
 /** Followed Instagram-identity accounts' new posts, through the Graph API. */
 export const PERIODIC_INSTAGRAM_GRAPH_SYNC = 'federation:instagram-graph-sync';
+/** Delete from Oxy the re-hosted federated media no post references any more. */
+export const PERIODIC_FEDERATED_MEDIA_DELETIONS = 'federation:federated-media-deletions';
 
 /**
  * Recommendation-signal scheduler ids. These pipe Mention curation + engagement
@@ -193,6 +195,14 @@ export const FLUSH_AFFINITY_EVENTS_INTERVAL_MS = 30 * MS_PER_SECOND;
  * the job to a small, bounded share of the ~200 calls/hour budget.
  */
 export const INSTAGRAM_GRAPH_SYNC_INTERVAL_MS = 30 * MS_PER_MINUTE;
+
+/**
+ * Federated-media deletion drain cadence. Each run makes at most one Oxy batch
+ * call (≤ 50 files), far inside Oxy's 240 requests/minute per app; a failed
+ * file waits out its own backoff in the outbox, so a frequent tick costs one
+ * indexed read when nothing is due.
+ */
+export const FEDERATED_MEDIA_DELETIONS_INTERVAL_MS = MS_PER_MINUTE;
 
 /** Concurrency for the periodic worker. MUST be 1 so a repeatable job never overlaps itself. */
 export const PERIODIC_WORKER_CONCURRENCY = 1;

@@ -509,6 +509,69 @@ export async function deleteCachedMedia(oxyFileId: string): Promise<void> {
   logger.debug('[MediaCache] Deleted cached media from Oxy', { oxyFileId });
 }
 
+/** Oxy's per-file answer to a federated-media delete. */
+export type FederatedMediaDeleteResult = 'deleted' | 'not_found' | 'forbidden';
+
+/** The batch route's ceiling (oxy-api validates 1–50 ids). */
+export const FEDERATED_MEDIA_DELETE_BATCH_MAX = 50;
+
+/**
+ * Delete durable federated media Mention re-hosted (`POST
+ * /assets/service/federation/delete`, body `{ ids }`, 1–50 ids). Same raw
+ * transport, SDK service token and single 401 retry as the upload beside it.
+ *
+ * DELIBERATELY NOT gated on {@link isMediaCacheEnabled}: turning media WRITES
+ * off must never stop a deletion — a post deleted at its source (or on
+ * Instagram) must not live on as a re-hosted file. Returns Oxy's per-id answer;
+ * throws {@link OxyMediaStoreThrottledError} on 429 and
+ * {@link OxyMediaStoreRequestError} on any other non-200 — including 404 for the
+ * ROUTE itself on an oxy-api that predates it, which the caller must retry, never
+ * read as "not found".
+ */
+export async function deleteFederatedMedia(
+  fileIds: readonly string[],
+): Promise<Array<{ id: string; result: FederatedMediaDeleteResult }>> {
+  if (fileIds.length === 0) return [];
+  if (fileIds.length > FEDERATED_MEDIA_DELETE_BATCH_MAX) {
+    throw new Error(`deleteFederatedMedia: at most ${FEDERATED_MEDIA_DELETE_BATCH_MAX} ids per call`);
+  }
+  assertWriteBudget('delete');
+
+  const target = new URL(`${getOxyApiBaseUrl()}${OXY_ASSET_FEDERATION_PATH}/delete`);
+  const body = JSON.stringify({ ids: [...fileIds] });
+  const response = await withServiceTokenRetry(async () => {
+    const token = await getServiceBearerToken();
+    return streamRequest('POST', target, {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'Content-Length': String(Buffer.byteLength(body)),
+    }, undefined, body);
+  });
+  const status = response.statusCode ?? 0;
+
+  if (status === HTTP_TOO_MANY_REQUESTS) {
+    response.resume();
+    throw beginWriteBudgetCooldown('delete', response.headers['retry-after']);
+  }
+  if (status !== HTTP_OK) {
+    const detail = await readErrorSnippet(response);
+    throw new OxyMediaStoreRequestError('delete', status, detail || 'no response body');
+  }
+
+  const parsed = (await readJsonResponse(response)) as { data?: { results?: unknown } } | undefined;
+  const results = Array.isArray(parsed?.data?.results) ? parsed.data.results : null;
+  if (!results) throw new OxyMediaStoreRequestError('delete', status, 'response missing data.results');
+  const asked = new Set(fileIds);
+  return results.flatMap((entry) => {
+    const record = entry as { id?: unknown; result?: unknown };
+    return typeof record.id === 'string' && asked.has(record.id)
+      && (record.result === 'deleted' || record.result === 'not_found' || record.result === 'forbidden')
+      ? [{ id: record.id, result: record.result }]
+      : [];
+  });
+}
+
 /**
  * Perform a single native HTTP/HTTPS request to oxy-api, optionally streaming a
  * local file as the request body. Returns the response message; the caller owns
@@ -520,6 +583,7 @@ function streamRequest(
   target: URL,
   headers: Record<string, string>,
   filePath?: string,
+  jsonBody?: string,
 ): Promise<IncomingMessage> {
   return new Promise<IncomingMessage>((resolve, reject) => {
     const isHttps = target.protocol === 'https:';
@@ -549,6 +613,8 @@ function streamRequest(
         reject(error);
       });
       fileStream.pipe(request);
+    } else if (jsonBody !== undefined) {
+      request.end(jsonBody);
     } else {
       request.end();
     }

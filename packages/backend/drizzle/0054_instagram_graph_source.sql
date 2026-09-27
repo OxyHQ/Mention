@@ -8,7 +8,10 @@
 --    `posts` would hold ACCESS EXCLUSIVE on `posts` for the whole index build —
 --    this migrator runs every pending file in ONE transaction, so CONCURRENTLY is
 --    unavailable and every read of `posts` would queue behind the build.
--- 2. `instagram-graph` becomes a federation protocol (`federated_actors.protocol`,
+-- 2. `federated_media_deletions` (the durable outbox + tombstones for deleting
+--    re-hosted federated media from Oxy) and `federated_media_posters` (the
+--    poster frame uploaded with each re-hosted video): two NEW, empty tables.
+-- 3. `instagram-graph` becomes a federation protocol (`federated_actors.protocol`,
 --    `federated_follows.network`), and `federated_actors.instagram_graph_*` holds
 --    the Graph sync's cooldown, lease, last result and pinned Instagram user id.
 --
@@ -53,6 +56,31 @@ CREATE TABLE "post_source_keys" (
 );
 --> statement-breakpoint
 ALTER TABLE "post_source_keys" ADD CONSTRAINT "post_source_keys_post_id_posts_id_fk" FOREIGN KEY ("post_id") REFERENCES "public"."posts"("id") ON DELETE cascade ON UPDATE no action;
+--> statement-breakpoint
+CREATE TABLE "federated_media_deletions" (
+	"id" text PRIMARY KEY NOT NULL,
+	"oxy_file_id" text NOT NULL,
+	"state" text DEFAULT 'pending' NOT NULL,
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"next_attempt_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"last_error" text,
+	"created_at" timestamp with time zone DEFAULT date_trunc('milliseconds', now()) NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT date_trunc('milliseconds', now()) NOT NULL,
+	CONSTRAINT "federated_media_deletions_oxy_file_id_key" UNIQUE("oxy_file_id"),
+	CONSTRAINT "federated_media_deletions_state_check" CHECK ("federated_media_deletions"."state" in ('pending', 'deleting', 'deleted', 'not_found', 'forbidden', 'in_use'))
+);
+--> statement-breakpoint
+CREATE TABLE "federated_media_posters" (
+	"id" text PRIMARY KEY NOT NULL,
+	"video_file_id" text NOT NULL,
+	"poster_file_id" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT date_trunc('milliseconds', now()) NOT NULL,
+	CONSTRAINT "federated_media_posters_video_poster_key" UNIQUE("video_file_id","poster_file_id")
+);
+--> statement-breakpoint
+CREATE INDEX "federated_media_deletions_due_idx" ON "federated_media_deletions" USING btree ("next_attempt_at") WHERE "federated_media_deletions"."state" in ('pending', 'deleting');
+--> statement-breakpoint
+CREATE INDEX "federated_media_posters_poster_file_id_idx" ON "federated_media_posters" USING btree ("poster_file_id");
 --> statement-breakpoint
 ALTER TABLE "federated_actors" DROP CONSTRAINT "federated_actors_protocol_check";
 --> statement-breakpoint
