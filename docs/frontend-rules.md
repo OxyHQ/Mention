@@ -56,11 +56,12 @@ exists. Scoped to settings on purpose (all-static routes there) — widen it
 before trusting it to catch a bad route anywhere else in the app.
 
 - **Settings are one modal** — `MentionSettingsProvider` uses Bloom `SettingsModal` with real `SettingsGeneralPage` / `SettingsProfilePage`, `SettingsCard`, `SettingsRow` and controls. `/settings/*` files are deep-link bridges only; page content lives in `components/settings/pages`. Account operations keep SDK auth and mutation hooks.
+
 ## Deep-link boot navigation
 
-The `expo-router@57.0.23` patch preserves a pending child navigator's initial
-state in `build/react-navigation/core/useOnGetState.js` until its state listener
-has registered. Without it, a delayed child can temporarily publish the root
+The [Expo Router 57.0.23 patch](../patches/expo-router@57.0.23.patch) preserves
+a pending child navigator's initial state in the vendor's `useOnGetState` hook
+until its state listener has registered. Without it, a delayed child can temporarily publish the root
 route and rewrite a direct profile URL to `/` before restoring the profile.
 The distinction is whether the listener key has ever registered: an own key
 whose value is now `undefined` represents an unregistered child and must still
