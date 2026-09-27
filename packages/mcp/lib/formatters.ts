@@ -4,6 +4,7 @@
  * scannable output without excessive JSON noise.
  */
 
+import type { PollDetail, PollResults } from "@mention/shared-types";
 import { getNormalizedUserHandle } from "@oxy.so/core";
 
 interface PostData {
@@ -22,6 +23,7 @@ interface PostData {
     verified?: boolean;
   };
   oxyUserId?: string;
+  lane?: { id?: string; name?: string };
   content?: {
     text?: string;
     media?: Array<{ id: string; type: string }>;
@@ -98,8 +100,12 @@ export function formatPost(post: PostData): string {
   const boostsCount = rawStats.boostsCount ?? rawStats.boosts ?? 0;
   const commentsCount = rawStats.commentsCount ?? rawStats.replies ?? 0;
 
+  // The author's Oxy id, because the tools that act on a person (get-profile,
+  // mute-user, subscribe-to-user, poke-user) take the id, not the handle.
+  const authorLine = post.user?.id ? `${author} · user id: ${post.user.id}` : author;
+
   const parts: string[] = [
-    `[${id}] ${author}`,
+    `[${id}] ${authorLine}`,
     text,
     `♥ ${likesCount}  ↻ ${boostsCount}  💬 ${commentsCount}`,
   ];
@@ -150,6 +156,7 @@ export function formatPost(post: PostData): string {
     parts.push(`Podcast: ${post.content.podcast.title}`);
   }
 
+  if (post.lane?.id) parts.push(`Lane: ${post.lane.name ?? "unnamed"} (id: ${post.lane.id})`);
   if (post.parentPostId) parts.push(`Reply to: ${post.parentPostId}`);
   if (post.boostOf) parts.push(`Boost of: ${post.boostOf}`);
   if (post.quoteOf) parts.push(`Quote of: ${post.quoteOf}`);
@@ -277,30 +284,40 @@ export function formatList(list: ListData): string {
   return `[${id}] ${title} (${vis}, ${members} members)${desc}`;
 }
 
-interface PollData {
-  _id?: string;
-  question?: string;
-  options?: Array<{ text: string; votes?: number }>;
-  totalVotes?: number;
-  expiresAt?: string;
-  hasVoted?: boolean;
-}
+type PollData = Partial<PollDetail> | Partial<PollResults>;
 
+/**
+ * One poll, from either wire shape: `GET /polls/:id` and the vote answer are a
+ * {@link PollDetail} (`_id`, `options[]._id`), `GET /polls/:id/results` is a
+ * {@link PollResults} (`id`, `results[].id`). Option ids are printed because
+ * vote-poll takes one.
+ */
 export function formatPoll(poll: PollData): string {
-  const id = poll._id || "unknown";
+  const detail = poll as Partial<PollDetail>;
+  const results = poll as Partial<PollResults>;
+  const id = detail._id || results.id || "unknown";
   const question = poll.question || "No question";
-  const total = poll.totalVotes || 0;
-  const expires = poll.expiresAt ? `Expires: ${poll.expiresAt}` : "";
+  const options = Array.isArray(detail.options)
+    ? detail.options.map((option) => ({ id: option._id, text: option.text, votes: option.voteCount }))
+    : Array.isArray(results.results)
+      ? results.results.map((option) => ({ id: option.id, text: option.text, votes: option.voteCount }))
+      : [];
+  const total = typeof results.totalVotes === "number"
+    ? results.totalVotes
+    : options.reduce((sum, option) => sum + (option.votes || 0), 0);
 
-  const optionLines = (poll.options || []).map((opt, i) => {
-    const votes = opt.votes || 0;
+  const optionLines = options.map((option, i) => {
+    const votes = option.votes || 0;
     const pct = total > 0 ? Math.round((votes / total) * 100) : 0;
-    return `  ${i + 1}. ${opt.text} — ${votes} votes (${pct}%)`;
+    return `  ${i + 1}. ${option.text} — ${votes} votes (${pct}%) (option id: ${option.id})`;
   });
 
   const parts = [`[${id}] ${question}`, ...optionLines, `Total votes: ${total}`];
-  if (expires) parts.push(expires);
-  if (poll.hasVoted) parts.push("You have voted.");
+  if (poll.endsAt) parts.push(`${results.isEnded ? "Ended" : "Ends"}: ${poll.endsAt}`);
+  if (detail.isMultipleChoice) parts.push("Multiple choice.");
+  if (detail.viewerSelectedOptionIds && detail.viewerSelectedOptionIds.length > 0) {
+    parts.push("You have voted.");
+  }
 
   return parts.join("\n");
 }

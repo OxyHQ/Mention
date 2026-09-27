@@ -98,6 +98,40 @@ export function registerListsTools(server: MentionToolRegistrar): void {
   );
 
   server.tool(
+    "add-list-members",
+    "Add people to one of your lists, keeping everyone already on it (requires authorization). Undo with remove-list-members.",
+    {
+      id: z.string().describe("List ID"),
+      userIds: z.array(z.string()).min(1).describe("Oxy user IDs to add"),
+    },
+    withAuthGuard(async ({ id, userIds }) => {
+      try {
+        const result = await api.post(`/lists/${encodeURIComponent(id)}/members`, { userIds });
+        return { content: [{ type: "text" as const, text: `Members added.\n\n${formatList(result as Record<string, unknown>)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
+    "remove-list-members",
+    "Remove people from one of your lists (requires authorization).",
+    {
+      id: z.string().describe("List ID"),
+      userIds: z.array(z.string()).min(1).describe("Oxy user IDs to remove"),
+    },
+    withAuthGuard(async ({ id, userIds }) => {
+      try {
+        const result = await api.delete(`/lists/${encodeURIComponent(id)}/members`, { userIds });
+        return { content: [{ type: "text" as const, text: `Members removed.\n\n${formatList(result as Record<string, unknown>)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
     "get-list-timeline",
     "Get posts from list members (requires authorization).",
     {

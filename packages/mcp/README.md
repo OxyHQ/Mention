@@ -84,7 +84,7 @@ The four external connection-management tools (`whoami`, `list-accounts`,
 `link-account`, `switch-account`) remain MCP-only; a native agent never gains
 OAuth bundle administration through a Mention content grant.
 
-## MCP tools (71 total)
+## MCP tools (97 total)
 
 ### Accounts (auth required)
 
@@ -103,7 +103,10 @@ OAuth bundle administration through a Mention content grant.
 | `create-thread` | `POST /posts/thread` (no collaborators) |
 | `update-post` | `PUT /posts/:id` |
 | `move-post-to-lane` | `PATCH /posts/:id/lane` |
-| `delete-post` | `DELETE /posts/:id` |
+| `delete-post` | `DELETE /posts/:id` (also cancels a draft or scheduled post) |
+| `publish-post-now` | `POST /posts/:id/publish` |
+| `pin-post` / `unpin-post` | `PATCH /posts/:id/settings` (`isPinned`) |
+| `update-post-settings` | `PATCH /posts/:id/settings` (reply permission, reply review, quotes, hidden counts) |
 | `accept-collab-invite` | `POST /posts/:id/collaborators/accept` |
 | `decline-collab-invite` | `POST /posts/:id/collaborators/decline` |
 | `stop-collab-sharing` | `POST /posts/:id/collaborators/stop-sharing` |
@@ -126,8 +129,11 @@ user bearer, so intent-media uploads through the service-token
 | `list-lanes` | `GET /lanes/mine` | `social.lanes.read` |
 | `create-lane` | `POST /lanes` | `social.lanes.manage` |
 | `update-lane` | `PATCH /lanes/:id` | `social.lanes.manage` |
+| `delete-lane` | `DELETE /lanes/:id` | `social.lanes.manage` |
+| `mute-lane` / `unmute-lane` | `POST` / `DELETE /lanes/:id/mute` | `social.mutes.manage` |
+| `get-muted-lanes` | `GET /lanes/muted` | `social.mutes.read` |
 
-Lanes are managed for the active account only (the backend always owns a new lane by the caller). Deleting a lane un-files its posts and is left to the app.
+Lanes are managed for the active account only (the backend always owns a new lane by the caller). Deleting a lane un-files its posts; they stay on the profile. Muting is the reader's side: it silences another publisher's lane, whose id every post in it shows as `Lane: … (id: …)`.
 
 ### Collaborative posts
 
@@ -154,7 +160,14 @@ Lanes are managed for the active account only (the backend always owns a new lan
 
 ### Interactions (auth required)
 
-`like-post`, `unlike-post`, `save-post`, `unsave-post`, `boost`, `quote-post`
+| Tool | Backend | Inverse |
+|------|---------|---------|
+| `like-post` | `POST /posts/:id/like` | `unlike-post` (`DELETE`) |
+| `save-post` | `POST /posts/:id/save` | `unsave-post` (`DELETE`) |
+| `boost` | `POST /feed/boost` | `unboost` (`DELETE /feed/:postId/boost`, the original post's id) |
+| `quote-post` | `POST /posts` | `delete-post` |
+| `move-saved-post-to-folder` | `PATCH /posts/bookmarks/by-post/:postId/folder` | the same tool with `folder: null` |
+| `get-bookmark-folders` | `GET /posts/bookmarks/folders` | — |
 
 ### Social (public unless noted)
 
@@ -162,6 +175,9 @@ Lanes are managed for the active account only (the backend always owns a new lan
 |------|------|---------|
 | `follow-user` | yes | `POST /federation/follow` |
 | `unfollow-user` | yes | `POST /federation/unfollow` |
+| `follow-entity` / `unfollow-entity` | yes | `POST` / `DELETE /entity-follows` (a hashtag or a list) |
+| `subscribe-to-user` / `unsubscribe-from-user` | yes | `POST` / `DELETE /subscriptions/:authorId` (new-post notifications) |
+| `poke-user` / `unpoke-user` | yes | `POST` / `DELETE /pokes/:userId` |
 | `get-recommendations` | no | `GET /recommendations` |
 
 ### Starter packs (public reads; writes auth required)
@@ -177,7 +193,26 @@ Lanes are managed for the active account only (the backend always owns a new lan
 | `remove-starter-pack-members` | yes | `DELETE /starter-packs/:id/members` |
 | `use-starter-pack` | yes | `POST /starter-packs/:id/use` |
 
-### Search, lists, notifications, polls, hashtags, profile
+### Mutes (auth required)
+
+| Tool | Backend | Capability |
+|------|---------|------------|
+| `mute-user` / `unmute-user` | `POST /mute` / `DELETE /mute/:mutedId` | `social.mutes.manage` |
+| `get-muted-users` | `GET /mute` | `social.mutes.read` |
+| `mute-word` / `unmute-word` | `POST /mute-words` / `DELETE /mute-words/:id` | `social.mutes.manage` |
+| `get-muted-words` | `GET /mute-words` | `social.mutes.read` |
+
+Tools that act on a person take the Oxy user id, which every post prints on its
+author line (`· user id: …`). Blocking, follow requests and people search are
+Oxy's, not Mention's, and have no tool here.
+
+### Lists, notifications, polls
+
+- `add-list-members` / `remove-list-members` (`POST` / `DELETE /lists/:id/members`) change a list's membership without replacing it.
+- `mark-notification-read` (`PATCH /notifications/:id/read`) marks one notification; `mark-notifications-read` marks all.
+- `vote-poll` sends the option id `POST /polls/:id/vote` requires; `get-poll` lists each option's id, and an `optionIndex` is resolved against it. A vote cannot be taken back.
+
+### Search, hashtags, profile
 
 See `packages/mcp/tools/*.ts`. Most write and personalized reads require auth
 through `lib/auth-guard.ts`.
@@ -300,7 +335,7 @@ From repo root: `bun run dev:mcp:http`
   tokens are short-lived and resource/audience/account bound.
 - MCP and Mention API introspect on every request, so revocation and lost account
   authority apply without waiting for a cache.
-- The semantic capability comes from the same 59-tool catalog at the MCP tool
+- The semantic capability comes from the same catalog at the MCP tool
   boundary and at the corresponding Mention route.
 - Legacy bundles and HS256 verification are disabled at the source-controlled
   cutoff; the protected metadata never advertises that authorization server.

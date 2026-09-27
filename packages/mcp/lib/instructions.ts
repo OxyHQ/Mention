@@ -43,6 +43,11 @@ Valid values: \`public\`, \`private\`, \`followers_only\` (alias \`followers\` a
 
 Typical flow: \`upload-media-from-url\` → \`create-post\` with \`media: [{ kind: "fileId", fileId: "..." }]\`, or inline \`media: [{ kind: "url", url: "https://..." }]\`.
 
+## Undoing actions
+Every reversible action has its inverse: \`unlike-post\`, \`unsave-post\`, \`unboost\` (the original post's id), \`delete-post\` for posts, quotes and drafts or scheduled posts, \`unpin-post\`, \`unfollow-user\`, \`unfollow-entity\`, \`unmute-user\`, \`unmute-word\`, \`unmute-lane\`, \`unsubscribe-from-user\`, \`unpoke-user\`, \`remove-list-members\`. A poll vote is final.
+
+Tools that act on a person (\`mute-user\`, \`subscribe-to-user\`, \`poke-user\`, \`get-profile\`) take the Oxy user id every post prints on its author line (\`· user id: …\`).
+
 ## Pagination
 Feed and list tools support \`cursor\` and \`limit\`. Responses include \`hasMore\` and \`nextCursor\` when more results exist.
 

@@ -47,6 +47,96 @@ export function registerSocialTools(server: MentionToolRegistrar): void {
   );
 
   server.tool(
+    "follow-entity",
+    "Follow a hashtag or a list, so its posts reach your feeds (requires authorization). Undo with unfollow-entity.",
+    {
+      entityType: z.enum(["hashtag", "list"]),
+      entityId: z.string().min(1).max(100).describe("The hashtag (with or without #) or the list ID"),
+    },
+    withAuthGuard(async ({ entityType, entityId }) => {
+      try {
+        await api.post("/entity-follows", { entityType, entityId });
+        return { content: [{ type: "text" as const, text: `Now following ${entityType} ${entityId}.` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
+    "unfollow-entity",
+    "Stop following a hashtag or a list (requires authorization).",
+    {
+      entityType: z.enum(["hashtag", "list"]),
+      entityId: z.string().min(1).max(100).describe("The hashtag (with or without #) or the list ID"),
+    },
+    withAuthGuard(async ({ entityType, entityId }) => {
+      try {
+        await api.delete("/entity-follows", { entityType, entityId });
+        return { content: [{ type: "text" as const, text: `Stopped following ${entityType} ${entityId}.` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
+    "subscribe-to-user",
+    "Get a notification whenever a user posts (requires authorization). This does not follow them. Undo with unsubscribe-from-user.",
+    { userId: z.string().describe("Oxy user ID, as get-post and get-profile show it") },
+    withAuthGuard(async ({ userId }) => {
+      try {
+        await api.post(`/subscriptions/${encodeURIComponent(userId)}`);
+        return { content: [{ type: "text" as const, text: `You will be notified when ${userId} posts.` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
+    "unsubscribe-from-user",
+    "Stop the notifications for a user's new posts (requires authorization).",
+    { userId: z.string().describe("Oxy user ID") },
+    withAuthGuard(async ({ userId }) => {
+      try {
+        await api.delete(`/subscriptions/${encodeURIComponent(userId)}`);
+        return { content: [{ type: "text" as const, text: `No longer notified when ${userId} posts.` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
+    "poke-user",
+    "Poke a user: they get a notification that you poked them (requires authorization). Undo with unpoke-user, which withdraws the poke but not a notification already delivered.",
+    { userId: z.string().describe("Oxy user ID, as get-post and get-profile show it") },
+    withAuthGuard(async ({ userId }) => {
+      try {
+        await api.post(`/pokes/${encodeURIComponent(userId)}`);
+        return { content: [{ type: "text" as const, text: `Poked ${userId}.` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
+    "unpoke-user",
+    "Withdraw a poke you sent (requires authorization).",
+    { userId: z.string().describe("Oxy user ID") },
+    withAuthGuard(async ({ userId }) => {
+      try {
+        await api.delete(`/pokes/${encodeURIComponent(userId)}`);
+        return { content: [{ type: "text" as const, text: `Poke to ${userId} withdrawn.` }] };
+      } catch (error) {
+        return { content: [{ type: "text" as const, text: formatApiError(error) }], isError: true };
+      }
+    }),
+  );
+
+  server.tool(
     "get-recommendations",
     "Get who-to-follow account recommendations (personalized when authorized).",
     {
