@@ -130,13 +130,16 @@ export interface InstagramImportResult {
   profile?: Omit<GraphBusinessProfile, 'media'>;
 }
 
-type SlotOutcome =
+export type SlotOutcome =
   | { kind: 'stored'; media: MediaItem; attachment: ExtractedMediaAttachment }
   | { kind: 'gone' }
   | { kind: 'retry' };
 
-/** Re-host one remote file. `retry` = it may work later; `gone` = it never will. */
-async function persistOne(
+/**
+ * Re-host one remote file. `retry` = it may work later; `gone` = it never will.
+ * Exported for `scripts/repairInstagramReelPosters.ts`.
+ */
+export async function persistOne(
   item: NormalizedExternalMedia,
   ownerOxyUserId: string,
   context: { activityId: string; actorUri: string },
@@ -172,11 +175,17 @@ async function persistOne(
 }
 
 /**
- * Re-host every slot, in order. A slot whose primary fails for ANY reason falls
- * back to its poster image (a Reel degrades to its still); a slot with nothing
- * storable is dropped when that is permanent, and makes the whole post wait
- * (`waitFor: 'retry'`, with the files already uploaded) when it might succeed
- * later. Exported for tests.
+ * Re-host every slot, in order. A video that Meta handed us (`media_url`) is
+ * the slot: a failure that may pass (Oxy's upload budget spent, a dropped
+ * connection, a 5xx) makes the whole post WAIT (`waitFor: 'retry'`, with the
+ * files already uploaded) — never degrade to its poster. Degrading was
+ * permanent: the post was stored as a still image and the next sync saw it as
+ * already imported, so the video never came (a Reel imported while the upload
+ * budget was spent ended up as its cover image). The poster stands in only when
+ * the video can NEVER be stored (gone, over the cap, not media, owned by
+ * another Oxy account); a Reel Meta returns without `media_url` is planned as
+ * its thumbnail from the start (`planInstagramMedia`). A slot with nothing
+ * storable is dropped when that is permanent. Exported for tests.
  */
 export async function materializeInstagramMedia(
   plans: readonly InstagramMediaPlan[],
@@ -187,13 +196,10 @@ export async function materializeInstagramMedia(
   const attachments: ExtractedMediaAttachment[] = [];
   for (const plan of plans) {
     let outcome = await persistOne(plan.primary, ownerOxyUserId, context);
-    if (outcome.kind !== 'stored' && plan.fallback) {
-      // The poster stands in whatever stopped the video. If it cannot be stored
-      // either, the slot is only "gone" when BOTH are gone for good; otherwise
-      // one of them may still work, and the post waits for it.
-      const fallback = await persistOne(plan.fallback, ownerOxyUserId, context);
-      if (fallback.kind === 'stored') outcome = fallback;
-      else outcome = outcome.kind === 'gone' && fallback.kind === 'gone' ? { kind: 'gone' } : { kind: 'retry' };
+    if (outcome.kind === 'gone' && plan.fallback) {
+      // The video can never be stored: its poster stands in. If the poster may
+      // still work later, the post waits for it.
+      outcome = await persistOne(plan.fallback, ownerOxyUserId, context);
     }
     // The slots already re-hosted are handed back so the caller can queue them
     // for deletion: the post waits, and nothing may reference them meanwhile.
