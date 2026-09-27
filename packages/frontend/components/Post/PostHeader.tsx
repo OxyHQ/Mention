@@ -448,7 +448,6 @@ const PostHeader: React.FC<PostHeaderProps> = ({
                 <AccountBadge
                   isFederated={user.isFederated}
                   kind={user.kind}
-                  handle={user.handle}
                   size={13}
                   className="text-muted-foreground"
                   containerClassName="self-center ml-1"

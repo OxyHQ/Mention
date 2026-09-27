@@ -126,7 +126,6 @@ const UserName: React.FC<UserNameProps> = ({ name, handle, verified, isFederated
                 <AccountBadge
                     isFederated={isFederated}
                     kind={kind}
-                    handle={handle ?? undefined}
                     onExplainNetwork={onExplainNetwork}
                     onExplainChannel={onExplainChannel}
                     size={iconSize}

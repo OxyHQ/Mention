@@ -122,7 +122,7 @@ function AccountInfoContent({ profileData, profileLoading, notFound, onRetry }: 
     [profileData?.accountCategories, categoryLabel],
   );
 
-  // Federation identity for the Fediverse / Bluesky section (federated profiles
+  // Federation identity for the Fediverse section (federated profiles
   // only): the network, the canonical `@user@domain` handle, and a web-openable
   // URL to the account's ORIGINAL profile page. A Mastodon actor URL redirects a
   // browser GET to the human-readable profile; an atproto DID / handle resolves
@@ -311,19 +311,16 @@ function AccountInfoContent({ profileData, profileLoading, notFound, onRetry }: 
           </SettingsListGroup>
         )}
 
-        {/* Fediverse / Bluesky — federated accounts only. Explains where the
-            account actually lives (its network + home server), surfaces the full
-            cross-network handle, and links out to the original profile. The footer
-            blurb reuses the fediverse copy tone; a "Learn more" row opens the
-            existing educational FediverseInfoSheet (fediverse networks only —
-            Bluesky is a separate network, not the fediverse). */}
+        {/* Fediverse — every non-Oxy account, whichever network it lives on,
+            under the same title and icon as the marker beside its name (no
+            per-network chip anywhere). The ROWS still say where the account
+            actually lives: the network by name, its home server, the full
+            cross-network handle, and a link out to the original profile. The
+            "Learn more" row opens the FediverseInfoSheet for ActivityPub
+            accounts only, the network that sheet describes. */}
         {federationInfo && (
           <SettingsListGroup
-            title={federationInfo.network === 'atproto'
-              ? t('fediverse.about.titleBluesky', { defaultValue: 'Bluesky' })
-              : federationInfo.network === 'instagram-graph'
-                ? t('fediverse.about.titleInstagram', { defaultValue: 'Instagram' })
-                : t('fediverse.about.title', { defaultValue: 'Fediverse' })}
+            title={t('fediverse.about.title', { defaultValue: 'Fediverse' })}
             footer={federationInfo.network === 'atproto'
               ? t('fediverse.about.descriptionBluesky', {
                   instance: federationInfo.instance ?? BLUESKY_NETWORK_DOMAIN,
@@ -339,9 +336,7 @@ function AccountInfoContent({ profileData, profileLoading, notFound, onRetry }: 
                 })}
           >
             <SettingsListItem
-              icon={federationInfo.network !== 'activitypub'
-                ? <RowIcon icon={RiEarthLine} />
-                : <FediverseIcon size={20} className="text-muted-foreground" />}
+              icon={<FediverseIcon size={20} className="text-muted-foreground" />}
               title={t('fediverse.about.network', { defaultValue: 'Network' })}
               value={federationInfo.network === 'atproto'
                 ? t('fediverse.about.networkBluesky', { defaultValue: 'Bluesky' })

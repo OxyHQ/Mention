@@ -3,7 +3,7 @@ import path from 'node:path';
 import React from 'react';
 import TestRenderer, { type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 
-import { AccountBadge, FediverseSharingBadge } from '../AccountBadge';
+import { AccountBadge, FediverseSharingBadge, type AccountBadgeProps } from '../AccountBadge';
 import enStrings from '@/locales/en.json';
 
 /**
@@ -196,37 +196,44 @@ describe('AccountBadge — which marker the account state chooses', () => {
     expect(labels(renderer)).toEqual([REMOTE_LABEL]);
   });
 
-  it('names Bluesky rather than claiming it is the fediverse, and stays inert', () => {
+  // Type-level: the badge has NO network or handle input. Re-adding either one
+  // turns this into `never` and fails the typecheck.
+  type NoNetworkInput = 'network' extends keyof AccountBadgeProps
+    ? never
+    : 'handle' extends keyof AccountBadgeProps
+      ? never
+      : true;
+  const noNetworkInput: NoNetworkInput = true;
+  it('takes no network input (type-level, see above)', () => {
+    expect(noNetworkInput).toBe(true);
+  });
+
+  /**
+   * ONE marker for every non-Oxy account, whatever network it lives on — no
+   * per-network chip. The badge takes no network input at all, and whatever a
+   * caller still forces through, it draws the fediverse icon and no network name.
+   */
+  it.each([
+    ['a Mastodon (ActivityPub) account', { handle: 'alice@mastodon.social' }],
+    ['an X account bridged by bird.makeup', { handle: 'jack@x.com' }],
+    ['an Instagram account bridged by kilogram', { handle: 'zuck@instagram.com' }],
+    ['an Instagram account read through the Graph API', { network: 'instagram-graph', handle: 'zuck@instagram.com' }],
+    ['a Bluesky (atproto) account', { network: 'atproto', handle: 'alice.bsky.social' }],
+  ])('draws the SAME fediverse marker for %s, and no network chip', (_case, extra) => {
     const onExplainNetwork = jest.fn();
+    // What callers used to pass to pick a chip, forced past the types (which no
+    // longer accept it — see `noNetworkInput` below).
+    const legacy = extra as Partial<AccountBadgeProps>;
     const renderer = render(
-      <AccountBadge isFederated network="atproto" onExplainNetwork={onExplainNetwork} />,
+      <AccountBadge isFederated {...legacy} onExplainNetwork={onExplainNetwork} />,
     );
 
-    expect(renderer.root.findAllByType('Text' as unknown as React.ElementType)).not.toHaveLength(0);
-    expect(JSON.stringify(renderer.toJSON())).toContain('Bluesky');
-    expect(icons(renderer, 'FediverseIcon')).toHaveLength(0);
-    expect(buttons(renderer)).toHaveLength(0);
-    expect(pressHandlers(renderer)).toHaveLength(0);
-  });
-
-  it.each([
-    ['a kilogram bridge account, identified by its instagram.com handle', { handle: 'zuck@instagram.com' }],
-    ['a Graph API account', { network: 'instagram-graph' as const, handle: 'zuck@instagram.com' }],
-  ])('names Instagram for %s, and stays inert', (_case, props) => {
-    const onExplainNetwork = jest.fn();
-    const renderer = render(<AccountBadge isFederated {...props} onExplainNetwork={onExplainNetwork} />);
-
-    expect(JSON.stringify(renderer.toJSON())).toContain('Instagram');
-    expect(labels(renderer)).toEqual([enStrings['fediverse.remoteBadge.instagramA11yLabel']]);
-    expect(icons(renderer, 'FediverseIcon')).toHaveLength(0);
-    expect(buttons(renderer)).toHaveLength(0);
-    expect(pressHandlers(renderer)).toHaveLength(0);
-  });
-
-  it('keeps the fediverse marker for an ordinary fediverse handle', () => {
-    const renderer = render(<AccountBadge isFederated handle="alice@mastodon.social" />);
     expect(icons(renderer, 'FediverseIcon')).toHaveLength(1);
-    expect(JSON.stringify(renderer.toJSON())).not.toContain('Instagram');
+    expect(labels(renderer)).toEqual([REMOTE_LABEL]);
+    expect(renderer.root.findAllByType('Text' as unknown as React.ElementType)).toHaveLength(0);
+    expect(JSON.stringify(renderer.toJSON())).not.toMatch(/Instagram|Bluesky/);
+    // The same marker behaves the same: armed by the same opt-in.
+    expect(buttons(renderer)).toHaveLength(1);
   });
 });
 

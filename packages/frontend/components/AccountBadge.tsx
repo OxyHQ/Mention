@@ -1,7 +1,6 @@
 import React, { useCallback } from 'react';
 import {
   Pressable,
-  Text,
   View,
   type GestureResponderEvent,
   type StyleProp,
@@ -11,12 +10,17 @@ import { useTranslation } from 'react-i18next';
 import type { AccountKind } from '@oxy.so/core';
 import { ChannelIcon } from '@/assets/icons/channel-icon';
 import { FediverseIcon } from '@/assets/icons/fediverse-icon';
-import type { ExternalNetwork } from '@/services/feedService';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
 /**
  * The quiet marker that sits beside a name saying what KIND of account it is —
- * remote (fediverse / Bluesky) or a channel.
+ * remote or a channel.
+ *
+ * EVERY remote account draws the SAME fediverse icon, whichever network it
+ * lives on (ActivityPub, including bridged X and Instagram accounts; Instagram
+ * read through the Graph API; Bluesky). A per-network chip is not drawn
+ * anywhere: the marker says "not an Oxy account", and the account's About
+ * screen names the network for a reader who asks.
  *
  * INERT BY DEFAULT. A marker is a statement, not a control: it renders as a
  * plain labelled icon everywhere unless a caller explicitly hands it the
@@ -129,21 +133,8 @@ function IdentityMarker({
 export interface AccountBadgeProps extends IdentityBadgeVisualProps {
   /** The Oxy account kind. `channel` is the only value that draws a marker. */
   kind?: AccountKind;
-  /** Whether the account lives on another network. */
+  /** Whether the account lives on another network (any network). */
   isFederated?: boolean;
-  /**
-   * Which network, when federated. `activitypub` (default) shows the fediverse
-   * icon; `atproto` (Bluesky) is NOT part of the fediverse, so it shows a named
-   * network chip instead of the (misleading) generic fediverse icon.
-   */
-  network?: ExternalNetwork;
-  /**
-   * The account's IDENTITY handle (`local@domain`), when the caller has it. An
-   * account whose identity is on instagram.com is an Instagram account however
-   * its posts arrive — through the kilogram bridge (an ActivityPub actor) or the
-   * Graph API — so the handle, not the transport, decides the Instagram chip.
-   */
-  handle?: string;
   /**
    * Opt IN to the fediverse explainer. Honoured ONLY by the federated marker.
    * Passing it alongside a `channel` kind does nothing, so wiring the fediverse
@@ -196,20 +187,9 @@ export function AccountBadge(props: AccountBadgeProps) {
   return <AccountBadgeMarker {...props} />;
 }
 
-/** The domain half of a `local@domain` identity handle, lowercased. */
-function identityDomainOfHandle(handle: string | undefined): string | undefined {
-  if (!handle) return undefined;
-  const at = handle.lastIndexOf('@');
-  return at > 0 && at < handle.length - 1 ? handle.slice(at + 1).toLowerCase() : undefined;
-}
-
-const INSTAGRAM_IDENTITY_DOMAIN = 'instagram.com';
-
 function AccountBadgeMarker({
   kind,
   isFederated,
-  network = 'activitypub',
-  handle,
   onExplainNetwork,
   onExplainChannel,
   ...visual
@@ -217,36 +197,6 @@ function AccountBadgeMarker({
   const { t } = useTranslation();
 
   if (isFederated) {
-    if (network === 'instagram-graph' || identityDomainOfHandle(handle) === INSTAGRAM_IDENTITY_DOMAIN) {
-      // Instagram is not the fediverse either, even when a bridge carries it
-      // over ActivityPub — and nothing Mention sends reaches its author. A named
-      // chip, never interactive, for the same reason as Bluesky's below.
-      return (
-        <View
-          className={visual.containerClassName}
-          style={visual.style}
-          accessibilityRole="image"
-          accessibilityLabel={t('fediverse.remoteBadge.instagramA11yLabel')}
-        >
-          <View className="bg-muted rounded-full px-2 py-0.5">
-            <Text className="text-muted-foreground text-xs font-medium">Instagram</Text>
-          </View>
-        </View>
-      );
-    }
-    if (network === 'atproto') {
-      // Bluesky is not the fediverse, so a named chip rather than a glyph that
-      // would claim it is. Never interactive, at any call site: the only
-      // explainer that exists is about ActivityPub, so opening it here would
-      // answer a question the reader did not ask.
-      return (
-        <View className={visual.containerClassName} style={visual.style}>
-          <View className="bg-muted rounded-full px-2 py-0.5">
-            <Text className="text-muted-foreground text-xs font-medium">Bluesky</Text>
-          </View>
-        </View>
-      );
-    }
     return (
       <IdentityMarker
         {...visual}

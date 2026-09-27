@@ -30,8 +30,8 @@ export interface FederationInfo {
 }
 
 /**
- * Federation identity for the About screen's Fediverse / Bluesky / Instagram
- * section (federated profiles only): the network, the canonical `@user@domain`
+ * Federation identity for the About screen's Fediverse section (federated
+ * profiles only, every network): the network, the canonical `@user@domain`
  * handle, and a web-openable URL to the ORIGINAL profile. A Mastodon actor URL
  * redirects a browser GET to the human-readable profile; an atproto DID / handle
  * resolves on bsky.app's `/profile/<id>` route; an Instagram identity links to
