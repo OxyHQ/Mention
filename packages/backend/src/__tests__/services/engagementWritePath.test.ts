@@ -29,6 +29,7 @@
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import postgres from 'postgres';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
@@ -79,6 +80,69 @@ async function seedPost(overrides: { oxyUserId?: string; federationActivityId?: 
   if (!post) throw new Error('Failed to seed a post');
   createdPostIds.push(post.id);
   return post.id;
+}
+
+/**
+ * Stage the LOSING side of a relationship race deterministically.
+ *
+ * The winner is an uncommitted insert of the relationship row; the command under
+ * test must read "no row", reach its own `ON CONFLICT DO NOTHING` insert, block
+ * on the winner's uncommitted key, and — once the winner commits — get no row
+ * back. Two things used to make that depend on the machine:
+ *
+ *  - the winner held a connection from the APP pool, so with `PG_MAX_POOL_SIZE=1`
+ *    the command could not even start until the winner had committed, and then
+ *    simply read the winner's row (the ordinary no-op, not the race);
+ *  - the winner was released after a fixed 50 ms sleep, so on a loaded runner the
+ *    command had not reached its insert yet, and again read the committed row.
+ *
+ * Both measured as the same coverage drop (lines 95.12 / functions 94.73 on
+ * `PostEngagementCommandService`), once on a PR that never touched the file.
+ *
+ * So the winner and the observer use their OWN connections, outside the app
+ * pool, and the winner is released only when `pg_stat_activity` shows the
+ * command's insert waiting on a lock: the race branch runs every time, at any
+ * pool size and under any load.
+ */
+async function stageUncommittedWinner(insertWinner: (tx: postgres.TransactionSql) => Promise<unknown>) {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL is not set');
+  const winnerSql = postgres(url, { max: 1, onnotice: () => undefined });
+  const observerSql = postgres(url, { max: 1, onnotice: () => undefined });
+  let releaseWinner = (): void => undefined;
+  const released = new Promise<void>((resolve) => {
+    releaseWinner = resolve;
+  });
+  let holding = (): void => undefined;
+  const winnerHolds = new Promise<void>((resolve) => {
+    holding = resolve;
+  });
+  const winner = winnerSql.begin(async (tx) => {
+    await insertWinner(tx);
+    holding();
+    await released;
+  });
+  await winnerHolds;
+
+  return {
+    /** Resolves once `table`'s insert is blocked behind the winner's key. */
+    async untilLoserBlocks(table: string): Promise<void> {
+      await vi.waitFor(async () => {
+        const [row] = await observerSql<{ waiting: number }[]>`
+          select count(*)::int as waiting from pg_stat_activity
+          where datname = current_database()
+            and wait_event_type = 'Lock'
+            and query ilike ${`insert into "${table}"%`}
+        `;
+        expect(row?.waiting).toBeGreaterThan(0);
+      }, { timeout: 10_000, interval: 10 });
+    },
+    async commit(): Promise<void> {
+      releaseWinner();
+      await winner;
+      await Promise.all([winnerSql.end(), observerSql.end()]);
+    },
+  };
 }
 
 async function outboxRow(eventId: string) {
@@ -297,24 +361,16 @@ describe('the transaction boundary', () => {
      *
      * A transaction holds an uncommitted bookmark for this pair. The command
      * reads no bookmark, blocks on the uncommitted unique key, and when the
-     * holder commits its own insert returns nothing.
+     * holder commits its own insert returns nothing. The holder is released only
+     * once the command is SEEN waiting on that key (`stageUncommittedWinner`).
      */
     const postId = await seedPost();
-    let releaseWinner = (): void => undefined;
-    const winnerCommitted = new Promise<void>((resolve) => {
-      releaseWinner = resolve;
-    });
-    const winner = db.transaction(async (tx) => {
-      await tx.insert(bookmarks).values({ userId: 'save-race', postId, folder: null });
-      await winnerCommitted;
-    });
-    // Let the insert above take the key before the command reads.
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    const winner = await stageUncommittedWinner((tx) =>
+      tx`insert into bookmarks (id, user_id, post_id) values (${randomUUID()}, 'save-race', ${postId})`);
 
     const racing = savePostCommand({ userId: 'save-race', postId });
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    releaseWinner();
-    await winner;
+    await winner.untilLoserBlocks('bookmarks');
+    await winner.commit();
     const result = await racing;
 
     expect(result.changed).toBe(false);
@@ -337,26 +393,16 @@ describe('the transaction boundary', () => {
      * therefore SELECTs and sees nothing, then blocks on the uncommitted unique
      * key; when the holder commits, its `ON CONFLICT DO NOTHING` insert returns
      * no row, and the only correct response is to restart the whole command and
-     * read what the winner wrote.
+     * read what the winner wrote. The holder is released only once the command
+     * is SEEN waiting on that key (`stageUncommittedWinner`).
      */
     const postId = await seedPost();
-    let releaseWinner = (): void => undefined;
-    const winnerCommitted = new Promise<void>((resolve) => {
-      releaseWinner = resolve;
-    });
-    const winner = db.transaction(async (tx) => {
-      await tx
-        .insert(likes)
-        .values({ userId: 'self-race', postId, value: 1, revision: 1 });
-      await winnerCommitted;
-    });
-    // Let the insert above take the key before the command reads.
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    const winner = await stageUncommittedWinner((tx) =>
+      tx`insert into likes (id, user_id, post_id, value, revision) values (${randomUUID()}, 'self-race', ${postId}, 1, 1)`);
 
     const racing = votePostCommand({ userId: 'self-race', postId, value: 1 });
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    releaseWinner();
-    await winner;
+    await winner.untilLoserBlocks('likes');
+    await winner.commit();
     const result = await racing;
 
     expect(result).toMatchObject({ changed: false, previousValue: 1, value: 1 });
