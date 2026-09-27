@@ -1,9 +1,9 @@
-import { getServiceOxyClient } from '../utils/oxyHelpers';
 import {
-  parseLookupExternalIdentitiesResponse,
-  parseResolveExternalIdentityResponse,
+  lookupExternalIdentitiesResponseSchema,
+  resolveExternalIdentityResponseSchema,
   type ExternalIdentityProtocol,
-} from './pendingUpstreamWidening';
+} from '@oxy.so/contracts';
+import { getServiceOxyClient } from '../utils/oxyHelpers';
 
 /** Oxy verifies the source actor and owns its public identity and profile. */
 export async function resolveOxyIdentity(
@@ -12,7 +12,7 @@ export async function resolveOxyIdentity(
   const response = await getServiceOxyClient().serviceRequest<unknown>(
     'POST', '/federation/identities/resolve', input,
   );
-  const resolved = parseResolveExternalIdentityResponse(response);
+  const resolved = resolveExternalIdentityResponseSchema.parse(response);
   if (resolved.externalIdentity.userId !== resolved.user.id
     || ('actorUri' in input && resolved.externalIdentity.actorUri !== input.actorUri)) {
     throw new Error('Oxy returned an inconsistent external identity');
@@ -25,5 +25,5 @@ export async function lookupOxyIdentities(identifiers: string[]) {
   const response = await getServiceOxyClient().serviceRequest<unknown>(
     'POST', '/federation/identities/lookup', { identifiers },
   );
-  return parseLookupExternalIdentitiesResponse(response).identities;
+  return lookupExternalIdentitiesResponseSchema.parse(response).identities;
 }

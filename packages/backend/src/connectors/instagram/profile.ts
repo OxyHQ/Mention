@@ -5,9 +5,10 @@ import { logger } from '../../utils/logger';
 import { resolveAvatarUrl } from '../../utils/mediaResolver';
 import { metrics } from '../../utils/metrics';
 import { resolveOxyIdentity } from '../oxyIdentity';
-import { INSTAGRAM_GRAPH_NETWORK_ID, type NormalizedExternalActor } from '../pendingUpstreamWidening';
+import type { NormalizedExternalActor } from '@oxy.so/federation';
 import {
   igUserIdFromActorUri,
+  INSTAGRAM_GRAPH_NETWORK_ID,
   INSTAGRAM_IDENTITY_DOMAIN,
   instagramUsernameOfActor,
 } from './constants';

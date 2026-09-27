@@ -33,7 +33,7 @@ import { resolveOxyIdentity } from './oxyIdentity';
 import { isAbsoluteHttpUrl } from './shared/url';
 import { connectorRegistry } from './index';
 import { classifyQuery } from './resolve';
-import type { NetworkConnector } from './pendingUpstreamWidening';
+import type { NetworkConnector } from '@oxy.so/federation';
 import { postHydrationService } from '../services/PostHydrationService';
 import { createScopedOxyClient, getServiceOxyClient } from '../utils/oxyHelpers';
 import { extractBearerToken } from '@oxy.so/mcp';

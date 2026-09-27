@@ -1,5 +1,5 @@
 import { PostVisibility, type MediaItem } from '@mention/shared-types';
-import type { NormalizedExternalMedia } from '@oxy.so/federation';
+import type { NormalizedExternalMedia, NormalizedExternalPost } from '@oxy.so/federation';
 import { isUniqueViolation } from '@oxy.so/db';
 import { inArray, or } from 'drizzle-orm';
 import { getDb } from '../../db/postgres';
@@ -17,7 +17,6 @@ import {
 } from './graphClient';
 import { mapGraphMediaToNormalizedPost, type InstagramMappedPost, type InstagramMediaPlan } from './media.mapper';
 import type { GraphCallKind } from './usageBudget';
-import type { NormalizedExternalPost } from '../pendingUpstreamWidening';
 
 /**
  * Import one Instagram account's posts from the Graph API as native posts.

@@ -81,7 +81,7 @@ import { instagramGraphConnector } from '../../../connectors/instagram/Instagram
 import { connectorRegistry } from '../../../connectors/index';
 import connectorsRoutes from '../../../connectors/connectors.routes';
 import { resolveOxyIdentity } from '../../../connectors/oxyIdentity';
-import { parseResolveExternalIdentityResponse } from '../../../connectors/pendingUpstreamWidening';
+import { resolveExternalIdentityResponseSchema } from '@oxy.so/contracts';
 import { oxyIdentityFixture } from '../../helpers/oxyIdentityFixtures';
 
 const app = express();
@@ -146,24 +146,24 @@ describe('routing instagram-graph URIs', () => {
   });
 });
 
-describe('parsing an instagram-graph identity from Oxy (pending the contracts bump)', () => {
-  it('accepts the protocol the published schema does not yet name, and keeps it', () => {
-    const parsed = parseResolveExternalIdentityResponse(graphIdentity());
+describe('parsing an instagram-graph identity from Oxy (@oxy.so/contracts 4)', () => {
+  it('accepts and keeps the instagram-graph protocol', () => {
+    const parsed = resolveExternalIdentityResponseSchema.parse(graphIdentity());
     expect(parsed.externalIdentity.protocol).toBe('instagram-graph');
     expect(parsed.externalIdentities[0].protocol).toBe('instagram-graph');
     expect(parsed.user.externalIdentities[0].protocol).toBe('instagram-graph');
   });
 
-  it('still rejects any OTHER unknown protocol', () => {
+  it('rejects any other unknown protocol', () => {
     const body = graphIdentity();
     body.externalIdentity.protocol = 'smoke-signals' as 'instagram-graph';
-    expect(() => parseResolveExternalIdentityResponse(body)).toThrow();
+    expect(() => resolveExternalIdentityResponseSchema.parse(body)).toThrow();
   });
 
-  it('still runs the published refinements', () => {
+  it('runs the published refinements', () => {
     const body = graphIdentity();
     body.externalIdentity.userId = 'somebody-else';
-    expect(() => parseResolveExternalIdentityResponse(body)).toThrow();
+    expect(() => resolveExternalIdentityResponseSchema.parse(body)).toThrow();
   });
 
   it('asks Oxy with protocol instagram-graph', async () => {

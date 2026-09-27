@@ -1,6 +1,9 @@
 import type { PostContent } from '@mention/shared-types';
-import type { LocalNetworkEvent } from '@oxy.so/federation';
-import type { NetworkConnector, NormalizedExternalActor } from './pendingUpstreamWidening';
+import type {
+  LocalNetworkEvent,
+  NetworkConnector,
+  NormalizedExternalActor,
+} from '@oxy.so/federation';
 import { logger } from '../utils/logger';
 import { isFediverseSharingEnabled } from '../services/fediverseSharing';
 import { toFederationPostPayload } from '../services/serviceRegistry';

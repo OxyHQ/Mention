@@ -1,5 +1,8 @@
+import type { NetworkId } from '@oxy.so/federation';
 import { config } from '../../config';
-import { INSTAGRAM_GRAPH_NETWORK_ID } from '../pendingUpstreamWidening';
+
+/** The network id of the Instagram connector and of the actors it owns. */
+export const INSTAGRAM_GRAPH_NETWORK_ID = 'instagram-graph' as const satisfies NetworkId;
 
 /**
  * Instagram connector constants.

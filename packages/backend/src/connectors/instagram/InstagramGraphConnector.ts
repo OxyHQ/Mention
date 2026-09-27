@@ -1,17 +1,18 @@
 import type { PostContent } from '@mention/shared-types';
-import type { FetchPostsOptions, LocalNetworkEvent, ReceiveContext } from '@oxy.so/federation';
+import type {
+  FetchPostsOptions,
+  FetchPostsResult,
+  LocalNetworkEvent,
+  NetworkConnector,
+  NormalizedExternalActor,
+  ReceiveContext,
+} from '@oxy.so/federation';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import { findActorByUri } from '../../db/federation/actorRepository';
 import { deleteFollow, upsertOutboundAcceptedSubscription } from '../../db/federation/followRepository';
 import { logger } from '../../utils/logger';
 import { resolveOxyExternalUser } from '../identity';
-import {
-  INSTAGRAM_GRAPH_NETWORK_ID,
-  type FetchPostsResult,
-  type NetworkConnector,
-  type NormalizedExternalActor,
-} from '../pendingUpstreamWidening';
-import { isInstagramGraphActorUri, isInstagramGraphEnabled } from './constants';
+import { INSTAGRAM_GRAPH_NETWORK_ID, isInstagramGraphActorUri, isInstagramGraphEnabled } from './constants';
 import { fetchAndUpsertInstagramGraphActor } from './profile';
 import {
   isInstagramIdentityActor,

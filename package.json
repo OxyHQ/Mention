@@ -11,7 +11,7 @@
     ],
     "catalog": {
       "@oxy.so/bloom": "^4.29.1",
-      "@oxy.so/contracts": "^3.0.0",
+      "@oxy.so/contracts": "^4.0.0",
       "@oxy.so/core": "^3.0.0",
       "@oxy.so/mcp": "^1.0.0",
       "@oxy.so/services": "^8.0.0",

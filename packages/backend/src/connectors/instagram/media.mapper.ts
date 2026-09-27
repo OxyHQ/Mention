@@ -1,12 +1,10 @@
 import { normalizeMultilineText } from '@oxy.so/core';
 import { qualifyBareHandles } from '@mention/shared-types/textEntities';
-import type { NormalizedExternalMedia } from '@oxy.so/federation';
+import type { NormalizedExternalMedia, NormalizedExternalPost } from '@oxy.so/federation';
 import { extractHashtags } from '../../utils/textProcessing';
 import { clampFutureDate } from '../../utils/ingestTimestamp';
 import { instagramShortcodeFromPermalink, instagramSourceKey } from '../shared/instagramSourceKey';
-import type { NormalizedExternalPost } from '../pendingUpstreamWidening';
-import { INSTAGRAM_GRAPH_NETWORK_ID } from '../pendingUpstreamWidening';
-import { INSTAGRAM_IDENTITY_DOMAIN } from './constants';
+import { INSTAGRAM_GRAPH_NETWORK_ID, INSTAGRAM_IDENTITY_DOMAIN } from './constants';
 import type { GraphChildMedia, GraphMedia } from './graphClient';
 
 /**

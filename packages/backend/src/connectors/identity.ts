@@ -5,7 +5,7 @@ import { invalidate as invalidateUserSummaryCache } from '../services/userSummar
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../services/mediaCache/cacheWorker';
 import { FEDERATED_BANNER_DOWNLOAD_POLICY } from '../services/mediaCache/policy';
 import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
-import type { NormalizedExternalActor } from './pendingUpstreamWidening';
+import type { NormalizedExternalActor } from '@oxy.so/federation';
 import { createIdentityBridge, type ServiceRequest, type ServiceRequestMethod } from '@oxy.so/federation/node';
 import { resolveOxyIdentity } from './oxyIdentity';
 

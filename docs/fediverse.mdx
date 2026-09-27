@@ -417,11 +417,9 @@ Nothing is sent to Instagram. Replies, likes and boosts of a Graph-imported post
 are not delivered, and the permalink stands in as the object a reply or quote
 references.
 
-**Pending upstream.** The published `@oxy.so/contracts` (3.0.0) and
-`@oxy.so/federation` (2.1.2) do not name `instagram-graph` yet.
-`packages/backend/src/connectors/pendingUpstreamWidening.ts` widens the types and parses Oxy's
-identity responses with that one enum value masked. Every other published check
-still runs. After the contracts 4.0.0 bump, that file becomes re-exports.
+**Protocol types.** `instagram-graph` is a first-class protocol upstream:
+`@oxy.so/contracts` 4.0.0 accepts it in the external-identity schemas and
+`@oxy.so/federation` 2.2.0 includes it in `NetworkId`.
 
 ## The connector contract
 
