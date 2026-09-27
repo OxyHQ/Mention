@@ -34,15 +34,22 @@ const FORBIDDEN_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 /** A file this app no longer references is being, or has been, deleted in Oxy. */
 const TOMBSTONE_STATES = ['deleting', 'deleted', 'not_found'] as const;
 
-function lockKey(fileId: string) {
-  return sql`pg_advisory_xact_lock(hashtext(${`federated-media:${fileId}`}))`;
-}
-
-/** Take the per-file locks in a fixed order, so two multi-file transactions cannot deadlock. */
+/**
+ * Take the per-file locks (`hashtext('federated-media:<id>')`) in a fixed order,
+ * so two multi-file transactions cannot deadlock — in ONE statement, however
+ * many files: a post insert and every drain batch take these, and a round trip
+ * per id made both scale with the media count. The keys are sorted here, and
+ * `unnest … with ordinality` emits them in array order (the planner knows the
+ * scan is ordered by `n`, so no sort sits between it and the lock calls).
+ */
 async function lockFiles(tx: DatabaseOrTransaction, fileIds: readonly string[]): Promise<void> {
-  for (const id of [...new Set(fileIds)].sort()) {
-    await tx.execute(sql`select ${lockKey(id)}`);
-  }
+  const keys = [...new Set(fileIds)].sort().map((id) => `federated-media:${id}`);
+  if (keys.length === 0) return;
+  await tx.execute(sql`
+    select pg_advisory_xact_lock(hashtext(t.key))
+    from unnest(array[${sql.join(keys.map((key) => sql`${key}`), sql`, `)}]::text[]) with ordinality as t(key, n)
+    order by t.n
+  `);
 }
 
 /** Thrown by the post insert when a federated media id it is about to store is tombstoned. */

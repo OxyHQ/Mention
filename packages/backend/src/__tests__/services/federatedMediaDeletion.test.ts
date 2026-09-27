@@ -44,6 +44,7 @@ import {
   FederatedMediaGoneError,
   recordFederatedPoster,
   enqueueFederatedMediaDeletions,
+  findGoneFederatedMedia,
   reviveFederatedFiles,
   tombstoneUnreferenced,
 } from '../../db/federation/mediaDeletionRepository';
@@ -339,8 +340,12 @@ describe('Oxy\'s dedupe REUSES ids: an upload can bring back a file this app del
 
 describe('the batch cap (oxy-api takes at most 20 ids per call)', () => {
   it('never sends more than 20 ids in one call, and drains a larger backlog in several', async () => {
+    // The backlog itself, in one statement: this is about how the drain splits
+    // it, and a post's delete queuing its files is proven above. (Seeding it
+    // through 45 post inserts + deletes, one after another, took seconds under
+    // CI load for no extra coverage.)
     const files = Array.from({ length: 45 }, () => fileId());
-    for (const id of files) await deletePostRecord(await federatedPost([rehosted(id)]), undefined);
+    await getDb().insert(federatedMediaDeletions).values(files.map((oxyFileId) => ({ oxyFileId })));
 
     await drainFederatedMediaDeletions();
 
@@ -349,6 +354,35 @@ describe('the batch cap (oxy-api takes at most 20 ids per call)', () => {
     expect(calls.length).toBeGreaterThanOrEqual(3);
     expect(files.every((id) => calls.some((ids) => ids.includes(id)))).toBe(true);
     for (const id of files) expect(await stateOf(id)).toBe('deleted');
+  });
+});
+
+describe('the per-file locks', () => {
+  it('are taken in ONE round trip however many files a post or batch has, all held to commit', async () => {
+    const files = Array.from({ length: 20 }, () => fileId());
+    const measured = await getDb().transaction(async (tx) => {
+      let statements = 0;
+      const counting = new Proxy(tx, {
+        get(target, prop, receiver) {
+          if (prop === 'execute') {
+            return (...args: Parameters<typeof tx.execute>) => {
+              statements += 1;
+              return target.execute(...args);
+            };
+          }
+          const value = Reflect.get(target, prop, receiver);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
+      await findGoneFederatedMedia(counting, files);
+      const [row] = await tx.execute<{ held: number }>(sql`
+        select count(*)::int as held from pg_locks
+        where locktype = 'advisory' and granted and pid = pg_backend_pid()
+      `);
+      return { statements, held: Number(row?.held) };
+    });
+    expect(measured.statements).toBe(1);
+    expect(measured.held).toBe(20);
   });
 });
 
