@@ -11,6 +11,13 @@ OXY_OAUTH_ORIGIN="${OXY_OAUTH_ORIGIN%/}"
 OXY_AUTHORIZATION_ENDPOINT="${OXY_AUTHORIZATION_ENDPOINT%/}"
 RESOURCE_METADATA_URL="$MCP_ORIGIN/.well-known/oauth-protected-resource"
 
+# The scopes the deployed resource must advertise. ONE file, read here and by
+# test-smoke-mcp.sh, and held equal to the capability catalogue by
+# packages/mcp/__tests__/expected-scopes.test.ts. It used to be a list written
+# out twice by hand, so a new capability passed CI (the fixture matched its own
+# copy) and failed only in production's post-deploy smoke, rolling it back.
+EXPECTED_SCOPES_FILE="${EXPECTED_SCOPES_FILE:-$(dirname "${BASH_SOURCE[0]}")/mcp-expected-scopes.json}"
+
 # The central authorization server is outside this deployment's ownership. A
 # failure there must page and fail the workflow, but rolling Mention back cannot
 # repair it. deploy-ecs-image.sh reserves 75 for exactly that outcome.
@@ -100,45 +107,12 @@ fetch_json "$smoke_dir/protected-resource.json" "$RESOURCE_METADATA_URL"
 if ! jq -e \
   --arg resource "$MCP_ORIGIN" \
   --arg issuer "$OXY_OAUTH_ORIGIN" \
+  --slurpfile expected_scopes "$EXPECTED_SCOPES_FILE" \
   '
     .resource == $resource and
     .authorization_servers == [$issuer] and
     .bearer_methods_supported == ["header"] and
-    ((.scopes_supported | sort) == [
-      "social.accounts.link",
-      "social.accounts.read",
-      "social.accounts.switch",
-      "social.collaboration.manage",
-      "social.follow",
-      "social.interact",
-      "social.jobs.applications.read",
-      "social.jobs.create",
-      "social.jobs.read",
-      "social.jobs.update",
-      "social.lanes.manage",
-      "social.lanes.read",
-      "social.lists.create",
-      "social.lists.delete",
-      "social.lists.read",
-      "social.lists.update",
-      "social.media.create",
-      "social.media.read",
-      "social.notifications.manage",
-      "social.notifications.read",
-      "social.polls.vote",
-      "social.posts.delete",
-      "social.posts.publish",
-      "social.posts.read",
-      "social.posts.save",
-      "social.posts.update",
-      "social.profile.read",
-      "social.read",
-      "social.search",
-      "social.starter_packs.create",
-      "social.starter_packs.delete",
-      "social.starter_packs.read",
-      "social.starter_packs.update"
-    ])
+    ((.scopes_supported | sort) == ($expected_scopes[0] | sort))
   ' "$smoke_dir/protected-resource.json" >/dev/null; then
   echo "::error::Mention protected-resource metadata does not match its canonical catalog and OAuth authority."
   exit 1
