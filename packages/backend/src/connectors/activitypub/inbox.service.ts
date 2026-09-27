@@ -3,6 +3,7 @@ import { postMatchesFederatedObjectSql } from '../shared/instagramSourceKey';
 import { isApActorType } from '@oxy.so/federation';
 import { createInboundDispatcher, type InboundDispatcherConfig } from '@oxy.so/federation/node';
 import { logger } from '../../utils/logger';
+import { enrichIngestedPosts } from '../../services/postEnrichment';
 import { findActorByUri } from '../../db/federation/actorRepository';
 import {
   deleteFollowById,
@@ -1083,6 +1084,12 @@ export class InboxProcessingService {
         },
         mentionResult.ids,
       );
+      // An edit can add links the original never had; warm their cards like any
+      // newly-stored body, so the next reader is not the one who asks first.
+      enrichIngestedPosts([{
+        id: existingPost.id,
+        content: { ...existingPost.content, variants: built.variants.length > 0 ? built.variants : undefined },
+      }]);
       // AN EDIT CAN END AN EQUIVALENCE. A Threads post that grows three
       // paragraphs the Instagram caption never had is no longer the same piece
       // of writing, and continuing to collapse it because the ORIGINAL versions

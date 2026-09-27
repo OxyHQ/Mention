@@ -13,7 +13,7 @@ import { SegmentedControl, SegmentedControlItem, SegmentedControlItemText } from
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
-import type { JobSearchResult } from '@clarity.surf/sdk';
+import type { JobSearchResult } from '@mention/shared-types/job';
 import type { MentionJobEmploymentType, MentionJobWorkplaceType } from '@mention/shared-types';
 import {
   MENTION_JOB_EMPLOYMENT_TYPES,

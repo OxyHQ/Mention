@@ -187,6 +187,10 @@ awaited every source, and `/search` ran 3.2 s, 5.0 s and 6.9 s for "rust",
 - Hydration asked Clarity to wait up to 2 s (`waitMs`) for any link it had
   not resolved yet, which is the ~2 s every production `/search` spent after
   its query. A read no longer waits; posts are warmed at ingest and creation.
+  A link Clarity has not finished on that read marks the post
+  `documentsPending`, and the app asks `POST /posts/documents` for it a few
+  seconds later, off the render path. That endpoint is the only read that
+  waits (3 s).
 
 **Then the query itself, cold (#1158).** With the generic plan gone, the posts
 statement still took 1.25 s in production with nothing queued ahead of it.

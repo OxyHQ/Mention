@@ -49,7 +49,8 @@ import {
 import { createPostUri } from '@mention/shared-types';
 import type { OxyAuthRequest as AuthRequest } from '@oxy.so/core/server';
 import { config } from '../config';
-import { laneWriteRateLimiter, postViewRateLimiter, postWriteRateLimiter, translationRateLimiter } from '../middleware/security';
+import { laneWriteRateLimiter, linkPreviewRateLimiter, postDocumentsRateLimiter, postViewRateLimiter, postWriteRateLimiter, translationRateLimiter } from '../middleware/security';
+import { getPostDocuments, resolveLinkPreviews } from '../controllers/posts/linkDocuments';
 
 const router = Router();
 
@@ -79,6 +80,8 @@ const postWriteRateLimiters = config.runtime.isProduction
 /** `PATCH /:id/lane` is a LANE write; see the mount below for why not a post one. */
 const laneWriteRateLimiters = config.runtime.isProduction ? [laneWriteRateLimiter] : [];
 const postViewRateLimiters = config.runtime.isProduction ? [postViewRateLimiter] : [];
+const postDocumentsRateLimiters = config.runtime.isProduction ? [postDocumentsRateLimiter] : [];
+const linkPreviewRateLimiters = config.runtime.isProduction ? [linkPreviewRateLimiter] : [];
 
 /**
  * Post reads mounted on the PUBLIC API group with OPTIONAL auth (see appRoutes.ts)
@@ -109,6 +112,11 @@ publicPostsRouter.get('/nearby-all', getNearbyPostsBothLocations);
 publicPostsRouter.get('/location-stats', getLocationStats);
 publicPostsRouter.get('/', getPosts);
 
+// Link cards the first read could not carry yet (`documentsPending`). Public for
+// the same reason `/:id` is, and hydrated through the same ACL, so it discloses
+// nothing `/:id` would not. A POST, so it can never collide with `/:id`.
+publicPostsRouter.post('/documents', ...postDocumentsRateLimiters, getPostDocuments);
+
 // Private single-segment reads: self-guarded (401 when unauthenticated), here
 // only so the public `/:id` below cannot shadow `/posts/drafts` etc.
 publicPostsRouter.get('/drafts', getDrafts);
@@ -137,6 +145,8 @@ publicPostsRouter.get('/:id', getPostById);
 // Protected routes - specific routes first (must be before parameterized routes)
 router.post('/', ...postWriteRateLimiters, createPost);
 router.post('/thread', ...postWriteRateLimiters, createThread);
+// The composer's link cards: the app never calls Clarity itself.
+router.post('/link-previews', ...linkPreviewRateLimiters, resolveLinkPreviews);
 router.get('/bookmarks/folders', getBookmarkFolders);
 router.post('/bookmarks/folders', createBookmarkFolder);
 router.patch('/bookmarks/by-post/:postId/folder', moveBookmarkToFolderByPostId);

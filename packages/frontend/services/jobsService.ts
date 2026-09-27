@@ -1,6 +1,6 @@
 import { authenticatedClient } from '@/utils/api';
 import { getErrorMessage, normalizeApiError } from '@/utils/apiError';
-import type { JobSearchResponse } from '@clarity.surf/sdk';
+import type { JobSearchResponse } from '@mention/shared-types/job';
 import type {
   CountryCode,
   CreateMentionJobRequest,

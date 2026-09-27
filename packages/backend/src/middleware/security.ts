@@ -466,6 +466,28 @@ export const channelWritersRateLimiter = rateLimit({
   ...complianceOptions(120, 'Too many channel writer requests. Please slow down.'),
 });
 
+/**
+ * `POST /posts/documents` — the app's follow-up for link cards the first read
+ * could not carry yet. Anonymously reachable (a signed-out reader sees cards
+ * too) and each call may hold a Clarity resolve open for a few seconds, so it is
+ * capped on its own counter rather than sharing the post-view budget. The app
+ * sends at most one batch per few seconds while pending posts are on screen.
+ */
+export const postDocumentsRateLimiter = rateLimit({
+  store: new RedisStore({ prefix: 'rate-limit:post-documents:', windowMs: 60 * 1000 }),
+  ...complianceOptions(60, 'Too many link preview requests. Please slow down.'),
+});
+
+/**
+ * `POST /posts/link-previews` — the composer's link cards. Authenticated, and
+ * every first-seen URL makes Clarity fetch a remote page, so the budget is per
+ * user and sized for typing (the composer debounces 500ms), not for scraping.
+ */
+export const linkPreviewRateLimiter = rateLimit({
+  store: new RedisStore({ prefix: 'rate-limit:link-previews:', windowMs: 60 * 1000 }),
+  ...complianceOptions(60, 'Too many link preview requests. Please slow down.'),
+});
+
 /** Public profile/post HTML resolution, which performs DB and Oxy privacy reads. */
 export const webShellRateLimiter = rateLimit({
   store: new RedisStore({ prefix: 'rate-limit:web-shell:', windowMs: 60 * 1000 }),

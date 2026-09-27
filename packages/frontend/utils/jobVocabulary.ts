@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { JobLocation } from '@clarity.surf/sdk';
+import type { JobLocation } from '@mention/shared-types/job';
 import type { CountryCode, CurrencyCode, MentionJobLocation } from '@mention/shared-types';
 import {
   formatMentionJobLocation,

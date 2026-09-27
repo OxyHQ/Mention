@@ -3,14 +3,14 @@ import type { CachedUserSummary } from '../../services/userSummaryCache';
 import type { ClarityDocument } from '@oxy.so/contracts';
 
 /**
- * Verifies that `PostHydrationService` sources link previews from Clarity and maps the
- * `'resolved'` {@link ClarityDocument}s onto the post DTO's `documents` array, in
- * text order — sizing the Oxy-hosted (`cloud.oxy.so`) `image` down to the
- * `w320` (`MEDIA_VARIANT_THUMB`) context via `attachCdnVariant` instead of
- * serving the no-variant original (never re-proxied, still Oxy-hosted). A
- * `'pending'`/`'empty'`/missing preview becomes a URL-only card without
- * disturbing the order of the resolved ones, and a preview-service failure
- * never fails feed hydration or suppresses those fallback cards.
+ * Verifies that `PostHydrationService` sources link previews from Clarity and maps
+ * each returned {@link ClarityDocument} onto the post DTO's `documents` array, in
+ * text order. A link Clarity is still indexing gets no card and marks the post
+ * `documentsPending`, so the app asks again; a link Clarity gave up on gets no
+ * card and no flag. A preview-service failure never fails feed hydration.
+ *
+ * The Clarity mock answers the way `POST /v1/resolve` does: one result per
+ * requested URL, in request order.
  */
 
 const POST_ID = '650000000000000000000010';
@@ -136,9 +136,11 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
   }
 
   function mockDocuments(documents: Record<string, ClarityDocument>): void {
-    resolveDocuments.mockResolvedValue({
-      data: Object.entries(documents).map(([url, document]) => ({ url, status: 'resolved', document })),
-    });
+    resolveDocuments.mockImplementation(async ({ urls }: { urls: string[] }) => ({
+      data: urls.map((url) => (documents[url]
+        ? { url, status: 'indexed', document: documents[url] }
+        : { url, status: 'failed' })),
+    }));
   }
 
   it('maps a resolved Oxy ClarityDocument onto the post, sizing the cloud.oxy.so image to the thumb (w320) variant', async () => {
@@ -234,34 +236,93 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
     expect(resolveDocuments.mock.calls[0][0]).not.toHaveProperty('waitMs');
   });
 
-  it('omits a pending document until Clarity resolves it', async () => {
-    resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'pending' }] });
+  it.each(['queued', 'discovered', 'fetching', 'extracted'])(
+    'omits a %s document and marks the post pending, so the app asks again',
+    async (status) => {
+      resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status }] });
+
+      const hydrated = await hydrate();
+      expect(hydrated.documents).toEqual([]);
+      expect(hydrated.documentsPending).toBe(true);
+    },
+  );
+
+  it.each(['failed', 'blocked', 'removed'])(
+    'omits a %s document without marking the post pending: nobody retries it',
+    async (status) => {
+      resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status }] });
+
+      const hydrated = await hydrate();
+      expect(hydrated.documents).toEqual([]);
+      expect(hydrated).not.toHaveProperty('documentsPending');
+    },
+  );
+
+  it('carries no pending flag once every card is resolved', async () => {
+    mockDocuments({ [POST_URL]: resolvedPreview(POST_URL, 'First') });
 
     const hydrated = await hydrate();
-    expect(hydrated.documents).toEqual([]);
+    expect(hydrated.documents).toHaveLength(1);
+    expect(hydrated).not.toHaveProperty('documentsPending');
   });
 
-  it('omits a failed document resolution', async () => {
-    resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'failed' }] });
+  it('keeps the resolved card and flags the post when only some links are pending', async () => {
+    resolveDocuments.mockResolvedValue({ data: [
+      { url: POST_URL, status: 'indexed', document: resolvedPreview(POST_URL, 'First') },
+      { url: SECOND_URL, status: 'queued' },
+    ] });
 
-    const hydrated = await hydrate();
-    expect(hydrated.documents).toEqual([]);
+    const hydrated = await hydrate(`${POST_URL} ${SECOND_URL}`);
+    expect(hydrated.documents?.map((preview) => preview.title)).toEqual(['First']);
+    expect(hydrated.documentsPending).toBe(true);
   });
 
-  it('omits a missing batch result', async () => {
+  it('matches a result Clarity echoed back canonicalised to the link that was asked for', async () => {
+    // Clarity answers with `canonicalizePublicUrl(requested)`: the fragment
+    // dropped, the host lower-cased. Matching on the echoed URL lost this card.
+    const asked = 'https://Example.com/story#comments';
+    resolveDocuments.mockImplementation(async ({ urls }: { urls: string[] }) => ({
+      data: urls.map(() => ({
+        url: 'https://example.com/story',
+        status: 'indexed',
+        document: resolvedPreview('https://example.com/story', 'Story'),
+      })),
+    }));
+
+    const hydrated = await hydrate(`read ${asked}`);
+    expect(resolveDocuments).toHaveBeenCalledWith({ urls: [asked] });
+    expect(hydrated.documents?.map((preview) => preview.title)).toEqual(['Story']);
+  });
+
+  it('treats a missing batch result as pending', async () => {
     resolveDocuments.mockResolvedValue({ data: [] });
 
     const hydrated = await hydrate();
     expect(hydrated.documents).toEqual([]);
+    expect(hydrated.documentsPending).toBe(true);
   });
 
-  it('still hydrates the post when Clarity throws', async () => {
+  it('still hydrates the post when Clarity throws, and leaves its cards pending', async () => {
     resolveDocuments.mockRejectedValue(new Error('clarity down'));
 
     const hydrated = await hydrate();
     expect(hydrated).toBeTruthy();
     expect(hydrated.id).toBe(POST_ID);
     expect(hydrated.documents).toEqual([]);
+    expect(hydrated.documentsPending).toBe(true);
+  });
+
+  it('passes a caller-supplied wait through to Clarity', async () => {
+    mockDocuments({ [POST_URL]: resolvedPreview(POST_URL, 'First') });
+
+    await service.hydratePosts([postRow()], {
+      viewerId: undefined,
+      maxDepth: 0,
+      includeLinkMetadata: true,
+      linkMetadataWaitMs: 3_000,
+    });
+
+    expect(resolveDocuments).toHaveBeenCalledWith({ urls: [POST_URL], waitMs: 3_000 });
   });
 
   it('does not call the preview service when includeLinkMetadata is false', async () => {

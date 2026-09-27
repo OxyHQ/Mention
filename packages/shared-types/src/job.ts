@@ -14,6 +14,20 @@
 import type * as ClarityVocabularies from '@clarity.surf/sdk/vocabularies' with { 'resolution-mode': 'import' };
 
 /**
+ * Clarity's job-search shapes, re-exported so the app types Mention's `/jobs`
+ * responses without depending on the Clarity SDK itself: the app only ever talks
+ * to Mention's backend, never to Clarity.
+ */
+export type {
+  JobEmploymentType,
+  JobLocation,
+  JobReportReason,
+  JobSearchResponse,
+  JobSearchResult,
+  JobWorkplaceType,
+} from '@clarity.surf/sdk' with { 'resolution-mode': 'import' };
+
+/**
  * Clarity's closed vocabularies — the SAME arrays `POST /v1/jobs/ingest`
  * validates against, so a value Mention accepts is a value Clarity accepts.
  *

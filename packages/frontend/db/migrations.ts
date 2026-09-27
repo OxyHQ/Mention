@@ -43,11 +43,15 @@ const logger = createLogger('Schema');
  * v12 ADDS `importedFrom` (the "Originally posted on …" provenance of an
  * imported post), for the same `storePost ?? post` reason as v11.
  *
+ * v13 ADDS `documentsPending` (a link card Clarity had not finished when the post
+ * was read). It also evicts every v12 row whose `documents` was saved empty on a
+ * first read and never asked for again — the missing link cards this fixes.
+ *
  * `db/__tests__/cacheShapeVersion.test.ts` fails when the persisted key set
  * changes without this number moving, so the rule is enforced rather than
  * remembered.
  */
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 /**
  * Create the full schema from scratch. Idempotent (IF NOT EXISTS).
