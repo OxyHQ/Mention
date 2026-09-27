@@ -11,7 +11,6 @@ const profile: OgData = {
   type: 'profile',
   robots: 'index,follow',
   jsonLd: { '@context': 'https://schema.org', '@type': 'ProfilePage', mainEntity: { '@type': 'Person', name: 'Nate' } },
-  publicContent: { heading: 'Nate', text: 'Public profile rendered before JavaScript.', handle: `@${PROFILE_HANDLE}` },
 };
 
 async function serveDocument(context: BrowserContext, path: string, og: OgData | null) {
@@ -28,14 +27,15 @@ async function serveDocument(context: BrowserContext, path: string, og: OgData |
   });
 }
 
-test('server profile remains readable without JavaScript', async ({ browser }) => {
+test('server metadata leaves the application body unchanged without JavaScript', async ({ browser }) => {
   const context = await browser.newContext({ javaScriptEnabled: false });
   try {
     await serveDocument(context, profilePath, profile);
     const page = await context.newPage();
     await page.goto(`${APP_ORIGIN}${profilePath}`);
-    await expect(page.locator('[data-mention-seo-fallback] h1')).toHaveText('Nate');
-    await expect(page.locator('[data-mention-seo-fallback]')).toBeVisible();
+    await expect(page.locator('[data-mention-seo-fallback], body > main, body > article')).toHaveCount(0);
+    await expect(page.locator('#root')).toHaveCSS('visibility', 'visible');
+    expect(await page.locator('body').textContent()).not.toContain(profile.description);
     await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
     expect(await page.locator('script[type="application/ld+json"]').textContent()).toContain('ProfilePage');
   } finally { await context.close(); }
@@ -55,11 +55,12 @@ test('loaded profile adopts one head and navigation drops the old profile schema
   });
   await page.goto(`${APP_ORIGIN}${profilePath}`, { waitUntil: 'domcontentloaded' });
   await expect.poll(() => profileRequested).toBe(true);
-  await expect(page.locator('[data-mention-seo-fallback]')).toBeVisible();
-  await expect(page.locator('#root')).toBeHidden();
+  await expect(page.locator('[data-mention-seo-fallback], body > main, body > article')).toHaveCount(0);
+  await expect(page.locator('#root')).toHaveCSS('visibility', 'visible');
+  expect(await page.locator('body').textContent()).not.toContain(profile.description);
   await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
   releaseProfile();
-  await expect(page.locator('[data-mention-seo-fallback]')).toHaveCount(0);
+  await expect(page.locator('link[rel="canonical"][data-rh="true"]')).toHaveCount(1);
   await expect(page.locator('#root')).toBeVisible();
   await expect(page).toHaveTitle(new RegExp(`\\(@${PROFILE_HANDLE}\\)`));
   await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
@@ -108,7 +109,7 @@ for (const initialRestricted of [true, false]) {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await serveDocument(context, profilePath, initialRestricted ? {
-      ...profile, robots: 'noindex,nofollow', description: 'Profile unavailable', jsonLd: undefined, publicContent: undefined,
+      ...profile, robots: 'noindex,nofollow', description: 'Profile unavailable', jsonLd: undefined,
     } : null);
     await page.route(`https://api.oxy.so/profiles/username/${PROFILE_HANDLE}**`, async (route) => route.fulfill({ json: {
       id: 'seo-private-profile', username: PROFILE_HANDLE, kind: 'personal',
@@ -146,7 +147,6 @@ test('a verified alias waits for readiness and adopts the primary canonical', as
   const canonical = `${APP_ORIGIN}/@${encodeURIComponent(username)}`;
   await serveDocument(context, path, {
     ...profile, url: canonical, title: 'SEO Alias',
-    publicContent: { heading: 'SEO Alias', text: 'Alias profile awaiting application readiness' },
   });
   let release!: () => void;
   let requested = false;
@@ -165,11 +165,11 @@ test('a verified alias waits for readiness and adopts the primary canonical', as
   });
   await page.goto(`${APP_ORIGIN}${path}`, { waitUntil: 'domcontentloaded' });
   await expect.poll(() => requested).toBe(true);
-  await expect(page.locator('[data-mention-seo-fallback]')).toBeVisible();
-  await expect(page.locator('#root')).toBeHidden();
+  await expect(page.locator('[data-mention-seo-fallback], body > main, body > article')).toHaveCount(0);
+  await expect(page.locator('#root')).toHaveCSS('visibility', 'visible');
+  expect(await page.locator('body').textContent()).not.toContain(profile.description);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', canonical);
   release();
-  await expect(page.locator('[data-mention-seo-fallback]')).toHaveCount(0);
   await expect(page.locator('link[rel="canonical"][data-rh="true"]')).toHaveAttribute('href', canonical);
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'index,follow');
   await page.getByText('Explore', { exact: true }).click();
@@ -200,4 +200,27 @@ test('a channel local tab keeps the indexing policy of its unchanged URL', async
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'index,follow');
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `${APP_ORIGIN}${path}`);
   expect(errors).toEqual([]);
+});
+
+
+test('delayed application scripts never display a separate SEO screen', async ({ context, page }) => {
+  await serveDocument(context, profilePath, profile);
+  let release!: () => void;
+  let blocked = false;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route('**/_expo/static/js/**', async (route) => {
+    blocked = true;
+    await gate;
+    await route.fallback();
+  });
+  await page.goto(`${APP_ORIGIN}${profilePath}`, { waitUntil: 'commit' });
+  await expect.poll(() => blocked).toBe(true);
+  await expect(page.locator('#root')).toHaveCSS('visibility', 'visible');
+  await expect(page.locator('[data-mention-seo-fallback], body > main, body > article')).toHaveCount(0);
+  expect(await page.locator('body').textContent()).not.toContain(profile.description);
+  await expect(page.locator('link[rel="canonical"][data-mention-seo="true"]')).toHaveCount(1);
+  release();
+  await expect(page.locator('link[rel="canonical"][data-rh="true"]')).toHaveCount(1);
+  await expect(page.locator('#root')).toBeVisible();
+  await expect(page.locator('[data-mention-seo-fallback], body > main, body > article')).toHaveCount(0);
 });

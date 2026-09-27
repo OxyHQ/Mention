@@ -57,7 +57,7 @@ const scope = postScope('web-shell');
 const AUTHOR = scope.user('author');
 
 const SHELL =
-  '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="mention-seo-handoff" content="1"><title>Mention</title></head>' +
+  '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Mention</title></head>' +
   '<body><div id="root"></div><script src="/_expo/static/js/web/entry.js" defer></script></body></html>';
 
 /** An id that matches no row — the "missing post" case, and a browser fast-path probe. */
@@ -286,7 +286,7 @@ describe('webShell routes (integration)', () => {
     expect(res.text).not.toContain('files.remote.social/avatars');
   });
 
-  it('serves profile metadata and semantic fallback outside the SPA root to a browser', async () => {
+  it('serves profile metadata without modifying the SPA body to a browser', async () => {
     stubFetch({ ok: true, body: { data: { username: 'nate', name: { displayName: 'Nate' }, bio: 'bio' } } });
 
     const res = await request(makeApp())
@@ -299,7 +299,7 @@ describe('webShell routes (integration)', () => {
     expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate (@nate) on Mention">');
     expect(res.text).toContain('<link data-mention-seo="true" rel="canonical" href="https://mention.earth/@nate">');
     expect(res.text).toContain('<div id="root"></div>');
-    expect(res.text).toContain('data-mention-seo-fallback="true"');
+    expect(res.text.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]).toBe(SHELL.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]);
     expect(res.text).toContain('rel="preconnect"');
   });
 
@@ -312,7 +312,7 @@ describe('webShell routes (integration)', () => {
     expect(res.headers.location).toBe('/c/news');
   });
 
-  it('renders a federated profile root with accented identity in semantic HTML', async () => {
+  it('renders a federated profile root with accented identity in head metadata', async () => {
     stubFetch({
       ok: true,
       body: {
@@ -440,7 +440,7 @@ describe('webShell routes (integration)', () => {
     expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate on Mention">');
   });
 
-  it('serves post metadata and semantic fallback outside the SPA root to a browser', async () => {
+  it('serves post metadata without modifying the SPA body to a browser', async () => {
     stubPublicAuthor();
     const postId = await seedOgPost();
 
@@ -452,7 +452,7 @@ describe('webShell routes (integration)', () => {
     expect(res.text).toContain('<title data-mention-seo="true">Nate on Mention</title>');
     expect(res.text).toContain('<meta data-mention-seo="true" property="og:title" content="Nate on Mention">');
     expect(res.text).toContain('<div id="root"></div>');
-    expect(res.text).toContain('data-mention-seo-fallback="true"');
+    expect(res.text.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]).toBe(SHELL.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]);
     expect(vi.mocked(postHydrationService.hydratePosts)).toHaveBeenCalled();
   });
 

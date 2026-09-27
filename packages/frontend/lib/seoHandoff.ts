@@ -16,7 +16,7 @@ export function initialSEODocumentPath(document: Document): string {
 
 /** Only the backend marks these nodes; ExpoHead owns its own lifecycle. */
 export function releaseServerSEO(document: Document): void {
-  document.querySelectorAll('[data-mention-seo="true"], [data-mention-seo-fallback="true"]')
+  document.head.querySelectorAll('[data-mention-seo="true"]')
     .forEach((node) => {
       // Helmet updates document.title in place: do not delete the adopted title.
       if (node.tagName === 'TITLE') node.removeAttribute('data-mention-seo');
@@ -50,8 +50,7 @@ export function releaseServerSEOForNavigation(
   siteName = 'Mention',
 ): void {
   const canonical = document.querySelector<HTMLLinkElement>('link[data-mention-seo="true"][rel="canonical"]');
-  const fallback = document.querySelector<HTMLElement>('[data-mention-seo-fallback="true"]');
-  const initialUrl = canonical?.href || fallback?.dataset.mentionSeoUrl;
+  const initialUrl = canonical?.href;
   if (!initialUrl) return;
   const initialPath = initialSEODocumentPath(document);
   if (pathKey(initialPath) !== pathKey(pathname) && !matchesSEOPath(initialUrl, pathname)) {

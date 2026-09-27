@@ -13,12 +13,13 @@ beforeEach(() => {
     <meta data-mention-seo="true" property="og:url" content="https://mention.earth/@nate">
     <script data-mention-seo="true" type="application/ld+json">{"@type":"ProfilePage"}</script>
     <link rel="manifest" href="/manifest.json">`;
-  document.body.innerHTML = '<main data-mention-seo-fallback="true" data-mention-seo-url="https://mention.earth/@nate">Nate</main><div id="root"></div>';
+  document.body.innerHTML = '<div id="root">Application content</div>';
 });
 
-test('keeps complete initial metadata and content while the same route loads', () => {
+test('keeps complete initial metadata while the same route loads', () => {
   releaseServerSEOForNavigation(document, '/@nate');
-  expect(document.querySelector('[data-mention-seo-fallback]')?.textContent).toBe('Nate');
+  expect(document.querySelector('link[data-mention-seo]')).not.toBeNull();
+  expect(document.body.innerHTML).toBe('<div id="root">Application content</div>');
   expect(document.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
   expect(document.querySelector('script[type="application/ld+json"]')).not.toBeNull();
 });
@@ -34,14 +35,14 @@ test('handoff preserves title adopted by Helmet and its new canonical', () => {
   expect(document.title).toBe('Nate (@nate) on Mention');
   expect(document.querySelectorAll('title')).toHaveLength(1);
   expect(document.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
-  expect(document.querySelector('[data-mention-seo-fallback]')).toBeNull();
+  expect(document.querySelector('link[data-mention-seo]')).toBeNull();
   expect(document.querySelector('link[rel="manifest"]')).not.toBeNull();
 });
 
-test('navigation to a route without SEO removes old schema, canonical and fallback', () => {
+test('navigation to a route without SEO removes old schema and canonical', () => {
   releaseServerSEOForNavigation(document, '/explore');
   expect(document.querySelector('script[type="application/ld+json"]')).toBeNull();
-  expect(document.querySelector('[data-mention-seo-fallback]')).toBeNull();
+  expect(document.querySelector('link[data-mention-seo]')).toBeNull();
   expect(document.querySelector('meta[property="og:url"]')).toBeNull();
   expect(document.querySelector('link[rel="canonical"]')).toBeNull();
   releaseServerSEOForNavigation(document, '/explore');
@@ -75,7 +76,7 @@ test('navigation never overwrites a destination title Helmet already adopted', (
 
 test('malformed route escapes cannot crash the root handoff effect', () => {
   expect(() => releaseServerSEOForNavigation(document, '/%E0%A4%A')).not.toThrow();
-  expect(document.querySelector('[data-mention-seo-fallback]')).toBeNull();
+  expect(document.querySelector('link[data-mention-seo]')).toBeNull();
 });
 
 
@@ -83,7 +84,7 @@ test('federated encoded handles and trailing slashes retain the matching initial
   const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]')!;
   canonical.href = 'https://mention.earth/@aida_quilcue%40x.com';
   releaseServerSEOForNavigation(document, '/@aida_quilcue@x.com/');
-  expect(document.querySelector('[data-mention-seo-fallback]')).not.toBeNull();
+  expect(document.querySelector('link[data-mention-seo]')).not.toBeNull();
   expect(matchesSEOPath('https://mention.earth/@a%2Fb', '/@a/b')).toBe(false);
 });
 
@@ -101,18 +102,18 @@ test('a verified alias retains its document and canonical proof until ready or g
   Object.defineProperty(document, 'URL', { configurable: true, value: 'https://mention.earth/@nate-alias' });
   initialSEODocumentPath(document);
   releaseServerSEOForNavigation(document, '/@nate-alias');
-  expect(document.querySelector('[data-mention-seo-fallback]')).not.toBeNull();
+  expect(document.querySelector('link[data-mention-seo]')).not.toBeNull();
   const server = readServerSEO(document, '/@nate-alias');
   expect(server?.url).toBe('https://mention.earth/@nate');
   expect(matchesServerSEOPath(server, '/@nate-alias')).toBe(true);
   expect(matchesServerSEOPath(server, '/@nate')).toBe(true);
   expect(matchesServerSEOPath(server, '/explore')).toBe(false);
   releaseServerSEOForNavigation(document, '/@nate');
-  expect(document.querySelector('[data-mention-seo-fallback]')).not.toBeNull();
+  expect(document.querySelector('link[data-mention-seo]')).not.toBeNull();
   // document.URL changes with history; the initial document identity must not.
   Object.defineProperty(document, 'URL', { configurable: true, value: 'https://mention.earth/explore' });
   releaseServerSEOForNavigation(document, '/explore');
-  expect(document.querySelector('[data-mention-seo-fallback]')).toBeNull();
+  expect(document.querySelector('link[data-mention-seo]')).toBeNull();
   expect(document.querySelector('script[type="application/ld+json"]')).toBeNull();
 });
 
@@ -125,9 +126,9 @@ test('invalid structured data is omitted while the restrictive metadata remains 
   expect(matchesSEOPath('not an absolute URL', '/@nate')).toBe(false);
 });
 
-test('fallback ownership can be retired even when the server canonical tag is missing', () => {
+test('missing canonical metadata never authorizes a body mutation', () => {
   document.querySelector('link[rel="canonical"]')!.remove();
   expect(readServerSEO(document, '/@nate')).toBeUndefined();
   releaseServerSEOForNavigation(document, '/explore');
-  expect(document.querySelector('[data-mention-seo-fallback]')).toBeNull();
+  expect(document.body.innerHTML).toBe('<div id="root">Application content</div>');
 });

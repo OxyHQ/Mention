@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import type { HydratedPost } from '@mention/shared-types';
 import {
   escapeHtml,
-  buildPublicContentHtml,
   buildOgMetaHtml,
   renderShellWithOg,
   mapProfileOg,
@@ -12,7 +11,7 @@ import {
 } from '../services/webShellRenderer';
 
 const SHELL =
-  '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="mention-seo-handoff" content="1"><title>Mention</title>' +
+  '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Mention</title>' +
   '<link rel="icon" href="/favicon.ico" /></head><body><div id="root"></div>' +
   '<script src="/_expo/static/js/web/entry.js" defer></script></body></html>';
 
@@ -209,7 +208,7 @@ describe('mapPostOg', () => {
 });
 
 
-describe('public semantic content', () => {
+describe('head metadata without replacement UI', () => {
   it.each([
     '<meta name="description" content="old">',
     '<link rel="canonical" href="https://mention.earth/old">',
@@ -223,40 +222,18 @@ describe('public semantic content', () => {
     expect(html).toContain('<script src="/_expo/static/js/web/entry.js" defer></script>');
   });
 
-  it('withholds semantic fallback from legacy shells during independent deployment', () => {
-    const legacy = SHELL.replace('<meta name="mention-seo-handoff" content="1">', '');
-    const og = mapProfileOg({ username: 'nate', bio: 'Public biography' });
-    const html = renderShellWithOg(legacy, og);
-    expect(html).not.toContain('data-mention-seo-fallback');
-    expect(html).toContain('<div id="root"></div>');
-    expect(html).toContain('data-mention-seo="true"');
-    expect(renderShellWithOg(SHELL, og)).toContain('data-mention-seo-fallback="true"');
-    expect(renderShellWithOg(SHELL.replace('content="1"', 'content="2"'), og)).not.toContain('data-mention-seo-fallback');
-  });
-
-  it('renders escaped identity, biography and safe public links outside the SPA root', () => {
-    const og = mapProfileOg({ username: 'nate', name: { displayName: '<Nate>' },
-      bio: 'Hello & welcome\n<script>alert(1)</script>',
-      links: ['https://example.com/?a=1&b=2', 'javascript:alert(1)'] })!;
-    const html = renderShellWithOg(SHELL, og);
-    expect(html).toContain('<h1>&lt;Nate&gt;</h1>');
-    expect(html).toContain('<p>Hello &amp; welcome</p>');
-    expect(html).toContain('<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>');
-    expect(html).not.toContain('javascript:');
-    expect(html).toContain('</main><div id="root"></div>');
-    expect(html).toContain('data-mention-seo-url="https://mention.earth/@nate"');
-  });
-
-  it('renders full safe post text and publication date, never warning-gated text', () => {
-    const post = { user: { username: 'nate' }, content: { text: 'x'.repeat(300) },
+  it.each(['', '<meta name="mention-seo-handoff" content="1">'])('never changes the application body, including shells from the previous rollout: %s', (oldMarker) => {
+    const shell = SHELL.replace('</head>', `${oldMarker}</head>`);
+    const originalBody = shell.slice(shell.indexOf('<body'));
+    const profile = mapProfileOg({ username: 'nate', bio: 'SEO_BIO_MUST_NOT_CREATE_A_SCREEN' });
+    const post = { user: { username: 'nate' }, content: { text: 'SEO_POST_MUST_NOT_CREATE_A_SCREEN' },
       metadata: { createdAt: '2026-09-01T00:00:00Z' } } as unknown as HydratedPost;
-    const safe = mapPostOg(post, 'p1', { requiresWarning: false });
-    expect(buildPublicContentHtml(safe)).toContain(`<p>${'x'.repeat(300)}</p>`);
-    expect(buildPublicContentHtml(safe)).toContain('<time datetime="2026-09-01T00:00:00Z">');
-    const gated = renderShellWithOg(SHELL, mapPostOg(post, 'p1', { requiresWarning: true }));
-    expect(gated).not.toContain('x'.repeat(300));
-    expect(gated).not.toContain('data-mention-seo-fallback');
-    expect(buildPublicContentHtml({ ...safe, robots: 'noindex,follow' })).toBe('');
+    for (const og of [profile, mapPostOg(post, 'p1', { requiresWarning: false }), mapPostOg(post, 'p1', { requiresWarning: true })]) {
+      const html = renderShellWithOg(shell, og);
+      expect(html.slice(html.indexOf('<body'))).toBe(originalBody);
+      expect(html).not.toContain('data-mention-seo-fallback');
+      expect(html).not.toContain('<article');
+    }
   });
 
   it('replaces generic SEO and marks all server-owned tags for the client handoff', () => {
