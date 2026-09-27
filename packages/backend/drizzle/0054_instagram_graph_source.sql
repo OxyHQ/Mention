@@ -64,6 +64,7 @@ CREATE TABLE "federated_media_deletions" (
 	"attempts" integer DEFAULT 0 NOT NULL,
 	"next_attempt_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"last_error" text,
+	"settled_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT date_trunc('milliseconds', now()) NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT date_trunc('milliseconds', now()) NOT NULL,
 	CONSTRAINT "federated_media_deletions_oxy_file_id_key" UNIQUE("oxy_file_id"),

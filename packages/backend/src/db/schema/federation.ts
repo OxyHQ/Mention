@@ -489,9 +489,11 @@ export const FEDERATED_MEDIA_DELETION_STATES = [
  *    unreferenced → `deleting`.
  *  - `deleting` → a TOMBSTONE: no post may start referencing this id again (the
  *    insert refuses), and the Oxy delete is attempted with backoff until Oxy
- *    answers for it: `deleted` / `not_found` (done, tombstone kept forever — file
- *    ids are never reused) or `forbidden` (not this app's file: left alone and
- *    not a tombstone).
+ *    answers for it: `deleted` / `not_found` (done; the tombstone stays until an
+ *    upload that started AFTER `settled_at` returns the id again — Oxy's dedupe
+ *    reactivates a trashed file under its old id — which re-opens it as
+ *    `in_use`) or `forbidden` (not this app's file: left alone and not a
+ *    tombstone).
  */
 export const federatedMediaDeletions = pgTable(
   'federated_media_deletions',
@@ -504,6 +506,13 @@ export const federatedMediaDeletions = pgTable(
     nextAttemptAt: timestamptz().notNull().defaultNow(),
     /** Short, non-sensitive reason of the last failed attempt. */
     lastError: text(),
+    /**
+     * When Oxy CONFIRMED the delete (`deleted` / `not_found`). Oxy's upload
+     * dedupe reactivates a trashed file under the SAME id when identical bytes
+     * are uploaded again, so a tombstone is lifted — and only lifted — by an
+     * upload that STARTED after this instant (see `reviveFederatedFiles`).
+     */
+    settledAt: timestamptz(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

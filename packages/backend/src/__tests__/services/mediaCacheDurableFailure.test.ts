@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   uploadFederatedMedia: vi.fn(),
   uploadCachedMedia: vi.fn(),
   deleteCachedMedia: vi.fn(),
+  reviveFederatedFiles: vi.fn(async () => []),
+  OwnedElsewhere: class OxyMediaOwnedElsewhereError extends Error {},
 }));
 
 vi.mock('../../utils/safeUpstreamFetch', async () => {
@@ -22,8 +24,14 @@ vi.mock('../../utils/safeUpstreamFetch', async () => {
   };
 });
 
+vi.mock('../../db/federation/mediaDeletionRepository', () => ({
+  recordFederatedPoster: vi.fn(async () => undefined),
+  reviveFederatedFiles: mocks.reviveFederatedFiles,
+}));
+
 vi.mock('../../services/mediaCache/oxyMediaStore', () => ({
   MediaStoreUnavailableError: class MediaStoreUnavailableError extends Error {},
+  OxyMediaOwnedElsewhereError: mocks.OwnedElsewhere,
   isMediaCacheEnabled: () => true,
   uploadFederatedMedia: mocks.uploadFederatedMedia,
   uploadCachedMedia: mocks.uploadCachedMedia,
@@ -88,6 +96,22 @@ describe('durable federated media failure classification', () => {
     await expect(
       persistRemoteMediaForFederatedOwnerDetailed('https://remote.example/huge.jpg', 'oxy_user'),
     ).resolves.toMatchObject({ ok: false, reason: 'too-large', permanent: false });
+  });
+
+  it('treats 409 FEDERATED_MEDIA_OWNED_ELSEWHERE as PERMANENT for the item, never a transient upload failure', async () => {
+    const { Readable } = await import('node:stream');
+    const body = Object.assign(Readable.from([Buffer.from('abcd')]), {
+      statusCode: 200,
+      headers: { 'content-type': 'image/jpeg', 'content-length': '4' },
+      setTimeout: vi.fn(),
+    });
+    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue({ response: body });
+    mocks.uploadFederatedMedia.mockRejectedValue(new mocks.OwnedElsewhere());
+    const { persistRemoteMediaForFederatedOwnerDetailed } = await import('../../services/mediaCache/cacheWorker');
+
+    await expect(
+      persistRemoteMediaForFederatedOwnerDetailed('https://remote.example/theirs.jpg', 'oxy_user'),
+    ).resolves.toMatchObject({ ok: false, reason: 'owned-elsewhere', permanent: true });
   });
 
   it('still treats upstream 404/410 as permanently unavailable media', async () => {

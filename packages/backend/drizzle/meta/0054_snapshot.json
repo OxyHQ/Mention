@@ -1,5 +1,5 @@
 {
-  "id": "ae979f4c-b576-40de-a739-dd3e3d374d34",
+  "id": "238bdf1e-7dd8-43b9-b890-ad8315de4916",
   "prevId": "a214e2f4-377c-46d9-815a-5dc4b461b040",
   "version": "7",
   "dialect": "postgresql",
@@ -4855,6 +4855,12 @@
         "last_error": {
           "name": "last_error",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "settled_at": {
+          "name": "settled_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },

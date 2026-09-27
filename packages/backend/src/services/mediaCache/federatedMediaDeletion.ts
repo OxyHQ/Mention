@@ -23,6 +23,9 @@ import {
  *  - `deleted` / `not_found` → done (the tombstone stays, so no later post can
  *    re-reference the id);
  *  - `forbidden` → not this app's federated media: logged and dropped;
+ *  - `in_use` → Oxy keeps the file (another owner or app also holds it):
+ *    settled, logged at info, no retry;
+ *  - an answer this build does not know → treated as no answer: retried;
  *  - 429, a 5xx, a transport failure, or HTTP 404 on the ROUTE (an oxy-api that
  *    predates it) → retried with exponential backoff, never read as done.
  *
@@ -50,6 +53,8 @@ export interface MediaDeletionDrainResult {
   deleted: number;
   notFound: number;
   forbidden: number;
+  /** Oxy kept the file: another owner or app also holds it. Settled, no retry. */
+  keptByOxy: number;
   retried: number;
 }
 
@@ -57,7 +62,7 @@ export interface MediaDeletionDrainResult {
 export async function drainFederatedMediaDeletions(
   limit = FEDERATED_MEDIA_DELETE_BATCH_MAX,
 ): Promise<MediaDeletionDrainResult> {
-  const result: MediaDeletionDrainResult = { checked: 0, deleted: 0, notFound: 0, forbidden: 0, retried: 0 };
+  const result: MediaDeletionDrainResult = { checked: 0, deleted: 0, notFound: 0, forbidden: 0, keptByOxy: 0, retried: 0 };
   let due: Awaited<ReturnType<typeof findDueMediaDeletions>>;
   try {
     due = await findDueMediaDeletions(Math.min(limit, FEDERATED_MEDIA_DELETE_BATCH_MAX));
@@ -86,7 +91,11 @@ export async function drainFederatedMediaDeletions(
     for (const answer of answers) {
       if (answer.result === 'deleted') result.deleted += 1;
       else if (answer.result === 'not_found') result.notFound += 1;
+      else if (answer.result === 'in_use') result.keptByOxy += 1;
       else result.forbidden += 1;
+    }
+    if (result.keptByOxy > 0) {
+      logger.info('[MediaDelete] Oxy kept files another owner or app also holds', { kept: result.keptByOxy });
     }
     if (result.forbidden > 0) {
       logger.warn('[MediaDelete] Oxy refused files that are not this app\'s federated media; dropped', {

@@ -471,6 +471,17 @@ Only an answer from Oxy settles a deletion:
 - `deleted` and `not_found` are done. The tombstone is kept, because file ids
   are never reused.
 - `forbidden` is logged and dropped.
+- `in_use` means Oxy keeps the file because another owner or app also holds it.
+  It is settled and logged, with no retry. A result this build does not know is
+  retried later.
+- **Reuse:** Oxy dedupes uploads by content hash and reactivates a trashed file
+  under its old id. An upload that started after Oxy confirmed the delete
+  (`settled_at`) re-opens the id. Any earlier or overlapping upload is refused
+  by the post insert, and the import retries.
+- **Owned elsewhere:** a 409 `FEDERATED_MEDIA_OWNED_ELSEWHERE` on upload is
+  permanent for that item. Instagram falls back to the poster, or drops the
+  item, and never stores the expiring URL. ActivityPub and atproto keep the
+  stable URL behind the media proxy.
 - A 429 (honouring `Retry-After`), a 5xx, a transport failure, or a 404 for the
   route itself (an oxy-api that predates it) is retried with exponential backoff.
 

@@ -57,6 +57,24 @@ export class OxyMediaStoreRequestError extends Error {
 }
 
 /**
+ * oxy-api refused a durable federated upload because these BYTES already belong
+ * to another owner or were uploaded by another application (409
+ * `FEDERATED_MEDIA_OWNED_ELSEWHERE`): Oxy keeps one live file per content hash
+ * and never hands it across owners. PERMANENT for this media item — the same
+ * bytes get the same answer on every retry.
+ */
+export class OxyMediaOwnedElsewhereError extends Error {
+  constructor() {
+    super('Oxy refused the upload: these bytes belong to another owner or application');
+    this.name = 'OxyMediaOwnedElsewhereError';
+  }
+}
+
+/** The 409 error code oxy-api answers for {@link OxyMediaOwnedElsewhereError}. */
+const OWNED_ELSEWHERE_CODE = 'FEDERATED_MEDIA_OWNED_ELSEWHERE';
+const HTTP_CONFLICT = 409;
+
+/**
  * Raised INSTEAD of issuing a request when this app's Oxy media-write budget for
  * the current window is known to be spent.
  *
@@ -173,6 +191,12 @@ export interface UploadedAsset {
   oxyFileId: string;
   sizeBytes?: number;
   contentType?: string;
+  /**
+   * The durable federation route answered with an EXISTING file for the same
+   * bytes, owner and application (possibly reactivating a trashed one). The id
+   * may therefore be shared, or be one this app earlier asked Oxy to delete.
+   */
+  deduplicated?: boolean;
 }
 
 /** A media payload on local disk to stream to Oxy (never buffered in memory). */
@@ -212,7 +236,7 @@ const ERROR_BODY_SNIPPET_BYTES = 1024;
 
 /** Shape of the oxy-api cache-upload success response we depend on. */
 interface OxyCacheUploadResponse {
-  data?: { file?: { id?: unknown } };
+  data?: { file?: { id?: unknown }; deduplicated?: unknown };
 }
 
 /**
@@ -449,6 +473,9 @@ async function uploadMediaToOxy(
 
   if (status !== HTTP_OK && status !== HTTP_CREATED) {
     const detail = await readErrorSnippet(response);
+    if (status === HTTP_CONFLICT && errorCodeOf(detail) === OWNED_ELSEWHERE_CODE) {
+      throw new OxyMediaOwnedElsewhereError();
+    }
     throw new OxyMediaStoreRequestError('upload', status, detail || 'no response body');
   }
 
@@ -464,7 +491,22 @@ async function uploadMediaToOxy(
     sizeBytes: source.sizeBytes,
   });
 
-  return { oxyFileId: fileId, sizeBytes: source.sizeBytes, contentType: source.contentType };
+  return {
+    oxyFileId: fileId,
+    sizeBytes: source.sizeBytes,
+    contentType: source.contentType,
+    ...(body?.data?.deduplicated === true ? { deduplicated: true } : {}),
+  };
+}
+
+/** oxy-api's error code (`{ "error": "<CODE>", "message": … }`), when the body is that shape. */
+function errorCodeOf(body: string): string | undefined {
+  try {
+    const parsed = JSON.parse(body) as { error?: unknown };
+    return typeof parsed.error === 'string' ? parsed.error : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -510,7 +552,9 @@ export async function deleteCachedMedia(oxyFileId: string): Promise<void> {
 }
 
 /** Oxy's per-file answer to a federated-media delete. */
-export type FederatedMediaDeleteResult = 'deleted' | 'not_found' | 'forbidden';
+export type FederatedMediaDeleteResult = 'deleted' | 'not_found' | 'forbidden' | 'in_use';
+
+const KNOWN_DELETE_RESULTS: ReadonlySet<string> = new Set(['deleted', 'not_found', 'forbidden', 'in_use']);
 
 /** The batch route's ceiling (oxy-api validates 1–50 ids). */
 export const FEDERATED_MEDIA_DELETE_BATCH_MAX = 50;
@@ -522,7 +566,9 @@ export const FEDERATED_MEDIA_DELETE_BATCH_MAX = 50;
  *
  * DELIBERATELY NOT gated on {@link isMediaCacheEnabled}: turning media WRITES
  * off must never stop a deletion — a post deleted at its source (or on
- * Instagram) must not live on as a re-hosted file. Returns Oxy's per-id answer;
+ * Instagram) must not live on as a re-hosted file. Returns Oxy's per-id answer
+ * (`in_use`: Oxy keeps the file because another owner or app also holds it;
+ * an unknown result is left out, so the caller retries that id);
  * throws {@link OxyMediaStoreThrottledError} on 429 and
  * {@link OxyMediaStoreRequestError} on any other non-200 — including 404 for the
  * ROUTE itself on an oxy-api that predates it, which the caller must retry, never
@@ -563,13 +609,25 @@ export async function deleteFederatedMedia(
   const results = Array.isArray(parsed?.data?.results) ? parsed.data.results : null;
   if (!results) throw new OxyMediaStoreRequestError('delete', status, 'response missing data.results');
   const asked = new Set(fileIds);
-  return results.flatMap((entry) => {
+  const unknown: string[] = [];
+  const answers = results.flatMap((entry) => {
     const record = entry as { id?: unknown; result?: unknown };
-    return typeof record.id === 'string' && asked.has(record.id)
-      && (record.result === 'deleted' || record.result === 'not_found' || record.result === 'forbidden')
-      ? [{ id: record.id, result: record.result }]
-      : [];
+    if (typeof record.id !== 'string' || !asked.has(record.id)) return [];
+    if (typeof record.result === 'string' && KNOWN_DELETE_RESULTS.has(record.result)) {
+      return [{ id: record.id, result: record.result as FederatedMediaDeleteResult }];
+    }
+    unknown.push(String(record.result));
+    return [];
   });
+  if (unknown.length > 0) {
+    // A result this build does not know is NOT an answer: the caller treats the
+    // id as unanswered and retries it later.
+    logger.warn('[MediaCache] Oxy answered an unknown federated-media delete result; will retry', {
+      results: [...new Set(unknown)].slice(0, 5),
+      files: unknown.length,
+    });
+  }
+  return answers;
 }
 
 /**

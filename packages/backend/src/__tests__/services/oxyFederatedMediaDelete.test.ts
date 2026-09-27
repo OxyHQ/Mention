@@ -117,6 +117,14 @@ describe('deleteFederatedMedia', () => {
     expect((error as OxyMediaStoreRequestError).statusCode).toBe(404);
   });
 
+  it('passes in_use through, and leaves an UNKNOWN result unanswered (so it is retried)', async () => {
+    h.handler = (_req, _body, res) => json(res, 200, { data: { results: [
+      { id: 'file-a', result: 'in_use' },
+      { id: 'file-b', result: 'quarantined' },
+    ] } });
+    await expect(deleteFederatedMedia(['file-a', 'file-b'])).resolves.toEqual([{ id: 'file-a', result: 'in_use' }]);
+  });
+
   it('ignores answers for ids it did not ask about, and refuses more than 50 ids', async () => {
     h.handler = (_req, _body, res) => json(res, 200, { data: { results: [{ id: 'someone-else', result: 'deleted' }, { id: 'file-a', result: 'forbidden' }] } });
     await expect(deleteFederatedMedia(['file-a'])).resolves.toEqual([{ id: 'file-a', result: 'forbidden' }]);

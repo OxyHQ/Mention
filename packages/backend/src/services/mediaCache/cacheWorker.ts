@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs';
-import { recordFederatedPoster } from '../../db/federation/mediaDeletionRepository';
+import { recordFederatedPoster, reviveFederatedFiles } from '../../db/federation/mediaDeletionRepository';
 import { mkdtemp, open, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -41,7 +41,9 @@ import {
   uploadFederatedMedia,
   type CachedMediaSource,
   type UploadedAsset,
-  isMediaStoreThrottled,} from './oxyMediaStore';
+  isMediaStoreThrottled,
+  OxyMediaOwnedElsewhereError,
+} from './oxyMediaStore';
 
 /** Random bytes for temp filenames (collision resistance). */
 const TEMP_NAME_RANDOM_BYTES = 16;
@@ -316,7 +318,9 @@ type FederatedMediaPersistFailureReason =
   | Extract<DownloadOutcome, { ok: false }>['reason']
   | 'disabled'
   | 'store-unavailable'
-  | 'upload-failed';
+  | 'upload-failed'
+  /** 409 `FEDERATED_MEDIA_OWNED_ELSEWHERE` — permanent: the bytes are someone else's in Oxy. */
+  | 'owned-elsewhere';
 
 export type PersistFederatedMediaResult =
   | { ok: true; media: PersistedFederatedMedia }
@@ -350,6 +354,12 @@ function isPermanentlyUnavailableDownloadFailure(outcome: Extract<DownloadOutcom
  * {@link MediaDownloadPolicy}. Post media legitimately spans image/video/audio and
  * passes no policy; a profile banner passes `FEDERATED_BANNER_DOWNLOAD_POLICY`.
  */
+function reviveFailed(error: unknown): void {
+  logger.warn('[MediaCache] Could not re-open a reactivated federated file', {
+    reason: error instanceof Error ? error.message : 'unknown',
+  });
+}
+
 export async function persistRemoteMediaForFederatedOwnerDetailed(
   remoteUrl: string,
   ownerUserId: string,
@@ -374,6 +384,9 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
     }
 
     const { filePath, contentType, sizeBytes } = outcome.download;
+    // Taken BEFORE the upload: an upload that STARTS after Oxy confirmed a
+    // deletion of the id it returns has reactivated that file (dedupe).
+    const uploadStartedAt = new Date();
     const media = await uploadFederatedMedia({
       filePath,
       contentType,
@@ -383,7 +396,12 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
       metadata,
     });
 
+    // Best-effort: a revive that fails only leaves the tombstone, so the post
+    // insert refuses the id and the import retries — never a dangling reference.
+    await reviveFederatedFiles([media.oxyFileId], uploadStartedAt).catch(reviveFailed);
+
     let posterFileId: string | undefined;
+    const posterUploadStartedAt = new Date();
     if (isVideoType(contentType)) {
       posterFileId = await extractAndUploadPoster(filePath, dir, (source) =>
         uploadFederatedMedia({
@@ -398,6 +416,9 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
     }
 
     if (posterFileId) {
+      // Best-effort: a revive that fails only leaves the tombstone, so the post
+      // insert refuses the id and the import retries — never a dangling reference.
+      await reviveFederatedFiles([posterFileId], posterUploadStartedAt).catch(reviveFailed);
       // The poster is a durable Oxy file too, and nothing else records it: without
       // this row it could never be deleted along with its video.
       await recordFederatedPoster(media.oxyFileId, posterFileId).catch((error: unknown) => {
@@ -417,6 +438,12 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
       },
     };
   } catch (error) {
+    if (error instanceof OxyMediaOwnedElsewhereError) {
+      // The bytes are another owner's (or another app's) in Oxy: the same answer
+      // on every retry, so permanent for this item.
+      logger.info('[MediaCache] Durable federation upload refused: content owned elsewhere');
+      return { ok: false, reason: 'owned-elsewhere', permanent: true };
+    }
     if (error instanceof MediaStoreUnavailableError) {
       logger.error('[MediaCache] Durable federation upload unavailable', {
         reason: error.message,

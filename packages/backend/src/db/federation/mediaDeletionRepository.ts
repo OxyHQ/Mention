@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, lte, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction } from '../postgres';
 import { postContentVariants, postMedia, postVariantMedia } from '../schema/postContent';
 import { federatedMediaDeletions, federatedMediaPosters } from '../schema/federation';
@@ -219,16 +219,20 @@ export async function tombstoneUnreferenced(fileIds: readonly string[]): Promise
   });
 }
 
-/** Oxy answered for these files: final states. */
+/**
+ * Oxy answered for these files: final states. Oxy's `in_use` (the file is also
+ * held by another owner or app, so Oxy keeps it) settles as `in_use` here too —
+ * the file is live, NOT a tombstone, and a later deletion re-arms it.
+ */
 export async function settleMediaDeletions(
-  results: ReadonlyArray<{ oxyFileId: string; result: 'deleted' | 'not_found' | 'forbidden' }>,
+  results: ReadonlyArray<{ oxyFileId: string; result: 'deleted' | 'not_found' | 'forbidden' | 'in_use' }>,
   db: DatabaseOrTransaction = getDb(),
 ): Promise<void> {
-  for (const state of ['deleted', 'not_found', 'forbidden'] as const) {
+  for (const state of ['deleted', 'not_found', 'forbidden', 'in_use'] as const) {
     const ids = results.filter((row) => row.result === state).map((row) => row.oxyFileId);
     if (ids.length === 0) continue;
     await db.update(federatedMediaDeletions)
-      .set({ state, lastError: null, updatedAt: new Date() })
+      .set({ state, lastError: null, settledAt: sql`now()`, updatedAt: new Date() })
       .where(and(inArray(federatedMediaDeletions.oxyFileId, ids), eq(federatedMediaDeletions.state, 'deleting')));
   }
 }
@@ -253,4 +257,36 @@ export async function retryMediaDeletions(
       or(eq(federatedMediaDeletions.state, 'deleting'), eq(federatedMediaDeletions.state, 'pending')),
       isNotNull(federatedMediaDeletions.oxyFileId),
     ));
+}
+
+/**
+ * An upload of re-hosted federated media returned these ids. Oxy dedupes by
+ * content hash and REACTIVATES a trashed file under its old id, so an id this
+ * app has deleted can come back live. Lift the tombstone — but only when the
+ * upload STARTED after Oxy confirmed the delete (`settled_at`): then the delete
+ * certainly happened first and the upload brought the file back. An upload that
+ * may have overlapped the delete (or a delete still in flight, `deleting`)
+ * leaves the tombstone in place; the post insert refuses the id and the import
+ * retries, and its next upload starts after the settle.
+ *
+ * Under the same per-file lock the drain and the insert take.
+ */
+export async function reviveFederatedFiles(
+  fileIds: readonly string[],
+  uploadStartedAt: Date,
+): Promise<string[]> {
+  if (fileIds.length === 0) return [];
+  return getDb().transaction(async (tx) => {
+    await lockFiles(tx, fileIds);
+    const revived = await tx
+      .update(federatedMediaDeletions)
+      .set({ state: 'in_use', updatedAt: new Date() })
+      .where(and(
+        inArray(federatedMediaDeletions.oxyFileId, [...fileIds]),
+        inArray(federatedMediaDeletions.state, ['deleted', 'not_found']),
+        lt(federatedMediaDeletions.settledAt, sql`${uploadStartedAt.toISOString()}::timestamptz`),
+      ))
+      .returning({ oxyFileId: federatedMediaDeletions.oxyFileId });
+    return revived.map((row) => row.oxyFileId);
+  });
 }

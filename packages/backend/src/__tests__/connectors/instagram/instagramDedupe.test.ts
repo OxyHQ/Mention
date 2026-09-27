@@ -359,6 +359,24 @@ describe('media is re-hosted, or the post is not imported yet', () => {
     expect(media).toEqual([{ mediaId: expect.stringMatching(/^oxyfile-poster-/), type: 'image' }]);
   });
 
+  it('bytes Oxy holds for another owner (409 owned elsewhere) fall back to the poster, then are dropped — never an fbcdn URL', async () => {
+    const ownedElsewhere = { ok: false, reason: 'owned-elsewhere', permanent: true };
+    h.persist.mockImplementation(async (url: string) => (url === REEL_WITH_VIDEO.media_url
+      ? ownedElsewhere
+      : { ok: true, media: { oxyFileId: `oxyfile-poster-${(fileSeq += 1)}`, contentType: 'image/jpeg', sizeBytes: 10 } }));
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(38, REEL_WITH_VIDEO)]));
+    await importInstagramMedia(TARGET, ONE_SHOT);
+    const [withPoster] = await rowsFor(38);
+    expect(await getDb().select({ type: postMedia.type }).from(postMedia).where(eq(postMedia.postId, withPoster))).toEqual([{ type: 'image' }]);
+
+    // The poster is someone else's too: the slot is dropped, the caption stays.
+    h.persist.mockResolvedValue(ownedElsewhere);
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(37, REEL_WITH_VIDEO)]));
+    expect(await importInstagramMedia(TARGET, ONE_SHOT)).toMatchObject({ outcome: 'ok', imported: 1 });
+    const [bare] = await rowsFor(37);
+    expect(await getDb().select().from(postMedia).where(eq(postMedia.postId, bare))).toEqual([]);
+  });
+
   it('an over-cap image with no poster to fall back to is dropped for good, not retried forever', async () => {
     h.persist.mockResolvedValue({ ok: false, reason: 'too-large', permanent: false });
     h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(39)]));

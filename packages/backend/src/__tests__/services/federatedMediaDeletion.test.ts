@@ -29,6 +29,7 @@ import { deletePostRecord, insertPostRecord } from '../../db/posts/postRepositor
 import {
   FederatedMediaGoneError,
   recordFederatedPoster,
+  reviveFederatedFiles,
   tombstoneUnreferenced,
 } from '../../db/federation/mediaDeletionRepository';
 import { drainFederatedMediaDeletions, mediaDeletionBackoffMs } from '../../services/mediaCache/federatedMediaDeletion';
@@ -211,6 +212,55 @@ describe('the race with an import reusing the id', () => {
   });
 });
 
+describe('Oxy\'s dedupe REUSES ids: an upload can bring back a file this app deleted', () => {
+  it('a dedup upload of a queued (pending) id: the drain keeps the file the new post uses', async () => {
+    const x = fileId();
+    await deletePostRecord(await federatedPost([rehosted(x)]), undefined);
+    expect(await stateOf(x)).toBe('pending');
+
+    // The re-upload answered X (deduplicated): the new post may reference it.
+    await federatedPost([rehosted(x)]);
+    await drainFederatedMediaDeletions();
+    expect(await stateOf(x)).toBe('in_use');
+    expect(h.deleteFederatedMedia).not.toHaveBeenCalled();
+  });
+
+  it('a dedup upload that lands between the drain\'s decision and the insert: refused, then re-opened by a later upload', async () => {
+    const x = fileId();
+    await deletePostRecord(await federatedPost([rehosted(x)]), undefined);
+    // The drain tombstones X before the import's insert; Oxy then deletes it.
+    const uploadDuringDelete = new Date();
+    await drainFederatedMediaDeletions();
+    expect(await stateOf(x)).toBe('deleted');
+
+    // An upload that started BEFORE the delete was confirmed may have been
+    // trashed by it: it does not re-open the id, and the insert is refused.
+    expect(await reviveFederatedFiles([x], uploadDuringDelete)).toEqual([]);
+    await expect(federatedPost([rehosted(x)])).rejects.toBeInstanceOf(FederatedMediaGoneError);
+
+    // The import's retry uploads again AFTER the confirmation: Oxy reactivated
+    // the trashed file under the same id, so the id is live and usable again.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(await reviveFederatedFiles([x], new Date())).toEqual([x]);
+    expect(await stateOf(x)).toBe('in_use');
+    const post = await federatedPost([rehosted(x)]);
+
+    // And the cycle works again when that post goes.
+    await deletePostRecord(post, undefined);
+    expect(await stateOf(x)).toBe('pending');
+    await drainFederatedMediaDeletions();
+    expect(await stateOf(x)).toBe('deleted');
+  });
+
+  it('never re-opens an id whose delete is still in flight (`deleting`)', async () => {
+    const x = fileId();
+    await deletePostRecord(await federatedPost([rehosted(x)]), undefined);
+    expect(await tombstoneUnreferenced([x])).toEqual([x]);
+    expect(await reviveFederatedFiles([x], new Date(Date.now() + 60_000))).toEqual([]);
+    expect(await stateOf(x)).toBe('deleting');
+  });
+});
+
 describe('only an answer from Oxy settles a deletion', () => {
   async function queued(): Promise<string> {
     const x = fileId();
@@ -262,6 +312,17 @@ describe('only an answer from Oxy settles a deletion', () => {
     expect(await stateOf(gone)).toBe('not_found');
     expect(await stateOf(notOurs)).toBe('forbidden');
     await expect(federatedPost([rehosted(notOurs)])).resolves.toEqual(expect.any(String));
+  });
+
+  it('Oxy\'s in_use (held by another owner or app) settles with the file kept, no retry, not a tombstone', async () => {
+    const x = await queued();
+    h.deleteFederatedMedia.mockImplementationOnce(async () => [{ id: x, result: 'in_use' }]);
+    await drainFederatedMediaDeletions();
+    expect(await stateOf(x)).toBe('in_use');
+    h.deleteFederatedMedia.mockClear();
+    await drainFederatedMediaDeletions();
+    expect(h.deleteFederatedMedia).not.toHaveBeenCalled();
+    await expect(federatedPost([rehosted(x)])).resolves.toEqual(expect.any(String));
   });
 
   it('an id Oxy did not answer for stays owed', async () => {

@@ -29,6 +29,13 @@ vi.mock('../../connectors/atproto/AtprotoConnector', () => ({
 vi.mock('../../connectors/atproto/constants', () => ({
   ATPROTO_ENABLED: false,
 }));
+// Like the two connectors above: the bootstrap is under test, not the
+// connector, whose import graph (the Graph importer, media persistence, the
+// queue producers) is heavy enough to time this out under coverage.
+vi.mock('../../connectors/instagram/InstagramGraphConnector', () => ({
+  instagramGraphConnector: { id: 'instagram-graph' },
+  isInstagramGraphEnabled: () => false,
+}));
 
 beforeEach(() => {
   vi.resetModules();
