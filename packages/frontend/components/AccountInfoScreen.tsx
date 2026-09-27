@@ -32,6 +32,7 @@ import {
 } from '@/components/Profile/hooks/useProfileAccount';
 import { useRoutedProfileUsername } from '@/components/Profile/hooks/useRoutedProfileUsername';
 import type { ProfileRouteFamily } from '@/components/Profile/profileRoute';
+import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
 import { Loading } from '@oxy.so/bloom/loading';
 
@@ -55,7 +56,7 @@ import { Loading } from '@oxy.so/bloom/loading';
  */
 export function AccountInfoScreen({ routedFamily }: { routedFamily: ProfileRouteFamily }) {
   const account = useProfileAccount(useRoutedProfileUsername());
-  const { profileData, loading: profileLoading, colorName } = account;
+  const { profileData, loading: profileLoading, notFound, refresh, colorName } = account;
   const canonicalHref = useProfileCanonicalHref({ routedFamily, account, subpath: 'about' });
 
   if (canonicalHref) {
@@ -64,7 +65,12 @@ export function AccountInfoScreen({ routedFamily }: { routedFamily: ProfileRoute
 
   return (
     <BloomColorScope colorPreset={colorName} asChild>
-      <AccountInfoContent profileData={profileData} profileLoading={profileLoading} />
+      <AccountInfoContent
+        profileData={profileData}
+        profileLoading={profileLoading}
+        notFound={notFound}
+        onRetry={refresh}
+      />
     </BloomColorScope>
   );
 }
@@ -72,9 +78,11 @@ export function AccountInfoScreen({ routedFamily }: { routedFamily: ProfileRoute
 interface AccountInfoContentProps {
   profileData: ProfileData | null;
   profileLoading: boolean;
+  notFound: boolean;
+  onRetry: () => Promise<void>;
 }
 
-function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentProps) {
+function AccountInfoContent({ profileData, profileLoading, notFound, onRetry }: AccountInfoContentProps) {
   const safeBack = useSafeBack();
   const { t } = useTranslation();
   const categoryLabel = useAccountCategoryLabel();
@@ -151,11 +159,7 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
     return (
       <View className="flex-1">
         {header}
-        <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-base text-muted-foreground text-center">
-            {t('profile.notFound.title', { defaultValue: 'Profile not found' })}
-          </Text>
-        </View>
+        <ProfileUnavailable notFound={notFound} onRetry={onRetry} />
       </View>
     );
   }

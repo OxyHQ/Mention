@@ -276,7 +276,6 @@
   "profile.actions.share": "Profil von @{{handle}} teilen",
   "profile.actions.more": "Weitere Optionen für @{{handle}}",
   "profile.notFound.title": "Profil nicht gefunden",
-  "profile.notFound.message": "Dieses Profil konnte nicht geladen werden. Der Nutzer existiert möglicherweise nicht oder sein Server ist nicht erreichbar.",
   "settings.title": "Einstellungen",
   "settings.signOut": "Abmelden",
   "settings.signOutMessage": "Möchtest du dich wirklich abmelden?",
@@ -2542,6 +2541,7 @@
   "connections.failedFollowers": "Follower konnten nicht geladen werden",
   "connections.failedFollowing": "Gefolgte Konten konnten nicht geladen werden",
   "connections.profileNotFound": "Dieses Konto existiert nicht, daher gibt es keine Follower anzuzeigen.",
-  "connections.profileLoadFailed": "Dieses Profil konnte nicht geladen werden. Prüfe deine Verbindung und versuch es noch einmal.",
-  "saved.createFolderFailed": "Der Ordner konnte nicht erstellt werden. Versuch es noch einmal."
+  "saved.createFolderFailed": "Der Ordner konnte nicht erstellt werden. Versuch es noch einmal.",
+  "profile.loadFailed": "Dieses Profil konnte nicht geladen werden. Prüfe deine Verbindung und versuch es noch einmal.",
+  "profile.notFound.gone": "Dieses Konto existiert nicht oder ist nicht mehr verfügbar."
 }

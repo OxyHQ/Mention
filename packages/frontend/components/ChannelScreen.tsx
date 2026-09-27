@@ -54,6 +54,8 @@ interface ChannelProfileProps {
     handle: string;
     profileData: ProfileData | null;
     loading: boolean;
+    notFound: boolean;
+    onRetry: () => Promise<void>;
 }
 
 /**
@@ -98,6 +100,8 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
     handle,
     profileData,
     loading,
+    notFound,
+    onRetry,
 }) => {
     const { user: currentUser } = useAuth();
     const { t } = useTranslation();
@@ -486,6 +490,8 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                 chrome={chrome}
                 loading={loading}
                 profileData={profileData}
+                notFound={notFound}
+                onRetry={onRetry}
                 banner={null}
                 skeletonVariant="channel"
                 headerActions={headerActions}
@@ -506,7 +512,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
 
 const ChannelScreen: React.FC = () => {
     const account = useProfileAccount(useRoutedProfileUsername());
-    const { username, handle, profileData, loading } = account;
+    const { username, handle, profileData, loading, notFound, refresh } = account;
     const canonicalHref = useProfileCanonicalHref({ routedFamily: 'channel', account });
 
     // A `/c/<handle>` that names a person is a URL nobody should keep. The rule
@@ -527,6 +533,8 @@ const ChannelScreen: React.FC = () => {
                     handle={handle}
                     profileData={profileData}
                     loading={loading}
+                    notFound={notFound}
+                    onRetry={refresh}
                 />
             </View>
         </>

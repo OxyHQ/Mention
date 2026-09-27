@@ -276,7 +276,6 @@
   "profile.actions.share": "@{{handle}}-এর প্রোফাইল শেয়ার করুন",
   "profile.actions.more": "@{{handle}}-এর জন্য আরও অপশন",
   "profile.notFound.title": "প্রোফাইল পাওয়া যায়নি",
-  "profile.notFound.message": "এই প্রোফাইলটি লোড করা যায়নি। ব্যবহারকারীর অস্তিত্ব নাও থাকতে পারে, অথবা তাদের সার্ভার অনুপলব্ধ থাকতে পারে।",
   "settings.title": "সেটিংস",
   "settings.signOut": "সাইন আউট",
   "settings.signOutMessage": "আপনি কি নিশ্চিতভাবে সাইন আউট করতে চান?",
@@ -2542,6 +2541,7 @@
   "connections.failedFollowers": "ফলোয়ার লোড করা যায়নি",
   "connections.failedFollowing": "ফলো করা অ্যাকাউন্ট লোড করা যায়নি",
   "connections.profileNotFound": "এই অ্যাকাউন্টটি নেই, তাই দেখানোর মতো কোনো ফলোয়ার নেই।",
-  "connections.profileLoadFailed": "এই প্রোফাইলটি লোড করা যায়নি। আপনার সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।",
-  "saved.createFolderFailed": "ফোল্ডার তৈরি করা যায়নি। আবার চেষ্টা করুন।"
+  "saved.createFolderFailed": "ফোল্ডার তৈরি করা যায়নি। আবার চেষ্টা করুন।",
+  "profile.loadFailed": "এই প্রোফাইলটি লোড করা যায়নি। আপনার সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।",
+  "profile.notFound.gone": "এই অ্যাকাউন্টটি নেই, বা এটি আর উপলব্ধ নয়।"
 }

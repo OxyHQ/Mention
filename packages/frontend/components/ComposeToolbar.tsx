@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useHaptics } from '@oxy.so/bloom/hooks';
-import { PressableScale } from '@oxy.so/bloom/pressable-scale';
+import { GlyphButton } from '@oxy.so/bloom/button';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { RiGroupFill } from '@oxy.so/bloom/icons/RiGroupFill';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
@@ -151,9 +151,6 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
 
     const CollaboratorsIcon = hasCollaborators ? RiGroupFill : RiGroupLine;
 
-    const iconColor = (inactive: boolean, active = false) =>
-        inactive ? theme.colors.textTertiary : active ? theme.colors.primary : theme.colors.textSecondary;
-
     return (
         <ScrollView
             horizontal
@@ -168,7 +165,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     onPress={withHaptic(onMediaPress)}
                     disabled={disabled || hasPoll}
                 >
-                    <MediaIcon size={20} color={iconColor(disabled || hasPoll)} />
+                    {(color) => <MediaIcon size={20} color={color} />}
                 </ToolbarAction>
             )}
 
@@ -178,7 +175,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     onPress={withHaptic(onGifPress)}
                     disabled={disabled}
                 >
-                    <GifIcon size={20} color={iconColor(disabled)} />
+                    {(color) => <GifIcon size={20} color={color} />}
                 </ToolbarAction>
             )}
 
@@ -188,7 +185,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     onPress={withHaptic(onEmojiPress)}
                     disabled={disabled}
                 >
-                    <EmojiIcon size={20} color={iconColor(disabled)} />
+                    {(color) => <EmojiIcon size={20} color={color} />}
                 </ToolbarAction>
             )}
 
@@ -197,8 +194,9 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     label={t('compose.toolbar.poll', { defaultValue: 'Add a poll' })}
                     onPress={withHaptic(onPollPress)}
                     disabled={disabled || hasMedia}
+                    active={hasPoll}
                 >
-                    <PollIcon size={20} color={iconColor(disabled || hasMedia, hasPoll)} />
+                    {(color) => <PollIcon size={20} color={color} />}
                 </ToolbarAction>
             )}
 
@@ -207,13 +205,10 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     label={t('compose.toolbar.sources', { defaultValue: 'Add sources' })}
                     onPress={withHaptic(onSourcesPress)}
                     disabled={disabled}
+                    invalid={hasSourceErrors}
+                    active={hasSources}
                 >
-                    <SourcesIcon
-                        size={20}
-                        color={!disabled && hasSourceErrors
-                            ? (theme.colors.error || '#ff4d4f')
-                            : iconColor(disabled, hasSources)}
-                    />
+                    {(color) => <SourcesIcon size={20} color={color} />}
                 </ToolbarAction>
             )}
 
@@ -222,8 +217,9 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     label={t('compose.toolbar.article', { defaultValue: 'Write an article' })}
                     onPress={withHaptic(onArticlePress)}
                     disabled={disabled}
+                    active={hasArticle}
                 >
-                    <ArticleIcon size={20} color={iconColor(disabled, hasArticle)} />
+                    {(color) => <ArticleIcon size={20} color={color} />}
                 </ToolbarAction>
             )}
 
@@ -232,8 +228,9 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     label={t('compose.toolbar.event', { defaultValue: 'Add an event' })}
                     onPress={withHaptic(onEventPress)}
                     disabled={disabled}
+                    active={hasEvent}
                 >
-                    <CalendarIcon size={20} color={iconColor(disabled, hasEvent)} />
+                    {(color) => <CalendarIcon size={20} color={color} />}
                 </ToolbarAction>
             )}
 
@@ -242,8 +239,9 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     label={t('compose.toolbar.room', { defaultValue: 'Attach a live room' })}
                     onPress={withHaptic(onRoomPress)}
                     disabled={disabled}
+                    active={hasRoom}
                 >
-                    <RiBroadcastLine size="md" fill={iconColor(disabled, hasRoom)} />
+                    {(color) => <RiBroadcastLine size="md" fill={color} />}
                 </ToolbarAction>
             )}
 
@@ -252,8 +250,9 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     label={t('compose.toolbar.podcast', { defaultValue: 'Add a podcast' })}
                     onPress={withHaptic(onPodcastPress)}
                     disabled={disabled}
+                    active={hasPodcast}
                 >
-                    <RiMic2Line size="md" fill={iconColor(disabled, hasPodcast)} />
+                    {(color) => <RiMic2Line size="md" fill={color} />}
                 </ToolbarAction>
             )}
 
@@ -262,8 +261,9 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     label={t('compose.job.add', { defaultValue: 'Attach a job' })}
                     onPress={withHaptic(onJobPress)}
                     disabled={disabled}
+                    active={hasJob}
                 >
-                    <Ionicons name="briefcase-outline" size={20} color={iconColor(disabled, hasJob)} />
+                    {(color) => <Ionicons name="briefcase-outline" size={20} color={color} />}
                 </ToolbarAction>
             )}
 
@@ -272,12 +272,13 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     label={t('collab.inviteCollaborators', { defaultValue: 'Invite collaborators' })}
                     onPress={withHaptic(onCollaboratorsPress)}
                     disabled={disabled || !collaboratorsEnabled}
+                    active={hasCollaborators}
                 >
                     {/* The SAME glyph the collaborator picker already labels its
                         rows with, in the two states this row uses everywhere
                         else: filled once the post names someone, outline while
                         it does not. */}
-                    <CollaboratorsIcon size="md" fill={iconColor(disabled || !collaboratorsEnabled, hasCollaborators)} />
+                    {(color) => <CollaboratorsIcon size="md" fill={color} />}
                 </ToolbarAction>
             )}
 
@@ -291,6 +292,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                     label={t('lanes.compose.choose', { defaultValue: 'Choose a lane' })}
                     onPress={withHaptic(onLanePress)}
                     disabled={disabled}
+                    active={hasLane}
                 >
                     {/* Parallel tracks, not a branch. A branch is a fork — one
                         history splitting into divergent ones — and a lane forks
@@ -298,7 +300,7 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                         federation are untouched by it. It is a track the post is
                         filed on. The tint carries the on/off state, the way every
                         other icon in this row signals its attachment. */}
-                    <LaneIcon size={20} color={iconColor(disabled, hasLane)} />
+                    {(color) => <LaneIcon size={20} color={color} />}
                 </ToolbarAction>
             )}
 
@@ -306,14 +308,13 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
                 <ToolbarAction
                     label={t('compose.toolbar.location', { defaultValue: 'Add your location' })}
                     onPress={withHaptic(onLocationPress)}
-                    disabled={disabled || isGettingLocation}
+                    disabled={disabled}
                     busy={isGettingLocation}
+                    active={hasLocation}
                 >
-                    {isGettingLocation ? (
-                        <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
-                    ) : (
-                        <LocationIcon size={20} color={iconColor(disabled, hasLocation)} />
-                    )}
+                    {(color) => (isGettingLocation
+                        ? <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
+                        : <LocationIcon size={20} color={color} />)}
                 </ToolbarAction>
             )}
         </ScrollView>
@@ -321,34 +322,49 @@ const ComposeToolbar = memo<ComposeToolbarProps>(({
 });
 
 /**
- * One control of the row. Every control is icon-only, so the NAME is a required
- * prop rather than an attribute each call site has to remember: the row used to
- * spell out `accessibilityLabel`/`accessibilityRole` per control, and most of
- * them had neither — a screen reader met a column of unnamed, role-less
- * focusable boxes (OxyHQ/Mention#1124). The button role gives Tab focus and
- * Enter/Space activation on web; the state says when a control cannot be used
- * right now, or is working.
+ * One control of the row: Bloom's `GlyphButton`, so every control is a real
+ * button with a required name, keyboard focus and activation, a hover wash and
+ * a focus ring — the row used to be hand-rolled pressables, most of them with
+ * no name or role (OxyHQ/Mention#1124).
+ *
+ * The tint says whether the post already carries this attachment (`active`) or
+ * has a problem with it (`invalid`); `busy` is announced while it works.
  */
 interface ToolbarActionProps {
     label: string;
     onPress: () => void;
     disabled: boolean;
     busy?: boolean;
-    children: React.ReactNode;
+    /** The post already carries this attachment. */
+    active?: boolean;
+    /** This attachment needs the author's attention (sources missing a title). */
+    invalid?: boolean;
+    /** The glyph, painted in the colour the control's state resolves to. */
+    children: (color: string) => React.ReactNode;
 }
 
-const ToolbarAction = ({ label, onPress, disabled, busy = false, children }: ToolbarActionProps) => (
-    <PressableScale
-        onPress={onPress}
-        disabled={disabled}
-        className="p-1"
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        accessibilityState={{ disabled, busy }}
-    >
-        {children}
-    </PressableScale>
-);
+const ToolbarAction = ({ label, onPress, disabled, busy, active = false, invalid = false, children }: ToolbarActionProps) => {
+    const theme = useTheme();
+    const tint = invalid ? theme.colors.error : active ? theme.colors.primary : undefined;
+    return (
+        <GlyphButton
+            size={TOOLBAR_ACTION_SIZE}
+            glyphSize={TOOLBAR_GLYPH_SIZE}
+            accessibilityLabel={label}
+            onPress={onPress}
+            disabled={disabled}
+            busy={busy}
+            color={tint}
+            hoverColor={tint}
+        >
+            {children}
+        </GlyphButton>
+    );
+};
+
+/** The glyphs are 20px, and the target keeps the 4px of padding round each it had. */
+const TOOLBAR_GLYPH_SIZE = 20;
+const TOOLBAR_ACTION_SIZE = 28;
 
 ComposeToolbar.displayName = 'ComposeToolbar';
 

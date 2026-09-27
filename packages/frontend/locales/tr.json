@@ -276,7 +276,6 @@
   "profile.actions.share": "@{{handle}} profilini paylaş",
   "profile.actions.more": "@{{handle}} için diğer seçenekler",
   "profile.notFound.title": "Profil bulunamadı",
-  "profile.notFound.message": "Bu profil yüklenemedi. Kullanıcı mevcut olmayabilir veya sunucusu şu an erişilemez olabilir.",
   "settings.title": "Ayarlar",
   "settings.signOut": "Çıkış yap",
   "settings.signOutMessage": "Çıkış yapmak istediğine emin misin?",
@@ -2542,6 +2541,7 @@
   "connections.failedFollowers": "Takipçiler yüklenemedi",
   "connections.failedFollowing": "Takip edilenler yüklenemedi",
   "connections.profileNotFound": "Bu hesap mevcut değil, bu yüzden gösterilecek takipçi yok.",
-  "connections.profileLoadFailed": "Bu profil yüklenemedi. Bağlantını kontrol edip tekrar dene.",
-  "saved.createFolderFailed": "Klasör oluşturulamadı. Tekrar dene."
+  "saved.createFolderFailed": "Klasör oluşturulamadı. Tekrar dene.",
+  "profile.loadFailed": "Bu profil yüklenemedi. Bağlantını kontrol edip tekrar dene.",
+  "profile.notFound.gone": "Bu hesap mevcut değil veya artık kullanılamıyor."
 }

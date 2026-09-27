@@ -54,9 +54,32 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
 jest.mock('@oxy.so/bloom/hooks', () => ({ useHaptics: () => jest.fn() }));
-jest.mock('@oxy.so/bloom/pressable-scale', () => {
+// Bloom's button entry is untranspiled source. The stand-in keeps GlyphButton's
+// contract as Bloom's own tests pin it: a button with the given name, disabled
+// and busy both announced and both refusing a press, and the glyph painted in
+// `color` or, by default, the theme's secondary text colour.
+jest.mock('@oxy.so/bloom/button', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { PressableScale: TouchableOpacity };
+  return {
+    GlyphButton: ({ children, accessibilityLabel, disabled = false, busy = false, onPress, color }: {
+      children: (foreground: string) => React.ReactNode;
+      accessibilityLabel: string;
+      disabled?: boolean;
+      busy?: boolean;
+      onPress?: () => void;
+      color?: string;
+    }) => (
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityState={{ disabled, busy }}
+        disabled={disabled || busy}
+        onPress={onPress}
+      >
+        {children(color ?? '#666')}
+      </TouchableOpacity>
+    ),
+  };
 });
 // Bloom's icon barrel is untranspiled ESM. Each glyph becomes a component named
 // after its export, so the cases below can still assert on WHICH picture drew.

@@ -276,7 +276,6 @@
   "profile.actions.share": "@{{handle}}のプロフィールを共有",
   "profile.actions.more": "@{{handle}}のその他の操作",
   "profile.notFound.title": "プロフィールが見つかりません",
-  "profile.notFound.message": "このプロフィールを読み込めませんでした。ユーザーが存在しないか、相手のサーバーが利用できない可能性があります。",
   "settings.title": "設定",
   "settings.signOut": "ログアウト",
   "settings.signOutMessage": "ログアウトしてもよろしいですか？",
@@ -2542,6 +2541,7 @@
   "connections.failedFollowers": "フォロワーを読み込めませんでした",
   "connections.failedFollowing": "フォロー中を読み込めませんでした",
   "connections.profileNotFound": "このアカウントは存在しないため、表示するフォロワーはいません。",
-  "connections.profileLoadFailed": "このプロフィールを読み込めませんでした。接続を確認してもう一度お試しください。",
-  "saved.createFolderFailed": "フォルダを作成できませんでした。もう一度お試しください。"
+  "saved.createFolderFailed": "フォルダを作成できませんでした。もう一度お試しください。",
+  "profile.loadFailed": "このプロフィールを読み込めませんでした。接続を確認してもう一度お試しください。",
+  "profile.notFound.gone": "このアカウントは存在しないか、利用できなくなっています。"
 }

@@ -170,6 +170,7 @@ export function usePersonProfileView({
    */
   const profileData = active ? account.profileData : null;
   const loading = active ? account.loading : false;
+  const notFound = active ? account.notFound : false;
   const canonicalHref = active ? routedCanonicalHref : null;
 
   // The publisher's lanes that HAVE a tab. Public and reader-agnostic, so a
@@ -621,6 +622,7 @@ export function usePersonProfileView({
     ...account,
     profileData,
     loading,
+    notFound,
     canonicalHref,
     isOwnProfile,
     isPrivate,

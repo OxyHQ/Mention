@@ -85,6 +85,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, tab = 'posts', 
                     chrome={view.chrome}
                     loading={view.loading}
                     profileData={view.profileData}
+                    notFound={view.notFound}
+                    onRetry={view.refresh}
                     banner={{ uri: view.bannerUri }}
                     headerActions={view.headerActions}
                     summary={view.summary}

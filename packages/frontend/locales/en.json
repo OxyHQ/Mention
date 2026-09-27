@@ -276,7 +276,6 @@
   "profile.actions.share": "Share @{{handle}}'s profile",
   "profile.actions.more": "More options for @{{handle}}",
   "profile.notFound.title": "Profile not found",
-  "profile.notFound.message": "This profile couldn't be loaded. The user may not exist or their server may be unavailable.",
   "settings.title": "Settings",
   "settings.signOut": "Sign out",
   "settings.signOutMessage": "Are you sure you want to sign out?",
@@ -1496,8 +1495,7 @@
     "failedInCommon": "Failed to load mutual followers",
     "failedFollowers": "Failed to load followers",
     "failedFollowing": "Failed to load following",
-    "profileNotFound": "This account doesn't exist, so it has no followers to show.",
-    "profileLoadFailed": "This profile couldn't be loaded. Check your connection and try again."
+    "profileNotFound": "This account doesn't exist, so it has no followers to show."
   },
   "Who May Know": "Who May Know",
   "For You": "For You",
@@ -2871,5 +2869,7 @@
   "compose.toolbar.room": "Attach a live room",
   "compose.toolbar.podcast": "Add a podcast",
   "compose.toolbar.location": "Add your location",
-  "saved.createFolderFailed": "Couldn't create the folder. Try again."
+  "saved.createFolderFailed": "Couldn't create the folder. Try again.",
+  "profile.loadFailed": "This profile couldn't be loaded. Check your connection and try again.",
+  "profile.notFound.gone": "This account doesn't exist, or it's no longer available."
 }

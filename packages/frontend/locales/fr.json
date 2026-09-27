@@ -280,7 +280,6 @@
   "profile.actions.share": "Partager le profil de @{{handle}}",
   "profile.actions.more": "Plus d'options pour @{{handle}}",
   "profile.notFound.title": "Profil introuvable",
-  "profile.notFound.message": "Ce profil n'a pas pu être chargé. Le compte n'existe peut-être pas, ou son serveur est indisponible.",
   "settings.title": "Réglages",
   "settings.signOut": "Se déconnecter",
   "settings.signOutMessage": "Veux-tu vraiment te déconnecter ?",
@@ -2573,6 +2572,7 @@
   "connections.failedFollowers": "Impossible de charger les abonnés",
   "connections.failedFollowing": "Impossible de charger les abonnements",
   "connections.profileNotFound": "Ce compte n'existe pas, il n'a donc aucun abonné à afficher.",
-  "connections.profileLoadFailed": "Impossible de charger ce profil. Vérifie ta connexion et réessaie.",
-  "saved.createFolderFailed": "Impossible de créer le dossier. Réessaie."
+  "saved.createFolderFailed": "Impossible de créer le dossier. Réessaie.",
+  "profile.loadFailed": "Impossible de charger ce profil. Vérifie ta connexion et réessaie.",
+  "profile.notFound.gone": "Ce compte n'existe pas ou n'est plus disponible."
 }
