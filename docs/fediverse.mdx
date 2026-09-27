@@ -235,11 +235,28 @@ not part of the Oxy identity, so Mention mirrors it into Oxy itself.
   type or for size. `INCLUDE_EXISTING=true` re-syncs accounts that already have
   a banner; `RETRY_FAILED=true` makes every `failed` row due now.
 
+  In production, run it with `.github/workflows/run-banner-mirror-recovery.yml`.
+  It uses the exact deployed image and runs from protected `main` only, for a
+  login listed in the repository variable `BANNER_MIRROR_RECOVERY_OPERATORS`. A
+  dry run comes first. A write needs `confirm_write=queueFederatedBannerMirrors`
+  and the dry run's id, run with the same options:
+
+  ```bash
+  DIGEST=$(aws ecs describe-task-definition --task-definition \
+    "$(aws ecs describe-services --cluster oxy-cluster --services mention \
+       --query 'services[0].taskDefinition' --output text)" \
+    --query 'taskDefinition.containerDefinitions[0].image' --output text | sed 's/.*@//')
+  gh workflow run run-banner-mirror-recovery.yml --ref main \
+    -f dry_run=true -f expected_image_digest="$DIGEST"
+  gh workflow run run-banner-mirror-recovery.yml --ref main -f dry_run=false \
+    -f expected_image_digest="$DIGEST" -f preview_run_id=<dry-run id> \
+    -f confirm_write=queueFederatedBannerMirrors
   ```
-  bun packages/backend/dist/src/scripts/queueFederatedBannerMirrors.js
-  DRY_RUN=false CONFIRM_ADMIN_MUTATION=queueFederatedBannerMirrors \
-    bun packages/backend/dist/src/scripts/queueFederatedBannerMirrors.js
-  ```
+
+  Add `-f include_existing=true` and/or `-f retry_failed=true` to both runs to
+  use those options. The report goes to the step summary and the
+  `banner-mirror-recovery` artifact. The full log goes to CloudWatch log group
+  `/oxy/ecs`, stream `mention/<container>/<task id>`.
 
 ## Identity and safety on federated surfaces
 

@@ -1,0 +1,157 @@
+name: Run banner mirror recovery
+
+# Runs `queueFederatedBannerMirrors` against production as an ECS one-shot on
+# the EXACT deployed backend image (no rebuild), through the same fixture-tested
+# runner as the Instagram one-shots (`.github/scripts/run-instagram-one-shot.sh`,
+# tested by `test-instagram-one-shot.sh` in CI).
+#
+# WHAT IT DOES. Queues a banner mirror (`federated_banner_mirrors`) for every
+# federated account linked to an Oxy user whose source advertises a banner but
+# that has none stored — every account resolved since #994, and banners dropped
+# earlier for their Content-Type or size. It only writes queue rows; the
+# periodic banner sweep does the downloads at its own pace (50 per 2 minutes).
+#   include_existing=true  also queues accounts that already have a banner (a
+#                          re-sync after a banner changed at its source).
+#   retry_failed=true      also makes every `failed` row due now, backoff reset.
+#
+# SAFETY, in the order it is enforced:
+#   1. Only from protected `main`, and only when `main` IS the recorded backend
+#      deployment (`deployed/backend` tag).
+#   2. Only a dispatcher listed in the repository variable
+#      `BANNER_MIRROR_RECOVERY_OPERATORS` (comma-separated logins), checked in a
+#      step that FAILS with the variable's name — before any credential.
+#   3. `expected_image_digest` must equal the live task's image and the image
+#      ECR tags with this source sha.
+#   4. dry_run=true is the default and writes nothing. A write needs
+#      `confirm_write` = queueFederatedBannerMirrors AND `preview_run_id` = a
+#      successful dry run of this workflow on the same source and image WITH THE
+#      SAME include_existing / retry_failed.
+#   5. The container is bounded at 3300 s; the script is idempotent.
+#
+# OUTPUT: the step summary; the `banner-mirror-recovery` artifact
+# (`instagram-one-shot-report.json` — the runner's report file: counts `actors`,
+# `withoutBanner`, `queued`, `retried`, `failedDue` and the options;
+# `instagram-one-shot-run.json`: task ARN and log location); the full log in
+# CloudWatch log group `/oxy/ecs`, stream `mention/<container>/<task id>`
+# (printed by the run step).
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report what WOULD be queued, write nothing'
+        type: boolean
+        required: true
+        default: true
+      include_existing:
+        description: 'Also queue accounts that already have a banner (re-sync)'
+        type: boolean
+        required: true
+        default: false
+      retry_failed:
+        description: 'Also make every failed mirror due now'
+        type: boolean
+        required: true
+        default: false
+      expected_image_digest:
+        description: 'Exact deployed backend sha256 digest reviewed for this run'
+        type: string
+        required: true
+      preview_run_id:
+        description: 'Write only: the successful dry-run workflow run ID with the same options, source and image'
+        type: string
+        required: false
+      confirm_write:
+        description: 'Write only: type queueFederatedBannerMirrors'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+concurrency:
+  group: mention-banner-mirror-recovery
+  cancel-in-progress: false
+env:
+  AWS_REGION: us-west-2
+  CLUSTER: oxy-cluster
+  SERVICE: mention
+  DEPLOY_SHA: ${{ github.sha }}
+  SCRIPT: queueFederatedBannerMirrors
+
+jobs:
+  run:
+    if: github.ref == 'refs/heads/main' && github.ref_protected && github.triggering_actor == github.actor
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 75
+    steps:
+      - name: Authorize operator and inputs before credentials
+        env:
+          OPERATORS: ${{ vars.BANNER_MIRROR_RECOVERY_OPERATORS }}
+          ACTOR: ${{ github.actor }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          INCLUDE_EXISTING: ${{ inputs.include_existing }}
+          RETRY_FAILED: ${{ inputs.retry_failed }}
+          CONFIRM_WRITE: ${{ inputs.confirm_write }}
+          EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_image_digest }}
+          PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+        run: |
+          set -euo pipefail
+          operators="${OPERATORS//[[:space:]]/}"
+          if [[ -z "$operators" ]]; then
+            echo '::error::The repository variable BANNER_MIRROR_RECOVERY_OPERATORS is unset or empty, so this workflow authorizes nobody.'
+            exit 1
+          fi
+          [[ ",$operators," == *",$ACTOR,"* ]] || { echo '::error::Dispatcher must be listed in BANNER_MIRROR_RECOVERY_OPERATORS'; exit 1; }
+          [[ "$EXPECTED_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo '::error::expected_image_digest must be sha256:<64 hex>'; exit 1; }
+          for flag in "$INCLUDE_EXISTING" "$RETRY_FAILED"; do
+            [[ "$flag" == true || "$flag" == false ]] || exit 1
+          done
+          case "$DRY_RUN" in
+            true) ;;
+            false) [[ "$CONFIRM_WRITE" == "$SCRIPT" && "$PREVIEW_RUN_ID" =~ ^[0-9]+$ ]] || { echo '::error::A write needs confirm_write = queueFederatedBannerMirrors and a preview_run_id'; exit 1; } ;;
+            *) exit 1 ;;
+          esac
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 2
+      - name: Verify current protected main
+        run: bash .github/scripts/require-current-main.sh
+      - name: Fetch the reviewed dry run for a write
+        if: inputs.dry_run == false
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PREVIEW_RUN_ID" > preview-run.json
+          jq -e --arg sha "$DEPLOY_SHA" '.head_sha == $sha and .head_branch == "main" and .event == "workflow_dispatch" and .conclusion == "success" and .path == ".github/workflows/run-banner-mirror-recovery.yml"' preview-run.json >/dev/null \
+            || { echo '::error::preview_run_id is not a successful dispatch of this workflow on this source'; exit 1; }
+          gh run download "$PREVIEW_RUN_ID" --repo "$GITHUB_REPOSITORY" --name banner-mirror-recovery --dir reviewed-preview
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Re-verify current main immediately before execution
+        run: bash .github/scripts/require-current-main.sh
+      - name: Run the recovery with the exact deployed image
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          INCLUDE_EXISTING: ${{ inputs.include_existing }}
+          RETRY_FAILED: ${{ inputs.retry_failed }}
+          CONFIRM_WRITE: ${{ inputs.confirm_write }}
+          EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_image_digest }}
+        run: bash .github/scripts/run-instagram-one-shot.sh
+      - name: Retain the structured report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: banner-mirror-recovery
+          path: |
+            instagram-one-shot-report.json
+            instagram-one-shot-run.json
+          if-no-files-found: warn
+          retention-days: 30
