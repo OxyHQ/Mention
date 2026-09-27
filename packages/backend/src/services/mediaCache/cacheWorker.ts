@@ -21,6 +21,8 @@ import {
   contentTypeFamily,
 } from '../../utils/safeUpstreamFetch';
 import { extractPosterFrame } from '../../utils/videoPoster';
+import { reencodeFirstFrame } from '../../utils/imageReencode';
+import { IMAGE_SNIFF_BYTES, isAnimatedImage, isWebSafeImageType, sniffImageMime } from './imageSniff';
 import {
   MEDIA_CACHE_POSTER_PREFIX_BYTES,
   MEDIA_CACHE_WORKER_BATCH_SIZE,
@@ -70,6 +72,65 @@ type DownloadOutcome =
 
 type MediaUploader = (source: CachedMediaSource) => Promise<UploadedAsset>;
 
+type SniffedImageOutcome =
+  | { ok: true; download: DownloadResult; reencoded: boolean }
+  | { ok: false; reason: 'not-media' | 'undecodable' | 'too-large' | 'reencode-failed' };
+
+/**
+ * For a download whose policy sniffs (`MediaDownloadPolicy.sniffImage`): decide
+ * what the downloaded file IS from its magic bytes, and produce the file to
+ * store.
+ *
+ *  - not a raster image (HTML, SVG, XML, anything unrecognised) → `not-media`,
+ *    whatever the host declared;
+ *  - a web-format still within `maxStoredBytes` → stored as-is, typed by its
+ *    bytes (so a JPEG served as `text/plain` is stored as `image/jpeg`);
+ *  - larger, animated, or in a format browsers do not render → re-encoded as a
+ *    first-frame still (`utils/imageReencode.ts`) and stored instead — never
+ *    dropped. An animated web-format image within the cap whose re-encode fails
+ *    is stored as-is (it still renders); otherwise a decode failure is
+ *    `undecodable`, and an ffmpeg that could not run (timeout, spawn) is the
+ *    transient `reencode-failed`.
+ */
+async function prepareSniffedImage(
+  download: DownloadResult,
+  dir: string,
+  maxStoredBytes: number,
+): Promise<SniffedImageOutcome> {
+  const head = await readFilePrefix(download.filePath, IMAGE_SNIFF_BYTES);
+  const mime = sniffImageMime(head);
+  if (!mime) {
+    logger.info('[MediaCache] Sniffed download is not a raster image', {
+      declared: download.contentType || 'unknown',
+    });
+    return { ok: false, reason: 'not-media' };
+  }
+  const storableAsIs = isWebSafeImageType(mime) && download.sizeBytes <= maxStoredBytes;
+  if (storableAsIs && !isAnimatedImage(head, mime)) {
+    return { ok: true, download: { ...download, contentType: mime }, reencoded: false };
+  }
+
+  const reencoded = await reencodeFirstFrame(download.filePath);
+  if (!reencoded.ok) {
+    if (storableAsIs) {
+      // Animated, and its first frame could not be taken: the original renders.
+      return { ok: true, download: { ...download, contentType: mime }, reencoded: false };
+    }
+    return {
+      ok: false,
+      reason: reencoded.reason === 'timeout' || reencoded.reason === 'spawn-failed' ? 'reencode-failed' : 'undecodable',
+    };
+  }
+  if (reencoded.buffer.length > maxStoredBytes) return { ok: false, reason: 'too-large' };
+  const filePath = join(dir, `${randomBytes(TEMP_NAME_RANDOM_BYTES).toString('hex')}.img`);
+  await writeFile(filePath, reencoded.buffer);
+  return {
+    ok: true,
+    download: { filePath, contentType: reencoded.contentType, sizeBytes: reencoded.buffer.length },
+    reencoded: true,
+  };
+}
+
 /**
  * Stream a remote media body to a local temp file, enforcing the per-type size
  * cap. Never buffers the whole body in memory. The caller owns cleanup of the
@@ -109,7 +170,9 @@ async function downloadToTempFile(
   }
 
   const contentType = contentTypeFamily(response.headers);
-  if (!isAllowedByDownloadPolicy(contentType, policy)) {
+  // A sniffing policy decides from the BYTES after the download (see
+  // `prepareSniffedImage`); the declared type is not trusted in either direction.
+  if (!policy?.sniffImage && !isAllowedByDownloadPolicy(contentType, policy)) {
     response.destroy();
     logger.info('[MediaCache] Worker skipping non-cacheable media type', {
       contentType: contentType || 'unknown',
@@ -316,6 +379,10 @@ export interface PersistedFederatedMedia {
 
 type FederatedMediaPersistFailureReason =
   | Extract<DownloadOutcome, { ok: false }>['reason']
+  /** A sniffing download whose bytes could not be decoded into a still. */
+  | 'undecodable'
+  /** A sniffing download whose re-encoder could not run (timeout, spawn) — transient. */
+  | 'reencode-failed'
   | 'disabled'
   | 'store-unavailable'
   | 'upload-failed'
@@ -393,18 +460,32 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
         ok: false,
         reason: outcome.reason,
         status: outcome.status,
-        permanent: isPermanentlyUnavailableDownloadFailure(outcome),
+        permanent: isPermanentlyUnavailableDownloadFailure(outcome)
+          // Over the sniffing policy's hard DOWNLOAD ceiling: those bytes will
+          // not shrink on a retry (the caller may still retry on its own clock).
+          || (Boolean(downloadPolicy?.sniffImage) && outcome.reason === 'too-large'),
       };
     }
 
-    const { filePath, contentType, sizeBytes } = outcome.download;
+    let stored = outcome.download;
+    if (downloadPolicy?.sniffImage) {
+      const sniffed = await prepareSniffedImage(stored, dir, downloadPolicy.sniffImage.maxStoredBytes);
+      if (!sniffed.ok) {
+        // What the bytes ARE is final for these bytes; only a re-encoder that
+        // could not run is worth an early retry.
+        return { ok: false, reason: sniffed.reason, permanent: sniffed.reason !== 'reencode-failed' };
+      }
+      stored = sniffed.download;
+    }
+
+    const { filePath, contentType, sizeBytes } = stored;
     // Taken BEFORE the upload: an upload that STARTS after Oxy confirmed a
     // deletion of the id it returns has reactivated that file (dedupe).
     const uploadStartedAt = await uploadClock();
     const media = await uploadFederatedMedia({
       filePath,
       contentType,
-      originalName: deriveFilename(remoteUrl, contentType),
+      originalName: deriveFilename(remoteUrl, contentType, Boolean(downloadPolicy?.sniffImage)),
       sizeBytes,
       ownerUserId,
       metadata,
@@ -518,7 +599,7 @@ async function applyFailureBackoff(remoteUrl: string): Promise<void> {
 }
 
 /** Derive a stable, safe filename for the Oxy upload from the URL + type. */
-function deriveFilename(remoteUrl: string, contentType: string): string {
+function deriveFilename(remoteUrl: string, contentType: string, typedByBytes = false): string {
   let base = 'media';
   try {
     const { pathname } = new URL(remoteUrl);
@@ -528,8 +609,11 @@ function deriveFilename(remoteUrl: string, contentType: string): string {
     // Keep the default base; the URL was validated elsewhere, this is cosmetic.
     logger.debug('[MediaCache] Could not derive filename from URL');
   }
-  if (!base.includes('.')) {
-    const subtype = contentType.split('/')[1]?.split(';')[0];
+  const subtype = contentType.split('/')[1]?.split(';')[0];
+  // A sniffed (or re-encoded) file's extension follows its BYTES: `banner.png`
+  // re-encoded to WebP is `banner.webp`, never a name that contradicts its type.
+  if (typedByBytes && subtype) base = base.replace(/\.[A-Za-z0-9]{1,8}$/, '');
+  if (!base.includes('.') || typedByBytes) {
     if (subtype) base = `${base}.${subtype}`;
   }
   return base;

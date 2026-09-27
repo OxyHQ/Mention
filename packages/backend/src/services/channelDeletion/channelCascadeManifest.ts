@@ -1228,6 +1228,8 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ['federated_media_deletions.oxyFileId', 'an Oxy file id of re-hosted federated media owed a deletion; a channel posts local media'],
   ['federated_media_posters.videoFileId', 'an Oxy file id of a re-hosted federated video'],
   ['federated_media_posters.posterFileId', 'an Oxy file id of that video\'s poster frame'],
+  ['federated_banner_mirrors.oxyUserId', 'the Oxy user of a REMOTE account whose banner is mirrored; a channel is a local account and advertises no remote banner'],
+  ['federated_banner_mirrors.actorUri', 'a remote actor\'s URI (the banner\'s provenance)'],
   ['federated_actors.instagramGraphUserId', 'Meta\'s Instagram user id of a remote account; a channel is a local account'],
   [
     'federated_identity_claims.subjectActorUri',

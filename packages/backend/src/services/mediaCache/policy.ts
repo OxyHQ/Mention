@@ -1,6 +1,7 @@
 import type { FederatedMediaCacheState } from '../../db/federation/mediaCacheRepository';
 import { contentTypeFamilyFromString } from '../../utils/safeUpstreamFetch';
 import {
+  FEDERATED_BANNER_DOWNLOAD_MAX_BYTES,
   FEDERATED_BANNER_MAX_BYTES,
   MEDIA_CACHE_BACKOFF_BASE_MS,
   MEDIA_CACHE_BACKOFF_MAX_MS,
@@ -114,12 +115,24 @@ export interface MediaDownloadPolicy {
   allowedContentTypePrefixes: readonly string[];
   /** Byte ceiling for this call site, intersected with the per-type cap. */
   maxBytes: number;
+  /**
+   * Decide what the body IS from its magic bytes, never from the declared
+   * Content-Type (see `imageSniff.ts`): a real image served as `text/plain`,
+   * `binary/octet-stream` or `text/html` is accepted, and HTML/SVG labelled
+   * `image/*` is refused. Only a raster image passes. With it set, `maxBytes`
+   * is the DOWNLOAD ceiling (the declared type cannot choose a per-type cap).
+   */
+  sniffImage?: {
+    /** Largest file stored as-is; a bigger, animated or non-web-format image is re-encoded. */
+    maxStoredBytes: number;
+  };
 }
 
 /**
  * Download policy for a federated actor's profile banner.
  *
- * A banner is a single decorative STILL IMAGE, so it accepts `image/` only. The
+ * A banner is a single decorative STILL IMAGE, so it accepts a raster image only
+ * — decided from its bytes, whatever the host declares (`sniffImage`). The
  * generic federated-media policy also allows `video/` and `audio/` because
  * federated POST media legitimately carries them — but a video "banner" is never
  * a real banner, and accepting one made every actor resolve mirror a video-sized
@@ -128,7 +141,8 @@ export interface MediaDownloadPolicy {
  */
 export const FEDERATED_BANNER_DOWNLOAD_POLICY: MediaDownloadPolicy = {
   allowedContentTypePrefixes: [MEDIA_IMAGE_TYPE_PREFIX],
-  maxBytes: FEDERATED_BANNER_MAX_BYTES,
+  maxBytes: FEDERATED_BANNER_DOWNLOAD_MAX_BYTES,
+  sniffImage: { maxStoredBytes: FEDERATED_BANNER_MAX_BYTES },
 };
 
 /**
@@ -153,6 +167,8 @@ export function isAllowedByDownloadPolicy(
  * streamed byte count, so a lying `content-length` is still caught mid-stream.
  */
 export function maxBytesForDownload(contentType: string, policy?: MediaDownloadPolicy): number {
+  // A sniffed download's declared type is untrusted, so it cannot pick the cap.
+  if (policy?.sniffImage) return policy.maxBytes;
   const perType = maxBytesForType(contentType);
   return policy ? Math.min(perType, policy.maxBytes) : perType;
 }

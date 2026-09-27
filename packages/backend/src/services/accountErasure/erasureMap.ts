@@ -767,6 +767,13 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
     why: 'An actor row bound to the account. Profile fields cascade.',
   },
   {
+    table: 'federated_banner_mirrors',
+    column: 'oxyUserId',
+    disposition: 'delete-row',
+    phase: 'federation',
+    why: "The banner-mirror retry state of the account's remote banner. Without the account there is nothing to mirror it to.",
+  },
+  {
     table: 'federated_actor_fields',
     column: 'actorId',
     disposition: 'database',
