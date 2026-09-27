@@ -597,6 +597,7 @@ export function usePersonProfileView({
       )}
       image={seoPolicy.server?.image || (seoPolicy.detailsAllowed ? avatarUri || bannerUri : undefined)}
       type="profile"
+      url={seoPolicy.server?.url}
       ready={!loading && canonicalHref === null}
       robots={seoPolicy.robots === 'index,follow' && activeKey !== 'posts' ? 'noindex,follow' : seoPolicy.robots}
       jsonLd={seoPolicy.server?.jsonLd || (seoPolicy.detailsAllowed ? {

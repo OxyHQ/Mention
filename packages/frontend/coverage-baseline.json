@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 40.93,
-      "covered": 10901,
-      "total": 26633
+      "pct": 41.08,
+      "covered": 10961,
+      "total": 26678
     },
     "branches": {
-      "pct": 35.38,
-      "covered": 6771,
-      "total": 19136
+      "pct": 35.49,
+      "covered": 6830,
+      "total": 19241
     },
     "functions": {
-      "pct": 36.01,
-      "covered": 2455,
-      "total": 6816
+      "pct": 36.21,
+      "covered": 2474,
+      "total": 6831
     },
     "lines": {
-      "pct": 41.76,
-      "covered": 9944,
-      "total": 23811
+      "pct": 41.9,
+      "covered": 9993,
+      "total": 23849
     }
   },
   "pins": {
@@ -503,6 +503,12 @@
       "functions": 100,
       "lines": 100
     },
+    "hooks/useProfileSEOPolicy.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "hooks/useProfileScreenColor.ts": {
       "statements": 0,
       "branches": 0,
@@ -850,6 +856,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "lib/seoHandoff.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "lib/shareIntent.native.ts": {
       "statements": 0,

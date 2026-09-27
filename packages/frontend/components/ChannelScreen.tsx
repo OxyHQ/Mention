@@ -465,6 +465,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                     })}
                     image={seoPolicy.server?.image || (seoPolicy.detailsAllowed ? profileData.design.avatar : undefined)}
                     type="profile"
+                    url={seoPolicy.server?.url}
                     ready={!loading}
                     jsonLd={seoPolicy.server?.jsonLd || (seoPolicy.detailsAllowed ? {
                         '@context': 'https://schema.org',
@@ -476,7 +477,7 @@ const ChannelProfile: React.FC<ChannelProfileProps> = ({
                             url: `${WEB_BASE_URL}/c/${encodeURIComponent(handle)}`,
                         },
                     } : undefined)}
-                    robots={seoPolicy.robots === 'index,follow' && activeTabKey !== 'posts' ? 'noindex,follow' : seoPolicy.robots}
+                    robots={seoPolicy.robots}
                 />
             ) : !loading ? (
                 <SEO title="Profile unavailable" description="This profile could not be loaded." robots="noindex,nofollow" />

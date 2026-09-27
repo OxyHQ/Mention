@@ -2,6 +2,18 @@ import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('SEOHandoff');
 
+const documentPaths = new WeakMap<Document, string>();
+
+/** Capture before the router can navigate; the canonical may name a proven alias. */
+export function initialSEODocumentPath(document: Document): string {
+  let pathname = documentPaths.get(document);
+  if (pathname === undefined) {
+    pathname = new URL(document.URL).pathname;
+    documentPaths.set(document, pathname);
+  }
+  return pathname;
+}
+
 /** Only the backend marks these nodes; ExpoHead owns its own lifecycle. */
 export function releaseServerSEO(document: Document): void {
   document.querySelectorAll('[data-mention-seo="true"], [data-mention-seo-fallback="true"]')
@@ -41,14 +53,8 @@ export function releaseServerSEOForNavigation(
   const fallback = document.querySelector<HTMLElement>('[data-mention-seo-fallback="true"]');
   const initialUrl = canonical?.href || fallback?.dataset.mentionSeoUrl;
   if (!initialUrl) return;
-  let initialPath: string;
-  try { initialPath = new URL(initialUrl, document.baseURI).pathname; }
-  catch {
-    logger.warn('Invalid server canonical in SEO handoff');
-    releaseServerSEO(document);
-    return;
-  }
-  if (pathKey(initialPath) !== pathKey(pathname)) {
+  const initialPath = initialSEODocumentPath(document);
+  if (pathKey(initialPath) !== pathKey(pathname) && !matchesSEOPath(initialUrl, pathname)) {
     const serverTitle = document.querySelector('title[data-mention-seo="true"]');
     // Helmet may already have updated this very node for the destination.
     // Reset only an unchanged initial title when nobody has adopted it yet.
@@ -61,19 +67,26 @@ export function releaseServerSEOForNavigation(
 /** The hydrated post DTO does not contain every discovery/privacy safety flag. */
 export function readServerSEO(document: Document, pathname: string) {
   const canonical = document.querySelector<HTMLLinkElement>('link[data-mention-seo="true"][rel="canonical"]');
-  if (!canonical || !matchesSEOPath(canonical.href, pathname)) return undefined;
+  const documentPath = initialSEODocumentPath(document);
+  if (!canonical || (pathKey(documentPath) !== pathKey(pathname) && !matchesSEOPath(canonical.href, pathname))) return undefined;
   const meta = (selector: string) => document.querySelector<HTMLMetaElement>(`meta[data-mention-seo="true"]${selector}`)?.content;
   const structured = document.querySelector('script[data-mention-seo="true"][type="application/ld+json"]')?.textContent;
   let jsonLd: Record<string, unknown> | undefined;
   try { jsonLd = structured ? JSON.parse(structured) : undefined; } catch { logger.warn('Invalid server structured metadata; omitted during handoff'); }
   return {
     url: canonical.href,
+    documentPath,
     title: document.title,
     description: meta('[name="description"]'),
     image: meta('[property="og:image"]'),
     robots: meta('[name="robots"]') || 'noindex,nofollow',
     jsonLd,
   };
+}
+
+
+export function matchesServerSEOPath(server: ReturnType<typeof readServerSEO>, pathname: string): boolean {
+  return Boolean(server && (pathKey(server.documentPath) === pathKey(pathname) || matchesSEOPath(server.url, pathname)));
 }
 
 

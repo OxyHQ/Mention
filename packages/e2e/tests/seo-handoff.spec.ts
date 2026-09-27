@@ -136,3 +136,68 @@ for (const initialRestricted of [true, false]) {
     expect(errors).toEqual([]);
   });
 }
+
+test('a verified alias waits for readiness and adopts the primary canonical', async ({ context, page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const username = 'seoalias@instagram.com';
+  const alias = 'seoalias@threads.net';
+  const path = `/@${alias}`;
+  const canonical = `${APP_ORIGIN}/@${encodeURIComponent(username)}`;
+  await serveDocument(context, path, {
+    ...profile, url: canonical, title: 'SEO Alias',
+    publicContent: { heading: 'SEO Alias', text: 'Alias profile awaiting application readiness' },
+  });
+  let release!: () => void;
+  let requested = false;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route('https://api.oxy.so/profiles/resolve?**', async (route) => {
+    requested = true;
+    await gate;
+    await route.fulfill({ json: { success: true, data: {
+      id: 'seo-alias-person', username, type: 'federated', isFederated: true,
+      name: { displayName: 'SEO Alias' }, bio: 'Alias profile', redirectedUserIds: [],
+      externalIdentities: [
+        { canonicalAcct: username, network: 'instagram.com', protocol: 'activitypub', actorUri: 'https://bridge.example/users/seoalias', transportAcct: 'seoalias@bridge.example', sourceUserId: 'seo-alias-instagram' },
+        { canonicalAcct: alias, network: 'threads.net', protocol: 'activitypub', actorUri: 'https://threads.net/ap/users/seoalias', transportAcct: alias, sourceUserId: 'seo-alias-threads' },
+      ],
+    } } });
+  });
+  await page.goto(`${APP_ORIGIN}${path}`, { waitUntil: 'domcontentloaded' });
+  await expect.poll(() => requested).toBe(true);
+  await expect(page.locator('[data-mention-seo-fallback]')).toBeVisible();
+  await expect(page.locator('#root')).toBeHidden();
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', canonical);
+  release();
+  await expect(page.locator('[data-mention-seo-fallback]')).toHaveCount(0);
+  await expect(page.locator('link[rel="canonical"][data-rh="true"]')).toHaveAttribute('href', canonical);
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'index,follow');
+  await page.getByText('Explore', { exact: true }).click();
+  await expect(page).toHaveURL(/\/explore(?:\?|$)/);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `${APP_ORIGIN}/explore`);
+  await expect(page.locator('script[type="application/ld+json"]')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('a channel local tab keeps the indexing policy of its unchanged URL', async ({ context, page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const handle = 'seochannel';
+  const path = `/c/${handle}`;
+  await serveDocument(context, path, { ...profile, url: `${APP_ORIGIN}${path}`, title: 'SEO Channel' });
+  await page.route(`https://api.oxy.so/profiles/username/${handle}**`, async (route) => route.fulfill({ json: {
+    id: 'seo-channel', username: handle, kind: 'channel', name: { displayName: 'SEO Channel' },
+  } }));
+  await page.route('**/profile/design/**', async (route) => route.fulfill({ json: { privacy: { profileVisibility: 'public' } } }));
+  await page.goto(`${APP_ORIGIN}${path}`);
+  await expect(page.locator('meta[name="robots"][data-rh="true"]')).toHaveAttribute('content', 'index,follow');
+  const media = page.getByRole('tab', { name: 'Media', exact: true });
+  await expect(media).toBeVisible();
+  await media.focus();
+  await page.keyboard.press('Enter');
+  await expect(media).toHaveAttribute('aria-selected', 'true');
+  await expect(page).toHaveURL(`${APP_ORIGIN}${path}`);
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', 'index,follow');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `${APP_ORIGIN}${path}`);
+  expect(errors).toEqual([]);
+});
