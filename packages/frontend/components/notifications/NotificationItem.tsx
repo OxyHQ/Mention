@@ -716,7 +716,6 @@ const NotificationItemComponent: React.FC<NotificationItemProps> = ({ item, onMa
                     <AccountBadge
                       isFederated={resolvedPrimary.isFederated}
                       kind={resolvedPrimary.kind}
-                      handle={resolvedPrimary.handle}
                       size={13}
                       className="text-muted-foreground"
                       containerClassName="self-center ml-1"

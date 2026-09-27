@@ -113,7 +113,6 @@ function ProfilePreview({ username, onNavigate }: { username: string; onNavigate
             <AccountBadge
               isFederated={profile.isFederated}
               kind={profile.kind}
-              handle={profile.username || username}
               size={13}
               className="text-muted-foreground"
             />
