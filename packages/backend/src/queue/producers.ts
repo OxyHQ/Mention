@@ -5,6 +5,7 @@ import {
   getSharingCleanupQueue,
   getMediaMetadataEnrichQueue,
   getAccountErasureQueue,
+  getInstagramGraphSyncQueue,
 } from './queues';
 import {
   DELIVERY_JOB_ATTEMPTS,
@@ -24,6 +25,7 @@ import type {
   SharingCleanupJobData,
   MediaMetadataEnrichJobData,
   AccountErasureJobData,
+  InstagramGraphSyncJobData,
 } from './types';
 
 /**
@@ -175,6 +177,26 @@ export async function enqueueAccountErasure(
     jobId: `accounterasure-${shortHash(`${data.eventId}|${generation}`)}`,
     attempts: ACCOUNT_ERASURE_JOB_ATTEMPTS,
     backoff: { type: 'exponential', delay: ACCOUNT_ERASURE_BACKOFF_BASE_MS },
+  });
+  return true;
+}
+
+/**
+ * Enqueue one Instagram Graph sync. The job id dedupes a burst of views or
+ * follows of one actor into ONE queued run; the job is removed as soon as it
+ * settles, so the id stops deduping once the run is over and the per-actor
+ * lease and cooldown decide the next one. No retries: a withheld or failed run
+ * is picked up by the next trigger or the periodic job.
+ */
+export async function enqueueInstagramGraphSync(data: InstagramGraphSyncJobData): Promise<boolean> {
+  const queue = getInstagramGraphSyncQueue();
+  if (!queue) return false;
+
+  await queue.add('instagram-graph-sync', data, {
+    jobId: `igsync-${shortHash(`${data.actorId}|${data.trigger}`)}`,
+    attempts: 1,
+    removeOnComplete: true,
+    removeOnFail: true,
   });
   return true;
 }

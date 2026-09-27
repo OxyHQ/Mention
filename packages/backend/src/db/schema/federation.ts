@@ -36,8 +36,18 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 
-/** The external networks an actor can belong to. */
-export const FEDERATION_PROTOCOLS = ['activitypub', 'atproto'] as const;
+/**
+ * The external networks an actor can belong to.
+ *
+ * `instagram-graph` is an Instagram account Oxy resolved through Meta's Graph API
+ * (Business Discovery) because no ActivityPub bridge could answer for it. Its
+ * `uri` is `instagram-graph:<ig-user-id>`; it has no inbox, no outbox and is read
+ * only by the pull-based Instagram connector (`connectors/instagram/`).
+ */
+export const FEDERATION_PROTOCOLS = ['activitypub', 'atproto', 'instagram-graph'] as const;
+
+/** The outcome of the last Instagram Graph post sync of an actor. */
+export const INSTAGRAM_GRAPH_SYNC_RESULTS = ['ok', 'not_business', 'identity_mismatch', 'error', 'deadline'] as const;
 
 /** ActivityPub actor types Mention accepts. */
 export const FEDERATED_ACTOR_TYPES = [
@@ -196,6 +206,37 @@ export const federatedActors = pgTable(
     lastAtprotoGraphSyncAt: timestamptz(),
     atprotoGraphSyncStartedAt: timestamptz(),
 
+    // ── Instagram Graph post sync ──
+    //
+    // The same cooldown + lease pair as the atproto graph sync above, for the
+    // pull-only Instagram connector: an Instagram identity (a kilogram bridge
+    // actor whose `network_acct` is on instagram.com, or an `instagram-graph`
+    // actor) has its posts read from Meta's Graph API, and several profile views
+    // plus the periodic job can reach one actor at once. Deliberately NOT
+    // `last_outbox_sync_at`: the ActivityPub outbox sync of a kilogram actor stamps
+    // that one, and sharing it would let either sync starve the other.
+    // `instagram_graph_last_result` keeps a "not a business account" answer, which
+    // is stable for weeks, from being re-asked on every cooldown.
+    instagramGraphSyncedAt: timestamptz(),
+    instagramGraphSyncStartedAt: timestamptz(),
+    instagramGraphLastResult: text({ enum: INSTAGRAM_GRAPH_SYNC_RESULTS }),
+    /**
+     * The Instagram user id (Business Discovery `id`) this actor's username
+     * answered with on its first successful Graph sync. A username can be
+     * released and re-registered by someone else; from then on a sync whose
+     * answer carries a different id is refused (`identity_mismatch`) instead of
+     * importing a stranger's posts under this actor's identity. For an
+     * `instagram-graph` actor it equals the id in its URI.
+     */
+    instagramGraphUserId: text(),
+    /**
+     * How many media items of this account's history a sync has walked (newest
+     * first) without stopping at known posts; NULL before any. A follow backfill
+     * walks until this reaches `INSTAGRAM_GRAPH_FOLLOW_BACKFILL_LIMIT` (or the
+     * listing ended: stored as that limit), then only looks for what is new.
+     */
+    instagramGraphHistoryDepth: integer(),
+
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -207,6 +248,10 @@ export const federatedActors = pgTable(
     check(
       'federated_actors_type_check',
       sql`${t.type} in (${sql.raw(inList(FEDERATED_ACTOR_TYPES))})`
+    ),
+    check(
+      'federated_actors_instagram_graph_last_result_check',
+      sql`${t.instagramGraphLastResult} is null or ${t.instagramGraphLastResult} in (${sql.raw(inList(INSTAGRAM_GRAPH_SYNC_RESULTS))})`
     ),
     check(
       'federated_actors_outbox_backfill_status_check',
@@ -416,6 +461,91 @@ export const federatedIdentityLinkEvidence = pgTable(
     unique('federated_identity_link_evidence_claim_key')
       .on(t.linkId, t.subjectActorUri, t.target, t.kind),
     index('federated_identity_link_evidence_link_id_idx').on(t.linkId),
+  ]
+);
+
+/** `federated_media_deletions.state`. */
+export const FEDERATED_MEDIA_DELETION_STATES = [
+  'pending',
+  'deleting',
+  'deleted',
+  'not_found',
+  'forbidden',
+  'in_use',
+] as const;
+
+/**
+ * `federated_media_deletions` — the durable outbox (and tombstone list) for
+ * Oxy files Mention re-hosted from a federated source and no longer references.
+ *
+ * A row is written IN THE SAME TRANSACTION that deletes the posts using the
+ * file, so a deletion can never be lost between "the post is gone" and "delete
+ * its media". The drain (`services/mediaCache/federatedMediaDeletion.ts`) then,
+ * per file and under an advisory lock the post insert also takes:
+ *
+ *  - `pending`  → re-checks every reference (a file id can be SHARED: Oxy stores
+ *    one file per content hash, so another post, variant or banner may use it).
+ *    Still referenced → `in_use` (final until the next deletion re-arms it);
+ *    unreferenced → `deleting`.
+ *  - `deleting` → a TOMBSTONE: no post may start referencing this id again (the
+ *    insert refuses), and the Oxy delete is attempted with backoff until Oxy
+ *    answers for it: `deleted` / `not_found` (done; the tombstone stays until an
+ *    upload that started AFTER `settled_at` returns the id again — Oxy's dedupe
+ *    reactivates a trashed file under its old id — which re-opens it as
+ *    `in_use`) or `forbidden` (not this app's file: left alone and not a
+ *    tombstone).
+ */
+export const federatedMediaDeletions = pgTable(
+  'federated_media_deletions',
+  {
+    id: generatedId(),
+    /** The Oxy file id. One row per file, whatever deleted it. */
+    oxyFileId: text().notNull().unique('federated_media_deletions_oxy_file_id_key'),
+    state: text({ enum: FEDERATED_MEDIA_DELETION_STATES }).notNull().default('pending'),
+    attempts: integer().notNull().default(0),
+    nextAttemptAt: timestamptz().notNull().defaultNow(),
+    /** Short, non-sensitive reason of the last failed attempt. */
+    lastError: text(),
+    /**
+     * When Oxy CONFIRMED the delete (`deleted` / `not_found`). Oxy's upload
+     * dedupe reactivates a trashed file under the SAME id when identical bytes
+     * are uploaded again, so a tombstone is lifted — and only lifted — by an
+     * upload that STARTED after this instant (see `reviveFederatedFiles`).
+     */
+    settledAt: timestamptz(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check(
+      'federated_media_deletions_state_check',
+      sql`${t.state} in (${sql.raw(inList(FEDERATED_MEDIA_DELETION_STATES))})`
+    ),
+    // The drain's claim: due rows of the two live states only.
+    index('federated_media_deletions_due_idx')
+      .on(t.nextAttemptAt)
+      .where(sql`${t.state} in ('pending', 'deleting')`),
+  ]
+);
+
+/**
+ * `federated_media_posters` — the poster frame Oxy-hosted for a re-hosted
+ * federated VIDEO. The durable upload extracts and uploads one, and nothing
+ * else records it; without this row it could never be deleted with its video.
+ * Both ids can be shared (content-hash dedupe), so it is a pair table, unique
+ * per pair.
+ */
+export const federatedMediaPosters = pgTable(
+  'federated_media_posters',
+  {
+    id: generatedId(),
+    videoFileId: text().notNull(),
+    posterFileId: text().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique('federated_media_posters_video_poster_key').on(t.videoFileId, t.posterFileId),
+    index('federated_media_posters_poster_file_id_idx').on(t.posterFileId),
   ]
 );
 

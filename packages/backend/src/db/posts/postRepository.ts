@@ -47,7 +47,8 @@
  * needs a nullable sort key must say `nulls first` explicitly.
  */
 
-import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
+import { assertFederatedMediaUsable, enqueueFederatedMediaDeletionsForPosts } from '../federation/mediaDeletionRepository';
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import type {
@@ -73,6 +74,7 @@ import {
   postContentVariants,
   postMedia,
   postMentions,
+  postSourceKeys,
   postSources,
   postVariantAltTexts,
   postVariantMedia,
@@ -995,6 +997,16 @@ async function insertChildRows(
     );
   }
 
+  // Re-hosted federated files can be shared (Oxy dedupes by content hash) and
+  // may be mid-deletion: lock each and refuse a tombstoned one BEFORE any media
+  // row lands, so the deletion drain and this write cannot interleave
+  // (`db/federation/mediaDeletionRepository.ts`).
+  const federatedFileIds = [
+    ...(content.media ?? []),
+    ...(content.variants ?? []).flatMap((variant) => variant.media ?? []),
+  ].filter((item) => item.cachedFromFederation === true).map((item) => item.id);
+  await assertFederatedMediaUsable(tx, federatedFileIds);
+
   const variants = content.variants ?? [];
   if (variants.length > 0) {
     const variantIds = variants.map(() => uuidv7());
@@ -1102,6 +1114,32 @@ async function insertChildRows(
 }
 
 /**
+ * Give post `postId` its source key, inside the post's own transaction.
+ *
+ * First FILL a claim this caller holds (`claimToken`), or one whose holder died
+ * (`claimed_until` passed). Otherwise a plain INSERT — which raises a genuine
+ * unique violation (23505) when the key is filled, or claimed by a live holder,
+ * so every caller's existing `isUniqueViolation` "already here" branch applies.
+ */
+async function attachSourceKey(
+  tx: DatabaseOrTransaction,
+  sourceKey: string,
+  postId: string,
+  claimToken: string | undefined,
+): Promise<void> {
+  const claimable = claimToken
+    ? or(eq(postSourceKeys.claimToken, claimToken), lt(postSourceKeys.claimedUntil, sql`now()`))
+    : lt(postSourceKeys.claimedUntil, sql`now()`);
+  const filled = await tx
+    .update(postSourceKeys)
+    .set({ postId, claimedUntil: null, claimToken: null })
+    .where(and(eq(postSourceKeys.sourceKey, sourceKey), isNull(postSourceKeys.postId), claimable))
+    .returning({ id: postSourceKeys.id });
+  if (filled.length > 0) return;
+  await tx.insert(postSourceKeys).values({ sourceKey, postId });
+}
+
+/**
  * Persist a new post and every row it owns, atomically.
  *
  * ONE transaction, deliberately: a post whose authorship row failed to land has
@@ -1193,6 +1231,13 @@ async function writePostRecord(
 
   const write = async (tx: DatabaseOrTransaction): Promise<void> => {
     await tx.insert(posts).values(insert);
+    // A post reachable by a second road takes its source key IN THIS
+    // TRANSACTION: a collision on `post_source_keys_source_key_key` rolls the
+    // whole post back, so the other road's copy stays the only one.
+    const sourceKey = input.federation?.sourcePostKey;
+    if (sourceKey) {
+      await attachSourceKey(tx, sourceKey, id, input.federation?.sourceKeyClaimToken);
+    }
     await insertChildRows(
       tx,
       id,
@@ -1794,6 +1839,12 @@ export async function deletePostRecord(
 ): Promise<PostRecord | null> {
   const record = await loadPostRecord(postId, db);
   if (!record) return null;
+
+  // Queue its re-hosted federated media BEFORE the rows go (the media rows are
+  // what says which files they were). Always safe: the drain re-checks every
+  // reference under a lock before deleting anything, so a delete that then
+  // fails, or a file another post shares, is simply kept.
+  await enqueueFederatedMediaDeletionsForPosts([postId], db);
 
   const deleted = await db
     .delete(posts)

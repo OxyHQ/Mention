@@ -1,8 +1,8 @@
 import type { PostContent } from '@mention/shared-types';
 import type {
+  LocalNetworkEvent,
   NetworkConnector,
   NormalizedExternalActor,
-  LocalNetworkEvent,
 } from '@oxy.so/federation';
 import { logger } from '../utils/logger';
 import { isFediverseSharingEnabled } from '../services/fediverseSharing';
@@ -184,9 +184,19 @@ export class ConnectorRegistry implements PostFederator {
     );
   }
 
-  /** The connector that owns `subject` (a handle / URI / DID), if any. */
+  /**
+   * The connector that owns `subject` (a handle / URI / DID), if any.
+   *
+   * A subject spelled in a connector's OWN id scheme (`instagram-graph:<id>`) is
+   * that connector's before any shape-based `matches` is consulted, so a
+   * connector-scheme URI can never be claimed by whichever connector happens to
+   * be registered earlier. Everything else falls through to registration order.
+   */
   connectorFor(subject: string): NetworkConnector<PostContent> | undefined {
-    return this.connectors.find((connector) => connector.matches(subject));
+    const byScheme = this.connectors.find(
+      (connector) => subject.startsWith(`${connector.id}:`) && connector.matches(subject),
+    );
+    return byScheme ?? this.connectors.find((connector) => connector.matches(subject));
   }
 
   /**

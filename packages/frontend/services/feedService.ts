@@ -49,8 +49,12 @@ import {
 // response never blocks on recommendations.
 type FeedServiceResponse = FeedResponse & Partial<Pick<SlicedFeedResponse, 'slices' | 'interstitials'>>;
 
-/** The network a resolved external actor belongs to (matches the backend `NetworkId`). */
-export type ExternalNetwork = 'activitypub' | 'atproto';
+/**
+ * The network a resolved external actor belongs to (matches the backend
+ * `NetworkId`). `instagram-graph` is an Instagram account read through Meta's
+ * Graph API because no ActivityPub bridge answered for it.
+ */
+export type ExternalNetwork = 'activitypub' | 'atproto' | 'instagram-graph';
 
 /**
  * A normalized cross-network actor returned by `GET /federation/resolve`.

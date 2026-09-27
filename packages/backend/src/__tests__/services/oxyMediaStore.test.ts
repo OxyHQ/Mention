@@ -123,6 +123,7 @@ import {
   deleteCachedMedia,
   isMediaStoreThrottled,
   resetWriteBudgetCooldowns,
+  OxyMediaOwnedElsewhereError,
   OxyMediaStoreRequestError,
   OxyMediaStoreThrottledError,
 } from '../../services/mediaCache/oxyMediaStore';
@@ -297,6 +298,33 @@ describe('oxyMediaStore.uploadFederatedMedia', () => {
       activityId: 'https://example.social/posts/1',
     });
     expect(Buffer.concat(sent.bodyChunks).toString('utf8')).toBe('durable-fediverse-media');
+  });
+
+  it('reports a deduplicated answer (the EXISTING file for the same bytes, owner and app)', async () => {
+    const filePath = join(workDir, 'dup.bin');
+    await writeFile(filePath, Buffer.from('same-bytes'));
+    respond = () => ({
+      statusCode: 200,
+      body: JSON.stringify({ data: { file: { id: 'oxy_existing', sha256: 'abc', size: 10, mime: 'image/jpeg', visibility: 'public' }, deduplicated: true } }),
+    });
+
+    await expect(uploadFederatedMedia({ filePath, contentType: 'image/jpeg', ownerUserId: 'owner-1' }))
+      .resolves.toMatchObject({ oxyFileId: 'oxy_existing', deduplicated: true });
+  });
+
+  it('raises OxyMediaOwnedElsewhereError for 409 FEDERATED_MEDIA_OWNED_ELSEWHERE — and only for that code', async () => {
+    const filePath = join(workDir, 'elsewhere.bin');
+    await writeFile(filePath, Buffer.from('someone-elses-bytes'));
+    respond = () => ({
+      statusCode: 409,
+      body: JSON.stringify({ error: 'FEDERATED_MEDIA_OWNED_ELSEWHERE', message: 'owned elsewhere' }),
+    });
+    await expect(uploadFederatedMedia({ filePath, contentType: 'image/jpeg', ownerUserId: 'owner-1' }))
+      .rejects.toBeInstanceOf(OxyMediaOwnedElsewhereError);
+
+    respond = () => ({ statusCode: 409, body: JSON.stringify({ error: 'SOMETHING_ELSE' }) });
+    await expect(uploadFederatedMedia({ filePath, contentType: 'image/jpeg', ownerUserId: 'owner-1' }))
+      .rejects.toBeInstanceOf(OxyMediaStoreRequestError);
   });
 });
 

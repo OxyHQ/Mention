@@ -1,9 +1,13 @@
-import { lookupExternalIdentitiesResponseSchema, resolveExternalIdentityResponseSchema } from '@oxy.so/contracts';
+import {
+  lookupExternalIdentitiesResponseSchema,
+  resolveExternalIdentityResponseSchema,
+  type ExternalIdentityProtocol,
+} from '@oxy.so/contracts';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
 
 /** Oxy verifies the source actor and owns its public identity and profile. */
 export async function resolveOxyIdentity(
-  input: { handle: string } | { actorUri: string; transportAcct?: string; protocol: 'activitypub' | 'atproto' },
+  input: { handle: string } | { actorUri: string; transportAcct?: string; protocol: ExternalIdentityProtocol },
 ) {
   const response = await getServiceOxyClient().serviceRequest<unknown>(
     'POST', '/federation/identities/resolve', input,

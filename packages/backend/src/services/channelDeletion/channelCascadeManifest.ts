@@ -323,6 +323,13 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
       + 'PREFERRED member, and losing it silently would leave a surviving variant collapsed forever.',
   },
   {
+    table: 'post_source_keys',
+    column: 'postId',
+    scope: 'channel-posts',
+    action: 'database',
+    why: 'The network-level source key of a destroyed post (Instagram shortcode). `ON DELETE CASCADE` on `posts.id`.',
+  },
+  {
     table: 'post_sources',
     column: 'postId',
     scope: 'channel-posts',
@@ -1218,6 +1225,10 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ['entity_follows.entityId', 'a hashtag or list id; entityType is never "user"'],
   ['federated_actor_fields.actorId', 'the FederatedActor row a profile field belongs to; it cascades from the actor'],
   ['federated_actors.publicKeyId', 'a remote actor\'s AP key id'],
+  ['federated_media_deletions.oxyFileId', 'an Oxy file id of re-hosted federated media owed a deletion; a channel posts local media'],
+  ['federated_media_posters.videoFileId', 'an Oxy file id of a re-hosted federated video'],
+  ['federated_media_posters.posterFileId', 'an Oxy file id of that video\'s poster frame'],
+  ['federated_actors.instagramGraphUserId', 'Meta\'s Instagram user id of a remote account; a channel is a local account'],
   [
     'federated_identity_claims.subjectActorUri',
     'the REMOTE actor a cross-network identity claim was read off. A channel is a local account and '

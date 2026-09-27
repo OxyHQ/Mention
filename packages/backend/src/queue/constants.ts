@@ -32,6 +32,24 @@ export const FEDERATION_PERIODIC_QUEUE = 'federation-periodic';
  */
 export const FEDERATION_SHARING_CLEANUP_QUEUE = 'federation-sharing-cleanup';
 
+/**
+ * One-off Instagram Graph syncs (a profile view, a follow). On a worker, not
+ * detached in the API process that served the request: the import downloads
+ * and re-hosts media for minutes, and the per-actor lease plus the job id keep
+ * one run per actor and trigger.
+ */
+export const INSTAGRAM_GRAPH_SYNC_QUEUE = 'instagram-graph-sync';
+/** Two at a time: each run spends Graph budget and uploads media. */
+export const INSTAGRAM_GRAPH_SYNC_WORKER_CONCURRENCY = 2;
+export const INSTAGRAM_GRAPH_SYNC_REMOVE_ON_COMPLETE_COUNT = 200;
+export const INSTAGRAM_GRAPH_SYNC_REMOVE_ON_FAIL_COUNT = 500;
+/**
+ * The BullMQ job lock must outlive a whole run (`SYNC_DEADLINE_MS` plus the
+ * post in flight when it passes), or a stalled-job check would hand the same
+ * sync to a second worker.
+ */
+export const INSTAGRAM_GRAPH_SYNC_LOCK_DURATION_MS = 30 * MS_PER_MINUTE;
+
 /** Retry copying Oxy asset metadata onto post content.media[] when ffprobe was pending at create. */
 export const MEDIA_METADATA_ENRICH_QUEUE = 'media-metadata-enrich';
 
@@ -123,6 +141,10 @@ export const PERIODIC_SYNC_FOLLOWED_OUTBOX = 'federation:sync-followed-outbox';
 export const PERIODIC_RECENT_OUTBOX_BACKFILL = 'federation:recent-outbox-backfill';
 export const PERIODIC_MEDIA_CACHE_WORKER = 'federation:media-cache-worker';
 export const PERIODIC_MEDIA_CACHE_EVICTION = 'federation:media-cache-eviction';
+/** Followed Instagram-identity accounts' new posts, through the Graph API. */
+export const PERIODIC_INSTAGRAM_GRAPH_SYNC = 'federation:instagram-graph-sync';
+/** Delete from Oxy the re-hosted federated media no post references any more. */
+export const PERIODIC_FEDERATED_MEDIA_DELETIONS = 'federation:federated-media-deletions';
 
 /**
  * Recommendation-signal scheduler ids. These pipe Mention curation + engagement
@@ -166,6 +188,22 @@ export const FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS = 2 * MS_PER_MINUTE;
  * per-event push cost across a whole batch.
  */
 export const FLUSH_AFFINITY_EVENTS_INTERVAL_MS = 30 * MS_PER_SECOND;
+
+/**
+ * Instagram Graph sync cadence. Each run spends at most one Graph call per
+ * actor in its batch (`connectors/instagram/constants.ts`), so 30 minutes keeps
+ * the job to a small, bounded share of the ~200 calls/hour budget.
+ */
+export const INSTAGRAM_GRAPH_SYNC_INTERVAL_MS = 30 * MS_PER_MINUTE;
+
+/**
+ * Federated-media deletion drain cadence. Each run makes at most one Oxy batch
+ * run makes at most 5 Oxy batch calls (≤ 20 files each), far inside Oxy's
+ * 240 requests/minute per app; a failed
+ * file waits out its own backoff in the outbox, so a frequent tick costs one
+ * indexed read when nothing is due.
+ */
+export const FEDERATED_MEDIA_DELETIONS_INTERVAL_MS = MS_PER_MINUTE;
 
 /** Concurrency for the periodic worker. MUST be 1 so a repeatable job never overlaps itself. */
 export const PERIODIC_WORKER_CONCURRENCY = 1;

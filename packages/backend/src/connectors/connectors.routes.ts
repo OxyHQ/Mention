@@ -26,6 +26,8 @@ import { posts as postsTable } from '../db/schema/posts';
 import { CHRONO_DESC, findPostRecords } from '../db/posts/postRepository';
 import { FEDERATION_BLOCKS, FEDERATION_ENABLED } from './activitypub/constants';
 import { ATPROTO_ENABLED, isDid, isAtUri, isAtprotoHandle } from './atproto/constants';
+import { instagramGraphConnector, isInstagramGraphEnabled } from './instagram/InstagramGraphConnector';
+import { isInstagramGraphActorUri } from './instagram/constants';
 import { activityIdUnderActor, normalizeFederatedAcct } from './activitypub/helpers';
 import { resolveOxyIdentity } from './oxyIdentity';
 import { isAbsoluteHttpUrl } from './shared/url';
@@ -74,15 +76,17 @@ function isFollowableActorRef(value: string): boolean {
     || isDid(value)
     || isAtUri(value)
     || isAtprotoHandle(value)
+    || isInstagramGraphActorUri(value)
   );
 }
 
 /**
  * A STORED `federated_actors.uri` is always canonical: an ActivityPub actor URI
- * (absolute http(s) URL) or an atproto DID — never a handle/acct/AT-URI.
+ * (absolute http(s) URL), an atproto DID, or an `instagram-graph:<id>` — never a
+ * handle/acct/AT-URI.
  */
 function isStoredActorUri(value: string): boolean {
-  return isAbsoluteHttpUrl(value) || isDid(value);
+  return isAbsoluteHttpUrl(value) || isDid(value) || isInstagramGraphActorUri(value);
 }
 
 /**
@@ -140,7 +144,7 @@ const resolveQuerySchema = z.object({
 
 /** Guard: return 404 if NO external network is enabled. */
 function requireAnyConnector(res: Response): boolean {
-  if (!FEDERATION_ENABLED && !ATPROTO_ENABLED) {
+  if (!FEDERATION_ENABLED && !ATPROTO_ENABLED && !isInstagramGraphEnabled()) {
     res.status(404).json({ error: 'Federation disabled' });
     return false;
   }
@@ -451,6 +455,13 @@ router.post('/follow', async (req: AuthRequest, res: Response) => {
     const canonicalActorUri = actor?.uri ?? parsed.data.actorUri;
     const pending = actor?.manuallyApprovesFollowers === true;
 
+    // A followed kilogram (Instagram-bridge) actor gets its history from the
+    // Graph API: the bridge only pushes what is posted after the follow. The
+    // Instagram connector backfills its own follows inside `deliver`.
+    if (connector.id !== instagramGraphConnector.id) {
+      void instagramGraphConnector.backfillOnFollow(canonicalActorUri);
+    }
+
     return res.json({ success: true, pending, actorUri: canonicalActorUri });
   } catch (err) {
     logger.error('Federation follow error:', err);
@@ -710,6 +721,19 @@ router.get('/actor/posts', async (req: AuthRequest, res: Response) => {
     // If no local posts and no cursor (first page), trigger an async backfill
     // dispatched by the actor's network.
     if (posts.length === 0 && !parsed.data.cursor) {
+      // An Instagram identity — a kilogram bridge actor, whose outbox is always an
+      // empty collection, or an `instagram-graph` actor — reads its posts from
+      // the Graph API instead. `syncing` only while a first sync has never
+      // finished, so the empty profile does not flicker on every cooldown.
+      if (instagramGraphConnector.enabled && instagramGraphConnector.isInstagramIdentity(actor)) {
+        instagramGraphConnector.syncOnProfileView(actor);
+        return res.json({
+          posts: [],
+          hasMore: false,
+          syncing: instagramGraphConnector.isProfileSyncPending(actor),
+        });
+      }
+
       if (actor.protocol === 'atproto') {
         if (actor.uri) {
           const connector = connectorRegistry.connectorFor(actor.uri);

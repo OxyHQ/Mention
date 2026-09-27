@@ -137,6 +137,12 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
     reason:
       'Every post whose has_links column disagrees with its own renditions, in both directions.',
   },
+  backfillInstagramSourceKeys: {
+    scope: 'whole-table',
+    reason:
+      'Walks every kilogram.makeup actor by primary key and keys each one\'s bridge posts, then '
+      + 'validates the CHECKs migration 0054 added NOT VALID.',
+  },
   backfillVariantPostCreatedAt: {
     scope: 'whole-table',
     reason:

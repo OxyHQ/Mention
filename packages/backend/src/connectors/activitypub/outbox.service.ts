@@ -1,4 +1,5 @@
 import { eq, inArray } from 'drizzle-orm';
+import { postMatchesFederatedObjectSql } from '../shared/instagramSourceKey';
 import { logger } from '../../utils/logger';
 import type { FederatedActorRecord } from '../../db/federation/actorRecord';
 import {
@@ -1586,11 +1587,11 @@ export class OutboxSyncService {
   }
 
   private async ensureFederatedNote(objectUri: string, depth = 0): Promise<string | null> {
-    // Already stored?
+    // Already stored? (Its own activity id, or the same Instagram post from the Graph API.)
     const [existing] = await getDb()
       .select({ id: posts.id })
       .from(posts)
-      .where(eq(posts.federationActivityId, objectUri))
+      .where(postMatchesFederatedObjectSql(objectUri))
       .limit(1);
     if (existing) return existing.id;
 
@@ -1750,7 +1751,7 @@ export class OutboxSyncService {
         const [raced] = await getDb()
           .select({ id: posts.id })
           .from(posts)
-          .where(eq(posts.federationActivityId, noteActivityId))
+          .where(postMatchesFederatedObjectSql(noteActivityId))
           .limit(1);
         return raced ? raced.id : null;
       }

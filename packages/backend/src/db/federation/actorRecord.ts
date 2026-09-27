@@ -29,11 +29,15 @@
 import type {
   FEDERATED_ACTOR_TYPES,
   FEDERATION_PROTOCOLS,
+  INSTAGRAM_GRAPH_SYNC_RESULTS,
   OUTBOX_BACKFILL_STATUSES,
 } from '../schema/federation';
 
-/** `activitypub` | `atproto`. */
+/** `activitypub` | `atproto` | `instagram-graph`. */
 export type FederationProtocol = (typeof FEDERATION_PROTOCOLS)[number];
+
+/** `ok` | `not_business` | `error` — the last Instagram Graph post sync's outcome. */
+export type InstagramGraphSyncResult = (typeof INSTAGRAM_GRAPH_SYNC_RESULTS)[number];
 
 /** The ActivityPub actor types Mention accepts. */
 export type FederatedActorType = (typeof FEDERATED_ACTOR_TYPES)[number];
@@ -122,6 +126,14 @@ export interface FederatedActorRecord {
   lastFetchedAt?: Date;
   lastOutboxSyncAt?: Date;
   outboxBackfill: FederatedOutboxBackfillState;
+  /** When the Instagram Graph post sync last FINISHED for this actor (any outcome). */
+  instagramGraphSyncedAt?: Date;
+  /** That sync's outcome — `not_business` / `identity_mismatch` hold a long cooldown, `deadline` a short one. */
+  instagramGraphLastResult?: InstagramGraphSyncResult;
+  /** The Instagram user id pinned on the first successful Graph sync. */
+  instagramGraphUserId?: string;
+  /** How many media items of history a Graph sync has walked (see the column). */
+  instagramGraphHistoryDepth?: number;
   createdAt: Date;
   updatedAt: Date;
 }

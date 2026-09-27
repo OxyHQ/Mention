@@ -69,6 +69,26 @@ describe('resolveOxyExternalUser', () => {
     expect(result).toBe('oxy-user-2');
   });
 
+  it('resolves an instagram-graph actor through its OWN protocol, not "activitypub"', async () => {
+    const graphActor = {
+      ...actor,
+      network: 'instagram-graph' as const,
+      externalId: 'instagram-graph:17841401746480004',
+      handle: 'zuck@instagram.com',
+      federatedUsername: 'zuck@instagram.com',
+      instanceDomain: 'instagram.com',
+    };
+    mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({
+      actorUri: graphActor.externalId, transportAcct: graphActor.handle, canonicalAcct: graphActor.handle,
+      network: 'instagram.com', protocol: 'instagram-graph', userId: 'oxy-zuck',
+    }));
+
+    expect(await resolveOxyExternalUser(graphActor)).toBe('oxy-zuck');
+    expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
+      actorUri: graphActor.externalId, transportAcct: graphActor.handle, protocol: 'instagram-graph',
+    });
+  });
+
   it('returns null when the Oxy resolve request itself fails', async () => {
     mocks.serviceRequest.mockRejectedValue(new Error('oxy-api unreachable'));
 

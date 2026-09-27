@@ -326,6 +326,22 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       + 'mid-assertion.',
   },
   {
+    path: 'src/__tests__/services/federatedMediaDeletion.test.ts',
+    jobEntryPoint: 'drainFederatedMediaDeletions',
+    reason:
+      'Drains the WHOLE `federated_media_deletions` outbox — every file any suite\'s post ' +
+      'deletion queued — re-checking references and settling rows, so on a shared database ' +
+      "it would decide other suites' files.",
+  },
+  {
+    path: 'src/__tests__/scripts/backfillInstagramSourceKeys.test.ts',
+    jobEntryPoint: 'backfillInstagramSourceKeys',
+    reason:
+      'Walks EVERY kilogram.makeup actor and keys all of its bridge posts, then runs ' +
+      '`VALIDATE CONSTRAINT` on `federated_actors` / `federated_follows` — so on a shared ' +
+      "database it would key other suites' bridge posts and scan their actor rows.",
+  },
+  {
     path: 'src/__tests__/scripts/backfillVariantPostCreatedAtRows.test.ts',
     jobEntryPoint: 'backfillVariantPostCreatedAt',
     reason:

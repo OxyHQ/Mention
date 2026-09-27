@@ -559,6 +559,61 @@ export const postSources = pgTable(
 );
 
 /**
+ * `post_source_keys` — the network-level identity of a post that can reach
+ * Mention by more than one road. Today only Instagram: `instagram:<shortcode>`,
+ * written both by the Graph API import and by the ActivityPub ingest of a
+ * kilogram.makeup Note (whose activity id is the bridge's `…/statuses/<shortcode>`
+ * URL). The UNIQUE key makes the second arrival collide instead of duplicating
+ * the post, whichever road it took; it is written in the same transaction as the
+ * post, so the collision rolls the whole post back.
+ *
+ * A row is either FILLED (`post_id` set: this post IS that source) or a CLAIM
+ * (`post_id` NULL, `claimed_until` + `claim_token` set): the Graph import claims
+ * a key BEFORE it downloads and re-hosts the media, so a bridge push racing it
+ * collides on the claim instead of both roads uploading and one upload being
+ * orphaned. The claimant fills its own claim when it inserts the post; a claim
+ * past `claimed_until` belongs to a dead worker and anyone may take the key.
+ * `post_source_keys_claim_shape_check` keeps the two shapes apart.
+ *
+ * A child table rather than a `posts` column on purpose: adding the column and
+ * its unique index to `posts` would hold ACCESS EXCLUSIVE on `posts` for the
+ * whole index build inside the transactional migrator — blocking every read.
+ * A new table takes no such lock, and it only ever holds the posts that have a
+ * second road (a tiny fraction), so it stays small.
+ */
+export const postSourceKeys = pgTable(
+  'post_source_keys',
+  {
+    id: generatedId(),
+    /** `instagram:<shortcode>`. Case-sensitive: Instagram shortcodes are. */
+    sourceKey: text().notNull().unique('post_source_keys_source_key_key'),
+    /** The post that IS this source; NULL while the key is only claimed. */
+    postId: text()
+      .unique('post_source_keys_post_id_key')
+      .references(() => posts.id, { onDelete: 'cascade' }),
+    /** A claim's expiry. NULL once filled. */
+    claimedUntil: timestamptz(),
+    /** Who holds the claim — only its holder may fill it before it expires. */
+    claimToken: text(),
+    /**
+     * When a sync first found this post MISSING from the source's listing. A
+     * deletion is irreversible, so one observation only marks it; the post is
+     * removed when the NEXT sync still does not list it, and the mark is
+     * cleared if it reappears.
+     */
+    missingSince: timestamptz(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check(
+      'post_source_keys_claim_shape_check',
+      sql`(${t.postId} is not null and ${t.claimedUntil} is null and ${t.claimToken} is null)
+        or (${t.postId} is null and ${t.claimedUntil} is not null and ${t.claimToken} is not null)`
+    ),
+  ],
+);
+
+/**
  * `post_mentions` — the resolved @mention allowlist.
  *
  * Mongo held `mentions: [String]` (Oxy user ids), multikey-indexed and queried

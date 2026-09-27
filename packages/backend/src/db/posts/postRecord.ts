@@ -74,6 +74,20 @@ export interface PostRecordFederation {
   sensitive?: boolean;
   /** The remote content warning. Mention's own CW gate reads this. */
   spoilerText?: string;
+  /**
+   * WRITE-SIDE ONLY: the network-level source identity (`instagram:<shortcode>`)
+   * that makes one post reached by two roads collide on
+   * `post_source_keys_source_key_key` instead of duplicating. Never read back into the
+   * record — nothing downstream decides anything on it; readers that need it
+   * query the column.
+   */
+  sourcePostKey?: string;
+  /**
+   * WRITE-SIDE ONLY: the token of a claim on `sourcePostKey` this writer took
+   * before re-hosting the media (`claimSourceKey`), so the insert fills its own
+   * claim instead of colliding with it.
+   */
+  sourceKeyClaimToken?: string;
 }
 
 /** The Stage-A → Stage-B lifecycle of `postClassification`. */

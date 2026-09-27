@@ -58,6 +58,7 @@
  */
 
 import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { enqueueFederatedMediaDeletionsForPosts } from '../db/federation/mediaDeletionRepository';
 import { PostType } from '@mention/shared-types';
 import { getDb, type DatabaseOrTransaction } from '../db/postgres';
 import { posts } from '../db/schema/posts';
@@ -522,6 +523,8 @@ export async function deletePostSubtree(
       const all = allDeletionTargets(collected);
       // Read before anything is deleted — see the docblock.
       equivalenceClusterIds = await findClusterIdsForPosts(all.map((row) => row.id), tx);
+      // The whole subtree's re-hosted federated media, in this transaction.
+      await enqueueFederatedMediaDeletionsForPosts(all.map((row) => row.id), tx);
       await cascadePostReferences(all, tx);
 
       if (collected.replies.length > 0) {

@@ -1,6 +1,7 @@
 import { findErasedAccountUsernames } from '../db/accountErasures/accountErasureRepository';
 import { logger } from '../utils/logger';
 import { FEDERATION_ENABLED } from '../connectors/activitypub/constants';
+import { instagramGraphConnector } from '../connectors/instagram/InstagramGraphConnector';
 import {
   claimOutboxBackfill,
   findActorsWithOutboxByUris,
@@ -21,6 +22,7 @@ import {
 import { activityPubConnector, isPermanentlyUnavailableOutboxReason } from '../connectors/activitypub/ActivityPubConnector';
 import { runCacheWorkerOnce } from './mediaCache/cacheWorker';
 import { runEvictionOnce } from './mediaCache/evictionJob';
+import { drainFederatedMediaDeletions } from './mediaCache/federatedMediaDeletion';
 import { isMediaCacheEnabled } from './mediaCache/oxyMediaStore';
 import {
   MEDIA_CACHE_EVICTION_INTERVAL_MS,
@@ -38,12 +40,16 @@ import {
   PERIODIC_COMPUTE_INTEREST_SCORES,
   PERIODIC_FLUSH_ENDORSEMENT_OUTBOX,
   PERIODIC_FLUSH_AFFINITY_EVENTS,
+  PERIODIC_INSTAGRAM_GRAPH_SYNC,
+  PERIODIC_FEDERATED_MEDIA_DELETIONS,
+  FEDERATED_MEDIA_DELETIONS_INTERVAL_MS,
   REFRESH_STALE_ACTORS_INTERVAL_MS,
   SYNC_FOLLOWED_OUTBOX_INTERVAL_MS,
   RECENT_OUTBOX_BACKFILL_INTERVAL_MS,
   COMPUTE_INTEREST_SCORES_INTERVAL_MS,
   FLUSH_ENDORSEMENT_OUTBOX_INTERVAL_MS,
   FLUSH_AFFINITY_EVENTS_INTERVAL_MS,
+  INSTAGRAM_GRAPH_SYNC_INTERVAL_MS,
   DELIVERY_DRAIN_PAGE_SIZE,
 } from '../queue/constants';
 import type { PeriodicTaskName } from '../queue/types';
@@ -90,6 +96,8 @@ class FederationJobScheduler {
   private interestScoresInterval: ReturnType<typeof setInterval> | null = null;
   private endorsementOutboxInterval: ReturnType<typeof setInterval> | null = null;
   private affinityEventsInterval: ReturnType<typeof setInterval> | null = null;
+  private instagramGraphSyncInterval: ReturnType<typeof setInterval> | null = null;
+  private federatedMediaDeletionsInterval: ReturnType<typeof setInterval> | null = null;
 
   // Startup delay timeout handles (cleared in stop())
   private initialSyncTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -103,6 +111,8 @@ class FederationJobScheduler {
   private isComputeInterestScoresRunning = false;
   private isFlushEndorsementOutboxRunning = false;
   private isFlushAffinityEventsRunning = false;
+  private isInstagramGraphSyncRunning = false;
+  private isFederatedMediaDeletionsRunning = false;
 
   /** True when this scheduler registered BullMQ repeatable jobs (queue mode). */
   private usingQueue = false;
@@ -220,6 +230,27 @@ class FederationJobScheduler {
     }, FLUSH_AFFINITY_EVENTS_INTERVAL_MS);
     this.affinityEventsInterval.unref?.();
 
+    // Federated-media deletions — ALWAYS armed: a post deleted at its source must
+    // not live on as a re-hosted file, whatever else is switched off.
+    this.federatedMediaDeletionsInterval = setInterval(() => {
+      this.drainFederatedMediaDeletions().catch((err) =>
+        logger.error('Federated media deletion drain failed:', err)
+      );
+    }, FEDERATED_MEDIA_DELETIONS_INTERVAL_MS);
+    this.federatedMediaDeletionsInterval.unref?.();
+
+    // Instagram Graph sync — armed only when the connector is configured, for
+    // the same reason as the media-cache timers: a disabled job would no-op
+    // every tick, and enabling it requires a redeploy anyway.
+    if (instagramGraphConnector.enabled) {
+      this.instagramGraphSyncInterval = setInterval(() => {
+        this.syncInstagramFollowedAccounts().catch((err) =>
+          logger.error('Instagram Graph sync job failed:', err)
+        );
+      }, INSTAGRAM_GRAPH_SYNC_INTERVAL_MS);
+      this.instagramGraphSyncInterval.unref?.();
+    }
+
     // Stagger startup tasks to let DB connections warm up
     this.initialSyncTimeout = setTimeout(() => {
       this.syncFollowedActorsPosts().catch((err) =>
@@ -264,6 +295,15 @@ class FederationJobScheduler {
     if (isMediaCacheEnabled()) {
       await upsert(PERIODIC_MEDIA_CACHE_WORKER, MEDIA_CACHE_WORKER_INTERVAL_MS, 'runMediaCacheWorker');
       await upsert(PERIODIC_MEDIA_CACHE_EVICTION, MEDIA_CACHE_EVICTION_INTERVAL_MS, 'runMediaCacheEviction');
+    }
+
+    await upsert(PERIODIC_FEDERATED_MEDIA_DELETIONS, FEDERATED_MEDIA_DELETIONS_INTERVAL_MS, 'drainFederatedMediaDeletions');
+
+    if (instagramGraphConnector.enabled) {
+      await upsert(PERIODIC_INSTAGRAM_GRAPH_SYNC, INSTAGRAM_GRAPH_SYNC_INTERVAL_MS, 'syncInstagramFollowedAccounts');
+    } else {
+      // A schedule registered while the connector was on must not outlive it.
+      await queue.removeJobScheduler(PERIODIC_INSTAGRAM_GRAPH_SYNC).catch(() => undefined);
     }
 
     logger.info('Federation repeatable jobs registered');
@@ -378,6 +418,14 @@ class FederationJobScheduler {
       clearInterval(this.affinityEventsInterval);
       this.affinityEventsInterval = null;
     }
+    if (this.instagramGraphSyncInterval) {
+      clearInterval(this.instagramGraphSyncInterval);
+      this.instagramGraphSyncInterval = null;
+    }
+    if (this.federatedMediaDeletionsInterval) {
+      clearInterval(this.federatedMediaDeletionsInterval);
+      this.federatedMediaDeletionsInterval = null;
+    }
     if (this.initialSyncTimeout) {
       clearTimeout(this.initialSyncTimeout);
       this.initialSyncTimeout = null;
@@ -402,6 +450,8 @@ class FederationJobScheduler {
       PERIODIC_COMPUTE_INTEREST_SCORES,
       PERIODIC_FLUSH_ENDORSEMENT_OUTBOX,
       PERIODIC_FLUSH_AFFINITY_EVENTS,
+      PERIODIC_INSTAGRAM_GRAPH_SYNC,
+      PERIODIC_FEDERATED_MEDIA_DELETIONS,
     ];
 
     await Promise.allSettled(ids.map((id) => queue.removeJobScheduler(id)));
@@ -858,6 +908,36 @@ class FederationJobScheduler {
       await affinityEventService.drainOnce();
     } finally {
       this.isFlushAffinityEventsRunning = false;
+    }
+  }
+
+  /** Drain the federated-media deletion outbox (`services/mediaCache/federatedMediaDeletion.ts`). */
+  async drainFederatedMediaDeletions(): Promise<void> {
+    if (this.isFederatedMediaDeletionsRunning) return;
+    this.isFederatedMediaDeletionsRunning = true;
+    try {
+      await drainFederatedMediaDeletions();
+    } finally {
+      this.isFederatedMediaDeletionsRunning = false;
+    }
+  }
+
+  /**
+   * Pull new posts of followed Instagram-identity accounts through the Graph
+   * API (budget-aware, small batches — see `connectors/instagram/sync.ts`).
+   * A no-op while the connector is not configured.
+   */
+  async syncInstagramFollowedAccounts(): Promise<void> {
+    if (!instagramGraphConnector.enabled) return;
+    if (this.isInstagramGraphSyncRunning) {
+      logger.debug('[instagram] periodic sync already running, skipping');
+      return;
+    }
+    this.isInstagramGraphSyncRunning = true;
+    try {
+      await instagramGraphConnector.syncFollowedAccounts();
+    } finally {
+      this.isInstagramGraphSyncRunning = false;
     }
   }
 

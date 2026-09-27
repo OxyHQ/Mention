@@ -33,7 +33,9 @@ export type PeriodicTaskName =
   | 'runMediaCacheEviction'
   | 'computeInterestScores'
   | 'flushEndorsementOutbox'
-  | 'flushAffinityEvents';
+  | 'flushAffinityEvents'
+  | 'syncInstagramFollowedAccounts'
+  | 'drainFederatedMediaDeletions';
 
 /** Payload for a periodic (repeatable) federation maintenance job. */
 export interface PeriodicJobData {
@@ -50,6 +52,12 @@ export interface SharingCleanupJobData {
   oxyUserId: string;
   username: string;
   nonce: string;
+}
+
+/** One Instagram Graph sync of one actor (see `connectors/instagram/sync.ts`). */
+export interface InstagramGraphSyncJobData {
+  actorId: string;
+  trigger: 'profile_view' | 'follow';
 }
 
 /** Retry Oxy ffprobe/sharp metadata copy onto a post's content.media[]. */

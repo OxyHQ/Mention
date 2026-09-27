@@ -61,6 +61,14 @@ export async function materializeFederatedMedia(
     });
 
     if (!persistedResult.ok) {
+      if (persistedResult.reason === 'owned-elsewhere') {
+        // Oxy holds these bytes for another owner or app, so they cannot be
+        // re-hosted here, ever. An ActivityPub / atproto URL is stable: keep it
+        // and serve it through the media proxy, as for any media not re-hosted —
+        // without re-queueing a durable upload that would be refused again.
+        outputMedia.push(item);
+        continue;
+      }
       if (persistedResult.permanent) {
         logger.info('[Federation] Dropping permanently unavailable remote media', {
           remoteHost: getRemoteHost(remoteUrl),

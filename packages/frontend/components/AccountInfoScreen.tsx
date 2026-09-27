@@ -22,8 +22,7 @@ import { FediverseIcon } from '@/assets/icons/fediverse-icon';
 import { ExternalLinkIcon } from '@/assets/icons/external-link-icon';
 import { showFediverseInfo } from '@/components/Fediverse/FediverseInfoDialog';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { getNormalizedUserHandle } from '@oxy.so/core';
-import type { ExternalNetwork } from '@/services/feedService';
+import { BLUESKY_NETWORK_DOMAIN, federationInfoOf } from '@/utils/federationInfo';
 import type { ProfileData } from '@/hooks/useProfileData';
 import { useAccountCategoryLabel } from '@/hooks/useAccountCategoryLabel';
 import { nameableAccountCategoryIds } from '@/utils/accountCategories';
@@ -36,13 +35,6 @@ import type { ProfileRouteFamily } from '@/components/Profile/profileRoute';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
 import { Loading } from '@oxy.so/bloom/loading';
 
-/**
- * Bluesky's canonical network domain — an atproto account's `instance` is ALWAYS
- * this (a Bluesky handle is a whole DNS name, not a `local@host` address), so it
- * is the reliable discriminator between an ActivityPub (Mastodon, …) actor and a
- * Bluesky (atproto) one. Mirrors the backend `BSKY_NETWORK_DOMAIN` constant.
- */
-const BLUESKY_NETWORK_DOMAIN = 'bsky.social';
 
 /**
  * An account's "about" surface — joined date, location, website, verification,
@@ -128,32 +120,10 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
   // URL to the account's ORIGINAL profile page. A Mastodon actor URL redirects a
   // browser GET to the human-readable profile; an atproto DID / handle resolves
   // on bsky.app's `/profile/<id>` route.
-  const federationInfo = useMemo(() => {
-    if (!profileData?.isFederated) return null;
-    const actorUri = profileData.actorUri;
-    const instance = profileData.instance;
-    const isBluesky =
-      instance === BLUESKY_NETWORK_DOMAIN ||
-      (actorUri?.startsWith('did:') ?? false) ||
-      (actorUri?.startsWith('at://') ?? false);
-    const network: ExternalNetwork = isBluesky ? 'atproto' : 'activitypub';
-    const handle = getNormalizedUserHandle({
-      username: profileData.username,
-      instance,
-      isFederated: true,
-    });
-
-    let originalProfileUrl: string | null = null;
-    if (actorUri?.startsWith('https://') || actorUri?.startsWith('http://')) {
-      originalProfileUrl = actorUri;
-    } else if (isBluesky && actorUri) {
-      // bsky.app resolves both DIDs and handles at `/profile/<id>`.
-      const id = actorUri.startsWith('at://') ? actorUri.slice('at://'.length).split('/')[0] : actorUri;
-      originalProfileUrl = id ? `https://bsky.app/profile/${id}` : null;
-    }
-
-    return { network, instance, handle, originalProfileUrl };
-  }, [profileData?.isFederated, profileData?.actorUri, profileData?.instance, profileData?.username]);
+  const federationInfo = useMemo(
+    () => federationInfoOf(profileData),
+    [profileData],
+  );
 
   // Same back-nav header the sibling profile sub-screens (followers / following /
   // connections) render. Rendered once and reused across the loading / not-found /
@@ -348,25 +318,33 @@ function AccountInfoContent({ profileData, profileLoading }: AccountInfoContentP
           <SettingsListGroup
             title={federationInfo.network === 'atproto'
               ? t('fediverse.about.titleBluesky', { defaultValue: 'Bluesky' })
-              : t('fediverse.about.title', { defaultValue: 'Fediverse' })}
+              : federationInfo.network === 'instagram-graph'
+                ? t('fediverse.about.titleInstagram', { defaultValue: 'Instagram' })
+                : t('fediverse.about.title', { defaultValue: 'Fediverse' })}
             footer={federationInfo.network === 'atproto'
               ? t('fediverse.about.descriptionBluesky', {
                   instance: federationInfo.instance ?? BLUESKY_NETWORK_DOMAIN,
                   defaultValue: 'This account lives on Bluesky ({{instance}}). You can follow it and reply from Mention just like a native account.',
                 })
+              : federationInfo.network === 'instagram-graph'
+                ? t('fediverse.about.descriptionInstagram', {
+                    defaultValue: "This account's posts are copied from Instagram. You can follow it on Mention, but its author can't see replies or likes from here.",
+                  })
               : t('fediverse.about.descriptionActivityPub', {
                   instance: federationInfo.instance ?? '',
                   defaultValue: 'This account lives on another server in the fediverse ({{instance}}). You can follow it and reply from Mention just like a native account.',
                 })}
           >
             <SettingsListItem
-              icon={federationInfo.network === 'atproto'
+              icon={federationInfo.network !== 'activitypub'
                 ? <RowIcon icon={RiEarthLine} />
                 : <FediverseIcon size={20} className="text-muted-foreground" />}
               title={t('fediverse.about.network', { defaultValue: 'Network' })}
               value={federationInfo.network === 'atproto'
                 ? t('fediverse.about.networkBluesky', { defaultValue: 'Bluesky' })
-                : t('fediverse.about.networkActivityPub', { defaultValue: 'ActivityPub' })}
+                : federationInfo.network === 'instagram-graph'
+                  ? t('fediverse.about.networkInstagram', { defaultValue: 'Instagram' })
+                  : t('fediverse.about.networkActivityPub', { defaultValue: 'ActivityPub' })}
             />
 
             {federationInfo.instance && (

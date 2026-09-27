@@ -1,4 +1,5 @@
 import { and, eq, sql, type SQL } from 'drizzle-orm';
+import { postMatchesFederatedObjectSql } from '../shared/instagramSourceKey';
 import { logger } from '../../utils/logger';
 import { getDb } from '../../db/postgres';
 import { posts } from '../../db/schema/posts';
@@ -875,7 +876,7 @@ export async function resolvePostIdFromObjectUri(objectUri: string): Promise<str
     .from(posts)
     .where(
       and(
-        eq(posts.federationActivityId, objectUri),
+        postMatchesFederatedObjectSql(objectUri),
         eq(posts.status, 'published'),
         eq(posts.visibility, PostVisibility.PUBLIC),
       ),

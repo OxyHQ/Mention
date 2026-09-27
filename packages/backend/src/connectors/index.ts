@@ -6,6 +6,7 @@ import { activityPubConnector } from './activitypub/ActivityPubConnector';
 import { FEDERATION_ENABLED } from './activitypub/constants';
 import { atprotoConnector } from './atproto/AtprotoConnector';
 import { ATPROTO_ENABLED } from './atproto/constants';
+import { instagramGraphConnector, isInstagramGraphEnabled } from './instagram/InstagramGraphConnector';
 
 /**
  * Network-connector bootstrap.
@@ -23,6 +24,10 @@ import { ATPROTO_ENABLED } from './atproto/constants';
  * Connectors gate on their own env flags:
  *  - ActivityPub  → `FEDERATION_ENABLED` (default on; `false` disables).
  *  - atproto      → `ATPROTO_ENABLED` (default OFF; `true` enables Bluesky read).
+ *  - Instagram    → `INSTAGRAM_GRAPH_ENABLED` + both Meta credentials (default
+ *                   OFF). Claims only `instagram-graph:<id>` URIs, which no other
+ *                   connector's `matches` accepts, and `connectorFor` routes a
+ *                   connector's own URI scheme to it before registration order.
  *
  * Order matters for `connectorFor`/`resolve`: ActivityPub is registered first so
  * a fediverse `@user@host` acct is claimed by it, and the atproto connector
@@ -36,6 +41,10 @@ if (FEDERATION_ENABLED) {
 
 if (ATPROTO_ENABLED) {
   connectors.push(atprotoConnector);
+}
+
+if (isInstagramGraphEnabled()) {
+  connectors.push(instagramGraphConnector);
 }
 
 export const connectorRegistry = new ConnectorRegistry(connectors);
