@@ -1493,6 +1493,8 @@
   "feed.tuning.noContentWarning.label": "Keine Inhaltswarnungen",
   "feed.tuning.noContentWarning.description": "Hält Beiträge hinter einer Inhaltswarnung aus deinen Empfehlungen heraus, außer du folgst dem Autor.",
   "feed.interstitial.seeMore": "Mehr ansehen",
+  "feed.interstitial.previous": "Vorherige Vorschläge",
+  "feed.interstitial.next": "Weitere Vorschläge",
   "feed.interstitial.dismissHint": "Blendet diesen Vorschlag aus, bis du aktualisierst",
   "feed.interstitial.users.title": "Wem du folgen könntest",
   "feed.interstitial.users.dismiss": "{{name}} ausblenden",

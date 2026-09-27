@@ -1493,6 +1493,8 @@
   "feed.tuning.noContentWarning.label": "コンテンツ警告を表示しない",
   "feed.tuning.noContentWarning.description": "コンテンツ警告の付いた投稿をおすすめから除きます。フォロー中の相手の投稿は除きません。",
   "feed.interstitial.seeMore": "もっと見る",
+  "feed.interstitial.previous": "前のおすすめ",
+  "feed.interstitial.next": "その他のおすすめ",
   "feed.interstitial.dismissHint": "更新するまで、このおすすめを表示しません",
   "feed.interstitial.users.title": "おすすめユーザー",
   "feed.interstitial.users.dismiss": "{{name}}を表示しない",

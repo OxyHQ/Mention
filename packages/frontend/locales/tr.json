@@ -1493,6 +1493,8 @@
   "feed.tuning.noContentWarning.label": "İçerik uyarısı yok",
   "feed.tuning.noContentWarning.description": "İçerik uyarısının ardındaki gönderileri önerilerinden uzak tutar; yazarını takip ediyorsan hariç.",
   "feed.interstitial.seeMore": "Daha fazlasını gör",
+  "feed.interstitial.previous": "Önceki öneriler",
+  "feed.interstitial.next": "Daha fazla öneri",
   "feed.interstitial.dismissHint": "Bu öneriyi, yenileyene kadar kaldırır",
   "feed.interstitial.users.title": "Takip edebileceklerin",
   "feed.interstitial.users.dismiss": "{{name}} önerisini kaldır",

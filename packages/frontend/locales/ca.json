@@ -1511,6 +1511,8 @@
   "feed.tuning.noContentWarning.label": "Sense avisos de contingut",
   "feed.tuning.noContentWarning.description": "Manté fora de les teves recomanacions les publicacions darrere d’un avís de contingut, tret que en segueixis l’autor.",
   "feed.interstitial.seeMore": "Mostra'n més",
+  "feed.interstitial.previous": "Suggeriments anteriors",
+  "feed.interstitial.next": "Més suggeriments",
   "feed.interstitial.dismissHint": "Treu aquest suggeriment fins que actualitzis",
   "feed.interstitial.users.title": "A qui seguir",
   "feed.interstitial.users.dismiss": "Descarta {{name}}",

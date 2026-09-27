@@ -1766,6 +1766,8 @@
     },
     "interstitial": {
       "seeMore": "See more",
+      "previous": "Previous suggestions",
+      "next": "More suggestions",
       "dismissHint": "Removes this suggestion until you refresh",
       "users": {
         "title": "Who to follow",

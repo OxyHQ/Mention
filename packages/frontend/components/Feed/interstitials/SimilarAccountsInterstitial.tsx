@@ -1,5 +1,4 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -7,16 +6,17 @@ import { cacheActors } from '@/lib/actorCache';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';
+import type { ProfileCardData } from '@/components/ProfileCard';
 import {
-  ProfileCard,
-  ProfileCardSkeleton,
-  type ProfileCardData,
-} from '@/components/ProfileCard';
+  SuggestedProfileCard,
+  SuggestedProfileCardSkeleton,
+} from '@/components/SuggestedProfileCard';
 import { useUserById } from '@/hooks/useCachedUser';
 import { enrichMissingAvatars } from '@/utils/userEnrichment';
 import { DismissButton } from './DismissButton';
 import { InterstitialShell, type InterstitialItemContext } from './InterstitialShell';
 import {
+  INTERSTITIAL_CARD_WIDTH,
   INTERSTITIAL_STALE_TIME_MS,
   resolveInterstitialLimits,
   selectInterstitialWindow,
@@ -117,11 +117,9 @@ export function SimilarAccountsInterstitial({
   );
 
   const renderItem = useCallback(
-    (account: User, { isCarousel, isLast, position }: InterstitialItemContext) => (
+    (account: User, { position }: InterstitialItemContext) => (
       <SimilarAccountItem
         account={account}
-        isCarousel={isCarousel}
-        isLast={isLast}
         position={position}
         report={report}
         onDismiss={handleDismiss}
@@ -130,7 +128,7 @@ export function SimilarAccountsInterstitial({
     [report, handleDismiss],
   );
 
-  const renderSkeleton = useCallback(() => <ProfileCardSkeleton showFollowButton />, []);
+  const renderSkeleton = useCallback(() => <SuggestedProfileCardSkeleton />, []);
 
   if (!subjectId) return null;
 
@@ -143,6 +141,7 @@ export function SimilarAccountsInterstitial({
       seeMoreHref={seeMoreHref}
       items={accounts}
       keyExtractor={accountId}
+      cardWidth={INTERSTITIAL_CARD_WIDTH.profile}
       renderItem={renderItem}
       limits={limits}
       isLoading={isLoading}
@@ -172,8 +171,6 @@ function isVerified(account: User): boolean | undefined {
 
 interface SimilarAccountItemProps {
   account: User;
-  isCarousel: boolean;
-  isLast: boolean;
   /** 0-based index within the band — the `position` every item event carries. */
   position: number;
   report: ReportInterstitialEvent;
@@ -181,14 +178,12 @@ interface SimilarAccountItemProps {
 }
 
 /**
- * One similar account — the same {@link ProfileCard} row every other user list in
- * the app renders, so a suggestion here looks and behaves exactly like the same
- * account does in search, followers, or the who-to-follow band.
+ * One similar account — the same {@link SuggestedProfileCard} person tile the
+ * who-to-follow band renders, so a suggestion looks and behaves the same in
+ * either band.
  */
 function SimilarAccountItem({
   account,
-  isCarousel,
-  isLast,
   position,
   report,
   onDismiss,
@@ -210,18 +205,17 @@ function SimilarAccountItem({
     avatar: account.avatar,
     color: account.color,
     verified: isVerified(account),
-    // The carousel card has no room for a bio; the wide desktop row does.
-    description: isCarousel ? undefined : account.bio,
+    description: account.bio,
     isFederated: account.isFederated,
     kind: account.kind,
     instance: account.instance,
     federation: account.federation,
   };
 
-  const row = (
-    <ProfileCard
+  return (
+    <SuggestedProfileCard
       profile={cardData}
-      // Reports the tap, then does exactly what the row does by default. Only
+      // Reports the tap, then does exactly what the tile does by default. Only
       // wired when there IS somewhere to go: a handle-less (degraded) profile is
       // not pressable, and must not become so just because we want the signal.
       onPress={
@@ -232,22 +226,17 @@ function SimilarAccountItem({
             }
           : undefined
       }
-      showFollowButton
       onFollowChange={(isFollowing) => {
         // An unfollow is not a follow — the band measures accounts GAINED.
         if (isFollowing) report('follow', position);
       }}
-      showDivider={!isCarousel && !isLast}
       accessory={
         <DismissButton
+          overlay
           onPress={() => onDismiss(account.id, position)}
           accessibilityLabel={dismissLabel}
         />
       }
     />
   );
-
-  if (!isCarousel) return row;
-
-  return <View className="bg-card flex-1 justify-center overflow-hidden rounded-xl">{row}</View>;
 }
