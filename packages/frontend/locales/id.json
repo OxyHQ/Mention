@@ -2540,5 +2540,8 @@
   "connections.profileNotFound": "Akun ini tidak ada, jadi tidak ada pengikut untuk ditampilkan.",
   "saved.createFolderFailed": "Folder tidak dapat dibuat. Coba lagi.",
   "profile.loadFailed": "Profil ini tidak dapat dimuat. Periksa koneksi Anda dan coba lagi.",
-  "profile.notFound.gone": "Akun ini tidak ada atau sudah tidak tersedia."
+  "profile.notFound.gone": "Akun ini tidak ada atau sudah tidak tersedia.",
+  "datePicker.apply": "Terapkan",
+  "datePicker.previousMonth": "Bulan sebelumnya",
+  "datePicker.nextMonth": "Bulan berikutnya"
 }

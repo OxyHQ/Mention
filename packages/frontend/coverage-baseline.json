@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 41.14,
-      "covered": 10981,
-      "total": 26689
+      "pct": 41.24,
+      "covered": 11007,
+      "total": 26686
     },
     "branches": {
-      "pct": 35.5,
-      "covered": 6827,
-      "total": 19228
+      "pct": 35.69,
+      "covered": 6856,
+      "total": 19205
     },
     "functions": {
-      "pct": 36.35,
-      "covered": 2488,
-      "total": 6843
+      "pct": 36.46,
+      "covered": 2496,
+      "total": 6844
     },
     "lines": {
-      "pct": 41.96,
-      "covered": 10013,
-      "total": 23860
+      "pct": 42.06,
+      "covered": 10037,
+      "total": 23858
     }
   },
   "pins": {
@@ -226,6 +226,12 @@
       "branches": 100,
       "functions": 0,
       "lines": 0
+    },
+    "hooks/useDatePickerLabels.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useDeepCompare.ts": {
       "statements": 66,

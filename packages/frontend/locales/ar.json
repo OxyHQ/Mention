@@ -2650,5 +2650,8 @@
   "connections.profileNotFound": "هذا الحساب غير موجود، لذا لا يوجد متابعون لعرضهم.",
   "saved.createFolderFailed": "تعذّر إنشاء المجلد. حاول مرة أخرى.",
   "profile.loadFailed": "تعذّر تحميل هذا الملف الشخصي. تحقّق من اتصالك وحاول مرة أخرى.",
-  "profile.notFound.gone": "هذا الحساب غير موجود أو لم يعد متاحًا."
+  "profile.notFound.gone": "هذا الحساب غير موجود أو لم يعد متاحًا.",
+  "datePicker.apply": "تطبيق",
+  "datePicker.previousMonth": "الشهر السابق",
+  "datePicker.nextMonth": "الشهر التالي"
 }

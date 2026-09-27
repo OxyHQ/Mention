@@ -2540,5 +2540,8 @@
   "connections.profileNotFound": "Dieses Konto existiert nicht, daher gibt es keine Follower anzuzeigen.",
   "saved.createFolderFailed": "Der Ordner konnte nicht erstellt werden. Versuch es noch einmal.",
   "profile.loadFailed": "Dieses Profil konnte nicht geladen werden. Prüfe deine Verbindung und versuch es noch einmal.",
-  "profile.notFound.gone": "Dieses Konto existiert nicht oder ist nicht mehr verfügbar."
+  "profile.notFound.gone": "Dieses Konto existiert nicht oder ist nicht mehr verfügbar.",
+  "datePicker.apply": "Übernehmen",
+  "datePicker.previousMonth": "Vorheriger Monat",
+  "datePicker.nextMonth": "Nächster Monat"
 }

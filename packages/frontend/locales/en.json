@@ -2868,5 +2868,8 @@
   "compose.toolbar.location": "Add your location",
   "saved.createFolderFailed": "Couldn't create the folder. Try again.",
   "profile.loadFailed": "This profile couldn't be loaded. Check your connection and try again.",
-  "profile.notFound.gone": "This account doesn't exist, or it's no longer available."
+  "profile.notFound.gone": "This account doesn't exist, or it's no longer available.",
+  "datePicker.apply": "Apply",
+  "datePicker.previousMonth": "Previous month",
+  "datePicker.nextMonth": "Next month"
 }
