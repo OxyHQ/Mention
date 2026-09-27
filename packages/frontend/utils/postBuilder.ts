@@ -12,15 +12,18 @@ import type {
 import { buildAttachmentsPayload } from './attachmentsUtils';
 import {
   ComposerMediaItem,
-  POLL_ATTACHMENT_KEY,
-  LOCATION_ATTACHMENT_KEY,
-  SOURCES_ATTACHMENT_KEY,
-  ARTICLE_ATTACHMENT_KEY,
-  EVENT_ATTACHMENT_KEY,
-  ROOM_ATTACHMENT_KEY,
-  PODCAST_ATTACHMENT_KEY,
   createMediaAttachmentKey,
 } from './composeUtils';
+import {
+  attachmentKeysOf,
+  hasArticleContent,
+  hasJobContent,
+  hasPodcastContent,
+  hasPollOption,
+  hasRoomContent,
+  isCompleteEvent,
+  linkedSources,
+} from './composeContent';
 import type { ThreadItem } from '@/hooks/useThreadManager';
 import type { ArticleData } from '@/hooks/useArticleManager';
 import type { EventData } from '@/hooks/useEventManager';
@@ -41,19 +44,14 @@ interface BuildMainPostParams {
   pollTitle: string;
   pollOptions: string[];
   article: ArticleData | null;
-  hasArticleContent: boolean;
   event: EventData | null;
-  hasEventContent: boolean;
   room: RoomAttachmentData | null;
-  hasRoomContent: boolean;
   podcast: PodcastAttachmentData | null;
-  hasPodcastContent: boolean;
   /**
    * A Mention job attached to this post (OxyHQ/Mention#952). ROOT post only —
    * `buildThreadPost` below does not take one yet; see its own TODO.
    */
   job: JobAttachmentData | null;
-  hasJobContent: boolean;
   location: ComposeLocation | null;
   formattedSources: PostSourceLink[];
   attachmentOrder: string[];
@@ -98,6 +96,23 @@ interface BuildMainPostParams {
   variantContent?: PostContentVariant[] | null;
 }
 
+/** An attached event as the wire carries it: trimmed, optional fields only when set. */
+const eventContent = (event: EventData) => ({
+  name: event.name.trim(),
+  date: event.date,
+  ...(event.location?.trim() && { location: event.location.trim() }),
+  ...(event.description?.trim() && { description: event.description.trim() }),
+});
+
+/** An attached room as the wire carries it. */
+const roomContent = (room: RoomAttachmentData) => ({
+  roomId: room.roomId,
+  title: room.title.trim(),
+  ...(room.status && { status: room.status }),
+  ...(room.topic?.trim() && { topic: room.topic.trim() }),
+  ...(room.host && { host: room.host }),
+});
+
 export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest => {
   const {
     postContent,
@@ -106,15 +121,10 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     pollTitle,
     pollOptions,
     article,
-    hasArticleContent,
     event,
-    hasEventContent,
     room,
-    hasRoomContent,
     podcast,
-    hasPodcastContent,
     job,
-    hasJobContent,
     location,
     formattedSources,
     attachmentOrder,
@@ -130,7 +140,9 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     variantContent,
   } = params;
 
-  const hasPoll = pollOptions.length > 0 && pollOptions.some(opt => opt.trim().length > 0);
+  const hasPoll = hasPollOption(pollOptions);
+  const eventPayload = isCompleteEvent(event) ? event : null;
+  const roomPayload = hasRoomContent(room) ? room : null;
   const wasScheduled = Boolean(scheduledAt);
   const mentionIds = reconcileMentionIds(
     [
@@ -140,21 +152,21 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
     mentions.map((mention) => mention.userId),
   );
 
-  const podcastId = hasPodcastContent && podcast ? podcast.syraPodcastId : undefined;
-  const jobId = hasJobContent && job ? job.mentionJobId : undefined;
+  const podcastId = hasPodcastContent(podcast) ? podcast.syraPodcastId : undefined;
+  const jobId = hasJobContent(job) ? job.mentionJobId : undefined;
 
   const attachmentsPayload = buildAttachmentsPayload(attachmentOrder, mediaIds, {
     includePoll: hasPoll,
-    includeArticle: Boolean(hasArticleContent && article),
-    includeEvent: Boolean(hasEventContent && event),
-    includeRoom: Boolean(hasRoomContent && room),
+    includeArticle: hasArticleContent(article),
+    includeEvent: Boolean(eventPayload),
+    includeRoom: Boolean(roomPayload),
     includeLocation: Boolean(location),
     includeSources: formattedSources.length > 0,
     podcastId,
     jobId,
   });
 
-  const articlePayload = hasArticleContent && article ? {
+  const articlePayload = hasArticleContent(article) ? {
     ...(article.title?.trim() ? { title: article.title.trim() } : {}),
     ...(article.body?.trim() ? { body: article.body.trim() } : {}),
   } : undefined;
@@ -186,23 +198,8 @@ export const buildMainPost = (params: BuildMainPostParams): CreatePostRequest =>
       }),
       ...(formattedSources.length > 0 && { sources: formattedSources }),
       ...(articlePayload && { article: articlePayload }),
-      ...(hasEventContent && event && {
-        event: {
-          name: event.name.trim(),
-          date: event.date,
-          ...(event.location?.trim() && { location: event.location.trim() }),
-          ...(event.description?.trim() && { description: event.description.trim() }),
-        }
-      }),
-      ...(hasRoomContent && room && {
-        room: {
-          roomId: room.roomId,
-          title: room.title.trim(),
-          ...(room.status && { status: room.status }),
-          ...(room.topic?.trim() && { topic: room.topic.trim() }),
-          ...(room.host && { host: room.host }),
-        }
-      }),
+      ...(eventPayload && { event: eventContent(eventPayload) }),
+      ...(roomPayload && { room: roomContent(roomPayload) }),
       ...(podcastId && { podcast: { syraPodcastId: podcastId } }),
       ...(jobId && { job: { mentionJobId: jobId } }),
       ...(attachmentsPayload.length > 0 && { attachments: attachmentsPayload })
@@ -315,13 +312,13 @@ export const buildThreadPost = (
   publishAsOxyUserId?: string,
   laneId?: string,
 ): CreateThreadPostRequest => {
-  const threadHasPoll = item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0);
+  const threadHasPoll = hasPollOption(item.pollOptions);
   const threadHasLocation = Boolean(item.location);
-  const threadHasArticle = Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim()));
-  const threadHasEvent = Boolean(item.event && item.event.name?.trim());
-  const threadHasRoom = Boolean(item.room && item.room.roomId);
-  const threadPodcastId = item.podcast?.syraPodcastId;
-  const threadFormattedSources = (item.sources || []).filter(s => s.url.trim().length > 0);
+  const threadHasArticle = hasArticleContent(item.article);
+  const threadEvent = isCompleteEvent(item.event) ? item.event : null;
+  const threadRoom = hasRoomContent(item.room) ? item.room : null;
+  const threadPodcastId = hasPodcastContent(item.podcast) ? item.podcast.syraPodcastId : undefined;
+  const threadFormattedSources = linkedSources(item.sources);
   const threadHasSources = threadFormattedSources.length > 0;
   const mentionIds = reconcileMentionIds(
     [
@@ -331,29 +328,16 @@ export const buildThreadPost = (
     item.mentions.map((mention) => mention.userId),
   );
 
-  // Use explicit attachment order if provided, otherwise auto-build
-  let threadOrder: string[];
-  if (item.attachmentOrder && item.attachmentOrder.length > 0) {
-    threadOrder = item.attachmentOrder;
-  } else {
-    threadOrder = [];
-    if (threadHasPoll) threadOrder.push(POLL_ATTACHMENT_KEY);
-    if (threadHasArticle) threadOrder.push(ARTICLE_ATTACHMENT_KEY);
-    if (threadHasEvent) threadOrder.push(EVENT_ATTACHMENT_KEY);
-    if (threadHasRoom) threadOrder.push(ROOM_ATTACHMENT_KEY);
-    if (threadPodcastId) threadOrder.push(PODCAST_ATTACHMENT_KEY);
-    item.mediaIds.forEach((media) => {
-      threadOrder.push(createMediaAttachmentKey(media.id));
-    });
-    if (threadHasSources) threadOrder.push(SOURCES_ATTACHMENT_KEY);
-    if (threadHasLocation) threadOrder.push(LOCATION_ATTACHMENT_KEY);
-  }
+  // The box's own order when it has one, otherwise the default card order.
+  const threadOrder = item.attachmentOrder.length > 0
+    ? item.attachmentOrder
+    : attachmentKeysOf({ ...item, showPollCreator: threadHasPoll });
 
   const threadAttachmentsPayload = buildAttachmentsPayload(threadOrder, item.mediaIds, {
     includePoll: threadHasPoll,
     includeArticle: threadHasArticle,
-    includeEvent: threadHasEvent,
-    includeRoom: threadHasRoom,
+    includeEvent: Boolean(threadEvent),
+    includeRoom: Boolean(threadRoom),
     includeLocation: threadHasLocation,
     includeSources: threadHasSources,
     podcastId: threadPodcastId,
@@ -391,23 +375,8 @@ export const buildThreadPost = (
       }),
       ...(threadHasSources && { sources: threadFormattedSources.map(s => ({ url: s.url.trim(), title: s.title?.trim() || '' })) }),
       ...(threadArticlePayload && { article: threadArticlePayload }),
-      ...(threadHasEvent && item.event && {
-        event: {
-          name: item.event.name.trim(),
-          date: item.event.date,
-          ...(item.event.location?.trim() && { location: item.event.location.trim() }),
-          ...(item.event.description?.trim() && { description: item.event.description.trim() }),
-        }
-      }),
-      ...(threadHasRoom && item.room && {
-        room: {
-          roomId: item.room.roomId,
-          title: item.room.title.trim(),
-          ...(item.room.status && { status: item.room.status }),
-          ...(item.room.topic?.trim() && { topic: item.room.topic.trim() }),
-          ...(item.room.host && { host: item.room.host }),
-        }
-      }),
+      ...(threadEvent && { event: eventContent(threadEvent) }),
+      ...(threadRoom && { room: roomContent(threadRoom) }),
       // Read per ENTRY by `POST /posts/thread`, in both modes, so a box that is
       // not the first may attach a show of its own.
       ...(threadPodcastId && { podcast: { syraPodcastId: threadPodcastId } }),
@@ -439,17 +408,6 @@ export const buildThreadPost = (
     // missing is a post that quietly lands off the lane it was written for.
     laneId,
   };
-};
-
-export const shouldIncludeThreadItem = (item: ThreadItem): boolean => {
-  return item.text.trim().length > 0 ||
-         item.mediaIds.length > 0 ||
-         (item.pollOptions.length > 0 && item.pollOptions.some(opt => opt.trim().length > 0)) ||
-         Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim())) ||
-         Boolean(item.event && item.event.name?.trim()) ||
-         Boolean(item.podcast?.syraPodcastId) ||
-         Boolean(item.room && item.room.roomId) ||
-         Boolean(item.sources && item.sources.length > 0 && item.sources.some(s => s.url.trim().length > 0));
 };
 
 /**

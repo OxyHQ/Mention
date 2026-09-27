@@ -38,13 +38,6 @@ export const useArticleManager = () => {
     setArticleDraftBody("");
   }, []);
 
-  const hasContent = useCallback(() => {
-    if (!article) return false;
-    const title = article.title?.trim();
-    const body = article.body?.trim();
-    return Boolean(title || body);
-  }, [article]);
-
   const loadArticleFromDraft = useCallback((draftArticle: ArticleData | null) => {
     setArticle(draftArticle);
   }, []);
@@ -68,7 +61,6 @@ export const useArticleManager = () => {
     closeArticleEditor,
     saveArticle,
     removeArticle,
-    hasContent,
     loadArticleFromDraft,
     clearArticle,
   };

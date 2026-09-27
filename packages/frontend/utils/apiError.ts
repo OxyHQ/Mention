@@ -171,6 +171,16 @@ export function classifyApiError(error: unknown): { reason: ApiErrorReason; norm
  * (plain `Error`, network failure, thrown string) yields `fallback` — so it is
  * safe to show directly in mutation UI without leaking transport internals.
  */
+/** The request was refused for want of a session (401). */
+export function isUnauthorizedError(error: unknown): boolean {
+  return normalizeApiError(error).status === 401;
+}
+
+/** The server answered that the thing asked for does not exist (404). */
+export function isNotFoundError(error: unknown): boolean {
+  return normalizeApiError(error).status === 404;
+}
+
 export function getErrorMessage(error: unknown, fallback: string): string {
   if (error && typeof error === 'object' && 'response' in error) {
     const response = (error as { response?: { data?: { error?: string; message?: string } } }).response;

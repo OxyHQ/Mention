@@ -223,10 +223,12 @@ const SavedPostsScreen: React.FC = () => {
     const createFolderMutation = useMutation({
         mutationFn: (name: string) => feedService.createBookmarkFolder(name),
         retry: false,
-        onSuccess: async (folder) => {
-            await queryClient.invalidateQueries({
-                queryKey: viewerQueryKeys.bookmarkFolders(viewerId),
-            });
+        onSuccess: (folder) => {
+            // Show it now; the refetch confirms it without holding the dialog open.
+            const foldersKey = viewerQueryKeys.bookmarkFolders(viewerId);
+            queryClient.setQueryData<string[]>(foldersKey, (current = []) =>
+                current.includes(folder) ? current : [...current, folder]);
+            void queryClient.invalidateQueries({ queryKey: foldersKey });
             setNewFolderName('');
             newFolderControl.close();
             setSelectedFolder(folder);

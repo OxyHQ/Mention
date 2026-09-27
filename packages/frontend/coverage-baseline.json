@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 40.64,
-      "covered": 10869,
-      "total": 26740
+      "pct": 40.84,
+      "covered": 10872,
+      "total": 26618
     },
     "branches": {
-      "pct": 34.89,
-      "covered": 6719,
-      "total": 19255
+      "pct": 35.21,
+      "covered": 6725,
+      "total": 19099
     },
     "functions": {
-      "pct": 35.62,
-      "covered": 2436,
-      "total": 6837
+      "pct": 35.99,
+      "covered": 2453,
+      "total": 6814
     },
     "lines": {
-      "pct": 41.51,
-      "covered": 9918,
-      "total": 23892
+      "pct": 41.67,
+      "covered": 9917,
+      "total": 23797
     }
   },
   "pins": {
@@ -198,10 +198,10 @@
       "lines": 0
     },
     "hooks/useAttachmentOrder.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 85,
+      "branches": 60,
+      "functions": 90,
+      "lines": 88
     },
     "hooks/useCachedUser.ts": {
       "statements": 0,
@@ -240,16 +240,16 @@
       "lines": 100
     },
     "hooks/useDraftManager.ts": {
-      "statements": 91,
-      "branches": 72,
-      "functions": 89,
-      "lines": 91
+      "statements": 96,
+      "branches": 80,
+      "functions": 97,
+      "lines": 96
     },
     "hooks/useDrafts.ts": {
       "statements": 57,
-      "branches": 45,
+      "branches": 47,
       "functions": 56,
-      "lines": 58
+      "lines": 59
     },
     "hooks/useDraftsList.ts": {
       "statements": 56,
@@ -565,7 +565,7 @@
     },
     "hooks/useRoomManager.ts": {
       "statements": 0,
-      "branches": 0,
+      "branches": 100,
       "functions": 0,
       "lines": 0
     },
@@ -1302,10 +1302,10 @@
       "lines": 0
     },
     "utils/composeContent.ts": {
-      "statements": 94,
-      "branches": 85,
-      "functions": 90,
-      "lines": 93
+      "statements": 97,
+      "branches": 95,
+      "functions": 95,
+      "lines": 96
     },
     "utils/composeIntent.ts": {
       "statements": 97,
@@ -1314,9 +1314,9 @@
       "lines": 99
     },
     "utils/composeUtils.ts": {
-      "statements": 46,
-      "branches": 28,
-      "functions": 14,
+      "statements": 50,
+      "branches": 31,
+      "functions": 35,
       "lines": 58
     },
     "utils/composeVariants.ts": {
@@ -1433,12 +1433,6 @@
       "functions": 100,
       "lines": 84
     },
-    "utils/httpStatus.ts": {
-      "statements": 100,
-      "branches": 94,
-      "functions": 100,
-      "lines": 100
-    },
     "utils/imageUrlCache.ts": {
       "statements": 0,
       "branches": 0,
@@ -1512,10 +1506,10 @@
       "lines": 0
     },
     "utils/postBuilder.ts": {
-      "statements": 69,
-      "branches": 37,
-      "functions": 45,
-      "lines": 82
+      "statements": 91,
+      "branches": 62,
+      "functions": 76,
+      "lines": 91
     },
     "utils/postLanguages.ts": {
       "statements": 96,

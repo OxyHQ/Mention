@@ -27,8 +27,6 @@ export const useJobAttachmentManager = () => {
     setJob(null);
   }, []);
 
-  const hasContent = useCallback(() => Boolean(job?.mentionJobId), [job]);
-
   const clearJob = useCallback(() => {
     setJob(null);
   }, []);
@@ -38,7 +36,6 @@ export const useJobAttachmentManager = () => {
     setJob,
     saveJob,
     removeJob,
-    hasContent,
     clearJob,
   };
 };

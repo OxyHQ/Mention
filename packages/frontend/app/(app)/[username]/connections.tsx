@@ -24,6 +24,7 @@ import { logger } from '@oxy.so/core/logger';
 import { useRecommendations } from '@/hooks/useRecommendations';
 import { type ProfileData as RecommendedProfile } from '@/lib/recommendations';
 import { isAuthError } from '@/utils/authErrors';
+import { getErrorMessage } from '@/utils/apiError';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 
@@ -215,11 +216,6 @@ function ConnectionsContent({
     enabled: listKind !== null && Boolean(profileId),
     staleTime: RECOMMENDATIONS_STALE_TIME_MS,
   });
-  const connectionsList = useMemo<ConnectionUser[]>(
-    () => connectionsListQuery.data ?? [],
-    [connectionsListQuery.data],
-  );
-
   // Who-may-know recommendations are personalized for the SIGNED-IN VIEWER (not
   // the profile being viewed) by `GET /recommendations` — an optional-auth,
   // public endpoint (popular profiles logged-out, mutual-overlap personalized
@@ -384,7 +380,7 @@ function ConnectionsContent({
     switch (activeTab) {
       case 'followers':
       case 'following':
-        return connectionsList;
+        return connectionsListQuery.data ?? [];
       case 'who-may-know':
         return recommendations;
       case 'in-common':
@@ -392,7 +388,7 @@ function ConnectionsContent({
       default:
         return [];
     }
-  }, [activeTab, connectionsList, recommendations, mutuals]);
+  }, [activeTab, connectionsListQuery.data, recommendations, mutuals]);
 
   const profileDisplayName = profileData?.design.displayName;
 
@@ -464,23 +460,12 @@ function ConnectionsContent({
     { id: 'who-may-know', label: t('Who May Know', { defaultValue: 'Who May Know' }) },
   ], [t]);
 
-  // Every tab is one query; the active tab's decides loading, error and refresh.
-  // Recommendations come through the shared hook, so its fields are spelled
-  // slightly differently from a raw React Query result.
+  // Every tab is one query, and the active tab's decides loading, error and
+  // refresh. The shared recommendations hook exposes the same field names.
   const isRecommendationsTab = activeTab === 'who-may-know';
   const isInCommonTab = activeTab === 'in-common';
-  const { refetch: refetchRecommendations } = recommendationsQuery;
-  const { refetch: refetchInCommon } = inCommonQuery;
-  const { refetch: refetchConnectionsList } = connectionsListQuery;
   const activeQuery = isRecommendationsTab
-    ? {
-      isError: recommendationsQuery.isError,
-      error: recommendationsQuery.error,
-      // `isLoading`, not `isPending`: a query that is not enabled is pending
-      // forever, and that must not read as a load in progress.
-      isLoading: recommendationsQuery.isLoading,
-      isFetching: recommendationsQuery.isFetching,
-    }
+    ? recommendationsQuery
     : isInCommonTab
       ? inCommonQuery
       : connectionsListQuery;
@@ -491,22 +476,13 @@ function ConnectionsContent({
       : activeTab === 'following'
         ? t('connections.failedFollowing', { defaultValue: 'Failed to load following' })
         : t('connections.failedFollowers', { defaultValue: 'Failed to load followers' });
-  const activeError = activeQuery.isError
-    ? activeQuery.error instanceof globalThis.Error && activeQuery.error.message
-      ? activeQuery.error.message
-      : activeFailure
-    : null;
+  const activeError = activeQuery.isError ? getErrorMessage(activeQuery.error, activeFailure) : null;
   const activeLoading = activeQuery.isLoading;
   const activeRefreshing = activeQuery.isFetching;
+  const { refetch: refetchActive } = activeQuery;
   const refreshCurrent = useCallback(() => {
-    if (isInCommonTab) {
-      void refetchInCommon();
-    } else if (isRecommendationsTab) {
-      refetchRecommendations();
-    } else {
-      void refetchConnectionsList();
-    }
-  }, [isInCommonTab, isRecommendationsTab, refetchInCommon, refetchRecommendations, refetchConnectionsList]);
+    void refetchActive();
+  }, [refetchActive]);
 
   // Who-may-know is about the VIEWER, so it is the one tab that does not need
   // the profile in the URL to exist.

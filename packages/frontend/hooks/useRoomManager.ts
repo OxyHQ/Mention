@@ -25,10 +25,6 @@ export function useRoomManager() {
   const removeRoom = useCallback(() => {
     setRoom(null);
   }, []);
-  const hasContent = useCallback(
-    () => Boolean(room?.roomId && room.title.trim()),
-    [room],
-  );
   const loadRoomFromDraft = useCallback((draftRoom: RoomAttachmentData | null) => {
     setRoom(draftRoom);
   }, []);
@@ -41,7 +37,6 @@ export function useRoomManager() {
     setRoom,
     attachRoom,
     removeRoom,
-    hasContent,
     loadRoomFromDraft,
     clearRoom,
   };

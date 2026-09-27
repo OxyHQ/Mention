@@ -81,7 +81,17 @@ import { useAttachmentOrder } from '@/hooks/useAttachmentOrder';
 import { useScheduleManager } from '@/hooks/useScheduleManager';
 import { useDraftManager, type ComposeDraftRefs } from '@/hooks/useDraftManager';
 import { useComposeValidation } from '@/hooks/useComposeValidation';
-import { hasDraftContent, hasPublishableContent, type ComposeContent } from '@/utils/composeContent';
+import {
+  boxHasContent,
+  hasArticleContent as articleHasContent,
+  hasDraftContent,
+  hasJobContent as jobHasContent,
+  hasPodcastContent as podcastHasContent,
+  hasPublishableContent,
+  hasRoomContent as roomHasContent,
+  isCompleteEvent,
+  type ComposeContent,
+} from '@/utils/composeContent';
 import { useMediaPicker } from '@/hooks/useMediaPicker';
 import { useRefSync } from '@/hooks/useRefSync';
 import { useUrlUtils } from '@/hooks/useUrlUtils';
@@ -108,7 +118,7 @@ import ComposeThreadItem from '@/components/Compose/ComposeThreadItem';
 import PublishAsDialog from '@/components/Compose/PublishAsDialog';
 import VariantEditor from '@/components/Compose/VariantEditor';
 import PostItem from '@/components/Feed/PostItem';
-import { buildEditPost, buildMainPost, buildThreadPost, shouldIncludeThreadItem } from '@/utils/postBuilder';
+import { buildEditPost, buildMainPost, buildThreadPost } from '@/utils/postBuilder';
 import {
   ComposerMediaItem,
   toComposerMediaType,
@@ -364,7 +374,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     closeArticleEditor,
     saveArticle: handleArticleSave,
     removeArticle,
-    hasContent: articleHasContent,
     clearArticle,
   } = articleManager;
   const {
@@ -383,7 +392,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     closeEventEditor,
     saveEvent: handleEventSave,
     removeEvent,
-    hasContent: eventHasContent,
     loadEventFromDraft,
     clearEvent,
   } = eventManager;
@@ -391,7 +399,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     room: attachedRoom,
     attachRoom,
     removeRoom,
-    hasContent: roomHasContent,
     loadRoomFromDraft,
     clearRoom,
   } = roomManager;
@@ -399,7 +406,6 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     podcast,
     savePodcast,
     removePodcast,
-    hasContent: podcastHasContent,
     loadPodcastFromDraft,
     clearPodcast,
   } = podcastManager;
@@ -407,15 +413,14 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     job,
     saveJob,
     removeJob,
-    hasContent: jobHasContent,
     clearJob,
   } = jobManager;
 
-  const hasArticleContent = useMemo(() => articleHasContent(), [articleHasContent]);
-  const hasEventContent = useMemo(() => eventHasContent(), [eventHasContent]);
-  const hasRoomContent = useMemo(() => roomHasContent(), [roomHasContent]);
-  const hasPodcastContent = useMemo(() => podcastHasContent(), [podcastHasContent]);
-  const hasJobContent = useMemo(() => jobHasContent(), [jobHasContent]);
+  const hasArticleContent = articleHasContent(article);
+  const hasEventContent = isCompleteEvent(event);
+  const hasRoomContent = roomHasContent(attachedRoom);
+  const hasPodcastContent = podcastHasContent(podcast);
+  const hasJobContent = jobHasContent(job);
 
   // The author's saved default primary language, applied to fresh composes below.
   const { preferredLanguage } = useFediversePreferredLanguage();
@@ -689,8 +694,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       setLocation(draft.location);
       setSources(draft.sources);
       setArticle(draft.article);
-      setArticleDraftTitle(draft.articleDraftTitle);
-      setArticleDraftBody(draft.articleDraftBody);
+      setArticleDraftTitle(draft.article?.title ?? '');
+      setArticleDraftBody(draft.article?.body ?? '');
       loadPodcastFromDraft(draft.podcast);
       jobManager.setJob(draft.job);
       loadEventFromDraft(draft.event);
@@ -780,15 +785,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   // Attachment order manager (needs detectedLinks)
   const attachmentOrderManager = useAttachmentOrder({
     showPollCreator,
-    hasArticleContent,
     article,
-    hasEventContent,
     event,
-    hasRoomContent,
     room: attachedRoom,
-    hasPodcastContent,
     podcast,
-    hasJobContent,
     job,
     location,
     sources,
@@ -1288,15 +1288,10 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         pollTitle,
         pollOptions,
         article,
-        hasArticleContent,
         event,
-        hasEventContent,
         room: attachedRoom,
-        hasRoomContent,
         podcast,
-        hasPodcastContent,
         job,
-        hasJobContent,
         location,
         formattedSources,
         attachmentOrder: attachmentOrderRef.current || attachmentOrder,
@@ -1336,7 +1331,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       // Add thread items if any. Each item is its own post, so it carries its own
       // renditions — the buffer is keyed by (item × language).
       threadItems.forEach(item => {
-        if (shouldIncludeThreadItem(item)) {
+        if (boxHasContent(item)) {
           const threadPost = buildThreadPost(
             item,
             buildVariantContent(variants, item.id, item.text, item.mediaIds.map((media) => media.id)),
@@ -3236,7 +3231,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                       item={getVariantItem(variants, activeTag, item.id)}
                       primaryText={item.text}
                       sharedMedia={item.mediaIds}
-                      hasArticle={Boolean(item.article && (item.article.title?.trim() || item.article.body?.trim()))}
+                      hasArticle={articleHasContent(item.article)}
                       userAvatar={user?.avatar ?? undefined}
                       userVerified={Boolean(user?.verified)}
                       isFocused={focusedItemId === item.id}
