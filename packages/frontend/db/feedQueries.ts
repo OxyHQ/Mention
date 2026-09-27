@@ -11,6 +11,7 @@ import { getDb, isDbAvailable } from './database';
 import type { FeedMetaRow, FeedItem, PostRow } from './schema';
 import { rowToFeedItem, buildFeedKey } from './schema';
 import { upsertPosts } from './postQueries';
+import { notifyPostsStored } from './postObservers';
 import {
   memSetFeedItems,
   memAppendFeedItems,
@@ -59,6 +60,8 @@ export function setFeedItems(
   if (!feedKey) return;
 
   if (!isDbAvailable()) {
+    // The SQLite branch reaches `upsertPosts`, which notifies; this one does not.
+    notifyPostsStored(posts);
     memSetFeedItems(feedKey, posts, meta);
     return;
   }
@@ -124,6 +127,7 @@ export function appendFeedItems(
   if (!feedKey || !posts || posts.length === 0) return;
 
   if (!isDbAvailable()) {
+    notifyPostsStored(posts);
     memAppendFeedItems(feedKey, posts, meta);
     return;
   }

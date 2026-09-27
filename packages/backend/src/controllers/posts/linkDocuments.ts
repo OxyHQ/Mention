@@ -5,23 +5,13 @@ import {
   MAX_POST_DOCUMENTS,
   MAX_POST_DOCUMENTS_BATCH,
   type LinkPreviewResponse,
-  type PostDocumentsResponse,
 } from '@mention/shared-types';
-import { loadPostRecords } from '../../db/posts/postRepository';
-import { postHydrationService } from '../../services/PostHydrationService';
+import { loadPendingPostDocuments } from '../../services/postDocuments';
 import { isOwnProfileLink, resolveClarityDocuments } from '../../utils/clarityDocuments';
 import { logger } from '../../utils/logger';
 import { createScopedOxyClient } from '../../utils/oxyHelpers';
 import { resolveViewerPrivacyAndGraph } from '../../utils/privacyHelpers';
 import { requestLanguageCandidates } from '../../utils/viewerLanguage';
-
-/**
- * How long a follow-up may hold Clarity open for links it is still indexing.
- * These calls are off the render path — the post is already on screen without
- * its card — so waiting here costs the reader nothing, unlike on a feed read
- * (issue #1140).
- */
-const FOLLOW_UP_WAIT_MS = 3_000;
 
 /** The composer's wait: the author is looking at the card slot while they type. */
 const COMPOSER_WAIT_MS = 8_000;
@@ -45,12 +35,7 @@ function isHttpUrl(value: string): boolean {
 
 /**
  * `POST /posts/documents` — the link cards of posts whose first read reported
- * `documentsPending`.
- *
- * The posts go through the same hydration as `GET /posts/:id`, so this answers
- * for exactly the posts this viewer may read, in the language variant they are
- * served, and a post they may not read is simply absent from the answer. Only
- * the cards are returned; the app already has the rest of each post.
+ * `documentsPending`. See {@link loadPendingPostDocuments}.
  */
 export const getPostDocuments = async (req: AuthRequest, res: Response) => {
   const parsed = postDocumentsBody.safeParse(req.body);
@@ -61,33 +46,14 @@ export const getPostDocuments = async (req: AuthRequest, res: Response) => {
   try {
     const ids = [...new Set(parsed.data.ids)];
     const oxyClient = createScopedOxyClient(req);
-    const [records, viewerContext] = await Promise.all([
-      loadPostRecords(ids),
-      resolveViewerPrivacyAndGraph(req.user?.id, oxyClient),
-    ]);
-
-    const response: PostDocumentsResponse = { posts: {} };
-    if (records.length === 0) return res.json(response);
-
-    const hydrated = await postHydrationService.hydratePosts(records, {
+    const viewerContext = await resolveViewerPrivacyAndGraph(req.user?.id, oxyClient);
+    const response = await loadPendingPostDocuments(ids, {
       viewerId: req.user?.id,
       oxyClient,
       viewerPrivacy: viewerContext?.viewerPrivacy,
       viewerGraph: viewerContext?.viewerGraph,
       requestLanguages: requestLanguageCandidates(req),
-      maxDepth: 0,
-      includeLinkMetadata: true,
-      linkMetadataWaitMs: FOLLOW_UP_WAIT_MS,
     });
-
-    const requested = new Set(ids);
-    for (const post of hydrated) {
-      if (!requested.has(post.id)) continue;
-      response.posts[post.id] = {
-        documents: post.documents ?? [],
-        ...(post.documentsPending ? { documentsPending: true } : {}),
-      };
-    }
     return res.json(response);
   } catch (error) {
     logger.error('Error fetching post documents', error);

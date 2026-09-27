@@ -72,14 +72,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
   }),
 }));
 
-// The domains are read by the post-ingest link-card warm (`utils/clarityDocuments`),
-// which every create runs.
-vi.mock('../../connectors/activitypub/constants', () => ({
-  isBlockedDomain,
-  resolveOxyUser,
-  FEDERATION_DOMAIN: 'mention.earth',
-  ACTOR_DOMAIN: 'mention.earth',
-}));
+vi.mock('../../connectors/activitypub/constants', () => ({ isBlockedDomain, resolveOxyUser }));
 vi.mock('../../db/federation/actorRepository', () => ({ findActorByUri, findActorByAcct }));
 
 import { PostVisibility } from '@mention/shared-types';

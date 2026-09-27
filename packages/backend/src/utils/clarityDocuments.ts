@@ -1,7 +1,7 @@
 import type { ClarityDocument } from '@mention/shared-types';
 import { ownProfileUrlHandle } from '@mention/shared-types/profileUrls';
 
-import { ACTOR_DOMAIN, FEDERATION_DOMAIN } from '../connectors/activitypub/constants';
+import { config } from '../config';
 import { getClarityClient } from './clarityClient';
 import { extractUrls } from './extractUrls';
 import { logger } from './logger';
@@ -29,10 +29,12 @@ import { logger } from './logger';
  * The federation domain rather than `FRONTEND_URL`: they agree in production,
  * but `FRONTEND_URL` is a CORS origin and is `http://localhost:8110` in
  * development, where the app's own base URL is not. `ACTOR_DOMAIN` defaults to
- * the same value and is only distinct when actor URIs are served elsewhere.
+ * the same value and is only distinct when actor URIs are served elsewhere. Read
+ * from `config` (the same values `connectors/activitypub/constants` exports) so a
+ * link-card helper does not reach into the ActivityPub connector.
  */
 const OWN_PROFILE_HOSTS: readonly string[] = [
-  ...new Set([FEDERATION_DOMAIN, ACTOR_DOMAIN].filter((host): host is string => Boolean(host))),
+  ...new Set([config.federation.domain, config.federation.actorDomain].filter((host): host is string => Boolean(host))),
 ];
 
 /**

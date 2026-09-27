@@ -3,6 +3,7 @@ import type { PostDocumentsResponse } from '@mention/shared-types';
 import { logger } from '@oxy.so/core/logger';
 import { feedService } from '@/services/feedService';
 import { usePostsStore } from './postsStore';
+import { onPostsStored } from '@/db/postObservers';
 
 /**
  * LINK CARDS THAT WERE NOT READY ON THE FIRST READ.
@@ -14,7 +15,9 @@ import { usePostsStore } from './postsStore';
  * this, that empty `documents` was treated as final and cached, so the post
  * never got its card until something happened to refetch it.
  *
- * A rendered post that says `documentsPending` calls {@link requestPendingDocuments}.
+ * Every post the local cache stores with `documentsPending` is passed to
+ * {@link requestPendingDocuments} ({@link registerPendingDocuments}, mounted once
+ * at the app root) — no per-row hook, so a feed row costs nothing extra.
  * Ids are gathered into ONE `POST /posts/documents` call (the server holds it
  * open for a few seconds while Clarity finishes), and each answer is written
  * back through `updatePostEverywhere`, so every surface showing that post, and
@@ -112,6 +115,23 @@ export function requestPendingDocuments(postId: string): void {
   const asked = attempts.get(postId) ?? 0;
   if (asked > RETRY_DELAYS_MS.length) return;
   schedule(postId, asked === 0 ? FIRST_ASK_DELAY_MS : RETRY_DELAYS_MS[asked - 1]);
+}
+
+/**
+ * Watch every post the cache stores and ask for the cards of the pending ones.
+ * Mounted once at the app root; returns the unsubscribe.
+ */
+export function registerPendingDocuments(): () => void {
+  return onPostsStored((posts) => {
+    for (const post of posts) {
+      if (post.documentsPending === true && post.id) requestPendingDocuments(String(post.id));
+      // A boost or quote carries its embedded post, whose cards are its own.
+      const nested = [post.quotedPost, post.originalPost, post.boost?.originalPost];
+      for (const embedded of nested) {
+        if (embedded?.documentsPending === true && embedded.id) requestPendingDocuments(String(embedded.id));
+      }
+    }
+  });
 }
 
 /** Test seam: forget every scheduled and in-flight ask. */

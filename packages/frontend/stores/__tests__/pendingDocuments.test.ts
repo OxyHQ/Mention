@@ -29,7 +29,8 @@ jest.mock('@oxy.so/core/logger', () => ({
   logger: { error: jest.fn(), warn: jest.fn(), debug: jest.fn(), info: jest.fn() },
 }));
 
-import { requestPendingDocuments, resetPendingDocumentsForTests } from '../pendingDocuments';
+import { registerPendingDocuments, requestPendingDocuments, resetPendingDocumentsForTests } from '../pendingDocuments';
+import { notifyPostsStored } from '@/db/postObservers';
 
 const CARD = { id: 'doc-1', canonicalUrl: 'https://example.com/a', type: 'page', status: 'indexed', authors: [], evidence: {} };
 
@@ -113,4 +114,27 @@ it('retries after a failed call without touching the post', async () => {
   await advance(5_000);
   expect(mockGetPostDocuments).toHaveBeenCalledTimes(2);
   expect(mockPosts.get('a')?.documents).toEqual([CARD]);
+});
+
+it('asks for the pending posts the cache stores, including an embedded one, once registered', async () => {
+  seed('a');
+  seed('quoted');
+  mockGetPostDocuments.mockResolvedValue({ posts: { a: { documents: [CARD] }, quoted: { documents: [CARD] } } });
+  const unregister = registerPendingDocuments();
+
+  notifyPostsStored([
+    { id: 'settled', documents: [CARD] } as unknown as FeedItem,
+    { ...mockPosts.get('a'), quotedPost: mockPosts.get('quoted') } as unknown as FeedItem,
+  ]);
+  await advance(1_500);
+  unregister();
+
+  expect(mockGetPostDocuments).toHaveBeenCalledWith(['a', 'quoted']);
+  expect(mockPosts.get('quoted')?.documents).toEqual([CARD]);
+
+  // Unregistered: a stored pending post no longer asks.
+  seed('later');
+  notifyPostsStored([mockPosts.get('later') as FeedItem]);
+  await advance(60_000);
+  expect(mockGetPostDocuments).toHaveBeenCalledTimes(1);
 });

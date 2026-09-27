@@ -139,3 +139,64 @@ it('renders one card fewer rather than promoting a link past the cap', async () 
 
   expect(urls).toEqual(others.slice(0, MAX_POST_DOCUMENTS - 1));
 });
+
+describe('the composer resolves only what it does not already have', () => {
+  it('keeps cached cards and asks only for the rest, in text order', async () => {
+    const cached = { url: 'https://example.com/cached', title: 'Cached', fetchedAt: 1 };
+    mockGetCached.mockImplementation((url: string) => (url === cached.url ? cached : undefined));
+    let links: unknown[] = [];
+    function Reader({ text }: { text: string }) {
+      links = useLinkDetection(text).detectedLinks;
+      return null;
+    }
+
+    await act(async () => {
+      TestRenderer.create(<Reader text="https://example.org/fresh then https://example.com/cached" />);
+    });
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(600);
+    });
+
+    expect(mockResolve).toHaveBeenCalledWith(['https://example.org/fresh'], expect.anything());
+    expect(links.map((link) => (link as { url: string }).url)).toEqual([
+      'https://example.org/fresh',
+      'https://example.com/cached',
+    ]);
+  });
+});
+
+describe('an answer that arrives after the draft changed', () => {
+  async function typeThenRetype(settle: (resolve: (value: unknown) => void, reject: (error: unknown) => void) => void) {
+    let settleFirst: ((value: unknown) => void) | undefined;
+    let failFirst: ((error: unknown) => void) | undefined;
+    mockResolve.mockImplementationOnce(() => new Promise((resolve, reject) => {
+      settleFirst = resolve;
+      failFirst = reject;
+    }));
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = TestRenderer.create(<Probe text="https://example.com/first" />);
+    });
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(600);
+    });
+    // The author keeps typing: the first request is abandoned.
+    await act(async () => {
+      renderer?.update(<Probe text="" />);
+    });
+    await act(async () => {
+      settle(settleFirst as (value: unknown) => void, failFirst as (error: unknown) => void);
+      await jest.advanceTimersByTimeAsync(600);
+    });
+  }
+
+  it('is dropped rather than cached', async () => {
+    await typeThenRetype((resolve) => resolve({ previews: [preview('https://example.com/first')], pending: [] }));
+    expect(mockUpsertLink).not.toHaveBeenCalled();
+  });
+
+  it('is dropped quietly when it failed', async () => {
+    await typeThenRetype((_resolve, reject) => reject(new Error('aborted')));
+    expect(mockUpsertLink).not.toHaveBeenCalled();
+  });
+});

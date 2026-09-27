@@ -146,7 +146,7 @@ interface RawPost {
   [key: string]: unknown;
 }
 
-interface HydrationOptions {
+export interface HydrationOptions {
   viewerId?: string;
   oxyClient?: OxyClient; // Per-request OxyServices instance with user's auth token
   maxDepth?: number;
