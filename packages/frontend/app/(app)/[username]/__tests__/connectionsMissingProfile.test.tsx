@@ -79,7 +79,15 @@ jest.mock('@/components/ProfileCard', () => {
 jest.mock('@/components/common/EmptyState', () => {
   const { Pressable, Text: RNText, View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
-    EmptyState: ({ title, action }: { title: string; action?: { label: string; onPress: () => void } }) => (
+    EmptyState: ({ title, action, error }: {
+      title?: string;
+      action?: { label: string; onPress: () => void };
+      error?: { message: string; onRetry?: () => Promise<void> };
+    }) => error ? (
+      <Pressable testID="connections-error" onPress={() => { void error.onRetry?.(); }}>
+        <RNText>{error.message}</RNText>
+      </Pressable>
+    ) : (
       <RNView testID="profile-not-found">
         <RNText>{title}</RNText>
         {action ? <Pressable testID="not-found-back" onPress={action.onPress}><RNText>{action.label}</RNText></Pressable> : null}

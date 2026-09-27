@@ -2,6 +2,7 @@ import React from 'react';
 import { Animated, ScrollView, Text, View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { ProfileShell, type ProfileShellProps } from '../ProfileShell';
+import { ProfileUnavailable } from '../ProfileUnavailable';
 
 const mockScrollPosition = { value: 0 };
 const mockHeader = jest.fn();
@@ -53,6 +54,8 @@ function makeProps(tab: ProfileShellProps['tabs']['tab'] = 'lists'): ProfileShel
       assignScrollRef: jest.fn(), scrollToContent: jest.fn(), contentHeight: 0, setContentHeight: jest.fn(),
     },
     loading: false,
+    notFound: false,
+    onRetry: jest.fn(async () => undefined),
     profileData: { id: 'person', username: 'person', name: { displayName: 'Person' }, design: { displayName: 'Person' } },
     banner: { uri: 'https://example.com/banner.jpg' }, headerActions: null,
     summary: <Text>Profile summary</Text>, tabBar: <Text>Profile tabs</Text>,
@@ -125,4 +128,19 @@ test('a pushed profile has Back; the root profile tab does not', () => {
   expect(mockHeader).toHaveBeenCalled();
   expect(mockHeader.mock.calls.at(-1)?.[0].onBack).toBeUndefined();
   act(() => rootTab.unmount());
+});
+
+test('with no profile, it says "not found" or offers a retry — whichever the lookup answered', () => {
+  const onRetry = jest.fn(async () => undefined);
+  const missing = renderShell({ ...makeProps(), profileData: null, notFound: true, onRetry });
+  expect(missing.root.findByType(ProfileUnavailable).props).toMatchObject({ notFound: true, onRetry });
+  act(() => missing.unmount());
+
+  const failed = renderShell({ ...makeProps(), profileData: null, notFound: false, onRetry });
+  expect(failed.root.findByType(ProfileUnavailable).props.notFound).toBe(false);
+  act(() => failed.unmount());
+
+  const loading = renderShell({ ...makeProps(), loading: true, profileData: null, notFound: false, onRetry });
+  expect(loading.root.findAllByType(ProfileUnavailable)).toHaveLength(0);
+  act(() => loading.unmount());
 });

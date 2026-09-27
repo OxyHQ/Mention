@@ -1,18 +1,15 @@
 import React, { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 import { router, usePathname, type Href } from 'expo-router';
-import { useTranslation } from 'react-i18next';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
 import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { RouterTabs, type RouterTabItem } from '@oxy.so/bloom/tabs/expo-router';
 
-import { EmptyState } from '@/components/common/EmptyState';
-import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
-import { useSafeBack } from '@/hooks/useSafeBack';
 
 import { ProfilePageHeader, ProfileBanner, PROFILE_BANNER_HEIGHT } from './ProfilePageHeader';
 import { ProfileSkeleton } from './ProfileSkeleton';
+import { ProfileUnavailable } from './ProfileUnavailable';
 import { ProfileTabBarRow } from './ProfileTabBarRow';
 import { usePersonProfileView } from './hooks/usePersonProfileView';
 import { useRoutedProfileUsername } from './hooks/useRoutedProfileUsername';
@@ -20,7 +17,7 @@ import { profileTabHref, profileTabSelectionFromPathname } from './profileTabRou
 import type { ProfileChromeFrameProps, ProfileTabDescriptor } from './types';
 
 /** What the frame is drawing above the routed child right now. */
-type ChromeState = 'off' | 'skeleton' | 'notFound' | 'ready';
+type ChromeState = 'off' | 'skeleton' | 'unavailable' | 'ready';
 
 /**
  * The `[username]` layout's body — WEB, where it owns the profile chrome.
@@ -85,8 +82,6 @@ type ChromeState = 'off' | 'skeleton' | 'notFound' | 'ready';
  */
 export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps) {
   const { scrollPosition } = useLayoutScroll();
-  const { t } = useTranslation();
-  const safeBack = useSafeBack();
   const pathname = usePathname();
   const selection = useMemo(() => profileTabSelectionFromPathname(pathname), [pathname]);
   const active = selection !== null;
@@ -130,7 +125,7 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
       ? 'skeleton'
       : view.profileData
         ? 'ready'
-        : 'notFound';
+        : 'unavailable';
   /**
    * The account the chrome is drawing, or `null` in every other state.
    *
@@ -162,10 +157,7 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
         <View className="flex-1 web:z-auto">
           {view.seo}
           {chromeState === 'skeleton' ? <ProfileSkeleton variant="person" /> : null}
-          {chromeState === 'notFound' ? <EmptyState
-            customIcon={<NoUpdatesIllustration width={200} height={200} />}
-            title={t('profile.notFound.title', { defaultValue: 'Profile not found' })}
-            action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: safeBack }} /> : null}
+          {chromeState === 'unavailable' ? <ProfileUnavailable notFound={view.notFound} onRetry={view.refresh} /> : null}
           {drawing ? <ProfilePageHeader profileData={drawing} actions={view.headerActions} /> : null}
           {drawing ? <ProfileBanner uri={view.bannerUri} /> : null}
           {drawing ? view.summary : null}

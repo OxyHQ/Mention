@@ -284,7 +284,6 @@
   "profile.actions.share": "Поделиться профилем @{{handle}}",
   "profile.actions.more": "Другие действия для @{{handle}}",
   "profile.notFound.title": "Профиль не найден",
-  "profile.notFound.message": "Не удалось загрузить этот профиль. Возможно, пользователя не существует или его сервер недоступен.",
   "settings.title": "Настройки",
   "settings.signOut": "Выйти",
   "settings.signOutMessage": "Вы уверены, что хотите выйти?",
@@ -2598,6 +2597,7 @@
   "connections.failedFollowers": "Не удалось загрузить подписчиков",
   "connections.failedFollowing": "Не удалось загрузить подписки",
   "connections.profileNotFound": "Этого аккаунта не существует, поэтому подписчиков нет.",
-  "connections.profileLoadFailed": "Не удалось загрузить профиль. Проверьте подключение и попробуйте ещё раз.",
-  "saved.createFolderFailed": "Не удалось создать папку. Попробуйте ещё раз."
+  "saved.createFolderFailed": "Не удалось создать папку. Попробуйте ещё раз.",
+  "profile.loadFailed": "Не удалось загрузить профиль. Проверьте подключение и попробуйте ещё раз.",
+  "profile.notFound.gone": "Этот аккаунт не существует или больше недоступен."
 }

@@ -280,7 +280,6 @@
   "profile.actions.share": "Partilhar o perfil de @{{handle}}",
   "profile.actions.more": "Mais opções para @{{handle}}",
   "profile.notFound.title": "Perfil não encontrado",
-  "profile.notFound.message": "Não foi possível carregar este perfil. O utilizador pode não existir ou o servidor dele pode estar indisponível.",
   "settings.title": "Definições",
   "settings.signOut": "Terminar sessão",
   "settings.signOutMessage": "Tens a certeza de que queres terminar sessão?",
@@ -2570,6 +2569,7 @@
   "connections.failedFollowers": "Não foi possível carregar os seguidores",
   "connections.failedFollowing": "Não foi possível carregar quem segue",
   "connections.profileNotFound": "Esta conta não existe, então não há seguidores para mostrar.",
-  "connections.profileLoadFailed": "Não foi possível carregar este perfil. Verifique sua conexão e tente novamente.",
-  "saved.createFolderFailed": "Não foi possível criar a pasta. Tente novamente."
+  "saved.createFolderFailed": "Não foi possível criar a pasta. Tente novamente.",
+  "profile.loadFailed": "Não foi possível carregar este perfil. Verifique sua conexão e tente novamente.",
+  "profile.notFound.gone": "Esta conta não existe ou não está mais disponível."
 }

@@ -280,7 +280,6 @@
   "profile.actions.share": "Comparteix el perfil de @{{handle}}",
   "profile.actions.more": "Més opcions per a @{{handle}}",
   "profile.notFound.title": "No s'ha trobat el perfil",
-  "profile.notFound.message": "No s'ha pogut carregar aquest perfil. Pot ser que l'usuari no existeixi o que el seu servidor no estigui disponible.",
   "settings.title": "Configuració",
   "settings.signOut": "Tanca la sessió",
   "settings.signOutMessage": "Segur que vols tancar la sessió?",
@@ -2570,6 +2569,7 @@
   "connections.failedFollowers": "No s'han pogut carregar els seguidors",
   "connections.failedFollowing": "No s'han pogut carregar els seguits",
   "connections.profileNotFound": "Aquest compte no existeix, així que no té seguidors per mostrar.",
-  "connections.profileLoadFailed": "No s'ha pogut carregar aquest perfil. Comprova la connexió i torna-ho a provar.",
-  "saved.createFolderFailed": "No s'ha pogut crear la carpeta. Torna-ho a provar."
+  "saved.createFolderFailed": "No s'ha pogut crear la carpeta. Torna-ho a provar.",
+  "profile.loadFailed": "No s'ha pogut carregar aquest perfil. Comprova la connexió i torna-ho a provar.",
+  "profile.notFound.gone": "Aquest compte no existeix o ja no està disponible."
 }

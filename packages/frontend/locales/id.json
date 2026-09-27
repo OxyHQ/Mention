@@ -276,7 +276,6 @@
   "profile.actions.share": "Bagikan profil @{{handle}}",
   "profile.actions.more": "Opsi lain untuk @{{handle}}",
   "profile.notFound.title": "Profil tidak ditemukan",
-  "profile.notFound.message": "Profil ini tidak bisa dimuat. Penggunanya mungkin tidak ada atau servernya sedang tidak tersedia.",
   "settings.title": "Pengaturan",
   "settings.signOut": "Keluar",
   "settings.signOutMessage": "Yakin ingin keluar?",
@@ -2542,6 +2541,7 @@
   "connections.failedFollowers": "Gagal memuat pengikut",
   "connections.failedFollowing": "Gagal memuat yang diikuti",
   "connections.profileNotFound": "Akun ini tidak ada, jadi tidak ada pengikut untuk ditampilkan.",
-  "connections.profileLoadFailed": "Profil ini tidak dapat dimuat. Periksa koneksi Anda dan coba lagi.",
-  "saved.createFolderFailed": "Folder tidak dapat dibuat. Coba lagi."
+  "saved.createFolderFailed": "Folder tidak dapat dibuat. Coba lagi.",
+  "profile.loadFailed": "Profil ini tidak dapat dimuat. Periksa koneksi Anda dan coba lagi.",
+  "profile.notFound.gone": "Akun ini tidak ada atau sudah tidak tersedia."
 }

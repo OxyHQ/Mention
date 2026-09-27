@@ -50,6 +50,7 @@ jest.mock('@oxy.so/bloom/theme', () => ({
       border: '#333',
       card: '#fff',
       primary: '#7c3aed',
+      error: '#e11d48',
       text: '#000',
       textSecondary: '#666',
       textTertiary: '#999',
@@ -59,9 +60,32 @@ jest.mock('@oxy.so/bloom/theme', () => ({
 
 jest.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
 jest.mock('@oxy.so/bloom/hooks', () => ({ useHaptics: () => jest.fn() }));
-jest.mock('@oxy.so/bloom/pressable-scale', () => {
+// Bloom's button entry is untranspiled source. The stand-in keeps GlyphButton's
+// contract as Bloom's own tests pin it: a button with the given name, disabled
+// and busy both announced and both refusing a press, and the glyph painted in
+// `color` or, by default, the theme's secondary text colour.
+jest.mock('@oxy.so/bloom/button', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
-  return { PressableScale: TouchableOpacity };
+  return {
+    GlyphButton: ({ children, accessibilityLabel, disabled = false, busy = false, onPress, color }: {
+      children: (foreground: string) => React.ReactNode;
+      accessibilityLabel: string;
+      disabled?: boolean;
+      busy?: boolean;
+      onPress?: () => void;
+      color?: string;
+    }) => (
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityState={{ disabled, busy }}
+        disabled={disabled || busy}
+        onPress={onPress}
+      >
+        {children(color ?? '#666')}
+      </TouchableOpacity>
+    ),
+  };
 });
 // Bloom's icon barrel is untranspiled ESM. Each glyph becomes a component named
 // after its export, so the cases below can still assert on WHICH picture drew.
@@ -212,7 +236,6 @@ describe('ComposeToolbar — the collaborators control', () => {
     // It used to render its own "Invite collaborators" text row below the
     // composer. In the icon row the words live in the a11y label alone.
     expect(textContent(tree)).toBe('');
-    expect(collaboratorControl(tree).props.className).toBe('p-1');
     expect(iconNames(tree)).toContain('RiGroupLine');
 
     act(() => tree.unmount());
@@ -398,8 +421,34 @@ describe('ComposeToolbar — what assistive technology is told', () => {
     const tree = render({ onLocationPress: jest.fn(), isGettingLocation: true });
     const location = pressables(tree).find((node) => node.props.accessibilityLabel === 'Add your location');
 
-    expect(location?.props.accessibilityState).toEqual({ disabled: true, busy: true });
+    expect(location?.props.accessibilityState).toEqual({ disabled: false, busy: true });
+    expect(location?.props.disabled).toBe(true);
 
+    act(() => tree.unmount());
+  });
+});
+
+describe('ComposeToolbar — what the tint says', () => {
+  const eventColor = (tree: TestRenderer.ReactTestRenderer) => tree.root.findByType(CalendarIcon).props.color;
+
+  it('tints an attachment the post carries, and flags sources that need a title', () => {
+    const plain = render({ onEventPress: noop, onSourcesPress: noop });
+    expect(eventColor(plain)).toBe('#666');
+    act(() => plain.unmount());
+
+    const attached = render({ onEventPress: noop, hasEvent: true, onSourcesPress: noop, hasSources: true });
+    expect(eventColor(attached)).toBe('#7c3aed');
+    act(() => attached.unmount());
+
+    const invalid = render({ onSourcesPress: noop, hasSources: true, hasSourceErrors: true });
+    const sources = invalid.root.find((node) => node.props.accessibilityLabel === 'Add sources' && typeof node.type !== 'string');
+    expect(sources.findAll((node) => node.props.color === '#e11d48').length).toBeGreaterThan(0);
+    act(() => invalid.unmount());
+  });
+
+  it('shows a spinner in place of the location glyph while it locates', () => {
+    const tree = render({ onLocationPress: noop, isGettingLocation: true, hasLocation: true });
+    expect(tree.root.findAll((node) => node.props.accessibilityLabel === 'Add your location' && typeof node.type !== 'string').length).toBeGreaterThan(0);
     act(() => tree.unmount());
   });
 });

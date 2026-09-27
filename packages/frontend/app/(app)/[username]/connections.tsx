@@ -16,8 +16,7 @@ import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { cacheActors } from '@/lib/actorCache';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Error as ErrorComponent } from '@/components/Error';
-import { EmptyState } from '@/components/common/EmptyState';
-import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
+import { ProfileUnavailable } from '@/components/Profile/ProfileUnavailable';
 import { useProfileData, type ProfileData } from '@/hooks/useProfileData';
 import { useProfileScreenColor } from '@/hooks/useProfileScreenColor';
 import { logger } from '@oxy.so/core/logger';
@@ -489,32 +488,16 @@ function ConnectionsContent({
   const needsProfile = !isRecommendationsTab;
 
   const renderContent = () => {
-    if (needsProfile && !profileData && !profileLoading) {
-      if (profileNotFound) {
-        return (
-          <EmptyState
-            customIcon={<NoUpdatesIllustration width={200} height={200} />}
-            title={t('profile.notFound.title', { defaultValue: 'Profile not found' })}
-            subtitle={t('connections.profileNotFound', {
-              defaultValue: "This account doesn't exist, so it has no followers to show.",
-            })}
-            action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: () => safeBack() }}
-          />
-        );
-      }
-      if (profileError) {
-        return (
-          <ErrorComponent
-            title={t('Error', { defaultValue: 'Error' })}
-            message={t('connections.profileLoadFailed', {
-              defaultValue: "This profile couldn't be loaded. Check your connection and try again.",
-            })}
-            onRetry={() => { void refreshProfile(); }}
-            hideBackButton={true}
-            style={{ flex: 1, paddingVertical: 40 }}
-          />
-        );
-      }
+    if (needsProfile && !profileData && !profileLoading && profileError) {
+      return (
+        <ProfileUnavailable
+          notFound={profileNotFound}
+          onRetry={refreshProfile}
+          notFoundMessage={t('connections.profileNotFound', {
+            defaultValue: "This account doesn't exist, so it has no followers to show.",
+          })}
+        />
+      );
     }
 
     if (activeError && currentData.length === 0 && !activeLoading) {

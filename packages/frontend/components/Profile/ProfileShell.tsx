@@ -3,11 +3,8 @@ import { Platform, StatusBar, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { HeaderDockProvider, StickySection, useHeaderDockInset } from '@oxy.so/bloom/layout';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
-import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { EmptyState } from '@/components/common/EmptyState';
-import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
-import { useSafeBack } from '@/hooks/useSafeBack';
+import { ProfileUnavailable } from './ProfileUnavailable';
 import type { ProfileData } from '@/hooks/useProfileData';
 import { ProfilePageHeader, ProfileBanner } from './ProfilePageHeader';
 import { ProfileSkeleton } from './ProfileSkeleton';
@@ -22,6 +19,10 @@ export interface ProfileShellProps {
   chrome: ProfileChrome;
   loading: boolean;
   profileData: ProfileData | null;
+  /** With no profile: the account does not exist (else the lookup failed). */
+  notFound: boolean;
+  /** Retries a failed lookup. */
+  onRetry: () => Promise<void>;
   /**
    * The banner band, or `null` for a layout that has none. A channel passes
    * `null`: the account has no banner field to set, so there is nothing to
@@ -62,6 +63,8 @@ function ProfileShellBody({
   chrome,
   loading,
   profileData,
+  notFound,
+  onRetry,
   banner,
   headerActions,
   summary,
@@ -71,8 +74,6 @@ function ProfileShellBody({
   isRootTab = false,
 }: ProfileShellProps) {
   const theme = useTheme();
-  const { t } = useTranslation();
-  const safeBack = useSafeBack();
   const headerInset = useHeaderDockInset();
   const [summaryHeight, setSummaryHeight] = useState<number>();
 
@@ -127,10 +128,7 @@ function ProfileShellBody({
   return <View className="flex-1 web:z-auto bg-background" style={{ backgroundColor: theme.colors?.background }}>
     <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
     {loading ? <ProfileSkeleton variant={skeletonVariant} /> : !profileData ? (
-      <EmptyState customIcon={<NoUpdatesIllustration width={200} height={200} />}
-        title={t('profile.notFound.title', { defaultValue: 'Profile not found' })}
-        subtitle={t('profile.notFound.message', { defaultValue: "This profile couldn't be loaded." })}
-        action={{ label: t('common.goBack', { defaultValue: 'Go Back' }), onPress: safeBack }} />
+      <ProfileUnavailable notFound={notFound} onRetry={onRetry} />
     ) : <>
       {IS_WEB ? <>
         <ProfilePageHeader profileData={profileData} actions={headerActions}

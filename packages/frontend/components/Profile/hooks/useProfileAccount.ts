@@ -14,6 +14,11 @@ export interface ProfileAccount {
   isFederated: boolean;
   profileData: ProfileData | null;
   loading: boolean;
+  /**
+   * No such account (a 404, or a handle that resolved to nothing). Without a
+   * profile and without this, the lookup FAILED — a retry, not "not found".
+   */
+  notFound: boolean;
   /** Bloom colour preset for the profile's scope. */
   colorName: AppColorName | undefined;
   /** Refetches the identity and appearance payloads behind the profile chrome. */
@@ -45,7 +50,7 @@ export function useProfileAccount(routedUsername: string): ProfileAccount {
   // it is read the same way on both, because the rule belongs to the handle, not
   // to the screen.
   const isFederated = username.includes('@');
-  const { data: profileData, loading, refresh } = useProfileData(username);
+  const { data: profileData, loading, notFound, refresh } = useProfileData(username);
   const { colorName } = useProfileScreenColor({
     username,
     designColor: profileData?.design?.color,
@@ -61,7 +66,7 @@ export function useProfileAccount(routedUsername: string): ProfileAccount {
     [profileData?.username, profileData?.instance, profileData?.isFederated, username],
   );
 
-  return { username, handle, isFederated, profileData, loading, colorName, refresh };
+  return { username, handle, isFederated, profileData, loading, notFound, colorName, refresh };
 }
 
 export interface ProfileCanonicalHrefOptions {

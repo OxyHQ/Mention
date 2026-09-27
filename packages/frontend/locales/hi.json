@@ -276,7 +276,6 @@
   "profile.actions.share": "@{{handle}} की प्रोफ़ाइल साझा करें",
   "profile.actions.more": "@{{handle}} के लिए और विकल्प",
   "profile.notFound.title": "प्रोफ़ाइल नहीं मिली",
-  "profile.notFound.message": "यह प्रोफ़ाइल लोड नहीं हो सकी। हो सकता है यह उपयोगकर्ता मौजूद न हो या उनका सर्वर उपलब्ध न हो।",
   "settings.title": "सेटिंग्स",
   "settings.signOut": "साइन आउट",
   "settings.signOutMessage": "क्या आप वाकई साइन आउट करना चाहते हैं?",
@@ -2542,6 +2541,7 @@
   "connections.failedFollowers": "फ़ॉलोअर लोड नहीं हो सके",
   "connections.failedFollowing": "फ़ॉलो किए गए खाते लोड नहीं हो सके",
   "connections.profileNotFound": "यह खाता मौजूद नहीं है, इसलिए दिखाने के लिए कोई फ़ॉलोअर नहीं है।",
-  "connections.profileLoadFailed": "यह प्रोफ़ाइल लोड नहीं हो सकी। अपना कनेक्शन जांचें और फिर से कोशिश करें।",
-  "saved.createFolderFailed": "फ़ोल्डर नहीं बन सका। फिर से कोशिश करें।"
+  "saved.createFolderFailed": "फ़ोल्डर नहीं बन सका। फिर से कोशिश करें।",
+  "profile.loadFailed": "यह प्रोफ़ाइल लोड नहीं हो सकी। अपना कनेक्शन जांचें और फिर से कोशिश करें।",
+  "profile.notFound.gone": "यह खाता मौजूद नहीं है, या अब उपलब्ध नहीं है।"
 }

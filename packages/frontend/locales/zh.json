@@ -276,7 +276,6 @@
   "profile.actions.share": "分享 @{{handle}} 的主页",
   "profile.actions.more": "@{{handle}} 的更多选项",
   "profile.notFound.title": "未找到该主页",
-  "profile.notFound.message": "无法加载该主页。该用户可能不存在，或其服务器暂时不可用。",
   "settings.title": "设置",
   "settings.signOut": "退出登录",
   "settings.signOutMessage": "确定要退出登录吗？",
@@ -2542,6 +2541,7 @@
   "connections.failedFollowers": "无法加载关注者",
   "connections.failedFollowing": "无法加载正在关注",
   "connections.profileNotFound": "此账号不存在，因此没有可显示的关注者。",
-  "connections.profileLoadFailed": "无法加载此个人资料。请检查网络连接后重试。",
-  "saved.createFolderFailed": "无法创建文件夹。请重试。"
+  "saved.createFolderFailed": "无法创建文件夹。请重试。",
+  "profile.loadFailed": "无法加载此个人资料。请检查网络连接后重试。",
+  "profile.notFound.gone": "此账号不存在或已不可用。"
 }

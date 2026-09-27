@@ -292,7 +292,6 @@
   "profile.actions.share": "مشاركة الملف الشخصي لـ@{{handle}}",
   "profile.actions.more": "خيارات أخرى لـ@{{handle}}",
   "profile.notFound.title": "الملف الشخصي غير موجود",
-  "profile.notFound.message": "تعذّر تحميل هذا الملف الشخصي. قد يكون المستخدم غير موجود أو قد يكون خادمه غير متاح.",
   "settings.title": "الإعدادات",
   "settings.signOut": "تسجيل الخروج",
   "settings.signOutMessage": "هل تريد بالتأكيد تسجيل الخروج؟",
@@ -2652,6 +2651,7 @@
   "connections.failedFollowers": "تعذّر تحميل المتابعين",
   "connections.failedFollowing": "تعذّر تحميل المتابَعين",
   "connections.profileNotFound": "هذا الحساب غير موجود، لذا لا يوجد متابعون لعرضهم.",
-  "connections.profileLoadFailed": "تعذّر تحميل هذا الملف الشخصي. تحقّق من اتصالك وحاول مرة أخرى.",
-  "saved.createFolderFailed": "تعذّر إنشاء المجلد. حاول مرة أخرى."
+  "saved.createFolderFailed": "تعذّر إنشاء المجلد. حاول مرة أخرى.",
+  "profile.loadFailed": "تعذّر تحميل هذا الملف الشخصي. تحقّق من اتصالك وحاول مرة أخرى.",
+  "profile.notFound.gone": "هذا الحساب غير موجود أو لم يعد متاحًا."
 }
