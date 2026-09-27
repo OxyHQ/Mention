@@ -88,6 +88,12 @@ export interface PostRecordFederation {
    * claim instead of colliding with it.
    */
   sourceKeyClaimToken?: string;
+  /**
+   * WRITE-SIDE ONLY: what to do if a re-hosted media id turns out to be mid-
+   * deletion in Oxy (see `GoneMediaPolicy` in `postRepository.ts`). Default
+   * `remote-url` (stable source URLs); the Instagram Graph import says `refuse`.
+   */
+  goneMediaPolicy?: 'remote-url' | 'refuse';
 }
 
 /** The Stage-A → Stage-B lifecycle of `postClassification`. */

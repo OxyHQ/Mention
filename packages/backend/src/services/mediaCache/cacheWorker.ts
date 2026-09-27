@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs';
-import { recordFederatedPoster, reviveFederatedFiles } from '../../db/federation/mediaDeletionRepository';
+import { databaseNow, recordFederatedPoster, reviveFederatedFiles } from '../../db/federation/mediaDeletionRepository';
 import { mkdtemp, open, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -354,6 +354,20 @@ function isPermanentlyUnavailableDownloadFailure(outcome: Extract<DownloadOutcom
  * {@link MediaDownloadPolicy}. Post media legitimately spans image/video/audio and
  * passes no policy; a profile banner passes `FEDERATED_BANNER_DOWNLOAD_POLICY`.
  */
+/**
+ * When an upload STARTS, on the DATABASE clock — compared with `settled_at`,
+ * which the database writes. `null` if it cannot be read: no revive is then
+ * attempted, which only leaves a tombstone in place (the insert refuses and the
+ * import retries), never re-opens a file that may have been deleted after.
+ */
+async function uploadClock(): Promise<Date | null> {
+  try {
+    return await databaseNow();
+  } catch {
+    return null;
+  }
+}
+
 function reviveFailed(error: unknown): void {
   logger.warn('[MediaCache] Could not re-open a reactivated federated file', {
     reason: error instanceof Error ? error.message : 'unknown',
@@ -386,7 +400,7 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
     const { filePath, contentType, sizeBytes } = outcome.download;
     // Taken BEFORE the upload: an upload that STARTS after Oxy confirmed a
     // deletion of the id it returns has reactivated that file (dedupe).
-    const uploadStartedAt = new Date();
+    const uploadStartedAt = await uploadClock();
     const media = await uploadFederatedMedia({
       filePath,
       contentType,
@@ -398,10 +412,10 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
 
     // Best-effort: a revive that fails only leaves the tombstone, so the post
     // insert refuses the id and the import retries — never a dangling reference.
-    await reviveFederatedFiles([media.oxyFileId], uploadStartedAt).catch(reviveFailed);
+    if (uploadStartedAt) await reviveFederatedFiles([media.oxyFileId], uploadStartedAt).catch(reviveFailed);
 
     let posterFileId: string | undefined;
-    const posterUploadStartedAt = new Date();
+    const posterUploadStartedAt = await uploadClock();
     if (isVideoType(contentType)) {
       posterFileId = await extractAndUploadPoster(filePath, dir, (source) =>
         uploadFederatedMedia({
@@ -418,7 +432,7 @@ export async function persistRemoteMediaForFederatedOwnerDetailed(
     if (posterFileId) {
       // Best-effort: a revive that fails only leaves the tombstone, so the post
       // insert refuses the id and the import retries — never a dangling reference.
-      await reviveFederatedFiles([posterFileId], posterUploadStartedAt).catch(reviveFailed);
+      if (posterUploadStartedAt) await reviveFederatedFiles([posterFileId], posterUploadStartedAt).catch(reviveFailed);
       // The poster is a durable Oxy file too, and nothing else records it: without
       // this row it could never be deleted along with its video.
       await recordFederatedPoster(media.oxyFileId, posterFileId).catch((error: unknown) => {

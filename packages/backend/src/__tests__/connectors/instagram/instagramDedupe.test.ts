@@ -97,7 +97,7 @@ import { inboxProcessingService } from '../../../connectors/activitypub/inbox.se
 import { importInstagramMedia } from '../../../connectors/instagram/importer';
 import { optionsFor, requestInstagramSync, syncInstagramActor, syncResultFor } from '../../../connectors/instagram/sync';
 import { InstagramGraphError, type GraphMedia } from '../../../connectors/instagram/graphClient';
-import { IMAGE, REEL_WITH_VIDEO, ZUCK_PROFILE } from './fixtures/graphSnapshot';
+import { BIG_IMAGE_CAROUSEL, IMAGE, REEL_WITH_VIDEO, ZUCK_PROFILE } from './fixtures/graphSnapshot';
 
 const SUITE = 'igdedupe';
 const USERNAME = `${SUITE}.acct`;
@@ -384,6 +384,40 @@ describe('media is re-hosted, or the post is not imported yet', () => {
     expect(await importInstagramMedia(TARGET, ONE_SHOT)).toMatchObject({ outcome: 'ok', imported: 1 });
     const [id] = await rowsFor(39);
     expect(await getDb().select().from(postMedia).where(eq(postMedia.postId, id))).toEqual([]);
+  });
+
+  it('a carousel that must WAIT queues the slots it already uploaded (nothing references them meanwhile)', async () => {
+    let calls = 0;
+    h.persist.mockImplementation(async () => ((calls += 1) === 1
+      ? { ok: true, media: { oxyFileId: `oxyfile-${SUITE}-slot1-${(fileSeq += 1)}`, contentType: 'image/jpeg', sizeBytes: 10 } }
+      : { ok: false, reason: 'store-unavailable', permanent: false }));
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(14, BIG_IMAGE_CAROUSEL)]));
+
+    expect(await importInstagramMedia(TARGET, ONE_SHOT)).toMatchObject({ outcome: 'partial', imported: 0 });
+
+    const uploaded = `oxyfile-${SUITE}-slot1-${fileSeq}`;
+    expect(await rowsFor(14)).toHaveLength(0);
+    expect(await queuedDeletions([uploaded])).toEqual([uploaded]);
+  });
+
+  it('an insert that fails queues every file uploaded for it; a file mid-deletion makes the post wait', async () => {
+    const gone = `oxyfile-${SUITE}-gone-${(fileSeq += 1)}`;
+    const fresh = `oxyfile-${SUITE}-fresh-${(fileSeq += 1)}`;
+    await getDb().insert(federatedMediaDeletions).values({ oxyFileId: gone, state: 'deleted', settledAt: new Date() });
+    let calls = 0;
+    h.persist.mockImplementation(async () => ({
+      ok: true,
+      media: { oxyFileId: (calls += 1) === 1 ? fresh : gone, contentType: 'image/jpeg', sizeBytes: 10 },
+    }));
+    h.fetchBusinessDiscovery.mockResolvedValueOnce(page([item(15, { ...BIG_IMAGE_CAROUSEL, children: { data: BIG_IMAGE_CAROUSEL.children!.data.slice(0, 2) } })]));
+
+    expect(await importInstagramMedia(TARGET, ONE_SHOT)).toMatchObject({ outcome: 'partial', imported: 0 });
+
+    expect(await rowsFor(15)).toHaveLength(0);
+    expect(await queuedDeletions([fresh, gone])).toEqual([fresh, gone].sort());
+    // The tombstone is untouched (never re-armed, never reused).
+    const [row] = await getDb().select({ state: federatedMediaDeletions.state }).from(federatedMediaDeletions).where(eq(federatedMediaDeletions.oxyFileId, gone));
+    expect(row.state).toBe('deleted');
   });
 
   it('never stores an expiring CDN URL: with media writes off, the post waits for the next sync', async () => {

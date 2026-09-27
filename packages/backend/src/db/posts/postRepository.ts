@@ -48,7 +48,13 @@
  */
 
 import { and, asc, eq, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
-import { assertFederatedMediaUsable, enqueueFederatedMediaDeletionsForPosts } from '../federation/mediaDeletionRepository';
+import {
+  enqueueFederatedMediaDeletions,
+  enqueueFederatedMediaDeletionsForPosts,
+  FederatedMediaGoneError,
+  federatedMediaIdsOfPost,
+  findGoneFederatedMedia,
+} from '../federation/mediaDeletionRepository';
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import type {
@@ -968,6 +974,46 @@ function postCreatedAtSql(postId: string): SQL {
 }
 
 /**
+ * What a post write does with a media id that is being (or was) deleted from
+ * Oxy — which happens when an upload deduplicates onto a file this app is
+ * deleting, e.g. while Oxy's delete route is down and files sit in `deleting`:
+ *
+ *  - `remote-url` (the default: ActivityPub and atproto, whose source URLs are
+ *    stable): store the item under its original remote URL, served through the
+ *    media proxy, exactly like media that was never re-hosted. The post is NOT
+ *    lost — an inbox job that kept failing would exhaust its retries and drop it.
+ *  - `refuse`: throw {@link FederatedMediaGoneError}. For a source whose URL
+ *    EXPIRES (Instagram's signed CDN links), keeping the remote URL would store
+ *    a dead link; the Graph import defers the post and re-uploads later.
+ */
+export type GoneMediaPolicy = 'remote-url' | 'refuse';
+
+/** Swap tombstoned Oxy ids back to their remote URLs; drop an item that has none. */
+function withoutGoneMedia(content: StoredPostContent, gone: ReadonlySet<string>): StoredPostContent {
+  const replaced = new Map<string, string | null>();
+  const swap = (items: MediaItem[] | undefined): MediaItem[] | undefined => {
+    if (!items) return items;
+    return items.flatMap((item) => {
+      if (!gone.has(item.id)) return [item];
+      const remote = item.remoteUrl;
+      replaced.set(item.id, remote ?? null);
+      if (!remote) return [];
+      const { cachedFromFederation: _cached, ...rest } = item;
+      return [{ ...rest, id: remote }];
+    });
+  };
+  const media = swap(content.media);
+  const variants = content.variants?.map((variant) => (variant.media ? { ...variant, media: swap(variant.media) } : variant));
+  const attachments = content.attachments?.flatMap((attachment) => {
+    const id = attachment.type === 'media' ? attachment.id : undefined;
+    if (!id || !replaced.has(id)) return [attachment];
+    const remote = replaced.get(id);
+    return remote ? [{ ...attachment, id: remote }] : [];
+  });
+  return { ...content, media, variants, attachments };
+}
+
+/**
  * Write every child row a post owns.
  *
  * Shared by insert and by the content-replacing half of {@link updatePostContent}
@@ -978,10 +1024,11 @@ function postCreatedAtSql(postId: string): SQL {
 async function insertChildRows(
   tx: DatabaseOrTransaction,
   postId: string,
-  content: StoredPostContent,
+  requestedContent: StoredPostContent,
   authorship: readonly PostAuthorshipEntry[],
   mentions: readonly string[],
   topicRefs: PostRecordClassification['topicRefs'],
+  goneMedia: GoneMediaPolicy = 'remote-url',
 ): Promise<void> {
   if (authorship.length > 0) {
     await tx.insert(postAuthorships).values(
@@ -997,15 +1044,18 @@ async function insertChildRows(
     );
   }
 
-  // Re-hosted federated files can be shared (Oxy dedupes by content hash) and
-  // may be mid-deletion: lock each and refuse a tombstoned one BEFORE any media
+  // Oxy files can be shared (Oxy dedupes by content hash) and may be mid-
+  // deletion: lock EVERY media id this post will reference, BEFORE any media
   // row lands, so the deletion drain and this write cannot interleave
-  // (`db/federation/mediaDeletionRepository.ts`).
-  const federatedFileIds = [
-    ...(content.media ?? []),
-    ...(content.variants ?? []).flatMap((variant) => variant.media ?? []),
-  ].filter((item) => item.cachedFromFederation === true).map((item) => item.id);
-  await assertFederatedMediaUsable(tx, federatedFileIds);
+  // (`db/federation/mediaDeletionRepository.ts`). A tombstoned id is either
+  // swapped back to the item's stable remote URL or refused — see
+  // {@link GoneMediaPolicy}.
+  const gone = await findGoneFederatedMedia(tx, [
+    ...(requestedContent.media ?? []),
+    ...(requestedContent.variants ?? []).flatMap((variant) => variant.media ?? []),
+  ].map((item) => item.id));
+  if (gone.size > 0 && goneMedia === 'refuse') throw new FederatedMediaGoneError([...gone]);
+  const content = gone.size > 0 ? withoutGoneMedia(requestedContent, gone) : requestedContent;
 
   const variants = content.variants ?? [];
   if (variants.length > 0) {
@@ -1245,6 +1295,7 @@ async function writePostRecord(
       input.authorship,
       input.mentions ?? [],
       input.postClassification?.topicRefs,
+      input.federation?.goneMediaPolicy,
     );
     // A reply COUNTS on its parent, from whichever path created it.
     //
@@ -1556,6 +1607,9 @@ export async function replacePostContent(
 ): Promise<void> {
   const write = async (tx: DatabaseOrTransaction): Promise<void> => {
     await lockPostContent(tx, postId);
+    // The re-hosted federated files the OLD content references: an edit that
+    // drops one queues it for deletion (below), or the file leaks in Oxy.
+    const before = await federatedMediaIdsOfPost(tx, postId);
     const variantIds = await tx
       .select({ id: postContentVariants.id })
       .from(postContentVariants)
@@ -1620,6 +1674,8 @@ export async function replacePostContent(
     // Authorship and topic refs are NOT part of the content graph and are left
     // alone: an edit must never revoke a collaborator's entry.
     await insertChildRows(tx, postId, content, [], mentions, undefined);
+    const after = await federatedMediaIdsOfPost(tx, postId);
+    await enqueueFederatedMediaDeletions([...before].filter((id) => !after.has(id)), tx);
   };
 
   if ('transaction' in db) {

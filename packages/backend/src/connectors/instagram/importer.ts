@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { FederatedMediaGoneError } from '../../db/federation/mediaDeletionRepository';
+import { enqueueFederatedMediaDeletions, FederatedMediaGoneError } from '../../db/federation/mediaDeletionRepository';
 import { PostVisibility, type MediaItem } from '@mention/shared-types';
 import type { NormalizedExternalMedia, NormalizedExternalPost } from '@oxy.so/federation';
 import { isUniqueViolation } from '@oxy.so/db';
@@ -13,7 +13,6 @@ import { deleteFederatedPostSubtree } from '../../services/FederatedPostDeletion
 import { persistRemoteMediaForFederatedOwnerDetailed } from '../../services/mediaCache/cacheWorker';
 import { getPostCreator } from '../../services/serviceRegistry';
 import { logger } from '../../utils/logger';
-import { metrics } from '../../utils/metrics';
 import {
   INSTAGRAM_SOURCE_KEY_PREFIX,
   instagramShortcodeFromPermalink,
@@ -131,8 +130,6 @@ export interface InstagramImportResult {
   profile?: Omit<GraphBusinessProfile, 'media'>;
 }
 
-const ORPHAN_METRIC = 'instagram_graph_media_orphan_total';
-
 type SlotOutcome =
   | { kind: 'stored'; media: MediaItem; attachment: ExtractedMediaAttachment }
   | { kind: 'gone' }
@@ -178,13 +175,14 @@ async function persistOne(
  * Re-host every slot, in order. A slot whose primary fails for ANY reason falls
  * back to its poster image (a Reel degrades to its still); a slot with nothing
  * storable is dropped when that is permanent, and makes the whole post wait
- * (`null`) when it might succeed later. Exported for tests.
+ * (`waitFor: 'retry'`, with the files already uploaded) when it might succeed
+ * later. Exported for tests.
  */
 export async function materializeInstagramMedia(
   plans: readonly InstagramMediaPlan[],
   ownerOxyUserId: string,
   context: { activityId: string; actorUri: string },
-): Promise<{ media: MediaItem[]; attachments: ExtractedMediaAttachment[] } | null> {
+): Promise<{ media: MediaItem[]; attachments: ExtractedMediaAttachment[] } | { waitFor: 'retry'; uploaded: string[] }> {
   const media: MediaItem[] = [];
   const attachments: ExtractedMediaAttachment[] = [];
   for (const plan of plans) {
@@ -197,7 +195,9 @@ export async function materializeInstagramMedia(
       if (fallback.kind === 'stored') outcome = fallback;
       else outcome = outcome.kind === 'gone' && fallback.kind === 'gone' ? { kind: 'gone' } : { kind: 'retry' };
     }
-    if (outcome.kind === 'retry') return null;
+    // The slots already re-hosted are handed back so the caller can queue them
+    // for deletion: the post waits, and nothing may reference them meanwhile.
+    if (outcome.kind === 'retry') return { waitFor: 'retry', uploaded: media.map((item) => item.id) };
     if (outcome.kind === 'stored') {
       media.push(outcome.media);
       attachments.push(outcome.attachment);
@@ -237,6 +237,17 @@ async function findAlreadyImported(
 
 type CreateOutcome = 'created' | 'exists' | 'deferred' | 'failed';
 
+/** Queue files this import uploaded but no post references (best-effort; logged). */
+async function queueUnused(fileIds: readonly string[]): Promise<void> {
+  if (fileIds.length === 0) return;
+  await enqueueFederatedMediaDeletions(fileIds).catch((err: unknown) => {
+    logger.warn('[instagram] could not queue unused re-hosted media for deletion', {
+      files: fileIds.length,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
+}
+
 /** Claim, re-host, insert. */
 async function createInstagramPost(entry: InstagramMappedPost, target: InstagramImportTarget): Promise<CreateOutcome> {
   const { post } = entry;
@@ -257,8 +268,9 @@ async function createInstagramPost(entry: InstagramMappedPost, target: Instagram
     logger.warn('[instagram] media re-hosting failed', { error: err instanceof Error ? err.message : String(err) });
     return 'deferred';
   }
-  if (!materialized) {
+  if ('waitFor' in materialized) {
     await releaseSourceKeyClaim(post.activityId, claimToken).catch(() => undefined);
+    await queueUnused(materialized.uploaded);
     return 'deferred';
   }
   if (materialized.media.length === 0 && post.text.trim().length === 0) {
@@ -277,6 +289,9 @@ async function createInstagramPost(entry: InstagramMappedPost, target: Instagram
         sensitive: false,
         sourcePostKey: post.activityId,
         sourceKeyClaimToken: claimToken,
+        // Instagram's CDN URLs EXPIRE: a media id mid-deletion must not be
+        // swapped back to one. The insert refuses, and the post waits.
+        goneMediaPolicy: 'refuse',
       },
       content: {
         text: post.text,
@@ -296,16 +311,14 @@ async function createInstagramPost(entry: InstagramMappedPost, target: Instagram
     return 'created';
   } catch (err) {
     await releaseSourceKeyClaim(post.activityId, claimToken).catch(() => undefined);
+    // Whatever stopped the insert, the files uploaded for it are referenced by
+    // nothing now: queue them. The drain re-checks references first, so a file
+    // another post shares (or one the other road's copy uses) is kept.
+    await queueUnused(materialized.media.map((item) => item.id));
     // A re-hosted file came back with the id of a file being deleted (Oxy
     // dedupes by content hash): wait for the deletion to finish, then a fresh
     // upload gets a fresh id.
     if (err instanceof FederatedMediaGoneError) return 'deferred';
-    // Only reachable if our claim expired mid-import and the other road filled
-    // the key: the uploads above are then unreferenced (oxy-api cannot delete a
-    // durable federation asset), so they are counted rather than lost silently.
-    if (materialized.media.length > 0) {
-      metrics.incrementCounter(ORPHAN_METRIC, materialized.media.length, { reason: isUniqueViolation(err) ? 'lost_race' : 'insert_failed' });
-    }
     if (isUniqueViolation(err)) return 'exists';
     logger.warn('[instagram] failed to import post', { error: err instanceof Error ? err.message : String(err) });
     return 'failed';
