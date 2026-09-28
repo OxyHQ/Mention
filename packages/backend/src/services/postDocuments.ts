@@ -20,11 +20,10 @@ const FOLLOW_UP_WAIT_MS = 3_000;
  */
 export async function loadPendingPostDocuments(
   ids: readonly string[],
-  viewer: Pick<HydrationOptions, 'viewerId' | 'oxyClient' | 'viewerPrivacy' | 'viewerGraph' | 'requestLanguages'>,
+  viewer: Pick<HydrationOptions, 'viewerId' | 'oxyClient' | 'viewerPrivacy' | 'viewerGraph' | 'requestLanguages' | 'operatedAccountReader'>,
 ): Promise<PostDocumentsResponse> {
-  const response: PostDocumentsResponse = { posts: {} };
   const records = await loadPostRecords(ids);
-  if (records.length === 0) return response;
+  if (records.length === 0) return { posts: {} };
 
   const hydrated = await postHydrationService.hydratePosts(records, {
     ...viewer,
@@ -34,12 +33,17 @@ export async function loadPendingPostDocuments(
   });
 
   const requested = new Set(ids);
-  for (const post of hydrated) {
-    if (!requested.has(post.id)) continue;
-    response.posts[post.id] = {
-      documents: post.documents ?? [],
-      ...(post.documentsPending ? { documentsPending: true } : {}),
-    };
-  }
-  return response;
+  // Built from entries rather than by assigning `posts[id]`: an id is data from
+  // the database, and assignment would treat an id like `__proto__` as the
+  // object's prototype instead of a key.
+  return {
+    posts: Object.fromEntries(
+      hydrated
+        .filter((post) => requested.has(post.id))
+        .map((post) => [post.id, {
+          documents: post.documents ?? [],
+          ...(post.documentsPending ? { documentsPending: true } : {}),
+        }]),
+    ),
+  };
 }
