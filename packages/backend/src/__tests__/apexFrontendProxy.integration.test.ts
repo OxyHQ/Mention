@@ -5,6 +5,7 @@ import https from 'https';
 import { Readable } from 'stream';
 
 import {
+  __apexProxyForTests,
   apexFrontendProxy,
   isApexHost,
   isApexWebPlaneRequest,
@@ -45,7 +46,14 @@ function makeApp() {
  * Node's http client so the CDN's compressed bytes pass through undecoded). Returns
  * the request mock so tests can assert on the target URL / call count.
  */
-function stubCdn(overrides?: { status?: number; cacheControl?: string; contentType?: string; fail?: boolean }) {
+function stubCdn(overrides?: {
+  status?: number;
+  cacheControl?: string;
+  contentType?: string;
+  fail?: boolean;
+  headers?: Record<string, string>;
+  body?: string;
+}) {
   const requestMock = vi.fn(
     (url: string | URL, _options: unknown, callback: (res: Readable & { statusCode?: number; headers?: Record<string, string> }) => void) => {
       const handlers: Record<string, (arg?: unknown) => void> = {};
@@ -70,10 +78,12 @@ function stubCdn(overrides?: { status?: number; cacheControl?: string; contentTy
           incoming.headers = {
             'content-type': overrides?.contentType ?? 'text/html; charset=utf-8',
             'cache-control': overrides?.cacheControl ?? 'public, max-age=0, must-revalidate',
+            ...overrides?.headers,
           };
           queueMicrotask(() => {
             callback(incoming);
-            incoming.push(Buffer.from(SPA_SHELL));
+            const body = overrides?.body ?? SPA_SHELL;
+            if (body) incoming.push(Buffer.from(body));
             incoming.push(null);
           });
         },
@@ -211,6 +221,53 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
     expect(res.text).toBe('');
   });
 
+  it.each([
+    ['a missing hashed asset the CDN answers as text', '/_expo/static/js/web/gone-deadbeef.js', 404, 'text/plain'],
+    ['a failing hashed font', '/fonts/BlomusModernus-Regular-19002cade532.woff2', 500, 'text/plain'],
+    ['a failing unhashed file', '/manifest.json', 503, 'application/json'],
+  ])('never lets %s be cached', async (_label, path, status, contentType) => {
+    stubCdn({ status, contentType, cacheControl: 'public, max-age=31536000, immutable', body: '{}' });
+
+    const res = await request(makeApp()).get(path).set('X-Forwarded-Host', APEX);
+
+    expect(res.status).toBe(status);
+    expect(res.headers['cache-control']).toBe('no-store');
+  });
+
+  it('forwards the browser\'s validators and relays a bodiless 304', async () => {
+    const fetchMock = stubCdn({
+      status: 304,
+      contentType: 'application/manifest+json',
+      cacheControl: 'public, max-age=60',
+      headers: { etag: '"m-1"' },
+      body: '',
+    });
+
+    const res = await request(makeApp())
+      .get('/manifest.json')
+      .set('X-Forwarded-Host', APEX)
+      .set('If-None-Match', '"m-1"')
+      .set('If-Modified-Since', 'Mon, 28 Sep 2026 10:00:00 GMT');
+
+    const sent = (fetchMock.mock.calls[0][1] as { headers: Record<string, string> }).headers;
+    expect(sent['If-None-Match']).toBe('"m-1"');
+    expect(sent['If-Modified-Since']).toBe('Mon, 28 Sep 2026 10:00:00 GMT');
+    expect(res.status).toBe(304);
+    expect(res.headers.etag).toBe('"m-1"');
+    expect(res.headers['cache-control']).toBe('public, max-age=60');
+    expect(res.text).toBe('');
+  });
+
+  it('sends no validators the browser did not send', async () => {
+    const fetchMock = stubCdn();
+
+    await request(makeApp()).get('/explore').set('X-Forwarded-Host', APEX);
+
+    const sent = (fetchMock.mock.calls[0][1] as { headers: Record<string, string> }).headers;
+    expect(sent).not.toHaveProperty('If-None-Match');
+    expect(sent).not.toHaveProperty('If-Modified-Since');
+  });
+
   it('does NOT proxy the API host — `/feed/item/:id` still hits the API', async () => {
     const fetchMock = stubCdn();
 
@@ -324,5 +381,69 @@ describe('apexFrontendProxy (host-aware reverse-proxy)', () => {
         ),
       ).toBe(false);
     });
+  });
+});
+
+describe('apex proxy upstream deadline', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.useFakeTimers();
+  });
+
+  /** An upstream that answers every request with a redirect after `delayMs`. */
+  function stubRedirectingCdn(delayMs: number) {
+    const destroyed: Error[] = [];
+    const requestMock = vi.fn(
+      (url: string | URL, _options: unknown, callback: (res: Readable & { statusCode?: number; headers?: Record<string, string> }) => void) => {
+        const handlers: Record<string, (arg?: unknown) => void> = {};
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const clientReq = {
+          on(event: string, handler: (arg?: unknown) => void) {
+            handlers[event] = handler;
+            return clientReq;
+          },
+          setTimeout() {
+            return clientReq;
+          },
+          end() {
+            timer = setTimeout(() => {
+              const incoming = new Readable({ read() {} }) as Readable & { statusCode?: number; headers?: Record<string, string> };
+              incoming.statusCode = 302;
+              incoming.headers = { location: `${String(url)}x` };
+              callback(incoming);
+              incoming.push(null);
+            }, delayMs);
+          },
+          destroy(error?: Error) {
+            if (timer) clearTimeout(timer);
+            if (error) {
+              destroyed.push(error);
+              handlers.error?.(error);
+            }
+            return clientReq;
+          },
+        };
+        return clientReq;
+      },
+    );
+    vi.spyOn(https, 'request').mockImplementation(requestMock as unknown as typeof https.request);
+    return { requestMock, destroyed };
+  }
+
+  it('bounds the time to the final headers across redirect hops, not per hop', async () => {
+    const { requestUpstream, PROXY_FETCH_TIMEOUT_MS } = __apexProxyForTests;
+    // Each hop answers well inside the per-hop inactivity limit; together the
+    // three would exceed it. The deadline must fire before the third hop ends.
+    const hop = Math.floor(PROXY_FETCH_TIMEOUT_MS * 0.4);
+    const { requestMock } = stubRedirectingCdn(hop);
+
+    const pending = requestUpstream('https://shell.mention.earth/a', { method: 'GET', headers: {} }, 3);
+    const outcome = pending.then(() => 'resolved', (error: Error) => error.message);
+
+    await vi.advanceTimersByTimeAsync(PROXY_FETCH_TIMEOUT_MS + 1);
+
+    expect(await outcome).toMatch(/did not answer within/);
+    expect(requestMock.mock.calls.length).toBeLessThanOrEqual(3);
+    vi.useRealTimers();
   });
 });

@@ -144,14 +144,27 @@ export function isApexWebPlaneRequest(req: Request): boolean {
  * transparently decompress the body, so the CDN's already-compressed bytes
  * (Brotli/gzip) and their `Content-Encoding` header stay consistent and can be
  * relayed to the browser verbatim — no decode-then-re-encode round trip. Rejects
- * on connection/timeout errors; never resolves with a 3xx response.
+ * on connection/timeout errors; never resolves with a redirect (a `304 Not
+ * Modified`, which carries no Location, is an answer and is resolved).
+ *
+ * `deadline` bounds the time to the FINAL response's headers across every
+ * redirect hop. The socket timeout alone is an inactivity limit that each hop
+ * restarts, so an upstream that trickles bytes or redirects three times could
+ * otherwise hold the request well past it. The body is not under the deadline:
+ * it streams at the client's pace, still covered by the inactivity limit.
  */
 function requestUpstream(
   targetUrl: string,
   options: { method: string; headers: Record<string, string> },
   redirectsLeft: number,
+  deadline: number = Date.now() + PROXY_FETCH_TIMEOUT_MS,
 ): Promise<IncomingMessage> {
   return new Promise((resolve, reject) => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      reject(new Error(`Upstream did not answer within ${PROXY_FETCH_TIMEOUT_MS}ms`));
+      return;
+    }
     let url: URL;
     try {
       url = new URL(targetUrl);
@@ -165,6 +178,7 @@ function requestUpstream(
       url,
       { method: options.method, headers: options.headers },
       (upstream) => {
+        clearTimeout(headersTimer);
         const status = upstream.statusCode ?? 502;
         const location = upstream.headers.location;
         if (status >= 300 && status < 400 && location && redirectsLeft > 0) {
@@ -172,19 +186,37 @@ function requestUpstream(
           // resolves against the current URL.
           upstream.resume();
           const nextUrl = new URL(location, url).toString();
-          requestUpstream(nextUrl, options, redirectsLeft - 1).then(resolve, reject);
+          requestUpstream(nextUrl, options, redirectsLeft - 1, deadline).then(resolve, reject);
           return;
         }
         resolve(upstream);
       },
     );
 
-    upstreamRequest.on('error', reject);
+    const headersTimer = setTimeout(() => {
+      upstreamRequest.destroy(new Error(`Upstream did not answer within ${PROXY_FETCH_TIMEOUT_MS}ms`));
+    }, remaining);
+    upstreamRequest.on('error', (error) => {
+      clearTimeout(headersTimer);
+      reject(error);
+    });
     upstreamRequest.setTimeout(PROXY_FETCH_TIMEOUT_MS, () => {
       upstreamRequest.destroy(new Error(`Upstream request exceeded ${PROXY_FETCH_TIMEOUT_MS}ms`));
     });
     upstreamRequest.end();
   });
+}
+
+/** The client's cache validators, forwarded so the CDN can answer `304`. */
+function conditionalHeaders(req: Request): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const ifNoneMatch = req.headers['if-none-match'];
+  if (typeof ifNoneMatch === 'string' && ifNoneMatch.length > 0) headers['If-None-Match'] = ifNoneMatch;
+  const ifModifiedSince = req.headers['if-modified-since'];
+  if (typeof ifModifiedSince === 'string' && ifModifiedSince.length > 0) {
+    headers['If-Modified-Since'] = ifModifiedSince;
+  }
+  return headers;
 }
 
 /**
@@ -219,6 +251,9 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
           // Never taken from the client: this is OUR credential for the shell
           // origin, not something a caller may influence.
           [SHELL_ACCESS_HEADER]: config.web.shellAccessKey ?? '',
+          // The browser's validators, so a copy it already holds is revalidated
+          // with a bodiless 304 instead of downloaded again.
+          ...conditionalHeaders(req),
         },
       },
       MAX_PROXY_REDIRECTS,
@@ -248,7 +283,8 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  res.status(upstream.statusCode ?? 502);
+  const status = upstream.statusCode ?? 502;
+  res.status(status);
   if (contentType) res.setHeader('Content-Type', contentType);
 
   // Relay the CDN's Content-Encoding + its matching Content-Length UNCHANGED: the
@@ -265,7 +301,11 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
   // default the CORS middleware set — this is what lets the browser/edge cache the
   // static assets (`/_expo/static/*`, `/icons/*`, `/manifest.json`, `/favicon.ico`, …).
   const cacheControl = upstream.headers['cache-control'];
-  if (isContentHashedAsset(req.path)) {
+  if (status >= 400) {
+    // An error is never an asset: cached at a hashed URL it would be served in
+    // place of the real file for a year, by the browser and every shared cache.
+    res.setHeader('Cache-Control', 'no-store');
+  } else if (isContentHashedAsset(req.path)) {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
   } else if (isHtmlContentType(contentType)) {
     res.setHeader('Cache-Control', 'no-cache');
@@ -305,6 +345,8 @@ async function proxyToFrontend(req: Request, res: Response): Promise<void> {
   // Stream the body straight to the client (no full-bundle buffer in memory).
   upstream.pipe(res);
 }
+
+export const __apexProxyForTests = { requestUpstream, PROXY_FETCH_TIMEOUT_MS };
 
 /**
  * Host-aware apex frontend reverse-proxy middleware. STRICT no-op (`next()`) for the
