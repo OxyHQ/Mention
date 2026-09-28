@@ -36,6 +36,8 @@ export interface ProfileData {
     full?: string;
   };
   avatar?: string;
+  /** The account's accent colour (Oxy returns it with each recommendation). */
+  color?: string;
   bio?: string;
   description?: string;
   verified?: boolean;

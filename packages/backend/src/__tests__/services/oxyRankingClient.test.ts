@@ -152,6 +152,16 @@ describe('OxyRankingClient.rank', () => {
     });
   });
 
+  it('passes the account colour through, and adds none when Oxy sends none', async () => {
+    mocks.serviceRequest.mockResolvedValue({ data: [makeItem({ color: 'teal' }), makeItem({ id: 'u2' })] });
+    const client = new OxyRankingClient();
+
+    const result = await client.rank({ limit: 10 });
+
+    expect(result.profiles[0].color).toBe('teal');
+    expect(result.profiles[1]).not.toHaveProperty('color');
+  });
+
   it('unwraps a bare array response too', async () => {
     mocks.serviceRequest.mockResolvedValue([makeItem({ id: 'u2' })]);
     const client = new OxyRankingClient();

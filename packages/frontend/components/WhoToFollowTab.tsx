@@ -4,7 +4,7 @@ import { Loading } from '@oxy.so/bloom/loading';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 
-import { useUserById } from '@/hooks/useCachedUser';
+import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { Text } from '@oxy.so/bloom/typography';
@@ -209,17 +209,19 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
 
 /**
  * A recommendation row. The cached user fills in the fields the recommendations
- * payload can omit (avatar, username), then the shared {@link ProfileCard}
- * renders the row and owns the follow button.
+ * payload can omit (an avatar the batched enrichment found), without a fetch of
+ * its own per row; the shared {@link ProfileCard} renders the row and owns the
+ * follow button.
  */
 const FollowRow = React.memo(({ item, userId }: { item: ProfileData; userId: string }) => {
-  const cachedUser = useUserById(userId);
+  const cachedUser = useCachedUserSnapshot(userId);
 
   const profile: ProfileCardData = {
     id: userId,
     username: item.username || cachedUser?.username || '',
     name: item.name,
     avatar: item.avatar || cachedUser?.avatar,
+    color: item.color ?? cachedUser?.color,
     verified: item.verified,
     description: item.bio,
     isFederated: item.isFederated,
