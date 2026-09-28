@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { FollowButton } from '@oxy.so/services/ui/client';
-import { ContactRow } from '@oxy.so/bloom/chat-people';
+import { ContactRow } from '@oxy.so/bloom/chat-people/contact-row';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { mergeKnownIdentity, useKnownIdentitySet } from '@/stores/identityUpdates';
 import * as Skeleton from '@oxy.so/bloom/skeleton';

@@ -4,7 +4,7 @@
  * on every request, reading the token at call time rather than at creation.
  */
 
-import type { SyraClient } from '@syra.fm/sdk';
+import type { SyraClient } from '@syra.fm/sdk/client';
 import { buildSyraClient } from '../syraPodcasts';
 
 let mockToken: string | null = 'token-1';

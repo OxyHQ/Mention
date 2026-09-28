@@ -3,7 +3,7 @@ import { Pressable } from 'react-native';
 
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { useUserById } from '@/hooks/useCachedUser';
+import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
 import { ProfileCard, type ProfileCardData } from '@/components/ProfileCard';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 
@@ -12,6 +12,7 @@ interface SuggestedUserData {
   username?: string;
   name: { displayName: string; first?: string; last?: string; full?: string };
   avatar?: string;
+  color?: string;
   bio?: string;
   verified?: boolean;
   isFederated?: boolean;
@@ -36,7 +37,7 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
   hideDismiss,
 }: SuggestedUserCardProps) {
   const theme = useTheme();
-  const cachedUser = useUserById(user.id);
+  const cachedUser = useCachedUserSnapshot(user.id);
 
   const handleDismiss = useCallback(() => {
     onDismiss(user.id);
@@ -47,7 +48,7 @@ export const SuggestedUserCard = memo(function SuggestedUserCard({
     username: user.username || cachedUser?.username || '',
     name: user.name,
     avatar: user.avatar || cachedUser?.avatar,
-    color: cachedUser?.color,
+    color: user.color ?? cachedUser?.color,
     verified: user.verified,
     description: user.bio,
     isFederated: user.isFederated,

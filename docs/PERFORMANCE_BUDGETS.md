@@ -21,8 +21,8 @@ past any of:
 | --- | --- |
 | Total bytes | 18 MiB |
 | JavaScript bytes | 14.5 MiB |
-| Initial JavaScript bytes | 8.5 MiB |
-| Initial JavaScript gzip bytes | ~2.35 MiB (target: ~1.9 MiB) |
+| Initial JavaScript bytes | 7.25 MiB |
+| Initial JavaScript gzip bytes | 1.85 MiB (target: 1.6 MiB) |
 | Font bytes | 4 MiB |
 | Largest single file | 7.5 MiB |
 
@@ -71,6 +71,33 @@ components now resolve their strings from), `text` gains 5 components and
 reads, +7.125 host nodes, +4 hooks) from Bloom 5's `Card`, which now paints the
 shared `Surface` material in layers. No request, query-observer or render count
 moved.
+
+### Initial JavaScript after #1216
+
+Expo's web export moves every module that ANY two async chunks share into
+`__common`, which the entry requires, so every page load downloads it before
+anything renders (`@expo/metro-config` `serializeChunks.extractCommonChunk`,
+unchanged in SDK 58). A lazy boundary only keeps a module out of the initial
+JavaScript when it is that module's ONE way in: a second `import()` of the same
+dependency, or a static import from any other route, hoists it straight back.
+The OxyHQ/Mention#1216 work applied that rule to the composer, the video
+replies panel, the settings dialog, the Syra rooms engine (via
+`@syra.fm/sdk/client`) and Bloom's settings/contact-row/app-shell families
+(Bloom 5.2 lean subpaths):
+
+| Signal | Before (2026-09-28) | After | Ceiling | Target |
+| --- | --- | --- | --- | --- |
+| Initial JavaScript bytes | 8.08 MiB | 6.86 MiB | 7.25 MiB | — |
+| Initial JavaScript gzip bytes | 2.09 MiB | 1.75 MiB | 1.85 MiB | 1.6 MiB |
+| Initial JavaScript brotli bytes | 1.60 MiB | 1.35 MiB | — | — |
+
+The ceilings sit ~5 % above the measured build and move down with each
+further cut; they are never raised to make a PR pass.
+
+`bundle-budgets.json` also lists `deferredSources`: modules that must load on
+demand. `analyze-bundle --ci` fails when one appears in an initial chunk, and
+when an entry matches no module in the export (a rename must not leave a guard
+that guards nothing).
 
 ### Real-browser release gate
 

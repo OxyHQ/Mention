@@ -44,6 +44,7 @@ interface OxyRecommendationItem {
   username?: string;
   name?: UserNameResponse;
   avatar?: string | null;
+  color?: string;
   description?: string | null;
   verified?: boolean;
   trustTier?: string;
@@ -99,6 +100,8 @@ export interface RankedProfile {
   username?: string;
   name: UserNameResponse;
   avatar?: string;
+  /** The account's accent colour, so a row needs no per-person profile fetch. */
+  color?: string;
   description?: string;
   verified: boolean;
   trustTier?: string;
@@ -187,6 +190,7 @@ function toRankedProfile(raw: OxyRecommendationItem): RankedProfile | null {
     // resolves it via Bloom's ImageResolver, same as `post.user.avatar` and
     // Who-to-follow. Never pre-resolve to a URL here.
     avatar: rawAvatar,
+    ...(typeof raw.color === 'string' && raw.color.length > 0 ? { color: raw.color } : {}),
     description: typeof raw.description === 'string' ? raw.description : undefined,
     verified: raw.verified === true,
     trustTier: typeof raw.trustTier === 'string' ? raw.trustTier : undefined,
