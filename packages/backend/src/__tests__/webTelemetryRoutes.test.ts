@@ -148,6 +148,32 @@ describe('web RUM telemetry', () => {
     expect(output).not.toContain('secret');
   });
 
+  it('records boot milestones by name and drops unknown names and outliers', async () => {
+    await request(app)
+      .post('/telemetry/web')
+      .set('origin', 'http://localhost:8081')
+      .send({
+        events: [
+          { type: 'milestone', name: 'content-ready', value: 1_850, navigation: 'navigate', route: '/@alice' },
+          { type: 'milestone', name: 'route-mounted', value: 120_001, navigation: 'reload', route: '/' },
+        ],
+      })
+      .expect(204);
+
+    const output = await metrics.getPrometheusFormat();
+    expect(output).toContain('web_boot_milestone_ms');
+    expect(output).toContain('milestone="content-ready"');
+    expect(output).toContain('route="/profile"');
+    expect(output).not.toContain('milestone="route-mounted"');
+    expect(output).not.toContain('alice');
+
+    await request(app)
+      .post('/telemetry/web')
+      .set('origin', 'http://localhost:8081')
+      .send({ events: [{ type: 'milestone', name: 'made-up', value: 10, navigation: 'navigate', route: '/' }] })
+      .expect(400);
+  });
+
   it('normalizes dynamic application paths to a finite route vocabulary', () => {
     expect([
       '/',

@@ -64,7 +64,7 @@ jest.mock('@/hooks/useAccountTheme', () => ({ useAccountThemeSync: jest.fn() }))
 jest.mock('@/hooks/useViewerFollowing', () => ({ useSeedViewerFollowStatuses: jest.fn() }));
 jest.mock('@/stores/externalEmbedsStore', () => ({ useHydrateExternalEmbeds: jest.fn() }));
 jest.mock('@/lib/shareIntent', () => ({ useShareIntentRouter: jest.fn() }));
-jest.mock('@/lib/webTelemetry', () => ({ recordWebNavigation: jest.fn() }));
+jest.mock('@/lib/webTelemetry', () => ({ recordWebNavigation: jest.fn(), recordBootMilestone: jest.fn() }));
 
 const mockUseAuth = useAuth as jest.Mock;
 

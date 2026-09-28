@@ -90,6 +90,14 @@ export class AppInitializer {
   }
 
   /**
+   * Startup housekeeping that no screen depends on. Called once the route tree
+   * is released, so it never delays the first route or its requests.
+   */
+  static runDeferredMaintenance(): void {
+    void removeObsoleteStorage();
+  }
+
+  /**
    * Initializes the entire app
    */
   static async initializeApp(fontsLoaded: boolean): Promise<InitializationResult> {
@@ -107,7 +115,6 @@ export class AppInitializer {
       const results = await Promise.allSettled([
         setupNotificationsIfNeeded().then(() => logger.debug('Notifications done')),
         loadVideoMuteState().then(() => logger.debug('VideoMute done')),
-        removeObsoleteStorage(),
       ]);
 
       logger.debug('All tasks settled', { statuses: results.map(r => r.status) });

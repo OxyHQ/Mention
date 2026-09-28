@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { useAuth } from '@oxy.so/services/ui/client';
 
 import AppSplashScreen from '@/components/AppSplashScreen';
+import { BootMilestone } from '@/components/BootMilestone';
 import { useServerAppearanceSync } from '@/hooks/useServerAppearanceSync';
 import { useAccountThemeSync } from '@/hooks/useAccountTheme';
 import { useSeedViewerFollowStatuses } from '@/hooks/useViewerFollowing';
@@ -70,5 +71,10 @@ export function AuthRouter() {
   if (isAuthenticated && inAuthGroup) {
     return <Redirect href="/" />;
   }
-  return <Slot />;
+  return (
+    <>
+      <BootMilestone name="auth-resolved" />
+      <Slot />
+    </>
+  );
 }

@@ -1,6 +1,7 @@
 import {
   __webTelemetryForTests,
   initializeWebTelemetry,
+  recordBootMilestone,
   recordWebNavigation,
 } from '@/lib/webTelemetry.web';
 
@@ -165,5 +166,78 @@ describe('web telemetry cardinality guards', () => {
     remountCleanup();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  describe('boot milestones and document attribution', () => {
+    function enabledFetch(): jest.Mock {
+      const fetchMock = jest.fn().mockImplementation(
+        async (_url: string, options?: RequestInit) => (
+          options?.method === 'GET'
+            ? { ok: true, json: async () => ({ capabilities: { webTelemetry: true } }) }
+            : { ok: true, json: async () => ({}) }
+        ),
+      );
+      Object.defineProperty(globalThis, 'fetch', { configurable: true, value: fetchMock });
+      return fetchMock;
+    }
+
+    function postedEvents(fetchMock: jest.Mock): Record<string, unknown>[] {
+      return fetchMock.mock.calls
+        .filter(([, options]) => options?.method === 'POST')
+        .flatMap(([, options]) => JSON.parse(String(options?.body)).events);
+    }
+
+    beforeEach(() => {
+      Object.defineProperty(globalThis, 'performance', {
+        configurable: true,
+        value: {
+          now: () => 1234.4,
+          mark: jest.fn(),
+          getEntriesByType: () => [{ type: 'navigate' }],
+        },
+      });
+    });
+
+    it('holds a milestone reached before the probe answers, then sends it once', async () => {
+      jest.useFakeTimers({ doNotFake: ['performance'] });
+      const fetchMock = enabledFetch();
+      const cleanup = initializeWebTelemetry();
+      recordBootMilestone('route-mounted');
+      recordBootMilestone('route-mounted');
+      await flushPromises();
+      jest.advanceTimersByTime(1_000);
+      await flushPromises();
+
+      const milestones = postedEvents(fetchMock).filter((event) => event.type === 'milestone');
+      expect(milestones).toEqual([
+        { type: 'milestone', name: 'route-mounted', value: 1234, navigation: 'navigate', route: '/' },
+      ]);
+      expect(performance.mark).toHaveBeenCalledTimes(1);
+      expect(performance.mark).toHaveBeenCalledWith('mention:route-mounted');
+      cleanup();
+    });
+
+    it('drops held milestones when the probe does not opt in', async () => {
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ capabilities: { webTelemetry: false } }),
+      });
+      Object.defineProperty(globalThis, 'fetch', { configurable: true, value: fetchMock });
+      const cleanup = initializeWebTelemetry();
+      recordBootMilestone('content-ready');
+      await flushPromises();
+      cleanup();
+      expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false);
+    });
+
+    it('keeps page-lifetime metrics on the landing route after a client-side navigation', () => {
+      // LCP/CLS/INP arrive late (often on `pagehide`); by then the reader may
+      // be on another route, which must not inherit the landing page's vitals.
+      Object.defineProperty(window, 'location', { configurable: true, value: { pathname: '/@alice' } });
+      const cleanup = initializeWebTelemetry();
+      Object.defineProperty(window, 'location', { configurable: true, value: { pathname: '/explore' } });
+      expect(__webTelemetryForTests.documentRoute()).toBe('/profile');
+      cleanup();
+    });
   });
 });
