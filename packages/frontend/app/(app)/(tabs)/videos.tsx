@@ -52,11 +52,13 @@ import { useMediaSessionTransport, type MediaSessionTrack } from '@/hooks/useMed
 import { usePipTransportActions } from '@/hooks/usePipTransportActions';
 import {
     useReelChrome,
+    REEL_TIME_UPDATE_INTERVAL_S,
     type PlayableSource,
     type ReelChromeParams,
     type RegisterTransportSeek,
 } from '@/hooks/useReelChrome';
 import { MediaFlightHost, hasFlight, useMediaFlight, type MediaFlightHostProps } from '@oxy.so/bloom/media-flight';
+import { needsJsHlsDecoder, useHlsPlayback } from '@/lib/hlsPlayback';
 import { useVideoPlayerLease, videoPlayerKey, type VideoPlayerKey } from '@/stores/videoPlayerRegistry';
 import { resolveFeedDescriptor } from '@/utils/feedTelemetry';
 
@@ -68,8 +70,9 @@ const FEED_PAGE_LIMIT = 20;
 // Widened from 1: at radius 2, the video two swipes away already has a live
 // player mounted (buffering, muted, never playing — see the shouldPlay gate
 // below) instead of only a static poster, so its stream has strictly more
-// lead time to buffer before the viewer reaches it. Five concurrent mounted
-// players (-2,-1,0,+1,+2) is still a bounded, small number of decoders.
+// lead time to buffer before the viewer reaches it. Together with
+// RETAINED_BEHIND_RADIUS that is at most six mounted players (-3..+2), and only
+// while the reel is the focused screen — see `isSlideNear`.
 const ACTIVE_WINDOW_RADIUS = 2;
 /**
  * How far BEHIND the reader a slide keeps its player, as opposed to how far
@@ -117,8 +120,14 @@ function isSlideNear(
     activeIndex: number,
     aheadRadius: number,
     isPipOwner: boolean,
+    screenFocused: boolean,
 ): boolean {
     if (isPipOwner) return true;
+    // A reel the reader has left (another tab, a pushed profile) keeps the one
+    // slide it will come back to and gives every other decoder back: the tabs
+    // stay mounted side by side, and the home feed's own players would otherwise
+    // compete with up to five paused neighbours for Android's hardware decoders.
+    if (!screenFocused) return index === activeIndex;
     return index <= activeIndex
         ? activeIndex - index <= RETAINED_BEHIND_RADIUS
         : index - activeIndex <= aheadRadius;
@@ -194,6 +203,11 @@ const WEB_END_REACHED_PX = 1200;
 // LITERAL class string so the NativeWind compiler can see it (it scans source
 // text — interpolated arbitrary values are NOT picked up).
 const WEB_SLIDE_HEIGHT_CLASS = 'web:h-[100dvh]';
+// Web renders the reel as a plain document-scroll list, with no virtualizer:
+// slides further than this from the active one are drawn as empty boxes of the
+// same height. Wider than the live-player window (and the poster prefetch
+// radius) so nothing the reader can reach in one fling is ever a blank.
+const WEB_RENDER_RADIUS = 6;
 
 // Web: the "For You" / "Following" pill tabs must stay pinned at the top while the
 // document scrolls (TikTok / Reels), so on web they use `position: sticky` instead
@@ -220,8 +234,6 @@ const BOOST_ACTIVE_COLOR = '#10B981';
 // Caption is collapsed to two lines until this length, where a "more" toggle is
 // offered (TikTok-style expandable caption).
 const CAPTION_EXPAND_MIN_CHARS = 80;
-// expo-video timeUpdate cadence (seconds) driving the scrubber.
-const TIME_UPDATE_INTERVAL_S = 0.25;
 
 // The /videos feed tabs. 'videos' is the ranked "For You" video feed; 'following'
 // is the general following feed filtered down to video posts.
@@ -414,11 +426,18 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
      */
     restartOnActivate: boolean;
     onFirstFrameRender?: () => void;
+    /**
+     * The playlist hls.js must feed this slide's element, when its player was
+     * built without a source for that reason (a federated video on a browser
+     * with no HLS decoder of its own). Undefined everywhere else.
+     */
+    jsHlsSource?: string;
 }> = ({
     player,
     flightId,
     restartOnActivate,
     onFirstFrameRender,
+    jsHlsSource,
     postId,
     videoUrl,
     fallbackVideoUrl,
@@ -465,7 +484,7 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
         onTrackLayout,
         panResponder,
         isScrubbing,
-        progress,
+        progressStyle,
     } = useReelChrome({
         player,
         restartOnActivate,
@@ -492,6 +511,9 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
         onSessionEnd,
         onRegisterTransportSeek,
     });
+
+    // Inert unless `jsHlsSource` is set, and always on native.
+    useHlsPlayback(jsHlsSource ?? '', videoViewRef);
 
     // `style` is SPREAD: a `<video>` is a replaced element and paints at 300x150
     // without a size. `player` passes through untouched including `null`, which
@@ -539,6 +561,9 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
         [player, videoViewRef, isWatched, handlePictureInPictureStart, handlePictureInPictureStop, onFirstFrameRender],
     );
 
+    // One object per player: the host compares `content` by reference.
+    const flightContent = useMemo(() => ({ kind: 'video' as const, player }), [player]);
+
     return (
         <>
             {/* The same shared node the feed row was painting, claimed by id:
@@ -549,7 +574,7 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
                 own would paint the button and answer nothing. */}
             <MediaFlightHost
                 id={flightId ?? reelHostId(postId)}
-                content={{ kind: 'video', player }}
+                content={flightContent}
                 style={StyleSheet.absoluteFill}
                 contentFit="contain"
                 renderVideo={renderReelVideo}
@@ -613,7 +638,7 @@ const ReelSurface: React.FC<ActiveVideoSurfaceProps & {
                     {...panResponder.panHandlers}
                 >
                     <View style={[styles.scrubberTrack, isScrubbing && styles.scrubberTrackActive]}>
-                        <View style={[styles.scrubberFill, { width: `${progress * 100}%` }]} />
+                        <Animated.View style={[styles.scrubberFill, progressStyle]} />
                     </View>
                 </View>
             )}
@@ -630,16 +655,22 @@ const OwnPlayerSurface: React.FC<ActiveVideoSurfaceProps> = (props) => {
     // Memoised on the URL: `useVideoPlayer` REBUILDS its player whenever the
     // source it is handed changes, and a fresh object literal every render is a
     // change every render — which would rebuild the decoder on each commit.
-    const source = useMemo(() => videoSourceFor(props.videoUrl), [props.videoUrl]);
+    // A playlist this browser cannot decode goes to hls.js instead, which needs
+    // the element to itself: the player is built with no source at all.
+    const [jsHlsSource] = useState(() => (needsJsHlsDecoder(props.videoUrl) ? props.videoUrl : undefined));
+    const source = useMemo(
+        () => (jsHlsSource ? null : videoSourceFor(props.videoUrl)),
+        [jsHlsSource, props.videoUrl],
+    );
     const player = useVideoPlayer(source, (p: VideoPlayer) => {
         p.loop = true;
         // Drive the scrubber at a smooth-but-cheap cadence.
-        p.timeUpdateEventInterval = TIME_UPDATE_INTERVAL_S;
+        p.timeUpdateEventInterval = REEL_TIME_UPDATE_INTERVAL_S;
         // Single source of truth for the initial mute: the global store value
         // captured at mount. Subsequent changes flow through the sync effect.
         p.muted = props.muted;
     });
-    return <ReelSurface {...props} player={player} restartOnActivate />;
+    return <ReelSurface {...props} player={player} restartOnActivate jsHlsSource={jsHlsSource} />;
 };
 
 /**
@@ -1178,9 +1209,21 @@ export default function VideosScreen() {
     // the viewer swipes — no effect, and no way to leave it armed for a slide
     // that has not buffered anything yet.
     const [armedIndex, setArmedIndex] = useState<number | null>(null);
+    // Read through a ref so the callback keeps ONE identity for the screen's
+    // life: it is a prop of every mounted slide, and a new function per swipe
+    // broke `VideoItem`'s memo for all of them at once.
+    const currentVisibleIndexRef = useRef(currentVisibleIndex);
+    const armedIndexRef = useRef(armedIndex);
+    useEffect(() => {
+        currentVisibleIndexRef.current = currentVisibleIndex;
+        armedIndexRef.current = armedIndex;
+    }, [currentVisibleIndex, armedIndex]);
     const handleBufferAhead = useCallback((seconds: number) => {
-        if (seconds >= PRELOAD_BUFFER_SECONDS) setArmedIndex(currentVisibleIndex);
-    }, [currentVisibleIndex]);
+        const index = currentVisibleIndexRef.current;
+        if (armedIndexRef.current === index || seconds < PRELOAD_BUFFER_SECONDS) return;
+        armedIndexRef.current = index;
+        setArmedIndex(index);
+    }, []);
     const activeRadius = armedIndex === currentVisibleIndex ? ACTIVE_WINDOW_RADIUS : 0;
 
     const bottomBarHeight = useMemo(
@@ -1221,9 +1264,10 @@ export default function VideosScreen() {
     // player and never resolves a source at all.
     //
     // The MP4 is what web has always actually played, so the only thing given
-    // up here is adaptivity in Safari, which could decode the playlist. Worth
-    // revisiting the day this screen goes through `useHlsPlayback`, and not
-    // before: until then the preference cannot be honoured on any browser.
+    // up here is adaptivity in Safari, which could decode the playlist. The
+    // screen now routes FEDERATED playlists (`.m3u8`, which have no MP4 to fall
+    // back to) through `useHlsPlayback`; our own `?variant=hls_master` ladder is
+    // not recognised by `isHlsSource`, so it stays native-only until it is.
     const resolveVideoUrl = useCallback((ref: MediaRef): string => {
         if (ref?.hlsUrl && Platform.OS !== 'web') return ref.hlsUrl;
         return resolveFallbackVideoUrl(ref);
@@ -1915,7 +1959,7 @@ export default function VideosScreen() {
             // is open, however far the pager has been scrolled from it: dropping
             // out of the live window would release the very player the window is
             // showing.
-            isNear={isSlideNear(index, currentVisibleIndex, activeRadius, item.id === pipOwnerId)}
+            isNear={isSlideNear(index, currentVisibleIndex, activeRadius, item.id === pipOwnerId, isFocused)}
             onBufferAhead={handleBufferAhead}
             screenFocused={isFocused}
             theme={theme}
@@ -2008,13 +2052,23 @@ export default function VideosScreen() {
                             // stay full COLUMN width (sidebars/rail visible) because this
                             // `<View>` lives inside the central column, not the viewport.
                             <View className="web:w-full">
-                                {posts.map((item, index) => (
+                                {posts.map((item, index) => Math.abs(index - currentVisibleIndex) > WEB_RENDER_RADIUS ? (
+                                    // Far from the reader: an empty slide of the
+                                    // same height, so snapping and the scroll
+                                    // offset → index mapping are unchanged, but
+                                    // the poster, avatar, gradient and buttons
+                                    // of a long session stop living in the DOM.
+                                    <View
+                                        key={item.id}
+                                        className={cn(WEB_SLIDE_HEIGHT_CLASS, 'web:[scroll-snap-align:start]')}
+                                    />
+                                ) : (
                                     <VideoItem
                                         key={item.id}
                                         item={item}
                                         isActive={index === currentVisibleIndex}
                                         // See the native path: the session's owner keeps its player.
-                                        isNear={isSlideNear(index, currentVisibleIndex, activeRadius, item.id === pipOwnerId)}
+                                        isNear={isSlideNear(index, currentVisibleIndex, activeRadius, item.id === pipOwnerId, isFocused)}
                                         onBufferAhead={handleBufferAhead}
                                         screenFocused={isFocused}
                                         theme={theme}

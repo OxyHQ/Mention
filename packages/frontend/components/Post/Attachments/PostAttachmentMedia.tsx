@@ -162,6 +162,8 @@ function useMediaCardStyle(
 interface PostAttachmentMediaProps {
   type: 'image' | 'video' | 'gif';
   src: string;
+  /** Video only: played once if `src` (the adaptive stream) fails to load. */
+  fallbackSrc?: string;
   /**
    * Image only: author-authored accessibility description (Bluesky-style "ALT").
    * When present, renders a small "ALT" badge over the image and is used as the
@@ -217,6 +219,9 @@ interface PostAttachmentMediaProps {
 
 interface PostAttachmentVideoProps {
   src: string;
+  fallbackSrc?: string;
+  /** Covered by the sensitive-media veil: must not play, and must not be heard. */
+  concealed?: boolean;
   poster?: string;
   aspectRatio?: number;
   width?: number;
@@ -245,7 +250,7 @@ interface PostAttachmentVideoProps {
 const PostAttachmentVideoShell: React.FC<PostAttachmentVideoProps & {
   player?: ExpoVideoPlayer;
   flightHostId?: string;
-}> = ({ src, poster, aspectRatio, width, height, postId, onPress, hasSingleMedia, availableWidth, rowHeight, player, flightHostId }) => {
+}> = ({ src, fallbackSrc, concealed, poster, aspectRatio, width, height, postId, onPress, hasSingleMedia, availableWidth, rowHeight, player, flightHostId }) => {
   const recordRatio = readMediaAspectRatio({ aspectRatio, width, height });
   const { cardStyle, onAspectRatio } = useMediaCardStyle(Boolean(hasSingleMedia), recordRatio, availableWidth, rowHeight);
   return (
@@ -255,6 +260,8 @@ const PostAttachmentVideoShell: React.FC<PostAttachmentVideoProps & {
     >
       <VideoPlayer
         src={src}
+        fallbackSrc={fallbackSrc}
+        concealed={concealed}
         poster={poster}
         style={styles.videoFill}
         contentFit="contain"
@@ -528,6 +535,7 @@ const SensitiveMediaCover: React.FC<{ onReveal: () => void }> = ({ onReveal }) =
 const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
   type,
   src,
+  fallbackSrc,
   alt,
   poster,
   postId,
@@ -551,6 +559,10 @@ const PostAttachmentMedia: React.FC<PostAttachmentMediaProps> = ({
     media = (
       <PostAttachmentVideo
         src={src}
+        fallbackSrc={fallbackSrc}
+        // Kept mounted under the cover (revealing must not reload it), but it
+        // must not play, or be heard, behind it.
+        concealed={Boolean(sensitive) && !revealed}
         poster={poster}
         mediaId={mediaId}
         width={width}

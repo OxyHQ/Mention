@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { createVideoPlayer, type VideoPlayer } from 'expo-video';
 import { videoSourceFor } from '@/utils/videoSource';
+import { needsJsHlsDecoder } from '@/lib/hlsPlayback';
 import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('VideoPlayerRegistry');
@@ -98,7 +99,12 @@ export const useVideoPlayerRegistry = create<VideoPlayerRegistryState>((set, get
 
     acquire: (key, source) => {
         const existing = get().entries[key];
-        const player = existing?.player ?? createVideoPlayer(videoSourceFor(source));
+        // A source hls.js will decode (a federated playlist, on a browser that
+        // cannot play one itself) is withheld from the player: hls.js attaches
+        // its own MediaSource to the element, and a player holding the playlist
+        // url would first start — and fail — a native load of it.
+        const player = existing?.player
+            ?? createVideoPlayer(needsJsHlsDecoder(source) ? null : videoSourceFor(source));
 
         set((state) => ({
             entries: {
