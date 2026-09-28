@@ -42,7 +42,23 @@ const HLS_EXTENSION = '.m3u8';
  */
 export function videoSourceFor(url: string): VideoSource {
   if (!url) return url;
-  return url.includes(HLS_VARIANT_QUERY) || url.includes(HLS_EXTENSION)
-    ? { uri: url, contentType: 'hls' }
-    : url;
+  if (!(url.includes(HLS_VARIANT_QUERY) || url.includes(HLS_EXTENSION))) return url;
+  // One object per url. `useVideoPlayer` rebuilds its player whenever the
+  // source it is handed changes identity, so a fresh object per render would
+  // tear the decoder down on every commit; this keeps callers from each having
+  // to memoise it (and every video row from paying a hook for that).
+  let source = hlsSourceCache.get(url);
+  if (!source) {
+    source = { uri: url, contentType: 'hls' };
+    hlsSourceCache.set(url, source);
+    if (hlsSourceCache.size > HLS_SOURCE_CACHE_LIMIT) {
+      const oldest = hlsSourceCache.keys().next().value;
+      if (oldest !== undefined) hlsSourceCache.delete(oldest);
+    }
+  }
+  return source;
 }
+
+/** Bounds the identity cache; an evicted url just gets a new object once. */
+const HLS_SOURCE_CACHE_LIMIT = 200;
+const hlsSourceCache = new Map<string, VideoSource>();

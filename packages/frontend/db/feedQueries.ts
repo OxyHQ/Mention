@@ -10,7 +10,7 @@
 import { getDb, isDbAvailable } from './database';
 import type { FeedMetaRow, FeedItem, PostRow } from './schema';
 import { rowToFeedItem, buildFeedKey } from './schema';
-import { upsertPosts } from './postQueries';
+import { getPostsByIds, upsertPosts } from './postQueries';
 import {
   memSetFeedItems,
   memAppendFeedItems,
@@ -227,8 +227,17 @@ export function getFeedItems(
 /**
  * Get all feed items for a feed (no limit).
  * Use sparingly — prefer paginated reads for large feeds.
+ *
+ * `reuse` lets a caller that already holds parsed posts skip re-reading them:
+ * only the feed's ordered ids are queried, and just the posts `reuse` cannot
+ * answer (`undefined`) are fetched and parsed. Without it, every read of a feed
+ * — each new page, refresh and realtime insert — re-parsed every row the feed
+ * had ever loaded, on the JS thread: O(n) per page, O(n²) per session.
  */
-export function getAllFeedItems(feedKey: string): FeedItem[] {
+export function getAllFeedItems(
+  feedKey: string,
+  reuse?: (postId: string) => FeedItem | null | undefined,
+): FeedItem[] {
   if (!feedKey) return [];
 
   if (!isDbAvailable()) {
@@ -237,6 +246,25 @@ export function getAllFeedItems(feedKey: string): FeedItem[] {
 
   const db = getDb();
   if (!db) return [];
+
+  if (reuse) {
+    const ids = db.getAllSync<{ post_id: string }>(
+      `SELECT fi.post_id FROM feed_items fi
+       WHERE fi.feed_key = ?
+       ORDER BY fi.position ASC`,
+      feedKey
+    ).map((row) => row.post_id);
+    const missing = ids.filter((id) => reuse(id) === undefined);
+    const fetched = missing.length > 0 ? getPostsByIds(missing) : {};
+    const items: FeedItem[] = [];
+    for (const id of ids) {
+      const cached = reuse(id);
+      const item = cached === undefined ? fetched[id] : cached;
+      if (item) items.push(item);
+    }
+    return items;
+  }
+
   const rows = db.getAllSync<PostRow>(
     `SELECT p.* FROM feed_items fi
      JOIN posts p ON p.id = fi.post_id

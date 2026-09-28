@@ -11,6 +11,8 @@ interface Props {
 
 interface State {
   hasError: boolean;
+  /** The post the error belongs to — a recycled row showing another post starts clean. */
+  errorPostId?: string;
 }
 
 function PostErrorFallback({ onRetry }: { onRetry: () => void }) {
@@ -29,8 +31,21 @@ function PostErrorFallback({ onRetry }: { onRetry: () => void }) {
 export class PostErrorBoundary extends React.Component<Props, State> {
   state: State = { hasError: false };
 
-  static getDerivedStateFromError(): State {
+  static getDerivedStateFromError(): Partial<State> {
     return { hasError: true };
+  }
+
+  // FlashList recycles the boundary along with its row, so an error caught for
+  // one post would otherwise keep "This post could not be displayed" on every
+  // post the cell is reused for.
+  static getDerivedStateFromProps(props: Props, state: State): Partial<State> | null {
+    if (state.hasError && state.errorPostId !== undefined && state.errorPostId !== props.postId) {
+      return { hasError: false, errorPostId: undefined };
+    }
+    if (state.hasError && state.errorPostId === undefined) {
+      return { errorPostId: props.postId };
+    }
+    return null;
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
@@ -38,7 +53,7 @@ export class PostErrorBoundary extends React.Component<Props, State> {
   }
 
   handleRetry = () => {
-    this.setState({ hasError: false });
+    this.setState({ hasError: false, errorPostId: undefined });
   };
 
   render() {

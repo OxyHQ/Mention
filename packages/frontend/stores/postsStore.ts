@@ -1788,10 +1788,25 @@ const getViewCountSnapshot = (
   return views;
 };
 
+// The post cache is evicted on every write to a post (`notifyPostChanges`), so
+// an entry here is as fresh as a SQLite read — the feed read only parses posts
+// it does not already hold.
+const reuseCachedPost = (postId: string): FeedItem | null | undefined =>
+  postSnapshotCache.get(postId) ?? undefined;
+
 const getFeedSnapshot = (feedKey: string, _revision: number): FeedSnapshot => {
   let snapshot = feedSnapshotCache.get(feedKey);
   if (!snapshot) {
-    snapshot = { items: dbGetAllFeedItems(feedKey), meta: dbGetFeedMeta(feedKey) };
+    const items = dbGetAllFeedItems(feedKey, reuseCachedPost);
+    // Seed the per-post cache with what the feed just parsed, so each row's
+    // `usePostSelector` finds its post instead of issuing its own SELECT and
+    // JSON.parse during its first render.
+    for (const item of items) {
+      if (item.id && !postSnapshotCache.has(item.id)) {
+        setBoundedSnapshot(postSnapshotCache, item.id, item, MAX_POST_SNAPSHOTS);
+      }
+    }
+    snapshot = { items, meta: dbGetFeedMeta(feedKey) };
     setBoundedSnapshot(feedSnapshotCache, feedKey, snapshot, MAX_FEED_SNAPSHOTS);
   }
   return snapshot;

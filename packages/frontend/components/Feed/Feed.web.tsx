@@ -76,10 +76,13 @@ const ESTIMATED_ROW_HEIGHT = 140;
 // the DOM never holds the whole feed — the whole point of virtualizing on web.
 const OVERSCAN_ROWS = 8;
 
-// The load-more sentinel is observed `rootMargin` px before it actually enters
-// the viewport, so the next page is requested slightly ahead of the user
-// hitting the literal end of the document (smoother infinite scroll).
-const LOAD_MORE_ROOT_MARGIN = '600px';
+// The load-more sentinel is observed `rootMargin` before it actually enters the
+// viewport, so the next page is requested ahead of the reader reaching the end.
+// Two viewports, not a fixed 600px (about one screen): a feed page runs the
+// whole gather-rank-hydrate pipeline server-side, and at one screen of lead a
+// steady scroll reached the spinner before the page arrived. Matches the
+// native list's `onEndReachedThreshold={2}`.
+const LOAD_MORE_ROOT_MARGIN = '200%';
 
 // A feed row counts as "visible" for impression tracking once ≥50% of it is in
 // the viewport. The tracker then requires ≥1s of visibility before reporting.

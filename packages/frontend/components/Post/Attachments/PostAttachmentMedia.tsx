@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, Text, View, StyleSheet, ViewStyle, Platform } from 'react-native';
+import { Pressable, Text, View, StyleSheet, ViewStyle, Platform } from 'react-native';
+import { Image, type ImageLoadEventData } from 'expo-image';
 import { BlurView } from 'expo-blur';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { MediaInsetBorder } from '@oxy.so/bloom/media-inset-border';
-import { LazyImage } from '@/components/ui/LazyImage';
 import VideoPlayer from '@/components/common/VideoPlayer';
 import { MEDIA_CARD_WIDTH, MEDIA_CARD_HEIGHT, MEDIA_CARD_RADIUS, SINGLE_MEDIA_MAX_HEIGHT } from '@/utils/composeUtils';
 import {
@@ -371,26 +371,26 @@ const PostAttachmentImage: React.FC<{
     if (recordRatio !== undefined) {
       // Persist to the shared cache so the gallery reuses it on open.
       setAspectRatioInCache(src, recordRatio);
-      return;
     }
-    if (hasAspectRatio(src)) return;
-    let cancelled = false;
-    Image.getSize(
-      src,
-      (naturalWidth, naturalHeight) => {
-        if (cancelled || naturalWidth <= 0 || naturalHeight <= 0) return;
-        const ratio = naturalWidth / naturalHeight;
-        setMeasured({ src, ratio });
-        setAspectRatioInCache(src, ratio);
-      },
-      () => {
-        if (cancelled) return;
-        setMeasured({ src, ratio: DEFAULT_ASPECT_RATIO });
-        setAspectRatioInCache(src, DEFAULT_ASPECT_RATIO);
-      }
-    );
-    return () => { cancelled = true; };
   }, [src, recordRatio]);
+
+  // A record without dimensions (old data, some federated media) is measured
+  // from the image that loads anyway — `onLoad` carries its intrinsic size —
+  // instead of a separate `getSize` request for the same bytes.
+  const needsMeasure = recordRatio === undefined && !hasAspectRatio(src);
+  const handleImageLoad = useCallback((event: ImageLoadEventData) => {
+    if (!needsMeasure) return;
+    const { width: naturalWidth, height: naturalHeight } = event.source;
+    if (naturalWidth <= 0 || naturalHeight <= 0) return;
+    const ratio = naturalWidth / naturalHeight;
+    setMeasured({ src, ratio });
+    setAspectRatioInCache(src, ratio);
+  }, [needsMeasure, src]);
+  const handleImageError = useCallback(() => {
+    if (!needsMeasure) return;
+    setMeasured({ src, ratio: DEFAULT_ASPECT_RATIO });
+    setAspectRatioInCache(src, DEFAULT_ASPECT_RATIO);
+  }, [needsMeasure, src]);
 
   const handlePress = useCallback(() => {
     if (!onPress) return;
@@ -438,23 +438,28 @@ const PostAttachmentImage: React.FC<{
 
   const hasAlt = typeof alt === 'string' && alt.trim().length > 0;
 
+  // expo-image rather than RN's `Image`: a memory+disk cache that survives
+  // relaunches, decoding off the JS thread, and `recyclingKey`, which clears the
+  // previous picture the moment FlashList hands this cell to another post
+  // instead of showing it until the new one loads. The box behind it carries
+  // the muted placeholder colour, so no placeholder element is needed.
   const lazyImage = (
-    <LazyImage
-      source={{ uri: src }}
-      containerStyle={containerStyles}
-      style={styles.fullSize}
-      // The box already carries the image's ratio; `cover` only crops where a
-      // clamp (the 4:5 floor, MIN_WIDTH, the row width) overrides it.
-      resizeMode="cover"
-      accessibilityLabel={hasAlt ? alt : undefined}
-      placeholder={
-        <View
-          className="bg-muted justify-center items-center"
-          style={{ width: computedWidth, height: computedHeight }}
-        />
-      }
-      threshold={300}
-    />
+    <View style={containerStyles}>
+      <Image
+        source={src}
+        recyclingKey={src}
+        style={styles.fullSize}
+        // The box already carries the image's ratio; `cover` only crops where a
+        // clamp (the 4:5 floor, MIN_WIDTH, the row width) overrides it.
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        transition={120}
+        accessibilityLabel={hasAlt ? alt : undefined}
+        accessibilityRole="image"
+        onLoad={handleImageLoad}
+        onError={handleImageError}
+      />
+    </View>
   );
 
   // The media box holds the image plus two non-interactive overlays: the

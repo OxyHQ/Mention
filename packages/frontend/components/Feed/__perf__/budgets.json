@@ -15,8 +15,8 @@
   "componentsPerRow": {
     "text": 190,
     "textAvatar": 187,
-    "image": 214,
-    "multiImage": 265,
+    "image": 213,
+    "multiImage": 261,
     "video": 232,
     "linkPreview": 212,
     "quote": 266,
@@ -27,9 +27,9 @@
   "hooksPerRow": {
     "text": 293,
     "textAvatar": 293,
-    "image": 351,
-    "multiImage": 408,
-    "video": 404,
+    "image": 346,
+    "multiImage": 388,
+    "video": 405,
     "linkPreview": 346,
     "quote": 488,
     "repost": 312,

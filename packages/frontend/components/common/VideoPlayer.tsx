@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { View, Pressable, StyleSheet, Text, Platform, type StyleProp, type ViewStyle, type GestureResponderEvent } from 'react-native';
 import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer, type VideoPlayer as ExpoVideoPlayer } from 'expo-video';
@@ -225,22 +225,23 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // Dedupes the aspect-ratio callback: emit at most once per distinct ratio per
   // source, so repeated metadata events don't churn the parent's state.
   const [reportedRatio, setReportedRatio] = useState<number | null>(null);
-  // One-shot: the fallback source has been swapped in for this `src`.
-  const [usedFallback, setUsedFallback] = useState(false);
 
   // Reset the per-source state when the source changes. Adjusted during render
   // via a previous-value tracker rather than in an effect, so a new source never
   // paints a frame carrying the previous video's poster/duration state. See
   // React "You Might Not Need an Effect".
-  const [prevSrc, setPrevSrc] = useState(src);
-  if (prevSrc !== src) {
-    setPrevSrc(src);
+  // `fallbackFor` doubles as the one-shot latch for `fallbackSrc`: it names the
+  // source the fallback was swapped in for, so a new `src` re-arms it. One state
+  // slot for both, because this component is mounted by every video row.
+  const [srcState, setSrcState] = useState<{ src: string; fallbackFor?: string }>({ src });
+  const usedFallback = srcState.fallbackFor === src;
+  if (srcState.src !== src) {
+    setSrcState({ src });
     setHasRenderedFrame(false);
     setPosterFailed(false);
     setReportedRatio(null);
     setDuration(0);
     setCurrentTime(0);
-    setUsedFallback(false);
   }
 
   const handlePosterError = useCallback(() => setPosterFailed(true), []);
@@ -272,12 +273,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // Inert on native: ExoPlayer/AVPlayer decode HLS themselves.
   const hls = useHlsPlayback(src, videoViewRef, mayPlay);
 
-  // Memoised: `useVideoPlayer` rebuilds its player whenever the source argument
-  // changes identity, and `videoSourceFor` returns a fresh object for HLS.
-  const ownSource = useMemo(
-    () => (externalPlayer || hls.active ? null : videoSourceFor(src)),
-    [externalPlayer, hls.active, src],
-  );
+  // `videoSourceFor` returns one object per url, so this is stable across
+  // renders — `useVideoPlayer` rebuilds its player when the source changes.
+  const ownSource = externalPlayer || hls.active ? null : videoSourceFor(src);
 
   // Built unconditionally so the hook order never depends on a prop, but with a
   // `null` source when a player was handed in — a null-sourced player opens no
@@ -333,7 +331,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   useEventListener(player, 'statusChange', ({ status }) => {
     if (status === 'error' && fallbackSrc && !usedFallback) {
-      setUsedFallback(true);
+      setSrcState({ src, fallbackFor: src });
       player.replaceAsync(videoSourceFor(fallbackSrc)).catch(() => {
         // A rejected swap leaves the failed source in place; nothing to add.
       });
@@ -521,9 +519,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     [player, isPreviewMode, gif],
   );
 
-  // One object per player: the host compares `content` by reference.
-  const flightContent = useMemo(() => ({ kind: 'video' as const, player }), [player]);
-
   const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
   const MuteIcon = isMuted ? RiVolumeMuteLine : RiVolumeUpLine;
 
@@ -547,7 +542,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         // unattached — HLS and fullscreen broken on the flight path only.
         <MediaFlightHost
           id={flightHostId}
-          content={flightContent}
+          content={{ kind: 'video', player }}
           style={styles.video}
           // The shared node fills its box or letterboxes inside it; `fill`, which
           // stretches, has no equivalent there and is not what any flight uses.

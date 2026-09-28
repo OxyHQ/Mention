@@ -1,14 +1,14 @@
 {
   "meta": {
-    "runtime": "node v24.21.0, jest-expo (ios), React dev build",
+    "runtime": "node v22.22.2, jest-expo (ios), React dev build",
     "runs": 7,
     "batch": 8,
     "note": "ms are relative Jest timings on the recording machine, not device frame times"
   },
   "kinds": {
     "text": {
-      "mountMsPerRow": 5.5,
-      "recycleMsPerRow": 2.625,
+      "mountMsPerRow": 17.5,
+      "recycleMsPerRow": 8.875,
       "hostNodesPerRow": 51.125,
       "componentsPerRow": 190,
       "hooksPerRow": 293,
@@ -18,8 +18,8 @@
       "queryObserversPerRow": 0
     },
     "textAvatar": {
-      "mountMsPerRow": 6.375,
-      "recycleMsPerRow": 2.875,
+      "mountMsPerRow": 14.875,
+      "recycleMsPerRow": 6.75,
       "hostNodesPerRow": 50.125,
       "componentsPerRow": 187,
       "hooksPerRow": 293,
@@ -29,41 +29,41 @@
       "queryObserversPerRow": 0
     },
     "image": {
-      "mountMsPerRow": 5,
-      "recycleMsPerRow": 1.75,
+      "mountMsPerRow": 15.375,
+      "recycleMsPerRow": 9.5,
       "hostNodesPerRow": 58.125,
-      "componentsPerRow": 214,
-      "hooksPerRow": 351,
+      "componentsPerRow": 213,
+      "hooksPerRow": 346,
       "contextReadsPerRow": 41,
       "rendersPerMount": 1,
       "requestsPerRow": 1,
       "queryObserversPerRow": 0
     },
     "multiImage": {
-      "mountMsPerRow": 7,
-      "recycleMsPerRow": 3,
+      "mountMsPerRow": 11.625,
+      "recycleMsPerRow": 6.625,
       "hostNodesPerRow": 73.125,
-      "componentsPerRow": 265,
-      "hooksPerRow": 408,
+      "componentsPerRow": 261,
+      "hooksPerRow": 388,
       "contextReadsPerRow": 47,
       "rendersPerMount": 1,
       "requestsPerRow": 1,
       "queryObserversPerRow": 0
     },
     "video": {
-      "mountMsPerRow": 5.125,
-      "recycleMsPerRow": 2,
+      "mountMsPerRow": 16.75,
+      "recycleMsPerRow": 9.5,
       "hostNodesPerRow": 63.125,
       "componentsPerRow": 232,
-      "hooksPerRow": 404,
+      "hooksPerRow": 405,
       "contextReadsPerRow": 42,
       "rendersPerMount": 1,
       "requestsPerRow": 1,
       "queryObserversPerRow": 0
     },
     "linkPreview": {
-      "mountMsPerRow": 4.25,
-      "recycleMsPerRow": 2.75,
+      "mountMsPerRow": 12.5,
+      "recycleMsPerRow": 6.5,
       "hostNodesPerRow": 58.125,
       "componentsPerRow": 212,
       "hooksPerRow": 346,
@@ -73,8 +73,8 @@
       "queryObserversPerRow": 0
     },
     "quote": {
-      "mountMsPerRow": 6.25,
-      "recycleMsPerRow": 2.125,
+      "mountMsPerRow": 18.75,
+      "recycleMsPerRow": 6.75,
       "hostNodesPerRow": 75.125,
       "componentsPerRow": 266,
       "hooksPerRow": 488,
@@ -84,8 +84,8 @@
       "queryObserversPerRow": 0
     },
     "repost": {
-      "mountMsPerRow": 4.5,
-      "recycleMsPerRow": 1.625,
+      "mountMsPerRow": 15.5,
+      "recycleMsPerRow": 6.875,
       "hostNodesPerRow": 56.125,
       "componentsPerRow": 209,
       "hooksPerRow": 312,
@@ -95,8 +95,8 @@
       "queryObserversPerRow": 0
     },
     "poll": {
-      "mountMsPerRow": 6.5,
-      "recycleMsPerRow": 3.125,
+      "mountMsPerRow": 15.25,
+      "recycleMsPerRow": 6.625,
       "hostNodesPerRow": 62.125,
       "componentsPerRow": 215,
       "hooksPerRow": 327,
@@ -106,8 +106,8 @@
       "queryObserversPerRow": 0
     },
     "communityNote": {
-      "mountMsPerRow": 3.875,
-      "recycleMsPerRow": 2.25,
+      "mountMsPerRow": 12.375,
+      "recycleMsPerRow": 6.625,
       "hostNodesPerRow": 62.125,
       "componentsPerRow": 220,
       "hooksPerRow": 337,
@@ -127,7 +127,7 @@
   "fling": {
     "postsVisited": 200,
     "window": 12,
-    "msTotal": 578,
+    "msTotal": 1709,
     "requests": 198,
     "translationRequests": 0,
     "maxQueryObservers": 0,
