@@ -200,10 +200,6 @@ export const SCRIPT_SCOPE: Readonly<Record<string, ScriptScopeDeclaration>> = {
       'where(scope ? and(cursor, inArray(posts.id, scope)) : cursor), and the suite always ' +
       'passes { postIds: [...] }. The counter-example that shows the class is not "backfills".',
   },
-  recordAttestedIdentityLink: {
-    scope: 'caller-scoped',
-    reason: 'Retired writer: all requests return oxy_identity_authority_required; CLI only counts historical audit rows.',
-  },
   purgeBlockedDomainContent: {
     scope: 'caller-scoped',
     reason:

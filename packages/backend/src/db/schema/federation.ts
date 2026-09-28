@@ -110,21 +110,19 @@ export const federatedActors = pgTable(
     /** `<username>@<domain>`. Unique — the webfinger handle. */
     acct: text().notNull().unique('federated_actors_acct_key'),
     /**
-     * The `<handle>@<network-domain>` identity a BRIDGED actor was re-labelled
-     * onto (`wired@x.com`), NULL for every ordinary actor whose identity is its
-     * acct.
+     * A CACHE of Oxy's `canonicalAcct` for this source (`wired@x.com` for a
+     * `mastox.eu` bridge actor), written only from `/federation/identities/resolve`.
+     * Mention never derives it and never decides identity or equivalence from
+     * it; Oxy is the authority (OxyHQ/oxy#1253). Readers use its domain for
+     * transport routing (Instagram Graph), post-body handle qualification and
+     * cross-post network provenance.
      *
      * Deliberately separate from `domain`, which stays the host that delivered
      * the activity: the domain policy, the blocklist intelligence and the purge
      * scripts all key off that, and moving it onto `x.com` would make a real
      * moderation decision about the bridge invisible to them.
      *
-     * It is also the ONLY field on which two rows for the same upstream person
-     * match. The same X account mirrored by two different bridges has two URIs
-     * and two accts and looks like two people everywhere else, so this is what
-     * `resolveFederatedActorIdentity` de-duplicates on — hence indexed and
-     * deliberately NOT unique: two rows sharing one `network_acct` is the normal
-     * shape, and it is exactly what the de-duplication looks up.
+     * NOT unique: two transports of one upstream account share a value.
      */
     networkAcct: text(),
     summary: text(),
@@ -275,9 +273,7 @@ export const federatedActors = pgTable(
     index('federated_actors_oxy_user_id_idx')
       .on(t.oxyUserId)
       .where(sql`${t.oxyUserId} is not null`),
-    // The duplicate-identity merge (`resolveFederatedActorIdentity`). Partial
-    // because only bridged rows carry one — Mongo's index was `sparse` for the
-    // same reason, and the overwhelming majority of rows are ordinary actors.
+    // Exact-acct cache inspection (`scripts/inspectFederatedIdentityCache.ts`).
     index('federated_actors_network_acct_idx')
       .on(t.networkAcct)
       .where(sql`${t.networkAcct} is not null`),
@@ -305,162 +301,6 @@ export const federatedActorFields = pgTable(
   (t) => [
     check('federated_actor_fields_position_check', sql`${t.position} >= 0`),
     unique('federated_actor_fields_actor_id_position_key').on(t.actorId, t.position),
-  ]
-);
-
-/** Historical Mention identity claim kinds, retained for audit. */
-export const IDENTITY_CLAIM_KINDS = [
-  'first-party-link',
-  'also-known-as',
-  'verified-profile-link',
-] as const;
-
-/** `federated_identity_links.status`. */
-export const IDENTITY_LINK_STATUSES = ['linked', 'pending_reconciliation', 'revoked'] as const;
-
-/**
- * Historical Mention identity observations. No current resolver writes or trusts
- * this table. Oxy owns current source verification and revocable equivalence.
- * Keep rows after actor-cache deletion so old decisions remain inspectable.
- */
-export const federatedIdentityClaims = pgTable(
-  'federated_identity_claims',
-  {
-    id: generatedId(),
-    /** The protocol id of the actor the claim was read off — the claim's provenance. */
-    subjectActorUri: text().notNull(),
-    /** The identity making the claim (`zuck@instagram.com`), lowercased. */
-    subject: text().notNull(),
-    /** The identity being claimed (`zuck@threads.net`), lowercased. */
-    target: text().notNull(),
-    kind: text({ enum: IDENTITY_CLAIM_KINDS }).notNull(),
-    /** The literal value asserted, verbatim, so a merge can be explained later. */
-    source: text().notNull(),
-    observedAt: timestamptz().notNull().defaultNow(),
-    createdAt: createdAt(),
-  },
-  (t) => [
-    check(
-      'federated_identity_claims_kind_check',
-      sql`${t.kind} in (${sql.raw(inList(IDENTITY_CLAIM_KINDS))})`
-    ),
-    // One actor asserting one target one way is one statement. Asserting it
-    // twice in a profile must not read as corroboration.
-    unique('federated_identity_claims_actor_target_kind_key').on(t.subjectActorUri, t.target, t.kind),
-    // "Who claims to be this identity?" — the reverse lookup that finds the
-    // other half of a bidirectional assertion.
-    index('federated_identity_claims_target_idx').on(t.target),
-    index('federated_identity_claims_subject_idx').on(t.subject),
-  ]
-);
-
-/**
- * `federated_identity_links` — two network identities that a reviewed pair and
- * the evidence together say are one person.
- *
- * ## Both source actors survive. Only the ANSWER is shared.
- *
- * Nothing here rewrites an actor: `@zuck@instagram.com` and `@zuck@threads.net`
- * keep their own rows, URIs, accts, domains and content, exactly as the
- * within-network bridged merge leaves its absorbed row intact. What they share
- * is `oxy_user_id`, and that is the entire effect.
- *
- * ## `status` is three states because the third one is real
- *
- * `pending_reconciliation` is a pair the evidence PROVES but that cannot be
- * acted on live, because both identities already minted their own Oxy user and
- * re-pointing one of them would strand follows, blocks, moderation records and
- * post authorship on a user nobody links to any more. The issue is explicit that
- * redundant identities are not silently deleted, so the live path records the
- * proof and stops; `scripts/reconcileCrossNetworkIdentities.ts` reports these
- * for a decision. Recording it beats dropping it — otherwise the only trace of a
- * provable link is its absence.
- *
- * ## Ordering is canonical, so arrival order cannot fork the row
- *
- * `identity_a` / `identity_b` are lowercased and sorted by `identityPairKey`.
- * Whichever actor is ingested first, both produce the same row, and the unique
- * index is what makes a concurrent second ingest collide rather than duplicate.
- */
-export const federatedIdentityLinks = pgTable(
-  'federated_identity_links',
-  {
-    id: generatedId(),
-    /** The lexicographically smaller of the two identities. */
-    identityA: text().notNull(),
-    /** The larger one. */
-    identityB: text().notNull(),
-    /** The protocol ids the two sides were proved from, for the audit trail. */
-    actorUriA: text(),
-    actorUriB: text(),
-    status: text({ enum: IDENTITY_LINK_STATUSES }).notNull(),
-    /** The Oxy user both identities resolve to. NULL unless `status = 'linked'`. */
-    oxyUserId: text(),
-    /** The `EquivalenceReason` that decided it — `first-party-link`, … */
-    reason: text().notNull(),
-    linkedAt: timestamptz(),
-    revokedAt: timestamptz(),
-    /** Why a link was withdrawn — the evidence stopped being published, usually. */
-    revokedReason: text(),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-  (t) => [
-    check(
-      'federated_identity_links_status_check',
-      sql`${t.status} in (${sql.raw(inList(IDENTITY_LINK_STATUSES))})`
-    ),
-    // A linked pair names the user it linked onto; a revoked or pending one must
-    // not, or a reader could take a stale id off a row that no longer links.
-    check(
-      'federated_identity_links_oxy_user_id_check',
-      sql`(${t.status} = 'linked') = (${t.oxyUserId} is not null)`
-    ),
-    unique('federated_identity_links_pair_key').on(t.identityA, t.identityB),
-    index('federated_identity_links_identity_b_idx').on(t.identityB),
-    index('federated_identity_links_status_idx').on(t.status),
-  ]
-);
-
-/**
- * `federated_identity_link_evidence` — the claims that carried one link's
- * verdict, SNAPSHOT at the moment it was decided.
- *
- * A copy rather than a reference to `federated_identity_claims`, and the
- * duplication is the point. Claims are replaced wholesale on every actor
- * refresh, so a foreign key would take the audit trail down with the evidence —
- * and the case where somebody most needs to read "why were these two accounts
- * ever one person?" is precisely the one where the link has since been REVOKED
- * because the claims disappeared.
- *
- * Real columns rather than a `jsonb` blob: this is an array of entities with a
- * known shape, which `schema/CONVENTIONS.md` says is a child table. It keeps the
- * evidence queryable — "every link that rested on an unverified alias" is a
- * `where kind = …` rather than a scan.
- */
-export const federatedIdentityLinkEvidence = pgTable(
-  'federated_identity_link_evidence',
-  {
-    id: generatedId(),
-    linkId: text()
-      .notNull()
-      .references(() => federatedIdentityLinks.id, { onDelete: 'cascade' }),
-    /** The protocol id of the actor this claim was read off. */
-    subjectActorUri: text().notNull(),
-    subject: text().notNull(),
-    target: text().notNull(),
-    kind: text({ enum: IDENTITY_CLAIM_KINDS }).notNull(),
-    source: text().notNull(),
-    createdAt: createdAt(),
-  },
-  (t) => [
-    check(
-      'federated_identity_link_evidence_kind_check',
-      sql`${t.kind} in (${sql.raw(inList(IDENTITY_CLAIM_KINDS))})`
-    ),
-    unique('federated_identity_link_evidence_claim_key')
-      .on(t.linkId, t.subjectActorUri, t.target, t.kind),
-    index('federated_identity_link_evidence_link_id_idx').on(t.linkId),
   ]
 );
 

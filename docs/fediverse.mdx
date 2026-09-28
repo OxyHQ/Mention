@@ -313,9 +313,8 @@ profiles separate; Mention does not upgrade it with a local attestation.
 
 Oxy preserves original source user ids and exposes the current canonical group.
 Mention projects changes by immutable source actor URI, so revocation can restore
-one source without transferring another source's posts. Old Mention identity
-claim/link tables are audit history only. The manual attestation writer and the
-local identity parsers have been retired.
+one source without transferring another source's posts. Mention stores no
+identity claims, links or attestations of its own.
 
 See [source identity reconciliation](./source-identity-reconciliation.md) for the
 Oxy-first deployment order, dry-run/apply report, mute preservation and reversal.

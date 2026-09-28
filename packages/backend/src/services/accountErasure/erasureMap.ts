@@ -753,13 +753,6 @@ export const ACCOUNT_ERASURE_MAP: readonly ErasureMapEntry[] = [
       'its inboxes from them.',
   },
   {
-    table: 'federated_identity_links',
-    column: 'oxyUserId',
-    disposition: 'delete-row',
-    phase: 'federation',
-    why: 'Cross-network identity links. Their evidence rows cascade.',
-  },
-  {
     table: 'federated_actors',
     column: 'oxyUserId',
     disposition: 'delete-row',

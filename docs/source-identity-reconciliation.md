@@ -72,11 +72,9 @@ id and reveals former cluster members. This is the rollback procedure; do not
 run an inverse global `old_user_id -> new_user_id` update because both ids may
 have authored unrelated content.
 
-`recordAttestedIdentityLink` is retired. Its default CLI invocation reads only
-historical audit counts; mutating invocation fails. Its callable entry point
-returns `oxy_identity_authority_required` for both registration and removal.
-Historical identity claim/link tables remain for audit. No deploy in this change
-drops those tables or treats their old rows as current authority.
+Mention keeps no identity claim, link or attestation state of its own; the
+`federated_identity_*` tables were dropped (migration `0057`). Person
+equivalence exists only in Oxy.
 
 
 ## Run through the protected production workflow

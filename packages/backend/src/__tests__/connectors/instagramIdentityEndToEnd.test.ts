@@ -33,7 +33,6 @@ const mocks = vi.hoisted(() => ({
   /** The actor-row write itself — `(uri, columns, fields)`. */
   upsertActor: vi.fn(),
   reconcileProjection: vi.fn().mockResolvedValue({}),
-  findIdentityOwnerActor: vi.fn(),
   serviceRequest: vi.fn(),
 }));
 
@@ -70,7 +69,6 @@ vi.mock('../../db/federation/actorRepository', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../db/federation/actorRepository')>()),
   findActorByUri: mocks.findActorByUri,
   upsertActor: mocks.upsertActor,
-  findIdentityOwnerActor: mocks.findIdentityOwnerActor,
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -204,7 +202,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   storedRow = {};
   mocks.findActorByUri.mockResolvedValue(null);
-  mocks.findIdentityOwnerActor.mockResolvedValue(null);
   mocks.upsertActor.mockImplementation((uri: string, columns: Record<string, unknown>) => {
     storedRow = { uri, ...columns };
     return Promise.resolve({ ...storedRow, id: 'row-1' });
@@ -253,7 +250,6 @@ describe('resolving @zuck@kilogram.makeup', () => {
       actorUri: ACTOR_URI, transportAcct: 'zuck@kilogram.makeup', protocol: 'activitypub',
     });
     expect(mocks.serviceRequest.mock.calls.some(([, path]) => path === '/users/resolve')).toBe(false);
-    expect(mocks.findIdentityOwnerActor).not.toHaveBeenCalled();
   });
 
   it('keeps the bridge address on the row it holds for reaching the actor', async () => {
@@ -328,7 +324,6 @@ describe('what the bridge lane deliberately leaves alone', () => {
     const response = await request(app).get('/federation/resolve').query({ handle: 'zuck@kilogram.makeup' });
     expect(response.status).toBe(500);
     expect(mocks.upsertActor).not.toHaveBeenCalled();
-    expect(mocks.findIdentityOwnerActor).not.toHaveBeenCalled();
   });
 
   it("does not re-attribute the operator's own account to a person on Instagram", async () => {

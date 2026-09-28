@@ -60,18 +60,8 @@ function toNoteSource(
  * The `<local>@<domain>` identity a BRIDGED actor row is held under, or
  * `undefined` for the ordinary actor whose identity is its own protocol acct.
  *
- * `networkAcct` is written by the shared resolver when a reviewed bridge entry
- * re-labels an actor onto the network it was republished from, and it is the only
- * place that identity exists on the row — `acct`, `uri` and `domain` all keep
- * addressing the bridge. Reading `acct` regardless is not a cosmetic slip: the
- * registry falls back to `mapIdentity` whenever a resolved actor carries no Oxy
- * user, which is exactly the state a first-ever ingest leaves it in, and
- * `PUT /users/resolve` keys on the actor URI — so the fallback would rename the
- * user the ingest just re-labelled straight back to its bridge handle.
- *
- * Typed against `FederatedActorRecord` rather than the deleted `IFederatedActor`:
- * `network_acct` is a column on `federated_actors` and the record carries it, so
- * the feature ports across unchanged.
+ * `networkAcct` is the cached Oxy `canonicalAcct`; Mention never derives it.
+ * `acct`, `uri` and `domain` keep addressing the bridge.
  */
 function bridgedIdentity(
   actor: FederatedActorRecord,

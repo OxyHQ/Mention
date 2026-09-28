@@ -1066,9 +1066,7 @@ export class PostHydrationService {
       // a page of native posts cannot contain one, and an all-native feed — the
       // overwhelmingly common case — pays nothing at all rather than one
       // statement for a field it can never have. The test is over rows already
-      // in memory, so the saving is free. Same discipline as
-      // `participatesInCrossNetworkIdentity`: gate the cost on the thing that
-      // makes it possible.
+      // in memory, so the saving is free.
       this.buildCrosspostMap(postsForHydration, postIds),
       // Import provenance ("Originally posted on Mastodon") for the whole page in
       // ONE primary-key `in (...)` — see `buildImportMap`.

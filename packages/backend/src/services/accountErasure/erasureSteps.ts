@@ -39,7 +39,6 @@ import {
   federatedActors,
   federatedBannerMirrors,
   federatedFollows,
-  federatedIdentityLinks,
   federationDeliveryQueue,
 } from '../../db/schema/federation';
 import {
@@ -564,7 +563,6 @@ export const ERASURE_STEPS: Readonly<Record<string, ErasureStep>> = {
 
   // --- federation, after the actor Delete -------------------------------------
   'federated_follows.localUserId': deleteRows('federation', federatedFollows, federatedFollows.id, accountIs(federatedFollows.localUserId)),
-  'federated_identity_links.oxyUserId': deleteRows('federation', federatedIdentityLinks, federatedIdentityLinks.id, accountIs(federatedIdentityLinks.oxyUserId)),
   'federated_actors.oxyUserId': deleteRows('federation', federatedActors, federatedActors.id, accountIs(federatedActors.oxyUserId)),
   'federated_banner_mirrors.oxyUserId': deleteRows(
     'federation',

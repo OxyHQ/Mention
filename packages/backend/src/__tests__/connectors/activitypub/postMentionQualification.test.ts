@@ -41,6 +41,23 @@ describe('identityDomainOfActor', () => {
       .toBe('x.com');
   });
 
+  it('does not qualify an ordinary actor whose Oxy canonical acct is on its own host', () => {
+    // Oxy returns a `canonicalAcct` for every source, so `networkAcct` is set on
+    // ordinary actors too; only a DIFFERENT network domain is a relabel.
+    expect(identityDomainOfActor({ networkAcct: 'alice@mastodon.social', domain: 'mastodon.social' }))
+      .toBeUndefined();
+    expect(identityDomainOfActor({ networkAcct: 'alice@Mastodon.Social', domain: 'mastodon.social ' }))
+      .toBeUndefined();
+    expect(qualifyBareHandles('hola @bob', identityDomainOfActor({ networkAcct: 'alice@mastodon.social', domain: 'mastodon.social' }) ?? ''))
+      .toBe('hola @bob');
+  });
+
+  it('qualifies a bridge actor onto Oxy\'s canonical network', () => {
+    const domain = identityDomainOfActor({ networkAcct: 'jordievole@x.com', domain: 'bird.makeup' });
+    expect(domain).toBe('x.com');
+    expect(qualifyBareHandles('Uno @delbarriotv', domain ?? '')).toBe('Uno @delbarriotv@x.com');
+  });
+
   it('ignores a malformed networkAcct rather than qualifying onto a guess', () => {
     // Malformed means we cannot tell which network this identity is on, so the
     // body is left alone — never qualified onto the bridge host it arrived
