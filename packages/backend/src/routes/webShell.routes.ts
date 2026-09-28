@@ -33,6 +33,7 @@ import { externalIdentityReferenceSchema } from '@oxy.so/contracts';
 import { Router, Request, Response } from 'express';
 import { config } from '../config';
 import { loadPostRecord } from '../db/posts/postRepository';
+import type { PostRecord } from '../db/posts/postRecord';
 import { postHydrationService } from '../services/PostHydrationService';
 import { logger } from '../utils/logger';
 import {
@@ -228,6 +229,29 @@ async function isOxyAuthorPublic(oxyUserId: string): Promise<boolean> {
   return Boolean(await fetchProfile(user.username));
 }
 
+/**
+ * Whether a post's author may be shown to anyone: public on Mention AND on Oxy,
+ * both read fresh for this request. The two reads are independent, so they run
+ * together rather than one round-trip after the other.
+ */
+async function isAuthorPublic(oxyUserId: string): Promise<boolean> {
+  if (!oxyUserId) return false;
+  const [onMention, onOxy] = await Promise.all([
+    isMentionProfilePublic(oxyUserId),
+    isOxyAuthorPublic(oxyUserId),
+  ]);
+  return onMention && onOxy;
+}
+
+/**
+ * Start the shell fetch while the route resolves its entity. `getShell` is
+ * single-flight and cached, so this only matters when the process cache is
+ * cold, where the shell download would otherwise wait for the entity reads.
+ */
+function warmShell(): void {
+  void getShell();
+}
+
 /** The raw post fields the OG safety verdict reads. */
 type PostSafetyRow = FeedSafetyPostShape & { boostOf?: unknown };
 
@@ -240,12 +264,8 @@ type PostSafetyRow = FeedSafetyPostShape & { boostOf?: unknown };
  * a boost of a sensitive post would otherwise unfurl that post's text while carrying
  * no signal of its own.
  */
-async function resolvePostOgSafety(post: PostSafetyRow): Promise<PostOgSafety> {
-  const rows: Array<PostSafetyRow | null> = [post];
-
-  if (post.boostOf) {
-    rows.push(await loadPostRecord(String(post.boostOf)));
-  }
+function resolvePostOgSafety(post: PostSafetyRow, original: PostSafetyRow | null): PostOgSafety {
+  const rows: (PostSafetyRow | null)[] = post.boostOf ? [post, original] : [post];
 
   const gated = rows.find((row) => requiresContentWarning(row));
   if (!gated) return { requiresWarning: false };
@@ -257,26 +277,21 @@ async function resolvePostOgSafety(post: PostSafetyRow): Promise<PostOgSafety> {
   };
 }
 
-/** Hydrate + map a post's OG data in-process (same path as `GET /feed/item/:id`). Returns null on any failure. */
-async function fetchPostOg(id: string): Promise<OgData | null> {
+/**
+ * Hydrate + map a post's OG data in-process (same path as `GET /feed/item/:id`),
+ * from the row and safety verdict this request already read. Returns null when
+ * the post has no author to show.
+ */
+async function fetchPostOg(post: PostRecord, safety: PostOgSafety): Promise<OgData | null> {
   try {
-    // No id-shape guard: `posts.id` is `text`, so an arbitrary path segment
-    // matches no row and yields the same `null` the ObjectId test used to — while
-    // an ObjectId test would have refused to render an OG card for any post
-    // created since the cutover.
-    const post = await loadPostRecord(id);
-    if (!post) return null;
     // maxDepth:1 so boosts hydrate their original and link previews are included;
     // the OG mapping itself only reads the post's own top-level fields.
-    const [hydrated, safety] = await Promise.all([
-      postHydrationService.hydratePosts([post], {
-        maxDepth: 1,
-        includeLinkMetadata: true,
-      }).then((posts) => posts[0]),
-      resolvePostOgSafety(post),
-    ]);
+    const [hydrated] = await postHydrationService.hydratePosts([post], {
+      maxDepth: 1,
+      includeLinkMetadata: true,
+    });
     if (!hydrated?.user) return null;
-    return mapPostOg(hydrated, id, safety);
+    return mapPostOg(hydrated, String(post.id), safety);
   } catch (error) {
     logger.debug('[webShell] Post OG fetch failed', error);
     throw error;
@@ -464,6 +479,7 @@ router.get(/^\/sitemaps\/(profiles|posts)-([0-9a-f]{2})-(\d+)\.xml$/, async (req
 // Profile: `/@handle` plus sub-tabs (`/@handle/media`, `/@handle/followers`, …).
 // The captured group is the handle segment (`user` or `user@domain`).
 router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
+  warmShell();
   const handle = decodeURIComponent(req.params[0]);
   const isLocalProfileUrl = LOCAL_PROFILE_RE.test(req.path);
   const isProfileRoot = PROFILE_ROOT_RE.test(req.path);
@@ -546,6 +562,7 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
 // Adding a second AP entry point would give one actor two profile URLs and leave
 // remote software to guess which is canonical.
 router.get(/^\/c\/([^/]+)\/?$/, async (req: Request, res: Response) => {
+  warmShell();
   const handle = decodeURIComponent(req.params[0]);
   // The same profile resolution the `/@handle` route uses, so a channel's card is
   // built from the same payload and `og:url` comes back as `/c/<handle>` from the
@@ -573,8 +590,12 @@ router.get(/^\/c\/([^/]+)\/?$/, async (req: Request, res: Response) => {
 
 // Post: `/p/<id>` (optional trailing slash). No AP case.
 router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: Response) => {
+  warmShell();
   const id = req.params[0];
   try {
+    // No id-shape guard: `posts.id` is `text`, so an arbitrary path segment
+    // matches no row and yields `null`, while an ObjectId test would refuse to
+    // render an OG card for any post created since the cutover.
     const post = await loadPostRecord(id);
     if (!post) {
       await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Post not found', 'This post is unavailable on Mention.'), 404);
@@ -583,9 +604,15 @@ router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: R
 
     const authorId = post.oxyUserId ? String(post.oxyUserId) : '';
     const isPublic = post.visibility === 'public' && post.status === 'published';
-    const authorIsPublic = Boolean(authorId)
-      && await isMentionProfilePublic(authorId)
-      && await isOxyAuthorPublic(authorId);
+    // Every read below is this request's own and current; nothing is taken from
+    // a cache before the visibility decisions. Independent reads run together,
+    // and each row is read once and handed on rather than read again.
+    const [authorIsPublic, original] = isPublic
+      ? await Promise.all([
+          isAuthorPublic(authorId),
+          post.boostOf ? loadPostRecord(String(post.boostOf)) : Promise.resolve(null),
+        ])
+      : [false, null];
     if (!isPublic || !authorIsPublic) {
       await serveShell(
         res,
@@ -597,22 +624,20 @@ router.get(/^\/p\/([^/]+)\/?$/, webShellRateLimiter, async (req: Request, res: R
     // A boost's rendered body comes from its original. Check current visibility
     // for both rows before reading any cached representation.
     if (post.boostOf) {
-      const original = await loadPostRecord(String(post.boostOf));
       const originalAuthor = original?.oxyUserId ? String(original.oxyUserId) : '';
       if (!original || original.visibility !== 'public' || original.status !== 'published'
-        || !originalAuthor || !(await isMentionProfilePublic(originalAuthor))
-        || !(await isOxyAuthorPublic(originalAuthor))) {
+        || !(await isAuthorPublic(originalAuthor))) {
         await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Post unavailable', 'This post is unavailable on Mention.'));
         return;
       }
     }
 
-    const safety = await resolvePostOgSafety(post);
+    const safety = resolvePostOgSafety(post, original);
     // Never serve a previously cached safe body after a sensitivity change.
     // A gated post is re-rendered from the current row on every request.
     const og = safety.requiresWarning
-      ? await fetchPostOg(id)
-      : await getShellCached(`post:semantic-v1:${id}`, () => fetchPostOg(id), { rethrow: true });
+      ? await fetchPostOg(post, safety)
+      : await getShellCached(`post:semantic-v1:${id}`, () => fetchPostOg(post, safety), { rethrow: true });
     if (!og) {
       await serveShell(res, noindexPage(`${config.web.origin}${req.path}`, 'Post not found', 'This post is unavailable on Mention.'), 404);
       return;
