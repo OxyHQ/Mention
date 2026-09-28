@@ -190,6 +190,28 @@ export async function findActorsByUris(
 }
 
 /**
+ * `acct → oxyUserId` for a set of accts, in ONE indexed query — the typed-handle
+ * mentions of a post (`@bob@remote.tld`). Projected: the caller needs the id
+ * and nothing else. An acct we do not store, or one not yet linked to an Oxy
+ * user, is simply absent.
+ */
+export async function findActorOxyUserIdsByAccts(
+  accts: readonly string[],
+  db: DatabaseOrTransaction = getDb(),
+): Promise<Map<string, string>> {
+  if (accts.length === 0) return new Map();
+  const rows = await db
+    .select({ acct: federatedActors.acct, oxyUserId: federatedActors.oxyUserId })
+    .from(federatedActors)
+    .where(inArray(federatedActors.acct, [...accts]));
+  const out = new Map<string, string>();
+  for (const row of rows) {
+    if (row.acct && row.oxyUserId) out.set(row.acct, row.oxyUserId);
+  }
+  return out;
+}
+
+/**
  * Just the two inbox columns, for a set of actor URIs — the follower fan-out.
  *
  * Projected rather than assembled: this runs once per outbound activity with one
