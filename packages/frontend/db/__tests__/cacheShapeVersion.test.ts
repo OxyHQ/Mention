@@ -53,7 +53,7 @@ const PERSISTED_POST_KEYS = [
 ] as const;
 
 /** The version that must ship with the key set above. */
-const VERSION_FOR_THESE_KEYS = 13;
+const VERSION_FOR_THESE_KEYS = 14;
 
 function makeFullyPopulatedPost(): HydratedPost {
   return {

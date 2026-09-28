@@ -83,6 +83,35 @@ export interface ResolvedClarityDocuments {
 }
 
 /**
+ * A document with only the images Clarity itself serves.
+ *
+ * A reader's device must never load a link card's image or favicon from the
+ * linked site: that tells the site who read what, and loads whatever it chooses
+ * to serve. Clarity hands out its own copies (`/images/...`, `/favicons/...` on
+ * its API origin), so any image URL on another origin is dropped here rather
+ * than passed on — the card shows without that image instead of hotlinking it.
+ * This is the one door every card goes through (hydration, the pending-card
+ * follow-up and the composer), so no other code path can leak an origin URL.
+ */
+export function clarityHostedDocument(document: ClarityDocument): ClarityDocument {
+  const { imageUrl, faviconUrl, ...rest } = document;
+  return {
+    ...rest,
+    ...(isClarityAssetUrl(imageUrl) ? { imageUrl } : {}),
+    ...(isClarityAssetUrl(faviconUrl) ? { faviconUrl } : {}),
+  };
+}
+
+function isClarityAssetUrl(value: string | undefined): value is string {
+  if (!value) return false;
+  try {
+    return new URL(value).origin === new URL(config.clarityApiUrl).origin;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * The most URLs Clarity's `POST /v1/resolve` accepts in one call; a larger body
  * is a 400 for the whole batch (`urlsSchema` in Clarity's `search-platform.ts`).
  */
@@ -140,7 +169,7 @@ export async function resolveClarityDocuments(
       batch.forEach((url, index) => {
         const resolution = response.data[index];
         if (resolution?.document) {
-          documents.set(url, resolution.document);
+          documents.set(url, clarityHostedDocument(resolution.document));
         } else if (!resolution || IN_PROGRESS_STATUSES.has(resolution.status)) {
           pending.add(url);
         }

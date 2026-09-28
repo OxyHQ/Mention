@@ -143,56 +143,50 @@ describe('PostHydrationService — documents sourced from Clarity', () => {
     }));
   }
 
-  it('maps a resolved Oxy ClarityDocument onto the post, sizing the cloud.oxy.so image to the thumb (w320) variant', async () => {
+  it('maps a resolved ClarityDocument onto the post, keeping the images Clarity serves', async () => {
     const resolved: ClarityDocument = {
       id: 'doc-1',
       canonicalUrl: 'https://example.com/some-article?canonical=1',
       title: 'Some Article',
       description: 'A description',
-      // Already carries an unrelated variant — proves the service OVERWRITES
-      // it (idempotent `set`) rather than appending a duplicate param.
-      imageUrl: 'https://cloud.oxy.so/file123?variant=w2048',
-      publisher: { name: 'Example' },
-      faviconUrl: 'https://cloud.oxy.so/favicon456',
+      imageUrl: 'https://api.clarity.surf/images/documents/doc-1/0123456789abcdef',
+      publisher: 'Example',
+      faviconUrl: 'https://api.clarity.surf/favicons/example.com',
       type: 'article',
       indexedAt: new Date().toISOString(),
-    };
-    resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'resolved', document: resolved }] });
+    } as ClarityDocument;
+    resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'indexed', document: resolved }] });
 
     const hydrated = await hydrate();
 
     // The service requested exactly the extracted URL.
     expect(resolveDocuments).toHaveBeenCalledTimes(1);
     expect(resolveDocuments).toHaveBeenCalledWith({ urls: [POST_URL] });
-
-    expect(hydrated.documents).toEqual([
-      {
-        ...resolved,
-        title: 'Some Article',
-        description: 'A description',
-        // Oxy-hosted image is never re-proxied, but sized to w320 instead of
-        // serving the no-variant original (or an unrelated variant).
-        imageUrl: 'https://cloud.oxy.so/file123?variant=w2048',
-      },
-    ]);
+    expect(hydrated.documents).toEqual([resolved]);
   });
 
-  it('leaves a non-Oxy-hosted image untouched (never attaches our variant to a third-party host)', async () => {
+  it('never passes on an image the reader would load from the linked site', async () => {
+    // Clarity serves its own copies; an image URL on any other origin would make
+    // the reader's device fetch from the site itself, so it is dropped and the
+    // card shows without it.
     const resolved: ClarityDocument = {
       id: 'doc-2',
       canonicalUrl: 'https://example.com/some-article?canonical=1',
       title: 'External image',
       description: 'A description',
       imageUrl: 'https://images.example.com/og-image.png',
-      publisher: { name: 'Example' },
+      faviconUrl: 'https://example.com/favicon.ico',
+      publisher: 'Example',
       type: 'article',
       indexedAt: new Date().toISOString(),
-    };
-    resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'resolved', document: resolved }] });
+    } as ClarityDocument;
+    resolveDocuments.mockResolvedValue({ data: [{ url: POST_URL, status: 'indexed', document: resolved }] });
 
     const hydrated = await hydrate();
 
-    expect(hydrated.documents?.[0]?.imageUrl).toBe('https://images.example.com/og-image.png');
+    expect(hydrated.documents?.[0]?.title).toBe('External image');
+    expect(hydrated.documents?.[0]).not.toHaveProperty('imageUrl');
+    expect(hydrated.documents?.[0]).not.toHaveProperty('faviconUrl');
   });
 
   it('maps every resolved preview of a multi-link post, in text order', async () => {
