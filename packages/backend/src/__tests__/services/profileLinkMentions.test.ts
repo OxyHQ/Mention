@@ -374,3 +374,140 @@ describe('which renditions of a multilingual body are rewritten', () => {
     expect(fold.mentions).toEqual([ALICE_OXY_ID]);
   });
 });
+
+/**
+ * A TYPED HANDLE IS A MENTION TOO. `@alice` written by hand, without picking her
+ * from the composer's list, used to be stored as prose: no mention rendered and
+ * alice was never notified, while the very same name picked from the list was a
+ * mention. Same word, two answers, decided by how the author happened to enter it.
+ */
+describe('a handle typed by hand', () => {
+  beforeEach(() => {
+    mocks.resolveOxyUser.mockImplementation(async (username: string) =>
+      username.toLowerCase() === 'alice' ? { _id: ALICE_OXY_ID } : null,
+    );
+  });
+
+  it('becomes the placeholder the picker produces, and is authorized', async () => {
+    const content = body('hola @alice.');
+
+    const fold = await foldProfileLinkMentions(content, []);
+
+    expect(mocks.resolveOxyUser).toHaveBeenCalledWith('alice');
+    expect(content.text).toBe(`hola [mention:${ALICE_OXY_ID}].`);
+    expect(fold.mentions).toEqual([ALICE_OXY_ID]);
+    expect(fold.rewritten).toBe(true);
+  });
+
+  it('is looked up once however often, and in whatever case, it is written', async () => {
+    const content = body('@Alice and @alice again');
+
+    const fold = await foldProfileLinkMentions(content, []);
+
+    expect(mocks.resolveOxyUser).toHaveBeenCalledTimes(1);
+    expect(content.text).toBe(`[mention:${ALICE_OXY_ID}] and [mention:${ALICE_OXY_ID}] again`);
+    expect(fold.mentions).toEqual([ALICE_OXY_ID]);
+  });
+
+  it('stays text when nobody holds that name', async () => {
+    const content = body('hola @nadie');
+
+    const fold = await foldProfileLinkMentions(content, []);
+
+    expect(content.text).toBe('hola @nadie');
+    expect(fold.mentions).toEqual([]);
+    expect(fold.rewritten).toBe(false);
+  });
+
+  it('resolves `@alice@<our host>` as our own user', async () => {
+    const content = body(`hi @alice@${OWN_HOST}`);
+
+    const fold = await foldProfileLinkMentions(content, []);
+
+    expect(mocks.findActorByAcct).not.toHaveBeenCalled();
+    expect(content.text).toBe(`hi [mention:${ALICE_OXY_ID}]`);
+    expect(fold.mentions).toEqual([ALICE_OXY_ID]);
+  });
+
+  it('resolves a remote handle only to an actor we already store — never fetched', async () => {
+    stubStoredActors({ acct: { 'bob@mastodon.social': BOB_OXY_ID } });
+    const content = body('cc @Bob@mastodon.social and @carol@mastodon.social');
+
+    const fold = await foldProfileLinkMentions(content, []);
+
+    expect(mocks.findActorByAcct).toHaveBeenCalledWith('bob@mastodon.social');
+    expect(mocks.resolveOxyUser).not.toHaveBeenCalled();
+    expect(content.text).toBe(`cc [mention:${BOB_OXY_ID}] and @carol@mastodon.social`);
+    expect(fold.mentions).toEqual([BOB_OXY_ID]);
+  });
+
+  it('names nobody on a moderation-blocked host', async () => {
+    mocks.isBlockedDomain.mockImplementation(
+      (host: string) => ['poa.st', OWN_HOST].includes(host.toLowerCase()),
+    );
+    stubStoredActors({ acct: { 'alice@poa.st': BOB_OXY_ID } });
+    const content = body('hey @alice@poa.st');
+
+    const fold = await foldProfileLinkMentions(content, []);
+
+    expect(mocks.findActorByAcct).not.toHaveBeenCalled();
+    expect(mocks.resolveOxyUser).not.toHaveBeenCalled();
+    expect(content.text).toBe('hey @alice@poa.st');
+    expect(fold.mentions).toEqual([]);
+  });
+
+  it('leaves a picked mention, an email address and a handle inside a URL alone', async () => {
+    const content = body(
+      `[mention:${ALICE_OXY_ID}] write to alice@example.com or see https://example.com/@alice`,
+    );
+
+    const fold = await foldProfileLinkMentions(content, [ALICE_OXY_ID]);
+
+    expect(mocks.resolveOxyUser).not.toHaveBeenCalled();
+    expect(fold.rewritten).toBe(false);
+    expect(fold.mentions).toEqual([ALICE_OXY_ID]);
+  });
+
+  it('spends at most MAX_PROFILE_LINKS_PER_BODY lookups on one body', async () => {
+    const names = Array.from({ length: MAX_PROFILE_LINKS_PER_BODY + 4 }, (_, i) => `user${i}`);
+    const content = body(names.map((name) => `@${name}`).join(' '));
+
+    await foldProfileLinkMentions(content, []);
+
+    expect(mocks.resolveOxyUser).toHaveBeenCalledTimes(MAX_PROFILE_LINKS_PER_BODY);
+  });
+
+  it('shares the per-post ceiling with the mentions the body already carries', async () => {
+    const carried = Array.from({ length: MAX_MENTIONS_PER_POST }, (_, i) => `oxy_carried_${i}`);
+    const content = body(`${carried.map((id) => `[mention:${id}]`).join(' ')} @alice`);
+
+    const fold = await foldProfileLinkMentions(content, carried);
+
+    expect(mocks.resolveOxyUser).not.toHaveBeenCalled();
+    expect(fold.mentions).toEqual(carried);
+    expect(content.text).toContain('@alice');
+  });
+
+  it('leaves a handle whose lookup throws as text, and still folds the rest', async () => {
+    mocks.resolveOxyUser.mockImplementation(async (username: string) => {
+      if (username === 'broken') throw new Error('oxy down');
+      return username === 'alice' ? { _id: ALICE_OXY_ID } : null;
+    });
+    const content = body('@broken and @alice');
+
+    const fold = await foldProfileLinkMentions(content, []);
+
+    expect(content.text).toBe(`@broken and [mention:${ALICE_OXY_ID}]`);
+    expect(fold.mentions).toEqual([ALICE_OXY_ID]);
+  });
+
+  it('folds a profile link and a typed handle in the same body', async () => {
+    stubStoredActors({ acct: { 'bob@mastodon.social': BOB_OXY_ID } });
+    const content = body('https://mastodon.social/@bob meet @alice');
+
+    const fold = await foldProfileLinkMentions(content, []);
+
+    expect(content.text).toBe(`[mention:${BOB_OXY_ID}] meet [mention:${ALICE_OXY_ID}]`);
+    expect(fold.mentions.sort()).toEqual([ALICE_OXY_ID, BOB_OXY_ID].sort());
+  });
+});

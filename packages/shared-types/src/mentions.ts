@@ -5,6 +5,11 @@
  * itself: callers must also supply the corresponding id in their mention
  * allowlist. Reconciliation therefore intersects the two sources instead of
  * inferring recipients from arbitrary text a user typed.
+ *
+ * A typed `@handle` or a pasted profile link DOES become a mention, but not here:
+ * the backend's write boundary (`foldProfileLinkMentions`) resolves it against a
+ * real account and writes both halves — the placeholder and the id — before
+ * reconciliation runs. A hand-typed `[mention:<id>]` is still not authority.
  */
 
 import { scanTextEntities, stripTextEntities } from './textEntities';

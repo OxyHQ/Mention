@@ -214,6 +214,27 @@ describe('createReply — a pasted profile link becomes a real mention', () => {
   });
 });
 
+describe('createReply — a handle typed by hand is a mention', () => {
+  it('stores the id and rewrites the handle to the placeholder, without the picker', async () => {
+    const parent = await seedPost(scope, { oxyUserId: PARENT_AUTHOR_ID });
+    const { res, captured } = buildResponse();
+
+    await feedController.createReply(
+      {
+        body: { postId: parent.id, content: { text: 'agreed, @alice.' } },
+        user: { id: USER_ID },
+      } as never,
+      res as never,
+    );
+
+    expect(captured.status).toBe(201);
+    expect(await writtenPost((row) => row.parentPostId === parent.id)).toEqual({
+      mentions: [ALICE_OXY_ID],
+      text: `agreed, [mention:${ALICE_OXY_ID}].`,
+    });
+  });
+});
+
 describe('createBoost — the comment on a boost is a body like any other', () => {
   it('stores the id and rewrites the comment to the placeholder', async () => {
     const original = await seedPost(scope, { oxyUserId: PARENT_AUTHOR_ID });
