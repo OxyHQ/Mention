@@ -15,6 +15,7 @@ import { OxyProvider } from '@oxy.so/services/ui/client';
 import { OxyServices } from '@oxy.so/core';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import AppSplashScreen from '@/components/AppSplashScreen';
+import { BootMilestone } from '@/components/BootMilestone';
 import { AccountSwitchReset } from '@/components/providers/AccountSwitchReset';
 import { AppShellProviders } from '@/components/providers/AppShellProviders';
 import { BottomSheetProvider } from '@/context/BottomSheetContext';
@@ -53,6 +54,8 @@ export const AppProviders = memo(function AppProviders({
 
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      {/* Bloom renders its children only once its fonts have loaded. */}
+      <BootMilestone name="fonts-ready" />
       <GestureHandlerRootView style={{ flex: 1 }}>
         {/*
          * react-native-keyboard-controller's root provider. It MUST sit inside
@@ -109,10 +112,11 @@ export const AppProviders = memo(function AppProviders({
              * HERE rather than below, because this gate is above the root
              * layout's own splash branch — anything the root renders is already
              * a descendant of it, so during the auth window the root's splash
-             * cannot paint at all. Static (no `startFade`), so it holds at full
-             * opacity until the gate opens and the root takes over.
+             * cannot paint at all. It holds until the gate opens and the root
+             * takes over.
              */}
             <AccountSwitchReset fallback={<AppSplashScreen />}>
+              <BootMilestone name="cache-owner-established" />
               <I18nextProvider i18n={i18n}>
                 {/*
                  * `LayoutScrollProvider` and `AppShellProviders` sit ABOVE

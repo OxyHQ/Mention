@@ -32,7 +32,8 @@ export const SUPPORTED_LANGUAGES = [
 
 export const INITIALIZATION_TIMEOUT = {
   AUTH: 1000, // Fast timeout for cached token check
-  SPLASH_FADE_DELAY: 400,
+  /** Native only: pause after startup before asking for notification permission. */
+  PERMISSION_PROMPT_DELAY: 400,
 } as const;
 
 /**

@@ -16,6 +16,27 @@ type RuntimeKind =
   | 'runtime-error'
   | 'unhandled-rejection';
 
+/**
+ * Points on the way from a document load to useful content, in the order they
+ * normally happen. Each is recorded once per document, as milliseconds since
+ * navigation start, and also as a `performance.mark('mention:<name>')`.
+ *
+ * - `fonts-ready`: Bloom's fonts loaded and the providers under it mounted.
+ * - `cache-owner-established`: the viewer's cache ownership is settled, so
+ *   nothing of a previous account can render.
+ * - `auth-resolved`: the session is known (signed in or anonymous).
+ * - `route-mounted`: the matched route tree committed.
+ * - `primary-request-start`: the first feed request left.
+ * - `content-ready`: the first post row is in the document.
+ */
+export type BootMilestone =
+  | 'fonts-ready'
+  | 'cache-owner-established'
+  | 'auth-resolved'
+  | 'route-mounted'
+  | 'primary-request-start'
+  | 'content-ready';
+
 type TelemetryEvent =
   | {
       type: 'vital';
@@ -29,6 +50,13 @@ type TelemetryEvent =
       type: 'runtime';
       kind: RuntimeKind;
       result: 'ok' | 'error';
+      route: string;
+    }
+  | {
+      type: 'milestone';
+      name: BootMilestone;
+      value: number;
+      navigation: NavigationType;
       route: string;
     };
 
@@ -44,6 +72,10 @@ let cachedCapability: boolean | undefined;
 let flushTimer: ReturnType<typeof setTimeout> | undefined;
 let queue: TelemetryEvent[] = [];
 const runtimeCounts = new Map<RuntimeKind, number>();
+const reachedMilestones = new Set<BootMilestone>();
+// Milestones can be reached before the capability probe answers; they wait
+// here and are queued once telemetry is enabled (or dropped if it is not).
+let pendingMilestones: TelemetryEvent[] = [];
 
 function routeBucket(pathname: string = window.location.pathname): string {
   const path = pathname.toLowerCase();
@@ -59,6 +91,20 @@ function routeBucket(pathname: string = window.location.pathname): string {
   if (path === '/settings' || path.startsWith('/settings/')) return '/settings';
   if (path === '/videos' || path.startsWith('/videos/')) return '/videos';
   return '/other';
+}
+
+/** The route the document was loaded on; page-lifetime metrics belong to it. */
+let landingRoute: string | undefined;
+function documentRoute(): string {
+  landingRoute ??= routeBucket();
+  return landingRoute;
+}
+
+function documentNavigation(): NavigationType {
+  const entry = performance.getEntriesByType?.('navigation')[0] as
+    | PerformanceNavigationTiming
+    | undefined;
+  return normalizeNavigation(entry?.type);
 }
 
 function normalizeNavigation(value: string | undefined): NavigationType {
@@ -132,6 +178,25 @@ function recordRuntime(kind: RuntimeKind, result: 'ok' | 'error'): void {
   enqueue({ type: 'runtime', kind, result, route: routeBucket() });
 }
 
+export function recordBootMilestone(name: BootMilestone): void {
+  if (reachedMilestones.has(name)) return;
+  reachedMilestones.add(name);
+  try {
+    performance.mark(`mention:${name}`);
+  } catch {
+    // Marks are for DevTools only; telemetry below does not depend on them.
+  }
+  const event: TelemetryEvent = {
+    type: 'milestone',
+    name,
+    value: Math.round(performance.now()),
+    navigation: documentNavigation(),
+    route: documentRoute(),
+  };
+  if (telemetryEnabled) enqueue(event);
+  else if (initialized) pendingMilestones.push(event);
+}
+
 export function recordWebNavigation(pathname: string): void {
   enqueue({
     type: 'runtime',
@@ -167,6 +232,8 @@ export function initializeWebTelemetry(): () => void {
     window.addEventListener('unhandledrejection', onUnhandledRejection);
     window.addEventListener('pagehide', onPageHide);
     recordRuntime('load', 'ok');
+    for (const event of pendingMilestones) enqueue(event);
+    pendingMilestones = [];
 
     void import('web-vitals')
       .then(({ onCLS, onINP, onLCP }) => {
@@ -184,7 +251,10 @@ export function initializeWebTelemetry(): () => void {
             value: metric.value,
             rating: metric.rating,
             navigation: normalizeNavigation(metric.navigationType),
-            route: routeBucket(),
+            // LCP, CLS and INP describe the document, not the route showing
+            // when they are reported: a report fired on `pagehide` after a
+            // client-side navigation still belongs to the landing route.
+            route: documentRoute(),
           });
         };
         onCLS(report);
@@ -196,31 +266,32 @@ export function initializeWebTelemetry(): () => void {
       });
   };
 
-  const probeCapabilities = async (): Promise<void> => {
-    if (cachedCapability !== undefined) {
-      if (cachedCapability) attachTelemetry();
-      return;
-    }
+  documentRoute();
 
-    try {
-      const response = await fetch(CAPABILITIES_ENDPOINT, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-        credentials: 'omit',
-        signal: probeController.signal,
-      });
-      if (!response.ok) {
+  const probeCapabilities = async (): Promise<void> => {
+    if (cachedCapability === undefined) {
+      try {
+        const response = await fetch(CAPABILITIES_ENDPOINT, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          credentials: 'omit',
+          signal: probeController.signal,
+        });
+        if (response.ok) {
+          const payload = await response.json() as {
+            capabilities?: { webTelemetry?: unknown };
+          };
+          cachedCapability = payload.capabilities?.webTelemetry === true;
+        } else {
+          cachedCapability = false;
+        }
+      } catch {
+        if (probeController.signal.aborted) return;
         cachedCapability = false;
-        return;
       }
-      const payload = await response.json() as {
-        capabilities?: { webTelemetry?: unknown };
-      };
-      cachedCapability = payload.capabilities?.webTelemetry === true;
-      if (cachedCapability) attachTelemetry();
-    } catch {
-      if (!probeController.signal.aborted) cachedCapability = false;
     }
+    if (cachedCapability) attachTelemetry();
+    else pendingMilestones = [];
   };
 
   void probeCapabilities();
@@ -237,6 +308,7 @@ export function initializeWebTelemetry(): () => void {
     flushTimer = undefined;
     if (telemetryEnabled) flush(true);
     queue = [];
+    pendingMilestones = [];
     runtimeCounts.clear();
     telemetryEnabled = false;
     initialized = false;
@@ -245,11 +317,15 @@ export function initializeWebTelemetry(): () => void {
 
 export const __webTelemetryForTests = {
   capabilitiesEndpoint: CAPABILITIES_ENDPOINT,
+  documentRoute,
   normalizeNavigation,
   reset: () => {
     if (flushTimer) clearTimeout(flushTimer);
     flushTimer = undefined;
     queue = [];
+    pendingMilestones = [];
+    reachedMilestones.clear();
+    landingRoute = undefined;
     runtimeCounts.clear();
     cachedCapability = undefined;
     telemetryEnabled = false;

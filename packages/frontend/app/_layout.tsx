@@ -5,7 +5,7 @@ import { registerChunkErrorRecovery } from '@/lib/chunkReload';
 import NetInfo from '@react-native-community/netinfo';
 import { focusManager, onlineManager } from '@tanstack/react-query';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { AppState, Platform, type AppStateStatus } from "react-native";
 import { BloomProvider } from '@oxy.so/bloom/provider';
 import { APP_DEFAULT_COLOR_PRESET } from '@/lib/colorEntitlement';
@@ -74,11 +74,6 @@ function resolveImageSource(fileId: string, variant?: string): string | undefine
   return url && url.startsWith('http') ? url : undefined;
 }
 
-interface SplashState {
-  initializationComplete: boolean;
-  fadeComplete: boolean;
-}
-
 export default function RootLayout() {
   // State
   const [appIsReady, setAppIsReady] = useState(false);
@@ -88,26 +83,6 @@ export default function RootLayout() {
   // Bloom's own strings and dates (pickers, chevrons, …) follow the app's
   // language, not the device's.
   const language = useAppLanguage();
-  const [splashState, setSplashState] = useState<SplashState>({
-    initializationComplete: false,
-    fadeComplete: false,
-  });
-
-  // Callbacks
-  const handleSplashFadeComplete = useCallback(() => {
-    setSplashState((prev) => ({ ...prev, fadeComplete: true }));
-  }, []);
-
-  const initializeApp = useCallback(async () => {
-    const result = await AppInitializer.initializeApp(true);
-
-    if (result.success) {
-      setSplashState((prev) => ({ ...prev, initializationComplete: true }));
-    } else {
-      logger.error('App initialization failed', result.error);
-      setSplashState((prev) => ({ ...prev, initializationComplete: true }));
-    }
-  }, []);
 
   // Initialize i18n once when the app mounts
   useEffect(() => {
@@ -143,30 +118,27 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    initializeApp();
-  }, [initializeApp]);
-
-  // Readiness gate. WEB: init complete AND the custom <AppSplashScreen> has finished
-  // fading (its `onFadeComplete` sets `fadeComplete`). NATIVE: init complete only —
-  // there is no custom splash (the held OS splash covers the screen) so
-  // `onFadeComplete` never fires; fonts are gated separately by BloomThemeProvider.
-  useEffect(() => {
-    if (appIsReady) return;
-    const ready =
-      Platform.OS === 'web'
-        ? splashState.initializationComplete && splashState.fadeComplete
-        : splashState.initializationComplete;
-    if (ready) {
-      setAppIsReady(true);
-    }
-  }, [splashState.initializationComplete, splashState.fadeComplete, appIsReady]);
+    let cancelled = false;
+    void AppInitializer.initializeApp(true).then((result) => {
+      if (!result.success) {
+        logger.error('App initialization failed', result.error);
+      }
+      if (!cancelled) setAppIsReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // NATIVE ONLY: hide the held OS splash once ready — it stayed up until this exact
   // moment, so there is no blank gap before the first real frame. No-op on web.
+  // Housekeeping nobody waits on starts only after the route tree is released.
   useEffect(() => {
-    if (appIsReady && Platform.OS !== 'web') {
+    if (!appIsReady) return;
+    if (Platform.OS !== 'web') {
       SplashScreen.hideAsync().catch(() => {});
     }
+    AppInitializer.runDeferredMaintenance();
   }, [appIsReady]);
 
   return (
@@ -198,10 +170,7 @@ export default function RootLayout() {
           {appIsReady ? (
             <>
               {Platform.OS !== 'web' && (
-                <NotificationPermissionGate
-                  appIsReady={appIsReady}
-                  initializationComplete={splashState.initializationComplete}
-                />
+                <NotificationPermissionGate appIsReady={appIsReady} />
               )}
               <PortalProvider>
                 {/* Wraps the OUTLET too: the Settings modal is portalled into
@@ -229,13 +198,12 @@ export default function RootLayout() {
               </PortalProvider>
             </>
           ) : Platform.OS === 'web' ? (
-            // WEB: the custom splash covers font-load + init and fades out; its
-            // `onFadeComplete` gates `appIsReady`. NATIVE renders null here — the
-            // held OS splash is on top, so nothing underneath needs to paint.
-            <AppSplashScreen
-              startFade={splashState.initializationComplete}
-              onFadeComplete={handleSplashFadeComplete}
-            />
+            // WEB: the static splash covers initialization and unmounts the moment
+            // it completes; no animation stands between readiness and the route
+            // tree. Identity and cache ownership are gated below this point, by
+            // `AccountSwitchReset` and `AuthRouter`. NATIVE renders null here —
+            // the held OS splash is on top, so nothing underneath needs to paint.
+            <AppSplashScreen />
           ) : null}
         </AppProviders>
       </BloomProvider>

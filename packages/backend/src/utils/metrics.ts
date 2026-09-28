@@ -179,6 +179,12 @@ const DEFINITIONS = {
     labelNames: ['route', 'rating', 'navigation'],
     buckets: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10],
   },
+  web_boot_milestone_ms: {
+    kind: 'histogram',
+    help: 'Real-user milliseconds from navigation start to each step of a document load',
+    labelNames: ['milestone', 'route', 'navigation'],
+    buckets: [250, 500, 1_000, 1_500, 2_000, 2_500, 3_000, 4_000, 6_000, 10_000, 30_000],
+  },
   web_runtime_events_total: {
     kind: 'counter',
     help: 'Bounded browser load, navigation and runtime error events',

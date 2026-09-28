@@ -21,6 +21,7 @@ import { useMentionSidebar } from "@/components/navigation/useMentionSidebar";
 import { useDrawer } from "@/context/DrawerContext";
 import { SignInBanner } from "@/components/SignInBanner";
 import WelcomeModalGate from '@/components/WelcomeModalGate';
+import { BootMilestone } from '@/components/BootMilestone';
 
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useKeyboardVisibility } from "@/hooks/useKeyboardVisibility";
@@ -157,6 +158,7 @@ export default function AppLayout() {
       </AppShell>
       </BloomColorScope>
       <RegisterPush />
+      <BootMilestone name="route-mounted" />
       <WelcomeModalGate appIsReady={true} />
       {Platform.OS === 'web' && <KeyboardShortcutsHost />}
     </>

@@ -45,6 +45,7 @@ import {
   buildSavedPostsRequestConfig,
   type SavedPostsRequest,
 } from './savedPostsRequest';
+import { recordBootMilestone } from '@/lib/webTelemetry';
 
 // Feed responses may include slices for thread grouping, and recommendation-card
 // placements (`interstitials`) for authenticated viewers on the descriptors the
@@ -346,6 +347,7 @@ class FeedService {
    * Caching is now handled by SQLite via postsStore — this is a pure network layer.
    */
   async getFeed(request: ExtendedFeedRequest, options?: FeedServiceOptions): Promise<FeedServiceResponse> {
+      recordBootMilestone('primary-request-start');
       // Deduplicate in-flight requests — but ONLY for signal-less callers. A
       // request carrying an AbortSignal is owned by a single caller whose
       // lifecycle controls the abort; it must neither be served from the shared
@@ -497,6 +499,7 @@ class FeedService {
     request: FeedRequest,
     options?: FeedServiceOptions,
   ): Promise<FeedServiceResponse> {
+    recordBootMilestone('primary-request-start');
     const filter: AuthorFeedFilter = isAuthorFeedFilter(request.type) ? request.type : 'posts';
     return await this.getMtnFeed(buildFeedDescriptor('author', userId, filter), {
       cursor: request.cursor,

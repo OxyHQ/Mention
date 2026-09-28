@@ -16,7 +16,6 @@ import { INITIALIZATION_TIMEOUT } from '@/lib/constants';
 
 interface NotificationPermissionGateProps {
   appIsReady: boolean;
-  initializationComplete: boolean;
 }
 
 /**
@@ -24,7 +23,6 @@ interface NotificationPermissionGateProps {
  */
 export function NotificationPermissionGate({
   appIsReady,
-  initializationComplete,
 }: NotificationPermissionGateProps) {
   const bs = useContext(BottomSheetContext);
 
@@ -36,7 +34,7 @@ export function NotificationPermissionGate({
     let didCancel = false;
 
     const run = async () => {
-      if (!appIsReady || !initializationComplete) {
+      if (!appIsReady) {
         return;
       }
 
@@ -60,13 +58,13 @@ export function NotificationPermissionGate({
       bs.openBottomSheet(true);
     };
 
-    const timeout = setTimeout(run, INITIALIZATION_TIMEOUT.SPLASH_FADE_DELAY);
+    const timeout = setTimeout(run, INITIALIZATION_TIMEOUT.PERMISSION_PROMPT_DELAY);
 
     return () => {
       didCancel = true;
       clearTimeout(timeout);
     };
-  }, [bs, appIsReady, initializationComplete]);
+  }, [bs, appIsReady]);
 
   return null;
 }

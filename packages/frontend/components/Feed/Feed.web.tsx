@@ -27,6 +27,7 @@ import {
     boundFeedRows,
 } from './feedRows';
 import { useScrollMarginOrigin } from './useScrollMarginOrigin';
+import { recordBootMilestone } from '@/lib/webTelemetry';
 
 const logger = createLogger('Feed');
 
@@ -507,6 +508,8 @@ function VirtualizedWebFeed(props: FeedProps) {
             if (node) {
                 node.setAttribute(POST_URI_ATTR, postUri);
                 impressionObserverRef.current?.observe(node);
+                // First time any feed puts a post in the document.
+                recordBootMilestone('content-ready');
             }
             // No explicit unobserve: when a virtual row unmounts React calls this
             // with null AFTER the node is gone; the observer drops detached nodes

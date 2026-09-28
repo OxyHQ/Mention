@@ -35,8 +35,30 @@ const RuntimeEvent = z.object({
   route: z.string().max(160),
 });
 
+// Milliseconds from navigation start to each step of a document load; see
+// `BootMilestone` in the frontend's `lib/webTelemetry.web.ts`.
+const MilestoneEvent = z.object({
+  type: z.literal('milestone'),
+  name: z.enum([
+    'fonts-ready',
+    'cache-owner-established',
+    'auth-resolved',
+    'route-mounted',
+    'primary-request-start',
+    'content-ready',
+  ]),
+  value: z.number().finite().nonnegative(),
+  navigation: z.enum(['navigate', 'reload', 'back-forward', 'prerender', 'restore', 'other']),
+  route: z.string().max(160),
+});
+
+const MILESTONE_UPPER_BOUND_MS = 120_000;
+
 const TelemetryBatch = z.object({
-  events: z.array(z.discriminatedUnion('type', [VitalEvent, RuntimeEvent])).min(1).max(10),
+  events: z
+    .array(z.discriminatedUnion('type', [VitalEvent, RuntimeEvent, MilestoneEvent]))
+    .min(1)
+    .max(10),
 });
 
 function normalizeRoute(path: string): string {
@@ -95,6 +117,18 @@ export function createWebTelemetryRouter(): Router {
           kind: event.kind,
           route,
           result: event.result,
+        });
+        continue;
+      }
+
+      if (event.type === 'milestone') {
+        if (event.value > MILESTONE_UPPER_BOUND_MS) continue;
+        // A browser timing, not a server operation: `observeValue`, so a
+        // 2 s boot is not logged as a slow backend call.
+        metrics.observeValue('web_boot_milestone_ms', event.value, {
+          milestone: event.name,
+          route,
+          navigation: event.navigation,
         });
         continue;
       }

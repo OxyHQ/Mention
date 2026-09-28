@@ -1,5 +1,5 @@
-import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
-import { View, Animated, StyleSheet, Platform } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { APP_COLOR_NAMES, type AppColorName, type PersistedThemeState } from '@oxy.so/bloom/theme';
 import { getPresetVars } from '@oxy.so/bloom/preset-vars';
@@ -10,12 +10,6 @@ import { createLogger } from '@oxy.so/core/logger';
 
 const logger = createLogger('AppSplashScreen');
 
-interface AppSplashScreenProps {
-    onFadeComplete?: () => void;
-    startFade?: boolean;
-}
-
-const FADE_DURATION = 500;
 const LOGO_SIZE = 100;
 const SPINNER_SIZE = 28;
 
@@ -86,13 +80,13 @@ function readWebPresetSync(): AppColorName | null {
     return typeof getItem === 'string' || getItem === null ? readPresetFromRaw(getItem) : null;
 }
 
-const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
-    onFadeComplete,
-    startFade = false
-}) => {
-    const fadeAnim = useRef(new Animated.Value(1)).current;
-    const animationRef = useRef<Animated.CompositeAnimation | null>(null);
-
+/**
+ * The web boot visual, shown while fonts load, while the viewer's cache owner and
+ * session resolve, and until startup initialization completes. It is static and
+ * unmounts the moment its gate opens: nothing waits for it, so it cannot delay
+ * the route or its first requests.
+ */
+const AppSplashScreen: React.FC = () => {
     // Web resolves synchronously (no flash); native starts at the default preset and
     // updates after a single mount-time async read below.
     const [preset, setPreset] = useState<AppColorName>(
@@ -123,45 +117,8 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
 
     const gradient = useMemo(() => buildDarkGradient(preset), [preset]);
 
-    const handleFadeComplete = useCallback(
-        (finished: boolean) => {
-            if (finished && onFadeComplete) {
-                onFadeComplete();
-            }
-        },
-        [onFadeComplete],
-    );
-
-    useEffect(() => {
-        if (startFade) {
-            // Cancel any existing animation
-            animationRef.current?.stop();
-
-            // Start fade out animation
-            animationRef.current = Animated.timing(fadeAnim, {
-                toValue: 0,
-                duration: FADE_DURATION,
-                useNativeDriver: Platform.OS !== 'web',
-            });
-
-            animationRef.current.start(({ finished }) => {
-                handleFadeComplete(finished);
-            });
-        }
-
-        return () => {
-            animationRef.current?.stop();
-        };
-    }, [startFade, fadeAnim, handleFadeComplete]);
-
-    // Memoized styles
-    const containerStyle = useMemo(
-        () => [styles.container, { opacity: fadeAnim }],
-        [fadeAnim]
-    );
-
     return (
-        <Animated.View style={containerStyle}>
+        <View style={styles.container}>
             <LinearGradient
                 colors={gradient}
                 style={styles.gradient}
@@ -173,7 +130,7 @@ const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
                     </View>
                 </View>
             </LinearGradient>
-        </Animated.View>
+        </View>
     );
 };
 
