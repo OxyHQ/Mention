@@ -15,6 +15,7 @@ import {
   scanTextEntities,
   toOpenableUrl,
   trimUrlTrailingPunctuation,
+  type TextEntity,
 } from '@mention/shared-types/textEntities';
 import { findActorByAcct, findActorByUri } from '../db/federation/actorRepository';
 import { isBlockedDomain, resolveOxyUser } from '../connectors/activitypub/constants';
@@ -58,6 +59,16 @@ import { logger } from '../utils/logger';
  * {@link MAX_PROFILE_LINKS_PER_BODY}, narrowed further by whatever headroom the
  * body's existing mentions leave under `MAX_MENTIONS_PER_POST` — the two mention
  * sources share ONE per-post ceiling.
+ *
+ * A TYPED HANDLE IS THE SAME WORD. `@alice` written by hand names alice exactly as
+ * picking her from the composer's list does, and for a long time only the picker
+ * counted: a typed handle was stored as prose, so the post showed no mention and
+ * alice was never told. {@link foldProfileLinkMentions} now reads the handles in
+ * the body too — `@alice` (one of ours), `@alice@<our host>`, and
+ * `@bob@remote.tld` for an actor we already store — under the same rules as a
+ * link: lookup-only, a handle nobody holds stays text, and the same per-post
+ * ceiling. {@link MAX_PROFILE_LINKS_PER_BODY} bounds the handle lookups as it
+ * bounds the link lookups, because each one can cost a round trip to Oxy.
  *
  * Not to be confused with the reading-surface conversion in the frontend's
  * `linkifyPattern`, which re-labels a link to a profile on THIS instance as a
@@ -297,6 +308,105 @@ function rewriteProfileLinks(text: string, resolved: ReadonlyMap<string, string>
   return cursor === 0 ? text : rewritten + text.slice(cursor);
 }
 
+/**
+ * The typed handles of one text, in reading order.
+ *
+ * Scanned with EVERY kind switched on and filtered afterwards, deliberately: a
+ * kind filter on the scan does not stop a handle from matching inside a URL, so
+ * `https://poa.st/@alice` scanned for handles alone yields `@alice` — a handle
+ * the author never typed, on a host that may be blocked. With URLs, placeholders
+ * and display mentions in the scan, each claims its own characters first.
+ */
+function scanHandles(text: string): TextEntity[] {
+  return scanTextEntities(text).filter(
+    (entity) => entity.kind === 'bareHandle' || entity.kind === 'federatedHandle',
+  );
+}
+
+/**
+ * The key a typed handle is resolved and matched under: `alice` for a bare
+ * handle, `bob@remote.tld` for a two-part one. Lower-cased, because a handle is
+ * case-insensitive and `@Alice` and `@alice` in one body are one lookup.
+ */
+function handleKey(entity: TextEntity): string {
+  return entity.value.toLowerCase();
+}
+
+/**
+ * The distinct handles typed in a set of plain-text renditions, in reading order.
+ *
+ * Located with the shared entity scanner, so a handle is the same run of
+ * characters the reader sees: the `@` of `someone@example.com` opens nothing, a
+ * handle inside a URL or a `[mention:<id>]` placeholder stays part of that
+ * entity (see {@link scanHandles}), and the full stop of `hola @alice.` is
+ * prose, not handle. Pure.
+ */
+function collectHandleMentions(texts: readonly string[], limit: number): TextEntity[] {
+  if (limit <= 0) return [];
+
+  const seen = new Set<string>();
+  const handles: TextEntity[] = [];
+  for (const text of texts) {
+    for (const entity of scanHandles(text)) {
+      const key = handleKey(entity);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      handles.push(entity);
+      if (handles.length >= limit) return handles;
+    }
+  }
+  return handles;
+}
+
+/**
+ * Which stored identity a typed handle names, or `null`. Lookup-only, like
+ * {@link resolveProfileLinkIdentity}:
+ *
+ *   - `@alice`, and `@alice@<one of our hosts>`, are OUR user `alice` — Oxy.
+ *   - `@bob@remote.tld` is the remote actor we already store under that acct —
+ *     one indexed lookup, never a WebFinger. An actor we have never seen stays
+ *     text; typing a handle must not make the server go fetch it.
+ *   - a handle on a moderation-blocked host names nobody.
+ */
+async function resolveHandleIdentity(entity: TextEntity): Promise<string | null> {
+  if (entity.kind === 'bareHandle') return resolveLocalUsername(entity.value);
+
+  const at = entity.value.indexOf('@');
+  const local = entity.value.slice(0, at);
+  const domain = entity.value.slice(at + 1).toLowerCase();
+  if (OWN_DOMAINS.some((own) => own.toLowerCase() === domain)) {
+    return resolveLocalUsername(local);
+  }
+  if (isBlockedDomain(domain)) return null;
+
+  const acct = normalizeFederatedAcct(entity.value);
+  if (!acct) return null;
+  const actor = await findActorByAcct(acct);
+  return actor?.oxyUserId ? actor.oxyUserId : null;
+}
+
+async function resolveLocalUsername(username: string): Promise<string | null> {
+  const user = await resolveOxyUser(username);
+  const oxyUserId = user ? String(user._id ?? user.id ?? '') : '';
+  return oxyUserId || null;
+}
+
+/**
+ * Replace every typed handle that resolved with the `[mention:<id>]` placeholder,
+ * leaving every other character where the author put it. Pure.
+ */
+function rewriteHandleMentions(text: string, resolved: ReadonlyMap<string, string>): string {
+  let rewritten = '';
+  let cursor = 0;
+  for (const entity of scanHandles(text)) {
+    const oxyUserId = resolved.get(handleKey(entity));
+    if (!oxyUserId) continue;
+    rewritten += `${text.slice(cursor, entity.start)}[mention:${oxyUserId}]`;
+    cursor = entity.end;
+  }
+  return cursor === 0 ? text : rewritten + text.slice(cursor);
+}
+
 /** What {@link foldProfileLinkMentions} did to a body. */
 export interface ProfileLinkMentionFold {
   /**
@@ -309,9 +419,10 @@ export interface ProfileLinkMentionFold {
 }
 
 /**
- * Fold every profile link in a body ABOUT TO BE STORED into that body's mentions:
- * rewrite the link into the `[mention:<id>]` placeholder the composer's picker
- * produces, and authorize the id it names.
+ * Fold every profile link AND every typed handle in a body ABOUT TO BE STORED
+ * into that body's mentions: rewrite each one that resolves into the
+ * `[mention:<id>]` placeholder the composer's picker produces, and authorize the
+ * id it names. Links first, then handles, under one shared per-post ceiling.
  *
  * `content` is rewritten IN PLACE — exactly the renditions
  * `mentionTextsFromContent` reads, through the one traversal both directions
@@ -326,9 +437,9 @@ export interface ProfileLinkMentionFold {
  * runs it through `reconcileMentionIdsForPost`, which is where the per-post
  * ceiling and the placeholder intersection actually hold.
  *
- * Fail-soft per link — a lookup that throws leaves that one link alone and the
- * rest of the body unaffected. A body with no profile-shaped URL costs one regex
- * pass and does no I/O at all.
+ * Fail-soft per link and per handle — a lookup that throws leaves that one alone
+ * and the rest of the body unaffected. A body with no profile-shaped URL and no
+ * typed handle costs two regex passes and does no I/O at all.
  */
 export async function foldProfileLinkMentions(
   content: unknown,
@@ -343,15 +454,16 @@ export async function foldProfileLinkMentions(
   // against the raw request allowlist, which may name ids the author removed from
   // the body and which `reconcileMentionIds` is about to drop anyway.
   const headroom = MAX_MENTIONS_PER_POST - reconcileMentionIds(texts, mentions).length;
-  const urls = collectProfileLinkUrls(texts, Math.min(MAX_PROFILE_LINKS_PER_BODY, headroom));
-  if (urls.length === 0) return { mentions, rewritten: false };
+  const authorized = new Set(mentions);
+  let rewritten = false;
 
-  const resolved = new Map<string, string>();
+  const urls = collectProfileLinkUrls(texts, Math.min(MAX_PROFILE_LINKS_PER_BODY, headroom));
+  const resolvedLinks = new Map<string, string>();
   await Promise.all(
     urls.map(async (url) => {
       try {
         const identity = await resolveProfileLinkIdentity(url);
-        if (identity) resolved.set(url, identity.oxyUserId);
+        if (identity) resolvedLinks.set(url, identity.oxyUserId);
       } catch (err) {
         logger.warn('[Mentions] failed to resolve a profile link in a composed post', {
           error: err,
@@ -359,11 +471,38 @@ export async function foldProfileLinkMentions(
       }
     }),
   );
-  if (resolved.size === 0) return { mentions, rewritten: false };
+  if (resolvedLinks.size > 0) {
+    rewritten = mapMentionTexts(content, (text) => rewriteProfileLinks(text, resolvedLinks));
+    for (const oxyUserId of resolvedLinks.values()) authorized.add(oxyUserId);
+  }
 
-  const rewritten = mapMentionTexts(content, (text) => rewriteProfileLinks(text, resolved));
+  // Typed handles, read off the body AFTER the links were folded: a resolved link
+  // is a placeholder by now, so an `@alice` inside it cannot be counted twice.
+  // They share the one per-post ceiling with the links that just resolved.
+  const handleTexts = resolvedLinks.size > 0 ? mentionTextsFromContent(content) : texts;
+  const handleHeadroom = headroom - resolvedLinks.size;
+  const handles = collectHandleMentions(
+    handleTexts,
+    Math.min(MAX_PROFILE_LINKS_PER_BODY, handleHeadroom),
+  );
+  const resolvedHandles = new Map<string, string>();
+  await Promise.all(
+    handles.map(async (entity) => {
+      try {
+        const oxyUserId = await resolveHandleIdentity(entity);
+        if (oxyUserId) resolvedHandles.set(handleKey(entity), oxyUserId);
+      } catch (err) {
+        logger.warn('[Mentions] failed to resolve a typed handle in a composed post', {
+          error: err,
+        });
+      }
+    }),
+  );
+  if (resolvedHandles.size > 0) {
+    rewritten =
+      mapMentionTexts(content, (text) => rewriteHandleMentions(text, resolvedHandles)) || rewritten;
+    for (const oxyUserId of resolvedHandles.values()) authorized.add(oxyUserId);
+  }
 
-  const authorized = new Set(mentions);
-  for (const oxyUserId of resolved.values()) authorized.add(oxyUserId);
   return { mentions: [...authorized], rewritten };
 }
