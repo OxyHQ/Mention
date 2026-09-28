@@ -67,3 +67,26 @@ describe('the source a video URL becomes', () => {
     expect(videoSourceFor('')).toBe('');
   });
 });
+
+/**
+ * `useVideoPlayer` rebuilds its player whenever the source it is handed changes
+ * IDENTITY, so an HLS source rebuilt as a fresh object on every render would
+ * tear the decoder down on every commit. One object per url is the contract.
+ */
+describe('the identity of an HLS source', () => {
+  it('is the same object every time the same url is asked for', () => {
+    const url = 'https://cloud.oxy.so/identity?variant=hls_master';
+    expect(videoSourceFor(url)).toBe(videoSourceFor(url));
+  });
+
+  it('stays bounded: the oldest url is evicted, and simply rebuilt if asked for again', () => {
+    const first = 'https://cloud.oxy.so/first?variant=hls_master';
+    const original = videoSourceFor(first);
+    for (let i = 0; i < 250; i++) {
+      videoSourceFor(`https://cloud.oxy.so/filler-${i}?variant=hls_master`);
+    }
+    const rebuilt = videoSourceFor(first);
+    expect(rebuilt).not.toBe(original);
+    expect(rebuilt).toEqual(original);
+  });
+});

@@ -52,8 +52,8 @@ export function videoSourceFor(url: string): VideoSource {
     source = { uri: url, contentType: 'hls' };
     hlsSourceCache.set(url, source);
     if (hlsSourceCache.size > HLS_SOURCE_CACHE_LIMIT) {
-      const oldest = hlsSourceCache.keys().next().value;
-      if (oldest !== undefined) hlsSourceCache.delete(oldest);
+      // Insertion order: the first key is the oldest, and the map is non-empty.
+      hlsSourceCache.delete(hlsSourceCache.keys().next().value as string);
     }
   }
   return source;

@@ -48,9 +48,7 @@ export const REEL_TIME_UPDATE_INTERVAL_S = 0.25;
  * React Compiler treats a hook argument as immutable.
  */
 function ensureReelTimeUpdates(target: VideoPlayer): void {
-    if (target.timeUpdateEventInterval !== REEL_TIME_UPDATE_INTERVAL_S) {
-        Object.assign(target, { timeUpdateEventInterval: REEL_TIME_UPDATE_INTERVAL_S });
-    }
+    Object.assign(target, { timeUpdateEventInterval: REEL_TIME_UPDATE_INTERVAL_S });
 }
 
 // Namespace for this screen's playback ids in the app-wide video authority. A

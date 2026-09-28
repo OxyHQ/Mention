@@ -28,7 +28,7 @@ export function needsJsHlsDecoder(_src: string | undefined | null): boolean {
 export function useHlsPlayback(
   _src: string,
   _viewRef: React.RefObject<InstanceType<typeof VideoView> | null>,
-  _loading = true,
+  _loading?: boolean,
 ): HlsPlayback {
   return NATIVE_PLAYBACK;
 }
