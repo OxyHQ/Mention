@@ -1,4 +1,5 @@
 import {
+  areMentionDataEqual,
   displayTextToStorageText,
   mergeMentionData,
   reconcileMentionData,
@@ -76,5 +77,40 @@ describe('composer mention state', () => {
         { userId: 'alice-id', username: '', displayName: '' },
       ]),
     ).toBe('[mention:alice-id]');
+  });
+});
+
+describe('mention metadata registry', () => {
+  it('drops an entry with no user id and fills a missing name from the handle', () => {
+    expect(
+      mergeMentionData([
+        { userId: '  ', username: 'ghost', displayName: 'Ghost' },
+        { userId: 'carol-id', username: undefined as unknown as string, displayName: '' },
+        { userId: 'dave-id', username: 'dave', displayName: '  ' },
+      ]),
+    ).toEqual([
+      { userId: 'carol-id', username: '', displayName: '' },
+      { userId: 'dave-id', username: 'dave', displayName: 'dave' },
+    ]);
+  });
+
+  it('keeps the richer identity when a later entry for the same id is blank', () => {
+    expect(
+      mergeMentionData([alice], [{ userId: 'alice-id', username: '', displayName: '' }]),
+    ).toEqual([alice]);
+    expect(
+      mergeMentionData(
+        [{ userId: 'alice-id', username: '', displayName: '' }],
+        [{ userId: 'alice-id', username: 'alice', displayName: '' }],
+      ),
+    ).toEqual([{ userId: 'alice-id', username: 'alice', displayName: 'alice' }]);
+  });
+
+  it('compares registries field by field and in order', () => {
+    expect(areMentionDataEqual([alice, bob], [alice, bob])).toBe(true);
+    expect(areMentionDataEqual([alice, bob], [bob, alice])).toBe(false);
+    expect(areMentionDataEqual([alice], [alice, bob])).toBe(false);
+    expect(areMentionDataEqual([alice], [{ ...alice, username: 'alicia' }])).toBe(false);
+    expect(areMentionDataEqual([alice], [{ ...alice, displayName: 'Alicia' }])).toBe(false);
   });
 });
