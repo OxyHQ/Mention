@@ -271,7 +271,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // this same element — so the source must be WITHHELD from expo-video (`null`),
   // or the element would first attempt, and fail, a native load of the playlist.
   // Inert on native: ExoPlayer/AVPlayer decode HLS themselves.
-  const hls = useHlsPlayback(src, videoViewRef, mayPlay);
+  // Segment loading pauses with playback — but only for a player this row owns.
+  // A borrowed one may be playing somewhere else right now (a feed video carried
+  // into the reel keeps this row, and its hls.js instance, mounted underneath).
+  const hls = useHlsPlayback(src, videoViewRef, externalPlayer ? true : mayPlay);
 
   // `videoSourceFor` returns one object per url, so this is stable across
   // renders — `useVideoPlayer` rebuilds its player when the source changes.
