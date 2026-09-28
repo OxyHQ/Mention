@@ -3,17 +3,19 @@
   "budgets": {
     "totalBytes": 18874368,
     "javascriptBytes": 15728640,
-    "initialJavascriptBytes": 8912896,
-    "initialJavascriptGzipBytes": 2464154,
+    "initialJavascriptBytes": 7602176,
+    "initialJavascriptGzipBytes": 1939866,
     "fontBytes": 4194304,
     "largestFileBytes": 7864320
   },
   "targets": {
-    "initialJavascriptGzipBytes": 1992294
+    "initialJavascriptGzipBytes": 1677722
   },
   "deferredSources": {
     "The composer loads when /compose or /write opens (LazyComposeScreen)": "/packages/frontend/components/Compose/ComposeScreen\\.tsx$",
     "The video replies panel loads when a video is open (LazyVideoReplies)": "/packages/frontend/components/videos/VideoReplies\\.tsx$",
-    "The settings dialog and its pages load on the first open request": "/packages/frontend/components/settings/(MentionSettingsModal|settingsPages)\\.tsx$"
+    "The settings dialog and its pages load on the first open request": "/packages/frontend/components/settings/(MentionSettingsModal|settingsPages)\\.tsx$",
+    "LiveKit and the Syra rooms engine load with the first live-room request (LiveFeatureProviders)": "/node_modules/(livekit-client/|@syra\\.fm/sdk/lib/module/live/)",
+    "Bloom's settings dialog loads with Mention's (screens outside it use settings-modal/rows)": "/node_modules/@oxy\\.so/bloom/lib/module/settings-modal/SettingsModal\\.js$"
   }
 }

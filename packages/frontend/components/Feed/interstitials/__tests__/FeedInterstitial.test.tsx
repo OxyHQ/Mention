@@ -83,7 +83,7 @@ jest.mock('@oxy.so/bloom/media-header', () => {
   };
 });
 
-jest.mock('@oxy.so/bloom/chat-people', () => {
+jest.mock('@oxy.so/bloom/chat-people/contact-row', () => {
   const { View, TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   return {
@@ -210,6 +210,7 @@ jest.mock('@/services/feedService', () => ({
 let mockSubject: User | undefined;
 jest.mock('@/hooks/useCachedUser', () => ({
   useUserById: () => mockSubject,
+  useCachedUserSnapshot: () => undefined,
 }));
 
 /**

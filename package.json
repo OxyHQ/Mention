@@ -10,12 +10,12 @@
       "packages/*"
     ],
     "catalog": {
-      "@oxy.so/bloom": "^5.1.0",
+      "@oxy.so/bloom": "^5.2.0",
       "@oxy.so/contracts": "^4.1.0",
       "@oxy.so/core": "^3.2.0",
       "@oxy.so/mcp": "^1.0.0",
       "@oxy.so/services": "^9.0.0",
-      "@syra.fm/sdk": "^0.15.1",
+      "@syra.fm/sdk": "^0.16.0",
       "@types/bun": "1.3.14",
       "@types/jsonwebtoken": "^9.0.10",
       "@types/node": "^26.6.2",

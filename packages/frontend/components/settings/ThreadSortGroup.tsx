@@ -2,7 +2,7 @@ import {
 SORT_OPTIONS,
 useThreadPreferencesStore,
 } from "@/hooks/useThreadPreferences";
-import { SettingsCard,SettingsRow } from "@oxy.so/bloom/settings-modal";
+import { SettingsCard, SettingsRow } from "@oxy.so/bloom/settings-modal/rows";
 import { useTranslation } from "react-i18next";
 import { SettingsSelect } from "./SettingsSelect";
 

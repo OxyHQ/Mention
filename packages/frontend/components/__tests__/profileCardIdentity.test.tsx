@@ -19,7 +19,7 @@ import TestRenderer, { act } from 'react-test-renderer';
  * report what they were handed rather than `null`.
  */
 
-jest.mock('@oxy.so/bloom/chat-people', () => {
+jest.mock('@oxy.so/bloom/chat-people/contact-row', () => {
   const { View, TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   const ReactActual = jest.requireActual<typeof import('react')>('react');
   return {
@@ -178,7 +178,7 @@ describe('ProfileCard follows the identity it names', () => {
     expect(mockPush).not.toHaveBeenCalled();
     // The navigation ContactRow and FollowButton are siblings: even platforms
     // that bubble press events cannot deliver this press to the row.
-    const row = mounted!.root.findByType(require('@oxy.so/bloom/chat-people').ContactRow);
+    const row = mounted!.root.findByType(require('@oxy.so/bloom/chat-people/contact-row').ContactRow);
     expect(row.findAllByProps({ testID: 'follow-control' })).toHaveLength(0);
     act(() => row.props.onPress());
     expect(mockPush).toHaveBeenCalled();
