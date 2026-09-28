@@ -45,6 +45,8 @@ import {
   mapPostOg,
   mapProfileOg,
   renderShellWithOg,
+  buildShellBootstrapHtml,
+  type ShellBootstrap,
 } from '../services/webShellRenderer';
 import { getShellCached } from '../services/webShellOgCache';
 import { requiresContentWarning, type FeedSafetyPostShape } from '../mtn/feed/feedSafety';
@@ -314,7 +316,12 @@ function describeShellFailure(error: unknown): Record<string, unknown> {
 }
 
 /** Serve the shell with head hints + optional OG injected, overriding the API no-store default. */
-async function serveShell(res: Response, og: OgData | null, status = 200): Promise<void> {
+async function serveShell(
+  res: Response,
+  og: OgData | null,
+  status = 200,
+  bootstrap?: ShellBootstrap,
+): Promise<void> {
   const shell = (await getShell()) ?? FALLBACK_SHELL;
   res.status(status);
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -324,7 +331,8 @@ async function serveShell(res: Response, og: OgData | null, status = 200): Promi
       ? 'public, max-age=60, s-maxage=300, stale-while-revalidate=3600'
       : 'no-store',
   );
-  res.send(renderShellWithOg(injectHeadHtml(shell, HEAD_HINTS), og));
+  const head = bootstrap ? HEAD_HINTS + buildShellBootstrapHtml(bootstrap) : HEAD_HINTS;
+  res.send(renderShellWithOg(injectHeadHtml(shell, head), og));
 }
 
 function noindexPage(url: string, title: string, description: string): OgData {
@@ -524,7 +532,10 @@ router.get(/^\/@([^/]+)(?:\/.*)?$/, async (req: Request, res: Response) => {
 
   const og = mapProfileOg(profile);
   if (og && !isProfileRoot) og.robots = 'noindex,follow';
-  await serveShell(res, og);
+  // The page's first request is this very lookup; hand the app the public
+  // answer so its feed and design reads start with the route, not ~one
+  // round-trip later. Only reached for a profile Mention publishes.
+  await serveShell(res, og, 200, { profile: { handle, data: profile } });
 });
 
 // Channel: `/c/<handle>` (optional trailing slash).
