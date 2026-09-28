@@ -145,6 +145,8 @@ export const PERIODIC_MEDIA_CACHE_EVICTION = 'federation:media-cache-eviction';
 export const PERIODIC_INSTAGRAM_GRAPH_SYNC = 'federation:instagram-graph-sync';
 /** Delete from Oxy the re-hosted federated media no post references any more. */
 export const PERIODIC_FEDERATED_MEDIA_DELETIONS = 'federation:federated-media-deletions';
+/** Mirror federated accounts' banners into Oxy (retrying, see services/federatedBannerMirror.ts). */
+export const PERIODIC_FEDERATED_BANNER_MIRRORS = 'federation:federated-banner-mirrors';
 
 /**
  * Recommendation-signal scheduler ids. These pipe Mention curation + engagement
@@ -204,6 +206,13 @@ export const INSTAGRAM_GRAPH_SYNC_INTERVAL_MS = 30 * MS_PER_MINUTE;
  * indexed read when nothing is due.
  */
 export const FEDERATED_MEDIA_DELETIONS_INTERVAL_MS = MS_PER_MINUTE;
+
+/**
+ * Federated banner sweep cadence. Each run mirrors at most 50 due banners, 4 at
+ * a time; a row that failed waits out its own backoff, so an idle tick is one
+ * indexed read.
+ */
+export const FEDERATED_BANNER_MIRRORS_INTERVAL_MS = 2 * MS_PER_MINUTE;
 
 /** Concurrency for the periodic worker. MUST be 1 so a repeatable job never overlaps itself. */
 export const PERIODIC_WORKER_CONCURRENCY = 1;

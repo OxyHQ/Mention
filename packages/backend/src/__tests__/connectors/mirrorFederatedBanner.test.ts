@@ -130,7 +130,7 @@ describe('mirrorFederatedBanner', () => {
 
     const result = await mirrorFederatedBanner('https://files.mastodon.social/b.png', 'oxy-user-1', 'https://mastodon.social/users/alice');
 
-    expect(result).toEqual({ ok: false, permanent: false });
+    expect(result).toEqual({ ok: false, permanent: false, reason: 'file-being-deleted' });
     expect(mocks.updateUserSettings).not.toHaveBeenCalled();
   });
 
@@ -143,8 +143,8 @@ describe('mirrorFederatedBanner', () => {
       'https://mastodon.social/users/bob',
     );
 
-    // `permanent: false` tells the backfill caller this is worth a retry.
-    expect(result).toEqual({ ok: false, permanent: false });
+    // `permanent: false` tells the banner sweep to retry soon.
+    expect(result).toEqual({ ok: false, permanent: false, reason: 'upstream-error' });
     expect(mocks.updateUserSettings).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
       'Failed to mirror federated actor banner',
@@ -164,8 +164,8 @@ describe('mirrorFederatedBanner', () => {
       'https://mastodon.social/users/carol',
     );
 
-    // `permanent: true` tells the backfill caller NOT to retry.
-    expect(result).toEqual({ ok: false, permanent: true });
+    // `permanent: true` tells the banner sweep to retry only daily.
+    expect(result).toEqual({ ok: false, permanent: true, reason: 'not-media' });
     expect(mocks.updateUserSettings).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).not.toHaveBeenCalled();
   });
@@ -182,8 +182,8 @@ describe('mirrorFederatedBanner', () => {
       'https://mastodon.social/users/erin',
     );
 
-    // A throw is treated as transient so the backfill still retries.
-    expect(result).toEqual({ ok: false, permanent: false });
+    // A throw is treated as transient so the sweep retries soon.
+    expect(result).toEqual({ ok: false, permanent: false, reason: 'error' });
     expect(mocks.updateUserSettings).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
       'Failed to mirror federated actor banner',
@@ -204,7 +204,7 @@ describe('mirrorFederatedBanner', () => {
       'https://mastodon.social/users/frank',
     );
 
-    expect(result).toEqual({ ok: false, permanent: false });
+    expect(result).toEqual({ ok: false, permanent: false, reason: 'error' });
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
       'Failed to mirror federated actor banner',
       expect.objectContaining({ error: expect.any(Error), remoteHost: 'files.mastodon.social' }),
@@ -218,8 +218,8 @@ describe('mirrorFederatedBanner', () => {
       'https://mastodon.social/users/dave',
     );
 
-    // A non-http url will never become valid → permanent, no retry.
-    expect(result).toEqual({ ok: false, permanent: true });
+    // A non-http url will never become valid → permanent.
+    expect(result).toEqual({ ok: false, permanent: true, reason: 'not-http' });
     expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
     expect(mocks.updateUserSettings).not.toHaveBeenCalled();
     expect(mocks.loggerWarn).not.toHaveBeenCalled();

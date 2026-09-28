@@ -12,6 +12,7 @@ import { isAbsoluteHttpUrl, getRemoteHost } from './shared/url';
 import type { NormalizedExternalActor } from '@oxy.so/federation';
 import { createIdentityBridge, type ServiceRequest, type ServiceRequestMethod } from '@oxy.so/federation/node';
 import { resolveOxyIdentity } from './oxyIdentity';
+import { recordFederatedBannerInBackground } from '../db/federation/bannerMirrorRepository';
 
 /** Oxy owns discovery and profiles; this module exposes Mention's transport adapter. */
 
@@ -38,6 +39,14 @@ export async function resolveOxyExternalUser(actor: NormalizedExternalActor): Pr
       protocol: actor.network,
     });
     await invalidateUserSummaryCache([resolved.user.id]);
+    // The banner is Mention's own (`user_settings.profile_header_image`), not
+    // Oxy's: record the URL the source advertises so the banner sweep mirrors
+    // it (a write only when it changed; never awaited, never fails the resolve).
+    recordFederatedBannerInBackground({
+      oxyUserId: resolved.user.id,
+      actorUri: actor.externalId,
+      bannerUrl: actor.bannerUrl,
+    });
     return resolved.user.id;
   } catch (err) {
     logger.warn('[FedSync] Oxy identity resolution failed', { actor: actor.externalId, err });
@@ -69,6 +78,8 @@ export const deleteFederatedActorIdentity = identityBridge.deleteActorIdentity;
 export interface MirrorBannerResult {
   ok: boolean;
   permanent: boolean;
+  /** Why it failed, short and non-sensitive (`not-media`, `upstream-error:503`, …). */
+  reason?: string;
 }
 
 /**
@@ -84,19 +95,20 @@ export interface MirrorBannerResult {
  * the USER-authenticated `POST /assets/upload` and is rejected `401 UNAUTHORIZED`
  * on the service client, so the banner was never stored.
  *
- * Unlike post media it passes `FEDERATED_BANNER_DOWNLOAD_POLICY`, restricting the
- * download to `image/` within `FEDERATED_BANNER_MAX_BYTES`. This call site is
- * reached on EVERY successful actor resolve with no per-URL dedup, so it must not
- * inherit the generic federated-media allowance of a video- or audio-sized body:
- * a banner is a still image, and a remote actor advertising a video as its `image`
- * would otherwise have every resolve mirror that body to S3 and run poster
- * extraction over it.
+ * Unlike post media it passes `FEDERATED_BANNER_DOWNLOAD_POLICY`: a raster image
+ * only, downloaded up to `FEDERATED_BANNER_DOWNLOAD_MAX_BYTES`. A banner is a
+ * still image, and a remote actor advertising a video as its `image` must not
+ * turn into a video-sized mirror.
+ *
+ * The download decides what the banner IS from its bytes, never the declared
+ * Content-Type, and stores an oversized, animated or non-web-format banner as a
+ * re-encoded first-frame still instead of dropping it (see the policy).
  *
  * Best-effort: returns `{ ok: true }` when the banner was stored, otherwise
- * `{ ok: false, permanent }`. A non-http url is `permanent: true`. Transient
- * failures are surfaced at `warn`; permanent ones stay quiet. Shared by the live
- * actor-resolution path (the identity bridge above, which ignores the result) and
- * the one-shot `backfillFederatedBanners` script (which inspects `permanent`).
+ * `{ ok: false, permanent, reason }`. A non-http url is `permanent: true`.
+ * Transient failures are surfaced at `warn`; permanent ones stay quiet. Called
+ * by the banner sweep (`services/federatedBannerMirror.ts`), which records the
+ * outcome and retries — `permanent` only chooses how soon.
  */
 export async function mirrorFederatedBanner(
   bannerUrl: string,
@@ -104,7 +116,7 @@ export async function mirrorFederatedBanner(
   actorUri: string,
 ): Promise<MirrorBannerResult> {
   if (!isAbsoluteHttpUrl(bannerUrl)) {
-    return { ok: false, permanent: true };
+    return { ok: false, permanent: true, reason: 'not-http' };
   }
 
   const remoteHost = getRemoteHost(bannerUrl);
@@ -141,7 +153,7 @@ export async function mirrorFederatedBanner(
           }
         });
       } catch (err) {
-        if (err instanceof FederatedMediaGoneError) return { ok: false, permanent: false };
+        if (err instanceof FederatedMediaGoneError) return { ok: false, permanent: false, reason: 'file-being-deleted' };
         throw err;
       }
       return { ok: true, permanent: false };
@@ -158,7 +170,11 @@ export async function mirrorFederatedBanner(
       });
     }
 
-    return { ok: false, permanent: result.permanent };
+    return {
+      ok: false,
+      permanent: result.permanent,
+      reason: result.status ? `${result.reason}:${result.status}` : result.reason,
+    };
   } catch (bannerErr) {
     // Honor the documented best-effort contract: a throw from the media persist or
     // the `UserSettings` write must never propagate. Treat it as a transient
@@ -167,6 +183,6 @@ export async function mirrorFederatedBanner(
       error: bannerErr,
       remoteHost,
     });
-    return { ok: false, permanent: false };
+    return { ok: false, permanent: false, reason: 'error' };
   }
 }

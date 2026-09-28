@@ -334,6 +334,23 @@ export const ISOLATED_DATABASE_FILES: readonly IsolatedDatabaseFile[] = [
       "it would decide other suites' files.",
   },
   {
+    path: 'src/__tests__/connectors/instagram/instagramDedupe.test.ts',
+    jobEntryPoint: 'repairInstagramReelPosters',
+    reason:
+      'Runs `repairInstagramReelPosters`, which walks EVERY federated actor the Graph sync has ' +
+      'synced and asks the (mocked) Graph API for each one, in actor-id order — so on a shared ' +
+      "database another suite's synced actor would consume this file's mocked listing and its " +
+      'posts could be rewritten mid-assertion.',
+  },
+  {
+    path: 'src/__tests__/services/federatedBannerMirror.test.ts',
+    jobEntryPoint: 'runFederatedBannerMirrors',
+    reason:
+      'Claims due rows from the WHOLE `federated_banner_mirrors` table, and runs ' +
+      '`queueFederatedBannerMirrors`, which pages EVERY federated actor advertising a banner — ' +
+      "so on a shared database it would mirror other suites' rows and queue their actors.",
+  },
+  {
     path: 'src/__tests__/scripts/backfillInstagramSourceKeys.test.ts',
     jobEntryPoint: 'backfillInstagramSourceKeys',
     reason:

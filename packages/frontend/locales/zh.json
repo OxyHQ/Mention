@@ -2540,8 +2540,5 @@
   "connections.profileNotFound": "此账号不存在，因此没有可显示的关注者。",
   "saved.createFolderFailed": "无法创建文件夹。请重试。",
   "profile.loadFailed": "无法加载此个人资料。请检查网络连接后重试。",
-  "profile.notFound.gone": "此账号不存在或已不可用。",
-  "datePicker.apply": "应用",
-  "datePicker.previousMonth": "上个月",
-  "datePicker.nextMonth": "下个月"
+  "profile.notFound.gone": "此账号不存在或已不可用。"
 }

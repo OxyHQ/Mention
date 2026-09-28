@@ -103,8 +103,8 @@ function clampCardWidth(preferredWidth: number, availableWidth?: number): number
  * - Single media: the standard card width, with the height derived from the
  *   ratio and clamped so a very tall portrait video cannot run off-screen
  *   (excess is letterboxed by contentFit "contain"). Until the ratio is known
- *   web keeps the <video>'s intrinsic auto-height and native falls back to the
- *   card ratio.
+ *   every platform takes the card ratio's box — never a height-less one, which
+ *   collapses to nothing on web.
  * - Beside anything else (another media item, a link preview, a poll, an
  *   article, a quoted post): the standard card HEIGHT with a ratio-derived
  *   width, which is how `PostAttachmentImage` sizes its own box and the height
@@ -148,11 +148,14 @@ function useMediaCardStyle(
       };
     }
     if (aspectRatio === undefined) {
-      // Web: the <video> sizes itself until the ratio is known; the cap still
-      // holds. Native needs a definite box, so it takes the fallback ratio's.
-      return Platform.OS === 'web'
-        ? { width: singleCardWidth(availableWidth), maxHeight: SINGLE_MEDIA_MAX_HEIGHT }
-        : singleMediaBox(SINGLE_MEDIA_FALLBACK_ASPECT_RATIO, availableWidth);
+      // A definite box on EVERY platform until the ratio is known. Web used to
+      // leave the height to the <video>, but the player fills its card
+      // (`videoFill`: 100% of a height-less box) so the card resolved to ZERO
+      // height and a video with no stored dimensions rendered as nothing at all
+      // — an Instagram Reel read in the half-minute before its dimensions were
+      // collected showed an empty post. The player reports the real ratio once
+      // metadata loads (on web from the <video> element itself).
+      return singleMediaBox(SINGLE_MEDIA_FALLBACK_ASPECT_RATIO, availableWidth);
     }
     return singleMediaBox(aspectRatio, availableWidth);
   }, [hasSingleMedia, aspectRatio, availableWidth, rowHeight]);

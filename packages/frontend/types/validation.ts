@@ -87,7 +87,12 @@ export const ZEmbeddedPost = z
     authors: z.array(ZEmbeddedAuthor),
     content: z.looseObject({ text: z.string().optional() }),
     attachments: z.looseObject({}),
-    documents: z.array(z.looseObject({ url: z.string() })).optional(),
+    // A Clarity document is identified by `canonicalUrl`; it has no `url`. Asking
+    // for one failed EVERY notification whose post carried a link card, and
+    // `validateNotifications` drops a notification that fails, so those
+    // notifications vanished from the list.
+    documents: z.array(z.looseObject({ canonicalUrl: z.string() })).optional(),
+    documentsPending: z.boolean().optional(),
     engagement: z.looseObject({
       replies: z.number().nullable(),
       boosts: z.number().nullable(),

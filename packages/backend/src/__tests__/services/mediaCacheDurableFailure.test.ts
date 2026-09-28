@@ -7,7 +7,12 @@ const mocks = vi.hoisted(() => ({
   deleteCachedMedia: vi.fn(),
   reviveFederatedFiles: vi.fn(async () => []),
   OwnedElsewhere: class OxyMediaOwnedElsewhereError extends Error {},
+  reencodeFirstFrame: vi.fn(),
 }));
+
+// ffmpeg is the re-encoder's only dependency; its argument array and sandbox are
+// asserted in `utils/imageReencode.test.ts`. Here it is the boundary.
+vi.mock('../../utils/imageReencode', () => ({ reencodeFirstFrame: mocks.reencodeFirstFrame }));
 
 vi.mock('../../utils/safeUpstreamFetch', async () => {
   class SsrfRejection extends Error {}
@@ -145,89 +150,140 @@ describe('durable federated media failure classification', () => {
 describe('federated banner download policy', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.uploadFederatedMedia.mockResolvedValue({ oxyFileId: 'banner-file' });
   });
 
-  it('rejects a video banner as non-media before any download or upload', async () => {
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
-      // Under the generic policy this passes both gates: `video/` is allowed and
-      // 199 MiB is under the 200 MiB video cap.
-      upstreamResponse(200, {
-        'content-type': 'video/mp4',
-        'content-length': String(199 * 1024 * 1024),
-      }),
-    );
-    const [{ persistRemoteMediaForFederatedOwnerDetailed }, { FEDERATED_BANNER_DOWNLOAD_POLICY }] =
-      await Promise.all([
-        import('../../services/mediaCache/cacheWorker'),
-        import('../../services/mediaCache/policy'),
-      ]);
+  const MIB = 1024 * 1024;
+  const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(60, 1)]);
+  const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('....IHDR'), Buffer.alloc(40, 2), Buffer.from('....IDAT')]);
+  const ANIMATED_GIF = Buffer.concat([Buffer.from('GIF89a'), Buffer.alloc(20, 0), Buffer.from([0x21, 0xf9, 0x04, 0, 0, 0, 0, 0]), Buffer.alloc(10, 0), Buffer.from([0x21, 0xf9, 0x04, 0, 0, 0, 0, 0])]);
+  const HTML = Buffer.from('<!doctype html><html><body>Not found</body></html>');
+  const SVG = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+  const MP4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypisom'), Buffer.alloc(40, 0)]);
 
-    await expect(
-      persistRemoteMediaForFederatedOwnerDetailed(
-        'https://attacker.example/banner.mp4',
-        'oxy_user',
-        { role: 'banner' },
-        FEDERATED_BANNER_DOWNLOAD_POLICY,
-      ),
-    ).resolves.toMatchObject({ ok: false, reason: 'not-media' });
+  async function bodyResponse(bytes: Buffer, headers: Record<string, string>) {
+    const { Readable } = await import('node:stream');
+    return {
+      response: Object.assign(Readable.from([bytes]), { statusCode: 200, headers, setTimeout: vi.fn() }),
+    };
+  }
+
+  async function mirror(url = 'https://files.example/header.png') {
+    const [{ persistRemoteMediaForFederatedOwnerDetailed }, { FEDERATED_BANNER_DOWNLOAD_POLICY }] = await Promise.all([
+      import('../../services/mediaCache/cacheWorker'),
+      import('../../services/mediaCache/policy'),
+    ]);
+    return persistRemoteMediaForFederatedOwnerDetailed(url, 'oxy_user', { role: 'banner' }, FEDERATED_BANNER_DOWNLOAD_POLICY);
+  }
+
+  it.each([
+    ['text/plain', JPEG, 'image/jpeg'],
+    ['binary/octet-stream', JPEG, 'image/jpeg'],
+    ['text/html', PNG, 'image/png'],
+    ['(no Content-Type)', JPEG, 'image/jpeg'],
+  ])('stores a REAL image the host labels %s, typed by its bytes', async (declared, bytes, stored) => {
+    const headers: Record<string, string> = { 'content-length': String(bytes.length) };
+    if (!declared.startsWith('(')) headers['content-type'] = declared;
+    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(await bodyResponse(bytes, headers));
+
+    await expect(mirror()).resolves.toMatchObject({ ok: true, media: { oxyFileId: 'banner-file', contentType: stored } });
+    expect(mocks.uploadFederatedMedia).toHaveBeenCalledWith(expect.objectContaining({
+      contentType: stored,
+      originalName: `header.${stored.split('/')[1]}`,
+    }));
+    expect(mocks.reencodeFirstFrame).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['HTML labelled image/jpeg', HTML, 'image/jpeg'],
+    ['SVG labelled image/svg+xml', SVG, 'image/svg+xml'],
+    ['SVG labelled image/png', SVG, 'image/png'],
+    ['a video', MP4, 'video/mp4'],
+  ])('refuses %s: not a raster image, whatever the label — permanent, nothing uploaded', async (_case, bytes, declared) => {
+    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
+      await bodyResponse(bytes, { 'content-type': declared, 'content-length': String(bytes.length) }),
+    );
+
+    await expect(mirror()).resolves.toMatchObject({ ok: false, reason: 'not-media', permanent: true });
+    expect(mocks.uploadFederatedMedia).not.toHaveBeenCalled();
+    expect(mocks.reencodeFirstFrame).not.toHaveBeenCalled();
+  });
+
+  it('stores an OVERSIZED banner as a re-encoded first-frame WebP instead of dropping it', async () => {
+    const big = Buffer.concat([JPEG, Buffer.alloc(12 * MIB, 7)]);
+    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
+      await bodyResponse(big, { 'content-type': 'image/jpeg', 'content-length': String(big.length) }),
+    );
+    mocks.reencodeFirstFrame.mockResolvedValue({ ok: true, buffer: Buffer.from('RIFF....WEBPVP8 '), contentType: 'image/webp' });
+
+    await expect(mirror()).resolves.toMatchObject({ ok: true, media: { contentType: 'image/webp', sizeBytes: 16 } });
+    expect(mocks.uploadFederatedMedia).toHaveBeenCalledWith(expect.objectContaining({
+      contentType: 'image/webp',
+      sizeBytes: 16,
+      originalName: 'header.webp',
+    }));
+  });
+
+  it('stores an ANIMATED banner as its first frame', async () => {
+    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
+      await bodyResponse(ANIMATED_GIF, { 'content-type': 'image/gif', 'content-length': String(ANIMATED_GIF.length) }),
+    );
+    mocks.reencodeFirstFrame.mockResolvedValue({ ok: true, buffer: Buffer.from('webp-still'), contentType: 'image/webp' });
+
+    await expect(mirror('https://files.example/header.gif')).resolves.toMatchObject({ ok: true, media: { contentType: 'image/webp' } });
+    expect(mocks.reencodeFirstFrame).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an animated banner within the cap as-is when its first frame cannot be taken (it still renders)', async () => {
+    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
+      await bodyResponse(ANIMATED_GIF, { 'content-type': 'image/gif', 'content-length': String(ANIMATED_GIF.length) }),
+    );
+    mocks.reencodeFirstFrame.mockResolvedValue({ ok: false, reason: 'undecodable' });
+
+    await expect(mirror('https://files.example/header.gif')).resolves.toMatchObject({ ok: true, media: { contentType: 'image/gif' } });
+  });
+
+  it('an oversized banner the re-encoder cannot run on is TRANSIENT (retried), one it cannot decode is permanent', async () => {
+    const big = Buffer.concat([JPEG, Buffer.alloc(11 * MIB, 7)]);
+    mocks.fetchUpstreamFollowingRedirects.mockImplementation(async () =>
+      bodyResponse(big, { 'content-type': 'image/jpeg', 'content-length': String(big.length) }));
+
+    mocks.reencodeFirstFrame.mockResolvedValueOnce({ ok: false, reason: 'timeout' });
+    await expect(mirror()).resolves.toMatchObject({ ok: false, reason: 'reencode-failed', permanent: false });
+    mocks.reencodeFirstFrame.mockResolvedValueOnce({ ok: false, reason: 'undecodable' });
+    await expect(mirror()).resolves.toMatchObject({ ok: false, reason: 'undecodable', permanent: true });
     expect(mocks.uploadFederatedMedia).not.toHaveBeenCalled();
   });
 
-  it('rejects an audio banner as non-media before any download or upload', async () => {
+  it('downloads up to the 25 MiB hard cap and refuses beyond it before reading the body', async () => {
     mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
-      upstreamResponse(200, { 'content-type': 'audio/mpeg', 'content-length': String(1024) }),
+      // 20 MiB was refused under the old 10 MiB ceiling; 30 MiB is over the new download cap.
+      upstreamResponse(200, { 'content-type': 'image/jpeg', 'content-length': String(30 * MIB) }),
     );
-    const [{ persistRemoteMediaForFederatedOwnerDetailed }, { FEDERATED_BANNER_DOWNLOAD_POLICY }] =
-      await Promise.all([
-        import('../../services/mediaCache/cacheWorker'),
-        import('../../services/mediaCache/policy'),
-      ]);
 
-    await expect(
-      persistRemoteMediaForFederatedOwnerDetailed(
-        'https://attacker.example/banner.mp3',
-        'oxy_user',
-        { role: 'banner' },
-        FEDERATED_BANNER_DOWNLOAD_POLICY,
-      ),
-    ).resolves.toMatchObject({ ok: false, reason: 'not-media' });
+    await expect(mirror()).resolves.toMatchObject({ ok: false, reason: 'too-large', permanent: true });
     expect(mocks.uploadFederatedMedia).not.toHaveBeenCalled();
   });
 
-  it('applies the banner byte ceiling to an image that the generic image cap allows', async () => {
-    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
-      // 20 MiB is under the generic 32 MiB image cap but over the banner ceiling.
-      upstreamResponse(200, {
-        'content-type': 'image/jpeg',
-        'content-length': String(20 * 1024 * 1024),
-      }),
-    );
-    const [{ persistRemoteMediaForFederatedOwnerDetailed }, { FEDERATED_BANNER_DOWNLOAD_POLICY }] =
-      await Promise.all([
-        import('../../services/mediaCache/cacheWorker'),
-        import('../../services/mediaCache/policy'),
-      ]);
-
-    await expect(
-      persistRemoteMediaForFederatedOwnerDetailed(
-        'https://attacker.example/banner.jpg',
-        'oxy_user',
-        { role: 'banner' },
-        FEDERATED_BANNER_DOWNLOAD_POLICY,
-      ),
-    ).resolves.toMatchObject({ ok: false, reason: 'too-large' });
-    expect(mocks.uploadFederatedMedia).not.toHaveBeenCalled();
+  it('keeps a transient upstream failure transient', async () => {
+    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(upstreamResponse(503, {}));
+    await expect(mirror()).resolves.toMatchObject({ ok: false, reason: 'upstream-error', status: 503, permanent: false });
   });
 
-  it('leaves federated POST media able to carry video (the policy is opt-in)', async () => {
+  it('leaves federated POST media on the generic, header-typed rules (the policy is opt-in)', async () => {
+    mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
+      await bodyResponse(JPEG, { 'content-type': 'text/plain', 'content-length': String(JPEG.length) }),
+    );
+    const { persistRemoteMediaForFederatedOwnerDetailed } = await import('../../services/mediaCache/cacheWorker');
+
+    await expect(
+      persistRemoteMediaForFederatedOwnerDetailed('https://remote.example/post.jpg', 'oxy_user'),
+    ).resolves.toMatchObject({ ok: false, reason: 'not-media', permanent: false });
+
     mocks.fetchUpstreamFollowingRedirects.mockResolvedValue(
       upstreamResponse(200, { 'content-type': 'video/mp4', 'content-length': String(1024) }),
     );
-    const { persistRemoteMediaForFederatedOwnerDetailed } = await import(
-      '../../services/mediaCache/cacheWorker'
-    );
-
-    // No policy → generic rules → `video/` is NOT rejected as non-media.
+    // No policy → `video/` is NOT rejected as non-media.
     await expect(
       persistRemoteMediaForFederatedOwnerDetailed('https://remote.example/clip.mp4', 'oxy_user'),
     ).resolves.not.toMatchObject({ reason: 'not-media' });

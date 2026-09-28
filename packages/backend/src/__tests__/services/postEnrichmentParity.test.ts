@@ -162,3 +162,36 @@ describe('post-ingest enrichment — no ingest route enriches by hand', () => {
     expect(creationCalls.length).toBe(2);
   });
 });
+
+/** Every production `.ts` file under `src`, relative to it. */
+function productionSources(dir: string = BACKEND_SRC, prefix = ''): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const relative = prefix ? `${prefix}/${name}` : name;
+    if (['__tests__', 'scripts', 'db'].includes(relative)) return [];
+    const target = join(dir, name);
+    if (statSync(target).isDirectory()) return productionSources(target, relative);
+    return name.endsWith('.ts') && !name.endsWith('.d.ts') ? [relative] : [];
+  });
+}
+
+describe('post-ingest enrichment — every raw post write enriches', () => {
+  // The routes above are the ones someone listed. A post also reaches storage
+  // through the repository directly — a quick reply, an MTN projection — and
+  // those were exactly the writes that never warmed their link cards, so the
+  // first reader of such a post saw none. Derived from the source, not a list,
+  // so a new raw write is covered without anyone remembering this file.
+  const writers = productionSources().filter((relative) =>
+    /\binsertPostRecords?\(/.test(readFileSync(join(BACKEND_SRC, relative), 'utf8')));
+
+  it('finds the raw post writers (vacuity floor)', () => {
+    expect(writers).toEqual(expect.arrayContaining([
+      'services/PostCreationService.ts',
+      'services/mtn/PostMaterializer.ts',
+      'controllers/feed.controller.ts',
+    ]));
+  });
+
+  it.each(writers)('%s calls enrichIngestedPosts', (relative) => {
+    expect(readFileSync(join(BACKEND_SRC, relative), 'utf8')).toMatch(/\benrichIngestedPosts\(/);
+  });
+});

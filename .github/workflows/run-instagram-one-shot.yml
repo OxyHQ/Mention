@@ -1,0 +1,168 @@
+name: Run Instagram one-shot
+
+# Runs ONE of the reviewed Instagram maintenance scripts against production as
+# an ECS one-shot on the EXACT deployed backend image (no rebuild), via
+# `.github/scripts/run-instagram-one-shot.sh` (fixture-tested by
+# `test-instagram-one-shot.sh` in CI):
+#
+#   repairInstagramReelPosters   Graph-imported Reels stored as their poster
+#                                image while Meta lists the video: re-host the
+#                                video and swap it in (the poster file is queued
+#                                for deletion). Calls the Graph API with the
+#                                BACKGROUND budget. `repair_depth` = listed items
+#                                walked per account (default 100, max 1000).
+#   backfillInstagramSourceKeys  The post-deploy step of migration 0054: key the
+#                                kilogram bridge posts stored before it, then
+#                                VALIDATE the three CHECKs 0054 added NOT VALID.
+#
+# SAFETY, in the order it is enforced:
+#   1. Only from protected `main`, and only when `main` IS the recorded backend
+#      deployment (`deployed/backend` tag): the code that runs is the code that
+#      is live and was reviewed.
+#   2. Only a dispatcher listed in the repository variable
+#      `INSTAGRAM_ONE_SHOT_OPERATORS` (comma-separated logins), checked in a
+#      step that FAILS with the variable's name — before any credential.
+#   3. `expected_image_digest` must equal the live task's image and the image
+#      ECR tags with this source sha.
+#   4. dry_run=true is the default and writes nothing. A write needs
+#      `confirm_write` = the script name AND `preview_run_id` = a successful dry
+#      run of the SAME script on the SAME source and image.
+#   5. The container is bounded at 3300 s; both scripts are idempotent, so a
+#      run stopped there keeps its committed writes and a re-run continues.
+#
+# OUTPUT
+#   - The step summary and the `instagram-one-shot` artifact
+#     (`instagram-one-shot-report.json`: counts, and for the repair the post ids
+#     / source keys of up to 1000 candidates; `instagram-one-shot-run.json`:
+#     task ARN and log location).
+#   - The full log: CloudWatch log group `/oxy/ecs`, stream
+#     `mention/<container>/<task id>` (printed by the run step).
+#   - Exit 75 from the script = finished with work left (a Graph refusal, a
+#     video that could not be stored yet, a live claim, an unvalidated CHECK):
+#     a warning, not a failure — re-run later.
+
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: 'Which reviewed script to run'
+        type: choice
+        options: [repairInstagramReelPosters, backfillInstagramSourceKeys]
+        required: true
+      dry_run:
+        description: 'Report what WOULD change, write nothing'
+        type: boolean
+        required: true
+        default: true
+      expected_image_digest:
+        description: 'Exact deployed backend sha256 digest reviewed for this run'
+        type: string
+        required: true
+      preview_run_id:
+        description: 'Write only: the successful dry-run workflow run ID for this script, source and image'
+        type: string
+        required: false
+      confirm_write:
+        description: 'Write only: type the script name'
+        type: string
+        required: false
+      repair_depth:
+        description: 'repairInstagramReelPosters only (optional): listed items per account, 1-1000 (default 100)'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+concurrency:
+  # One Instagram one-shot at a time: both draw on the same accounts, and two
+  # repairs would upload the same videos twice.
+  group: mention-instagram-one-shot
+  cancel-in-progress: false
+env:
+  AWS_REGION: us-west-2
+  CLUSTER: oxy-cluster
+  SERVICE: mention
+  DEPLOY_SHA: ${{ github.sha }}
+
+jobs:
+  run:
+    if: github.ref == 'refs/heads/main' && github.ref_protected && github.triggering_actor == github.actor
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 75
+    steps:
+      - name: Authorize operator and inputs before credentials
+        env:
+          OPERATORS: ${{ vars.INSTAGRAM_ONE_SHOT_OPERATORS }}
+          ACTOR: ${{ github.actor }}
+          SCRIPT: ${{ inputs.script }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CONFIRM_WRITE: ${{ inputs.confirm_write }}
+          EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_image_digest }}
+          PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+          REPAIR_DEPTH: ${{ inputs.repair_depth }}
+        run: |
+          set -euo pipefail
+          operators="${OPERATORS//[[:space:]]/}"
+          if [[ -z "$operators" ]]; then
+            echo '::error::The repository variable INSTAGRAM_ONE_SHOT_OPERATORS is unset or empty, so this workflow authorizes nobody.'
+            exit 1
+          fi
+          [[ ",$operators," == *",$ACTOR,"* ]] || { echo '::error::Dispatcher must be listed in INSTAGRAM_ONE_SHOT_OPERATORS'; exit 1; }
+          [[ "$EXPECTED_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo '::error::expected_image_digest must be sha256:<64 hex>'; exit 1; }
+          case "$SCRIPT" in
+            repairInstagramReelPosters) ;;
+            backfillInstagramSourceKeys) [[ -z "$REPAIR_DEPTH" ]] || { echo '::error::repair_depth applies to repairInstagramReelPosters only'; exit 1; } ;;
+            *) exit 1 ;;
+          esac
+          if [[ -n "$REPAIR_DEPTH" ]]; then
+            [[ "$REPAIR_DEPTH" =~ ^[1-9][0-9]{0,3}$ && "$REPAIR_DEPTH" -le 1000 ]] || { echo '::error::repair_depth must be 1-1000'; exit 1; }
+          fi
+          case "$DRY_RUN" in
+            true) ;;
+            false) [[ "$CONFIRM_WRITE" == "$SCRIPT" && "$PREVIEW_RUN_ID" =~ ^[0-9]+$ ]] || { echo '::error::A write needs confirm_write = the script name and a preview_run_id'; exit 1; } ;;
+            *) exit 1 ;;
+          esac
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 2
+      - name: Verify current protected main
+        run: bash .github/scripts/require-current-main.sh
+      - name: Fetch the reviewed dry run for a write
+        if: inputs.dry_run == false
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PREVIEW_RUN_ID" > preview-run.json
+          jq -e --arg sha "$DEPLOY_SHA" '.head_sha == $sha and .head_branch == "main" and .event == "workflow_dispatch" and .conclusion == "success" and .path == ".github/workflows/run-instagram-one-shot.yml"' preview-run.json >/dev/null \
+            || { echo '::error::preview_run_id is not a successful dispatch of this workflow on this source'; exit 1; }
+          gh run download "$PREVIEW_RUN_ID" --repo "$GITHUB_REPOSITORY" --name instagram-one-shot --dir reviewed-preview
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Re-verify current main immediately before execution
+        run: bash .github/scripts/require-current-main.sh
+      - name: Run the script with the exact deployed image
+        env:
+          SCRIPT: ${{ inputs.script }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          CONFIRM_WRITE: ${{ inputs.confirm_write }}
+          EXPECTED_IMAGE_DIGEST: ${{ inputs.expected_image_digest }}
+          REPAIR_DEPTH: ${{ inputs.repair_depth }}
+        run: bash .github/scripts/run-instagram-one-shot.sh
+      - name: Retain the structured report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: instagram-one-shot
+          path: |
+            instagram-one-shot-report.json
+            instagram-one-shot-run.json
+          if-no-files-found: warn
+          retention-days: 30

@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 41.24,
-      "covered": 11007,
-      "total": 26686
+      "pct": 41.48,
+      "covered": 11121,
+      "total": 26806
     },
     "branches": {
-      "pct": 35.69,
-      "covered": 6856,
-      "total": 19205
+      "pct": 35.98,
+      "covered": 6936,
+      "total": 19277
     },
     "functions": {
-      "pct": 36.46,
-      "covered": 2496,
-      "total": 6844
+      "pct": 36.7,
+      "covered": 2522,
+      "total": 6871
     },
     "lines": {
-      "pct": 42.06,
-      "covered": 10037,
-      "total": 23858
+      "pct": 42.29,
+      "covered": 10135,
+      "total": 23960
     }
   },
   "pins": {
@@ -132,10 +132,10 @@
       "lines": 100
     },
     "db/feedQueries.ts": {
-      "statements": 4,
+      "statements": 5,
       "branches": 3,
       "functions": 10,
-      "lines": 5
+      "lines": 6
     },
     "db/index.ts": {
       "statements": 100,
@@ -161,11 +161,17 @@
       "functions": 100,
       "lines": 93
     },
+    "db/postObservers.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "db/postQueries.ts": {
-      "statements": 23,
+      "statements": 24,
       "branches": 21,
       "functions": 44,
-      "lines": 27
+      "lines": 29
     },
     "db/schema.ts": {
       "statements": 79,
@@ -190,6 +196,12 @@
       "branches": 0,
       "functions": 0,
       "lines": 0
+    },
+    "hooks/useAppLanguage.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
     },
     "hooks/useArticleManager.ts": {
       "statements": 0,
@@ -226,12 +238,6 @@
       "branches": 100,
       "functions": 0,
       "lines": 0
-    },
-    "hooks/useDatePickerLabels.ts": {
-      "statements": 100,
-      "branches": 100,
-      "functions": 100,
-      "lines": 100
     },
     "hooks/useDeepCompare.ts": {
       "statements": 66,
@@ -372,10 +378,10 @@
       "lines": 100
     },
     "hooks/useLinkDetection.ts": {
-      "statements": 90,
-      "branches": 66,
+      "statements": 95,
+      "branches": 78,
       "functions": 100,
-      "lines": 93
+      "lines": 95
     },
     "hooks/useLocationManager.ts": {
       "statements": 0,
@@ -1008,10 +1014,10 @@
       "lines": 0
     },
     "services/feedService.ts": {
-      "statements": 39,
-      "branches": 30,
-      "functions": 33,
-      "lines": 42
+      "statements": 41,
+      "branches": 31,
+      "functions": 36,
+      "lines": 44
     },
     "services/feedTuningService.ts": {
       "statements": 0,
@@ -1228,6 +1234,12 @@
       "branches": 35,
       "functions": 88,
       "lines": 75
+    },
+    "stores/pendingDocuments.ts": {
+      "statements": 95,
+      "branches": 88,
+      "functions": 100,
+      "lines": 98
     },
     "stores/postsStore.ts": {
       "statements": 63,

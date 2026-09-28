@@ -87,3 +87,23 @@ describe.each(CELL_KINDS)('a %s card always has a width', (type) => {
     expect(style.width as number).toBeGreaterThan(0);
   });
 });
+
+/**
+ * Production, 2026-09-27: an Instagram Reel read before its dimensions were
+ * collected (media `{ type: 'video', url }`, no width/height/aspectRatio)
+ * rendered as an EMPTY post on the web — the card left its height to the
+ * <video>, which fills 100% of a height-less card, so the card was 0px tall.
+ */
+describe.each(['ios', 'web'] as const)('a lone video with NO stored dimensions (%s)', (os) => {
+  const { Platform } = jest.requireActual('react-native');
+  const original = Platform.OS;
+  beforeEach(() => { Platform.OS = os; });
+  afterEach(() => { Platform.OS = original; });
+
+  it('gets a definite, non-zero box — never a height-less one', () => {
+    const style = cardStyleOf(renderCell('video', { hasSingleMedia: true }));
+    expect(typeof style.width).toBe('number');
+    expect(typeof style.height).toBe('number');
+    expect(style.height as number).toBeGreaterThan(0);
+  });
+});

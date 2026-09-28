@@ -199,19 +199,33 @@ export async function backfillInstagramSourceKeys(
   return result;
 }
 
+/** The exit code of a run that finished with work left over (re-run later) — not a failure. */
+export const EXIT_INCOMPLETE = 75;
+
+/**
+ * 0 when every key was written or settled and every CHECK validated;
+ * {@link EXIT_INCOMPLETE} when a key was held by a live Graph claim or a
+ * VALIDATE could not get its lock in time — both are "re-run later", and the
+ * one-shot workflow reports them that way rather than as a failure.
+ */
+export function sourceKeyBackfillExitCode(result: Pick<InstagramSourceKeyBackfillResult, 'claimed' | 'unvalidated'>): number {
+  return result.claimed > 0 || result.unvalidated.length > 0 ? EXIT_INCOMPLETE : 0;
+}
+
 async function main(): Promise<void> {
   const dryRun = (process.env.DRY_RUN ?? 'true') !== 'false';
   assertAdminMutationAllowed({ scriptName: SCRIPT_NAME, dryRun });
   await connectPostgres();
   logger.info(`[${SCRIPT_NAME}] starting`, { dryRun });
-  await backfillInstagramSourceKeys({ dryRun });
+  const result = await backfillInstagramSourceKeys({ dryRun });
+  process.exitCode = sourceKeyBackfillExitCode(result);
 }
 
 if (require.main === module) {
   main()
     .then(async () => {
       await closeAdminScriptResources();
-      process.exit(0);
+      process.exit(process.exitCode ?? 0);
     })
     .catch(async (error) => {
       logger.error(`[${SCRIPT_NAME}] failed`, {

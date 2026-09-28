@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { ClarityClient } from '@clarity.surf/sdk';
-import { useAuth } from '@oxy.so/services/ui/client';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { MAX_POST_DOCUMENTS } from '@mention/shared-types/post';
+import { feedService } from '@/services/feedService';
 import { type LinkMetadata, useLinksStore } from '../stores/linksStore';
 import { extractUrls } from '@/utils/extractUrls';
 import { ownProfileLinkHandle } from '@/utils/ownProfileLinks';
@@ -13,9 +12,13 @@ import { logger } from '@oxy.so/core/logger';
  * so only that many URLs are resolved — metadata for links that would never get
  * a card is wasted work.
  *
+ * Previews come from Mention's backend (`POST /posts/link-previews`), which
+ * resolves them through Clarity with its own service credentials. The app never
+ * talks to Clarity directly.
+ *
  * A URL naming a profile on THIS instance gets no card, because the published
  * post will not have one: hydration withholds it server-side for exactly these
- * URLs (`PostHydrationService.ownProfileLinkUrls`), since the reader is shown a
+ * URLs (`previewableUrls` in the backend's `utils/clarityDocuments`), since the reader is shown a
  * mention there rather than a link. Offering the card in the composer would be
  * showing the author an attachment their post is not going to carry.
  */
@@ -24,50 +27,54 @@ export const useLinkDetection = (text: string) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const { oxyServices } = useAuth();
-  const clarity = useMemo(() => new ClarityClient({
-    getAccessToken: () => oxyServices.http.getAccessToken() || Promise.reject(new Error('No active Oxy session')),
-  }), [oxyServices]);
   const { getCached, upsertLink } = useLinksStore();
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   /**
-   * Fetch metadata for a URL
+   * Resolve every URL not already cached in ONE backend call, and return the
+   * cards in the order the URLs were given. A link the backend has no card for
+   * yet (still being indexed, or unresolvable) simply has none; the next pass
+   * asks again.
    */
-  const fetchLinkMetadata = useCallback(async (url: string, signal?: AbortSignal): Promise<LinkMetadata | null> => {
-    // Check cache first
-    const cached = getCached(url);
-    if (cached) {
-      return cached;
+  const fetchLinkMetadata = useCallback(async (urls: string[], signal?: AbortSignal): Promise<LinkMetadata[]> => {
+    const byUrl = new Map<string, LinkMetadata>();
+    const missing: string[] = [];
+    for (const url of urls) {
+      const cached = getCached(url);
+      if (cached) byUrl.set(url, cached);
+      else missing.push(url);
     }
 
-    // Resolve through Clarity. A bounded wait may return a document immediately
-    // or a pending job; pending URLs simply have no card until the next pass.
-    try {
-      const resolution = await clarity.indexing.resolve({ urls: [url], waitMs: 8_000 }, { signal });
-      const preview = resolution.data[0]?.document;
-      if (!preview) return null;
-      if (signal?.aborted) return null;
-
-      const metadata: LinkMetadata = {
-        url: preview.canonicalUrl,
-        title: preview.title,
-        description: preview.description,
-        image: preview.imageUrl,
-        siteName: preview.publisher,
-        favicon: preview.faviconUrl,
-        fetchedAt: Date.now(),
-      };
-      upsertLink(metadata);
-      return metadata;
-    } catch (err) {
-      if (signal?.aborted) return null;
-      // A failed unfurl is non-actionable for the composer — show no preview.
-      logger.debug('Link preview resolution failed', { url, error: err });
-      return null;
+    if (missing.length > 0) {
+      try {
+        const { previews } = await feedService.resolveLinkPreviews(missing, signal);
+        if (signal?.aborted) return [];
+        for (const { url, document } of previews) {
+          const metadata: LinkMetadata = {
+            url: document.canonicalUrl,
+            title: document.title,
+            description: document.description,
+            image: document.imageUrl,
+            siteName: document.publisher,
+            favicon: document.faviconUrl,
+            fetchedAt: Date.now(),
+          };
+          upsertLink(metadata);
+          byUrl.set(url, metadata);
+        }
+      } catch (err) {
+        if (signal?.aborted) return [];
+        // A failed unfurl is non-actionable for the composer — show no preview.
+        logger.debug('Link preview resolution failed', { count: missing.length, error: err });
+      }
     }
-  }, [clarity, getCached, upsertLink]);
+
+    return urls.flatMap((url) => {
+      const metadata = byUrl.get(url);
+      return metadata ? [metadata] : [];
+    });
+  }, [getCached, upsertLink]);
 
   /**
    * Process text and fetch metadata for all detected links
@@ -106,9 +113,7 @@ export const useLinkDetection = (text: string) => {
       abortControllerRef.current = new AbortController();
 
       try {
-        // Fetch metadata for all URLs in parallel
-        const metadataPromises = urls.map(url => fetchLinkMetadata(url, abortControllerRef.current?.signal));
-        const results = await Promise.all(metadataPromises);
+        const results = await fetchLinkMetadata(urls, abortControllerRef.current?.signal);
         
         // Check if request was aborted
         if (abortControllerRef.current?.signal.aborted) {
@@ -116,10 +121,7 @@ export const useLinkDetection = (text: string) => {
         }
         
         // Filter out null results and errors
-        const validLinks = results.filter(
-          (meta): meta is LinkMetadata => 
-            meta !== null && !meta.error
-        );
+        const validLinks = results.filter((meta) => !meta.error);
 
         setDetectedLinks(validLinks);
       } catch (err) {

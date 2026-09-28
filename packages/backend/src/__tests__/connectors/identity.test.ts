@@ -26,6 +26,7 @@ import {
 import { oxyIdentityFixture } from '../helpers/oxyIdentityFixtures';
 import { closePostgres, connectPostgres, getDb } from '../../db/postgres';
 import { userSettings } from '../../db/schema/userProfile';
+import { federatedBannerMirrors } from '../../db/schema/federation';
 
 /** Every settings row these cases create, so cleanup reaches exactly them. */
 const settingsOwners = ['oxy-resolved', 'oxy-bob'];
@@ -49,6 +50,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   await getDb().delete(userSettings).where(inArray(userSettings.oxyUserId, settingsOwners));
+  await getDb().delete(federatedBannerMirrors).where(inArray(federatedBannerMirrors.oxyUserId, settingsOwners));
 });
 
 afterAll(async () => {
@@ -68,6 +70,25 @@ describe('resolveOxyExternalUser', () => {
     })).toBe('oxy-resolved');
     expect(mocks.serviceRequest).toHaveBeenCalledWith('POST', '/federation/identities/resolve', {
       actorUri, transportAcct, protocol,
+    });
+    expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
+  });
+
+  it('records the banner the source advertises, so the banner sweep mirrors it (the resolve itself uploads nothing)', async () => {
+    const actorUri = 'https://mastodon.example/users/alice';
+    mocks.serviceRequest.mockResolvedValue(oxyIdentityFixture({
+      actorUri, transportAcct: 'alice@mastodon.example', protocol: 'activitypub', canonicalAcct: 'alice@mastodon.example', network: 'mastodon.example',
+    }));
+
+    expect(await resolveOxyExternalUser({
+      network: 'activitypub', externalId: actorUri, handle: 'alice@mastodon.example',
+      federatedUsername: 'alice@mastodon.example', instanceDomain: 'mastodon.example',
+      bannerUrl: 'https://files.mastodon.example/header.png',
+    })).toBe('oxy-resolved');
+
+    await vi.waitFor(async () => {
+      const rows = await getDb().select().from(federatedBannerMirrors).where(inArray(federatedBannerMirrors.oxyUserId, ['oxy-resolved']));
+      expect(rows).toEqual([expect.objectContaining({ actorUri, sourceUrl: 'https://files.mastodon.example/header.png', state: 'pending' })]);
     });
     expect(mocks.persistRemoteMedia).not.toHaveBeenCalled();
   });

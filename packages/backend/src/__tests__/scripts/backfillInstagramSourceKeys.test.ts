@@ -17,6 +17,8 @@ import { insertPostRecord } from '../../db/posts/postRepository';
 import {
   NOT_VALID_CONSTRAINTS,
   backfillInstagramSourceKeys,
+  EXIT_INCOMPLETE,
+  sourceKeyBackfillExitCode,
 } from '../../scripts/backfillInstagramSourceKeys';
 
 const ACTOR = 'https://kilogram.makeup/users/igbackfill.acct';
@@ -102,5 +104,17 @@ describe('backfillInstagramSourceKeys', () => {
 
     // Idempotent: a second run has nothing left to do.
     expect(await backfillInstagramSourceKeys({ dryRun: false, pauseMs: 0 })).toMatchObject({ candidates: 2, written: 0, validated: [] });
+  });
+});
+
+describe('backfillInstagramSourceKeys exit code (read by the one-shot workflow)', () => {
+  it('is 0 when every key settled and every CHECK validated', () => {
+    expect(sourceKeyBackfillExitCode({ claimed: 0, unvalidated: [] })).toBe(0);
+  });
+
+  it('is EXIT_INCOMPLETE (re-run later, not a failure) for a live claim or an unvalidated CHECK', () => {
+    expect(sourceKeyBackfillExitCode({ claimed: 1, unvalidated: [] })).toBe(EXIT_INCOMPLETE);
+    expect(sourceKeyBackfillExitCode({ claimed: 0, unvalidated: ['federated_actors_protocol_check'] })).toBe(EXIT_INCOMPLETE);
+    expect(EXIT_INCOMPLETE).toBe(75);
   });
 });

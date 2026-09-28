@@ -2540,8 +2540,5 @@
   "connections.profileNotFound": "এই অ্যাকাউন্টটি নেই, তাই দেখানোর মতো কোনো ফলোয়ার নেই।",
   "saved.createFolderFailed": "ফোল্ডার তৈরি করা যায়নি। আবার চেষ্টা করুন।",
   "profile.loadFailed": "এই প্রোফাইলটি লোড করা যায়নি। আপনার সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।",
-  "profile.notFound.gone": "এই অ্যাকাউন্টটি নেই, বা এটি আর উপলব্ধ নয়।",
-  "datePicker.apply": "প্রয়োগ করুন",
-  "datePicker.previousMonth": "আগের মাস",
-  "datePicker.nextMonth": "পরের মাস"
+  "profile.notFound.gone": "এই অ্যাকাউন্টটি নেই, বা এটি আর উপলব্ধ নয়।"
 }

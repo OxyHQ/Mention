@@ -200,6 +200,64 @@ revalidation, content-type checks, byte limits, stream abort, and timeouts.
 SVG is rejected. Frequently used remote media can be cached in Oxy object
 storage when the cache-write feature is enabled.
 
+### Federated banners
+
+A federated account's banner is Mention's own (`user_settings.profile_header_image`),
+not part of the Oxy identity, so Mention mirrors it into Oxy itself.
+
+- **Recording.** Every actor resolve records the banner URL its source
+  advertises in `federated_banner_mirrors` (one row per Oxy user). It writes
+  only when the URL is new or changed, and never waits or fails the resolve.
+- **Mirroring.** A periodic sweep (`runFederatedBannerMirrors`, every 2 minutes,
+  at most 50 banners, 4 at a time, only while media writes are on) mirrors due
+  rows through `mirrorFederatedBanner`. A replaced banner file is queued for
+  deletion.
+- **What a banner is decided from its bytes.** The declared Content-Type is not
+  trusted. A real image served as `text/plain`, `binary/octet-stream`,
+  `text/html` or with no type is stored, typed by its magic bytes. HTML, SVG and
+  anything that is not a raster image are refused, whatever the label.
+- **Sizes.** The download is capped at 25 MB (the same ceiling oxy-api uses for
+  avatars). A web-format still up to 10 MB is stored as-is. A larger, animated,
+  or non-web-format (HEIC, BMP, TIFF) banner is stored as its first frame,
+  re-encoded as a WebP of at most 1920 px on the long edge, by the ffmpeg the
+  runtime image ships (JPEG if that ffmpeg lacks `libwebp`). An animated banner
+  within 10 MB whose first frame ffmpeg cannot take (animated WebP, which ffmpeg
+  7 does not decode) is stored as-is.
+- **Retries, never final.** A failure that may pass (5xx, timeout, Oxy
+  unavailable, a re-encoder that could not run) retries after 5 minutes, times
+  3 per failure, up to 6 hours. A banner whose bytes are not a usable image
+  (not an image, undecodable, over 25 MB, 404/410) retries once a day. `failed`
+  is a state of the row, not an end.
+- **Recovery.** `packages/backend/src/scripts/queueFederatedBannerMirrors.ts`
+  (`DRY_RUN` by default) queues every account whose source advertises a banner
+  and that has none stored: every account resolved since #994 (2026-09-13), when
+  the resolve-time mirror stopped, and banners dropped earlier for a mislabelled
+  type or for size. `INCLUDE_EXISTING=true` re-syncs accounts that already have
+  a banner; `RETRY_FAILED=true` makes every `failed` row due now.
+
+  In production, run it with `.github/workflows/run-banner-mirror-recovery.yml`.
+  It uses the exact deployed image and runs from protected `main` only, for a
+  login listed in the repository variable `BANNER_MIRROR_RECOVERY_OPERATORS`. A
+  dry run comes first. A write needs `confirm_write=queueFederatedBannerMirrors`
+  and the dry run's id, run with the same options:
+
+  ```bash
+  DIGEST=$(aws ecs describe-task-definition --task-definition \
+    "$(aws ecs describe-services --cluster oxy-cluster --services mention \
+       --query 'services[0].taskDefinition' --output text)" \
+    --query 'taskDefinition.containerDefinitions[0].image' --output text | sed 's/.*@//')
+  gh workflow run run-banner-mirror-recovery.yml --ref main \
+    -f dry_run=true -f expected_image_digest="$DIGEST"
+  gh workflow run run-banner-mirror-recovery.yml --ref main -f dry_run=false \
+    -f expected_image_digest="$DIGEST" -f preview_run_id=<dry-run id> \
+    -f confirm_write=queueFederatedBannerMirrors
+  ```
+
+  Add `-f include_existing=true` and/or `-f retry_failed=true` to both runs to
+  use those options. The report goes to the step summary and the
+  `banner-mirror-recovery` artifact. The full log goes to CloudWatch log group
+  `/oxy/ecs`, stream `mention/<container>/<task id>`.
+
 ## Identity and safety on federated surfaces
 
 **Author hydration must NEVER emit a raw `oxyUserId` as a handle.**
@@ -412,11 +470,27 @@ import. Meta's CDN URLs expire (`oe=`), so an Instagram post never keeps one:
 - A carousel imports every child, in order.
 - A video that Instagram serves only as a thumbnail (licensed audio) imports that
   thumbnail as an image.
-- A video that cannot be stored, for any reason, falls back to its poster image.
-- A file that will never be storable (404/410, over the size cap, not media) is
+- A video that can never be stored (404/410, over the size cap, not media,
+  owned by another Oxy account) falls back to its poster image.
+- A file that will never be storable, with no poster to fall back to, is
   dropped.
-- A failure that may pass (media writes off, Oxy unavailable) leaves the whole
-  post for the next sync rather than storing an expiring link.
+- A failure that may pass (media writes off, Oxy's upload budget spent, Oxy
+  unavailable, a dropped connection) leaves the whole post for the next sync.
+  It never stores an expiring link, and it never degrades a video to its poster:
+  that was permanent, because the next sync saw the post as imported.
+- **Repair for posts stored before this rule:**
+  `packages/backend/src/scripts/repairInstagramReelPosters.ts` (`DRY_RUN` by
+  default). It walks each synced account's listing with the background Graph
+  budget and finds Graph-imported posts whose slot Meta lists as a video with a
+  `media_url` but that is stored as an image. It re-hosts the video, swaps it in
+  and queues the poster file for deletion. A Reel Meta lists without
+  `media_url` is correct as an image and is left alone. Run it in production
+  with the **Run Instagram one-shot** workflow (see below).
+
+On the web, a video whose stored media has no dimensions yet (they are collected
+from Oxy shortly after import) is shown in the card's default box. It is resized
+from the `<video>` element's own size once its metadata loads, rather than
+collapsing to nothing.
 
 **One post, two roads.** A Graph-imported post is stored with
 `federation_activity_id = instagram:<shortcode>`, with the shortcode taken from
@@ -536,7 +610,44 @@ transactional migrator.
   first). It gives pre-0054 kilogram posts their source key, batched per bridge
   actor through the actor-URI index, then runs `VALIDATE CONSTRAINT` on the three
   CHECKs. VALIDATE does not block reads or writes. Until the script runs, the
-  Graph import still recognises those posts by their bridge Note id.
+  Graph import still recognises those posts by their bridge Note id. Run it in
+  production with the **Run Instagram one-shot** workflow (see below).
+
+**Running the Instagram one-shots in production.**
+`.github/workflows/run-instagram-one-shot.yml` runs `repairInstagramReelPosters`
+or `backfillInstagramSourceKeys` as an ECS one-shot on the exact deployed backend
+image. It is dispatched from protected `main` only, when `main` is the recorded
+backend deployment, by a login listed in the repository variable
+`INSTAGRAM_ONE_SHOT_OPERATORS`. A dry run comes first. A write needs
+`confirm_write` set to the script name and `preview_run_id` set to that dry
+run.
+
+```bash
+DIGEST=$(aws ecs describe-task-definition --task-definition \
+  "$(aws ecs describe-services --cluster oxy-cluster --services mention \
+     --query 'services[0].taskDefinition' --output text)" \
+  --query 'taskDefinition.containerDefinitions[0].image' --output text | sed 's/.*@//')
+gh workflow run run-instagram-one-shot.yml --ref main \
+  -f script=backfillInstagramSourceKeys -f dry_run=true -f expected_image_digest="$DIGEST"
+# after reading its report:
+gh workflow run run-instagram-one-shot.yml --ref main \
+  -f script=backfillInstagramSourceKeys -f dry_run=false -f expected_image_digest="$DIGEST" \
+  -f preview_run_id=<dry-run id> -f confirm_write=backfillInstagramSourceKeys
+```
+
+The same two commands with `script=repairInstagramReelPosters` (optionally
+`-f repair_depth=<1-1000>`) run the Reel repair.
+
+**Where the output goes:**
+- The run's step summary.
+- The `instagram-one-shot` artifact, which holds the counts and, for the repair,
+  up to 1000 candidate post ids and source keys.
+- The full log in CloudWatch, log group `/oxy/ecs`, stream
+  `mention/<container>/<task id>`, printed by the run step.
+
+Exit 75 means the run finished with work left, such as a Graph refusal, a video
+not storable yet, a live claim or an unvalidated CHECK. It is a warning: run it
+again later.
 
 **Migration 0055.** It builds the two reference-check indexes
 (`post_variant_media.media_id` and the partial

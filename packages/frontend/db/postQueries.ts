@@ -7,6 +7,7 @@
 
 import { getDb, isDbAvailable } from './database';
 import { PostRow, FeedItem, postToRow, rowToFeedItem } from './schema';
+import { notifyPostsStored } from './postObservers';
 import {
   memUpsertPost,
   memUpsertPosts,
@@ -80,6 +81,7 @@ const UPSERT_POST_SQL = `
  */
 export function upsertPost(post: FeedItem): void {
   if (!post.id) return;
+  notifyPostsStored([post]);
 
   if (!isDbAvailable()) {
     memUpsertPost(post);
@@ -108,6 +110,7 @@ export function upsertPost(post: FeedItem): void {
  */
 export function upsertPosts(posts: FeedItem[]): void {
   if (!posts || posts.length === 0) return;
+  notifyPostsStored(posts);
 
   if (!isDbAvailable()) {
     memUpsertPosts(posts);

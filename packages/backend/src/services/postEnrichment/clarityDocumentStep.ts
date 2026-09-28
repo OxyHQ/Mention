@@ -1,8 +1,6 @@
 import type { StoredPostContent } from '@mention/shared-types';
-import { getClarityClient } from '../../utils/clarityClient';
-import { extractUrls } from '../../utils/extractUrls';
+import { previewableUrls, resolveClarityDocuments } from '../../utils/clarityDocuments';
 import { getPrimaryVariant } from '../postVariants';
-import { logger } from '../../utils/logger';
 import type { IngestedPost } from './types';
 
 /**
@@ -21,9 +19,10 @@ import type { IngestedPost } from './types';
  *
  * BOUNDING comes from the input rather than a new limit: `extractUrls` caps
  * each body at `MAX_POST_DOCUMENTS`, URLs are de-duplicated across the whole
- * batch (a page of notes sharing one link costs one entry), the SDK chunks at
- * its server-side cap of 50, and the caller's page size caps how many bodies
- * arrive at once.
+ * batch (a page of notes sharing one link costs one entry),
+ * {@link resolveClarityDocuments} splits the set into calls of at most Clarity's
+ * cap of 50 (the SDK does not; one oversized body was a 400 for the whole page),
+ * and the caller's page size caps how many bodies arrive at once.
  */
 export async function warmClarityDocumentsForPosts(
   posts: ReadonlyArray<IngestedPost>,
@@ -33,23 +32,15 @@ export async function warmClarityDocumentsForPosts(
   for (const post of posts) {
     const text = getPrimaryVariant((post.content ?? {}) as StoredPostContent)?.text;
     if (!text) continue;
-    for (const url of extractUrls(text)) {
+    for (const url of previewableUrls(text)) {
       if (seen.has(url)) continue;
       seen.add(url);
       urls.push(url);
     }
   }
-  if (urls.length === 0) return;
-
-  try {
-    await (await getClarityClient()).indexing.resolve({ urls });
-  } catch (error) {
-    // Best-effort enrichment: a preview-service hiccup must never fail an ingest.
-    logger.debug('[PostEnrichment] Failed to warm link previews', {
-      count: urls.length,
-      reason: error instanceof Error ? error.message : 'unknown',
-    });
-  }
+  // Best-effort enrichment: `resolveClarityDocuments` never throws, so a
+  // preview-service hiccup can never fail an ingest.
+  await resolveClarityDocuments(urls);
 }
 
 /** The link-preview enrichment step (detached — see `PostEnrichmentStep`). */

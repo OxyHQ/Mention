@@ -15,6 +15,7 @@ import { useHlsPlayback } from '@/lib/hlsPlayback';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { formatDuration } from '@/utils/formatDuration';
 import { videoSourceFor } from '@/utils/videoSource';
+import { findVideoElement } from './videoElementSize';
 
 interface VideoPlayerProps {
   src: string;
@@ -346,6 +347,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       setDuration(player.duration);
     }
     reportAspectRatio(player.videoTrack?.size?.width, player.videoTrack?.size?.height);
+    if (Platform.OS === 'web') {
+      // expo-video's web player reports no track sizes, so the read above never
+      // learns a ratio there. By `readyToPlay` the <video> element has loaded
+      // its metadata: read the size off it, or a video whose record carries no
+      // dimensions keeps the card's fallback box. Read inside this existing
+      // listener rather than a new effect: this component mounts in every video
+      // row, and the row-cost budget counts its hooks.
+      const video = findVideoElement(videoViewRef.current, resolveDomElement(containerRef.current));
+      if (video) reportAspectRatio(video.videoWidth, video.videoHeight);
+    }
   });
 
   useEventListener(player, 'sourceLoad', ({ duration: loadedDuration, availableVideoTracks }) => {
@@ -359,6 +370,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       reportAspectRatio(track.size.width, track.size.height);
     }
   });
+
 
   // Web only: this player's own IntersectionObserver is its visibility source. It
   // reports BOTH the viewport center-Y (which contests the single audible slot)

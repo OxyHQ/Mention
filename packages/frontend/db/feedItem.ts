@@ -39,7 +39,7 @@ type TransformOptions = {
  * keeps answering from disk with a payload that still carries it.
  */
 type HandledPostKey =
-  | 'id' | 'content' | 'attachments' | 'documents' | 'user' | 'authors'
+  | 'id' | 'content' | 'attachments' | 'documents' | 'documentsPending' | 'user' | 'authors'
   | 'authorship' | 'engagement' | 'viewerState' | 'permissions' | 'metadata'
   | 'lane' | 'crosspost' | 'importedFrom' | 'parentPostId' | 'replyContext' | 'communityNote'
   | 'originalPost' | 'quotedPost' | 'boost' | 'context';
@@ -78,6 +78,10 @@ export function toFeedItem(
     content: post.content,
     attachments: post.attachments,
     documents: post.documents,
+    // Carried so a post restored from disk still knows its cards were not all in
+    // yet, and asks for them again (`stores/pendingDocuments`) instead of
+    // treating the empty `documents` of its first read as final.
+    documentsPending: post.documentsPending,
     user: post.user,
     authors: post.authors,
     authorship: post.authorship,
