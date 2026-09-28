@@ -48,3 +48,11 @@ describe('bootstrapProfileFor', () => {
     expect(bootstrapProfileFor('nate')).toBeNull();
   });
 });
+
+describe('bootstrapProfileFor on native', () => {
+  it('has no document, so never a profile', () => {
+    // The explicit file: the platform default Metro serves native builds.
+    const native = jest.requireActual<typeof import('@/lib/documentBootstrap')>('../documentBootstrap.ts');
+    expect(native.bootstrapProfileFor('nate')).toBeNull();
+  });
+});

@@ -376,6 +376,15 @@ describe('useProfileData — the profile the document was served for', () => {
     act(() => renderer.unmount());
   });
 
+  it('is not consulted without a handle', () => {
+    const sink: Snapshot[] = [];
+    const renderer = mountProbe('', sink);
+
+    expect(mockDocumentProfile).not.toHaveBeenCalled();
+    expect(sink[0]).toEqual({ loading: false, displayName: null });
+    act(() => renderer.unmount());
+  });
+
   it('is never used for another handle', () => {
     mockDocumentProfile.mockImplementation((handle) => (handle === 'ada' ? user('ada-1', 'ada', 'Ada') : null));
     mockFetchProfile.mockResolvedValue(user('bob-1', 'bob', 'Bob'));
