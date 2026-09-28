@@ -10,5 +10,10 @@
   },
   "targets": {
     "initialJavascriptGzipBytes": 1992294
+  },
+  "deferredSources": {
+    "The composer loads when /compose or /write opens (LazyComposeScreen)": "/packages/frontend/components/Compose/ComposeScreen\\.tsx$",
+    "The video replies panel loads when a video is open (LazyVideoReplies)": "/packages/frontend/components/videos/VideoReplies\\.tsx$",
+    "The settings dialog and its pages load on the first open request": "/packages/frontend/components/settings/(MentionSettingsModal|settingsPages)\\.tsx$"
   }
 }

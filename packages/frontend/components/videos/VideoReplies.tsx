@@ -9,7 +9,7 @@ import Feed from '@/components/Feed/Feed.native';
 import { useVideosRail } from '@/context/VideosRailContext';
 import { InlineReplyComposer } from './InlineReplyComposer';
 
-interface VideoRepliesProps {
+export interface VideoRepliesProps {
   postId: string;
   /**
    * Omitted on desktop — the replies column (RightBar) is always open and

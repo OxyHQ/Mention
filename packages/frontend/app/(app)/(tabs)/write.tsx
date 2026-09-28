@@ -1,6 +1,6 @@
 import React from 'react';
 
-import ComposeScreen from '@/components/Compose/ComposeScreen';
+import ComposeScreen from '@/components/Compose/LazyComposeScreen';
 
 /**
  * `/write` — the composer as a PLACE, one of the five root tabs.

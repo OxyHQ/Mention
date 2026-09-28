@@ -44,6 +44,7 @@ if (!fs.existsSync(budgetsPath)) {
 const budgetConfig = JSON.parse(fs.readFileSync(budgetsPath, "utf8"));
 const budgets = budgetConfig.budgets || budgetConfig;
 const targets = budgetConfig.targets || {};
+const deferredSources = budgetConfig.deferredSources || {};
 const initialJavascriptPaths = readInitialJavascriptPaths();
 const files = collectFiles(distDir)
   .filter((filePath) => !filePath.endsWith(".map"))
@@ -92,6 +93,7 @@ const targetStatus = Object.entries(targets).map(([metric, target]) => {
   };
 });
 
+const deferredSourceViolations = checkDeferredSources(javascript);
 const initialSources = buildSourceReport(initialJavascript);
 const sources = buildSourceReport(javascript);
 const comparison = baselineInput
@@ -106,6 +108,7 @@ const report = {
   targets,
   targetStatus,
   violations,
+  deferredSourceViolations,
   counts: {
     files: files.length,
     javascript: javascript.length,
@@ -144,7 +147,7 @@ if (markdownOutput) {
 // The baseline comparison never gates a build: a missing, stale or unreadable
 // baseline is a normal condition on a fresh branch, and the absolute ceilings in
 // bundle-budgets.json stay the only hard failure.
-if (enforceBudgets && violations.length > 0) {
+if (enforceBudgets && (violations.length > 0 || deferredSourceViolations.length > 0)) {
   process.exit(1);
 }
 
@@ -353,6 +356,41 @@ function routeNameFromSource(source) {
   return `/${relative.replace(/\([^/]+\)\//g, "")}`.replace(/\/+/g, "/");
 }
 
+/**
+ * `deferredSources` in bundle-budgets.json names modules that must load on
+ * demand, never with the page: `{ "<why>": "<regex over source-map paths>" }`.
+ * A match inside an initial chunk is a violation. So is a pattern that matches
+ * nothing in the whole export — a moved or renamed file would otherwise leave
+ * an entry that silently guards nothing.
+ */
+function checkDeferredSources(javascriptFiles) {
+  const found = [];
+  for (const [reason, pattern] of Object.entries(deferredSources)) {
+    if (typeof pattern !== "string") fail(`Invalid deferredSources entry: ${reason}`);
+    let expression;
+    try {
+      expression = new RegExp(pattern);
+    } catch (error) {
+      fail(`Invalid deferredSources pattern for "${reason}": ${error.message}`);
+    }
+    const initialMatches = new Set();
+    let seen = false;
+    for (const file of javascriptFiles) {
+      for (const source of readSourceMap(file)?.sources || []) {
+        if (!expression.test(source)) continue;
+        seen = true;
+        if (file.initial) initialMatches.add(source.replace(/^.*?\/(node_modules|packages)\//, "$1/"));
+      }
+    }
+    if (!seen) {
+      found.push({ reason, pattern, problem: "matches no module in the export" });
+    } else if (initialMatches.size > 0) {
+      found.push({ reason, pattern, problem: "loads with the page", sources: [...initialMatches] });
+    }
+  }
+  return found;
+}
+
 function buildSourceReport(javascriptFiles) {
   const grouped = new Map();
   for (const file of javascriptFiles) {
@@ -418,6 +456,17 @@ function printReport(report) {
     const limit = report.budgets[metric];
     const suffix = typeof limit === "number" ? ` / budget ${formatBytes(limit)}` : "";
     console.log(`${metric}: ${formatBytes(value)}${suffix}`);
+  }
+
+  if (Object.keys(deferredSources).length > 0) {
+    console.log("\nDeferred modules:");
+    if (report.deferredSourceViolations.length === 0) {
+      console.log(`- all ${Object.keys(deferredSources).length} load on demand`);
+    }
+    for (const violation of report.deferredSourceViolations) {
+      console.log(`- VIOLATION ${violation.reason}: ${violation.problem}`);
+      for (const source of violation.sources || []) console.log(`    ${source}`);
+    }
   }
 
   if (report.targetStatus.length > 0) {
@@ -550,6 +599,15 @@ function buildMarkdownSummary(report) {
   if (comparison?.available) {
     lines.push(...buildSourceChangeSection("Initial source-group changes", comparison.initialSources));
     lines.push(...buildSourceChangeSection("All source-group changes", comparison.sources));
+  }
+
+  if (report.deferredSourceViolations.length > 0) {
+    lines.push("### Modules that must load on demand", "");
+    for (const violation of report.deferredSourceViolations) {
+      lines.push(`- ${violation.reason}: ${violation.problem}`);
+      for (const source of violation.sources || []) lines.push(`  - \`${source}\``);
+    }
+    lines.push("");
   }
 
   if (report.violations.length === 0) {
