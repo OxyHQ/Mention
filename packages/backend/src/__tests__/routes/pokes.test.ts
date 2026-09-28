@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   getUserById: vi.fn(),
   getUserFollowers: vi.fn(),
   getUserFollowing: vi.fn(),
-  sendPushToUser: vi.fn(),
+  sendPushToTokens: vi.fn(),
   formatPushForNotification: vi.fn(),
   isUserBlocked: vi.fn(),
   userScopedClient: vi.fn(),
@@ -46,7 +46,8 @@ vi.mock('../../utils/privacyHelpers', () => ({
 }));
 
 vi.mock('../../utils/push', () => ({
-  sendPushToUser: mocks.sendPushToUser,
+  loadPushTargets: vi.fn(async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']]))),
+  sendPushToTokens: mocks.sendPushToTokens,
   formatPushForNotification: mocks.formatPushForNotification,
 }));
 
@@ -145,7 +146,7 @@ describe('POST /pokes/:userId', () => {
       entityId: poker,
       entityType: 'profile',
     });
-    expect(mocks.sendPushToUser).toHaveBeenCalledTimes(1);
+    expect(mocks.sendPushToTokens).toHaveBeenCalledTimes(1);
   });
 
   it('treats the reverse direction as a separate poke', async () => {
@@ -182,7 +183,7 @@ describe('POST /pokes/:userId — the block relationship gate', () => {
     expect(mocks.isUserBlocked).toHaveBeenCalledWith(poked);
     expect(await db.select().from(pokes).where(eq(pokes.pokerId, poker))).toEqual([]);
     expect(await db.select().from(notifications).where(eq(notifications.recipientId, poked))).toEqual([]);
-    expect(mocks.sendPushToUser).not.toHaveBeenCalled();
+    expect(mocks.sendPushToTokens).not.toHaveBeenCalled();
   });
 
   it('refuses in the reverse direction the same way', async () => {

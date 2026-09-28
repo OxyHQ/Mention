@@ -50,7 +50,8 @@ vi.mock('../../utils/oxyHelpers', () => ({
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { pushTokens } from '../../db/schema/discovery';
-import { formatPushForNotification, sendPushToUser } from '../../utils/push';
+import { userSettings } from '../../db/schema/userProfile';
+import { formatPushForNotification, loadPushTargets, sendPushToUser } from '../../utils/push';
 
 let db: Database;
 const createdUserIds: string[] = [];
@@ -85,6 +86,7 @@ beforeEach(() => {
 afterEach(async () => {
   if (createdUserIds.length > 0) {
     await db.delete(pushTokens).where(inArray(pushTokens.userId, createdUserIds));
+    await db.delete(userSettings).where(inArray(userSettings.oxyUserId, createdUserIds));
     createdUserIds.length = 0;
   }
 });
@@ -209,5 +211,59 @@ describe('formatPushForNotification', () => {
     });
     expect(push).toMatchObject({ title: 'Welcome to Mention' });
     expect(mocks.getUserById).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Settings → Notifications, read in the SAME query as the devices. The toggles
+ * were stored and shown with no server code reading them, so every switch was a
+ * no-op. They govern the PUSH only — the row and the socket event are written
+ * regardless — so here the answer is simply "which devices, if any".
+ */
+describe('loadPushTargets', () => {
+  async function device(user: string, type = 'fcm'): Promise<string> {
+    const token = tokenValue(type);
+    await db.insert(pushTokens).values({ userId: user, token, type, enabled: true });
+    return token;
+  }
+
+  it('targets a user with no settings row — the defaults are all on', async () => {
+    const user = userId();
+    const token = await device(user);
+
+    const targets = await loadPushTargets([user], 'reply');
+
+    expect(targets.get(user)).toEqual([token]);
+  });
+
+  it('drops a user who turned that type off, and only that type', async () => {
+    const user = userId();
+    const token = await device(user);
+    await db.insert(userSettings).values({ oxyUserId: user, notifyReplies: false });
+
+    expect((await loadPushTargets([user], 'reply')).has(user)).toBe(false);
+    expect((await loadPushTargets([user], 'like')).get(user)).toEqual([token]);
+  });
+
+  it('drops a user who turned push off, for every type', async () => {
+    const user = userId();
+    await device(user);
+    await db.insert(userSettings).values({ oxyUserId: user, notifyPushEnabled: false });
+
+    expect((await loadPushTargets([user], 'reply')).has(user)).toBe(false);
+    expect((await loadPushTargets([user], 'poke')).has(user)).toBe(false);
+  });
+
+  it('answers a whole fan-out at once, leaving out users with no FCM device', async () => {
+    const withDevice = userId();
+    const withoutDevice = userId();
+    const nonFcmOnly = userId();
+    const token = await device(withDevice);
+    await device(nonFcmOnly, 'unknown');
+
+    const targets = await loadPushTargets([withDevice, withoutDevice, nonFcmOnly], 'post');
+
+    expect([...targets.keys()]).toEqual([withDevice]);
+    expect(targets.get(withDevice)).toEqual([token]);
   });
 });

@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
   loggerDebug: vi.fn(),
   formatPushForNotification: vi.fn(),
-  sendPushToUser: vi.fn(),
+  sendPushToTokens: vi.fn(),
 }));
 
 /**
@@ -42,8 +42,9 @@ vi.mock('../../utils/oxyHelpers', () => ({ getServiceOxyClient: vi.fn() }));
 // No socket server → the real-time emit branch is skipped entirely.
 vi.mock('../../runtime/socketServer', () => ({ getRuntimeSocketServer: () => undefined }));
 vi.mock('../../utils/push', () => ({
+  loadPushTargets: vi.fn(async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']]))),
   formatPushForNotification: mocks.formatPushForNotification,
-  sendPushToUser: mocks.sendPushToUser,
+  sendPushToTokens: mocks.sendPushToTokens,
 }));
 
 import { eq } from 'drizzle-orm';
@@ -112,7 +113,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   await getDb().delete(notifications).where(eq(notifications.entityId, POST_ID));
   mocks.formatPushForNotification.mockResolvedValue({ title: 't', body: 'b' });
-  mocks.sendPushToUser.mockResolvedValue(undefined);
+  mocks.sendPushToTokens.mockResolvedValue(undefined);
 });
 
 describe('isMentionBroadcast — the shared predicate', () => {
@@ -150,7 +151,7 @@ describe('createMentionNotifications — fan-out cap boundary', () => {
     // inherited by every reply — so "first N" would deliver the whole flood to
     // exactly the people the cap exists to protect.
     expect(await notifiedRecipients()).toEqual([]);
-    expect(mocks.sendPushToUser).not.toHaveBeenCalled();
+    expect(mocks.sendPushToTokens).not.toHaveBeenCalled();
   });
 
   it('notifies nobody for the measured pile-up shape (29 mentions)', async () => {
