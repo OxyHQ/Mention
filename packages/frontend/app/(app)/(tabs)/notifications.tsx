@@ -21,7 +21,6 @@ import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
 import { createLogger } from '@oxy.so/core/logger';
 import { notificationService } from '@/services/notificationService';
 import { useTranslation } from 'react-i18next';
-import { validateNotifications } from '@/types/validation';
 import { normalizeApiError } from '@/utils/apiError';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { groupNotifications, GroupedNotification, NotificationListItem } from '@/utils/groupNotifications';
@@ -280,10 +279,6 @@ const NotificationsScreen: React.FC = () => {
     const selectTab = useTabSelect(activeTab, setActiveTab);
     const handleTabPress = useCallback((tabId: string) => selectTab(tabId as NotificationTab), [selectTab]);
 
-    const validatedNotifications = useMemo(
-        () => validateNotifications(allNotifications),
-        [allNotifications]
-    );
 
     // Notifications whose actor the backend did NOT populate would each fire their
     // own `getProfileById` from inside NotificationItem — an N+1 across the page.
@@ -291,7 +286,7 @@ const NotificationsScreen: React.FC = () => {
     // bulk `getUsersByIds`, so every per-row read hits the warm cache instead.
     const unpopulatedActorIds = useMemo(() => {
         const ids = new Set<string>();
-        for (const n of validatedNotifications) {
+        for (const n of allNotifications) {
             if (n.actorId_populated) continue;
             const actorId = n.actorId;
             const id = typeof actorId === 'string'
@@ -306,7 +301,7 @@ const NotificationsScreen: React.FC = () => {
             if (id) ids.add(id);
         }
         return Array.from(ids);
-    }, [validatedNotifications]);
+    }, [allNotifications]);
 
     useQuery({
         queryKey: viewerQueryKeys.notificationActors(user?.id, unpopulatedActorIds),
@@ -316,24 +311,24 @@ const NotificationsScreen: React.FC = () => {
     });
 
     const filteredNotifications = useMemo(() => {
-        if (activeTab === 'all') return validatedNotifications;
+        if (activeTab === 'all') return allNotifications;
         const types = TAB_TYPES[activeTab];
-        return validatedNotifications.filter((n) => types.includes(n.type));
-    }, [validatedNotifications, activeTab]);
+        return allNotifications.filter((n) => types.includes(n.type));
+    }, [allNotifications, activeTab]);
 
     // Per-tab unread tallies, derived from the notifications already loaded (the
     // only per-type data the client has — the server exposes a single aggregate
     // unread total, which the `all` tab uses verbatim).
     const tabUnreadCounts = useMemo<TabUnreadCounts>(() => {
         const counts: TabUnreadCounts = { mentions: 0, follows: 0, likes: 0, posts: 0, pokes: 0 };
-        for (const n of validatedNotifications) {
+        for (const n of allNotifications) {
             if (n.read) continue;
             for (const tab of Object.keys(TAB_TYPES) as FilterableTab[]) {
                 if (TAB_TYPES[tab].includes(n.type)) counts[tab] += 1;
             }
         }
         return counts;
-    }, [validatedNotifications]);
+    }, [allNotifications]);
 
     const groupedNotifications = useMemo(() => {
         return groupNotifications(filteredNotifications);

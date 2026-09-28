@@ -4,7 +4,7 @@ import { createLogger } from '@oxy.so/core/logger';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { io, Socket } from 'socket.io-client';
 import { API_URL_SOCKET } from '../config';
-import { ZRawNotification } from '../types/validation';
+import { loadNotificationValidation, type NotificationValidation } from '@/lib/notificationValidation';
 import {
   containsNotification,
   findNotification,
@@ -52,19 +52,39 @@ export const useRealtimeNotifications = () => {
       }
 
       // Connect to backend notifications namespace
-      socket = io(`${API_URL_SOCKET}/notifications`, {
+      const current = io(`${API_URL_SOCKET}/notifications`, {
         auth: { token, userId },
         transports: ['websocket', 'polling'],
         path: '/socket.io',
       });
+      socket = current;
 
       const listKey = viewerQueryKeys.notifications(userId);
 
-      socket.on('connect', () => {
+      // Every cache patch runs in arrival order. The first event waits for the
+      // validators to load (`loadNotificationValidation`), so later events queue
+      // behind it rather than overtake it — a delete must never land before the
+      // insert it removes. A patch still queued when this socket is replaced
+      // (sign-out, account switch) is dropped: it belongs to the previous viewer.
+      let pending: Promise<void> = Promise.resolve();
+      const inOrder = <A extends unknown[]>(
+        apply: (validation: NotificationValidation, ...args: A) => void,
+      ) => (...args: A): void => {
+        pending = pending
+          .then(loadNotificationValidation)
+          .then((validation) => {
+            if (socket === current) apply(validation, ...args);
+          })
+          .catch((error: unknown) => {
+            logger.warn('Dropped a realtime notification event', { error });
+          });
+      };
+
+      current.on('connect', () => {
         logger.info('Connected to notifications socket');
       });
 
-      socket.on('notification', (notification: unknown) => {
+      current.on('notification', inOrder(({ ZRawNotification }, notification: unknown) => {
         const parsed = ZRawNotification.safeParse(notification);
         if (!parsed.success) {
           logger.warn('Dropped invalid socket notification');
@@ -84,9 +104,9 @@ export const useRealtimeNotifications = () => {
         if (!alreadyPresent && !incoming.read) {
           bumpUnread(queryClient, userId, 1);
         }
-      });
+      }));
 
-      socket.on('notificationUpdated', (notification: unknown) => {
+      current.on('notificationUpdated', inOrder(({ ZRawNotification }, notification: unknown) => {
         const parsed = ZRawNotification.safeParse(notification);
         if (!parsed.success) {
           logger.warn('Dropped invalid socket notificationUpdated');
@@ -105,9 +125,9 @@ export const useRealtimeNotifications = () => {
           if (!previous.read && incoming.read) bumpUnread(queryClient, userId, -1);
           else if (previous.read && !incoming.read) bumpUnread(queryClient, userId, 1);
         }
-      });
+      }));
 
-      socket.on('notificationDeleted', (notificationId: unknown) => {
+      current.on('notificationDeleted', inOrder((_validation, notificationId: unknown) => {
         if (typeof notificationId !== 'string') {
           logger.warn('Dropped invalid socket notificationDeleted');
           return;
@@ -121,9 +141,9 @@ export const useRealtimeNotifications = () => {
         );
 
         if (previous && !previous.read) bumpUnread(queryClient, userId, -1);
-      });
+      }));
 
-      socket.on('allNotificationsRead', () => {
+      current.on('allNotificationsRead', inOrder(() => {
         queryClient.setQueryData<NotificationsInfiniteData>(listKey, (data) =>
           data ? markAllNotificationsRead(data) : data,
         );
@@ -131,9 +151,9 @@ export const useRealtimeNotifications = () => {
           viewerQueryKeys.unreadNotifications(userId),
           0,
         );
-      });
+      }));
 
-      socket.on('disconnect', () => {
+      current.on('disconnect', () => {
         logger.info('Disconnected from notifications socket');
       });
 
@@ -143,7 +163,7 @@ export const useRealtimeNotifications = () => {
       // twice in five minutes on a normal wifi handover. Logged at `error` it
       // raised a red banner in dev that covered the bottom bar, and filed
       // recovered transport noise as an app failure in production telemetry.
-      socket.on('connect_error', (error) => {
+      current.on('connect_error', (error) => {
         logger.warn('Notifications socket retrying after a connection error', { error });
       });
     } catch (error) {
