@@ -61,6 +61,8 @@ import {
 import { sanitizePodcast, resolvePodcastContent } from '../utils/syraPodcast';
 import { sanitizeJobInput, resolveJobContent } from '../utils/jobPostAttachment';
 import { recordRecentReplierForPost } from '../services/PostRecentReplierService';
+import { postCreationService } from '../services/PostCreationService';
+import { trackBackgroundWork } from '../runtime/backgroundWork';
 import { UserPrivacyManager } from '../mtn/UserPrivacyManager';
 
 /**
@@ -533,6 +535,11 @@ class FeedController {
       // This path stores through the repository directly, so it owes the
       // post-ingest enrichment itself (media metadata, link-card warm).
       enrichIngestedPosts([reply]);
+      // ...and the notifications: the parent's authors hear about the reply, and
+      // everyone it @mentions about the mention. Detached and tracked exactly as
+      // `POST /posts` does it — the replier is not waiting on other people's
+      // inboxes, and the shutdown drain still waits for it.
+      trackBackgroundWork(postCreationService.notifyCreatedPost(reply, currentUserId));
 
       // MTN dual-write: a reply emits an `app.mention.feed.post` record with the
       // thread position (reply.root / reply.parent). The direct parent is
@@ -732,6 +739,11 @@ class FeedController {
         }
         throw error;
       }
+
+      // The original's authors hear about the boost (and anyone the boost's
+      // commentary @mentions). Only reached by the boost that actually landed —
+      // both "already boosted" answers returned above.
+      trackBackgroundWork(postCreationService.notifyCreatedPost(boost, currentUserId));
 
       // MTN dual-write: a boost emits an `app.mention.feed.repost` record whose
       // subject is the boosted original's MTN URI. Best-effort, never blocks.

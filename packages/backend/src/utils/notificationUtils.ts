@@ -9,6 +9,7 @@ import {
   type NOTIFICATION_ENTITY_TYPES,
   type NOTIFICATION_TYPES,
 } from '../db/schema/discovery';
+import { userSettings } from '../db/schema/userProfile';
 import { getServiceOxyClient } from './oxyHelpers';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
 import { formatPushForNotification, sendPushToUser } from './push';
@@ -44,6 +45,59 @@ export interface CreateNotificationData {
   entityId: string;
   entityType: (typeof NOTIFICATION_ENTITY_TYPES)[number];
 }
+
+type NotificationType = CreateNotificationData['type'];
+
+const PUSH_PREFERENCE_COLUMNS = {
+  notifyPushEnabled: userSettings.notifyPushEnabled,
+  notifyLikes: userSettings.notifyLikes,
+  notifyReplies: userSettings.notifyReplies,
+  notifyBoosts: userSettings.notifyBoosts,
+  notifyMentions: userSettings.notifyMentions,
+  notifyQuotes: userSettings.notifyQuotes,
+  notifyFollows: userSettings.notifyFollows,
+} as const;
+
+/**
+ * The Settings → Notifications toggle that governs each type's PUSH. A type
+ * absent here (poke, post, welcome, collab_*) has no toggle of its own and
+ * answers only to the master `notifyPushEnabled` switch.
+ */
+const PUSH_PREFERENCE_COLUMN: Partial<Record<NotificationType, keyof typeof PUSH_PREFERENCE_COLUMNS>> = {
+  like: 'notifyLikes',
+  reply: 'notifyReplies',
+  boost: 'notifyBoosts',
+  mention: 'notifyMentions',
+  quote: 'notifyQuotes',
+  follow: 'notifyFollows',
+};
+
+/**
+ * Whether the recipient's settings allow a PUSH for this notification type.
+ *
+ * The toggles govern the push only: the row and the socket event are written
+ * regardless, so turning "Replies" off silences the phone without making the
+ * inbox lose anything. They were stored and shown for a long time without any
+ * server code reading them — every switch was a no-op.
+ *
+ * A recipient with no settings row gets the schema defaults, all of which are
+ * `true`. A lean select of the seven columns, not `loadUserSettings`, which also
+ * reads the label actions.
+ */
+export const shouldPushNotification = async (
+  recipientId: string,
+  type: NotificationType,
+): Promise<boolean> => {
+  const [row] = await getDb()
+    .select(PUSH_PREFERENCE_COLUMNS)
+    .from(userSettings)
+    .where(eq(userSettings.oxyUserId, recipientId))
+    .limit(1);
+  if (!row) return true;
+  if (!row.notifyPushEnabled) return false;
+  const column = PUSH_PREFERENCE_COLUMN[type];
+  return column ? row[column] : true;
+};
 
 /**
  * A notification row exactly as it goes on the wire — the response DTO, the
@@ -182,10 +236,13 @@ export const createNotification = async (
       notificationsNamespace.to(`user:${data.recipientId}`).emit('notification', payload);
     }
 
-    // Fire push notification (best-effort, non-blocking)
+    // Fire push notification (best-effort, non-blocking), unless the
+    // recipient's settings turned push off for this type.
     try {
-      const push = await formatPushForNotification(notification);
-      await sendPushToUser(data.recipientId, push);
+      if (await shouldPushNotification(data.recipientId, data.type)) {
+        const push = await formatPushForNotification(notification);
+        await sendPushToUser(data.recipientId, push);
+      }
     } catch (e) {
       // ignore push failures
     }

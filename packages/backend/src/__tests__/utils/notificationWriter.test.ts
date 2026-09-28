@@ -41,6 +41,7 @@ vi.mock('../../utils/oxyHelpers', () => ({
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { notifications } from '../../db/schema/discovery';
+import { userSettings } from '../../db/schema/userProfile';
 import { createNotification, createWelcomeNotification } from '../../utils/notificationUtils';
 
 let db: Database;
@@ -88,6 +89,7 @@ beforeEach(() => {
 afterEach(async () => {
   if (createdRecipientIds.length > 0) {
     await db.delete(notifications).where(inArray(notifications.recipientId, createdRecipientIds));
+    await db.delete(userSettings).where(inArray(userSettings.oxyUserId, createdRecipientIds));
     createdRecipientIds.length = 0;
   }
 });
@@ -318,5 +320,54 @@ describe('the dedupe constraint itself', () => {
       .from(notifications)
       .where(and(eq(notifications.recipientId, recipient), eq(notifications.entityId, 'post-1')));
     expect(rows).toHaveLength(1);
+  });
+});
+
+/**
+ * Settings → Notifications. The toggles were stored and shown with no server code
+ * reading them, so every switch was a no-op. They govern the PUSH: the row (the
+ * inbox) and the socket event stay, so turning a type off silences the phone
+ * without the inbox losing anything.
+ */
+describe('createNotification honours the recipient\'s push preferences', () => {
+  function reply(recipient: string) {
+    return {
+      recipientId: recipient,
+      actorId: 'oxy-actor',
+      type: 'reply' as const,
+      entityId: `reply-${randomUUID()}`,
+      entityType: 'reply' as const,
+    };
+  }
+
+  it('pushes when the recipient has no settings row (the defaults are all on)', async () => {
+    const recipient = recipientId();
+    await createNotification(reply(recipient));
+    expect(mocks.sendPushToUser).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the row but sends no push for a type the recipient turned off', async () => {
+    const recipient = recipientId();
+    await db.insert(userSettings).values({ oxyUserId: recipient, notifyReplies: false });
+
+    await createNotification(reply(recipient));
+
+    expect(await rowsFor(recipient)).toHaveLength(1);
+    expect(mocks.sendPushToUser).not.toHaveBeenCalled();
+
+    // Only that type: a like still pushes.
+    await createNotification({ ...reply(recipient), type: 'like', entityType: 'post' });
+    expect(mocks.sendPushToUser).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends no push of any type when push is off', async () => {
+    const recipient = recipientId();
+    await db.insert(userSettings).values({ oxyUserId: recipient, notifyPushEnabled: false });
+
+    await createNotification(reply(recipient));
+    await createNotification({ ...reply(recipient), type: 'poke', entityType: 'profile' });
+
+    expect(await rowsFor(recipient)).toHaveLength(2);
+    expect(mocks.sendPushToUser).not.toHaveBeenCalled();
   });
 });

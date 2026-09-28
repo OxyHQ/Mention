@@ -893,7 +893,7 @@ class PostCreationService {
     //
     // TRACKED rather than a bare `void`, so `gracefulShutdown` drains it in the
     // phase where Postgres and Redis are still open — see `runtime/backgroundWork.ts`.
-    trackBackgroundWork(this.runNotificationFanOut(post, oxyUserId));
+    trackBackgroundWork(this.notifyCreatedPost(post, oxyUserId));
 
     const isPublished = post.status === 'published';
 
@@ -946,8 +946,16 @@ class PostCreationService {
    *
    * Every stage already swallows and logs its own failures, so detaching cannot
    * turn a handled failure into an unhandled rejection.
+   *
+   * PUBLIC because it is the one answer to "who hears about this post". The
+   * native `/feed/reply` and `/feed/boost` handlers write their rows through the
+   * repository directly, not through {@link create}; before they called this,
+   * a reply or boost sent from the app notified nobody — not the parent's
+   * author, not the people it @mentioned — while the same reply sent through
+   * `POST /posts` did. One fan-out for every write path is what keeps them from
+   * drifting apart again.
    */
-  private async runNotificationFanOut(
+  async notifyCreatedPost(
     post: PostRecord,
     oxyUserId: string | null,
   ): Promise<void> {
