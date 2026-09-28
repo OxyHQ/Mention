@@ -8,23 +8,19 @@ import {
 import { useTranslation } from "react-i18next";
 import { Card } from '@oxy.so/bloom/card';
 import { Loading } from '@oxy.so/bloom/loading';
-import { useAuth } from "@oxy.so/services/ui/client";
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { logger } from '@oxy.so/core/logger';
 import UserName from '@/components/UserName';
 import { EmptyState } from '@/components/common/EmptyState';
+import type { MentionSearchCache, MentionUser } from '@/utils/mentionSearch';
 
-export interface MentionUser {
-    id: string;
-    username: string;
-    displayName?: string;
-    avatar?: string;
-    verified?: boolean;
-}
+export type { MentionUser };
 
 interface MentionPickerProps {
     query: string;
+    /** The composer session's search cache, shared with typed-handle resolution. */
+    searchCache: MentionSearchCache;
     onSelect: (user: MentionUser) => void;
     onClose: () => void;
     maxHeight?: number;
@@ -32,63 +28,46 @@ interface MentionPickerProps {
 
 const MentionPicker: React.FC<MentionPickerProps> = ({
     query,
+    searchCache,
     onSelect,
     onClose,
     maxHeight = 300,
 }) => {
     const { t } = useTranslation();
-    const { oxyServices } = useAuth();
-    const [users, setUsers] = useState<MentionUser[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [searched, setSearched] = useState<MentionUser[]>([]);
+    const [searching, setSearching] = useState(false);
+
+    // Results the composer session already holds show at once. The same cache
+    // answers a typed handle when it is completed, so reading from it here is
+    // what keeps that from being a second request.
+    const cached = query ? searchCache.peek(query) : undefined;
 
     useEffect(() => {
+        if (!query || searchCache.peek(query)) return;
+
+        let cancelled = false;
         const searchUsers = async () => {
-            if (!query || query.length < 1) {
-                setUsers([]);
-                return;
-            }
-
-            setLoading(true);
+            setSearching(true);
             try {
-                // Search for users via Oxy services
-                const { data: searchResults } = await oxyServices.users.search(query, { limit: 10 });
-
-                const mappedUsers: MentionUser[] = (searchResults || []).flatMap((profile: {
-                    id?: string;
-                    _id?: string;
-                    username?: string;
-                    handle?: string;
-                    name?: { displayName?: string };
-                    avatar?: string | null;
-                    profilePicture?: string;
-                    verified?: boolean;
-                }) => {
-                    const id = profile.id || profile._id;
-                    const username = profile.username || profile.handle || '';
-                    if (!id || !username) {
-                        return [];
-                    }
-                    return [{
-                        id,
-                        username,
-                        displayName: profile.name?.displayName,
-                        avatar: profile.avatar || profile.profilePicture || undefined,
-                        verified: profile.verified || false,
-                    }];
-                });
-
-                setUsers(mappedUsers);
+                const results = await searchCache.search(query);
+                if (!cancelled) setSearched(results);
             } catch (error) {
                 logger.error("Error searching users for mentions", error);
-                setUsers([]);
+                if (!cancelled) setSearched([]);
             } finally {
-                setLoading(false);
+                if (!cancelled) setSearching(false);
             }
         };
 
         const debounceTimer = setTimeout(searchUsers, 300);
-        return () => clearTimeout(debounceTimer);
-    }, [query, oxyServices]);
+        return () => {
+            cancelled = true;
+            clearTimeout(debounceTimer);
+        };
+    }, [query, searchCache]);
+
+    const users = cached ?? searched;
+    const loading = !cached && searching;
 
     if (!query) {
         return null;

@@ -174,6 +174,8 @@ import {
   type MentionData,
   type MentionTextValue,
 } from '@/utils/mentions';
+import { resolveTypedMentions } from '@/utils/mentionSearch';
+import { MentionSearchContext, useCreateMentionSearchCache } from '@/context/MentionSearchContext';
 
 // Keep this in sync with PostItem constants
 import { HPAD, BOTTOM_LEFT_PAD } from '@/components/Compose/composeLayout';
@@ -213,6 +215,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   const intentConflictControl = useDialogControl();
   const translateOverwriteControl = useDialogControl();
   const { user, showBottomSheet, oxyServices } = useAuth();
+  const mentionSearchCache = useCreateMentionSearchCache();
   const { createPost, createThread, createReply, cachePosts, boostPost } = usePostsStore();
   const queryClient = useQueryClient();
   const { t, i18n } = useTranslation();
@@ -1267,13 +1270,25 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
     beginPublish();
     let published = false;
     try {
+      // A handle typed at the very end of a box never had anything typed after
+      // it, so the input never saw it completed. Resolve every handle still
+      // typed from what this session's searches already hold — no request here;
+      // one they cannot answer stays text for the server to resolve.
+      const resolveTyped = (value: MentionTextValue) =>
+        resolveTypedMentions(value, mentionSearchCache.findUser, { completedOnly: false }).value;
+      const mainValue = resolveTyped({ text: postContent, mentions });
+      const submitThreadItems = threadItems.map((item) => {
+        const resolved = resolveTyped({ text: item.text, mentions: item.mentions });
+        return resolved.text === item.text ? item : { ...item, ...resolved };
+      });
+
       // Prepare all posts (main + thread items)
       const allPosts: CreatePostRequest[] = [];
       const formattedSources = sanitizeSourcesForSubmit(sources);
       const mainVariantContent = buildVariantContent(
         variants,
         MAIN_ITEM_ID,
-        postContent,
+        mainValue.text,
         mediaIds.map((media) => media.id),
       );
 
@@ -1282,8 +1297,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
       // exists, the URL is already in the body text (see `quoteFallbackUrl`
       // effect) and we skip the quote linkage.
       const mainPost = buildMainPost({
-        postContent,
-        mentions,
+        postContent: mainValue.text,
+        mentions: mainValue.mentions,
         mediaIds,
         pollTitle,
         pollOptions,
@@ -1330,7 +1345,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
 
       // Add thread items if any. Each item is its own post, so it carries its own
       // renditions — the buffer is keyed by (item × language).
-      threadItems.forEach(item => {
+      submitThreadItems.forEach(item => {
         if (boxHasContent(item)) {
           const threadPost = buildThreadPost(
             item,
@@ -1362,7 +1377,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
         // too, or editing a multilingual post would strip every language but the
         // primary.
         const updatedPost = await feedService.editPost(editPostId, buildEditPost({
-          postContent,
+          postContent: mainValue.text,
           mediaIds,
           mentions: mainPost.mentions || [],
           hashtags: mainPost.hashtags || [],
@@ -2490,7 +2505,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
   }, [replyPermission, quotesDisabled, bottomSheet]);
 
   return (
-    <>
+    <MentionSearchContext.Provider value={mentionSearchCache}>
       <SEO
         title={tCompose('seo.compose.title')}
         description={tCompose('seo.compose.description')}
@@ -3616,7 +3631,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
           />
         )}
       </SafeAreaView>
-    </>
+    </MentionSearchContext.Provider>
   );
 };
 
