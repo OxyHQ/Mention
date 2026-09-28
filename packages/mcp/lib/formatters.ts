@@ -261,8 +261,10 @@ export function formatNotification(n: NotificationData): string {
   const read = n.read ? "read" : "unread";
   const preview = n.preview ? `\n  "${n.preview}"` : "";
   const date = n.createdAt || "";
+  // The post (or profile) it is about, so a client can open it or answer it.
+  const about = n.entityId ? `\n  ${n.entityType || "entity"}: ${n.entityId}` : "";
 
-  return `[${id}] ${actor} — ${type} (${read})${preview}${date ? `\n  ${date}` : ""}`;
+  return `[${id}] ${actor} — ${type} (${read})${preview}${about}${date ? `\n  ${date}` : ""}`;
 }
 
 interface ListData {
