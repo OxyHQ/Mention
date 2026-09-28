@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { NextFunction, Request, Response } from 'express';
 import { IncomingMessage } from 'node:http';
 import rateLimit from 'express-rate-limit';
 import { logger } from '../utils/logger';
@@ -35,6 +35,16 @@ const router = express.Router();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 /** Max proxy requests per IP per window. Media-heavy feeds need a high budget. */
 const RATE_LIMIT_MAX = 240;
+/**
+ * Max SIGNED playlist-component requests (HLS segments and variant playlists)
+ * per IP per window. These are requests only the proxy's own rewritten
+ * playlists can produce, so the playlist that led to them already paid for
+ * itself under {@link RATE_LIMIT_MAX} — and one federated video at a 2s segment
+ * length is ~30 of them a minute, before the reel's preloading neighbours or a
+ * household behind one NAT. Counted against the general budget, a single
+ * reel session ran a viewer into 429s mid-video.
+ */
+const HLS_COMPONENT_RATE_LIMIT_MAX = 1200;
 
 /** Idle socket timeout while streaming the body. */
 const UPSTREAM_SOCKET_TIMEOUT_MS = 30_000;
@@ -214,6 +224,36 @@ const mediaProxyRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+// Signed HLS components get their own store and a higher ceiling (see
+// HLS_COMPONENT_RATE_LIMIT_MAX). A distinct Redis prefix, like the poster's.
+const mediaHlsComponentStore = new RedisStore({
+  prefix: 'rl:media-hls:',
+  windowMs: RATE_LIMIT_WINDOW_MS,
+});
+
+const mediaHlsComponentRateLimiter = rateLimit({
+  store: mediaHlsComponentStore,
+  windowMs: RATE_LIMIT_WINDOW_MS,
+  max: HLS_COMPONENT_RATE_LIMIT_MAX,
+  keyGenerator: (req: Request) => hashedIpKey(req),
+  message: { error: 'Too many media proxy requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/**
+ * Chooses the budget a `/proxy` request is counted against. The signature is
+ * VERIFIED here (an HMAC over the upstream url), not merely present, so the
+ * higher ceiling cannot be claimed by adding a query parameter.
+ */
+const mediaProxyRouteRateLimiter = (req: Request, res: Response, next: NextFunction): void => {
+  const rawUrl = req.query.url;
+  const isSignedComponent =
+    typeof rawUrl === 'string' && isSignedHlsComponent(rawUrl, req.query[HLS_SIGNATURE_PARAM]);
+  const limiter = isSignedComponent ? mediaHlsComponentRateLimiter : mediaProxyRateLimiter;
+  void limiter(req, res, next);
+};
 
 // Dedicated store + limiter for the poster endpoint. A distinct Redis prefix is
 // REQUIRED so the poster and proxy limiters don't increment the same key and
@@ -703,7 +743,7 @@ function shouldNegativeCacheClientError(status: number, hasRequestSpecificUpstre
  * connection pinned to the validated IP. A blocked target surfaces as an
  * `SsrfRejection` and maps to 403.
  */
-router.get('/proxy', mediaProxyRateLimiter, async (req: Request, res: Response): Promise<void> => {
+router.get('/proxy', mediaProxyRouteRateLimiter, async (req: Request, res: Response): Promise<void> => {
   const rawUrl = req.query.url;
   if (typeof rawUrl !== 'string' || rawUrl.length === 0) {
     res.status(HTTP_STATUS.BAD_REQUEST).json({ error: 'Missing required "url" query parameter' });

@@ -52,6 +52,12 @@ jest.mock('expo-video', () => ({
     },
 }));
 
+// Whether hls.js will own a source is a browser question; each test answers it.
+const mockNeedsJsHlsDecoder = jest.fn((_source: string) => false);
+jest.mock('@/lib/hlsPlayback', () => ({
+    needsJsHlsDecoder: (source: string) => mockNeedsJsHlsDecoder(source),
+}));
+
 import {
     __resetVideoPlayerRegistry,
     acquireVideoPlayer,
@@ -81,6 +87,8 @@ beforeEach(() => {
     mockVideo.created.length = 0;
     mockVideo.releaseThrows = false;
     mockError.mockClear();
+    mockNeedsJsHlsDecoder.mockReset();
+    mockNeedsJsHlsDecoder.mockReturnValue(false);
 });
 
 describe('videoPlayerKey', () => {
@@ -98,6 +106,22 @@ describe('acquiring', () => {
         expect(second.player).toBe(first.player);
         expect(mockVideo.created).toHaveLength(1);
         expect(entryFor(KEY).refCount).toBe(2);
+    });
+
+    // On a browser that decodes HLS through hls.js, the playlist must not reach
+    // the element: hls.js attaches its own MediaSource, and an element holding
+    // the url would first start — and fail — a native load of it.
+    it('builds the player WITHOUT a source when hls.js will decode it', () => {
+        mockNeedsJsHlsDecoder.mockReturnValue(true);
+        acquire(KEY, SOURCE);
+
+        expect(mockNeedsJsHlsDecoder).toHaveBeenCalledWith(SOURCE);
+        expect(mockVideo.created[0]?.source).toBeNull();
+    });
+
+    it('builds the player WITH its source when the platform decodes it', () => {
+        acquire(KEY, SOURCE);
+        expect(mockVideo.created[0]?.source).not.toBeNull();
     });
 
     it('gives a different key its own player', () => {

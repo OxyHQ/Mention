@@ -14,10 +14,23 @@ import { useVideoPlayback } from '@/context/VideoPlaybackContext';
 import { useHlsPlayback } from '@/lib/hlsPlayback';
 import { HIT_SLOP_MD } from '@/styles/hitSlop';
 import { formatDuration } from '@/utils/formatDuration';
+import { videoSourceFor } from '@/utils/videoSource';
 import { findVideoElement } from './videoElementSize';
 
 interface VideoPlayerProps {
   src: string;
+  /**
+   * Played once if `src` fails to load — the original upload behind an adaptive
+   * stream, so a ladder that turns out to be broken degrades to the file
+   * instead of a black box.
+   */
+  fallbackSrc?: string;
+  /**
+   * Covered by something the viewer has not dismissed (the sensitive-media
+   * veil). The player stays mounted so revealing does not reload it, but it
+   * neither plays nor competes for the audible slot until then.
+   */
+  concealed?: boolean;
   style?: StyleProp<ViewStyle>;
   contentFit?: 'contain' | 'cover' | 'fill';
   autoPlay?: boolean;
@@ -150,6 +163,8 @@ const VideoPlayPauseButton = React.memo(function VideoPlayPauseButton({
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({
   src,
+  fallbackSrc,
+  concealed = false,
   style,
   contentFit = 'contain',
   autoPlay = true,
@@ -163,6 +178,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   flightHostId,
 }) => {
   const isPreviewMode = onPress !== undefined && !gif;
+  // Only the full controls overlay draws the playhead. A feed preview or a GIF
+  // has no bar, and tracking time there re-rendered the whole player (flight
+  // host included) four times a second for every video on screen.
+  const tracksTime = !isPreviewMode && !gif;
   const isMuted = useVideoMuteStore((s) => s.isMuted);
   const toggleMuted = useVideoMuteStore((s) => s.toggleMuted);
 
@@ -190,9 +209,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const { shouldPlay, claimActive, reportVisibility } = useVideoPlayback({
     id: playerInstanceId,
     viewabilityKey,
-    silent: gif,
+    silent: gif || concealed,
     measureOrder,
   });
+  const mayPlay = shouldPlay && !concealed;
 
   const [showControls, setShowControls] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
@@ -211,9 +231,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // via a previous-value tracker rather than in an effect, so a new source never
   // paints a frame carrying the previous video's poster/duration state. See
   // React "You Might Not Need an Effect".
-  const [prevSrc, setPrevSrc] = useState(src);
-  if (prevSrc !== src) {
-    setPrevSrc(src);
+  // `fallbackFor` doubles as the one-shot latch for `fallbackSrc`: it names the
+  // source the fallback was swapped in for, so a new `src` re-arms it. One state
+  // slot for both, because this component is mounted by every video row.
+  const [srcState, setSrcState] = useState<{ src: string; fallbackFor?: string }>({ src });
+  const usedFallback = srcState.fallbackFor === src;
+  if (srcState.src !== src) {
+    setSrcState({ src });
     setHasRenderedFrame(false);
     setPosterFailed(false);
     setReportedRatio(null);
@@ -237,6 +261,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const videoViewRef = useRef<InstanceType<typeof VideoView>>(null);
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seekSettleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressBarRef = useRef<View>(null);
   // Root container — observed by an IntersectionObserver on web to report this
   // player's viewport center-Y AND whether it still intersects the viewport.
@@ -247,24 +272,35 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // this same element — so the source must be WITHHELD from expo-video (`null`),
   // or the element would first attempt, and fail, a native load of the playlist.
   // Inert on native: ExoPlayer/AVPlayer decode HLS themselves.
-  const hls = useHlsPlayback(src, videoViewRef);
+  // Segment loading pauses with playback — but only for a player this row owns.
+  // A borrowed one may be playing somewhere else right now (a feed video carried
+  // into the reel keeps this row, and its hls.js instance, mounted underneath).
+  const hls = useHlsPlayback(src, videoViewRef, externalPlayer ? true : mayPlay);
+
+  // `videoSourceFor` returns one object per url, so this is stable across
+  // renders — `useVideoPlayer` rebuilds its player when the source changes.
+  const ownSource = externalPlayer || hls.active ? null : videoSourceFor(src);
 
   // Built unconditionally so the hook order never depends on a prop, but with a
   // `null` source when a player was handed in — a null-sourced player opens no
   // decoder, so the unused one costs nothing.
-  const ownPlayer = useVideoPlayer(externalPlayer || hls.active ? null : src, (p) => {
+  const ownPlayer = useVideoPlayer(ownSource, (p) => {
     p.loop = gif ? true : loop;
     p.muted = gif ? true : isMuted;
-    p.timeUpdateEventInterval = TIME_UPDATE_INTERVAL;
+    p.timeUpdateEventInterval = tracksTime ? TIME_UPDATE_INTERVAL : 0;
   });
   const player = externalPlayer ?? ownPlayer;
 
   // The setup callback above only ever runs for the player built here, so a
   // borrowed one is configured from this effect instead. Idempotent property
   // writes, so running it for both is simpler than branching and cannot drift.
+  // A borrowed player's `timeUpdate` cadence is only ever raised here, never
+  // lowered: the surface it is shared with (the reel) may be drawing a bar.
   useEffect(() => {
-    configurePlayer(player, { loop: gif ? true : loop, timeUpdateEventInterval: TIME_UPDATE_INTERVAL });
-  }, [player, gif, loop]);
+    configurePlayer(player, tracksTime
+      ? { loop: gif ? true : loop, timeUpdateEventInterval: TIME_UPDATE_INTERVAL }
+      : { loop: gif ? true : loop });
+  }, [player, gif, loop, tracksTime]);
 
   const scheduleHideControls = useCallback(() => {
     if (hideControlsTimer.current) {
@@ -292,12 +328,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   });
 
   useEventListener(player, 'timeUpdate', ({ currentTime: time }) => {
-    if (!isSeeking) {
+    if (tracksTime && !isSeeking) {
       setCurrentTime(time);
     }
   });
 
   useEventListener(player, 'statusChange', ({ status }) => {
+    if (status === 'error' && fallbackSrc && !usedFallback) {
+      setSrcState({ src, fallbackFor: src });
+      player.replaceAsync(videoSourceFor(fallbackSrc)).catch(() => {
+        // A rejected swap leaves the failed source in place; nothing to add.
+      });
+      return;
+    }
     if (status !== 'readyToPlay') return;
     setHasRenderedFrame(true);
     if (player.duration > 0) {
@@ -368,19 +411,22 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // `autoPlay` only gates AUTOMATIC start, so a manually started video keeps
   // playing; anything the authority disallows always pauses.
   useEffect(() => {
-    if (!shouldPlay) {
+    if (!mayPlay) {
       player.pause();
       return;
     }
     if (autoPlay) {
       player.play();
     }
-  }, [player, shouldPlay, autoPlay]);
+  }, [player, mayPlay, autoPlay]);
 
   useEffect(() => {
     return () => {
       if (hideControlsTimer.current) {
         clearTimeout(hideControlsTimer.current);
+      }
+      if (seekSettleTimer.current) {
+        clearTimeout(seekSettleTimer.current);
       }
     };
   }, []);
@@ -448,7 +494,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         player.currentTime = seekTime;
 
         // Small delay to let the seek settle
-        setTimeout(() => {
+        if (seekSettleTimer.current) clearTimeout(seekSettleTimer.current);
+        seekSettleTimer.current = setTimeout(() => {
+          seekSettleTimer.current = null;
           setIsSeeking(false);
         }, 300);
       });

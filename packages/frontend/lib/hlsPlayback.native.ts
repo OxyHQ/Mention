@@ -20,9 +20,15 @@ export interface HlsPlayback {
 
 const NATIVE_PLAYBACK: HlsPlayback = { active: false };
 
+/** Never on native: the platform decoder plays HLS itself. */
+export function needsJsHlsDecoder(_src: string | undefined | null): boolean {
+  return false;
+}
+
 export function useHlsPlayback(
   _src: string,
   _viewRef: React.RefObject<InstanceType<typeof VideoView> | null>,
+  _loading?: boolean,
 ): HlsPlayback {
   return NATIVE_PLAYBACK;
 }

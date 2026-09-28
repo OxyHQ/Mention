@@ -29,10 +29,11 @@
  *
  * It first answered "one wider than 200px", which is not a property of post
  * media at all: a link-preview card image renders 278px wide in the feed column.
- * That matters because post media is deliberately lazy — `PostAttachmentMedia`
- * renders it through `<LazyImage threshold={300}>`, which paints a correctly
- * sized placeholder `<View>` and creates NO `<img>` until the cell comes within
- * 300px of the viewport, while link previews render eagerly. So a row can be
+ * That mattered because post media used to be deliberately lazy — rendered
+ * through a `LazyImage` that painted a correctly sized placeholder `<View>` and
+ * created NO `<img>` until the cell came within 300px of the viewport, while
+ * link previews rendered eagerly. (It is now an `expo-image` in every mounted
+ * row; the virtualized list is what bounds how many exist.) So a row could be
  * mounted, laid out, and carrying geometry, and still have no image element to
  * measure. Measured on the build that was blocked: twelve rows mounted, three of
  * them carrying media the DTO had dimensions for, all three past that threshold,
@@ -104,10 +105,9 @@ const MEDIA_LOAD_TIMEOUT_MS = 30_000;
 
 /**
  * How far down the feed the gate will look for a post image the DTO gave
- * dimensions for. Post media only becomes an `<img>` within `LazyImage`'s 300px
- * threshold of the viewport (see the header), so media further down the page
- * cannot be measured until it is scrolled towards, however many rows the list
- * has mounted.
+ * dimensions for. Post media only becomes an `<img>` once the virtualized feed
+ * mounts its row, so media further down the page cannot be measured until it
+ * is scrolled towards.
  *
  * This is a bounded search for the subject, not a retry of the assertion: the
  * verdict below is passed over everything the sampler recorded along the way,

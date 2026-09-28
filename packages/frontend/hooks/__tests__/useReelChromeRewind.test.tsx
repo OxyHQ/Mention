@@ -22,7 +22,14 @@ import TestRenderer, { act } from 'react-test-renderer';
  */
 
 jest.mock('react-native-reanimated', () => ({
-    useSharedValue: (value: unknown) => ({ value }),
+    useSharedValue: (value: unknown) => {
+        const shared = {
+            value,
+            get: () => shared.value,
+            set: (next: unknown) => { shared.value = next; },
+        };
+        return shared;
+    },
     useAnimatedStyle: () => ({}),
     withSequence: (...args: unknown[]) => args[0],
     withTiming: (value: unknown) => value,

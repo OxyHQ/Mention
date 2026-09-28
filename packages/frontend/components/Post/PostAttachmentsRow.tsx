@@ -62,6 +62,8 @@ interface MediaObj {
   url?: string;
   thumbUrl?: string;
   posterUrl?: string;
+  /** Adaptive stream, emitted by the server only once the ladder is ready. */
+  hlsUrl?: string;
   fullUrl?: string;
 }
 interface Props {
@@ -116,7 +118,7 @@ type AttachmentItem =
   | { type: 'podcast' }
   | { type: 'job' }
   | { type: 'link'; url: string; title?: string; description?: string; image?: string; siteName?: string; embedParams?: EmbedPlayerParams }
-  | { type: 'video'; mediaId: string; src: string; poster?: string; width?: number; height?: number; aspectRatio?: number; orientation?: 'portrait' | 'landscape' | 'square'; durationSec?: number }
+  | { type: 'video'; mediaId: string; src: string; fallbackSrc?: string; poster?: string; width?: number; height?: number; aspectRatio?: number; orientation?: 'portrait' | 'landscape' | 'square'; durationSec?: number }
   | { type: 'gif'; mediaId: string; src: string; width?: number; height?: number; aspectRatio?: number }
   | { type: 'image'; mediaId: string; src: string; fullSrc: string; mediaType: 'image' | 'gif'; alt?: string; width?: number; height?: number; aspectRatio?: number; orientation?: 'portrait' | 'landscape' | 'square' };
 
@@ -274,12 +276,19 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
         ...(mediaItem.durationSec !== undefined ? { durationSec: mediaItem.durationSec } : {}),
       };
       if (resolvedType === 'video') {
-        const src = resolveMediaSrc(mediaItem, 'playable');
-        if (!src) return;
+        const original = resolveMediaSrc(mediaItem, 'playable');
+        if (!original) return;
+        // Native plays the adaptive stream when the server has one — the same
+        // preference as the reel, so a flight into it carries the same source —
+        // and falls back to the original once if the stream fails. Web keeps the
+        // original: browsers other than Safari cannot play our HLS ladder.
+        const hls = Platform.OS !== 'web' ? mediaItem.hlsUrl : undefined;
+        const src = hls || original;
+        const fallbackSrc = hls ? original : undefined;
         // Poster: prefer the server-resolved final `posterUrl`; fall back to the
         // legacy client resolver from the RAW media id when absent (old data).
         const poster = mediaItem.posterUrl || videoPosterUrl(id, oxyServices);
-        results.push({ type: 'video', mediaId: id, src, poster, ...persistedDims });
+        results.push({ type: 'video', mediaId: id, src, fallbackSrc, poster, ...persistedDims });
       } else if (resolvedType === 'gif') {
         // Federated gifs carry an absolute http URL as their media id — a <video>
         // can't play a remote `.gif`, so keep the animated-gif image render (via
@@ -838,7 +847,7 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
           // Native gif = inline looping muted video; no reels routing, no lightbox.
           return (
             <PostAttachmentMedia
-              key={`gif-${item.mediaId ?? idx}`}
+              key={`gif-${postId ?? ''}-${item.mediaId ?? idx}`}
               type="gif"
               src={item.src}
               mediaId={item.mediaId}
@@ -860,9 +869,10 @@ const PostAttachmentsRow: React.FC<Props> = React.memo(({
           const imageIndex = item.type === 'image' ? imageIndexByMediaId.get(mediaId) : undefined;
           return (
             <PostAttachmentMedia
-              key={`${item.type}-${mediaId ?? idx}`}
+              key={`${item.type}-${postId ?? ''}-${mediaId ?? idx}`}
               type={item.type}
               src={item.src}
+              fallbackSrc={item.type === 'video' ? item.fallbackSrc : undefined}
               alt={item.type === 'image' ? item.alt : undefined}
               mediaId={mediaId}
               poster={item.type === 'video' ? item.poster : undefined}

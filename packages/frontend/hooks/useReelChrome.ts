@@ -39,6 +39,18 @@ const logger = createLogger('VideosScreen');
 // of the single-tap pause toggle.
 const DOUBLE_TAP_WINDOW_MS = 280;
 
+/** Scrubber cadence: smooth enough for a 2px bar, cheap enough to leave on. */
+export const REEL_TIME_UPDATE_INTERVAL_S = 0.25;
+
+/**
+ * Raises a player's `timeUpdate` cadence to the reel's. A function rather than
+ * an assignment in the hook: the player IS a mutable native object, and the
+ * React Compiler treats a hook argument as immutable.
+ */
+function ensureReelTimeUpdates(target: VideoPlayer): void {
+    Object.assign(target, { timeUpdateEventInterval: REEL_TIME_UPDATE_INTERVAL_S });
+}
+
 // Namespace for this screen's playback ids in the app-wide video authority. A
 // feed `VideoPlayer` can be mounted for the SAME post at the same time (the reel
 // is pushed over the feed screen), so the reel surface must not share its id.
@@ -205,8 +217,11 @@ export function useReelChrome({
     // so a newly-activated video always autoplays instead of inheriting a stale
     // paused state.
     const [userPaused, setUserPaused] = useState(false);
-    // Scrubber state — current playhead + total duration, driven by player events.
-    const [currentTime, setCurrentTime] = useState(0);
+    // Scrubber state. The playhead lives in a shared value, not React state:
+    // `timeUpdate` fires four times a second, and as state every tick re-rendered
+    // the whole slide overlay (surface, tap layer, heart, spinner) just to move a
+    // 2px bar. The fill reads it through `progressStyle` on the UI thread.
+    const progress = useSharedValue(0);
     const [duration, setDuration] = useState(initialDurationSec ?? 0);
     const [isScrubbing, setIsScrubbing] = useState(false);
 
@@ -263,8 +278,9 @@ export function useReelChrome({
     // Track the playhead for the scrubber. Skipped while the viewer is dragging so
     // the thumb follows the gesture, not the (lagging) player position.
     useEventListener(player, 'timeUpdate', ({ currentTime: nextTime }) => {
+        const total = duration > 0 ? duration : player.duration;
         if (!isScrubbing) {
-            setCurrentTime(nextTime);
+            progress.set(total > 0 ? Math.min(1, Math.max(0, nextTime / total)) : 0);
         }
         if (duration <= 0 && player.duration > 0) {
             setDuration(player.duration);
@@ -277,6 +293,14 @@ export function useReelChrome({
             if (Number.isFinite(ahead)) onBufferAhead(ahead);
         }
     });
+
+    // The scrubber and the buffer-ahead report both ride `timeUpdate`, so the
+    // player has to emit it. A slide's own player is built with this cadence; an
+    // ADOPTED one was configured by the feed row that built it, which leaves the
+    // event off (no feed row draws a progress bar).
+    useEffect(() => {
+        ensureReelTimeUpdates(player);
+    }, [player]);
 
     // Single place that syncs the live player's mute with the store.
     useEffect(() => {
@@ -618,10 +642,9 @@ export function useReelChrome({
         const total = duration > 0 ? duration : player.duration;
         if (width <= 0 || total <= 0) return;
         const ratio = Math.min(1, Math.max(0, locationX / width));
-        const nextTime = ratio * total;
-        setCurrentTime(nextTime);
-        player.currentTime = nextTime;
-    }, [duration, player]);
+        progress.set(ratio);
+        player.currentTime = ratio * total;
+    }, [duration, player, progress]);
 
     const panResponder = useMemo(() => PanResponder.create({
         onStartShouldSetPanResponder: () => true,
@@ -642,7 +665,9 @@ export function useReelChrome({
         },
     }), [seekToLocationX]);
 
-    const progress = duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0;
+    const progressStyle = useAnimatedStyle(() => ({
+        width: `${progress.get() * 100}%`,
+    }));
 
     const showPoster = !hasRendered;
     // The pause affordance shows only when the viewer has actively paused the
@@ -665,6 +690,6 @@ export function useReelChrome({
         onTrackLayout,
         panResponder,
         isScrubbing,
-        progress,
+        progressStyle,
     };
 }

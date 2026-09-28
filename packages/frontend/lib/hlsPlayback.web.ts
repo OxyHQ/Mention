@@ -95,6 +95,31 @@ function canDecodeHlsInJs(): boolean {
   return mediaSource.isTypeSupported(HLS_PLAYBACK_CODECS);
 }
 
+/**
+ * True when `src` will be decoded by hls.js on this browser — the same test
+ * `useHlsPlayback` makes, for code that builds a player before any element
+ * exists (the shared player registry) and must withhold the source from it.
+ */
+export function needsJsHlsDecoder(src: string | undefined | null): boolean {
+  return isHlsSource(src) && canDecodeHlsInJs();
+}
+
+/**
+ * hls.js tuning for feed-sized players. The defaults buffer 30s ahead at the
+ * highest rendition the bandwidth estimate allows, whatever the element's size
+ * — for a 300px card, and for every mounted card at once.
+ */
+const HLS_CONFIG = {
+  // Never fetch a rendition wider than the element draws it.
+  capLevelToPlayerSize: true,
+  // A short forward buffer: players near the viewport each hold one, and they
+  // share one connection with the video being watched.
+  maxBufferLength: 10,
+  maxMaxBufferLength: 30,
+  // Let the bandwidth estimate pick the first rendition.
+  startLevel: -1,
+} as const;
+
 /** What the caller needs to know about the JS decoder for one source. */
 export interface HlsPlayback {
   /**
@@ -119,12 +144,19 @@ export interface HlsPlayback {
 export function useHlsPlayback(
   src: string,
   viewRef: React.RefObject<InstanceType<typeof VideoView> | null>,
+  /**
+   * Whether segments should keep downloading. A player the authority has
+   * paused (scrolled away, screen blurred) stops fetching instead of filling
+   * its buffer for nobody; it resumes from where it stopped.
+   */
+  loading = true,
 ): HlsPlayback {
   // The decision is a pure function of the source and the browser, so it is
   // resolved during render (not in an effect): the caller needs it on the FIRST
   // render to decide what source to hand `expo-video`, and a later flip would
   // mean the element had already begun a doomed native load.
-  const [active] = useState(() => isHlsSource(src) && canDecodeHlsInJs());
+  const [active] = useState(() => needsJsHlsDecoder(src));
+  const [instance, setInstance] = useState<HlsJs | null>(null);
 
   useEffect(() => {
     if (!active) return;
@@ -135,24 +167,27 @@ export function useHlsPlayback(
       return;
     }
 
-    let instance: HlsJs | null = null;
+    let hls: HlsJs | null = null;
     let cancelled = false;
 
     void loadHls()
       .then((Hls) => {
         if (cancelled) return;
-        instance = new Hls();
-        instance.on(Hls.Events.ERROR, (_event, data) => {
+        const created = new Hls(HLS_CONFIG);
+        hls = created;
+        created.on(Hls.Events.ERROR, (_event, data) => {
           if (!data.fatal) return;
           logger.warn('Fatal HLS error, giving up on this source', {
             errorType: data.type,
             details: data.details,
           });
-          instance?.destroy();
-          instance = null;
+          created.destroy();
+          if (hls === created) hls = null;
+          setInstance((current) => (current === created ? null : current));
         });
-        instance.loadSource(src);
-        instance.attachMedia(element);
+        created.loadSource(src);
+        created.attachMedia(element);
+        setInstance(created);
       })
       .catch((error: unknown) => {
         logger.warn('Failed to load the HLS decoder', {
@@ -162,10 +197,21 @@ export function useHlsPlayback(
 
     return () => {
       cancelled = true;
-      instance?.destroy();
-      instance = null;
+      hls?.destroy();
+      hls = null;
+      setInstance(null);
     };
   }, [active, src, viewRef]);
+
+  useEffect(() => {
+    if (!instance) return;
+    if (loading) {
+      // -1 resumes from the element's current position.
+      instance.startLoad(-1);
+    } else {
+      instance.stopLoad();
+    }
+  }, [instance, loading]);
 
   return { active };
 }

@@ -322,6 +322,10 @@ class MtnFeedController {
    * Unified feed endpoint. Resolves any feed descriptor.
    */
   async getFeed(req: AuthRequest, res: Response): Promise<void> {
+    // Set when this request leads the rebuild of an expired anonymous page; see
+    // `anonFeedCache.claimBuild`. Settled with the page once built, and with
+    // `null` in the `finally` on every other way out.
+    let settleAnonBuild: ((response: SlicedFeedResponse | null) => void) | undefined;
     try {
       // Read query params through `queryString`, never through a cast: a tampered
       // `?cursor[]=a&cursor[]=b` arrives as an ARRAY, and the interstitial planner
@@ -376,6 +380,16 @@ class MtnFeedController {
         if (cached) {
           res.json({ success: true, data: cached });
           return;
+        }
+        const build = anonFeedCache.claimBuild(anonCacheKey);
+        if (build.role === 'join') {
+          const shared = await build.result;
+          if (shared) {
+            res.json({ success: true, data: shared });
+            return;
+          }
+        } else {
+          settleAnonBuild = build.settle;
         }
       }
 
@@ -580,6 +594,7 @@ class MtnFeedController {
       // importing" answer, and serving it from cache for the TTL would pin the
       // client in a poll loop against a profile whose posts have already landed.
       if (anonCacheKey && !response.pending) {
+        settleAnonBuild?.(response);
         await anonFeedCache.write(anonCacheKey, response);
       }
 
@@ -590,6 +605,10 @@ class MtnFeedController {
     } catch (error) {
       logger.error('[MtnFeedController] getFeed error', error);
       res.status(500).json({ success: false, error: 'Failed to fetch feed' });
+    } finally {
+      // Releases any joiners on every path the page was not shared on; a no-op
+      // once it was.
+      settleAnonBuild?.(null);
     }
   }
 

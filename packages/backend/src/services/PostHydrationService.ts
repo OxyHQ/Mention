@@ -1073,6 +1073,7 @@ export class PostHydrationService {
       this.buildImportMap(postsForHydration),
     ]);
     const mentionCache: Map<string, PostUser> = new Map(userMap);
+    await this.prewarmMentionCache(postsForHydration, mentionCache);
 
     const summaryMap = new Map<string, HydratedPostSummary>();
 
@@ -3025,6 +3026,40 @@ export class PostHydrationService {
     return false;
   }
 
+
+  /**
+   * Resolve every page's mentioned users in ONE lookup before the summaries are
+   * built.
+   *
+   * `replaceMentionPlaceholders` resolves whatever a post mentions that the
+   * cache does not hold, and it runs once per post (and per inline language
+   * variant) — so a page whose posts each mention someone new paid one Redis
+   * read, and possibly one Oxy call, per post, with no de-duplication across
+   * them. Collecting the ids first turns that into one batch; the per-post pass
+   * then finds them cached and only fills genuine stragglers.
+   */
+  private async prewarmMentionCache(
+    postsForHydration: ReadonlyArray<{ post: RawPost }>,
+    mentionCache: Map<string, PostUser>,
+  ): Promise<void> {
+    const uncached = new Set<string>();
+    for (const { post } of postsForHydration) {
+      if (!Array.isArray(post?.mentions) || post.mentions.length === 0) continue;
+      for (const mentionId of normalizeMentionIds(post.mentions)) {
+        if (!mentionCache.has(mentionId)) uncached.add(mentionId);
+      }
+    }
+    if (uncached.size === 0) return;
+    const ids = [...uncached];
+    const resolved = await resolveUserSummaries(ids);
+    for (const mentionId of ids) {
+      const value = resolved.get(mentionId);
+      // Same rule as the per-post pass: a degraded fallback is "unresolved",
+      // which leaves the placeholder in place rather than a blank handle.
+      if (!value || isFallbackUserSummary(value.user)) continue;
+      mentionCache.set(mentionId, value.user);
+    }
+  }
   /**
    * Posts-that-quote counts for the whole hydrated graph in ONE indexed
    * aggregate over `{ quoteOf: 1, createdAt: -1 }`. Only ids with at least one

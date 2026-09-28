@@ -210,24 +210,36 @@ export class FeedRankingService {
       optIn.mutualIdsSet = new Set(mutualIds);
     }
 
+    // The three loaded signals are independent reads, so they run concurrently:
+    // awaited one after another they were three round trips of latency in front
+    // of every ranked page.
+    const loads: Promise<void>[] = [];
+
     if (enabledSignals.has('dwellTime')) {
-      const { getDwellAverages } = await import('./dwellAggregate.js');
-      optIn.dwellAverages = await getDwellAverages(postIds());
+      loads.push((async () => {
+        const { getDwellAverages } = await import('./dwellAggregate.js');
+        optIn.dwellAverages = await getDwellAverages(postIds());
+      })());
     }
 
     if (enabledSignals.has('socialProof')) {
       const engagerIds = Array.from(new Set([...(followingIds ?? []), ...(mutualIds ?? [])]));
       if (engagerIds.length > 0) {
-        const { getNetworkEngagerCounts } = await import('./networkEngagement.js');
-        optIn.networkEngagerCounts = await getNetworkEngagerCounts(postIds(), engagerIds);
+        loads.push((async () => {
+          const { getNetworkEngagerCounts } = await import('./networkEngagement.js');
+          optIn.networkEngagerCounts = await getNetworkEngagerCounts(postIds(), engagerIds);
+        })());
       }
     }
 
     if (enabledSignals.has('noveltyBoost') && userId) {
-      const { getRecentTopics } = await import('./viewerRecentTopics.js');
-      optIn.viewerRecentTopics = await getRecentTopics(userId);
+      loads.push((async () => {
+        const { getRecentTopics } = await import('./viewerRecentTopics.js');
+        optIn.viewerRecentTopics = await getRecentTopics(userId);
+      })());
     }
 
+    await Promise.all(loads);
     return optIn;
   }
 

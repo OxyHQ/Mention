@@ -42,7 +42,7 @@ export function LoadMoreSentinel({ onLoadMore, enabled, rootMargin = '600px' }: 
 
     // react-native-web exposes the underlying DOM node via `_nativeNode`/
     // `getNode()` (neither is on the typed View ref), with the ref itself as a
-    // last resort. Narrow structurally instead of `as any` — mirrors LazyImage.
+    // last resort. Narrow structurally instead of `as any`.
     const ref = viewRef.current as
       | (View & { _nativeNode?: Element; getNode?: () => Element })
       | null;

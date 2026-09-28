@@ -128,6 +128,48 @@ class AnonFeedCache {
   async write(key: string, response: CacheableFeedResponse): Promise<void> {
     await cache.set(key, response);
   }
+
+  /**
+   * Builds of a page in progress in THIS process, by key.
+   *
+   * The entry expires for everyone at once, and every anonymous request that
+   * misses before the first rebuild lands would otherwise run the whole
+   * gather-rank-hydrate pipeline for the same page — a stampede on exactly the
+   * most-read keys. Per process, not global: it needs no lock round trip, and a
+   * handful of instances each building once is the bounded version of the
+   * problem.
+   */
+  private readonly inFlight = new Map<string, Promise<CacheableFeedResponse | null>>();
+
+  /**
+   * Claim the rebuild of `key` after a cache miss.
+   *
+   * The first caller LEADS: it builds the page and must call `settle` exactly
+   * once — with the page, or `null` when it has none to share (an error, a
+   * `pending` page). `settle` is idempotent, so a `finally` may call it again.
+   * Later callers JOIN and await the leader's answer; a `null` answer means
+   * "build your own", which is exactly what they would have done without this.
+   */
+  claimBuild(key: string):
+    | { role: 'lead'; settle: (response: CacheableFeedResponse | null) => void }
+    | { role: 'join'; result: Promise<CacheableFeedResponse | null> } {
+    const existing = this.inFlight.get(key);
+    if (existing) return { role: 'join', result: existing };
+
+    let resolve!: (response: CacheableFeedResponse | null) => void;
+    const result = new Promise<CacheableFeedResponse | null>((r) => { resolve = r; });
+    this.inFlight.set(key, result);
+    let settled = false;
+    return {
+      role: 'lead',
+      settle: (response) => {
+        if (settled) return;
+        settled = true;
+        if (this.inFlight.get(key) === result) this.inFlight.delete(key);
+        resolve(response);
+      },
+    };
+  }
 }
 
 export const anonFeedCache = new AnonFeedCache();

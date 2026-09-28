@@ -163,12 +163,21 @@ const PostItem: React.FC<PostItemProps> = ({
     // insights, community notes — from ONE app-lifetime controller. Nothing is
     // instantiated per row; each command resolves the post when pressed.
     const interactions = usePostInteractions();
-    const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
-    // The reader's answer to this post's content warning, per mounted row.
-    const [isContentWarningOpen, setIsContentWarningOpen] = useState(false);
-    const toggleContentWarning = useCallback(() => setIsContentWarningOpen((open) => !open), []);
-
     const postId = post?.id;
+    // Per-post UI state is held as "the post it is open FOR", not as a bare
+    // boolean. FlashList reuses this component instance for a different post
+    // when a cell is recycled, and a boolean survived that: a warning opened on
+    // one post showed up already open on whichever post took over the cell.
+    // Keyed this way it resets itself, with no extra hook in the row budget.
+    const [articleModalFor, setArticleModalFor] = useState<string | undefined>(undefined);
+    const isArticleModalVisible = articleModalFor !== undefined && articleModalFor === postId;
+    // The reader's answer to this post's content warning, per mounted row.
+    const [contentWarningOpenFor, setContentWarningOpenFor] = useState<string | undefined>(undefined);
+    const isContentWarningOpen = contentWarningOpenFor !== undefined && contentWarningOpenFor === postId;
+    const toggleContentWarning = useCallback(
+        () => setContentWarningOpenFor((openFor) => (openFor === postId ? undefined : postId)),
+        [postId],
+    );
     // Reactive read of the cached post (compiler-safe `useSyncExternalStore`
     // under the hood — never `useMemo` over an out-of-band SQLite read).
     const storePost = usePostSelector(postId ? String(postId) : undefined);
@@ -484,12 +493,12 @@ const PostItem: React.FC<PostItemProps> = ({
 
     const openArticleSheet = useCallback(() => {
         if (hasArticle) {
-            setIsArticleModalVisible(true);
+            setArticleModalFor(postId);
         }
-    }, [hasArticle]);
+    }, [hasArticle, postId]);
 
     const closeArticleSheet = useCallback(() => {
-        setIsArticleModalVisible(false);
+        setArticleModalFor(undefined);
     }, []);
 
     const handleInsightsPress = useCallback(() => {
@@ -1110,10 +1119,35 @@ const styles = StyleSheet.create({
     },
 });
 
+/**
+ * The props that place a post in its row rather than describe it. Checked on
+ * BOTH paths below: the fast path used to trust an unchanged `post` reference
+ * alone, so a row whose thread position, booster or pin changed around the same
+ * post object — which FlashList recycling and a re-sliced page both produce —
+ * kept drawing the old connector lines and "Reposted by".
+ */
+const rowPlacementEqual = (prevProps: PostItemProps, nextProps: PostItemProps): boolean =>
+    prevProps.containerWidth === nextProps.containerWidth &&
+    prevProps.isNested === nextProps.isNested &&
+    prevProps.nestingDepth === nextProps.nestingDepth &&
+    prevProps.showPinned === nextProps.showPinned &&
+    prevProps.isThreadParent === nextProps.isThreadParent &&
+    prevProps.isThreadChild === nextProps.isThreadChild &&
+    prevProps.isThreadLastChild === nextProps.isThreadLastChild &&
+    prevProps.attachedBelow === nextProps.attachedBelow &&
+    prevProps.isPostDetail === nextProps.isPostDetail &&
+    prevProps.feedDescriptor === nextProps.feedDescriptor &&
+    prevProps.sliceKey === nextProps.sliceKey &&
+    prevProps.threadRootId === nextProps.threadRootId &&
+    prevProps.isThread === nextProps.isThread &&
+    // Same original post id can be reposted by different actors across rows;
+    // compare the booster so a recycled row never shows a stale "Reposted by".
+    prevProps.repostedBy?.id === nextProps.repostedBy?.id;
+
 export default React.memo(PostItem, (prevProps, nextProps) => {
-    // Fast path: same post reference. `containerWidth` is part of it because a
-    // quote card that resizes hands down a new width without touching the post.
-    if (prevProps.post === nextProps.post && prevProps.containerWidth === nextProps.containerWidth) return true;
+    if (!rowPlacementEqual(prevProps, nextProps)) return false;
+    // Fast path: same post reference.
+    if (prevProps.post === nextProps.post) return true;
 
     const prev = prevProps.post;
     const next = nextProps.post;
@@ -1146,21 +1180,6 @@ export default React.memo(PostItem, (prevProps, nextProps) => {
         // deliberately (`PATCH /posts/:id/lane` sets no `isEdited` and carries no
         // edit window). So the lane is compared on its own rather than riding an
         // implicit coupling to a timestamp that does not move with it.
-        prev?.lane?.id === next?.lane?.id &&
-        prevProps.isNested === nextProps.isNested &&
-        prevProps.nestingDepth === nextProps.nestingDepth &&
-        prevProps.isThreadParent === nextProps.isThreadParent &&
-        prevProps.isThreadChild === nextProps.isThreadChild &&
-        prevProps.isThreadLastChild === nextProps.isThreadLastChild &&
-        prevProps.attachedBelow === nextProps.attachedBelow &&
-        prevProps.isPostDetail === nextProps.isPostDetail &&
-        prevProps.feedDescriptor === nextProps.feedDescriptor &&
-        prevProps.sliceKey === nextProps.sliceKey &&
-        prevProps.threadRootId === nextProps.threadRootId &&
-        prevProps.isThread === nextProps.isThread &&
-        prevProps.containerWidth === nextProps.containerWidth &&
-        // Same original post id can be reposted by different actors across rows;
-        // compare the booster so a recycled row never shows a stale "Reposted by".
-        prevProps.repostedBy?.id === nextProps.repostedBy?.id
+        prev?.lane?.id === next?.lane?.id
     );
 });
