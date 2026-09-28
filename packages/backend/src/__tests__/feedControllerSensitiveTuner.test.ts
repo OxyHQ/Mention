@@ -55,6 +55,7 @@ vi.mock('../services/anonFeedCache', () => ({
     read: vi.fn(async () => null),
     write: vi.fn(async () => undefined),
     buildKey: vi.fn(() => 'anon-key'),
+    claimBuild: vi.fn(() => ({ role: 'lead' as const, settle: vi.fn() })),
   },
 }));
 vi.mock('../connectors/federatedProfileSync', () => ({

@@ -1983,7 +1983,7 @@ export default function VideosScreen() {
             onSessionEnd={endPipSession}
             onRegisterTransportSeek={registerTransportSeek}
         />
-    ), [currentVisibleIndex, isFocused, theme, handleLike, handleComment, handleBoost, handleSave, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT, bottomSheetProgress, viewerId, pipOwnerId, sessionSource, startPipSession, endPipSession, registerTransportSeek]);
+    ), [currentVisibleIndex, activeRadius, handleBufferAhead, isFocused, theme, handleLike, handleComment, handleBoost, handleSave, handleShare, globalMuted, handleMuteChange, bottomBarHeight, t, WINDOW_HEIGHT, bottomSheetProgress, viewerId, pipOwnerId, sessionSource, startPipSession, endPipSession, registerTransportSeek]);
 
     const keyExtractor = useCallback((item: VideoPost) => item.id, []);
 

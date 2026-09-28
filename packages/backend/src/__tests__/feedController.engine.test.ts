@@ -81,6 +81,8 @@ const anonCache = vi.hoisted(() => ({
   read: vi.fn(async (): Promise<unknown> => null),
   write: vi.fn(async (): Promise<void> => undefined),
   buildKey: vi.fn((): string => 'anon-key'),
+  // Every request leads its own build unless a test says otherwise.
+  claimBuild: vi.fn(() => ({ role: 'lead' as const, settle: vi.fn() })),
 }));
 vi.mock('../services/anonFeedCache', () => ({ anonFeedCache: anonCache }));
 
@@ -343,6 +345,38 @@ describe('MtnFeedController.getFeed → anonymous cache', () => {
     expect(engineRun).not.toHaveBeenCalled();
     expect(anonCache.write).not.toHaveBeenCalled();
     expect(res.body).toEqual({ success: true, data: cached });
+  });
+
+  it('settles the build it leads with the page it built', async () => {
+    const settle = vi.fn();
+    anonCache.claimBuild.mockReturnValueOnce({ role: 'lead', settle });
+    const res = makeRes();
+
+    await mtnFeedController.getFeed({ query: { descriptor: 'for_you' }, user: undefined } as never, res as never);
+
+    expect(anonCache.claimBuild).toHaveBeenCalledWith('anon-key');
+    expect(settle).toHaveBeenCalledWith(expect.objectContaining({ items: expect.any(Array) }));
+  });
+
+  it('serves a page another request is already building, without running the engine', async () => {
+    const shared = { items: [], slices: [], hasMore: false, totalCount: 0 };
+    anonCache.claimBuild.mockReturnValueOnce({ role: 'join', result: Promise.resolve(shared) } as never);
+    const res = makeRes();
+
+    await mtnFeedController.getFeed({ query: { descriptor: 'for_you' }, user: undefined } as never, res as never);
+
+    expect(engineRun).not.toHaveBeenCalled();
+    expect(anonCache.write).not.toHaveBeenCalled();
+    expect(res.body).toEqual({ success: true, data: shared });
+  });
+
+  it('builds its own page when the build it joined had nothing to share', async () => {
+    anonCache.claimBuild.mockReturnValueOnce({ role: 'join', result: Promise.resolve(null) } as never);
+    const res = makeRes();
+
+    await mtnFeedController.getFeed({ query: { descriptor: 'for_you' }, user: undefined } as never, res as never);
+
+    expect(engineRun).toHaveBeenCalledOnce();
   });
 
   it('never reads or writes the anon cache for an authenticated viewer', async () => {

@@ -42,6 +42,17 @@ const DOUBLE_TAP_WINDOW_MS = 280;
 /** Scrubber cadence: smooth enough for a 2px bar, cheap enough to leave on. */
 export const REEL_TIME_UPDATE_INTERVAL_S = 0.25;
 
+/**
+ * Raises a player's `timeUpdate` cadence to the reel's. A function rather than
+ * an assignment in the hook: the player IS a mutable native object, and the
+ * React Compiler treats a hook argument as immutable.
+ */
+function ensureReelTimeUpdates(target: VideoPlayer): void {
+    if (target.timeUpdateEventInterval !== REEL_TIME_UPDATE_INTERVAL_S) {
+        Object.assign(target, { timeUpdateEventInterval: REEL_TIME_UPDATE_INTERVAL_S });
+    }
+}
+
 // Namespace for this screen's playback ids in the app-wide video authority. A
 // feed `VideoPlayer` can be mounted for the SAME post at the same time (the reel
 // is pushed over the feed screen), so the reel surface must not share its id.
@@ -271,7 +282,7 @@ export function useReelChrome({
     useEventListener(player, 'timeUpdate', ({ currentTime: nextTime }) => {
         const total = duration > 0 ? duration : player.duration;
         if (!isScrubbing) {
-            progress.value = total > 0 ? Math.min(1, Math.max(0, nextTime / total)) : 0;
+            progress.set(total > 0 ? Math.min(1, Math.max(0, nextTime / total)) : 0);
         }
         if (duration <= 0 && player.duration > 0) {
             setDuration(player.duration);
@@ -290,9 +301,7 @@ export function useReelChrome({
     // ADOPTED one was configured by the feed row that built it, which leaves the
     // event off (no feed row draws a progress bar).
     useEffect(() => {
-        if (player.timeUpdateEventInterval !== REEL_TIME_UPDATE_INTERVAL_S) {
-            player.timeUpdateEventInterval = REEL_TIME_UPDATE_INTERVAL_S;
-        }
+        ensureReelTimeUpdates(player);
     }, [player]);
 
     // Single place that syncs the live player's mute with the store.
@@ -635,7 +644,7 @@ export function useReelChrome({
         const total = duration > 0 ? duration : player.duration;
         if (width <= 0 || total <= 0) return;
         const ratio = Math.min(1, Math.max(0, locationX / width));
-        progress.value = ratio;
+        progress.set(ratio);
         player.currentTime = ratio * total;
     }, [duration, player, progress]);
 
@@ -659,7 +668,7 @@ export function useReelChrome({
     }), [seekToLocationX]);
 
     const progressStyle = useAnimatedStyle(() => ({
-        width: `${progress.value * 100}%`,
+        width: `${progress.get() * 100}%`,
     }));
 
     const showPoster = !hasRendered;
