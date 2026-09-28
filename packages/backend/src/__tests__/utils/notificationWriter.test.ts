@@ -21,7 +21,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 const mocks = vi.hoisted(() => ({
   getRuntimeSocketServer: vi.fn(),
   formatPushForNotification: vi.fn(),
-  sendPushToUser: vi.fn(),
+  sendPushToTokens: vi.fn(),
   getUserById: vi.fn(),
 }));
 
@@ -31,8 +31,9 @@ vi.mock('../../runtime/socketServer', () => ({
 
 // Push delivery has its own suite; here it is only counted.
 vi.mock('../../utils/push', () => ({
+  loadPushTargets: vi.fn(async (ids: readonly string[]) => new Map(ids.map((id) => [id, ['token']]))),
   formatPushForNotification: mocks.formatPushForNotification,
-  sendPushToUser: mocks.sendPushToUser,
+  sendPushToTokens: mocks.sendPushToTokens,
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -41,8 +42,11 @@ vi.mock('../../utils/oxyHelpers', () => ({
 
 import { closePostgres, connectPostgres, type Database } from '../../db/postgres';
 import { notifications } from '../../db/schema/discovery';
-import { userSettings } from '../../db/schema/userProfile';
-import { createNotification, createWelcomeNotification } from '../../utils/notificationUtils';
+import {
+  createBatchNotifications,
+  createNotification,
+  createWelcomeNotification,
+} from '../../utils/notificationUtils';
 
 let db: Database;
 const createdRecipientIds: string[] = [];
@@ -78,7 +82,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.getRuntimeSocketServer.mockReturnValue(undefined);
   mocks.formatPushForNotification.mockResolvedValue({ title: 't', body: 'b', data: {} });
-  mocks.sendPushToUser.mockResolvedValue(undefined);
+  mocks.sendPushToTokens.mockResolvedValue(undefined);
   mocks.getUserById.mockResolvedValue({
     id: 'oxy-actor',
     username: 'actor',
@@ -89,7 +93,6 @@ beforeEach(() => {
 afterEach(async () => {
   if (createdRecipientIds.length > 0) {
     await db.delete(notifications).where(inArray(notifications.recipientId, createdRecipientIds));
-    await db.delete(userSettings).where(inArray(userSettings.oxyUserId, createdRecipientIds));
     createdRecipientIds.length = 0;
   }
 });
@@ -158,7 +161,7 @@ describe('createNotification idempotency', () => {
     expect(emitted).toHaveLength(1);
     expect(emitted[0].room).toBe(`user:${recipient}`);
     expect(emitted[0].event).toBe('notification');
-    expect(mocks.sendPushToUser).toHaveBeenCalledTimes(1);
+    expect(mocks.sendPushToTokens).toHaveBeenCalledTimes(1);
   });
 
   it('treats a DIFFERENT type on the same entity as a different notification', async () => {
@@ -208,7 +211,7 @@ describe('createNotification refusals', () => {
     });
 
     expect(await rowsFor(recipient)).toEqual([]);
-    expect(mocks.sendPushToUser).not.toHaveBeenCalled();
+    expect(mocks.sendPushToTokens).not.toHaveBeenCalled();
   });
 
   it('swallows a persistence failure by default and rethrows when asked to', async () => {
@@ -324,50 +327,63 @@ describe('the dedupe constraint itself', () => {
 });
 
 /**
- * Settings → Notifications. The toggles were stored and shown with no server code
- * reading them, so every switch was a no-op. They govern the PUSH: the row (the
- * inbox) and the socket event stay, so turning a type off silences the phone
- * without the inbox losing anything.
+ * A fan-out is one write and one lookup of its actor, not one of each per
+ * recipient. A post to 200 subscribers used to cost 200 INSERTs, 400 Oxy lookups
+ * of the SAME author (socket payload and push body each asked), and two SELECTs
+ * per recipient for settings and devices.
  */
-describe('createNotification honours the recipient\'s push preferences', () => {
-  function reply(recipient: string) {
-    return {
+describe('createBatchNotifications', () => {
+  function batch(recipients: string[], entityId = `post-${randomUUID()}`) {
+    return recipients.map((recipient) => ({
       recipientId: recipient,
       actorId: 'oxy-actor',
-      type: 'reply' as const,
-      entityId: `reply-${randomUUID()}`,
-      entityType: 'reply' as const,
-    };
+      type: 'post' as const,
+      entityId,
+      entityType: 'post' as const,
+    }));
   }
 
-  it('pushes when the recipient has no settings row (the defaults are all on)', async () => {
-    const recipient = recipientId();
-    await createNotification(reply(recipient));
-    expect(mocks.sendPushToUser).toHaveBeenCalledTimes(1);
+  it('writes every row and looks the shared actor up ONCE', async () => {
+    const emitted = captureEmits();
+    const recipients = Array.from({ length: 25 }, () => recipientId());
+
+    await createBatchNotifications(batch(recipients));
+
+    for (const recipient of recipients) expect(await rowsFor(recipient)).toHaveLength(1);
+    expect(mocks.getUserById).toHaveBeenCalledTimes(1);
+    expect(emitted).toHaveLength(recipients.length);
+    expect(mocks.sendPushToTokens).toHaveBeenCalledTimes(recipients.length);
   });
 
-  it('keeps the row but sends no push for a type the recipient turned off', async () => {
-    const recipient = recipientId();
-    await db.insert(userSettings).values({ oxyUserId: recipient, notifyReplies: false });
+  it('delivers only the NEW rows of a batch that repeats some', async () => {
+    const entityId = `post-${randomUUID()}`;
+    const already = recipientId();
+    const fresh = recipientId();
+    await createBatchNotifications(batch([already], entityId));
+    vi.clearAllMocks();
+    mocks.formatPushForNotification.mockResolvedValue({ title: 't', body: 'b', data: {} });
+    const emitted = captureEmits();
 
-    await createNotification(reply(recipient));
+    await createBatchNotifications(batch([already, fresh], entityId));
+
+    expect(await rowsFor(already)).toHaveLength(1);
+    expect(await rowsFor(fresh)).toHaveLength(1);
+    expect(emitted.map((e) => e.room)).toEqual([`user:${fresh}`]);
+    expect(mocks.sendPushToTokens).toHaveBeenCalledTimes(1);
+  });
+
+  it('never notifies the actor, and writes a duplicated recipient once', async () => {
+    const recipient = recipientId();
+    const rows = [
+      ...batch([recipient, recipient]),
+      { ...batch(['oxy-actor'])[0] },
+    ];
+    // Same entity for the duplicate pair.
+    rows[1].entityId = rows[0].entityId;
+
+    await createBatchNotifications(rows);
 
     expect(await rowsFor(recipient)).toHaveLength(1);
-    expect(mocks.sendPushToUser).not.toHaveBeenCalled();
-
-    // Only that type: a like still pushes.
-    await createNotification({ ...reply(recipient), type: 'like', entityType: 'post' });
-    expect(mocks.sendPushToUser).toHaveBeenCalledTimes(1);
-  });
-
-  it('sends no push of any type when push is off', async () => {
-    const recipient = recipientId();
-    await db.insert(userSettings).values({ oxyUserId: recipient, notifyPushEnabled: false });
-
-    await createNotification(reply(recipient));
-    await createNotification({ ...reply(recipient), type: 'poke', entityType: 'profile' });
-
-    expect(await rowsFor(recipient)).toHaveLength(2);
-    expect(mocks.sendPushToUser).not.toHaveBeenCalled();
+    expect(await rowsFor('oxy-actor')).toHaveLength(0);
   });
 });

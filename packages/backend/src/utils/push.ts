@@ -6,9 +6,11 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { normalizeInlineText } from '@oxy.so/core';
 import { getFirebaseConfig } from '../config';
 import { getDb } from '../db/postgres';
-import { pushTokens } from '../db/schema/discovery';
+import { pushTokens, type NOTIFICATION_TYPES } from '../db/schema/discovery';
+import { userSettings } from '../db/schema/userProfile';
 import { resolveVariant } from '../services/postVariants';
 import { loadPostRecord } from '../db/posts/postRepository';
+import type { PostRecord } from '../db/posts/postRecord';
 import { getServiceOxyClient } from './oxyHelpers';
 import { logger } from './logger';
 
@@ -62,22 +64,21 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
-export async function sendPushToUser(userId: string, payload: PushPayload) {
+/** True when FCM is configured and initialized — nothing below does any work otherwise. */
+export function isPushAvailable(): boolean {
   initFirebase();
-  if (!firebaseInitialized) return;
-  try {
-    // Served by `push_tokens_user_enabled_idx`, the partial index on enabled
-    // rows. The `type` filter stays in memory exactly as before: a device is
-    // one row, so the set is tiny and no index would earn its keep.
-    const tokens = await getDb()
-      .select({ token: pushTokens.token, type: pushTokens.type })
-      .from(pushTokens)
-      .where(and(eq(pushTokens.userId, userId), eq(pushTokens.enabled, true)));
-    if (!tokens.length) return;
-    const fcmTokens = tokens.filter(t => t.type === 'fcm').map(t => t.token);
-    if (!fcmTokens.length) return;
+  return firebaseInitialized;
+}
 
-    const tokenChunks = chunk(fcmTokens, 500); // FCM limit per multicast
+/**
+ * Send one payload to a set of FCM tokens, disabling the ones FCM rejects as
+ * dead. The caller has already chosen the tokens — see {@link loadPushTargets}
+ * for a notification and {@link sendPushToUser} for an unconditional push.
+ */
+export async function sendPushToTokens(fcmTokens: readonly string[], payload: PushPayload) {
+  if (!fcmTokens.length || !isPushAvailable()) return;
+  try {
+    const tokenChunks = chunk([...fcmTokens], 500); // FCM limit per multicast
     const toDisable: string[] = [];
     for (const tkChunk of tokenChunks) {
       const message: MulticastMessage = {
@@ -127,6 +128,99 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
 }
 
 /**
+ * Push to every enabled FCM device of one user, regardless of their notification
+ * settings — the `/push-test` route, where the user asked for exactly this push.
+ * A notification goes through {@link loadPushTargets} instead.
+ */
+export async function sendPushToUser(userId: string, payload: PushPayload) {
+  if (!isPushAvailable()) return;
+  try {
+    // Served by `push_tokens_user_enabled_idx`, the partial index on enabled
+    // rows. The `type` filter stays in memory exactly as before: a device is
+    // one row, so the set is tiny and no index would earn its keep.
+    const tokens = await getDb()
+      .select({ token: pushTokens.token, type: pushTokens.type })
+      .from(pushTokens)
+      .where(and(eq(pushTokens.userId, userId), eq(pushTokens.enabled, true)));
+    await sendPushToTokens(
+      tokens.filter((t) => t.type === 'fcm').map((t) => t.token),
+      payload,
+    );
+  } catch (e) {
+    logger.error('[Push] Failed to send push:', e);
+  }
+}
+
+type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+
+/**
+ * The Settings → Notifications toggle that governs each type's PUSH. A type
+ * absent here (poke, post, welcome, collab_*) has no toggle of its own and
+ * answers only to the master `notifyPushEnabled` switch.
+ */
+const PUSH_PREFERENCE_COLUMN = {
+  like: userSettings.notifyLikes,
+  reply: userSettings.notifyReplies,
+  boost: userSettings.notifyBoosts,
+  mention: userSettings.notifyMentions,
+  quote: userSettings.notifyQuotes,
+  follow: userSettings.notifyFollows,
+} as const satisfies Partial<Record<NotificationType, unknown>>;
+
+/**
+ * For every recipient a push of `type` may go to: their enabled FCM tokens.
+ * Recipients with no device, or whose settings turned this push off, are absent.
+ *
+ * ONE query for the whole fan-out: the devices and the settings row are read
+ * together (a LEFT JOIN, so a user with no settings row gets the schema defaults
+ * — every toggle on), rather than a settings SELECT and a token SELECT per
+ * recipient. Devices are read FIRST by construction: most recipients have none
+ * registered, and they cost nothing further — no settings read, no payload.
+ *
+ * The toggles govern the push only; the notification row and the socket event
+ * are written regardless, so turning "Replies" off silences the phone without
+ * the inbox losing anything.
+ */
+export async function loadPushTargets(
+  userIds: readonly string[],
+  type: NotificationType,
+): Promise<Map<string, string[]>> {
+  const targets = new Map<string, string[]>();
+  if (userIds.length === 0 || !isPushAvailable()) return targets;
+
+  const typeColumn = type in PUSH_PREFERENCE_COLUMN
+    ? PUSH_PREFERENCE_COLUMN[type as keyof typeof PUSH_PREFERENCE_COLUMN]
+    : null;
+  const rows = await getDb()
+    .select({
+      userId: pushTokens.userId,
+      token: pushTokens.token,
+      type: pushTokens.type,
+      pushEnabled: userSettings.notifyPushEnabled,
+      ...(typeColumn ? { typeEnabled: typeColumn } : {}),
+    })
+    .from(pushTokens)
+    .leftJoin(userSettings, eq(userSettings.oxyUserId, pushTokens.userId))
+    .where(and(inArray(pushTokens.userId, [...new Set(userIds)]), eq(pushTokens.enabled, true)));
+
+  for (const row of rows as Array<{
+    userId: string;
+    token: string;
+    type: string;
+    pushEnabled: boolean | null;
+    typeEnabled?: boolean | null;
+  }>) {
+    if (row.type !== 'fcm') continue;
+    // `null` is "no settings row": the schema default, which is on.
+    if (row.pushEnabled === false || row.typeEnabled === false) continue;
+    const tokens = targets.get(row.userId);
+    if (tokens) tokens.push(row.token);
+    else targets.set(row.userId, [row.token]);
+  }
+  return targets;
+}
+
+/**
  * The notification fields a push body is built from.
  *
  * Structural rather than `typeof notifications.$inferSelect`: this is the whole
@@ -143,13 +237,31 @@ export interface PushNotificationSource {
   actorId: string;
 }
 
-export async function formatPushForNotification(n: PushNotificationSource) {
+/**
+ * What {@link formatPushForNotification} reads besides the row. A fan-out passes
+ * memoized lookups so the actor and the post are resolved ONCE for every
+ * recipient — the actor of a 200-subscriber post is the same person 200 times.
+ */
+export interface PushLookups {
+  actor(actorId: string): Promise<{ name?: { displayName?: string | null } | null } | null>;
+  post(postId: string): Promise<PostRecord | null>;
+}
+
+const directPushLookups: PushLookups = {
+  actor: (actorId) => getServiceOxyClient().users.get(actorId),
+  post: (postId) => loadPostRecord(postId),
+};
+
+export async function formatPushForNotification(
+  n: PushNotificationSource,
+  lookups: PushLookups = directPushLookups,
+) {
   // Best-effort: hydrate actor for title/body
   let actorName = 'Someone';
   try {
     if (n.actorId && n.actorId !== 'system') {
-      const actor = await getServiceOxyClient().users.get(n.actorId);
-      actorName = actor?.name.displayName ?? actorName;
+      const actor = await lookups.actor(n.actorId);
+      actorName = actor?.name?.displayName ?? actorName;
     } else if (n.actorId === 'system') {
       actorName = 'System';
     }
@@ -174,7 +286,7 @@ export async function formatPushForNotification(n: PushNotificationSource) {
   // logged at debug. A push with a generic body is better than no push.
   try {
     if (n.type === 'post' && n.entityType === 'post' && n.entityId) {
-      const post = await loadPostRecord(String(n.entityId));
+      const post = await lookups.post(String(n.entityId));
       if (post) {
         // The primary rendition — a push has no viewer language context.
         const text: string = resolveVariant(post.content).text;

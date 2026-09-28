@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import {
   isMentionBroadcast,
   MAX_MENTION_NOTIFICATIONS_PER_POST,
@@ -9,10 +9,15 @@ import {
   type NOTIFICATION_ENTITY_TYPES,
   type NOTIFICATION_TYPES,
 } from '../db/schema/discovery';
-import { userSettings } from '../db/schema/userProfile';
 import { getServiceOxyClient } from './oxyHelpers';
 import { getRuntimeSocketServer } from '../runtime/socketServer';
-import { formatPushForNotification, sendPushToUser } from './push';
+import {
+  formatPushForNotification,
+  loadPushTargets,
+  sendPushToTokens,
+  type PushLookups,
+} from './push';
+import { loadPostRecord } from '../db/posts/postRepository';
 import { logger } from './logger';
 import type { PostAuthorshipEntry } from '@mention/shared-types';
 import { getNotificationRecipients, normalizeAuthorship } from './postAuthorship';
@@ -34,9 +39,6 @@ import { mapWithConcurrency } from './concurrency';
  */
 const NOTIFICATION_FANOUT_CONCURRENCY = 8;
 
-/** Mentions are capped at eight recipients, so this bound is the cap, not a throttle. */
-const MENTION_NOTIFICATION_CONCURRENCY = NOTIFICATION_FANOUT_CONCURRENCY;
-
 export interface CreateNotificationData {
   recipientId: string;
   actorId: string;
@@ -45,59 +47,6 @@ export interface CreateNotificationData {
   entityId: string;
   entityType: (typeof NOTIFICATION_ENTITY_TYPES)[number];
 }
-
-type NotificationType = CreateNotificationData['type'];
-
-const PUSH_PREFERENCE_COLUMNS = {
-  notifyPushEnabled: userSettings.notifyPushEnabled,
-  notifyLikes: userSettings.notifyLikes,
-  notifyReplies: userSettings.notifyReplies,
-  notifyBoosts: userSettings.notifyBoosts,
-  notifyMentions: userSettings.notifyMentions,
-  notifyQuotes: userSettings.notifyQuotes,
-  notifyFollows: userSettings.notifyFollows,
-} as const;
-
-/**
- * The Settings → Notifications toggle that governs each type's PUSH. A type
- * absent here (poke, post, welcome, collab_*) has no toggle of its own and
- * answers only to the master `notifyPushEnabled` switch.
- */
-const PUSH_PREFERENCE_COLUMN: Partial<Record<NotificationType, keyof typeof PUSH_PREFERENCE_COLUMNS>> = {
-  like: 'notifyLikes',
-  reply: 'notifyReplies',
-  boost: 'notifyBoosts',
-  mention: 'notifyMentions',
-  quote: 'notifyQuotes',
-  follow: 'notifyFollows',
-};
-
-/**
- * Whether the recipient's settings allow a PUSH for this notification type.
- *
- * The toggles govern the push only: the row and the socket event are written
- * regardless, so turning "Replies" off silences the phone without making the
- * inbox lose anything. They were stored and shown for a long time without any
- * server code reading them — every switch was a no-op.
- *
- * A recipient with no settings row gets the schema defaults, all of which are
- * `true`. A lean select of the seven columns, not `loadUserSettings`, which also
- * reads the label actions.
- */
-export const shouldPushNotification = async (
-  recipientId: string,
-  type: NotificationType,
-): Promise<boolean> => {
-  const [row] = await getDb()
-    .select(PUSH_PREFERENCE_COLUMNS)
-    .from(userSettings)
-    .where(eq(userSettings.oxyUserId, recipientId))
-    .limit(1);
-  if (!row) return true;
-  if (!row.notifyPushEnabled) return false;
-  const column = PUSH_PREFERENCE_COLUMN[type];
-  return column ? row[column] : true;
-};
 
 /**
  * A notification row exactly as it goes on the wire — the response DTO, the
@@ -170,91 +119,204 @@ export const createNotification = async (
   emitEvent: boolean = true,
   throwOnPersistenceError: boolean = false,
 ): Promise<void> => {
+  await writeNotifications([data], { emitEvent, throwOnPersistenceError });
+};
+
+/** Rows per INSERT. Far under Postgres's 65 535 bind-parameter ceiling at 5 per row. */
+const NOTIFICATION_INSERT_CHUNK = 500;
+
+const NOTIFICATION_CONFLICT_TARGET = [
+  notifications.recipientId,
+  notifications.actorId,
+  notifications.type,
+  notifications.entityId,
+];
+
+function dedupKey(n: Pick<CreateNotificationData, 'recipientId' | 'actorId' | 'type' | 'entityId'>): string {
+  return `${n.recipientId}\u0000${n.actorId}\u0000${n.type}\u0000${n.entityId}`;
+}
+
+/**
+ * Write a fan-out's notifications and deliver the NEW ones — the one path every
+ * writer in this module goes through.
+ *
+ * One multi-row `INSERT … ON CONFLICT DO NOTHING RETURNING` per chunk, rather
+ * than a statement per recipient: `RETURNING` names exactly the rows that were
+ * inserted, which is the "was this new?" answer the single-row writer read off
+ * an empty result, for every recipient at once. The repeats — rows the unique
+ * index already held — get their `createdAt` refreshed in one UPDATE per
+ * (actor, type, entity), which in a fan-out is almost always a single statement.
+ *
+ * A chunk is written or refused as a whole. The one-recipient-at-a-time version
+ * isolated each recipient's INSERT, but the failures that isolation guarded
+ * against — a CHECK violation, a lost connection — are properties of the
+ * statement, not of one recipient, so they would have failed every row alike.
+ */
+async function writeNotifications(
+  items: readonly CreateNotificationData[],
+  { emitEvent = true, throwOnPersistenceError = false }: {
+    emitEvent?: boolean;
+    throwOnPersistenceError?: boolean;
+  } = {},
+): Promise<void> {
+  // Never notify yourself; and one row per dedup key, since the same key twice
+  // in one INSERT would only ever insert once anyway.
+  const unique = new Map<string, CreateNotificationData>();
+  for (const item of items) {
+    if (item.actorId === item.recipientId) continue;
+    const key = dedupKey(item);
+    if (!unique.has(key)) unique.set(key, item);
+  }
+  if (unique.size === 0) return;
+
+  const inserted: (typeof notifications.$inferSelect)[] = [];
   try {
-    // Don't create notification if actor and recipient are the same
-    if (data.actorId === data.recipientId) {
-      return;
-    }
-
     const db = getDb();
-    const [notification] = await db
-      .insert(notifications)
-      .values({
-        recipientId: data.recipientId,
-        actorId: data.actorId,
-        type: data.type,
-        entityId: data.entityId,
-        entityType: data.entityType,
-      })
-      .onConflictDoNothing({
-        target: [
-          notifications.recipientId,
-          notifications.actorId,
-          notifications.type,
-          notifications.entityId,
-        ],
-      })
-      .returning();
+    const all = [...unique.values()];
+    for (let i = 0; i < all.length; i += NOTIFICATION_INSERT_CHUNK) {
+      const chunk = all.slice(i, i + NOTIFICATION_INSERT_CHUNK);
+      const rows = await db
+        .insert(notifications)
+        .values(chunk.map(({ recipientId, actorId, type, entityId, entityType }) => (
+          { recipientId, actorId, type, entityId, entityType }
+        )))
+        .onConflictDoNothing({ target: NOTIFICATION_CONFLICT_TARGET })
+        .returning();
+      inserted.push(...rows);
 
-    if (!notification) {
-      // Already notified: refresh the timestamp so the existing row floats back
-      // to the top of the recipient's list, exactly as before. `updated_at` moves
-      // with it via the column's own `$onUpdate`, matching Mongoose's timestamps.
-      await db
-        .update(notifications)
-        .set({ createdAt: new Date() })
-        .where(
-          and(
-            eq(notifications.recipientId, data.recipientId),
-            eq(notifications.actorId, data.actorId),
-            eq(notifications.type, data.type),
-            eq(notifications.entityId, data.entityId),
-          ),
-        );
-      return;
+      const insertedKeys = new Set(rows.map(dedupKey));
+      await refreshRepeatedNotifications(chunk.filter((n) => !insertedKeys.has(dedupKey(n))));
     }
-
-  // Emit real-time notification if requested with actor profile data
-    const io = emitEvent ? getRuntimeSocketServer() : undefined;
-    if (io) {
-      let actor: NotificationActorProfile | null = null;
-      try {
-        if (data.actorId && data.actorId !== 'system') {
-          const oxyActor = await getServiceOxyClient().users.get(data.actorId);
-          actor = oxyActor;
-        } else if (data.actorId === 'system') {
-          actor = { id: 'system', username: 'system', displayName: 'System' };
-        }
-      } catch (e) {
-        // ignore actor resolution failures
-      }
-      const payload = {
-        ...serializeNotification(notification),
-        actorId_populated: toPopulatedActor(actor, data.actorId),
-      };
-      const notificationsNamespace = io.of('/notifications');
-      notificationsNamespace.to(`user:${data.recipientId}`).emit('notification', payload);
-    }
-
-    // Fire push notification (best-effort, non-blocking), unless the
-    // recipient's settings turned push off for this type.
-    try {
-      if (await shouldPushNotification(data.recipientId, data.type)) {
-        const push = await formatPushForNotification(notification);
-        await sendPushToUser(data.recipientId, push);
-      }
-    } catch (e) {
-      // ignore push failures
-    }
-
-    logger.debug('[Notifications] notification created', {
-      type: data.type,
-    });
   } catch (error) {
     logger.error('[Notifications] Error creating notification:', error);
     if (throwOnPersistenceError) throw error;
+    return;
   }
-};
+
+  await deliverNotifications(inserted, emitEvent);
+}
+
+/**
+ * Already notified: refresh the timestamp so the existing row floats back to the
+ * top of the recipient's list, exactly as before. `updated_at` moves with it via
+ * the column's own `$onUpdate`, matching Mongoose's timestamps. A repeat is not
+ * news, so it is neither emitted nor pushed.
+ */
+async function refreshRepeatedNotifications(repeats: readonly CreateNotificationData[]): Promise<void> {
+  if (repeats.length === 0) return;
+  const groups = new Map<string, { sample: CreateNotificationData; recipients: string[] }>();
+  for (const n of repeats) {
+    const key = dedupKey({ ...n, recipientId: '' });
+    const group = groups.get(key);
+    if (group) group.recipients.push(n.recipientId);
+    else groups.set(key, { sample: n, recipients: [n.recipientId] });
+  }
+  const db = getDb();
+  for (const { sample, recipients } of groups.values()) {
+    await db
+      .update(notifications)
+      .set({ createdAt: new Date() })
+      .where(
+        and(
+          inArray(notifications.recipientId, recipients),
+          eq(notifications.actorId, sample.actorId),
+          eq(notifications.type, sample.type),
+          eq(notifications.entityId, sample.entityId),
+        ),
+      );
+  }
+}
+
+const SYSTEM_ACTOR: NotificationActorProfile = { id: 'system', username: 'system', displayName: 'System' };
+
+/**
+ * The actor and post lookups for ONE fan-out, memoized. Every notification of a
+ * fan-out is about the same actor (and usually the same post), and the socket
+ * payload and the push body both need the actor: without the memo, a post to 200
+ * subscribers asked Oxy for its author 400 times. A failure resolves to `null`
+ * — both consumers already degrade to a neutral name.
+ */
+function createDeliveryLookups(): PushLookups & {
+  actor(actorId: string): Promise<NotificationActorProfile | null>;
+} {
+  const actors = new Map<string, Promise<NotificationActorProfile | null>>();
+  const posts = new Map<string, ReturnType<PushLookups['post']>>();
+  return {
+    actor(actorId) {
+      if (actorId === 'system') return Promise.resolve(SYSTEM_ACTOR);
+      let pending = actors.get(actorId);
+      if (!pending) {
+        pending = getServiceOxyClient()
+          .users.get(actorId)
+          .then((user): NotificationActorProfile | null => user ?? null)
+          .catch(() => null);
+        actors.set(actorId, pending);
+      }
+      return pending;
+    },
+    post(postId) {
+      let pending = posts.get(postId);
+      if (!pending) {
+        pending = loadPostRecord(postId).catch(() => null);
+        posts.set(postId, pending);
+      }
+      return pending;
+    },
+  };
+}
+
+/**
+ * Emit and push the notifications that were just INSERTED (never the repeats).
+ *
+ * The push targets are read in one query per notification type for the whole
+ * fan-out (`loadPushTargets`: devices and settings together), so a recipient with
+ * no device — most of them — costs nothing past that query. Best-effort
+ * throughout: a failure here never undoes or fails the write.
+ */
+async function deliverNotifications(
+  rows: readonly (typeof notifications.$inferSelect)[],
+  emitEvent: boolean,
+): Promise<void> {
+  if (rows.length === 0) return;
+  const lookups = createDeliveryLookups();
+
+  const io = emitEvent ? getRuntimeSocketServer() : undefined;
+  if (io) {
+    const notificationsNamespace = io.of('/notifications');
+    await Promise.all(rows.map(async (row) => {
+      const actor = row.actorId ? await lookups.actor(row.actorId) : null;
+      notificationsNamespace.to(`user:${row.recipientId}`).emit('notification', {
+        ...serializeNotification(row),
+        actorId_populated: toPopulatedActor(actor, row.actorId),
+      });
+    }));
+  }
+
+  try {
+    const byType = new Map<(typeof rows)[number]['type'], (typeof rows)[number][]>();
+    for (const row of rows) {
+      const group = byType.get(row.type);
+      if (group) group.push(row);
+      else byType.set(row.type, [row]);
+    }
+    for (const [type, group] of byType) {
+      const targets = await loadPushTargets(group.map((row) => row.recipientId), type);
+      if (targets.size === 0) continue;
+      await mapWithConcurrency(
+        group.filter((row) => targets.has(row.recipientId)),
+        NOTIFICATION_FANOUT_CONCURRENCY,
+        async (row) => {
+          const push = await formatPushForNotification(row, lookups);
+          await sendPushToTokens(targets.get(row.recipientId) ?? [], push);
+        },
+      );
+    }
+  } catch (error) {
+    logger.debug('[Notifications] push delivery failed', { error });
+  }
+
+  logger.debug('[Notifications] notifications created', { count: rows.length });
+}
 
 /**
  * Creates notifications for mentions in content
@@ -298,37 +360,16 @@ export const createMentionNotifications = async (
       return;
     }
 
-    // One notification per mentioned user, OVERLAPPED rather than serial.
-    //
-    // This ran as a `for` loop with an `await` inside, so a post mentioning the
-    // maximum eight people paid eight sequential round trips — each one an
-    // INSERT plus, inside `createNotification`, an Oxy lookup and a push — while
-    // `POST /posts` held the request open waiting for all of them. They are
-    // independent by construction: distinct recipients, no shared state, and each
-    // one's failure is already swallowed per item.
-    //
-    // Bounded rather than a bare `Promise.all`: the cap is eight today, but the
-    // bound is what makes this safe to read at the next cap, and `Promise.all`
-    // would also abandon the remaining items on the first rejection — which the
-    // per-item `catch` this replaces did not do.
-    const recipients = uniqueUserIds.filter((recipientId) => recipientId !== actorId);
-    const settled = await mapWithConcurrency(
-      recipients,
-      MENTION_NOTIFICATION_CONCURRENCY,
-      (recipientId) =>
-        createNotification({
-          recipientId,
-          actorId,
-          type: 'mention',
-          entityId: postId,
-          entityType,
-        }, emitEvent),
+    await writeNotifications(
+      uniqueUserIds.map((recipientId) => ({
+        recipientId,
+        actorId,
+        type: 'mention' as const,
+        entityId: postId,
+        entityType,
+      })),
+      { emitEvent },
     );
-    for (const result of settled) {
-      if (result.status === 'rejected') {
-        logger.error('[Notifications] failed to create mention notification', result.reason);
-      }
-    }
   } catch (error) {
     logger.error('[Notifications] Error creating mention notifications:', error);
   }
@@ -355,44 +396,22 @@ export const createWelcomeNotification = async (
 };
 
 /**
- * Create notifications for many recipients, at bounded concurrency.
+ * Create notifications for many recipients — `PostCreationService`'s subscriber
+ * fan-out is the big caller, and it selects every `post_subscriptions` row for
+ * the author with no LIMIT, so a popular author's post arrives here with as many
+ * entries as they have subscribers.
  *
- * "Batch" names the CALLER's intent, not the storage: there is no multi-row
- * insert here, and each recipient still costs an INSERT, an Oxy actor lookup and
- * a push. That is worth stating because the name reads like one round trip and
- * the biggest caller is not small — `PostCreationService`'s subscriber fan-out
- * selects every row of `post_subscriptions` for the author with no LIMIT, so a
- * popular author's post arrives here with as many entries as they have
- * subscribers.
- *
- * It used to be a bare `Promise.all` over that list, which had two faults on the
- * `POST /posts` request path: every write went in flight at once, so one popular
- * post could saturate a 20-connection pool and Oxy's per-IP limit together; and
- * `Promise.all` rejects on the FIRST failure, so a single bad recipient
- * abandoned the rest and the surrounding `catch` logged one error for an unknown
- * number of undelivered notifications.
- *
- * `mapWithConcurrency` fixes both: the pool is bounded, and every recipient is
- * attempted regardless of its neighbours, with failures reported per item.
+ * It costs a multi-row INSERT per 500 recipients, one Oxy lookup for the actor,
+ * one push-target query, and an FCM send per recipient that has a device — see
+ * {@link writeNotifications}. It once cost an INSERT, an Oxy lookup (twice, for
+ * the socket and the push) and two SELECTs per recipient.
  */
 export const createBatchNotifications = async (
   notifications: CreateNotificationData[],
   emitEvent: boolean = true
 ): Promise<void> => {
   try {
-    const settled = await mapWithConcurrency(
-      notifications,
-      NOTIFICATION_FANOUT_CONCURRENCY,
-      (notification) => createNotification(notification, emitEvent),
-    );
-    const failed = settled.filter((result) => result.status === 'rejected');
-    if (failed.length > 0) {
-      logger.error('[Notifications] batch notification writes failed', {
-        failed: failed.length,
-        total: notifications.length,
-        reason: (failed[0] as PromiseRejectedResult).reason,
-      });
-    }
+    await writeNotifications(notifications, { emitEvent });
   } catch (error) {
     logger.error('[Notifications] Error creating batch notifications:', error);
   }
@@ -404,11 +423,7 @@ export const createPostAuthorNotifications = async (
   data: Omit<CreateNotificationData, 'recipientId'>,
 ): Promise<void> => {
   const recipients = getNotificationRecipients(normalizeAuthorship(authorship));
-  await Promise.allSettled(
-    recipients
-      .filter((recipientId) => recipientId !== data.actorId)
-      .map((recipientId) => createNotification({ ...data, recipientId })),
-  );
+  await writeNotifications(recipients.map((recipientId) => ({ ...data, recipientId })));
 };
 
 /** Durable-worker variant: persistence failures reject for outbox retry. */
@@ -417,14 +432,8 @@ export const createPostAuthorNotificationsStrict = async (
   data: Omit<CreateNotificationData, 'recipientId'>,
 ): Promise<void> => {
   const recipients = getNotificationRecipients(normalizeAuthorship(authorship));
-  await Promise.all(
-    recipients
-      .filter((recipientId) => recipientId !== data.actorId)
-      .map((recipientId) =>
-        createNotification(
-          { ...data, recipientId },
-          true,
-          true,
-        )),
+  await writeNotifications(
+    recipients.map((recipientId) => ({ ...data, recipientId })),
+    { throwOnPersistenceError: true },
   );
 };
