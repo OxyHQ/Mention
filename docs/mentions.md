@@ -23,8 +23,8 @@ For example, selecting `@alice` can produce:
 ```
 
 The placeholder is an internal stable reference. A bare `@alice` typed without
-selecting a result is ordinary text: it does not populate `Post.mentions` and is
-not treated as a canonical mention.
+selecting a result becomes one only when the composer resolves it to exactly one
+account (see below); otherwise it is ordinary text in the composer.
 
 ## Composer and picker
 
@@ -38,8 +38,9 @@ When the cursor is inside an `@` token without a space or newline, it opens
 `MentionPicker`.
 
 `packages/frontend/components/MentionPicker.tsx` waits 300 ms after at least one
-query character, then calls Oxy `searchProfiles` with a limit of ten. Selecting
-a valid profile records:
+query character, then searches Oxy profiles with a limit of ten through the
+composer session's search cache (`utils/mentionSearch.ts`, provided by
+`context/MentionSearchContext.tsx`). Selecting a valid profile records:
 
 ```ts
 {
@@ -50,7 +51,20 @@ a valid profile records:
 ```
 
 and replaces the active token with `[mention:<userId>]` in parent state.
-Compose, thread items, and content variants use this component. Shared helpers
+Compose, thread items, and content variants use this component.
+
+A handle typed by hand is treated as picked once it is finished — a space,
+newline or punctuation follows it — when the session's search results name
+exactly one account with that username (case-insensitive). The answer comes
+from the cache the picker filled; only a handle nothing has searched for yet
+costs one request, deduplicated across every input in the session. No exact
+match, or two different accounts with it, leaves the text alone. Only the shared
+scanner's `bareHandle` spans are considered, so a handle inside a URL or an
+email is untouched and a federated `@a@b.tld` is left for the server. On submit,
+`ComposeScreen` resolves any handle still typed (usually the last word) from the
+cache alone, without a request.
+
+Shared helpers
 in `@mention/shared-types/mentions` and
 `packages/frontend/utils/mentions.ts` preserve body order, deduplicate IDs and
 intersect metadata with placeholders that are still present. A placeholder

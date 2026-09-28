@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 41.87,
-      "covered": 11238,
-      "total": 26836
+      "pct": 42.26,
+      "covered": 11392,
+      "total": 26956
     },
     "branches": {
-      "pct": 36.37,
-      "covered": 7027,
-      "total": 19316
+      "pct": 36.71,
+      "covered": 7119,
+      "total": 19388
     },
     "functions": {
-      "pct": 37.14,
-      "covered": 2545,
-      "total": 6852
+      "pct": 37.46,
+      "covered": 2576,
+      "total": 6876
     },
     "lines": {
-      "pct": 42.63,
-      "covered": 10230,
-      "total": 23997
+      "pct": 43,
+      "covered": 10362,
+      "total": 24096
     }
   },
   "pins": {
@@ -216,10 +216,10 @@
       "lines": 88
     },
     "hooks/useCachedUser.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 50,
+      "branches": 16,
+      "functions": 50,
+      "lines": 50
     },
     "hooks/useCommunityNotes.ts": {
       "statements": 100,
@@ -1510,6 +1510,12 @@
       "branches": 52,
       "functions": 50,
       "lines": 58
+    },
+    "utils/mentionSearch.ts": {
+      "statements": 100,
+      "branches": 98,
+      "functions": 100,
+      "lines": 100
     },
     "utils/mentions.ts": {
       "statements": 92,

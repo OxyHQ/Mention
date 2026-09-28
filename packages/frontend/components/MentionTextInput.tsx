@@ -21,6 +21,9 @@ import {
     type MentionData,
     type MentionTextValue,
 } from "@/utils/mentions";
+import { resolveTypedMentions } from "@/utils/mentionSearch";
+import { useMentionSearchCache } from "@/context/MentionSearchContext";
+import { logger } from "@oxy.so/core/logger";
 
 export interface MentionTextInputHandle {
     /** Insert text at the current cursor position */
@@ -57,6 +60,48 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
     const [cursorPosition, setCursorPosition] = useState(0);
     const textInputRef = useRef<TextInput>(null);
     const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
+    const searchCache = useMentionSearchCache();
+
+    // A lookup for a completed handle resolves after the author has kept
+    // typing, so it applies to the value as it is THEN, not as it was.
+    const latestRef = useRef({ value, mentions, onValueChange });
+    useEffect(() => {
+        latestRef.current = { value, mentions, onValueChange };
+    }, [value, mentions, onValueChange]);
+    const mountedRef = useRef(true);
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
+
+    // A typed `@handle` the author has finished (a space, newline or
+    // punctuation follows it) becomes a mention exactly as if it had been
+    // picked, when the picker's search names that account and no other. The
+    // answer comes from the session's search cache; only a handle nothing has
+    // searched for yet costs one request, shared by every input in the session.
+    const resolveCompletedHandles = useCallback((candidate: MentionTextValue): MentionTextValue => {
+        const { value: resolved, pending } = resolveTypedMentions(
+            candidate,
+            searchCache.findUser,
+            { completedOnly: true },
+        );
+        for (const handle of pending) {
+            searchCache.search(handle).then(() => {
+                if (!mountedRef.current) return;
+                const latest = latestRef.current;
+                const current = { text: latest.value, mentions: [...latest.mentions] };
+                const next = resolveTypedMentions(current, searchCache.findUser, {
+                    completedOnly: true,
+                }).value;
+                if (next !== current) latest.onValueChange(next);
+            }).catch((error) => {
+                logger.warn("Typed mention lookup failed", { handle, error });
+            });
+        }
+        return resolved;
+    }, [searchCache]);
 
     // Native: use onContentSizeChange to track height
     const handleContentSizeChange = useCallback(
@@ -95,7 +140,7 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
         // Text from input is in display format (@name)
         // We need to convert to storage format for the parent component
         const storageText = displayTextToStorageText(text, mentions);
-        onValueChange({ text: storageText, mentions: [...mentions] });
+        onValueChange(resolveCompletedHandles({ text: storageText, mentions: [...mentions] }));
 
         // Check if user is typing a mention
         const cursorPos = cursorPosition;
@@ -120,7 +165,7 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
             setShowMentionPicker(false);
             setMentionQuery("");
         }
-    }, [cursorPosition, mentions, onValueChange]);
+    }, [cursorPosition, mentions, onValueChange, resolveCompletedHandles]);
 
     // Handle selection change to track cursor position
     const handleSelectionChange = useCallback((event: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
@@ -246,6 +291,7 @@ const MentionTextInput = memo(forwardRef<MentionTextInputHandle, MentionTextInpu
                 <View style={styles.pickerContainer}>
                     <MentionPicker
                         query={mentionQuery}
+                        searchCache={searchCache}
                         onSelect={handleMentionSelect}
                         onClose={handleClosePicker}
                     />

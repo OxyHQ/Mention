@@ -126,7 +126,7 @@ export function storageTextToDisplayText(
 
 const HANDLE_CONTINUATION = /[\p{L}\p{N}_@]/u;
 
-function hasHandleContinuation(character: string | undefined): boolean {
+export function hasHandleContinuation(character: string | undefined): boolean {
   return Boolean(character && HANDLE_CONTINUATION.test(character));
 }
 
