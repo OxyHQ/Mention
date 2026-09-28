@@ -12,7 +12,7 @@ vi.mock('../../utils/clarityClient', () => ({
   getClarityClient: async () => ({ indexing: { resolve } }),
 }));
 
-import { CLARITY_RESOLVE_BATCH, resolveClarityDocuments } from '../../utils/clarityDocuments';
+import { CLARITY_RESOLVE_BATCH, clarityHostedDocument, resolveClarityDocuments } from '../../utils/clarityDocuments';
 
 function document(url: string) {
   return { id: `doc:${url}`, canonicalUrl: url, type: 'page', status: 'indexed', authors: [], evidence: {} };
@@ -77,5 +77,27 @@ describe('resolveClarityDocuments', () => {
     await resolveClarityDocuments(['https://example.com/y'], { waitMs: 3_000 });
     expect(resolve.mock.calls[0][0]).not.toHaveProperty('waitMs');
     expect(resolve.mock.calls[1][0]).toEqual({ urls: ['https://example.com/y'], waitMs: 3_000 });
+  });
+});
+
+describe('clarityHostedDocument', () => {
+  const base = { id: 'd', canonicalUrl: 'https://site.example/a', type: 'page', status: 'indexed', authors: [], evidence: {} };
+
+  it('keeps images on Clarity\'s own origin', () => {
+    const doc = { ...base, imageUrl: 'https://api.clarity.surf/images/documents/d/abc', faviconUrl: 'https://api.clarity.surf/favicons/site.example' };
+    expect(clarityHostedDocument(doc as never)).toEqual(doc);
+  });
+
+  it.each([
+    ['the linked site', 'https://site.example/og.jpg'],
+    ['a look-alike host', 'https://api.clarity.surf.evil.example/x.png'],
+    ['plain http to Clarity', 'http://api.clarity.surf/images/documents/d/abc'],
+    ['a data URI', 'data:image/png;base64,AAAA'],
+    ['garbage', 'not a url'],
+  ])('drops an image on %s', (_label, imageUrl) => {
+    const result = clarityHostedDocument({ ...base, imageUrl, faviconUrl: imageUrl } as never);
+    expect(result).not.toHaveProperty('imageUrl');
+    expect(result).not.toHaveProperty('faviconUrl');
+    expect(result.canonicalUrl).toBe(base.canonicalUrl);
   });
 });

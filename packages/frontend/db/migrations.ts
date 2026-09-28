@@ -47,11 +47,16 @@ const logger = createLogger('Schema');
  * was read). It also evicts every v12 row whose `documents` was saved empty on a
  * first read and never asked for again — the missing link cards this fixes.
  *
+ * v14 changes no key: it evicts every cached link card whose `imageUrl` still
+ * points at the linked site. Clarity now serves those images itself and the
+ * backend drops any other origin, but a row saved before that would keep
+ * loading the image straight from the site.
+ *
  * `db/__tests__/cacheShapeVersion.test.ts` fails when the persisted key set
  * changes without this number moving, so the rule is enforced rather than
  * remembered.
  */
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 /**
  * Create the full schema from scratch. Idempotent (IF NOT EXISTS).
