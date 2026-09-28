@@ -11,6 +11,7 @@ import {
 import { z } from 'zod';
 import { config } from '../config';
 import { getServiceOxyClient } from '../utils/oxyHelpers';
+import { measureOxyFetch } from '../utils/oxyMetrics';
 
 const JWKS_TTL_MS = 5 * 60 * 1_000;
 
@@ -71,15 +72,16 @@ async function introspectAtOxy(token: string): Promise<unknown> {
   const oxy = getServiceOxyClient();
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const serviceToken = await oxy.serviceToken();
-    const response = await fetch(`${config.oxyApiUrl}/capabilities/tickets/introspect`, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${serviceToken}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ ticket: token }),
-      signal: AbortSignal.timeout(10_000),
-    });
+    const response = await measureOxyFetch('POST', '/capabilities/tickets/introspect', () =>
+      fetch(`${config.oxyApiUrl}/capabilities/tickets/introspect`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${serviceToken}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ ticket: token }),
+        signal: AbortSignal.timeout(10_000),
+      }));
     if (response.status === 401 && attempt === 0) {
       oxy.invalidateServiceToken();
       continue;

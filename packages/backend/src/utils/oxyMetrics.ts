@@ -221,3 +221,31 @@ export function instrumentOxyEgress(client: { http: unknown }): void {
     }
   };
 }
+
+/**
+ * Time a `fetch` to Oxy that bypasses the SDK (a raw upload, a public profile
+ * read, the capability introspection) and record it exactly like an SDK call:
+ * same series, same per-request tally. Without it those calls were invisible to
+ * `oxyCallCount`, so a route could look like it made few Oxy round trips while
+ * making several.
+ *
+ * `route` is the Oxy path; it is templated like any other. A response counts by
+ * its status; a rejection (network, timeout, abort) counts as a 5xx.
+ */
+export async function measureOxyFetch(
+  method: string,
+  route: string,
+  run: () => Promise<Response>,
+): Promise<Response> {
+  if (!isOxyInstrumentationEnabled()) return run();
+  const startedAt = process.hrtime.bigint();
+  const template = templateOxyRoute(route);
+  try {
+    const response = await run();
+    record(method, template, statusClass({ status: response.status }), Number(process.hrtime.bigint() - startedAt) / 1_000_000);
+    return response;
+  } catch (error) {
+    record(method, template, '5xx', Number(process.hrtime.bigint() - startedAt) / 1_000_000);
+    throw error;
+  }
+}
