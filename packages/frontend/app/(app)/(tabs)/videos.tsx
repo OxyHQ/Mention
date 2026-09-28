@@ -44,7 +44,7 @@ import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
 import { useVideosRail, type VideosRailActivePost } from '@/context/VideosRailContext';
 import { VideoViewabilityProvider } from '@/context/VideoPlaybackContext';
 import { BottomSheetContext } from '@/context/BottomSheetContext';
-import { VideoReplies } from '@/components/videos/VideoReplies';
+import { LazyVideoReplies } from '@/components/videos/LazyVideoReplies';
 import { HIT_SLOP_LG } from '@/styles/hitSlop';
 import { useVideoPipSession } from '@/hooks/useVideoPipSession';
 import { useReelImpressions } from '@/hooks/useReelImpressions';
@@ -1717,7 +1717,7 @@ export default function VideosScreen() {
             return;
         }
         setBottomSheetContent(
-            <VideoReplies
+            <LazyVideoReplies
                 postId={postId}
                 onClose={() => openBottomSheet(false)}
                 onCommentPosted={() => handleCommentPosted(postId)}

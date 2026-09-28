@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { SearchBar } from './SearchBar';
 import { WidgetManager } from './widgets/WidgetManager';
 import { openExternalLink } from '@/utils/openExternalLink';
-import { VideoReplies } from './videos/VideoReplies';
+import { LazyVideoReplies } from './videos/LazyVideoReplies';
 import { ContentPanel } from '@oxy.so/bloom/content-panel';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { useIsRightBarVisible } from '@/hooks/useOptimizedMediaQuery';
@@ -52,7 +52,7 @@ export function RightBar() {
                         surfaceClassName="bg-card rounded-radius-28 border border-border overflow-hidden"
                         surfaceColor={colors.card}
                     >
-                        <VideoReplies
+                        <LazyVideoReplies
                             postId={activePost.id}
                             onCommentPosted={() => onCommentPosted(activePost.id)}
                         />

@@ -1,6 +1,6 @@
 import React from 'react';
 
-import ComposeScreen from '@/components/Compose/ComposeScreen';
+import ComposeScreen from '@/components/Compose/LazyComposeScreen';
 
 /**
  * `/compose` — the composer as a DESTINATION.
