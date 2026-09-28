@@ -3,7 +3,7 @@ import {
   upsertCachedUsers,
   type CacheableUser,
   type UpsertCachedUserOptions,
-} from '@oxy.so/services';
+} from '@oxy.so/services/ui/client';
 import { queryClient } from '@/lib/queryClient';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import {

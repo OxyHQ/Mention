@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import type { SidebarProps } from '@oxy.so/bloom/sidebar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
-import { ProfileButton } from '@oxy.so/services';
+import { ProfileButton } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { RiBroadcastLine } from '@oxy.so/bloom/icons/RiBroadcastLine';
 import { useUnreadCount } from '@/hooks/useUnreadCount';

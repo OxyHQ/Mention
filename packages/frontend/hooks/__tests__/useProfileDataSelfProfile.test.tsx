@@ -32,7 +32,7 @@ jest.mock('@/lib/documentBootstrap', () => ({
   bootstrapProfileFor: (handle: string) => mockDocumentProfile(handle),
 }));
 
-jest.mock('@oxy.so/services', () => {
+jest.mock('@oxy.so/services/ui/client', () => {
   const { useQuery } =
     jest.requireActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
   const byUsername = (username: string, viewerId: string) => [
@@ -44,6 +44,10 @@ jest.mock('@oxy.so/services', () => {
     viewerId,
   ];
   return {
+    useAuth: () => ({
+      user: mockViewer.current,
+      oxyServices: { users: { resolveHandle: mockResolveProfile } },
+    }),
     queryKeys: { users: { byUsername } },
     // The SDK hook's own options, verbatim — a 5-minute `staleTime`, a
     // 30-minute `gcTime`, `refetchOnMount: true` and the viewer in the key. The
@@ -60,13 +64,6 @@ jest.mock('@oxy.so/services', () => {
       }),
   };
 });
-
-jest.mock('@oxy.so/services/ui/client', () => ({
-  useAuth: () => ({
-    user: mockViewer.current,
-    oxyServices: { users: { resolveHandle: mockResolveProfile } },
-  }),
-}));
 
 jest.mock('@/stores/appearanceStore', () => ({
   useAppearanceStore: (selector: (state: unknown) => unknown) =>

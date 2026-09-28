@@ -23,7 +23,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { OxyAuthPrompt, useAuth } from '@oxy.so/services/ui/client';
-import { clearedFieldsFromAccountUpdate } from '@oxy.so/services';
+import { clearedFieldsFromAccountUpdate } from '@oxy.so/services/ui/client';
 import { createLogger } from '@oxy.so/core/logger';
 import {
   getNormalizedUserHandle,

@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { Share, Platform } from 'react-native';
-import { queryKeys } from '@oxy.so/services';
+import { queryKeys } from '@oxy.so/services/ui/client';
 import type { User } from '@oxy.so/core';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { logger } from '@oxy.so/core/logger';

@@ -14,7 +14,7 @@ import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { SubtleHover } from '@oxy.so/bloom/subtle-hover';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { toast } from '@oxy.so/bloom/toast';
-import { queryKeys as sdkQueryKeys } from '@oxy.so/services';
+import { queryKeys as sdkQueryKeys } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import { profileHrefForUser } from '@/components/Profile/profileRoute';

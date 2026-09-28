@@ -1,4 +1,4 @@
-import { queryKeys } from '@oxy.so/services';
+import { queryKeys } from '@oxy.so/services/ui/client';
 import { cacheActor } from '@/lib/actorCache';
 import { queryClient } from '@/lib/queryClient';
 import type { User } from '@oxy.so/core';

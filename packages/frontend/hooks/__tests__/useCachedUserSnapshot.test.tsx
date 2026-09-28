@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { User } from '@oxy.so/core';
 import { useCachedUserSnapshot } from '@/hooks/useCachedUser';
 
-jest.mock('@oxy.so/services', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   queryKeys: { users: { detail: (id: string) => ['users', 'detail', id] } },
   useUserById: jest.fn(),
 }));
