@@ -21,7 +21,7 @@ export function BaseWidget({ title, icon, divider, children }: BaseWidgetProps) 
         <Card
             appearance="plain"
             className="gap-2 mb-4"
-            style={{ borderRadius: 0 }}
+            radius="radius-0"
         >
             {title && (
                 <View className="flex-row justify-between items-center">

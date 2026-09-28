@@ -54,6 +54,24 @@ The JavaScript-bytes ceiling was raised from 13 MiB by
 2.3 MB on disk but are correctly per-locale `import()`s (`lib/i18n.ts`), so they
 count against the total and NOT against initial JavaScript.
 
+It was raised again, from 14.5 to 15 MiB, by the move to Bloom 5.1
+(`@oxy.so/bloom` 5.0 + 5.1): the build measured 14.63 MiB of JavaScript against
+14.31 MiB before, with initial JavaScript still inside its ceiling (8.08 of
+8.5 MiB). Most of the +0.32 MiB is Bloom's own message catalogs: since 5.1
+every Bloom family speaks the app's language, and unlike Mention's catalogues
+Bloom's are static imports carrying all fifteen languages, so the ones for the
+families Mention imports ship whole. The fix that gives this back belongs in
+Bloom — load only the active language, as `lib/i18n.ts` does here — and is
+recorded there as a follow-up.
+
+The same move raised the feed row-cost ceilings (`__perf__/budgets.json`) to
+their measured values: every row kind reads one more context (the locale Bloom
+components now resolve their strings from), `text` gains 5 components and
+0.125 host nodes, and `linkPreview` gains the most (+30 components, +9 context
+reads, +7.125 host nodes, +4 hooks) from Bloom 5's `Card`, which now paints the
+shared `Surface` material in layers. No request, query-observer or render count
+moved.
+
 ### Real-browser release gate
 
 `packages/e2e` drives the candidate web build at the production origin
