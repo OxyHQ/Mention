@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { formatPost } from "../lib/formatters.js";
+import { formatNotification, formatPost } from "../lib/formatters.js";
 
 describe("post formatter", () => {
   it("reads viewer-specific engagement only from canonical viewerState", () => {
@@ -28,5 +28,20 @@ describe("post formatter", () => {
     });
 
     expect(formatted).not.toContain("You:");
+  });
+});
+
+describe("notification formatter", () => {
+  it("names the post a mention is about, so it can be opened or answered", () => {
+    const text = formatNotification({
+      _id: "n1", type: "mention", read: false, preview: "hola @faircoin",
+      actorId_populated: { username: "ana", name: "Ana" }, entityType: "post", entityId: "post-42",
+    });
+    expect(text).toContain("[n1] @ana (Ana) — mention (unread)");
+    expect(text).toContain("post: post-42");
+  });
+
+  it("leaves the line out when there is no entity", () => {
+    expect(formatNotification({ _id: "n2", type: "welcome" })).not.toContain(": undefined");
   });
 });
