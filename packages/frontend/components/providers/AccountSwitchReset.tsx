@@ -22,6 +22,7 @@ import { useTrendsStore } from '@/stores/trendsStore';
 import { clearAllFeedMemoryCaches } from '@/stores/feedScrollStore';
 import { resetEngagementInvalidation } from '@/stores/engagementInvalidation';
 import { resetSafetyInvalidation } from '@/stores/safetyInvalidation';
+import { resetPendingDocuments } from '@/stores/pendingDocuments';
 import { setFeedViewerRequestScope } from '@/services/feedService';
 import { searchService } from '@/services/searchService';
 import { socketService } from '@/services/socketService';
@@ -126,6 +127,8 @@ export function AccountSwitchReset({
     // sensitive-content toggle are per-account.
     resetEngagementInvalidation();
     resetSafetyInvalidation();
+    // Link cards still in flight belong to the previous viewer.
+    resetPendingDocuments();
 
     resetAppearance();
     resetTheme();
