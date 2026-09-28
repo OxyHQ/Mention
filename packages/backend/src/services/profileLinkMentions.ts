@@ -17,11 +17,16 @@ import {
   trimUrlTrailingPunctuation,
   type TextEntity,
 } from '@mention/shared-types/textEntities';
-import { findActorByAcct, findActorByUri } from '../db/federation/actorRepository';
+import {
+  findActorByAcct,
+  findActorByUri,
+  findActorOxyUserIdsByAccts,
+} from '../db/federation/actorRepository';
 import { isBlockedDomain, resolveOxyUser } from '../connectors/activitypub/constants';
 import { OWN_DOMAINS } from '../connectors/activitypub/ownDomain';
 import { normalizeFederatedAcct } from '../connectors/activitypub/helpers';
 import { logger } from '../utils/logger';
+import { createCache } from '../utils/cache';
 
 /**
  * A PROFILE LINK IN A BODY IS A MENTION, AND THE ANSWER IS THE SAME WHOEVER WROTE IT.
@@ -358,37 +363,137 @@ function collectHandleMentions(texts: readonly string[], limit: number): TextEnt
   return handles;
 }
 
+/** How long a handle's answer is trusted: a hit, and a name nobody holds. */
+const HANDLE_HIT_TTL_SECONDS = 300;
+const HANDLE_MISS_TTL_SECONDS = 60;
+
 /**
- * Which stored identity a typed handle names, or `null`. Lookup-only, like
- * {@link resolveProfileLinkIdentity}:
+ * `username → Oxy id | null`, shared across processes. A typed handle costs a
+ * round trip to Oxy, and a name nobody holds costs TWO (`resolveOxyUser` falls
+ * back to a search) — and misses are the common case for typed text: `@todos`,
+ * a typo, a name from another network. The miss is cached too, briefly, so a
+ * thread repeating one does not ask again for every post.
  *
- *   - `@alice`, and `@alice@<one of our hosts>`, are OUR user `alice` — Oxy.
- *   - `@bob@remote.tld` is the remote actor we already store under that acct —
- *     one indexed lookup, never a WebFinger. An actor we have never seen stays
- *     text; typing a handle must not make the server go fetch it.
- *   - a handle on a moderation-blocked host names nobody.
+ * Five minutes for a hit matches the Oxy SDK's own in-process cache, so the
+ * window in which a renamed account's old handle still resolves is no wider
+ * than it already was.
  */
-async function resolveHandleIdentity(entity: TextEntity): Promise<string | null> {
-  if (entity.kind === 'bareHandle') return resolveLocalUsername(entity.value);
+const handleCache = createCache({ name: 'HandleMentionCache', ttlSeconds: HANDLE_HIT_TTL_SECONDS });
 
-  const at = entity.value.indexOf('@');
-  const local = entity.value.slice(0, at);
-  const domain = entity.value.slice(at + 1).toLowerCase();
-  if (OWN_DOMAINS.some((own) => own.toLowerCase() === domain)) {
-    return resolveLocalUsername(local);
-  }
-  if (isBlockedDomain(domain)) return null;
-
-  const acct = normalizeFederatedAcct(entity.value);
-  if (!acct) return null;
-  const actor = await findActorByAcct(acct);
-  return actor?.oxyUserId ? actor.oxyUserId : null;
+function handleCacheKey(username: string): string {
+  return `mention:handle:v1:${username.toLowerCase()}`;
 }
 
-async function resolveLocalUsername(username: string): Promise<string | null> {
-  const user = await resolveOxyUser(username);
-  const oxyUserId = user ? String(user._id ?? user.id ?? '') : '';
-  return oxyUserId || null;
+/**
+ * Which stored identity each typed handle names — `handleKey → Oxy id`, only the
+ * ones that resolved. Lookup-only, like {@link resolveProfileLinkIdentity}:
+ *
+ *   - `@alice`, and `@alice@<one of our hosts>`, are OUR user `alice`: the
+ *     shared cache first ({@link handleCache}, one `MGET` for the whole body),
+ *     then Oxy for what it did not know, concurrently.
+ *   - `@bob@remote.tld` is the remote actor we already store under that acct —
+ *     ONE indexed query for every remote handle of the body, never a WebFinger.
+ *     An actor we have never seen stays text; typing a handle must not make the
+ *     server go fetch it.
+ *   - a handle on a moderation-blocked host names nobody.
+ *
+ * Fail-soft per handle: a lookup that throws resolves that handle to nothing
+ * (and is not cached), and the rest are unaffected.
+ */
+async function resolveHandleIdentities(entities: readonly TextEntity[]): Promise<Map<string, string>> {
+  /** lower-cased username → the spelling to ask Oxy for, and the handles naming it. */
+  const local = new Map<string, { spelling: string; keys: string[] }>();
+  /** normalized acct → the handles naming it. */
+  const remote = new Map<string, string[]>();
+
+  for (const entity of entities) {
+    const key = handleKey(entity);
+    let username: string | null = null;
+    if (entity.kind === 'bareHandle') {
+      username = entity.value;
+    } else {
+      const at = entity.value.indexOf('@');
+      const domain = entity.value.slice(at + 1).toLowerCase();
+      if (OWN_DOMAINS.some((own) => own.toLowerCase() === domain)) {
+        username = entity.value.slice(0, at);
+      } else if (!isBlockedDomain(domain)) {
+        const acct = normalizeFederatedAcct(entity.value);
+        if (acct) remote.set(acct, [...(remote.get(acct) ?? []), key]);
+      }
+    }
+    if (username) {
+      const lower = username.toLowerCase();
+      const entry = local.get(lower);
+      if (entry) entry.keys.push(key);
+      else local.set(lower, { spelling: username, keys: [key] });
+    }
+  }
+
+  const resolved = new Map<string, string>();
+  await Promise.all([
+    resolveLocalUsernames(local).then((ids) => {
+      for (const [lower, id] of ids) {
+        for (const key of local.get(lower)?.keys ?? []) resolved.set(key, id);
+      }
+    }),
+    (async () => {
+      if (remote.size === 0) return;
+      try {
+        const ids = await findActorOxyUserIdsByAccts([...remote.keys()]);
+        for (const [acct, id] of ids) {
+          for (const key of remote.get(acct) ?? []) resolved.set(key, id);
+        }
+      } catch (err) {
+        logger.warn('[Mentions] failed to resolve typed remote handles in a composed post', {
+          error: err,
+        });
+      }
+    })(),
+  ]);
+  return resolved;
+}
+
+/** `lower-cased username → Oxy id` for the local handles that resolved. */
+async function resolveLocalUsernames(
+  local: ReadonlyMap<string, { spelling: string }>,
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (local.size === 0) return out;
+
+  const names = [...local.keys()];
+  const cached = await handleCache.getMany<{ id: string | null }>(names.map(handleCacheKey));
+  const misses: string[] = [];
+  names.forEach((name, i) => {
+    const entry = cached[i];
+    if (entry === undefined) misses.push(name);
+    else if (entry.id) out.set(name, entry.id);
+  });
+  if (misses.length === 0) return out;
+
+  const hits: [string, { id: string }][] = [];
+  const nobody: [string, { id: null }][] = [];
+  await Promise.all(misses.map(async (name) => {
+    try {
+      const user = await resolveOxyUser(local.get(name)?.spelling ?? name);
+      const id = user ? String(user._id ?? user.id ?? '') : '';
+      if (id) {
+        out.set(name, id);
+        hits.push([handleCacheKey(name), { id }]);
+      } else {
+        nobody.push([handleCacheKey(name), { id: null }]);
+      }
+    } catch (err) {
+      // Not cached: an outage is not an answer about the name.
+      logger.warn('[Mentions] failed to resolve a typed handle in a composed post', {
+        error: err,
+      });
+    }
+  }));
+  await Promise.all([
+    handleCache.setMany(hits),
+    handleCache.setMany(nobody, { ttlSeconds: HANDLE_MISS_TTL_SECONDS }),
+  ]);
+  return out;
 }
 
 /**
@@ -457,47 +562,45 @@ export async function foldProfileLinkMentions(
   const authorized = new Set(mentions);
   let rewritten = false;
 
-  const urls = collectProfileLinkUrls(texts, Math.min(MAX_PROFILE_LINKS_PER_BODY, headroom));
+  // Links and handles are looked up TOGETHER: neither pass can see the other's
+  // characters (a handle inside a URL belongs to the URL — see `scanHandles`),
+  // so the handles found before the links are folded are exactly the ones found
+  // after. Both are bounded by the headroom up front; the handles are then cut
+  // to what the links that actually resolved left of it.
+  const limit = Math.min(MAX_PROFILE_LINKS_PER_BODY, headroom);
+  const urls = collectProfileLinkUrls(texts, limit);
+  const handles = collectHandleMentions(texts, limit);
   const resolvedLinks = new Map<string, string>();
-  await Promise.all(
-    urls.map(async (url) => {
-      try {
-        const identity = await resolveProfileLinkIdentity(url);
-        if (identity) resolvedLinks.set(url, identity.oxyUserId);
-      } catch (err) {
-        logger.warn('[Mentions] failed to resolve a profile link in a composed post', {
-          error: err,
-        });
-      }
-    }),
-  );
+  const [, handleIds] = await Promise.all([
+    Promise.all(
+      urls.map(async (url) => {
+        try {
+          const identity = await resolveProfileLinkIdentity(url);
+          if (identity) resolvedLinks.set(url, identity.oxyUserId);
+        } catch (err) {
+          logger.warn('[Mentions] failed to resolve a profile link in a composed post', {
+            error: err,
+          });
+        }
+      }),
+    ),
+    resolveHandleIdentities(handles),
+  ]);
+
   if (resolvedLinks.size > 0) {
     rewritten = mapMentionTexts(content, (text) => rewriteProfileLinks(text, resolvedLinks));
     for (const oxyUserId of resolvedLinks.values()) authorized.add(oxyUserId);
   }
 
-  // Typed handles, read off the body AFTER the links were folded: a resolved link
-  // is a placeholder by now, so an `@alice` inside it cannot be counted twice.
-  // They share the one per-post ceiling with the links that just resolved.
-  const handleTexts = resolvedLinks.size > 0 ? mentionTextsFromContent(content) : texts;
-  const handleHeadroom = headroom - resolvedLinks.size;
-  const handles = collectHandleMentions(
-    handleTexts,
-    Math.min(MAX_PROFILE_LINKS_PER_BODY, handleHeadroom),
-  );
+  // Reading order, within what the resolved links left of the per-post ceiling.
   const resolvedHandles = new Map<string, string>();
-  await Promise.all(
-    handles.map(async (entity) => {
-      try {
-        const oxyUserId = await resolveHandleIdentity(entity);
-        if (oxyUserId) resolvedHandles.set(handleKey(entity), oxyUserId);
-      } catch (err) {
-        logger.warn('[Mentions] failed to resolve a typed handle in a composed post', {
-          error: err,
-        });
-      }
-    }),
-  );
+  const handleHeadroom = headroom - resolvedLinks.size;
+  for (const entity of handles) {
+    if (resolvedHandles.size >= handleHeadroom) break;
+    const key = handleKey(entity);
+    const oxyUserId = handleIds.get(key);
+    if (oxyUserId) resolvedHandles.set(key, oxyUserId);
+  }
   if (resolvedHandles.size > 0) {
     rewritten =
       mapMentionTexts(content, (text) => rewriteHandleMentions(text, resolvedHandles)) || rewritten;
