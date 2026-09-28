@@ -17,7 +17,6 @@ const mocks = vi.hoisted(() => ({
   /** The actor-row write itself — `(uri, columns, fields)`. */
   upsertActor: vi.fn(),
   reconcileProjection: vi.fn().mockResolvedValue({}),
-  findIdentityOwnerActor: vi.fn(),
   serviceRequest: vi.fn(),
 }));
 
@@ -48,16 +47,10 @@ vi.mock('../../utils/safeUpstreamFetch', async () => {
 // narrow: only the functions this lane reaches are replaced, so anything else
 // the route or the resolver were to query fails loudly on an absent connection
 // instead of quietly answering from a stub nobody wrote.
-//
-// `findIdentityOwnerActor` is the duplicate-identity merge's lookup and it IS on
-// this path — a bridged actor's identity differs from its protocol acct, which
-// is exactly the case `resolveFederatedActorIdentity` looks for an owner in.
-// Answering "nobody else holds it" is what lets the resolve run to Oxy.
 vi.mock('../../db/federation/actorRepository', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../db/federation/actorRepository')>()),
   findActorByUri: mocks.findActorByUri,
   upsertActor: mocks.upsertActor,
-  findIdentityOwnerActor: mocks.findIdentityOwnerActor,
 }));
 
 vi.mock('../../utils/oxyHelpers', () => ({
@@ -130,7 +123,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   storedRow = {};
   mocks.findActorByUri.mockResolvedValue(null);
-  mocks.findIdentityOwnerActor.mockResolvedValue(null);
   mocks.upsertActor.mockImplementation((uri: string, columns: Record<string, unknown>) => {
     storedRow = { uri, ...columns };
     return Promise.resolve({ ...storedRow, id: 'row-1' });

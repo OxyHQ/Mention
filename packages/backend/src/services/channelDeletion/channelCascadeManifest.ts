@@ -682,17 +682,6 @@ export const CHANNEL_CASCADE: readonly CascadeStep[] = [
       'remote actors. Swept so that a mislabelled row cannot survive as the last thing pointing at the ' +
       'channel; `federated_actor_fields` cascades from the row.',
   },
-  {
-    table: 'federated_identity_links',
-    column: 'oxyUserId',
-    scope: 'channel-account',
-    action: 'delete-row',
-    why:
-      'The Oxy user two proven-equivalent REMOTE network identities share. A channel is a local account '
-      + 'and can never be one, for the same reason `federated_actors.oxy_user_id` can never name it — '
-      + 'and swept for the same reason: a mislabelled row must not survive as the last thing pointing '
-      + 'at the channel. `federated_identity_link_evidence` cascades from the row.',
-  },
 
   // ---------------------------------------------------------------------------
   // Rows keyed on the channel ACCOUNT. Every one of these is a plain `text()`
@@ -1231,19 +1220,6 @@ export const NOT_A_CHANNEL_REFERENCE: ReadonlyMap<string, string> = new Map([
   ['federated_banner_mirrors.oxyUserId', 'the Oxy user of a REMOTE account whose banner is mirrored; a channel is a local account and advertises no remote banner'],
   ['federated_banner_mirrors.actorUri', 'a remote actor\'s URI (the banner\'s provenance)'],
   ['federated_actors.instagramGraphUserId', 'Meta\'s Instagram user id of a remote account; a channel is a local account'],
-  [
-    'federated_identity_claims.subjectActorUri',
-    'the REMOTE actor a cross-network identity claim was read off. A channel is a local account and '
-      + 'publishes no such claim',
-  ],
-  [
-    'federated_identity_link_evidence.linkId',
-    'the identity link an evidence snapshot belongs to; it cascades from the link',
-  ],
-  [
-    'federated_identity_link_evidence.subjectActorUri',
-    'the REMOTE actor a snapshotted claim was read off, as on the claims table',
-  ],
   ['federated_follows.activityId', 'the AP activity that created the follow'],
   [
     'federated_follows.remoteActorUri',

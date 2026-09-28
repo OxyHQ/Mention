@@ -400,6 +400,13 @@
       "when": 1790519529192,
       "tag": "0056_federated_banner_mirrors",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1790598725280,
+      "tag": "0057_drop_mention_identity_authority",
+      "breakpoints": true
     }
   ]
 }

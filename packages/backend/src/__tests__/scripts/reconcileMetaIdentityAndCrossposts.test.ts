@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vite
 import { eq, sql } from 'drizzle-orm';
 import { PostType, PostVisibility } from '@mention/shared-types';
 import { connectPostgres, closePostgres, getDb } from '../../db/postgres';
-import { federatedActors, federatedIdentityClaims } from '../../db/schema/federation';
+import { federatedActors } from '../../db/schema/federation';
 import { posts, postEquivalenceClusters } from '../../db/schema/posts';
 import { postAuthorships } from '../../db/schema/postContent';
 import { mutes } from '../../db/schema/engagement';
@@ -12,7 +12,6 @@ import { createCluster } from '../../db/posts/postEquivalenceRepository';
 import { createActorProjectionCacheBatch, reconcileActorIdentityProjection, unmuteIdentityProjection } from '../../services/ActorIdentityProjectionService';
 import { reconcileMetaIdentityAndCrossposts } from '../../scripts/reconcileMetaIdentityAndCrossposts';
 import { logger } from '../../utils/logger';
-import { recordAttestedIdentityLink } from '../../scripts/recordAttestedIdentityLink';
 const mocks = vi.hoisted(() => ({ lookup: vi.fn(), resolve: vi.fn(), users: vi.fn(), detect: vi.fn(), reevaluate: vi.fn(), invalidate: vi.fn(), scan: vi.fn(), del: vi.fn() }));
 vi.mock('../../services/userSummaryCache', () => ({ invalidate: mocks.invalidate }));
 vi.mock('../../utils/redis', async importOriginal => ({ ...(await importOriginal<object>()), getRedisClient: () => ({ isReady: true, scanIterator: mocks.scan, del: mocks.del }) }));
@@ -30,7 +29,6 @@ afterEach(async () => {
   await getDb().delete(posts);
   await getDb().delete(federatedActors);
   await getDb().delete(mutes);
-  await getDb().delete(federatedIdentityClaims);
 });
 async function actor(uri: string, oldId = 'old-person') {
   const row = await upsertActor(uri, { protocol: uri.startsWith('did:') ? 'atproto' : 'activitypub', username: uri === source ? 'source' : 'other', domain: uri === source ? 'kilogram.makeup' : 'bsky.social', acct: uri === source ? 'source@kilogram.makeup' : 'other@bsky.social', type: 'Person', manuallyApprovesFollowers: false, discoverable: true, memorial: false, suspended: false, followersCount: 0, followingCount: 0, postsCount: 0, lastFetchedAt: new Date() }, []);
@@ -96,19 +94,6 @@ it('scans native and AP actors in apply mode and records explicit refusals', asy
   expect(result.refused.no_current_content_proof).toBe(1);
   expect(result.postsExamined).toBe(1);
 });
-it('retires both manual attestation creation and deletion without touching historical rows', async () => {
-  const before = await getDb().select().from(federatedIdentityClaims);
-  for (const remove of [false, true]) expect(await recordAttestedIdentityLink({ identityA: 'a@instagram.com', identityB: 'a@threads.net', source: 'manual assertion', dryRun: false, remove })).toEqual({ applied: false, refusal: 'oxy_identity_authority_required', rows: 0 });
-  expect(await getDb().select().from(federatedIdentityClaims)).toEqual(before);
-});
-
-it('retains old identity evidence when a source actor cache is purged', async () => {
-  await actor(source);
-  await getDb().insert(federatedIdentityClaims).values({ subjectActorUri: source, subject: 'a@instagram.com', target: 'a@threads.net', kind: 'first-party-link', source: 'historical attestation' });
-  expect(await deleteActorsByUris([source])).toBe(1);
-  expect(await getDb().select().from(federatedIdentityClaims)).toHaveLength(1);
-});
-
 it('applies fresh registered authority and resolves only the missing exact source', async () => {
   await actor(source); await actor(otherSource); await post(source); await post(otherSource);
   mocks.lookup.mockResolvedValue([

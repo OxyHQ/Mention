@@ -110,21 +110,12 @@ alone was a no-op.
 
 ## Cross-protocol merge
 
-One Bluesky account held natively over atproto and again over ActivityPub
-through Bridgy Fed collapses onto ONE Oxy identity — both connectors resolve
-through the shared `resolveFederatedActorIdentity`
-(`connectors/identity.ts`), so the merge cannot depend on which one happens
-to ingest the actor first. It matches a stored row either by
-`FederatedActor.networkAcct` (bridged rows, which carry their real identity
-explicitly, since the arriving host does not imply it) or by
-`username@domain` (native rows — how the atproto connector has always stored
-a Bluesky account, without ever writing `networkAcct`); matching only one
-shape misses the other's rows entirely (10,000+ native atproto rows the
-first version of this missed). A same-domain collision — two actors on ONE
-source domain deriving the identical identity — is refused and logged at
-error rather than merged: it means the derivation rule itself is broken
-(most likely returning a constant), not that the accounts are the same
-person.
+Oxy decides it. One Bluesky account held natively over atproto and again over
+ActivityPub through Bridgy Fed resolves to ONE Oxy identity because every
+connector asks Oxy's `/federation/identities/resolve` with the source actor
+URI (`connectors/oxyIdentity.ts`) and takes the user and `canonicalAcct` it
+returns. Mention keeps no merge, alias or equivalence logic of its own, so
+discovery order cannot change the answer (OxyHQ/oxy#1253).
 
 ## Federation Blocklist & Domain Purge
 
