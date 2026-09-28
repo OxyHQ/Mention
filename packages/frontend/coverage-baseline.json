@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 41.48,
-      "covered": 11121,
-      "total": 26806
+      "pct": 41.87,
+      "covered": 11238,
+      "total": 26836
     },
     "branches": {
-      "pct": 35.98,
-      "covered": 6936,
-      "total": 19277
+      "pct": 36.37,
+      "covered": 7027,
+      "total": 19316
     },
     "functions": {
-      "pct": 36.7,
-      "covered": 2522,
-      "total": 6871
+      "pct": 37.14,
+      "covered": 2545,
+      "total": 6852
     },
     "lines": {
-      "pct": 42.29,
-      "covered": 10135,
-      "total": 23960
+      "pct": 42.63,
+      "covered": 10230,
+      "total": 23997
     }
   },
   "pins": {
@@ -132,10 +132,10 @@
       "lines": 100
     },
     "db/feedQueries.ts": {
-      "statements": 5,
-      "branches": 3,
-      "functions": 10,
-      "lines": 6
+      "statements": 12,
+      "branches": 9,
+      "functions": 22,
+      "lines": 14
     },
     "db/index.ts": {
       "statements": 100,
@@ -168,10 +168,10 @@
       "lines": 100
     },
     "db/postQueries.ts": {
-      "statements": 24,
-      "branches": 21,
-      "functions": 44,
-      "lines": 29
+      "statements": 37,
+      "branches": 29,
+      "functions": 66,
+      "lines": 41
     },
     "db/schema.ts": {
       "statements": 79,
@@ -505,9 +505,9 @@
     },
     "hooks/useProfileData.ts": {
       "statements": 91,
-      "branches": 83,
+      "branches": 84,
       "functions": 87,
-      "lines": 90
+      "lines": 91
     },
     "hooks/useProfileLinkMentions.ts": {
       "statements": 100,
@@ -558,10 +558,10 @@
       "lines": 0
     },
     "hooks/useReelChrome.ts": {
-      "statements": 56,
-      "branches": 46,
-      "functions": 45,
-      "lines": 56
+      "statements": 62,
+      "branches": 58,
+      "functions": 53,
+      "lines": 62
     },
     "hooks/useReelImpressions.ts": {
       "statements": 100,
@@ -773,6 +773,18 @@
       "functions": 100,
       "lines": 100
     },
+    "lib/documentBootstrap.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "lib/documentBootstrap.web.ts": {
+      "statements": 95,
+      "branches": 86,
+      "functions": 100,
+      "lines": 100
+    },
     "lib/hlsPlayback.native.ts": {
       "statements": 0,
       "branches": 100,
@@ -932,7 +944,7 @@
     "lib/webTelemetry.native.ts": {
       "statements": 0,
       "branches": 100,
-      "functions": 0,
+      "functions": 25,
       "lines": 0
     },
     "lib/webTelemetry.ts": {
@@ -942,10 +954,10 @@
       "lines": 100
     },
     "lib/webTelemetry.web.ts": {
-      "statements": 77,
-      "branches": 72,
-      "functions": 71,
-      "lines": 86
+      "statements": 80,
+      "branches": 73,
+      "functions": 75,
+      "lines": 89
     },
     "services/articleService.ts": {
       "statements": 0,
@@ -1017,7 +1029,7 @@
       "statements": 41,
       "branches": 31,
       "functions": 36,
-      "lines": 44
+      "lines": 45
     },
     "services/feedTuningService.ts": {
       "statements": 0,
@@ -1236,8 +1248,8 @@
       "lines": 75
     },
     "stores/pendingDocuments.ts": {
-      "statements": 95,
-      "branches": 88,
+      "statements": 97,
+      "branches": 89,
       "functions": 100,
       "lines": 98
     },

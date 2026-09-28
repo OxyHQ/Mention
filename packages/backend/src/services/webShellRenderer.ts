@@ -191,6 +191,34 @@ export function injectHeadHtml(shell: string, snippet: string): string {
     : snippet + shell;
 }
 
+/** The element id the frontend reads the bootstrap from (`lib/documentBootstrap`). */
+export const SHELL_BOOTSTRAP_ELEMENT_ID = 'mention-bootstrap';
+
+/**
+ * Public data this document's route resolved while building it, handed to the
+ * app so its first request does not have to wait for the same lookup.
+ *
+ * Only what any anonymous caller can already read: the page is publicly cached,
+ * so nothing viewer-relative or permission-gated may go in here.
+ */
+export interface ShellBootstrap {
+  /** A PUBLIC profile page's `/profiles/username/<handle>` payload. */
+  profile?: { handle: string; data: OxyProfileData };
+}
+
+/**
+ * The bootstrap as an inert JSON data block. `type="application/json"` is never
+ * executed, so CSP's script rules do not apply to it; `<`, `>`, `&` and the two
+ * JavaScript line terminators are escaped so no value can close the element.
+ */
+export function buildShellBootstrapHtml(bootstrap: ShellBootstrap): string {
+  const json = JSON.stringify(bootstrap).replace(
+    /[<>&\u2028\u2029]/g,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
+  );
+  return `<script type="application/json" id="${SHELL_BOOTSTRAP_ELEMENT_ID}">${json}</script>`;
+}
+
 /**
  * Splice OG data into a static SPA shell: replace the existing `<title>` and
  * inject the OG/Twitter meta block immediately before `</head>`. When `og` is

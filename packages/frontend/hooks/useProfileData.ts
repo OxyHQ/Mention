@@ -13,6 +13,7 @@ import { isPublicProfileHandle } from '@/utils/publicProfileHandle';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { profileAccountFacts } from '@/utils/profileAccountFacts';
 import { isNotFoundError } from '@/utils/apiError';
+import { bootstrapProfileFor } from '@/lib/documentBootstrap';
 
 const PROFILE_STALE_TIME = 5 * 60 * 1000; // 5 minutes
 const PROFILE_GC_TIME = 30 * 60 * 1000; // 30 minutes
@@ -213,6 +214,16 @@ export function useProfileData(username?: string): {
       ? user
       : null;
 
+  /**
+   * The public profile the server resolved for THIS document, when the page was
+   * loaded on this handle (web only). The same kind of floor as the session copy
+   * above: it lets the profile's own reads — design, pinned post, the feed —
+   * start with the route instead of one Oxy round-trip later, and the fetched
+   * copy replaces it as soon as it lands. It is the anonymous public payload, so
+   * nothing viewer-relative (`relationship`) is ever read from it.
+   */
+  const documentProfile = handle ? bootstrapProfileFor(handle) : null;
+
   // Local profiles — SDK hook, shares the singleton React Query cache.
   const localQuery = useUserByUsername(isFederated ? null : handle || null);
 
@@ -241,7 +252,7 @@ export function useProfileData(username?: string): {
       ? federatedQuery.data
       : null;
 
-  const profile = (isFederated ? federatedProfile : localQuery.data) ?? sessionProfile;
+  const profile = (isFederated ? federatedProfile : localQuery.data) ?? sessionProfile ?? documentProfile;
   const isPending = isFederated ? federatedQuery.isPending : localQuery.isPending;
   const isError = isFederated ? federatedQuery.isError : localQuery.isError;
   const queryError = isFederated ? federatedQuery.error : localQuery.error;

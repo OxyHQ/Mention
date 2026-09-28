@@ -26,6 +26,11 @@ const mockViewer: { current: User | null } = { current: null };
 const mockFetchProfile = jest.fn<Promise<User | null>, [string | null]>();
 const mockLoadAppearance = jest.fn();
 const mockResolveProfile = jest.fn();
+const mockDocumentProfile = jest.fn<User | null, [string]>(() => null);
+
+jest.mock('@/lib/documentBootstrap', () => ({
+  bootstrapProfileFor: (handle: string) => mockDocumentProfile(handle),
+}));
 
 jest.mock('@oxy.so/services', () => {
   const { useQuery } =
@@ -339,5 +344,55 @@ describe('useProfileData — a profile that cannot be shown', () => {
   it('reports a failed lookup as an error, not as not found', async () => {
     mockFetchProfile.mockRejectedValue(Object.assign(new Error('Bad gateway'), { status: 502 }));
     expect(await outcomeFor('someone')).toEqual({ loading: false, error: true, notFound: false });
+  });
+});
+
+describe('useProfileData — the profile the document was served for', () => {
+  beforeEach(() => {
+    mockFetchProfile.mockReset();
+    mockLoadAppearance.mockReset();
+    mockLoadAppearance.mockResolvedValue(null);
+    mockDocumentProfile.mockReset();
+    mockDocumentProfile.mockReturnValue(null);
+    mockViewer.current = null;
+  });
+
+  it('paints it on the first render and starts the design read before Oxy answers', async () => {
+    mockDocumentProfile.mockImplementation((handle) => (handle === 'ada' ? user('ada-1', 'ada', 'Ada') : null));
+    let answer: (value: User) => void = () => undefined;
+    mockFetchProfile.mockReturnValue(new Promise<User>((resolve) => { answer = resolve; }));
+
+    const sink: Snapshot[] = [];
+    const renderer = mountProbe('ada', sink);
+    await settle();
+
+    expect(sink[0]).toEqual({ loading: false, displayName: 'Ada' });
+    // The Oxy lookup is still in flight; the id-keyed read did not wait for it.
+    expect(mockLoadAppearance).toHaveBeenCalledWith('ada-1');
+
+    await act(async () => answer(user('ada-1', 'ada', 'Ada Lovelace')));
+    await settle();
+    expect(sink[sink.length - 1]).toEqual({ loading: false, displayName: 'Ada Lovelace' });
+    act(() => renderer.unmount());
+  });
+
+  it('is not consulted without a handle', () => {
+    const sink: Snapshot[] = [];
+    const renderer = mountProbe('', sink);
+
+    expect(mockDocumentProfile).not.toHaveBeenCalled();
+    expect(sink[0]).toEqual({ loading: false, displayName: null });
+    act(() => renderer.unmount());
+  });
+
+  it('is never used for another handle', () => {
+    mockDocumentProfile.mockImplementation((handle) => (handle === 'ada' ? user('ada-1', 'ada', 'Ada') : null));
+    mockFetchProfile.mockResolvedValue(user('bob-1', 'bob', 'Bob'));
+
+    const sink: Snapshot[] = [];
+    const renderer = mountProbe('bob', sink);
+
+    expect(sink[0]).toEqual({ loading: true, displayName: null });
+    act(() => renderer.unmount());
   });
 });

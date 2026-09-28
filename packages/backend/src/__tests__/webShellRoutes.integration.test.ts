@@ -50,7 +50,9 @@ import { mapPostOg } from '../services/webShellRenderer';
 import { logger } from '../utils/logger';
 import { postHydrationService } from '../services/PostHydrationService';
 import type { HydratedPost } from '@mention/shared-types';
-import { closePostgres, connectPostgres } from '../db/postgres';
+import { closePostgres, connectPostgres, getDb } from '../db/postgres';
+import { userSettings } from '../db/schema';
+import { eq } from 'drizzle-orm';
 import type { PostRecordInput } from '../db/posts/postRecord';
 import { clearPostScope, postScope, seedPost } from './helpers/postFixtures';
 
@@ -315,7 +317,10 @@ describe('webShell routes (integration)', () => {
     expect(res.text).toContain(
       '<meta data-mention-seo="true" property="og:image" content="http://localhost:4110/media/proxy?url=https%3A%2F%2Ffiles.remote.social%2Favatars%2F1.png&amp;variant=w320">',
     );
-    expect(res.text).not.toContain('files.remote.social/avatars');
+    // The card is every tag a renderer reads. The app's JSON bootstrap carries
+    // the raw payload the app would fetch anyway and is never unfurled.
+    const cardTags = res.text.match(/<(?:meta|link|title)\b[^>]*>/g)?.join('\n') ?? '';
+    expect(cardTags).not.toContain('files.remote.social/avatars');
   });
 
   it('serves profile metadata without modifying the SPA body to a browser', async () => {
@@ -333,6 +338,50 @@ describe('webShell routes (integration)', () => {
     expect(res.text).toContain('<div id="root"></div>');
     expect(res.text.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]).toBe(SHELL.match(/<body[^>]*>[\s\S]*?<\/body>/)?.[0]);
     expect(res.text).toContain('rel="preconnect"');
+  });
+
+  describe('profile bootstrap', () => {
+    const bootstrapOf = (html: string): unknown => {
+      const match = html.match(/<script type="application\/json" id="mention-bootstrap">([\s\S]*?)<\/script>/);
+      return match ? JSON.parse(match[1]) : undefined;
+    };
+    const privateOxyUserId = 'ssr-bootstrap-private-owner';
+
+    afterEach(async () => {
+      await getDb().delete(userSettings).where(eq(userSettings.oxyUserId, privateOxyUserId));
+    });
+
+    it('hands the app the public profile the page resolved, as inert JSON', async () => {
+      stubFetch({ ok: true, body: { data: { id: 'oxy-nate', username: 'nate', name: { displayName: 'Nate' } } } });
+
+      const res = await request(makeApp()).get('/@nate/media');
+
+      expect(res.status).toBe(200);
+      expect(bootstrapOf(res.text)).toEqual({
+        profile: { handle: 'nate', data: { id: 'oxy-nate', username: 'nate', name: { displayName: 'Nate' } } },
+      });
+    });
+
+    it('cannot be closed or escaped by a profile value', async () => {
+      const bio = '</script><script>alert(1)</script> & \u2028';
+      stubFetch({ ok: true, body: { data: { id: 'oxy-nate', username: 'nate', bio } } });
+
+      const res = await request(makeApp()).get('/@nate');
+
+      expect(res.text).not.toContain('<script>alert(1)');
+      expect(bootstrapOf(res.text)).toEqual({ profile: { handle: 'nate', data: { id: 'oxy-nate', username: 'nate', bio } } });
+    });
+
+    it('carries nothing for a profile Mention does not publish', async () => {
+      await getDb().insert(userSettings).values({ oxyUserId: privateOxyUserId, privacyProfileVisibility: 'private' });
+      stubFetch({ ok: true, body: { data: { id: privateOxyUserId, username: 'hidden', bio: 'private bio' } } });
+
+      const res = await request(makeApp()).get('/@hidden');
+
+      expect(res.status).toBe(404);
+      expect(bootstrapOf(res.text)).toBeUndefined();
+      expect(res.text).not.toContain(privateOxyUserId);
+    });
   });
 
   it('permanently redirects a channel from the person-shaped URL to its canonical URL', async () => {
