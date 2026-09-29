@@ -72,16 +72,16 @@ export function EmbedConsentDialog({ control, source, onAccept }: EmbedConsentDi
         </Admonition>
 
         <View className="gap-3">
-          <Button appearance="solid" tone="accent" size="large" onPress={onShowAll}>
+          <Button appearance="solid" tone="accent" size="lg" onPress={onShowAll}>
             {t('settings.externalMedia.enableAll', { defaultValue: 'Enable external media' })}
           </Button>
-          <Button appearance="subtle" tone="neutral" size="large" onPress={onShowOne}>
+          <Button appearance="subtle" tone="neutral" size="lg" onPress={onShowOne}>
             {t('settings.externalMedia.enableOne', {
               source: label,
               defaultValue: `Enable ${label} only`,
             })}
           </Button>
-          <Button appearance="plain" tone="neutral" size="large" onPress={onHide}>
+          <Button appearance="plain" tone="neutral" size="lg" onPress={onHide}>
             {t('settings.externalMedia.noThanks', { defaultValue: 'No thanks' })}
           </Button>
         </View>

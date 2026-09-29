@@ -157,7 +157,7 @@ export default function StarterPackDetailScreen() {
             success. Renders null when no other members remain. */}
         <FollowButton
           userIds={followAllUserIds}
-          size="large"
+          size="lg"
           followAllLabel="Follow all"
           followedAllLabel="Following all"
           onBulkFollow={handleBulkFollow}
@@ -210,7 +210,7 @@ export default function StarterPackDetailScreen() {
           backLabel={t('common.back', { defaultValue: 'Back' })}
           actions={
             isOwner ? (
-              <Button variant="text" onPress={handleEdit} accessibilityLabel="Edit starter pack">
+              <Button  onPress={handleEdit} accessibilityLabel="Edit starter pack" tone="accent" appearance="plain">
                 Edit
               </Button>
             ) : undefined

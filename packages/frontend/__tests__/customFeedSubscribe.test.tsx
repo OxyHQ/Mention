@@ -1,3 +1,4 @@
+jest.mock('@oxy.so/bloom/layout', () => ({ useBottomEdgeInset: () => 0 }));
 import React from 'react';
 import { Text, TouchableOpacity } from 'react-native';
 import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';

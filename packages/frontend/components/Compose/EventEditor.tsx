@@ -89,7 +89,7 @@ export const EventEditor: React.FC<EventEditorProps> = ({
         <Button
             appearance="solid"
             tone="accent"
-            size="small"
+            size="sm"
             disabled={missingName}
             onPress={onSave}
             testID="eventEditorSave"

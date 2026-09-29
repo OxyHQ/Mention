@@ -391,11 +391,11 @@ export function CameraCapture({ onCaptured, onClose }: CameraCaptureProps) {
             prompt would never appear, so the honest button is the one that goes
             back rather than one that silently does nothing. */}
         {permission.canAskAgain ? (
-          <Button onPress={requestPermission} size="large">
+          <Button onPress={requestPermission} size="lg">
             {t('camera.permissionAllow', { defaultValue: 'Allow camera' })}
           </Button>
         ) : (
-          <Button onPress={onClose} size="large">
+          <Button onPress={onClose} size="lg">
             {t('common.close', { defaultValue: 'Close' })}
           </Button>
         )}

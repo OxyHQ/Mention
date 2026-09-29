@@ -82,7 +82,7 @@ export default function ReplySettingsSheet({ onClose, replyPermission, onReplyPe
             accessibilityLabel={t('Allow quote posts')} />
         } />
       </SettingsListGroup>
-      <Button size="large" onPress={onClose}>{t('Save')}</Button>
+      <Button size="lg" onPress={onClose}>{t('Save')}</Button>
     </View>
   );
 }

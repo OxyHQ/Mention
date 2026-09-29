@@ -112,7 +112,7 @@ const PodcastPickerSheet = memo(function PodcastPickerSheet({
       <View className="mt-2 min-h-[120px]">
         {search.isLoading ? (
           <View className="items-center justify-center py-10">
-            <Loading className="text-primary" size="small" style={{ flex: undefined }} />
+            <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
           </View>
         ) : search.isError ? (
           <Text className="text-muted-foreground text-[15px] text-center py-10">

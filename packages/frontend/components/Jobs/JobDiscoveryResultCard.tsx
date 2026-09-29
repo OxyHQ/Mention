@@ -218,12 +218,11 @@ const JobDiscoveryResultCard = memo(function JobDiscoveryResultCard({
 
   return (
     <Card
-      variant="outlined"
       radius="radius-16"
       onPress={open}
       className="mx-4 mb-3 p-4"
       accessibilityRole="button"
-      accessibilityLabel={job.title}
+      accessibilityLabel={job.title} appearance="outline"
     >
       <View className="flex-row items-start justify-between gap-2">
         <View className="flex-1">

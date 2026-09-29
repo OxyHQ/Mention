@@ -182,7 +182,7 @@ const PostArticleModal: React.FC<PostArticleModalProps> = ({
 
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <Loading className="text-primary" size="small" style={{ flex: undefined }} />
+              <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
             </View>
           ) : (
             <ScrollView

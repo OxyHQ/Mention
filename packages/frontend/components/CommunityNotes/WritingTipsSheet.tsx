@@ -34,10 +34,10 @@ export function WritingTipsSheet({ onContinue, onLearnMore, onClose }: WritingTi
           ]}
         />
         <View className="gap-2">
-          <Button appearance="solid" tone="accent" size="large" onPress={onContinue}>
+          <Button appearance="solid" tone="accent" size="lg" onPress={onContinue}>
             {t('communityNotes.tips.continue', { defaultValue: 'Continue' })}
           </Button>
-          <Button appearance="outline" tone="neutral" size="large" onPress={onLearnMore}>
+          <Button appearance="outline" tone="neutral" size="lg" onPress={onLearnMore}>
             {t('communityNotes.learnMore', { defaultValue: 'Learn more' })}
           </Button>
         </View>

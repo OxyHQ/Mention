@@ -412,7 +412,7 @@ export default function RestrictedUsersScreen() {
               {searching && (
                 <Loading
                   className="text-primary"
-                  size="small"
+                  size="sm"
                   style={{ flex: undefined }}
                 />
               )}
@@ -436,7 +436,7 @@ export default function RestrictedUsersScreen() {
                     key={userId}
                   >
                     <Button
-                      size="small"
+                      size="sm"
                       appearance="subtle"
                       tone="neutral"
                       onPress={() => !isRestricting && handleRestrict(user)}
@@ -447,7 +447,7 @@ export default function RestrictedUsersScreen() {
                         <Loading
                           className="text-primary"
                           variant="inline"
-                          size="small"
+                          size="sm"
                           style={{ flex: undefined }}
                         />
                       ) : (
@@ -479,7 +479,7 @@ export default function RestrictedUsersScreen() {
               <View className="py-10 items-center">
                 <Loading
                   className="text-primary"
-                  size="large"
+                  size="lg"
                   style={{ flex: undefined }}
                 />
               </View>
@@ -507,7 +507,7 @@ export default function RestrictedUsersScreen() {
                   >
                     {
                       <Button
-                        size="small"
+                        size="sm"
                         appearance="subtle"
                         tone="danger"
                         onPress={() => {

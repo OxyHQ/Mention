@@ -150,7 +150,7 @@ export default function ProfileVisibilityScreen() {
     return (
       <View className="gap-4">
         <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="large" />
+          <Loading className="text-primary" size="lg" />
         </View>
       </View>
     );

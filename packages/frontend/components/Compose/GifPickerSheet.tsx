@@ -154,7 +154,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
         )}
         {isUploading && (
           <View className="absolute inset-0 bg-black/50 justify-center items-center">
-            <Loading className="text-primary" size="small" style={{ flex: undefined }} />
+            <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
           </View>
         )}
       </TouchableOpacity>
@@ -190,7 +190,7 @@ const GifPickerSheet: React.FC<GifPickerSheetProps> = ({ onClose, onSelectGif })
 
       {loading && gifs.length === 0 ? (
         <View className="flex-1 justify-center items-center py-12">
-          <Loading className="text-primary" size="large" />
+          <Loading className="text-primary" size="lg" />
           <Text className="mt-3 text-sm text-muted-foreground">
             {t('Loading GIFs...')}
           </Text>

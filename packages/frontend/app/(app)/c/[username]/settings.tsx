@@ -655,8 +655,8 @@ function ChannelAccountSettingsForm({ channel }: { channel: AccountNode }) {
           showChevron={false}
           rightElement={
             <Switch
-              value={settings?.signPosts === true}
-              onValueChange={handleSignPostsChange}
+              checked={settings?.signPosts === true}
+              onCheckedChange={handleSignPostsChange}
               disabled={signPostsMutation.isPending}
             />
           }

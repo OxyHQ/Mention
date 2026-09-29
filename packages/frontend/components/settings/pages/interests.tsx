@@ -70,7 +70,7 @@ export default function InterestsSettingsScreen() {
     return (
       <View className="gap-4">
         <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="large" />
+          <Loading className="text-primary" size="lg" />
         </View>
       </View>
     );
@@ -125,7 +125,7 @@ export default function InterestsSettingsScreen() {
           <SettingsCard>
             {catalogue.isLoading ? (
               <View className="py-8 items-center">
-                <Loading className="text-primary" size="large" />
+                <Loading className="text-primary" size="lg" />
               </View>
             ) : topics.length === 0 ? (
               <View className="px-4 py-6">
@@ -233,7 +233,7 @@ function TopicChip({ topic, seeded, followsReady }: TopicChipProps) {
 
   return (
     <Button
-      size="small"
+      size="sm"
       appearance={follow.isFollowing && !isOffHere ? "solid" : "subtle"}
       tone="neutral"
       onPress={onPress}

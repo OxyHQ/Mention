@@ -64,7 +64,7 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
     () => (
       <View style={styles.footer}>
         <LoadMoreSentinel onLoadMore={handleLoadMore} enabled={hasNextPage} />
-        {isFetchingNextPage ? <Loading className="text-primary" size="small" /> : null}
+        {isFetchingNextPage ? <Loading className="text-primary" size="sm" /> : null}
       </View>
     ),
     [handleLoadMore, hasNextPage, isFetchingNextPage],

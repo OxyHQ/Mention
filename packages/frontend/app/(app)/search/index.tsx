@@ -1073,7 +1073,7 @@ export default function SearchIndex() {
                 case "trendsLoading":
                     return (
                         <View className="w-full items-center justify-center py-6 border-b border-border">
-                            <Loading className="text-primary" size="small" />
+                            <Loading className="text-primary" size="sm" />
                         </View>
                     );
 
@@ -1203,7 +1203,7 @@ export default function SearchIndex() {
                         }
                         return (
                             <View className="items-center justify-center py-20">
-                                <Loading className="text-primary" size="large" />
+                                <Loading className="text-primary" size="lg" />
                             </View>
                         );
                     }
@@ -1395,7 +1395,7 @@ export default function SearchIndex() {
                         ListFooterComponent={
                             isFetchingNextPage ? (
                                 <View className="items-center justify-center py-4">
-                                    <Loading className="text-primary" size="small" />
+                                    <Loading className="text-primary" size="sm" />
                                 </View>
                             ) : null
                         }

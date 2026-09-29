@@ -80,7 +80,7 @@ function openRoomMember(item: AvatarGroupItem) {
 
 /** The hover card's action — the same follow control the profile preview carries. */
 function renderFollowAction(item: AvatarGroupItem) {
-  return item.id ? <FollowButton userId={item.id} size="small" /> : null;
+  return item.id ? <FollowButton userId={item.id} size="sm" /> : null;
 }
 
 const HostInfo = ({ hostId, oxyServices }: { hostId: string; oxyServices: FileUrlResolver }) => {
@@ -406,9 +406,8 @@ const RoomDetailScreen = () => {
               {/* Stats */}
               {room.stats && (
                 <Card
-                  variant="outlined"
                   radius="radius-12"
-                  className="mx-4 mt-6 flex-row items-center p-4"
+                  className="mx-4 mt-6 flex-row items-center p-4" appearance="outline"
                 >
                   <View className="flex-1 items-center">
                     <BloomText variant="title-1-semibold">

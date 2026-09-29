@@ -8,7 +8,7 @@ import type { ProfileData } from '@/hooks/useProfileData';
  * Centralized type definitions following industry standards
  */
 
-import type { useAuth } from '@oxy.so/services/ui/client';
+import type { FollowButton, useAuth } from '@oxy.so/services/ui/client';
 
 // Tab configuration
 export const TAB_NAMES = ['posts', 'replies', 'media', 'videos', 'likes', 'boosts', 'mentions', 'feeds', 'starter_packs', 'lists'] as const;
@@ -319,17 +319,10 @@ export interface ProfileScreenProps {
   isRootTab?: boolean;
 }
 
-// Component props for FollowButton from @oxy.so/services
-export interface FollowButtonProps {
-  userId: string;
-  size?: 'small' | 'medium' | 'large';
-  /** Seeds the button so a followed user renders "Following" on mount (no flash). */
-  initiallyFollowing?: boolean;
-  /** The handle a screen reader names the button by ("Following @nate"). */
-  username?: string;
-}
-
-export type FollowButtonComponent = React.ComponentType<FollowButtonProps>;
+// Keep injected follow controls aligned with the SDK's single-user contract.
+export type FollowButtonComponent = React.ComponentType<
+  Extract<React.ComponentProps<typeof FollowButton>, { userId: string }>
+>;
 
 // Component props for UserName
 export interface UserNameProps {

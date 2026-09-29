@@ -135,7 +135,7 @@ export default function JobApplicationsScreen() {
       <View className="flex-1 min-h-0">
         {applicationsQuery.isPending ? (
           <View className="flex-1 items-center justify-center">
-            <Loading className="text-primary" size="large" />
+            <Loading className="text-primary" size="lg" />
           </View>
         ) : applicationsQuery.isError ? (
           <ErrorState
@@ -193,7 +193,7 @@ export default function JobApplicationsScreen() {
             ListFooterComponent={
               applicationsQuery.isFetchingNextPage ? (
                 <View className="items-center justify-center py-4">
-                  <Loading className="text-primary" size="small" />
+                  <Loading className="text-primary" size="sm" />
                 </View>
               ) : null
             }

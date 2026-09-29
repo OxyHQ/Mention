@@ -260,7 +260,7 @@ const LabelerDetailScreen: React.FC = () => {
           backLabel={t('common.back', { defaultValue: 'Back' })}
         />
         <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="large" />
+          <Loading className="text-primary" size="lg" />
         </View>
       </View>
     );
@@ -336,7 +336,7 @@ const LabelerDetailScreen: React.FC = () => {
           activeOpacity={0.7}
         >
           {subscribing ? (
-            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
+            <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
           ) : (
             <Text
               className={cn(

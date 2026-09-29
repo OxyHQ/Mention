@@ -171,7 +171,7 @@ export default function AppearanceSettingsScreen() {
         {
           key: "reading",
           label: t("settings.appearance", "Appearance"),
-          action: settingsSaving ? <Loading size="small" /> : undefined,
+          action: settingsSaving ? <Loading size="sm" /> : undefined,
           rows: [
             {
               key: "length",

@@ -182,7 +182,7 @@ export default function ListsScreen() {
           backLabel={t('common.back', { defaultValue: 'Back' })}
           actions={
             canUsePrivateApi ? (
-              <Button size="small" onPress={() => router.push('/lists/create')}>
+              <Button size="sm" onPress={() => router.push('/lists/create')}>
                 {t('lists.new')}
               </Button>
             ) : undefined

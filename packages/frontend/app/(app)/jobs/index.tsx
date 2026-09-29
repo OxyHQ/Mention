@@ -303,10 +303,9 @@ export default function JobsDiscoveryScreen() {
             </TextField>
 
             <Button
-              variant="text"
-              size="small"
+              size="sm"
               onPress={() => setShowMoreFilters((v) => !v)}
-              style={{ alignSelf: 'flex-start' }}
+              style={{ alignSelf: 'flex-start' }} tone="accent" appearance="plain"
             >
               {showMoreFilters
                 ? t('jobs.discovery.hideFilters', { defaultValue: 'Hide filters' })
@@ -370,7 +369,7 @@ export default function JobsDiscoveryScreen() {
                   <SegmentedControl
                     label={t('jobs.discovery.datePosted', { defaultValue: 'Date posted' })}
                     type="radio"
-                    size="small"
+                    size="sm"
                     value={draft.datePosted}
                     onChange={setDatePosted}
                   >
@@ -409,7 +408,7 @@ export default function JobsDiscoveryScreen() {
       if (item.state === 'loading') {
         return (
           <View className="items-center justify-center py-16">
-            <Loading className="text-primary" size="large" />
+            <Loading className="text-primary" size="lg" />
           </View>
         );
       }
@@ -474,7 +473,7 @@ export default function JobsDiscoveryScreen() {
           ListFooterComponent={
             discoveryQuery.isFetchingNextPage ? (
               <View className="items-center justify-center py-4">
-                <Loading className="text-primary" size="small" />
+                <Loading className="text-primary" size="sm" />
               </View>
             ) : null
           }

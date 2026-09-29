@@ -452,7 +452,7 @@ const ProfileJobs = memo(function ProfileJobs({
       {(isOwnProfile || viewerOperatesAccount) && (
         <Button
           appearance="subtle" tone="neutral"
-          size="small"
+          size="sm"
           style={{ alignSelf: 'flex-start' }}
           onPress={() => router.push('/jobs/mine')}
         >

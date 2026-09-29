@@ -925,7 +925,7 @@ const VideoItem = memo<VideoItemProps>(({
                             </Pressable>
                             {showOnVideoFollow && item.user?.id && (
                                 <View style={styles.onVideoFollow}>
-                                    <FollowButton userId={item.user.id} size="small" />
+                                    <FollowButton userId={item.user.id} size="sm" />
                                 </View>
                             )}
                         </View>

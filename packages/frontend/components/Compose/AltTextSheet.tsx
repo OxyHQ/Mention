@@ -183,7 +183,7 @@ const AltTextSheet: React.FC<AltTextSheetProps> = ({
         />
       </ScrollView>
 
-      <Button className="mt-2 mx-4" size="large" onPress={handleSave}>
+      <Button className="mt-2 mx-4" size="lg" onPress={handleSave}>
         {t('common.done', { defaultValue: 'Done' })}
       </Button>
     </View>

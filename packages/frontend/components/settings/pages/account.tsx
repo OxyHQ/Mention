@@ -163,7 +163,7 @@ export default function AccountSettingsContent() {
               }),
               control: (
                 <Button
-                  size="small"
+                  size="sm"
                   appearance="subtle"
                   tone="neutral"
                   onPress={() =>
@@ -179,7 +179,7 @@ export default function AccountSettingsContent() {
               label: t("settings.signOut"),
               control: (
                 <Button
-                  size="small"
+                  size="sm"
                   appearance="subtle"
                   tone="danger"
                   onPress={logout}

@@ -67,7 +67,7 @@ const DraftPreview: React.FC<DraftPreviewProps> = ({ draft, onBack, onEdit }) =>
       onBack={onBack}
     >
       <View className="px-4 py-3 border-t border-border">
-        <Button size="large" leadingIcon={RiEditLine} onPress={onEdit}>
+        <Button size="lg" leadingIcon={RiEditLine} onPress={onEdit}>
           {t('compose.draftPreviewEdit', { defaultValue: 'Continue writing' })}
         </Button>
       </View>

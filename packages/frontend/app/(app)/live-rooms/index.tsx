@@ -191,7 +191,7 @@ const LiveRoomsScreen = () => {
             // gave no sign of it. The button is only offered to a reader who
             // can create; everyone else gets the sign-in prompt below.
             canUsePrivateApi ? (
-              <Button appearance="solid" tone="accent" size="small" leadingIcon={RiAddLine} onPress={openCreateSheet}>
+              <Button appearance="solid" tone="accent" size="sm" leadingIcon={RiAddLine} onPress={openCreateSheet}>
                 Create
               </Button>
             ) : undefined

@@ -320,7 +320,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
           accessibilityLabel={t('compose.deleteDraft')}
         >
           {isBusy ? (
-            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
+            <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
           ) : (
             <RiDeleteBinLine width={18} height={18} fill={theme.colors.textSecondary} />
           )}
@@ -348,7 +348,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
   if (isLoading) {
     return (
       <View className="flex-1 justify-center items-center py-12">
-        <Loading className="text-primary" size="large" />
+        <Loading className="text-primary" size="lg" />
       </View>
     );
   }
@@ -366,7 +366,7 @@ const DraftsList: React.FC<DraftsListProps> = ({
     </View>
   ) : serverLoading ? (
     <View className="items-center py-4">
-      <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
+      <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
     </View>
   ) : null;
 

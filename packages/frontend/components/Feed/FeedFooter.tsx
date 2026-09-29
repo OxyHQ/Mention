@@ -57,7 +57,7 @@ export const FeedFooter = memo<FeedFooterProps>(
                 accessibilityRole="progressbar"
                 accessibilityLabel="Loading more posts"
             >
-                <Loading className="text-primary" size="small" style={{ flex: undefined }} />
+                <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
             </View>
         );
     }

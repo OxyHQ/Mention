@@ -35,7 +35,7 @@ export const LocationDisplay: React.FC<LocationDisplayProps> = ({
                 <LocationIcon size={16} className="text-primary" />
                 {isGettingLocation ? (
                     <>
-                        <Loading className="text-primary" size="small" style={{ flex: undefined }} />
+                        <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
                         <Text style={[styles.text, { color: theme.colors.textSecondary }]}>
                             {t('compose.location.getting', { defaultValue: 'Getting location...' })}
                         </Text>

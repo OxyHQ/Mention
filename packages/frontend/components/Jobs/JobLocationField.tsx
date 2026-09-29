@@ -119,7 +119,7 @@ const PlaceSearchDialog = memo(function PlaceSearchDialog({
   } else if (isFetching && places.length === 0) {
     body = (
       <View className="items-center py-6">
-        <Loading className="text-primary" size="small" />
+        <Loading className="text-primary" size="sm" />
       </View>
     );
   } else if (places.length === 0) {
@@ -200,7 +200,7 @@ const JobLocationField = memo(function JobLocationField({ value, onChange }: Job
       <SegmentedControl
         label={label}
         type="radio"
-        size="small"
+        size="sm"
         value={value.kind}
         onChange={(kind) => {
           if (kind === value.kind) return;

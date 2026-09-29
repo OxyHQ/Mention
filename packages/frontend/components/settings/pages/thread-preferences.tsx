@@ -68,7 +68,7 @@ export default function ThreadPreferencesScreen() {
                 key={option.value}
               >
                 <Button
-                  size="small"
+                  size="sm"
                   appearance="subtle"
                   tone="neutral"
                   onPress={() => setVoteStyle(option.value)}

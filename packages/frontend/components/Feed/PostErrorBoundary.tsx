@@ -19,7 +19,7 @@ function PostErrorFallback({ onRetry }: { onRetry: () => void }) {
   return (
     <View className="border-border" style={styles.container}>
       <Text className="text-muted-foreground text-sm">This post could not be displayed.</Text>
-      <Button appearance="plain" size="small" onPress={onRetry}>Tap to retry</Button>
+      <Button appearance="plain" size="sm" onPress={onRetry}>Tap to retry</Button>
     </View>
   );
 }

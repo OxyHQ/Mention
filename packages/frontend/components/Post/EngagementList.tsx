@@ -151,7 +151,7 @@ const EngagementList: React.FC<EngagementListProps> = ({ postId, type, onClose }
           ListFooterComponent={
             loadingMore ? (
               <View className="py-4 items-center">
-                <Loading className="text-primary" size="small" style={{ flex: undefined }} />
+                <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
               </View>
             ) : null
           }

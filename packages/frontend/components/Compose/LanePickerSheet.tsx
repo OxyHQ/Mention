@@ -152,7 +152,7 @@ const LanePickerSheet = memo(function LanePickerSheet({
 
       {isLoading ? (
         <View className="py-10 items-center">
-          <Loading className="text-primary" size="large" style={{ flex: undefined }} />
+          <Loading className="text-primary" size="lg" style={{ flex: undefined }} />
         </View>
       ) : (
         <FlatList
@@ -177,7 +177,7 @@ const LanePickerSheet = memo(function LanePickerSheet({
           than pointed somewhere that would edit the wrong publisher's lanes. */}
       {publishAs ? null : (
         <View className="mt-2 mx-4">
-          <Button appearance="subtle" tone="neutral" size="large" onPress={handleManage}>
+          <Button appearance="subtle" tone="neutral" size="lg" onPress={handleManage}>
             {t('lanes.picker.manage', { defaultValue: 'Manage lanes' })}
           </Button>
         </View>

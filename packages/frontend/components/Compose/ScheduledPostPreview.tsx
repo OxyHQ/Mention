@@ -137,7 +137,7 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
     >
       <View className="px-4 pt-3 border-t border-border">
         <Button
-          size="large"
+          size="lg"
           leadingIcon={RiSendPlaneLine}
           onPress={handlePublishNow}
           disabled={busy}
@@ -152,7 +152,7 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
         <Button
           className="flex-1"
           appearance="subtle" tone="neutral"
-          size="large"
+          size="lg"
           leadingIcon={RiEditLine}
           onPress={onEdit}
           disabled={busy}
@@ -163,7 +163,7 @@ const ScheduledPostPreview: React.FC<ScheduledPostPreviewProps> = ({
         <Button
           className="flex-1"
           appearance="solid" tone="danger"
-          size="large"
+          size="lg"
           leadingIcon={RiDeleteBinLine}
           onPress={handleCancel}
           disabled={busy}
