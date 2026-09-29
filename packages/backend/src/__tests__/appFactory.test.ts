@@ -473,6 +473,16 @@ describe('createApp', () => {
 
     expect(connectSources).toContain('https://api.alia.onl');
     expect(connectSources).not.toContain('https:');
+
+    // Stickers animate on the web through WebAssembly: compiling it is allowed,
+    // JavaScript `eval` is not.
+    const scriptSources = String(policy)
+      .split(';')
+      .find((directive) => directive.startsWith('script-src '))
+      ?.split(/\s+/)
+      .slice(1);
+    expect(scriptSources).toContain("'wasm-unsafe-eval'");
+    expect(scriptSources).not.toContain("'unsafe-eval'");
   });
 });
 
