@@ -49,3 +49,17 @@ on a Pixel 8a release build: 45–116 warnings per screen pop, 3,079 in 45 minut
 (#1126). The patch restores RN's check and is byte-for-byte upstream PR
 software-mansion/react-native-reanimated#10435 (issues #10280, #10434). Still
 present in 4.7.0; remove it with the first release that includes that PR.
+
+# @oxy.so/bloom 6.2.0
+
+`SettingsModal` ignored a close requested before its enter frame: `show()`
+mounts, and a double `requestAnimationFrame` later sets it visible, so Escape
+pressed the moment the panel appeared set `visible` to false (it already was)
+and the pending frame then opened it anyway. The release gate
+(`packages/e2e/tests/deferred-chunks.spec.ts`) presses Escape right after the
+lazily loaded settings dialog appears, and the dialog never closed, which
+blocked every web deploy. The patch is the upstream fix, OxyHQ/Bloom#250,
+applied to `src`, `lib/module` and `lib/commonjs`: the modal tracks whether it
+is wanted open, a close cancels the pending enter frame, and a modal closed
+before it was ever shown unmounts at once. Remove it when Mention moves to a
+Bloom release that includes #250.
