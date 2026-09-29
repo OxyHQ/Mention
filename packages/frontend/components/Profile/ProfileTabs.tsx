@@ -10,6 +10,10 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Feed } from '@/components/Feed/index';
+// Static on purpose: the feed below renders every row with this same component,
+// so it is always already loaded. A `lazy()` here saved nothing and painted the
+// tab with no pinned post first, then pushed the whole feed down under it (#1216).
+import PinnedPostItem from '@/components/Feed/PostItem';
 import { ProfileWriters } from './ProfileWriters';
 import MediaGrid from './MediaGrid';
 import VideosGrid from './VideosGrid';
@@ -32,8 +36,6 @@ import { Button } from '@oxy.so/bloom/button';
 import { useReselectReloadKey } from '@/context/ScreenReselectContext';
 
 const IS_WEB = Platform.OS === 'web';
-
-const PinnedPostItem = React.lazy(() => import('@/components/Feed/PostItem'));
 
 interface ProfileTabsRuntimeProps extends ProfileTabsProps {
   /**
@@ -213,9 +215,7 @@ export const ProfileTabs = memo(function ProfileTabs({
   // count remains bounded. The legacy non-scrolling Feed fallback stays only for
   // callers that have not opted into feed ownership.
   const pinnedPostElement = tab === 'posts' && pinnedPost ? (
-    <React.Suspense fallback={null}>
-      <PinnedPostItem post={pinnedPost} showPinned />
-    </React.Suspense>
+    <PinnedPostItem post={pinnedPost} showPinned />
   ) : null;
 
   // A lane tab is served by the lane's OWN descriptor (`lane|<id>`), which
@@ -248,18 +248,24 @@ export const ProfileTabs = memo(function ProfileTabs({
 
   return (
     <View>
-      {/* Pinned post - only show on posts tab */}
-      {pinnedPostElement}
       {/* bounded-feed: on native this non-scrolling path is reached only by a
           private profile the viewer does not own (every other feed tab lets the
           Feed own the scroll — `shouldFeedOwnProfileScroll`), and that feed is
-          empty by construction. */}
+          empty by construction.
+
+          The pinned post is the feed's LEADING element rather than a sibling
+          above it: its own request and the feed's race, and whichever lost used
+          to land on top of what the other had already painted, pushing the
+          whole column down (#1216). The feed waits for it on its first
+          presentation (`leadingPending`), so both appear together. */}
       <Feed
         type={tab as FeedType}
         userId={laneId ? undefined : profileId}
         filters={laneFilters}
         hideHeader={true}
         scrollEnabled={IS_WEB ? undefined : false}
+        listLeadingComponent={pinnedPostElement}
+        leadingPending={canLoadPinnedPost && pinnedPostQuery.isPending}
         contentContainerStyle={{ paddingBottom: 100 }}
         onRefresh={refreshProfileSurface}
         reloadKey={feedReloadKey}
