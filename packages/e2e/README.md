@@ -172,9 +172,13 @@ Chromium only, on purpose: WebKit doubles both the browser download and the wall
 clock of a step sitting directly in front of a production promotion. Add it when
 the gate has earned the budget.
 
-The suite is not wired into the PR gate yet. That comes after the promotion gate
-has proven itself non-flaky, and the natural hook is CI's existing
-`frontend-bundle` job, which already exports `dist/` and could serve it locally.
+It also runs BEFORE a merge: CI's `e2e` job (required through `CI complete`,
+on pull requests and merge-queue entries) builds the same production export,
+serves it with `wrangler pages dev` — the Pages runtime, so `_redirects` and
+`_headers` apply exactly as they do on the preview — and points
+`MENTION_E2E_CANDIDATE_ORIGIN` at it. Only the candidate's host differs from
+the deploy. It ran only in the deploy before, so a pull request that broke it
+merged green and then blocked every web release until someone fixed it.
 
 ### Cold external identity acceptance
 

@@ -57,6 +57,29 @@ for (const key of POSTGRES_ENV_KEYS) {
  */
 if (!process.env.PG_MAX_POOL_SIZE) process.env.PG_MAX_POOL_SIZE = '8';
 
+/**
+ * A `--shard=<i>/<n>` run covers a THIRD of the suite, so every floor below is
+ * wrong for it by construction — measured: shard 1/3 alone reads 46.83%
+ * statements against a 69.13% floor, and every per-file pin whose tests landed
+ * on another shard reads 0%. Judging a shard against them would fail every
+ * sharded run for no defect at all.
+ *
+ * So a shard records coverage (into its blob report) and judges NOTHING; the
+ * floors are applied exactly once, by `vitest --merge-reports --coverage` over
+ * every shard's blob, which is the complete suite's coverage and the same
+ * number an unsharded run produces. That merge carries no `--shard`, so it gets
+ * the full thresholds object below — and CI's `backend-coverage` job refuses to
+ * merge unless every shard's blob is present, so the floors can never be judged
+ * against a partial suite. An unsharded run (local, or `bun run test:coverage`)
+ * is untouched.
+ *
+ * Detected from the CLI rather than an environment variable deliberately: a
+ * variable is a switch someone can leave set on the merge step. `--shard` is the
+ * thing that actually makes the numbers partial, so it is the thing that turns
+ * the judgement off.
+ */
+const isShardRun = process.argv.some((arg) => arg === '--shard' || arg.startsWith('--shard='));
+
 export default defineConfig({
   root: backendRoot,
   test: {
@@ -87,7 +110,7 @@ export default defineConfig({
       // module. It is exercised for real instead — the harness in
       // `src/db/testDatabase.ts` shells out to it on every single run.
       exclude: ['src/__tests__/**', 'src/scripts/**', 'src/db/migrate.ts'],
-      thresholds: {
+      thresholds: isShardRun ? undefined : {
         // Measured on the complete suite. Keep these values explicit: CI must
         // reject a regression instead of silently rewriting the baseline.
         //

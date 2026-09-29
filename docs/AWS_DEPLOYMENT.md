@@ -1,8 +1,39 @@
 # Production deployment
 
 Mention deploys from the exact `main` commit that passed CI. Production
-workflows use `workflow_run`, reject stale commits before every production
-mutation, and serialize releases per service.
+workflows reject stale commits before every production mutation and serialize
+releases per service.
+
+## How a commit reaches a release
+
+Each deploy workflow has two triggers, and `.github/scripts/release-provenance.sh`
+gives every commit to exactly one of them:
+
+| Commit | Released by | Proof it passed CI |
+| --- | --- | --- |
+| Merged through the merge queue | `push` to main, immediately | A `merge_group` run of `ci.yml` for this exact SHA, whose `CI complete` job succeeded — the queue fast-forwards main to the tree it tested |
+| Anything else (admin bypass, direct push, queue disabled) | `workflow_run` of CI on push, after it succeeds | That CI run itself, as before |
+
+The check is fail-closed: a push that is not merge-queue verified releases
+nothing, and an API error is a red run rather than a skip.
+
+CI answers the same question (`merge-queue-verified.sh`) on every push to main.
+A queue-verified push runs only the bundle baseline that pull requests restore
+and `CI complete`, which then accepts the tests, e2e, quality and lockfile jobs
+as skipped because they already passed on this exact tree. Any other push runs
+the full suite, and if the question cannot be answered, the full suite runs.
+
+A release whose SHA is no longer main's head ends **green with a notice**, not
+red: nothing is deployed, `record-deployment` does not run, and the release of
+the newer head carries the change, because `deployment-scope.sh` diffs against
+the `deployed/<target>` tag rather than the previous commit.
+
+To retry a failed release, re-run the failed jobs of that deploy run. It is
+refused as stale once main has moved, which is correct: the newer head's release
+carries it.
+
+CI's `merge_group` trigger is inert until the merge-queue ruleset is enabled on
+`main`. Until then every commit takes the fallback path, exactly as before.
 
 ## Surfaces
 
@@ -44,8 +75,10 @@ that answers every page with the empty fallback shell.
 
 ## Release transaction
 
-1. CI installs the frozen Bun lockfile and runs workspace checks, tests,
-   security review, workflow validation and the frontend bundle budget.
+1. CI installs the frozen Bun lockfile and runs workspace checks, tests (the
+   backend suite in three shards whose coverage is merged and judged as one
+   suite), security review, workflow validation, the frontend bundle budget and
+   the Playwright browser gate against a locally served export.
 2. Backend and MCP images are built for ARM64, pushed to ECR and referenced by
    immutable digest.
 3. The backend runs schema migrations as a one-shot task with the release
