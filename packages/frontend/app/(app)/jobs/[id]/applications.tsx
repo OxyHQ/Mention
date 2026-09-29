@@ -18,6 +18,7 @@ import { BottomSheetContext } from '@/context/BottomSheetContext';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { jobApplicationsService, isJobForbiddenError } from '@/services/jobApplicationsService';
 import JobApplicationDetailSheet from '@/components/Jobs/JobApplicationDetailSheet';
+import { EmptyState } from '@/components/common/EmptyState';
 
 const STATUS_TONE: Record<MentionJobApplicationStatus, 'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'> = {
   new: 'info',
@@ -144,11 +145,11 @@ export default function JobApplicationsScreen() {
             hideBackButton
           />
         ) : applications.length === 0 ? (
-          <View className="flex-1 items-center justify-center px-8 gap-2">
-            <Text className="text-foreground text-base font-semibold text-center">
-              {t('jobs.applications.emptyTitle', { defaultValue: 'No applications yet' })}
-            </Text>
-          </View>
+          <EmptyState
+            title={t('jobs.applications.emptyTitle', { defaultValue: 'No applications yet' })}
+            sticker="jobApplications"
+            containerStyle={{ flex: 1, justifyContent: 'center' }}
+          />
         ) : (
           <FlashList
             data={applications}

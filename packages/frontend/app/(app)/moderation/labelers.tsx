@@ -14,7 +14,6 @@ import {
 import { Loading } from '@oxy.so/bloom/loading';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { RiShieldCheckLine } from '@oxy.so/bloom/icons/RiShieldCheckLine';
-import { RiShieldLine } from '@oxy.so/bloom/icons/RiShieldLine';
 import { Search } from '@oxy.so/bloom/search';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { router } from 'expo-router';
@@ -250,7 +249,7 @@ const LabelersScreen: React.FC = () => {
   const ListEmpty = useCallback(
     () => (
       <EmptyState
-        customIcon={<RiShieldLine width={48} height={48} fill={theme.colors.textSecondary} />}
+        sticker="labelers"
         title={t('labelers.emptyTitle', { defaultValue: 'No labelers found' })}
         subtitle={t('labelers.emptySubtitle', {
           defaultValue: 'Try adjusting your search or check back later.',
@@ -258,7 +257,7 @@ const LabelersScreen: React.FC = () => {
         containerStyle={{ paddingTop: 60 }}
       />
     ),
-    [theme, t],
+    [t],
   );
 
   return (

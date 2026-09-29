@@ -487,10 +487,7 @@ export default function RestrictedUsersScreen() {
               <View className="py-4">
                 <EmptyState
                   title={t("settings.privacy.noRestrictedUsers")}
-                  icon={{
-                    name: "people-outline",
-                    size: 48,
-                  }}
+                  sticker="restrictedAccounts"
                 />
               </View>
             ) : (

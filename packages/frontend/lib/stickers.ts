@@ -31,6 +31,20 @@ const SPRING_THUMBSUP = '01a0eadb-c6a9-7c35-8433-c308f9a4ce03';
 const INTROVERT_WAVE = '01a0eadb-5dd8-70d1-b12b-5083a0c5b01a';
 /** 🍵 escape-from-reality (siptea) */
 const ESCAPE_SIPTEA = '01a0eadb-0917-74c4-be61-8fd534b4faea';
+/** 💅 introvert-life (thriving) */
+const INTROVERT_THRIVING = '01a0eadb-647d-7f9c-8033-ac5f38deb9f9';
+/** 🧐 holiday-cats (focused) */
+const CATS_FOCUSED = '01a0eadb-4fad-7ea1-8c49-62ceff396792';
+/** 🥳 fearless-bird (partytime) */
+const BIRD_PARTYTIME = '01a0eadb-3895-7264-97c4-f7aaf2d722ef';
+/** 💻 escape-from-reality (laptop) */
+const ESCAPE_LAPTOP = '01a0eadb-07c7-7315-94aa-6d8639943c21';
+/** 😌 introvert-life (chilling) */
+const INTROVERT_CHILLING = '01a0eadb-6e8f-727e-b102-914aa907f2a5';
+/** 😌 blob-the-fish (satisfied) */
+const FISH_SATISFIED = '01a0eada-a932-73cf-9cfe-503437a42a51';
+/** 🙅 introvert-life (nope) */
+const INTROVERT_NOPE = '01a0eadb-6875-730c-988d-e04211c6a430';
 
 export const EMPTY_STATE_STICKERS = {
   // Feeds
@@ -84,22 +98,61 @@ export const EMPTY_STATE_STICKERS = {
 
   // Collections
   saved: ESCAPE_SIPTEA,
-  /** 🧐 holiday-cats (focused) */
-  lists: '01a0eadb-4fad-7ea1-8c49-62ceff396792',
-  /** 🥳 fearless-bird (partytime) */
-  starterPacks: '01a0eadb-3895-7264-97c4-f7aaf2d722ef',
+  lists: CATS_FOCUSED,
+  starterPacks: BIRD_PARTYTIME,
   /** 🏃 blob-blah-blah (omw) */
   lanes: '01a0eada-9e38-7428-89a9-bcac44aad7ba',
 
   // Discovery
-  /** 💅 introvert-life (thriving) */
-  feedStore: '01a0eadb-647d-7f9c-8033-ac5f38deb9f9',
+  feedStore: INTROVERT_THRIVING,
   trending: BLOB_WATCHING,
   /** 🌙 dance-to-the-beat (goodnight) */
   liveRooms: '01a0eada-f96e-7fd5-9486-c36b4dc05288',
   feedNotFound: BLOB_OOPS,
   /** 😕 taste-buds (confused) — the 404 page. */
   notFound: '01a0eadb-ee07-7b6f-a868-3fea8fc02476',
+
+  // A profile's other tabs, and a channel's writers
+  profileFeeds: INTROVERT_THRIVING,
+  profileJobs: ESCAPE_LAPTOP,
+  profileStarterPacks: BIRD_PARTYTIME,
+  profileLists: CATS_FOCUSED,
+  /** 💡 blob-the-fish (inspired) */
+  channelWriters: '01a0eada-abf1-7759-bcf4-610c070fcff5',
+
+  // Inside a list, a custom feed's page, and the videos tab
+  listPosts: BLOB_SHRUGGING,
+  listMembers: MATCH_WAVE,
+  feedPageEmpty: BLOB_SHRUGGING,
+  videosTab: '01a0eada-bed5-7bb5-9c1d-3c1e1a42db6c',
+
+  // Writing
+  /** 😴 vacation (sleepy) */
+  drafts: '01a0eadb-f89c-76ae-a954-0bed0cf5be1c',
+  /** 🙂 vacation (waiting) */
+  scheduledPosts: '01a0eadb-feca-7ade-85fb-979d7ab575eb',
+  postCorrections: SPRING_THUMBSUP,
+
+  // Jobs
+  jobsSearch: BLOB_SHRUGGING,
+  jobsMine: ESCAPE_LAPTOP,
+  jobApplications: ESCAPE_LAPTOP,
+
+  // Community and moderation
+  /** 🧐 match-ready (judgemental) */
+  communityNotes: '01a0eadb-8559-7417-95d7-15b7ec796f2c',
+  labelers: BLOB_SHRUGGING,
+  trendGraph: BLOB_WATCHING,
+  transparency: SPRING_THUMBSUP,
+
+  // Settings and restricted screens: calm characters, nothing is wrong here
+  blockedAccounts: INTROVERT_CHILLING,
+  restrictedAccounts: INTROVERT_CHILLING,
+  mutedWords: FISH_SATISFIED,
+  mutedLanes: FISH_SATISFIED,
+  /** 🤞 harvest-season (fingerscrossed) */
+  subscriptions: '01a0eadb-4b0d-780a-97eb-f7ca286c7908',
+  operatorOnly: INTROVERT_NOPE,
 } as const;
 
 export type EmptyStateStickerName = keyof typeof EMPTY_STATE_STICKERS;

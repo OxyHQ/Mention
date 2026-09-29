@@ -191,7 +191,7 @@ export default function ActivitySubscriptionsScreen() {
             defaultValue:
               "Open someone's profile and tap the bell to get notified whenever they post.",
           })}
-          icon={{ name: "notifications-outline", size: 48 }}
+          sticker="subscriptions"
         />
       </View>
     ),

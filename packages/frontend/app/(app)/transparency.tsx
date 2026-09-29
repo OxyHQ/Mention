@@ -12,6 +12,7 @@ import type {
 } from '@mention/shared-types';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { publicApi } from '@/utils/api';
+import { EmptyState } from '@/components/common/EmptyState';
 
 /**
  * Public moderation transparency: the instances Mention refuses to federate
@@ -168,7 +169,11 @@ export default function TransparencyScreen() {
             ))}
           </>
         ) : (
-          <Paragraph>{t('transparency.list.empty')}</Paragraph>
+          <EmptyState
+            title={t('transparency.list.empty')}
+            sticker="transparency"
+            containerStyle={{ paddingTop: 40 }}
+          />
         )}
       </ScrollView>
     </View>

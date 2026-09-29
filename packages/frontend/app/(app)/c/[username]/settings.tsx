@@ -183,7 +183,7 @@ export default function ChannelAccountSettingsScreen() {
           title={t('channels.settings.operatorOnly', {
             defaultValue: 'Only an operator can manage this channel',
           })}
-          icon={{ name: 'lock-closed-outline', size: 48 }}
+          sticker="operatorOnly"
         />
       </View>
     );

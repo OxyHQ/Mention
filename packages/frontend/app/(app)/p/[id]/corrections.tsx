@@ -16,6 +16,7 @@ import { feedService } from '@/services/feedService';
 import { publicQueryKeys, viewerQueryKeys } from '@/lib/viewerQueryKeys';
 import { usePostSelector } from '@/stores/postsStore';
 import { formatFullTimestamp } from '@/utils/dateUtils';
+import { EmptyState } from '@/components/common/EmptyState';
 
 /**
  * A post's public correction trail (route `/p/<id>/corrections`).
@@ -106,11 +107,13 @@ export default function PostCorrectionsScreen() {
                         </Button>
                     </View>
                 ) : corrections.length === 0 ? (
-                    <Text className="px-4 py-10 text-center text-sm text-muted-foreground">
-                        {t('post.corrections.empty', {
+                    <EmptyState
+                        title={t('post.corrections.empty', {
                             defaultValue: 'This post has not been corrected.',
                         })}
-                    </Text>
+                        sticker="postCorrections"
+                        containerStyle={{ paddingTop: 40 }}
+                    />
                 ) : (
                     <>
                         {droppedVersions > 0 ? (

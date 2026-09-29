@@ -411,10 +411,7 @@ export default function BlockedUsersScreen() {
               <View className="py-4">
                 <EmptyState
                   title={t("settings.privacy.noBlockedUsers")}
-                  icon={{
-                    name: "people-outline",
-                    size: 48,
-                  }}
+                  sticker="blockedAccounts"
                 />
               </View>
             ) : (
