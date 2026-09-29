@@ -336,7 +336,7 @@ export default function BlockedUsersScreen() {
               {searching && (
                 <Loading
                   className="text-primary"
-                  size="small"
+                  size="sm"
                   style={{ flex: undefined }}
                 />
               )}
@@ -360,7 +360,7 @@ export default function BlockedUsersScreen() {
                     key={userId}
                   >
                     <Button
-                      size="small"
+                      size="sm"
                       appearance="subtle"
                       tone="neutral"
                       onPress={() => !isBlocking && handleBlock(user)}
@@ -371,7 +371,7 @@ export default function BlockedUsersScreen() {
                         <Loading
                           className="text-primary"
                           variant="inline"
-                          size="small"
+                          size="sm"
                           style={{ flex: undefined }}
                         />
                       ) : (
@@ -403,7 +403,7 @@ export default function BlockedUsersScreen() {
               <View className="py-10 items-center">
                 <Loading
                   className="text-primary"
-                  size="large"
+                  size="lg"
                   style={{ flex: undefined }}
                 />
               </View>
@@ -431,7 +431,7 @@ export default function BlockedUsersScreen() {
                   >
                     {
                       <Button
-                        size="small"
+                        size="sm"
                         appearance="subtle"
                         tone="danger"
                         onPress={() => {

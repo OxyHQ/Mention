@@ -31,6 +31,7 @@ import { useAuth, FollowButton } from '@oxy.so/services/ui/client';
 import Feed from '@/components/Feed/Feed';
 import { ComposeIcon } from '@/assets/icons/compose-icon';
 import { Fab } from '@oxy.so/bloom/fab';
+import { PageAction } from '@/components/shell/PageAction';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 
@@ -844,15 +845,16 @@ export default function CustomFeedTimelineScreen() {
         </ScrollView>
       )}
 
-      {/* Clears the BottomBar on every platform — Bloom's Fab reads the
-              bottom edge's occupancy, which the bar publishes. */}
+      {/* PageAction follows the shell's bottom navigation clearance. */}
       {!isLoading && !hasError && (
-        <Fab
-          size="md" placement="bottom-right"
-          onPress={() => router.push('/compose')}
-          icon={<ComposeIcon size={26} className="text-tertiary-foreground" />}
-          accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
-        />
+        <PageAction>
+          <Fab
+            size="md"
+            onPress={() => router.push('/compose')}
+            icon={({ width, fill }) => <ComposeIcon size={width} color={fill} />}
+            accessibilityLabel={t('compose.newPost', { defaultValue: 'New post' })}
+          />
+        </PageAction>
       )}
 
       {/* Feed info bottom sheet */}

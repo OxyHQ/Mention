@@ -416,7 +416,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ accountId }) => {
 
             {isPrivateApiPending || isLoading ? (
                 <View className="flex-1 justify-center items-center">
-                    <Loading className="text-primary" size="large" />
+                    <Loading className="text-primary" size="lg" />
                 </View>
             ) : !canUsePrivateApi ? (
                 <OxyAuthPrompt

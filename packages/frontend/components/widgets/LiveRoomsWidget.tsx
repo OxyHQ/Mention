@@ -185,7 +185,7 @@ export function LiveRoomsWidget({ divider }: { divider?: boolean }) {
               />
             ))}
           </View>
-          <Button appearance="plain" size="small" onPress={handleShowMore} style={{ alignSelf: 'flex-start' }}>
+          <Button appearance="plain" size="sm" onPress={handleShowMore} style={{ alignSelf: 'flex-start' }}>
             {t('Show more')}
           </Button>
         </View>

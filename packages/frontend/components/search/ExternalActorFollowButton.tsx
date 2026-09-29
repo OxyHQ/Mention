@@ -90,13 +90,13 @@ export function ExternalActorFollowButton({ actor }: ExternalActorFollowButtonPr
   if (!canUsePrivateApi) return null;
 
   if (actor.oxyUserId) {
-    return <FollowButton userId={actor.oxyUserId} size="small" onFollowChange={bridgeToNetwork} />;
+    return <FollowButton userId={actor.oxyUserId} size="sm" onFollowChange={bridgeToNetwork} />;
   }
 
   return (
     <BloomFollowButton
       following={following}
-      size="small"
+      size="sm"
       onFollowChange={() => void followExternalActor()}
       loading={submitting}
       disabled={following || submitting}

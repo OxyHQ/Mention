@@ -211,7 +211,7 @@ const BooleanParamRow = ({
   return (
     <View className="flex-row items-center justify-between">
       <Text className="text-[13px] font-semibold text-foreground">{label}</Text>
-      <Switch value={value} onValueChange={handleChange} accessibilityLabel={label} />
+      <Switch checked={value} onCheckedChange={handleChange} accessibilityLabel={label} />
     </View>
   );
 };
@@ -545,7 +545,7 @@ const ModuleCard = ({
             <Text className="text-[13px] leading-[18px] text-muted-foreground">{description}</Text>
           ) : null}
         </View>
-        <Switch value={enabled} onValueChange={handleToggle} accessibilityLabel={label} />
+        <Switch checked={enabled} onCheckedChange={handleToggle} accessibilityLabel={label} />
       </View>
       {hasBody ? (
         <View className="mt-3 gap-3">
@@ -823,7 +823,7 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
         backLabel={t('common.back', { defaultValue: 'Back' })}
         actions={
           canUsePrivateApi ? (
-            <Button size="small" onPress={handleSave} disabled={!canSave} loading={saving}>
+            <Button size="sm" onPress={handleSave} disabled={!canSave} loading={saving}>
               {savedFeedId ? t('feeds.builder.saveChanges') : t('feeds.builder.create')}
             </Button>
           ) : undefined
@@ -838,7 +838,7 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
       >
         {catalogLoading || !catalog ? (
           <View className="flex-1 items-center justify-center">
-            <Loading className="text-primary" size="large" />
+            <Loading className="text-primary" size="lg" />
           </View>
         ) : (
           <ChipDraftContext.Provider value={chipDraftStore}>
@@ -879,8 +879,8 @@ export function FeedBuilder({ feedId, initialFeed }: { feedId?: string; initialF
                   showChevron={false}
                   rightElement={
                     <Switch
-                      value={isPublic}
-                      onValueChange={handlePublicChange}
+                      checked={isPublic}
+                      onCheckedChange={handlePublicChange}
                       accessibilityLabel={t('feeds.builder.public')}
                     />
                   }

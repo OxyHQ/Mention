@@ -2646,8 +2646,8 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
                   </View>
                   <View style={styles.modeToggle}>
                     <Switch
-                      value={postingMode === 'beast'}
-                      onValueChange={(value) => {
+                      checked={postingMode === 'beast'}
+                      onCheckedChange={(value) => {
                         haptic('light');
                         setPostingMode(value ? 'beast' : 'thread');
                       }}
@@ -2680,7 +2680,7 @@ const ComposeScreenBody = ({ presentation }: Required<ComposeScreenProps>) => {
             {replyToPostId && (
               replyLoading ? (
                 <View style={styles.replyPreviewLoading}>
-                  <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
+                  <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
                 </View>
               ) : replyToPost ? (
                 <View className="border-b border-border">

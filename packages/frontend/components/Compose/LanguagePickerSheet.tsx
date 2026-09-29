@@ -149,12 +149,12 @@ const LanguagePickerSheet = memo(function LanguagePickerSheet({
       {onMakeMain || onRemove ? (
         <View className="mt-2 mx-4 gap-2">
           {onMakeMain ? (
-            <Button appearance="subtle" tone="neutral" size="large" onPress={handleMakeMain}>
+            <Button appearance="subtle" tone="neutral" size="lg" onPress={handleMakeMain}>
               {t('compose.languages.makeMain', { defaultValue: 'Make main language' })}
             </Button>
           ) : null}
           {onRemove ? (
-            <Button appearance="solid" tone="danger" size="large" onPress={handleRemove}>
+            <Button appearance="solid" tone="danger" size="lg" onPress={handleRemove}>
               {removeLabel ?? t('compose.languages.remove', { defaultValue: 'Remove this language' })}
             </Button>
           ) : null}

@@ -148,7 +148,7 @@ function AccountInfoContent({ profileData, profileLoading, notFound, onRetry }: 
       <View className="flex-1">
         {header}
         <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="large" />
+          <Loading className="text-primary" size="lg" />
         </View>
       </View>
     );

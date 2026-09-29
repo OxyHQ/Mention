@@ -98,7 +98,7 @@ export function SuggestedProfileCard({
       <FollowButton
         userId={resolved.id}
         username={handle || undefined}
-        size="small"
+        size="sm"
         style={styles.followButton}
         onFollowChange={onFollowChange}
       />

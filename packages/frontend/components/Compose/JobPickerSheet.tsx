@@ -81,7 +81,7 @@ const JobPickerSheet = memo(function JobPickerSheet({ employer, onSelect, onClos
       <View className="min-h-[120px]">
         {isLoading ? (
           <View className="items-center justify-center py-10">
-            <Loading className="text-primary" size="small" style={{ flex: undefined }} />
+            <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
           </View>
         ) : isError ? (
           <Text className="text-muted-foreground text-[15px] text-center py-10">

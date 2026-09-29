@@ -34,7 +34,7 @@ export default function AuthScreen() {
             </Text>
             <Button
               appearance="solid" tone="accent"
-              size="large"
+              size="lg"
               style={styles.signInButton}
               onPress={() => signIn().catch(() => {})}
             >
@@ -58,7 +58,7 @@ export default function AuthScreen() {
         <View className="w-full max-w-[320px] pb-8">
           <Button
             appearance="solid" tone="accent"
-            size="large"
+            size="lg"
             style={styles.signInButton}
             onPress={() => signIn().catch(() => {})}
           >

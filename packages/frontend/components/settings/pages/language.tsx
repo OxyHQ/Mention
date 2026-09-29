@@ -51,7 +51,7 @@ export default function LanguageSettingsScreen() {
               description={languageDescription}
             >
               <Button
-                size="small"
+                size="sm"
                 appearance="subtle"
                 tone="neutral"
                 onPress={openLanguageSelector}

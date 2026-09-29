@@ -334,7 +334,7 @@ export default function EditStarterPackScreen() {
                       already ? (
                         <Button
                           appearance="subtle" tone="neutral"
-                          size="small"
+                          size="sm"
                           disabled
                           icon={<RiCheckLine size="xs" fill={theme.colors.success} />}
                           accessibilityLabel={`${u.name.displayName} added`}
@@ -344,7 +344,7 @@ export default function EditStarterPackScreen() {
                       ) : (
                         <Button
                           appearance="solid" tone="accent"
-                          size="small"
+                          size="sm"
                           loading={busy}
                           disabled={blockedByCap}
                           icon={<RiAddLine size="xs" fill={theme.colors.primaryForeground} />}
@@ -395,7 +395,7 @@ export default function EditStarterPackScreen() {
                     trailing={
                       <Button
                         appearance="plain" tone="neutral"
-                        size="small"
+                        size="sm"
                         loading={busy}
                         onPress={() => removeMember(m)}
                         iconOnly

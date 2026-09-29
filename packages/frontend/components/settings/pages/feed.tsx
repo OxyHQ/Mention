@@ -157,7 +157,7 @@ export default function FeedSettingsScreen() {
     return (
       <View className="gap-4">
         <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="large" />
+          <Loading className="text-primary" size="lg" />
         </View>
       </View>
     );
@@ -165,7 +165,7 @@ export default function FeedSettingsScreen() {
 
   return (
     <View className="gap-4">
-      {isSaving ? <Loading variant="inline" size="small" /> : null}
+      {isSaving ? <Loading variant="inline" size="sm" /> : null}
       <View className="gap-4">
         {/* Presets */}
         <SettingsSection label={t("settings.feed.presets.title")}>
@@ -177,7 +177,7 @@ export default function FeedSettingsScreen() {
                 key={key}
               >
                 <Button
-                  size="small"
+                  size="sm"
                   appearance="subtle"
                   tone="neutral"
                   onPress={() => applyPreset(key)}
@@ -374,7 +374,7 @@ export default function FeedSettingsScreen() {
           <SettingsCard>
             <SettingsRow label={t("settings.feed.resetToDefaults")}>
               <Button
-                size="small"
+                size="sm"
                 appearance="subtle"
                 tone="danger"
                 onPress={resetToDefaults}

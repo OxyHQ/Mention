@@ -42,7 +42,7 @@ export default function EditFeedScreen() {
           backLabel={t('common.back', { defaultValue: 'Back' })}
         />
         <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="large" />
+          <Loading className="text-primary" size="lg" />
         </View>
       </View>
     );

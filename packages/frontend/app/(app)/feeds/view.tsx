@@ -84,7 +84,7 @@ export default function PresetFeedViewScreen() {
             // During the cold-boot SSO restore window the session may still land,
             // so wait it out before showing the anonymous prompt.
             if (isPrivateApiPending) {
-                return <Loading className="text-primary" size="large" style={{ flex: undefined, marginTop: 60 }} />;
+                return <Loading className="text-primary" size="lg" style={{ flex: undefined, marginTop: 60 }} />;
             }
             return (
                 <EmptyState

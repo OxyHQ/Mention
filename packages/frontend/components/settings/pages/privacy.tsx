@@ -191,7 +191,7 @@ export default function PrivacySettingsScreen() {
     return (
       <View className="gap-4">
         <View className="flex-1 justify-center items-center">
-          <Loading className="text-primary" size="large" />
+          <Loading className="text-primary" size="lg" />
         </View>
       </View>
     );
@@ -209,7 +209,7 @@ export default function PrivacySettingsScreen() {
               })}
             >
               <Button
-                size="small"
+                size="sm"
                 appearance="subtle"
                 tone="neutral"
                 onPress={() =>
@@ -227,7 +227,7 @@ export default function PrivacySettingsScreen() {
               })}
             >
               <Button
-                size="small"
+                size="sm"
                 appearance="subtle"
                 tone="neutral"
                 onPress={() => router.push("/settings/privacy/tags-mentions")}
@@ -243,7 +243,7 @@ export default function PrivacySettingsScreen() {
               })}
             >
               <Button
-                size="small"
+                size="sm"
                 appearance="subtle"
                 tone="neutral"
                 onPress={() => router.push("/settings/privacy/online-status")}
@@ -264,7 +264,7 @@ export default function PrivacySettingsScreen() {
               })}
             >
               <Button
-                size="small"
+                size="sm"
                 appearance="subtle"
                 tone="neutral"
                 onPress={() => router.push("/settings/privacy/restricted")}
@@ -280,7 +280,7 @@ export default function PrivacySettingsScreen() {
               })}
             >
               <Button
-                size="small"
+                size="sm"
                 appearance="subtle"
                 tone="neutral"
                 onPress={() => router.push("/settings/privacy/blocked")}
@@ -301,7 +301,7 @@ export default function PrivacySettingsScreen() {
               })}
             >
               <Button
-                size="small"
+                size="sm"
                 appearance="subtle"
                 tone="neutral"
                 onPress={() => router.push("/settings/privacy/hidden-words")}
@@ -323,7 +323,7 @@ export default function PrivacySettingsScreen() {
               })}
             >
               <Button
-                size="small"
+                size="sm"
                 appearance="subtle"
                 tone="neutral"
                 onPress={() => router.push("/settings/privacy/muted-lanes")}
@@ -341,7 +341,7 @@ export default function PrivacySettingsScreen() {
               })}
             >
               <Button
-                size="small"
+                size="sm"
                 appearance="subtle"
                 tone="neutral"
                 onPress={() => router.push("/settings/privacy/hide-counts")}
@@ -364,8 +364,8 @@ export default function PrivacySettingsScreen() {
             >
               {
                 <Switch
-                  value={privacySettings.showSensitiveContent ?? false}
-                  onValueChange={(value) =>
+                  checked={privacySettings.showSensitiveContent ?? false}
+                  onCheckedChange={(value) =>
                     updatePrivacyToggle("showSensitiveContent", value)
                   }
                 />
@@ -392,8 +392,8 @@ export default function PrivacySettingsScreen() {
                 >
                   {
                     <Switch
-                      value={recFilters[filterKey]}
-                      onValueChange={(v) => updateRecFilter(filterKey, v)}
+                      checked={recFilters[filterKey]}
+                      onCheckedChange={(v) => updateRecFilter(filterKey, v)}
                     />
                   }
                 </SettingsRow>

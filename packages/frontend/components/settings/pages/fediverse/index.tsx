@@ -150,8 +150,8 @@ function FediverseSharingBody() {
           >
             {
               <Switch
-                value={sharing}
-                onValueChange={onToggle}
+                checked={sharing}
+                onCheckedChange={onToggle}
                 disabled={pending}
               />
             }
@@ -214,7 +214,7 @@ function FediverseSharingBody() {
             })}
           >
             <Button
-              size="small"
+              size="sm"
               appearance="subtle"
               tone="neutral"
               onPress={() => router.push("/settings/fediverse/node")}
@@ -232,7 +232,7 @@ function FediverseSharingBody() {
         <SettingsCard>
           <SettingsRow label={t("fediverse.settings.whatIs")}>
             <Button
-              size="small"
+              size="sm"
               appearance="subtle"
               tone="neutral"
               onPress={openInfoSheet}
@@ -246,7 +246,7 @@ function FediverseSharingBody() {
             description={t("transparency.list.title")}
           >
             <Button
-              size="small"
+              size="sm"
               appearance="subtle"
               tone="neutral"
               onPress={() => router.push("/transparency")}

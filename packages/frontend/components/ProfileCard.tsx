@@ -239,7 +239,7 @@ export function ProfileCard({
         <FollowButton
           userId={resolved.id}
           username={handle || undefined}
-          size="small"
+          size="sm"
           initiallyFollowing={initiallyFollowing}
           onFollowChange={onFollowChange}
         />

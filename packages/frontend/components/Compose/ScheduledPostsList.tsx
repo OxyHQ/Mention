@@ -248,7 +248,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
           accessibilityLabel={t('compose.scheduled.cancelTitle', { defaultValue: 'Cancel scheduled post' })}
         >
           {isCancelling ? (
-            <Loading className="text-primary" variant="inline" size="small" style={{ flex: undefined }} />
+            <Loading className="text-primary" variant="inline" size="sm" style={{ flex: undefined }} />
           ) : (
             <RiDeleteBinLine width={18} height={18} fill={theme.colors.textSecondary} />
           )}
@@ -260,7 +260,7 @@ const ScheduledPostsList: React.FC<ScheduledPostsListProps> = ({
   if (isLoading) {
     return (
       <View className="flex-1 justify-center items-center py-12">
-        <Loading className="text-primary" size="large" />
+        <Loading className="text-primary" size="lg" />
       </View>
     );
   }

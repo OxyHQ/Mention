@@ -165,7 +165,7 @@ export default function MentionNodeScreen() {
     return (
       <View className="gap-4">
         <View className="flex-1 items-center justify-center">
-          <Loading className="text-primary" size="large" />
+          <Loading className="text-primary" size="lg" />
         </View>
       </View>
     );
@@ -278,7 +278,7 @@ export default function MentionNodeScreen() {
                   })}
                 >
                   <Button
-                    size="small"
+                    size="sm"
                     appearance="subtle"
                     tone="danger"
                     onPress={handleDisconnect}
@@ -348,7 +348,7 @@ export default function MentionNodeScreen() {
                       draws the spinner over the kept label, so the button does
                       not change width mid-request. */}
                   <Button
-                    size="small"
+                    size="sm"
                     appearance="subtle"
                     tone="neutral"
                     onPress={() => createManagedVault()}

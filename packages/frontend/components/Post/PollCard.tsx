@@ -93,8 +93,8 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
   };
 
   if (loading) return (
-    <Card variant="outlined" radius="radius-16" className="flex-1 w-full p-3" style={{ width }}>
-      <Loading className="text-primary" size="small" style={{ flex: undefined }} />
+    <Card  radius="radius-16" className="flex-1 w-full p-3" style={{ width }} appearance="outline">
+      <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
     </Card>
   );
 
@@ -103,7 +103,7 @@ const PollCard: React.FC<PollCardProps> = ({ pollId, width = 280 }) => {
   const locked = ended || (hasVoted && !poll.isMultipleChoice);
 
   return (
-    <Card variant="outlined" radius="radius-16" className="flex-1 w-full p-3" style={{ width }}>
+    <Card  radius="radius-16" className="flex-1 w-full p-3" style={{ width }} appearance="outline">
       <Text className="text-foreground text-base font-semibold mb-2" numberOfLines={3}>{poll.question}</Text>
       <View className="gap-1">
         {poll.options.map((opt: PollDetailOption) => {

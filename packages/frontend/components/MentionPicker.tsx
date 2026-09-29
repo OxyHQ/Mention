@@ -77,7 +77,7 @@ const MentionPicker: React.FC<MentionPickerProps> = ({
         <Card border="thin" elevation="m" radius="radius-12" style={{ maxHeight }}>
             {loading ? (
                 <View style={styles.loadingContainer}>
-                    <Loading className="text-primary" size="small" style={{ flex: undefined }} />
+                    <Loading className="text-primary" size="sm" style={{ flex: undefined }} />
                 </View>
             ) : users.length === 0 ? (
                 <EmptyState title={t('collab.noResults', { defaultValue: 'No users found' })} />

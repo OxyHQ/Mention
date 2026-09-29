@@ -90,12 +90,11 @@ const OrganizationJobRow = memo(function OrganizationJobRow({ job }: Organizatio
 
   return (
     <Card
-      variant="outlined"
       radius="radius-16"
       onPress={open}
       className="p-4"
       accessibilityRole="button"
-      accessibilityLabel={job.title}
+      accessibilityLabel={job.title} appearance="outline"
     >
       <View className="flex-row items-start justify-between gap-2">
         <BloomText variant="headline-bold" style={{ flex: 1 }} numberOfLines={2}>

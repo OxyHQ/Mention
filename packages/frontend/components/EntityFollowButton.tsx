@@ -28,7 +28,7 @@ export const EntityFollowButton = memo(function EntityFollowButton({
       onFollowChange={() => { void toggle(); }}
       disabled={isLoading}
       loading={isLoading}
-      size={size === 'sm' ? 'small' : 'medium'}
+      size={size}
       label={label || t('common.follow', { defaultValue: 'Follow' })}
       followingLabel={followingLabel || t('common.following', { defaultValue: 'Following' })}
     />

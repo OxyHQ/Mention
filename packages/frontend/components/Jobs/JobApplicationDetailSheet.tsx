@@ -145,7 +145,7 @@ const JobApplicationDetailSheet = ({ jobId, application, onStatusChanged }: JobA
 
       {application.resumeFileId ? (
         <View className="mb-3">
-          <Button appearance="subtle" tone="neutral" size="small" onPress={openResume} style={{ alignSelf: 'flex-start' }}>
+          <Button appearance="subtle" tone="neutral" size="sm" onPress={openResume} style={{ alignSelf: 'flex-start' }}>
             {t('jobs.applications.viewResume', { defaultValue: 'View resume' })}
           </Button>
         </View>
@@ -177,7 +177,7 @@ const JobApplicationDetailSheet = ({ jobId, application, onStatusChanged }: JobA
             </Chip>
           ))}
         </View>
-        {statusMutation.isPending ? <Loading className="text-primary mt-2" size="small" /> : null}
+        {statusMutation.isPending ? <Loading className="text-primary mt-2" size="sm" /> : null}
       </View>
 
       <View className="pt-3 border-t border-border">
@@ -186,7 +186,7 @@ const JobApplicationDetailSheet = ({ jobId, application, onStatusChanged }: JobA
         </Text>
 
         {notesQuery.isLoading ? (
-          <Loading className="text-primary" size="small" />
+          <Loading className="text-primary" size="sm" />
         ) : (
           <View className="gap-2 mb-3">
             {(notesQuery.data?.notes ?? []).map((note) => (
@@ -213,7 +213,7 @@ const JobApplicationDetailSheet = ({ jobId, application, onStatusChanged }: JobA
         </TextField>
         <Button
           appearance="subtle" tone="neutral"
-          size="small"
+          size="sm"
           style={{ alignSelf: 'flex-end', marginTop: 8 }}
           loading={addNoteMutation.isPending}
           disabled={!noteDraft.trim()}

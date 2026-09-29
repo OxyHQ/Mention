@@ -43,7 +43,7 @@ export function SignInRequired({ label, description, children }: SignInRequiredP
   if (!isAuthResolved || isPrivateApiPending) {
     return (
       <View className="flex-1 justify-center items-center" testID="sign-in-required-pending">
-        <Loading className="text-primary" size="large" />
+        <Loading className="text-primary" size="lg" />
       </View>
     );
   }

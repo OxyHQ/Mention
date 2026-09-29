@@ -47,11 +47,10 @@ const RoomCard = memo(function RoomCard({
 
   return (
     <Card
-      variant="outlined"
       radius="radius-16"
       onPress={onPress}
       accessibilityLabel={`${room.title}, ${room.status}`}
-      style={[{ padding: compact ? 12 : 16 }, style]}
+      style={[{ padding: compact ? 12 : 16 }, style]} appearance="outline"
     >
       <View className="flex-row items-center gap-3">
         {/* A live room's disc is the fixed live signal; any other state sits on

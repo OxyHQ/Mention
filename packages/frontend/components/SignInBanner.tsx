@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { View, Text } from 'react-native';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@oxy.so/bloom/button';
+import { InverseButton } from '@oxy.so/bloom/button';
 
 /** Inline social-template invitation; the shell owns any fixed edge surfaces. */
 export const SignInBanner = memo(function SignInBanner() {
@@ -20,14 +20,13 @@ export const SignInBanner = memo(function SignInBanner() {
             {t('People on Mention are the first to know.')}
           </Text>
         </View>
-        <Button
-          variant="inverse"
-          size="small"
+        <InverseButton
+          size="sm"
           style={{ borderRadius: 100, paddingHorizontal: 20 }}
           onPress={() => signIn().catch(() => {})}
         >
           {t('Sign In')}
-        </Button>
+        </InverseButton>
       </View>
     </View>
   );
