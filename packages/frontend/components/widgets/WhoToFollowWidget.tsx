@@ -1,4 +1,5 @@
 import { Button } from '@oxy.so/bloom/button';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import React, { useMemo, useCallback } from "react";
 import { View } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -10,9 +11,8 @@ import { useRecommendations } from '@/hooks/useRecommendations';
 import { type ProfileData } from '@/lib/recommendations';
 
 const MAX_DISPLAY_USERS = 5;
-
-/** Placeholder rows while the recommendations load. */
-const SKELETON_ROW_COUNT = 3;
+/** Height of the small plain "Show more" button (Bloom `Button size="small"`). */
+const SHOW_MORE_HEIGHT = 32;
 
 export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
   const { t } = useTranslation();
@@ -34,9 +34,12 @@ export function WhoToFollowWidget({ divider }: { divider?: boolean }) {
   if (loading) {
     return (
       <BaseWidget title={t("Who to follow")} divider={divider}>
-        {/* Same inset as the real rows below, so nothing shifts when they land. */}
-        <View>
-          <ProfileCardSkeletonList count={SKELETON_ROW_COUNT} showFollowButton size="small" horizontalInset={0} showDivider={false} />
+        {/* The loaded widget's shape — as many rows as it shows, at the same
+            inset, and the "Show more" button — so the rail below it (the
+            footer) stays put when the suggestions land (#1216). */}
+        <View className="gap-2">
+          <ProfileCardSkeletonList count={MAX_DISPLAY_USERS} showFollowButton size="small" horizontalInset={0} showDivider={false} />
+          <Skeleton.Box width={88} height={SHOW_MORE_HEIGHT} borderRadius={SHOW_MORE_HEIGHT / 2} />
         </View>
       </BaseWidget>
     );

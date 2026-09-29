@@ -6,6 +6,7 @@ import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { Sparkline } from '@oxy.so/bloom/chart-cards/sparkline';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { AvatarGroup } from '@oxy.so/bloom/avatar-group';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { MtnConfig } from '@mention/shared-types/mtn/config';
@@ -284,6 +285,33 @@ export const TrendItemRow = memo(function TrendItemRow({
     </TouchableOpacity>
   );
 });
+
+/**
+ * A compact row's placeholder, built from the row's own box model: the same
+ * vertical padding and hairline, a label line as tall as the label row with its
+ * badge (16) plus its 2px gap, a one-line title (16), and the 24px menu button.
+ * A list of these is as tall as the list of trends that replaces it, so nothing
+ * below it moves when they arrive (#1216 measured 76px for five rows).
+ */
+export function TrendItemRowSkeleton({ showBorder = false }: { showBorder?: boolean }) {
+  return (
+    <View
+      className={`flex-row items-center justify-between py-1.5 ${showBorder ? 'border-border' : ''}`}
+      style={showBorder ? styles.itemBorder : undefined}
+    >
+      <View className="flex-1 mr-2">
+        {/* The gap is the label row's own `mb-0.5`; Skeleton.Text reads only its width and line height. */}
+        <View className="mb-0.5">
+          <Skeleton.Text style={{ lineHeight: 16, width: 120 }} />
+        </View>
+        <Skeleton.Text style={{ lineHeight: 16, width: 160 }} />
+      </View>
+      <View className="p-1">
+        <Skeleton.Circle size={16} />
+      </View>
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   webCursor: Platform.select({ web: { cursor: 'pointer' }, default: {} }),
