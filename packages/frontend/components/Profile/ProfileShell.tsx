@@ -4,6 +4,7 @@ import { FlashList } from '@shopify/flash-list';
 import { HeaderDockProvider, StickySection, useHeaderDockInset } from '@oxy.so/bloom/layout';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { useTheme } from '@oxy.so/bloom/theme';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { ProfileUnavailable } from './ProfileUnavailable';
 import type { ProfileData } from '@/hooks/useProfileData';
 import { CoverHeader } from '@oxy.so/bloom/cover-header';
@@ -98,6 +99,7 @@ function ProfileShellBody({
   isRootTab = false,
 }: ProfileShellProps) {
   const theme = useTheme();
+  const surfaceFill = useSurfaceFill();
   const headerInset = useHeaderDockInset();
   const [summaryHeight, setSummaryHeight] = useState<number>();
 
@@ -146,12 +148,16 @@ function ProfileShellBody({
   ) : null;
   const nativeContent = tabs ? <ProfileTabs {...tabs} /> : null;
   const drawing = active && !loading ? profileData : null;
-  // Native pushed routes are rendered above the tab navigator by the stack. The
-  // route surface must be opaque, otherwise the mounted tab pager remains
-  // visible through the profile while its list is laying out (and every
-  // profile row appears to overlap the feed underneath). Web already paints
-  // the document surface through AppShell and the content panel.
-  return <View className="flex-1 web:z-auto" style={IS_WEB ? undefined : { backgroundColor: theme.colors?.background }}>
+  // The whole profile sits on ONE background: the surface fill, the colour the
+  // sticky tab strip (Bloom's StickySection), the docked header and the avatar
+  // ring paint. Bloom's social template does the same with its `canvas`.
+  // - Web: left transparent, the page showed the framed panel's lit material,
+  //   which is a shade lighter than that fill, so banner-to-tabs, the tabs and
+  //   the posts were three colours.
+  // - Native: pushed routes render above the tab navigator, so the route must
+  //   be opaque or the pager shows through while the list lays out. The theme
+  //   background it used before is a different colour from the chrome.
+  return <View className="flex-1 web:z-auto" style={{ backgroundColor: surfaceFill }}>
     <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
     {IS_WEB ? <>
       {/* Flat, fixed slots: `children` stays the last child in every state. */}

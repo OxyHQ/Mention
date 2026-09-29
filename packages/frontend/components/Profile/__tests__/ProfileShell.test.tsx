@@ -13,6 +13,7 @@ const mockSticky = jest.fn();
 const mockCover = jest.fn();
 let mockDockInset = 84;
 
+jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => 'rgb(20, 55, 84)' }));
 jest.mock('@oxy.so/bloom/layout', () => ({
   HeaderDockProvider: (props: { children: React.ReactNode }) => { mockDock(props); return props.children; },
   StickySection: (props: { children: React.ReactNode }) => { mockSticky(props); return props.children; },
@@ -118,6 +119,13 @@ test('the summary rises into the banner through Bloom CoverHeader, and only ther
     const style = [node.props.style].flat(Infinity).filter(Boolean) as Record<string, unknown>[];
     expect(style.some(entry => 'transform' in entry || (typeof entry.marginTop === 'number' && entry.marginTop < 0))).toBe(false);
   }
+  act(() => tree.unmount());
+});
+
+test('the profile is painted in the surface the chrome paints, not the theme background', () => {
+  const tree = renderShell(makeProps());
+  const root = tree.root.findAllByType(View)[0];
+  expect([root.props.style].flat()).toContainEqual({ backgroundColor: 'rgb(20, 55, 84)' });
   act(() => tree.unmount());
 });
 

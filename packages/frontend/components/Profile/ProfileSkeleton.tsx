@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { CoverHeader } from '@oxy.so/bloom/cover-header';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { CHANNEL_AVATAR_SIZE } from './ChannelHeader';
 import { PROFILE_AVATAR_OVERLAP, PROFILE_BANNER_HEIGHT } from './ProfilePageHeader';
@@ -88,7 +88,8 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
   variant = 'person',
 }: ProfileSkeletonProps = {}) {
   const insets = useSafeAreaInsets();
-  const theme = useTheme();
+  // The avatar ring is the colour of the surface under it, as on the loaded profile.
+  const surfaceFill = useSurfaceFill();
   // Mirrors the loaded profile: the same opaque blocks, in the same colour as
   // the column they land in (see ProfileContent / ProfileTabBarRow).
 
@@ -113,7 +114,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
             <View className="items-center w-full">
               <Skeleton.Circle
                 size={CHANNEL_AVATAR_SIZE}
-                style={{ borderWidth: AVATAR_RING, borderColor: theme.colors.background }}
+                style={{ borderWidth: AVATAR_RING, borderColor: surfaceFill }}
               />
               <View className="mt-3 mb-1 h-7 justify-center">
                 <Skeleton.Box width={180} height={22} borderRadius={6} />
@@ -174,13 +175,14 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
         coverHeight={PROFILE_BANNER_HEIGHT}
         overlap={PROFILE_AVATAR_OVERLAP}
         cover={<Skeleton.Box blend width="100%" height={PROFILE_BANNER_HEIGHT} borderRadius={0} />}
+        style={{ backgroundColor: surfaceFill }}
         contentStyle={{ paddingHorizontal: LAYOUT.DEFAULT_PADDING, paddingBottom: LAYOUT.DEFAULT_PADDING }}
       >
         {/* Header row: avatar rising into the banner + action placeholders. */}
         <View className="flex-row justify-between items-end mb-2.5">
           <Skeleton.Circle
             size={AVATAR_SIZE}
-            style={{ borderWidth: AVATAR_RING, borderColor: theme.colors.background }}
+            style={{ borderWidth: AVATAR_RING, borderColor: surfaceFill }}
           />
           <View className="flex-row items-center gap-3">
             <Skeleton.Box width={92} height={36} borderRadius={999} />
@@ -218,7 +220,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
 
       {/* Tab bar — matches the Bloom Tabs strip (bottom border, `py-2.5 px-3`
           min-60 cells) with an active-indicator hint under the first tab. */}
-      <View className="border-b border-border flex-row">
+      <View className="border-b border-border flex-row" style={{ backgroundColor: surfaceFill }}>
         {TAB_CHIP_WIDTHS.map((width, index) => (
           <View key={index} className="items-center py-2.5 px-3 min-w-[60px]">
             <Skeleton.Box width={width} height={14} borderRadius={6} />

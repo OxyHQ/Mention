@@ -10,6 +10,7 @@ import { useLiveUser } from '@/stores/livePresenceStore';
 import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { Button } from '@oxy.so/bloom/button';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { FrostedIconButton } from '@oxy.so/bloom/frosted-icon-button';
 import { RiHand } from '@oxy.so/bloom/icons/RiHand';
 import { RiLineChartLine } from '@oxy.so/bloom/icons/RiLineChartLine';
@@ -55,6 +56,10 @@ export const ProfileHeader = memo(function ProfileHeader({
   FollowButtonComponent,
 }: ProfileHeaderProps) {
   const { t } = useTranslation();
+  // The ring cuts the avatar out of the banner, so it is the colour of the
+  // surface the summary sits on — not the theme background, which the profile
+  // is not painted in.
+  const surfaceFill = useSurfaceFill();
   const canPoke = !isFederated;
   const { poked, loading: pokeLoading, toggle: togglePoke } = usePoke(profileId, isOwnProfile || Boolean(isFederated));
   useFederatedFollowSync(profileId, isFederated, actorUri);
@@ -99,8 +104,8 @@ export const ProfileHeader = memo(function ProfileHeader({
       <View className="relative">
         {isProfileLive ? (
           <Animated.View
-            className="border-[3px] border-background bg-muted rounded-full"
-            style={liveAvatarCollapseStyle}
+            className="border-[3px] bg-muted rounded-full"
+            style={[{ borderColor: surfaceFill }, liveAvatarCollapseStyle]}
           >
             <LiveAvatar userId={profileId} source={avatarUri ?? undefined} size={90} variant={MEDIA_VARIANT_AVATAR_LG} />
           </Animated.View>
@@ -108,8 +113,8 @@ export const ProfileHeader = memo(function ProfileHeader({
           <ZoomableAvatar
             source={avatarUri}
             size={90}
-            className="border-[3px] border-background bg-muted"
-            style={{ width: 90, height: 90, borderRadius: 45 }}
+            className="border-[3px] bg-muted"
+            style={{ width: 90, height: 90, borderRadius: 45, borderColor: surfaceFill }}
             imageStyle={{}}
             collapseProgress={avatarCollapseProgress}
             collapseMinScale={PROFILE_AVATAR_COLLAPSE_MIN_SCALE}

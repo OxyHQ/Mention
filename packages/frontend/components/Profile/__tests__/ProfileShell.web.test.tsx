@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated, Text } from 'react-native';
+import { Animated, Text, View } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { ProfileShell, type ProfileShellProps } from '../ProfileShell';
 
@@ -13,6 +13,7 @@ const mockCover = jest.fn();
 let mockDockInset = 84;
 
 // The shell decides its branch from `Platform.OS` at module load.
+jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => 'rgb(20, 55, 84)' }));
 jest.mock('react-native', () => {
   const actual = jest.requireActual('react-native');
   return Object.defineProperty(Object.create(actual), 'Platform', {
@@ -100,6 +101,14 @@ test('the navigator keeps ONE tree position through every state', () => {
     expect(tree.root.findByProps({ testID: 'navigator' })).toBe(first);
   }
   expect(mockTabs).not.toHaveBeenCalled();
+  act(() => tree.unmount());
+});
+
+test('web paints the page in the surface fill too, so the panel material never shows between chrome and content', () => {
+  let tree!: TestRenderer.ReactTestRenderer;
+  act(() => { tree = TestRenderer.create(<ProfileShell {...webProps()}>{navigator}</ProfileShell>); });
+  const root = tree.root.findAllByType(View)[0];
+  expect([root.props.style].flat()).toContainEqual({ backgroundColor: 'rgb(20, 55, 84)' });
   act(() => tree.unmount());
 });
 
