@@ -10,6 +10,7 @@ const mockTabs = jest.fn();
 const mockList = jest.fn();
 const mockDock = jest.fn();
 const mockSticky = jest.fn();
+const mockCover = jest.fn();
 let mockDockInset = 84;
 
 jest.mock('@oxy.so/bloom/layout', () => ({
@@ -19,6 +20,9 @@ jest.mock('@oxy.so/bloom/layout', () => ({
 }));
 jest.mock('@oxy.so/bloom/page-header', () => ({
   PageHeader: (props: object) => { mockHeader(props); return null; },
+}));
+jest.mock('@oxy.so/bloom/cover-header', () => ({
+  CoverHeader: (props: { children: React.ReactNode }) => { mockCover(props); return props.children; },
 }));
 jest.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ isDark: false }) }));
 jest.mock('@/context/LayoutScrollContext', () => ({ useLayoutScroll: () => ({ scrollPosition: mockScrollPosition }) }));
@@ -47,7 +51,8 @@ jest.mock('@shopify/flash-list', () => {
   };
 });
 
-function makeProps(tab: ProfileShellProps['tabs']['tab'] = 'lists'): ProfileShellProps {
+type TabsProps = NonNullable<ProfileShellProps['tabs']>;
+function makeProps(tab: TabsProps['tab'] = 'lists'): ProfileShellProps & { tabs: TabsProps } {
   return {
     chrome: {
       scrollY: new Animated.Value(0), scrollRef: { current: null }, onScroll: jest.fn(),
@@ -97,10 +102,29 @@ test.each(['posts', 'media'] as const)('%s retains its own virtualized scroll ow
   act(() => tree.unmount());
 });
 
+test('the summary rises into the banner through Bloom CoverHeader, and only there', () => {
+  const props = makeProps();
+  const tree = renderShell(props);
+  expect(mockCover).toHaveBeenCalledTimes(1);
+  expect(mockCover.mock.calls[0][0]).toMatchObject({
+    testID: 'profile-hero',
+    coverSource: 'https://example.com/banner.jpg',
+    coverHeight: 170,
+    overlap: 45,
+    children: props.summary,
+  });
+  // No second mechanism: nothing in the shell moves the summary itself.
+  for (const node of tree.root.findAllByType(View)) {
+    const style = [node.props.style].flat(Infinity).filter(Boolean) as Record<string, unknown>[];
+    expect(style.some(entry => 'transform' in entry || (typeof entry.marginTop === 'number' && entry.marginTop < 0))).toBe(false);
+  }
+  act(() => tree.unmount());
+});
+
 test('a channel without media keeps its inline header and Bloom zero inset', () => {
   mockDockInset = 0;
   const tree = renderShell({ ...makeProps(), banner: null });
-  expect(tree.root.findAllByProps({ testID: 'profile-banner' })).toHaveLength(0);
+  expect(mockCover).not.toHaveBeenCalled();
   expect(mockHeader.mock.calls.at(-1)?.[0].placement).toBe('inline');
   expect(mockList.mock.calls.at(-1)?.[0].stickyHeaderConfig).toEqual({ offset: 0 });
   act(() => tree.unmount());
@@ -144,3 +168,4 @@ test('with no profile, it says "not found" or offers a retry — whichever the l
   expect(loading.root.findAllByType(ProfileUnavailable)).toHaveLength(0);
   act(() => loading.unmount());
 });
+

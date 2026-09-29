@@ -2,9 +2,11 @@ import React, { memo } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { CoverHeader } from '@oxy.so/bloom/cover-header';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { CHANNEL_AVATAR_SIZE } from './ChannelHeader';
+import { PROFILE_AVATAR_OVERLAP, PROFILE_BANNER_HEIGHT } from './ProfilePageHeader';
 import { LAYOUT } from './types';
 
 /**
@@ -12,14 +14,10 @@ import { LAYOUT } from './types';
  *
  * Mirrors the loaded profile anatomy element-for-element so the swap to real
  * data produces no layout shift:
- *  - a full-bleed banner (LAYOUT.HEADER_HEIGHT_EXPANDED + _NARROWED tall),
- *    absolute like the real screen's banner;
- *  - the content offset by the SAME `marginTop` / `paddingTop` the real screen
- *    applies (ProfileScreen's scrollView + contentContainer), so every element
- *    below lands at its identical final Y;
- *  - the avatar (90px, 3px background ring) overlapping the banner by 45px — the
- *    exact 45px hero lift the shell uses — with a placeholder
- *    action row (button + icon) on the right;
+ *  - the banner and the avatar row rising into it, through the SAME Bloom
+ *    `CoverHeader` and the same two measurements `ProfileShell` uses, so the
+ *    avatar (90px, 3px background ring) lands at its identical final Y — with
+ *    a placeholder action row (button + icon) on the right;
  *  - display-name + handle bars, a 2-line bio, the meta row and the stats row
  *    (mirroring ProfileContent → ProfileMeta / ProfileStats);
  *  - the tab bar (matching the Bloom Tabs strip's border + `py-2.5` cells); and
@@ -30,14 +28,9 @@ import { LAYOUT } from './types';
  * skeletons (feed / notifications / cards).
  */
 
-// Full-bleed banner height = expanded + narrowed header bands (matches the real
-// banner rendered in ProfileScreen).
-const BANNER_HEIGHT = LAYOUT.HEADER_HEIGHT_EXPANDED + LAYOUT.HEADER_HEIGHT_NARROWED;
-// Header avatar footprint + the negative pull that overlaps it onto the banner
-// (mirrors ProfileShell's hero overlap: a 90px avatar with a 45px lift).
+// The header avatar's footprint (mirrors ProfileHeader).
 const AVATAR_SIZE = 90;
 const AVATAR_RING = 3;
-const HEADER_OVERLAP = 45;
 // Representative widths for the five stat clusters (following / followers /
 // posts / boosts / replies) and the profile tab labels.
 const STAT_CHIP_WIDTHS = [96, 104, 78, 84, 90];
@@ -174,81 +167,72 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
 
   return (
     <View className="flex-1" accessibilityRole="progressbar">
-      {/* Full-bleed banner — absolute like the real screen so it does not push
-          the content down; dampened (`blend`) so the avatar placeholder reads
-          clearly over it. */}
-      <View className="absolute left-0 right-0 top-0">
-        <Skeleton.Box blend width="100%" height={BANNER_HEIGHT} borderRadius={0} />
-      </View>
-
-      {/* Content offset by the SAME marginTop + paddingTop the loaded profile
-          applies (ProfileScreen: scrollView marginTop = HEADER_HEIGHT_NARROWED,
-          contentContainer paddingTop = HEADER_HEIGHT_EXPANDED - insets.top), so
-          every element below lands at its final Y and the banner shows through
-          this transparent top gutter. */}
-      <View style={{ marginTop: LAYOUT.HEADER_HEIGHT_NARROWED, paddingTop: LAYOUT.HEADER_HEIGHT_EXPANDED - insets.top }}>
-        {/* Profile info block — mirrors ProfileContent's padding + background. */}
-        <View className="px-4 pb-4">
-          {/* Header row: avatar overlapping the banner + action placeholders.
-              the shell's 45px hero lift matches the loaded profile so the avatar lands
-              at the identical Y. */}
-          <View className="flex-row justify-between items-end mb-2.5" style={{ marginTop: -HEADER_OVERLAP }}>
-            <Skeleton.Circle
-              size={AVATAR_SIZE}
-              style={{ borderWidth: AVATAR_RING, borderColor: theme.colors.background }}
-            />
-            <View className="flex-row items-center gap-3">
-              <Skeleton.Box width={92} height={36} borderRadius={999} />
-              <Skeleton.Circle size={40} />
-            </View>
-          </View>
-
-          {/* Display name (fontSize 24) + handle (fontSize 15). */}
-          <View className="mt-2.5 mb-1">
-            <Skeleton.Box width="55%" height={22} borderRadius={6} />
-          </View>
-          <View className="mb-3">
-            <Skeleton.Box width="32%" height={14} borderRadius={6} />
-          </View>
-
-          {/* Bio (two lines). */}
-          <View className="mb-3 gap-2">
-            <Skeleton.Box width="92%" height={14} borderRadius={6} />
-            <Skeleton.Box width="78%" height={14} borderRadius={6} />
-          </View>
-
-          {/* Meta row (location · joined). */}
-          <View className="flex-row flex-wrap mb-3 gap-x-4 gap-y-1">
-            <Skeleton.Box width={110} height={15} borderRadius={6} />
-            <Skeleton.Box width={150} height={15} borderRadius={6} />
-          </View>
-
-          {/* Stats row (following / followers / posts / boosts / replies). */}
-          <View className="flex-row flex-wrap gap-x-4 gap-y-2">
-            {STAT_CHIP_WIDTHS.map((width, index) => (
-              <Skeleton.Box key={index} width={width} height={15} borderRadius={6} />
-            ))}
+      {/* Banner and profile info block — the loaded profile's `CoverHeader`,
+          with ProfileContent's padding. The band is dampened (`blend`) so the
+          avatar placeholder reads clearly over it. */}
+      <CoverHeader
+        coverHeight={PROFILE_BANNER_HEIGHT}
+        overlap={PROFILE_AVATAR_OVERLAP}
+        cover={<Skeleton.Box blend width="100%" height={PROFILE_BANNER_HEIGHT} borderRadius={0} />}
+        contentStyle={{ paddingHorizontal: LAYOUT.DEFAULT_PADDING, paddingBottom: LAYOUT.DEFAULT_PADDING }}
+      >
+        {/* Header row: avatar rising into the banner + action placeholders. */}
+        <View className="flex-row justify-between items-end mb-2.5">
+          <Skeleton.Circle
+            size={AVATAR_SIZE}
+            style={{ borderWidth: AVATAR_RING, borderColor: theme.colors.background }}
+          />
+          <View className="flex-row items-center gap-3">
+            <Skeleton.Box width={92} height={36} borderRadius={999} />
+            <Skeleton.Circle size={40} />
           </View>
         </View>
 
-        {/* Tab bar — matches the Bloom Tabs strip (bottom border, `py-2.5 px-3`
-            min-60 cells) with an active-indicator hint under the first tab. */}
-        <View className="border-b border-border flex-row">
-          {TAB_CHIP_WIDTHS.map((width, index) => (
-            <View key={index} className="items-center py-2.5 px-3 min-w-[60px]">
-              <Skeleton.Box width={width} height={14} borderRadius={6} />
-              {index === 0 && (
-                <View className="absolute bottom-0 left-3 right-3 h-0.5 rounded-t bg-primary" />
-              )}
-            </View>
+        {/* Display name (fontSize 24) + handle (fontSize 15). */}
+        <View className="mt-2.5 mb-1">
+          <Skeleton.Box width="55%" height={22} borderRadius={6} />
+        </View>
+        <View className="mb-3">
+          <Skeleton.Box width="32%" height={14} borderRadius={6} />
+        </View>
+
+        {/* Bio (two lines). */}
+        <View className="mb-3 gap-2">
+          <Skeleton.Box width="92%" height={14} borderRadius={6} />
+          <Skeleton.Box width="78%" height={14} borderRadius={6} />
+        </View>
+
+        {/* Meta row (location · joined). */}
+        <View className="flex-row flex-wrap mb-3 gap-x-4 gap-y-1">
+          <Skeleton.Box width={110} height={15} borderRadius={6} />
+          <Skeleton.Box width={150} height={15} borderRadius={6} />
+        </View>
+
+        {/* Stats row (following / followers / posts / boosts / replies). */}
+        <View className="flex-row flex-wrap gap-x-4 gap-y-2">
+          {STAT_CHIP_WIDTHS.map((width, index) => (
+            <Skeleton.Box key={index} width={width} height={15} borderRadius={6} />
           ))}
         </View>
+      </CoverHeader>
 
-        {/* Placeholder feed rows below the tab bar. */}
-        {Array.from({ length: FEED_ROW_COUNT }).map((_, index) => (
-          <FeedRowSkeleton key={index} />
+      {/* Tab bar — matches the Bloom Tabs strip (bottom border, `py-2.5 px-3`
+          min-60 cells) with an active-indicator hint under the first tab. */}
+      <View className="border-b border-border flex-row">
+        {TAB_CHIP_WIDTHS.map((width, index) => (
+          <View key={index} className="items-center py-2.5 px-3 min-w-[60px]">
+            <Skeleton.Box width={width} height={14} borderRadius={6} />
+            {index === 0 && (
+              <View className="absolute bottom-0 left-3 right-3 h-0.5 rounded-t bg-primary" />
+            )}
+          </View>
         ))}
       </View>
+
+      {/* Placeholder feed rows below the tab bar. */}
+      {Array.from({ length: FEED_ROW_COUNT }).map((_, index) => (
+        <FeedRowSkeleton key={index} />
+      ))}
     </View>
   );
 });

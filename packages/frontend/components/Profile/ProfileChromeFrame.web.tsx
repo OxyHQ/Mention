@@ -2,28 +2,23 @@ import React, { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 import { router, usePathname, type Href } from 'expo-router';
 import { BloomColorScope } from '@oxy.so/bloom/theme';
-import { HeaderDockProvider, StickySection } from '@oxy.so/bloom/layout';
-import { useLayoutScroll } from '@/context/LayoutScrollContext';
 import { RouterTabs, type RouterTabItem } from '@oxy.so/bloom/tabs/expo-router';
 
-
-import { ProfilePageHeader, ProfileBanner, PROFILE_BANNER_HEIGHT } from './ProfilePageHeader';
-import { ProfileSkeleton } from './ProfileSkeleton';
-import { ProfileUnavailable } from './ProfileUnavailable';
+import { profileTabsOffset } from './ProfilePageHeader';
+import { ProfileShell } from './ProfileShell';
 import { ProfileTabBarRow } from './ProfileTabBarRow';
 import { usePersonProfileView } from './hooks/usePersonProfileView';
 import { useRoutedProfileUsername } from './hooks/useRoutedProfileUsername';
 import { profileTabHref, profileTabSelectionFromPathname } from './profileTabRoute';
 import type { ProfileChromeFrameProps, ProfileTabDescriptor } from './types';
 
-/** What the frame is drawing above the routed child right now. */
-type ChromeState = 'off' | 'skeleton' | 'unavailable' | 'ready';
-
 /**
  * The `[username]` layout's body — WEB, where it owns the profile chrome.
  *
  * The banner, the identity summary, the action cluster and the tab strip are
  * rendered HERE, above the `<Slot/>` that renders whichever child the URL names.
+ * They are drawn by `ProfileShell` — the same chrome native and channels use —
+ * with the `<Slot/>` as its content; this frame only decides what it is fed.
  * The placement is the whole fix: a strip rendered inside each tab screen is
  * unmounted by the navigation it performs, so the chrome blanked for the 597ms
  * the incoming tab's async chunk took to arrive (measured on production), the
@@ -81,7 +76,6 @@ type ChromeState = 'off' | 'skeleton' | 'unavailable' | 'ready';
  *    nothing would fail.
  */
 export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps) {
-  const { scrollPosition } = useLayoutScroll();
   const pathname = usePathname();
   const selection = useMemo(() => profileTabSelectionFromPathname(pathname), [pathname]);
   const active = selection !== null;
@@ -119,21 +113,7 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
   // rather than painting a person-shaped chrome for the frame before the routed
   // screen below redirects. The redirect itself is the screen's — see the
   // navigator invariant above.
-  const chromeState: ChromeState = !active
-    ? 'off'
-    : view.loading || view.canonicalHref !== null
-      ? 'skeleton'
-      : view.profileData
-        ? 'ready'
-        : 'unavailable';
-  /**
-   * The account the chrome is drawing, or `null` in every other state.
-   *
-   * One value rather than a boolean beside a null check: each slot below both
-   * decides whether to render and narrows `profileData`, and two expressions
-   * doing that separately is one edit away from disagreeing.
-   */
-  const drawing = chromeState === 'ready' ? view.profileData : null;
+  const loading = view.loading || view.canonicalHref !== null;
 
   const tabBar = (
     <ProfileTabBarRow showLanes={view.isOwnProfile}>
@@ -146,26 +126,31 @@ export default function ProfileChromeFrame({ children }: ProfileChromeFrameProps
         // Re-tapping the tab you are on conventionally means "back to the top",
         // and here that is the top of the CONTENT rather than of the document —
         // the same place the stats row jumps to, so the two agree.
-        onReselect={() => view.chrome.scrollToContent(view.chrome.contentHeight + PROFILE_BANNER_HEIGHT)}
+        onReselect={() => view.chrome.scrollToContent(profileTabsOffset(view.chrome.contentHeight))}
       />
     </ProfileTabBarRow>
   );
 
   return (
-    <HeaderDockProvider scrollY={scrollPosition}>
-      <BloomColorScope colorPreset={active ? view.colorName : undefined} asChild>
-        <View className="flex-1 web:z-auto">
-          {view.seo}
-          {chromeState === 'skeleton' ? <ProfileSkeleton variant="person" /> : null}
-          {chromeState === 'unavailable' ? <ProfileUnavailable notFound={view.notFound} onRetry={view.refresh} /> : null}
-          {drawing ? <ProfilePageHeader profileData={drawing} actions={view.headerActions} /> : null}
-          {drawing ? <ProfileBanner uri={view.bannerUri} /> : null}
-          {drawing ? view.summary : null}
-          {drawing ? <StickySection testID="profile-sticky-tabs">{tabBar}</StickySection> : null}
+    <BloomColorScope colorPreset={active ? view.colorName : undefined} asChild>
+      <View className="flex-1 web:z-auto">
+        {view.seo}
+        <ProfileShell
+          active={active}
+          chrome={view.chrome}
+          loading={loading}
+          profileData={view.profileData}
+          notFound={view.notFound}
+          onRetry={view.refresh}
+          banner={{ uri: view.bannerUri }}
+          headerActions={view.headerActions}
+          summary={view.summary}
+          tabBar={tabBar}
+        >
           {/* Keep the navigator at one tree position across profile-tab and sibling routes. */}
           {children}
-        </View>
-      </BloomColorScope>
-    </HeaderDockProvider>
+        </ProfileShell>
+      </View>
+    </BloomColorScope>
   );
 }
