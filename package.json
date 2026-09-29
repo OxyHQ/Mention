@@ -141,6 +141,7 @@
     "expo-video@57.0.5": "patches/expo-video@57.0.5.patch",
     "react-native-screens@4.26.2": "patches/react-native-screens@4.26.2.patch",
     "react-native-reanimated@4.5.1": "patches/react-native-reanimated@4.5.1.patch",
-    "@oxy.so/bloom@6.2.0": "patches/@oxy.so%2Fbloom@6.2.0.patch"
+    "@oxy.so/bloom@6.2.0": "patches/@oxy.so%2Fbloom@6.2.0.patch",
+    "@shopify/flash-list@2.3.2": "patches/@shopify%2Fflash-list@2.3.2.patch"
   }
 }
