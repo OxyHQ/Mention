@@ -41,7 +41,7 @@
       "^@oxy.so/core/logger$": "<rootDir>/../../node_modules/@oxy.so/core/dist/cjs/logger/index.js",
       "^@oxy.so/contracts$": "<rootDir>/../../node_modules/@oxy.so/contracts/dist/cjs/index.js",
       "^@oxy.so/stickers$": "<rootDir>/../../node_modules/@oxy.so/stickers/dist/cjs/index.js",
-      "^@oxy.so/stickers/react$": "<rootDir>/../../node_modules/@oxy.so/stickers/dist/cjs/react.js",
+      "^@oxy.so/stickers/react$": "<rootDir>/test-support/stickersReact.js",
       "^@oxy.so/bloom/icons$": "<rootDir>/test-support/bloomIcons.js",
       "^@oxy.so/bloom/icons/(.*)$": "<rootDir>/test-support/bloomIcons.js",
       "^@oxy.so/bloom/empty-state$": "<rootDir>/test-support/bloomEmptyState.js",

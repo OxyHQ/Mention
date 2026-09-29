@@ -18,6 +18,8 @@ import { RiQuestionLine } from '@oxy.so/bloom/icons/RiQuestionLine';
 import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
 import { RiRepeatLine } from '@oxy.so/bloom/icons/RiRepeatLine';
 import { RiVolumeMuteLine } from '@oxy.so/bloom/icons/RiVolumeMuteLine';
+import type { EmptyStateStickerName } from '@/lib/stickers';
+import { EmptyStateSticker } from '@/components/common/EmptyStateSticker';
 
 /**
  * The Ionicons names this component used to draw, and the Bloom glyph each one
@@ -73,6 +75,12 @@ export interface EmptyStateProps {
   action?: { label: string; onPress: () => void; icon?: EmptyStateIconName };
   /** An arbitrary mark above the title. Wins over `icon`, as Bloom's does. */
   customIcon?: ReactNode;
+  /**
+   * A sticker from Oxy's catalogue above the title, by its name in
+   * `lib/stickers.ts`. Wins over `icon` (Bloom's `illustration` does). Not used
+   * for `error`: a failure keeps its quiet glyph.
+   */
+  sticker?: EmptyStateStickerName;
   containerStyle?: ViewStyle;
   testID?: string;
 }
@@ -95,6 +103,7 @@ export const EmptyState = memo<EmptyStateProps>(function EmptyState({
   error,
   action,
   customIcon,
+  sticker,
   containerStyle,
   testID,
 }) {
@@ -138,12 +147,14 @@ export const EmptyState = memo<EmptyStateProps>(function EmptyState({
 
   // The old component rendered nothing at all with no title, no subtitle and no
   // glyph. Bloom would draw an empty block, so the guard stays.
-  if (!title && !subtitle && !customIcon && !icon) return null;
+  if (!title && !subtitle && !customIcon && !icon && !sticker) return null;
+
+  const illustration = customIcon ?? (sticker ? <EmptyStateSticker name={sticker} /> : undefined);
 
   return (
     <BloomEmptyState
       icon={glyph}
-      illustration={customIcon}
+      illustration={illustration}
       title={title}
       description={subtitle}
       action={

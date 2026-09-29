@@ -27,8 +27,6 @@ import { toast } from '@oxy.so/bloom/toast';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
-import { Search as SearchIcon } from '@/assets/icons/search-icon';
-import { Bookmark } from '@/assets/icons/bookmark-icon';
 import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
@@ -332,9 +330,7 @@ const SavedPostsScreen: React.FC = () => {
                     : selectedFolder
                         ? t('saved.empty.folder.subtitle', 'Long-press a saved post to move it into this folder.')
                         : t('saved.empty.subtitle', 'Posts you save are kept here, private to you.')}
-                customIcon={debouncedSearch
-                    ? <SearchIcon size={48} className="text-muted-foreground" />
-                    : <Bookmark size={48} className="text-muted-foreground" />}
+                sticker={debouncedSearch ? 'searchNoResults' : 'saved'}
                 containerStyle={{ paddingTop: 60 }}
             />
         );

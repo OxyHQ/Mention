@@ -3,13 +3,13 @@ import { View } from 'react-native';
 import { Sticker } from '@oxy.so/bloom/sticker';
 import { useSticker } from '@oxy.so/stickers/react';
 
-import { FEED_EMPTY_STICKER_ID } from '@/lib/stickers';
+import { EMPTY_STATE_STICKERS, type EmptyStateStickerName } from '@/lib/stickers';
 
-/** The sticker's square edge in an empty feed. */
+/** The sticker's square edge above an empty state. */
 const SIZE = 120;
 
 /**
- * The picture above an empty feed: a sticker from Oxy's catalogue, animated
+ * The picture above an empty state: a sticker from Oxy's catalogue, animated
  * where the platform can (Bloom's `Sticker` shows its still under reduced
  * motion, or while the animation loads).
  *
@@ -18,9 +18,9 @@ const SIZE = 120;
  * and stays empty rather than shifting the text when it arrives; if Oxy cannot
  * be reached it simply stays empty, which is still a complete empty state.
  */
-export const FeedEmptySticker = memo(function FeedEmptySticker() {
-    const { data: sticker } = useSticker(FEED_EMPTY_STICKER_ID);
-    if (!sticker) return <SizedSlot />;
+export const EmptyStateSticker = memo(function EmptyStateSticker({ name }: { name: EmptyStateStickerName }) {
+    const { data: sticker } = useSticker(EMPTY_STATE_STICKERS[name]);
+    if (!sticker) return <View style={{ width: SIZE, height: SIZE }} />;
     return (
         <Sticker
             animation={sticker.animation.url}
@@ -30,7 +30,3 @@ export const FeedEmptySticker = memo(function FeedEmptySticker() {
         />
     );
 });
-
-function SizedSlot() {
-    return <View style={{ width: SIZE, height: SIZE }} />;
-}

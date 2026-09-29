@@ -128,7 +128,7 @@ const LiveRoomsScreen = () => {
     <EmptyState
       title="No rooms available"
       subtitle="Create a room to start a live audio conversation or schedule one for later"
-      customIcon={<RiBroadcastLine width={48} height={48} fill={theme.colors.textSecondary} />}
+      sticker="liveRooms"
       action={{
         label: t('agora.createRoom'),
         onPress: openCreateSheet,

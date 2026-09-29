@@ -13,6 +13,17 @@ const profile: OgData = {
   jsonLd: { '@context': 'https://schema.org', '@type': 'ProfilePage', mainEntity: { '@type': 'Person', name: 'Nate' } },
 };
 
+// `serveDocument` proxies EVERY request to the app's origin through
+// `route.fetch`, including large assets a page may still be downloading when
+// its test finishes (an empty state's sticker pulls dotLottie's 1.2 MB
+// WebAssembly renderer). Closing the context under such a request made the
+// handler's `response.body()` throw "Response has been disposed" and fail a
+// test whose assertions had all passed. Dropping the routes first, ignoring
+// what is still in flight, is Playwright's own answer to exactly that.
+test.afterEach(async ({ context }) => {
+  await context.unrouteAll({ behavior: 'ignoreErrors' });
+});
+
 async function serveDocument(context: BrowserContext, path: string, og: OgData | null) {
   await context.addInitScript(() => localStorage.setItem('welcome_modal_seen', 'true'));
   await context.route((url) => url.origin === APP_ORIGIN, async (route) => {

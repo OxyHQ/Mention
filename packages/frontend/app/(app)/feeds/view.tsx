@@ -73,7 +73,7 @@ export default function PresetFeedViewScreen() {
         if (!preset) {
             return (
                 <EmptyState
-                    icon={{ name: 'help-circle-outline' }}
+                    sticker="feedNotFound"
                     title={t('feeds.view.notFound.title', { defaultValue: 'Feed not found' })}
                     subtitle={t('feeds.view.notFound.subtitle', { defaultValue: 'This feed is no longer available.' })}
                     containerStyle={{ paddingTop: 60 }}

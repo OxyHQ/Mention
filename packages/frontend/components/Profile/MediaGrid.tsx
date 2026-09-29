@@ -218,10 +218,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({
             <EmptyState
                 title={t('profile.media.empty.title', { defaultValue: 'No media posts yet' })}
                 subtitle={t('profile.media.empty.subtitle', { defaultValue: 'Photos and videos you share will appear here.' })}
-                icon={{
-                    name: 'images-outline',
-                    size: 48,
-                }}
+                sticker="profileMedia"
                 containerStyle={{ flex: 1 }}
             />
             )

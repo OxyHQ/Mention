@@ -5,7 +5,6 @@ import { useAuth } from '@oxy.so/services/ui/client';
 import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } from '@/components/StarterPackCard';
 import { starterPacksService, type StarterPackSummary } from '@/services/starterPacksService';
 import { EmptyState } from '@/components/common/EmptyState';
-import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
 import { VirtualList } from '@oxy.so/bloom/list';
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
@@ -59,7 +58,7 @@ export function StarterPacksTab() {
       <EmptyState
         title="No starter packs yet"
         subtitle="Be the first to create a starter pack and help others discover great accounts"
-        customIcon={<StarterPackIcon size={48} className="text-muted-foreground" />}
+        sticker="starterPacks"
         // Creating one needs a session; signed out the empty state stays
         // informational rather than offering a form that cannot submit.
         action={canUsePrivateApi ? {

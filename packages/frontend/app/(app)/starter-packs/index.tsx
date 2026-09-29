@@ -11,7 +11,6 @@ import { StarterPackCard, StarterPackCardSkeleton, type StarterPackCardData } fr
 import { useTranslation } from 'react-i18next';
 import { logger } from '@oxy.so/core/logger';
 import { EmptyState } from '@/components/common/EmptyState';
-import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
 import { SignInRequired } from '@/components/common/SignInRequired';
 
 const IS_WEB = Platform.OS === 'web';
@@ -60,7 +59,7 @@ export default function StarterPacksScreen() {
     <EmptyState
       title="No starter packs yet"
       subtitle="Create a starter pack to help others discover great accounts"
-      customIcon={<StarterPackIcon size={48} className="text-muted-foreground" />}
+      sticker="starterPacks"
       action={{
         label: t('starterPacks.create'),
         onPress: () => router.push('/starter-packs/create'),
