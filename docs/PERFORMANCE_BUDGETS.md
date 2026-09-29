@@ -19,7 +19,7 @@ past any of:
 
 | Budget | Ceiling |
 | --- | --- |
-| Total bytes | 19.8 MiB |
+| Total bytes | 20.5 MiB |
 | JavaScript bytes | 16.45 MiB |
 | Initial JavaScript bytes | 6.9 MiB |
 | Initial JavaScript gzip bytes | 1.78 MiB (target: 1.6 MiB) |
@@ -63,6 +63,17 @@ Bloom's are static imports carrying all fifteen languages, so the ones for the
 families Mention imports ship whole. The fix that gives this back belongs in
 Bloom — load only the active language, as `lib/i18n.ts` does here — and is
 recorded there as a follow-up.
+
+The total ceiling was raised from 19.8 to 20.5 MiB by the empty feed's
+sticker (Oxy's shared catalogue, drawn by Bloom's `Sticker`): measured 20.32
+MiB against 18.96 MiB on `main`. 1.18 MiB of the +1.36 MiB is dotLottie's
+WebAssembly renderer, bundled as an asset so it is served from this origin
+rather than a third-party CDN; it is FETCHED only when a sticker animates, so it
+counts against the total and not against initial JavaScript. The rest is
+dotLottie's JavaScript, which does land in the initial chunk (+34 KiB gzip,
+1.70 → 1.74 MiB): Bloom loads its optional Lottie player with a synchronous
+`require`, which Metro keeps eager. Loading it with `import()` instead belongs
+in Bloom and would give those bytes back.
 
 The same move raised the feed row-cost ceilings (`__perf__/budgets.json`) to
 their measured values: every row kind reads one more context (the locale Bloom
