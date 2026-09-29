@@ -7,7 +7,46 @@ import { SEO } from '../SEO';
 
 jest.mock('react-native', () => ({ Platform: { OS: 'web' } }));
 jest.mock('expo-router', () => ({ usePathname: () => '/', useFocusEffect: jest.fn() }));
-jest.mock('expo-router/head', () => ({ __esModule: true, default: ({ children }: { children: React.ReactNode }) => children }));
+/**
+ * A stand-in for the head component: renders its tags in the tree (for the
+ * assertions on what an instance declares) and, like react-helmet-async,
+ * writes the newest committed instance's `og:image` to the document with
+ * `data-rh`. Removing an instance does not restore an older one here; tests
+ * that need that write the head themselves (see `mockAdvertise`).
+ */
+jest.mock('expo-router/head', () => {
+  const { Children, isValidElement, useLayoutEffect } = jest.requireActual<typeof import('react')>('react');
+  return {
+    __esModule: true,
+    default: function Head({ children }: { children: React.ReactNode }) {
+      const image = Children.toArray(children).find(
+        (child): child is React.ReactElement<{ property?: string; content?: string }> =>
+          isValidElement(child) && (child.props as { property?: string }).property === 'og:image',
+      )?.props.content;
+      useLayoutEffect(() => {
+        if (image) mockAdvertise(image);
+      }, [image]);
+      return children;
+    },
+  };
+});
+
+/** Put `image` in the head as the head component's `og:image`. */
+function mockAdvertise(image: string): void {
+  let node = document.head.querySelector('meta[property="og:image"][data-rh]');
+  if (!node) {
+    node = document.createElement('meta');
+    node.setAttribute('property', 'og:image');
+    node.setAttribute('data-rh', 'true');
+    document.head.appendChild(node);
+  }
+  node.setAttribute('content', image);
+}
+
+/** Let the head observer see the last mutation. */
+async function settle(): Promise<void> {
+  await act(async () => { await Promise.resolve(); });
+}
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (_key: string, options: { defaultValue: string }) => options.defaultValue }) }));
 jest.mock('@/config', () => ({ WEB_BASE_URL: 'https://social.example/' }));
 
@@ -52,16 +91,18 @@ test('unready entity routes keep their existing server head', () => {
  * The release gate (seo-handoff "transfers ownership on profile navigation")
  * caught the homepage's 1280x720 and alt text surviving into a profile's head:
  * the head component registers an instance during render, so a discarded
- * homepage render left one behind for good. The descriptors now live only as
- * long as the screen that committed them.
+ * homepage render left one behind for good. The descriptors follow the image
+ * the head advertises, not the screen that described it.
  */
-test("the default image's descriptors leave the head with the screen that wrote them", () => {
+test("the default image's descriptors leave the head with the default image", async () => {
   act(() => { tree = TestRenderer.create(<SEO url="https://social.example/" />); });
   expect(head()['og:image:width']).toBe('1280');
 
   act(() => tree.unmount());
   act(() => { tree = TestRenderer.create(<SEO url="https://social.example/@someone" image="https://cdn.example/avatar.png" />); });
+  await settle();
 
+  expect(head()['og:image']).toBe('https://cdn.example/avatar.png');
   expect(head()['og:image:width']).toBeUndefined();
   expect(head()['og:image:alt']).toBeUndefined();
   expect(head()['twitter:image:alt']).toBeUndefined();
@@ -73,6 +114,42 @@ test('two screens describing the default image never duplicate its tags', () => 
   act(() => { second = TestRenderer.create(<SEO url="https://social.example/search" />); });
   expect(document.head.querySelectorAll('meta[property="og:image:width"]')).toHaveLength(1);
   act(() => second.unmount());
+});
+
+/**
+ * The same gate, the other way round (Deploy Frontends 36507992571): home
+ * stays mounted under a pushed profile. The profile first described the
+ * default image too, then stopped (back to loading), and the head fell back to
+ * home's default image — which then went out with no descriptors, because the
+ * profile had taken home's nodes and removed them with its own.
+ */
+test('a screen that stops describing the default image leaves it described while the head still shows it', async () => {
+  let profile!: TestRenderer.ReactTestRenderer;
+  act(() => { tree = TestRenderer.create(<SEO url="https://social.example/" />); });
+  act(() => { profile = TestRenderer.create(<SEO url="https://social.example/@someone" />); });
+  act(() => profile.update(<SEO url="https://social.example/@someone" ready={false} />));
+  await settle();
+  expect(head()['og:image']).toBe('https://social.example/og-image.jpg');
+  expect(document.head.querySelectorAll('meta[property="og:image:width"]')).toHaveLength(1);
+
+  // The profile's avatar arrives and the head advertises it: no descriptors.
+  act(() => profile.update(<SEO url="https://social.example/@someone" image="https://cdn.example/avatar.png" />));
+  await settle();
+  expect(head()['og:image:width']).toBeUndefined();
+
+  // Back to home: the head advertises the default image again, and describes it.
+  act(() => profile.unmount());
+  mockAdvertise('https://social.example/og-image.jpg');
+  await settle();
+  expect(head()['og:image:width']).toBe('1280');
+  expect(head()['twitter:image:alt']).toContain('friends and a dog');
+});
+
+test('the descriptors leave with the last head that could describe them', () => {
+  act(() => { tree = TestRenderer.create(<SEO url="https://social.example/" />); });
+  expect(head()['og:image:width']).toBe('1280');
+  act(() => tree.unmount());
+  expect(head()['og:image:width']).toBeUndefined();
 });
 
 test('an unready route writes no descriptors', () => {
