@@ -8,7 +8,7 @@ import {
 } from '../config';
 import { logger } from './logger';
 import { canAuthenticateAsService } from '../runtime/serviceIdentity';
-import { instrumentOxyEgress } from './oxyMetrics';
+import { instrumentOxyEgress, measureOxyFetch } from './oxyMetrics';
 
 const OXY_BASE_URL = config.oxyApiUrl;
 const OXY_VIEWER_GRAPH_PATH = '/users/me/graph';
@@ -280,7 +280,7 @@ export async function uploadServiceUserMedia(params: {
   const baseUrl = client.baseURL.replace(/\/+$/, '');
   const url = `${baseUrl}${OXY_ASSET_USER_MEDIA_PATH}`;
 
-  const response = await fetch(url, {
+  const response = await measureOxyFetch('POST', OXY_ASSET_USER_MEDIA_PATH, () => fetch(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -291,7 +291,7 @@ export async function uploadServiceUserMedia(params: {
       Accept: 'application/json',
     },
     body: new Uint8Array(params.buffer),
-  });
+  }));
 
   const rawText = await response.text();
   if (!response.ok) {
