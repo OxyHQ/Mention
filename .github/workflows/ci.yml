@@ -19,6 +19,25 @@ on:
   # workflow never dispatched, and the merge sat undeployed with `main` green.
   # Without this, the only way to recover is to push another commit.
   workflow_dispatch:
+  # The merge queue. A queued pull request is tested as the exact commit main
+  # will be fast-forwarded to — main + everything ahead of it in the queue + this
+  # change — on a `gh-readonly-queue/main/...` branch, and it merges only once
+  # `CI complete` is green there. Two things follow, and both are the point:
+  #
+  #   * the tree that reaches main has been tested AS that tree. Before, branch
+  #     protection ran with strict=false, so a pull request was tested against
+  #     whatever main was when it last pushed, and two green PRs could merge
+  #     into a red main;
+  #   * that SHA needs no second CI before it ships. The deploy workflows
+  #     release a queue-merged commit on `push` by verifying this run's
+  #     `CI complete` for the exact SHA (.github/scripts/release-provenance.sh),
+  #     instead of waiting ~8-10 minutes for CI on push to re-test it.
+  #
+  # Declared here so the queue has something to run; enabling it is a ruleset
+  # change, made separately. Until then no merge_group event ever fires and
+  # every path below behaves exactly as before.
+  merge_group:
+    types: [checks_requested]
 
 permissions:
   contents: read
@@ -33,12 +52,14 @@ permissions:
 # main were cancelled, one after 54 seconds, leaving production 40+ minutes
 # behind main.
 #
-# Gated on the event rather than on `github.ref != 'refs/heads/main'`. Both are
-# correct for the two triggers this workflow declares, but they differ on
-# triggers it does not have yet: a merge_group run's ref is
-# `refs/heads/gh-readonly-queue/...`, so the ref test would resume cancelling
-# the runs that gate a merge, reintroducing exactly this bug. The event test
-# fails toward NOT cancelling, which costs runner minutes and never a release.
+# Gated on the event rather than on `github.ref != 'refs/heads/main'`, and the
+# `merge_group` trigger above is why that matters now rather than in theory: a
+# merge_group run's ref is `refs/heads/gh-readonly-queue/...`, so the ref test
+# would cancel the runs that gate a merge — and a cancelled queue run is a pull
+# request kicked out of the queue. The event test fails toward NOT cancelling,
+# which costs runner minutes and never a release. Each queue entry has its own
+# ref, so its group is its own and nothing in the queue ever cancels another;
+# the queue itself abandons a run when it rebuilds a group.
 #
 # The group deliberately still collapses every main push into one lane. That is
 # what bounds the cost: GitHub cancels a previously *pending* run when a new one
@@ -54,6 +75,28 @@ concurrency:
 env:
   BUN_VERSION: '1.3.14'
   NODE_VERSION: '24.21.0'
+  # The revision this run is judged against — by the per-package scope, the
+  # lockfile resolve and the frontend coverage ratchet alike. Each event keeps
+  # it in a different half of the payload, and a `merge_group` event has
+  # NEITHER of the two the earlier expression read: `github.base_ref` is empty
+  # (it is not a pull_request) and so is `github.event.before` (it is not a
+  # push). Left unhandled, every consumer took its "no base" path — the scope
+  # ran everything (safe, slow), but the lockfile check SKIPPED outright, which
+  # would have let a queued lockfile change reach main unverified.
+  #
+  #   merge_group  -> merge_group.base_sha: the commit the queue built this
+  #                   entry on (main, or the entry ahead of it, which must pass
+  #                   before this one can merge)
+  #   pull_request -> origin/<base_ref>: the tip of the branch it merges into
+  #   push         -> event.before: what main pointed at beforehand
+  #
+  # `&&` binds tighter than `||` in expressions, so each line is one arm.
+  CI_BASE_REVISION: >-
+    ${{
+      github.event_name == 'merge_group' && github.event.merge_group.base_sha ||
+      github.base_ref && format('origin/{0}', github.base_ref) ||
+      github.event.before
+    }}
 
 jobs:
   quality:
@@ -84,6 +127,8 @@ jobs:
         run: |
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-ci-scope.sh
+          bash .github/scripts/test-require-current-main.sh
+          bash .github/scripts/test-release-provenance.sh
           bash .github/scripts/test-deploy-ecs-image.sh
           bash .github/scripts/test-optional-task-bindings.sh
           bash .github/scripts/test-source-identity-reconciliation.sh
@@ -127,17 +172,26 @@ jobs:
       # integrates batches locally and pushes once, so a lockfile change can
       # reach main without ever having been in a pull request. A branch's first
       # push has no before-commit and nothing to compare against.
+      #
+      # A merge-queue entry compares against the commit the queue built it on
+      # (CI_BASE_REVISION above). It MUST resolve: the queue is the last gate
+      # before main, and skipping here would be the one path on which a
+      # lockfile change reached main without this check.
       - name: Resolve the base revision
         id: base
         env:
-          BASE_REF: ${{ github.base_ref }}
-          BEFORE_SHA: ${{ github.event.before }}
+          BASE_REVISION: ${{ env.CI_BASE_REVISION }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          if [ -n "$BASE_REF" ]; then
-            echo "revision=origin/$BASE_REF" >> "$GITHUB_OUTPUT"
-          elif [ -n "$BEFORE_SHA" ] && git rev-parse --verify --quiet "$BEFORE_SHA^{commit}" >/dev/null; then
-            echo "revision=$BEFORE_SHA" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT_NAME" = merge_group ] || [ "$EVENT_NAME" = pull_request ]; then
+            if ! git rev-parse --verify --quiet "$BASE_REVISION^{commit}" >/dev/null; then
+              echo "::error::$EVENT_NAME run cannot resolve its base revision '$BASE_REVISION'; refusing to skip the lockfile check."
+              exit 1
+            fi
+            echo "revision=$BASE_REVISION" >> "$GITHUB_OUTPUT"
+          elif [ -n "$BASE_REVISION" ] && git rev-parse --verify --quiet "$BASE_REVISION^{commit}" >/dev/null; then
+            echo "revision=$BASE_REVISION" >> "$GITHUB_OUTPUT"
           else
             echo "revision=" >> "$GITHUB_OUTPUT"
             echo "::notice::no base revision to compare bun.lock against; skipping"
@@ -163,10 +217,12 @@ jobs:
     # docker-compose.postgres.yml, so a developer's database and CI's cannot
     # disagree about what is installed.
     #
-    # Declared for every matrix entry rather than only the backend: a `services:`
+    # Declared for every matrix entry, though since the backend moved to its own
+    # sharded job below none of these three legs connects to it: a `services:`
     # block cannot be made conditional on a matrix value, and an empty `image` is
-    # a hard error. The cost is one container start on three jobs that never
-    # connect to it.
+    # a hard error. Kept because the frontend and shared-types suites have
+    # reached for a database before, and 14s of container start is cheaper than
+    # a leg that silently cannot.
     services:
       postgres:
         image: postgis/postgis:17-3.5
@@ -197,12 +253,9 @@ jobs:
           - package: shared-types
             command: bun run --cwd packages/shared-types test
             coverage: false
-          # `--reporter=default` is restated because naming any reporter REPLACES
-          # the default set, and a CI log with only machine JSON in it is a log
-          # nobody can read. The JSON is what the collection gate below consumes.
-          - package: backend
-            command: bun run --cwd packages/backend test:coverage -- --coverage.reportsDirectory="$RUNNER_TEMP/backend-coverage" --reporter=default --reporter=json --outputFile="$RUNNER_TEMP/backend-report.json"
-            coverage: true
+          # The backend is NOT here: it is the `backend-test` shards and the
+          # `backend-coverage` merge below, because it was this matrix's
+          # critical path by a factor of two.
           - package: frontend
             command: bun run --cwd packages/frontend test:coverage -- --coverageDirectory="$RUNNER_TEMP/frontend-coverage"
             coverage: true
@@ -227,7 +280,7 @@ jobs:
       - name: Decide whether this package's suite must run
         id: scope
         env:
-          CI_SCOPE_BASE: ${{ github.base_ref && format('origin/{0}', github.base_ref) || github.event.before }}
+          CI_SCOPE_BASE: ${{ env.CI_BASE_REVISION }}
         run: bash .github/scripts/ci-scope.sh ${{ matrix.package }}
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         if: steps.scope.outputs.run == 'true'
@@ -254,18 +307,6 @@ jobs:
       - name: Feed row-cost harness
         if: matrix.package == 'frontend' && steps.scope.outputs.run == 'true'
         run: bun run --cwd packages/frontend test:perf
-      # A test file that dies before its first `it()` contributes ZERO tests. It
-      # has no assertions to fail, so the pass RATIO improves: measured on this
-      # repository, 502 files / 5610 collected / 6 failed read as 99.9% passing
-      # while 32 files were dead at load and 296 declared tests never ran. Nothing
-      # about pass/fail can see that, and the number moves the reassuring way.
-      #
-      # `always()` so the gate still reports when the suite step failed — a load
-      # failure fails the suite too, and this is the step that says WHICH files
-      # and why the ratio lied. Backend only: it is the one leg emitting the JSON.
-      - name: Assert the suite collected what it claims to run
-        if: always() && matrix.package == 'backend' && steps.scope.outputs.run == 'true'
-        run: bun run check:suite-collection "$RUNNER_TEMP/backend-report.json" packages/backend/src
       # The frontend's critical-path floor and no-regression ratchet. Kept out of
       # `test:coverage` itself because CI appends `--coverageDirectory` to that
       # script, and an appended flag lands on the LAST command of a chain — so
@@ -282,7 +323,7 @@ jobs:
       - name: Enforce the frontend coverage policy
         if: always() && matrix.package == 'frontend' && steps.scope.outputs.run == 'true'
         env:
-          COVERAGE_POLICY_BASE: ${{ github.base_ref && format('origin/{0}', github.base_ref) || github.event.before }}
+          COVERAGE_POLICY_BASE: ${{ env.CI_BASE_REVISION }}
         run: bun run --cwd packages/frontend coverage:check -- --coverage-dir "$RUNNER_TEMP/frontend-coverage"
       - name: Upload coverage summary
         if: always() && matrix.coverage && steps.scope.outputs.run == 'true'
@@ -290,6 +331,220 @@ jobs:
         with:
           name: mention-${{ matrix.package }}-coverage-${{ github.sha }}
           path: ${{ runner.temp }}/${{ matrix.package }}-coverage/coverage-summary.json
+          if-no-files-found: error
+          retention-days: 14
+
+  # The backend suite, one shard per runner.
+  #
+  # It was ONE leg of the matrix above, and the whole critical path of `CI
+  # complete`: 397-500s of job (426s of it the suite itself, on run 36509617655)
+  # while every other leg finished in 3.5 minutes or less, so every pull request
+  # and every release waited on it. Vitest's `--shard=<i>/<n>` partitions the
+  # collected file list with no overlap and no omission; each shard gets its own
+  # runner, its own Postgres service and its own throwaway database, so shards
+  # share nothing but the checkout.
+  #
+  # Pattern ported from OxyHQ/oxy's `api-test` + `api-coverage` (the Jest
+  # version of the same problem): every shard uploads its report, and a single
+  # merge job judges the WHOLE suite — the coverage floors and the collection
+  # gate both — and refuses to judge anything if a shard is missing or extra.
+  # Nothing that was enforced over the complete suite is now enforced over a
+  # part of it.
+  backend-test:
+    name: Test backend (${{ matrix.shard }}/${{ strategy.job-total }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      # Identical to the matrix above and to docker-compose.postgres.yml; see
+      # the comment there for why PostGIS and why pinned.
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_USER: mention
+          POSTGRES_PASSWORD: mention
+          POSTGRES_DB: mention_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mention -d mention_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://mention:mention@127.0.0.1:5432/mention_ci
+    strategy:
+      # Every shard runs to the end even when one fails, so a red run names
+      # every failing test instead of the first shard's.
+      fail-fast: false
+      matrix:
+        # The shard count is this list's length: the suite step passes
+        # `strategy.job-total` to vitest, and `backend-coverage` requires exactly
+        # that many blobs named `blob-<i>-<total>.json` — so a count changed here
+        # without the other side is a red merge, never a silently thinner suite.
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      # The same step-level gating as the matrix above, and the same answer on
+      # every shard and in the merge job: all three read one base revision.
+      - name: Decide whether the backend suite must run
+        id: scope
+        env:
+          CI_SCOPE_BASE: ${{ env.CI_BASE_REVISION }}
+        run: bash .github/scripts/ci-scope.sh backend
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        if: steps.scope.outputs.run == 'true'
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - name: Set up pinned Node test runtime
+        if: steps.scope.outputs.run == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install exact dependency graph
+        if: steps.scope.outputs.run == 'true'
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Build shared runtime package
+        if: steps.scope.outputs.run == 'true'
+        run: bun run build:shared-types
+      # `--reporter=default` is restated because naming any reporter REPLACES
+      # the default set, and a log with only a blob in it is one nobody can read.
+      #
+      # The blob carries this shard's test results AND its raw coverage. The
+      # shard judges no coverage floor — `vitest.config.ts` drops the thresholds
+      # when `--shard` is on the command line, because a third of the suite reads
+      # 46.83% against a 69.13% floor with nothing wrong — so the one judgement
+      # is the merge below, over all of them.
+      - name: Run this shard of the backend suite
+        if: steps.scope.outputs.run == 'true'
+        env:
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_TOTAL: ${{ strategy.job-total }}
+        run: >-
+          bun run --cwd packages/backend test:coverage --
+          --shard="$SHARD_INDEX/$SHARD_TOTAL"
+          --coverage.reportsDirectory="$RUNNER_TEMP/backend-coverage-shard"
+          --reporter=default --reporter=blob
+          --outputFile.blob="$RUNNER_TEMP/backend-blobs/blob-$SHARD_INDEX-$SHARD_TOTAL.json"
+      # `always()`: a shard whose suite failed still hands its blob to the merge,
+      # so the merged report names every failing and every dead file. `overwrite`
+      # so re-running one shard replaces its own blob from the earlier attempt.
+      - name: Upload this shard's blob report
+        if: always() && steps.scope.outputs.run == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mention-backend-blob-${{ matrix.shard }}
+          path: ${{ runner.temp }}/backend-blobs/blob-${{ matrix.shard }}-${{ strategy.job-total }}.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
+
+  # Judges the backend suite as ONE suite, from every shard's blob: the coverage
+  # floors in vitest.config.ts (global and per-file) and the collection gate.
+  # Needs no database — `--merge-reports` replays results, it runs nothing.
+  backend-coverage:
+    name: Backend coverage and collection
+    needs: backend-test
+    # A failed shard still uploads its blob, and the merge is what says which
+    # files failed or died at load across all of them. `!cancelled()` rather
+    # than `always()` so a cancelled run does not start one more job.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Must equal the length of `backend-test`'s shard list.
+      BACKEND_SHARDS: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Decide whether the backend suite had to run
+        id: scope
+        env:
+          CI_SCOPE_BASE: ${{ env.CI_BASE_REVISION }}
+        run: bash .github/scripts/ci-scope.sh backend
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        if: steps.scope.outputs.run == 'true'
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - name: Set up pinned Node test runtime
+        if: steps.scope.outputs.run == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install exact dependency graph
+        if: steps.scope.outputs.run == 'true'
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Download every shard's blob report
+        if: steps.scope.outputs.run == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: mention-backend-blob-*
+          path: ${{ runner.temp }}/backend-blobs
+          merge-multiple: true
+      # The shard count is an explicit input, never inferred from what is on
+      # disk: a run that lost a shard's artifact would otherwise merge the rest
+      # and judge the floors over a thinner suite. Exactly blob-1..N-of-N, each
+      # non-empty, and nothing else. The collection gate below would ALSO catch
+      # a missing shard (its files are absent from the report), but it is the
+      # second line, not the first.
+      - name: Refuse a missing, empty or extra shard
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/backend-blobs"
+          expected=()
+          for i in $(seq 1 "$BACKEND_SHARDS"); do
+            expected+=("blob-$i-$BACKEND_SHARDS.json")
+            if [ ! -s "$dir/blob-$i-$BACKEND_SHARDS.json" ]; then
+              echo "::error::shard $i/$BACKEND_SHARDS produced no blob report; refusing to judge the suite without it."
+              exit 1
+            fi
+          done
+          actual="$(cd "$dir" && ls -1 | sort)"
+          wanted="$(printf '%s\n' "${expected[@]}" | sort)"
+          if [ "$actual" != "$wanted" ]; then
+            echo "::error::blob reports on disk do not match the $BACKEND_SHARDS declared shards:"
+            echo "$actual"
+            exit 1
+          fi
+          echo "All $BACKEND_SHARDS shard blobs present."
+      # The merged run applies vitest.config.ts's thresholds — global AND every
+      # per-file pin — to the merged coverage of all shards: the same numbers an
+      # unsharded run measures, judged the same way. It carries no `--shard`, so
+      # the config gives it the full thresholds object. Verified before this
+      # landed: a merge of all three blobs reproduces the unsharded totals, a
+      # merge given `--coverage.thresholds.statements=99` fails, and a merge of
+      # two blobs fails both the floors and the collection gate.
+      - name: Merge the shards and enforce the coverage floors
+        if: steps.scope.outputs.run == 'true'
+        run: >-
+          bun run --cwd packages/backend test:coverage --
+          --merge-reports="$RUNNER_TEMP/backend-blobs"
+          --coverage.reportsDirectory="$RUNNER_TEMP/backend-coverage"
+          --reporter=default --reporter=json
+          --outputFile.json="$RUNNER_TEMP/backend-report.json"
+      # A test file that dies before its first `it()` contributes ZERO tests. It
+      # has no assertions to fail, so the pass RATIO improves: measured on this
+      # repository, 502 files / 5610 collected / 6 failed read as 99.9% passing
+      # while 32 files were dead at load and 296 declared tests never ran. Nothing
+      # about pass/fail can see that, and the number moves the reassuring way.
+      #
+      # Run over the MERGED report, so "every test file on disk appears in the
+      # report" is asserted against the whole suite rather than one shard's
+      # slice of it. `always()` so it still reports when the merge step failed —
+      # a load failure fails the suite too, and this is the step that says WHICH
+      # files and why the ratio lied.
+      - name: Assert the suite collected what it claims to run
+        if: always() && steps.scope.outputs.run == 'true'
+        run: bun run check:suite-collection "$RUNNER_TEMP/backend-report.json" packages/backend/src
+      - name: Upload coverage summary
+        if: always() && steps.scope.outputs.run == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mention-backend-coverage-${{ github.sha }}
+          path: ${{ runner.temp }}/backend-coverage/coverage-summary.json
           if-no-files-found: error
           retention-days: 14
 
@@ -322,7 +577,7 @@ jobs:
       - name: Decide whether the bundle changed at all
         id: scope
         env:
-          CI_SCOPE_BASE: ${{ github.base_ref && format('origin/{0}', github.base_ref) || github.event.before }}
+          CI_SCOPE_BASE: ${{ env.CI_BASE_REVISION }}
         run: bash .github/scripts/ci-scope.sh frontend
       # A hit means this exact commit was already measured by an earlier run of
       # this job, and the cache is only written after the budgets pass, so
@@ -400,9 +655,14 @@ jobs:
           path: ${{ runner.temp }}/mention-bundle-report.json
           key: mention-bundle-baseline-${{ github.sha }}
 
+  # Runs on a pull request AND on a merge-queue entry. The absolute ceilings in
+  # bundle-budgets.json are the hard gate, and the queue entry is the tree that
+  # ships, so it is the one they must hold for. It is NOT the baseline job's
+  # shape: a cache saved from a `gh-readonly-queue/...` ref is readable by that
+  # ref alone, so recording a baseline there would be work nobody can restore.
   frontend-bundle:
     name: Frontend bundle budget
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -414,7 +674,7 @@ jobs:
       - name: Decide whether the bundle changed at all
         id: scope
         env:
-          CI_SCOPE_BASE: ${{ github.base_ref && format('origin/{0}', github.base_ref) || github.event.before }}
+          CI_SCOPE_BASE: ${{ env.CI_BASE_REVISION }}
         run: bash .github/scripts/ci-scope.sh frontend
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         if: steps.scope.outputs.run == 'true'
@@ -428,14 +688,16 @@ jobs:
       # The tip of the base branch, which is the commit frontend-bundle-baseline
       # keyed its cache on. Deliberately not the pull request's merge base: a
       # stale merge base would compare this build against a baseline nobody on
-      # main is running.
+      # main is running. A queue entry uses the commit the queue built it on,
+      # through the same CI_BASE_REVISION every other base reads.
       - name: Resolve baseline commit
         id: baseline_commit
         if: steps.scope.outputs.run == 'true'
         env:
-          BASE_REF: ${{ github.base_ref }}
+          BASE_REVISION: ${{ env.CI_BASE_REVISION }}
         run: |
-          echo "sha=$(git rev-parse "origin/$BASE_REF")" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          echo "sha=$(git rev-parse --verify "$BASE_REVISION^{commit}")" >> "$GITHUB_OUTPUT"
           echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Restore bundle baseline from the base branch
         id: restore_baseline
@@ -450,8 +712,15 @@ jobs:
       # the upstream `git reset` + `git restore .`: a mixed reset leaves files
       # this branch added on disk as untracked, and the baseline export would
       # then bundle them and understate the delta.
+      #
+      # Pull requests only. The comparison it feeds is advisory — the absolute
+      # ceilings are the only hard gate, and they are enforced below with or
+      # without a baseline — and on a queue entry it would put ~208s (measured,
+      # run 36509617655) of building someone else's commit on the path to main.
+      # A queue entry whose base has no cached baseline is judged on the ceilings
+      # alone, which is exactly what a push to main is judged on.
       - name: Build the baseline bundle at the base commit
-        if: steps.scope.outputs.run == 'true' && !steps.restore_baseline.outputs.cache-hit
+        if: github.event_name == 'pull_request' && steps.scope.outputs.run == 'true' && !steps.restore_baseline.outputs.cache-hit
         env:
           BASELINE_SHA: ${{ steps.baseline_commit.outputs.sha }}
           HEAD_SHA: ${{ steps.baseline_commit.outputs.head }}
@@ -496,15 +765,22 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         run: bun .github/scripts/validate-frontend-static-output.mjs packages/frontend/dist
       # The comparison is advisory and never fails on its own; the absolute
-      # ceilings in bundle-budgets.json remain the only hard gate.
+      # ceilings in bundle-budgets.json remain the only hard gate. `--baseline`
+      # is passed only when one is on disk — always, on a pull request (restored
+      # or built above); on a queue entry, only on a cache hit.
       - name: Enforce bundle budgets and compare against the baseline
         if: steps.scope.outputs.run == 'true'
-        run: >-
-          bun run --cwd packages/frontend analyze-bundle --
-          --ci
-          --json "${{ runner.temp }}/mention-bundle-report.json"
-          --baseline "${{ runner.temp }}/mention-bundle-baseline.json"
-          --markdown "${{ runner.temp }}/mention-bundle-summary.md"
+        run: |
+          set -euo pipefail
+          baseline=()
+          if [ -f "$RUNNER_TEMP/mention-bundle-baseline.json" ]; then
+            baseline=(--baseline "$RUNNER_TEMP/mention-bundle-baseline.json")
+          fi
+          bun run --cwd packages/frontend analyze-bundle -- \
+            --ci \
+            --json "$RUNNER_TEMP/mention-bundle-report.json" \
+            "${baseline[@]}" \
+            --markdown "$RUNNER_TEMP/mention-bundle-summary.md"
       # Step summary rather than a pull request comment: this workflow runs on
       # `pull_request` with contents: read, a comment needs pull-requests: write
       # that forks never receive, and `pull_request_target` would run untrusted
@@ -524,17 +800,126 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # The single check branch protection should require, so that auto-merge has
-  # something stable to wait on. Requiring the jobs themselves does not work
-  # here: frontend-bundle-baseline and frontend-bundle are mutually exclusive on
-  # event type, so one of the pair reports `skipped` on every run, and a
-  # required check that reports `skipped` never becomes satisfied.
+  # The Playwright browser gate (packages/e2e), run BEFORE a merge rather than
+  # only after one.
+  #
+  # It used to run solely inside deploy-frontends.yml, against the Pages preview
+  # of a commit already on main. So a pull request that broke it merged green,
+  # and from then on EVERY web deploy failed at the gate until someone landed a
+  # fix: a 36-hour stretch in which no frontend change reached production. The
+  # gate was right each time; it was just placed where being right could only
+  # block releases, never the change that broke them.
+  #
+  # Same suite, same pinned Playwright and Chromium, same production build env
+  # as deploy-frontends.yml, same candidate mechanism: the browser runs at
+  # https://mention.earth against the LIVE API, and fixtures.ts answers every
+  # same-origin request from the candidate. Only the candidate's HOST differs —
+  # the export served locally by `wrangler pages dev` (the wrangler the deploy
+  # pins) instead of an uploaded Pages preview, because a pull request, and a
+  # fork's above all, gets no Cloudflare credentials. `pages dev` is the Pages
+  # runtime itself: it applies the same `_redirects` SPA rewrite and `_headers`
+  # the preview does, so a missing chunk answers exactly as it would there.
+  #
+  # The deploy KEEPS its own run. This one proves the change; that one proves
+  # the uploaded artefact, on the host that is about to be promoted.
+  #
+  # Its own job, in parallel with everything else: measured ~6m cold against
+  # the ~5m bundle budget, so it sits beside the critical path, not on it.
+  # Scoped to the frontend leg — the suite gates the web build, and its backend
+  # is production's, which a pull request's backend change cannot reach.
+  # `packages/e2e/*` itself falls through ci-scope.sh's catch-all to every leg.
+  e2e:
+    name: Browser gate (e2e)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Decide whether the web build changed at all
+        id: scope
+        env:
+          CI_SCOPE_BASE: ${{ env.CI_BASE_REVISION }}
+        run: bash .github/scripts/ci-scope.sh frontend
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        if: steps.scope.outputs.run == 'true'
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - name: Set up the pinned Node runtime for the browser gate
+        if: steps.scope.outputs.run == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install exact dependency graph
+        if: steps.scope.outputs.run == 'true'
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Build shared runtime package
+        if: steps.scope.outputs.run == 'true'
+        run: bun run build:shared-types
+      # Byte-for-byte the environment deploy-frontends.yml builds with, so the
+      # candidate under test is the one that would be promoted.
+      - name: Build frontend
+        if: steps.scope.outputs.run == 'true'
+        run: bun run build:frontend
+        env:
+          NODE_ENV: production
+          EXPO_PUBLIC_ENV: production
+          EXPO_PUBLIC_API_URL: https://api.mention.earth
+          EXPO_PUBLIC_OXY_CLIENT_ID: ${{ vars.EXPO_PUBLIC_OXY_CLIENT_ID }}
+      - name: Validate static hosting contract
+        if: steps.scope.outputs.run == 'true'
+        run: bun .github/scripts/validate-frontend-static-output.mjs packages/frontend/dist
+      - name: Install the Chromium build the browser gate drives
+        if: steps.scope.outputs.run == 'true'
+        run: bun run --cwd packages/e2e install-browser
+      # Readiness is polled on a real request, bounded, and a server that never
+      # answers fails this step by name rather than every flow downstream.
+      - name: Serve the candidate on the Pages runtime
+        if: steps.scope.outputs.run == 'true'
+        env:
+          WRANGLER_VERSION: '4.130.0'
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          set -euo pipefail
+          nohup bunx "wrangler@$WRANGLER_VERSION" pages dev packages/frontend/dist \
+            --ip 127.0.0.1 --port 4110 >"$RUNNER_TEMP/wrangler-pages-dev.log" 2>&1 &
+          for attempt in $(seq 1 90); do
+            if curl --silent --fail --output /dev/null http://127.0.0.1:4110/; then
+              echo "Candidate is served at http://127.0.0.1:4110 (after ${attempt}s)."
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/wrangler-pages-dev.log"
+          echo "::error::wrangler pages dev did not serve the candidate within 90 seconds."
+          exit 1
+      - name: Gate the candidate build in a real browser
+        if: steps.scope.outputs.run == 'true'
+        env:
+          MENTION_E2E_CANDIDATE_ORIGIN: http://127.0.0.1:4110
+        run: bun run --cwd packages/e2e test
+      - name: Upload the browser gate report
+        if: always() && steps.scope.outputs.run == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mention-e2e-report-${{ github.sha }}-${{ github.run_attempt }}
+          path: packages/e2e/playwright-report
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # The single check branch protection should require, so that auto-merge — and
+  # the merge queue — have something stable to wait on. Requiring the jobs
+  # themselves does not work here: frontend-bundle-baseline and frontend-bundle
+  # are mutually exclusive on event type, so one of the pair reports `skipped`
+  # on every run, and a required check that reports `skipped` never becomes
+  # satisfied. It is also the job release-provenance.sh reads: a queue-merged
+  # commit ships on push only if THIS job was green in its merge_group run.
   #
   # `if: always()` so this still runs — and still fails — when something above
   # it failed or was cancelled.
   ci-complete:
     name: CI complete
-    needs: [quality, lockfile, tests, frontend-bundle-baseline, frontend-bundle]
+    needs: [quality, lockfile, tests, backend-test, backend-coverage, e2e, frontend-bundle-baseline, frontend-bundle]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -548,19 +933,23 @@ jobs:
 
           failures=()
 
-          # These three have no `if:` and run on every event, so `skipped` here
+          # These have no event `if:` and run on every event, so `skipped` here
           # is never legitimate — it means a future edit gated them, and a gate
           # that reads "skipped" as "fine" is how a required check stops
-          # checking. `tests` is a matrix: its result is success only when every
-          # leg succeeded.
-          for job in quality lockfile tests; do
+          # checking. `tests` and `backend-test` are matrices: their result is
+          # success only when every leg succeeded. `backend-coverage` is where
+          # the coverage floors and the collection gate are judged over the
+          # merged shards, and `e2e` is the browser gate; a leg whose scope said
+          # "nothing changed" still reports success, never skipped.
+          for job in quality lockfile tests backend-test backend-coverage e2e; do
             result="$(jq -r --arg job "$job" '.[$job].result' <<<"$RESULTS")"
             if [ "$result" != success ]; then
               failures+=("$job did not pass: $result")
             fi
           done
 
-          # Exactly one of the bundle pair runs, chosen by event type. Asserting
+          # Exactly one of the bundle pair runs, chosen by event type (baseline on
+          # push and dispatch, the budget on pull_request and merge_group). Asserting
           # the pairing rather than tolerating both being skipped is what stops a
           # future `if:` edit retiring the bundle budget on both paths at once.
           baseline="$(jq -r '."frontend-bundle-baseline".result' <<<"$RESULTS")"

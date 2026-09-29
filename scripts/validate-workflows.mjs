@@ -205,6 +205,43 @@ for (const workflowName of workflowNames) {
         }
       }
 
+      /**
+       * The push trigger releases a commit WITHOUT a CI run on main, on the
+       * strength of its merge_group run. That is only sound while the push path
+       * cannot skip the check that says so, so the shape is asserted: the
+       * provenance decision runs in the scope job, before the scope it gates,
+       * with the read access it needs — and the marker only moves after a
+       * rollout that actually happened, not after a job that ended green at a
+       * stale-release guard.
+       */
+      if (workflow?.on?.push) {
+        const branches = workflow.on.push?.branches ?? [];
+        if (branches.length !== 1 || branches[0] !== "main") {
+          failures.push(`${workflowName}: a production push trigger must be restricted to main alone`);
+        }
+        const scopeRuns = scopeJob ? stepRuns(scopeJob[1]) : [];
+        const provenanceIndex = scopeRuns.findIndex((run) => run.includes("release-provenance.sh"));
+        const scopeIndex = scopeRuns.findIndex((run) => run.includes("deployment-scope.sh"));
+        if (provenanceIndex < 0 || scopeIndex < provenanceIndex) {
+          failures.push(
+            `${workflowName}: a push-triggered release must decide its path through release-provenance.sh before its scope — otherwise a commit no CI run ever passed reaches production`,
+          );
+        }
+        if (scopeJob && scopeJob[1]?.permissions?.actions !== "read") {
+          failures.push(`${workflowName}: ${scopeJob[0]} needs job-level actions: read to verify the merge_group CI run`);
+        }
+        if (workflow?.concurrency != null) {
+          failures.push(
+            `${workflowName}: with two triggers the release lane must be a JOB-level concurrency group on the deploy job; a workflow-level one lets a no-op run displace a pending release`,
+          );
+        }
+        if (recordJob && !String(recordJob[1]?.if ?? "").includes("outputs.released == 'true'")) {
+          failures.push(
+            `${workflowName}: ${recordJob[0]} must require the deploy job's \`released\` output — a deploy that stopped at a stale guard ends green having shipped nothing`,
+          );
+        }
+      }
+
       if (workflow?.permissions?.contents === "write") {
         failures.push(
           `${workflowName}: workflow-level contents: write would hand a push-capable token to the build job; scope it to the marker job instead`,
@@ -397,6 +434,37 @@ for (const workflowName of workflowNames) {
     // placed above the suite would measure the previous run's artefacts, or
     // nothing at all.
     if (workflowName === "ci.yml") {
+      /**
+       * The backend suite is sharded, so the two whole-suite judgements — the
+       * coverage floors and the collection gate — live in ONE merge job. Deleting
+       * that job, or its refusal of a missing shard, would leave three green
+       * shards and nothing judging the suite they add up to.
+       */
+      if (workflow?.on?.merge_group == null) {
+        failures.push(`${workflowName}: must run on merge_group, or the merge queue has no CI to wait on`);
+      }
+      const mergeJob = workflow?.jobs?.["backend-coverage"];
+      const mergeRuns = (mergeJob?.steps || []).map((step) => (typeof step?.run === "string" ? step.run : ""));
+      if (!mergeRuns.some((run) => run.includes("--merge-reports"))) {
+        failures.push(`${workflowName}: backend-coverage must merge every shard's blob with vitest --merge-reports, which is where the coverage floors are enforced`);
+      }
+      if (!mergeRuns.some((run) => run.includes("check:suite-collection"))) {
+        failures.push(`${workflowName}: backend-coverage must run the collection gate over the merged report`);
+      }
+      if (!mergeRuns.some((run) => run.includes("BACKEND_SHARDS"))) {
+        failures.push(`${workflowName}: backend-coverage must refuse a missing or extra shard before merging`);
+      }
+      const shardList = workflow?.jobs?.["backend-test"]?.strategy?.matrix?.shard;
+      if (!Array.isArray(shardList) || String(mergeJob?.env?.BACKEND_SHARDS) !== String(shardList.length)) {
+        failures.push(`${workflowName}: backend-coverage's BACKEND_SHARDS must equal the length of backend-test's shard list`);
+      }
+      const completeNeeds = workflow?.jobs?.["ci-complete"]?.needs ?? [];
+      for (const job of ["backend-test", "backend-coverage", "e2e"]) {
+        if (!completeNeeds.includes(job)) {
+          failures.push(`${workflowName}: CI complete must need ${job}`);
+        }
+      }
+
       const suiteIndex = source.indexOf("Run complete package test suite");
       const policyIndex = source.indexOf("Enforce the frontend coverage policy");
       if (policyIndex < 0) {
