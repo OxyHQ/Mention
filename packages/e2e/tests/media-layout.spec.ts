@@ -213,14 +213,47 @@ test('an image post renders one layout, never a fallback then a jump', async ({
    * rule: the ones the feed resolved a URL for AND told us the dimensions of.
    * Read live from the DOM rather than from the sampler, because whether an
    * image has finished loading is the thing being waited on.
+   *
+   * ON SCREEN means some of the image is inside the viewport AND inside every
+   * clipping ancestor — not merely in the DOM. Post media is an `expo-image`,
+   * which renders `loading="lazy"` on web, and a multi-image post lays its
+   * media out in a horizontal carousel (`PostAttachmentsRow`). Its third and
+   * fourth images sit past the carousel's clipped right edge, and the browser
+   * rightly does not fetch them until they are scrolled towards, so their
+   * `complete` stays false for good. Counting those as "on screen" made the
+   * load wait below expire whenever the live feed happened to carry a
+   * four-image post (Deploy Frontends 36513643575), although nothing on screen
+   * was still loading. The one-layout verdict is unaffected: it is passed over
+   * everything the sampler recorded, clipped images included.
    */
   const measurableImages = () =>
     page.evaluate(
       (sources: string[]) => {
         const known = new Set(sources);
+        const visible = (image: HTMLImageElement): boolean => {
+          let { left, top, right, bottom } = image.getBoundingClientRect();
+          left = Math.max(left, 0);
+          top = Math.max(top, 0);
+          right = Math.min(right, window.innerWidth);
+          bottom = Math.min(bottom, window.innerHeight);
+          for (let node = image.parentElement; node && node !== document.body; node = node.parentElement) {
+            const style = getComputedStyle(node);
+            if (style.overflowX === 'visible' && style.overflowY === 'visible') continue;
+            const clip = node.getBoundingClientRect();
+            if (style.overflowX !== 'visible') {
+              left = Math.max(left, clip.left);
+              right = Math.min(right, clip.right);
+            }
+            if (style.overflowY !== 'visible') {
+              top = Math.max(top, clip.top);
+              bottom = Math.min(bottom, clip.bottom);
+            }
+          }
+          return right > left && bottom > top;
+        };
         return Array.from(document.querySelectorAll('img'))
-          .map((image) => ({ source: image.currentSrc || image.src, complete: image.complete }))
-          .filter((image) => known.has(image.source));
+          .filter((image) => known.has(image.currentSrc || image.src) && visible(image))
+          .map((image) => ({ source: image.currentSrc || image.src, complete: image.complete }));
       },
       [...geometry.withGeometry],
     );
