@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { View } from 'react-native';
+import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { ZoomableAvatar } from '@/components/ZoomableAvatar';
 import { showChannelInfo } from '@/components/Channels/ChannelInfoDialog';
 import { AccountCategoryLine } from './AccountCategoryLine';
@@ -70,6 +71,7 @@ export const ChannelHeader = memo(function ChannelHeader({
   UserNameComponent,
   trailingBadge,
 }: ChannelHeaderProps) {
+  const surfaceFill = useSurfaceFill();
   return (
     <View className="items-center w-full">
       {/* No live badge and no presence dot, and neither is an omission: both
@@ -80,8 +82,9 @@ export const ChannelHeader = memo(function ChannelHeader({
       <ZoomableAvatar
         source={avatarUri}
         size={CHANNEL_AVATAR_SIZE}
-        className="border-[3px] border-background bg-muted"
+        className="border-[3px] bg-muted"
         style={{
+          borderColor: surfaceFill,
           width: CHANNEL_AVATAR_SIZE,
           height: CHANNEL_AVATAR_SIZE,
           borderRadius: CHANNEL_AVATAR_SIZE / 2,

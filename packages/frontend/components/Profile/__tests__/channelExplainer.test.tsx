@@ -27,6 +27,7 @@ import TestRenderer, { type ReactTestInstance, type ReactTestRenderer } from 're
 
 const mockShowChannelInfo = jest.fn();
 
+jest.mock('@oxy.so/bloom/styles', () => ({ useSurfaceFill: () => 'rgb(20, 55, 84)' }));
 jest.mock('@/components/Channels/ChannelInfoDialog', () => ({
   showChannelInfo: () => mockShowChannelInfo(),
 }));
