@@ -117,10 +117,17 @@ function ProfileShellBody({
   }) : false;
   const nativeListOwnsScroll = nativeFeedOwnsScroll || nativeGridOwnsScroll;
 
+  // Banner, summary and the tab strip under them are ONE block with one
+  // background: the surface fill, which the sticky strip (Bloom's
+  // StickySection) and the avatar ring paint too. Left transparent, the
+  // summary showed whatever the column painted beneath it. On a framed web
+  // panel that is Bloom's lit material, a shade lighter than the strip right
+  // under it. The feed below keeps no background of its own and reads like
+  // every other feed.
   const listHeader = (
     <View
       onLayout={IS_WEB ? undefined : event => setSummaryHeight(event.nativeEvent.layout.height)}
-      style={{ flexGrow: 0, flexShrink: 0 }}
+      style={{ flexGrow: 0, flexShrink: 0, backgroundColor: surfaceFill }}
     >
       {banner ? (
         <CoverHeader
@@ -148,16 +155,12 @@ function ProfileShellBody({
   ) : null;
   const nativeContent = tabs ? <ProfileTabs {...tabs} /> : null;
   const drawing = active && !loading ? profileData : null;
-  // The whole profile sits on ONE background: the surface fill, the colour the
-  // sticky tab strip (Bloom's StickySection), the docked header and the avatar
-  // ring paint. Bloom's social template does the same with its `canvas`.
-  // - Web: left transparent, the page showed the framed panel's lit material,
-  //   which is a shade lighter than that fill, so banner-to-tabs, the tabs and
-  //   the posts were three colours.
-  // - Native: pushed routes render above the tab navigator, so the route must
-  //   be opaque or the pager shows through while the list lays out. The theme
-  //   background it used before is a different colour from the chrome.
-  return <View className="flex-1 web:z-auto" style={{ backgroundColor: surfaceFill }}>
+  // Native pushed routes are rendered above the tab navigator by the stack, so
+  // the route must be opaque or the pager shows through while the list lays
+  // out. It is painted in the surface fill, the colour of every other native
+  // route (StackScene), not the theme background it used to name. Web leaves
+  // the page to the content panel, like every other screen.
+  return <View className="flex-1 web:z-auto" style={IS_WEB ? undefined : { backgroundColor: surfaceFill }}>
     <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
     {IS_WEB ? <>
       {/* Flat, fixed slots: `children` stays the last child in every state. */}

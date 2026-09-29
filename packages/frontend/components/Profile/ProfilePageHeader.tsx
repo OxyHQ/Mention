@@ -9,6 +9,8 @@ import UserName from '@/components/UserName';
 export const PROFILE_BANNER_HEIGHT = 170;
 /** How far the summary rises into the banner: half the 90px avatar. */
 export const PROFILE_AVATAR_OVERLAP = 45;
+/** The ring that cuts the avatar out of the banner, as thick as X draws it. */
+export const PROFILE_AVATAR_RING = 4;
 
 /**
  * Where the tab strip starts on a profile with a banner: the summary begins

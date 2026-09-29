@@ -6,7 +6,7 @@ import { CoverHeader } from '@oxy.so/bloom/cover-header';
 import { useSurfaceFill } from '@oxy.so/bloom/styles';
 import { POST_ITEM_SPACING } from '@/styles/shared';
 import { CHANNEL_AVATAR_SIZE } from './ChannelHeader';
-import { PROFILE_AVATAR_OVERLAP, PROFILE_BANNER_HEIGHT } from './ProfilePageHeader';
+import { PROFILE_AVATAR_OVERLAP, PROFILE_AVATAR_RING, PROFILE_BANNER_HEIGHT } from './ProfilePageHeader';
 import { LAYOUT } from './types';
 
 /**
@@ -30,7 +30,8 @@ import { LAYOUT } from './types';
 
 // The header avatar's footprint (mirrors ProfileHeader).
 const AVATAR_SIZE = 90;
-const AVATAR_RING = 3;
+// A channel's avatar overlaps no banner; its ring stays ChannelHeader's 3px.
+const CHANNEL_AVATAR_RING = 3;
 // Representative widths for the five stat clusters (following / followers /
 // posts / boosts / replies) and the profile tab labels.
 const STAT_CHIP_WIDTHS = [96, 104, 78, 84, 90];
@@ -114,7 +115,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
             <View className="items-center w-full">
               <Skeleton.Circle
                 size={CHANNEL_AVATAR_SIZE}
-                style={{ borderWidth: AVATAR_RING, borderColor: surfaceFill }}
+                style={{ borderWidth: CHANNEL_AVATAR_RING, borderColor: surfaceFill }}
               />
               <View className="mt-3 mb-1 h-7 justify-center">
                 <Skeleton.Box width={180} height={22} borderRadius={6} />
@@ -182,7 +183,7 @@ export const ProfileSkeleton = memo(function ProfileSkeleton({
         <View className="flex-row justify-between items-end mb-2.5">
           <Skeleton.Circle
             size={AVATAR_SIZE}
-            style={{ borderWidth: AVATAR_RING, borderColor: surfaceFill }}
+            style={{ borderWidth: PROFILE_AVATAR_RING, borderColor: surfaceFill }}
           />
           <View className="flex-row items-center gap-3">
             <Skeleton.Box width={92} height={36} borderRadius={999} />

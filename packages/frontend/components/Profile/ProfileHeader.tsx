@@ -21,6 +21,7 @@ import { EditProfileForm } from './EditProfile/EditProfileForm';
 import { usePoke } from './hooks/usePoke';
 import { useFederatedFollowSync } from './hooks/useFederatedFollowSync';
 import { LAYOUT } from './types';
+import { PROFILE_AVATAR_RING } from './ProfilePageHeader';
 import type { ProfileHeaderProps } from './types';
 
 // Shrink the 90px header avatar toward these values as the profile scrolls. The
@@ -104,8 +105,8 @@ export const ProfileHeader = memo(function ProfileHeader({
       <View className="relative">
         {isProfileLive ? (
           <Animated.View
-            className="border-[3px] bg-muted rounded-full"
-            style={[{ borderColor: surfaceFill }, liveAvatarCollapseStyle]}
+            className="bg-muted rounded-full"
+            style={[{ borderWidth: PROFILE_AVATAR_RING, borderColor: surfaceFill }, liveAvatarCollapseStyle]}
           >
             <LiveAvatar userId={profileId} source={avatarUri ?? undefined} size={90} variant={MEDIA_VARIANT_AVATAR_LG} />
           </Animated.View>
@@ -113,8 +114,8 @@ export const ProfileHeader = memo(function ProfileHeader({
           <ZoomableAvatar
             source={avatarUri}
             size={90}
-            className="border-[3px] bg-muted"
-            style={{ width: 90, height: 90, borderRadius: 45, borderColor: surfaceFill }}
+            className="bg-muted"
+            style={{ width: 90, height: 90, borderRadius: 45, borderWidth: PROFILE_AVATAR_RING, borderColor: surfaceFill }}
             imageStyle={{}}
             collapseProgress={avatarCollapseProgress}
             collapseMinScale={PROFILE_AVATAR_COLLAPSE_MIN_SCALE}
