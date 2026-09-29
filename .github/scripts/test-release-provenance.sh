@@ -106,6 +106,23 @@ expect 'fallback-for-failed-ci' '1 ' "$(run none GITHUB_EVENT_NAME=workflow_run 
 expect 'unknown-event' '1 ' "$(run verified GITHUB_EVENT_NAME=workflow_dispatch)"
 expect 'short-sha' '1 ' "$(run verified "${push[@]}" DEPLOY_SHA="${sha:0:12}")"
 
+# The shared predicate on its own, as CI's push fast path calls it: the run id
+# on stdout, `verified=` on $GITHUB_OUTPUT, and an API failure is a non-zero
+# exit — never an empty "not verified" that would skip the suite.
+predicate="$(dirname "$script")/merge-queue-verified.sh"
+run_predicate() {
+  local name="$1" output_file="$work/output" status=0 stdout
+  : >"$output_file"
+  stdout="$(env -i PATH="$work/bin:$PATH" FIXTURES="$work/$name" GITHUB_OUTPUT="$output_file" \
+    GITHUB_REPOSITORY=OxyHQ/Mention DEPLOY_SHA="$sha" bash "$predicate" 2>/dev/null)" || status=$?
+  echo "$status [$stdout] $(tr '\n' ' ' <"$output_file")"
+}
+expect 'predicate-verified' '0 [11] verified=true ' "$(run_predicate verified)"
+expect 'predicate-none' '0 [] verified=false ' "$(run_predicate none)"
+expect 'predicate-red-gate' '0 [] verified=false ' "$(run_predicate red-gate)"
+expect 'predicate-api-down' '1 [] ' "$(run_predicate api-down)"
+expect 'predicate-jobs-down' '1 [] ' "$(run_predicate jobs-down)"
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures release-provenance case(s) failed" >&2
   exit 1

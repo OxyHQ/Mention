@@ -17,11 +17,10 @@
 #     queue, kept as the FALLBACK for commits that did not come through it: an
 #     admin bypass, a direct push, the window before the ruleset is enabled.
 #
-# The rule is one predicate evaluated identically on both paths:
+# The rule is one predicate (merge-queue-verified.sh) evaluated identically on
+# both paths:
 #
-#     VERIFIED = this exact SHA has a CI (`.github/workflows/ci.yml`) run from
-#                the `merge_group` event, in this repository, that concluded
-#                `success`, and whose `CI complete` job concluded `success`.
+#     VERIFIED = this exact SHA passed `CI complete` in a merge_group run.
 #
 #     push          + VERIFIED     -> release  (the merge-queue path)
 #     push          + not VERIFIED -> skip     (the fallback will judge it)
@@ -50,9 +49,6 @@ set -euo pipefail
 : "${GITHUB_EVENT_NAME:?GITHUB_EVENT_NAME is required}"
 : "${GITHUB_OUTPUT:?GITHUB_OUTPUT is required; a decision nobody can read is not a decision}"
 
-ci_workflow_path='.github/workflows/ci.yml'
-required_job='CI complete'
-
 if [[ ! "$DEPLOY_SHA" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
   echo "::error::DEPLOY_SHA must be a full lowercase Git commit ID."
   exit 1
@@ -74,46 +70,10 @@ case "$GITHUB_EVENT_NAME" in
     ;;
 esac
 
-# Every successful merge_group run of ci.yml for exactly this SHA. The workflow
-# is addressed by FILE, not by the display name "CI", so a second workflow that
-# happens to be called CI cannot vouch for a commit.
-candidate_runs="$(
-  gh api --paginate \
-    "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$DEPLOY_SHA&event=merge_group&per_page=100" |
-    jq -r \
-      --arg sha "$DEPLOY_SHA" \
-      --arg repo "$GITHUB_REPOSITORY" \
-      --arg path "$ci_workflow_path" \
-      '.workflow_runs[]
-        | select(.head_sha == $sha
-            and .event == "merge_group"
-            and .conclusion == "success"
-            and .head_repository.full_name == $repo
-            and (.path == $path or (.path | startswith($path + "@"))))
-        | .id'
-)"
-
-verified_run=
-for run_id in $candidate_runs; do
-  # The run's own conclusion is not trusted alone: `CI complete` is the job
-  # branch protection requires, and it is the one that asserts every other job
-  # ran on the path its event demands. Its latest attempt must be green.
-  #
-  # Fetched into a variable first, so an API failure trips `set -e` here instead
-  # of reading as "not green" inside the `if` below.
-  jobs="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?filter=latest&per_page=100")"
-  if jq -e -s --arg job "$required_job" \
-    '[.[].jobs[] | select(.name == $job and .conclusion == "success")] | length > 0' <<<"$jobs" >/dev/null; then
-    verified_run="$run_id"
-    break
-  fi
-done
-
-if [[ -n "$verified_run" ]]; then
-  echo "Merge-queue verified: CI run $verified_run tested $DEPLOY_SHA in merge_group and '$required_job' passed."
-else
-  echo "Not merge-queue verified: no successful merge_group CI run with a green '$required_job' exists for $DEPLOY_SHA."
-fi
+# The predicate lives in merge-queue-verified.sh, shared with CI's own push
+# fast path. Run WITHOUT $GITHUB_OUTPUT so it writes nothing of its own there,
+# and in an assignment so its API failure trips `set -e` — red, never a skip.
+verified_run="$(env -u GITHUB_OUTPUT bash "$(dirname "${BASH_SOURCE[0]}")/merge-queue-verified.sh")"
 
 release=false
 case "$GITHUB_EVENT_NAME:${verified_run:+verified}" in

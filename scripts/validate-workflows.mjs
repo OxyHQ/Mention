@@ -443,25 +443,45 @@ for (const workflowName of workflowNames) {
       if (workflow?.on?.merge_group == null) {
         failures.push(`${workflowName}: must run on merge_group, or the merge queue has no CI to wait on`);
       }
-      const mergeJob = workflow?.jobs?.["backend-coverage"];
+      const mergeJob = workflow?.jobs?.["ci-complete"];
       const mergeRuns = (mergeJob?.steps || []).map((step) => (typeof step?.run === "string" ? step.run : ""));
       if (!mergeRuns.some((run) => run.includes("--merge-reports"))) {
-        failures.push(`${workflowName}: backend-coverage must merge every shard's blob with vitest --merge-reports, which is where the coverage floors are enforced`);
+        failures.push(`${workflowName}: CI complete must merge every shard's blob with vitest --merge-reports, which is where the coverage floors are enforced`);
       }
       if (!mergeRuns.some((run) => run.includes("check:suite-collection"))) {
-        failures.push(`${workflowName}: backend-coverage must run the collection gate over the merged report`);
+        failures.push(`${workflowName}: CI complete must run the collection gate over the merged report`);
       }
       if (!mergeRuns.some((run) => run.includes("BACKEND_SHARDS"))) {
-        failures.push(`${workflowName}: backend-coverage must refuse a missing or extra shard before merging`);
+        failures.push(`${workflowName}: CI complete must refuse a missing or extra shard before merging`);
       }
       const shardList = workflow?.jobs?.["backend-test"]?.strategy?.matrix?.shard;
       if (!Array.isArray(shardList) || String(mergeJob?.env?.BACKEND_SHARDS) !== String(shardList.length)) {
-        failures.push(`${workflowName}: backend-coverage's BACKEND_SHARDS must equal the length of backend-test's shard list`);
+        failures.push(`${workflowName}: CI complete's BACKEND_SHARDS must equal the length of backend-test's shard list`);
       }
       const completeNeeds = workflow?.jobs?.["ci-complete"]?.needs ?? [];
-      for (const job of ["backend-test", "backend-coverage", "e2e"]) {
+      for (const job of ["provenance", "quality", "lockfile", "tests", "backend-test", "e2e"]) {
         if (!completeNeeds.includes(job)) {
           failures.push(`${workflowName}: CI complete must need ${job}`);
+        }
+      }
+      /**
+       * A queue-verified push skips the heavy jobs. That is only sound while
+       * the answer comes from the shared predicate, on push alone, and while a
+       * heavy job is skipped for no other reason: its condition must be the
+       * provenance answer and nothing looser.
+       */
+      const provenance = workflow?.jobs?.provenance;
+      const provenanceRuns = (provenance?.steps || []).map((step) => (typeof step?.run === "string" ? step.run : ""));
+      if (!provenanceRuns.some((run) => run.includes("merge-queue-verified.sh"))) {
+        failures.push(`${workflowName}: the provenance job must answer through merge-queue-verified.sh, the predicate the deploys share`);
+      }
+      if (String(provenance?.if ?? "") !== "github.event_name == 'push'") {
+        failures.push(`${workflowName}: the provenance job must run on push alone`);
+      }
+      for (const job of ["quality", "lockfile", "tests", "backend-test", "e2e"]) {
+        const condition = String(workflow?.jobs?.[job]?.if ?? "");
+        if (condition !== "${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}") {
+          failures.push(`${workflowName}: ${job} may be skipped only on a queue-verified push; its if: must be exactly the provenance condition`);
         }
       }
 

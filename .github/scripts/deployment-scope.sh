@@ -46,6 +46,7 @@ for path in "${changed_paths[@]}"; do
     backend:.github/scripts/audit-runtime-image.sh | \
     backend:.github/scripts/require-current-main.sh | \
     backend:.github/scripts/release-provenance.sh | \
+    backend:.github/scripts/merge-queue-verified.sh | \
     backend:.github/scripts/smoke-mention.sh | \
     backend:.github/scripts/optional-task-bindings.sh | \
     mcp:packages/mcp/* | \
@@ -54,12 +55,14 @@ for path in "${changed_paths[@]}"; do
     mcp:.github/scripts/audit-runtime-image.sh | \
     mcp:.github/scripts/require-current-main.sh | \
     mcp:.github/scripts/release-provenance.sh | \
+    mcp:.github/scripts/merge-queue-verified.sh | \
     mcp:.github/scripts/smoke-mcp.sh | \
     mcp:.github/scripts/mcp-expected-scopes.json | \
     frontend:packages/frontend/* | \
     frontend:packages/shared-types/* | \
     frontend:.github/scripts/require-current-main.sh | \
     frontend:.github/scripts/release-provenance.sh | \
+    frontend:.github/scripts/merge-queue-verified.sh | \
     frontend:.github/scripts/smoke-frontend.sh | \
     frontend:.github/scripts/validate-frontend-static-output.mjs)
       deploy=true

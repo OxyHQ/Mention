@@ -99,8 +99,60 @@ env:
     }}
 
 jobs:
+  # Has the full suite already run on this exact tree? On a push to main that
+  # came through the merge queue it has: the queue tested THIS SHA in its
+  # merge_group run and fast-forwarded main to it only after `CI complete` went
+  # green. Re-running every heavy job on push re-tested an identical tree, and
+  # this org is on GitHub's free plan — 20 concurrent jobs across ALL repos,
+  # with queue waits measured up to ~10 minutes under load (run 36511597363:
+  # jobs created at 02:13:40 started between 02:18:42 and 02:23:14). A second
+  # full run per merge is paid for in every other repo's queue time.
+  #
+  # So a queue-verified push runs only what exists solely on main — the bundle
+  # baseline that pull requests restore — and `CI complete` accepts the heavy
+  # jobs as skipped ONLY when this job says verified. Every other push (admin
+  # bypass, direct push, the queue switched off) and every dispatch runs the
+  # full suite exactly as before, because this job answers nothing for them.
+  #
+  # Same predicate the deploy workflows use (merge-queue-verified.sh), so CI
+  # and the release path cannot disagree about a commit. Skipped outright on
+  # pull_request and merge_group — a skipped job takes no runner slot and no
+  # time, so it costs those runs nothing.
+  #
+  # An unanswerable question means RUN EVERYTHING: the step is
+  # continue-on-error, an API failure leaves `verified` unset, and unset is not
+  # 'true'. Failing the job instead would fail the run, and a failed CI run on
+  # a direct push is a release the fallback path never makes.
+  provenance:
+    name: Merge-queue provenance
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      verified: ${{ steps.verified.outputs.verified }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          sparse-checkout: .github/scripts
+      - name: Did this exact commit pass CI in the merge queue?
+        id: verified
+        continue-on-error: true
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/merge-queue-verified.sh
+
   quality:
     name: Build, lint and typecheck
+    needs: provenance
+    # Every heavy job carries this condition. `!cancelled()` because a
+    # dependency on a SKIPPED job (every pull_request and merge_group run)
+    # would otherwise skip the dependent too; it runs unless provenance
+    # positively answered verified.
+    if: ${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -156,6 +208,8 @@ jobs:
   # rewrite bun.lock in the workspace to do its work.
   lockfile:
     name: Lockfile resolves cleanly from the base
+    needs: provenance
+    if: ${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -204,6 +258,8 @@ jobs:
 
   tests:
     name: Test ${{ matrix.package }}
+    needs: provenance
+    if: ${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
@@ -254,7 +310,7 @@ jobs:
             command: bun run --cwd packages/shared-types test
             coverage: false
           # The backend is NOT here: it is the `backend-test` shards and the
-          # `backend-coverage` merge below, because it was this matrix's
+          # merge inside `CI complete` below, because it was this matrix's
           # critical path by a factor of two.
           - package: frontend
             command: bun run --cwd packages/frontend test:coverage -- --coverageDirectory="$RUNNER_TEMP/frontend-coverage"
@@ -346,12 +402,15 @@ jobs:
   #
   # Pattern ported from OxyHQ/oxy's `api-test` + `api-coverage` (the Jest
   # version of the same problem): every shard uploads its report, and a single
-  # merge job judges the WHOLE suite — the coverage floors and the collection
-  # gate both — and refuses to judge anything if a shard is missing or extra.
+  # merge — inside `CI complete`, which starts after the shards anyway — judges
+  # the WHOLE suite, the coverage floors and the collection gate both, and
+  # refuses to judge anything if a shard is missing or extra.
   # Nothing that was enforced over the complete suite is now enforced over a
   # part of it.
   backend-test:
     name: Test backend (${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: provenance
+    if: ${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     services:
@@ -378,7 +437,7 @@ jobs:
       fail-fast: false
       matrix:
         # The shard count is this list's length: the suite step passes
-        # `strategy.job-total` to vitest, and `backend-coverage` requires exactly
+        # `strategy.job-total` to vitest, and `CI complete` requires exactly
         # that many blobs named `blob-<i>-<total>.json` — so a count changed here
         # without the other side is a red merge, never a silently thinner suite.
         shard: [1, 2, 3]
@@ -439,114 +498,6 @@ jobs:
           if-no-files-found: error
           overwrite: true
           retention-days: 1
-
-  # Judges the backend suite as ONE suite, from every shard's blob: the coverage
-  # floors in vitest.config.ts (global and per-file) and the collection gate.
-  # Needs no database — `--merge-reports` replays results, it runs nothing.
-  backend-coverage:
-    name: Backend coverage and collection
-    needs: backend-test
-    # A failed shard still uploads its blob, and the merge is what says which
-    # files failed or died at load across all of them. `!cancelled()` rather
-    # than `always()` so a cancelled run does not start one more job.
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      # Must equal the length of `backend-test`'s shard list.
-      BACKEND_SHARDS: 3
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-      - name: Decide whether the backend suite had to run
-        id: scope
-        env:
-          CI_SCOPE_BASE: ${{ env.CI_BASE_REVISION }}
-        run: bash .github/scripts/ci-scope.sh backend
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        if: steps.scope.outputs.run == 'true'
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-      - name: Set up pinned Node test runtime
-        if: steps.scope.outputs.run == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - name: Install exact dependency graph
-        if: steps.scope.outputs.run == 'true'
-        run: bun install --frozen-lockfile --ignore-scripts
-      - name: Download every shard's blob report
-        if: steps.scope.outputs.run == 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: mention-backend-blob-*
-          path: ${{ runner.temp }}/backend-blobs
-          merge-multiple: true
-      # The shard count is an explicit input, never inferred from what is on
-      # disk: a run that lost a shard's artifact would otherwise merge the rest
-      # and judge the floors over a thinner suite. Exactly blob-1..N-of-N, each
-      # non-empty, and nothing else. The collection gate below would ALSO catch
-      # a missing shard (its files are absent from the report), but it is the
-      # second line, not the first.
-      - name: Refuse a missing, empty or extra shard
-        if: steps.scope.outputs.run == 'true'
-        run: |
-          set -euo pipefail
-          dir="$RUNNER_TEMP/backend-blobs"
-          expected=()
-          for i in $(seq 1 "$BACKEND_SHARDS"); do
-            expected+=("blob-$i-$BACKEND_SHARDS.json")
-            if [ ! -s "$dir/blob-$i-$BACKEND_SHARDS.json" ]; then
-              echo "::error::shard $i/$BACKEND_SHARDS produced no blob report; refusing to judge the suite without it."
-              exit 1
-            fi
-          done
-          actual="$(cd "$dir" && ls -1 | sort)"
-          wanted="$(printf '%s\n' "${expected[@]}" | sort)"
-          if [ "$actual" != "$wanted" ]; then
-            echo "::error::blob reports on disk do not match the $BACKEND_SHARDS declared shards:"
-            echo "$actual"
-            exit 1
-          fi
-          echo "All $BACKEND_SHARDS shard blobs present."
-      # The merged run applies vitest.config.ts's thresholds — global AND every
-      # per-file pin — to the merged coverage of all shards: the same numbers an
-      # unsharded run measures, judged the same way. It carries no `--shard`, so
-      # the config gives it the full thresholds object. Verified before this
-      # landed: a merge of all three blobs reproduces the unsharded totals, a
-      # merge given `--coverage.thresholds.statements=99` fails, and a merge of
-      # two blobs fails both the floors and the collection gate.
-      - name: Merge the shards and enforce the coverage floors
-        if: steps.scope.outputs.run == 'true'
-        run: >-
-          bun run --cwd packages/backend test:coverage --
-          --merge-reports="$RUNNER_TEMP/backend-blobs"
-          --coverage.reportsDirectory="$RUNNER_TEMP/backend-coverage"
-          --reporter=default --reporter=json
-          --outputFile.json="$RUNNER_TEMP/backend-report.json"
-      # A test file that dies before its first `it()` contributes ZERO tests. It
-      # has no assertions to fail, so the pass RATIO improves: measured on this
-      # repository, 502 files / 5610 collected / 6 failed read as 99.9% passing
-      # while 32 files were dead at load and 296 declared tests never ran. Nothing
-      # about pass/fail can see that, and the number moves the reassuring way.
-      #
-      # Run over the MERGED report, so "every test file on disk appears in the
-      # report" is asserted against the whole suite rather than one shard's
-      # slice of it. `always()` so it still reports when the merge step failed —
-      # a load failure fails the suite too, and this is the step that says WHICH
-      # files and why the ratio lied.
-      - name: Assert the suite collected what it claims to run
-        if: always() && steps.scope.outputs.run == 'true'
-        run: bun run check:suite-collection "$RUNNER_TEMP/backend-report.json" packages/backend/src
-      - name: Upload coverage summary
-        if: always() && steps.scope.outputs.run == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: mention-backend-coverage-${{ github.sha }}
-          path: ${{ runner.temp }}/backend-coverage/coverage-summary.json
-          if-no-files-found: error
-          retention-days: 14
 
   # Populate the baseline from main so every pull request can restore the same
   # trusted report instead of each one rebuilding its own. Job shape ported from
@@ -830,6 +781,8 @@ jobs:
   # `packages/e2e/*` itself falls through ci-scope.sh's catch-all to every leg.
   e2e:
     name: Browser gate (e2e)
+    needs: provenance
+    if: ${{ !cancelled() && needs.provenance.outputs.verified != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -912,41 +865,178 @@ jobs:
   # themselves does not work here: frontend-bundle-baseline and frontend-bundle
   # are mutually exclusive on event type, so one of the pair reports `skipped`
   # on every run, and a required check that reports `skipped` never becomes
-  # satisfied. It is also the job release-provenance.sh reads: a queue-merged
-  # commit ships on push only if THIS job was green in its merge_group run.
+  # satisfied. It is also the job merge-queue-verified.sh reads: a queue-merged
+  # commit ships on push, and skips its second CI, only if THIS job was green in
+  # its merge_group run.
+  #
+  # It also judges the backend suite as ONE suite, from every shard's blob: the
+  # coverage floors in vitest.config.ts (global and per-file) and the
+  # collection gate. That was a job of its own, and folded in here because on
+  # this org's free plan a job is a queue slot, not just a runner: run
+  # 36511597363 spent 50s waiting for that job's runner (created 02:24:14,
+  # started 02:25:04) to do 24s of work, and this job has to start after the
+  # shards anyway. It adds install + merge (~20s) to this job only when the
+  # backend suite actually ran. Nothing about the judgement changed: same
+  # refusal of a missing or extra shard, same merge, same floors, same gate.
   #
   # `if: always()` so this still runs — and still fails — when something above
   # it failed or was cancelled.
   ci-complete:
     name: CI complete
-    needs: [quality, lockfile, tests, backend-test, backend-coverage, e2e, frontend-bundle-baseline, frontend-bundle]
+    needs: [provenance, quality, lockfile, tests, backend-test, e2e, frontend-bundle-baseline, frontend-bundle]
     if: always()
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
+    env:
+      # Must equal the length of `backend-test`'s shard list.
+      BACKEND_SHARDS: 3
     steps:
+      # Everything up to the aggregate check is the backend merge, and it runs
+      # only when the shards ran. A queue-verified push skipped them, so it
+      # skips this too, including the checkout.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: needs.backend-test.result != 'skipped'
+        with:
+          fetch-depth: 0
+      # Recomputed here rather than read from the shards' job output, so the
+      # decision to require blobs does not depend on a matrix output surviving:
+      # same script, same base, same answer the shards got.
+      - name: Decide whether the backend suite had to run
+        id: scope
+        if: needs.backend-test.result != 'skipped'
+        env:
+          CI_SCOPE_BASE: ${{ env.CI_BASE_REVISION }}
+        run: bash .github/scripts/ci-scope.sh backend
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        if: steps.scope.outputs.run == 'true'
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - name: Set up pinned Node test runtime
+        if: steps.scope.outputs.run == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install exact dependency graph
+        if: steps.scope.outputs.run == 'true'
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Download every shard's blob report
+        if: steps.scope.outputs.run == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: mention-backend-blob-*
+          path: ${{ runner.temp }}/backend-blobs
+          merge-multiple: true
+      # The shard count is an explicit input, never inferred from what is on
+      # disk: a run that lost a shard's artifact would otherwise merge the rest
+      # and judge the floors over a thinner suite. Exactly blob-1..N-of-N, each
+      # non-empty, and nothing else. The collection gate below would ALSO catch
+      # a missing shard (its files are absent from the report), but it is the
+      # second line, not the first.
+      - name: Refuse a missing, empty or extra shard
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/backend-blobs"
+          expected=()
+          for i in $(seq 1 "$BACKEND_SHARDS"); do
+            expected+=("blob-$i-$BACKEND_SHARDS.json")
+            if [ ! -s "$dir/blob-$i-$BACKEND_SHARDS.json" ]; then
+              echo "::error::shard $i/$BACKEND_SHARDS produced no blob report; refusing to judge the suite without it."
+              exit 1
+            fi
+          done
+          actual="$(cd "$dir" && ls -1 | sort)"
+          wanted="$(printf '%s\n' "${expected[@]}" | sort)"
+          if [ "$actual" != "$wanted" ]; then
+            echo "::error::blob reports on disk do not match the $BACKEND_SHARDS declared shards:"
+            echo "$actual"
+            exit 1
+          fi
+          echo "All $BACKEND_SHARDS shard blobs present."
+      # The merged run applies vitest.config.ts's thresholds — global AND every
+      # per-file pin — to the merged coverage of all shards: the same numbers an
+      # unsharded run measures, judged the same way. It carries no `--shard`, so
+      # the config gives it the full thresholds object. Verified before this
+      # landed: a merge of all three blobs reproduces the unsharded totals, a
+      # merge given `--coverage.thresholds.statements=99` fails, and a merge of
+      # two blobs fails both the floors and the collection gate. Needs no
+      # database — `--merge-reports` replays results, it runs nothing.
+      - name: Merge the shards and enforce the coverage floors
+        if: steps.scope.outputs.run == 'true'
+        run: >-
+          bun run --cwd packages/backend test:coverage --
+          --merge-reports="$RUNNER_TEMP/backend-blobs"
+          --coverage.reportsDirectory="$RUNNER_TEMP/backend-coverage"
+          --reporter=default --reporter=json
+          --outputFile.json="$RUNNER_TEMP/backend-report.json"
+      # A test file that dies before its first `it()` contributes ZERO tests. It
+      # has no assertions to fail, so the pass RATIO improves: measured on this
+      # repository, 502 files / 5610 collected / 6 failed read as 99.9% passing
+      # while 32 files were dead at load and 296 declared tests never ran. Nothing
+      # about pass/fail can see that, and the number moves the reassuring way.
+      #
+      # Run over the MERGED report, so "every test file on disk appears in the
+      # report" is asserted against the whole suite rather than one shard's
+      # slice of it. `always()` so it still reports when the merge step failed —
+      # a load failure fails the suite too, and this is the step that says WHICH
+      # files and why the ratio lied.
+      - name: Assert the suite collected what it claims to run
+        if: always() && steps.scope.outputs.run == 'true'
+        run: bun run check:suite-collection "$RUNNER_TEMP/backend-report.json" packages/backend/src
+      - name: Upload coverage summary
+        if: always() && steps.scope.outputs.run == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mention-backend-coverage-${{ github.sha }}
+          path: ${{ runner.temp }}/backend-coverage/coverage-summary.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Require every CI job to have passed
+        if: always()
         env:
           RESULTS: ${{ toJSON(needs) }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           echo "$RESULTS"
 
           failures=()
 
-          # These have no event `if:` and run on every event, so `skipped` here
-          # is never legitimate — it means a future edit gated them, and a gate
-          # that reads "skipped" as "fine" is how a required check stops
-          # checking. `tests` and `backend-test` are matrices: their result is
-          # success only when every leg succeeded. `backend-coverage` is where
-          # the coverage floors and the collection gate are judged over the
-          # merged shards, and `e2e` is the browser gate; a leg whose scope said
-          # "nothing changed" still reports success, never skipped.
-          for job in quality lockfile tests backend-test backend-coverage e2e; do
+          # Provenance runs on push and nowhere else. On push it must SUCCEED:
+          # its step is continue-on-error, so even an unanswerable API call
+          # leaves the job green with `verified` unset — anything else means the
+          # job itself broke, and its answer cannot be trusted either way.
+          provenance="$(jq -r '.provenance.result' <<<"$RESULTS")"
+          verified="$(jq -r '.provenance.outputs.verified // ""' <<<"$RESULTS")"
+          if [ "$EVENT_NAME" = push ]; then
+            [ "$provenance" = success ] || failures+=("provenance did not pass on push: $provenance")
+          else
+            [ "$provenance" = skipped ] || failures+=("provenance ran on $EVENT_NAME, where it has nothing to answer: $provenance")
+            verified=
+          fi
+
+          # The heavy jobs. Normally `skipped` here is never legitimate — it
+          # means a future edit gated them, and a gate that reads "skipped" as
+          # "fine" is how a required check stops checking. `tests` and
+          # `backend-test` are matrices: their result is success only when
+          # every leg succeeded; a leg whose scope said "nothing changed" still
+          # reports success, never skipped.
+          #
+          # The ONE exception is a push whose exact SHA passed this very job in
+          # the merge queue: those jobs already ran, green, on this tree, and
+          # were skipped for that reason alone. Then they must be skipped — a
+          # job that ran anyway means the gating broke, and is worth a red.
+          for job in quality lockfile tests backend-test e2e; do
             result="$(jq -r --arg job "$job" '.[$job].result' <<<"$RESULTS")"
-            if [ "$result" != success ]; then
+            if [ "$verified" = true ]; then
+              [ "$result" = skipped ] || failures+=("$job ran on a queue-verified push: $result")
+            elif [ "$result" != success ]; then
               failures+=("$job did not pass: $result")
             fi
           done
+          if [ "$verified" = true ]; then
+            echo "::notice::${GITHUB_SHA} passed CI complete in the merge queue on this exact tree; the heavy jobs were not re-run."
+          fi
 
           # Exactly one of the bundle pair runs, chosen by event type (baseline on
           # push and dispatch, the budget on pull_request and merge_group). Asserting
