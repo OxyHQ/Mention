@@ -1,71 +1,40 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Button } from '@oxy.so/bloom/button';
-import { Text } from '@oxy.so/bloom/typography';
-import { SafeAreaView } from '@/lib/SafeAreaViewInterop';
-import { useSafeBack } from '@/hooks/useSafeBack';
-import { NoUpdatesIllustration } from '@/assets/illustrations/NoUpdates';
+import { useRouter } from 'expo-router';
+import { View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
+import { EmptyState } from '@/components/common/EmptyState';
+import { SEO } from '@/components/SEO';
+
+/**
+ * The app's one "this page does not exist" screen. Two routes reach it: the
+ * `+not-found` catch-all, and `[username]`, which doubles as the catch-all for
+ * unknown single-segment paths (`/whatever` is not `@`-prefixed, so it is not a
+ * profile). Both draw this, so a broken link looks the same wherever it lands:
+ * Bloom's empty state with its catalogue sticker, and one way out — home.
+ */
 export default function NotFoundScreen() {
-    const safeBack = useSafeBack();
+  const { t } = useTranslation();
+  const router = useRouter();
 
-    return (
-        <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
-            <View style={styles.container}>
-                {/* Illustration */}
-                <View style={styles.illustrationWrap}>
-                    <NoUpdatesIllustration width={200} height={200} />
-                </View>
-
-                {/* Title */}
-                <Text className="text-foreground" style={styles.title}>Page Not Found</Text>
-
-                {/* Message */}
-                <Text className="text-muted-foreground" style={styles.message}>
-                    The page you&apos;re looking for doesn&apos;t exist or has been moved.
-                </Text>
-
-                {/* Buttons */}
-                <View style={styles.buttonsContainer}>
-                    <Button appearance="solid" tone="accent" onPress={safeBack}>
-                        Go Back
-                    </Button>
-                </View>
-            </View>
-        </SafeAreaView>
-    );
+  return (
+    <>
+      <SEO
+        title={t('seo.notFound.title')}
+        description={t('seo.notFound.description')}
+      />
+      <View className="flex-1 items-center justify-center">
+        <EmptyState
+          sticker="notFound"
+          title={t('notFound.title', { defaultValue: 'This page does not exist' })}
+          subtitle={t('notFound.subtitle', {
+            defaultValue: 'The link may be broken, or the page may have moved.',
+          })}
+          action={{
+            label: t('notFound.goHome', { defaultValue: 'Go to home' }),
+            onPress: () => router.replace('/'),
+          }}
+        />
+      </View>
+    </>
+  );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 24,
-    },
-    illustrationWrap: {
-        width: 220,
-        height: 220,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 24,
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: '700',
-        textAlign: 'center',
-        marginBottom: 12,
-    },
-    message: {
-        fontSize: 16,
-        textAlign: 'center',
-        lineHeight: 24,
-        marginBottom: 32,
-        maxWidth: 320,
-    },
-    buttonsContainer: {
-        width: '100%',
-        maxWidth: 320,
-        gap: 12,
-    },
-});
