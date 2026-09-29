@@ -104,11 +104,12 @@ test('the navigator keeps ONE tree position through every state', () => {
   act(() => tree.unmount());
 });
 
-test('web paints the page in the surface fill too, so the panel material never shows between chrome and content', () => {
+test('web paints the header block, and leaves the page and the feed to the content panel', () => {
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => { tree = TestRenderer.create(<ProfileShell {...webProps()}>{navigator}</ProfileShell>); });
-  const root = tree.root.findAllByType(View)[0];
-  expect([root.props.style].flat()).toContainEqual({ backgroundColor: 'rgb(20, 55, 84)' });
+  const [root, header] = tree.root.findAllByType(View);
+  expect(root.props.style).toBeUndefined();
+  expect(header.props.style).toMatchObject({ backgroundColor: 'rgb(20, 55, 84)' });
   act(() => tree.unmount());
 });
 

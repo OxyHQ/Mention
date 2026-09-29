@@ -122,10 +122,17 @@ test('the summary rises into the banner through Bloom CoverHeader, and only ther
   act(() => tree.unmount());
 });
 
-test('the profile is painted in the surface the chrome paints, not the theme background', () => {
+test('native paints the route in the surface the chrome paints, not the theme background', () => {
   const tree = renderShell(makeProps());
   const root = tree.root.findAllByType(View)[0];
   expect([root.props.style].flat()).toContainEqual({ backgroundColor: 'rgb(20, 55, 84)' });
+  act(() => tree.unmount());
+});
+
+test('banner, summary and tabs are one block painted in the surface fill', () => {
+  const tree = renderShell(makeProps());
+  const header = tree.root.findAllByType(View).find(node => typeof node.props.onLayout === 'function');
+  expect(header!.props.style).toMatchObject({ backgroundColor: 'rgb(20, 55, 84)' });
   act(() => tree.unmount());
 });
 

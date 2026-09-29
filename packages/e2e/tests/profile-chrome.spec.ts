@@ -40,7 +40,7 @@ for (const width of [390, 1024, 1440]) {
         return { overlap: cover.bottom - a.top, onTop: Boolean(hit && avatar.parentElement?.contains(hit)) };
       });
       expect(hero).not.toBeNull();
-      expect(Math.abs(hero!.overlap - 42)).toBeLessThanOrEqual(2); // 45 minus the 3px ring
+      expect(Math.abs(hero!.overlap - 41)).toBeLessThanOrEqual(2); // 45 minus the 4px ring
       expect(hero!.onTop).toBe(true);
       const [sb, tb] = await Promise.all([summary.boundingBox(), tabs.boundingBox()]);
       expect(sb && tb ? Math.abs(tb.y - (sb.y + sb.height)) : Infinity).toBeLessThan(1);
