@@ -157,6 +157,10 @@ describe('webShell routes (integration)', () => {
     const host = new URL(config.web.origin).hostname;
     const home = await request(app).get('/').set('Host', host);
     expect(home.status).toBe(200);
+    // The front door revalidates like every other shell path: it names one
+    // release's hashed JS, and the post-deploy apex smoke refuses anything a
+    // browser may keep serving after a deploy.
+    expect(home.headers['cache-control']).toBe('no-cache');
     expect(home.text).toContain(`rel="canonical" href="${config.web.origin}/"`);
     expect(home.text).toContain('og-image.jpg');
     expect(home.text.slice(home.text.indexOf('<body'))).toBe(SHELL.slice(SHELL.indexOf('<body')));

@@ -339,22 +339,33 @@ function describeShellFailure(error: unknown): Record<string, unknown> {
   };
 }
 
+/**
+ * A profile or post preview: its metadata may be a minute old, and a crawler or a
+ * shared-link unfurl hitting it again is served from cache.
+ */
+const ENTITY_PREVIEW_CACHE = 'public, max-age=60, s-maxage=300, stale-while-revalidate=3600';
+
+/**
+ * The homepage is the app's front door, so it caches like the shell the Worker
+ * serves for every other SPA path (`no-cache`): revalidated on every load. It
+ * names the hashed JS of ONE release, and the entity-preview policy let a browser
+ * keep booting the previous release for up to an hour after a deploy — which the
+ * post-deploy apex smoke (`.github/scripts/smoke-frontend.sh`) exists to refuse.
+ */
+const HOMEPAGE_CACHE = 'no-cache';
+
 /** Serve the shell with head hints + optional OG injected, overriding the API no-store default. */
 async function serveShell(
   res: Response,
   og: OgData | null,
   status = 200,
   bootstrap?: ShellBootstrap,
+  cacheControl: string = ENTITY_PREVIEW_CACHE,
 ): Promise<void> {
   const shell = (await getShell()) ?? FALLBACK_SHELL;
   res.status(status);
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader(
-    'Cache-Control',
-    status === 200
-      ? 'public, max-age=60, s-maxage=300, stale-while-revalidate=3600'
-      : 'no-store',
-  );
+  res.setHeader('Cache-Control', status === 200 ? cacheControl : 'no-store');
   const head = bootstrap ? HEAD_HINTS + buildShellBootstrapHtml(bootstrap) : HEAD_HINTS;
   res.send(renderShellWithOg(injectHeadHtml(shell, head), og));
 }
@@ -382,7 +393,7 @@ router.get('/', async (req, res, next) => {
     res.type('text/plain').send('Application temporarily unavailable');
     return;
   }
-  await serveShell(res, mapHomepageOg());
+  await serveShell(res, mapHomepageOg(), 200, undefined, HOMEPAGE_CACHE);
 });
 
 const ROBOTS_TXT = `User-agent: *
