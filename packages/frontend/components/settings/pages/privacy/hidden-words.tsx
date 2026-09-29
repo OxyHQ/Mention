@@ -257,7 +257,7 @@ export default function HiddenWordsScreen() {
                   title={t("settings.privacy.mutedWordsEmpty", {
                     defaultValue: "No muted words yet",
                   })}
-                  icon={{ name: "eye-off-outline", size: 48 }}
+                  sticker="mutedWords"
                 />
               </View>
             ) : (

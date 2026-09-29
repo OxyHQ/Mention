@@ -1,10 +1,8 @@
 import React, { memo } from 'react';
 import { View, Text, Platform } from 'react-native';
 import { router } from 'expo-router';
-import Ionicons from '@/components/common/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
-import { RiListUnordered } from '@oxy.so/bloom/icons/RiListUnordered';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@oxy.so/services/ui/client';
@@ -27,7 +25,7 @@ import type { FeedType, HydratedPost, MentionJobPosting } from '@mention/shared-
 import type { ProfileTabsProps } from './types';
 import { logger } from '@oxy.so/core/logger';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
-import { StarterPackIcon } from '@/assets/icons/starter-pack-icon';
+import { EmptyState } from '@/components/common/EmptyState';
 import { Button } from '@oxy.so/bloom/button';
 import { useReselectReloadKey } from '@/context/ScreenReselectContext';
 
@@ -299,7 +297,6 @@ const ProfileFeeds = memo(function ProfileFeeds({
   isOwnProfile: boolean;
   viewerId?: string;
 }) {
-  const theme = useTheme();
   const { t } = useTranslation();
 
   // React Query (keyed on the profile + ownership) replaces the per-tab
@@ -351,12 +348,11 @@ const ProfileFeeds = memo(function ProfileFeeds({
 
   if (feeds.length === 0) {
     return (
-      <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
-        <Ionicons name="layers-outline" size={48} color={theme.colors.textSecondary} />
-        <Text className="text-muted-foreground text-base font-medium">
-          {t('profile.feeds.empty', { defaultValue: 'No feeds yet' })}
-        </Text>
-      </View>
+      <EmptyState
+        title={t('profile.feeds.empty', { defaultValue: 'No feeds yet' })}
+        sticker="profileFeeds"
+        containerStyle={{ minHeight: 200 }}
+      />
     );
   }
 
@@ -411,7 +407,6 @@ const ProfileJobs = memo(function ProfileJobs({
   viewerId?: string;
 }) {
   const { t } = useTranslation();
-  const theme = useTheme();
 
   // `accountKind: 'organization'` is a stand-in, not an assertion about which
   // of the two eligible kinds this profile actually is — `useOperatesAccount`
@@ -461,12 +456,11 @@ const ProfileJobs = memo(function ProfileJobs({
       )}
 
       {jobs.length === 0 ? (
-        <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
-          <Ionicons name="briefcase-outline" size={48} color={theme.colors.textSecondary} />
-          <Text className="text-muted-foreground text-base font-medium">
-            {t('profile.jobs.empty', { defaultValue: 'No jobs yet' })}
-          </Text>
-        </View>
+        <EmptyState
+          title={t('profile.jobs.empty', { defaultValue: 'No jobs yet' })}
+          sticker="profileJobs"
+          containerStyle={{ minHeight: 200 }}
+        />
       ) : (
         jobs.map((job) => <OrganizationJobRow key={job.id} job={job} />)
       )}
@@ -531,12 +525,11 @@ const ProfileStarterPacks = memo(function ProfileStarterPacks({
 
   if (packs.length === 0) {
     return (
-      <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
-        <StarterPackIcon size={48} className="text-muted-foreground" />
-        <Text className="text-muted-foreground text-base font-medium">
-          {t('profile.starterPacks.empty', { defaultValue: 'No starter packs yet' })}
-        </Text>
-      </View>
+      <EmptyState
+        title={t('profile.starterPacks.empty', { defaultValue: 'No starter packs yet' })}
+        sticker="profileStarterPacks"
+        containerStyle={{ minHeight: 200 }}
+      />
     );
   }
 
@@ -562,7 +555,6 @@ const ProfileLists = memo(function ProfileLists({
   isOwnProfile: boolean;
   viewerId?: string;
 }) {
-  const theme = useTheme();
   const { t } = useTranslation();
 
   // React Query (keyed on the profile + ownership) replaces the per-tab
@@ -611,12 +603,11 @@ const ProfileLists = memo(function ProfileLists({
 
   if (lists.length === 0) {
     return (
-      <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
-        <RiListUnordered size="3xl" fill={theme.colors.textSecondary} />
-        <Text className="text-muted-foreground text-base font-medium">
-          {t('profile.lists.empty', { defaultValue: 'No lists yet' })}
-        </Text>
-      </View>
+      <EmptyState
+        title={t('profile.lists.empty', { defaultValue: 'No lists yet' })}
+        sticker="profileLists"
+        containerStyle={{ minHeight: 200 }}
+      />
     );
   }
 

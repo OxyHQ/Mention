@@ -12,6 +12,7 @@ import { trendingService } from '@/services/trendingService';
 import { publicQueryKeys } from '@/lib/viewerQueryKeys';
 import { buildTrendTree, type TrendTreeNode } from '@/utils/trendGraphTree';
 import { useTrendNavigation } from '@/hooks/useTrendNavigation';
+import { EmptyState } from '@/components/common/EmptyState';
 
 /**
  * Trend relations (route `/trend-graph`).
@@ -120,9 +121,11 @@ export default function TrendGraphScreen() {
             </TouchableOpacity>
           </View>
         ) : isEmpty ? (
-          <Text className="px-4 py-10 text-center font-primary text-sm text-muted-foreground leading-6">
-            {t('trendGraph.empty')}
-          </Text>
+          <EmptyState
+            title={t('trendGraph.empty')}
+            sticker="trendGraph"
+            containerStyle={{ paddingTop: 40 }}
+          />
         ) : (
           <>
             {tree.stories.length > 0 ? (

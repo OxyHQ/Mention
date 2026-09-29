@@ -26,7 +26,6 @@ import { Avatar } from '@oxy.so/bloom/avatar';
 import { MEDIA_VARIANT_AVATAR } from '@mention/shared-types/post';
 import { SEO } from '@/components/SEO';
 import { EmptyState } from '@/components/common/EmptyState';
-import { Video } from '@/assets/icons/video-icon';
 import { HeartIcon, HeartIconActive } from '@/assets/icons/heart-icon';
 import { CommentIcon } from '@/assets/icons/comment-icon';
 import { BoostIcon, BoostIconActive } from '@/assets/icons/boost-icon';
@@ -2126,7 +2125,7 @@ export default function VideosScreen() {
                     <EmptyState
                         title={t('videos.no_video_posts_yet')}
                         subtitle={t('videos.no_posts_found')}
-                        customIcon={<Video size={48} className="text-muted-foreground" />}
+                        sticker="videosTab"
                         containerStyle={styles.emptyState}
                     />
                 )}

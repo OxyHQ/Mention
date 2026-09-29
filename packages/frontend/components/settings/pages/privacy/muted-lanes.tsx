@@ -141,7 +141,7 @@ export default function MutedLanesScreen() {
                   title={t("lanes.muted.empty", {
                     defaultValue: "No muted lanes",
                   })}
-                  icon={{ name: "volume-mute-outline", size: 48 }}
+                  sticker="mutedLanes"
                 />
               </View>
             ) : (

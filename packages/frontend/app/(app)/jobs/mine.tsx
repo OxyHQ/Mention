@@ -22,6 +22,7 @@ import { displayNameOrHandle } from '@/utils/displayName';
 import { SignInRequired } from '@/components/common/SignInRequired';
 import { jobsService, getJobErrorMessage } from '@/services/jobsService';
 import { viewerQueryKeys } from '@/lib/viewerQueryKeys';
+import { EmptyState } from '@/components/common/EmptyState';
 
 type JobAction = 'publish' | 'pause' | 'close' | 'duplicate';
 
@@ -189,19 +190,18 @@ export default function MyJobsScreen() {
       {header}
       <ScrollView className="flex-1" contentContainerClassName="pb-10">
         {jobs.length === 0 ? (
-          <View className="items-center justify-center py-16 gap-3 px-8">
-            <Text className="text-foreground text-base font-semibold text-center">
-              {t('jobs.mine.emptyTitle', { defaultValue: 'No jobs yet' })}
-            </Text>
-            <Text className="text-muted-foreground text-sm text-center">
-              {t('jobs.mine.emptySubtitle', {
-                defaultValue: 'Create a job listing for an organization or project account you operate.',
-              })}
-            </Text>
-            <Button appearance="solid" tone="accent" size="md" onPress={() => router.push('/jobs/create')}>
-              {t('jobs.mine.create', { defaultValue: 'Create job' })}
-            </Button>
-          </View>
+          <EmptyState
+            title={t('jobs.mine.emptyTitle', { defaultValue: 'No jobs yet' })}
+            subtitle={t('jobs.mine.emptySubtitle', {
+              defaultValue: 'Create a job listing for an organization or project account you operate.',
+            })}
+            action={{
+              label: t('jobs.mine.create', { defaultValue: 'Create job' }),
+              onPress: () => router.push('/jobs/create'),
+            }}
+            sticker="jobsMine"
+            containerStyle={{ paddingTop: 40 }}
+          />
         ) : (
           <View className="px-4 gap-3 mt-2">
             {jobs.map((job) => {

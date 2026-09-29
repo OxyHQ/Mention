@@ -1,12 +1,11 @@
 import React, { memo } from 'react';
 import { View, Text } from 'react-native';
-import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@oxy.so/bloom/button';
 import { ProfileCard, ProfileCardSkeletonList } from '@/components/ProfileCard';
 import { formatRelativeTimeLocalized } from '@/utils/dateUtils';
 import { useChannelWriters } from './hooks/useChannelWriters';
+import { EmptyState } from '@/components/common/EmptyState';
 
 /**
  * A CHANNEL's writers — the people it has already NAMED on its posts.
@@ -46,7 +45,6 @@ export const ProfileWriters = memo(function ProfileWriters({
 }: {
   channelOxyUserId?: string;
 }) {
-  const theme = useTheme();
   const { t } = useTranslation();
   const { writers, loading, hasMore, loadingMore, loadMore } = useChannelWriters(channelOxyUserId);
 
@@ -56,18 +54,15 @@ export const ProfileWriters = memo(function ProfileWriters({
 
   if (writers.length === 0) {
     return (
-      <View className="items-center justify-center p-8 gap-3" style={{ minHeight: 200 }}>
-        <RiEditLine size="3xl" fill={theme.colors.textSecondary} />
-        <Text className="text-muted-foreground text-base font-medium">
-          {t('channels.writers.empty', { defaultValue: 'No writers yet' })}
-        </Text>
-        <Text className="text-muted-foreground text-sm text-center">
-          {t('channels.writers.emptyDetail', {
-            defaultValue:
-              'This channel names the person who wrote each post. None have been published yet.',
-          })}
-        </Text>
-      </View>
+      <EmptyState
+        title={t('channels.writers.empty', { defaultValue: 'No writers yet' })}
+        subtitle={t('channels.writers.emptyDetail', {
+          defaultValue:
+            'This channel names the person who wrote each post. None have been published yet.',
+        })}
+        sticker="channelWriters"
+        containerStyle={{ minHeight: 200 }}
+      />
     );
   }
 

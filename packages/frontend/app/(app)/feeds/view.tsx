@@ -88,7 +88,7 @@ export default function PresetFeedViewScreen() {
             }
             return (
                 <EmptyState
-                    icon={{ name: 'lock-closed-outline' }}
+                    sticker="operatorOnly"
                     title={t('feeds.view.signInRequired.title', { defaultValue: 'Sign in to view this feed' })}
                     subtitle={t('feeds.view.signInRequired.subtitle', { defaultValue: 'This feed is personalized to your account.' })}
                     containerStyle={{ paddingTop: 60 }}
