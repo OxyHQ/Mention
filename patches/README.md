@@ -63,3 +63,32 @@ applied to `src`, `lib/module` and `lib/commonjs`: the modal tracks whether it
 is wanted open, a close cancels the pending enter frame, and a modal closed
 before it was ever shown unmounts at once. Remove it when Mention moves to a
 Bloom release that includes #250.
+
+# @shopify/flash-list 2.3.2
+
+`stickyHeaderConfig.offset` does two things. It sets where a stuck header sits,
+and it also puts a zero-height measuring view with `marginTop: offset` in front
+of the list content, which pushes every row down by the offset. FlashList
+documents the offset for a fixed bar ABOVE the list. Bloom's composition for a
+native list BEHIND an overlaying `PageHeader` (docs `page-header.mdx`, "Banner
+and docked tabs"; `layout.mdx`) passes `useHeaderDockInset()` as that offset, so
+the tab strip docks under the header. The push then starts the list below the
+header too, and a profile's banner can never reach behind the status bar and
+notch.
+
+The patch drops the `marginTop`, so the offset only places the stuck header.
+FlashList's sticky math already accounts for the offset
+(`findCurrentStickyIndex(…, scroll + offset)`, `top: offset`), so a header still
+sticks exactly at the header's bottom edge.
+
+Measured on a Pixel 8a release build:
+- Before: the list content started at y=268 (the 121 px status bar plus the
+  147 px bar), under an opaque band.
+- After: the banner starts at y=0 behind the status bar, and the header is
+  transparent at rest.
+- The Posts, Media and Likes tabs all dock their strip under the header.
+
+In Mention only the profile passes a non-zero offset: `useHeaderDockInset()` is
+0 outside its `HeaderDockProvider`. Present since `offset` was introduced in
+2.2.0, and still in 2.3.2. Remove the patch when FlashList separates the sticky
+offset from a content inset.

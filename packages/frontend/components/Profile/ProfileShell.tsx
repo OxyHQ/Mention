@@ -144,11 +144,12 @@ function ProfileShellBody({
   const stickyTabs = tabBar ? (
     <StickySection
       testID="profile-sticky-tabs"
-      // Web measures the section's document position. Native virtualized lists
-      // already place the row after the summary; their offset is only the
-      // overlay header inset. Passing the summary height here makes FlashList
-      // reserve that height a second time and creates the large native gap.
-      offset={IS_WEB ? summaryHeight : headerInset}
+      // Native: the strip's Y in the list content, which is the measured header
+      // block above it. Bloom docks the page header when the strip reaches its
+      // bottom edge. Passing the header inset instead made the dock progress 1
+      // at rest, so the header drew docked over the banner. The list's own
+      // sticky clearance is `headerInset`, below. Web measures itself.
+      offset={IS_WEB ? undefined : summaryHeight}
     >
       {tabBar}
     </StickySection>
