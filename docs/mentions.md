@@ -37,10 +37,18 @@ child registry drifting from compose, threads, variants, drafts, or edit mode.
 When the cursor is inside an `@` token without a space or newline, it opens
 `MentionPicker`.
 
-`packages/frontend/components/MentionPicker.tsx` waits 300 ms after at least one
-query character, then searches Oxy profiles with a limit of ten through the
-composer session's search cache (`utils/mentionSearch.ts`, provided by
-`context/MentionSearchContext.tsx`). Selecting a valid profile records:
+`hooks/useMentionSearchResults.ts` waits 300 ms after at least one query
+character, then searches Oxy profiles with a limit of ten through the composer
+session's search cache (`utils/mentionSearch.ts`, provided by
+`context/MentionSearchContext.tsx`); a query the session already searched is
+answered at once, and one still pending never shows the previous query's
+accounts. `packages/frontend/components/MentionPicker.tsx` is Bloom's
+`SuggestionList` (`kind="mention"`, from `@oxy.so/bloom/chat-composer`): Bloom
+draws the rows, the verified badge, the "Searching…" and "No people found"
+lines and the listbox semantics — there is no app-side list UI. The input owns
+the highlight: on web ↑/↓ move it (wrapping), Enter or Tab takes it and Escape
+closes the list; on native the rows are tapped, because a phone's return key
+cannot be kept from breaking the line. Selecting a valid profile records:
 
 ```ts
 {

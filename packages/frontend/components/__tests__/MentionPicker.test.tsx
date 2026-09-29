@@ -1,123 +1,82 @@
 import React from 'react';
-import { Text } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import MentionPicker from '../MentionPicker';
-import { createMentionSearchCache, type MentionUser } from '@/utils/mentionSearch';
+import type { MentionUser } from '@/utils/mentionSearch';
 
-jest.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key }),
+let mockListProps: Record<string, unknown> | null = null;
+jest.mock('@oxy.so/bloom/chat-composer', () => ({
+  SuggestionList: (props: Record<string, unknown>) => {
+    mockListProps = props;
+    return null;
+  },
 }));
-jest.mock('@oxy.so/bloom/card', () => {
-  const { View } = jest.requireActual('react-native');
-  return { Card: ({ children }: { children: React.ReactNode }) => <View>{children}</View> };
-});
-jest.mock('@oxy.so/bloom/loading', () => {
-  const { Text: RNText } = jest.requireActual('react-native');
-  return { Loading: () => <RNText>loading</RNText> };
-});
-jest.mock('@oxy.so/bloom/avatar', () => ({ Avatar: () => null }));
-jest.mock('@/components/UserName', () => {
-  const { Text: RNText } = jest.requireActual('react-native');
-  return { __esModule: true, default: ({ handle }: { handle: string }) => <RNText>{`@${handle}`}</RNText> };
-});
-jest.mock('@/components/common/EmptyState', () => {
-  const { Text: RNText } = jest.requireActual('react-native');
-  return { EmptyState: ({ title }: { title: string }) => <RNText>{title}</RNText> };
-});
 
-const alice: MentionUser = { id: 'alice-id', username: 'alice' };
-
-function texts(renderer: TestRenderer.ReactTestRenderer): string[] {
-  return renderer.root.findAllByType(Text).map((node) => String(node.props.children));
-}
+const alice: MentionUser = {
+  id: 'alice-id',
+  username: 'alice',
+  displayName: 'Alice',
+  avatar: 'file-alice',
+  verified: true,
+};
+const bob: MentionUser = { id: 'bob-id', username: 'bob' };
 
 beforeAll(() => {
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 });
 
-afterEach(() => {
-  jest.useRealTimers();
+beforeEach(() => {
+  mockListProps = null;
 });
 
+function render(props: Partial<React.ComponentProps<typeof MentionPicker>> = {}) {
+  const onSelect = jest.fn();
+  const onActiveIndexChange = jest.fn();
+  act(() => {
+    TestRenderer.create(
+      <MentionPicker
+        users={[alice, bob]}
+        loading={false}
+        activeIndex={1}
+        onActiveIndexChange={onActiveIndexChange}
+        onSelect={onSelect}
+        {...props}
+      />,
+    );
+  });
+  return { onSelect, onActiveIndexChange };
+}
+
 describe('MentionPicker', () => {
-  it('shows what the session already searched for without asking again', async () => {
-    const fetchUsers = jest.fn(async () => [alice]);
-    const cache = createMentionSearchCache(fetchUsers);
-    await cache.search('ali');
+  it('is Bloom\'s people list, naming each account once and marking the verified', () => {
+    render();
 
-    let renderer!: TestRenderer.ReactTestRenderer;
-    act(() => {
-      renderer = TestRenderer.create(
-        <MentionPicker query="ali" searchCache={cache} onSelect={jest.fn()} onClose={jest.fn()} />,
-      );
-    });
-
-    expect(texts(renderer)).toEqual(['@alice']);
-    expect(fetchUsers).toHaveBeenCalledTimes(1);
+    expect(mockListProps?.kind).toBe('mention');
+    expect(mockListProps?.suggestions).toEqual([
+      { id: 'alice-id', label: 'Alice', handle: '@alice', avatar: 'file-alice', verified: true },
+      // No display name: the handle IS the name, not repeated beside itself.
+      { id: 'bob-id', label: '@bob', handle: undefined, avatar: undefined, verified: undefined },
+    ]);
+    expect(mockListProps?.activeIndex).toBe(1);
+    // A picker the author opened answers "nobody" rather than vanishing.
+    expect(mockListProps?.showEmpty).toBe(true);
   });
 
-  it('searches through the cache after the debounce, and says so when nobody matches', async () => {
-    jest.useFakeTimers();
-    const fetchUsers = jest.fn(async (query: string) => (query === 'ali' ? [alice] : []));
-    const cache = createMentionSearchCache(fetchUsers);
-    const onSelect = jest.fn();
-    const onClose = jest.fn();
-
-    let renderer!: TestRenderer.ReactTestRenderer;
-    act(() => {
-      renderer = TestRenderer.create(
-        <MentionPicker query="ali" searchCache={cache} onSelect={onSelect} onClose={onClose} />,
-      );
-    });
-    expect(fetchUsers).not.toHaveBeenCalled();
-
-    await act(async () => {
-      jest.advanceTimersByTime(300);
-    });
-    expect(fetchUsers).toHaveBeenCalledWith('ali');
-    expect(texts(renderer)).toEqual(['@alice']);
+  it('selects the account behind the chosen row and reports the pointer\'s highlight', () => {
+    const { onSelect, onActiveIndexChange } = render();
 
     act(() => {
-      renderer.root.findByProps({ className: 'border-b-border' }).props.onPress();
+      (mockListProps?.onSelectSuggestion as (s: unknown, index: number) => void)({}, 1);
+      (mockListProps?.onActiveIndexChange as (index: number) => void)(0);
     });
-    expect(onSelect).toHaveBeenCalledWith(alice);
-    expect(onClose).toHaveBeenCalled();
 
-    act(() => {
-      renderer.update(
-        <MentionPicker query="zed" searchCache={cache} onSelect={onSelect} onClose={onClose} />,
-      );
-    });
-    await act(async () => {
-      jest.advanceTimersByTime(300);
-    });
-    expect(texts(renderer)).toEqual(['No users found']);
+    expect(onSelect).toHaveBeenCalledWith(bob);
+    expect(onActiveIndexChange).toHaveBeenCalledWith(0);
   });
 
-  it('shows nothing for an empty query and survives a failed search', async () => {
-    jest.useFakeTimers();
-    const error = jest.spyOn(console, 'error').mockImplementation(() => undefined);
-    const cache = createMentionSearchCache(async () => {
-      throw new Error('offline');
-    });
+  it('hands the pending search to Bloom\'s searching line', () => {
+    render({ users: [], loading: true });
 
-    let renderer!: TestRenderer.ReactTestRenderer;
-    act(() => {
-      renderer = TestRenderer.create(
-        <MentionPicker query="" searchCache={cache} onSelect={jest.fn()} onClose={jest.fn()} />,
-      );
-    });
-    expect(renderer.toJSON()).toBeNull();
-
-    act(() => {
-      renderer.update(
-        <MentionPicker query="ali" searchCache={cache} onSelect={jest.fn()} onClose={jest.fn()} />,
-      );
-    });
-    await act(async () => {
-      jest.advanceTimersByTime(300);
-    });
-    expect(texts(renderer)).toEqual(['No users found']);
-    error.mockRestore();
+    expect(mockListProps?.loading).toBe(true);
+    expect(mockListProps?.suggestions).toEqual([]);
   });
 });
