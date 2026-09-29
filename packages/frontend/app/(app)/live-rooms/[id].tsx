@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useContext } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Share } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQueries } from '@tanstack/react-query';
-import { queryKeys } from '@oxy.so/services';
+import { queryKeys } from '@oxy.so/services/ui/client';
 import type { User } from '@oxy.so/core';
 import { useSafeBack } from '@/hooks/useSafeBack';
 import { toast } from '@oxy.so/bloom/toast';

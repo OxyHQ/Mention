@@ -23,7 +23,7 @@ import { cacheActor, cacheActors, noteIdentityChanged } from '../actorCache';
 
 const mockUpsertCachedUser = jest.fn();
 const mockUpsertCachedUsers = jest.fn();
-jest.mock('@oxy.so/services', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   upsertCachedUser: (...args: unknown[]) => mockUpsertCachedUser(...args),
   upsertCachedUsers: (...args: unknown[]) => mockUpsertCachedUsers(...args),
 }));
@@ -302,7 +302,8 @@ describe('the door is the only way in', () => {
       const source = fs.readFileSync(file, 'utf8');
       // The IMPORT, not a mention in prose — several files name these helpers in
       // their docstrings, and a docstring cannot walk around anything.
-      return /import\s*\{[^}]*\bupsertCachedUsers?\b[^}]*\}\s*from\s*['"]@oxy\.so\/services['"]/.test(
+      // Either SDK entry: the root barrel or the lean `ui/client` (services 9.2).
+      return /import\s*\{[^}]*\bupsertCachedUsers?\b[^}]*\}\s*from\s*['"]@oxy\.so\/services(?:\/ui\/client)?['"]/.test(
         source,
       );
     });

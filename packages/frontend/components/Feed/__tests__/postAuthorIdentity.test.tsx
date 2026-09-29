@@ -23,7 +23,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 
 jest.mock('@/lib/oxyServices', () => ({ oxyServices: {} }));
 jest.mock('@/utils/api', () => ({ authenticatedClient: {}, publicClient: {} }));
-jest.mock('@oxy.so/services', () => ({
+jest.mock('@oxy.so/services/ui/client', () => ({
   upsertCachedUser: jest.fn(),
   upsertCachedUsers: jest.fn(),
 }));

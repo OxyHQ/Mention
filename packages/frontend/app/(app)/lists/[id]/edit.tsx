@@ -15,7 +15,7 @@ import { RiAlertLine } from '@oxy.so/bloom/icons/RiAlertLine';
 import { RiCheckboxCircleFill } from '@oxy.so/bloom/icons/RiCheckboxCircleFill';
 import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiIndeterminateCircleFill } from '@oxy.so/bloom/icons/RiIndeterminateCircleFill';
-import { queryKeys } from '@oxy.so/services';
+import { queryKeys } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useTranslation } from 'react-i18next';
 

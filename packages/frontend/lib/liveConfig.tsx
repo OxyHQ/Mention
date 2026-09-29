@@ -1,7 +1,7 @@
 import type { LiveConfig, LiveTheme, UserEntity } from '@syra.fm/sdk';
 import type { ComponentType } from 'react';
 import type { ViewStyle } from 'react-native';
-import { queryKeys } from '@oxy.so/services';
+import { queryKeys } from '@oxy.so/services/ui/client';
 import { SYRA_SOCKET_URL } from '@/config';
 import { syraLinkedClient } from '@/lib/syraApi';
 import { useTheme as useBloomTheme } from '@oxy.so/bloom/theme';

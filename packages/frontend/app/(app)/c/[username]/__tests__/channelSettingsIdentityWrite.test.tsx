@@ -46,19 +46,17 @@ jest.mock('@/lib/actorCache', () => ({
  * apart — and `lib/__tests__/actorCache.test.ts` pins the forwarding contract
  * against the shape the real helper returns.
  */
-jest.mock('@oxy.so/services', () => ({
+
+const mockUpdateAccount = jest.fn();
+const mockListAccounts = jest.fn();
+
+jest.mock('@oxy.so/services/ui/client', () => ({
   clearedFieldsFromAccountUpdate: (input: { bio?: string | null; avatar?: string | null }) => {
     const cleared: string[] = [];
     if ('bio' in input && !input.bio) cleared.push('bio');
     if ('avatar' in input && !input.avatar) cleared.push('avatar');
     return cleared;
   },
-}));
-
-const mockUpdateAccount = jest.fn();
-const mockListAccounts = jest.fn();
-
-jest.mock('@oxy.so/services/ui/client', () => ({
   OxyAuthPrompt: () => null,
   useAuth: () => ({
     user: { id: 'viewer-1', username: 'operator' },

@@ -10,7 +10,7 @@
  * already stored.
  */
 
-import type { CacheableUser } from '@oxy.so/services';
+import type { CacheableUser } from '@oxy.so/services/ui/client';
 import { cacheActors } from '@/lib/actorCache';
 
 /**

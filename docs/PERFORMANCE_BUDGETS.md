@@ -19,10 +19,10 @@ past any of:
 
 | Budget | Ceiling |
 | --- | --- |
-| Total bytes | 18 MiB |
-| JavaScript bytes | 14.5 MiB |
-| Initial JavaScript bytes | 7.25 MiB |
-| Initial JavaScript gzip bytes | 1.85 MiB (target: 1.6 MiB) |
+| Total bytes | 19.8 MiB |
+| JavaScript bytes | 16.45 MiB |
+| Initial JavaScript bytes | 6.9 MiB |
+| Initial JavaScript gzip bytes | 1.78 MiB (target: 1.6 MiB) |
 | Font bytes | 4 MiB |
 | Largest single file | 7.5 MiB |
 
@@ -92,12 +92,24 @@ replies panel, the settings dialog, the Syra rooms engine (via
 | Initial JavaScript brotli bytes | 1.60 MiB | 1.35 MiB | — | — |
 
 The ceilings sit ~5 % above the measured build and move down with each
-further cut; they are never raised to make a PR pass.
+further cut: after #1244 (lean SDK entries, Bloom's on-demand languages, the
+notification validators out of startup) the export measured 6.57 MiB initial /
+1.70 MiB gzip, so they are 6.9 / 1.78 MiB. They are never raised to make a PR
+pass.
 
 `bundle-budgets.json` also lists `deferredSources`: modules that must load on
 demand. `analyze-bundle --ci` fails when one appears in an initial chunk, and
 when an entry matches no module in the export (a rename must not leave a guard
 that guards nothing).
+
+The two TOTAL ceilings were raised again by Bloom 5.4.1 (#1244), from 18 to
+19.8 MiB and from 15 to 16.45 MiB: the build measured 18.88 / 15.67 MiB. Bloom
+now ships English inline and every other language as one on-demand module
+covering all its families (`@oxy.so/bloom` 5.3+), so ~1.4 MiB of translations
+moved OUT of the initial JavaScript, where every reader downloaded the strings
+of all fifteen languages for the families on the page, INTO fourteen language
+chunks of which a reader downloads one (56–190 KB minified, ~20 KB brotli). The
+initial ceilings did not move; the initial JavaScript fell.
 
 ### Real-browser release gate
 

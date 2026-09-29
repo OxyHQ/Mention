@@ -21,7 +21,7 @@ import {
 import { useTheme } from "@oxy.so/bloom/theme";
 import type { User } from "@oxy.so/core";
 import { createLogger } from "@oxy.so/core/logger";
-import { queryKeys } from "@oxy.so/services";
+import { queryKeys } from "@oxy.so/services/ui/client";
 import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

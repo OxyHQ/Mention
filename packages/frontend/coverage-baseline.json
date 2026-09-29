@@ -2,24 +2,24 @@
   "$comment": "Machine-recorded by `bun run --cwd packages/frontend coverage:record`. Do not hand-edit: a lowered number here is a lowered gate, and coverage-policy.json's base-revision check refuses one that is not listed in allowedBaselineDecreases.",
   "total": {
     "statements": {
-      "pct": 42.26,
-      "covered": 11392,
-      "total": 26956
+      "pct": 42.58,
+      "covered": 11482,
+      "total": 26965
     },
     "branches": {
-      "pct": 36.71,
-      "covered": 7119,
-      "total": 19388
+      "pct": 37.03,
+      "covered": 7181,
+      "total": 19390
     },
     "functions": {
-      "pct": 37.46,
-      "covered": 2576,
-      "total": 6876
+      "pct": 37.81,
+      "covered": 2602,
+      "total": 6880
     },
     "lines": {
-      "pct": 43,
-      "covered": 10362,
-      "total": 24096
+      "pct": 43.32,
+      "covered": 10443,
+      "total": 24104
     }
   },
   "pins": {
@@ -540,10 +540,10 @@
       "lines": 0
     },
     "hooks/useRealtimeNotifications.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 67,
+      "branches": 52,
+      "functions": 60,
+      "lines": 70
     },
     "hooks/useRealtimePosts.ts": {
       "statements": 90,
@@ -1098,10 +1098,10 @@
       "lines": 0
     },
     "services/notificationService.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 21,
+      "branches": 66,
+      "functions": 16,
+      "lines": 21
     },
     "services/pokeService.ts": {
       "statements": 0,
@@ -1518,10 +1518,10 @@
       "lines": 100
     },
     "utils/mentions.ts": {
-      "statements": 92,
-      "branches": 68,
-      "functions": 88,
-      "lines": 96
+      "statements": 98,
+      "branches": 90,
+      "functions": 100,
+      "lines": 100
     },
     "utils/mergeBioAndProfileLinks.ts": {
       "statements": 100,
@@ -1530,10 +1530,10 @@
       "lines": 100
     },
     "utils/notificationCache.ts": {
-      "statements": 0,
-      "branches": 0,
-      "functions": 0,
-      "lines": 0
+      "statements": 41,
+      "branches": 29,
+      "functions": 52,
+      "lines": 39
     },
     "utils/notifications.ts": {
       "statements": 0,

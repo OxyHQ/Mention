@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { queryKeys } from '@oxy.so/services';
+import { queryKeys } from '@oxy.so/services/ui/client';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { APP_COLOR_PRESETS, useBloomTheme, type AppColorName } from '@oxy.so/bloom/theme';
 import { logger } from '@oxy.so/core/logger';

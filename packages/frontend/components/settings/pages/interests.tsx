@@ -11,7 +11,7 @@ import { Loading } from "@oxy.so/bloom/loading";
 import { Search } from "@oxy.so/bloom/search";
 import { SettingsCard, SettingsSection } from "@oxy.so/bloom/settings-modal";
 import type { TopicData } from "@oxy.so/core";
-import { resolveFollowPrimaryAction, useFollowTarget } from "@oxy.so/services";
+import { resolveFollowPrimaryAction, useFollowTarget } from "@oxy.so/services/ui/client";
 import { OxyAuthPrompt, useAuth } from "@oxy.so/services/ui/client";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";

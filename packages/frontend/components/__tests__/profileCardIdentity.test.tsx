@@ -57,10 +57,14 @@ const mockFollowButtonUsernames: (string | undefined)[] = [];
 jest.mock('@oxy.so/services/ui/client', () => {
   const { TouchableOpacity } = jest.requireActual<typeof import('react-native')>('react-native');
   const ReactActual = jest.requireActual<typeof import('react')>('react');
-  return { FollowButton: ({ onFollowChange, username }: { onFollowChange?: (next: boolean) => void; username?: string }) => {
-    mockFollowButtonUsernames.push(username);
-    return ReactActual.createElement(TouchableOpacity, { testID: 'follow-control', onPress: () => onFollowChange?.(true) });
-  } };
+  return {
+    upsertCachedUser: jest.fn(),
+    upsertCachedUsers: jest.fn(),
+    FollowButton: ({ onFollowChange, username }: { onFollowChange?: (next: boolean) => void; username?: string }) => {
+      mockFollowButtonUsernames.push(username);
+      return ReactActual.createElement(TouchableOpacity, { testID: 'follow-control', onPress: () => onFollowChange?.(true) });
+    },
+  };
 });
 jest.mock('@oxy.so/bloom/typography', () => {
   const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
@@ -80,10 +84,6 @@ jest.mock('react-i18next', () => ({
 }));
 jest.mock('@/lib/queryClient', () => ({
   queryClient: { invalidateQueries: jest.fn() },
-}));
-jest.mock('@oxy.so/services', () => ({
-  upsertCachedUser: jest.fn(),
-  upsertCachedUsers: jest.fn(),
 }));
 jest.mock('@/utils/userPlaceholderColor', () => ({
   getUserPlaceholderColor: () => '#888888',
