@@ -77,10 +77,12 @@ export interface EmptyStateProps {
   customIcon?: ReactNode;
   /**
    * A sticker from Oxy's catalogue above the title, by its name in
-   * `lib/stickers.ts`. Wins over `icon` (Bloom's `illustration` does). Not used
-   * for `error`: a failure keeps its quiet glyph.
+   * `lib/stickers.ts`. Wins over `icon` (Bloom's `illustration` does). With
+   * `error` it defaults to `loadError` (or `offline` for the connection glyph).
    */
   sticker?: EmptyStateStickerName;
+  /** Below the action — a second, quieter way out (Bloom's `footer`). */
+  footer?: ReactNode;
   containerStyle?: ViewStyle;
   testID?: string;
 }
@@ -104,6 +106,7 @@ export const EmptyState = memo<EmptyStateProps>(function EmptyState({
   action,
   customIcon,
   sticker,
+  footer,
   containerStyle,
   testID,
 }) {
@@ -123,15 +126,15 @@ export const EmptyState = memo<EmptyStateProps>(function EmptyState({
   const glyph = icon ? ICONS[icon.name] : undefined;
 
   if (error) {
+    // Every failure gets a sticker: the offline one when the call site asks for
+    // the connection glyph, the "could not load" one otherwise, unless it names
+    // its own. The tinted alarm disc stays retired — a sticker is not an alarm,
+    // and a transient backend hiccup must still read as a calm retry.
+    const errorSticker: EmptyStateStickerName =
+      sticker ?? (icon?.name === 'cloud-offline-outline' ? 'offline' : 'loadError');
     return (
       <BloomEmptyState
-        // No glyph means NO disc, which is the point: a transient backend
-        // hiccup reads as a calm retry, and the tinted alarm disc is reserved
-        // for the one failure a reader can act on. A production incident put
-        // that disc in front of every reader during a blip; the guard is
-        // `components/Feed/__tests__/feedEmptyState.test.tsx`.
-        icon={glyph}
-        media={glyph ? 'circle' : undefined}
+        illustration={customIcon ?? <EmptyStateSticker name={errorSticker} />}
         title={error.title}
         description={error.message}
         action={
@@ -139,14 +142,13 @@ export const EmptyState = memo<EmptyStateProps>(function EmptyState({
             ? { label: 'Try again', onPress: handleRetry, icon: RiRefreshLine, loading: isRetrying }
             : undefined
         }
+        footer={footer}
         style={containerStyle}
         testID={testID}
       />
     );
   }
 
-  // The old component rendered nothing at all with no title, no subtitle and no
-  // glyph. Bloom would draw an empty block, so the guard stays.
   if (!title && !subtitle && !customIcon && !icon && !sticker) return null;
 
   const illustration = customIcon ?? (sticker ? <EmptyStateSticker name={sticker} /> : undefined);
@@ -155,6 +157,7 @@ export const EmptyState = memo<EmptyStateProps>(function EmptyState({
     <BloomEmptyState
       icon={glyph}
       illustration={illustration}
+      footer={footer}
       title={title}
       description={subtitle}
       action={

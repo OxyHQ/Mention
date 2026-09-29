@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, ViewStyle } from 'react-native';
+import React from 'react';
+import { View, type ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
-import { RiErrorWarningFill } from '@oxy.so/bloom/icons/RiErrorWarningFill';
-import { RiRefreshLine } from '@oxy.so/bloom/icons/RiRefreshLine';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { EmptyState } from '@/components/common/EmptyState';
 import { flattenStyleArray } from '@/styles/shared';
 
 interface ErrorProps {
@@ -19,6 +17,10 @@ interface ErrorProps {
   style?: ViewStyle;
 }
 
+/**
+ * A whole screen that failed to load: the shared EmptyState in its error form
+ * — the "could not load" sticker, a retry — with a quieter way back beneath it.
+ */
 export function Error({
   title = 'Something went wrong',
   message = 'An unexpected error occurred. Please try again.',
@@ -28,9 +30,7 @@ export function Error({
   style,
 }: ErrorProps) {
   const router = useRouter();
-  const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const [isRetrying, setIsRetrying] = useState(false);
 
   const handleGoBack = () => {
     if (onGoBack) {
@@ -42,19 +42,6 @@ export function Error({
     }
   };
 
-  const handleRetry = async () => {
-    if (!onRetry || isRetrying) return;
-    const result = onRetry();
-    if (result instanceof Promise) {
-      setIsRetrying(true);
-      try {
-        await result;
-      } finally {
-        setIsRetrying(false);
-      }
-    }
-  };
-
   return (
     <View
       className="flex-1 justify-center items-center py-8 px-6"
@@ -63,53 +50,20 @@ export function Error({
         style,
       ])}
     >
-      <View className="items-center max-w-[320px] w-full">
-        <View
-          className="w-[72px] h-[72px] rounded-full justify-center items-center mb-3"
-          style={{ backgroundColor: theme.colors.errorSubtle }}
-        >
-          <RiErrorWarningFill width={36} height={36} fill={theme.colors.error} />
-        </View>
-
-        <Text
-          className="text-lg font-bold text-center text-foreground mb-1.5"
-          style={{ letterSpacing: -0.3 }}
-        >
-          {title}
-        </Text>
-
-        <Text
-          className="text-sm text-center text-muted-foreground mb-4"
-          style={{ lineHeight: 20 }}
-        >
-          {message}
-        </Text>
-
-        <View className="w-full items-center gap-3">
-          {onRetry && (
-            <Button
-              appearance="solid" tone="accent"
-              leadingIcon={RiRefreshLine}
-              loading={isRetrying}
-              onPress={handleRetry}
-              className="min-w-[140px]"
-            >
-              Try again
-            </Button>
-          )}
-
-          {!hideBackButton && (
-            <Button
-              appearance="subtle" tone="neutral"
-              leadingIcon={RiArrowLeftLine}
-              onPress={handleGoBack}
-              className="min-w-[140px]"
-            >
+      <EmptyState
+        error={{
+          title,
+          message,
+          onRetry: onRetry ? async () => { await onRetry(); } : undefined,
+        }}
+        footer={
+          hideBackButton ? undefined : (
+            <Button appearance="subtle" tone="neutral" leadingIcon={RiArrowLeftLine} onPress={handleGoBack}>
               {router.canGoBack() ? 'Go back' : 'Go home'}
             </Button>
-          )}
-        </View>
-      </View>
+          )
+        }
+      />
     </View>
   );
 }
