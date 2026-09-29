@@ -72,6 +72,12 @@ const MENTION_CSP_EXTENSIONS = {
     'https://bandcamp.com',
   ],
   workerSrc: ['blob:'],
+  // Compiling WebAssembly, and nothing else: `eval` and `new Function` stay
+  // refused. Stickers animate on the web with dotLottie, whose renderer is
+  // ThorVG compiled to WebAssembly; the binary is served from this origin
+  // (`frontend/lib/lottieWeb.web.ts`), so no script source is added. Without
+  // it Bloom's `Sticker` still works — it shows the still image.
+  scriptSrc: ["'wasm-unsafe-eval'"],
 } satisfies OxyCspExtensions;
 
 /**

@@ -1,11 +1,11 @@
 import { memo } from 'react';
 import { View, Text } from 'react-native';
-import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import type { FeedType } from '@mention/shared-types';
 import type { FeedFailureKind } from '@/utils/feedRetry';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Loading } from '@oxy.so/bloom/loading';
+import { FeedEmptySticker } from '@/components/Feed/FeedEmptySticker';
 
 interface FeedEmptyStateProps {
     isLoading: boolean;
@@ -82,18 +82,7 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
             <EmptyState
                 title={copy.title}
                 subtitle={copy.subtitle}
-                customIcon={
-                    /* Decorative: EmptyState already announces the title and
-                       subtitle as a single accessibility element. */
-                    <Image
-                        source={require('@/assets/images/empty-state-illustration.png')}
-                        style={{ width: 120, maxWidth: '100%', aspectRatio: 258 / 134 }}
-                        contentFit="contain"
-                        alt=""
-                        accessibilityElementsHidden
-                        importantForAccessibility="no"
-                    />
-                }
+                customIcon={<FeedEmptySticker />}
             />
         );
     }
