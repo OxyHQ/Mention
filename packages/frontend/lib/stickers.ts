@@ -153,6 +153,13 @@ export const EMPTY_STATE_STICKERS = {
   /** 🤞 harvest-season (fingerscrossed) */
   subscriptions: '01a0eadb-4b0d-780a-97eb-f7ca286c7908',
   operatorOnly: INTROVERT_NOPE,
+
+  // Something went wrong: every error state gets one, by default (see
+  // `components/common/EmptyState.tsx`)
+  /** 😵‍💫 school-days (dizzy) — could not load, something went wrong. */
+  loadError: '01a0eadb-a89b-7b15-b07e-779c938c26c3',
+  /** 😞 escape-from-reality (defeated) — no connection. */
+  offline: '01a0eadb-146d-7d9e-99ec-e96a6c9dd671',
 } as const;
 
 export type EmptyStateStickerName = keyof typeof EMPTY_STATE_STICKERS;
