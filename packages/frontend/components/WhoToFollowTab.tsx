@@ -187,7 +187,7 @@ export function WhoToFollowTab({ listHeaderComponent }: WhoToFollowTabProps = {}
         ListEmptyComponent={
           <EmptyState
             title={t('No recommendations available')}
-            icon={{ name: 'people-outline' }}
+            sticker="connectionsRecommendations"
           />
         }
         onEndReached={handleLoadMore}

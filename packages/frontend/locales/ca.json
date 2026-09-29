@@ -2568,5 +2568,10 @@
   "connections.profileNotFound": "Aquest compte no existeix, així que no té seguidors per mostrar.",
   "saved.createFolderFailed": "No s'ha pogut crear la carpeta. Torna-ho a provar.",
   "profile.loadFailed": "No s'ha pogut carregar aquest perfil. Comprova la connexió i torna-ho a provar.",
-  "profile.notFound.gone": "Aquest compte no existeix o ja no està disponible."
+  "profile.notFound.gone": "Aquest compte no existeix o ja no està disponible.",
+  "notFound": {
+    "title": "Aquesta pàgina no existeix",
+    "subtitle": "Pot ser que l'enllaç estigui trencat o que la pàgina s'hagi mogut.",
+    "goHome": "Ves a l'inici"
+  }
 }

@@ -79,14 +79,21 @@ jest.mock('@/components/ProfileCard', () => {
 jest.mock('@/components/common/EmptyState', () => {
   const { Pressable, Text: RNText, View: RNView } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
-    EmptyState: ({ title, action, error }: {
+    // Two empty states share this component: the missing profile (sticker
+    // `profileNotFound`) and an empty list, told apart by the sticker.
+    EmptyState: ({ title, action, error, sticker }: {
       title?: string;
       action?: { label: string; onPress: () => void };
       error?: { message: string; onRetry?: () => Promise<void> };
+      sticker?: string;
     }) => error ? (
       <Pressable testID="connections-error" onPress={() => { void error.onRetry?.(); }}>
         <RNText>{error.message}</RNText>
       </Pressable>
+    ) : sticker !== 'profileNotFound' ? (
+      <RNView testID="connections-empty" accessibilityHint={sticker}>
+        <RNText>{title}</RNText>
+      </RNView>
     ) : (
       <RNView testID="profile-not-found">
         <RNText>{title}</RNText>
@@ -233,6 +240,9 @@ describe.each(['followers', 'following'])('the %s route', (tab) => {
     expect(byTestId(tree, 'profile-not-found')).toHaveLength(0);
     expect(texts(tree)).toContain('count:0');
     expect(texts(tree)).toContain(tab === 'followers' ? 'No followers yet' : 'Not following anyone yet');
+    const empty = byTestId(tree, 'connections-empty');
+    expect(empty).toHaveLength(1);
+    expect(empty[0].props.accessibilityHint).toBe(tab === 'followers' ? 'connectionsFollowers' : 'connectionsFollowing');
   });
 });
 

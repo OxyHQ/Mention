@@ -126,7 +126,7 @@ export default function ListsScreen() {
     <EmptyState
       title={t('lists.empty.title')}
       subtitle={t('lists.empty.subtitle')}
-      customIcon={<List size={48} className="text-muted-foreground" />}
+      sticker="lists"
       action={{
         label: t('lists.createList'),
         onPress: () => router.push('/lists/create'),

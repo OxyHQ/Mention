@@ -363,7 +363,7 @@ export default function LanesScreen() {
                             <View className="py-4">
                                 <EmptyState
                                     title={t('lanes.empty', { defaultValue: 'No lanes yet' })}
-                                    icon={{ name: 'git-branch-outline', size: 48 }}
+                                    sticker="lanes"
                                 />
                             </View>
                         ) : (

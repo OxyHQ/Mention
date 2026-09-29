@@ -404,7 +404,7 @@ export default function FeedMarketplaceScreen() {
             ? t('marketplace.emptySearchSubtitle', { defaultValue: 'Try a different search term or category' })
             : t('marketplace.emptySubtitle', { defaultValue: 'Be the first to create a feed in this category' })
         }
-        customIcon={<RiSearchLine width={52} height={52} fill={theme.colors.textSecondary} />}
+        sticker="feedStore"
       />
     );
   }, [loading, debouncedSearch, theme, t]);

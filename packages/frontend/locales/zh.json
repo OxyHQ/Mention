@@ -2540,5 +2540,10 @@
   "connections.profileNotFound": "此账号不存在，因此没有可显示的关注者。",
   "saved.createFolderFailed": "无法创建文件夹。请重试。",
   "profile.loadFailed": "无法加载此个人资料。请检查网络连接后重试。",
-  "profile.notFound.gone": "此账号不存在或已不可用。"
+  "profile.notFound.gone": "此账号不存在或已不可用。",
+  "notFound": {
+    "title": "此页面不存在",
+    "subtitle": "链接可能已失效，或页面已被移动。",
+    "goHome": "返回首页"
+  }
 }

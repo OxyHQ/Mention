@@ -1,12 +1,17 @@
-import { Link } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { Text } from '@oxy.so/bloom/typography';
 
+import { EmptyState } from '@/components/common/EmptyState';
 import { SEO } from '@/components/SEO';
 
+/**
+ * A route that does not exist. Drawn by the same Bloom empty state as every
+ * other empty screen, with its catalogue sticker, and one way out: home.
+ */
 export default function NotFoundScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
 
   return (
     <>
@@ -14,25 +19,19 @@ export default function NotFoundScreen() {
         title={t('seo.notFound.title')}
         description={t('seo.notFound.description')}
       />
-      <View style={styles.container}>
-        <Text className="text-[32px] leading-8 font-bold text-foreground">This screen does not exist.</Text>
-        <Link href="/" style={styles.link}>
-          <Text className="text-base leading-[30px] text-primary">Go to home screen!</Text>
-        </Link>
+      <View className="flex-1 items-center justify-center">
+        <EmptyState
+          sticker="notFound"
+          title={t('notFound.title', { defaultValue: 'This page does not exist' })}
+          subtitle={t('notFound.subtitle', {
+            defaultValue: 'The link may be broken, or the page may have moved.',
+          })}
+          action={{
+            label: t('notFound.goHome', { defaultValue: 'Go to home' }),
+            onPress: () => router.replace('/'),
+          }}
+        />
       </View>
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  link: {
-    marginTop: 15,
-    paddingVertical: 15,
-  },
-});

@@ -1226,7 +1226,7 @@ export default function SearchIndex() {
                         <EmptyState
                             title={t("search.noResults", "No results found")}
                             subtitle={t("search.tryDifferent", "Try searching for something else")}
-                            customIcon={<SearchIcon size={48} className="text-muted-foreground" />}
+                            sticker="searchNoResults"
                         />
                     );
 
@@ -1337,7 +1337,7 @@ export default function SearchIndex() {
             <EmptyState
                 title={t("search.startSearching", "Search Mention")}
                 subtitle={t("search.startDescription", "Find people, posts, hashtags, and more")}
-                customIcon={<SearchIcon size={48} className="text-muted-foreground" />}
+                sticker="searchIdle"
             />
         ) : null;
 

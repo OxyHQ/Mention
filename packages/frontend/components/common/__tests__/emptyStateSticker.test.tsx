@@ -1,5 +1,5 @@
 /**
- * The empty feed's picture is the catalogue's sad-bear sticker: resolved by id
+ * An empty state's picture is a catalogue sticker (here the feed's sad bear): resolved by id
  * through `@oxy.so/stickers`, drawn by Bloom's `Sticker` (stubbed in
  * `test-support/bloomSticker.js`, which keeps the props on the node), and a
  * fixed-size blank until it resolves so the copy below it does not jump.
@@ -10,8 +10,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StickersProvider } from '@oxy.so/stickers/react';
 import type { StickersClient } from '@oxy.so/stickers';
 
-import { FeedEmptySticker } from '../FeedEmptySticker';
-import { FEED_EMPTY_STICKER_ID } from '@/lib/stickers';
+import { EmptyStateSticker } from '../EmptyStateSticker';
+import { EMPTY_STATE_STICKERS } from '@/lib/stickers';
+
+const FEED_EMPTY_STICKER_ID = EMPTY_STATE_STICKERS.feedFollowing;
 
 const SAD_BEAR = {
     id: FEED_EMPTY_STICKER_ID,
@@ -32,7 +34,7 @@ async function renderWith(getSticker: StickersClient['getSticker']): Promise<Tes
         renderer = TestRenderer.create(
             <QueryClientProvider client={queryClient}>
                 <StickersProvider client={client}>
-                    <FeedEmptySticker />
+                    <EmptyStateSticker name="feedFollowing" />
                 </StickersProvider>
             </QueryClientProvider>,
         );

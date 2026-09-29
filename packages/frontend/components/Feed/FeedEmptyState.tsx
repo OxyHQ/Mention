@@ -5,7 +5,7 @@ import type { FeedType } from '@mention/shared-types';
 import type { FeedFailureKind } from '@/utils/feedRetry';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Loading } from '@oxy.so/bloom/loading';
-import { FeedEmptySticker } from '@/components/Feed/FeedEmptySticker';
+import type { EmptyStateStickerName } from '@/lib/stickers';
 
 interface FeedEmptyStateProps {
     isLoading: boolean;
@@ -82,13 +82,54 @@ export const FeedEmptyState = memo<FeedEmptyStateProps>(
             <EmptyState
                 title={copy.title}
                 subtitle={copy.subtitle}
-                customIcon={<FeedEmptySticker />}
+                sticker={emptySticker(type, { showOnlySaved, isThread })}
             />
         );
     }
 );
 
 FeedEmptyState.displayName = 'FeedEmptyState';
+
+/**
+ * Which catalogue sticker an empty feed shows, per kind of feed — chosen with
+ * the same cases as {@link emptyCopy}, so a feed's picture and its words agree.
+ * Names resolve in `lib/stickers.ts`.
+ */
+export function emptySticker(
+    type: FeedType,
+    { showOnlySaved, isThread }: { showOnlySaved?: boolean; isThread?: boolean } = {},
+): EmptyStateStickerName {
+    if (showOnlySaved) return 'saved';
+    switch (type) {
+        case 'posts':
+            return 'profilePosts';
+        case 'media':
+            return 'profileMedia';
+        case 'videos':
+            return 'profileVideos';
+        case 'replies':
+            return isThread ? 'threadNoReplies' : 'profileReplies';
+        case 'boosts':
+            return 'profileBoosts';
+        case 'mentions':
+            return 'profileMentions';
+        case 'likes':
+            return 'profileLikes';
+        case 'explore':
+            return 'feedExplore';
+        case 'for_you':
+            return 'feedForYou';
+        case 'hashtag':
+            return 'feedHashtag';
+        case 'custom':
+            return 'feedCustom';
+        case 'saved':
+            return 'saved';
+        case 'following':
+        default:
+            return 'feedFollowing';
+    }
+}
 
 type Translate = ReturnType<typeof useTranslation>['t'];
 
