@@ -311,3 +311,31 @@ on touch, arrows beside the title on wide screens). People are vertical tiles
 - Instant post-detail: memory-mode feeds seed the shared post cache
   (`postsStore.cachePosts`) in `useFeedState`; `app/(app)/p/[id].tsx` paints
   from cache + background-revalidates (`revalidatePostById`).
+
+Hydration loads viewer languages, author settings, privacy lists and the follow
+graph concurrently, then resolves channel authority after those inputs settle.
+Privacy failures still reject hydration. Authors and declared mentions share one
+identity batch; unresolved mentions stay in the request-local map so each post or
+language variant cannot retry the same failed identity. They never enter the
+shared identity cache, so the next request can retry.
+
+The regression harness uses real PostgreSQL rows and a 40 ms simulated identity
+service round trip. Run from `packages/backend` with `TEST_DATABASE_URL` configured:
+
+```bash
+bun run test src/__tests__/services/postHydrationLatency.test.ts --reporter=verbose --disableConsoleIntercept
+```
+
+On a 20-post page with distinct authors and mentions, the measured cold hydration
+latencies before/after this change were 124/82 ms (anonymous), 209/88 ms
+(authenticated), and 87/46 ms (preloaded feed context). Identity batches fell
+from 2 to 1, 3 to 2, and 2 to 1 respectively. Warm pages made no Oxy user-summary calls.
+These are controlled local measurements, not production latency guarantees;
+the tests enforce batching and concurrency rather than wall-clock thresholds.
+
+The production web export was also exercised in Chromium against a local MTN
+controller and migrated database, with simulated Oxy identities, at 1440 px and
+390 px widths. Cold app first-row times were 1260/1211 ms; reloads were
+1026/1011 ms. Both layouts fetched and rendered the next page without script
+errors. This verifies the changed backend's browser integration, not native-device
+or production-network performance.
